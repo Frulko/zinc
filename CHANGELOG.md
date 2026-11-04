@@ -9,6 +9,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Figma component contracts connect real native Slider, Switch, virtualized lists and sticky chat containers to TypeScript. Zinc Live shows connectors and emitted events, extracts photo backgrounds separately from text, and can export the selected app’s controller. `app/maison` demonstrates a responsive Home Assistant remote with simulated devices and a native WebSocket client.
+- Zinc Live’s **Exporter le projet…** saves a standalone project with named TSX components, TypeScript action connectors and bundled assets. Exports capture the displayed revision and create a fresh folder to preserve earlier code edits.
+- Zinc Live connects Figma to a persistent native Mac companion with viewport, connection, prototype and motion controls; `tools/figma-live --make-app` creates a local Finder launcher. Text uses real font files, icons use SVG, and exports retain Figma component, palette and typography definitions. `--lan` uses the existing Zinc Go development route.
+- `zinc:ui.registerFont(name, file)` lets native Text use a runtime TrueType file for both layout and rendering, via `font-[name]`.
 - `examples/glass-icon-reveal` adapts Zanwei Guo's glass reveal to a native Zinc scene with GPU refraction, light/dark looks and touch, mouse and keyboard playback controls, using the shared Mac, Android and Pi shader API.
 - A dedicated manual Pi image workflow produces a checked `.img.xz` for Etcher or Raspberry Pi Imager from a verified signed ARM64 engine release. `tools/pi-image configure <boot-dir> [profile.json]` applies saved login, Wi-Fi and SSH settings to a freshly flashed card without rebuilding it.
 - On the ESP32-2432S022 under `--engine mquickjs`, the BOOT button is pin 0 of `zinc:gpio` (read and watch it), and holding it 3 s turns the board off, as `device.powerOff()` does; RST, or the battery's button, turns it on again. The widgets' System page has a Turn off button.
@@ -63,6 +67,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc dev` starts a program that has not changed since its last start without compiling it again (a `zinc:ui` app with the inspector: 0.6 s to 0.02 s), as `zinc run` already did; a windowed `zinc run` on a machine with no C++ compiler does too, and a change to a `tsconfig.json`, a `package.json` or a file added beside a source now compiles again.
 
 ### Fixed
+- Zinc Live redraws the native preview when Figma changes a component; a successful code refresh can no longer leave the previous screen displayed.
 - Pi images apply the configured login password even when Raspberry Pi OS has already renamed the account. Failed first-boot setup now keeps cloud-init, the initramfs and the settings available for recovery instead of deleting them.
 - Music Tree uses the Pi screen’s native resolution and adapts its player, navigation, grids, settings and overlays to compact landscape or portrait screens; short views scroll so controls remain reachable. Clock, weather and room-volume views also fit narrow screens.
 - Pi engine updates also install the matching display session and agent service from the signed package, restoring both on rollback or interrupted activation. Existing images need the new updater helper once; reflashing is not required.

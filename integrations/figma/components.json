@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "components": {
+    "51940f280b824608f08fb5a3b6a8e4445ca49957": {
+      "kind": "Slider",
+      "properties": {
+        "min": "Min",
+        "max": "Max",
+        "step": "Step",
+        "value": "Value"
+      },
+      "inputs": {
+        "value": "Outlet"
+      },
+      "events": {
+        "change": "Action"
+      }
+    },
+    "e0b306d81f1bf280bd380e3e2b7657e456cc12ee": {
+      "kind": "Switch",
+      "properties": {
+        "checked": "Checked"
+      },
+      "inputs": {
+        "value": "Outlet"
+      },
+      "events": {
+        "change": "Action"
+      }
+    },
+    "6d7959986e03f34c698978f819c2819e54eaace1": {
+      "kind": "ScrollView",
+      "properties": {
+        "stickToBottom": "StickToBottom"
+      },
+      "inputs": {
+        "value": "Outlet"
+      }
+    },
+    "24fda0ffe6b3574ebb223967039c8eb6abfce271": {
+      "kind": "VirtualList",
+      "properties": {
+        "itemHeight": "ItemHeight"
+      },
+      "inputs": {
+        "items": "Items"
+      },
+      "template": "DeviceRow"
+    }
+  }
+}

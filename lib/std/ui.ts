@@ -7,7 +7,7 @@ import {
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
-  escapeByApp, escapeDefault, stroke, polygon,
+  escapeByApp, escapeDefault, stroke, polygon, loadFont,
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId,
 } from 'zinc:gfx';
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
@@ -2821,8 +2821,18 @@ function inheritText(n: UiNode): void {
   if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.transform = t.transform; n.tsX = t.tsX; n.tsY = t.tsY; n.tsColor = t.tsColor; n.tsAlpha = t.tsAlpha; n.ws = t.ws; n.brk = t.brk; n.clamp = t.clamp; n.ellipsis = t.ellipsis; n.balance = t.balance; n.deco = t.deco; n.decoC = t.decoC; n.wordSp = t.wordSp; n.vshift = t.vshift; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
 }
 const WEIGHT_FACE: string[] = ['Thin', 'ExtraLight', 'Light', '', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'];   // 100..900 ('' is the family file itself)
+const fontNames: string[] = [], fontFiles: string[] = [];
+/** Register one runtime font face; use its name with font-[name]. The file is read with the app's fs permissions. */
+export function registerFont(name: string, file: string): void {
+  const i = fontNames.indexOf(name);
+  if (i >= 0) { if (fontFiles[i] === file) return; fontFiles[i] = file; }
+  else { fontNames.push(name); fontFiles.push(file); }
+  for (const n of nodes) if (n.alive && n.family === name) rebuildStyle(n);
+}
 /** The baked face of one family for a weight: the nearest weight the family has (lighter first below 600, heavier first from 600), italic = the real Italic face or the baked slant (Name~i). -1: none. */
 function familyFace(fam: string, weight: i32, italic: boolean, px: i32): i32 {
+  const registered = fontNames.indexOf(fam);
+  if (registered >= 0) return loadFont(fontFiles[registered], px);
   if (fam === 'sans' && fontSans !== '') { const f = familyFace(fontSans, weight, italic, px); if (f >= 0) return f; }
   const want = Math.max(0, Math.min(8, Math.round(weight / 100) - 1));
   for (let k = 0; k < 9; k++) {

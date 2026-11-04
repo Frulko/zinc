@@ -131,6 +131,16 @@ export function createMemo<T>(fn: () => T, init: T): () => T {
   return () => { track(s); return s.value; };
 }
 export function createRoot<T>(fn: () => T): T { return fn(); }
+/** An imperative host owns this JSX subtree and must dispose it before replacing its nodes. */
+export class Subtree { node: i32 = -1; dispose: () => void = NOOP; }
+export function createSubtree(make: () => i32): Subtree {
+  const root = newRoot(null), po = owner, pc = current, tree = new Subtree();
+  tree.dispose = (): void => dispose(root);
+  try { owner = root; current = null; tree.node = make(); }
+  catch (e) { dispose(root); throw e; }
+  finally { owner = po; current = pc; }
+  return tree;
+}
 export function untrack<T>(fn: () => T): T {
   const prev = current;
   current = null;

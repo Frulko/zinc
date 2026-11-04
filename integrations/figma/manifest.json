@@ -1,0 +1,13 @@
+{
+  "name": "Zinc Live",
+  "id": "zinc-live-development",
+  "api": "1.0.0",
+  "editorType": ["figma"],
+  "main": "code.js",
+  "ui": "ui.html",
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["http://localhost:7331"],
+    "reasoning": "Send the selected design to your paired local Zinc preview. No cloud service."
+  }
+}

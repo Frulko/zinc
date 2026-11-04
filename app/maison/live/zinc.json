@@ -1,0 +1,24 @@
+{
+  "name": "Maison \u2014 Zinc Live",
+  "entry": "../live.tsx",
+  "app": {
+    "id": "dev.zinc.maison-live",
+    "name": "Maison Live",
+    "version": "0.1.0"
+  },
+  "permissions": [
+    "fs",
+    "net",
+    "clipboard"
+  ],
+  "ui": {
+    "layout": "rn"
+  },
+  "targets": {
+    "macos": {
+      "width": 1500,
+      "height": 1000,
+      "resize": "fill"
+    }
+  }
+}

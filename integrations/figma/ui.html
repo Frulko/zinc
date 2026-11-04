@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="fr"><meta charset="utf-8"><title>Zinc Live</title>
+<style>
+:root{color-scheme:light dark;--bg:var(--figma-color-bg,#faf9f6);--ink:var(--figma-color-text,#20251f);--muted:var(--figma-color-text-secondary,#72776c);--line:var(--figma-color-border,#dfe2d9)}
+*{box-sizing:border-box}body{margin:0;padding:24px;background:var(--bg);color:var(--ink);font:12px/1.5 -apple-system,BlinkMacSystemFont,sans-serif}header{display:flex;align-items:center;justify-content:space-between}h1{font:29px/1 Georgia,serif;letter-spacing:-1px;margin:0}header span{font-size:10px;letter-spacing:1.5px;color:var(--muted)}h2{font-size:19px;line-height:1.3;margin:29px 0 8px;font-weight:550}p{color:var(--muted);margin:0 0 18px}button,input{font:inherit}button{cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:11px 14px;background:transparent;color:var(--ink)}button:disabled{opacity:.5;cursor:default}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid #66983c;outline-offset:3px}#start{width:100%;background:#d8eea6;border-color:#c6df8e;color:#24321b;font-weight:650}#screen{padding:12px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#status{border-top:1px solid var(--line);padding-top:14px;min-height:48px;margin-top:18px}#status[data-error=true]{color:var(--figma-color-text-danger,#b33d30)}details{margin-top:14px}summary{color:var(--muted);cursor:pointer}label{display:block;margin:12px 0 5px}input{width:100%;padding:9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}small{display:block;color:var(--muted);margin-top:6px}#warnings{white-space:pre-wrap;max-height:90px;overflow:auto;margin-top:8px;font-size:11px;color:var(--muted)}#pause{width:100%;margin-top:8px}[hidden]{display:none!important}
+</style>
+<header><h1>Zinc<span style="color:#739d31">.</span></h1><span>LIVE PREVIEW</span></header>
+<h2>Votre écran prend vie.</h2><p>Dessinez dans Figma.<br>Retrouvez vos changements dans Zinc.</p>
+<div id="screen">Sélectionnez un écran dans Figma.</div>
+<button id="start" disabled>Voir en direct</button><button id="pause" hidden>Mettre en pause</button>
+<button id="demo" style="width:100%;margin-top:8px">Créer un écran d’essai</button>
+<details><summary>Typographies & ressources</summary>
+<label for="text-mode">Typographies</label><select id="text-mode"><option value="auto">Vraies polices · texte natif</option><option value="outlines">Contours SVG · conversion explicite</option></select>
+<label for="lottie">Associer un Lottie au calque sélectionné</label><input id="lottie" type="file" accept=".json,application/json"><small>Lottie vectoriel JSON, 48 Ko maximum. L’animation est attachée au Frame ou rectangle sélectionné.</small></details>
+<div id="status" role="status" aria-live="polite">Prêt quand vous l’êtes.</div><div id="warnings"></div>
+<details id="connection"><summary>Connexion au Mac</summary><label for="url">Lien de connexion</label><input id="url" placeholder="http://localhost:7331/#…" autocomplete="off" spellcheck="false"><small>Lancez tools/figma-live, puis collez le lien affiché.</small></details>
+<script>
+const $ = id => document.getElementById(id);
+const post = message => parent.postMessage({pluginMessage:message}, '*');
+let running = false, pending = null, sending = false, generation = 0, latestRevision = 0;
+function status(text, error = false) { $('status').textContent = text; $('status').dataset.error = String(error); }
+function connection() {
+  let url;
+  try { url = new URL($('url').value.trim()); }
+  catch { throw Error('Collez le lien affiché par tools/figma-live dans « Connexion au Mac ».'); }
+  if (url.origin !== 'http://localhost:7331' || url.username || url.password || !/^#[a-f0-9]{48}$/.test(url.hash)) throw Error('Collez le lien affiché par tools/figma-live.');
+  return { origin:url.origin, token:url.hash.slice(1) };
+}
+function stop() { running = false; generation++; pending = null; post({type:'stop'}); $('pause').hidden = true; $('start').textContent = 'Voir en direct'; }
+$('start').onclick = () => {
+  try { connection(); post({type:'pair',url:$('url').value.trim()}); generation++; latestRevision = 0; running = true; $('pause').hidden = false; $('start').textContent = 'Voir cet écran'; status('Lecture de votre écran…'); post({type:'start'}); }
+  catch(e) { $('connection').open = true; $('url').focus(); status(e.message, true); }
+};
+$('pause').onclick = () => { stop(); status('En pause. Votre aperçu reste ouvert.'); };
+$('demo').onclick = () => { status('Création de votre écran d’essai…'); post({type:'demo'}); };
+$('text-mode').onchange = () => post({type:'options',textMode:$('text-mode').value});
+$('lottie').onchange = async () => {
+  try {
+    const file = $('lottie').files[0]; if (!file) return;
+    if (file.size > 48000) throw Error('Choisissez un Lottie JSON de 48 Ko maximum.');
+    const json = await file.text(); JSON.parse(json);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = ''; for (const byte of bytes) binary += String.fromCharCode(byte);
+    post({type:'attach-lottie',json,base64:btoa(binary)});
+    status('Animation associée au calque.');
+  } catch(e) { status(e.message,true); }
+};
+setInterval(async () => {
+  try {
+    const c = connection();
+    const r = await fetch(c.origin + '/heartbeat', {method:'POST',headers:{Authorization:'Bearer '+c.token,'Content-Type':'application/json'},body:JSON.stringify({live:running}),signal:AbortSignal.timeout(3000)});
+    if (!r.ok) return;
+    const state = await r.json();
+    if (running && latestRevision > 0 && state.applied >= latestRevision) status('Affiché dans Zinc · en direct');
+  } catch { /* The next explicit send gives the connection error and a recovery action. */ }
+}, 1500);
+async function flush() {
+  if (sending || !pending || !running) return;
+  sending = true;
+  latestRevision = 0;
+  const msg = pending, current = generation; pending = null;
+  try {
+    const c = connection();
+    const r = await fetch(c.origin + '/design', {method:'POST', headers:{'Authorization':'Bearer '+c.token,'Content-Type':'application/json'},body:JSON.stringify(msg.document),signal:AbortSignal.timeout(40000)});
+    const result = await r.json();
+    if (!r.ok) throw Error(result.error || 'Le pont Zinc a refusé cet écran.');
+    if (running && generation === current) { latestRevision = result.revision; status('Reçu par Zinc · mise à jour de l’aperçu…'); $('warnings').textContent = msg.warnings.join('\n'); }
+  } catch(e) {
+    if (running && generation === current) { stop(); status(e.message === 'Failed to fetch' ? 'Connexion perdue. Relancez tools/figma-live, puis reconnectez-vous.' : e.message, true); $('connection').open = true; }
+  } finally { sending = false; flush(); }
+}
+window.onmessage = e => {
+  // Figma relays plugin messages through its sandbox; source need not be the direct parent.
+  if (!e.data || !e.data.pluginMessage) return;
+  const m = e.data.pluginMessage;
+  if (m.type === 'pairing' && !$('url').value) $('url').value = m.url;
+  if (m.type === 'selection') { $('screen').textContent = running && m.pinned ? 'En direct · '+m.pinned : m.name || 'Sélectionnez un écran dans Figma.'; $('start').disabled = !m.name; }
+  if (m.type === 'snapshot' && running) { pending = m; flush(); }
+  if (m.type === 'error') { stop(); status(m.message, true); }
+  if (m.type === 'ready') status('Votre écran est prêt. Lancez « Voir en direct ».');
+  if (m.type === 'stopped') { stop(); status('Nouvelle page. Sélectionnez un écran pour reprendre.'); }
+};
+post({type:'selection'});
+</script></html>

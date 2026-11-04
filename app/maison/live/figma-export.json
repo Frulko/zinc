@@ -1,0 +1,17 @@
+{
+  "root": "..",
+  "entry": "export-entry.tsx",
+  "sources": [
+    "controller.tsx",
+    "client.ts"
+  ],
+  "imports": {
+    "../figma-live/scene": "./generated/scene",
+    "../figma-live/native": "./generated/native",
+    "../figma-live/model": "./generated/model"
+  },
+  "credits": [
+    "assets/SOURCES.md",
+    "assets/Lucide-LICENSE.txt"
+  ]
+}
