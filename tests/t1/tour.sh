@@ -26,7 +26,10 @@ grep -q '^  src/main.ts:1:[0-9]*: error Z0101: ' b.out && grep -q '^Z0101: Canno
 # the save comes 1 s after zinc dev starts: swapped in (v1 refreshed); a machine so loaded that the program was not running yet starts it again
 grep -Eq 'zinc dev changed the program while it ran: (v1 refreshed src/main.ts|v2 started)' b.out || { echo "no Fast Refresh at step 5: $(sed -n '/Step 5/,/Step 6/p' b.out)"; fail=1; }
 [ -f walk-cli/zinc.json ] && grep -q 'start/choose/' b.out && grep -q 'docs/learn/' b.out || { echo "steps 6 and 7: $(sed -n '/Step 6/,/Step 8/p' b.out)"; fail=1; }
-pgrep -f "$Z (run|dev)" >/dev/null && { echo "zinc dev or its program is still running"; pkill -f "$Z (run|dev)"; fail=1; }
+# only this test's: another test or session may be running the same binary, and is not ours to judge or to kill (a process whose folder is under $tmp).
+# zinc run gives a program its name by running it from $ZINC_HOME/cache/run/names/<name>: that is what ps shows of it
+ours=$(for p in $(pgrep -f "$Z (run|dev)|$ZINC_HOME/cache/run/names/"); do lsof -a -p "$p" -d cwd -Fn 2>/dev/null | grep -q "^n$tmp/" && echo "$p"; done)
+[ -z "$ours" ] || { echo "zinc dev or its program is still running: $ours"; kill $ours; fail=1; }
 
 # at a terminal: tour.py <keys...> -- argv; each key waits for its text (before '=>'), then types the rest, or runs it in a shell after '!'
 cat > tour.py <<'PY'
