@@ -1,0 +1,5 @@
+{
+  "name": "sonos-lastfm",
+  "entry": "src/main.ts",
+  "app": { "id": "dev.zinc.sonos-lastfm", "version": "0.1.0" }
+}
