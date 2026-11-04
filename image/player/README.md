@@ -12,8 +12,9 @@ when it crashed. It exits with 10 to have the session start the app.
   starts what it is doing (the job systemd runs, from `zinc-admin status`).
 - **Crash**: the app's exit status, time and last lines, with "Restart the app" and "Dismiss".
 - **Settings** (the gear): Wi-Fi (scan, join with the on-screen keyboard, forget, the country), remote access (the agent, a
-  pairing code, SSH, the Pi's name), preferences (background, animation, QWERTY or AZERTY keyboard) and system (model, versions,
+  pairing code, SSH, the Pi's name), preferences (background, animation, QWERTY or AZERTY keyboard), screen (how long before it turns off, the transition, turn off now) and system (model, versions,
   temperature, memory, storage, restart, shut down).
+- **Sleep**: after the delay with no input (5 minutes by default) the screen fades to black and its light goes off; the frame loop draws nothing. On a panel with a backlight (the DSI screens) the panel stays on, so its touch still answers; on HDMI the output goes off. The touch that wakes it presses nothing. An app under the shell keeps the screen on with `navigator.wakeLock.request('screen')`, and a kiosk app always does.
 - **Updates**: compatible stable engine versions, a newer-version icon in the top bar, explicit installation confirmation,
   progress/errors and restoration of the saved previous engine/player. Engine changes repack the same player sources on the Pi;
   the code stays unchanged. Wi-Fi also has **Restart network**, with confirmation because remote sessions can disconnect.

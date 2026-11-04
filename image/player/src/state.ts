@@ -609,6 +609,18 @@ export function setAnimationEnabled(isOn: boolean): void {
   uiState.dirty = true;
 }
 
+export function setSleepDelay(seconds: number): void {
+  appState.config.sleepDelaySeconds = seconds;
+  saveConfig(configPath, appState.config);
+  uiState.dirty = true;
+}
+
+export function setSleepFade(seconds: number): void {
+  appState.config.sleepFadeSeconds = seconds;
+  saveConfig(configPath, appState.config);
+  uiState.dirty = true;
+}
+
 export function setKeyboardLayout(layout: string): void {
   appState.config.keyboardLayout = layout === KEYBOARD_AZERTY ? KEYBOARD_AZERTY : KEYBOARD_QWERTY;
   saveConfig(configPath, appState.config);

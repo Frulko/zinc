@@ -13,6 +13,9 @@ export interface Spec extends NativeModule {
   onPlane(): boolean;
   responding(): boolean;
   serial(): i32;
+  setAsleep(on: boolean): void;
+  activity(): i32;
+  keepAwake(): boolean;
   onExit(cb: (name: string, status: i32) => void): void;
 }
 export default requireNative<Spec>('Shell');

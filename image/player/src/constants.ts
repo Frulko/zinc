@@ -48,6 +48,25 @@ export const SECTION_REMOTE = 'remote';
 export const SECTION_PREFERENCES = 'preferences';
 export const SECTION_SYSTEM = 'system';
 export const SECTION_UPDATES = 'updates';
+export const SECTION_SCREEN = 'screen';
+
+export class SleepOption {
+  label: string;
+  seconds: number;
+  constructor(label: string, seconds: number) {
+    this.label = label;
+    this.seconds = seconds;
+  }
+}
+/** The screen's delay with no input before it turns off; 0: never. */
+export const SLEEP_DELAYS: SleepOption[] = [
+  new SleepOption('30 s', 30), new SleepOption('1 min', 60), new SleepOption('2 min', 120),
+  new SleepOption('5 min', 300), new SleepOption('10 min', 600), new SleepOption('Never', 0),
+];
+/** How long the screen fades to black and back; 0: at once. */
+export const SLEEP_FADES: SleepOption[] = [
+  new SleepOption('None', 0), new SleepOption('Quick', 0.3), new SleepOption('Smooth', 0.6), new SleepOption('Slow', 1.5),
+];
 
 export const KEYBOARD_QWERTY = 'qwerty';
 export const KEYBOARD_AZERTY = 'azerty';

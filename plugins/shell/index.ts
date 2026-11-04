@@ -47,5 +47,11 @@ export function barHeight(): number { return S.barHeight(); }
 export function responding(): boolean { return S.responding(); }
 /** Grows with each frame of the app and each change of its image: redraw when it changed, keep() otherwise. */
 export function serial(): number { return S.serial(); }
+/** The screen sleeps (on) or is awake: while it sleeps, and until the press that woke it is let go, no input reaches the shell or the app. */
+export function setAsleep(on: boolean): void { S.setAsleep(on); }
+/** Grows with each frame that had input (a touch, a key, the mouse), whoever it went to: the app's input is taken out of the shell's own. */
+export function activity(): number { return S.activity(); }
+/** True when the screen must stay on: the shown app holds navigator.wakeLock or is a kiosk, or another program has the screen. */
+export function keepAwake(): boolean { return S.keepAwake(); }
 /** An app started by start() ended (status: its exit code, 128 + the signal when killed), or an app the shell did not start left. */
 export function onExit(cb: (name: string, status: number) => void): void { S.onExit((name: string, status: i32) => { cb(name, status); }); }

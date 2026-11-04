@@ -6,7 +6,8 @@
 //   ├── PageContainer: the page mounted (HomePageNode, AppsPageNode, CrashPageNode or SettingsPageNode)
 //   ├── TopBarNode (0, 0, width, TOP_BAR_HEIGHT)
 //   ├── DeleteAppDialogNode: "Delete this app?", over everything while it is asked
-//   └── TextFormNode: the form and the on-screen keyboard, over everything while a value is asked
+//   ├── TextFormNode: the form and the on-screen keyboard, over everything while a value is asked
+//   └── SleepVeilNode: the black veil of the screen's sleep transition
 //
 // A frame is drawn only when something changed (`uiState.dirty`): an input, an answer of zinc-admin, the clock's
 // minute, a frame of the home page's animation. For tests: ZINC_PLAYER_TRACE_FRAMES=1 prints "drawn <frame>" for each
@@ -29,6 +30,7 @@ import {
   pointerDown,
   pointerX,
   pointerY,
+  rrect,
   scrollDY,
   setCursor,
   startTextInput,
@@ -41,6 +43,7 @@ import * as fs from 'zinc:fs';
 import * as shell from 'zinc:shell';
 import { PAGE_APP, PAGE_APPS, PAGE_CRASH, PAGE_HUB, PAGE_SETTINGS, TOP_BAR_HEIGHT } from './constants';
 import { DisplayObject, Stage } from './core/display';
+import { screenPower } from './core/screen-power';
 import {
   ScrollBox,
   TouchZone,
@@ -86,6 +89,15 @@ let readyWritten: boolean = false;
 // The tree, built once
 // ----------------------------------------------------------------------------
 
+class SleepVeilNode extends DisplayObject {
+  constructor() {
+    super('SleepVeil');
+  }
+  override onDraw(veilWidth: number, veilHeight: number): void {
+    if (screenPower.veil > 0) rrect(0, 0, veilWidth, veilHeight, 0, 0x000000, Math.round(screenPower.veil * 255) as i32);
+  }
+}
+
 const stage = new Stage();
 const pageContainer = new DisplayObject('PageContainer');
 const homePage = new HomePageNode();
@@ -101,8 +113,10 @@ stage.addChild(pageContainer);
 stage.addChild(topBar);
 stage.addChild(deleteAppDialog);
 stage.addChild(textForm);
+const sleepVeil = new SleepVeilNode();
+stage.addChild(sleepVeil);
 /** The nodes as big as the screen. */
-const screenSizedNodes: DisplayObject[] = [pageContainer, homePage, crashPage, settingsPage, appsPage, appPage, hubPage, deleteAppDialog, textForm];
+const screenSizedNodes: DisplayObject[] = [pageContainer, homePage, crashPage, settingsPage, appsPage, appPage, hubPage, deleteAppDialog, textForm, sleepVeil];
 
 let mountedPage = '';
 
@@ -269,9 +283,21 @@ startShell();
 let shownSerial = -1;
 
 let drawnImage = -1;   // the app image the last drawn frame showed (zinc:shell)
+let seenActivity = -1;
+let seenPage = '';
+let seenApp = '';
 onFrame((deltaSeconds: number) => {
   if (pollMilliseconds > 0) sys.poll(pollMilliseconds);
   appState.inputIdleSeconds += deltaSeconds;
+  // input (the app's share too), a page or an app that shows up (a crash, zinc device run), or an app that asks for the screen
+  const shownApp = shell.current();
+  if (shell.activity() !== seenActivity || appState.page !== seenPage || shownApp !== seenApp || shell.keepAwake()) {
+    seenActivity = shell.activity();
+    seenPage = appState.page;
+    seenApp = shownApp;
+    screenPower.stayAwake();
+  }
+  if (screenPower.tick(deltaSeconds, appState.config.sleepDelaySeconds, appState.config.sleepFadeSeconds)) uiState.dirty = true;
   processPointer(deltaSeconds);
   processKeyboard();
   stepScrollInertia(deltaSeconds);
@@ -280,6 +306,10 @@ onFrame((deltaSeconds: number) => {
   syncMountedPage(screenWidth, screenHeight);
   stage.updateTree(deltaSeconds);
   if (isShell) followConnectedApp();
+  if (screenPower.asleep) {   // nothing is drawn; what changed is drawn on the way back (uiState.dirty stays, the app's serial differs)
+    keep();
+    return;
+  }
   // the shown app sent a frame: the shell draws it
   if (isShell && appState.page === PAGE_APP && shell.serial() !== shownSerial) {
     shownSerial = shell.serial();

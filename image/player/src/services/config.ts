@@ -13,6 +13,10 @@ export class PlayerConfig {
   keyboardLayout: string = KEYBOARD_QWERTY;
   /** The slow animation behind the home page (off on a machine where it costs too much). */
   animation: boolean = true;
+  /** The screen turns off after this long with no input; 0: never. */
+  sleepDelaySeconds: number = 300;
+  /** Its fade to black and back; 0: at once. */
+  sleepFadeSeconds: number = 0.6;
 }
 
 function readOrEmpty(path: string): string {
@@ -35,6 +39,8 @@ export function loadConfig(path: string): PlayerConfig {
     }
     if (o.keyboardLayout === KEYBOARD_AZERTY) config.keyboardLayout = KEYBOARD_AZERTY;
     if (typeof o.animation === 'boolean') config.animation = o.animation as boolean;
+    if (typeof o.sleepDelaySeconds === 'number' && (o.sleepDelaySeconds as number) >= 0) config.sleepDelaySeconds = o.sleepDelaySeconds as number;
+    if (typeof o.sleepFadeSeconds === 'number' && (o.sleepFadeSeconds as number) >= 0) config.sleepFadeSeconds = o.sleepFadeSeconds as number;
   } catch (e) {
     // a damaged file: the defaults, and the next save writes a good one
   }
@@ -52,6 +58,8 @@ export function saveConfig(path: string, config: PlayerConfig): void {
   o.backgroundTheme = config.backgroundTheme;
   o.keyboardLayout = config.keyboardLayout;
   o.animation = config.animation;
+  o.sleepDelaySeconds = config.sleepDelaySeconds;
+  o.sleepFadeSeconds = config.sleepFadeSeconds;
   try {
     fs.mkdir(path.slice(0, path.lastIndexOf('/')), true);
     fs.writeText(path, JSON.stringify(o) + '\n');

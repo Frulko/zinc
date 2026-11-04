@@ -39,6 +39,7 @@ bool freeBuf[SH_MAX_BUFFERS];
 Box stale[SH_MAX_BUFFERS];                    // what each buffer lacks of the frame: damage since it was last written
 std::vector<uint32_t> stage;                  // the frame as the app drew it (render_damage keeps it); buffers are filled from it
 bool full = true;                             // the next frame renders whole (new buffers)
+bool shownBack = false, paced = true;         // SH_SHOWN came for the last frame; this shell answers SH_SHOWN (one that does not: an older one)
 // the reading side: bytes and the fds that came with them, in order
 std::string in;
 std::deque<int> fds;
@@ -155,6 +156,7 @@ void pump(bool block) {
       case SH_BUFFERS: buffers(p, len); break;
       case SH_RELEASE: if (len >= 1 && p[0] < nbuf) freeBuf[p[0]] = true; break;
       case SH_INPUT: input(p, len); break;
+      case SH_SHOWN: shownBack = paced = true; break;
       case SH_QUIT: quit = true; break;
       case PING: if (len >= 4) sendMsg(PONG, p, 4); break;
       default: break;   // a later version's message
@@ -231,7 +233,18 @@ void s_present(const HalFrame* f) {
   const bool whole = d.x0 == 0 && d.y0 == 0 && d.x1 == W && d.y1 == H;
   uint8_t m[10] = {(uint8_t)b, (uint8_t)(whole ? 0 : 1)};
   put16(m + 2, (uint16_t)d.x0); put16(m + 4, (uint16_t)d.y0); put16(m + 6, (uint16_t)(d.x1 - d.x0)); put16(m + 8, (uint16_t)(d.y1 - d.y0));
+  shownBack = false;
   sendMsg(SH_FRAME, m, whole ? 2 : 10);
+  // One frame at a time, at the shell's refresh. Without this wait the app ran at the 8 ms cap until the buffers were gone, then stopped: frames
+  // 9, 8, 34 ms apart, one in three replaced before it was seen. Waiting here, not before rendering, starts the next frame with fresh time and input.
+  static const bool uncapped = getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0;
+  if (uncapped || !paced) return;
+  while (!shownBack && !gone && !quit && gen == g) {
+    pollfd p{fd, POLLIN, 0};
+    const int r = poll(&p, 1, 50);
+    if (r == 0) { paced = false; return; }   // an older shell, or a stalled one: its next SH_SHOWN turns the pace back on
+    if (r > 0) pump(false);
+  }
 }
 void s_poll(HalInput* i) {
   static const bool budget = getenv("ZINC_FRAMES") != nullptr;   // the null HAL counts 60 frames for headless tests; here only ZINC_FRAMES does
@@ -258,7 +271,8 @@ void s_poll(HalInput* i) {
 }
 void s_shutdown() { unmap(); if (fd >= 0) close(fd); fd = -1; }
 // Escape reaches the app (the shell keeps Home for itself); unhandled, it ends the app, not the shell
-const char* s_device(const char* q, const char*) {
+const char* s_device(const char* q, const char* v) {
+  if (!strcmp(q, "wakelock")) { ensure(); const uint8_t on = v && *v == '1'; return sendMsg(SH_KEEP_AWAKE, &on, 1) ? "1" : "0"; }   // navigator.wakeLock: the shell keeps the screen on
   if (!strcmp(q, "display.escapeByApp")) return "";
   if (!strcmp(q, "display.escape")) { quit = true; return ""; }
   return nullptr;

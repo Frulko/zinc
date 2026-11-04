@@ -181,6 +181,28 @@ try:
 finally:
     app.kill(); srv.close()
 
+# --- pace: the next frame waits for SH_SHOWN, so the shell's refresh paces the app. Rounds, not one: a busy machine can miss the 50 ms the app
+# waits for a shell that does not answer (the old shell's case, which the sessions above play: they send no SH_SHOWN and frames keep coming).
+SH_SHOWN = 44
+srv, path = listen("pace.sock")
+app = App(path)
+try:
+    c, _ = srv.accept(); conn = Conn(c)
+    conn.recv(10)
+    Buffers(conn, 160, 100, 4)
+    f, held = conn.frame(10), 0
+    for _ in range(6):
+        early = conn.frame(0.03)
+        if early is None: held += 1
+        conn.send(SH_RELEASE, bytes([f[0]]))
+        conn.send(SH_SHOWN)
+        f = early or conn.frame(5)
+        check(f is not None, "a frame comes after SH_SHOWN")
+        if f is None: break
+    check(held >= 3, "the next frame waited for SH_SHOWN in only %d of 6 rounds" % held)
+finally:
+    app.kill(); srv.close()
+
 # --- 3. no shell: a clear error naming the variable
 for env, want in (({"ZINC_SHELL_SOCKET": ""}, "ZINC_SHELL_SOCKET is not set"), ({"ZINC_SHELL_SOCKET": os.path.join(tmp, "none.sock")}, "ZINC_SHELL_SOCKET=")):
     app = App("", env)

@@ -55,6 +55,7 @@ static bool vsync = true;
 static uint64_t last_us;
 static volatile sig_atomic_t sig_quit;
 static bool suspended, resumed;   // fb_suspend: the screen is another program's; it came back (a whole frame is due)
+static bool dark, blanked;        // set_light: the screen's light is off; the display itself is off (no backlight, HDMI), so nothing goes to it
 // ZINC_RENDER_THREADS: rasterizer and converter threads (1 = the old single-thread path). Leaked on purpose: the workers
 // wait on its condition variable until the process ends, and destroying it at exit would hang (glibc waits for waiters).
 static zbands::Pool& pool = *new zbands::Pool;
@@ -510,6 +511,32 @@ static void wait_refresh() {
   removed += (uint32_t)retired.size();
   retired.clear();
 }
+/** Every connected output's DPMS: a commit is refused on a CRTC it turned off, so fb_present sends none while `blanked`. */
+static bool set_dpms(bool on) {
+  wait_refresh();
+  uint32_t conns[16];
+  drm_mode_card_res res = {};
+  res.connector_id_ptr = (uintptr_t)conns; res.count_connectors = 16;
+  if (io(DRM_IOCTL_MODE_GETRESOURCES, &res) < 0 || res.count_connectors > 16) return false;
+  bool ok = false;
+  for (uint32_t i = 0; i < res.count_connectors; i++) {
+    drm_mode_modeinfo m;
+    uint32_t ids[64]; uint64_t vals[64];
+    drm_mode_get_connector c = {};
+    c.connector_id = conns[i]; c.modes_ptr = (uintptr_t)&m; c.count_modes = 1;   // not 0: 0 asks the kernel to probe the screen again
+    c.props_ptr = (uintptr_t)ids; c.prop_values_ptr = (uintptr_t)vals; c.count_props = 64;
+    if (io(DRM_IOCTL_MODE_GETCONNECTOR, &c) < 0 || c.connection != 1 || c.count_props > 64) continue;
+    for (uint32_t k = 0; k < c.count_props; k++) {
+      drm_mode_get_property q = {};
+      q.prop_id = ids[k];
+      if (io(DRM_IOCTL_MODE_GETPROPERTY, &q) < 0 || strcmp(q.name, "DPMS")) continue;
+      drm_mode_connector_set_property s = {};
+      s.value = on ? DRM_MODE_DPMS_ON : DRM_MODE_DPMS_OFF; s.prop_id = ids[k]; s.connector_id = conns[i];
+      ok = io(DRM_IOCTL_MODE_SETPROPERTY, &s) == 0 || ok;
+    }
+  }
+  return ok;
+}
 // The screen's refresh (Sidecar's SET 7): a film at 25 a second on 60 Hz shows its pictures 2, 3, 2, 3 refreshes (a judder), on 50 Hz two
 // each. The modes are the CRTC's connector's at the frame's size; read once (no probe: the EDID is not read again), with the mode the
 // screen had for the way back. Closing the display's file gives the console its own mode back too.
@@ -588,7 +615,7 @@ static bool set_refresh(int hz) {
  *  fb_present's, with the frame. */
 static uint32_t fb_layers(const HalLayer* l, int32_t n) {
   using namespace kms;
-  if (n <= 0 || suspended || kms::failed || refuse) { for (int k = 0; k < nlay; k++) replaced.push_back(lay[k].fb); nlay = 0; drop_kept(); return 0; }
+  if (n <= 0 || suspended || blanked || kms::failed || refuse) { for (int k = 0; k < nlay; k++) replaced.push_back(lay[k].fb); nlay = 0; drop_kept(); return 0; }
   if (kms::fd < 0) {
     const uint64_t t0 = now_us();
     if (!open_file()) { kms::failed = true; return 0; }
@@ -960,7 +987,7 @@ static void fb_present(const HalFrame* f) {
 #endif
   HalFrame own;
   bool from_stream = false;
-  if (suspended) {   // the surface keeps up with the frames, nothing goes to the screen
+  if (suspended || blanked) {   // the surface keeps up with the frames, nothing goes to the screen
     if (f->y1 > f->y0 && f->x1 > f->x0) { Job job{f, 1}; pool.run(f->y0, f->y1, BAND_ROWS, band, &job); }
     usleep(1000000u / ZP_DISPLAY_FBDEV_FPS);
     return;
@@ -1075,7 +1102,62 @@ static void report(const char* name, float Sample::*m) {
 }
 namespace zrt::gfx { uint8_t* capture_png(size_t* n, int32_t maxw, int32_t maxh); }   // runtime/zrt.h: the engine's picture of the frame on the screen
 
+// ---------------------------------------------------------------- the screen's light: device('backlight', '0' or '1')
+// A panel with a backlight (the Pi's DSI screens) goes to brightness 0: it stays on, so its touch still answers, as webOS and Android do.
+// Its file is the video group's. The level is kept in $ZINC_RUN, so a program that died in the dark does not lose it. Without a backlight
+// (HDMI) the output goes off: the monitor sleeps, a USB touch screen keeps its power from the Pi.
+static std::string backlight_dir() {
+  if (const char* d = getenv("ZINC_BACKLIGHT_DIR")) return d;
+  std::string found;
+  if (DIR* d = opendir("/sys/class/backlight")) {
+    while (dirent* e = readdir(d)) if (e->d_name[0] != '.') { found = std::string("/sys/class/backlight/") + e->d_name; break; }
+    closedir(d);
+  }
+  return found;
+}
+static int read_level(const std::string& path) {
+  int v = -1;
+  if (FILE* f = fopen(path.c_str(), "r")) { if (fscanf(f, "%d", &v) != 1) v = -1; fclose(f); }
+  return v;
+}
+static bool write_level(const std::string& path, int v) {
+  FILE* f = fopen(path.c_str(), "w");
+  if (!f) return false;
+  const bool ok = fprintf(f, "%d\n", v) > 0;
+  return fclose(f) == 0 && ok;
+}
+static bool set_backlight(const std::string& dir, bool on) {
+  const std::string file = dir + "/brightness", saved = std::string(getenv("ZINC_RUN") ? getenv("ZINC_RUN") : "/tmp") + "/backlight";
+  const int now = read_level(file);
+  if (now < 0) return false;
+  if (!on) { if (now > 0) write_level(saved, now); return write_level(file, 0); }
+  if (now > 0) return true;
+  int level = read_level(saved);
+  if (level <= 0) level = read_level(dir + "/max_brightness");
+  return level > 0 && write_level(file, level);
+}
+static bool set_blank(bool on) {
+#ifdef ZP_FBDEV_KMS
+  std::lock_guard<std::mutex> k(kms_mu);
+  if (kms::fd >= 0) return kms::set_dpms(on);   // this program is the DRM master: /dev/fb0's own blank would be refused
+#endif
+  return ioctl(fd, FBIOBLANK, on ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN) == 0;
+}
+static bool set_light(bool on) {
+  if (!on && dark) return true;
+  const std::string dir = backlight_dir();
+  bool ok = !dir.empty() && set_backlight(dir, on);
+  if (!ok && !sim_fb) {
+    if (on && !blanked) ok = true;                  // awake already: a program's first call
+    else if (!on && stream::active) ok = false;     // a stream's thread commits by itself
+    else if ((ok = set_blank(on))) { blanked = !on; resumed = resumed || on; }
+  }
+  if (ok) dark = !on;
+  return ok;
+}
+
 static void fb_shutdown() {
+  if (dark) set_light(true);
   // ZINC_SHOT: this driver shows the engine's own frame, so the picture is the engine's (the runtime leaves the shot to a display driver).
   // The Pi image's updater proves a rebuilt player with it (image/files/usr/lib/zinc/zinc-player-update).
   if (const char* shot = getenv("ZINC_SHOT"); shot && *shot) {
@@ -1139,6 +1221,7 @@ static const char* fb_device(const char* query, const char* value) {
 #endif
     return stream::start(atoi(value), t) ? "1" : "0";
   }
+  if (!strcmp(query, "backlight")) return set_light(!value || *value != '0') ? "1" : "0";
   if (!strcmp(query, "stream.state")) return !stream::port ? "off" : stream::active ? "connected" : "waiting";
   if (!strcmp(query, "display.escapeByApp")) app_escape = value && *value == '1';
   else if (!strcmp(query, "display.escape")) quit_key = true;
@@ -1149,6 +1232,7 @@ static const char* fb_device(const char* query, const char* value) {
  *  another program to take; off, they are opened again and the next frame is presented whole. /dev/fb0 stays mapped, nothing is written. */
 static void fb_suspend(int on) {
   if ((on != 0) == suspended) return;
+  if (on && dark) set_light(true);   // the next program starts lit: this one will not see its input any more
   suspended = on != 0;
   fprintf(stderr, "fbdev: %s\n", suspended ? "the screen is given to another program" : "the screen is back");
 #ifdef ZP_FBDEV_KMS

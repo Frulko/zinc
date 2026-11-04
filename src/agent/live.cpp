@@ -174,7 +174,7 @@ int cmdLive(Device& d) {
     char type;
     std::string payload;
     pollfd p{c->fd, POLLIN, 0};
-    if (c->in.empty() && ::poll(&p, 1, ms) > 0 && !fill(*c)) gone = true;
+    if (::poll(&p, 1, c->in.empty() ? ms : 0) > 0 && !fill(*c)) gone = true;   // bytes held are perhaps a part of a message: read on, or the viewer stops on the first big frame
     while (next(*c, type, payload)) {
       if (type == kOut) in += payload;
       else if (type == kErr) std::fprintf(stderr, "%s: %s", d.name.c_str(), payload.c_str());

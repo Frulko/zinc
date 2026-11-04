@@ -39,6 +39,7 @@ namespace zrt {
 extern int32_t surf_w, surf_h, frame_no;
 extern bool display_driver;
 extern void (*shell_input)(HalInput* in);
+extern bool mirror_watching;
 }
 
 using namespace zremote;
@@ -101,11 +102,15 @@ struct Client {
   zrt::raster::Picture pic{};   // the buffer shown, as a picture of the display (dmabuf only)
   uint32_t ping = 0;
   double ping_at = 0, pong_at = 0;
+  bool keep_awake = false;      // the app holds a wake lock (navigator.wakeLock)
 };
 Client shown, waiting;          // the app on the screen, and a connection that has not said CONNECT yet
 uint32_t serial_no = 0;
 std::string last_input;         // the last SH_INPUT sent: the same state is not sent again
 bool app_press, was_down;       // the pointer's press started below the bar (the app's); the pointer was down at the last frame
+int32_t activity_no;            // grows with each frame that had input, the app's share too
+bool asleep_now, swallowing;    // the screen sleeps; the input is dropped until the press that woke it is let go, so a tap on a dark screen presses nothing
+float seen_x = -1, seen_y = -1;
 
 void drop_buffers(Client& c) {
   if (c.img >= 0) { zrt::raster::dyn_destroy(c.img); serial_no++; }
@@ -265,6 +270,9 @@ void on_frame(Client& c, const uint8_t* p, uint32_t n) {
     else release(c, c.shown);
   }
   c.shown = b;
+  // The frame that follows this poll presents the buffer, whatever comes next: the app may start its next frame now. Answering after that present
+  // would make it arrive one refresh late, while this shell waits for the flip: 30 frames a second on a 60 Hz screen (measured on a Pi 3B+).
+  msg(c, SH_SHOWN, "", 0);
   serial_no++;
 }
 
@@ -414,8 +422,15 @@ struct HostShell : NativeShell, zrt::Poller {
   zrt::String title() override { return zs(shown.fd >= 0 ? shown.title : ""); }
   int32_t image() override { return shown.fd >= 0 ? shown.img : -1; }
   int32_t barHeight() override { return bar_height(); }
-  bool onPlane() override { return shown.fd >= 0 && shown.dmabuf && shown.img >= 0; }
+  bool onPlane() override { return shown.fd >= 0 && shown.dmabuf && shown.img >= 0 && !zrt::mirror_watching; }   // watched: the frames are drawn, the viewer gets them
   void setMode(int32_t m) override { mode = m; serial_no++; }
+  void setAsleep(bool on) override { asleep_now = on; }
+  int32_t activity() override { return activity_no; }
+  bool keepAwake() override {
+    if (mode == 2 || (shown.fd >= 0 && shown.keep_awake)) return true;   // a kiosk shows, a film plays
+    for (const Child& k : kids) if (k.pid && k.screen) return true;      // the screen is another program's: this shell sees no input to wake on
+    return false;
+  }
   bool responding() override { return shown.fd < 0 || now() - shown.pong_at < 6000; }
   int32_t serial() override { return (int32_t)serial_no; }
   void onExit(zrt::Fn<void(zrt::String, int32_t)> f) override { exit_cb = f; listen_once(); }
@@ -439,6 +454,7 @@ struct HostShell : NativeShell, zrt::Poller {
         c.pong_at = c.ping_at = now();
         if (Child* kid = kid_of(c.pid)) kid->connected = true;
       } else if (m[0] == SH_FRAME && c.connected) on_frame(c, p, n);
+      else if (m[0] == SH_KEEP_AWAKE && n >= 1) c.keep_awake = p[0] != 0;
       else if (m[0] == PONG && n >= 4) { if (get32(p) == c.ping) c.pong_at = now(); }
       off += 5 + n;
     }
@@ -558,6 +574,16 @@ void put_u32(std::string& s, uint32_t v) { char b[4]; put32((uint8_t*)b, v); s.a
 void put_u16(std::string& s, uint16_t v) { char b[2]; put16((uint8_t*)b, v); s.append(b, 2); }
 
 void forward_input(HalInput* in) {
+  if (in->pdown || in->nkeys || in->nbtn || in->ntouch || in->buttons || in->wheel != 0 || in->wheel_x != 0 || in->scroll_dx != 0 || in->scroll_dy != 0 || in->px != seen_x || in->py != seen_y) activity_no++;
+  seen_x = in->px; seen_y = in->py;
+  if (asleep_now) swallowing = true;
+  if (swallowing) {
+    if (!asleep_now && !in->pdown && !in->buttons && !in->ntouch) swallowing = false;
+    in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->ntouch = 0; in->pdown = 0; in->pbuttons = 0; in->buttons = 0;
+    in->wheel = 0; in->wheel_x = 0; in->scroll_dx = in->scroll_dy = 0; in->scroll_phase = 0;
+    app_press = was_down = false;
+    return;
+  }
   Client& c = shown;
   if (c.fd < 0 || !c.connected || c.w <= 0) { app_press = was_down = false; return; }
   const float bar = (float)bar_height(), W = (float)zrt::surf_w, H = (float)c.h;

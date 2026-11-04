@@ -24,6 +24,7 @@ extern bool quit_requested;
 extern int32_t surf_w, surf_h;
 extern bool display_driver;
 extern void (*mirror_present)(const HalFrame* f);
+extern bool mirror_watching;
 extern void (*first_present)();
 extern void (*dev_restart)();
 extern int32_t (*wall_minute)();
@@ -1327,7 +1328,7 @@ static void soft_pictures(Buf& b, uint32_t from) {
 }
 static void place_layers(Buf& b) {
   nlay = 0;
-  const bool can = display_driver && hal_display->layers;
+  const bool can = display_driver && hal_display->layers && !mirror_watching;
   HalLayer offer[HAL_MAX_LAYERS];
   int32_t n = 0;
   for (uint32_t i = 0; raster::dyn_pictures && i < b.ncmd; i++) {
@@ -1361,7 +1362,7 @@ static bool layers_again(Buf& b) {
   HalLayer offer[HAL_MAX_LAYERS];
   bool same = true;
   for (int32_t k = 0; k < nlay; k++) { offer[k] = lay[k].at; if (raster::dyn_picture(b.cmds[lay[k].cmd].res) != lay[k].pic) same = false; }
-  if (same && nlay && hal_display->layers(offer, nlay) == (1u << nlay) - 1) return false;
+  if (same && nlay && !mirror_watching && hal_display->layers(offer, nlay) == (1u << nlay) - 1) return false;
   hal_display->layers(offer, 0);
   layers_on = false; nlay = 0;
   for (uint32_t i = 0; i < b.ncmd; i++) if (b.cmds[i].kind == raster::IMAGE && (b.cmds[i].pad & raster::kImageLayer)) {

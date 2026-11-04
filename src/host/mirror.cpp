@@ -25,6 +25,7 @@
 namespace zrt {
 extern void (*mirror_present)(const HalFrame* f);
 extern void (*mirror_input)(HalInput* in);
+extern bool mirror_watching;
 extern void (*first_present)();
 extern void (*dev_restart)();
 extern int32_t (*wall_minute)();
@@ -52,7 +53,7 @@ float localX = -1, localY = -1, wroteX = -1, wroteY = -1;   // the screen's own 
 int32_t localDown, wroteDown;
 bool localSeen;
 
-void drop() { if (fd >= 0) ::close(fd); fd = -1; out.clear(); in.clear(); rem = Remote{}; }
+void drop() { if (fd >= 0) ::close(fd); fd = -1; zrt::mirror_watching = false; out.clear(); in.clear(); rem = Remote{}; }
 void msg(uint8_t type, const void* p, uint32_t n) {
   uint8_t h[5] = {type};
   put32(h + 1, n);
@@ -93,6 +94,7 @@ void check() {
   ::setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
 #endif
   fd = s;
+  zrt::mirror_watching = true;
   W = H = 0;   // HELLO with the next frame
 }
 float f32(const uint8_t* p) { float v; std::memcpy(&v, p, 4); return v; }
@@ -229,6 +231,8 @@ void installMirror() {
   };
   const char* r = std::getenv("ZINC_SHOT_REQUEST");
   if (!r || !*r) return;
+  // Under a shell the viewer watches the shell, bar and all, and its input reaches the app through it. An app connecting too would take the viewer from it.
+  if (const char* display = std::getenv("ZINC_DISPLAY"); display && !std::strcmp(display, "shell")) return;
   request = r;
   const size_t slash = request.rfind('/');
   request = (slash == std::string::npos ? std::string(".") : request.substr(0, slash)) + "/live.request";

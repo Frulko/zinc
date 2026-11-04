@@ -30,10 +30,11 @@ enum : uint8_t { HELLO = 1, RECT = 2, FRAME = 3, PONG = 4, ACK = 16, POINTER = 1
 //   SH_BUFFERS  w u16, h u16, stride u32 (bytes), fourcc u32 (XR24), kind u8 (0 dmabuf, 1 shm), n u8 (3), + n fds   after CONNECT
 //               and on every resize: the earlier buffers are dropped, every new one is free, the app draws whole
 //   SH_RELEASE  buffer u8                                    the buffer left the screen: the app may draw into it again
+//   SH_SHOWN    (empty)                                      the shell took the last SH_FRAME for its next present: the app makes its next one, so the shell's refresh paces it
 //   SH_INPUT    src/host/mirror.cpp's INPUT payload (x, y in 0..1 of the app's surface), then touches n u8, n x (id u8, x f32, y f32), x y in 0..1 too, x y in 0..1 too
 //   SH_QUIT     reason u8 (0 Home, 1 replaced, 2 shutdown)  the app's quit request; the shell ends its group 2 s later
 //   PING        serial u32                                   every 2 s; no PONG within 6 s: "not responding"
-enum : uint8_t { SH_INPUT = 22, SH_CONNECT = 32, SH_FRAME = 33, SH_BUFFERS = 40, SH_RELEASE = 41, SH_QUIT = 42 };
+enum : uint8_t { SH_INPUT = 22, SH_CONNECT = 32, SH_FRAME = 33, SH_BUFFERS = 40, SH_RELEASE = 41, SH_QUIT = 42, SH_KEEP_AWAKE = 43, SH_SHOWN = 44 };   // SH_KEEP_AWAKE: u8, the app asks the shell not to put the screen to sleep (a shell that does not know it ignores it)
 static const uint16_t SH_VERSION = 1;
 static const uint32_t SH_XR24 = 0x34325258;   // DRM_FORMAT_XRGB8888: the runtime's 0x00RRGGBB words
 static const int SH_MAX_BUFFERS = 4, SH_MAX_DAMAGE = 8;   // four: on a plane a replaced buffer comes back two shell frames later (2026-10-31: three held an app at 40 fps)
