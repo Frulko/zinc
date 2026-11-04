@@ -358,8 +358,15 @@ static void applyTray(NSString* ident, NSDictionary* a) {
   NSStatusItem* item = gTrays[ident];
   if (!item) { item = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength]; gTrays[ident] = item; item.button.target = trayTarget(); item.button.action = @selector(znTrayClicked:); [item.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp]; }
   if (a[@"template"]) gTrayTemplate[ident] = a[@"template"];
-  if (a[@"icon"] || !item.button.image) item.button.image = trayImage(a[@"icon"] ?: @"", gTrayTemplate[ident] ? [gTrayTemplate[ident] boolValue] : YES);
   if (a[@"title"]) item.button.title = a[@"title"];
+  NSString* symbol = a[@"symbol"];
+  if (symbol.length) {   // the menu bar's own size and weight, and a template image: the system tints it for the bar's look
+    NSImageSymbolConfiguration* size = [NSImageSymbolConfiguration configurationWithPointSize:NSFont.systemFontSize + 2 weight:NSFontWeightRegular scale:NSImageSymbolScaleMedium];
+    NSImage* image = [[NSImage imageWithSystemSymbolName:symbol accessibilityDescription:item.button.toolTip] imageWithSymbolConfiguration:size];
+    [image setTemplate:YES];
+    item.button.image = image;
+  }
+  else if (((NSString*)a[@"icon"]).length || (!item.button.image && !item.button.title.length)) item.button.image = trayImage(a[@"icon"] ?: @"", gTrayTemplate[ident] ? [gTrayTemplate[ident] boolValue] : YES);   // the plain dot only when nothing else would show
   if (a[@"tooltip"]) item.button.toolTip = a[@"tooltip"];
   if (a[@"menuOnLeftClick"]) gTrayMenuOnLeft[ident] = a[@"menuOnLeftClick"];
   if (a[@"menu"]) {
@@ -375,6 +382,11 @@ static int trayCall(const char* op, NSDictionary* a, char* out, int cap) {
   NSString* result = nil;
   NSString* ident = a[@"id"] ?: @"";
   if (!strcmp(op, "tray.available")) result = @"{\"available\":true}";
+  else if (!strcmp(op, "tray.bounds")) {   // AppKit's coordinates, those of window.setPosition: the origin is the bottom left of the main screen
+    NSStatusItem* it = gTrays[ident];
+    NSRect f = it ? it.button.window.frame : NSZeroRect;
+    result = json(@{@"x": @(f.origin.x), @"y": @(f.origin.y), @"w": @(f.size.width), @"h": @(f.size.height)});
+  }
   else if (!strcmp(op, "tray.create")) { applyTray(ident, a); result = @"{}"; }
   else if (!strcmp(op, "tray.update")) { NSDictionary* p = a[@"props"]; if (gTrays[ident] && p) applyTray(ident, p); result = @"{}"; }
   else if (!strcmp(op, "tray.remove")) { NSStatusItem* it = gTrays[ident]; if (it) { [[NSStatusBar systemStatusBar] removeStatusItem:it]; [gTrays removeObjectForKey:ident]; } result = @"{}"; }
@@ -463,6 +475,7 @@ static NSPoint gTrafficLights = NSMakePoint(-1, -1);
 @interface ZnWindowWatcher : NSObject
 @end
 @implementation ZnWindowWatcher
+- (void)blurred:(NSNotification*)n { pushEvent(@"window", @[@"blur"]); }
 - (void)changed:(NSNotification*)n {
   NSWindow* w = n.object;
   if (gTrafficLights.x >= 0) {
@@ -487,6 +500,7 @@ static void watchWindow(NSWindow* w) {
   if (!wt) wt = [ZnWindowWatcher new];
   for (NSNotificationName n in @[NSWindowDidMoveNotification, NSWindowDidResizeNotification, NSWindowDidEnterFullScreenNotification, NSWindowDidExitFullScreenNotification])
     [[NSNotificationCenter defaultCenter] addObserver:wt selector:@selector(changed:) name:n object:w];
+  [[NSNotificationCenter defaultCenter] addObserver:wt selector:@selector(blurred:) name:NSWindowDidResignKeyNotification object:w];
 }
 static int windowCall(const char* op, NSDictionary* a, char* out, int cap) {
   ensureApp();
@@ -506,6 +520,7 @@ static int windowCall(const char* op, NSDictionary* a, char* out, int cap) {
     if (!strcmp(op, "window.setTitle")) w.title = a[@"title"] ?: @"";
     else if (!strcmp(op, "window.setSize")) { NSRect f = w.frame; f.size = NSMakeSize([a[@"w"] doubleValue], [a[@"h"] doubleValue]); [w setFrame:f display:YES]; }
     else if (!strcmp(op, "window.setPosition")) [w setFrameOrigin:NSMakePoint([a[@"x"] doubleValue], [a[@"y"] doubleValue])];
+    else if (!strcmp(op, "window.setFrame")) [w setFrame:NSMakeRect([a[@"x"] doubleValue], [a[@"y"] doubleValue], [a[@"w"] doubleValue], [a[@"h"] doubleValue]) display:YES];
     else if (!strcmp(op, "window.center")) [w center];
     else if (!strcmp(op, "window.setAlwaysOnTop")) w.level = [a[@"on"] boolValue] ? NSFloatingWindowLevel : NSNormalWindowLevel;
     else if (!strcmp(op, "window.setOpacity")) w.alphaValue = [a[@"value"] doubleValue];
@@ -534,6 +549,18 @@ static int windowCall(const char* op, NSDictionary* a, char* out, int cap) {
       else {
         if (!ev) { ev = [[NSVisualEffectView alloc] initWithFrame:content.bounds]; ev.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable; ev.blendingMode = NSVisualEffectBlendingModeBehindWindow; ev.state = NSVisualEffectStateActive; [content addSubview:ev positioned:NSWindowBelow relativeTo:nil]; }
         ev.material = [m isEqualToString:@"sidebar"] ? NSVisualEffectMaterialSidebar : ([m isEqualToString:@"menu"] ? NSVisualEffectMaterialMenu : ([m isEqualToString:@"hud"] ? NSVisualEffectMaterialHUDWindow : NSVisualEffectMaterialUnderWindowBackground));
+        const CGFloat radius = [a[@"radius"] doubleValue];   // a frameless window's corners: the blur stops where the window's shape does
+        if (radius > 0) {
+          const CGFloat side = radius * 2 + 1;
+          NSImage* mask = [NSImage imageWithSize:NSMakeSize(side, side) flipped:NO drawingHandler:^BOOL(NSRect r) {
+            [NSColor.blackColor set];
+            [[NSBezierPath bezierPathWithRoundedRect:r xRadius:radius yRadius:radius] fill];
+            return YES;
+          }];
+          mask.capInsets = NSEdgeInsetsMake(radius, radius, radius, radius);
+          mask.resizingMode = NSImageResizingModeStretch;
+          ev.maskImage = mask;
+        }
         w.opaque = NO; w.backgroundColor = NSColor.clearColor;
       }
     }

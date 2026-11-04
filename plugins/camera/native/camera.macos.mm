@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "backend.h"
+#include "frame_copy.h"
 
 @interface ZnCamSink : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate> {
 @public
@@ -34,9 +35,7 @@
   const size_t stride = CVPixelBufferGetBytesPerRow(ib);
   const int bw = (int)CVPixelBufferGetWidth(ib), bh = (int)CVPixelBufferGetHeight(ib);
   pthread_mutex_lock(&mu);
-  const int cw = bw < w ? bw : w, ch = bh < h ? bh : h;
-  // BGRA in memory is 0xAARRGGBB, which the runtime image reads as 0x00RRGGBB (it ignores the top byte): whole rows, no per-pixel work
-  for (int y = 0; y < ch; y++) memcpy(px + (size_t)y * w, base + (size_t)y * stride, (size_t)cw * 4);
+  cam_copy_bgra(px, w, h, base, bw, bh, stride);
   seq++;
   pthread_mutex_unlock(&mu);
   CVPixelBufferUnlockBaseAddress(ib, kCVPixelBufferLock_ReadOnly);
@@ -105,6 +104,8 @@ void pick(AVCaptureDevice* dev, int w, int h, int fps, AVCaptureDeviceFormat** b
 void configure(Session& s, AVCaptureDeviceFormat* best, double got, int w, int h) {
   if (best && [s.dev lockForConfiguration:nil]) {
     s.dev.activeFormat = best;
+    if ([s.dev isFocusModeSupported:AVCaptureFocusModeContinuousAutoFocus]) s.dev.focusMode = AVCaptureFocusModeContinuousAutoFocus;
+    if ([s.dev isExposureModeSupported:AVCaptureExposureModeContinuousAutoExposure]) s.dev.exposureMode = AVCaptureExposureModeContinuousAutoExposure;
     // a camera with fixed rates (a phone, a UVC webcam) takes only the exact durations of its ranges, a 1/30 that is not theirs raises
     AVFrameRateRange* hit = nil;
     for (AVFrameRateRange* r in s.dev.activeFormat.videoSupportedFrameRateRanges)
@@ -116,8 +117,13 @@ void configure(Session& s, AVCaptureDeviceFormat* best, double got, int w, int h
     }
     [s.dev unlockForConfiguration];
   }
+  // iOS raises on the width/height/scaling keys (setVideoSettings: aborted the app): it keeps the format's own size and cam_copy_bgra crops and scales
+#if TARGET_OS_IPHONE
+  @try { s.out.videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA) }; } @catch (NSException*) {}
+#else
   s.out.videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA), (id)kCVPixelBufferWidthKey: @(w), (id)kCVPixelBufferHeightKey: @(h),
                            AVVideoScalingModeKey: AVVideoScalingModeResizeAspectFill };
+#endif
 #if TARGET_OS_IPHONE
   // the app's portrait screen: frames upright, the front camera as a mirror (ponytail: portrait only; follow UIDevice orientation when an app turns)
   AVCaptureConnection* c = [s.out connectionWithMediaType:AVMediaTypeVideo];

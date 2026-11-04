@@ -79,6 +79,8 @@ export function displays(): Rect[] {
 export function setTitle(title: string): void { call('window.setTitle', { title: title }); }
 export function setSize(w: number, h: number): void { call('window.setSize', { w: w, h: h }); }
 export function setPosition(x: number, y: number): void { call('window.setPosition', { x: x, y: y }); }
+/** The position and the size in one move, so that nothing shows between the two: for a window that follows its content while it animates. */
+export function setFrame(x: number, y: number, w: number, h: number): void { call('window.setFrame', { x: x, y: y, w: w, h: h }); }
 export function center(): void { call('window.center', {}); }
 export function setAlwaysOnTop(on: boolean): void { call('window.setAlwaysOnTop', { on: on }); }
 export function setOpacity(value: number): void { call('window.setOpacity', { value: value }); }
@@ -92,11 +94,15 @@ export function focus(): void { call('window.focus', {}); }
 /** 'default' | 'hidden' (no title text) | 'overlay' (content under a transparent title bar, macOS) | 'none' (no frame). */
 export function setTitleBar(style: string): void { call('window.setTitleBar', { style: style }); }
 /** macOS: a blurred backdrop behind the window ('sidebar' | 'menu' | 'hud' | 'under-window'; '' removes it). Needs app.window.transparent: the key colour of the page (transparentColor, black by default) shows it. */
-export function setVibrancy(material: string): void { call('window.setVibrancy', { material: material }); }
+export function setVibrancy(material: string, radius: number = 0): void { call('window.setVibrancy', { material: material, radius: radius }); }
 /** macOS: where the close, minimise and zoom buttons sit (AppKit moves them back on resize and fullscreen: they are reapplied). */
 export function setTrafficLights(x: number, y: number): void { call('window.setTrafficLights', { x: x, y: y }); }
 
 /** Close-to-tray: the handler runs when the user closes the window; call `keepOpen()` in it to stop the close (the window is usually hidden instead). */
+/** When the window stops being the one that takes the keyboard: a click elsewhere, another app. */
+export function onBlur(cb: () => void): void {
+  on('window', (a: string[]) => { if (a[0] === 'blur') cb(); });
+}
 export function onCloseRequested(cb: () => void): void {
   on('window', (a: string[]) => { if (a[0] === 'close-requested') cb(); });
 }

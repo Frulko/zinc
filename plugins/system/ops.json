@@ -79,6 +79,7 @@
    "params": {
     "id": "string",
     "icon?": "string",
+    "symbol?": "string",
     "template?": "boolean",
     "tooltip?": "string",
     "title?": "string",
@@ -435,6 +436,15 @@
    "sim": "{\"available\":true}"
   },
   {
+   "op": "tray.bounds",
+   "permission": "tray",
+   "params": {
+    "id": "string"
+   },
+   "returns": "{x: number, y: number, w: number, h: number}",
+   "sim": "{\"x\":1000,\"y\":1000,\"w\":30,\"h\":24}"
+  },
+  {
    "op": "window.setSize",
    "permission": "window",
    "params": {
@@ -450,6 +460,18 @@
    "params": {
     "x": "number",
     "y": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "window.setFrame",
+   "permission": "window",
+   "params": {
+    "x": "number",
+    "y": "number",
+    "w": "number",
+    "h": "number"
    },
    "returns": "{}",
    "sim": "{}"
@@ -673,7 +695,8 @@
    "op": "window.setVibrancy",
    "permission": "window",
    "params": {
-    "material": "'' | 'sidebar' | 'menu' | 'hud' | 'under-window'"
+    "material": "'' | 'sidebar' | 'menu' | 'hud' | 'under-window'",
+    "radius": "number?"
    },
    "returns": "{}",
    "sim": "{}"

@@ -299,8 +299,7 @@ phones with 16 KB pages refuse it). The engine and the plugins compiled from sou
 ### Developing on the phone: Zinc Go
 
 `zinc dev --lan` serves the project to Zinc Go and prints a QR code; Zinc Go scans it (or takes the `zinc://host:port/code` link typed, or as
-a deep link), runs the project with the plugins it has, and swaps each save in place (Fast Refresh) with the state kept. A shake, a press with
-three fingers or the Menu key (`adb shell input keyevent 82`) opens the dev menu: reload, go home. A project that needs a plugin the player
+a deep link), runs the project with the plugins it has, and swaps each save in place (Fast Refresh) with the state kept. Hold three fingers for one second to return directly to Zinc Go. A shake or the Menu key (`adb shell input keyevent 82`) opens the dev menu: reload, go home. A project that needs a plugin the player
 does not have gets the plugin's name on the home screen; export your own player with it (a project with `"player": true` and the plugin).
 Build Zinc Go: `zinc export examples/zinc-go --target android --apk` or `--target ios --ipa --simulator`
 ([report](../reports/zinc-next-zinc-go.md)).

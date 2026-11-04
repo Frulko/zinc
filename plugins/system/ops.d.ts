@@ -9,7 +9,7 @@ export interface OpArgs {
   'menu.setApp': { template: MenuItem[] };
   'menu.update': { id: string; props: object };
   'menu.popup': { template: MenuItem[]; x?: number; y?: number; abortMs?: number };
-  'tray.create': { id: string; icon?: string; template?: boolean; tooltip?: string; title?: string; menu?: MenuItem[]; menuOnLeftClick?: boolean };
+  'tray.create': { id: string; icon?: string; symbol?: string; template?: boolean; tooltip?: string; title?: string; menu?: MenuItem[]; menuOnLeftClick?: boolean };
   'tray.update': { id: string; props: {icon?: string; template?: boolean; tooltip?: string; title?: string; menu?: MenuItem[]; menuOnLeftClick?: boolean} };
   'tray.remove': { id: string };
   'dialog.open': { title?: string; defaultPath?: string; filters?: {name: string; extensions: string[]}[]; multiple?: boolean; directory?: boolean; abortMs?: number };
@@ -47,8 +47,10 @@ export interface OpArgs {
   'tray.dump': {  };
   'tray.click': { id: string; button?: 'left' | 'right' };
   'tray.available': {  };
+  'tray.bounds': { id: string };
   'window.setSize': { w: number; h: number };
   'window.setPosition': { x: number; y: number };
+  'window.setFrame': { x: number; y: number; w: number; h: number };
   'window.center': {  };
   'window.setAlwaysOnTop': { on: boolean };
   'window.setOpacity': { value: number };
@@ -76,7 +78,7 @@ export interface OpArgs {
   'clipboard.readImage': {  };
   'clipboard.writeFiles': { paths: string[] };
   'clipboard.readFiles': {  };
-  'window.setVibrancy': { material: '' | 'sidebar' | 'menu' | 'hud' | 'under-window' };
+  'window.setVibrancy': { material: '' | 'sidebar' | 'menu' | 'hud' | 'under-window'; radius: number? };
   'update.check': {  };
   'update.download': {  };
   'update.restart': {  };
@@ -135,8 +137,10 @@ export interface OpResult {
   'tray.dump': {trays: {id: string; template: boolean; width: number; height: number; title: string; tooltip: string; menu: string}[]};
   'tray.click': {ok: boolean};
   'tray.available': {available: boolean};
+  'tray.bounds': {x: number, y: number, w: number, h: number};
   'window.setSize': {};
   'window.setPosition': {};
+  'window.setFrame': {};
   'window.center': {};
   'window.setAlwaysOnTop': {};
   'window.setOpacity': {};

@@ -8,6 +8,7 @@
 #import <UserNotifications/UserNotifications.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <PhotosUI/PhotosUI.h>
+extern "C" __attribute__((weak)) void zn_player_open(const char* url);   // player.cpp, only in Zinc Go
 #include <string.h>
 
 static NSMutableArray<NSString*>* gEvents;
@@ -154,6 +155,8 @@ static NSString* run(const char* op, NSDictionary* a) {
   }
   if (!strcmp(op, "opener.open")) {
     NSString* t = a[@"target"] ?: @"";
+    // Zinc Go's own links (zinc://open/<app>, shortcut, delete, pair): iOS never gives them back on a phone (sandbox_extension_issue_file fails), so the player takes them directly
+    if ([t hasPrefix:@"zinc://"] && zn_player_open) { zn_player_open(t.UTF8String); return @"{}"; }
     NSURL* u = [t hasPrefix:@"/"] ? [NSURL fileURLWithPath:t] : [NSURL URLWithString:t];
     if (!u) return failed([NSString stringWithFormat:@"%@ is not a URL", t]);
     if (u.isFileURL) {   // a file of the app: the share sheet's "open in" is how iOS hands it to another app

@@ -104,6 +104,12 @@ static void src_close(Source* s) {
   free(s);
 }
 static void src_close(SourceBase* s) { src_close(static_cast<Source*>(s)); }
+// AVFrame::duration came with FFmpeg 6 (libavutil 58); before it, pkt_duration (Debian 12 has FFmpeg 5.1)
+#if LIBAVUTIL_VERSION_MAJOR >= 58
+#define FRAME_DURATION(f) (f)->duration
+#else
+#define FRAME_DURATION(f) (f)->pkt_duration
+#endif
 static AVFormatContext* open_input(const char* path, int* stream, const AVCodec** codec) {
   AVFormatContext* fmt = nullptr;
   if (avformat_open_input(&fmt, path, nullptr, nullptr) < 0) return nullptr;
@@ -245,7 +251,7 @@ static void publish(Player* p, Source* s, AVFrame* fr, uint32_t gen, double base
   s->last = pts;
   double pos = (pts - s->start) * s->tb;
   if (pos < 0) pos = 0;
-  double fd = fr->duration > 0 ? fr->duration * s->tb : s->fdur;
+  double fd = FRAME_DURATION(fr) > 0 ? FRAME_DURATION(fr) * s->tb : s->fdur;
   if (pos + fd > s->end) s->end = pos + fd;
   const int k = slot_take(p, gen);
   if (k < 0) return;

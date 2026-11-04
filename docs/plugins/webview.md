@@ -10,7 +10,8 @@ the page calls Zinc commands and Zinc pushes data into the page.
 | ios | WKWebView over SDL's view (the same `src/webview.mm`, frameworks WebKit + UIKit) |
 | android | android.webkit.WebView above SDL's SurfaceView (`native/android/WebviewModule.java` behind the generated `WebviewSpec`, D127; permission INTERNET) |
 | sim | fake: views are handles, nothing is shown, no page runs |
-| linux (WebKitGTK), windows (WebView2), wasm (iframe overlay), rpi1 | not supported yet (Z5003 at build time) |
+| linux | WebKitGTK (`libwebkit2gtk-4.1`, else 4.0), loaded when the first view opens, on an X11 or XWayland desktop. Without it, or on a screen with no desktop (KMS), `create` prints why and the view does nothing. `key()` does nothing here: the real keyboard reaches the page |
+| windows (WebView2), wasm (iframe overlay), rpi1 | not supported yet (Z5003 at build time) |
 
 Example: `examples/webview/hybrid` (a native sidebar next to a web panel, both ways), run with
 `zinc run examples/webview/hybrid -- <dir>`. On a phone (or with `HYBRID_PHONE=1`) it is one scrolling page: the web panel

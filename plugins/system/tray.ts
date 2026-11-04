@@ -5,8 +5,10 @@ import { Item, encodeItems, onClick } from './menu';
 
 export class Options {
   id: string;
-  /** A PNG path, relative to where the program runs; '' draws a plain dot. macOS: a name ending in Template.png is a template image. */
+  /** A PNG path, relative to where the program runs; with no icon, symbol or title: a plain dot. macOS: a name ending in Template.png is a template image. */
   icon: string = '';
+  /** macOS: an SF Symbol ('sun.max'), at the menu bar's size and tinted by the system. It takes the place of `icon`. */
+  symbol: string = '';
   /** macOS: monochrome image the system tints for light and dark menu bars. */
   template: boolean = true;
   tooltip: string = '';
@@ -29,6 +31,8 @@ export class Tray {
   setTooltip(tooltip: string): void { call('tray.update', { id: this.id, props: { tooltip: tooltip } }); }
   setIcon(path: string, template: boolean = true): void { call('tray.update', { id: this.id, props: { icon: path, template: template } }); }
   setMenu(items: Item[]): void { callRaw('tray.update', '{"id":"' + this.id + '","props":{"menu":' + encodeItems(items) + '}}'); }
+  /** Where the icon is, in the coordinates of zinc:system/window setPosition: to open a panel under it. */
+  bounds(): { x: number; y: number; w: number; h: number } { return call('tray.bounds', { id: this.id }) as { x: number; y: number; w: number; h: number }; }
   destroy(): void { call('tray.remove', { id: this.id }); const i = live.indexOf(this); if (i >= 0) live.splice(i, 1); }
 }
 
@@ -52,7 +56,7 @@ export function isAvailable(): boolean { const r = call('tray.available', {}) as
 
 export async function create(o: Options): Promise<Tray> {
   wire();
-  const head = JSON.stringify({ id: o.id, icon: o.icon, template: o.template, tooltip: o.tooltip, title: o.title, menuOnLeftClick: o.menuOnLeftClick });
+  const head = JSON.stringify({ id: o.id, icon: o.icon, symbol: o.symbol, template: o.template, tooltip: o.tooltip, title: o.title, menuOnLeftClick: o.menuOnLeftClick });
   callRaw('tray.create', o.hasMenu ? head.slice(0, head.length - 1) + ',"menu":' + encodeItems(o.menu) + '}' : head);
   const t = new Tray(o.id);
   live.push(t);

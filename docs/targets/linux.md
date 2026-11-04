@@ -150,7 +150,7 @@ find it in the sysroot above.
 
 The plugins: camera (V4L2), microphone and audio (miniaudio), webrtc (libdatachannel), sqlite, socket, three, 3d, canvas2d, lottie,
 svg, physics2d and physics3d, serial, process, system, midi (ALSA), ffi (libffi) and the others build for the four architectures. Of the 32
-plugins with native code, seven do not: leapmotion, mapping and webview have no Linux target; gphoto2 and video need libraries the
+plugins with native code, six do not: leapmotion and mapping have no Linux target; gphoto2 and video need libraries the
 pinned sysroot leaves out (libgphoto2, FFmpeg: their -dev packages pull dozens of others; FFmpeg can be copied from the device by hand,
 `docs/reports/raspberry-pi.md`); script and imu-qmi8658 do not build with `zinc plugin-build` on any machine (their spec has a member
 the generated thunk cannot carry). A cross build makes the static archive a program links (`zinc build --target`);

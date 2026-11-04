@@ -31,6 +31,7 @@ typedef NSSize ZSize;
 #endif
 #include "zrt_assets_dir.h"
 #include "zinc_native_webview.h"
+#include "bridge.h"
 
 #ifndef ZP_WEBVIEW_INSPECTABLE
 #define ZP_WEBVIEW_INSPECTABLE 0
@@ -78,17 +79,7 @@ static NSString* mime(NSString* name) {
 }
 
 // The page side: window.zinc (postMessage, invoke, onmessage). Injected before any page script runs.
-static NSString* const BRIDGE = @"(() => {"
-  "const h = window.webkit.messageHandlers.zinc, pend = new Map(); let seq = 0;"
-  "const str = (x) => x === undefined ? '' : typeof x === 'string' ? x : JSON.stringify(x);"
-  "const parse = (s) => { try { return JSON.parse(s); } catch (e) { return s; } };"
-  "window.zinc = {"
-  " postMessage(x) { h.postMessage({ t: 'm', d: str(x) }); },"
-  " invoke(cmd, args) { return new Promise((res, rej) => { const id = ++seq; pend.set(id, [res, rej]); h.postMessage({ t: 'i', id, cmd: String(cmd), d: str(args) }); }); },"
-  " onmessage: null,"
-  " __settle(id, ok, r) { const p = pend.get(id); if (!p) return; pend.delete(id); if (ok) p[0](parse(r)); else p[1](new Error(r)); },"
-  " __dispatch(d) { const v = parse(d); if (window.zinc.onmessage) window.zinc.onmessage(v); window.dispatchEvent(new MessageEvent('zinc', { data: v })); },"
-  "};})();";
+static NSString* const BRIDGE = @"" ZINC_WEBVIEW_BRIDGE("window.webkit.messageHandlers.zinc");
 
 /** IPC is accepted from the app's own pages (zinc://, inline HTML) and the local dev server the app itself opened:
  *  same port only (`port`), so a link to another local server does not get the bridge. */

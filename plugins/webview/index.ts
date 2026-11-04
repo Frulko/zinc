@@ -1,5 +1,5 @@
 // zinc:webview — web content inside the app window, Tauri-like (docs/plugins/webview.md).
-// A WebView is a native web view (WKWebView on macOS and iOS, android.webkit.WebView on Android) over the surface, placed in
+// A WebView is a native web view (WKWebView on macOS and iOS, android.webkit.WebView on Android, WebKitGTK on Linux) over the surface, placed in
 // logical pixels, best by a zinc:ui <NativeView view={web} /> (box, clip, hidden under overlays). The page talks
 // to the program through `window.zinc`: postMessage(x) -> onMessage, and `await zinc.invoke(cmd, args)` -> the
 // handler registered with handle(cmd, ...) (commands that are not registered reject: the allowlist). `zinc://app/<path>`

@@ -40,6 +40,7 @@
 #define STB_IMAGE_RESIZE_STATIC
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb/stb_image_resize2.h"
+#include "libwebp/src/webp/decode.h"
 #define TINYEXIF_NO_XMP_SUPPORT
 #include "../vendor/TinyEXIF.cpp"
 #ifdef __APPLE__
@@ -354,6 +355,27 @@ bool portableDecode(const std::string& path, int side, Pixels& out, std::string&
   if (!readFile(path, f)) { why = "imageio: cannot read " + path + ": " + strerror(errno); return false; }
   Meta m;
   if (!portableInfo(f.data(), f.size(), m)) { why = "imageio: not an image it can read: " + path; return false; }
+  if (m.format == "webp" && std::max(m.w, m.h) > side) {
+    static auto init = reinterpret_cast<int (*)(WebPDecoderConfig*, int)>(dlsym(RTLD_DEFAULT, "WebPInitDecoderConfigInternal"));
+    static auto decode = reinterpret_cast<VP8StatusCode (*)(const uint8_t*, size_t, WebPDecoderConfig*)>(dlsym(RTLD_DEFAULT, "WebPDecode"));
+    static auto release = reinterpret_cast<void (*)(WebPDecBuffer*)>(dlsym(RTLD_DEFAULT, "WebPFreeDecBuffer"));
+    WebPDecoderConfig config;
+    if (init && decode && release && init(&config, WEBP_DECODER_ABI_VERSION)) {
+      const double scale = (double)side / std::max(m.w, m.h);
+      out.w = std::max(1, (int)(m.w * scale + 0.5)); out.h = std::max(1, (int)(m.h * scale + 0.5));
+      out.rgba.resize((size_t)out.w * out.h * 4);
+      config.options.use_scaling = 1;
+      config.options.scaled_width = out.w; config.options.scaled_height = out.h;
+      config.output.colorspace = MODE_RGBA; config.output.is_external_memory = 1;
+      config.output.u.RGBA.rgba = out.rgba.data(); config.output.u.RGBA.stride = out.w * 4;
+      config.output.u.RGBA.size = out.rgba.size();
+      const bool ok = decode(f.data(), f.size(), &config) == VP8_STATUS_OK;
+      release(&config.output);
+      if (!ok) { out.rgba.clear(); why = "imageio: cannot decode " + path; return false; }
+      orient(out, m.orient);
+      return true;
+    }
+  }
   uint8_t* d = nullptr;
   if (m.format == "webp") d = webpDecode() ? webpDecode()(f.data(), f.size(), &out.w, &out.h) : nullptr;
   else { int c = 0; d = stbi_load_from_memory(f.data(), (int)f.size(), &out.w, &out.h, &c, 4); }
