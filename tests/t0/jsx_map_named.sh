@@ -10,8 +10,9 @@ const out: string[] = [];
 function mark(s: string): string { out.push(s); return s; }
 const row = (s: string) => <Text key={s}>{mark('r' + s)}</Text>;
 function row2(s: string, i: i32): i32 { return <Text key={s}>{mark('q' + s + i)}</Text>; }
+function either(on: boolean): i32 { return on ? <Text>{mark('t')}</Text> : <View />; }   // a helper that returns a conditional mounts its node too
 const items = ['a', 'b'];
-function App(): i32 { return <View>{items.map(row)}{items.map(row2)}</View>; }
+function App(): i32 { return <View>{items.map(row)}{items.map(row2)}{either(true)}</View>; }
 let f = 0;
 render(App, 0xffffff, (dt: number) => { f++; if (f === 3) console.log(out.join(' ')); });
 P
@@ -20,7 +21,7 @@ dump=$(ZN_DUMP_JSX=p.tsx ZINC_HEADLESS=1 ZINC_FRAMES=2 timeout 60 "$ZINC" run --
 for want in 'of items.map(row)) _append' 'of items.map(row2)) _append'; do
   case "$dump" in *"$want"*) ;; *) echo "lowering: missing '$want'"; fail=1 ;; esac
 done
-want="ra rb qa0 qb1"
+want="ra rb qa0 qb1 t"
 got=$(ZINC_HEADLESS=1 ZINC_FRAMES=5 timeout 60 "$ZINC" run --interp "$tmp/p.tsx" 2>&1 | tail -1)
 [ "$got" = "$want" ] || { echo "interpreter: want '$want', got '$got'"; fail=1; }
 got=$(ZINC_HEADLESS=1 ZINC_FRAMES=5 timeout 60 "$ZINC" run "$tmp/p.tsx" 2>&1 | tail -1)

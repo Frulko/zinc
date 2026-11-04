@@ -742,6 +742,9 @@ struct Lowering {
       std::size_t r0 = k + 1;
       while (isP(r0, "(")) ++r0;
       if (jsxStart(r0)) return true;
+      std::size_t r1 = 0;   // `return ready ? <A/> : <B/>;`
+      scan(k + 1, close, [&](std::size_t i, const std::string& x) { if (!r1 && (x == ";" || x == "}")) r1 = i; });
+      if (r1 && jsxValue(k + 1, r1)) return true;
     }
     return false;
   }
