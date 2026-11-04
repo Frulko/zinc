@@ -108,6 +108,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - A program that resizes its window on every frame keeps showing its frames: they were all dropped until the window stopped moving.
 - Image viewers release their high-resolution copies on navigation and close, including late loads.
 - JavaScript games using Pointer Events receive finger presses, movement and releases with stable touch identities, and canvas presentation respects `image-rendering: pixelated` and `crisp-edges`, keeping pixel art sharp on Retina displays.
+- A press on a focusable node no longer scrolls it into view, as in a browser: a drawing surface taller than its scroll area stayed under the pointer only by luck.
 
 ### Rendering and performance
 

@@ -6097,6 +6097,7 @@ function pressAt(px: number, py: number, button: i32): void {
       else if (focus >= 0 && nodes[focus].ed !== null) setFocusTo(-1);
     }
   }
+  if (focus >= 0 && nodes[focus].ed === null) focusShown = focus;   // as a browser: a press on a focusable node does not scroll it into view, the pointer is on it; a field does, for the on-screen keyboard
   const under = selecting >= 0 || keepsGrab(capture) ? -1 : scrollerTop(px, py, 3);
   dragScroller = under >= 0 && (dragScrolls() || mouseDrags(under)) ? under : -1;   // a mouse drags only a dragToScroll container
   // a scroll area under something else that takes the pointer at this point (a splash screen with its own handlers over the page) is not
