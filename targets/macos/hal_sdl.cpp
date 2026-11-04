@@ -1659,6 +1659,14 @@ extern "C" {
 void (*zgl_layers)(int32_t w, int32_t h);
 void zgl_logical_size(int32_t* w, int32_t* h) { *w = W; *h = H; }
 }
+// The display's real mode ("U:854x480p-58"), when it has fewer pixels than the window: drawing the others would be wasted.
+static bool panel_smaller_than(int w, int h, int* panel_w, int* panel_h) {
+  FILE* modes = fopen("/sys/class/graphics/fb0/modes", "r");
+  if (!modes) return false;
+  const bool read = fscanf(modes, "%*[^:]:%dx%d", panel_w, panel_h) == 2;
+  fclose(modes);
+  return read && *panel_w > 0 && *panel_h > 0 && *panel_w < w && *panel_h < h;
+}
 static void gl_show_layers(GLuint src, float bgr, int dw, int dh) {
   static const char* kKeyFS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform float u_bgr;\n"
     "void main() { vec4 t = texture2D(u_tex, v_uv); vec3 c = u_bgr > 0.5 ? t.bgr : t.rgb; float a = dot(c, c) < 0.0001 ? 0.0 : 1.0; gl_FragColor = vec4(c * a, a); }\n";
@@ -1666,7 +1674,7 @@ static void gl_show_layers(GLuint src, float bgr, int dw, int dh) {
   // ZINC_BUFFER=WxH: the window's buffers at the panel's own size where the system says more than it shows (a Toumei C800 tells apps 1280x720 and
   // shows 854x480): the compositor stretches them over the same picture, and the GPU fills only the pixels that exist.
   static int buf_w, buf_h;
-  static const bool buf_on = getenv("ZINC_BUFFER") && sscanf(getenv("ZINC_BUFFER"), "%dx%d", &buf_w, &buf_h) == 2 && buf_w > 0 && buf_h > 0;
+  static const bool buf_on = getenv("ZINC_BUFFER") ? sscanf(getenv("ZINC_BUFFER"), "%dx%d", &buf_w, &buf_h) == 2 && buf_w > 0 && buf_h > 0 : panel_smaller_than(dw, dh, &buf_w, &buf_h);
   if (buf_on) {
     static ANativeWindow* sized;
     ANativeWindow* nw = (ANativeWindow*)SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);

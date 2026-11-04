@@ -129,6 +129,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - Large software-rendered shadows reserve memory only for the distinct alpha rows they use, raster and HTTP scratch buffers are allocated when needed, GPU display drivers release unused software buffers, and console and browser runners release decoded input bytes before execution, so each rendering thread uses less memory.
 - The Sonos plugin reads a group and its rooms in parallel, and a new `eachGroup` runs work over groups, three at a time. The inspector, the Markdown reader's Notion sync and pictures, Zinc Hub's icons, Discord file uploads and iPod library loads no longer wait for one request at a time.
 - Museum releases hidden 3D output buffers and stopped video decoders after navigation, recreating them when needed.
+- On an Android device that tells apps a larger screen than its panel really has, the GL renderer draws only the panel's pixels: no setting needed.
 
 #### Fixed
 - macOS keeps Metal presentation continuous by default and retains the last snapshot during resize, avoiding empty frames from adaptive renderer transitions.
