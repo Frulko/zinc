@@ -24,7 +24,7 @@ void null_hal_init(const HalConfig*); void null_hal_shutdown(void); void null_ha
 void null_hal_poll_input(HalInput*); void null_hal_present(const HalFrame*); void null_hal_surface_size(int*, int*); double null_hal_fixed_dt(void);
 #ifdef ZN_HOST_SDL
 void sdl_hal_init(const HalConfig*); void sdl_hal_shutdown(void); void sdl_hal_frame_begin(void); void sdl_hal_frame_end(void);
-void sdl_hal_poll_input(HalInput*); void sdl_hal_present(const HalFrame*); void sdl_hal_surface_size(int*, int*); double sdl_hal_fixed_dt(void);
+void sdl_hal_poll_input(HalInput*); void sdl_hal_present(const HalFrame*); int32_t sdl_hal_present_async(void); void sdl_hal_surface_size(int*, int*); double sdl_hal_fixed_dt(void);
 void sdl_hal_text_input(int32_t, float, float, float, float); const char* sdl_hal_clipboard_get(void); void sdl_hal_clipboard_set(const char*, size_t);
 void sdl_hal_set_cursor(int32_t); void sdl_hal_escape_by_app(int32_t); void sdl_hal_escape(void); int32_t sdl_hal_pixel_scale(void); void* sdl_hal_window_handle(void);
 int32_t sdl_hal_win_open(int32_t, const char*, int32_t, int32_t); void sdl_hal_win_close(int32_t); int32_t sdl_hal_win_state(int32_t);
@@ -328,6 +328,7 @@ __attribute__((weak)) void sdl_hal_frame_begin(void) {}
 __attribute__((weak)) void sdl_hal_frame_end(void) {}
 __attribute__((weak)) void sdl_hal_poll_input(HalInput*) {}
 __attribute__((weak)) void sdl_hal_present(const HalFrame*) {}
+__attribute__((weak)) int32_t sdl_hal_present_async(void) { return 0; }
 __attribute__((weak)) void sdl_hal_surface_size(int* w, int* h) { *w = 0; *h = 0; }
 __attribute__((weak)) double sdl_hal_fixed_dt(void) { return 0; }
 __attribute__((weak)) void sdl_hal_text_input(int32_t, float, float, float, float) {}
@@ -359,6 +360,8 @@ void hal_frame_end(void) { heartbeat(); if (live) sdl_hal_frame_end(); else null
 static bool windowScript() { static const bool on = [] { const char* p = getenv("ZINC_INPUT"); return p && *p; }(); return on; }
 void hal_poll_input(HalInput* in) { if (live) { sdl_hal_poll_input(in); if (windowScript()) applyScript(in); } else { null_hal_poll_input(in); applyScript(in); } }
 void hal_present(const HalFrame* f) { if (holdUntil) hold(); if (live) sdl_hal_present(f); else null_hal_present(f); }
+// the present may run on the render thread (runtime/gfx.cpp, D182): the window says when; the null HAL presents nothing anywhere
+int32_t hal_present_async(void) { return live ? sdl_hal_present_async() : 1; }
 void hal_surface_size(int* w, int* h) { if (live) sdl_hal_surface_size(w, h); else nullSize(w, h); }
 double hal_fixed_dt(void) { return live ? sdl_hal_fixed_dt() : driven() ? 0 : null_hal_fixed_dt(); }
 void hal_text_input(int32_t on, float x, float y, float w, float h) { if (live) sdl_hal_text_input(on, x, y, w, h); }
@@ -385,6 +388,7 @@ void hal_frame_begin(void) { null_hal_frame_begin(); }
 void hal_frame_end(void) { heartbeat(); null_hal_frame_end(); }
 void hal_poll_input(HalInput* in) { null_hal_poll_input(in); applyScript(in); }
 void hal_present(const HalFrame* f) { null_hal_present(f); }
+int32_t hal_present_async(void) { return 1; }
 void hal_surface_size(int* w, int* h) { nullSize(w, h); }
 double hal_fixed_dt(void) { return driven() ? 0 : null_hal_fixed_dt(); }
 void hal_text_input(int32_t, float, float, float, float) {}

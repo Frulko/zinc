@@ -290,6 +290,15 @@ export function escapeDefault(): void { __host_gfxEscapeDefault(); }
 export function profiling(): boolean { return __host_gfxProfiling(); }
 export function commandCount(): i32 { return __host_gfxCommands(); }
 export function commandsFree(): i32 { return __host_gfxCommandsFree(); }
+/** The easing curve `kind` at t (include/zn/ease.h): zinc:ui's tweens and the compositor share it. */
+export function ease(kind: i32, t: number): number { return __host_gfxEase(kind, t); }
+/** The compositor (D182): the commands drawn until layerEnd() form layer `id`, turned around (cx, cy) by its declared animation. */
+export function layerBegin(id: i32, cx: number, cy: number): void { __host_gfxLayerBegin(id, cx, cy); }
+export function layerEnd(): boolean { return __host_gfxLayerEnd() !== 0; }
+/** Declares layer `id`'s animation (prop 0: rotate, degrees) from `from` to `to`, starting at `start` ms of compClock's clock; dur < 0 removes it. */
+export function layerAnim(id: i32, prop: i32, from: number, to: number, start: number, dur: number, easing: i32, iterations: number): void { __host_gfxLayerAnim(id, prop, from, to, start, dur, easing, iterations); }
+/** The script's animation clock this frame (ms < 0: no change); true when the compositor plays the declared animations. */
+export function compClock(ms: number): boolean { return __host_gfxCompClock(ms) !== 0; }
 export function profMark(phase: i32): void { __host_gfxProfMark(phase); }
 export function quit(): void { __host_gfxQuit(); }
 export function capture(path: string): boolean { return __host_gfxCapture(path); }

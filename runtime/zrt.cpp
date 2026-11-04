@@ -856,6 +856,7 @@ bool poll_host(bool& frame) {
 bool display_driver = false;  // a plugins/display-* driver took over the screen and input
 // zinc device screen --live (src/host/mirror.cpp): the frames shown, and the viewer's input merged into the program's; null without a viewer
 void (*mirror_present)(const HalFrame* f) = nullptr;
+bool (*mirror_wants)() = nullptr;   // whether the hook above needs this frame now (a viewer, a screencast); null: always
 void (*mirror_input)(HalInput* in) = nullptr;
 bool mirror_watching = false;   // a viewer is connected: pictures are drawn, not on planes (a plane's pixels are not in the frame it receives)
 // zinc:shell (plugins/shell): after the mirror, takes out of the frame's input what goes to the program it shows; null without one

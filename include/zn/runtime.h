@@ -418,7 +418,11 @@
   /* Array.set(source, offset?, start?, end?): the elements of another array (all, or from `start` to `end`) copied in as a block, from `offset`; what does not fit is left out (the TypedArray method, for any array); appended */ \
   X(ArrSet, "Array.set", "aAzzj>n", 0) \
   /* Array.__fill(value, start, end): the elements from `start` to `end` (already clamped by the generated Array.fill) set to one value as a block; appended */ \
-  X(ArrFillRange, "Array.__fill", "aeii>n", 0)
+  X(ArrFillRange, "Array.__fill", "aeii>n", 0) \
+  /* the compositor (D182 step 6, runtime/gfx.cpp): the easing curves of include/zn/ease.h; a layer of the frame (a node's commands, turned */ \
+  /* around its centre by the compositor); a declared animation of a layer; the script's clock of this frame. Graphics rows, appended */ \
+  X(HostGfxEase, "host.gfxEase", "id>d", 2) X(HostGfxLayerBegin, "host.gfxLayerBegin", "idd>n", 2) X(HostGfxLayerEnd, "host.gfxLayerEnd", ">i", 2) \
+  X(HostGfxLayerAnim, "host.gfxLayerAnim", "iiddddid>n", 2) X(HostGfxCompClock, "host.gfxCompClock", "d>i", 2)
 
 namespace zn {
 
@@ -449,7 +453,7 @@ inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::H
 inline constexpr bool isGfxTailRow(Rt r) {
   return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes ||
          (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont || r == Rt::HostGfxGradientPaint || r == Rt::HostGfxImageFromPixels ||
-         r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection) || r == Rt::HostGfxPaused || r == Rt::HostGfxWindowCtl || (r >= Rt::HostGfxUpdatePixels && r <= Rt::HostGfxFrameStat) || (r >= Rt::HostGfxDecodeStart && r <= Rt::HostGfxDecodeCancel);
+         r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection) || r == Rt::HostGfxPaused || r == Rt::HostGfxWindowCtl || (r >= Rt::HostGfxUpdatePixels && r <= Rt::HostGfxFrameStat) || (r >= Rt::HostGfxDecodeStart && r <= Rt::HostGfxDecodeCancel) || (r >= Rt::HostGfxEase && r <= Rt::HostGfxCompClock);
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too. zinc:osc and the loop's events it arrives by.
 inline constexpr bool isSysTailRow(Rt r) {
@@ -506,7 +510,7 @@ inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
 // retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
 // graphics host (numbers, borrowed strings and arrays, no callbacks).
 inline bool rtMayRelease(Rt id) {
-  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint || id == Rt::HostGfxImageFromPixels || id == Rt::HostGfxUpdateImage || (id >= Rt::HostGfxShaderProgram && id <= Rt::HostGfxProfSection) || id == Rt::HostGfxWindowCtl || (id >= Rt::HostGfxUpdatePixels && id <= Rt::HostGfxFrameStat) || (id >= Rt::HostGfxDecodeStart && id <= Rt::HostGfxDecodeCancel)) return false;
+  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxEase && id <= Rt::HostGfxCompClock) || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint || id == Rt::HostGfxImageFromPixels || id == Rt::HostGfxUpdateImage || (id >= Rt::HostGfxShaderProgram && id <= Rt::HostGfxProfSection) || id == Rt::HostGfxWindowCtl || (id >= Rt::HostGfxUpdatePixels && id <= Rt::HostGfxFrameStat) || (id >= Rt::HostGfxDecodeStart && id <= Rt::HostGfxDecodeCancel)) return false;
   if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
   switch (id) {
     case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:

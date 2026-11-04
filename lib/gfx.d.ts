@@ -155,6 +155,15 @@ declare module 'zinc:gfx' {
   /** Draw commands recorded so far in this frame, and how many more the frame still takes. */
   export function commandCount(): i32;
   export function commandsFree(): i32;
+  /** The easing curve `kind` at t (0 linear, 1 in, 2 out, 3 inOut, 4 spring, 5-8 the CSS béziers, 9-11 the iOS curves): zinc:ui and the compositor share it. */
+  export function ease(kind: i32, t: number): number;
+  /** The compositor (D182): the commands drawn until layerEnd() form layer `id`, turned around (cx, cy) by its declared animation. */
+  export function layerBegin(id: i32, cx: number, cy: number): void;
+  export function layerEnd(): boolean;
+  /** Declares layer `id`'s animation (prop 0: rotate, degrees); dur < 0 removes it. */
+  export function layerAnim(id: i32, prop: i32, from: number, to: number, start: number, dur: number, easing: i32, iterations: number): void;
+  /** The script's animation clock this frame (ms < 0: no change); true when the compositor plays the declared animations. */
+  export function compClock(ms: number): boolean;
   /** Draw commands until endImage() are rasterized into `image` instead of the screen (tile caches, static layers). */
   export function beginImage(image: i32): void;
   export function endImage(): void;

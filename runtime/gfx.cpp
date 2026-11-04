@@ -24,6 +24,7 @@ extern bool quit_requested;
 extern int32_t surf_w, surf_h;
 extern bool display_driver;
 extern void (*mirror_present)(const HalFrame* f);
+extern bool (*mirror_wants)();
 extern void (*first_present)();
 extern void (*dev_restart)();
 extern int32_t (*wall_minute)();
@@ -42,6 +43,146 @@ static void present(const HalFrame* f) {
   if (first_present) { void (*f1)() = first_present; first_present = nullptr; f1(); }
 }
 }  // namespace zrt
+#if __has_include("zn/frame_trace.h")
+#include "zn/frame_trace.h"
+extern "C" { void (*zn_frame_trace)(int32_t, uint64_t, uint64_t, int64_t, int64_t) = nullptr; }
+#define ZRT_FT(k, t0, t1, a, b) do { if (zn_frame_trace) zn_frame_trace(k, t0, t1, a, b); } while (0)
+#else
+#define ZRT_FT(k, t0, t1, a, b) do {} while (0)
+#endif
+#if __has_include("zn/ease.h")
+#include "zn/ease.h"
+#define ZRT_COMPOSITOR 1   // the compositor (D182 step 6): declared animations of layers, below
+#endif
+namespace zrt { namespace gfx {
+[[maybe_unused]] static bool comp_live(uint64_t now);               // the frame on screen has a layer whose animation moves at `now`
+[[maybe_unused]] static bool comp_tick(HalFrame* f, uint64_t now);  // composes it at `now` into f; false: nothing to draw
+}}  // namespace zrt::gfx
+
+// ---------- the render thread (D182, docs/reports/threads-ui-compute-animation.md step 5) ----------
+// The script stays on the OS main thread; a thread named "zinc render" runs the HAL's present (the raster bands or the GL replay, and the
+// swap) of the frame the script committed, while the script builds the next one into the other command buffer. The handoff blocks: the
+// script waits at the start of its next end_frame until the render thread is done (zrt_render_idle), so the overlays, the damage list and
+// `shown` are written only while nothing reads them, the frame time is max(script + diff, render) and no frame is ever dropped (so no
+// damage has to be merged). Two command buffers are enough for that: the third slot of the report would only let the script run ahead of
+// the display and throw frames away. Everything that changes what a present reads from the script thread (fonts, runtime glyphs, images,
+// the surface size, the overlays) calls zrt_render_idle first. The HAL says per frame whether its present may run on another thread
+// (hal_present_async: the macOS window once shown, outside a live resize); otherwise the present runs inline, as it always did.
+// ZINC_RENDER_THREAD=0 turns it off, =1 forces it on (even in deterministic runs and captures, to prove the pixels are the same);
+// by default it is on except in deterministic, recorded, replayed, headless and capture runs (D182: those stay synchronous).
+extern "C" __attribute__((weak)) int32_t hal_present_async(void) { return 0; }
+#ifdef ZRT_RENDER_THREAD
+#include <pthread.h>
+#ifdef __APPLE__
+#include <pthread/qos.h>
+#endif
+namespace zrt { namespace rthread {
+static int mode = -1;   // -1 not read, 0 off, 1 auto, 2 forced
+static bool started = false, busy = false, failed = false;
+static pthread_t th, script;
+static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
+static HalFrame job;
+static HalMove move;
+static int32_t slot;
+static uint64_t r0, r1, prev_r0;   // the last render's span, the start of the one before
+// The compositor's ticks (step 6): while the script is late with its next frame, the render thread presents the frame on screen again with
+// its animated layers moved on. A tick waits for a frame's time after the last present began (an eighth more after a frame of the script,
+// whose next commit would otherwise race the tick for the display), then each present paces the next. `hold` stops the ticks from the
+// moment the script waits for this thread (zrt_render_idle: it is about to change what a present reads) until it hands the next frame
+// over; a frame presented on the script thread (a live resize) leaves them stopped.
+static bool hold = true, ticked = false;
+static constexpr uint64_t kTickUs = 16667;   // ponytail: 60 Hz; the display's refresh once a HAL reports it
+static void wait_until(uint64_t due, uint64_t now) {   // on mu: until `due` (hal_time_us) or a signal
+  const uint64_t d = due - now;
+  struct timespec ts;
+#ifdef __APPLE__
+  ts.tv_sec = (time_t)(d / 1000000); ts.tv_nsec = (long)(d % 1000000) * 1000;
+  pthread_cond_timedwait_relative_np(&cv, &mu, &ts);
+#else
+  clock_gettime(CLOCK_REALTIME, &ts);
+  const uint64_t ns = (uint64_t)ts.tv_nsec + d * 1000;
+  ts.tv_sec += (time_t)(ns / 1000000000); ts.tv_nsec = (long)(ns % 1000000000);
+  pthread_cond_timedwait(&cv, &mu, &ts);
+#endif
+}
+static void* loop(void*) {
+#ifdef __APPLE__
+  pthread_setname_np("zinc render");
+  // the main thread's class: a default thread goes to the efficiency cores under load and every present waits for it
+  pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+#else
+  pthread_setname_np(pthread_self(), "zinc render");
+#endif
+  for (;;) {
+    bool tick = false;
+    pthread_mutex_lock(&mu);
+    while (!busy) {
+      const uint64_t now = hal_time_us();
+      if (hold || !gfx::comp_live(now)) { pthread_cond_wait(&cv, &mu); continue; }
+      const uint64_t due = prev_r0 + kTickUs + (ticked ? 0 : kTickUs / 8);
+      if (now >= due) { busy = tick = true; break; }
+      wait_until(due, now);
+    }
+    pthread_mutex_unlock(&mu);
+    const uint64_t t0 = hal_time_us();
+    HalFrame f;
+    const bool drawn = tick ? gfx::comp_tick(&f, t0) : true;
+    if (drawn) present(tick ? &f : &job);
+    const uint64_t t1 = hal_time_us();
+    if (drawn) {
+      ZRT_FT(ZN_FT_RENDER, t0, t1, tick ? -1 : slot, 1);
+      if (prev_r0) ZRT_FT(ZN_FT_PRESENT, prev_r0, t0, (int64_t)(t0 - prev_r0), 0);
+    }
+    pthread_mutex_lock(&mu);
+    if (drawn) { prev_r0 = t0; r0 = t0; r1 = t1; }
+    else hold = true;   // nothing moved after all: no more ticks until the next frame
+    ticked = tick;
+    busy = false;
+    pthread_cond_broadcast(&cv);
+    pthread_mutex_unlock(&mu);
+  }
+  return nullptr;
+}
+static bool env_on(const char* n) { const char* e = hal_env(n); return e && *e && *e != '0'; }
+/** This frame's present goes to the render thread. */
+static bool wanted() {
+  if (mode < 0) {
+    const char* e = hal_env("ZINC_RENDER_THREAD");
+    if (e && *e) mode = *e == '0' ? 0 : 2;
+    else mode = env_on("ZINC_DETERMINISTIC") || hal_env("ZINC_RECORD") || hal_env("ZINC_REPLAY") || env_on("ZINC_HEADLESS") || hal_env("ZINC_SHOT") ||
+                hal_env("ZINC_SHOT_FRAMES") || hal_env("ZINC_SHOT_EVERY") || env_on("ZINC_FRAMEHASH") || hal_env("ZINC_SCENE_DUMP") ? 0 : 1;
+  }
+  // a frame somebody watches is presented here, where the hook gets it; the hooks installed for a viewer that may come never stop the thread
+  if (!mode || failed || display_driver || (mirror_present && (!mirror_wants || mirror_wants())) || !hal_present_async()) return false;
+  if (!started) {
+    script = pthread_self();
+    pthread_attr_t a;
+    pthread_attr_init(&a);
+    pthread_attr_setstacksize(&a, 1 << 20);   // the raster's scratch is on the heap (per thread), the GL replay's tables are static
+    failed = pthread_create(&th, &a, loop, nullptr) != 0;
+    pthread_attr_destroy(&a);
+    if (failed) return false;
+    pthread_detach(th);
+    started = true;
+    at_finish([] { zrt_render_idle(); });   // the last frame is on the screen before the shots and the exit
+  }
+  return true;
+}
+}}  // namespace zrt::rthread
+/** Waits until the render thread presented the frame it was given. A no-op on any other thread than the script's (the render thread
+ *  itself and the raster bands call the same functions) and while no thread runs. */
+extern "C" void zrt_render_idle(void) {
+  using namespace zrt::rthread;
+  if (!started || !pthread_equal(pthread_self(), script)) return;
+  pthread_mutex_lock(&mu);
+  hold = true;
+  while (busy) pthread_cond_wait(&cv, &mu);
+  pthread_mutex_unlock(&mu);
+}
+#else
+extern "C" void zrt_render_idle(void) {}
+#endif
 // HiDPI: physical pixels per logical pixel (the SDL HAL reports Retina density x window magnification)
 extern "C" __attribute__((weak)) int32_t hal_pixel_scale(void) { return 1; }
 // More windows (ZN-663): a HAL without them has the main window only, and closing it ends the program
@@ -78,6 +219,7 @@ void sync_surface() {
   // frame then presented the empty buffer: a black window)
   const int32_t k = scale_now();
   if (w == surf_w && h == surf_h && k == pxk) return;
+  zrt_render_idle();   // the render thread presents at the old size until it is done
   surf_w = w; surf_h = h; pxk = 0;
   init_scale();
   first_frame();
@@ -207,6 +349,7 @@ static void banner_expire() {
 }
 /** Shows the red box for `text` ("message\n    at f (file:line)..."); null clears it. False: no screen. */
 bool crash_screen(const char* text, uint32_t n) {
+  zrt_render_idle();
   rbox.ncmd = rbox.ntext = 0;
   ovl_changed = true;
   if (!text) return true;
@@ -247,6 +390,7 @@ void pause_badge(bool on) {
 }
 /** console.warn/error in dev builds: a yellow strip at the bottom, hidden after 8 s. */
 void log_banner(int, const char* s, uint32_t n) {
+  zrt_render_idle();
   int32_t k = ovl_k();
   float h = 14.0f * k, y = (float)ph - h;
   uint32_t len = 0;
@@ -274,8 +418,9 @@ static struct Vis { Cmd* cmds; uint32_t ncmd, cap; int32_t mode; } vis = {nullpt
 // or not at all: GPU displays take the command lists); the next shown frame bins again.
 static raster::Tiles shown_tiles = {};
 static int32_t tiles_state = 0;   // 0 not binned, 1 binning, 2 ready
+static raster::Frame shown_frame();
 static void paint_shown(uint32_t* rows, int32_t y0, int32_t y1, raster::Rect r) {
-  const raster::Frame f = frame_of(*shown);
+  const raster::Frame f = shown_frame();
   if (f.count < raster::kTilesMin) { raster::render(f, rows, pw, y0, y1, r); return; }
   if (__atomic_load_n(&tiles_state, __ATOMIC_ACQUIRE) != 2) {
     int32_t idle = 0;
@@ -309,8 +454,8 @@ static void render_holes(uint32_t* rows, int32_t y0, int32_t y1, uint32_t color)
 static HalCmdList lists[8];
 static int32_t frame_lists(const HalCmdList* out[], int32_t max) {
   int32_t n = 0;
-  auto add = [&](const raster::Frame& f) { if (n < max && n < 8) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
-  if (shown) add(frame_of(*shown));
+  auto add = [&](const raster::Frame& f) { if (n < max && n < 7) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
+  if (shown) add(shown_frame());
   if (rbox.ncmd) add(ovl_frame(rbox));
   if (banner.ncmd) add(ovl_frame(banner));
   if (vis.ncmd) add(raster::Frame{vis.cmds, vis.ncmd, nullptr, nullptr});
@@ -422,6 +567,8 @@ struct State {
   uint32_t acc[N];
   Span spans[ZRT_PROF_SPANS];
   uint64_t band[ZRT_PROF_BANDS][2];  // raster band spans of this frame (SDL HAL worker threads)
+  uint64_t rband[ZRT_PROF_BANDS][2]; // with the render thread: the bands of the frame it presented last (take_render)
+  uint64_t r0, r1, wait;             // with the render thread: its last present, and how long the script waited for it
   uint64_t frame_t0, last, prev_t0;
   uint32_t interval[ZRT_PROF_FRAMES];   // microseconds between the start of a frame and the start of the one before it (0 for the first)
   uint32_t presented[ZRT_PROF_FRAMES];  // microseconds between the end of a frame's present and the end of the one before (0 for the first): the pace the user sees
@@ -550,7 +697,8 @@ static void summary() {
 static String trace_json(int32_t threads_op) {
   StrBuilder sb;
   sb.cstr("[{\"name\":\"process_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"zinc\"}},"
-          "{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"CrRendererMain\"}}");
+          "{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"CrRendererMain\"}},"
+          "{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":2,\"args\":{\"name\":\"zinc render\"}}");
   for (int32_t b = 0; b < ZRT_PROF_BANDS; b++) {
     sb.cstr(",{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":"); to_s(sb, 10 + b);
     sb.cstr(",\"args\":{\"name\":\"raster band "); to_s(sb, b); sb.cstr("\"}}");
@@ -595,22 +743,51 @@ static void begin() {
   if (!active()) return;
   st->frame_t0 = st->last = hal_time_us();
   __builtin_memset(st->acc, 0, sizeof st->acc);
+#ifdef ZRT_RENDER_THREAD
+  if (rthread::started) return;   // the render thread writes the bands now: take_render reads them once it is done
+#endif
   __builtin_memset(st->band, 0, sizeof st->band);
 }
+#ifdef ZRT_RENDER_THREAD
+/** The script waited `wait` us for the render thread, which is done: its bands and its span become this frame's raster and present. */
+static void take_render(uint64_t wait) {
+  __builtin_memcpy(st->rband, st->band, sizeof st->band);
+  __builtin_memset(st->band, 0, sizeof st->band);
+  st->r0 = rthread::r0; st->r1 = rthread::r1; st->wait = wait;
+}
+#endif
 /** After present(): raster = the span of the bands the HAL reported, present = the rest of the call. */
+/** With the render thread (D182) the raster is the bands of the frame it presented last, on its own track (tid 2), and present is
+ *  its present without the raster plus the script's wait for it: one frame late, the frame's own cost on the threads that paid it. */
 static void end() {
   uint64_t t = hal_time_us(), r0 = 0, r1 = 0;
+  bool threaded = false;
+#ifdef ZRT_RENDER_THREAD
+  threaded = rthread::started;
+#endif
+  uint64_t (*bands)[2] = threaded ? st->rband : st->band;
   for (int32_t b = 0; b < ZRT_PROF_BANDS; b++) {
-    if (!st->band[b][1]) continue;
-    if (!r0 || st->band[b][0] < r0) r0 = st->band[b][0];
-    if (st->band[b][1] > r1) r1 = st->band[b][1];
-    span(st->band[b][0], st->band[b][1], RASTER, 10 + b);
+    if (!bands[b][1]) continue;
+    if (!r0 || bands[b][0] < r0) r0 = bands[b][0];
+    if (bands[b][1] > r1) r1 = bands[b][1];
+    span(bands[b][0], bands[b][1], RASTER, 10 + b);
   }
   uint32_t raster = r1 > r0 ? (uint32_t)(r1 - r0) : 0;
-  if (raster) span(r0, r1, RASTER, 1);
-  span(st->last, t, PRESENT, 1);
-  st->acc[RASTER] += raster;
-  st->acc[PRESENT] += (uint32_t)(t - st->last) - raster;
+  if (threaded) {
+    __builtin_memset(st->rband, 0, sizeof st->rband);
+    if (raster) span(r0, r1, RASTER, 2);
+    if (st->r1 > st->r0) span(st->r0, st->r1, PRESENT, 2);
+    span(st->last, t, PRESENT, 1);
+    const uint32_t rp = st->r1 > st->r0 ? (uint32_t)(st->r1 - st->r0) : 0;
+    st->acc[RASTER] += raster;
+    st->acc[PRESENT] += (rp > raster ? rp - raster : 0) + (uint32_t)st->wait;
+    st->r0 = st->r1 = st->wait = 0;
+  } else {
+    if (raster) span(r0, r1, RASTER, 1);
+    span(st->last, t, PRESENT, 1);
+    st->acc[RASTER] += raster;
+    st->acc[PRESENT] += (uint32_t)(t - st->last) - raster;
+  }
   st->last = t;
   span(st->frame_t0, t, N, 1);
   uint32_t gap = st->prev_t0 ? (uint32_t)(st->frame_t0 - st->prev_t0) : 0;
@@ -671,6 +848,7 @@ static const uint32_t COLORS[prof::N] = {0x60a5fa, 0xa78bfa, 0xf472b6, 0xfbbf24,
 static const char* const SHORT[prof::N] = {"app", "inp", "anim", "lay", "pnt", "fx", "diff", "ras", "pre"};
 
 static bool show() {
+  zrt_render_idle();
   if (!hud_ovl) {
     hud_ovl = (HudOverlay*)hal_alloc(sizeof(HudOverlay));
     sorted = (uint32_t*)hal_alloc(ZRT_PROF_FRAMES * sizeof(uint32_t));
@@ -686,6 +864,7 @@ static bool show() {
   return true;
 }
 static void hide() {
+  zrt_render_idle();
   state = 0;
   relayout = true;
   if (prof::st) prof::st->hud = false;
@@ -933,6 +1112,7 @@ namespace zrt {
 namespace gfx {
 /** The frame on screen (overlay included) at physical size, 0x00RRGGBB, from the system allocator (hal_free it). */
 static uint32_t* grab() {
+  zrt_render_idle();   // the render thread neither presents nor composes while the frame is read
   init_scale();
   uint32_t* px = (uint32_t*)hal_alloc((size_t)pw * ph * 4);
   capturing = true;
@@ -1148,6 +1328,7 @@ String profSection(const String& label) {
 static bool scene_write(const char* path, const Buf& b);
 static const char* scene_path = nullptr;
 static void scene_last() { if (shown) scene_write(scene_path, *shown); }
+static int32_t painted_frames = 0;   // frames the program drew (the others kept the frame on screen)
 /** ZINC_RENDER_STATS: "zinc stats: cmds=N rect=.. text=.. scene_bytes=B text_bytes=.. point_floats=.." for the last frame (the 5.3 counters that exist today). */
 static void render_stats() {
   if (!shown) return;
@@ -1155,7 +1336,7 @@ static void render_stats() {
   uint32_t by[10] = {0};
   for (uint32_t i = 0; i < shown->ncmd; i++) if (shown->cmds[i].kind < 10) by[shown->cmds[i].kind]++;
   StrBuilder sb;
-  sb.cstr("zinc stats: frames="); to_s(sb, frame_no); sb.cstr(" size="); to_s(sb, pw); sb.ch('x'); to_s(sb, ph);
+  sb.cstr("zinc stats: frames="); to_s(sb, frame_no); sb.cstr(" painted="); to_s(sb, painted_frames); sb.cstr(" size="); to_s(sb, pw); sb.ch('x'); to_s(sb, ph);
   sb.cstr(" cmds="); to_s(sb, (int32_t)shown->ncmd);
   for (int k = 0; k < 10; k++) if (by[k]) { sb.ch(' '); sb.cstr(K[k]); sb.ch('='); to_s(sb, (int32_t)by[k]); }
   sb.cstr(" scene_bytes="); to_s(sb, (int32_t)(shown->ncmd * sizeof(Cmd) + shown->ntext + shown->npts * 4));
@@ -1249,6 +1430,7 @@ static void after_present() {
 }
 /** Presents the last frame with the overlay (the red box loop, while the program is stopped). */
 void present_overlay() {
+  zrt_render_idle();
   init_scale();
   banner_expire();
   if (ovl_changed) set_full_damage(); else ndmg = 0;
@@ -1482,15 +1664,319 @@ static void update() {
 }  // namespace devbar
 
 static bool first_frame() { first = true; return true; }
+// ---------- the compositor (D182 step 6, docs/reports/threads-ui-compute-animation.md §4.3) ----------
+// zinc:ui paints a node that has a declared animation once, with no transform, between layerBegin and layerEnd: a layer is that range of
+// the frame's commands and the centre it turns around. The animation is declared apart (layerAnim: from, to, start, duration, easing,
+// iterations) and sampled with include/zn/ease.h at the script's clock (compClock) with the arithmetic of ui.ts's stepAnims; the matrix is
+// the one ui.ts's pushTf would set, operation for operation, and each box command goes through it as xform() records one under
+// setTransform. So a box, a text or an image comes out bit-equal to the frame the script would have painted at that clock: the frames of a
+// deterministic run, composed at each end_frame, equal those of ZINC_COMPOSITOR=0. Points (POLY, STROKE) and nested matrices are moved in
+// float, to within rounding. While the script is busy, the render thread composes the frame on screen again (comp_tick) at the script's
+// clock moved on by the wall time since its frame: a spinner keeps turning. The script samples the same function at its own clock, so the
+// nodes it hit-tests are where they are shown, a frame late at most: no values travel back. Only rotate (prop 0) for now.
+#ifdef ZRT_COMPOSITOR
+namespace comp {
+#ifndef ZRT_COMP_LAYERS
+#define ZRT_COMP_LAYERS 32
+#endif
+struct Layer { int32_t id; uint32_t i0, i1; double cx, cy; float k; };
+struct Anim { int32_t id, prop, easing; double from, to, start, dur, iter; };
+static Layer layers[2][ZRT_COMP_LAYERS];   // per command buffer
+static int32_t nlayers[2], open_at = -1, depth = 0;   // the layer being recorded; layers refused inside it
+static Anim next[ZRT_COMP_LAYERS], live[ZRT_COMP_LAYERS];   // as the script declares them; as the presents read them (copied at commit)
+static int32_t nnext = 0, nlive = 0;
+static double clk_next = 0, clk = 0;          // the script's clock (ms) at its frame, and when (hal_time_us) it said so
+static uint64_t clk_next_us = 0, clk_us = 0;
+static int32_t mode = -1;                     // ZINC_COMPOSITOR: 0 off (the script tweens), 1 on
+static bool ticks = true;                     // the render thread may tick (not in deterministic runs: they stay at the script's clock)
+static Cmd* cmds = nullptr;                   // the frame on screen with its layers moved (when `on`), text from the base frame
+static float* pts = nullptr;
+static uint32_t ncmd = 0, cap = 0, npts = 0, pcap = 0;
+static bool on = false;
+static raster::Rect was[ZRT_COMP_LAYERS];     // where each animated layer is on screen, and at what value
+static double was_v[ZRT_COMP_LAYERS];
+static int32_t was_id[ZRT_COMP_LAYERS], nwas = 0;
+static bool enabled() {
+  if (mode < 0) {
+    const char* e = hal_env("ZINC_COMPOSITOR");
+    mode = e && *e == '0' ? 0 : 1;
+    const char* d = hal_env("ZINC_DETERMINISTIC");
+    ticks = !(d && *d && *d != '0');
+  }
+  return mode == 1;
+}
+static const Anim* anim_of(int32_t id) { for (int32_t i = 0; i < nlive; i++) if (live[i].id == id) return &live[i]; return nullptr; }
+/** a's value at `clock`, as ui.ts stepAnims computes it; *moving: not at its end yet. */
+static double sample(const Anim& a, double clock, bool* moving) {
+#pragma clang fp contract(off)
+  const double el = clock - a.start;
+  if (el < 0) { *moving = true; return a.from; }   // its delay: the node keeps the value it had
+  const bool fin = zn::ease::finished(el, a.dur, a.iter);
+  *moving = !fin;
+  const double e = fin ? 1 : zn::ease::at(a.easing, __builtin_fmod(el, a.dur) / a.dur);
+  return a.from + (a.to - a.from) * e;
+}
+/** The matrix lib/std/ui.ts pushTf sets for a node turned by `rot` degrees around (cx, cy), with no matrix above it, an even scale and no
+ *  skew, operation for operation, then as xform() takes it (translation in physical pixels); false: the identity, drawn plain. */
+static bool rot_matrix(double rot, double cx, double cy, float k, float m[6]) {
+#pragma clang fp contract(off)
+  const double dx = 1, dy = 1, kx = 0, ky = 0, r = rot * 3.141592653589793 / 180, cs = __builtin_cos(r), sn = __builtin_sin(r);
+  const double a = cs * dx - sn * dy * ky, b = sn * dx + cs * dy * ky, c = cs * dx * kx - sn * dy, d = sn * dx * kx + cs * dy;
+  const double e = cx - a * cx - c * cy, f = cy - b * cx - d * cy;
+  const double mA = 1, mB = 0, mC = 0, mD = 1, mE = 0, mF = 0;
+  const double na = mA * a + mC * b, nb = mB * a + mD * b, nc = mA * c + mC * d, nd = mB * c + mD * d, ne = mA * e + mC * f + mE, nf = mB * e + mD * f + mF;
+  if (na == 1 && nb == 0 && nc == 0 && nd == 1 && ne == 0 && nf == 0) return false;
+  m[0] = (float)na; m[1] = (float)nb; m[2] = (float)nc; m[3] = (float)nd; m[4] = (float)ne * k; m[5] = (float)nf * k;
+  return true;
+}
+static bool movable(const Cmd& c) {
+  switch (c.kind) {
+    case raster::RECT: return c.grad != 5;
+    case raster::POLY: return c.grad != 4;
+    case raster::BORDER: case raster::SHADOW: case raster::TEXT: case raster::IMAGE: case raster::STROKE: case raster::XFORM: case raster::CLIP: case raster::UNCLIP: return true;
+    default: return false;
+  }
+}
+}  // namespace comp
+static bool xf_plain(Cmd* c, const float* m);
+static void xf_write(Cmd* c, const float* m, float* p, uint32_t off);
+/** Command c of the composed frame through m. */
+static void comp_move(Cmd& c, const float* m, float k) {
+  using comp::pts;
+  auto box = [](Cmd& c, float x0, float y0, float x1, float y1) { c.x = x0; c.y = y0; c.w = x1 - x0; c.h = y1 - y0; };
+  auto points = [&](uint32_t at, uint32_t n, float pad) {   // n points at `at`, moved; the box around them, `pad` wider
+    float x0 = 1e30f, y0 = 1e30f, x1 = -1e30f, y1 = -1e30f;
+    for (uint32_t i = 0; i < n; i++) {
+      float* q = pts + at + i * 2;
+      const float X = m[0] * q[0] + m[2] * q[1] + m[4], Y = m[1] * q[0] + m[3] * q[1] + m[5];
+      q[0] = X; q[1] = Y;
+      x0 = X < x0 ? X : x0; x1 = X > x1 ? X : x1; y0 = Y < y0 ? Y : y0; y1 = Y > y1 ? Y : y1;
+    }
+    if (n) box(c, x0 - pad, y0 - pad, x1 + pad, y1 + pad);
+  };
+  switch (c.kind) {
+    case raster::POLY: {   // [count, x, y, ...] per contour
+      float x0 = 1e30f, y0 = 1e30f, x1 = -1e30f, y1 = -1e30f;
+      uint32_t at = c.off;
+      for (uint32_t k2 = 0; k2 < c.n; k2++) {
+        const uint32_t n = (uint32_t)pts[at];
+        points(at + 1, n, 0);
+        if (n) { x0 = c.x < x0 ? c.x : x0; y0 = c.y < y0 ? c.y : y0; x1 = c.x + c.w > x1 ? c.x + c.w : x1; y1 = c.y + c.h > y1 ? c.y + c.h : y1; }
+        at += 1 + n * 2;
+      }
+      if (x0 <= x1) box(c, x0, y0, x1, y1);
+      return;
+    }
+    case raster::STROKE: points(c.off, c.n, c.s * 0.5f + k); return;
+    case raster::CLIP: {   // as clip() under a matrix: the box around the turned rectangle, square
+      const float xs[4] = {c.x, c.x + c.w, c.x + c.w, c.x}, ys[4] = {c.y, c.y, c.y + c.h, c.y + c.h};
+      float x0 = 1e30f, y0 = 1e30f, x1 = -1e30f, y1 = -1e30f;
+      for (int i = 0; i < 4; i++) {
+        const float X = m[0] * xs[i] + m[2] * ys[i] + m[4], Y = m[1] * xs[i] + m[3] * ys[i] + m[5];
+        x0 = X < x0 ? X : x0; x1 = X > x1 ? X : x1; y0 = Y < y0 ? Y : y0; y1 = Y > y1 ? Y : y1;
+      }
+      box(c, x0, y0, x1, y1); c.r = 0;
+      return;
+    }
+    case raster::UNCLIP: return;
+    case raster::XFORM: {   // a matrix already: m times it, in a record of its own
+      const float* q = pts + c.off;
+      Cmd inner = c;
+      inner.kind = (uint8_t)q[0]; inner.x = q[7]; inner.y = q[8]; inner.w = q[9]; inner.h = q[10]; inner.r = q[11]; inner.s = q[12];
+      __builtin_memcpy(&inner.off, q + 13, 4); __builtin_memcpy(&inner.n, q + 14, 4);
+      const float mm[6] = {m[0] * q[1] + m[2] * q[2], m[1] * q[1] + m[3] * q[2], m[0] * q[3] + m[2] * q[4], m[1] * q[3] + m[3] * q[4],
+                           m[0] * q[5] + m[2] * q[6] + m[4], m[1] * q[5] + m[3] * q[6] + m[5]};
+      xf_write(&inner, mm, pts + comp::npts, comp::npts);
+      comp::npts += raster::kXformLen;
+      c = inner;
+      return;
+    }
+    default:   // RECT, BORDER, SHADOW, TEXT, IMAGE: as xform() records them
+      if (xf_plain(&c, m)) return;
+      xf_write(&c, m, pts + comp::npts, comp::npts);
+      comp::npts += raster::kXformLen;
+  }
+}
+/** The commit of a frame (script thread, the render thread idle): the declared animations and the clock become what the presents read. */
+static void comp_commit() {
+  __builtin_memcpy(comp::live, comp::next, sizeof(comp::Anim) * (size_t)comp::nnext);
+  comp::nlive = comp::nnext;
+  comp::clk = comp::clk_next; comp::clk_us = comp::clk_next_us;
+}
+/** Composes buffer bi (on screen) at `clock` and adds the damage: where the animated layers were and where they are now. `changed`: the
+ *  base frame is new (else nothing is drawn when no value changed). False when nothing changed. */
+static bool compose(const Buf& base, int32_t bi, double clock, bool changed) {
+  using namespace comp;
+  const int32_t nl = nlayers[bi];
+  if (!nl || !nlive) {
+    on = false;
+    for (int32_t i = 0; i < nwas; i++) hud::add_rect(was[i]);
+    const bool any = nwas > 0;
+    nwas = 0;
+    return any;
+  }
+  double v[ZRT_COMP_LAYERS];
+  const Anim* an[ZRT_COMP_LAYERS];
+  bool moved = changed;
+  for (int32_t i = 0; i < nl; i++) {
+    an[i] = anim_of(layers[bi][i].id);
+    bool moving;
+    v[i] = an[i] ? sample(*an[i], clock, &moving) : 0;
+    if (!moved) {   // same value as on screen?
+      int32_t j = 0;
+      while (j < nwas && was_id[j] != layers[bi][i].id) j++;
+      moved = j == nwas ? an[i] != nullptr : was_v[j] != v[i];
+    }
+  }
+  if (!moved) return false;
+  uint32_t extra = 0;
+  for (int32_t i = 0; i < nl; i++) extra += (layers[bi][i].i1 - layers[bi][i].i0) * raster::kXformLen;
+  if (base.ncmd > cap) { if (cmds) hal_free(cmds); cap = base.ncmd + base.ncmd / 2 + 64; cmds = (Cmd*)hal_alloc((size_t)cap * sizeof(Cmd)); }
+  if (base.npts + extra > pcap) { if (pts) hal_free(pts); pcap = base.npts + extra + (base.npts + extra) / 2 + 256; pts = (float*)hal_alloc((size_t)pcap * 4); }
+  if (!cmds || !pts) { cap = pcap = 0; on = false; return false; }
+  __builtin_memcpy(cmds, base.cmds, (size_t)base.ncmd * sizeof(Cmd));
+  __builtin_memcpy(pts, base.pts, (size_t)base.npts * 4);
+  ncmd = base.ncmd; npts = base.npts;
+  for (int32_t i = 0; i < nwas; i++) hud::add_rect(was[i]);
+  nwas = 0;
+  const uint64_t now = zn_frame_trace ? hal_time_us() : 0;
+  for (int32_t i = 0; i < nl; i++) {
+    const Layer& L = layers[bi][i];
+    if (!an[i]) continue;
+    float fv = (float)v[i];
+    uint32_t bits;
+    __builtin_memcpy(&bits, &fv, 4);
+    ZRT_FT(ZN_FT_ANIM, now, now, L.id, (int64_t)((uint64_t)(uint32_t)an[i]->prop << 32 | bits));
+    float m[6];
+    if (v[i] != 0 && rot_matrix(v[i], L.cx, L.cy, L.k, m)) for (uint32_t c = L.i0; c < L.i1 && c < ncmd; c++) comp_move(cmds[c], m, L.k);
+    const raster::Rect r = raster::bounds_all(raster::Frame{cmds + L.i0, L.i1 - L.i0, base.text, pts}, pw, ph);
+    hud::add_rect(r);
+    was[nwas] = r; was_v[nwas] = v[i]; was_id[nwas] = L.id; nwas++;
+  }
+  on = true;
+  __atomic_store_n(&tiles_state, 0, __ATOMIC_RELEASE);
+  return true;
+}
+/** The frame on screen: the composed one while layers are animated. */
+static raster::Frame shown_frame() { return comp::on ? raster::Frame{comp::cmds, comp::ncmd, shown->text, comp::pts} : frame_of(*shown); }
+static bool comp_live(uint64_t now) {
+  if (!comp::ticks || !shown || !comp::nlive || !comp::nlayers[shown - bufs]) return false;
+  const int32_t bi = (int32_t)(shown - bufs);
+  const double clock = comp::clk + (double)(now - comp::clk_us) / 1000.0;
+  for (int32_t i = 0; i < comp::nlayers[bi]; i++) {
+    const comp::Anim* a = comp::anim_of(comp::layers[bi][i].id);
+    if (!a) continue;
+    bool moving;
+    const double v = comp::sample(*a, clock, &moving);
+    if (moving) return true;
+    for (int32_t j = 0; j < comp::nwas; j++) if (comp::was_id[j] == a->id && comp::was_v[j] != v) return true;   // its end is not shown yet
+  }
+  return false;
+}
+static bool comp_tick(HalFrame* f, uint64_t now) {
+  ndmg = 0;
+  if (!shown || !compose(*shown, (int32_t)(shown - bufs), comp::clk + (double)(now - comp::clk_us) / 1000.0, false) || !ndmg) return false;
+  const raster::Rect d = damage_box();
+  *f = HalFrame{pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay || raster::shader_holes ? render_holes : nullptr, render_box};
+  return true;
+}
+/** At a commit: the frame on screen composed at the script's clock (`changed`: a new frame). */
+static void comp_frame(bool changed) { if (shown) compose(*shown, (int32_t)(shown - bufs), comp::clk, changed); }
+static bool comp_any() { return comp::nlayers[cur] || comp::nwas; }
+#else
+static void comp_commit() {}
+static void comp_frame(bool) {}
+static bool comp_any() { return false; }
+static bool compose(const Buf&, int32_t, double, bool) { return false; }
+static raster::Frame shown_frame() { return frame_of(*shown); }
+static bool comp_live(uint64_t) { return false; }
+static bool comp_tick(HalFrame*, uint64_t) { return false; }
+#endif
 // Bulk frames (ZN-402): when most commands changed, the damage is the union of everything the two frames draw, found without comparing them;
 // a full diff every 16th frame leaves the mode once the scene calms down. all_box caches that union per buffer.
 static bool bulk_mode = false;
 static uint32_t bulk_n = 0;
 static raster::Rect all_box[2];
 static bool all_ok[2];
-void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; n_plugin = 0; tx = ty = 0; xf_on = false; kept = false; all_ok[cur] = false; devbar::frame_start(); hud::frame_start(); prof::begin(); }
+static uint64_t build_t0;   // the frame's build began (trace)
+#if __has_include("zn/frame_trace.h")
+static uint64_t inline_r0;   // the start of the last inline present (trace: the present interval)
+#endif
+/** The script thread before it writes what a present reads (the overlays, the damage list, `shown`): the render thread is done. */
+static void handoff_wait() {
+#ifdef ZRT_RENDER_THREAD
+  if (!rthread::started) return;
+  const uint64_t t0 = hal_time_us();
+  zrt_render_idle();
+  const uint64_t t1 = hal_time_us();
+  ZRT_FT(ZN_FT_HANDOFF, t0, t1, cur, 1);
+  if (prof::active()) prof::take_render(t1 - t0);
+#endif
+}
+#ifdef ZRT_RENDER_THREAD
+/** The glyphs of the frame's runtime fonts are rasterized now, on the script thread: the render thread only reads the glyph tables (a
+ *  glyph rasterized there would move a table the script reads while it measures text). Baked fonts never change. */
+static void glyphs_ready(const Buf& b) {
+  for (uint32_t i = 0; i < b.ncmd; i++) {
+    const Cmd& c = b.cmds[i];
+    int32_t font = c.res;
+    uint32_t off = c.off, n = c.n;
+    if (c.kind == raster::XFORM && b.pts[c.off] == (float)raster::TEXT) {
+      const float* p = b.pts + c.off;
+      if (p[11] >= 1) font = (int32_t)p[11] - 1;
+      __builtin_memcpy(&off, p + 13, 4); __builtin_memcpy(&n, p + 14, 4);
+    } else if (c.kind != raster::TEXT) continue;
+    if (!raster::runtime_font(font)) continue;
+    const char* s = b.text + off;
+    for (uint32_t k = 0; k < n;) {
+      const uint8_t ch = (uint8_t)s[k];
+      const uint32_t w = ch < 0x80 ? 1 : ch < 0xE0 ? 2 : ch < 0xF0 ? 3 : 4;
+      uint32_t cp = ch < 0x80 ? ch : ch < 0xE0 ? ch & 0x1F : ch < 0xF0 ? ch & 0x0F : ch & 0x07;
+      for (uint32_t j = 1; j < w && k + j < n; j++) cp = (cp << 6) | ((uint8_t)s[k + j] & 0x3F);
+      k += w;
+      if (!raster::runtime_glyph(font, cp)) raster::runtime_glyph(font, '?');
+    }
+  }
+}
+#endif
+/** Presents `f`: on the render thread when the HAL takes it there (the script goes on at once), else here. */
+static void hand_over(const HalFrame& f) {
+#ifdef ZRT_RENDER_THREAD
+  if (rthread::wanted()) {
+    if (shown) glyphs_ready(*shown);
+    rthread::job = f;
+    if (f.move) { rthread::move = *f.move; rthread::job.move = &rthread::move; }
+    rthread::slot = cur;
+    pthread_mutex_lock(&rthread::mu);
+    rthread::busy = true;
+    rthread::hold = false;
+    pthread_cond_broadcast(&rthread::cv);
+    pthread_mutex_unlock(&rthread::mu);
+    return;
+  }
+#endif
+#if __has_include("zn/frame_trace.h")
+  if (zn_frame_trace) {
+    const uint64_t t0 = hal_time_us();
+    present(&f);
+    ZRT_FT(ZN_FT_RENDER, t0, hal_time_us(), cur, 0);
+    if (inline_r0) ZRT_FT(ZN_FT_PRESENT, inline_r0, t0, (int64_t)(t0 - inline_r0), 0);
+    inline_r0 = t0;
+    return;
+  }
+#endif
+  present(&f);
+}
+void begin_frame() {
+#ifdef ZRT_COMPOSITOR
+  comp::nlayers[cur] = 0; comp::open_at = -1; comp::depth = 0;
+#endif
+  if (zn_frame_trace) build_t0 = hal_time_us(); Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; n_plugin = 0; tx = ty = 0; xf_on = false; kept = false; all_ok[cur] = false; devbar::frame_start(); hud::frame_start(); prof::begin(); }
 void keep() { kept = true; }
 void end_frame() {
+  if (build_t0) { ZRT_FT(ZN_FT_BUILD, build_t0, hal_time_us(), cur, 0); build_t0 = 0; }
+  handoff_wait();
+  comp_commit();
   init_scale();
   vis_init();
   const bool prof_on = prof::active();
@@ -1501,6 +1987,7 @@ void end_frame() {
     if (layers_again(bufs[cur ^ 1])) ovl_changed = true;
     if (vis.mode && vis_update(shown, false)) ovl_changed = true;   // damage flashes fade while idle
     if (ovl_changed) set_full_damage(); else ndmg = 0;
+    comp_frame(false);   // its animated layers move on
     hud::before_present(raster::Rect{0, 0, 0, 0});   // the panel keeps counting while the program is idle
     taps_update();
   devbar::update();
@@ -1508,12 +1995,13 @@ void end_frame() {
     HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay || raster::shader_holes ? render_holes : nullptr, render_box};
     idle_run = ovl_changed ? 0 : idle_run + 1;
     ovl_changed = false;
-    present(&f);
+    hand_over(f);
     if (prof_on) prof::end();
     after_present();
     return;
   }
   idle_run = 0;
+  painted_frames++;
   to_physical(bufs[cur]);
   place_layers(bufs[cur]);
   const Buf& now = bufs[cur];
@@ -1522,7 +2010,7 @@ void end_frame() {
   static const bool moves_on = [] { const char* e = hal_env("ZINC_SCROLL_MOVE"); return !e || *e != '0'; }();
   raster::Move mv{};
   bool moved = false;
-  if (moves_on && !first && !ovl_changed && !vis.mode) {
+  if (moves_on && !first && !ovl_changed && !vis.mode && !comp_any()) {
     const int32_t nm = raster::diff_move(frame_of(before), frame_of(now), pw, ph, dmg, ZRT_DAMAGE_RECTS, &mv);
     if (nm >= 0) { ndmg = nm; moved = true; bulk_mode = false; }
   }
@@ -1542,6 +2030,8 @@ void end_frame() {
     bulk_mode = changed > raster::kBulkChanged;
     bulk_n = 0;
   }
+  shown = &now;
+  comp_frame(true);
   if (vis.mode && vis_update(&now, true)) set_full_damage();
   if (prof_on) prof::mark(prof::DIFF);
   hud::before_present(damage_box());
@@ -1578,7 +2068,7 @@ void end_frame() {
   __atomic_store_n(&tiles_state, 0, __ATOMIC_RELEASE);
   stats.draw_cmds = now.ncmd;
   HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay || raster::shader_holes ? render_holes : nullptr, render_box, moved ? &hm : nullptr};
-  present(&f);
+  hand_over(f);
   if (prof_on) prof::end();
   after_present();
   cur ^= 1;
@@ -1646,13 +2136,18 @@ static bool xf_plain(Cmd* c, const float* m) {
 // Under gfx.setTransform (ZN-263.01) a box command becomes an XFORM: the command as recorded (its own coordinates, physical pixels) and the
 // matrix go to the point pool, its box becomes its screen bounding box (tiles, damage and culling see a box like any other). The matrix acts
 // in logical pixels: on physical ones its linear part is the same and its translation is scaled.
+static void xf_write(Cmd* c, const float* m, float* p, uint32_t off);
 static void xform(Cmd* c) {
   if (!xf_on || !c) return;
   Buf& b = bufs[cur];
   const float k = rec_k(), m[6] = {(float)xf_m[0], (float)xf_m[1], (float)xf_m[2], (float)xf_m[3], (float)xf_m[4] * k, (float)xf_m[5] * k};
   if (xf_plain(c, m)) return;
   if (b.npts + raster::kXformLen > ZRT_POINT_POOL) { pool_full(2); b.ncmd--; return; }
-  float* p = b.pts + b.npts;
+  xf_write(c, m, b.pts + b.npts, b.npts);
+  b.npts += raster::kXformLen;
+}
+/** The XFORM of box command `c` through `m` (physical pixels): the command as it is and the matrix at p (offset off in its pool). */
+static void xf_write(Cmd* c, const float* m, float* p, uint32_t off) {
   p[0] = (float)c->kind;
   for (int i = 0; i < 6; i++) p[1 + i] = m[i];
   p[7] = c->x; p[8] = c->y; p[9] = c->w; p[10] = c->h; p[11] = c->r; p[12] = c->s;
@@ -1665,9 +2160,8 @@ static void xform(Cmd* c) {
     const float X = m[0] * x + m[2] * y + m[4], Y = m[1] * x + m[3] * y + m[5];
     minx = X < minx ? X : minx; maxx = X > maxx ? X : maxx; miny = Y < miny ? Y : miny; maxy = Y > maxy ? Y : maxy;
   }
-  c->kind = raster::XFORM; c->off = b.npts; c->n = raster::kXformLen; c->r = 0; c->s = 0;
+  c->kind = raster::XFORM; c->off = off; c->n = raster::kXformLen; c->r = 0; c->s = 0;
   c->x = minx; c->y = miny; c->w = maxx - minx; c->h = maxy - miny;
-  b.npts += raster::kXformLen;
 }
 /** (x, y) through the current matrix, in place (logical pixels). */
 static void xf_point(double& x, double& y) {
@@ -2262,6 +2756,49 @@ void endWindow() {
   hal_win_current(0);
   in_win = nullptr;
 }
+// ---------- the compositor's zinc:gfx calls (see "the compositor" above) ----------
+#ifdef ZRT_COMPOSITOR
+void layerBegin(int32_t id, double cx, double cy) {
+  using namespace comp;
+  const int32_t n = nlayers[cur];
+  // one level: a layer inside a layer, an image, another window or a matrix of the program's is the script's to animate (layerEnd: false)
+  if (open_at >= 0 || depth || in_win || target_img >= 0 || xf_on || n == ZRT_COMP_LAYERS || !enabled()) { depth++; return; }
+  layers[cur][n] = Layer{id, bufs[cur].ncmd, bufs[cur].ncmd, cx, cy, rec_k()};
+  open_at = n;
+}
+bool layerEnd() {
+  using namespace comp;
+  if (depth) { depth--; return false; }
+  if (open_at < 0) return false;
+  Layer& L = layers[cur][open_at];
+  open_at = -1;
+  L.i1 = bufs[cur].ncmd;
+  for (uint32_t i = L.i0; i < L.i1; i++) if (!movable(bufs[cur].cmds[i])) return false;
+  nlayers[cur]++;
+  return true;
+}
+void layerAnim(int32_t id, int32_t prop, double from, double to, double start, double dur, int32_t easing, double iterations) {
+  using namespace comp;
+  int32_t i = 0;
+  while (i < nnext && next[i].id != id) i++;
+  if (dur < 0) { if (i < nnext) next[i] = next[--nnext]; return; }
+  if (i == nnext) { if (nnext == ZRT_COMP_LAYERS) return; nnext++; }   // ponytail: past 32 animated layers the others keep their start value
+  next[i] = Anim{id, prop, easing, from, to, start, dur, iterations};
+}
+bool compClock(double ms) {
+  if (!comp::enabled()) return false;
+  if (ms >= 0) {
+    comp::clk_next = ms; comp::clk_next_us = hal_time_us();
+    ZRT_FT(ZN_FT_PUBLISH, comp::clk_next_us, comp::clk_next_us, comp::nnext, 0);   // the script samples its nodes at this clock
+  }
+  return true;
+}
+#else
+void layerBegin(int32_t, double, double) {}
+bool layerEnd() { return false; }
+void layerAnim(int32_t, int32_t, double, double, double, double, int32_t, double) {}
+bool compClock(double) { return false; }
+#endif
 /** ZINC_SHOT: each open window beside the main one as <name>-w<id>.<ext>. */
 static void save_windows(const char* path) {
   for (Win& x : wins) {

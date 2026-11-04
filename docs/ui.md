@@ -321,7 +321,11 @@ paint-only: no layout runs while they move (`tests/golden/ui-transition`); lengt
 `ui.animate(node, key, to, ms, easing, delay)` tweens any key of the style table (the keys of `setNumber`, listed under Style reference below) from the
 value it has now: numbers, colours channel by channel, keyword keys half way; `ui.getNumber(node, key)` reads a key's value, while it moves too. An
 animation takes its property over from a transition. Profiles with a heap of 256 KiB or less (ESP32, PS1) run at most 8 tweens at once, transitions
-and animations together: a change beyond that takes its end at once.
+and animations together: a change beyond that takes its end at once. A last argument `iterations` repeats it from its start (`Infinity`: until
+another `animate` of the key). A `rotate` is played by the compositor (D182): the node is drawn once into a layer and the engine turns it at each
+frame, on the render thread while the program is busy, so a spinner costs no frame of the program; the node's value still follows the clock for hit
+tests. A node under another turned node, or holding a command the compositor cannot move (a gradient paint record, a shader), is turned by the
+program as before; `ZINC_COMPOSITOR=0` turns the compositor off.
 
 The opaque text and border colours of `hover:`, `focus:`, `active:` and `focus-within:` (the state colours resolved where the node is painted) switch
 at once; their background colour eases.

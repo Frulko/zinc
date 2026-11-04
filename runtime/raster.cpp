@@ -3,6 +3,7 @@
 #include "zrt.h"
 #include "zrt_raster.h"
 #include "zn/image_limits.h"
+extern "C" __attribute__((weak)) void zrt_render_idle(void) {}   // runtime/gfx.cpp has the real one
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
 #endif
@@ -484,7 +485,7 @@ static void fill_poly(const Target& t, const Cmd& c, const float* pts) {
 static int16_t ascii_tab[64][128];
 static uint32_t ascii_ready[64];   // font_gen + 1 when the font's table is built
 uint32_t font_gen = 0;
-void fonts_changed() { __atomic_add_fetch(&font_gen, 1, __ATOMIC_RELEASE); }
+void fonts_changed() { zrt_render_idle(); __atomic_add_fetch(&font_gen, 1, __ATOMIC_RELEASE); }
 static const Glyph* glyph_of(int32_t font, const Font& f, uint32_t cp) {
   if (font >= RUNTIME_FONT_BASE) return runtime_glyph(font, cp);
   if (cp < 128 && font >= 0 && font < 64 && f.count < 32768) {
@@ -643,6 +644,7 @@ static Dyn* dyn_slot(int32_t i) {   // entry i, null when its chunk was never al
 }
 static Dyn* dyn_at(int32_t id) { id -= DYN_BASE; if (id < 0 || id >= ZRT_DYN_IMAGES) return nullptr; Dyn* d = dyn_slot(id); return d && d->used ? d : nullptr; }
 int32_t dyn_wrap(int32_t w, int32_t h, const uint32_t* px, int32_t stride) {
+  zrt_render_idle();
   for (int32_t i = 0; i < ZRT_DYN_IMAGES; i++) {
     Dyn* d = dyn_slot(i);
     if (!d) {   // the first entry of a chunk not allocated yet
@@ -675,6 +677,7 @@ int32_t dyn_create(int32_t w, int32_t h) {
 }
 static void dyn_drop_blocks(Dyn* d) { if (d->blocks) { hal_free(d->blocks); d->blocks = nullptr; d->nblocks = 0; } }
 void dyn_update(int32_t id, const uint32_t* px, int32_t stride) {
+  zrt_render_idle();
   if (Dyn* d = dyn_at(id)) { if (px) { d->px = px; if (stride) d->stride = stride; } d->version = ++dyn_versions; d->gpu = false; dyn_drop_blocks(d); }
 }
 // dyn_update_rect's changes (main thread only, as the frame diff that reads them): image `id` went from version `from` to `to` with only `r`
@@ -710,6 +713,7 @@ bool dyn_changed(int32_t id, uint32_t from, uint32_t to, Rect* out) {
   return true;
 }
 void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, bool premultiplied) {
+  zrt_render_idle();
   Dyn* d = dyn_at(id);
   if (!d) return;
   dyn_drop_blocks(d);
@@ -717,7 +721,7 @@ void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, b
   __builtin_memcpy(d->blocks, data, bytes);
   d->gl = gl; d->nblocks = bytes; d->pre = premultiplied;
 }
-void dyn_release_blocks(int32_t id) { if (Dyn* d = dyn_at(id)) dyn_drop_blocks(d); }
+void dyn_release_blocks(int32_t id) { zrt_render_idle(); if (Dyn* d = dyn_at(id)) dyn_drop_blocks(d); }
 bool dyn_blocks(int32_t id, uint32_t* gl, const void** data, uint32_t* bytes, bool* premultiplied) {
   Dyn* d = dyn_at(id);
   if (!d || !d->blocks) return false;
@@ -726,6 +730,7 @@ bool dyn_blocks(int32_t id, uint32_t* gl, const void** data, uint32_t* bytes, bo
 }
 uint32_t* dyn_pixels(int32_t id) { Dyn* d = dyn_at(id); return d ? d->owned : nullptr; }
 void dyn_resize(int32_t id, int32_t w, int32_t h) {
+  zrt_render_idle();
   Dyn* d = dyn_at(id);
   if (!d || !d->owned || (d->w == w && d->h == h) || !dyn_size_ok(w, h)) return;
   uint32_t* px = (uint32_t*)hal_alloc((size_t)w * h * 4);
@@ -737,9 +742,10 @@ void dyn_resize(int32_t id, int32_t w, int32_t h) {
   dyn_drop_blocks(d);
 }
 uint32_t dyn_releases;
-void dyn_destroy(int32_t id) { if (Dyn* d = dyn_at(id)) { if (d->owned) hal_free(d->owned); dyn_drop_blocks(d); dyn_set_picture(id, nullptr); *d = Dyn{}; ++dyn_releases; } }
+void dyn_destroy(int32_t id) { zrt_render_idle(); if (Dyn* d = dyn_at(id)) { if (d->owned) hal_free(d->owned); dyn_drop_blocks(d); dyn_set_picture(id, nullptr); *d = Dyn{}; ++dyn_releases; } }
 uint32_t dyn_pictures;
 void dyn_set_picture(int32_t id, Picture* p) {
+  zrt_render_idle();
   Dyn* d = dyn_at(id);
   if (!d) return;
   dyn_pictures += (p != nullptr) - (d->pic != nullptr);

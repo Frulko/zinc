@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace zrt { extern void (*mirror_present)(const HalFrame* f); }
+namespace zrt { extern void (*mirror_present)(const HalFrame* f); extern bool (*mirror_wants)(); }
 namespace zrt::gfx {
 extern bool capturing;   // runtime/gfx.cpp: while set, the window-only overlays (the inspector's pause badge) are left out
 bool windowSlot(int32_t i, int32_t* id, const char** title, int32_t* w, int32_t* h);   // the windows beside the main one (ZN-864)
@@ -20,6 +20,7 @@ const uint32_t* windowPixels(int32_t id, int32_t* pw, int32_t* ph, uint32_t* has
 namespace zn::host {
 namespace {
 void (*nextPresent)(const HalFrame*) = nullptr;
+bool (*nextWants)() = nullptr;
 void (*renderAll)(uint32_t*, int32_t, int32_t) = nullptr;   // the last frame's renderer: a first frame without waiting for a present
 bool on = false, full = true;
 int W = 0, H = 0, K = 1, dx0, dy0, dx1, dy1;   // the frame, the factor, the damage not sent yet (frame pixels)
@@ -109,7 +110,10 @@ std::string windowList() {
 }
 std::string windowShot(const std::string& arg) { return sideFrame(std::atoi(arg.c_str()), 0, 0, 0, true); }
 
-void installScreencast() { nextPresent = zrt::mirror_present; zrt::mirror_present = present; }   // after installMirror: both see each frame
+void installScreencast() {
+  nextPresent = zrt::mirror_present; zrt::mirror_present = present;
+  nextWants = zrt::mirror_wants; zrt::mirror_wants = [] { return on || (nextPresent && (!nextWants || nextWants())); };
+}   // after installMirror: both see each frame
 
 /** zinc:__netlog op 13, "maxW maxH quality": the frame as base64 JPEG (PNG for quality 0), shrunk to fit maxW x maxH; '' when nothing changed
  *  since the last one. Op 14: stop. */

@@ -27,6 +27,7 @@ namespace zrt {
 extern void (*mirror_present)(const HalFrame* f);
 extern void (*mirror_input)(HalInput* in);
 extern bool mirror_watching;
+extern bool (*mirror_wants)();
 extern void (*first_present)();
 extern void (*dev_restart)();
 extern int32_t (*wall_minute)();
@@ -246,6 +247,7 @@ void installMirror() {
   request = (slash == std::string::npos ? std::string(".") : request.substr(0, slash)) + "/live.request";
   logging = std::getenv("ZINC_MIRROR_LOG") != nullptr;
   zrt::mirror_present = present;
+  zrt::mirror_wants = [] { check(); return fd >= 0; };
   zrt::mirror_input = merge;
 }
 }  // namespace zn::host

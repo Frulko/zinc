@@ -8,7 +8,7 @@ import {
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
   escapeByApp, escapeDefault, stroke as g_stroke, polygon as g_polygon, loadFont,
-  scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId,
+  scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId, ease, layerBegin, layerEnd, layerAnim, compClock,
 } from 'zinc:gfx';
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
 import { openWindow, windowOpen, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
@@ -458,6 +458,7 @@ export class UiNode {
     // the focus: / focus-visible: set
   hovered: boolean = false;
   lazy: boolean = false;               // canvas redrawn only with the rest of the tree (style lazy: 1)
+  ca: boolean = false;                 // its rotate is a declared animation the compositor plays (D182): painted once, in a layer
   rn: RnRec | null = null;
   fade: number = 1;                    // LayoutAnimation's create/delete opacity, times the style opacity (ZN-365)
   leaving: boolean = false;            // removed while a LayoutAnimation runs: painted where it was, fading out, then released            // what the rn layout engine was last told about this node (ZN-286)
@@ -3976,6 +3977,10 @@ class Anim {
   from: number = 0; to: number = 0; cur: number = 0; c0: i32 = 0; c1: i32 = 0; cc: i32 = 0;   // numbers, or colours as i32 (c0 to c1, cc shown)
   start: number; dur: number; easing: i32;
   trans: boolean = false;
+  iter: number = 1;            // iterations (Infinity: until stopped)
+  comp: boolean = false;       // declared to the compositor (layerAnim): the field follows the clock, nothing is painted per frame
+  layered: boolean = false;    // painted in a layer at the last paint (else the script paints it, as any tween)
+  lid: i32 = -1;               // its layer: the node's handle when declared
   done: (() => void) | null = null;
   constructor(node: i32, ref: UiNode, key: string, id: i32, kind: i32, start: number, dur: number, easing: i32) {
     this.node = node; this.ref = ref; this.key = key; this.id = id; this.kind = kind; this.start = start; this.dur = dur; this.easing = easing;
@@ -3985,21 +3990,21 @@ const anims: Anim[] = [];
 function easeOf(name: string): i32 {
   return name === 'linear' ? 0 : name === 'in' ? 1 : name === 'out' ? 2 : name === 'inOut' || name === 'in-out' ? 3 : name === 'spring' ? 4 : 2;
 }
-function ease(e: i32, t: number): number {
-  if (e === 0) return t;
-  if (e === 1) return t * t * t;
-  if (e === 2) { const u = 1 - t; return 1 - u * u * u; }
-  if (e === 3) return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  if (e === 5) return cubicBezier(0.4, 0, 1, 1, t);     // Tailwind's ease-in
-  if (e === 6) return cubicBezier(0, 0, 0.2, 1, t);     // ease-out
-  if (e === 7) return cubicBezier(0.4, 0, 0.2, 1, t);   // ease-in-out, the default of transition-*
-  if (e === 8) return cubicBezier(0.25, 0.1, 0.25, 1, t);   // CSS's ease (transitionTimingFunction: 'ease')
-  return 1 - Math.exp(-6 * t) * Math.cos(10 * t);  // underdamped spring
+// ease(e, t): the curves are zinc:gfx's (include/zn/ease.h), shared with the compositor: 0 linear, 1 in, 2 out, 3 inOut, 4 spring,
+// 5 Tailwind's ease-in, 6 ease-out, 7 ease-in-out (transition-*'s default), 8 CSS's ease, 9-11 the iOS curves of LayoutAnimation
+/** The compositor stops playing animation a (it ended, was replaced, or its node went): the script paints the node again. */
+function compStop(a: Anim): void {
+  if (!a.comp) return;
+  a.comp = false; a.layered = false;
+  layerAnim(a.lid, 0, 0, 0, 0, -1, 0, 0);
+  const n = a.ref;
+  if (n.alive) { n.ca = false; for (const b of anims) if (b !== a && b.comp && b.ref === n) n.ca = true; }
+  paintDirty = true;
 }
 /** Tweens any numeric style property of node `h` (the keys of setNumber: sizes, spacing, opacity, transforms, shadows; colours channel by channel;
  *  keyword values switch half way). Over the profile's tween budget the property takes its end at once. */
-export function animate(h: i32, key: string, to: number, dur: number, easing: string, delay: number): Promise<void> {
-  for (const a of anims) if (a.node === h && a.key === key && !a.trans) a.node = -1;
+export function animate(h: i32, key: string, to: number, dur: number, easing: string, delay: number, iterations: number = 1): Promise<void> {
+  for (const a of anims) if (a.node === h && a.key === key && !a.trans) { a.node = -1; compStop(a); }
   const n = node(h), id = propId(key);
   const tw = id > 0 && n.it.trActive > 0 ? transAnim(h, id) : null;
   if (tw !== null) tw.node = -1;   // an animation takes its property over from a transition (CSS)
@@ -4009,6 +4014,11 @@ export function animate(h: i32, key: string, to: number, dur: number, easing: st
   }
   const a = new Anim(h, n, key, id, kindOf(id), clock + delay, dur, easeOf(easing));
   if (a.kind === 1) { a.c0 = colorProp(n, id); a.c1 = Math.round(to); } else { a.from = currentValue(n, id); a.to = to; }
+  a.iter = iterations > 0 ? iterations : 1;
+  if (id === P_ROTATE && compClock(-1)) {   // the compositor turns the node (D182): one paint into a layer, then none per frame
+    a.comp = true; a.lid = h; n.ca = true; paintDirty = true;
+    layerAnim(h, 0, a.from, a.to, a.start, a.dur, a.easing, a.iter);
+  }
   anims.push(a);
   return new Promise<void>(resolve => { a.done = resolve; });
 }
@@ -4059,16 +4069,7 @@ function laCurve(a: LayoutAnimationAnim | undefined, t: number): number {
     const w0 = Math.log(1000) / Math.max(0.05, z), wd = w0 * Math.sqrt(Math.max(0.0001, 1 - z * z));   // settles (to 1/1000) at the end of the duration
     return 1 - Math.exp(-z * w0 * t) * (Math.cos(wd * t) + (z * w0 / wd) * Math.sin(wd * t));
   }
-  const x1 = type === 'easeOut' ? 0 : 0.42, x2 = type === 'easeIn' ? 1 : 0.58;   // the iOS curves: easeIn (.42,0,1,1), easeOut (0,0,.58,1), easeInEaseOut (.42,0,.58,1)
-  return cubicBezier(x1, 0, x2, 1, t);
-}
-function cubicBezier(x1: number, y1: number, x2: number, y2: number, x: number): number {
-  if (x <= 0) return 0;
-  if (x >= 1) return 1;
-  const bx = (u: number): number => ((1 - 3 * x2 + 3 * x1) * u + (3 * x2 - 6 * x1)) * u * u + 3 * x1 * u;
-  let lo = 0, hi = 1, u = x;
-  for (let i = 0; i < 30; i++) { const v = bx(u); if (Math.abs(v - x) < 1e-7) break; if (v < x) lo = u; else hi = u; u = (lo + hi) / 2; }
-  return ((1 - 3 * y2 + 3 * y1) * u + (3 * y2 - 6 * y1)) * u * u + 3 * y1 * u;
+  return ease(type === 'easeIn' ? 9 : type === 'easeOut' ? 10 : 11, t);   // the iOS curves: easeIn (.42,0,1,1), easeOut (0,0,.58,1), easeInEaseOut (.42,0,.58,1)
 }
 function laSnapshot(): void {
   laOld.length = 0;
@@ -4161,14 +4162,17 @@ function stepAnims(): void {
   let i: i32 = 0;
   while (i < anims.length) {
     const a = anims[i];
-    if (a.node < 0 || nodes[a.node] !== a.ref) { anims.splice(i, 1); if (a.trans) a.ref.it.trActive--; continue; }   // stopped, or its node is gone
+    if (a.node < 0 || nodes[a.node] !== a.ref) { anims.splice(i, 1); if (a.trans) a.ref.it.trActive--; compStop(a); continue; }   // stopped, or its node is gone
     if (clock < a.start) { i++; continue; }
-    const t = a.dur <= 0 ? 1 : Math.min(1, (clock - a.start) / a.dur);
-    const e = t >= 1 ? 1 : ease(a.easing, t);   // the end exactly (the spring curve is not 1 at t = 1)
+    // the eased progress, as include/zn/ease.h's progress() computes it for the compositor: the same operations in the same order
+    const el = clock - a.start, fin = a.dur <= 0 || el >= a.dur * a.iter;
+    const e = fin ? 1 : ease(a.easing, (el % a.dur) / a.dur);   // the end exactly (the spring curve is not 1 at t = 1)
     const v = a.kind === 2 ? (e < 0.5 ? a.from : a.to) : a.from + (a.to - a.from) * e;
     if (a.trans) { a.cur = v; a.cc = mix(a.c0, a.c1, e); showTween(a.ref, a); }
+    else if (a.comp && a.layered && !fin) (a.ref.tf as TransformX).rot = v;   // what the compositor shows now: hit tests see it, nothing is painted
     else { inTween = true; if (a.kind === 1) setNumber(a.node, a.key, mix(a.c0, a.c1, e)); else setNumber(a.node, a.key, v); inTween = false; }
-    if (t >= 1) {
+    if (fin) {
+      compStop(a);
       anims.splice(i, 1);
       if (a.trans) a.ref.it.trActive--;
       const d = a.done;
@@ -4179,6 +4183,8 @@ function stepAnims(): void {
   }
 }
 export function now(): number { return clock; }
+/** The tweens the compositor plays from a layer: they need no paint. */
+function layeredAnims(): i32 { let k: i32 = 0; for (const a of anims) if (a.layered) k++; return k; }
 
 // ---------------------------------------------------------------- painting
 function mix(a: i32, b: i32, t: number): i32 {
@@ -4525,7 +4531,11 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; }
   const w = n.lw * kk, hh = n.lh * kk;
   const ai: i32 = Math.round(a * 255);
-  const tfSaved = n.tf !== null ? pushTf(n, x + w / 2, y + hh / 2) : null;   // rotate, skew: the node and its subtree through a matrix
+  // a rotate the compositor plays: the node and its subtree in a layer with no matrix, turned at each present (D182)
+  const tf = n.tf, lay = n.ca && !mOn && !tileRec && tf !== null && tf.skX === 0 && tf.skY === 0 && tf.sx === tf.sy && tf.sx !== 0;
+  if (n.ca) for (const an of anims) if (an.comp && an.ref === n) an.layered = lay;
+  if (lay) layerBegin(h, x + w / 2, y + hh / 2);
+  const tfSaved = n.tf !== null && !lay ? pushTf(n, x + w / 2, y + hh / 2) : null;   // rotate, skew: the node and its subtree through a matrix
   if (tileRec) {   // recording one tile of a scroll container: what lies outside it is not recorded
     if (n.sticky) tileSticky = true;
     // ponytail: a ring or an outline wider than the margin is cut at a tile's edge; the node's own extent when one shows
@@ -4642,6 +4652,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   if (n.scroll !== 0) paintScrollbars(n, x, y, kk, a);
   if (n.overflow && n.tag !== FRAGMENT) unclip();
   if (tfSaved !== null) popTf(tfSaved);
+  if (lay && !layerEnd()) for (const an of anims) if (an.comp && an.ref === n) compStop(an);   // a command the compositor cannot turn: the script turns it from the next frame
 }
 /** One text decoration line, CSS's text-decoration-style: 0 solid, 1 double (two lines a thickness apart), 2 dotted (squares), 3 dashed (3 on, 2 off). */
 function decoLine(x: number, y: number, w: number, th: number, style: i32, c: i32, a: i32): void {
@@ -6453,7 +6464,7 @@ export function frame(dt: number, background: i32): void {
   if (prof) profMark(PROF_APP);
   const first = gfxFrame() !== steppedAt;   // the clock, animations and scrolls step once per frame of the engine, whatever the windows (ZN-663)
   steppedAt = gfxFrame();
-  if (first) clock += dt * 1000;
+  if (first) { clock += dt * 1000; compClock(clock); }   // the compositor samples the declared animations at the same clock
   frameDt = dt;
   looks++;   // from here on, style changes transition on the nodes that had their transition classes before (transitional)
   if (first) stepAnims();
@@ -6500,9 +6511,9 @@ export function frame(dt: number, background: i32): void {
   if (prof) profMark(PROF_LAYOUT);
   if (hoverDirty || paintDirty || scrollDirty) updateHover();
   if (prof) profMark(PROF_INPUT);
-  if (!paintDirty && !scrollDirty && !extPaint && !animating && anims.length === 0 && steppers.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0 && !overlaid()) { keep(); return; }
+  if (!paintDirty && !scrollDirty && !extPaint && !animating && anims.length === layeredAnims() && steppers.length === 0 && canvases === 0 && scrollers.length === 0 && editScrollers.length === 0 && !overlaid()) { keep(); return; }
   // everything that repaints except a scroll may have changed what a scroll container holds: its tiles are recorded again (paintTiles)
-  if (paintDirty || extPaint || animating || anims.length > 0 || steppers.length > 0 || canvases !== 0 || editScrollers.length > 0 || overlaid()) contentEpoch++;
+  if (paintDirty || extPaint || animating || anims.length > layeredAnims() || steppers.length > 0 || canvases !== 0 || editScrollers.length > 0 || overlaid()) contentEpoch++;
   tileFrame++; frameBg = background;
   animating = false;
   if ((paintDirty || scrollDirty) && surfaces.length > 0) othersDirty(false);
