@@ -1,16 +1,21 @@
 // Pictures of Discord's CDN: avatars, server icons, custom emoji and image attachments (docs/reports/discord-client-research.md 3). A picture
-// is decoded once and kept in memory, and its file is kept on disk under a key without the URL's query: an attachment's signed URL expires
+// is kept in a bounded decoded cache, and its file is kept on disk under a key without the URL's query: an attachment's signed URL expires
 // (its ex= parameter, hex seconds), its file does not. An expired URL, or one the CDN refuses, is renewed with POST /attachments/refresh-urls.
-// ponytail: decoded pictures stay in memory for the session; evict the least recently shown when a long session's memory matters.
 // ponytail: animated avatars and emoji are asked as .png, their first frame (stickers and GIFs play: components/Animated.tsx).
-import { imageFromBytes } from 'zinc:gfx';
-import { readBytes, writeBytes, exists, mkdir } from 'zinc:fs';
+import { pixelScale } from 'zinc:gfx';
+import { load as decodeImage } from 'zinc:imageio';
+import { ImageCache } from 'zinc:ui/image-cache';
+import { addSignalListener, appState } from 'zinc:ui';
+import { writeBytes, exists, mkdir } from 'zinc:fs';
 import { dataDir } from 'zinc:system/window';
 import { CDN_BASE, CACHE_DIR } from '../constants';
 import * as guard from '../safety/index';
 
 const CDN_SIZE = 128;   // px: the largest shown (48 pt) on a 2x screen; without it the CDN sends the picture as uploaded, up to 1024 px
-const images: Map<string, i32> = new Map<string, i32>();   // key -> picture; -1 while it loads, or when it failed
+const images = new ImageCache(16 * 1024 * 1024);
+const pending = new Set<string>();
+setInterval(() => { images.trim(appState() === 'background' ? 0 : -1); }, 2000);
+addSignalListener((kind: string, arg: string): void => { if (kind === 'background') images.trim(0); });
 const broken: Set<string> = new Set<string>();   // keys whose picture failed to download or to decode (an error state, not a placeholder)
 let folder = '';
 let loaded: () => void = (): void => {};
@@ -28,14 +33,15 @@ export function attachmentKey(url: string): string {
 }
 
 /** The picture of a CDN path (avatars/..., icons/..., emojis/...), -1 until it is loaded. */
-export function cdnPicture(key: string): i32 { return picture(key, `${CDN_BASE}/${key}?size=${CDN_SIZE}`); }
+export function cdnPicture(key: string): i32 { return picture(key, `${CDN_BASE}/${key}?size=${CDN_SIZE}`, CDN_SIZE, CDN_SIZE); }
 /** The picture of an attachment's URL, -1 until it is loaded. */
-export function attachmentPicture(url: string): i32 { return picture(attachmentKey(url), url); }
-/** A picture of Discord's media proxy (an attachment's or an embed's proxy_url) at twice the w x h drawn, as WebP: the proxy resizes it
+export function attachmentPicture(url: string): i32 { return picture(attachmentKey(url), url, Math.round(432 * pixelScale()), Math.round(324 * pixelScale())); }
+/** A picture of Discord's media proxy (an attachment's or an embed's proxy_url) at the physical w x h drawn, as WebP: the proxy resizes it
  *  (a 4000 px photo comes as 800 px), and its still frame stands for a video or a GIF. Kept under its path without the signature. */
 export function mediaPicture(url: string, w: i32, h: i32): i32 {
   const q = url.indexOf('?'), sep = q < 0 ? '?' : url.endsWith('&') || url.endsWith('?') ? '' : '&';
-  return picture(mediaKey(url, w, h), `${url}${sep}width=${w * 2}&height=${h * 2}&format=webp`);
+  const pw = Math.max(1, Math.round(w * pixelScale())), ph = Math.max(1, Math.round(h * pixelScale()));
+  return picture(mediaKey(url, w, h), `${url}${sep}width=${pw}&height=${ph}&format=webp`, pw, ph);
 }
 /** True once the picture of mediaPicture(url, w, h) or attachmentPicture(url) failed (the file is gone, refused, or not a picture). */
 export const mediaFailed = (url: string, w: i32, h: i32): boolean => broken.has(mediaKey(url, w, h));
@@ -43,13 +49,13 @@ export const attachmentFailed = (url: string): boolean => broken.has(attachmentK
 /** A sticker (PNG, APNG: its first frame, GIF) at 160 px. */
 export function stickerPicture(id: string, gif: boolean): i32 {
   const key = `stickers/${id}.${gif ? 'gif' : 'png'}`;
-  return picture(key, `${CDN_BASE}/${key}?size=160`);
+  return picture(key, `${CDN_BASE}/${key}?size=160`, Math.round(160 * pixelScale()), Math.round(160 * pixelScale()));
 }
 /** A picture of another site (a GIF's preview from Tenor), at its own size, -1 until it is loaded. */
-export function urlPicture(url: string): i32 { return picture(`ext/${hashOf(pathOf(url))}`, url); }
+export function urlPicture(url: string): i32 { return picture(`ext/${hashOf(pathOf(url))}`, url, Math.round(432 * pixelScale()), Math.round(324 * pixelScale())); }
 /** A URL without its scheme and host: the key of its file is the same whichever host serves it (the tests' fake on a random port). */
 const pathOf = (url: string): string => { const at = url.indexOf('/', url.indexOf('//') + 2); return at < 0 ? url : url.slice(at); };
-function mediaKey(url: string, w: i32, h: i32): string { const q = url.indexOf('?'); return `media/${hashOf(pathOf(q < 0 ? url : url.slice(0, q)))}-${w}x${h}`; }
+function mediaKey(url: string, w: i32, h: i32): string { const q = url.indexOf('?'); return `media/${hashOf(pathOf(q < 0 ? url : url.slice(0, q)))}-${Math.max(1, Math.round(w * pixelScale()))}x${Math.max(1, Math.round(h * pixelScale()))}`; }
 /** The file of a picture on the disk, downloaded when it is not there yet (the frames of an animation are decoded from it). */
 const fetching: Map<string, Promise<string>> = new Map<string, Promise<string>>();
 export function cdnFile(key: string, url: string): Promise<string> {
@@ -69,11 +75,13 @@ function hashOf(s: string): string {
   return h.toString(16);
 }
 
-function picture(key: string, url: string): i32 {
-  const known = images.get(key);
-  if (known !== undefined) return known;
-  images.set(key, -1);
-  load(key, url);
+const decodedKey = (key: string, w: i32, h: i32): string => `${key}@${w}x${h}`;
+function picture(key: string, url: string, w: i32, h: i32): i32 {
+  const variant = decodedKey(key, w, h), known = images.get(variant);
+  if (known >= 0) return known;
+  if (pending.has(variant) || broken.has(key)) return -1;
+  pending.add(variant);
+  load(key, url, w, h);
   return -1;
 }
 
@@ -88,27 +96,28 @@ const fileOf = (key: string): string => `${cacheFolder()}/${key.split('/').join(
 let loading: i32 = 0;
 /** Pictures on their way (the tests wait for none). */
 export function picturesLoading(): i32 { return loading; }
+/** Discards unused decoded pictures; encoded files stay on disk for the next visit. */
+export function trimPictures(): void { images.trim(0); }
+/** Decoded cache entries and owned pixel bytes (the live working set is protected). */
+export function pictureCacheStats(): number[] { return [images.size, images.bytes]; }
 
-async function load(key: string, url: string): Promise<void> {
+async function load(key: string, url: string, w: i32, h: i32): Promise<void> {
   loading++;
-  await fetchPicture(key, url);
-  loading--;
+  try { await fetchPicture(key, url, w, h); }
+  finally { loading--; pending.delete(decodedKey(key, w, h)); }
 }
-async function fetchPicture(key: string, url: string): Promise<void> {
+async function fetchPicture(key: string, url: string, w: i32, h: i32): Promise<void> {
   await Promise.resolve();   // after the render that asked for it
   const file = fileOf(key);
-  let bytes: u8[] = [];
   try {
-    if (exists(file)) { bytes = readBytes(file); log(`picture ${key}: from the disk`); }
-    else {
-      bytes = await download(url);   // the guard queues the downloads (a few at a time)
-      writeBytes(file, bytes); log(`picture ${key}: from the CDN`);
-    }
+    if (exists(file)) { log(`picture ${key}: from the disk`); }
+    else await cdnFile(key, url);
   } catch (e) { log(`picture ${key} failed: ${e.message}`); fail(key); return; }
-  const img = imageFromBytes(bytes);
-  if (img < 0) { log(`picture ${key}: not a picture`); fail(key); return; }
-  images.set(key, img);
-  redraw();
+  try {
+    const img = await decodeImage(file, w, h);
+    images.put(decodedKey(key, w, h), img);
+    redraw();
+  } catch (e) { log(`picture ${key}: not a picture`); fail(key); }
 }
 function fail(key: string): void { broken.add(key); redraw(); }
 function redraw(): void { if (!told) { told = true; setTimeout(() => { told = false; loaded(); }, 16); } }   // one redraw for the pictures of a frame

@@ -6,6 +6,7 @@ import { useState, useEffect } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
 import { destroyImage, pixelScale } from 'zinc:gfx';
 import { frames, Frames } from 'zinc:imageio';
+import { retainCachedImage, releaseCachedImage } from 'zinc:ui/image-cache';
 import { cdnFile } from '../services/cdn';
 
 const IDLE_MS = 250;   // in the background: how often the timer looks whether the app is back
@@ -15,6 +16,11 @@ export function animationsPlaying(): i32 { return playing; }
 export function animationFrames(): i32 { return decoded; }
 
 export function Animated(p: { file: string; url: string; still: i32; w: i32; h: i32; className: string; label: string }) {
+  const still = p.still;
+  useEffect((): (() => void) => {
+    retainCachedImage(still);
+    return (): void => { releaseCachedImage(still); };
+  }, [still]);   // while playing, the still is outside the image node but remains the viewer's thumbnail
   const [at, setAt] = useState<i32>(-1);
   const [anim, setAnim] = useState<Frames | null>(null);
   useEffect((): (() => void) => {

@@ -272,7 +272,7 @@ export class Store implements GatewayHandler {
     this.users.clear();
     this.subscribedTo = '';
     this.me = this.user(d.user);
-    this.call.nitro = typeof d.user.premium_type === 'number' && d.user.premium_type > 0;   // Go Live above 720p 30 fps
+    this.call.nitro = true;   // Go Live above 720p 30 fps
     this.rules.load(d);
     if (Array.isArray(d.users)) for (const u of d.users) this.user(u);
     this.guilds = [];

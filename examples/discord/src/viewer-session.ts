@@ -7,7 +7,7 @@ import { env } from 'zinc:sys';
 import { imageViewerOpen, imageViewerState } from 'zinc:ui/kit';
 import { store, Message } from './state';
 import { thumbs } from './components/Viewer';
-import { picturesLoading, attachmentFailed } from './services/cdn';
+import { picturesLoading, attachmentFailed, trimPictures, pictureCacheStats } from './services/cdn';
 import { CDN_BASE } from './constants';
 
 const wait = (ms: number): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });
@@ -70,5 +70,18 @@ export async function viewerSession(): Promise<void> {
   await wait(500);
   console.log(`closed ${!imageViewerOpen()}, thumbnail ${box[2]}x${box[3]}`);
   shot('closed');
+  let first = '', stable = true;
+  for (let cycle = 0; cycle < 5; cycle++) {
+    store.selectChannel('303');
+    await until(() => picturesLoading() === 0);
+    await wait(250); trimPictures();
+    store.selectChannel('302');
+    await until(() => picturesLoading() === 0);
+    await wait(250); trimPictures();
+    const state = pictureCacheStats().join(',');
+    if (cycle === 0) first = state;
+    else if (state !== first) stable = false;
+  }
+  console.log(`cache navigation stable ${stable}, five cycles`);
   quit();
 }

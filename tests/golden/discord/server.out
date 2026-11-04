@@ -28,8 +28,6 @@ cdn GET icons/200/ic200.png 200
 cdn GET icons/200/ic200.png 200
 cdn GET stickers/601.png 200
 cdn GET stickers/602.png 200
-cdn GET stickers/602.png 200
-cdn GET stickers/604.gif 200
 cdn GET stickers/604.gif 200
 cdn GET stickers/880.png 200
 gateway /?encoding=json&v=9 agent=true

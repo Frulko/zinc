@@ -21,6 +21,7 @@ cd examples/discord || exit 2
 cp tests/assets/photo.png "$tmp/notes.png"
 DISCORD_UPLOAD_FILE=$tmp/notes.png DISCORD_DEMO=viewer timeout 60 "$ZINC" run . > "$tmp/app" 2>&1 || { echo "discord_viewer: the session failed"; tail -8 "$tmp/app"; exit 1; }
 cd ../.. || exit 2
+grep -q '^cache navigation stable true, five cycles$' "$tmp/app" || { echo 'discord_viewer: decoded cache grows across navigation'; tail -8 "$tmp/app"; exit 1; }
 grep -E '^(refused|thumbnail|viewer|zoomed|previous|next|closed)' "$tmp/app" > "$tmp/session"
 if [ -n "$ZN_UPDATE_GOLDEN" ]; then mkdir -p "$golden"; cp "$tmp/session" "$golden/session.out"; echo "discord_viewer: golden recorded"; exit 0; fi
 cmp -s "$tmp/session" "$golden/session.out" || { echo "discord_viewer: session differs"; diff "$golden/session.out" "$tmp/session" | head -12; exit 1; }

@@ -15,6 +15,7 @@
 # What the app logs and what the fake server received (both sorted: the acks race the scripted session) are compared with
 # tests/golden/discord. ZN_UPDATE_GOLDEN=1 records again.
 cd "$(dirname "$0")/../.." || exit 2
+export LC_ALL=C
 golden=$PWD/tests/golden/discord
 case $ZINC in /*) ;; *) ZINC=$PWD/$ZINC ;; esac   # the app runs from its own directory
 tmp=$(mktemp -d)
@@ -47,8 +48,10 @@ sed -n 's/^zinc: framehash [0-9]* [0-9x]* //p' "$tmp/show" | tail -1 > "$tmp/sho
 if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/session" "$golden/session.out"; cp "$tmp/server" "$golden/server.out"; cp "$tmp/hash" "$golden/hash.txt"
   cp "$tmp/showcase" "$golden/showcase.out"; cp "$tmp/showhash" "$golden/showcase-hash.txt"; echo "discord: goldens recorded"; exit 0; fi
 fail=0
-cmp -s "$tmp/session" "$golden/session.out" || { echo "discord: session differs"; diff "$golden/session.out" "$tmp/session" | head -12; fail=1; }
-cmp -s "$tmp/server" "$golden/server.out" || { echo "discord: what the server received differs"; diff "$golden/server.out" "$tmp/server" | head -12; fail=1; }
+sort "$golden/session.out" > "$tmp/expected-session"
+sort "$golden/server.out" > "$tmp/expected-server"
+cmp -s "$tmp/session" "$tmp/expected-session" || { echo "discord: session differs"; diff "$tmp/expected-session" "$tmp/session" | head -12; fail=1; }
+cmp -s "$tmp/server" "$tmp/expected-server" || { echo "discord: what the server received differs"; diff "$tmp/expected-server" "$tmp/server" | head -12; fail=1; }
 cmp -s "$tmp/hash" "$golden/hash.txt" || { echo "discord: last frame $(cat "$tmp/hash"), recorded $(cat "$golden/hash.txt")"; fail=1; }
 cmp -s "$tmp/showcase" "$golden/showcase.out" || { echo "discord: the showcase differs"; diff "$golden/showcase.out" "$tmp/showcase" | head -12; fail=1; }
 cmp -s "$tmp/showhash" "$golden/showcase-hash.txt" || { echo "discord: showcase frame $(cat "$tmp/showhash"), recorded $(cat "$golden/showcase-hash.txt")"; fail=1; }
