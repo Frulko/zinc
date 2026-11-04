@@ -25,6 +25,11 @@ engine=$(cd . && pwd -P)
 done) > "$tmp/tree.txt"
 if [ -n "$UPDATE" ]; then mkdir -p "$(dirname "$golden")"; cp "$tmp/tree.txt" "$golden"; echo "updated $golden"; fi
 diff "$golden" "$tmp/tree.txt" > "$tmp/diff.txt" || { echo "the exported tree differs from $golden:"; head -20 "$tmp/diff.txt"; fail=1; }
+mkdir -p "$tmp/hello/build-device"
+echo cached > "$tmp/hello/build-device/cache-proof"
+echo stale > "$tmp/hello/stale-export"
+PATH="$tmp/bin:$PATH" "$Z" export examples/hello --target ios -o "$tmp/hello" >/dev/null 2>&1 || fail=1
+[ -f "$tmp/hello/build-device/cache-proof" ] && [ ! -f "$tmp/hello/stale-export" ] || { echo "export lost the native build cache or kept stale generated files"; fail=1; }
 pl="$tmp/hello/Info.plist"; cm="$tmp/hello/CMakeLists.txt"
 command -v plutil >/dev/null 2>&1 && { plutil -lint "$pl" >/dev/null || { echo "Info.plist is not a valid plist"; fail=1; }; }
 grep -A1 CFBundleIdentifier "$pl" | grep -q '$(PRODUCT_BUNDLE_IDENTIFIER)' && grep -q 'set(ZINC_BUNDLE_ID "dev.zinc.hello"' "$cm" && grep -q '<key>UILaunchScreen</key>' "$pl" || { echo "no bundle id (ZINC_BUNDLE_ID, PRODUCT_BUNDLE_IDENTIFIER in Info.plist) or launch screen"; fail=1; }
@@ -66,9 +71,31 @@ perl -0pi -e 's/,\n    "ios": \{.*?\n    \}\n/\n/s' "$tmp/noentry/plugins/beep/p
 PATH="$tmp/bin:$PATH" "$Z" export "$tmp/noentry" --target ios -o "$tmp/noentry-ios" >/dev/null 2>"$tmp/noentry.err" && { echo "a plugin without an ios entry was exported"; fail=1; }
 grep -q "plugin 'beep' is not made for ios" "$tmp/noentry.err" || { echo "the refusal does not say why: $(tail -1 "$tmp/noentry.err")"; fail=1; }
 # a call (webrtc, microphone): libdatachannel's vendorFlags reach its C++ sources only, after the plugin's -fno-exceptions -fno-rtti
-PATH="$tmp/bin:$PATH" "$Z" export examples/webrtc-call --target ios -o "$tmp/call" >/dev/null 2>&1 || { echo "webrtc-call does not export for ios"; fail=1; }
-grep -q 'set_source_files_properties(${ZINC_PLUGINS}/webrtc/vendor/libdatachannel/src/candidate.cpp .* PROPERTIES COMPILE_OPTIONS "-fexceptions;-frtti;-fthreadsafe-statics")' "$tmp/call/CMakeLists.txt" &&
+mkdir -p "$tmp/call-source"
+printf '%s\n' '{"name":"call","entry":"main.ts"}' > "$tmp/call-source/zinc.json"
+printf '%s\n' "import { RTCPeerConnection } from 'zinc:webrtc';" "import { permissionStatus } from 'zinc:microphone';" 'console.log(new RTCPeerConnection(), permissionStatus());' > "$tmp/call-source/main.ts"
+PATH="$tmp/bin:$PATH" "$Z" export "$tmp/call-source" --target ios -o "$tmp/call" >/dev/null 2>&1 || { echo "webrtc-call does not export for ios"; fail=1; }
+grep -q 'separate_arguments(_zn_vendor_options UNIX_COMMAND "-fexceptions -frtti -fthreadsafe-statics -I./ -include impair.h")' "$tmp/call/CMakeLists.txt" &&
+  grep -q 'set_source_files_properties(${ZINC_PLUGINS}/webrtc/vendor/libdatachannel/src/candidate.cpp .* PROPERTIES COMPILE_OPTIONS "${_zn_vendor_options}")' "$tmp/call/CMakeLists.txt" &&
   ! grep 'COMPILE_OPTIONS' "$tmp/call/CMakeLists.txt" | grep -q 'usrsctp' && grep -q 'add_library(zn_app_plugin_microphone ' "$tmp/call/CMakeLists.txt" || { echo "webrtc's vendorFlags or the microphone are missing from the ios project"; fail=1; }
+# Exercise CMake's actual argument parsing, then the host compiler: '-include impair.h'
+# must be two arguments, rather than one argument whose header starts with a space.
+python3 - "$tmp/call/CMakeLists.txt" "$tmp" "$engine" <<'PY_CHECK' || fail=1
+from pathlib import Path
+import subprocess
+import sys
+project, work, root = map(Path, sys.argv[1:])
+line = next(line for line in project.read_text().splitlines() if line.startswith('separate_arguments(_zn_vendor_options '))
+script = work / 'options.cmake'
+options = work / 'options.txt'
+script.write_text(line + '\nfile(WRITE "' + str(options) + '" "")\nforeach(flag IN LISTS _zn_vendor_options)\nfile(APPEND "' + str(options) + '" "${flag}\\n")\nendforeach()\n')
+subprocess.run(['cmake', '-P', str(script)], check=True)
+flags = options.read_text().splitlines()
+assert flags[flags.index('-include')+1] == 'impair.h', flags
+source = work / 'forced-header.cpp'
+source.write_text('#ifndef juice_create\n#error forced header was not included\n#endif\nint main() { return 0; }\n')
+subprocess.run(['c++', '-fsyntax-only', '-I'+str(root/'plugins/webrtc'), *flags, str(source)], check=True)
+PY_CHECK
 [ -f "$tmp/ran" ] && { echo "an Apple tool ran: $(cat "$tmp/ran")"; fail=1; }
 [ $fail -eq 0 ] && echo "export ios: ok"
 exit $fail

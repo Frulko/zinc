@@ -111,15 +111,11 @@ static NSInteger posOf(UITextPosition* p) { return p ? ((ZincPosition*)p).at : 0
 - (void)insertText:(NSString*)s {
   if ([s isEqualToString:@"\n"] && self.returnKeyType != UIReturnKeyDefault) { signal(@"imeaction done"); return; }
   [self replaceRange:[ZincRange with:self.marked.location != NSNotFound ? self.marked : self.sel] withText:s];
-  signal([@"commit " stringByAppendingString:s]);
 }
 - (void)deleteBackward {
   NSRange r = self.sel.length > 0 ? self.sel : self.sel.location > 0 ? [self.text rangeOfComposedCharacterSequenceAtIndex:self.sel.location - 1] : NSMakeRange(0, 0);
   if (r.length == 0) return;
-  NSInteger before = (NSInteger)(self.sel.location - r.location), after = (NSInteger)(NSMaxRange(r) - NSMaxRange(self.sel));
-  [self.text deleteCharactersInRange:r];
-  self.sel = NSMakeRange(r.location, 0);
-  signal([NSString stringWithFormat:@"imedelete %ld %ld", (long)MAX(before, (NSInteger)0), (long)MAX(after, (NSInteger)0)]);
+  [self replaceRange:[ZincRange with:r] withText:@""];
 }
 // UITextInput: text and ranges
 - (NSString*)textInRange:(UITextRange*)r { return [self.text substringWithRange:[self clamp:rangeOf(r)]]; }
@@ -128,6 +124,10 @@ static NSInteger posOf(UITextPosition* p) { return p ? ((ZincPosition*)p).at : 0
   [self.text replaceCharactersInRange:x withString:s];
   self.sel = NSMakeRange(x.location + s.length, 0);
   self.marked = NSMakeRange(NSNotFound, 0);
+  if (!self.applying) {
+    signal([NSString stringWithFormat:@"imeselect %lu %lu", (unsigned long)x.location, (unsigned long)NSMaxRange(x)]);
+    signal([@"commit " stringByAppendingString:s]);
+  }
 }
 - (UITextRange*)selectedTextRange { return [ZincRange with:self.sel]; }
 - (void)setSelectedTextRange:(UITextRange*)r {

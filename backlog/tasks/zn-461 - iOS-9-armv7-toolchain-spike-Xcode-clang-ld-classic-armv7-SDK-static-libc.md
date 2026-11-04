@@ -38,4 +38,6 @@ Build a C++20 hello .app for armv7-apple-ios9.0 on this Mac: Xcode 26 clang (ver
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. iOS 9 armv7 toolchain spike: needs the owner's iPhone 4S, the old Xcode 13.4.1 armv7 SDK and a jailbreak or free-profile signing; no targets/ios-legacy or libc++ build tool exists; far from the owner goal (the modern iOS export is ZN-624..631). Park with the iOS 9 cluster (461, 462, 466, 475, 479, 483, 497, 498). Evidence: no targets/ios-legacy, no tools/build-ios-legacy-libcxx
+
+2026-10-31 owner-requested iPhone 4 / iOS 7.1.2 experiment: native UIKit host plus the console interpreter now run unchanged examples/hello and bouncing-ball on the real iPhone3,1. Hello output equals Mac; deterministic 120-frame ball capture has hash bd21d35ce981f6d6 and zero pixel difference. POSIX TLS preserves worker isolation; static libc++/libc++abi and the build tool are in the tree. Owner confirmed display/touch; background/resume retained the process. See docs/reports/iphone4-ios7-bringup.md and D203. Original iPhone 4S/iOS 9, simulator and wider feature criteria remain open; no unsupported criteria checked.
 <!-- SECTION:NOTES:END -->

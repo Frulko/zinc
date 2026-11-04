@@ -1,0 +1,50 @@
+#!/bin/sh
+# Build a jailbreak-installable ARMv7 .app, without signing or changing the phone.
+set -eu
+root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+aot=0
+if [ "${1:-}" = --aot ]; then aot=1; shift; fi
+project=${1:-$root/examples/bouncing-ball}
+out=${2:-$root/build/ios-legacy}
+mkdir -p "$out"
+out=$(CDPATH= cd -- "$out" && pwd)
+: "${ZINC_IOS_LEGACY_SDK:?set to the extracted iPhoneOS7.1.sdk}"
+: "${ZINC_IOS_LLVM_SOURCE:?set to llvm-project at llvmorg-20.1.8}"
+export ZINC_IOS_LLVM_BIN=${ZINC_IOS_LLVM_BIN:-/opt/homebrew/opt/llvm/bin}
+export ZINC_IOS_LIBCXX_BUILD=${ZINC_IOS_LIBCXX_BUILD:-$out/libcxx}
+pin=87f0227cb60147a26a1eeb4fb06e3b505e9c7261
+[ "$(git -C "$ZINC_IOS_LLVM_SOURCE" rev-parse HEAD)" = "$pin" ] || { echo "expected LLVM source $pin" >&2; exit 2; }
+cmake -S "$ZINC_IOS_LLVM_SOURCE/runtimes" -B "$ZINC_IOS_LIBCXX_BUILD" -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER="$ZINC_IOS_LLVM_BIN/clang" -DCMAKE_CXX_COMPILER="$ZINC_IOS_LLVM_BIN/clang++" \
+  -DCMAKE_C_COMPILER_TARGET=armv7-apple-ios7.0 -DCMAKE_CXX_COMPILER_TARGET=armv7-apple-ios7.0 \
+  -DCMAKE_OSX_ARCHITECTURES=armv7 -DCMAKE_OSX_SYSROOT="$ZINC_IOS_LEGACY_SDK" -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+  "-DCMAKE_CXX_FLAGS=-include \"$root/targets/ios-legacy/compat.h\"" \
+  '-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi' -DLIBCXX_ENABLE_SHARED=OFF -DLIBCXXABI_ENABLE_SHARED=OFF \
+  -DLIBCXX_ENABLE_STATIC=ON -DLIBCXXABI_ENABLE_STATIC=ON -DLIBCXX_ENABLE_VENDOR_AVAILABILITY_ANNOTATIONS=OFF \
+  -DLIBCXX_INCLUDE_TESTS=OFF -DLIBCXXABI_INCLUDE_TESTS=OFF -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
+  -DLIBCXXABI_USE_LLVM_UNWINDER=OFF -DLIBCXX_ENABLE_TIME_ZONE_DATABASE=OFF -DLIBCXX_ENABLE_FILESYSTEM=OFF
+BUILD_DIR="$ZINC_IOS_LIBCXX_BUILD" "$root/tools/build" cxx cxxabi
+mkdir -p "$out/native"
+for module in svg lottie; do
+  "${ZINC:-$root/build/zinc}" native-gen "$root/plugins/$module/native/$module.spec.ts" "$out/native"
+  "${ZINC:-$root/build/zinc}" native-gen --thunk "$root/plugins/$module/native/$module.spec.ts" "$out/native"
+done
+aotdir=
+if [ "$aot" = 1 ]; then
+  aotdir=$out/aot
+  if [ -d "$aotdir" ]; then previous=$(mktemp -d "$out/aot.previous.XXXXXX"); mv "$aotdir" "$previous/aot"; fi
+  mkdir -p "$aotdir"
+  ZN_AOT_CPP_ONLY=1 "${ZINC:-$root/build/zinc}" build --profile ios-legacy "$project" -o "$aotdir/program"
+fi
+cmake -S "$root/targets/ios-legacy" -B "$out/app" -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE="$root/targets/ios-legacy/toolchain.cmake" -DZN_CONSOLE_SIZE=320x480 -DZN_CONSOLE_ENV= -DZN_CONSOLE_VECTOR_GEN="$out/native" -DZN_CONSOLE_AOT="$aotdir"
+BUILD_DIR="$out/app" "$root/tools/build" zinc-core zinc-ui zinc-launch
+"${ZINC:-$root/build/zinc}" pack --profile ios-legacy "$project" -o "$out/program.zapp"
+app=$out/ZincLegacy.app
+if [ -d "$app" ]; then previous=$(mktemp -d "$out/bundle.previous.XXXXXX"); mv "$app" "$previous/ZincLegacy.app"; fi
+mkdir -p "$app"
+cp "$out/app/console/ZincLegacy.app/ZincLegacy" "$out/app/console/ZincLegacy.app/Info.plist" "$app/"
+cp "$out/app/zinc-ui" "$app/"
+cp "$out/app/zinc-launch" "$root/targets/ios-legacy/control-entitlements.plist" "$app/"
+tar -xf "$out/program.zapp" -C "$app" --exclude native
+echo "Built $app (unsigned; install and ldid-sign over SSH)"

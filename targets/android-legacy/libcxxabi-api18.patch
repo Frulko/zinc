@@ -1,0 +1,24 @@
+diff --git a/libcxxabi/src/abort_message.cpp b/libcxxabi/src/abort_message.cpp
+index d51d9d87..903076c6 100644
+--- a/libcxxabi/src/abort_message.cpp
++++ b/libcxxabi/src/abort_message.cpp
+@@ -13,7 +13,9 @@
+ 
+ #ifdef __BIONIC__
+ #  include <syslog.h>
++#if __ANDROID_API__ >= 21
+ extern "C" void android_set_abort_message(const char* msg);
++#endif
+ #endif // __BIONIC__
+ 
+ #if defined(__APPLE__) && __has_include(<CrashReporterClient.h>)
+@@ -55,7 +57,9 @@ void __abort_message(const char* format, ...)
+     va_end(list);
+ 
+     // Show error in tombstone.
++#if __ANDROID_API__ >= 21
+     android_set_abort_message(buffer);
++#endif
+ 
+     // Show error in logcat.
+     openlog("libc++abi", 0, 0);

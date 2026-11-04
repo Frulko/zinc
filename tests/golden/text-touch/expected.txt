@@ -7,7 +7,7 @@ f70 selected "wide world你" menu Cut,Copy,Select All
 f75 clipboard "wide world你" handles
 keyboard-traits type=text secure=0 multiline=0
 haptic selection
-textinput mirrors: 8
+textinput mirrors: 17
 frame 7 41cbbede6c465a0f
 frame 56 a402eba7484000e0
 frame 64 a823277b915fa156
@@ -20,7 +20,7 @@ f70 selected "wide world你" menu Cut,Copy,Select All
 f75 clipboard "wide world你" handles
 keyboard-traits type=text secure=0 multiline=0
 haptic impact heavy
-textinput mirrors: 8
+textinput mirrors: 17
 frame 7 41cbbede6c465a0f
 frame 56 ddaa8e12ccba99a2
 frame 64 d1cd872d738e25a1

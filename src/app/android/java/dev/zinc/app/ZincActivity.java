@@ -233,7 +233,38 @@ public class ZincActivity extends SDLActivity {
         WindowManager.LayoutParams lp = getWindow().getAttributes();
         lp.screenBrightness = (Integer) param < 0 ? -1f : (Integer) param / 255f;   // -1: the system's
         getWindow().setAttributes(lp);
+        if ((Integer) param <= 0) rootBacklight((Integer) param == 0, Settings.System.getInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, 128));
         return true;
+    }
+
+    // A window's brightness 0 is the panel's lowest, still lit. On a rooted device the kernel's backlight goes to 0 (webOS's manner,
+    // zinc:webos setBacklight): dark for real, and the panel stays on so a touch still wakes it. One su shell for the app's life; no su,
+    // or su refused: the window's brightness alone. Off in the background thread: su may ask.
+    private static java.util.concurrent.ExecutorService rootThread;
+    private static java.io.OutputStream rootShell;
+    private static boolean rootless;
+
+    private static void rootBacklight(final boolean off, final int level) {
+        if (rootless) return;
+        if (rootThread == null) rootThread = java.util.concurrent.Executors.newSingleThreadExecutor();
+        rootThread.execute(new Runnable() { @Override public void run() {
+            try {
+                if (rootShell == null) rootShell = Runtime.getRuntime().exec("su").getOutputStream();
+                // Android ramps to a new window brightness over a second or more, writing the backlight all along: off waits for the ramp
+                // to the lowest to end (10 s at most; toolbox's sleep before Android 6 takes whole seconds) and then writes 0. On lets
+                // Android ramp back up itself; a backlight still at 0 a second later (the system's brightness was the lowest, so Android
+                // saw no change and wrote nothing) gets the system's brightness, scaled to its range.
+                String cmd = off
+                    ? "p=; n=0; while [ $n -lt 40 ]; do v=$(cat /sys/class/backlight/*/brightness); [ $n -ge 2 ] && [ \"$v\" = \"$p\" ] && break; p=$v; n=$((n+1)); sleep 0.25 2>/dev/null || sleep 1; done;"
+                      + " for d in /sys/class/backlight/*; do echo 0 > $d/brightness; done\n"
+                    : "sleep 1; for d in /sys/class/backlight/*; do [ \"$(cat $d/brightness)\" = 0 ] && echo $((" + level + " * $(cat $d/max_brightness) / 255)) > $d/brightness; done\n";
+                rootShell.write(cmd.getBytes());
+                rootShell.flush();
+            } catch (java.io.IOException e) {   // no su binary, or the shell ended (refused)
+                Log.i("zinc", "backlight: no root, the window's brightness only (" + e.getMessage() + ")");
+                rootless = true;
+            }
+        } });
     }
 
     /** zinc:sys device(query, arg) of the program, from its thread (android_glue.cpp): answered at once, done on the UI thread. */

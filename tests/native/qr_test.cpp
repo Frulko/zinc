@@ -7,6 +7,7 @@
 
 #include "qrcodegen.h"
 #include "quirc.h"
+#include "../../plugins/camera/native/frame_copy.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
 
@@ -26,6 +27,16 @@ static bool roundTrip(const std::string& text, int scale, int ox, int oy, std::s
       const int light = paper ? 200 + (x + y) % 40 : 90 + x / 16;
       img[y * w + x] = static_cast<std::uint8_t>(dark ? 30 + y % 20 : light);
     }
+  // A capture buffer larger than requested, with row padding: the AVFoundation copy must preserve the complete QR geometry.
+  const int stride = (w * 2 + 4) * 4;
+  std::vector<uint8_t> captured((size_t)stride * h * 4);
+  for (int y = 0; y < h * 2; ++y) {
+    auto* row = reinterpret_cast<uint32_t*>(captured.data() + (size_t)(y + h) * stride);
+    for (int x = 0; x < w * 2; ++x) row[x] = (uint32_t)img[(y / 2) * w + x / 2] * 0x010101;
+  }
+  std::vector<uint32_t> resized((size_t)w * h);
+  cam_copy_bgra(resized.data(), w, h, captured.data(), w * 2, h * 4, stride);
+  for (int i = 0; i < w * h; ++i) img[i] = resized[i] & 255;
   quirc_end(q);
   bool ok = false;
   for (int i = 0; i < quirc_count(q) && !ok; ++i) {

@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+"""Control the experimental jailbroken iPhone app over a short-lived USB/SSH tunnel."""
+import argparse
+import json
+import math
+import os
+from pathlib import Path
+import plistlib
+import shlex
+import socket
+import subprocess
+import time
+
+APP = "/Applications/ZincLegacy.app"
+STAGE = "/tmp/ZincLegacy.app"
+BUNDLE = "dev.zinc.legacy"
+
+parser = argparse.ArgumentParser(description=__doc__)
+sub = parser.add_subparsers(dest="action", required=True)
+for action in ("start", "stop", "status", "info", "sample", "logs", "gpu-dump", "up", "backspace", "enter", "return", "done", "keyboard-state"):
+    sub.add_parser(action)
+for action in ("tap", "down", "move"):
+    p = sub.add_parser(action)
+    p.add_argument("x", type=float)
+    p.add_argument("y", type=float)
+p = sub.add_parser("drag")
+for coord in ("x", "y", "ex", "ey"): p.add_argument(coord, type=float)
+p.add_argument("duration", type=int)
+sub.add_parser("layout-trace").add_argument("value", choices=("on", "off"))
+sub.add_parser("frame-time").add_argument("value", choices=("on", "off"))
+sub.add_parser("text").add_argument("value")
+for toggle in ("gpu-cache", "gpu-discard", "gpu-occlude"): sub.add_parser(toggle).add_argument("value", choices=("0", "1"))
+sub.add_parser("gpu-direct").add_argument("value", choices=("0", "1", "2"))
+sub.add_parser("gpu-batch").add_argument("value", choices=("on", "off"))
+sub.add_parser("gpu-time").add_argument("value", choices=("on", "off"))
+sub.add_parser("gpu-verify").add_argument("value", choices=("on", "off"))
+sub.add_parser("shot").add_argument("path", type=Path)
+sub.add_parser("install").add_argument("app", type=Path)
+p = sub.add_parser("profile")
+p.add_argument("--seconds", type=float, default=3)
+args = parser.parse_args()
+if args.action in ("tap", "down", "move") and not all(math.isfinite(v) for v in (args.x, args.y)):
+    parser.error("coordinates must be finite")
+if args.action == "drag" and (not all(math.isfinite(v) for v in (args.x, args.y, args.ex, args.ey)) or not 50 <= args.duration <= 10000):
+    parser.error("drag needs finite coordinates and 50..10000 ms duration")
+if args.action == "profile" and not 0.1 <= args.seconds <= 30:
+    parser.error("profile duration must be between 0.1 and 30 seconds")
+
+udid = os.environ.get("ZINC_IOS_DEVICE")
+if not udid:
+    devices = subprocess.check_output(["idevice_id", "-l"], text=True).splitlines()
+    matches = [d for d in devices if subprocess.check_output(["ideviceinfo", "-u", d, "-k", "ProductType"], text=True).strip() == "iPhone3,1"]
+    if len(matches) != 1:
+        parser.error("connect one iPhone 4 or set ZINC_IOS_DEVICE")
+    udid = matches[0]
+key = Path(os.environ.get("ZINC_IOS_SSH_KEY", "~/.zinc/devices/iphone4/id_rsa")).expanduser()
+if not key.is_file():
+    parser.error("set ZINC_IOS_SSH_KEY to the paired SSH private key")
+with socket.socket() as reservation:
+    reservation.bind(("127.0.0.1", 0))
+    port = reservation.getsockname()[1]
+proxy = subprocess.Popen(["iproxy", "-u", udid, f"{port}:22"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+known = key.parent / "known_hosts"
+options = ["-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "HostKeyAlgorithms=+ssh-rsa", "-o", "PubkeyAcceptedAlgorithms=+ssh-rsa", "-o", "StrictHostKeyChecking=accept-new", "-o", "HostKeyAlias=zinc-iphone4", "-o", f"UserKnownHostsFile={known}"]
+
+def ssh(*command):
+    return subprocess.check_output(["ssh", "-p", str(port), *options, "root@127.0.0.1", shlex.join(map(str, command))])
+
+def ui(*command):
+    return ssh(f"{APP}/zinc-ui", *command)
+
+def pids():
+    return [int(line.split()[0]) for line in ssh("launchctl", "list").decode().splitlines()
+            if f"UIKitApplication:{BUNDLE}[" in line and line.split()[0].isdigit()]
+
+try:
+    for _ in range(50):
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.1):
+                break
+        except OSError:
+            if proxy.poll() is not None:
+                raise RuntimeError("USB tunnel failed to start")
+            time.sleep(0.05)
+    else:
+        raise RuntimeError("USB tunnel did not become ready")
+    if args.action == "install":
+        app = args.app.resolve()
+        with (app / "Info.plist").open("rb") as f:
+            metadata = plistlib.load(f)
+        if app.name != "ZincLegacy.app" or metadata.get("CFBundleIdentifier") != BUNDLE:
+            parser.error("expected the generated ZincLegacy.app")
+        for name in ("ZincLegacy", "zinc-ui", "zinc-launch", "control-entitlements.plist"):
+            if not (app / name).is_file():
+                parser.error(f"missing {name}: rebuild with tools/build-ios-legacy")
+        saved = f"{APP}.previous-{time.time_ns()}"
+        staged_old = f"{STAGE}.previous-{time.time_ns()}"
+        if ssh("sh", "-c", f"test -d {STAGE} && echo yes || true").strip() == b"yes":
+            ssh("mv", STAGE, staged_old)
+        subprocess.run(["scp", "-O", "-r", "-P", str(port), *options, str(app), "root@127.0.0.1:/tmp/"], check=True)
+        ssh("ldid", "-S", f"{STAGE}/ZincLegacy")
+        for name in ("zinc-ui", "zinc-launch"):
+            ssh("ldid", f"-S{STAGE}/control-entitlements.plist", f"{STAGE}/{name}")
+        ssh(f"{STAGE}/zinc-launch", "com.apple.Preferences")
+        for pid in pids():
+            ssh("kill", pid)
+        if ssh("sh", "-c", f"test -d {APP} && echo yes || true").strip() == b"yes":
+            ssh("mv", APP, saved)
+        ssh("mv", STAGE, APP)
+        ssh("su", "mobile", "-c", "uicache")
+        print(ssh(f"{APP}/zinc-launch", BUNDLE).decode(), end="")
+    elif args.action in ("start", "status", "stop"):
+        print(ssh(f"{APP}/zinc-launch", *([BUNDLE] if args.action == "start" else [])).decode(), end="")
+        if args.action == "stop":
+            ssh(f"{APP}/zinc-launch", "com.apple.Preferences")
+            for pid in pids():
+                ssh("kill", pid)
+    elif args.action == "sample":
+        running = pids()
+        if not running:
+            raise RuntimeError("Zinc is not running")
+        print(ui("sample", running[0]).decode(), end="")
+    elif args.action == "profile":
+        samples = []
+        until = time.monotonic() + args.seconds
+        while time.monotonic() < until:
+            samples.append(json.loads(ui("info")))
+            time.sleep(0.1)
+        print(json.dumps(samples, indent=2))
+    elif args.action == "shot":
+        image = ui("shot")
+        if not image.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise RuntimeError("device did not return a PNG")
+        args.path.parent.mkdir(parents=True, exist_ok=True)
+        args.path.write_bytes(image)
+        print(args.path)
+    elif args.action == "logs":
+        print(ssh("cat", "/var/mobile/Library/Zinc/stdout.txt", "/var/mobile/Library/Zinc/stderr.txt").decode(errors="replace"), end="")
+    else:
+        command = [args.action]
+        if args.action in ("tap", "down", "move"):
+            command += [str(args.x), str(args.y)]
+        elif args.action == "drag":
+            command += [str(v) for v in (args.x, args.y, args.ex, args.ey, args.duration)]
+        elif args.action in ("text", "gpu-time", "gpu-batch", "gpu-verify", "frame-time", "gpu-direct", "gpu-cache", "gpu-discard", "gpu-occlude", "layout-trace"):
+            command += [args.value]
+        print(ui(*command).decode(), end="")
+finally:
+    proxy.terminate()
+    try:
+        proxy.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        proxy.kill()
+        proxy.wait()
