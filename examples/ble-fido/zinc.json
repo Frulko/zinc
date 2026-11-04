@@ -1,0 +1,7 @@
+{
+  "name": "ble-fido-demo",
+  "entry": "main.tsx",
+  "targets": {
+    "macos": { "width": 860, "height": 780 }
+  }
+}
