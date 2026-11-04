@@ -65,7 +65,11 @@ final class ZincMappingMedia {
                     } catch (Exception e) {
                         Log.w(TAG, "no thumbnail for " + path + ": " + e);
                     } finally {
-                        retriever.release();
+                        try {
+                            retriever.release();
+                        } catch (Exception e) {
+                            Log.w(TAG, "thumbnail: " + e);   // declared since API 29; nothing left to do
+                        }
                     }
                 }
             }
