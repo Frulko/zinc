@@ -20,3 +20,4 @@
   zinc:editor-lsp          macos,linux,windows                A language server client for zinc:editor: JSON-RPC framing over a child process, completion, signature help, hover, definition and diagnostics (zinc lsp, or any server that speaks LSP over stdio)
   zinc:monitors            macos                              Control the machine's displays: modes and HiDPI, brightness, DDC (contrast, volume, input), dimming and warmth, XDR boost, arrangement, mirroring, rotation, connection, virtual displays (macOS); two fake displays for tests
   zinc:sf-symbols          macos                              Apple's SF Symbols as runtime images, white to be tinted (macOS)
+  zinc:lastfm              macos,linux,windows,android,ios,rpi1 Last.fm scrobbling: counts what was really heard, a saved outbox with retries, signed API calls; written in Zinc on fetch and zinc:fs
