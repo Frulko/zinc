@@ -18,7 +18,8 @@
       "height": 768
     },
     "android": {
-      "kiosk": true
+      "kiosk": true,
+      "renderer": "gl"
     }
   },
   "permissions": ["opener", "fs", "net"],

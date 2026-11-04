@@ -60,7 +60,7 @@ run() {   # run <name> <input> <frames> <shots>
 }
 run rooms "$data/rooms.input" 1100 945
 # the handoff is a chain of requests answered while frames run unpaced: a loaded runner (ZN_WAIT_SCALE) gets more frames to finish it
-run home "$data/home.input" $((1500 * ${ZN_WAIT_SCALE:-1})) 600
+run home "$data/home.input" $((5000 * ${ZN_WAIT_SCALE:-1})) 600
 fail=0
 # (a) frames 300 to 899, the page open and nothing touched: the frames drawn against the polls started
 drawn=$(awk '$1 == "drawn" && $2 >= 300 && $2 < 900' "$tmp/rooms.out" | wc -l | tr -d ' ')

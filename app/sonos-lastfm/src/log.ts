@@ -1,4 +1,4 @@
-import { Listen } from './tracker';
+import { ErrorLog, Listen } from 'zinc:lastfm';
 import { System, Group } from 'zinc:sonos';
 
 function time(seconds: number): string {
@@ -31,15 +31,9 @@ export function playbackChangeKey(room: string, state: string, source: string, l
 }
 
 /** Event-only console output; polling progress stays available through /status. */
-export class Log {
-  lastError: string = '';
+export class Log extends ErrorLog {
   topologySnapshot: string = '';
   playbackChanges: Map<string, string> = new Map<string, string>();
-
-  error(message: string): void {
-    if (message !== this.lastError) console.error(message);
-    this.lastError = message;
-  }
 
   disconnected(): void {
     this.topologySnapshot = '';

@@ -68,7 +68,7 @@ export class HomePageNode extends DisplayObject {
         appState.activeGroup !== null
           ? getGroupArtworkUrl(appState.activeGroup as Group)
           : '';
-      if (artworkUrl === '' || !drawBlurredBackdrop(artworkUrl, screenWidth, fullScreenHeight, STATUS_BAR_HEIGHT)) {
+      if (artworkUrl === '' || !drawBlurredBackdrop(artworkUrl, screenWidth, fullScreenHeight, STATUS_BAR_HEIGHT, appState.config.backdropBlur)) {
         gradient(
           0,
           -STATUS_BAR_HEIGHT,

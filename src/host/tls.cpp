@@ -16,6 +16,7 @@ std::string randomBytes(size_t) { return std::string(); }
 void destroy(Conn*) {}
 void feed(Conn*, const char*, size_t) {}
 std::string takeOutput(Conn*) { return std::string(); }
+bool settled(Conn*) { return true; }
 State step(Conn*) { return State::Failed; }
 bool write(Conn*, const std::string&) { return false; }
 State read(Conn*, std::string&) { return State::Failed; }
@@ -381,6 +382,8 @@ void destroy(Conn* c) {
 void feed(Conn* c, const char* data, size_t n) { c->in.append(data, n); }
 std::string takeOutput(Conn* c) { std::string s; s.swap(c->out); return s; }
 const std::string& error(Conn* c) { return c->err; }
+
+bool settled(Conn* c) { return c->done || c->failed; }
 
 State step(Conn* c) {
   if (c->failed) return State::Failed;

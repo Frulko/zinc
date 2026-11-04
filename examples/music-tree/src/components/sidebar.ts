@@ -7,6 +7,7 @@
 
 import { rect, rrect, drawText } from 'zinc:gfx';
 import { Group } from 'zinc:sonos';
+import { isBridgeStream } from '../services/airplay-bridge';
 import {
   COLOR_ACCENT,
   COLOR_BACKGROUND,
@@ -200,6 +201,7 @@ export function drawSidebarContent(viewWidth: number, viewHeight: number): void 
   );
 
   const controlsCenterY = miniPlayerY + 96;
+  if (isBridgeStream(activeGroup)) return;   // only "Arrêter AirPlay", on the player
   drawTransportIcon('prev', sidebarWidth / 2 - 64, controlsCenterY, 22, COLOR_TEXT_PRIMARY);
   registerTapZone('mini/prev', sidebarWidth / 2 - 90, controlsCenterY - 22, 52, 44, () =>
     executeGroupCommand('Précédent', (system, group) => system.previous(group))

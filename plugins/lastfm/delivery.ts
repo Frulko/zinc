@@ -2,21 +2,33 @@ import * as fs from 'zinc:fs';
 import { Lastfm, ApiError } from './lastfm';
 import { Store, atomic } from './store';
 import { Track } from './tracker';
-import { Log } from './log';
+
+/** Says an error once, until it changes. */
+export class ErrorLog {
+  lastError: string = '';
+
+  error(message: string): void {
+    if (message !== this.lastError) console.error(message);
+    this.lastError = message;
+  }
+}
 
 /** Authorize Last.fm and drain the saved outbox without blocking Sonos monitoring. */
 export class LastfmDelivery {
   api: Lastfm;
   store: Store;
-  log: Log;
+  log: ErrorLog;
   retryAt: number = 0;
   backoff: number = 5;
   authToken: string = '';
   tokenExpires: number = 0;
   nextAuthAttempt: number = 0;
   nowPlaying: Track | null = null;
+  /** When another scrobbler may have the same account (Spotify's link to Last.fm): the seconds after a song's end left to it, then
+   *  the song goes only if Last.fm does not have it. Last.fm has no way to take a scrobble back, so waiting is the only way. 0: no check. */
+  holdSeconds: number = 0;
 
-  constructor(api: Lastfm, store: Store, log: Log, sessionKey: string) {
+  constructor(api: Lastfm, store: Store, log: ErrorLog, sessionKey: string) {
     this.api = api;
     this.store = store;
     this.log = log;
@@ -76,6 +88,26 @@ export class LastfmDelivery {
     if (this.api.session === '' || this.store.pending.length === 0 || now < this.retryAt) return;
 
     const scrobble = this.store.pending[0];
+    if (this.holdSeconds > 0) {
+      if (now < scrobble.timestamp + scrobble.duration + this.holdSeconds) return;
+      try {
+        // ponytail: the same song played twice in a row can lose its second listen if the other scrobbler dates it at the end of the first
+        if (this.api.account !== '' && await this.api.heardSince(scrobble, scrobble.timestamp - 60, now)) {
+          this.store.pending.shift();
+          this.store.save();
+          console.log('Already on Last.fm: ' + scrobble.artist + ' - ' + scrobble.title);
+          return;
+        }
+      } catch (error) {
+        // a history refused for good (hidden by the account) must not hold the listens forever: they go unchecked
+        if (!(error instanceof ApiError) || error.code === 0 || error.code === 11 || error.code === 16 || error.code === 29) {
+          this.log.error('Last.fm unavailable; queued listens retained');
+          this.retryAt = now + this.backoff;
+          this.backoff = Math.min(this.backoff * 2, 900);
+          return;
+        }
+      }
+    }
     let rejection = '';
     try {
       rejection = await this.api.scrobble(scrobble);

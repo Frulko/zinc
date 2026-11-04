@@ -41,6 +41,8 @@ void destroy(Conn* c);
 
 void feed(Conn* c, const char* data, size_t n);   // encrypted bytes that arrived
 std::string takeOutput(Conn* c);                    // encrypted bytes to send (take them after every call below)
+/** Whether the handshake is over, well or badly: then step does no work and costs nothing. */
+bool settled(Conn* c);
 State step(Conn* c);                                // runs the handshake as far as the bytes fed allow
 bool write(Conn* c, const std::string& plain);      // false before the handshake is done or after a failure
 // Appends the plain bytes that can be read now to `out`. Closed after the peer's close_notify, Failed on an error.

@@ -1,3 +1,5 @@
+import { Store } from './store';
+
 export class Track {
   artist: string = '';
   title: string = '';
@@ -66,4 +68,23 @@ export function entry(listen: Listen): Scrobble {
   scrobble.timestamp = listen.started;
   scrobble.duration = listen.track.duration;
   return scrobble;
+}
+
+/** One reading of a group: counts the listen and queues it once eligible. True when a new song began (now playing). */
+export function record(store: Store, group: string, track: Track, now: number, interval: number): boolean {
+  const listen = store.listen(group);
+  if (!Number.isFinite(track.duration) || !Number.isFinite(track.position) || track.duration <= 0 || track.position < 0) {
+    listen.track = track;
+    listen.track.playing = false;
+    return false;
+  }
+  const previous = listen.track.key();
+  observe(listen, track, now, interval);
+  if (eligible(listen)) {
+    store.enqueue(entry(listen));
+    listen.queued = true;
+    store.save();
+    console.log('Queued: ' + track.artist + ' - ' + track.title);
+  }
+  return track.playing && previous !== track.key() && track.artist !== '' && track.title !== '';
 }

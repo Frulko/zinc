@@ -1,6 +1,5 @@
 import { System, Group, discover } from 'zinc:sonos';
-import { Track, observe, eligible, entry } from './tracker';
-import { Store } from './store';
+import { Store, Track, record } from 'zinc:lastfm';
 import { Log } from './log';
 
 /** Read Sonos and record eligible listens. Last.fm delivery runs independently. */
@@ -73,25 +72,8 @@ export class SonosMonitor {
     track.position = group.track.position;
     track.playing = group.state === 'PLAYING';
 
-    if (!Number.isFinite(track.duration) || !Number.isFinite(track.position) || track.duration <= 0 || track.position < 0) {
-      listen.track = track;
-      listen.track.playing = false;
-      this.log.playback(group, listen, '');
-      return;
-    }
-
-    const previousTrack = listen.track.key();
-    observe(listen, track, Date.now() / 1000, this.interval);
-    if (eligible(listen)) {
-      this.store.enqueue(entry(listen));
-      listen.queued = true;
-      this.store.save();
-      console.log('Queued: ' + track.artist + ' - ' + track.title);
-    }
+    const started = record(this.store, listen.group, track, Date.now() / 1000, this.interval);
     this.log.playback(group, listen, this.store.deliveryStatus(listen));
-
-    if (track.playing && previousTrack !== track.key() && track.artist !== '' && track.title !== '') {
-      this.nowPlaying = track;
-    }
+    if (started) this.nowPlaying = track;
   }
 }

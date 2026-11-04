@@ -36,6 +36,7 @@ import { drawSlider } from '../../components/slider';
 import { drawCoverArt } from '../../components/cover';
 import { drawSidebarContent } from '../../components/sidebar';
 import { saveAppConfig } from '../../services/config';
+import { bridge, isBridgeStream } from '../../services/airplay-bridge';
 import {
   appState,
   getConnectSongOfGroup,
@@ -51,10 +52,12 @@ import {
   selectActiveSonosGroup,
   discoverSonosSystem,
 } from '../../state';
-import { dismissHandoffCard, playsElsewhere, resumeHere } from '../../services/spotify-on-sonos';
+import { dismissHandoffCard, playsElsewhere, resumeHere, resumingHere } from '../../services/spotify-on-sonos';
 
 /** Elapsed and remaining time under the progress bar. */
 const COLOR_TEXT_TIMES: u32 = 0xc7c7cc;
+
+/** Elapsed and remaining time under the progress bar. */
 
 /**
  * Draws the empty state when no Sonos speaker has been found yet.
@@ -122,7 +125,7 @@ function drawHandoffCard(x: number, y: number, width: number, group: Group): voi
   const cardHeight = 72;
   rrect(x, y, width, cardHeight, 18, COLOR_CARD_ELEVATED, 240);
   drawCoverArt(song.thumb !== '' ? song.thumb : song.art, song.name, x + 12, y + 12, 48, 8);
-  const buttonLabel = 'Reprendre ici';
+  const buttonLabel = resumingHere() ? 'Reprise…' : 'Reprendre ici';
   const buttonWidth = textWidth(Fonts.smallBold, buttonLabel, 0) + 36 + 22;
   const textWidthLeft = width - 12 - 48 - 16 - buttonWidth - 16 - 44;
   drawLabel(Fonts.tiny, x + 76, y + 14, `En cours sur ${playback.device.name} · vers ${group.name()}`, COLOR_GREEN, textWidthLeft);
@@ -219,7 +222,7 @@ export class PlayerSlideNode extends DisplayObject {
         contentStartX + 50 + roomPillWidth + 16,
         28 - offsetY,
         sourceBadgeText,
-        track.source === 'spotify' ? COLOR_GREEN : COLOR_ACCENT,
+        sourceBadgeText.startsWith('SPOTIFY') ? COLOR_GREEN : COLOR_ACCENT,
         255,
         0
       );
@@ -310,7 +313,11 @@ export class PlayerSlideNode extends DisplayObject {
 
     // Progress bar or EN DIRECT badge
     const progressY = layout.progressY - offsetY;
-    if (track.duration > 0) {
+    const onBridge = isBridgeStream(group);
+    if (onBridge && track.duration > 0) {
+      const shownTime = `${formatDurationClock(getInterpolatedTrackPositionSeconds())} / ${formatDurationClock(track.duration)}`;
+      drawText(Fonts.tiny, rightColumnX, progressY, shownTime, COLOR_TEXT_SECONDARY, 255, 0);
+    } else if (track.duration > 0) {
       const currentPosition = getInterpolatedTrackPositionSeconds();
       drawSlider(
         'now/seek',
@@ -351,7 +358,7 @@ export class PlayerSlideNode extends DisplayObject {
         255,
         0
       );
-    } else if (track.source === 'radio' && !isNothingPlaying) {
+    } else if ((track.source === 'radio' || onBridge) && !isNothingPlaying) {
       rrect(rightColumnX, progressY - 12, 92, 26, 13, COLOR_ACCENT, 255);
       rrect(rightColumnX + 12, progressY - 3, 8, 8, 4, 0xffffff, 255);
       drawText(Fonts.tinyBold, rightColumnX + 28, progressY - 6, 'EN DIRECT', COLOR_TEXT_PRIMARY, 255, 0);
@@ -362,57 +369,71 @@ export class PlayerSlideNode extends DisplayObject {
     const transportCenterX = rightColumnX + rightColumnWidth / 2;
     const transportSpacing = Math.min(96, (rightColumnWidth - 68) / 2);
 
-    if (isZonePressed('now/prev')) rrect(transportCenterX - transportSpacing - 34, transportCenterY - 34, 68, 68, 34, 0xffffff, 40);
-    if (isZonePressed('now/next')) rrect(transportCenterX + transportSpacing - 34, transportCenterY - 34, 68, 68, 34, 0xffffff, 40);
-    drawTransportIcon(
-      'prev',
-      transportCenterX - transportSpacing,
-      transportCenterY,
-      34,
-      group.can('Previous') ? COLOR_TEXT_PRIMARY : COLOR_TEXT_TERTIARY
-    );
-    registerTapZone(
-      'now/prev',
-      transportCenterX - transportSpacing - 34,
-      transportCenterY - 34,
-      68,
-      68,
-      () => executeGroupCommand('Précédent', (system, targetGroup) => system.previous(targetGroup))
-    );
+    if (onBridge) {
+      if (bridge.token !== '') {
+        drawPillButton(
+          'now/stop-airplay',
+          rightColumnX,
+          transportCenterY - 20,
+          'Arrêter AirPlay',
+          COLOR_TEXT_PRIMARY,
+          COLOR_FILL,
+          togglePlayPause
+        );
+      }
+    } else {
+      if (isZonePressed('now/prev')) rrect(transportCenterX - transportSpacing - 34, transportCenterY - 34, 68, 68, 34, 0xffffff, 40);
+      if (isZonePressed('now/next')) rrect(transportCenterX + transportSpacing - 34, transportCenterY - 34, 68, 68, 34, 0xffffff, 40);
+      drawTransportIcon(
+        'prev',
+        transportCenterX - transportSpacing,
+        transportCenterY,
+        34,
+        group.can('Previous') ? COLOR_TEXT_PRIMARY : COLOR_TEXT_TERTIARY
+      );
+      registerTapZone(
+        'now/prev',
+        transportCenterX - transportSpacing - 34,
+        transportCenterY - 34,
+        68,
+        68,
+        () => executeGroupCommand('Précédent', (system, targetGroup) => system.previous(targetGroup))
+      );
 
-    rrect(
-      transportCenterX - 40,
-      transportCenterY - 40,
-      80,
-      80,
-      40,
-      isZonePressed('now/play') ? 0xd1d1d6 : 0xffffff,
-      255
-    );
-    drawTransportIcon(
-      group.playing() ? 'pause' : 'play',
-      group.playing() ? transportCenterX : transportCenterX + 3,
-      transportCenterY,
-      32,
-      0x000000
-    );
-    registerTapZone('now/play', transportCenterX - 44, transportCenterY - 44, 88, 88, togglePlayPause);
+      rrect(
+        transportCenterX - 40,
+        transportCenterY - 40,
+        80,
+        80,
+        40,
+        isZonePressed('now/play') ? 0xd1d1d6 : 0xffffff,
+        255
+      );
+      drawTransportIcon(
+        group.playing() ? 'pause' : 'play',
+        group.playing() ? transportCenterX : transportCenterX + 3,
+        transportCenterY,
+        32,
+        0x000000
+      );
+      registerTapZone('now/play', transportCenterX - 44, transportCenterY - 44, 88, 88, togglePlayPause);
 
-    drawTransportIcon(
-      'next',
-      transportCenterX + transportSpacing,
-      transportCenterY,
-      34,
-      group.can('Next') ? COLOR_TEXT_PRIMARY : COLOR_TEXT_TERTIARY
-    );
-    registerTapZone(
-      'now/next',
-      transportCenterX + transportSpacing - 34,
-      transportCenterY - 34,
-      68,
-      68,
-      () => executeGroupCommand('Suivant', (system, targetGroup) => system.next(targetGroup))
-    );
+      drawTransportIcon(
+        'next',
+        transportCenterX + transportSpacing,
+        transportCenterY,
+        34,
+        group.can('Next') ? COLOR_TEXT_PRIMARY : COLOR_TEXT_TERTIARY
+      );
+      registerTapZone(
+        'now/next',
+        transportCenterX + transportSpacing - 34,
+        transportCenterY - 34,
+        68,
+        68,
+        () => executeGroupCommand('Suivant', (system, targetGroup) => system.next(targetGroup))
+      );
+    }
 
     // Shuffle, Repeat and Like (Spotify or Sonos queue)
     const modeRowY = layout.modeY - offsetY;

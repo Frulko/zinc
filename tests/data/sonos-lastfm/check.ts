@@ -1,11 +1,8 @@
-import { Track, Listen, observe, eligible, entry } from '../../../app/sonos-lastfm/src/tracker';
+import { Track, Listen, observe, eligible, entry, record, Lastfm, ApiError, signature, LastfmDelivery, Store } from 'zinc:lastfm';
 import { System, discover } from 'zinc:sonos';
-import { Lastfm, ApiError, signature } from '../../../app/sonos-lastfm/src/lastfm';
 import { playbackInfo, playbackChangeKey } from '../../../app/sonos-lastfm/src/log';
 import { readConfig } from '../../../app/sonos-lastfm/src/config';
-import { LastfmDelivery } from '../../../app/sonos-lastfm/src/delivery';
 import { Log } from '../../../app/sonos-lastfm/src/log';
-import { Store } from '../../../app/sonos-lastfm/src/store';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 function check(ok: boolean, why: string): void { if (!ok) throw new Error(why); }
@@ -58,6 +55,14 @@ async function main(): Promise<void> {
   const house = new System(''); house.applyTopology('<ZoneGroups><ZoneGroup Coordinator="A"><ZoneGroupMember UUID="A" ZoneName="Living &amp; kitchen" Location="http://127.0.0.1:1400/xml/device_description.xml"/><ZoneGroupMember UUID="B" ZoneName="Follower" Location="http://127.0.0.2:1400/xml/device_description.xml"/></ZoneGroup></ZoneGroups>');
   check(house.groups.length === 1 && house.groups[0].coordinator.uuid === 'A' && house.groups[0].name().startsWith('Living & kitchen'), 'plugin coordinator');
   const store = new Store(sys.env('TEST_DATA')); store.load(); store.listens.push(l); store.enqueue(first); store.enqueue(first); store.save();
+  const recorded = new Store(sys.env('TEST_DATA') + '/record');
+  recorded.load();
+  check(record(recorded, 'R', track(0), 1000, 2), 'a new song is announced');
+  check(!record(recorded, 'R', track(2), 1002, 2), 'once');
+  const unknown = track(4); unknown.duration = 0;
+  check(!record(recorded, 'R', unknown, 1004, 2) && recorded.pending.length === 0, 'an unknown duration is not counted');
+  for (let p = 2; p <= 60; p += 2) record(recorded, 'R', track(p), 2000 + p, 2);
+  check(recorded.pending.length === 1, 'record queues an eligible listen');
   const loaded = new Store(store.dir); loaded.load();
   check(loaded.pending.length === 1 && loaded.pending[0].timestamp === 1000 && loaded.listens[0].heard === 60, 'durable queue, original timestamp, dedup');
   observe(loaded.listens[0], track(62), 5000, 2); check(loaded.listens[0].heard === 60, 'restart earns no downtime');

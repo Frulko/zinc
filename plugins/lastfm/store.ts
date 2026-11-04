@@ -50,14 +50,14 @@ export class Store {
     }
 
     const listen = new Listen();
-    listen.group = String(saved.group);
+    listen.group = ('' + (saved.group));
     listen.started = Number(saved.started);
     listen.heard = Number(saved.heard);
     listen.queued = saved.queued === true;
-    listen.track.artist = String(saved.track.artist);
-    listen.track.title = String(saved.track.title);
-    listen.track.album = String(saved.track.album);
-    listen.track.uri = String(saved.track.uri);
+    listen.track.artist = ('' + (saved.track.artist));
+    listen.track.title = ('' + (saved.track.title));
+    listen.track.album = ('' + (saved.track.album));
+    listen.track.uri = ('' + (saved.track.uri));
     listen.track.duration = Number(saved.track.duration);
     listen.track.position = Number(saved.track.position);
 
@@ -81,13 +81,13 @@ export class Store {
     }
 
     const scrobble = new Scrobble();
-    scrobble.id = String(saved.id);
-    scrobble.artist = String(saved.artist);
-    scrobble.title = String(saved.title);
-    scrobble.album = String(saved.album);
+    scrobble.id = ('' + (saved.id));
+    scrobble.artist = ('' + (saved.artist));
+    scrobble.title = ('' + (saved.title));
+    scrobble.album = ('' + (saved.album));
     scrobble.timestamp = Number(saved.timestamp);
     scrobble.duration = Number(saved.duration);
-    scrobble.error = typeof saved.error === 'string' ? String(saved.error) : '';
+    scrobble.error = typeof saved.error === 'string' ? ('' + (saved.error)) : '';
     return scrobble;
   }
 

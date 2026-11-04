@@ -1670,6 +1670,7 @@ static int exportAndroid(const ProjectInfo& p, const fs::path& out, const std::s
   if (auto t = proj.targets.find("android"); t != proj.targets.end()) {
     if (t->second.fullscreen) appEnv += " ZINC_FULLSCREEN=1";
     if (t->second.kiosk) appEnv += " ZINC_KIOSK=1";
+    if (!t->second.renderer.empty()) appEnv += " ZINC_RENDERER=" + t->second.renderer;
   }
   const std::string orient = proj.app.orientation == "portrait" ? "sensorPortrait" : proj.app.orientation == "landscape" ? "sensorLandscape" : "unspecified";
   std::string pkgPath = id;

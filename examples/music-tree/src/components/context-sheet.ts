@@ -6,6 +6,7 @@
 
 import { rrect, drawText } from 'zinc:gfx';
 import { System } from 'zinc:sonos';
+import { isBridgeStream } from '../services/airplay-bridge';
 import {
   COLOR_ACCENT,
   COLOR_CARD,
@@ -183,6 +184,7 @@ export class ContextSheetNode extends DisplayObject {
         60,
         () => {
           runSafeNetworkAction(capturedGroup.name(), async (): Promise<void> => {
+            if (isBridgeStream(capturedGroup)) return;
             if (capturedGroup.playing()) {
               await system.pause(capturedGroup);
             } else {

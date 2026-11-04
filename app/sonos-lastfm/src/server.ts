@@ -3,8 +3,7 @@ import { randomBytes } from 'zinc:sys';
 import { toHex } from 'zinc:web';
 import { serve, Request, Reply } from 'zinc:net';
 import { Group } from 'zinc:sonos';
-import { Listen, Scrobble } from './tracker';
-import { atomic } from './store';
+import { Listen, Scrobble, atomic } from 'zinc:lastfm';
 
 export interface Status {
   authorized: boolean;

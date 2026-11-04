@@ -1023,6 +1023,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 - Pi sleep (image/player, display-fbdev `backlight`): on the Pi, prove a touch wakes the dark DSI screen, then the DPMS path on HDMI (output off and back, an app on a plane, a USB touch screen); on the Mac only the fade, the input swallowed and the settings are proven.
+- music-airplay: music-tree's setup page and scrobbler on a real TouchPad (`openPort` through zinc-helper, a phone reaching the page, mode 600 under `/media/cryptofs`, `zinc:qrcode` in the webOS build) and `zinc:qrcode` on Android.
 - async-hot-paths: the parallel Sonos reads (7 SOAP calls at once, `update` and `readVolumes`) on the TouchPad; measured only from the Mac, one group of 3 rooms (32 to 50 ms, no failure).
 - zinc:webview on Linux: on-screen on a real X session (GPU compositing, window resize, a window manager's focus), SDL's window from a native Linux build, XWayland, WebKitGTK 4.0, and a test that runs on Linux (done by hand under Xvfb on Debian 12: bridge, assets, keys, clip, hide).
 - ZN-764: validate lazy raster/HTTP scratch, display-gl splash-buffer release and encoded-input lifetime on Windows, iOS/Android, KMS/webOS, consoles and actual WASM; measure pixels, CPU and RAM. Audit 3DS/Vita software-only rows/framebuffer allocation against GPU fallback and diagnostic frames (see engine-memory-hal-2026-10-31.md).

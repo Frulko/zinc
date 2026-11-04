@@ -1,9 +1,7 @@
 import { onSignal, exit } from 'zinc:sys';
 import { stop } from 'zinc:net';
 import { readConfig } from './config';
-import { Store } from './store';
-import { Lastfm } from './lastfm';
-import { LastfmDelivery } from './delivery';
+import { Lastfm, LastfmDelivery, Store } from 'zinc:lastfm';
 import { SonosMonitor } from './monitor';
 import { Log } from './log';
 import { startServer, Status } from './server';

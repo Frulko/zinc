@@ -27,6 +27,7 @@ import {
   imageWidth,
   imageHeight,
   pixelScale,
+  ImageFlag,
 } from 'zinc:gfx';
 import {
   MAX_CACHED_PICTURES,
@@ -41,6 +42,19 @@ const cachedPicturesByUrl = new Map<string, i32>();
 
 /** URLs whose download is in progress or already started. */
 const loadingUrls = new Map<string, boolean>();
+/** A Sonos answers 404 for a cover it has not fetched yet and 200 minutes later: a failed download is asked again, less and less often. */
+const nextTryAtByUrl = new Map<string, number>();
+const tryWaitByUrl = new Map<string, number>();
+const FIRST_TRY_WAIT_MS = 15000;
+const LONGEST_TRY_WAIT_MS = 120000;
+
+function noteFailedDownload(url: string): void {
+  cachedPicturesByUrl.set(url, -1);
+  const lastWait = tryWaitByUrl.get(url);
+  const wait = lastWait === undefined ? FIRST_TRY_WAIT_MS : Math.min(lastWait * 2, LONGEST_TRY_WAIT_MS);
+  tryWaitByUrl.set(url, wait);
+  nextTryAtByUrl.set(url, Date.now() + wait);
+}
 
 /** Frame number of the last display of each URL (for LRU eviction). */
 const lastDrawnFrameByUrl = new Map<string, number>();
@@ -151,6 +165,14 @@ export function getPicture(url: string): i32 {
   const existingImage = cachedPicturesByUrl.get(url);
   if (existingImage !== undefined) {
     lastDrawnFrameByUrl.set(url, currentFrameTick);
+    // a failure stays -1 during the new try: the tile with the initials does not blink
+    if (existingImage < 0 && activeDownloadsCount < MAX_INFLIGHT_DOWNLOADS) {
+      const nextTryAt = nextTryAtByUrl.get(url);
+      if (nextTryAt !== undefined && Date.now() >= nextTryAt) {
+        nextTryAtByUrl.delete(url);
+        downloadPictureBytes(url, true);
+      }
+    }
     return existingImage;
   }
   if (loadingUrls.get(url) === undefined && activeDownloadsCount < MAX_INFLIGHT_DOWNLOADS) {
@@ -197,10 +219,10 @@ async function downloadPictureBytes(url: string, isVisibleOnScreen: boolean): Pr
         backgroundDecodeQueue.push(url);
       }
     } else {
-      cachedPicturesByUrl.set(url, -1);
+      noteFailedDownload(url);
     }
   } catch (error) {
-    cachedPicturesByUrl.set(url, -1);
+    noteFailedDownload(url);
   }
   activeDownloadsCount--;
 }
@@ -340,54 +362,99 @@ let cachedBlurWidth: i32 = 0;
 let cachedBlurHeight: i32 = 0;
 let cachedBlurTexture: i32 = -1;
 
+/** The side of the small copy each blur level stretches (`AppConfig.backdropBlur`); 0: the cover itself, sharp. */
+const BLUR_SOURCE_SIDES: i32[] = [0, 96, 40, 12];
+let cachedBlurLevel: i32 = -1;
+
 /**
- * Draws a very softened and darkened copy of the cover over the screen (`screenWidth` x `screenHeight`, its top left at `(0, -originY)` of
+ * Draws a softened and darkened copy of the cover over the screen (`screenWidth` x `screenHeight`, its top left at `(0, -originY)` of
  * the node: the status bar sits above it).
- * The cover is shrunk into a 12x12 texture and stretched with bilinear sampling, once, into a picture of the screen's size with the
- * darkening already in it; every frame is then a row copy (the stretch alone cost 11 ms of CPU a frame on a Raspberry Pi 3, the darkening
- * 5 more, and a slide redraws the backdrop at every frame).
+ * The cover is shrunk into a small texture (halving, so no detail flickers) and stretched once with a B-spline into a picture of the
+ * screen's size with the darkening already in it; every frame is then a row copy (the stretch alone cost 11 ms of CPU a frame on a
+ * Raspberry Pi 3, the darkening 5 more, and a slide redraws the backdrop at every frame).
  */
-export function drawBlurredBackdrop(url: string, screenWidth: number, screenHeight: number, originY: number): boolean {
+export function drawBlurredBackdrop(url: string, screenWidth: number, screenHeight: number, originY: number, blurLevel: i32, alpha: i32 = 255): boolean {
+  if (!prepareBlurTexture(url, screenWidth, screenHeight, blurLevel)) return false;
+  drawImage(cachedBlurTexture, 0, -originY, Math.round(screenWidth) as i32, Math.round(screenHeight) as i32, alpha, 0);
+  return true;
+}
+
+/** Keeps the backdrop texture of this cover ready. A blurred picture has no detail to lose: a quarter of the screen's side costs the GPU far less to read (Tegra 3). */
+function prepareBlurTexture(url: string, screenWidth: number, screenHeight: number, blurLevel: i32): boolean {
   const sourceImage = getPicture(url);
   if (sourceImage < 0) return false;
   const width = Math.round(screenWidth) as i32;
   const height = Math.round(screenHeight) as i32;
 
-  if (cachedBlurUrl !== url || cachedBlurWidth !== width || cachedBlurHeight !== height) {
+  if (cachedBlurUrl !== url || cachedBlurWidth !== width || cachedBlurHeight !== height || cachedBlurLevel !== blurLevel) {
     if (cachedBlurTexture >= 0) destroyImage(cachedBlurTexture);
-    cachedBlurTexture = createImage(width, height);
+    const shrink: i32 = blurLevel > 0 ? 4 : 1;
+    const textureWidth = Math.max(1, (width / shrink) as i32) as i32;
+    const textureHeight = Math.max(1, (height / shrink) as i32) as i32;
+    cachedBlurTexture = createImage(textureWidth, textureHeight);
     if (cachedBlurTexture < 0) return false;
-    const tinyImage = createImage(12, 12);
     // Drawn at identity: beginImage keeps the matrix in force, and the node's offset would put the picture outside the texture
     resetTransform();
-    beginImage(tinyImage);
-    drawImage(sourceImage, 0, 0, 12, 12, 255, 0);
-    endImage();
+    const smallSide = BLUR_SOURCE_SIDES[blurLevel];
+    let stretched = sourceImage;
+    const halves: i32[] = [];
+    for (let side: i32 = smallSide * 4; smallSide > 0 && side >= smallSide; side = (side / 2) as i32) {
+      const smaller = createImage(side, side);
+      beginImage(smaller);
+      drawImage(stretched, 0, 0, side, side, 255, 0);
+      endImage();
+      stretched = smaller;
+      halves.push(smaller);
+    }
+    const inset = smallSide > 0 ? 1 : 0;   // skips the edge texels: no dark outline
+    const sourceSide = smallSide > 0 ? smallSide : imageWidth(sourceImage);
+    const coverSide = Math.max(textureWidth, textureHeight) * 1.1;
     beginImage(cachedBlurTexture);
-    // Skip the edge texels (1..10) to avoid any dark outline
     drawImageRect(
-      tinyImage,
-      1,
-      1,
-      10,
-      10,
-      -width * 0.1,
-      originY - height * 0.1,
-      width * 1.2,
-      height * 1.2,
+      stretched,
+      inset,
+      inset,
+      sourceSide - inset * 2,
+      (smallSide > 0 ? smallSide : imageHeight(sourceImage)) - inset * 2,
+      (textureWidth - coverSide) / 2,
+      (textureHeight - coverSide) / 2,
+      coverSide,
+      coverSide,
       255,
-      0,
+      smallSide > 0 ? ImageFlag.Smooth : 0,
       0,
       0x8c8c8c
     );
-    rrect(0, 0, width, height, 0, 0x000000, 110);
+    rrect(0, 0, textureWidth, textureHeight, 0, 0x000000, 110);
     endImage();
     setTransform(1, 0, 0, 1, uiState.offsetX, uiState.offsetY);
-    destroyImage(tinyImage);
+    for (let index = 0; index < halves.length; index++) destroyImage(halves[index]);
     cachedBlurUrl = url;
     cachedBlurWidth = width;
     cachedBlurHeight = height;
+    cachedBlurLevel = blurLevel;
   }
-  drawImage(cachedBlurTexture, 0, -originY, width, height, 255, 0);
+  return true;
+}
+
+/** The backdrop turning very slowly over itself: the colours move. One opaque layer, the screen is covered by it; a sharp backdrop stays still (it would only look crooked). */
+export function drawLivingBackdrop(url: string, screenWidth: number, screenHeight: number, originY: number, blurLevel: i32, seconds: number): boolean {
+  if (blurLevel === 0) return drawBlurredBackdrop(url, screenWidth, screenHeight, originY, blurLevel);
+  if (!prepareBlurTexture(url, screenWidth, screenHeight, blurLevel)) return false;
+  const side = Math.max(screenWidth, screenHeight) * 1.5;   // wider than the diagonal: no corner shows as it turns
+  drawImageRect(
+    cachedBlurTexture,
+    0,
+    0,
+    imageWidth(cachedBlurTexture),
+    imageHeight(cachedBlurTexture),
+    (screenWidth - side) / 2,
+    (screenHeight - side) / 2 - originY,
+    side,
+    side,
+    255,
+    0,
+    seconds * 0.05
+  );
   return true;
 }

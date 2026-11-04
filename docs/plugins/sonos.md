@@ -46,6 +46,7 @@ Free functions:
 | `UpnpError` | What every call throws on a fault: `code` (the UPnP code: 701 transition not available, 711 illegal seek target, 714 illegal MIME type, 800 only for the coordinator...; 0 when the answer had none), `status` (HTTP), `action`, `description` (the speaker's, else SoCo's table). `message` is `'Next: UPnP 701 (Transition not available)'`. |
 | `artUri(address, art)`, `hostPort(address)`, `playModeOf(shuffle, repeat)` | A cover's absolute URL; `'ip:port'` with the default port; the play mode for a shuffle and `'none'`, `'all'` or `'one'`. |
 | `sourceOf(uri): string` | The kind of source a transport URI names (see Source kinds). |
+| `airplayBridge(uri): string` | The `host:port` of an airplay2-sonos-bridge whose stream a URI names (`/ap2-<hex>[-<n>].<ext>`, plain or `x-rincon-mp3radio://`), `''` otherwise; `sourceOf` calls those `airplay`. |
 | `serviceId(sys, name): Promise<i32>` | The id of a music service in this household (`'Spotify'`: 9 or 12 depending on the region), -1 when it is not offered. |
 | `accountOf(sys, sid): Promise<i32>` | The account number (`sn`) of a service, read from a Sonos favorite saved from that service, or -1. |
 | `musicTrackMeta(song): string` | The DIDL of a `Song` (an `object.item.audioItem.musicTrack`, as SoCo's `DidlMusicTrack` writes it), for `playUri` and `addUriToQueue`. |
