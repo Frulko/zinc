@@ -28,3 +28,8 @@ __ZNK*hb_*
 _hal_heap_region_more
 _zn_hal_sdl_gpu_layers
 __ZZN17meshopt_Allocator7storageEvE1s
+__ZN14zn_napi_inline*
+__ZGVN14zn_napi_inline*
+__ZZN7rg_etc114etc1_optimizer6params22clear_optimizer_paramsEvE20s_default_scan_delta
+_hal_win_draw
+_zn_player_poll
