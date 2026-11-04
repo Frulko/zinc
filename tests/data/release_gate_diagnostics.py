@@ -24,7 +24,8 @@ class Diagnostics(unittest.TestCase):
             calls = root / 'calls'
             build = ('tools/build zinc assets_test board_test codec_test gl_caps_test gltf_check '
                      'i18n_test ir_test layout_test layout_yoga_test napi_test native_test ops_test '
-                     'platform_test qr_test scenario_test segment_test sim_test yoga_test zbc_test zpk_test')
+                     'platform_test qr_test scenario_test segment_test sim_test yoga_test zbc_test zpk_test '
+                     'fx_test tls_ticket_test zn_app zn_app_host project_test threads_test')
             for args, status, expected in (([], {}, [build, 'tests/run --tier t0 --fail-fast']),
                                            (['v1.0.0'], {}, [build, 'tests/run --changed-from v1.0.0 --fail-fast']),
                                            ([], {'BUILD_STATUS': '17'}, [build]),
