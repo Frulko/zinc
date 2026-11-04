@@ -7,7 +7,8 @@
     "name": "Zinc Go",
     "version": "0.1.0",
     "orientation": "portrait",
-    "urlSchemes": ["zinc"]
+    "urlSchemes": ["zinc"],
+    "icon": "assets/icon.png"
   },
   "ui": {
     "preset": "react-native"
@@ -30,7 +31,7 @@
     "camera": "Zinc Go scans the QR code of zinc dev, and the projects you run in it can use the camera.",
     "microphone": "The projects you run in Zinc Go can record sound, for a call or a recorder.",
     "location": "The projects you run in Zinc Go can ask where you are, for a map or a walk.",
-    "motion": "The projects you run in Zinc Go can read the motion sensors.",
+    "motion": "Zinc Go detects a shake to open its developer menu. The projects you run can also read the motion sensors.",
     "net": "Zinc Go talks to zinc dev and zinc device on your computer, on your network.",
     "photos": "The projects you run in Zinc Go can show your pictures and save new ones to your photo library."
   },
@@ -47,6 +48,8 @@
   },
   "icons": [
     "camera",
+    "chevron-right",
+    "qr-code",
     "circle-alert",
     "link",
     "refresh-cw",

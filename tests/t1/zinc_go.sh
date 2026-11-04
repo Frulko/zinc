@@ -16,7 +16,7 @@ fail=0
 waitfor() { # file pattern seconds
   n=0; while [ $n -lt $(( $3 * 20 )) ]; do grep -q "$2" "$1" 2>/dev/null && return 0; sleep 0.05; n=$((n+1)); done; return 1; }
 case $(uname) in
-  Darwin) sys="-Wl,-dead_strip"; for fw in Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore AppKit CoreFoundation CoreGraphics CoreServices UniformTypeIdentifiers CoreHaptics GameController ForceFeedback AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreMotion OpenGL; do sys="$sys -framework $fw"; done; sys="$sys -lobjc" ;;
+  Darwin) sys="-Wl,-dead_strip"; for fw in Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore IOSurface AppKit CoreFoundation CoreGraphics CoreServices UniformTypeIdentifiers CoreHaptics GameController ForceFeedback AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreMotion OpenGL; do sys="$sys -framework $fw"; done; sys="$sys -lobjc" ;;
   *) sys="-Wl,--gc-sections -ldl -lm -lpthread" ;;
 esac
 printf '#include "zn/app.h"\nint main(int argc, char** argv) { return zn_app_main(argc, argv); }\n' > "$t/main.cpp"

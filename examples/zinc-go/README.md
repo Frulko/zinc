@@ -11,8 +11,8 @@ build/zinc dev examples/rn-showcase --lan                          # prints a QR
 
 This directory is its home screen (`src/main.tsx`: scan the QR code, type the link, open the last one again; `src/scanner.tsx`: the camera
 and zinc:camera's `scanQr`). `"player": true` in `zinc.json` makes the export a player: the interpreter, the link to `zinc dev --lan`, Fast
-Refresh and every plugin made for the platform (`src/app/player.cpp`). In a project, a shake, three fingers or the Menu key open the dev
-menu. On a desktop, `ZINC_GO_SCAN=1 ZINC_FAKE_CAMERA_IMAGE=<a QR code .png> zinc run .` tries the scanner with the fake camera.
+Refresh and every plugin made for the platform (`src/app/player.cpp`). In a project, hold three fingers for one second to return directly to Zinc Go. A shake or the Menu key opens the dev
+menu (Reload and Go home also work for installed apps). On a desktop, `ZINC_GO_SCAN=1 ZINC_FAKE_CAMERA_IMAGE=<a QR code .png> zinc run .` tries the scanner with the fake camera.
 
 Zinc Go is also a device of `zinc device`, like a Raspberry Pi or a console player: its home screen shows the device's name, its address
 and a pairing code. On the computer:
@@ -29,3 +29,10 @@ screen gives a new code. The phone announces itself over mDNS (Android takes the
 `zinc device list` finds it. The program stops when the app leaves the screen.
 
 A store release of your own app is AOT and has none of this; see `docs/guide/07-distribution.md` and `docs/reports/zinc-next-zinc-go.md`.
+
+## Local feedback on iPhone
+
+Shake the phone, choose **Ajouter une note**, write your feedback and save. Each immutable JSON record stays in the player’s sandbox,
+separated by application under `feedback/`. It includes a UTC timestamp, device identity/model, iOS and Zinc versions, resolution,
+window size and safe-area insets. Notes survive an app rebuild/reinstall that preserves its data. Sync and export are not implemented yet.
+Installed apps use their app name; current LAN dev servers send the project name, while older servers fall back to the source identity.
