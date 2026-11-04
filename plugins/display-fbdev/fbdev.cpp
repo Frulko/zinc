@@ -46,6 +46,15 @@ static int fd = -1, tty = -1;
 static uint8_t* fbmem;
 static size_t fblen;
 static int fw, fh, bpp, pitch;
+// ZINC_ROTATE=0|90|180|270 (the shell's Rotation setting): the picture turns clockwise by that much on the screen. The surface, the letterbox
+// and the scaling work on the turned ("logical") screen, lw x lh (fw x fh, or fh x fw for a quarter turn); the turn happens where a row is
+// stored (put_row), and a touch or a mouse is turned back (to_surface, EV_REL). Hardware layers are off while it turns.
+static int rot, lw, lh;            // quarter turns clockwise (0..3), the logical screen
+static int rotation_env() {
+  const char* e = getenv("ZINC_ROTATE");
+  const int d = e ? atoi(e) : 0;
+  return d == 90 ? 1 : d == 180 ? 2 : d == 270 ? 3 : 0;
+}
 static int W, H, dx, dy, dw, dh;   // surface size and its rectangle on the framebuffer
 static int *xmap, *ymap;           // framebuffer column/row -> surface column/row
 static uint32_t* surf;             // rendered surface (0x00RRGGBB)
@@ -94,12 +103,24 @@ static void conv_row(const uint32_t* s, uint8_t* row, int x0, int n) {
 /** Framebuffer row y from the surface row `src`, columns x0..x1 (framebuffer coordinates); xm maps them when scaled. */
 static void put_row(int y, int x0, int x1, const uint32_t* src, const int* xm) {
   uint8_t* row = fbmem + (size_t)y * pitch;
-  if (!xm && !cursor_row(y)) { conv_row(src + (x0 - dx), row, x0, x1 - x0); return; }
+  if (!xm && !rot && !cursor_row(y)) { conv_row(src + (x0 - dx), row, x0, x1 - x0); return; }
   static thread_local std::vector<uint32_t> tmp;   // scaled: gather the columns, then convert them in one go
   if ((int)tmp.size() < x1 - x0) tmp.resize(x1 - x0);
   const int sy = xm ? ymap[y - dy] : y;
   for (int x = x0; x < x1; x++) { const int sx = xm ? xm[x - dx] : x - dx; tmp[x - x0] = cursor_pixel(sx, sy, src[sx]); }
-  conv_row(tmp.data(), row, x0, x1 - x0);
+  if (!rot) { conv_row(tmp.data(), row, x0, x1 - x0); return; }
+  if (fmt == FMT_8888) {   // the planes' buffers and most screens: one 32-bit store a pixel, walking the destination by its pitch
+    const int n = x1 - x0;
+    uint8_t* d = rot == 1 ? fbmem + (size_t)x0 * pitch + (size_t)(lh - 1 - y) * 4 : rot == 2 ? fbmem + (size_t)(lh - 1 - y) * pitch + (size_t)(lw - 1 - x0) * 4
+                                                                                       : fbmem + (size_t)(lw - 1 - x0) * pitch + (size_t)y * 4;
+    const ptrdiff_t step = rot == 1 ? (ptrdiff_t)pitch : rot == 2 ? -4 : -(ptrdiff_t)pitch;
+    for (int i = 0; i < n; i++, d += step) *(uint32_t*)d = tmp[i] | amask;
+    return;
+  }
+  for (int x = x0; x < x1; x++) {   // turned: each pixel goes to its place on the screen
+    const int X = rot == 1 ? lh - 1 - y : rot == 2 ? lw - 1 - x : y, Y = rot == 1 ? x : rot == 2 ? lh - 1 - y : lw - 1 - x;
+    conv_row(&tmp[x - x0], fbmem + (size_t)Y * pitch, X, 1);
+  }
 }
 
 #include "keyboard.h"
@@ -124,7 +145,7 @@ static Latch mouse_btn, touch_btn;
 static bool quit_key;
 static float wheel, wheel_x;
 static int slot;
-static struct { int id; float x, y; bool fresh, gone; } slots[HAL_MAX_TOUCH];   // fresh, gone: as Latch, for a finger
+static struct { int id; float x, y; int32_t rx, ry; bool fresh, gone; } slots[HAL_MAX_TOUCH];   // fresh, gone: as Latch, for a finger
 
 // ZINC_FBDEV_SIM=<file> (ZN-129): the framebuffer is a plain file with a fixed screeninfo, so the format conversion and the letterbox run anywhere, on a Mac too.
 //   ZINC_FBDEV_SIM_FORMAT=<w>x<h>x<bpp> (default 640x480x32; 16 = RGB565, 24 = RGB888 in BGR byte order, 32 = XRGB8888 with alpha 0xFF)
@@ -204,6 +225,7 @@ static uint32_t button_of(int code) {
 /** Device coordinates -> surface coordinates (through the letterbox). */
 static void to_surface(const Dev& d, int32_t vx, int32_t vy, float* sx, float* sy) {
   float fx = (vx - d.minx) * (float)fw / (d.maxx - d.minx + 1), fy = (vy - d.miny) * (float)fh / (d.maxy - d.miny + 1);
+  if (rot) { const float ox = fx, oy = fy; fx = rot == 1 ? oy : rot == 2 ? fw - ox : fh - oy; fy = rot == 1 ? fw - ox : rot == 2 ? fh - oy : ox; }   // back from the screen to the turned one
   *sx = (fx - dx) * W / dw; *sy = (fy - dy) * H / dh;
 }
 static bool read_dev(Dev& d, HalInput* in) {
@@ -232,8 +254,8 @@ static bool read_dev(Dev& d, HalInput* in) {
         } else if (v.code == BTN_TOUCH) { touch_btn.set(v.value != 0); cursor_visible = false; }
       } else if (v.type == EV_REL) {
         cursor_visible = true;
-        if (v.code == REL_X) px += v.value;
-        else if (v.code == REL_Y) py += v.value;
+        if (v.code == REL_X) { if (rot == 0) px += v.value; else if (rot == 2) px -= v.value; else py += rot == 1 ? -v.value : v.value; }
+        else if (v.code == REL_Y) { if (rot == 0) py += v.value; else if (rot == 2) py -= v.value; else px += rot == 1 ? v.value : -v.value; }
         else if (v.code == REL_WHEEL) wheel += v.value;
         else if (v.code == REL_HWHEEL) wheel_x += v.value;
         px = px < 0 ? 0 : px > W - 1 ? W - 1 : px; py = py < 0 ? 0 : py > H - 1 ? H - 1 : py;
@@ -245,8 +267,10 @@ static bool read_dev(Dev& d, HalInput* in) {
           auto& s = slots[slot];
           if (v.value >= 0) { s.id = v.value; s.fresh = true; s.gone = false; } else if (s.fresh) s.gone = true; else s.id = -1;
         }
-        else if (v.code == ABS_MT_POSITION_X) { float y; to_surface(d, v.value, 0, &slots[slot].x, &y); }
-        else if (v.code == ABS_MT_POSITION_Y) { float x; to_surface(d, 0, v.value, &x, &slots[slot].y); }
+        // a finger's two axes arrive as two events, and a turned screen mixes them (at 90 or 270 degrees x on the screen is the panel's y): keep
+        // the panel's coordinates of the finger and convert both every time
+        else if (v.code == ABS_MT_POSITION_X) { auto& s = slots[slot]; s.rx = v.value; to_surface(d, s.rx, s.ry, &s.x, &s.y); }
+        else if (v.code == ABS_MT_POSITION_Y) { auto& s = slots[slot]; s.ry = v.value; to_surface(d, s.rx, s.ry, &s.x, &s.y); }
         else if (!d.mt && v.code == ABS_X) { ax = v.value; to_surface(d, ax, ay, &px, &py); }
         else if (!d.mt && v.code == ABS_Y) { ay = v.value; to_surface(d, ax, ay, &px, &py); }
       }
@@ -669,6 +693,7 @@ static void fb_native(int32_t* w, int32_t* h) {
     if (!ok) return;
     sw = var.xres; sh = var.yres;
   }
+  if (rotation_env() & 1) std::swap(sw, sh);
   if (sw > 0 && sh > 0) { *w = sw; *h = sh; }
 }
 
@@ -702,11 +727,13 @@ static int fb_init(const HalConfig* cfg) {
   rl = var.red.length; gl = var.green.length; bl = var.blue.length;
   amask = var.transp.length ? ((1u << var.transp.length) - 1) << var.transp.offset : 0;
   W = cfg->width; H = cfg->height;
+  rot = rotation_env();
+  lw = rot & 1 ? fh : fw; lh = rot & 1 ? fw : fh;
   surf = (uint32_t*)calloc((size_t)W * H, 4);
-  if (W == fw && H == fh) { dx = dy = 0; dw = W; dh = H; }
+  if (W == lw && H == lh) { dx = dy = 0; dw = W; dh = H; }
   else {  // ponytail: nearest-neighbour scaling; match zinc.json width/height to the framebuffer for 1:1 copies
-    double k = (double)fw / W < (double)fh / H ? (double)fw / W : (double)fh / H;
-    dw = (int)(W * k); dh = (int)(H * k); dx = (fw - dw) / 2; dy = (fh - dh) / 2;
+    double k = (double)lw / W < (double)lh / H ? (double)lw / W : (double)lh / H;
+    dw = (int)(W * k); dh = (int)(H * k); dx = (lw - dw) / 2; dy = (lh - dh) / 2;
     xmap = (int*)malloc(sizeof(int) * dw); ymap = (int*)malloc(sizeof(int) * dh);
     for (int x = 0; x < dw; x++) xmap[x] = (int)((x + 0.5) * W / dw);
     for (int y = 0; y < dh; y++) ymap[y] = (int)((y + 0.5) * H / dh);
@@ -731,6 +758,7 @@ static int fb_init(const HalConfig* cfg) {
   auto on = [](const char* n) { const char* e = getenv(n); return e && *e && *e != '0'; };
   skip_s = getenv("ZINC_FBDEV_SKIP_S") ? atof(getenv("ZINC_FBDEV_SKIP_S")) : 0;
   stats = on("ZINC_FBDEV_STATS"); crc_on = on("ZINC_FBDEV_CRC"); fuse = on("ZINC_FBDEV_FUSE");
+  if (rot) fprintf(stderr, "fbdev: turned %d degrees clockwise (ZINC_ROTATE), hardware layers off\n", rot * 90);
   fprintf(stderr, "fbdev: %s %dx%d %d bpp, surface %dx%d at %d,%d size %dx%d, %d input device(s)\n", ZP_DISPLAY_FBDEV_DEVICE, fw, fh, bpp, W, H, dx, dy, dw, dh, ndev);
 #ifdef ZP_FBDEV_KMS
   // When the screen's compositor has the planes, every frame goes to them (kms::flip, the file stays open) and hardware layers are
@@ -741,7 +769,7 @@ static int fb_init(const HalConfig* cfg) {
   const char* pl = getenv("ZINC_FBDEV_PLANES");
   const uint64_t k0 = now_us();
   const char* fl = getenv("ZINC_FBDEV_FLIP");
-  const bool layers = !xmap && !(pl && *pl == '0'), flip = !(fl && *fl == '0');
+  const bool layers = !xmap && !rot && !(pl && *pl == '0'), flip = !(fl && *fl == '0');
   const char* why = sim_fb ? nullptr : flip ? "no KMS plane to take" : "ZINC_FBDEV_FLIP=0";
   if (!sim_fb && hal_display && hal_display->init == fb_init && (layers || flip) && kms::open_file()) {
     if (layers) {
@@ -808,6 +836,13 @@ static void planes_present(const HalFrame* f, bool has) {
   if (behind.x1 > behind.x0) a = a.x1 > a.x0 ? Area{std::min(a.x0, behind.x0), std::min(a.y0, behind.y0), std::max(a.x1, behind.x1), std::max(a.y1, behind.y1)} : behind;
   if (full) { a = Area{0, 0, W, H}; full--; }
   const bool turn = a.x1 > a.x0 && a.y1 > a.y0;   // nothing to write: the buffer on the screen stays, only the pictures change
+  // an idle frame (nothing drawn, no picture now or just gone): the screen already shows it, so no commit and no refresh to wait for; the
+  // loop keeps its pace by sleeping (a commit a frame cost 5 to 15 % of a Pi 3's core for nothing)
+  if (!turn && !nlay && replaced.empty() && !pending && frames > 0) {
+    idle++;
+    usleep(1000000u / ZP_DISPLAY_FBDEV_FPS);
+    return;
+  }
   asked += (uint64_t)(now.x1 - now.x0) * (now.y1 - now.y0);
   if (turn) {
     wrote += (uint64_t)(a.x1 - a.x0) * (a.y1 - a.y0);

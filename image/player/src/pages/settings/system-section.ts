@@ -6,6 +6,10 @@
 import { DisplayObject } from '../../core/display';
 import { appState, askPowerAction, cancelPowerAction, confirmPowerAction, zincVersion } from '../../state';
 import { BUTTON_DANGER, BUTTON_SECONDARY, drawButton, measureButton } from '../../components/buttons';
+import { Fonts } from '../../fonts';
+import { COLOR_AMBER, COLOR_TEXT_SECONDARY } from '../../constants';
+import { POWER_HELP, POWER_HELP_2 } from '../../services/power';
+import { drawGlyph, drawLabel } from '../../components/primitives';
 import { drawMessage, drawSectionHeading, drawValueLine } from '../../components/rows';
 
 const SECTION_PADDING = 24;
@@ -54,6 +58,15 @@ export class SystemSectionNode extends DisplayObject {
     cursorY += drawValueLine(x, cursorY, width, 'Storage',
       status.diskTotalMiB === 0 ? '' : formatMebibytes(status.diskFreeMiB) + ' free of ' + formatMebibytes(status.diskTotalMiB));
     cursorY += drawValueLine(x, cursorY, width, 'Addresses', addressesText());
+    if (appState.power.isPresent()) {
+      cursorY += drawValueLine(x, cursorY, width, 'Power', appState.power.summary());
+      if (appState.power.now || appState.power.episodes > 0) {
+        drawGlyph('zap', x, cursorY + 1, 16, COLOR_AMBER);
+        drawLabel(Fonts.label, x + 24, cursorY, POWER_HELP, COLOR_TEXT_SECONDARY, width - 24);
+        drawLabel(Fonts.label, x + 24, cursorY + 22, POWER_HELP_2, COLOR_TEXT_SECONDARY, width - 24);
+        cursorY += 50;
+      }
+    }
     cursorY += 10;
     drawMessage(x, cursorY, width, appState.message, appState.isMessageError);
   }

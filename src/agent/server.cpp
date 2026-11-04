@@ -379,6 +379,8 @@ pid_t startApp(State& s, const std::string& name, const std::vector<std::string>
     withInspector.emplace_back("ZINC_DISPLAY", "shell");
     withInspector.emplace_back("ZINC_SHELL_SOCKET", shell);
     withInspector.emplace_back("ZINC_APP_NAME", name);
+    // the screen is the shell's: an app under it must not answer `zinc device screen` nor take the live viewer (both name their files beside ZINC_SHOT_REQUEST)
+    withInspector.emplace_back("ZINC_SHOT_REQUEST", s.home + "/run/app/shot.request");
   }
   const int inspector = inspectorPort(withInspector);   // every app gets a port for its inspector, and `apps` says which (ZN-729.05)
   std::vector<std::string> env = environment(withInspector);

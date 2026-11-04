@@ -17,6 +17,12 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include "hal.h"
+
+// the frame profiler (runtime/gfx.cpp): the span of a frame's bands is its raster phase, so `present` shows the display's own work (the
+// wait for a free buffer, the copy into it) apart from it; no-ops where the runtime has no profiler
+extern "C" __attribute__((weak)) int32_t zrt_profiling(void);
+extern "C" __attribute__((weak)) void zrt_prof_band(int32_t band, uint64_t t0, uint64_t t1);
 
 namespace zbands {
 
@@ -33,6 +39,14 @@ struct Pool {
   }
 
   void run(int32_t y0, int32_t y1, int32_t step, Job fn, void* ctx) {
+    const bool prof = zrt_profiling && zrt_prof_band && zrt_profiling();
+    const uint64_t t0 = prof ? hal_time_us() : 0;
+    run_bands(y0, y1, step, fn, ctx);
+    if (prof) zrt_prof_band(0, t0, hal_time_us());
+  }
+
+ private:
+  void run_bands(int32_t y0, int32_t y1, int32_t step, Job fn, void* ctx) {
     if (threads == 1 || y1 - y0 <= step) { fn(ctx, y0, y1); return; }
     {
       std::lock_guard<std::mutex> l(mu);
@@ -45,7 +59,6 @@ struct Pool {
     done.wait(l, [this] { return pending == 0; });   // the frame barrier: every worker has checked in
   }
 
- private:
   Job job = nullptr; void* jctx = nullptr;
   int32_t by0 = 0, by1 = 0, bstep = 1;
   std::atomic<int32_t> next{0};

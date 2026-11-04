@@ -63,6 +63,7 @@ import {
   hideScreenKeyboard,
   isShell,
   startRefreshing,
+  openStartPage,
   startShell,
   followConnectedApp,
   submitForm,
@@ -280,6 +281,7 @@ if (sys.env('ZINC_PLAYER_HUB_INSTALL') !== '') installFromEnvironment(agentDirec
 escapeByApp(true);
 startRefreshing();
 startShell();
+openStartPage();
 let shownSerial = -1;
 
 let drawnImage = -1;   // the app image the last drawn frame showed (zinc:shell)
@@ -328,7 +330,7 @@ onFrame((deltaSeconds: number) => {
   uiState.dirty = false;
   clearTouchZones();
   stage.renderStage(screenWidth, screenHeight);
-  drawnImage = isShell && appState.page === PAGE_APP ? shell.image() : -1;
+  drawnImage = isShell && appState.page === PAGE_APP && shell.onPlane() ? shell.image() : -1;   // drawn in software (a watched screen): drawn again later
   if (!readyWritten && sys.env('ZINC_PLAYER_READY_FILE') !== '') {
     readyWritten = true;
     try { fs.writeText(sys.env('ZINC_PLAYER_READY_FILE'), 'ready\n'); } catch (e) { /* the updater times out if readiness cannot be reported */ }

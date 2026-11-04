@@ -80,6 +80,7 @@ function optionsText(): string {
   if (profile().shell) on.push('Zinc shell');
   if (profile().agent) on.push('Agent');
   if (profile().ab) on.push('A/B updates');
+  if (profile().rotation !== 0) on.push('Screen turned ' + profile().rotation + '°');
   if (profile().bluetooth) on.push('Bluetooth');
   if (profile().app !== '') on.push('App at boot');
   return on.length === 0 ? 'Player only' : on.join(', ');

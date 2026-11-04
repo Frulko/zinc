@@ -78,7 +78,9 @@ def payload(share):
     copy_tree(os.path.join(REPO, "i18n"), os.path.join(share, "i18n"), lambda r: r.endswith(".json"))   # the CLI and Atelier messages in fr, es, it, de, read by zinc:i18n too (D159; English is in the binary): install.sh and Homebrew unpack this archive
     # Signed Pi updates carry the display session and agent unit with their engine.
     for source, name in (("usr/lib/zinc/zinc-session", "zinc-session"), ("etc/systemd/system/zinc-agent.service", "zinc-agent.service"),
-                         ("usr/lib/zinc/zinc-admin", "zinc-admin"), ("etc/systemd/system/zinc-shell.service", "zinc-shell.service")):
+                         ("usr/lib/zinc/zinc-admin", "zinc-admin"), ("etc/systemd/system/zinc-shell.service", "zinc-shell.service"),
+                         ("usr/lib/zinc/zinc-power-guard", "zinc-power-guard"), ("etc/systemd/system/zinc-power-guard.service", "zinc-power-guard.service"),
+                         ("etc/systemd/journald.conf.d/zinc.conf", "zinc-journal.conf")):
         destination = os.path.join(share, "image", name)
         os.makedirs(os.path.dirname(destination), exist_ok=True)
         shutil.copy2(os.path.join(REPO, "image", "files", source), destination)

@@ -20,6 +20,17 @@ for want in true false; do
   if [ $want = true ]; then grep -qx 'ZINC_SHELL=1' "$R/etc/zinc/session.conf" || { echo "shell: no session.conf"; exit 1; }
   else [ ! -e "$R/etc/zinc/session.conf" ] || { echo "no shell: session.conf written"; exit 1; }; fi
 done
+# the rotation: the very line of image/build.sh appends ZINC_ROTATE for a turned screen, and only for one
+rline=$(grep -F 'ZINC_ROTATE=' image/build.sh | head -n 1)
+[ -n "$rline" ] || { echo "image/build.sh does not write ZINC_ROTATE"; exit 1; }
+for rot in 90 0; do
+  R=$tmp/rot-$rot; mkdir -p "$R/etc/zinc"; P=$tmp/r-$rot.json; echo "{\"shell\":true,\"rotation\":$rot}" >"$P"
+  q() { jq -r "$1" "$P"; }
+  eval "$line"; eval "$rline"
+  grep -qx 'ZINC_SHELL=1' "$R/etc/zinc/session.conf" || { echo "rotation: the shell line was lost"; exit 1; }
+  if [ $rot = 0 ]; then ! grep -q ZINC_ROTATE "$R/etc/zinc/session.conf" || { echo "rotation 0: ZINC_ROTATE written"; exit 1; }
+  else grep -qx "ZINC_ROTATE=$rot" "$R/etc/zinc/session.conf" || { echo "rotation $rot: no ZINC_ROTATE"; exit 1; }; fi
+done
 [ -z "$KEEP" ] || { mkdir -p "$KEEP"; cp "$tmp/shots/"*.png "$KEEP/"; }
 fail=0
 for name in apps steps; do

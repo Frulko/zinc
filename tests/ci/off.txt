@@ -88,6 +88,6 @@ webrtc_quality         # hub / WebRTC
 webrtc_simulcast       # hub / WebRTC
 voice_aec              # hub / WebRTC
 discord_voice_dave     # hub / WebRTC
-
 gl_paint_cache         # needs a real GPU for Retina cached/uncached pixel comparisons
 ui_canvas_fractional   # needs a real GPU and shared renderer texture cache
+sonos_plugin        # waits a fixed time for the fake speaker's ZoneGroupTopology event: on a slow hosted runner it arrives late (QuickJS: events and rooms 0); passes on the Mac

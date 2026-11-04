@@ -4,9 +4,10 @@
 // Home and crash pages: the Pi's name and the time, how it is connected, the settings button. Settings and the
 // launcher: back, the title and the time.
 
-import { rect, textWidth } from 'zinc:gfx';
+import { rect, rrect, textWidth } from 'zinc:gfx';
 import * as shell from 'zinc:shell';
 import {
+  COLOR_AMBER,
   COLOR_SEPARATOR,
   COLOR_SIDEBAR,
   COLOR_TEXT_PRIMARY,
@@ -17,6 +18,7 @@ import {
   PAGE_HUB,
   PAGE_PADDING,
   PAGE_SETTINGS,
+  SECTION_SYSTEM,
   SECTION_WIFI,
   SECTION_UPDATES,
 } from '../constants';
@@ -30,6 +32,13 @@ import { drawGlyph, drawLabel } from './primitives';
 function connectionIconName(): string {
   if (appState.network.wifiNetwork !== '') return 'wifi';
   return appState.network.isConnected() ? 'ethernet-port' : 'wifi-off';
+}
+
+/** The bolt shown while the Pi reports under-voltage; a tap opens Settings > System, which says what to do. */
+function drawPowerWarning(centerX: number, centerY: number): void {
+  if (!appState.power.now) return;
+  rrect(centerX - 17, centerY - 17, 34, 34, 17, COLOR_AMBER, 255);   // a solid chip: an amber bolt alone is lost on the orange home page
+  drawIconButton('top/power', 'zap', centerX, centerY, 20, 0x1a1100, () => openSettings(SECTION_SYSTEM));
 }
 
 export class TopBarNode extends DisplayObject {
@@ -48,6 +57,7 @@ export class TopBarNode extends DisplayObject {
       const title = appState.shownAppTitle !== '' ? appState.shownAppTitle : shell.title();
       drawLabel(Fonts.labelBold, PAGE_PADDING / 2 + barHeight + 8, textY + 2, title, COLOR_TEXT_PRIMARY, barWidth / 2);
       const clockX = barWidth - PAGE_PADDING / 2 - textWidth(Fonts.label, appState.clockText, 0);
+      drawPowerWarning(clockX - 28, barHeight / 2);
       drawLabel(Fonts.label, clockX, textY + 2, appState.clockText, COLOR_TEXT_SECONDARY);
       if (!shell.responding()) {
         const warning = 'Not responding';
@@ -62,6 +72,7 @@ export class TopBarNode extends DisplayObject {
       drawLabel(Fonts.heading, PAGE_PADDING + 26, textY, 'Settings', COLOR_TEXT_PRIMARY);
       drawLabel(Fonts.label, barWidth - PAGE_PADDING - textWidth(Fonts.label, appState.clockText, 0), textY + 2,
         appState.clockText, COLOR_TEXT_SECONDARY);
+      drawPowerWarning(barWidth - PAGE_PADDING - textWidth(Fonts.label, appState.clockText, 0) - 28, barHeight / 2);
       if (updateAvailable) drawIconButton('top/update', 'download', barWidth - PAGE_PADDING - 90, barHeight / 2, 22,
         COLOR_TEXT_PRIMARY, () => openSettings(SECTION_UPDATES), 40);
       return;
@@ -76,6 +87,7 @@ export class TopBarNode extends DisplayObject {
     const name = appState.status.hostname;
     drawLabel(Fonts.labelBold, PAGE_PADDING, textY + 2, name, COLOR_WHITE, barWidth / 2);
     drawLabel(Fonts.label, PAGE_PADDING + textWidth(Fonts.labelBold, name, 0) + 12, textY + 2, appState.clockText, COLOR_WHITE, 100, 200);
+    drawPowerWarning(PAGE_PADDING + textWidth(Fonts.labelBold, name, 0) + 12 + textWidth(Fonts.label, appState.clockText, 0) + 32, barHeight / 2);
     const settingsCenterX = barWidth - PAGE_PADDING - 6;
     drawIconButton('top/settings', 'settings', settingsCenterX, barHeight / 2, 24, COLOR_WHITE, () => openSettings(SECTION_WIFI), 40);
     drawGlyph(connectionIconName(), settingsCenterX - 56, barHeight / 2 - 11, 22, COLOR_WHITE, 220);

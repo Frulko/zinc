@@ -1,0 +1,14 @@
+# Maintained by Zinc. Lowers the CPU clock while the Pi reports under-voltage and restores it later (zinc-power-guard).
+# Off with ZINC_POWER_GUARD=0 in /etc/zinc/session.conf; it does not start where the kernel has no rpi_volt alarm.
+[Unit]
+Description=Zinc power guard (CPU cap on under-voltage)
+ConditionPathExistsGlob=/sys/class/hwmon/hwmon*/in0_lcrit_alarm
+
+[Service]
+ExecStart=/usr/lib/zinc/zinc-power-guard
+Restart=on-failure
+RestartSec=5
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

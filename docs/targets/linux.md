@@ -136,6 +136,13 @@ for 32-bit programs on a 64-bit system. It stays a `tools/build-linux --arch i68
   the X11 backend through XWayland (SDL3's Wayland backend needs `wayland-scanner` at build time: not in the cross build yet).
 - **GPU**: Mesa's V3D (Pi 4 and 5) and VC4 (Pi 3 and older, `dtoverlay=vc4-kms-v3d`) drivers; under llvmpipe (no GPU, a VM, Xvfb)
   the window draws with the CPU renderer on purpose.
+- **Screen rotation** (framebuffer and KMS display, no desktop): `ZINC_ROTATE=0|90|180|270` turns the picture clockwise by that much;
+  touch and mouse are turned back, a program that names no size gets the turned screen's (480x800 on a 800x480 panel at 90), and hardware
+  layers (a film on a plane) are off while it turns. On the Zinc image, *Settings, Display* in the player or `zinc-admin rotation <degrees>`
+  writes it to `/etc/zinc/session.conf` and restarts the session, and the image builder's *Rotation* writes it at build time. The turn
+  is done in software when a row is stored, so every angle costs the same; the KMS planes' own `rotation` property (0 and 180 only on the
+  Pi's HVS) is not used.
+- **Under-voltage on the Zinc image (Raspberry Pi).** A weak supply or cable shows as an amber bolt in the shell's top bar and a *Power* line in *Settings, System* (the kernel's `rpi_volt` alarm, `ZINC_POWER_SYSFS` replaces `/sys` for tests); `zinc-power-guard.service` lowers the CPU maximum to half its top clock while the alarm lasts and 60 s after, and the journal is persistent and flushed every 5 s so a power cut keeps its logs. `ZINC_POWER_GUARD=0` in `/etc/zinc/session.conf` turns the guard off (`image/README.md`).
 - **Headless on a server**: `ZINC_HEADLESS=1` (no window, the null HAL; `ZINC_SHOT=frame.png` writes a frame), or
   `SDL_VIDEO_DRIVER=offscreen` for a real SDL window in memory. `zinc agent` makes the machine a device of `zinc device`.
 

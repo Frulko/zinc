@@ -53,6 +53,9 @@ import {
 } from '../../state';
 import { dismissHandoffCard, playsElsewhere, resumeHere } from '../../services/spotify-on-sonos';
 
+/** Elapsed and remaining time under the progress bar. */
+const COLOR_TEXT_TIMES: u32 = 0xc7c7cc;
+
 /**
  * Draws the empty state when no Sonos speaker has been found yet.
  */
@@ -300,7 +303,7 @@ export class PlayerSlideNode extends DisplayObject {
         rightColumnX,
         currentTextY,
         albumOrStationSubtitle,
-        COLOR_TEXT_SECONDARY,
+        COLOR_TEXT_TIMES,
         rightColumnWidth
       );
     }
@@ -328,22 +331,23 @@ export class PlayerSlideNode extends DisplayObject {
         5,
         false
       );
+      // 15 px, lighter than the secondary grey: legible at arm's length on a 7" panel, over the picture's backdrop
       drawText(
-        Fonts.tiny,
+        Fonts.small,
         rightColumnX,
         progressY + 14,
         formatDurationClock(currentPosition),
-        COLOR_TEXT_SECONDARY,
+        COLOR_TEXT_TIMES,
         255,
         0
       );
       const remainingText = '-' + formatDurationClock(track.duration - currentPosition);
       drawText(
-        Fonts.tiny,
-        rightColumnX + rightColumnWidth - textWidth(Fonts.tiny, remainingText, 0),
+        Fonts.small,
+        rightColumnX + rightColumnWidth - textWidth(Fonts.small, remainingText, 0),
         progressY + 14,
         remainingText,
-        COLOR_TEXT_SECONDARY,
+        COLOR_TEXT_TIMES,
         255,
         0
       );
@@ -358,6 +362,8 @@ export class PlayerSlideNode extends DisplayObject {
     const transportCenterX = rightColumnX + rightColumnWidth / 2;
     const transportSpacing = Math.min(96, (rightColumnWidth - 68) / 2);
 
+    if (isZonePressed('now/prev')) rrect(transportCenterX - transportSpacing - 34, transportCenterY - 34, 68, 68, 34, 0xffffff, 40);
+    if (isZonePressed('now/next')) rrect(transportCenterX + transportSpacing - 34, transportCenterY - 34, 68, 68, 34, 0xffffff, 40);
     drawTransportIcon(
       'prev',
       transportCenterX - transportSpacing,

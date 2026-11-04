@@ -1,7 +1,7 @@
 #!/bin/sh
 # image/player's sleep (core/screen-power.ts, zinc:shell's input hook), headless on a pretend Pi. After 1 s with no input the screen fades
 # to black (0.25 s) and nothing is drawn; a tap on the gear wakes it and presses nothing, the same tap once awake opens the settings;
-# the Screen section's delay reaches player.json. Frames are unpaced, at 1/60 s each.
+# the Display section's delay reaches player.json. Frames are unpaced, at 1/60 s each.
 # The light itself (brightness, DPMS) is display-fbdev's, on Linux: a line of backlog/later.md's cross-platform pass.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
@@ -29,9 +29,9 @@ same sleep-70 sleep-30 && { echo "pi player sleep: frame 70 is not fading"; fail
 same sleep-235 sleep-30 || { echo "pi player sleep: the tap that woke the screen pressed something"; fail=1; }
 same sleep-262 sleep-30 && { echo "pi player sleep: the tap once awake did not open the settings"; fail=1; }
 
-# the settings' Screen section: the delay is saved
+# the settings' Display section: the delay is saved
 echo '{"animation":false,"sleepDelaySeconds":300,"sleepFadeSeconds":0}' > "$tmp/player.json"
-{ tap 20 766 28; tap 60 105 356; tap 100 330 176; } > "$tmp/set.input"
+{ tap 20 766 28; tap 60 105 260; tap 100 330 232; } > "$tmp/set.input"
 player set 180 90,170 || { echo "pi player sleep: run 2 failed: $(tail -5 "$tmp/set.out")"; exit 1; }
 grep -q '"sleepDelaySeconds":60' "$tmp/player.json" || { echo "pi player sleep: the delay did not reach player.json: $(cat "$tmp/player.json")"; fail=1; }
 [ -n "$KEEP" ] && mkdir -p "$KEEP" && cp "$tmp"/*.png "$KEEP/"

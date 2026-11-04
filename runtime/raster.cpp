@@ -820,7 +820,16 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
   auto px = [&im](int32_t x, int32_t y) { return im.px[y * im.stride + x]; };
   LinRows<decltype(px)> lr{nullptr, b.x1 - b.x0, px};
   if (!nearest && (!(lr.col = lin_columns(b.x0, lr.n, im.w, [&](int32_t x) { return (x + 0.5f - c.x) * im.w / c.w - 0.5f; })) || !lr.init())) return;
+  const bool inner_ok = c.r > 0 && c.r <= (hw < hh ? hw : hh);   // the interior test below assumes a radius that fits
   for (int32_t y = b.y0; y < b.y1; y++) {
+    // A rounded picture: the pixels well inside the box (the whole row of a square one) have full coverage, so only the corners and the edge
+    // pay for the distance (a 280 px cover: the corners are 3% of its pixels); the span is cut at 0.75 px inside, where the coverage is exactly 1
+    int32_t i0 = b.x0, i1 = c.r > 0 ? b.x0 : b.x1;
+    if (inner_ok) {
+      const Span in = row_span(y + 0.5f, cx, cy, hw, hh, c.r, -0.75f);
+      i0 = in.x0 > b.x0 ? in.x0 : b.x0; i1 = in.x1 < b.x1 ? in.x1 : b.x1;
+      if (i1 < i0) i1 = i0 = b.x0;
+    }
     if (nearest) {
       int32_t iy = (int32_t)(((int64_t)((y - c.y) * 65536)) * sy >> 32); if (iy < 0) iy = 0; if (iy >= im.h) iy = im.h - 1;
       const uint32_t* src = im.px + (size_t)iy * im.stride;
@@ -829,7 +838,7 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
       for (int32_t x = b.x0, fx = fx0; x < b.x1; x++, fx += sx) {
         int32_t ix = fx >> 16; if (ix >= im.w) ix = im.w - 1;
         uint32_t a = c.alpha;
-        if (c.r > 0) a = (uint32_t)(a * clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1));
+        if (c.r > 0 && (x < i0 || x >= i1)) a = (uint32_t)(a * clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1));
         if (a >= 255) at(t, x, y) = src[ix] & 0xFFFFFF; else if (a) blend(at(t, x, y), src[ix] & 0xFFFFFF, a);
       }
       continue;
@@ -845,7 +854,7 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
       for (int k = 0; k < 3; k++) v[k] = h0[k * lr.n] * uy + h1[k * lr.n] * ty;
       const uint32_t out = (uint32_t)v[0] | (uint32_t)v[1] << 8 | (uint32_t)v[2] << 16;
       float a = c.alpha;
-      if (c.r > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1);
+      if (c.r > 0 && (x < i0 || x >= i1)) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1);
       if (a >= 255) at(t, x, y) = out; else if (a >= 1) blend(at(t, x, y), out, (uint32_t)a);
     }
   }
@@ -889,12 +898,43 @@ static void draw_smooth(const Target& t, const Cmd& c, const Tex& im, const Box&
     k.i = (ix < -1 ? -1 : ix > im.w - 1 ? im.w - 1 : ix) + 1;   // row[] index of its first tap, texel ix - 1
   }
   auto clampi = [](int32_t v, int32_t n) { return v < 0 ? 0 : v >= n ? n - 1 : v; };
+  // A small picture stretched far (a field of 80 x 60 over a screen, the case this flag is for): many columns in a row share their four source
+  // texels. Then the weights are kept apart per tap and a run of columns is four multiplies by the same four constants, in the same order as the
+  // general loop below (no fused multiply-add: -ffp-contract=off), so the same bits; written as plain loops over arrays the compiler vectorizes
+  // them (NEON on a Raspberry Pi: the 800 x 480 stretch of the lava lamp cost 14 ms, with four threads).
+  int32_t runs = 1;
+  for (int32_t x = 1; x < n; x++) runs += col[x].i != col[x - 1].i;
+  float* wt = runs * 4 <= n ? (float*)hal_alloc((size_t)n * 7 * sizeof(float)) : nullptr;   // w0..w3 then the stretched r, g, b, n floats each
+  if (wt) for (int32_t x = 0; x < n; x++) for (int32_t k = 0; k < 4; k++) wt[k * n + x] = col[x].w[k];
+  // the source rows this call reads, as planar floats (rlo..rhi): the blend of four rows is then a vector loop over the texels of a row too
+  int32_t rlo = 0, rhi = -1;
+  float* pl = nullptr;
+  if (wt) {
+    const int32_t ya = ifloor_fast((b.y0 + 0.5f - m.y) * ky - 0.5f), yb = ifloor_fast((b.y1 - 1 + 0.5f - m.y) * ky - 0.5f);
+    rlo = clampi((ya < yb ? ya : yb) - 1, im.h);
+    rhi = clampi((ya < yb ? yb : ya) + 2, im.h);
+    pl = (float*)hal_alloc((size_t)(rhi - rlo + 1) * 3 * im.w * sizeof(float));
+    if (!pl) { hal_free(wt); wt = nullptr; }
+    else for (int32_t r = rlo; r <= rhi; r++)
+      for (int32_t x = 0; x < im.w; x++) {
+        const uint32_t p = texel(im, x, r);
+        for (int32_t ch = 0; ch < 3; ch++) pl[((size_t)(r - rlo) * 3 + ch) * im.w + x] = (float)((p >> (16 - 8 * ch)) & 255);
+      }
+  }
   for (int32_t y = b.y0; y < b.y1; y++) {
     const float fy = (y + 0.5f - m.y) * ky - 0.5f;
     const int32_t iy = ifloor_fast(fy);
     float wy[4];
     bspline(fy - iy, wy);
     const int32_t r0 = clampi(iy - 1, im.h), r1 = clampi(iy, im.h), r2 = clampi(iy + 1, im.h), r3 = clampi(iy + 2, im.h);
+    if (wt) {
+      for (int32_t ch = 0; ch < 3; ch++) {
+        const float* __restrict a0 = pl + ((size_t)(r0 - rlo) * 3 + ch) * im.w; const float* __restrict a1 = pl + ((size_t)(r1 - rlo) * 3 + ch) * im.w;
+        const float* __restrict a2 = pl + ((size_t)(r2 - rlo) * 3 + ch) * im.w; const float* __restrict a3 = pl + ((size_t)(r3 - rlo) * 3 + ch) * im.w;
+        float* __restrict o = row[ch] + 2;
+        for (int32_t x = 0; x < im.w; x++) o[x] = wy[0] * a0[x] + wy[1] * a1[x] + wy[2] * a2[x] + wy[3] * a3[x];
+      }
+    } else
     for (int32_t x = 0; x < im.w; x++) {
       const uint32_t p0 = texel(im, x, r0), p1 = texel(im, x, r1), p2 = texel(im, x, r2), p3 = texel(im, x, r3);
       for (int32_t ch = 0; ch < 3; ch++) {
@@ -904,6 +944,28 @@ static void draw_smooth(const Target& t, const Cmd& c, const Tex& im, const Box&
     }
     for (int32_t ch = 0; ch < 3; ch++) { row[ch][0] = row[ch][1] = row[ch][2]; row[ch][im.w + 2] = row[ch][im.w + 3] = row[ch][im.w + 1]; }
     uint32_t* dst = &at(t, 0, y);
+    if (wt) {
+      const float* __restrict w0 = wt; const float* __restrict w1 = wt + n; const float* __restrict w2 = wt + 2 * n; const float* __restrict w3 = wt + 3 * n;
+      for (int32_t s = 0; s < n;) {
+        int32_t e = s + 1;
+        while (e < n && col[e].i == col[s].i) e++;
+        for (int32_t ch = 0; ch < 3; ch++) {
+          const float* q = row[ch] + col[s].i;
+          const float q0 = q[0], q1 = q[1], q2 = q[2], q3 = q[3];
+          float* __restrict o = wt + (4 + ch) * n;
+          for (int32_t x = s; x < e; x++) o[x] = w0[x] * q0 + w1[x] * q1 + w2[x] * q2 + w3[x] * q3;
+        }
+        s = e;
+      }
+      const float* __restrict fr = wt + 4 * n; const float* __restrict fg = wt + 5 * n; const float* __restrict fb = wt + 6 * n;
+      if (c.alpha >= 255) {
+        uint32_t* __restrict d = dst + b.x0;
+        for (int32_t x = 0; x < n; x++) d[x] = (uint32_t)clampf(fr[x] + 0.5f, 0, 255) << 16 | (uint32_t)clampf(fg[x] + 0.5f, 0, 255) << 8 | (uint32_t)clampf(fb[x] + 0.5f, 0, 255);
+      } else if (c.alpha) {
+        for (int32_t x = 0; x < n; x++) blend(dst[b.x0 + x], (uint32_t)clampf(fr[x] + 0.5f, 0, 255) << 16 | (uint32_t)clampf(fg[x] + 0.5f, 0, 255) << 8 | (uint32_t)clampf(fb[x] + 0.5f, 0, 255), c.alpha);
+      }
+      continue;
+    }
     for (int32_t x = b.x0; x < b.x1; x++) {
       const Col& k = col[x - b.x0];
       uint32_t out = 0;
@@ -915,6 +977,8 @@ static void draw_smooth(const Target& t, const Cmd& c, const Tex& im, const Box&
       if (c.alpha >= 255) dst[x] = out; else if (c.alpha) blend(dst[x], out, c.alpha);
     }
   }
+  hal_free(pl);
+  hal_free(wt);
   hal_free(col);
 }
 __attribute__((noinline))   // kept out of draw_image: inlined, it changed the code of the whole-image loops beside it (measured, ZN-432)

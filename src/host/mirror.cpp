@@ -9,6 +9,7 @@
 #include "zn/log.h"
 #include <cerrno>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -46,6 +47,8 @@ std::vector<uint32_t> fb, tmp;
 bool full;
 int dx0, dy0, dx1, dy1;
 uint32_t seq, acked;
+uint64_t sentAt;                // when the last frame left
+bool logging;                   // ZINC_MIRROR_LOG=1: what the mirror sends and gets, on stderr (a screen that stays black)
 std::string out, in;
 // the viewer's input not yet given to the program, and the pointer it holds
 struct Remote { bool active; float x, y; int32_t down; uint32_t pbuttons, mods, buttons; float wheel, wheelX; std::vector<HalKey> keys; std::string text; std::vector<HalButtonEvent> btn; } rem;
@@ -167,6 +170,10 @@ void present(const HalFrame* f) {
   }
   receive();
   flush();
+  // A still screen sends nothing, so a frame that did not reach the viewer (or that it could not show yet) would never come: while the
+  // viewer is up to date, the whole screen goes again every 2 s. It costs a render and a short frame, and only while someone watches.
+  if (fd >= 0 && dx1 <= dx0 && seq - acked < 2 && out.empty() && hal_time_us() - sentAt > 2000000) { f->render(fb.data(), 0, H); damage(0, 0, W, H); }
+  if (logging && fd >= 0 && (dx1 > dx0 || !out.empty())) std::fprintf(stderr, "mirror: present %dx%d damage %d,%d..%d,%d seq %u acked %u out %zu\n", f->w, f->h, dx0, dy0, dx1, dy1, seq, acked, out.size());
   if (fd < 0 || dx1 <= dx0 || seq - acked >= 2 || !out.empty()) return;   // the viewer is behind: the damage waits and grows
   const int w = dx1 - dx0, h = dy1 - dy0;
   for (int y = 0; y < h; y++) std::memcpy(tmp.data() + static_cast<size_t>(y) * w, fb.data() + static_cast<size_t>(dy0 + y) * W + dx0, static_cast<size_t>(w) * 4);
@@ -178,6 +185,7 @@ void present(const HalFrame* f) {
   put32(s, ++seq);
   msg(FRAME, s, 4);
   dx0 = dy0 = dx1 = dy1 = 0;
+  sentAt = hal_time_us();
   flush();
 }
 // The viewer's pointer holds until the screen's own pointer moves (a touch, a mouse on the device); keys, clicks and wheel are added.
@@ -236,6 +244,7 @@ void installMirror() {
   request = r;
   const size_t slash = request.rfind('/');
   request = (slash == std::string::npos ? std::string(".") : request.substr(0, slash)) + "/live.request";
+  logging = std::getenv("ZINC_MIRROR_LOG") != nullptr;
   zrt::mirror_present = present;
   zrt::mirror_input = merge;
 }

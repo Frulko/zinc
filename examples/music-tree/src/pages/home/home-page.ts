@@ -58,38 +58,40 @@ export class HomePageNode extends DisplayObject {
     const fullScreenHeight = contentHeight + STATUS_BAR_HEIGHT;
 
     // The blurred background covers the whole screen (including under the status bar at y = -STATUS_BAR_HEIGHT)
-    const artworkUrl =
-      appState.activeGroup !== null
-        ? getGroupArtworkUrl(appState.activeGroup as Group)
-        : '';
-    if (artworkUrl !== '' && drawBlurredBackdrop(artworkUrl, screenWidth, fullScreenHeight)) {
-      rrect(0, -STATUS_BAR_HEIGHT, screenWidth, fullScreenHeight, 0, 0x000000, 110);
-    } else {
-      gradient(
-        0,
-        -STATUS_BAR_HEIGHT,
-        screenWidth,
-        fullScreenHeight,
-        0,
-        0x2c2c2e,
-        0x000000,
-        true,
-        255
-      );
-    }
-
-    // Progressive darkening to black when swiping towards the StandBy slides (1..4)
+    // Progressive darkening to black when swiping towards the StandBy slides (1..4): once the player is off screen nothing of the
+    // backdrop shows, so it is not drawn at all (a stretched full-screen picture costs the most of a slide's frame)
     const nightTransition = Math.max(0, Math.min(1, appState.animatedSlideX));
-    if (nightTransition > 0) {
-      rrect(
-        0,
-        -STATUS_BAR_HEIGHT,
-        screenWidth,
-        fullScreenHeight,
-        0,
-        0x000000,
-        Math.round(nightTransition * 255) as i32
-      );
+    if (nightTransition >= 1) {
+      rrect(0, -STATUS_BAR_HEIGHT, screenWidth, fullScreenHeight, 0, 0x000000, 255);
+    } else {
+      const artworkUrl =
+        appState.activeGroup !== null
+          ? getGroupArtworkUrl(appState.activeGroup as Group)
+          : '';
+      if (artworkUrl === '' || !drawBlurredBackdrop(artworkUrl, screenWidth, fullScreenHeight, STATUS_BAR_HEIGHT)) {
+        gradient(
+          0,
+          -STATUS_BAR_HEIGHT,
+          screenWidth,
+          fullScreenHeight,
+          0,
+          0x2c2c2e,
+          0x000000,
+          true,
+          255
+        );
+      }
+      if (nightTransition > 0) {
+        rrect(
+          0,
+          -STATUS_BAR_HEIGHT,
+          screenWidth,
+          fullScreenHeight,
+          0,
+          0x000000,
+          Math.round(nightTransition * 255) as i32
+        );
+      }
     }
 
     // Horizontal positioning and activation of the slides visible in the tree

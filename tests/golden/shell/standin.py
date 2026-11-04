@@ -42,6 +42,7 @@ while True:
             w, h, stride, fourcc, kind, k = struct.unpack_from('<HHIIBB', p)
             maps = [mmap.mmap(fds.pop(0), stride * h) for _ in range(k)]
             out.write('buffers %d %d %d %08x %d %d\n' % (w, h, stride, fourcc, kind, k))
+            time.sleep(float(os.environ.get('STANDIN_DELAY', '0')))   # a slow start: the first frame comes late (tests/t1/pi_player_ux.sh)
             fill(0, 0xCC3366)
             send(33, bytes([0, 0]))
         elif t == 22:   # INPUT: x, y (0..1 of the app's surface), down

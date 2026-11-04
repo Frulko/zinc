@@ -33,7 +33,8 @@ export class PlayerLayout {
     this.left = sidebar + this.padding;
     const available = Math.max(1, width - this.left - this.padding);
     this.stacked = this.compact && available < 520;
-    this.contentHeight = Math.max(height, this.compact ? this.stacked ? 680 : 450 : height) + (this.compact && handoff ? 92 : 0);
+    // the 7" panel under the shell gives 418 px (800x448 less the status bar): the side-by-side player fits it without scrolling
+    this.contentHeight = Math.max(height, this.compact ? this.stacked ? 680 : 400 : height) + (this.compact && handoff ? 92 : 0);
     this.coverY = this.compact ? 72 : full ? 86 : 96;
     if (!this.compact) {
       this.coverSize = full ? 430 : 340;
@@ -58,7 +59,8 @@ export class PlayerLayout {
         this.transportY = this.volumeY - 98;
         this.modeY = this.volumeY - 40;
       } else {
-        this.coverSize = Math.max(80, Math.min(340, (available - 24) * 0.43, this.contentHeight - 168 - bottomReserve));
+        // the cover ends 16 px above the volume row's knob
+        this.coverSize = Math.max(80, Math.min(340, (available - 24) * 0.43, this.volumeY - 28 - this.coverY));
         this.coverX = this.left;
         this.textX = this.left + this.coverSize + 24;
         this.textWidth = width - this.textX - this.padding;

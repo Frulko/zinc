@@ -270,7 +270,7 @@ check on the Pi 3B+ (the other boards in P5).
 | R4 framebuffer churn per app frame | the serial cache (7.2 item 6), counted in P2 |
 | R5 an app frame waits for the shell's next loop (up to one refresh) | measured in P2; if it costs a refresh, fbdev's wait also wakes on the shell socket |
 | R6 the app's own video loses its hardware layer under the shell (HAL_MAX_LAYERS = 2, the app is not master): museum-table would fall back to 38 ms a picture (D114) | until forwarded, a video app declares `"display": "fbdev"` and gets the lease like a GL app; forwarding its dmabufs as a second layer is a later.md line |
-| R7 screenshots and live view | the shell presents, so it answers `shot.request` and `live.request`; on the plane path the picture's `fill` runs for the capture; covered by the P1 test (`zinc device screen` on the sim) |
+| R7 screenshots and live view | the shell presents, so it answers `shot.request` and `live.request`; while a screenshot is asked or a live viewer is connected the hardware layers are off (`zrt::screen_watched()`): the shell draws the app's image into its own frame, as on shared memory, so the capture and the live view show the bar and the app (the app's frames reach the screen by a copy meanwhile); covered by `video_layers` and the P1 test (`zinc device screen` on the sim) |
 | R8 apps of older engines or exports without display-shell | the 3 s "no CONNECT" rule gives them the screen; P1 test |
 | R9 memory of the resident shell on 256-512 MB boards | measured in P5; below the bar, the shell exits while an app runs (today's behaviour, a setting) |
 | R10 input edge cases (a press crossing the bar, keys during Home, the on-screen keyboard) | the dev bar's rule and the shell's key list, the P1 test's scripted taps and keys |

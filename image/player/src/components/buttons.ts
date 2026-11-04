@@ -118,6 +118,7 @@ export function drawSwitch(zoneId: string, x: number, y: number, isOn: boolean, 
   rrect(x, y, SWITCH_WIDTH, SWITCH_HEIGHT, SWITCH_HEIGHT / 2, isOn ? COLOR_ACCENT : COLOR_KEY, alpha);
   const knobSize = SWITCH_HEIGHT - 6;
   rrect(isOn ? x + SWITCH_WIDTH - knobSize - 3 : x + 3, y + 3, knobSize, knobSize, knobSize / 2, isOn ? COLOR_WHITE : COLOR_TEXT_SECONDARY, alpha);
+  if (isEnabled && isZonePressed(zoneId)) rrect(x, y, SWITCH_WIDTH, SWITCH_HEIGHT, SWITCH_HEIGHT / 2, COLOR_WHITE, 40);
   if (isZoneFocused(zoneId)) drawFocusRing(x, y, SWITCH_WIDTH, SWITCH_HEIGHT, SWITCH_HEIGHT / 2);
   if (isEnabled) registerTapZone(zoneId, x - 8, y - 8, SWITCH_WIDTH + 16, SWITCH_HEIGHT + 16, onTap);
 }

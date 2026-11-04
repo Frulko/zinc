@@ -5,11 +5,14 @@
 # The network itself (interfaces, addresses, the Wi-Fi networks, joining one) is zinc:network's (plugins/network), which
 # drives NetworkManager as the zinc user (/etc/polkit-1/rules.d/50-zinc-network.rules allows it).
 #   status                 key=value lines: hostname, model, os, kernel, uptime (minutes), temperature (degrees C),
-#                          memory and disk (available and total MiB), ssh and agent (on/off), country (Wi-Fi)
+#                          memory and disk (available and total MiB), ssh and agent (on/off), country (Wi-Fi), power (ok or
+#                          undervoltage; absent without the Pi's rpi_volt sensor), boot (systemd's state)
 #   wifi-country <CC>      the Wi-Fi country (two capital letters)
 #   ssh on|off             SSH now and at boot
 #   agent on|off           the Zinc agent now and at boot
 #   shell on|off           the player as the shell (ZINC_SHELL in /etc/zinc/session.conf), then the session starts again
+#   rotation 0|90|180|270  the screen turned clockwise by that many degrees (ZINC_ROTATE in /etc/zinc/session.conf), then the session
+#                          starts again (the shell, or the app, comes back turned)
 #   hostname <name>        the name on the network (<name>.local)
 #   pair                   a new pairing code of the Zinc agent (the player reads it from the agent's pairing.json)
 #   mac-usb                lets a Mac's USB-C cable be a network link (builds cdc_ncm for this kernel: zinc-mac-usb)
@@ -88,6 +91,11 @@ PY_IDENTITY
     country=$(iw reg get 2>/dev/null | awk '/^country/ { sub(":", "", $2); print $2; exit }')
     [ "$country" = 00 ] && country=
     echo "country=$country"
+    for h in "${ZINC_POWER_SYSFS:-/sys}"/class/hwmon/hwmon*; do
+      if [ "$(cat "$h/name" 2>/dev/null)" = rpi_volt ] && v=$(cat "$h/in0_lcrit_alarm" 2>/dev/null); then
+        [ "$v" = 1 ] && echo "power=undervoltage" || echo "power=ok"
+      fi
+    done
     # the boot: "starting" with the job systemd runs (the home page says it), then "running" or "degraded"
     boot=$(systemctl is-system-running 2>/dev/null)
     echo "boot=$boot"
@@ -119,6 +127,13 @@ PY_IDENTITY
     conf=/etc/zinc/session.conf
     mkdir -p /etc/zinc && touch "$conf"
     { grep -v '^[[:space:]]*ZINC_SHELL=' "$conf"; echo "ZINC_SHELL=$v"; } > "$conf.tmp" && chmod 644 "$conf.tmp" && mv -f "$conf.tmp" "$conf"
+    systemctl restart zinc-shell.service
+    ;;
+  rotation)
+    [[ ${2:-} =~ ^(0|90|180|270)$ ]] || die "rotation 0, 90, 180 or 270"
+    conf=/etc/zinc/session.conf
+    mkdir -p /etc/zinc && touch "$conf"
+    { grep -v '^[[:space:]]*ZINC_ROTATE=' "$conf"; echo "ZINC_ROTATE=$2"; } > "$conf.tmp" && chmod 644 "$conf.tmp" && mv -f "$conf.tmp" "$conf"
     systemctl restart zinc-shell.service
     ;;
   hostname)

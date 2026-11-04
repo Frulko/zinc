@@ -86,6 +86,9 @@ if [ -r "$CONF" ]; then
   # the app the shell shows at start (its folder: /var/lib/zinc/.zinc/agent/apps/<name>); its zinc.json "shell": "kiosk" keeps it there
   conf_start=$(sed -n 's/^[[:space:]]*ZINC_SHELL_START=["'\'']*\([^"'\'']*\).*/\1/p' "$CONF" | tail -n 1)
   [ -z "$conf_start" ] || export ZINC_SHELL_START="$conf_start"
+  # the screen turned clockwise by 0, 90, 180 or 270 degrees (zinc-admin rotation): the shell and every app of the session see it
+  conf_rotate=$(sed -n 's/^[[:space:]]*ZINC_ROTATE=["'\'']*\([0-9]*\).*/\1/p' "$CONF" | tail -n 1)
+  case $conf_rotate in 0 | 90 | 180 | 270) export ZINC_ROTATE=$conf_rotate ;; esac
 fi
 if [ "${ZINC_SHELL:-0}" = 1 ]; then
   last_failure=0

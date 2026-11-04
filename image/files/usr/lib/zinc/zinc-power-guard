@@ -1,0 +1,64 @@
+#!/bin/bash
+# zinc-power-guard: while the Raspberry Pi reports under-voltage (a weak supply or cable), cap the CPU clock so the board
+# draws less, hold the cap for 60 s after the last alarm, then restore the previous maximum. Every change is logged
+# (journal tag zinc-power). The alarm is the kernel's rpi_volt hwmon device: in0_lcrit_alarm is 1 while under-voltage.
+# Nothing to do (exit 0) on a machine without that file. ZINC_POWER_GUARD=0 in /etc/zinc/session.conf turns it off.
+# The cap is half of the top clock (700 MHz on a Pi 3B+), never below the lowest: the governor is "performance", so
+# without a cap the clock climbs back to the top (and the current peak) right after each alarm.
+# Tests: ZINC_POWER_SYSFS (default /sys), ZINC_POWER_CONF, ZINC_POWER_POLL_MS (2000), ZINC_POWER_HOLD_MS (60000),
+# ZINC_POWER_CAP_KHZ, ZINC_POWER_TICKS (stop after that many reads; default: run for ever).
+set -u
+sys=${ZINC_POWER_SYSFS:-/sys}
+conf=${ZINC_POWER_CONF:-/etc/zinc/session.conf}
+poll=${ZINC_POWER_POLL_MS:-2000}
+hold=${ZINC_POWER_HOLD_MS:-60000}
+ticks=${ZINC_POWER_TICKS:-0}
+log() { logger -t zinc-power "$*" 2>/dev/null || echo "zinc-power: $*"; }
+
+[ "${ZINC_POWER_GUARD:-}" = 0 ] && exit 0
+grep -qs '^[[:space:]]*ZINC_POWER_GUARD=0' "$conf" && exit 0
+alarm=
+for h in "$sys"/class/hwmon/hwmon*; do
+  [ "$(cat "$h/name" 2>/dev/null)" = rpi_volt ] && [ -r "$h/in0_lcrit_alarm" ] && alarm=$h/in0_lcrit_alarm && break
+done
+[ -n "$alarm" ] || exit 0
+policies=()
+for p in "$sys"/devices/system/cpu/cpufreq/policy*; do [ -f "$p/scaling_max_freq" ] && policies+=("$p"); done
+[ ${#policies[@]} -gt 0 ] || exit 0
+
+saved=()
+capped=0
+quiet=0   # ms since the last alarm
+restore() {
+  [ "$capped" = 1 ] || return 0
+  local i
+  for i in "${!policies[@]}"; do echo "${saved[$i]}" > "${policies[$i]}/scaling_max_freq"; done
+  capped=0
+  log "supply stable for $((hold / 1000)) s: CPU maximum back to ${saved[0]} kHz"
+}
+trap 'restore; exit 0' TERM INT
+sleepfor=$(printf '%d.%03d' $((poll / 1000)) $((poll % 1000)))
+n=0
+while :; do
+  if [ "$(cat "$alarm" 2>/dev/null)" = 1 ]; then
+    quiet=0
+    if [ "$capped" = 0 ]; then
+      capped=1   # before the first write: a TERM in between still restores
+      for i in "${!policies[@]}"; do
+        p=${policies[$i]}
+        saved[$i]=$(cat "$p/scaling_max_freq")
+        top=$(cat "$p/cpuinfo_max_freq"); low=$(cat "$p/cpuinfo_min_freq" 2>/dev/null || echo 0)
+        cap=${ZINC_POWER_CAP_KHZ:-$((top / 2))}
+        [ "$cap" -ge "$low" ] || cap=$low
+        echo "$cap" > "$p/scaling_max_freq"
+      done
+      log "under-voltage: CPU maximum lowered to $cap kHz (was ${saved[0]}); use a 5 V / 2.5 A supply and a short, thick cable"
+    fi
+  elif [ "$capped" = 1 ]; then
+    quiet=$((quiet + poll))
+    [ "$quiet" -lt "$hold" ] || restore
+  fi
+  n=$((n + 1))
+  [ "$ticks" = 0 ] || [ "$n" -lt "$ticks" ] || { restore; exit 0; }
+  sleep "$sleepfor" & wait $!
+done
