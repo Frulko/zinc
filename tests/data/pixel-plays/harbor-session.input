@@ -1,8 +1,10 @@
 20 key Space
+30 key Space
 80 key p
 400 key p
-550 move 500 380
+550 move 700 520
 551 down
 553 up
-750 touch 1 500 380
+750 touch 1 700 520
+752 touch 1 720 510
 753 touchup 1
