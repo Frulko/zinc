@@ -2,10 +2,11 @@
 // or a folder, or drop them on the window. zinc:ipod checks the space before copying anything and says per file what happened
 // (added, refused format, not audio). Behind Allow changes; the database is backed up before the first change of the session.
 import * as ui from 'zinc:ui';
+import { Switch } from 'zinc:ui/kit';
 import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
 import { allowChanges, playlists } from '../../state';
-import { addKind, setAddKind, addPlaylist, setAddPlaylist, addResults, notice, pickAndAdd } from '../../actions';
+import { addKind, setAddKind, addPlaylist, setAddPlaylist, folderPlaylists, setFolderPlaylists, addResults, notice, pickAndAdd } from '../../actions';
 import { busy } from '../../services/transfers';
 import { Button } from '../../components/Button';
 import { createSignal } from 'zinc:ui/solid';
@@ -76,6 +77,10 @@ export function AddPage(): i32 {
           <PlaylistChip name="" label="None" />
           {playlists().filter((p: ipod.Playlist) => !p.podcasts && !p.smart).map((p: ipod.Playlist) => <PlaylistChip name={p.name} label={p.name} />)}
         </View>
+      </View>
+      <View className="flex-col gap-2">
+        <Switch checked={folderPlaylists} onChange={setFolderPlaylists} label="One playlist per folder" />
+        <Text className={`text-[12px] ${fg(MUTED)}`}>Chosen or dropped folders use their name as the playlist, including songs in subfolders. Existing playlists with that name are reused. Loose files use the playlist selected above.</Text>
       </View>
       <View className={`flex-col items-center gap-3 py-8 rounded-[12] border ${bg(CARD)} ${bd(BORDER)}`}>
         <Icon name="upload" size={30} color={() => color(allowChanges() ? ACCENT : FAINT)} strokeWidth={1.5} />

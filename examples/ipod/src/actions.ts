@@ -21,6 +21,7 @@ export const [downloadDir, setDownloadDir] = createSignal<string>('');
 /** What adding does with the next files: their kind (TrackInput.mediaType) and a playlist to put them in ('' = none). */
 export const [addKind, setAddKind] = createSignal<string>(ADD_KINDS[0]);
 export const [addPlaylist, setAddPlaylist] = createSignal<string>('');
+export const [folderPlaylists, setFolderPlaylists] = createSignal<boolean>(false);
 /** One line per file of the last add (the file and what happened to it). */
 export const [addResults, setAddResults] = createSignal<ipod.AddResult[]>([]);
 /** A message for the page that asked (a change refused while Allow changes is off). */
@@ -148,10 +149,24 @@ export function addFiles(paths: string[]): void {
   if (lib() === null) return;
   if (page() !== PAGE_ADD) showPage(PAGE_ADD);
   if (!allowed('Add to the iPod')) return;
+  if (!folderPlaylists()) { addFilesToPlaylist(paths, addPlaylist().trim()); return; }
+  const loose: string[] = [];
+  for (const path of paths) {
+    let isDir = false;
+    try { isDir = fs.stat(path).isDirectory; } catch (e) { /* the import reports missing files */ }
+    if (!isDir) { loose.push(path); continue; }
+    let dir = path;
+    while (dir.endsWith('/') && dir.length > 1) dir = dir.slice(0, -1);
+    addFilesToPlaylist([path], dir.slice(dir.lastIndexOf('/') + 1) || 'Folder');
+  }
+  if (loose.length > 0) addFilesToPlaylist(loose, addPlaylist().trim());
+}
+
+function addFilesToPlaylist(paths: string[], playlist: string): void {
   const files = mediaFiles(paths);
   if (files.length === 0) { setNotice('No music, podcast, audiobook or video files there'); return; }
   setNotice('');
-  const kind = addKind(), playlist = addPlaylist().trim();
+  const kind = addKind();
   const items: ipod.TrackInput[] = [];
   for (const f of files) items.push({ file: f, mediaType: kind });
   enqueue('add', `Add ${count(files.length, 'file', 'files')}${playlist !== '' ? ` to “${playlist}”` : ''}`, async (): Promise<string> => {

@@ -270,3 +270,5 @@ file dropped is uploaded; the iPod's cache folder then holds the song, a cover a
 `IPOD_LISTENBRAINZ_URL`; the real services are never called): the rule, a listen that adds up, the sign-in, the signatures, the
 payloads, the queues kept while offline and sent by 50; then the daemon's `/api/played` and Subsonic `scrobble`, read only and
 with `--allow-changes`.
+
+On **Add to iPod**, enable **One playlist per folder** before choosing or dropping folders. Each folder imports its media (including subfolders) into a playlist named after that folder; an existing playlist with the same name is reused. Loose files use the selected playlist. The option is off by default.
