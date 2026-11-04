@@ -1,10 +1,12 @@
 // The editor: the library on the left, the views in the middle, the settings of the clip and its layer on the right, the grid of clips below.
+import * as ui from 'zinc:ui';
 import { Button, Switch, Tabs } from 'zinc:ui/kit';
 import { createSignal } from 'zinc:ui/solid';
 import { send } from '../services/link';
-import { MASK_SLOTS, currentLayer, loadState, maskValues, pointRevision, revision, setLayer, status, store, touch } from '../state';
+import { MASK_SLOTS, currentLayer, loadState, maskValues, pointRevision, revision, setLayer, status, stepHistory, store, touch } from '../state';
 import { CalibrationPanel } from './CalibrationPanel';
 import { DragGhost, Dashboard } from './Dashboard';
+import { HistoryPanel } from './HistoryPanel';
 import { Heading } from './Field';
 import { Library } from './Library';
 import { EdgeControls } from './EdgeControls';
@@ -17,7 +19,7 @@ import { SoundPanel } from './SoundPanel';
 import { SurfaceCanvas, currentMask, selectMask } from './SurfaceCanvas';
 import { Rebuilt } from './Rebuilt';
 
-const VIEWS: string[] = ['Output', 'Masks', 'Calibration', 'Room', 'Sound', 'Scenes', 'Options'];
+const VIEWS: string[] = ['Output', 'Masks', 'Calibration', 'Room', 'Sound', 'Scenes', 'History', 'Options'];
 const MESH_PRESETS: i32[] = [3, 4, 6, 9];
 const NEW_MASK: number[] = [0.05, 0, 0.3, 0.3, 0.7, 0.3, 0.7, 0.7, 0.3, 0.7];
 
@@ -103,11 +105,18 @@ function MasksView(): i32 {
 }
 
 export function EditorScreen(): i32 {
+  ui.bindKeys('mod-z', 'undo');
+  ui.bindKeys('mod-shift-z', 'redo');
+  ui.bindKeys('mod-y', 'redo');
+  ui.onAction(-1, 'undo', () => { stepHistory('undo'); });
+  ui.onAction(-1, 'redo', () => { stepHistory('redo'); });
   const [view, setView] = createSignal(0 as i32);
   return <View className="grow bg-zinc-950">
     <View className="flex-row items-center gap-3 h-[44] px-3 bg-zinc-900">
       <Text className="text-sm text-zinc-100">Mapper</Text>
       <Tabs items={VIEWS} selected={view} onSelect={setView} />
+      <Button size="sm" variant="ghost" label="Undo" onClick={() => { stepHistory('undo'); }} />
+      <Button size="sm" variant="ghost" label="Redo" onClick={() => { stepHistory('redo'); }} />
       <View className="grow" />
       <Text className="text-xs text-zinc-400">{status()}</Text>
     </View>
@@ -121,7 +130,8 @@ export function EditorScreen(): i32 {
           {view() === 3 && <RoomPanel />}
           {view() === 4 && <SoundPanel />}
           {view() === 5 && <ScenePanel />}
-          {view() === 6 && <OptionsPanel />}
+          {view() === 6 && <HistoryPanel />}
+          {view() === 7 && <OptionsPanel />}
         </ScrollView>}
       </View>
       <PropsPanel />

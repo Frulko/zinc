@@ -58,8 +58,8 @@ export function importScene(name: string, json: string): boolean {
   return true;
 }
 
-function replaceScene(mappingJson: string, show: string): boolean {
-  saveScene(PREVIOUS_SCENE);
+/** Puts a whole setup on, and starts what it plays. */
+export function restoreSetup(mappingJson: string, show: string): boolean {
   hideCards();
   if (!mapping.fromJson(mappingJson)) return false;
   if (replaceShow(show) !== '') return false;
@@ -67,6 +67,11 @@ function replaceScene(mappingJson: string, show: string): boolean {
   resumeShow();
   mapping.save(SETUP_FILE);
   return true;
+}
+
+function replaceScene(mappingJson: string, show: string): boolean {
+  saveScene(PREVIOUS_SCENE);
+  return restoreSetup(mappingJson, show);
 }
 
 export function loadScene(name: string): boolean {

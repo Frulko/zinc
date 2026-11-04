@@ -10,6 +10,7 @@ import { EXTENSIONS, isVideo } from 'zinc:video';
 import { TOKEN_FILE } from '../constants';
 import { cardKind } from './cards';
 import { applyCommand, isHudShown } from './control';
+import { historyJson, noteChange, stepHistory } from './history';
 import { LayerCommand } from './layerCommands';
 import { deleteMedia, mediaExists, mediaListJson, mediaPath, receiveMedia, thumbnailPath } from './mediaStore';
 import { deleteScene, importScene, isSceneName, loadScene, newScene, saveScene, sceneJson, sceneListJson } from './scenes';
@@ -124,7 +125,9 @@ async function sceneRoute(req: Request, rest: string): Promise<Reply> {
   if (!isSceneName(name)) return errorReply(400, 'a scene name has letters, digits, - and _ only');
   if (loading) {
     if (req.method !== 'POST') return errorReply(405, 'POST');
-    return loadScene(name) ? jsonReply(200, sceneListJson()) : errorReply(404, 'no such scene');
+    if (!loadScene(name)) return errorReply(404, 'no such scene');
+    noteChange(`Scene ${name}`);
+    return jsonReply(200, sceneListJson());
   }
   if (req.method === 'GET') {
     const scene = sceneJson(name);
@@ -152,6 +155,7 @@ async function apiRoute(req: Request, path: string): Promise<Reply> {
   if (path === '/scenes' && req.method === 'GET') return jsonReply(200, sceneListJson());
   if (path === '/new-scene' && req.method === 'POST') {
     newScene();
+    noteChange('New scene');
     return jsonReply(200, sceneListJson());
   }
   if (path.startsWith('/scenes/')) return sceneRoute(req, path.slice(8));
@@ -162,9 +166,12 @@ async function apiRoute(req: Request, path: string): Promise<Reply> {
     return mediaRoute(req, named);
   }
   if (path.startsWith('/thumbs/')) return thumbnailRoute(path.slice(8));
+  if (path === '/history' && req.method === 'GET') return jsonReply(200, historyJson());
+  if (path.startsWith('/history/') && req.method === 'POST') return stepHistory(path.slice(9)) ? jsonReply(200, historyJson()) : errorReply(404, 'no such entry');
   if (path === '/show' && req.method === 'GET') return jsonReply(200, showJson());
   if (path === '/show' && req.method === 'PUT') {
     const problem = replaceShow(await readBody(req), true);
+    if (problem === '') noteChange();
     return problem === '' ? { status: 204, body: '', contentType: JSON_TYPE } : errorReply(400, problem);
   }
   return errorReply(404, 'no such route');

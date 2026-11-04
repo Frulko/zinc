@@ -9,6 +9,8 @@ import { drawOutputCard } from './services/cards';
 import { createDemoLayers } from './layers';
 import { liveImage, paintLiveImage } from './live';
 import { isHudShown, listenOsc, setHudShown } from './services/control';
+import { noteChange, startHistory } from './services/history';
+import { onLayerChange } from './services/layerCommands';
 import { bindDecodedVideos, followLayerMedia, useMediaFolder } from './services/layerMedia';
 import { openMediaFolder, videoCount } from './services/mediaStore';
 import { closeCodeNow, openCode, pairingCode } from './services/pairing';
@@ -37,6 +39,8 @@ followLayerMedia();
 loadVolume();
 resumeShow();
 openScenes();
+startHistory();
+onLayerChange(() => { noteChange(); });
 
 const oscPort: i32 = parseInt(option('port', DEFAULT_OSC_PORT));
 const oscOn = listenOsc(oscPort);

@@ -24,6 +24,9 @@ export const [connected, setConnected] = createSignal(false);
 
 export interface MediaFile { name: string; bytes: number }
 
+/** The actions the mapper remembers, oldest first; `at`: the one the setup is at. */
+export interface HistoryList { entries: string[]; at: i32 }
+
 /** This editor's preferences: they stay in the browser or the client, not in a scene. */
 export interface Options { selectionFrame: boolean; focusRing: boolean; fineStep: number; coarseStep: number }
 const OPTIONS_KEY = 'mapper-options';
@@ -59,6 +62,7 @@ export const store = {
   muted: false,
   playsMedia: false,
   scenes: [] as string[],
+  history: { entries: [], at: 0 } as HistoryList,
   sceneName: '',
   options: savedOptions(),
 };
@@ -289,6 +293,24 @@ export function showCalibrationCard(kind: string, target: i32): void {
   store.card = kind;
   send('/card', [target], [kind]);
   touch();
+}
+
+export async function loadHistory(): Promise<void> {
+  const list = await getJson('/history') as HistoryList;
+  if (JSON.stringify(list) === JSON.stringify(store.history)) return;
+  store.history = list;
+  touch();
+}
+
+/** step: "undo", "redo" or the place of an entry. */
+export async function stepHistory(step: string): Promise<void> {
+  await new Promise<void>((resolve: () => void) => { setTimeout(resolve, SETTLE_MS); });   // the commands on their way are part of what goes back
+  try {
+    store.history = await postJson(`/history/${step}`) as HistoryList;
+    await afterLayerChange();
+  } catch (e) {
+    setStatus(step === 'undo' ? 'nothing to undo' : step === 'redo' ? 'nothing to redo' : `${e}`);
+  }
 }
 
 export async function loadScenes(): Promise<void> {

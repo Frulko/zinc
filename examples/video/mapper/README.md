@@ -98,6 +98,13 @@ a layer: its **cut** hides a strip outright, its **gradient** fades what follows
 from that line: into the layer, past its edge onto what stands behind, or across the edge. It follows the warp, and the lines on the
 canvas show where each one ends.
 
+### Moving a zone, going back
+
+In *Output*, drag a zone to move it whole, or press the arrows with no point selected (1 pixel, with Shift 10); corners linked to it
+follow. **Undo** and **Redo** (Cmd or Ctrl+Z, Shift+Cmd+Z or Ctrl+Y) go through the actions, and *History* lists them: click one to go
+back to it. A drag or a run of arrows is one action. What plays stays as it is, firing a clip is not an action, and the list lasts until
+the app stops.
+
 ### The room in 3D
 
 Enter a surface's real size and the projector's throw ratio in *Room*: the editor works out where each surface stands in the room

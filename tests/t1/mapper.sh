@@ -85,6 +85,32 @@ if load("show2")["active"] != 1: problems.append("/column is not remembered")
 if load("show3")["active"] != 1: problems.append("a save from the page changes what plays")
 if problems: print("; ".join(problems)); sys.exit(1)
 PY
+# the history: a burst of commands is one action, firing a clip is none, undo and redo come back, a removed layer returns
+at() { sleep 1.1; api "http://127.0.0.1:$web/history"; }
+step() { api -X POST "http://127.0.0.1:$web/history/$1" >/dev/null; api "http://127.0.0.1:$web/state"; }
+api -X PUT -d '{"columns":[{"name":"a","cells":[{"label":"Red","source":"solid","color":[1,0,0]},{"label":"Blue","source":"solid","color":[0,0,1]}]}]}' "http://127.0.0.1:$web/show"
+at >"$tmp/h0.json"
+api -d '[["/layer/0/corner",0,0.11,0.12],["/layer/0/corner",1,0.61,0.12]]' "http://127.0.0.1:$web/osc" >/dev/null; api -d '[["/layer/0/corner",1,0.62,0.12]]' "http://127.0.0.1:$web/osc" >/dev/null
+at >"$tmp/h1.json"
+api -d '[["/cell",0,1]]' "http://127.0.0.1:$web/osc" >/dev/null
+at >"$tmp/h2.json"
+step undo >"$tmp/u.json"; step redo >"$tmp/r.json"
+api -d '[["/remove",0]]' "http://127.0.0.1:$web/osc" >/dev/null
+at >"$tmp/h3.json"
+step undo >"$tmp/back.json"
+python3 - "$tmp" <<'PY' || fail=1
+import json, sys
+t = sys.argv[1]; load = lambda n: json.load(open(f"{t}/{n}.json"))
+h0, h1, h2, h3 = load("h0"), load("h1"), load("h2"), load("h3")
+problems = []
+if len(h1["entries"]) != len(h0["entries"]) + 1 or "corners" not in h1["entries"][-1]: problems.append(f"a burst is not one action: {h1}")
+if h2 != h1: problems.append(f"firing a clip is an action: {h2}")
+if abs(load("u")["layers"][0]["corners"][0] - 0.11) < 1e-3: problems.append("undo does not bring the corner back")
+if abs(load("r")["layers"][0]["corners"][0] - 0.11) > 1e-3: problems.append("redo does not bring the corner again")
+if h3["entries"][-1] != "Layer removed": problems.append(f"no entry for a removed layer: {h3}")
+if len(load("back")["layers"]) != len(load("r")["layers"]) or load("back")["layers"][0]["name"] != load("r")["layers"][0]["name"]: problems.append("undo does not bring a removed layer back")
+if problems: print("history: " + "; ".join(problems)); sys.exit(1)
+PY
 node examples/video/mapper/tests/editor-check.mjs "http://127.0.0.1:$web/?token=$token" >"$tmp/check.log" 2>&1
 grep -q "^ok:" "$tmp/check.log" || { echo "the scripted editor check fails: $(tail -c 600 "$tmp/check.log") / app: $(tail -c 300 "$tmp/app.log")"; fail=1; }
 exit $fail

@@ -238,6 +238,23 @@ function selectEdgeAt(x: number, y: number, w: number, h: number): void {
   touch();
 }
 
+/** A press inside the selected zone takes it, even under another; elsewhere it takes the top zone there. Not while linking, nor among the edges, where a press picks a side. */
+function grabZoneAt(x: number, y: number): boolean {
+  if (linkFrom !== null || mode === MODE_EDGES) return false;
+  const current = currentLayer();
+  if (current !== null && insidePolygon(layerOutline(current), x, y)) return true;
+  selectLayerAt(x, y);
+  const taken = currentLayer();
+  return taken !== null && taken !== current;
+}
+
+/** Moves the selected zone on the output: its four corners, and the corners linked to them. */
+function moveZone(dx: number, dy: number): void {
+  const layer = currentLayer();
+  if (layer === null || mode === MODE_EDGES) return;
+  for (const corner of cornerPoints(layer)) corner.set(corner.x + dx, corner.y + dy);
+}
+
 /** A click on a zone selects its layer, the top one where several overlap. */
 function selectLayerAt(x: number, y: number): void {
   for (let n: i32 = store.layers.length - 1; n >= 0; n--) {
@@ -333,7 +350,7 @@ export function selectedPointText(): string {
   if (mode === MODE_EDGES) return selectedEdge < 0 ? 'Click an edge of a layer to soften it.' : '';
   if (store.layers.length === 0) return 'An empty scene: Add makes a layer that covers the whole output.';
   const all = outputPoints();
-  if (outputEditor.selection.length === 0) return 'Click a zone to select it. Click a point; the arrows move it by 1 pixel, with Shift by 10; Tab goes to the next one.';
+  if (outputEditor.selection.length === 0) return 'Click a zone to select it; drag it or use the arrows to move it whole. Click a point; the arrows move it by 1 pixel, with Shift by 10; Tab goes to the next one.';
   const first = all[outputEditor.selection[0]];
   if (first === undefined) return '';
   const many = outputEditor.selection.length > 1 ? `${outputEditor.selection.length} points, first at ` : '';
@@ -341,7 +358,7 @@ export function selectedPointText(): string {
 }
 
 export function OutputCanvas(): i32 {
-  return <PointCanvas className="w-full h-full" aspect={() => store.aspect} editor={outputEditor} points={() => linkFrom !== null ? [] : outputPoints()} pixelSize={() => store.pixels} draw={draw} onEmpty={(x: number, y: number, w: number, h: number) => {
+  return <PointCanvas className="w-full h-full" aspect={() => store.aspect} editor={outputEditor} points={() => linkFrom !== null ? [] : outputPoints()} pixelSize={() => store.pixels} draw={draw} whole={{ grab: grabZoneAt, move: moveZone }} onEmpty={(x: number, y: number, w: number, h: number) => {
     if (linkFrom !== null) linkToCornerAt(x, y, w, h);
     else if (mode === MODE_EDGES) selectEdgeAt(x, y, w, h);
     else selectLayerAt(x, y);

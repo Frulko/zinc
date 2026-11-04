@@ -43,7 +43,7 @@ export function replaceShow(json: string, keepPlaying: boolean = false): string 
   return '';
 }
 
-function isClip(cell: any): boolean {
+export function isClip(cell: any): boolean {
   if (cell === null || cell === undefined) return false;
   return (typeof cell.media === 'string' && cell.media !== '') || (typeof cell.source === 'string' && cell.source !== '');
 }

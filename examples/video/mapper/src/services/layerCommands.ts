@@ -7,6 +7,10 @@ export interface LayerCommand { address: string; numbers: number[]; strings: str
 
 const SAVE_DELAY_MS = 1000;   // a drag sends tens of commands a second: one write at its end
 let savePending = false;
+let onChange: () => void = () => {};
+
+/** Who is told of each change. */
+export function onLayerChange(listener: () => void): void { onChange = listener; }
 
 function saveSoon(): void {
   if (savePending) return;
@@ -21,6 +25,9 @@ function saveSoon(): void {
 export function applyLayerCommand(command: LayerCommand): boolean {
   if (!mapping.command(command.address, command.numbers, command.strings)) return false;
   followLayerMedia();
-  if (command.address !== '/save' && command.address !== '/select') saveSoon();
+  if (command.address !== '/save' && command.address !== '/select') {
+    saveSoon();
+    onChange();
+  }
   return true;
 }
