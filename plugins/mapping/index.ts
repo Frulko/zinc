@@ -27,6 +27,8 @@ export function command(address: string, numbers: number[], strings: string[]): 
     sync(strings[0], numbers[0]);
     return true;
   }
+  // commands arrive over the network: a media is a file name of the media folder, not a path
+  if (address.endsWith('/media') && strings.length > 0 && strings[0].length > 0 && !plainName(strings[0])) return false;
   return Native.command(address, numbers, strings);
 }
 

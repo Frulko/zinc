@@ -13,30 +13,45 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+#ifndef GL_TEXTURE_EXTERNAL_OES
+#define GL_TEXTURE_EXTERNAL_OES 0x8D65
+#endif
 
 namespace {
 namespace raster = zrt::raster;
 
 enum { MAX_LAYERS = 16, MAX_MESH = 16, MAX_MASKS = 4, MAX_PTS = 32, MAX_ARGS = 2 + MAX_MESH * MAX_MESH * 2, MAX_STRS = 4,
        MASK_PX = 512, GRID = 32 };
-enum { PATTERN, SOLID, GRADIENT, IMAGE, BAKED, NPROG };  // BAKED: IMAGE from a baked (RGBA) asset
+enum { PATTERN, SOLID, GRADIENT, IMAGE, BAKED, EXTERNAL, NPROG };  // BAKED: IMAGE from a baked (RGBA) asset; EXTERNAL: the decoder's pictures
+enum { STRETCH, CONTAIN, COVER };
 enum { NORMAL, ADD, MULTIPLY, SCREEN };
 const char* SRC_NAMES[] = {"pattern", "solid", "gradient", "image"};
 const char* BLEND_NAMES[] = {"normal", "add", "multiply", "screen"};
+const char* FIT_NAMES[] = {"stretch", "contain", "cover"};
 typedef char Str[64];
 
 struct Mask { int n; float feather, invert, pts[MAX_PTS * 2]; };
 struct Tex { GLuint id; int32_t image, w, h; uint32_t version; bool rgba; };
 struct Layer {
   char name[32];
-  int source, blend, cols, rows, image, maskimage;
+  int source, blend, cols, rows, image, maskimage, fit;
   float visible, color[3], color2[3], angle, corners[8], position[2], scale, rotation, opacity;
   float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], grid;
+  float inputRect[4], volume, loop;  // inputRect: the part of the source shown (x y w h in 0..1)
+  char media[64], mediaOpened[64];   // a file of the media folder ("" none), and the one asked of the player
   float mesh[MAX_MESH * MAX_MESH * 2];
   Mask masks[MAX_MASKS];
   GLuint vbo, mfbo;
   Tex tex, mtex, mimg;  // source, mask render target, mask image
   bool geom_dirty, mask_dirty;
+#ifdef ZN_MAPPING_MEDIA
+  MediaHandle* mediaShown; MediaHandle* mediaComing;  // a new file replaces the old at its first picture: no black between two media
+  GLuint mediaShownTex, mediaComingTex;
+  MediaFrame frame;
+  float volumeSet, loopSet;
+#endif
 };
 Layer L[MAX_LAYERS];
 int nl = 0, selected = -1;
@@ -48,7 +63,8 @@ struct Field { const char* key; size_t off; int n, dirty; };
 const Field FIELDS[] = {
   F(visible, 1, 0), F(color, 3, 0), F(color2, 3, 0), F(angle, 1, 0), F(corners, 8, 0), F(position, 2, 0), F(scale, 1, 0),
   F(rotation, 1, 0), F(opacity, 1, 0), F(brightness, 1, 0), F(contrast, 1, 0), F(saturation, 1, 0), F(hue, 1, 0),
-  F(gamma, 1, 0), F(gain, 3, 0), F(crop, 5, 2), F(edge, 5, 2), F(grid, 1, 0)};
+  F(gamma, 1, 0), F(gain, 3, 0), F(crop, 5, 2), F(edge, 5, 2), F(grid, 1, 0),
+  F(inputRect, 4, 0), F(volume, 1, 0), F(loop, 1, 0)};
 #undef F
 
 void identity_mesh(Layer& l) {
@@ -69,13 +85,29 @@ void defaults(Layer& l, int idx) {
   const float crop[5] = {0, 0, 1, 1, 0}, edge[5] = {0, 0, 0, 0, 2.2f};
   memcpy(l.crop, crop, sizeof crop); memcpy(l.edge, edge, sizeof edge);
   l.grid = 0;
+  const float wholeSource[4] = {0, 0, 1, 1};
+  memcpy(l.inputRect, wholeSource, sizeof wholeSource);
+  l.volume = 1; l.loop = 1; l.fit = STRETCH; l.media[0] = 0;
   for (Mask& m : l.masks) m.n = 0;
   l.cols = l.rows = 2;
   identity_mesh(l);
   l.mask_dirty = true;
 }
 
+#ifdef ZN_MAPPING_MEDIA
+void close_media(MediaHandle*& handle, GLuint& texture) {
+  if (handle) media_close(handle);
+  if (texture) glDeleteTextures(1, &texture);
+  handle = nullptr;
+  texture = 0;
+}
+#endif
+
 void free_gl(Layer& l) {
+#ifdef ZN_MAPPING_MEDIA
+  close_media(l.mediaShown, l.mediaShownTex);
+  close_media(l.mediaComing, l.mediaComingTex);
+#endif
   if (l.vbo) glDeleteBuffers(1, &l.vbo);
   if (l.mfbo) glDeleteFramebuffers(1, &l.mfbo);
   GLuint t[3] = {l.tex.id, l.mtex.id, l.mimg.id};
@@ -173,11 +205,28 @@ void color_matrix(const Layer& l, float out[16]) {
 }
 
 // ---------- GPU ----------
-const char* LAYER_VS = R"(attribute vec2 a_pos; attribute vec2 a_uv; uniform mat3 u_m; varying vec2 v_uv;
-void main() { vec3 q = u_m * vec3(a_pos, 1.0); v_uv = a_uv; gl_Position = vec4(q.xy, 0.0, q.z); }
+// v_st: where the surface reads its source (fit and input rectangle), v_uv: the surface itself, which masks and the grid follow.
+const char* LAYER_VS = R"(attribute vec2 a_pos; attribute vec2 a_uv; uniform mat3 u_m; uniform vec4 u_fit; varying vec2 v_uv; varying vec2 v_st;
+#if SRC == 5
+uniform vec4 u_stm; varying vec2 v_tx;
+#endif
+void main() {
+  vec3 q = u_m * vec3(a_pos, 1.0);
+  v_uv = a_uv;
+  v_st = a_uv * u_fit.xy + u_fit.zw;
+#if SRC == 5
+  v_tx = v_st * u_stm.xy + u_stm.zw;
+#endif
+  gl_Position = vec4(q.xy, 0.0, q.z);
+}
 )";
-const char* LAYER_FS = R"(varying vec2 v_uv;
-uniform sampler2D u_tex; uniform sampler2D u_mask;
+const char* LAYER_FS = R"(varying vec2 v_uv; varying vec2 v_st;
+#if SRC == 5
+uniform samplerExternalOES u_tex; varying vec2 v_tx;
+#else
+uniform sampler2D u_tex;
+#endif
+uniform sampler2D u_mask; uniform vec4 u_clip;
 uniform vec3 u_c1; uniform vec3 u_c2; uniform vec2 u_dir;
 uniform mat4 u_cm; uniform float u_ig; uniform float u_alpha; uniform vec3 u_grid;
 vec3 source(vec2 st) {
@@ -197,12 +246,14 @@ vec3 source(vec2 st) {
   return mix(u_c1, u_c2, clamp(dot(st - 0.5, u_dir) + 0.5, 0.0, 1.0));
 #elif SRC == 3
   return texture2D(u_tex, st).bgr;
+#elif SRC == 5
+  return texture2D(u_tex, v_tx).rgb;
 #else
   return texture2D(u_tex, st).rgb;
 #endif
 }
 void main() {
-  vec3 c = source(v_uv);
+  vec3 c = source(v_st);
 #if COLOR
   c = clamp((u_cm * vec4(c, 1.0)).rgb, 0.0, 1.0);
 #endif
@@ -214,7 +265,11 @@ void main() {
   a *= texture2D(u_mask, v_uv).r;
 #endif
 #if SRC == 4
-  a *= texture2D(u_tex, v_uv).a;
+  a *= texture2D(u_tex, v_st).a;
+#endif
+#if CLIP
+  vec2 fromCentre = abs(v_st - u_clip.xy);
+  a *= step(fromCentre.x, u_clip.z) * step(fromCentre.y, u_clip.w);
 #endif
 #if GRID
   vec2 g = abs(fract(v_uv * u_grid.xy + 0.5) - 0.5) / u_grid.xy;
@@ -261,19 +316,19 @@ void main() {
 }
 )";
 
-GLuint progs[NPROG * 16], poly_prog, crop_prog, quad, white;  // white: bound to samplers a variant does not read
+GLuint progs[NPROG * 32], poly_prog, crop_prog, quad, white;  // white: bound to samplers a variant does not read
 
 // A program per source and per step the layer really uses: what a neutral step costs is not small on a modest GPU, where a shader runs both
 // sides of its branches (Mali-400).
-GLuint layer_prog(int src, const Layer& l, bool grid) {
+GLuint layer_prog(int src, const Layer& l, bool grid, bool clip) {
   const bool color = l.brightness != 0 || l.contrast != 1 || l.saturation != 1 || l.hue != 0 || l.gain[0] != 1 || l.gain[1] != 1 || l.gain[2] != 1;
   bool mask = l.maskimage >= 0 || l.crop[0] != 0 || l.crop[1] != 0 || l.crop[2] != 1 || l.crop[3] != 1 || l.edge[0] != 0 || l.edge[1] != 0 || l.edge[2] != 0 || l.edge[3] != 0;
   for (const Mask& m : l.masks) mask = mask || m.n >= 3;
   const bool gamma = l.gamma != 1;
-  GLuint& p = progs[src * 16 + (color ? 1 : 0) + (gamma ? 2 : 0) + (mask ? 4 : 0) + (grid ? 8 : 0)];
+  GLuint& p = progs[src * 32 + (color ? 1 : 0) + (gamma ? 2 : 0) + (mask ? 4 : 0) + (grid ? 8 : 0) + (clip ? 16 : 0)];
   if (!p) {
-    char def[96];
-    snprintf(def, sizeof def, "#define SRC %d\n#define COLOR %d\n#define GAMMA %d\n#define MASK %d\n#define GRID %d\n", src, color, gamma, mask, grid);
+    char def[128];
+    snprintf(def, sizeof def, "#define SRC %d\n#define COLOR %d\n#define GAMMA %d\n#define MASK %d\n#define GRID %d\n#define CLIP %d\n", src, color, gamma, mask, grid, clip);
     p = zgl_program(def, LAYER_VS, LAYER_FS);
   }
   return p;
@@ -363,6 +418,69 @@ void build_mask(Layer& l) {
   l.mask_dirty = false;
 }
 
+#ifdef ZN_MAPPING_MEDIA
+// Follows the layer's media file: opens what was asked, swaps at the new file's first picture, keeps the volume and the looping as set.
+void sync_media(Layer& l) {
+  if (strcmp(l.media, l.mediaOpened)) {
+    memcpy(l.mediaOpened, l.media, sizeof l.media);
+    close_media(l.mediaComing, l.mediaComingTex);
+    if (l.media[0]) {
+      char cwd[192], path[280];
+      if (getcwd(cwd, sizeof cwd)) {
+        snprintf(path, sizeof path, "%s/media/%s", cwd, l.media);
+        glGenTextures(1, &l.mediaComingTex);
+        l.mediaComing = media_open(l.mediaComingTex, path, l.loop > 0.5f, l.volume);
+        l.volumeSet = l.volume; l.loopSet = l.loop;
+      }
+    } else {
+      close_media(l.mediaShown, l.mediaShownTex);
+      l.frame.ready = false;
+    }
+  }
+  if (l.mediaComing) {
+    MediaFrame first;
+    media_update(l.mediaComing, &first);
+    if (first.ready) {
+      close_media(l.mediaShown, l.mediaShownTex);
+      l.mediaShown = l.mediaComing; l.mediaShownTex = l.mediaComingTex;
+      l.mediaComing = nullptr; l.mediaComingTex = 0;
+      l.frame = first;
+    }
+  }
+  if (!l.mediaShown) return;
+  if (l.volume != l.volumeSet || l.loop != l.loopSet) {
+    media_set(l.mediaShown, l.volume, l.loop > 0.5f);
+    l.volumeSet = l.volume; l.loopSet = l.loop;
+  }
+  media_update(l.mediaShown, &l.frame);
+}
+#endif
+
+// Where a surface reads its source, so a picture of any size fits the zone: scale (xy) and offset (zw) of u_fit. `clip` is true when a contained
+// picture leaves bars, which then show nothing rather than the picture's edge pixels.
+void fit_source(const Layer& l, int32_t sourceW, int32_t sourceH, float fit[4], float clip[4], bool* clipped) {
+  const float* c = l.corners;
+  const float zoneW = (hypotf((c[2] - c[0]) * aspect, c[3] - c[1]) + hypotf((c[4] - c[6]) * aspect, c[5] - c[7])) / 2;
+  const float zoneH = (hypotf((c[6] - c[0]) * aspect, c[7] - c[1]) + hypotf((c[4] - c[2]) * aspect, c[5] - c[3])) / 2;
+  const float* rect = l.inputRect;
+  float scaleU = 1, scaleV = 1;
+  if (l.fit != STRETCH && sourceW > 0 && sourceH > 0 && zoneW > 0 && zoneH > 0 && rect[2] > 0 && rect[3] > 0) {
+    const float ratio = (sourceW * rect[2] / (sourceH * rect[3])) / (zoneW / zoneH);   // > 1: the picture is wider than the zone
+    const bool scaleHeight = (l.fit == CONTAIN) == (ratio > 1);
+    if (scaleHeight) scaleV = l.fit == CONTAIN ? ratio : 1 / ratio;
+    else scaleU = l.fit == CONTAIN ? 1 / ratio : ratio;
+  }
+  fit[0] = scaleU * rect[2];
+  fit[1] = scaleV * rect[3];
+  fit[2] = rect[0] + (1 - scaleU) * 0.5f * rect[2];
+  fit[3] = rect[1] + (1 - scaleV) * 0.5f * rect[3];
+  clip[0] = rect[0] + rect[2] / 2;
+  clip[1] = rect[1] + rect[3] / 2;
+  clip[2] = rect[2] / 2;
+  clip[3] = rect[3] / 2;
+  *clipped = l.fit == CONTAIN && (scaleU > 1 || scaleV > 1);
+}
+
 void draw(int32_t w, int32_t h) {
   if (!quad) {
     static const float q[] = {0, 0, 1, 0, 0, 1, 1, 1};
@@ -379,6 +497,9 @@ void draw(int32_t w, int32_t h) {
   if (h > 0 && fabsf((float)w / h - aspect) > 1e-3f) { aspect = (float)w / h; for (int i = 0; i < nl; i++) L[i].geom_dirty = true; }
   for (int i = 0; i < nl; i++) {
     Layer& l = L[i];
+#ifdef ZN_MAPPING_MEDIA
+    sync_media(l);   // before the visibility: a hidden layer's film goes on, and its sound
+#endif
     if (l.visible < 0.5f || l.opacity <= 0) continue;
     if (!l.vbo || l.geom_dirty) tessellate(l);
     if (l.maskimage >= 0 && sync_tex(l.mimg, l.maskimage) > 0) l.mask_dirty = true;
@@ -389,8 +510,20 @@ void draw(int32_t w, int32_t h) {
     }
     int src = l.source;
     if (src == IMAGE) src = sync_tex(l.tex, l.image) < 0 ? PATTERN : l.tex.rgba ? BAKED : IMAGE;  // missing image: test pattern
+    int32_t sourceW = src >= IMAGE ? l.tex.w : 0, sourceH = src >= IMAGE ? l.tex.h : 0;
+    GLuint sourceTex = src >= IMAGE ? l.tex.id : white;
+#ifdef ZN_MAPPING_MEDIA
+    if (l.mediaShown && l.frame.ready) {
+      src = l.frame.image ? BAKED : EXTERNAL;
+      sourceW = l.frame.w; sourceH = l.frame.h;
+      sourceTex = l.mediaShownTex;
+    }
+#endif
+    float fit[4], clip[4];
+    bool clipped;
+    fit_source(l, sourceW, sourceH, fit, clip, &clipped);
     const bool grid = l.grid > 0.5f || i == selected;
-    GLuint p = layer_prog(src, l, grid);
+    GLuint p = layer_prog(src, l, grid, clipped);
     if (!p) continue;
     glUseProgram(p);
     float m[9], cm[16];
@@ -406,8 +539,14 @@ void draw(int32_t w, int32_t h) {
     glUniform2f(glGetUniformLocation(p, "u_dir"), cosf(a), sinf(a));
     glUniform3f(glGetUniformLocation(p, "u_grid"), (float)(l.cols - 1), (float)(l.rows - 1), 1.f);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, src >= IMAGE ? l.tex.id : white);
+    glBindTexture(src == EXTERNAL ? GL_TEXTURE_EXTERNAL_OES : GL_TEXTURE_2D, sourceTex);
     glUniform1i(glGetUniformLocation(p, "u_tex"), 0);
+    glUniform4fv(glGetUniformLocation(p, "u_fit"), 1, fit);
+    glUniform4fv(glGetUniformLocation(p, "u_clip"), 1, clip);
+#ifdef ZN_MAPPING_MEDIA
+    // the decoder's picture has its first row at the end of the texture: the surface's top reads t = 1 of the player's matrix
+    if (src == EXTERNAL) glUniform4f(glGetUniformLocation(p, "u_stm"), l.frame.scaleS, -l.frame.scaleT, l.frame.offsetS, l.frame.offsetT + l.frame.scaleT);
+#endif
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, l.mtex.id);
     glUniform1i(glGetUniformLocation(p, "u_mask"), 1);
@@ -459,6 +598,11 @@ bool apply(Layer& l, const char* key, const double* v, int nn, const Str* s, int
     if (nn > 0) l.image = (int)v[0];
     return true;
   }
+  if (!strcmp(key, "media")) {   // a file of the media folder; no name: none
+    snprintf(l.media, sizeof l.media, "%s", ns > 0 ? s[0] : "");
+    return true;
+  }
+  if (!strcmp(key, "fit")) { int k = ns > 0 ? find(s[0], FIT_NAMES, 3) : -1; if (k < 0) return false; l.fit = k; return true; }
   if (!strcmp(key, "blend")) { int k = ns > 0 ? find(s[0], BLEND_NAMES, 4) : -1; if (k < 0) return false; l.blend = k; return true; }
   if (!strcmp(key, "image")) { if (nn < 1) return false; l.image = (int)v[0]; return true; }
   if (!strcmp(key, "maskimage")) { if (nn < 1) return false; l.maskimage = (int)v[0]; l.mimg.image = -2; l.mask_dirty = true; return true; }
@@ -550,6 +694,8 @@ void layer_json(Out& o, const Layer& l) {
   o.str("{\"name\":["); o.quoted(l.name); o.str("],\"source\":["); o.quoted(SRC_NAMES[l.source]); o.str("]");
   o.key("image"); o.num(l.image); o.str("]");
   o.key("blend"); o.quoted(BLEND_NAMES[l.blend]); o.str("]");
+  o.key("fit"); o.quoted(FIT_NAMES[l.fit]); o.str("]");
+  o.key("media"); o.quoted(l.media); o.str("]");
   for (const Field& f : FIELDS) { o.key(f.key); o.nums((const float*)((const char*)&l + f.off), f.n); o.str("]"); }
   o.key("mesh"); o.num(l.cols); o.str(","); o.num(l.rows); o.str(","); o.nums(l.mesh, l.cols * l.rows * 2); o.str("]");
   o.key("maskimage"); o.num(l.maskimage); o.str("]");

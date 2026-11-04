@@ -154,6 +154,9 @@ GLuint zgl_program(const char* defines, const char* vs, const char* fs) {   // G
   static const char* pre_fs = "#version 150\n#define varying in\n#define texture2D texture\nout vec4 zgl_color;\n#define gl_FragColor zgl_color\n";
 #endif
   GLuint p = glCreateProgram();
+#ifdef ZGL_ES   // the directive comes before any other token: a shader on a decoder's pictures (zinc:mapping)
+  if (strstr(fs, "samplerExternalOES")) pre_fs = "#version 100\n#extension GL_OES_EGL_image_external : require\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n";
+#endif
   const char* src[2][3] = {{pre_vs, defines, vs}, {pre_fs, defines, fs}};
   for (int i = 0; i < 2; i++) {
     GLuint sh = glCreateShader(i ? GL_FRAGMENT_SHADER : GL_VERTEX_SHADER);

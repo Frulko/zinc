@@ -377,6 +377,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 #### Fixed
 - Discord video (camera and Go Live) from Zinc now opens in the web client; `DISCORD_VIDEO_SPS=orig` goes back to the encoder's own parameter set.
 - The video mapper runs on Android, down to 4.4 and a Mali-400: `zinc:mapping` draws in the app's window, a layer pays only for the colour, gamma, mask and grid steps it uses, and `ZINC_BUFFER=854x480` renders at a panel's real size when the system announces a larger one. A player finds no video where the system has no `libmediandk` instead of the app failing to start. The mapper demo takes `--port` for the OSC port, and its editor tells a stale token from an app that does not answer.
+- `zinc:mapping` plays a video or an image file straight on a layer on Android: `/layer/<n>/media clip.mp4` with its sound and hardware decoding (`/layer/<n>/volume`, `/layer/<n>/loop`), the new file taking over at its first picture. `/layer/<n>/fit` (`stretch`, `contain`, `cover`) and `/layer/<n>/inputRect` fit any source into a smaller zone.
 
 ### Mobile and Zinc Go
 

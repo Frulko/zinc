@@ -8,6 +8,6 @@
     "macos": {},
     "rpi1": {},
     "linux": {},
-    "android": { "libs": ["GLESv2"], "flags": ["-I${ZINC_ENGINE}/plugins/display-gl"] }
+    "android": { "sources": ["native/android/ZincMappingMedia.java"], "libs": ["GLESv2"], "flags": ["-I${ZINC_ENGINE}/plugins/display-gl"] }
   }
 }
