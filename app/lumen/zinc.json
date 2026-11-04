@@ -1,0 +1,36 @@
+{
+  "name": "lumen",
+  "entry": "src/main.tsx",
+  "description": "Take control of your displays: resolution and HiDPI, brightness, DDC, XDR boost, arrangement, mirroring, rotation and virtual displays.",
+  "app": {
+    "id": "dev.zinc.lumen",
+    "name": "Lumen",
+    "version": "0.1.0",
+    "dock": false,
+    "window": {
+      "width": 300,
+      "height": 560,
+      "frame": false,
+      "resizable": false,
+      "alwaysOnTop": true,
+      "transparent": true
+    },
+    "icon": "icon.png"
+  },
+  "targets": {
+    "macos": {
+      "width": 300,
+      "height": 560,
+      "zoom": 1
+    }
+  },
+  "permissions": [
+    "fs",
+    "window",
+    "tray",
+    "shortcut",
+    "autostart",
+    "screen",
+    "power"
+  ]
+}

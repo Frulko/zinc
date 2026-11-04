@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a4bd8"/>
+      <stop offset="0.55" stop-color="#1f2a8c"/>
+      <stop offset="1" stop-color="#0d1240"/>
+    </linearGradient>
+    <linearGradient id="tileEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.3" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.18"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd27a" stop-opacity="0.85"/>
+      <stop offset="0.55" stop-color="#ff9a4d" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ff9a4d" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff3c4"/>
+      <stop offset="0.5" stop-color="#ffc247"/>
+      <stop offset="1" stop-color="#ff8a2b"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.26"/>
+    </linearGradient>
+    <linearGradient id="glassRim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.3"/>
+    </linearGradient>
+    <linearGradient id="stand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.4"/>
+    </linearGradient>
+  </defs>
+  <!-- Apple's icon grid: an 824 px tile centred on the 1024 px canvas. -->
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#tile)"/>
+  <rect x="104" y="104" width="816" height="816" rx="182" fill="none" stroke="url(#tileEdge)" stroke-width="8"/>
+  <circle cx="620" cy="380" r="290" fill="url(#glow)"/>
+  <g stroke="#ffd98a" stroke-width="26" stroke-linecap="round">
+    <line x1="620" y1="168" x2="620" y2="214"/>
+    <line x1="470" y1="230" x2="502" y2="262"/>
+    <line x1="770" y1="230" x2="738" y2="262"/>
+  </g>
+  <circle cx="620" cy="380" r="132" fill="url(#sun)"/>
+  <!-- The display, a pane of glass in front of the sun. -->
+  <rect x="222" y="360" width="580" height="360" rx="44" fill="url(#glass)"/>
+  <rect x="222" y="360" width="580" height="360" rx="44" fill="none" stroke="url(#glassRim)" stroke-width="10"/>
+  <rect x="470" y="720" width="84" height="62" fill="url(#stand)"/>
+  <rect x="392" y="778" width="240" height="24" rx="12" fill="url(#stand)"/>
+</svg>
