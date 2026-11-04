@@ -204,10 +204,11 @@ std::vector<StackFrame> Debugger::stack() const {
 std::string Debugger::fnName(std::uint32_t fn) const {
   if (fn == 0) return "<top level>";
   if (fn >= mod_.functions.size()) return "?";
-  const std::string& n = mod_.functions[fn].name;   // lambdaN: an arrow function, lambdaN:name one stored in `name`
+  const std::string& n = mod_.functions[fn].name;   // lambdaN: an arrow function, lambdaN:path/name one stored in `name`
   if (n.rfind("lambda", 0) != 0 || n.size() == 6 || !std::isdigit(static_cast<unsigned char>(n[6]))) return n;
   const std::size_t colon = n.find(':');
-  return colon == std::string::npos ? "<anonymous>" : n.substr(colon + 1);
+  if (colon == std::string::npos) return "<anonymous>";
+  return n.substr(n.find_last_of(":/") + 1);   // `outer/inner`: profiles name a closure by where it is; here the function keeps its own name and file:line says where (the JSX thunks would read App/<anonymous>/<anonymous>/<anonymous>)
 }
 
 std::string Debugger::where(std::uint32_t line) const {
