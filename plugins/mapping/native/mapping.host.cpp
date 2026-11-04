@@ -549,7 +549,7 @@ void draw(int32_t w, int32_t h) {
 #ifdef ZN_MAPPING_MEDIA
     if (l.mediaShown && l.frame.ready) emptied = false;
 #endif
-    if (emptied && i != selected) continue;   // selected, it shows the test pattern under its frame: it stays findable while it is placed
+    if (emptied && i != selected) continue;   // selected, it shows its frame alone: it stays findable while it is placed, and shows nothing
     if (!l.vbo || l.geom_dirty) tessellate(l);
     if (l.maskimage >= 0 && sync_tex(l.mimg, l.maskimage) > 0) l.mask_dirty = true;
     if (!l.mfbo || l.mask_dirty) {   // back to the framebuffer display-gl bound: the window, or a screenshot's target (zgl.h)
@@ -581,7 +581,7 @@ void draw(int32_t w, int32_t h) {
     glUniformMatrix3fv(glGetUniformLocation(p, "u_m"), 1, GL_FALSE, m);
     glUniformMatrix4fv(glGetUniformLocation(p, "u_cm"), 1, GL_FALSE, cm);
     glUniform1f(glGetUniformLocation(p, "u_ig"), 1.f / (l.gamma > 0.01f ? l.gamma : 0.01f));
-    glUniform1f(glGetUniformLocation(p, "u_alpha"), l.opacity > 1 ? 1 : l.opacity);
+    glUniform1f(glGetUniformLocation(p, "u_alpha"), emptied ? 0 : l.opacity > 1 ? 1 : l.opacity);
     glUniform3f(glGetUniformLocation(p, "u_c1"), l.color[0], l.color[1], l.color[2]);
     glUniform3f(glGetUniformLocation(p, "u_c2"), l.color2[0], l.color2[1], l.color2[2]);
     float a = l.angle * 3.14159265f / 180;

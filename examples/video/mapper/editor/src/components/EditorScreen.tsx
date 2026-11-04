@@ -3,7 +3,7 @@ import * as ui from 'zinc:ui';
 import { Button, Switch, Tabs } from 'zinc:ui/kit';
 import { createSignal } from 'zinc:ui/solid';
 import { send } from '../services/link';
-import { MASK_SLOTS, currentLayer, loadState, maskValues, pointRevision, revision, setLayer, status, stepHistory, store, touch } from '../state';
+import { MASK_SLOTS, currentLayer, loadState, maskValues, pointRevision, revision, setLayer, removeChosenClip, status, stepHistory, store, touch } from '../state';
 import { CalibrationPanel } from './CalibrationPanel';
 import { DragGhost, Dashboard } from './Dashboard';
 import { HistoryPanel } from './HistoryPanel';
@@ -16,6 +16,8 @@ import { OptionsPanel } from './OptionsPanel';
 import { RoomPanel } from './RoomPanel';
 import { ScenePanel } from './ScenePanel';
 import { SoundPanel } from './SoundPanel';
+import { StatusBar } from './StatusBar';
+import { TransferDialog } from './TransferDialog';
 import { SurfaceCanvas, currentMask, selectMask } from './SurfaceCanvas';
 import { Rebuilt } from './Rebuilt';
 
@@ -108,6 +110,9 @@ export function EditorScreen(): i32 {
   ui.bindKeys('mod-z', 'undo');
   ui.bindKeys('mod-shift-z', 'redo');
   ui.bindKeys('mod-y', 'redo');
+  ui.bindKeys('delete', 'remove clip');
+  ui.bindKeys('backspace', 'remove clip');
+  ui.onAction(-1, 'remove clip', removeChosenClip);
   ui.onAction(-1, 'undo', () => { stepHistory('undo'); });
   ui.onAction(-1, 'redo', () => { stepHistory('redo'); });
   const [view, setView] = createSignal(0 as i32);
@@ -137,6 +142,8 @@ export function EditorScreen(): i32 {
       <PropsPanel />
     </View>
     <Dashboard />
+    <StatusBar />
+    <TransferDialog />
     <DragGhost />
   </View>;
 }

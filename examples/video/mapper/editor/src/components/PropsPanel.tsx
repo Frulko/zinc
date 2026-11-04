@@ -1,11 +1,12 @@
 // The selected layer's settings: what it shows, how a media fits, its sound and its colour.
-import { Button, Switch } from 'zinc:ui/kit';
+import { Button, ResizeHandle, Switch } from 'zinc:ui/kit';
 import { send } from '../services/link';
 import { Clip, isEmptyClip } from '../model/clips';
-import { changeClip, currentLayer, fireCell, loadState, numbers, removeClip, saveShow, selectedClip, setLayer, setWord, setWordQuietly, store, touch, word } from '../state';
+import { PANEL_PROPERTIES, panelSize, resizePanel, changeClip, currentLayer, fireCell, loadState, numbers, removeClip, saveShow, selectedClip, setLayer, setWord, setWordQuietly, store, touch, word } from '../state';
 import { Heading, Row, ValueSlider } from './Field';
 import { Rebuilt } from './Rebuilt';
 
+const MIN_WIDTH = 200, MAX_WIDTH = 620;
 const BLENDS: string[] = ['normal', 'add', 'multiply', 'screen'];
 const FITS: string[] = ['stretch', 'contain', 'cover'];
 
@@ -99,7 +100,10 @@ function Content(): i32 {
 }
 
 export function PropsPanel(): i32 {
-  return <ScrollView className="w-[300] p-3 bg-zinc-900">
-    <Rebuilt make={Content} />
-  </ScrollView>;
+  return <View className="flex-row">
+    <ResizeHandle vertical after size={() => panelSize(PANEL_PROPERTIES)} min={MIN_WIDTH} max={MAX_WIDTH} onResize={(px: number) => resizePanel(PANEL_PROPERTIES, px)} />
+    <ScrollView className="p-3 bg-zinc-900" style={{ width: panelSize(PANEL_PROPERTIES) }}>
+      <Rebuilt make={Content} />
+    </ScrollView>
+  </View>;
 }

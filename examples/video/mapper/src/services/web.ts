@@ -12,6 +12,7 @@ import { cardKind } from './cards';
 import { applyCommand, isHudShown } from './control';
 import { historyJson, noteChange, stepHistory } from './history';
 import { LayerCommand } from './layerCommands';
+import { beginTask, deviceJson, endTask } from './device';
 import { deleteMedia, mediaExists, mediaListJson, mediaPath, receiveMedia, thumbnailPath } from './mediaStore';
 import { deleteScene, importScene, isSceneName, loadScene, newScene, saveScene, sceneJson, sceneListJson } from './scenes';
 import { askForCode, pairPage, startPairing } from './pairing';
@@ -90,10 +91,13 @@ function servePage(path: string): Reply | null {
 async function mediaRoute(req: Request, name: string): Promise<Reply> {
   if (!mapping.isFileName(name)) return errorReply(400, 'a media name has letters, digits, - _ and . only');
   if (req.method === 'POST') {
+    const task = beginTask('Receiving', name, parseInt(req.headers.get('content-length')));
     try {
-      await receiveMedia(name, req.bodyStream as BodyStream);
+      await receiveMedia(name, req.bodyStream as BodyStream, (bytes: number) => { task.done += bytes; });
     } catch (e) {
       return errorReply(507, `the upload stopped: ${e}`);
+    } finally {
+      endTask(task);
     }
     return jsonReply(200, mediaListJson());
   }
@@ -103,6 +107,7 @@ async function mediaRoute(req: Request, name: string): Promise<Reply> {
   return { status: 200, body: '', contentType: typeOf(name, FILE_TYPES), file: mediaPath(name) };
 }
 
+let shownName = '', shownAddress = '';
 const THUMBNAIL_COMING = 202;   // try again in a moment
 const asked: string[] = [];     // a video gives its picture or none, once: the next upload of that name clears it
 
@@ -166,6 +171,7 @@ async function apiRoute(req: Request, path: string): Promise<Reply> {
     return mediaRoute(req, named);
   }
   if (path.startsWith('/thumbs/')) return thumbnailRoute(path.slice(8));
+  if (path === '/device' && req.method === 'GET') return jsonReply(200, deviceJson(shownName, shownAddress));
   if (path === '/history' && req.method === 'GET') return jsonReply(200, historyJson());
   if (path.startsWith('/history/') && req.method === 'POST') return stepHistory(path.slice(9)) ? jsonReply(200, historyJson()) : errorReply(404, 'no such entry');
   if (path === '/show' && req.method === 'GET') return jsonReply(200, showJson());
@@ -209,7 +215,9 @@ export function startWebEditor(port: i32, deviceName: string): string {
     return '';
   }
   startPairing(port, token, deviceName);
-  return `http://${lanAddress()}:${port}/?token=${token}`;
+  shownName = deviceName !== '' ? deviceName : os.hostname();
+  shownAddress = `${lanAddress()}:${port}`;
+  return `http://${shownAddress}/?token=${token}`;
 }
 
 function lanAddress(): string {

@@ -57,8 +57,9 @@ is the status card, F fullscreen, Esc quits. Options: `--media <folder>`, `--por
 5. **Build the show.** The grid below the views works like Resolume's and Millumin's: a row per layer, a column per moment of the
    show. Drag a tile of the library onto a cell, or click a tile and then click cells. It holds your media and the mapper's own
    sources (test pattern, gradient, plain colours).
-6. **Play it.** A click on a clip plays it on its layer, and the others go on; a column's title plays the whole column and empties
-   the layers it has nothing for. A layer's **x** empties it, **Stop all** empties every layer. The clip that plays has a green
+6. **Play it.** A click on a clip plays it on its layer, and the others go on, a second click stops it; a column's title plays the whole column and
+   empties the layers it has nothing for, a second click stops it, and an empty column stops everything. A clip's **x**, or Delete on the
+   chosen clip, takes it out of the grid. A layer's **x** empties it, **Stop all** empties every layer. The clip that plays has a green
    border; its fit and its looping are in the inspector and follow at once. Drag a clip to another cell to move it. The remote
    steps through the columns that have clips, and what played comes back after a restart.
 
@@ -97,6 +98,12 @@ A low-resolution projector bleeds past the edge of a shape, onto what stands beh
 a layer: its **cut** hides a strip outright, its **gradient** fades what follows, its **curve** shapes that fade. **Inside**, **Outside** or **Both** says which way the gradient goes
 from that line: into the layer, past its edge onto what stands behind, or across the edge. It follows the warp, and the lines on the
 canvas show where each one ends.
+
+### Sending media, following the device
+
+**Send files** and **Send a folder** in the library, or a drop on the window, open a window that follows each file; close it and they keep
+going. The bar at the bottom shows the device (address, system, frame rate, memory, load) and its **i** lists what runs on it. Drag the
+edges between the library, the views, the inspector and the grid to resize them: the sizes stay in this editor.
 
 ### Moving a zone, going back
 

@@ -9,6 +9,7 @@ import { drawOutputCard } from './services/cards';
 import { createDemoLayers } from './layers';
 import { liveImage, paintLiveImage } from './live';
 import { isHudShown, listenOsc, setHudShown } from './services/control';
+import { setFrameRate } from './services/device';
 import { noteChange, startHistory } from './services/history';
 import { onLayerChange } from './services/layerCommands';
 import { bindDecodedVideos, followLayerMedia, useMediaFolder } from './services/layerMedia';
@@ -55,6 +56,7 @@ let t = 0, fps = 60;
 gfx.onFrame((dt: number) => {
   t += dt;
   if (dt > 0) fps = fps * 0.95 + (1 / dt) * 0.05;
+  setFrameRate(fps);
   if (gfx.wasPressed(gfx.Btn.Select)) {
     setHudShown(!isHudShown());
     if (isHudShown()) openCode();

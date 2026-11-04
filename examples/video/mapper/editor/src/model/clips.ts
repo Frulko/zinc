@@ -23,7 +23,7 @@ export function clipFrom(saved: any): Clip {
   };
 }
 
-function columnIsEmpty(cells: Clip[]): boolean {
+export function columnIsEmpty(cells: Clip[]): boolean {
   for (const cell of cells) {
     if (!isEmptyClip(cell)) return false;
   }

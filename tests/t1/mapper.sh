@@ -85,6 +85,20 @@ if load("show2")["active"] != 1: problems.append("/column is not remembered")
 if load("show3")["active"] != 1: problems.append("a save from the page changes what plays")
 if problems: print("; ".join(problems)); sys.exit(1)
 PY
+# the device tells what it runs: an upload shows while it arrives, and is gone after
+api "http://127.0.0.1:$web/device" >"$tmp/d0.json"
+curl -s -m 20 -o /dev/null --limit-rate 1M -H "x-zinc-token: $token" --data-binary @"$tmp/clip.bin" "http://127.0.0.1:$web/media/slow.bin" & slow=$!
+sleep 1; api "http://127.0.0.1:$web/device" >"$tmp/d1.json"; wait $slow; api "http://127.0.0.1:$web/device" >"$tmp/d2.json"
+python3 - "$tmp" <<'PY' || fail=1
+import json, sys
+t = sys.argv[1]; load = lambda n: json.load(open(f"{t}/{n}.json"))
+d0, d1, d2 = load("d0"), load("d1"), load("d2")
+problems = []
+if d0["tasks"] != [] or not d0["fps"] or not d0["system"] or not d0["totalMemory"]: problems.append(f"no device facts: {d0}")
+if not d1["tasks"] or d1["tasks"][0]["name"] != "slow.bin" or not 0 < d1["tasks"][0]["done"] < d1["tasks"][0]["total"]: problems.append(f"an upload is not followed: {d1}")
+if d2["tasks"] != [] or d2["mediaFiles"] != d0["mediaFiles"] + 1: problems.append(f"an upload does not end: {d2}")
+if problems: print("device: " + "; ".join(problems)); sys.exit(1)
+PY
 # the history: a burst of commands is one action, firing a clip is none, undo and redo come back, a removed layer returns
 at() { sleep 1.1; api "http://127.0.0.1:$web/history"; }
 step() { api -X POST "http://127.0.0.1:$web/history/$1" >/dev/null; api "http://127.0.0.1:$web/state"; }

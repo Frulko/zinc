@@ -28,14 +28,17 @@ export interface MediaFile { name: string; bytes: number }
 export interface HistoryList { entries: string[]; at: i32 }
 
 /** This editor's preferences: they stay in the browser or the client, not in a scene. */
-export interface Options { selectionFrame: boolean; focusRing: boolean; fineStep: number; coarseStep: number }
+export interface Options { selectionFrame: boolean; focusRing: boolean; fineStep: number; coarseStep: number; panels: number[] }
+export const PANEL_LIBRARY: i32 = 0, PANEL_PROPERTIES: i32 = 1, PANEL_GRID: i32 = 2;   // panels: their sizes in pixels
 const OPTIONS_KEY = 'mapper-options';
 
 function savedOptions(): Options {
-  const defaults: Options = { selectionFrame: true, focusRing: false, fineStep: 1, coarseStep: 10 };
+  const defaults: Options = { selectionFrame: true, focusRing: false, fineStep: 1, coarseStep: 10, panels: [248, 300, 190] };
   if (!storage.keys().includes(OPTIONS_KEY)) return defaults;
   try {
-    return JSON.parse(storage.get(OPTIONS_KEY)) as Options;
+    const saved = JSON.parse(storage.get(OPTIONS_KEY));
+    if (saved.panels === undefined) saved.panels = defaults.panels;   // saved before panels could be resized
+    return saved as Options;
   } catch (e) {
     return defaults;
   }
@@ -135,6 +138,15 @@ export function showSelection(): void {
   send('/select', [store.options.selectionFrame ? store.selected : -1]);
 }
 
+const [panelSizes, setPanelSizes] = createSignal<number[]>(store.options.panels);
+export function panelSize(panel: i32): number { return panelSizes()[panel]; }
+export function resizePanel(panel: i32, pixels: number): void {
+  const sizes = panelSizes().slice();
+  sizes[panel] = pixels;
+  setPanelSizes(sizes);
+  setOptions((options: Options) => { options.panels = sizes; });
+}
+
 export function setOptions(change: (options: Options) => void): void {
   change(store.options);
   storage.set(OPTIONS_KEY, JSON.stringify(store.options));
@@ -230,6 +242,7 @@ export function fireCell(column: i32, layer: i32): void {
 
 export function stopLayer(layer: i32): void {
   markPlaying(layer, -1);
+  if (!store.playing.includes(store.activeColumn)) store.activeColumn = -1;   // the last clip of the column on
   send(`/stop`, [layer]);
   touch();
 }
@@ -237,6 +250,7 @@ export function stopLayer(layer: i32): void {
 export function stopAll(): void {
   store.playing = [];
   store.activeColumn = -1;
+  store.clipColumn = -1;
   send('/stop', []);
   touch();
 }
@@ -257,6 +271,10 @@ export function removeClip(column: i32, layer: i32): void {
   placeClip(column, layer, EMPTY_CLIP);
   store.clipColumn = -1;
   touch();
+}
+
+export function removeChosenClip(): void {
+  if (!isEmptyClip(selectedClip())) removeClip(store.clipColumn, store.clipLayer);
 }
 
 /** A dragged clip changes cell; what was there goes to where it came from. */
@@ -365,26 +383,13 @@ export async function importScene(path: string): Promise<void> {
   touch();
 }
 
-/** Sends files to the mapper; the last one becomes a clip of the selected layer and plays at once. */
-export async function sendMedia(paths: string[]): Promise<void> {
-  let last = '';
-  for (const path of paths) {
-    const name = mediaName(path);
-    try {
-      const list = await sendFile(`/media/${name}`, path, (part: number) => { setStatus(`sending ${name}: ${Math.round(part * 100)}%`); });
-      store.media = list as MediaFile[];
-      last = name;
-      setStatus(`${name} is on the mapper`);
-    } catch (e) {
-      setStatus(`${name} did not arrive: ${e}`);
-    }
-  }
-  if (last === '' || store.selected < 0) return;
+/** A media that just arrived: a clip of the selected layer, playing at once. */
+export async function placeClipAndPlay(clip: Clip): Promise<void> {
   const layer = store.selected;
   const column = firstFreeColumn(store.columns, layer);
   if (isPlaying(column, layer)) stopLayer(layer);
   if (column >= store.columns.length) store.columns = ensureColumns(store.columns);
-  placeClip(column, layer, { ...EMPTY_CLIP, label: last, media: last });
+  placeClip(column, layer, clip);
   await new Promise<void>((resolve: () => void) => { setTimeout(resolve, SETTLE_MS); });   // the show has the clip before it fires
   fireCell(column, layer);
 }

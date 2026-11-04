@@ -97,6 +97,7 @@ export function fireCell(column: i32, layer: i32): boolean {
 export function stopLayer(layer: i32): void {
   if (layer < 0 || layer >= mapping.layerCount()) return;
   emptyLayer(layer);
+  if (!playingList().includes(show.active)) show.active = -1;   // the last clip of the column on
   saveShow();
 }
 
@@ -106,9 +107,13 @@ export function stopAll(): void {
   saveShow();
 }
 
-/** Plays a whole column, as in Resolume: a layer with no clip in it is emptied. False when there is no such column. */
+/** Plays a whole column, as in Resolume: a layer with no clip in it is emptied, and a column with none stops everything. False when there is no such column. */
 export function fireColumn(index: i32): boolean {
   if (index < 0 || index >= (show.columns as any[]).length) return false;
+  if (!columnHasClips(index)) {
+    stopAll();
+    return true;
+  }
   const list = playingList();
   for (let layer: i32 = 0; layer < mapping.layerCount(); layer++) {
     const clip = clipAt(index, layer);

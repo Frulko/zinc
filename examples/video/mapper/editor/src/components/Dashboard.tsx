@@ -1,11 +1,11 @@
-// The grid, as in Resolume and Millumin: a row per layer, top layer first, a column per moment of the show. A click on a clip plays it on its layer,
-// a column's title plays the whole column, a layer's x empties it. Clips arrive by a drag from the library, or by a click with a tile armed.
-import { Button, Switch } from 'zinc:ui/kit';
+// The grid, as in Resolume and Millumin: a row per layer, top layer first, a column per moment of the show. A click on a clip plays it on its layer, a second click stops it,
+// a column's title plays the whole column or stops it, an empty column stops everything, a layer's x empties it. Clips arrive by a drag from the library, or by a click with a tile armed.
+import { Button, ResizeHandle, Switch } from 'zinc:ui/kit';
 import * as dnd from 'zinc:ui/dnd';
 import { createNodeRef, createSignal, onCleanup, onMount } from 'zinc:ui/solid';
-import { Clip, Column, clipFrom, isEmptyClip } from '../model/clips';
+import { Clip, Column, clipFrom, columnIsEmpty, isEmptyClip } from '../model/clips';
 import { send } from '../services/link';
-import { afterLayerChange, clipAt, fireCell, fireColumn, isPlaying, numbers, placeClip, selectLayer, stopAll, stopLayer, store, swapClips, touch, word } from '../state';
+import { PANEL_GRID, afterLayerChange, clipAt, fireCell, fireColumn, isPlaying, numbers, panelSize, placeClip, removeClip, resizePanel, selectLayer, stopAll, stopLayer, store, swapClips, touch, word } from '../state';
 import { ClipThumb } from './ClipThumb';
 import { ValueSlider } from './Field';
 import { Rebuilt } from './Rebuilt';
@@ -14,6 +14,7 @@ const [dropCell, setDropCell] = createSignal('');
 const [ghost, setGhost] = createSignal<number[]>([]);   // x, y of the tile being dragged
 const [ghostLabel, setGhostLabel] = createSignal('');
 const GHOST_OFFSET = 12;
+const MIN_GRID = 70, MAX_GRID = 640;
 
 function cellKey(column: i32, layer: i32): string { return `${column}:${layer}`; }
 
@@ -57,11 +58,23 @@ function pressCell(column: i32, layer: i32, clip: Clip): void {
     return;
   }
   if (isEmptyClip(clip)) {
+    if (columnIsEmpty(store.columns[column].cells)) stopAll();
     store.clipColumn = -1;
     selectLayer(layer);
     return;
   }
+  if (isPlaying(column, layer)) {
+    stopLayer(layer);
+    store.clipColumn = -1;
+    touch();
+    return;
+  }
   fireCell(column, layer);
+}
+
+function pressColumn(index: i32): void {
+  if (store.activeColumn === index || columnIsEmpty(store.columns[index].cells)) stopAll();
+  else fireColumn(index);
 }
 
 function CellBox(props: { column: i32; layer: i32; rowSelected: boolean }): i32 {
@@ -82,6 +95,8 @@ function CellBox(props: { column: i32; layer: i32; rowSelected: boolean }): i32 
     onPress={() => pressCell(props.column, props.layer, clip)}>
     {!empty && <ClipThumb clip={clip} className="absolute left-0 top-0 right-0 bottom-0" />}
     {!empty && <Text className="absolute left-0 right-0 bottom-0 px-1 bg-black/60 text-[10px] text-zinc-100" numberOfLines={1}>{clip.label}</Text>}
+    {!empty && <View className="absolute right-0 top-0 w-[18] h-[18] items-center justify-center rounded bg-black/60 cursor-pointer" role="button" aria-label="Remove clip"
+      onPress={() => removeClip(props.column, props.layer)}><Text className="text-[11px] text-zinc-100">x</Text></View>}
   </View>;
 }
 
@@ -129,7 +144,7 @@ function Grid(): i32 {
     <ScrollView className="w-0 grow overflow-x-auto">
       <View className="gap-1">
         <View className="flex-row gap-1">
-          {store.columns.map((column: Column, index: i32) => <View className={`w-[112] h-[24] rounded items-center justify-center cursor-pointer ${store.activeColumn === index ? 'bg-emerald-600' : 'bg-zinc-800'}`} onPress={() => fireColumn(index)}>
+          {store.columns.map((column: Column, index: i32) => <View className={`w-[112] h-[24] rounded items-center justify-center cursor-pointer ${store.activeColumn === index ? 'bg-emerald-600' : 'bg-zinc-800'}`} onPress={() => pressColumn(index)}>
             <Text className="text-[11px] text-zinc-100">{column.name}</Text>
           </View>)}
         </View>
@@ -172,19 +187,22 @@ function Toolbar(): i32 {
     <Button size="sm" variant="secondary" label="Down" onClick={() => moveSelected(-1)} />
     <Button size="sm" variant="secondary" label="Delete" onClick={removeSelected} />
     <View className="grow" />
-    <Text className="text-[11px] text-zinc-500 mr-2">A click plays a clip; a column's title plays the column.</Text>
+    <Text className="text-[11px] text-zinc-500 mr-2">A click plays a clip, a second one stops it; a column's title plays or stops the column; an empty column stops everything.</Text>
     <Button size="sm" variant="secondary" label="Stop all" onClick={stopAll} />
   </View>;
 }
 
 export function Dashboard(): i32 {
   const [open, setOpen] = createSignal(true);
-  return <View className={`${open() ? 'h-[250]' : ''} p-2 gap-2 bg-zinc-900 border-t border-zinc-700`}>
-    <View className="flex-row items-center gap-2">
-      <View className="w-0 grow"><Toolbar /></View>
-      <Button size="sm" variant="ghost" label={open() ? 'Hide grid' : 'Show grid'} onClick={() => setOpen(!open())} />
+  return <View className="bg-zinc-900">
+    {open() && <ResizeHandle after size={() => panelSize(PANEL_GRID)} min={MIN_GRID} max={MAX_GRID} onResize={(px: number) => resizePanel(PANEL_GRID, px)} />}
+    <View className="p-2 gap-2">
+      <View className="flex-row items-center gap-2">
+        <View className="w-0 grow"><Toolbar /></View>
+        <Button size="sm" variant="ghost" label={open() ? 'Hide grid' : 'Show grid'} onClick={() => setOpen(!open())} />
+      </View>
+      {open() && <ScrollView style={{ height: panelSize(PANEL_GRID) }}><Rebuilt make={Grid} /></ScrollView>}
     </View>
-    {open() && <ScrollView className="h-0 grow"><Rebuilt make={Grid} /></ScrollView>}
   </View>;
 }
 

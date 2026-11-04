@@ -29,17 +29,29 @@ const pathOf = (file) => { const path = `picked/${++pickedCount}/${file.name}`; 
 g.addEventListener('dragover', (e) => e.preventDefault());
 g.addEventListener('drop', (e) => {
   e.preventDefault();
-  for (const file of e.dataTransfer.files) emit('drop', pathOf(file));
+  // a dropped folder gives the files in it, as a folder picked in a dialog does
+  const entries = [...e.dataTransfer.items].map((item) => item.webkitGetAsEntry && item.webkitGetAsEntry());
+  if (!entries.length || entries.some((entry) => !entry)) {
+    for (const file of e.dataTransfer.files) emit('drop', pathOf(file));
+    return;
+  }
+  const walk = (entry) => {
+    if (entry.isFile) { entry.file((file) => emit('drop', pathOf(file))); return; }
+    const reader = entry.createReader();
+    const more = () => reader.readEntries((part) => { if (part.length) { part.forEach(walk); more(); } });   // readEntries gives a folder in batches
+    more();
+  };
+  entries.forEach(walk);
 });
 let dialogCount = 0;
 
 const ops = {
   'dialog.open': (a) => {
-    if (a.directory) return unsupported('dialog.open for a folder');
     const token = `web-${++dialogCount}`;
     const input = g.document.createElement('input');
     input.type = 'file';
     input.multiple = !!a.multiple;
+    if (a.directory) input.webkitdirectory = true;   // the answer is the files in it: a page has no path of a folder
     input.onchange = () => emit('dialog-result', token, JSON.stringify([...input.files].map(pathOf)));
     input.oncancel = () => emit('dialog-result', token, 'null');
     input.click();

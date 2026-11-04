@@ -2,6 +2,7 @@
 import * as dialog from 'zinc:system/dialog';
 import * as fs from 'zinc:fs';
 import { on } from 'zinc:system';
+import { platform } from 'zinc:sys';
 
 export async function pickMedia(): Promise<string[]> {
   const options = new dialog.OpenOptions();
@@ -9,6 +10,28 @@ export async function pickMedia(): Promise<string[]> {
   options.multiple = true;
   const paths = await dialog.open(options);
   return paths === null ? [] : paths as string[];
+}
+
+/** What a folder holds, on a page as the files in it, in a native client as its path (expandFolders). */
+export async function pickFolder(): Promise<string[]> {
+  const options = new dialog.OpenOptions();
+  options.title = 'Folder of media to send to the mapper';
+  options.directory = true;
+  const paths = await dialog.open(options);
+  return paths === null ? [] : paths as string[];
+}
+
+/** The files under the folders among these paths. A page only has files, with no real path. */
+export function expandFolders(paths: string[]): string[] {
+  if (platform() === 'web') return paths;
+  const files: string[] = [];
+  for (const path of paths) {
+    if (fs.stat(path).isDirectory) {
+      const inside = fs.readDir(path).filter((entry: any): boolean => !(entry.name as string).startsWith('.')).map((entry: any): string => `${path}/${entry.name}`);
+      for (const file of expandFolders(inside)) files.push(file);
+    } else files.push(path);
+  }
+  return files;
 }
 
 export async function pickScene(): Promise<string | null> {

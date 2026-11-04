@@ -6,7 +6,7 @@ import { EXTENSIONS, isVideo } from 'zinc:video';
 
 const THUMBNAILS = '.thumbs';   // hidden: never listed as a media
 let folder = '';
-let videos: i32 = 0;   // what the status card shows; counted when the folder changes, not at each frame
+let videos: i32 = 0, count: i32 = 0, bytes = 0;   // what the status card and the editor show; counted when the folder changes, not at each frame
 
 export function openMediaFolder(dir: string): void {
   folder = dir;
@@ -17,12 +17,19 @@ export function openMediaFolder(dir: string): void {
 
 function countVideos(): void {
   videos = 0;
+  count = 0;
+  bytes = 0;
   for (const entry of fs.readDir(folder)) {
-    if (!entry.name.startsWith('.') && isVideo(entry.name, EXTENSIONS)) videos++;
+    if (entry.name.startsWith('.')) continue;
+    count++;
+    bytes += fs.stat(mediaPath(entry.name)).size;
+    if (isVideo(entry.name, EXTENSIONS)) videos++;
   }
 }
 
 export function videoCount(): i32 { return videos; }
+export function mediaCount(): i32 { return count; }
+export function mediaBytes(): number { return bytes; }
 
 export function mediaPath(name: string): string { return `${folder}/${name}`; }
 
@@ -55,11 +62,14 @@ export function deleteMedia(name: string): boolean {
 }
 
 /** Writes the body to the folder under `name`. Rejects when the client leaves or the disk refuses; no partial file stays. */
-export async function receiveMedia(name: string, body: BodyStream): Promise<void> {
+export async function receiveMedia(name: string, body: BodyStream, onPart: (bytes: number) => void): Promise<void> {
   const coming = mediaPath(`.${name}.part`);
   fs.writeText(coming, '');
   try {
-    await body.each((chunk: string) => { fs.appendText(coming, chunk); });
+    await body.each((chunk: string) => {
+      fs.appendText(coming, chunk);
+      onPart(chunk.length);
+    });
     fs.rename(coming, mediaPath(name));
     forgetThumbnail(name);
     countVideos();

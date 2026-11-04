@@ -10,7 +10,8 @@ import { EditorScreen } from './components/EditorScreen';
 import { ADDRESS_KEY, BACKGROUND } from './constants';
 import { connect, startSending } from './services/link';
 import { onFileDropped } from './services/files';
-import { connected, loadMedia, loadShow, loadState, sendMedia, setStatus } from './state';
+import { connected, loadMedia, loadShow, loadState, setStatus } from './state';
+import { sendFiles } from './transfers';
 
 function givenAddress(): string {
   if (platform() === 'web') {
@@ -43,5 +44,5 @@ function App(): i32 {
 
 setTheme(DARK);
 startSending();
-onFileDropped((path: string) => { sendMedia([path]); });
+onFileDropped((path: string) => { sendFiles([path]); });
 render(App, BACKGROUND, (dt: number) => {});
