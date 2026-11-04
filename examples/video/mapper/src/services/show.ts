@@ -61,6 +61,7 @@ function layerSet(layer: i32, key: string, numbers: number[], strings: string[])
 
 function play(clip: any, layer: i32): void {
   if (typeof clip.fit === 'string') layerSet(layer, 'fit', [], [clip.fit as string]);
+  layerSet(layer, 'frame', Array.isArray(clip.frame) ? clip.frame as number[] : [0, 0, 1], []);
   if (typeof clip.loop === 'boolean') layerSet(layer, 'loop', [clip.loop as boolean ? 1 : 0], []);
   if (typeof clip.media === 'string' && clip.media !== '') {
     layerSet(layer, 'media', [], [clip.media as string]);

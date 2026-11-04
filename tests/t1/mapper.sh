@@ -38,6 +38,41 @@ want = {"inside": (.175, {.48: 255, .55: 128, .595: 0, .65: 0}), "outside": (.49
 problems = [f"{name} at x={x}: {light(x, y)}, not {v}" for name, (y, row) in want.items() for x, v in row.items() if abs(light(x, y) - v) > 40]
 if problems: print("edge direction: " + "; ".join(problems)); sys.exit(1)
 PY
+# a picture 2:1 of four bands (red, green, blue, white) in square zones: what each fit shows of it
+fits="$tmp/fits"; cp -R "$project" "$fits"; mkdir -p "$fits/media"
+python3 - "$fits" <<'PY'
+import json, struct, sys, zlib
+w, h = 200, 100
+bands = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+row = b"\0" + b"".join(bytes(bands[x * 4 // w]) for x in range(w))
+chunk = lambda kind, data: struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+open(sys.argv[1] + "/media/bands.png", "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(row * h)) + chunk(b"IEND", b""))
+def zone(left, fit, frame=(0, 0, 1)):
+    x, y, side, tall = left, .25, .225, .4   # 16:9: square
+    return {"name": ["z"], "media": ["bands.png"], "fit": [fit], "frame": list(frame), "corners": [x, y, x + side, y, x + side, y + tall, x, y + tall]}
+json.dump({"version": [1], "layers": [zone(.01, "cover"), zone(.26, "contain"), zone(.51, "height", (-1, 0, 1)), zone(.76, "width")]}, open(sys.argv[1] + "/mapping.json", "w"))
+PY
+ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SHOT="$tmp/f.bmp" timeout 120 "$ZINC" run "$fits/src/main.ts" -- --port 0 --web off >"$tmp/fits.log" 2>&1
+python3 - "$tmp/f.bmp" <<'PY' || fail=1
+import struct, sys
+b = open(sys.argv[1], "rb").read()
+start = struct.unpack("<I", b[10:14])[0]; w, h = struct.unpack("<ii", b[18:26]); depth = struct.unpack("<H", b[28:30])[0] // 8
+stride = (w * depth + 3) & ~3
+def colour(x, y):
+    at = start + (h - 1 - int(y * h)) * stride + int(x * w) * depth
+    return (b[at + 2], b[at + 1], b[at])
+R, G, B, W, K = (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255), (0, 0, 0)
+Y = .45; SIDE = .225; TOP = .27
+want = [("cover middle", .01, Y, G, 0.1), ("cover middle", .01, Y, B, 0.9),   # the middle half: green then blue
+        ("contain whole", .26, Y, R, 0.05), ("contain whole", .26, Y, W, 0.95), ("contain bar", .26, TOP, K, 0.5),
+        ("height at the start", .51, Y, R, 0.1), ("height at the start", .51, Y, G, 0.9),   # the first half
+        ("width whole", .76, Y, R, 0.05), ("width whole", .76, Y, W, 0.95)]
+problems = []
+for name, left, y, c, along in want:
+    got = colour(left + SIDE * along, y)
+    if max(abs(got[k] - c[k]) for k in range(3)) > 60: problems.append(f"{name} at {along}: {got}, not {c}")
+if problems: print("fit: " + "; ".join(problems)); sys.exit(1)
+PY
 # a JavaScript engine loads the project's display driver too (zinc.json "display": "gl", which zinc:mapping draws through), with no ZINC_DISPLAY
 # (a deterministic run keeps the host window unless ZINC_DISPLAY asks: this one is not)
 ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_FRAMES=30 timeout 120 "$ZINC" run "$project" --engine quickjs -- --web off >"$tmp/qjs.log" 2>&1 && grep -q ", 3 layers" "$tmp/qjs.log" || { echo "mapper on quickjs: $(tail -c 300 "$tmp/qjs.log")"; fail=1; }

@@ -70,6 +70,24 @@ function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): 
 }
 
 /** Where the deformation grid sends (s, t) of the layer's unit square. */
+/** A zone's width and height as they look on the output, as the mapper measures them. */
+export function zoneSize(corners: number[], aspect: number): number[] {
+  const side = (a: i32, b: i32): number => Math.hypot((corners[b * 2] - corners[a * 2]) * aspect, corners[b * 2 + 1] - corners[a * 2 + 1]);
+  return [(side(0, 1) + side(3, 2)) / 2, (side(0, 3) + side(1, 2)) / 2];
+}
+
+/** The part of the picture a zone reads, x y w h with the picture 0..1: past it, bars. As the mapper's fit_source. */
+export function framedPart(fit: string, ratio: number, frame: number[]): number[] {
+  let w = 1, h = 1;
+  if (fit !== 'stretch') {
+    if (fit === 'width' || (fit === 'contain' && ratio > 1) || (fit === 'cover' && ratio <= 1)) h = ratio;
+    else w = 1 / ratio;
+  }
+  w /= frame[2];
+  h /= frame[2];
+  return [(1 - w) * 0.5 * (1 + frame[0]), (1 - h) * 0.5 * (1 + frame[1]), w, h];
+}
+
 export function warp(mesh: number[], s: number, t: number): Point {
   const cols: i32 = mesh[0] as i32, rows: i32 = mesh[1] as i32;
   const fx = s * (cols - 1), fy = t * (rows - 1);

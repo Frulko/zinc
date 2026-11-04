@@ -105,6 +105,12 @@ canvas show where each one ends.
 going. The bar at the bottom shows the device (address, system, frame rate, memory, load) and its **i** lists what runs on it. Drag the
 edges between the library, the views, the inspector and the grid to resize them: the sizes stay in this editor.
 
+### What a clip shows of its picture
+
+A clip's **fit** says how its picture takes the zone: **stretch** fills it and deforms, **contain** shows it whole with bars, **cover**
+fills it and cuts what exceeds, **width** or **height** makes that side span the zone. The inspector says what is cut, and shows the
+picture with the part on screen: drag that part to choose what shows, and **zoom** to go closer.
+
 ### Moving a zone, going back
 
 In *Output*, drag a zone to move it whole, or press the arrows with no point selected (1 pixel, with Shift 10); corners linked to it

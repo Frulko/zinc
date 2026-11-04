@@ -25,12 +25,12 @@ namespace raster = zrt::raster;
 enum { MAX_LAYERS = 16, MAX_MESH = 16, MAX_MASKS = 4, MAX_PTS = 32, MAX_ARGS = 2 + MAX_MESH * MAX_MESH * 2, MAX_STRS = 4,
        MASK_PX = 512, GRID = 32 };
 enum { PATTERN, SOLID, GRADIENT, IMAGE, BAKED, EXTERNAL, NPROG };  // BAKED: IMAGE from a baked (RGBA) asset; EXTERNAL: the decoder's pictures
-enum { STRETCH, CONTAIN, COVER };
+enum { STRETCH, CONTAIN, COVER, FIT_WIDTH, FIT_HEIGHT };
 enum { NORMAL, ADD, MULTIPLY, SCREEN };
 const char* SRC_NAMES[] = {"pattern", "solid", "gradient", "image", "none"};
 const int SOURCE_NONE = 4;   // an emptied layer draws nothing; a stored source only: BAKED and EXTERNAL, its neighbours in the enum, are worked out at the draw
 const char* BLEND_NAMES[] = {"normal", "add", "multiply", "screen"};
-const char* FIT_NAMES[] = {"stretch", "contain", "cover"};
+const char* FIT_NAMES[] = {"stretch", "contain", "cover", "width", "height"};
 typedef char Str[64];
 
 struct Mask { int n; float feather, invert, pts[MAX_PTS * 2]; };
@@ -42,6 +42,7 @@ struct Layer {
   float visible, color[3], color2[3], angle, corners[8], position[2], scale, rotation, opacity;
   float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], inset[4], edgedir[4], grid;  // inset: what each side hides outright, its edge ramp starts from there; edgedir: which way that ramp goes (0 inside, 1 outside, 2 across)
   float inputRect[4], volume, loop;  // inputRect: the part of the source shown (x y w h in 0..1)
+  float frame[3];  // what a fit shows of the picture: where it slides along each axis (-1 start, 0 middle, 1 end) and a zoom
   char media[64], mediaOpened[64];   // a file of the media folder ("" none), and the one asked of the player
   float mesh[MAX_MESH * MAX_MESH * 2];
   Mask masks[MAX_MASKS];
@@ -68,7 +69,7 @@ const Field FIELDS[] = {
   F(visible, 1, 0), F(color, 3, 0), F(color2, 3, 0), F(angle, 1, 0), F(corners, 8, 0), F(position, 2, 0), F(scale, 1, 0),
   F(rotation, 1, 0), F(opacity, 1, 0), F(brightness, 1, 0), F(contrast, 1, 0), F(saturation, 1, 0), F(hue, 1, 0),
   F(gamma, 1, 0), F(gain, 3, 0), F(crop, 5, 2), F(edge, 5, 2), F(inset, 4, 2), F(edgedir, 4, 2), F(grid, 1, 0),
-  F(inputRect, 4, 0), F(volume, 1, 0), F(loop, 1, 0)};
+  F(inputRect, 4, 0), F(frame, 3, 0), F(volume, 1, 0), F(loop, 1, 0)};
 #undef F
 
 void identity_mesh(Layer& l) {
@@ -92,6 +93,7 @@ void defaults(Layer& l, int idx) {
   l.grid = 0;
   const float wholeSource[4] = {0, 0, 1, 1};
   memcpy(l.inputRect, wholeSource, sizeof wholeSource);
+  l.frame[2] = 1;
   l.volume = 1; l.loop = 1; l.fit = STRETCH; l.media[0] = 0;
   for (Mask& m : l.masks) m.n = 0;
   l.cols = l.rows = 2;
@@ -506,14 +508,18 @@ void fit_source(const Layer& l, int32_t sourceW, int32_t sourceH, float fit[4], 
   float scaleU = 1, scaleV = 1;
   if (l.fit != STRETCH && sourceW > 0 && sourceH > 0 && zoneW > 0 && zoneH > 0 && rect[2] > 0 && rect[3] > 0) {
     const float ratio = (sourceW * rect[2] / (sourceH * rect[3])) / (zoneW / zoneH);   // > 1: the picture is wider than the zone
-    const bool scaleHeight = (l.fit == CONTAIN) == (ratio > 1);
-    if (scaleHeight) scaleV = l.fit == CONTAIN ? ratio : 1 / ratio;
-    else scaleU = l.fit == CONTAIN ? 1 / ratio : ratio;
+    // the picture's width spans the zone, or its height; what it then lacks along the other axis is a bar (scale > 1), what it has too much is cut (scale < 1)
+    const bool spansWidth = l.fit == FIT_WIDTH || (l.fit == CONTAIN && ratio > 1) || (l.fit == COVER && ratio <= 1);
+    if (spansWidth) scaleV = ratio;
+    else scaleU = 1 / ratio;
   }
+  const float zoom = l.frame[2] > 0 ? l.frame[2] : 1;
+  scaleU /= zoom;
+  scaleV /= zoom;
   fit[0] = scaleU * rect[2];
   fit[1] = scaleV * rect[3];
-  fit[2] = rect[0] + (1 - scaleU) * 0.5f * rect[2];
-  fit[3] = rect[1] + (1 - scaleV) * 0.5f * rect[3];
+  fit[2] = rect[0] + (1 - scaleU) * 0.5f * (1 + l.frame[0]) * rect[2];
+  fit[3] = rect[1] + (1 - scaleV) * 0.5f * (1 + l.frame[1]) * rect[3];
   clip[0] = rect[0] + rect[2] / 2;
   clip[1] = rect[1] + rect[3] / 2;
   clip[2] = rect[2] / 2;
@@ -521,7 +527,7 @@ void fit_source(const Layer& l, int32_t sourceW, int32_t sourceH, float fit[4], 
   // an axis without bars cuts nothing: a fade outside the surface goes on reading past the picture's border
   if (scaleU <= 1) clip[2] = 8;
   if (scaleV <= 1) clip[3] = 8;
-  *clipped = l.fit == CONTAIN && (scaleU > 1 || scaleV > 1);
+  *clipped = scaleU > 1 || scaleV > 1;
 }
 
 void draw(int32_t w, int32_t h) {
@@ -654,7 +660,7 @@ bool apply(Layer& l, const char* key, const double* v, int nn, const Str* s, int
     snprintf(l.media, sizeof l.media, "%s", ns > 0 ? s[0] : "");
     return true;
   }
-  if (!strcmp(key, "fit")) { int k = ns > 0 ? find(s[0], FIT_NAMES, 3) : -1; if (k < 0) return false; l.fit = k; return true; }
+  if (!strcmp(key, "fit")) { int k = ns > 0 ? find(s[0], FIT_NAMES, 5) : -1; if (k < 0) return false; l.fit = k; return true; }
   if (!strcmp(key, "blend")) { int k = ns > 0 ? find(s[0], BLEND_NAMES, 4) : -1; if (k < 0) return false; l.blend = k; return true; }
   if (!strcmp(key, "image")) { if (nn < 1) return false; l.image = (int)v[0]; return true; }
   if (!strcmp(key, "card")) { if (nn < 1) return false; l.card = (int)v[0]; return true; }

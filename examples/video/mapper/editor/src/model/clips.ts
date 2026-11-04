@@ -1,9 +1,9 @@
 // A clip: what a cell of the grid plays, a media file or a source of the mapper, and how. An empty one stands for an empty cell.
-export interface Clip { label: string; media: string; source: string; color: number[]; fit: string; loop: boolean }
+export interface Clip { label: string; media: string; source: string; color: number[]; fit: string; frame: number[]; loop: boolean }   // frame: /layer/n/frame
 
 export interface Column { name: string; cells: Clip[] }
 
-export const EMPTY_CLIP: Clip = { label: '', media: '', source: '', color: [], fit: 'cover', loop: true };
+export const EMPTY_CLIP: Clip = { label: '', media: '', source: '', color: [], fit: 'cover', frame: [0, 0, 1], loop: true };
 const MIN_COLUMNS: i32 = 8;
 
 export function isEmptyClip(clip: Clip): boolean { return clip.media === '' && clip.source === ''; }
@@ -19,6 +19,7 @@ export function clipFrom(saved: any): Clip {
     source,
     color: Array.isArray(saved.color) ? saved.color as number[] : [],
     fit: typeof saved.fit === 'string' ? saved.fit as string : 'cover',
+    frame: Array.isArray(saved.frame) ? saved.frame as number[] : [0, 0, 1],
     loop: typeof saved.loop === 'boolean' ? saved.loop as boolean : true,
   };
 }

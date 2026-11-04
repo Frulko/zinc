@@ -177,6 +177,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - On macOS, apps with an `app.id` use their own application name in system tools even without permissions, including JavaScript and WebGL apps.
 - A program that draws, exported with `zinc export --target x86_64-linux`, now opens a window on a desktop (the size of its `sim` target when it names no Linux size) and takes the screen without one, instead of showing nothing.
 - On the web, `zinc:system/dialog` can pick a folder, and a folder dropped on the page gives the files in it.
+- `zinc:mapping`: the `cover` fit deformed the picture instead of cutting what exceeds; `/layer/<n>/fit` also takes `width` and `height`, and `/layer/<n>/frame` slides and zooms the picture.
 
 ### iPod
 
@@ -382,6 +383,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - The video mapper fades each side of a layer inward, outward past its edge, or across it: choose **Inside**, **Outside** or **Both** under *Edges*, or send `/layer/<n>/edgedir`.
 - In the video mapper, drag a zone or press the arrows to move it whole; **Undo**, **Redo** (Cmd or Ctrl+Z) and the *History* view go back through the actions, shared by every editor of that mapper.
 - In the video mapper, a second click on a clip or a column stops it and an empty column stops everything; clips have an **x**, the panels resize, **Send a folder** and a closable transfer window follow what you send, and a bottom bar shows the device and what runs on it.
+- In the video mapper, a clip says what its fit does to the picture; **width** and **height** make that side span the zone, and you drag the visible part and zoom to choose what shows.
 
 #### Changed
 - Discord: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro) and logs a clamp as "over the ceiling".

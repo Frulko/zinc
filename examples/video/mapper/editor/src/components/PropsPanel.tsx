@@ -3,12 +3,13 @@ import { Button, ResizeHandle, Switch } from 'zinc:ui/kit';
 import { send } from '../services/link';
 import { Clip, isEmptyClip } from '../model/clips';
 import { PANEL_PROPERTIES, panelSize, resizePanel, changeClip, currentLayer, fireCell, loadState, numbers, removeClip, saveShow, selectedClip, setLayer, setWord, setWordQuietly, store, touch, word } from '../state';
+import { FrameEditor } from './FrameEditor';
 import { Heading, Row, ValueSlider } from './Field';
 import { Rebuilt } from './Rebuilt';
 
 const MIN_WIDTH = 200, MAX_WIDTH = 620;
 const BLENDS: string[] = ['normal', 'add', 'multiply', 'screen'];
-const FITS: string[] = ['stretch', 'contain', 'cover'];
+const FITS: string[] = ['stretch', 'contain', 'cover', 'width', 'height'];
 
 interface SliderDef { key: string; index: i32; min: number; max: number; label: string }
 function s(key: string, index: i32, min: number, max: number, label: string): SliderDef { return { key, index, min, max, label }; }
@@ -49,6 +50,7 @@ function ClipProps(): i32 {
         {FITS.map((fit: string) => <Button size="sm" variant={clip.fit === fit ? 'default' : 'ghost'} label={fit} onClick={() => changeClip((c: Clip) => { c.fit = fit; })} />)}
       </View>
     </Row>}
+    {clip.media !== '' && <FrameEditor clip={clip} layer={store.layers[layer]} />}
     {clip.media !== '' && <Row label="loop"><Switch checked={() => clip.loop} onChange={(on: boolean) => changeClip((c: Clip) => { c.loop = on; })} /></Row>}
     <View className="flex-row gap-1 mt-1">
       <Button size="sm" variant="secondary" label="Play" onClick={() => fireCell(column, layer)} />

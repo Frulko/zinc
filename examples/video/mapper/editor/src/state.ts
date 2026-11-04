@@ -295,6 +295,7 @@ export function changeClip(change: (clip: Clip) => void): void {
   change(clip);
   if (isPlaying(store.clipColumn, store.clipLayer)) {
     send(`/layer/${store.clipLayer}/fit`, [], [clip.fit]);
+    send(`/layer/${store.clipLayer}/frame`, clip.frame);
     send(`/layer/${store.clipLayer}/loop`, [clip.loop ? 1 : 0]);
   }
   saveShow();

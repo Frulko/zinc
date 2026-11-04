@@ -1,5 +1,5 @@
 // The editor's maths without its interface: a surface placed in a known spot comes back from its corners, media sizes, the GLB's shape.
-import { Point, footprint, insertMaskPoint, insidePolygon, mediaSize, warp } from '../editor/src/model/geometry';
+import { Point, footprint, insertMaskPoint, insidePolygon, mediaSize, warp, framedPart, zoneSize } from '../editor/src/model/geometry';
 import { Lens, Link, SolvedSurface, Vec3, sceneGlb, solveRoom, surfaceGrid, surfaceShape, surfacePose } from '../editor/src/model/room';
 import { addLink, linkedCorners, removeLinksOf } from '../editor/src/model/links';
 import { Clip, Column, EMPTY_CLIP, clipFrom, ensureColumns, firstFreeColumn, isEmptyClip } from '../editor/src/model/clips';
@@ -55,6 +55,17 @@ editor.move(points, 0.25, 0.5);
 near('moved', moved[0] + moved[1], 0.75, 0);
 editor.step(1, true);
 near('step stays', editor.selection[0], 0, 0);
+
+// what each fit shows of a picture twice as wide as its zone
+near('cover cuts the width', framedPart('cover', 2, [0, 0, 1])[2], 0.5, 1e-6);
+near('cover keeps the middle', framedPart('cover', 2, [0, 0, 1])[0], 0.25, 1e-6);
+near('cover slides to the start', framedPart('cover', 2, [-1, 0, 1])[0], 0, 1e-6);
+near('cover slides to the end', framedPart('cover', 2, [1, 0, 1])[0], 0.5, 1e-6);
+near('contain leaves bars', framedPart('contain', 2, [0, 0, 1])[3], 2, 1e-6);
+near('width as contain here', framedPart('width', 2, [0, 0, 1])[3], 2, 1e-6);
+near('height as cover here', framedPart('height', 2, [0, 0, 1])[2], 0.5, 1e-6);
+near('zoom reads less', framedPart('stretch', 2, [0, 0, 2])[2], 0.5, 1e-6);
+near('zone width', zoneSize([0, 0, 0.5, 0, 0.5, 0.5, 0, 0.5], 2)[0], 1, 1e-6);
 
 // a fade outside the surface goes on along its border: past 0 and past 1 on a flat mesh
 const flatMesh: number[] = [2, 2, 0, 0, 1, 0, 0, 1, 1, 1];

@@ -60,7 +60,8 @@ UDP port given to `listen` (9000 in the example). Numbers may be `i`, `f` or `d`
 | `/save`, `/load` | `[path]` (default `mapping.json`) | whole setup as JSON (`zinc:fs`) |
 | `/sync` | `host port` | replies to host:port with `/state/info {json}` then `/state/layer i {json}` per layer |
 | `/layer/<n>/media` | `file` (empty: none) | Android: plays a file of the media folder, with its sound. Elsewhere it is stored, and the program plays it (`playsMedia()`) |
-| `/layer/<n>/fit` | `stretch`, `contain`, `cover` | how the media takes the layer's zone |
+| `/layer/<n>/fit` | `stretch`, `contain`, `cover`, `width`, `height` | how the media takes the layer's zone: `width` or `height` makes that side of the picture span the zone, the other one is cut or leaves bars |
+| `/layer/<n>/frame` | `x y zoom` | what the fit shows: where the picture slides along each axis (`-1` start, `0` middle, `1` end) and a zoom (default `0 0 1`) |
 | `/layer/<n>/card` | `id` (−1: none) | shows a runtime image instead of the source and the media, without changing them (a calibration card); not saved |
 | `/layer/<n>/inputRect` | `x y w h` | the part of the source shown, 0..1 |
 | `/layer/<n>/volume`, `loop` | 0..1, `0/1` | the media's sound and looping |
