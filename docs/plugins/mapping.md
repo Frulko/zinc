@@ -89,7 +89,7 @@ UDP port given to `listen` (9000 in the example). Numbers may be `i`, `f` or `d`
 | `/layer/<n>/edge` | `left right top bottom [gamma]` | edge-blend ramp widths in surface units; gamma = projector gamma (2.2) |
 | `/layer/<n>/source` | `pattern`, `solid`, `gradient`, `image` or `none` | what a layer shows without a media; `none` shows nothing, a selected layer then shows the test pattern under its frame |
 | `/layer/<n>/inset` | `left right top bottom` | what each side hides outright, in surface units; its edge ramp starts after it: a hard cut then a gradient, to hide light that spills past a real edge |
-| `/layer/<n>/edgedir` | `left right top bottom` | which way each side's `edge` gradient goes from there: `0` inside (default), `1` outside, past the surface, where it continues the source, `2` across, inside and outside |
+| `/layer/<n>/edgedir` | `left right top bottom` | which way each side's `edge` gradient goes from the edge: `0` inside (default), `1` outside, past the surface, where it continues the source, `2` both; outside, `inset` brings the gradient's far end back toward the edge |
 | `/layer/<n>/mask/<k>` | `feather invert x0 y0 x1 y1 ...` | polygon mask k (0..3, 3..32 points, surface space); invert 0 = show inside, 1 = hide inside; fewer than 3 points removes it |
 | `/layer/<n>/maskimage` | `id` (−1: none) | multiplies by the image's luminance (updates with the image) |
 | `/layer/<n>/grid` | `0/1` | calibration grid (mesh lines + border) |

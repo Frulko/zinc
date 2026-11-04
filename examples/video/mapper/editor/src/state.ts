@@ -11,7 +11,19 @@ import { mediaName, saveText } from './services/files';
 
 // `revision`: what the panels list changed, they are built again. `pointRevision`: a point moved, only its readout follows (the canvases redraw at each frame).
 export const [revision, setRevision] = createSignal(0);
-export function touch(): void { setRevision(revision() + 1); }
+let panelsHeld = false, touchedWhileHeld = false;
+export function touch(): void {
+  if (panelsHeld) touchedWhileHeld = true;
+  else setRevision(revision() + 1);
+}
+/** During a drag the panels are not built again: the cells under the pointer are the drag's. */
+export function holdPanels(hold: boolean): void {
+  panelsHeld = hold;
+  if (!hold && touchedWhileHeld) {
+    touchedWhileHeld = false;
+    touch();
+  }
+}
 export const [pointRevision, setPointRevision] = createSignal(0);
 export function touchPoint(): void { setPointRevision(pointRevision() + 1); }
 
@@ -44,6 +56,8 @@ function savedOptions(): Options {
   }
 }
 
+export const INSPECT_CLIP: i32 = 0, INSPECT_LAYER: i32 = 1;
+
 export const store = {
   aspect: 16 / 9,
   pixels: [1280, 720],
@@ -59,6 +73,7 @@ export const store = {
   armed: EMPTY_CLIP as Clip,  // what a click on a cell puts there
   clipColumn: -1 as i32,      // the clip the inspector shows, with `clipLayer`
   clipLayer: -1 as i32,
+  inspecting: 1 as i32,       // INSPECT_CLIP or INSPECT_LAYER
   hudShown: true,
   card: 'off',
   masterVolume: 1,
@@ -127,8 +142,18 @@ export function setWord(key: string, value: string): void {
   touch();
 }
 
+/** The clip the inspector speaks of, and so its layer: the two never differ. */
+export function showClip(column: i32, layer: i32): void {
+  store.clipColumn = column;
+  store.clipLayer = layer;
+  store.selected = layer;
+  store.inspecting = INSPECT_CLIP;
+}
+
 export function selectLayer(index: i32): void {
   store.selected = index;
+  if (store.clipLayer !== index) store.clipColumn = -1;
+  store.inspecting = INSPECT_LAYER;
   showSelection();
   touch();
 }
@@ -201,8 +226,15 @@ async function putShow(json: string): Promise<void> {
   }
 }
 
-export function saveShow(): void {
-  putShow(JSON.stringify({ columns: store.columns, active: store.activeColumn, surfaces: store.surfaces, lens: store.lens, links: store.links, scene: store.sceneName }));
+/** With `setPlaying`, what plays changes with it, in one step: a clip that changes cell does not start again. */
+export function saveShow(setPlaying: boolean = false): void {
+  if (setPlaying && !store.playing.includes(store.activeColumn)) store.activeColumn = -1;
+  const show: any = { columns: store.columns, active: store.activeColumn, surfaces: store.surfaces, lens: store.lens, links: store.links, scene: store.sceneName };
+  if (setPlaying) {
+    show.playing = store.playing;
+    show.setPlaying = true;
+  }
+  putShow(JSON.stringify(show));
 }
 
 export function clipAt(column: i32, layer: i32): Clip {
@@ -232,9 +264,7 @@ export function fireColumn(index: i32): void {
 
 export function fireCell(column: i32, layer: i32): void {
   markPlaying(layer, column);
-  store.clipColumn = column;
-  store.clipLayer = layer;
-  store.selected = layer;
+  showClip(column, layer);
   showSelection();
   send('/cell', [column, layer]);
   touch();
@@ -260,16 +290,18 @@ export function placeClip(column: i32, layer: i32, clip: Clip): void {
   clipAt(column, layer);
   store.columns[column].cells[layer] = { ...clip };
   store.columns = ensureColumns(store.columns);
-  store.clipColumn = column;
-  store.clipLayer = layer;
+  showClip(column, layer);
   saveShow();
   touch();
 }
 
 export function removeClip(column: i32, layer: i32): void {
-  if (isPlaying(column, layer)) stopLayer(layer);
-  placeClip(column, layer, EMPTY_CLIP);
+  if (isPlaying(column, layer)) markPlaying(layer, -1);
+  clipAt(column, layer);
+  store.columns[column].cells[layer] = { ...EMPTY_CLIP };
   store.clipColumn = -1;
+  store.inspecting = INSPECT_LAYER;
+  saveShow(true);
   touch();
 }
 
@@ -277,14 +309,20 @@ export function removeChosenClip(): void {
   if (!isEmptyClip(selectedClip())) removeClip(store.clipColumn, store.clipLayer);
 }
 
-/** A dragged clip changes cell; what was there goes to where it came from. */
-export function swapClips(fromColumn: i32, fromLayer: i32, toColumn: i32, toLayer: i32): void {
-  const moved = clipAt(fromColumn, fromLayer), there = clipAt(toColumn, toLayer);
-  store.columns[fromColumn].cells[fromLayer] = there;
+/** A dragged clip takes a cell, in place of what was there; if it played, it plays there. */
+export function moveClip(fromColumn: i32, fromLayer: i32, toColumn: i32, toLayer: i32): void {
+  const moved = clipAt(fromColumn, fromLayer);
+  const played = isPlaying(fromColumn, fromLayer);
+  clipAt(toColumn, toLayer);
   store.columns[toColumn].cells[toLayer] = moved;
-  store.clipColumn = toColumn;
-  store.clipLayer = toLayer;
-  saveShow();
+  store.columns[fromColumn].cells[fromLayer] = { ...EMPTY_CLIP };
+  if (played) {
+    markPlaying(fromLayer, -1);
+    markPlaying(toLayer, toColumn);
+  }
+  store.columns = ensureColumns(store.columns);
+  showClip(toColumn, toLayer);
+  saveShow(true);
   touch();
 }
 

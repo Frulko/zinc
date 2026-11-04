@@ -25,7 +25,7 @@ function saveShow(): void {
   fs.rename(coming, SHOW_FILE);   // a power cut leaves the old file or the new one
 }
 
-/** Replaces the show; the error to show it, '' when accepted. The page edits the clips, not what plays: `keepPlaying` leaves that as it is. */
+/** Replaces the show; the error to show it, '' when accepted. The page edits the clips: `keepPlaying` leaves what plays as it is unless the page says (`setPlaying`, a clip that moved), and the layers follow the new cells. */
 export function replaceShow(json: string, keepPlaying: boolean = false): string {
   let next: any = null;
   try {
@@ -34,11 +34,15 @@ export function replaceShow(json: string, keepPlaying: boolean = false): string 
     return 'not JSON';
   }
   if (next === null || !Array.isArray(next.columns)) return 'expected {"columns": [...]}';
-  if (keepPlaying) {
+  const follow = next.setPlaying === true;
+  const before = playingList().slice();
+  if (keepPlaying && !follow) {
     next.active = show.active;
     next.playing = show.playing;
   }
+  next.setPlaying = false;
   show = next;
+  if (follow) followClips(before, true);
   saveShow();
   return '';
 }
@@ -152,14 +156,32 @@ export function stepColumn(delta: i32): void {
   }
 }
 
-/** What played, again: a show survives a restart. Nothing is emptied: a layer's own setting stays what was saved. */
+/** Each layer shows its playing clip, or no media at all: a clip that moved or left does not stay on its old layer. A layer's own source, with no clip, stays. */
+function followClips(before: any[], gridOwnsLayers: boolean): void {
+  const list = playingList();
+  for (let layer: i32 = 0; layer < mapping.layerCount(); layer++) {
+    const column = list[layer] as i32;
+    const clip = clipAt(column, layer);
+    const media = (JSON.parse(mapping.layerJson(layer)).media as string[])[0];
+    if (clip === null) {
+      if (column >= 0 || (layer < before.length && before[layer] >= 0) || (gridOwnsLayers && media !== '')) emptyLayer(layer);
+    } else if (clip.media === undefined || clip.media === '' || clip.media !== media) {
+      play(clip, layer);   // a video already on its layer does not start again
+    }
+  }
+}
+
+function gridHasClips(): boolean {
+  for (const column of show.columns as any[]) {
+    for (const cell of column.cells as any[]) if (isClip(cell)) return true;
+  }
+  return false;
+}
+
+/** What played, again: a show survives a restart. */
 export function resumeShow(): void {
   if (Array.isArray(show.playing)) {
-    const list = show.playing as any[];
-    for (let layer: i32 = 0; layer < list.length && layer < mapping.layerCount(); layer++) {
-      const clip = clipAt(list[layer] as i32, layer);
-      if (clip !== null) play(clip, layer);
-    }
+    followClips([], gridHasClips());
     return;
   }
   if (typeof show.active !== 'number') return;

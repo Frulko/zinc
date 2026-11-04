@@ -1,14 +1,13 @@
 // What a clip shows of its picture: what its fit does, and the picture with the part on screen, to drag. A drag changes nothing else: the panels stay, it is saved at its end.
 import * as gfx from 'zinc:gfx';
 import * as ui from 'zinc:ui';
-import { Button } from 'zinc:ui/kit';
 import { ACCENT, CANVAS_BLACK } from '../constants';
 import { framedPart, zoneSize } from '../model/geometry';
 import { Clip } from '../model/clips';
 import { send } from '../services/link';
 import { isPlaying, numbers, saveShow, store, touch } from '../state';
 import { thumbnailOf } from '../services/thumbnails';
-import { Row, ValueSlider } from './Field';
+import { IconButton, Row, ValueSlider } from './Field';
 
 const MIN_ZOOM = 0.5, MAX_ZOOM = 4, DIM: i32 = 170, FRAME_WIDTH = 2;
 const EPSILON = 0.005;
@@ -97,7 +96,7 @@ export function FrameEditor(props: { clip: Clip; layer: any }): i32 {
     {!known && <Row label="across"><ValueSlider min={-1} max={1} read={() => clip.frame[0]} write={(v: number) => { clip.frame[0] = v; follow(); saveShow(); }} /></Row>}
     {!known && <Row label="down"><ValueSlider min={-1} max={1} read={() => clip.frame[1]} write={(v: number) => { clip.frame[1] = v; follow(); saveShow(); }} /></Row>}
     <Row label="zoom"><ValueSlider min={MIN_ZOOM} max={MAX_ZOOM} read={() => clip.frame[2]} write={(v: number) => { clip.frame[2] = v; follow(); saveShow(); }} /></Row>
-    <View className="items-start"><Button size="sm" variant="ghost" label="Centre" onClick={() => {
+    <View className="items-start"><IconButton icon="crosshair" label="Centre" onClick={() => {
       clip.frame = [0, 0, 1];
       follow();
       saveShow();

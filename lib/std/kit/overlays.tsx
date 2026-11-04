@@ -88,6 +88,7 @@ function attach(float: i32, trigger: i32, placement: string, trap: boolean): voi
 
 export interface PopoverProps {
   label: string;            // the trigger button
+  trigger?: () => i32;      // its content, instead of the label (an icon); `label` then names it for a screen reader
   variant?: string;         // of the trigger button (Button variants; default 'outline')
   placement?: string;       // default 'bottom-start'
   className?: string;           // classes of the panel ('w-72', 'p-2'...)
@@ -95,10 +96,13 @@ export interface PopoverProps {
 }
 /** A button that opens a floating panel with any content. */
 export function Popover(props: PopoverProps): i32 {
+  const Trigger = props.trigger as () => i32;
   const trig = createNodeRef(), panel = createNodeRef();
   const t = theme();
   const node = <View className="flex-col">
-    <View ref={trig} className="flex-col"><KitButton label={props.label} variant={props.variant ?? 'outline'} onClick={() => show(panel.node, !shown(panel.node))} /></View>
+    <View ref={trig} className="flex-col">{props.trigger !== undefined
+      ? <View role="button" aria-label={props.label} className="cursor-pointer" onClick={() => show(panel.node, !shown(panel.node))}><Trigger /></View>
+      : <KitButton label={props.label} variant={props.variant ?? 'outline'} onClick={() => show(panel.node, !shown(panel.node))} />}</View>
     <View ref={panel} hidden={1} className={`flex-col gap-3 p-4 w-72 rounded-md border border-${t.border} bg-${t.card} shadow-md ${props.className ?? ''}`}>
       {props.children()}
     </View>

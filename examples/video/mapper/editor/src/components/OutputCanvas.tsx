@@ -270,9 +270,10 @@ function drawSideMarks(layer: any, x: i32, y: i32, w: i32, h: i32): void {
   const edge = numbers(layer, 'edge'), inset = numbers(layer, 'inset'), direction = numbers(layer, 'edgedir');
   const onCanvas = (line: Point[]): Point[] => line.map((p: Point): Point => [x + p[0] * w, y + p[1] * h]);
   for (let side: i32 = 0; side < 4; side++) {
-    if (inset[side] > 0) drawLine(onCanvas(sideLine(layer, side, inset[side])), MASK_HIDE);
-    if (edge[side] > 0 && direction[side] !== EDGE_OUTSIDE) drawLine(onCanvas(sideLine(layer, side, inset[side] + edge[side])), EDGE_BLEND);
-    if (edge[side] > 0 && direction[side] !== EDGE_INSIDE) drawLine(onCanvas(sideLine(layer, side, inset[side] - edge[side])), EDGE_BLEND);
+    const outward = direction[side] !== EDGE_INSIDE, inward = direction[side] !== EDGE_OUTSIDE;
+    if (edge[side] > 0 && inward) drawLine(onCanvas(sideLine(layer, side, (outward ? 0 : inset[side]) + edge[side])), EDGE_BLEND);
+    if (edge[side] > 0 && outward && inset[side] === 0) drawLine(onCanvas(sideLine(layer, side, -edge[side])), EDGE_BLEND);
+    if (inset[side] > 0) drawLine(onCanvas(sideLine(layer, side, outward ? Math.min(0, inset[side] - edge[side]) : inset[side])), MASK_HIDE);
   }
   if (selectedEdge >= 0) {
     const line = onCanvas(sideLine(layer, selectedEdge, 0));

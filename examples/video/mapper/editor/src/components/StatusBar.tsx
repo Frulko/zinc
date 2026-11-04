@@ -1,4 +1,5 @@
 // The bar at the bottom: what the device is and how it runs, and what it is busy with.
+import { Icon } from 'zinc:icons';
 import { Popover, Progress } from 'zinc:ui/kit';
 import { For, createSignal, onCleanup, onMount } from 'zinc:ui/solid';
 import { getJson } from '../services/link';
@@ -10,6 +11,7 @@ interface DeviceTask { kind: string; name: string; done: number; total: number }
 interface Device { name: string; address: string; system: string; fps: number; freeMemory: number; totalMemory: number; load: number; uptime: number; layers: number; mediaFiles: number; mediaBytes: number; tasks: DeviceTask[] }
 
 const REFRESH_MS = 1000;
+const BUSY: i32 = 0xfb923c, IDLE: i32 = 0xa1a1aa;
 const [device, setDevice] = createSignal<Device | null>(null);
 
 function megabytes(bytes: number): string { return `${Math.round(bytes / 1048576)} MB`; }
@@ -81,6 +83,6 @@ export function StatusBar(): i32 {
       <View className="w-[8] h-[8] rounded-full bg-orange-500" />
       <Text className="text-[11px] text-orange-300">{`${busyCount()} running`}</Text>
     </View>}
-    <Popover label="i" variant="ghost" placement="top-end" className="w-[360]"><Tasks /></Popover>
+    <Popover label="What runs on the device" placement="top-end" className="w-[360]" trigger={() => <View className="p-1"><Icon name={busyCount() > 0 ? 'activity' : 'info'} size={16} color={() => busyCount() > 0 ? BUSY : IDLE} /></View>}><Tasks /></Popover>
   </View>;
 }

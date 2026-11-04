@@ -107,21 +107,24 @@ function update(d: DragInfo): void {
   for (const m of monitors) call(m.onDrag, d);
 }
 
-// ---- auto-scroll: near the top or bottom edge of a registered scroll container, it scrolls faster the closer the pointer is
+// ---- auto-scroll: near an edge of a registered scroll container, it scrolls faster the closer the pointer is
 const ZONE: number = 56, MAX_STEP: number = 14;
+function edgeStep(toStart: number, toEnd: number, length: number): number {
+  const zone = Math.min(ZONE, length / 5);
+  return toStart < zone ? -MAX_STEP * (1 - toStart / zone) : toEnd < zone ? MAX_STEP * (1 - toEnd / zone) : 0;
+}
 function scrollStep(): void {
   const d = active;
   if (d === null) return;
   let moved = false;
   for (const h of scrollers) {
     const b = ui.screenBox(h);
-    if (d.x < b[0] || d.x > b[0] + b[2]) continue;
-    const top = d.y - b[1], bottom = b[1] + b[3] - d.y, zone = Math.min(ZONE, b[3] / 5);   // a small container keeps most of itself to drop on
-    const step = top >= 0 && top < zone ? -MAX_STEP * (1 - top / zone) : bottom >= 0 && bottom < zone ? MAX_STEP * (1 - bottom / zone) : 0;
-    if (step === 0) continue;
-    const before = ui.scrollTop(h);
-    ui.scrollTo(h, ui.scrollLeft(h), before + step);
-    if (ui.scrollTop(h) !== before) moved = true;
+    if (d.x < b[0] || d.x > b[0] + b[2] || d.y < b[1] || d.y > b[1] + b[3]) continue;
+    const stepY = edgeStep(d.y - b[1], b[1] + b[3] - d.y, b[3]), stepX = edgeStep(d.x - b[0], b[0] + b[2] - d.x, b[2]);   // a small container keeps most of itself to drop on
+    if (stepX === 0 && stepY === 0) continue;
+    const beforeX = ui.scrollLeft(h), beforeY = ui.scrollTop(h);
+    ui.scrollTo(h, beforeX + stepX, beforeY + stepY);
+    if (ui.scrollLeft(h) !== beforeX || ui.scrollTop(h) !== beforeY) moved = true;
   }
   if (moved) update(d as DragInfo);
 }
@@ -177,7 +180,7 @@ export function monitor(o: MonitorOptions): () => void {
   monitors.push(o);
   return () => { const i = monitors.indexOf(o); if (i >= 0) monitors.splice(i, 1); };
 }
-/** Scrolls a scroll container while a drag nears its top or bottom edge; returns the function that stops it. */
+/** Scrolls a scroll container while a drag nears one of its edges; returns the function that stops it. */
 export function autoScroll(scroller: i32): () => void {
   if (scrollers.indexOf(scroller) < 0) scrollers.push(scroller);
   return () => { const i = scrollers.indexOf(scroller); if (i >= 0) scrollers.splice(i, 1); };

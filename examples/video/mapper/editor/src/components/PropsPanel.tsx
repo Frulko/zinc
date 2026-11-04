@@ -1,10 +1,10 @@
-// The selected layer's settings: what it shows, how a media fits, its sound and its colour.
+// The inspector speaks of one thing at a time: a clip (how its picture fills the layer, how it plays) or a layer (its place, colour, crop, edges).
 import { Button, ResizeHandle, Switch } from 'zinc:ui/kit';
 import { send } from '../services/link';
 import { Clip, isEmptyClip } from '../model/clips';
-import { PANEL_PROPERTIES, panelSize, resizePanel, changeClip, currentLayer, fireCell, loadState, numbers, removeClip, saveShow, selectedClip, setLayer, setWord, setWordQuietly, store, touch, word } from '../state';
+import { INSPECT_CLIP, PANEL_PROPERTIES, clipAt, isPlaying, panelSize, resizePanel, showClip, stopLayer, changeClip, currentLayer, fireCell, loadState, numbers, removeClip, saveShow, selectedClip, setLayer, setWord, setWordQuietly, store, touch, word } from '../state';
 import { FrameEditor } from './FrameEditor';
-import { Heading, Row, ValueSlider } from './Field';
+import { Heading, IconButton, IconTabs, Row, ValueSlider } from './Field';
 import { Rebuilt } from './Rebuilt';
 
 const MIN_WIDTH = 200, MAX_WIDTH = 620;
@@ -41,22 +41,29 @@ function Choice(props: { label: string; options: string[]; layer: any; property:
 
 function ClipProps(): i32 {
   const clip = selectedClip();
-  if (isEmptyClip(clip)) return <Text className="text-[11px] text-zinc-500">Click a clip in the grid: it plays, and its settings show here.</Text>;
+  if (isEmptyClip(clip)) return <Text className="text-xs text-zinc-500">No clip chosen on this layer: click one in its row of the grid.</Text>;
   const column = store.clipColumn, layer = store.clipLayer;
+  const playing = isPlaying(column, layer);
   return <View className="gap-1">
-    <Row label="name"><Text className="text-xs text-zinc-100" numberOfLines={1}>{clip.label}</Text></Row>
-    {clip.media !== '' && <Row label="fit">
-      <View className="flex-row flex-wrap gap-1">
-        {FITS.map((fit: string) => <Button size="sm" variant={clip.fit === fit ? 'default' : 'ghost'} label={fit} onClick={() => changeClip((c: Clip) => { c.fit = fit; })} />)}
-      </View>
-    </Row>}
+    <Text className="text-sm text-zinc-100" numberOfLines={1}>{clip.label}</Text>
+    <Text className="text-[11px] text-zinc-400" numberOfLines={1}>{`Layer ${word(store.layers[layer], 'name')}, ${store.columns[column].name}: ${playing ? 'playing' : 'stopped'}`}</Text>
+    {clip.media !== '' && <Heading text="How it fills the layer" />}
+    {clip.media !== '' && <View className="flex-row flex-wrap gap-1">
+      {FITS.map((fit: string) => <Button size="sm" variant={clip.fit === fit ? 'default' : 'ghost'} label={fit} onClick={() => changeClip((c: Clip) => { c.fit = fit; })} />)}
+    </View>}
     {clip.media !== '' && <FrameEditor clip={clip} layer={store.layers[layer]} />}
+    {clip.media !== '' && <Heading text="Playback" />}
     {clip.media !== '' && <Row label="loop"><Switch checked={() => clip.loop} onChange={(on: boolean) => changeClip((c: Clip) => { c.loop = on; })} /></Row>}
-    <View className="flex-row gap-1 mt-1">
-      <Button size="sm" variant="secondary" label="Play" onClick={() => fireCell(column, layer)} />
-      <Button size="sm" variant="ghost" label="Remove from the grid" onClick={() => removeClip(column, layer)} />
+    <View className="flex-row flex-wrap gap-1 mt-2">
+      <IconButton icon={playing ? 'square' : 'play'} variant="secondary" label={playing ? 'Stop' : 'Play'} onClick={() => { if (playing) stopLayer(layer); else fireCell(column, layer); }} />
+      <IconButton icon="trash" label="Remove from the grid" onClick={() => removeClip(column, layer)} />
     </View>
   </View>;
+}
+
+function playsNow(index: i32): string {
+  const column = index < store.playing.length ? store.playing[index] : -1;
+  return column < 0 ? 'Plays nothing from the grid.' : `Plays ${clipAt(column, index).label}, ${store.columns[column].name}.`;
 }
 
 function renameLayer(layer: any, name: string): void {
@@ -76,9 +83,7 @@ function renameLayer(layer: any, name: string): void {
 function LayerProps(props: { layer: any }): i32 {
   const layer = props.layer;
   return <View>
-    <Heading text="Clip" />
-    <ClipProps />
-    <Heading text="Layer" />
+    <Text className="text-[11px] text-zinc-400 mb-1" numberOfLines={1}>{playsNow(store.selected)}</Text>
     <Row label="name"><Input className="h-[28] px-2 rounded bg-zinc-800 text-zinc-100 text-xs" aria-label="layer name" value={word(layer, 'name')} onChange={(text: string) => {
       if (text !== '') renameLayer(layer, text);
     }} /></Row>
@@ -89,16 +94,28 @@ function LayerProps(props: { layer: any }): i32 {
       <Heading text={group[0]} />
       {group[1].map((def: SliderDef) => <PropSlider layer={layer} def={def} />)}
     </View>)}
-    <View className="mt-3"><Button size="sm" variant="secondary" label="Reset layer" onClick={() => {
+    <View className="mt-3"><IconButton icon="rotate-ccw" variant="secondary" label="Reset layer" onClick={() => {
       send(`/layer/${store.selected}/reset`, []);
       loadState();
     }} /></View>
   </View>;
 }
 
+/** A clip shown while its layer plays one: the tab goes to what plays there. */
+function inspect(tab: i32): void {
+  store.inspecting = tab;
+  const column = store.selected < store.playing.length ? store.playing[store.selected] : -1;
+  if (tab === INSPECT_CLIP && store.clipColumn < 0 && column >= 0) showClip(column, store.selected);
+  touch();
+}
+
 function Content(): i32 {
   const layer = currentLayer();
-  return layer === null ? <Text className="text-xs text-zinc-500">No layer yet: add one.</Text> : <LayerProps layer={layer} />;
+  if (layer === null) return <Text className="text-xs text-zinc-500">No layer yet: add one.</Text>;
+  return <View className="gap-3">
+    <IconTabs items={['Clip', `Layer ${word(layer, 'name')}`]} icons={['film', 'layers']} selected={() => store.inspecting} onSelect={inspect} />
+    {store.inspecting === INSPECT_CLIP ? <ClipProps /> : <LayerProps layer={layer} />}
+  </View>;
 }
 
 export function PropsPanel(): i32 {

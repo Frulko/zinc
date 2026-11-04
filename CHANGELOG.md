@@ -94,6 +94,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - `layer-cache` keeps a box's children as one picture that is drawn again only after `invalidate(node)`, and `refreshRect(x, y, w, h, 'fast' | 'quality' | 'full')` of `zinc:gfx` names the e-ink waveform of a region.
 - `onTwoFingerTap` for a two-finger tap gesture.
 - In `zinc:ui/kit`, a `Tooltip` shows on keyboard focus and hides on press, `ImageViewer` and `CallStats` take a `labels` map for their words, and `attachTooltip` gives a tooltip to a node made by code.
+- `Popover` takes a `trigger` to open from an icon or any content; `dnd.autoScroll` scrolls a container on both axes.
 
 #### Changed
 - E-ink displays: frames carry an intent, `refreshIntent('interactive' | 'settle' | 'normal')` of `zinc:gfx`, which `zinc:ui` sets itself around a pinch.
@@ -167,6 +168,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - `zinc:net`: a program can serve several ports at once, each with its own handler (`serve`/`serveAsync` again on another port no longer replaces the first server), and `stop(port)` stops one; `stop()` still stops them all. The Spotify login now stops only its own callback server.
 - `zinc:fs` `copyFile` keeps the source file's modification time and permissions, so a picture copied to another disk keeps its date.
 - `zinc:mapping` adds `info()`, `layerJson(layer)`, `playsMedia()` and `isFileName(name)`, and its state gives the output in pixels.
+- `zinc:mapping`: an `outside` edge now starts its gradient at the edge, and `/layer/<n>/inset` brings the far end of the gradient back instead of moving its start.
 
 #### Fixed
 - `zinc:storage` reports read/write failures and preserves existing data when a replacement write fails.
@@ -388,6 +390,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 #### Changed
 - Discord: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro) and logs a clamp as "over the ceiling".
 - Discord uses `zinc:ui/image-cache` with background cleanup and off-thread decoding at display size; portable WebP thumbnails resize during decoding.
+- The video mapper inspector speaks of one thing at a time, in two tabs: **Clip** (fill, framing, playback) and **Layer** (name, sound, colour, position, crop, edges). The grid shows where a clip can land, says *Drop here* or *Replace*, and icons mark its buttons and views.
 
 #### Faster
 - Musique (arbre) decodes covers and radio logos on a background thread, only after a quiet second or two while you touch it, so a new cover no longer freezes the screen.
@@ -396,6 +399,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - Discord video (camera and Go Live) from Zinc now opens in the web client; `DISCORD_VIDEO_SPS=orig` goes back to the encoder's own parameter set.
 - The video mapper runs on Android, down to 4.4 and a Mali-400: `zinc:mapping` draws in the app's window, a layer pays only for the colour, gamma, mask and grid steps it uses, and `ZINC_BUFFER=854x480` renders at a panel's real size when the system announces a larger one. A player finds no video where the system has no `libmediandk` instead of the app failing to start. The mapper demo takes `--port` for the OSC port, and its editor tells a stale token from an app that does not answer.
 - `zinc:mapping` plays a video or an image file straight on a layer on Android: `/layer/<n>/media clip.mp4` with its sound and hardware decoding (`/layer/<n>/volume`, `/layer/<n>/loop`), the new file taking over at its first picture. `/layer/<n>/fit` (`stretch`, `contain`, `cover`) and `/layer/<n>/inputRect` fit any source into a smaller zone.
+- In the video mapper, a layer always shows the clip its row plays: moving a playing clip takes its picture with it, and a layer left showing a stray media is emptied at start.
 
 ### Mobile and Zinc Go
 

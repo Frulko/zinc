@@ -24,7 +24,8 @@ python3 - >"$edges/mapping.json" <<'PY'
 import json
 def band(top, direction):
     return {"name": ["band"], "source": ["solid"], "color": [1, 1, 1], "corners": [.2, top, .6, top, .6, top + .25, .2, top + .25], "edge": [0, .25, 0, 0, 1], "edgedir": [0, direction, 0, 0]}
-print(json.dumps({"version": [1], "layers": [band(.05, 0), band(.37, 1), band(.69, 2)]}))
+cut = band(.37, 1); cut["corners"] = [.75, .37, .85, .37, .85, .62, .75, .62]; cut["edge"] = [0, .5, 0, 0, 1]; cut["inset"] = [0, .25, 0, 0]   # outside, a cut brings the far end back: .05 past the edge becomes .025
+print(json.dumps({"version": [1], "layers": [band(.05, 0), band(.37, 1), band(.69, 2), cut]}))
 PY
 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SHOT="$tmp/e.bmp" timeout 120 "$ZINC" run "$edges/src/main.ts" -- --port 0 --web off >"$tmp/edges.log" 2>&1
 python3 - "$tmp/e.bmp" <<'PY' || fail=1
@@ -34,7 +35,8 @@ start = struct.unpack("<I", b[10:14])[0]; w, h = struct.unpack("<ii", b[18:26]);
 stride = (w * depth + 3) & ~3
 def light(x, y):   # a BMP's rows go from the bottom up
     return b[start + (h - 1 - int(y * h)) * stride + int(x * w) * depth]
-want = {"inside": (.175, {.48: 255, .55: 128, .595: 0, .65: 0}), "outside": (.495, {.48: 255, .595: 255, .65: 128, .705: 0}), "both": (.815, {.48: 255, .6: 128, .705: 0})}
+want = {"inside": (.175, {.48: 255, .55: 128, .595: 0, .65: 0}), "outside": (.495, {.48: 255, .595: 255, .65: 128, .705: 0}), "both": (.815, {.48: 255, .6: 128, .705: 0}),
+        "outside cut": (.495, {.84: 255, .8625: 128, .89: 0})}
 problems = [f"{name} at x={x}: {light(x, y)}, not {v}" for name, (y, row) in want.items() for x, v in row.items() if abs(light(x, y) - v) > 40]
 if problems: print("edge direction: " + "; ".join(problems)); sys.exit(1)
 PY
@@ -105,6 +107,9 @@ api -d '[["/add","pattern","one"],["/add","pattern","two"],["/cell",0,1]]' "http
 api "http://127.0.0.1:$web/state" >"$tmp/s1.json"; api "http://127.0.0.1:$web/show" >"$tmp/show1.json"
 api -d '[["/column",1]]' "http://127.0.0.1:$web/osc" >/dev/null; sleep 0.3
 api "http://127.0.0.1:$web/state" >"$tmp/s2.json"; api "http://127.0.0.1:$web/show" >"$tmp/show2.json"
+# a playing clip moved to another layer by the page: the old layer no longer shows it, the new one does
+api -X PUT -d '{"columns":[{"name":"a","cells":[]},{"name":"b","cells":[{},{"label":"Green","source":"solid","color":[0,1,0]}]}],"active":1,"playing":[-1,1],"setPlaying":true}' "http://127.0.0.1:$web/show" >/dev/null; sleep 0.3
+api "http://127.0.0.1:$web/state" >"$tmp/s3.json"
 api -X PUT -d '{"columns":[]}' "http://127.0.0.1:$web/show"; api "http://127.0.0.1:$web/show" >"$tmp/show3.json"
 python3 - "$tmp" <<'PY' || fail=1
 import json, sys
@@ -117,6 +122,8 @@ if load("show1")["playing"][1] != 0: problems.append(f"/cell is not remembered: 
 if s2[0]["color"][1] != 1: problems.append(f"/column does not play its clip: {s2[0]}")
 if s2[1]["source"][0] != "none": problems.append(f"/column does not empty a layer with no clip: {s2[1]}")
 if load("show2")["active"] != 1: problems.append("/column is not remembered")
+s3 = load("s3")["layers"]
+if s3[0]["source"][0] != "none" or s3[1]["color"][1] != 1 or s3[1]["color"][2] != 0: problems.append(f"a moved clip does not follow: {s3[:2]}")
 if load("show3")["active"] != 1: problems.append("a save from the page changes what plays")
 if problems: print("; ".join(problems)); sys.exit(1)
 PY

@@ -1,18 +1,21 @@
 // The grid, as in Resolume and Millumin: a row per layer, top layer first, a column per moment of the show. A click on a clip plays it on its layer, a second click stops it,
 // a column's title plays the whole column or stops it, an empty column stops everything, a layer's x empties it. Clips arrive by a drag from the library, or by a click with a tile armed.
+import { Icon } from 'zinc:icons';
 import { Button, ResizeHandle, Switch } from 'zinc:ui/kit';
 import * as dnd from 'zinc:ui/dnd';
 import { createNodeRef, createSignal, onCleanup, onMount } from 'zinc:ui/solid';
 import { Clip, Column, clipFrom, columnIsEmpty, isEmptyClip } from '../model/clips';
 import { send } from '../services/link';
-import { PANEL_GRID, afterLayerChange, clipAt, fireCell, fireColumn, isPlaying, numbers, panelSize, placeClip, removeClip, resizePanel, selectLayer, stopAll, stopLayer, store, swapClips, touch, word } from '../state';
+import { PANEL_GRID, afterLayerChange, clipAt, fireCell, fireColumn, holdPanels, isPlaying, moveClip, numbers, panelSize, placeClip, removeClip, resizePanel, selectLayer, showClip, stopAll, stopLayer, store, touch, word } from '../state';
 import { ClipThumb } from './ClipThumb';
-import { ValueSlider } from './Field';
+import { IconButton, ValueSlider } from './Field';
 import { Rebuilt } from './Rebuilt';
 
 const [dropCell, setDropCell] = createSignal('');
 const [ghost, setGhost] = createSignal<number[]>([]);   // x, y of the tile being dragged
 const [ghostLabel, setGhostLabel] = createSignal('');
+const [dragged, setDragged] = createSignal('');         // what the drag carries, '' with no drag
+const X_ICON: i32 = 0xf4f4f5, PLAYING_ICON: i32 = 0x34d399;
 const GHOST_OFFSET = 12;
 const MIN_GRID = 70, MAX_GRID = 640;
 
@@ -35,20 +38,25 @@ function dropOn(data: string, column: i32, layer: i32): void {
     return;
   }
   const from = cellOfKey(data.slice(FROM_CELL.length));
-  swapClips(from[0], from[1], column, layer);
+  moveClip(from[0], from[1], column, layer);
 }
 
 dnd.monitor({
   onDragStart: (d: dnd.DragInfo) => {
+    holdPanels(true);
+    setDragged(d.data as string);
     setGhostLabel(draggedClip(d.data as string).label);
   },
   onDrag: (d: dnd.DragInfo) => { setGhost([d.x + GHOST_OFFSET, d.y + GHOST_OFFSET]); },
   onDrop: (d: dnd.DragInfo) => {
     setGhost([]);
     setDropCell('');
-    if (d.targets.length === 0) return;
-    const at = cellOfKey(d.targets[0].data as string);
-    dropOn(d.data as string, at[0], at[1]);
+    setDragged('');
+    if (d.targets.length > 0) {
+      const at = cellOfKey(d.targets[0].data as string);
+      dropOn(d.data as string, at[0], at[1]);
+    }
+    holdPanels(false);
   },
 });
 
@@ -65,7 +73,7 @@ function pressCell(column: i32, layer: i32, clip: Clip): void {
   }
   if (isPlaying(column, layer)) {
     stopLayer(layer);
-    store.clipColumn = -1;
+    showClip(column, layer);   // stopped, its settings stay in view
     touch();
     return;
   }
@@ -86,24 +94,28 @@ function CellBox(props: { column: i32; layer: i32; rowSelected: boolean }): i32 
   const cell = createNodeRef();
   let offTarget = (): void => {}, offDrag = (): void => {};
   onMount(() => {
-    offTarget = dnd.dropTarget(cell.node, { data: key, onDragEnter: (d: dnd.DragInfo) => { setDropCell(key); }, onDragLeave: (d: dnd.DragInfo) => { if (dropCell() === key) setDropCell(''); } });
+    offTarget = dnd.dropTarget(cell.node, { data: key, canDrop: (d: dnd.DragInfo) => d.data !== FROM_CELL + key, onDragEnter: (d: dnd.DragInfo) => { setDropCell(key); }, onDragLeave: (d: dnd.DragInfo) => { if (dropCell() === key) setDropCell(''); } });
     if (!empty) offDrag = dnd.draggable(cell.node, { data: FROM_CELL + key });
   });
   onCleanup(() => { offTarget(); offDrag(); });
-  const edge = (): string => dropCell() === key ? 'border-white' : playing ? 'border-emerald-400' : chosen ? 'border-zinc-100' : 'border-transparent';
-  return <View ref={cell} grab="keep" className={`w-[112] h-[63] rounded overflow-hidden border-2 cursor-pointer ${edge()} ${props.rowSelected ? 'bg-orange-950' : 'bg-zinc-800'}`}
+  const dragging = (): boolean => dragged() !== '';
+  const edge = (): string => dropCell() === key ? 'border-orange-400' : dragged() === FROM_CELL + key ? 'border-zinc-500' : dragging() ? 'border-zinc-600' : playing ? 'border-emerald-400' : chosen ? 'border-zinc-100' : 'border-transparent';
+  return <View ref={cell} grab="keep" className={`w-[112] h-[63] rounded overflow-hidden border-2 cursor-pointer ${edge()} ${dragged() === FROM_CELL + key ? 'opacity-40' : ''} ${props.rowSelected ? 'bg-orange-950' : 'bg-zinc-800'}`}
     onPress={() => pressCell(props.column, props.layer, clip)}>
     {!empty && <ClipThumb clip={clip} className="absolute left-0 top-0 right-0 bottom-0" />}
     {!empty && <Text className="absolute left-0 right-0 bottom-0 px-1 bg-black/60 text-[10px] text-zinc-100" numberOfLines={1}>{clip.label}</Text>}
-    {!empty && <View className="absolute right-0 top-0 w-[18] h-[18] items-center justify-center rounded bg-black/60 cursor-pointer" role="button" aria-label="Remove clip"
-      onPress={() => removeClip(props.column, props.layer)}><Text className="text-[11px] text-zinc-100">x</Text></View>}
+    {playing && <View className="absolute left-[2] top-[2] w-[18] h-[18] items-center justify-center rounded bg-black/60"><Icon name="play" size={12} color={() => PLAYING_ICON} /></View>}
+    {!empty && <View className="absolute right-[2] top-[2] w-[18] h-[18] items-center justify-center rounded bg-black/60 cursor-pointer" role="button" aria-label="Remove clip"
+      onPress={() => removeClip(props.column, props.layer)}><Icon name="x" size={12} color={() => X_ICON} /></View>}
+    {dropCell() === key && <View className="absolute left-0 top-0 right-0 bottom-0 items-center justify-center bg-orange-500/40 pointer-events-none">
+      <Text className="text-xs text-white">{empty ? 'Drop here' : 'Replace'}</Text>
+    </View>}
   </View>;
 }
 
 function LayerHead(props: { layer: i32 }): i32 {
   const layer = store.layers[props.layer];
   const selected = props.layer === store.selected;
-  const shown = word(layer, 'media');
   return <View className={`w-[196] h-[63] px-2 justify-center rounded overflow-hidden cursor-pointer ${selected ? 'bg-orange-600' : 'bg-zinc-800'}`} onPress={() => selectLayer(props.layer)}>
     <View className="flex-row items-center gap-2">
       <Switch checked={() => numbers(layer, 'visible')[0] > 0} accessibilityLabel="visible" onChange={(on: boolean) => {
@@ -112,20 +124,13 @@ function LayerHead(props: { layer: i32 }): i32 {
         touch();
       }} />
       <Text className="w-0 grow text-xs text-zinc-100" numberOfLines={1}>{word(layer, 'name')}</Text>
-      <Button size="sm" variant="ghost" label="x" onClick={() => stopLayer(props.layer)} />
+      <IconButton icon="square" onClick={() => stopLayer(props.layer)} />
     </View>
     <ValueSlider min={0} max={1} read={() => numbers(layer, 'opacity')[0]} write={(v: number) => {
       layer.opacity = [v];
       send(`/layer/${props.layer}/opacity`, [v]);
     }} />
-    {shown !== '' && !isClipOf(props.layer, shown) && <Text className="text-[10px] text-zinc-300" numberOfLines={1}>{shown}</Text>}
   </View>;
-}
-
-/** Whether what the layer shows is a clip of the grid playing; if not, its head names it. */
-function isClipOf(layer: i32, media: string): boolean {
-  const column = layer < store.playing.length ? store.playing[layer] : -1;
-  return column >= 0 && clipAt(column, layer).media === media;
 }
 
 function rowsTopFirst(): i32[] {
@@ -136,12 +141,16 @@ function rowsTopFirst(): i32[] {
 
 function Grid(): i32 {
   const rows = rowsTopFirst();
+  const across = createNodeRef();
+  let offScroll = (): void => {};
+  onMount(() => { offScroll = dnd.autoScroll(across.node); });
+  onCleanup(() => { offScroll(); });
   return <View className="flex-row gap-1">
     <View className="gap-1">
       <View className="h-[24]" />
       {rows.map((layer: i32) => <LayerHead layer={layer} />)}
     </View>
-    <ScrollView className="w-0 grow overflow-x-auto">
+    <ScrollView ref={across} className="w-0 grow overflow-x-auto">
       <View className="gap-1">
         <View className="flex-row gap-1">
           {store.columns.map((column: Column, index: i32) => <View className={`w-[112] h-[24] rounded items-center justify-center cursor-pointer ${store.activeColumn === index ? 'bg-emerald-600' : 'bg-zinc-800'}`} onPress={() => pressColumn(index)}>
@@ -182,26 +191,33 @@ function removeSelected(): void {
 function Toolbar(): i32 {
   return <View className="flex-row items-center gap-1">
     <Text className="text-[11px] uppercase text-zinc-500 mr-2">Layers</Text>
-    <Button size="sm" variant="secondary" label="Add" onClick={addLayer} />
-    <Button size="sm" variant="secondary" label="Up" onClick={() => moveSelected(1)} />
-    <Button size="sm" variant="secondary" label="Down" onClick={() => moveSelected(-1)} />
-    <Button size="sm" variant="secondary" label="Delete" onClick={removeSelected} />
+    <IconButton icon="plus" variant="secondary" label="Add" onClick={addLayer} />
+    <IconButton icon="arrow-up" variant="secondary" label="Up" onClick={() => moveSelected(1)} />
+    <IconButton icon="arrow-down" variant="secondary" label="Down" onClick={() => moveSelected(-1)} />
+    <IconButton icon="trash" variant="secondary" label="Delete" onClick={removeSelected} />
     <View className="grow" />
     <Text className="text-[11px] text-zinc-500 mr-2">A click plays a clip, a second one stops it; a column's title plays or stops the column; an empty column stops everything.</Text>
-    <Button size="sm" variant="secondary" label="Stop all" onClick={stopAll} />
+    <IconButton icon="square" variant="secondary" label="Stop all" onClick={stopAll} />
   </View>;
 }
 
 export function Dashboard(): i32 {
   const [open, setOpen] = createSignal(true);
+  const down = createNodeRef();
+  let offScroll = (): void => {};
+  onMount(() => { offScroll = dnd.autoScroll(down.node); });
+  onCleanup(() => { offScroll(); });
   return <View className="bg-zinc-900">
     {open() && <ResizeHandle after size={() => panelSize(PANEL_GRID)} min={MIN_GRID} max={MAX_GRID} onResize={(px: number) => resizePanel(PANEL_GRID, px)} />}
     <View className="p-2 gap-2">
       <View className="flex-row items-center gap-2">
         <View className="w-0 grow"><Toolbar /></View>
-        <Button size="sm" variant="ghost" label={open() ? 'Hide grid' : 'Show grid'} onClick={() => setOpen(!open())} />
+        <Button size="sm" variant="ghost" onClick={() => setOpen(!open())}><View className="flex-row items-center gap-1">
+          {open() ? <Icon name="chevron-down" size={14} color={() => X_ICON} /> : <Icon name="chevron-up" size={14} color={() => X_ICON} />}
+          <Text className="text-xs text-zinc-200">{open() ? 'Hide grid' : 'Show grid'}</Text>
+        </View></Button>
       </View>
-      {open() && <ScrollView style={{ height: panelSize(PANEL_GRID) }}><Rebuilt make={Grid} /></ScrollView>}
+      {open() && <ScrollView ref={down} style={{ height: panelSize(PANEL_GRID) }}><Rebuilt make={Grid} /></ScrollView>}
     </View>
   </View>;
 }

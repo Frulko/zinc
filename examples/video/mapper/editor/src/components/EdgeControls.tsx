@@ -1,4 +1,4 @@
-// The soft edge of one side of a layer, for light that spills past a real edge: a hard cut, then a gradient inside, outside or across it. It follows the warp.
+// The soft edge of one side of a layer, for light that spills past a real edge: a gradient from the edge inward, outward or both, and a cut: inward it hides the start, outward it brings the far end back. It follows the warp.
 import { Tabs } from 'zinc:ui/kit';
 import { createSignal } from 'zinc:ui/solid';
 import { currentLayer, numbers, setLayer } from '../state';
@@ -17,7 +17,7 @@ export function EdgeControls(): i32 {
   const edge = numbers(layer, 'edge'), inset = numbers(layer, 'inset'), direction = numbers(layer, 'edgedir');
   const [fade, setFade] = createSignal<i32>(direction[side] as i32);
   return <View className="max-w-[560] gap-1">
-    <Text className="text-xs text-zinc-300">{`Soft edge, ${SIDE_NAMES[side]} side. Red: where the cut ends. Blue: where the gradient ends.`}</Text>
+    <Text className="text-xs text-zinc-300">{`Soft edge, ${SIDE_NAMES[side]} side. Blue: where the gradient ends. Red: where the cut puts its end, or hides up to.`}</Text>
     <Tabs items={DIRECTIONS} selected={fade} onSelect={(i: i32) => {
       setFade(i);
       direction[side] = i;

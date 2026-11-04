@@ -1,5 +1,5 @@
 // The library: what can go in the grid, the media on the mapper and its sources. Drag a tile onto a cell, or click it and then click cells.
-import { Button, ResizeHandle } from 'zinc:ui/kit';
+import { ResizeHandle } from 'zinc:ui/kit';
 import * as dnd from 'zinc:ui/dnd';
 import { createNodeRef, onCleanup, onMount } from 'zinc:ui/solid';
 import { Clip, EMPTY_CLIP, isEmptyClip } from '../model/clips';
@@ -7,7 +7,7 @@ import { pickFolder, pickMedia } from '../services/files';
 import { sendFiles } from '../transfers';
 import { MediaFile, PANEL_LIBRARY, panelSize, removeMedia, resizePanel, store, touch } from '../state';
 import { ClipThumb } from './ClipThumb';
-import { Heading } from './Field';
+import { Heading, IconButton } from './Field';
 import { Rebuilt } from './Rebuilt';
 
 const MIN_WIDTH = 140, MAX_WIDTH = 560;
@@ -54,7 +54,7 @@ function MediaTiles(): i32 {
     <View className="flex-row flex-wrap gap-2">
       {store.media.map((file: MediaFile) => <Tile clip={{ ...EMPTY_CLIP, label: file.name, media: file.name }} detail={size(file.bytes)} />)}
     </View>
-    {armed !== '' && <Button size="sm" variant="ghost" label={`Delete ${armed}`} onClick={() => { removeMedia(armed); }} />}
+    {armed !== '' && <IconButton icon="trash" label={`Delete ${armed}`} onClick={() => { removeMedia(armed); }} />}
   </View>;
 }
 
@@ -67,8 +67,8 @@ export function Library(): i32 {
     <Heading text="Media" />
     <Rebuilt make={MediaTiles} />
     <View className="mt-2 flex-row flex-wrap gap-1">
-      <Button size="sm" label="Send files" onClick={() => { pickAndSend(); }} />
-      <Button size="sm" variant="secondary" label="Send a folder" onClick={() => { pickFolderAndSend(); }} />
+      <IconButton icon="upload" variant="default" label="Send files" onClick={() => { pickAndSend(); }} />
+      <IconButton icon="folder-up" variant="secondary" label="Send a folder" onClick={() => { pickFolderAndSend(); }} />
     </View>
     <Text className="text-[11px] text-zinc-500 mt-1">Or drop them on this window: they play on the selected layer.</Text>
     <Heading text="Sources" />

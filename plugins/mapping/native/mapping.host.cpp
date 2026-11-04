@@ -40,7 +40,7 @@ struct Layer {
   int source, blend, cols, rows, image, maskimage, fit;
   int card;   // a runtime image shown instead of the source and the media while calibrating (-1: none); not saved
   float visible, color[3], color2[3], angle, corners[8], position[2], scale, rotation, opacity;
-  float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], inset[4], edgedir[4], grid;  // inset: what each side hides outright, its edge ramp starts from there; edgedir: which way that ramp goes (0 inside, 1 outside, 2 across)
+  float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], inset[4], edgedir[4], grid;  // edgedir: which way each side's ramp goes from its edge (0 inside, 1 outside, 2 across); inset: its cut, what is hidden before an inside ramp, what is taken from the far end of an outside one
   float inputRect[4], volume, loop;  // inputRect: the part of the source shown (x y w h in 0..1)
   float frame[3];  // what a fit shows of the picture: where it slides along each axis (-1 start, 0 middle, 1 end) and a zoom
   char media[64], mediaOpened[64];   // a file of the media folder ("" none), and the one asked of the player
@@ -148,7 +148,7 @@ void warp(const Layer& l, float s, float t, float out[2]) {
   for (int k = 0; k < 2; k++) out[k] = cr(row[0][k], row[1][k], row[2][k], row[3][k], v);
 }
 
-// How far a side's fade goes past the surface.
+// How far a side's fade goes past the surface: outside, the cut brings its far end back.
 float spill(const Layer& l, int side) { return l.edgedir[side] >= 0.5f && l.edge[side] > l.inset[side] ? l.edge[side] - l.inset[side] : 0; }
 // The part of the surface a layer draws, x y w h: 0 0 1 1 unless a fade goes outside. The mesh and the mask texture both cover it.
 void drawn_range(const Layer& l, float r[4]) {
@@ -445,8 +445,10 @@ void build_mask(Layer& l) {
   glUniform1f(glGetUniformLocation(crop_prog, "u_cf"), l.crop[4]);
   float lo[4], hi[4];
   for (int side = 0; side < 4; side++) {
-    lo[side] = l.inset[side] - (l.edgedir[side] >= 0.5f ? l.edge[side] : 0);
-    hi[side] = l.inset[side] + (l.edgedir[side] < 0.5f || l.edgedir[side] >= 1.5f ? l.edge[side] : 0);
+    // inside: hidden up to the cut, then the gradient. Outside: full up to the edge, the gradient past it, ending where the cut brings it. Both: the two sides of the edge.
+    const bool outward = l.edgedir[side] >= 0.5f, inward = l.edgedir[side] < 0.5f || l.edgedir[side] >= 1.5f;
+    lo[side] = outward ? -spill(l, side) : l.inset[side];
+    hi[side] = (outward ? 0 : l.inset[side]) + (inward ? l.edge[side] : 0);
   }
   glUniform4fv(glGetUniformLocation(crop_prog, "u_lo"), 1, lo);
   glUniform4fv(glGetUniformLocation(crop_prog, "u_hi"), 1, hi);

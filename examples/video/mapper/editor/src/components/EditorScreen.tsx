@@ -1,13 +1,13 @@
 // The editor: the library on the left, the views in the middle, the settings of the clip and its layer on the right, the grid of clips below.
 import * as ui from 'zinc:ui';
-import { Button, Switch, Tabs } from 'zinc:ui/kit';
+import { Button, Switch } from 'zinc:ui/kit';
 import { createSignal } from 'zinc:ui/solid';
 import { send } from '../services/link';
 import { MASK_SLOTS, currentLayer, loadState, maskValues, pointRevision, revision, setLayer, removeChosenClip, status, stepHistory, store, touch } from '../state';
 import { CalibrationPanel } from './CalibrationPanel';
 import { DragGhost, Dashboard } from './Dashboard';
 import { HistoryPanel } from './HistoryPanel';
-import { Heading } from './Field';
+import { Heading, IconButton, IconTabs } from './Field';
 import { Library } from './Library';
 import { EdgeControls } from './EdgeControls';
 import { MODE_CORNERS, MODE_EDGES, MODE_MESH, OutputCanvas, isLinking, outputMode, selectedCornerIsLinked, selectedPointText, setOutputMode, startLinking, unlinkSelectedCorner } from './OutputCanvas';
@@ -22,6 +22,7 @@ import { SurfaceCanvas, currentMask, selectMask } from './SurfaceCanvas';
 import { Rebuilt } from './Rebuilt';
 
 const VIEWS: string[] = ['Output', 'Masks', 'Calibration', 'Room', 'Sound', 'Scenes', 'History', 'Options'];
+const VIEW_ICONS: string[] = ['monitor', 'square-dashed', 'ruler', 'box', 'volume-2', 'clapperboard', 'clock', 'settings'];
 const MESH_PRESETS: i32[] = [3, 4, 6, 9];
 const NEW_MASK: number[] = [0.05, 0, 0.3, 0.3, 0.7, 0.3, 0.7, 0.7, 0.3, 0.7];
 
@@ -33,14 +34,14 @@ function resizeGrid(size: i32): void {
 }
 
 function ModeTabs(): i32 {
-  return <Tabs items={['Corner pin', 'Deformation grid', 'Edges']} selected={outputMode} onSelect={setOutputMode} />;
+  return <IconTabs items={['Corner pin', 'Deformation grid', 'Edges']} icons={['move', 'grid-3x3', 'blend']} selected={outputMode} onSelect={setOutputMode} />;
 }
 
 function LinkTools(): i32 {
   if (outputMode() !== MODE_CORNERS) return <View />;
   return <View className="flex-row gap-1 items-center">
-    <Button size="sm" variant={isLinking() ? 'default' : 'secondary'} label="Link point" onClick={startLinking} />
-    {selectedCornerIsLinked() && <Button size="sm" variant="ghost" label="Unlink" onClick={unlinkSelectedCorner} />}
+    <IconButton icon="link" variant={isLinking() ? 'default' : 'secondary'} label="Link point" onClick={startLinking} />
+    {selectedCornerIsLinked() && <IconButton icon="unlink" label="Unlink" onClick={unlinkSelectedCorner} />}
   </View>;
 }
 
@@ -51,11 +52,11 @@ function OutputView(): i32 {
     <View className="flex-row flex-wrap gap-1 items-center">
       <Rebuilt make={ModeTabs} />
       {MESH_PRESETS.map((size: i32) => <Button size="sm" variant="secondary" label={`${size} x ${size}`} onClick={() => resizeGrid(size)} />)}
-      <Button size="sm" variant="ghost" label="Reset grid" onClick={() => {
+      <IconButton icon="rotate-ccw" label="Reset grid" onClick={() => {
         send(`/layer/${store.selected}/meshreset`, []);
         loadState();
       }} />
-      <Button size="sm" variant="ghost" label="Reset corners" onClick={() => { setLayer('corners', [0, 0, 1, 0, 1, 1, 0, 1]); touch(); }} />
+      <IconButton icon="rotate-ccw" label="Reset corners" onClick={() => { setLayer('corners', [0, 0, 1, 0, 1, 1, 0, 1]); touch(); }} />
     </View>
     <Rebuilt make={LinkTools} />
     <View className="h-0 grow"><OutputCanvas /></View>
@@ -119,9 +120,9 @@ export function EditorScreen(): i32 {
   return <View className="grow bg-zinc-950">
     <View className="flex-row items-center gap-3 h-[44] px-3 bg-zinc-900">
       <Text className="text-sm text-zinc-100">Mapper</Text>
-      <Tabs items={VIEWS} selected={view} onSelect={setView} />
-      <Button size="sm" variant="ghost" label="Undo" onClick={() => { stepHistory('undo'); }} />
-      <Button size="sm" variant="ghost" label="Redo" onClick={() => { stepHistory('redo'); }} />
+      <IconTabs items={VIEWS} icons={VIEW_ICONS} selected={view} onSelect={setView} />
+      <IconButton icon="undo-2" label="Undo" onClick={() => { stepHistory('undo'); }} />
+      <IconButton icon="redo-2" label="Redo" onClick={() => { stepHistory('redo'); }} />
       <View className="grow" />
       <Text className="text-xs text-zinc-400">{status()}</Text>
     </View>

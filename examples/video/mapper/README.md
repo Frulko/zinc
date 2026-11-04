@@ -96,7 +96,7 @@ what counts on small hardware.
 
 A low-resolution projector bleeds past the edge of a shape, onto what stands behind it. In *Output*, choose **Edges** and click a side of
 a layer: its **cut** hides a strip outright, its **gradient** fades what follows, its **curve** shapes that fade. **Inside**, **Outside** or **Both** says which way the gradient goes
-from that line: into the layer, past its edge onto what stands behind, or across the edge. It follows the warp, and the lines on the
+from the edge: into the layer, past it onto what stands behind, or both. Outside, the **cut** brings the far end of the gradient back toward the edge. It follows the warp, and the lines on the
 canvas show where each one ends.
 
 ### Sending media, following the device
