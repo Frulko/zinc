@@ -19,6 +19,10 @@ async function main(): Promise<void> {
   system.call('tray.click', { id: 'main', button: 'right' });
   t.setTitle('4');
   console.log('title now', (system.call('tray.dump', {}) as { trays: { title: string }[] }).trays[0].title);
+  const plain = await tray.create(new tray.Options('plain'));   // no icon, symbol or title: the plain dot, a template image (a title alone shows no dot)
+  const p = (system.call('tray.dump', {}) as { trays: { id: string; template: boolean; width: number; height: number }[] }).trays[1];
+  console.log('tray', p.id, 'template', p.template, 'image', p.width + 'x' + p.height);
+  plain.destroy();
   setTimeout(() => { t.destroy(); console.log('trays left', (system.call('tray.dump', {}) as { trays: unknown[] }).trays.length); system.quit(0); }, 300);
 }
 main();

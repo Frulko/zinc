@@ -1,10 +1,11 @@
 available true
-tray main template true image 18x18 title 3 tooltip Zinc tray
+tray main template false image 0x0 title 3 tooltip Zinc tray
 Show  {show}
 ----
 Quit  {quit}
 
 title now 4
+tray plain template true image 18x18
 tray click left false
 tray click right false
 trays left 0
