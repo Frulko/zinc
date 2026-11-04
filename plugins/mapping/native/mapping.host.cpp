@@ -40,7 +40,7 @@ struct Layer {
   int source, blend, cols, rows, image, maskimage, fit;
   int card;   // a runtime image shown instead of the source and the media while calibrating (-1: none); not saved
   float visible, color[3], color2[3], angle, corners[8], position[2], scale, rotation, opacity;
-  float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], inset[4], grid;  // inset: what each side hides outright, its edge ramp starts after it
+  float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], inset[4], edgedir[4], grid;  // inset: what each side hides outright, its edge ramp starts from there; edgedir: which way that ramp goes (0 inside, 1 outside, 2 across)
   float inputRect[4], volume, loop;  // inputRect: the part of the source shown (x y w h in 0..1)
   char media[64], mediaOpened[64];   // a file of the media folder ("" none), and the one asked of the player
   float mesh[MAX_MESH * MAX_MESH * 2];
@@ -67,7 +67,7 @@ struct Field { const char* key; size_t off; int n, dirty; };
 const Field FIELDS[] = {
   F(visible, 1, 0), F(color, 3, 0), F(color2, 3, 0), F(angle, 1, 0), F(corners, 8, 0), F(position, 2, 0), F(scale, 1, 0),
   F(rotation, 1, 0), F(opacity, 1, 0), F(brightness, 1, 0), F(contrast, 1, 0), F(saturation, 1, 0), F(hue, 1, 0),
-  F(gamma, 1, 0), F(gain, 3, 0), F(crop, 5, 2), F(edge, 5, 2), F(inset, 4, 2), F(grid, 1, 0),
+  F(gamma, 1, 0), F(gain, 3, 0), F(crop, 5, 2), F(edge, 5, 2), F(inset, 4, 2), F(edgedir, 4, 2), F(grid, 1, 0),
   F(inputRect, 4, 0), F(volume, 1, 0), F(loop, 1, 0)};
 #undef F
 
@@ -132,9 +132,11 @@ float cr(float p0, float p1, float p2, float p3, float t) {
 }
 void warp(const Layer& l, float s, float t, float out[2]) {
   float fx = s * (l.cols - 1), fy = t * (l.rows - 1);
-  int i = (int)fx, j = (int)fy;
+  int i = (int)fx, j = (int)fy;   // s, t past 0..1 (a fade outside the surface) continue the border's segment
   if (i > l.cols - 2) i = l.cols - 2;
   if (j > l.rows - 2) j = l.rows - 2;
+  if (i < 0) i = 0;
+  if (j < 0) j = 0;
   float u = fx - i, v = fy - j, row[4][2];
   for (int b = 0; b < 4; b++) {
     float p[4][2];
@@ -144,12 +146,22 @@ void warp(const Layer& l, float s, float t, float out[2]) {
   for (int k = 0; k < 2; k++) out[k] = cr(row[0][k], row[1][k], row[2][k], row[3][k], v);
 }
 
+// How far a side's fade goes past the surface.
+float spill(const Layer& l, int side) { return l.edgedir[side] >= 0.5f && l.edge[side] > l.inset[side] ? l.edge[side] - l.inset[side] : 0; }
+// The part of the surface a layer draws, x y w h: 0 0 1 1 unless a fade goes outside. The mesh and the mask texture both cover it.
+void drawn_range(const Layer& l, float r[4]) {
+  r[0] = -spill(l, 0); r[1] = -spill(l, 2);
+  r[2] = 1 + spill(l, 0) + spill(l, 1); r[3] = 1 + spill(l, 2) + spill(l, 3);
+}
+
 void tessellate(Layer& l) {
+  float range[4];
+  drawn_range(l, range);
   static float pts[(GRID + 1) * (GRID + 1)][4], tri[GRID * GRID * 6][4];
   for (int y = 0; y <= GRID; y++)
     for (int x = 0; x <= GRID; x++) {
       float* p = pts[y * (GRID + 1) + x];
-      p[2] = (float)x / GRID; p[3] = (float)y / GRID;
+      p[2] = range[0] + range[2] * x / GRID; p[3] = range[1] + range[3] * y / GRID;
       warp(l, p[2], p[3], p);
     }
   int n = 0;
@@ -215,12 +227,18 @@ const char* LAYER_VS = R"(attribute vec2 a_pos; attribute vec2 a_uv; uniform mat
 #if SRC == 5
 uniform vec4 u_stm; varying vec2 v_tx;
 #endif
+#if MASK
+uniform vec4 u_range; varying vec2 v_m;
+#endif
 void main() {
   vec3 q = u_m * vec3(a_pos, 1.0);
   v_uv = a_uv;
   v_st = a_uv * u_fit.xy + u_fit.zw;
 #if SRC == 5
   v_tx = v_st * u_stm.xy + u_stm.zw;
+#endif
+#if MASK
+  v_m = (a_uv - u_range.xy) / u_range.zw;
 #endif
   gl_Position = vec4(q.xy, 0.0, q.z);
 }
@@ -230,6 +248,9 @@ const char* LAYER_FS = R"(varying vec2 v_uv; varying vec2 v_st;
 uniform samplerExternalOES u_tex; varying vec2 v_tx;
 #else
 uniform sampler2D u_tex;
+#endif
+#if MASK
+varying vec2 v_m;
 #endif
 uniform sampler2D u_mask; uniform vec4 u_clip;
 uniform vec3 u_c1; uniform vec3 u_c2; uniform vec2 u_dir;
@@ -267,7 +288,7 @@ void main() {
 #endif
   float a = u_alpha;
 #if MASK
-  a *= texture2D(u_mask, v_uv).r;
+  a *= texture2D(u_mask, v_m).r;
 #endif
 #if SRC == 4
   a *= texture2D(u_tex, v_st).a;
@@ -278,13 +299,14 @@ void main() {
 #endif
 #if GRID
   vec2 g = abs(fract(v_uv * u_grid.xy + 0.5) - 0.5) / u_grid.xy;
-  if (min(g.x, g.y) < 0.002 || min(v_uv.x, v_uv.y) < 0.004 || max(v_uv.x, v_uv.y) > 0.996) { c = vec3(1.0, 0.85, 0.1); a = 1.0; }
+  float border = min(min(v_uv.x, v_uv.y), 1.0 - max(v_uv.x, v_uv.y));   // negative in a fade outside the surface, which has no grid
+  if (border >= 0.0 && (min(g.x, g.y) < 0.002 || border < 0.004)) { c = vec3(1.0, 0.85, 0.1); a = 1.0; }
 #endif
   gl_FragColor = vec4(c * a, a);
 }
 )";
-const char* MASK_VS = R"(attribute vec2 a_pos; varying vec2 v_uv;
-void main() { v_uv = a_pos; gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }
+const char* MASK_VS = R"(attribute vec2 a_pos; uniform vec4 u_range; varying vec2 v_uv;
+void main() { v_uv = u_range.xy + a_pos * u_range.zw; gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }
 )";
 // Feathered polygon: signed distance to the outline (even-odd inside test), smoothstep over the feather width.
 const char* POLY_FS = R"(varying vec2 v_uv;
@@ -306,16 +328,16 @@ void main() {
 }
 )";
 // Crop rectangle (feathered inwards), edge blending ramps (smoothstep ^ 1/gamma, so overlapping projectors sum to
-// constant light) and the image mask's luminance.
+// constant light; 0 up to u_lo and 1 from u_hi, in distance from each side) and the image mask's luminance.
 const char* CROP_FS = R"(varying vec2 v_uv;
-uniform vec4 u_crop; uniform float u_cf; uniform vec4 u_edge; uniform vec4 u_inset; uniform float u_eg; uniform sampler2D u_img; uniform float u_hasimg;
-float ramp(float x, float w, float hidden) { if (x < hidden) return 0.0; return w > 0.0 ? pow(smoothstep(0.0, 1.0, clamp((x - hidden) / w, 0.0, 1.0)), 1.0 / u_eg) : 1.0; }
+uniform vec4 u_crop; uniform float u_cf; uniform vec4 u_lo; uniform vec4 u_hi; uniform float u_eg; uniform sampler2D u_img; uniform float u_hasimg;
+float ramp(float x, float lo, float hi) { if (x < lo) return 0.0; return hi > lo ? pow(smoothstep(0.0, 1.0, clamp((x - lo) / (hi - lo), 0.0, 1.0)), 1.0 / u_eg) : 1.0; }
 void main() {
   vec2 p = v_uv;
   float f = max(u_cf, 0.0001);
   float c = smoothstep(u_crop.x, u_crop.x + f, p.x) * smoothstep(u_crop.y, u_crop.y + f, p.y)
           * (1.0 - smoothstep(u_crop.z - f, u_crop.z, p.x)) * (1.0 - smoothstep(u_crop.w - f, u_crop.w, p.y));
-  c *= ramp(p.x, u_edge.x, u_inset.x) * ramp(1.0 - p.x, u_edge.y, u_inset.y) * ramp(p.y, u_edge.z, u_inset.z) * ramp(1.0 - p.y, u_edge.w, u_inset.w);
+  c *= ramp(p.x, u_lo.x, u_hi.x) * ramp(1.0 - p.x, u_lo.y, u_hi.y) * ramp(p.y, u_lo.z, u_hi.z) * ramp(1.0 - p.y, u_lo.w, u_hi.w);
   if (u_hasimg > 0.5) { vec3 m = texture2D(u_img, p).rgb; c *= (m.r + m.g + m.b) / 3.0; }
   gl_FragColor = vec4(vec3(c), 1.0);
 }
@@ -389,6 +411,8 @@ void build_mask(Layer& l) {
   }
   glBindFramebuffer(GL_FRAMEBUFFER, l.mfbo);
   glViewport(0, 0, MASK_PX, MASK_PX);
+  float range[4];
+  drawn_range(l, range);
   bool include = false;
   for (const Mask& m : l.masks) include |= m.n >= 3 && m.invert < 0.5f;
   const float bg = include ? 0.f : 1.f;
@@ -396,6 +420,7 @@ void build_mask(Layer& l) {
   glClear(GL_COLOR_BUFFER_BIT);
   glEnable(GL_BLEND);
   glUseProgram(poly_prog);
+  glUniform4fv(glGetUniformLocation(poly_prog, "u_range"), 1, range);
   // includes are united (screen), then excludes cut out (multiply by 1 - coverage)
   for (int pass = 0; pass < 2; pass++)
     for (const Mask& m : l.masks) {
@@ -410,10 +435,19 @@ void build_mask(Layer& l) {
     }
   glBlendFunc(GL_ZERO, GL_SRC_COLOR);
   glUseProgram(crop_prog);
-  glUniform4f(glGetUniformLocation(crop_prog, "u_crop"), l.crop[0], l.crop[1], l.crop[2], l.crop[3]);
+  glUniform4fv(glGetUniformLocation(crop_prog, "u_range"), 1, range);
+  // a crop left at the surface's border does not stop a fade that goes past it
+  const float FAR = 4;
+  glUniform4f(glGetUniformLocation(crop_prog, "u_crop"), spill(l, 0) > 0 && l.crop[0] <= 0 ? -FAR : l.crop[0], spill(l, 2) > 0 && l.crop[1] <= 0 ? -FAR : l.crop[1],
+              spill(l, 1) > 0 && l.crop[2] >= 1 ? FAR : l.crop[2], spill(l, 3) > 0 && l.crop[3] >= 1 ? FAR : l.crop[3]);
   glUniform1f(glGetUniformLocation(crop_prog, "u_cf"), l.crop[4]);
-  glUniform4f(glGetUniformLocation(crop_prog, "u_edge"), l.edge[0], l.edge[1], l.edge[2], l.edge[3]);
-  glUniform4f(glGetUniformLocation(crop_prog, "u_inset"), l.inset[0], l.inset[1], l.inset[2], l.inset[3]);
+  float lo[4], hi[4];
+  for (int side = 0; side < 4; side++) {
+    lo[side] = l.inset[side] - (l.edgedir[side] >= 0.5f ? l.edge[side] : 0);
+    hi[side] = l.inset[side] + (l.edgedir[side] < 0.5f || l.edgedir[side] >= 1.5f ? l.edge[side] : 0);
+  }
+  glUniform4fv(glGetUniformLocation(crop_prog, "u_lo"), 1, lo);
+  glUniform4fv(glGetUniformLocation(crop_prog, "u_hi"), 1, hi);
   glUniform1f(glGetUniformLocation(crop_prog, "u_eg"), l.edge[4] > 0.1f ? l.edge[4] : 1.f);
   glActiveTexture(GL_TEXTURE0);
   bool img = l.maskimage >= 0 && l.mimg.id && l.mimg.image == l.maskimage;
@@ -484,6 +518,9 @@ void fit_source(const Layer& l, int32_t sourceW, int32_t sourceH, float fit[4], 
   clip[1] = rect[1] + rect[3] / 2;
   clip[2] = rect[2] / 2;
   clip[3] = rect[3] / 2;
+  // an axis without bars cuts nothing: a fade outside the surface goes on reading past the picture's border
+  if (scaleU <= 1) clip[2] = 8;
+  if (scaleV <= 1) clip[3] = 8;
   *clipped = l.fit == CONTAIN && (scaleU > 1 || scaleV > 1);
 }
 
@@ -562,6 +599,9 @@ void draw(int32_t w, int32_t h) {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, l.mtex.id);
     glUniform1i(glGetUniformLocation(p, "u_mask"), 1);
+    float range[4];
+    drawn_range(l, range);
+    glUniform4fv(glGetUniformLocation(p, "u_range"), 1, range);
     glActiveTexture(GL_TEXTURE0);
     glEnable(GL_BLEND);  // premultiplied output
     if (l.blend == ADD) glBlendFunc(GL_ONE, GL_ONE);
@@ -599,7 +639,7 @@ bool apply(Layer& l, const char* key, const double* v, int nn, const Str* s, int
     if (!strcmp(key, f.key)) {
       float* dst = (float*)((char*)&l + f.off);
       for (int i = 0; i < nn && i < f.n; i++) dst[i] = (float)v[i];
-      if (f.dirty) l.mask_dirty = true;
+      if (f.dirty) l.mask_dirty = l.geom_dirty = true;
       return nn > 0;
     }
   if (!strcmp(key, "name")) { if (ns < 1) return false; snprintf(l.name, sizeof l.name, "%s", s[0]); return true; }

@@ -18,3 +18,4 @@ export const CROP_LINE: u32 = 0x8a94a2;
 export const EDGE_BLEND: u32 = 0x508cff;
 export const MASK_SHOW: u32 = 0x3cff78;
 export const MASK_HIDE: u32 = 0xff3c3c;
+export const EDGE_INSIDE: i32 = 0, EDGE_OUTSIDE: i32 = 1;   // /layer/n/edgedir; 2 fades across the edge

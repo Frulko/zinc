@@ -378,6 +378,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - The video mapper links corners of two layers so they move together, softens one edge of a layer with a cut and a gradient you set (`/layer/<n>/inset` in `zinc:mapping`), and rebuilds its 3D view from the corners, the lens and those links: faces of one box now meet.
 - The video mapper works like Resolume and Millumin: a library of media and sources with thumbnails, a grid of clips always on screen, a clip dragged onto a cell, fired alone or with its column, and a layer emptied with one click (`/cell`, `/stop`, and `none` as a layer source of `zinc:mapping`).
 - The video mapper announces itself on the network and shows a pairing code: the native editor lists the mappers it finds and pairs once, a browser opened at the address enters the same code.
+- The video mapper fades each side of a layer inward, outward past its edge, or across it: choose **Inside**, **Outside** or **Both** under *Edges*, or send `/layer/<n>/edgedir`.
 
 #### Changed
 - Discord: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro) and logs a clamp as "over the ceiling".

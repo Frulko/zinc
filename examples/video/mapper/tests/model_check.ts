@@ -1,5 +1,5 @@
 // The editor's maths without its interface: a surface placed in a known spot comes back from its corners, media sizes, the GLB's shape.
-import { Point, footprint, insertMaskPoint, insidePolygon, mediaSize } from '../editor/src/model/geometry';
+import { Point, footprint, insertMaskPoint, insidePolygon, mediaSize, warp } from '../editor/src/model/geometry';
 import { Lens, Link, SolvedSurface, Vec3, sceneGlb, solveRoom, surfaceGrid, surfaceShape, surfacePose } from '../editor/src/model/room';
 import { addLink, linkedCorners, removeLinksOf } from '../editor/src/model/links';
 import { Clip, Column, EMPTY_CLIP, clipFrom, ensureColumns, firstFreeColumn, isEmptyClip } from '../editor/src/model/clips';
@@ -55,6 +55,11 @@ editor.move(points, 0.25, 0.5);
 near('moved', moved[0] + moved[1], 0.75, 0);
 editor.step(1, true);
 near('step stays', editor.selection[0], 0, 0);
+
+// a fade outside the surface goes on along its border: past 0 and past 1 on a flat mesh
+const flatMesh: number[] = [2, 2, 0, 0, 1, 0, 0, 1, 1, 1];
+near('warp before the left side', warp(flatMesh, -0.2, 0.5)[0], -0.2, 1e-6);
+near('warp past the right side', warp(flatMesh, 1.3, 0.5)[0], 1.3, 1e-6);
 
 // a point clicked beyond the right edge of a square lands between its two right corners
 const mask: number[] = [0.05, 0, 0.3, 0.3, 0.7, 0.3, 0.7, 0.7, 0.3, 0.7];

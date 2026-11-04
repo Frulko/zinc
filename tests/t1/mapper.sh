@@ -18,6 +18,26 @@ m = re.search(r"over \d+: ([\d.]+)%", sys.argv[1])
 if not m or float(m.group(1)) > 1.0: print("mapper: the GL frame differs from the prototype's: " + sys.argv[1]); sys.exit(1)
 PY
 fi
+# a side's gradient goes inside, outside the surface or across its edge: one white band of each, its right side at x = .6, a gradient worth .1 of the output
+edges="$tmp/edges"; cp -R "$project" "$edges"
+python3 - >"$edges/mapping.json" <<'PY'
+import json
+def band(top, direction):
+    return {"name": ["band"], "source": ["solid"], "color": [1, 1, 1], "corners": [.2, top, .6, top, .6, top + .25, .2, top + .25], "edge": [0, .25, 0, 0, 1], "edgedir": [0, direction, 0, 0]}
+print(json.dumps({"version": [1], "layers": [band(.05, 0), band(.37, 1), band(.69, 2)]}))
+PY
+ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SHOT="$tmp/e.bmp" timeout 120 "$ZINC" run "$edges/src/main.ts" -- --port 0 --web off >"$tmp/edges.log" 2>&1
+python3 - "$tmp/e.bmp" <<'PY' || fail=1
+import struct, sys
+b = open(sys.argv[1], "rb").read()
+start = struct.unpack("<I", b[10:14])[0]; w, h = struct.unpack("<ii", b[18:26]); depth = struct.unpack("<H", b[28:30])[0] // 8
+stride = (w * depth + 3) & ~3
+def light(x, y):   # a BMP's rows go from the bottom up
+    return b[start + (h - 1 - int(y * h)) * stride + int(x * w) * depth]
+want = {"inside": (.175, {.48: 255, .55: 128, .595: 0, .65: 0}), "outside": (.495, {.48: 255, .595: 255, .65: 128, .705: 0}), "both": (.815, {.48: 255, .6: 128, .705: 0})}
+problems = [f"{name} at x={x}: {light(x, y)}, not {v}" for name, (y, row) in want.items() for x, v in row.items() if abs(light(x, y) - v) > 40]
+if problems: print("edge direction: " + "; ".join(problems)); sys.exit(1)
+PY
 # a JavaScript engine loads the project's display driver too (zinc.json "display": "gl", which zinc:mapping draws through), with no ZINC_DISPLAY
 # (a deterministic run keeps the host window unless ZINC_DISPLAY asks: this one is not)
 ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_FRAMES=30 timeout 120 "$ZINC" run "$project" --engine quickjs -- --web off >"$tmp/qjs.log" 2>&1 && grep -q ", 3 layers" "$tmp/qjs.log" || { echo "mapper on quickjs: $(tail -c 300 "$tmp/qjs.log")"; fail=1; }

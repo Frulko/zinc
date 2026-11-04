@@ -1,6 +1,6 @@
 // The output: every layer's warped surface, and the points of the selected one (corner pins, or the deformation grid).
 import * as gfx from 'zinc:gfx';
-import { ACCENT, CANVAS_BLACK, CURVE_STEPS, EDGE_BLEND, HIT_RADIUS, LINKED_POINT, MASK_HIDE, OTHER_CORNER, SELECTED_POINT } from '../constants';
+import { ACCENT, CANVAS_BLACK, CURVE_STEPS, EDGE_BLEND, EDGE_INSIDE, EDGE_OUTSIDE, HIT_RADIUS, LINKED_POINT, MASK_HIDE, OTHER_CORNER, SELECTED_POINT } from '../constants';
 import { Mat3, Point, apply, insidePolygon, invert, placementMatrix, placementTransform, warp } from '../model/geometry';
 import { CornerRef, addLink, linkedCorners, removeLinksOf } from '../model/links';
 import { EditablePoint, PointEditor } from '../model/pointEditor';
@@ -250,11 +250,12 @@ function selectLayerAt(x: number, y: number): void {
 }
 
 function drawSideMarks(layer: any, x: i32, y: i32, w: i32, h: i32): void {
-  const edge = numbers(layer, 'edge'), inset = numbers(layer, 'inset');
+  const edge = numbers(layer, 'edge'), inset = numbers(layer, 'inset'), direction = numbers(layer, 'edgedir');
   const onCanvas = (line: Point[]): Point[] => line.map((p: Point): Point => [x + p[0] * w, y + p[1] * h]);
   for (let side: i32 = 0; side < 4; side++) {
     if (inset[side] > 0) drawLine(onCanvas(sideLine(layer, side, inset[side])), MASK_HIDE);
-    if (edge[side] > 0) drawLine(onCanvas(sideLine(layer, side, inset[side] + edge[side])), EDGE_BLEND);
+    if (edge[side] > 0 && direction[side] !== EDGE_OUTSIDE) drawLine(onCanvas(sideLine(layer, side, inset[side] + edge[side])), EDGE_BLEND);
+    if (edge[side] > 0 && direction[side] !== EDGE_INSIDE) drawLine(onCanvas(sideLine(layer, side, inset[side] - edge[side])), EDGE_BLEND);
   }
   if (selectedEdge >= 0) {
     const line = onCanvas(sideLine(layer, selectedEdge, 0));

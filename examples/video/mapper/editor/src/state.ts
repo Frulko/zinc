@@ -5,7 +5,7 @@ import * as storage from 'zinc:storage';
 import { Clip, Column, EMPTY_CLIP, clipFrom, ensureColumns, firstFreeColumn, isEmptyClip } from './model/clips';
 import { Lens, Link } from './model/room';
 import { Placement } from './model/geometry';
-import { SETTLE_MS } from './constants';
+import { EDGE_OUTSIDE, SETTLE_MS } from './constants';
 import { deleteJson, getJson, getText, postJson, putJson, send, sendFile } from './services/link';
 import { mediaName, saveText } from './services/files';
 
@@ -91,7 +91,9 @@ export function templateOf(layer: any): TemplateLayer {
     const values = maskValues(layer, slot);
     if (values.length >= 8) masks.push({ feather: values[0], hideInside: values[1] > 0, points: values.slice(2) });
   }
-  return { name: word(layer, 'name'), placement: placementOf(layer), edge: numbers(layer, 'edge'), masks };
+  const direction = numbers(layer, 'edgedir');
+  const edge = numbers(layer, 'edge').map((width: number, side: i32): number => side < 4 && direction[side] === EDGE_OUTSIDE ? 0 : width);   // a fade outside is not in the media's square
+  return { name: word(layer, 'name'), placement: placementOf(layer), edge, masks };
 }
 
 /** Sets a property of the selected layer, here and on the mapper. */

@@ -73,7 +73,7 @@ function catmullRom(p0: number, p1: number, p2: number, p3: number, t: number): 
 export function warp(mesh: number[], s: number, t: number): Point {
   const cols: i32 = mesh[0] as i32, rows: i32 = mesh[1] as i32;
   const fx = s * (cols - 1), fy = t * (rows - 1);
-  const i: i32 = Math.min(Math.floor(fx), cols - 2) as i32, j: i32 = Math.min(Math.floor(fy), rows - 2) as i32;
+  const i: i32 = Math.max(Math.min(Math.floor(fx), cols - 2), 0) as i32, j: i32 = Math.max(Math.min(Math.floor(fy), rows - 2), 0) as i32;   // past 0..1, the border's segment goes on
   const u = fx - i, v = fy - j;
   const xs: number[] = [], ys: number[] = [];
   for (let b: i32 = 0; b < 4; b++) {

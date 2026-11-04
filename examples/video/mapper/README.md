@@ -94,8 +94,9 @@ what counts on small hardware.
 ### Light that spills past an edge
 
 A low-resolution projector bleeds past the edge of a shape, onto what stands behind it. In *Output*, choose **Edges** and click a side of
-a layer: its **cut** hides a strip outright, its **gradient** fades what follows, its **curve** shapes that fade. It follows the warp, and
-the lines on the canvas show where each one ends.
+a layer: its **cut** hides a strip outright, its **gradient** fades what follows, its **curve** shapes that fade. **Inside**, **Outside** or **Both** says which way the gradient goes
+from that line: into the layer, past its edge onto what stands behind, or across the edge. It follows the warp, and the lines on the
+canvas show where each one ends.
 
 ### The room in 3D
 
