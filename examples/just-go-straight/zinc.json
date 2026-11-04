@@ -1,0 +1,11 @@
+{
+  "name": "just-go-straight",
+  "entry": "main.js",
+  "web": true,
+  "targets": {
+    "sim": {
+      "width": 640,
+      "height": 480
+    }
+  }
+}
