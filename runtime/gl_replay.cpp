@@ -2288,8 +2288,9 @@ static bool paint_populate(PaintEntry& e) {
 }
 static void paint_cache_prepare(const HalCmdList* const* lists, int n) {
   paint_use_count = 0;
-  if (getenv("ZINC_GL_DUMP")) {
-    unsetenv("ZINC_GL_DUMP");
+  static bool dumped = false;
+  if (!dumped && getenv("ZINC_GL_DUMP")) {
+    dumped = true;
     for (int l = 0; l < n; ++l) for (uint32_t i = 0; i < lists[l]->count && i < 512; ++i) {
       const Cmd& c = ((const Cmd*)lists[l]->cmds)[i];
       fprintf(stderr, "zinc command: list=%d i=%u kind=%u alpha=%u grad=%u box=%.3f,%.3f,%.3f,%.3f r=%.3f n=%u\n", l, i, c.kind, c.alpha, c.grad, c.x, c.y, c.w, c.h, c.r, c.n);

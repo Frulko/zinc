@@ -284,7 +284,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
     set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/targets/macos/hal_sdl.cpp PROPERTIES COMPILE_DEFINITIONS "${ZN_SDL_DEFS}")
     target_compile_definitions(zn_host_gfx PRIVATE ZN_HOST_SDL)
     if(ZN_WINDOW_MODULE)
-      target_link_libraries(zn_host_window PUBLIC SDL3::SDL3)
+      target_link_libraries(zn_host_window PUBLIC SDL3::SDL3 "-framework IOSurface")   # hal_metal's idle surface, for programs that link this archive
       target_include_directories(zn_window PRIVATE $<TARGET_PROPERTY:SDL3::SDL3,INTERFACE_INCLUDE_DIRECTORIES>)
       set_target_properties(zn_window PROPERTIES PREFIX "lib" SUFFIX ".dylib" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
       # zrt, the HAL helpers and hal_env come from zinc (ENABLE_EXPORTS); SDL3 is all here, for the display drivers, zinc:3d and libzn_webgl
