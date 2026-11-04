@@ -39,6 +39,7 @@ struct TargetOptions {
   std::string pixelScale;           // "density" (the default: the zoom times the screen density) | "logical" (1x, magnified with nearest filtering) | ""; ZN-425
   bool fullscreen = false, kiosk = false, growDrawCommands = false;
   long heap = 0;
+  std::string renderer;             // Android: "gl" | "cpu", baked as ZINC_RENDERER ("" = the HAL's default, the software raster)
   std::string display;              // the driver name ("" when absent), whether written as a string or as { driver }
   std::string assetProfile;         // targets.<id>.assets.profile: a name of assets.profiles ("" = the target's default)
   AssetProfile assets;              // the other keys of targets.<id>.assets: override the named profile

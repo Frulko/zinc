@@ -14,6 +14,8 @@
 #endif
 #include "zrt_raster.h"
 #include "gl_caps.h"
+#include "gl_clip.h"
+#include "gl_paint_cache.h"
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
 #endif
@@ -32,9 +34,32 @@ static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16;
 #include "gl_replay_shaders.h"   // Mode, VS, FS (the commands), SVS, SFS (the occlusion pass), FVS, FFS (the stencil pass)
 struct SV { float x0, y0, x1, y1; uint8_t c[4]; float z; };   // a rectangle (instanced) or, on GLES 2, x, y, c, z of one corner in its first 16 bytes
 
-struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest, cmp; uint64_t bytes; };   // cmp: level 0 is GPU blocks (1), premultiplied ones (2)
+struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest, cmp; uint64_t bytes; uint32_t identity; };   // cmp: level 0 is GPU blocks (1), premultiplied ones (2)
 static Tex2* texs;                  // by runtime image index (id - DYN_BASE), grown on demand (ZN-670: thousands of runtime images)
 static int32_t ntexs = 0;
+static void collect_images() {
+  static uint32_t collected;
+  if (collected == dyn_releases) return;
+  collected = dyn_releases;
+  for (int32_t i = 0; i < ntexs; ++i) {
+    Tex2& t = texs[i];
+    if (t.id && image_identity(t.key) != t.identity) { glDeleteTextures(1, &t.id); t = Tex2{}; }
+  }
+}
+struct ClipMask { float radius; GLuint id; int size; uint32_t used; };
+static ClipMask clip_masks[8];
+static uint32_t mask_use;
+static float copy_w = 1, copy_h = 1, copy_phase_x = 0.5f, copy_phase_y = 0.5f;
+static uint64_t paint_bytes;
+static uint32_t paint_objects;
+struct PaintEntry { zn_gl::PaintBatch batch; GLuint texture = 0, framebuffer = 0; uint32_t seen = 0, used = 0; bool nearest = false; };
+static PaintEntry paint_entries[16];
+struct PaintUse { const Cmd* list; uint32_t first; PaintEntry* entry; float x, y; };
+static PaintUse paint_uses[128];
+static uint32_t paint_use_count, paint_tick, paint_generation, paint_draw_generation;
+static bool paint_busy;
+static uint64_t paint_hits, paint_populates, paint_evictions;
+
 static Tex2* baked;                 // by baked image index
 struct GSlot { uint64_t key; int16_t ax, ay; };
 static GSlot gtab[8192];
@@ -43,8 +68,10 @@ static int gcount, gx, gy, growh;
 #if __has_include("zn/resource_stats.h")
 static ZnResourceStats replay_texture_stats(void*) {
   ZnResourceStats s{};
+  s.gpuBytes += paint_bytes; s.objects += paint_objects; s.cpuBytes += sizeof(paint_entries) + sizeof(paint_uses);
   for (int32_t i = 0; i < ntexs; ++i) if (texs[i].id) { ++s.objects; s.gpuBytes += texs[i].bytes; }
   if (baked) for (int32_t i = 0; i < image_count; ++i) if (baked[i].id) { ++s.objects; s.gpuBytes += baked[i].bytes; }
+  for (const ClipMask& m : clip_masks) if (m.id) { ++s.objects; s.gpuBytes += (uint64_t)m.size * m.size; }
   return s;
 }
 static ZnResourceStatsRegistration replay_stats_registration("renderer.textures", replay_texture_stats);
@@ -53,14 +80,15 @@ static int32_t W, H;
 // The render target's allocated size: at least the surface, more when a display reserves room to change size in place (reserve()): a GPU
 // that cannot reallocate a texture attached to a framebuffer (the Adreno 220 of the TouchPad answers GL_OUT_OF_MEMORY) never has to.
 static int32_t TW, TH, RW, RH;
+static GLuint window_fbo;   // EAGL drawable surfaces use a nonzero default framebuffer
 static GLuint vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
 // The programs that draw the commands. Desktop GL: one, with a branch per mode. GLES 2: one per mode, and one more with the gradient paint
 // block, compiled at first use (ZN-725): a GPU without branches runs every mode of the single program for each pixel, VideoCore IV took
 // 181 ms for a map frame that takes 65 this way (docs/reports/raspberry-pi.md). A batch is then drawn run by run, a run being its consecutive quads of one
 // program, so the paint order stays. Uniforms belong to a program: use_prog() gives it the frame's (size, flip) at its first use in the
 // frame, and the code that draws a mode sets that mode's own (edge, paint, convex) on the program use_prog() returns.
-struct Prog { GLuint id; GLint u_res, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn, u_ca0, u_ca1, u_cr; uint32_t stamp, cgen; bool tried; };
-static Prog progs[64 + 40];    // by key (key_of): 0 on desktop GL; on GLES 2 the mode, + 16 with the paint block; from 32 the lean programs; + 64 with the rounded clips (rclip)
+struct Prog { GLuint id; GLint u_res, u_flip, u_edge, u_g0, u_g1, u_gc, u_go, u_cv, u_cvn, u_ca0, u_ca1, u_cr, u_cms, u_copy_size, u_copy_phase; uint32_t stamp, cgen; bool tried; };
+static Prog progs[256];    // base mode/lean program, +64 rounded clips, +128 sampled clip masks
 static bool lean_on;          // ZINC_GL_LEAN=1 (GLES 2): the lean programs for the quads they can draw (gl_replay_shaders.h)
 static Prog* cur_prog;        // the program in use, nullptr after another one was (occlusion, stencil)
 static uint32_t pstamp;       // the frame's number, for Prog::stamp
@@ -108,6 +136,7 @@ static RClip rcs[2];
 static int nrc;
 static uint32_t clip_gen = 1;   // changes when the set of open rounded clips does: a program re-reads its uniforms
 static bool rclip_on;
+static bool mask_clip_on;
 static uint32_t warned, unsupported;
 static struct { uint32_t frames, idle, occl_frames, draws, quads, glyphs, ptiles, blocks, decoded, progs, atlas_ups; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes; } st;
 // GPU time of the replays (ZINC_GL_STATS, ZN-679; ZINC_PROFILE=json publishes it). The sources, in the order they are tried, and the name each publishes as gl_timer_source:
@@ -139,7 +168,7 @@ static void* gl_proc(const char* n) {
   static GP gp = (GP)dlsym(RTLD_DEFAULT, "eglGetProcAddress");
   static bool tried;
   if (!gp && !tried) { tried = true; void* h = dlopen("libEGL.so", RTLD_LAZY); if (!h) h = dlopen("libEGL.so.1", RTLD_LAZY); if (h) gp = (GP)dlsym(h, "eglGetProcAddress"); }
-  return gp ? gp(n) : nullptr;
+  return gp ? gp(n) : dlsym(RTLD_DEFAULT, n);
 }
 #endif
 #endif
@@ -302,12 +331,36 @@ static void set_groups(const char* spec) {
     if (*s == ';') s++;
   }
 }
+static uint8_t clip_key() {
+  if (!nrc) return 0;
+  bool sampled = mask_clip_on;
+  for (int i = 0; i < nrc; ++i) if (!(rcs[i].r >= 4 && rcs[i].r <= 128)) sampled = false;
+  return (uint8_t)(64 | (sampled ? 128 : 0));
+}
+static ClipMask clip_mask(float radius) {
+  if (!(radius >= 4 && radius <= 128)) return ClipMask{0, white, 1, 0};
+  ClipMask* slot = &clip_masks[0];
+  for (ClipMask& m : clip_masks) {
+    if (m.id && m.radius == radius) { m.used = ++mask_use; return m; }
+    if (!m.id || (slot->id && m.used < slot->used)) slot = &m;
+  }
+  if (slot->id) glDeleteTextures(1, &slot->id);
+  const int size = (int)ceilf(radius) + 3;
+  uint8_t pixels[131 * 131];
+  for (int y = 0; y < size; ++y) for (int x = 0; x < size; ++x) {
+    const float a = (float)x - 1, b = (float)y - 1;
+    const float c = a <= 0 || b <= 0 ? 1.f : clampf(0.5f - (sqrtf(a * a + b * b) - radius), 0, 1);
+    pixels[y * size + x] = (uint8_t)floorf(c * 255.f + 0.5f);
+  }
+  *slot = ClipMask{radius, make_tex(size, size, A_IFMT, A_FMT, pixels, false), size, ++mask_use};
+  return *slot;
+}
 static inline uint8_t key_of(int mode) {
 #if GLR_CORE
   (void)mode;
-  return nrc > 0 ? 64 : 0;
+  return clip_key();
 #else
-  return (uint8_t)((only >= 0 ? only : group[mode & 15]) | (paint_on && only < 0 ? 16 : 0) | (nrc > 0 ? 64 : 0));   // & 15: a box drawn through a matrix has 16 added to its mode
+  return (uint8_t)((only >= 0 ? only : group[mode & 15]) | (paint_on && only < 0 ? 16 : 0) | clip_key());
 #endif
 }
 static Prog& use_prog(uint8_t key) {
@@ -318,11 +371,12 @@ static Prog& use_prog(uint8_t key) {
     const double t0 = now_us();
     const uint8_t k0 = key & 63;   // 64: the rclip variant of k0
     const unsigned modes = k0 >= 32 ? 0 : only >= 0 ? 1u << only : GLR_CORE ? ~0u : gmask[k0 & 15];
-    char defs[128];   // VS: positions absolute under a paint; FS: ZINC_GL_MEDIUMP's precision
+    char defs[192];   // VS: positions absolute under a paint; FS: ZINC_GL_MEDIUMP's precision
     const char* mpb = getenv("ZINC_GL_MEDIUMP");
-    snprintf(defs, sizeof defs, "%s%s%s%s%s", GLR_CORE ? "#define ZN_PAINT_UNIFORM 1\n" : k0 & 16 ? "#define ZN_PAINT 1\n" : "", key & 64 ? "#define ZN_RCLIP 1\n" : "",
+    snprintf(defs, sizeof defs, "%s%s%s%s%s%s", GLR_CORE ? "#define ZN_PAINT_UNIFORM 1\n" : k0 & 16 ? "#define ZN_PAINT 1\n" : "", key & 64 ? "#define ZN_RCLIP 1\n" : "", key & 128 ? "#define ZN_MASK_CLIP 1\n" : "",
              mpb ? "#define ZN_MP " : "", mpb ? mpb : "", mpb ? ".0\n" : "");
-    p.id = k0 >= 32 ? zgl_program("", k0 - 32 < LEAN_FILL ? LVS : LBVS, LFS[k0 - 32]) : fs_source(modes, GLR_CORE ? only < 0 : (k0 & 16) != 0, fs, sizeof fs) ? zgl_program(defs, VS, fs) : 0;
+    if (k0 >= 32) p.id = lean_fs_source(k0 - 32, (key & 64) != 0, fs, sizeof fs) ? zgl_program(defs, k0 - 32 < LEAN_FILL ? LVS : LBVS, fs) : 0;
+    else p.id = fs_source(modes, GLR_CORE ? only < 0 : (k0 & 16) != 0, fs, sizeof fs) ? zgl_program(defs, VS, fs) : 0;
     st.prog_us += now_us() - t0;
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "display-gl renderer gl: program of modes 0x%x%s built in %.0f ms (frame %u)\n", modes & ((1u << MODES) - 1), key & 16 ? (key & 64 ? " with paint and rounded clips" : " with paint") : key & 64 ? " with rounded clips" : "", (now_us() - t0) / 1e3, st.frames);
     if (!p.id) fprintf(stderr, "display-gl: renderer gl: the program of modes 0x%x does not build: their quads are not drawn\n", modes & ((1u << MODES) - 1));
@@ -331,8 +385,11 @@ static Prog& use_prog(uint8_t key) {
       p.u_g0 = glGetUniformLocation(p.id, "u_g0"); p.u_g1 = glGetUniformLocation(p.id, "u_g1"); p.u_gc = glGetUniformLocation(p.id, "u_gc"); p.u_go = glGetUniformLocation(p.id, "u_go");
       p.u_cv = glGetUniformLocation(p.id, "u_cv"); p.u_cvn = glGetUniformLocation(p.id, "u_cvn");
       p.u_ca0 = glGetUniformLocation(p.id, "u_ca0"); p.u_ca1 = glGetUniformLocation(p.id, "u_ca1"); p.u_cr = glGetUniformLocation(p.id, "u_cr"); p.cgen = 0;
+      p.u_cms = glGetUniformLocation(p.id, "u_cms");
+      p.u_copy_size = glGetUniformLocation(p.id, "u_copy_size"); p.u_copy_phase = glGetUniformLocation(p.id, "u_copy_phase");
       glUseProgram(p.id);
       glUniform1i(glGetUniformLocation(p.id, "u_tex"), 0);
+      glUniform1i(glGetUniformLocation(p.id, "u_cm0"), 1); glUniform1i(glGetUniformLocation(p.id, "u_cm1"), 2);
       glUniform3f(p.u_edge, 0, 0, -1);   // RAMP: w - |t|, but in the pass over the pixels inside a fill (edge_draw)
       cur_prog = &p; p.stamp = pstamp - 1; st.progs++;
     }
@@ -345,6 +402,13 @@ static Prog& use_prog(uint8_t key) {
     const RClip& a = rcs[0], &b = nrc > 1 ? rcs[1] : none;
     glUniform4f(p.u_ca0, a.cx, a.cy, a.hw, a.hh); glUniform4f(p.u_ca1, b.cx, b.cy, b.hw, b.hh); glUniform2f(p.u_cr, a.r, b.r);
   }
+  if (p.id && (key & 128)) {
+    glActiveTexture(GL_TEXTURE1); const ClipMask a = clip_mask(nrc ? rcs[0].r : 0); glBindTexture(GL_TEXTURE_2D, a.id);
+    glActiveTexture(GL_TEXTURE2); const ClipMask b = clip_mask(nrc > 1 ? rcs[1].r : 0); glBindTexture(GL_TEXTURE_2D, b.id);
+    glActiveTexture(GL_TEXTURE0);
+    glUniform2f(p.u_cms, 1.f / a.size, 1.f / b.size);
+  }
+  if ((key & 63) == 32 + LEAN_CACHED) { glUniform2f(p.u_copy_size, copy_w, copy_h); glUniform2f(p.u_copy_phase, copy_phase_x, copy_phase_y); }
   return p;
 }
 /** GLES 2: builds the next command program not built yet, the common modes first, then the lean ones when they are on, so no frame waits
@@ -363,6 +427,8 @@ static bool warm() {
     return true;
   }
   for (int l = 0; lean_on && l < LEANS; l++) if (!progs[32 + l].tried) { use_prog((uint8_t)(32 + l)); return true; }
+  for (int l = 0; lean_on && rclip_on && l < LEANS; l++) if (!progs[96 + l].tried) { use_prog((uint8_t)(96 + l)); return true; }
+  for (int l = 0; lean_on && rclip_on && mask_clip_on && l < LEANS; l++) if (!progs[224 + l].tried) { use_prog((uint8_t)(224 + l)); return true; }
   static const uint8_t clipped[] = {FILL, TEXT_M, SOLID, IMAGE_RGBA, BORDER_M};   // the variants with the rounded clips, for the modes a card holds
   for (uint8_t m : clipped) {
     if (!rclip_on) break;
@@ -378,6 +444,7 @@ static bool init(int32_t w, int32_t h) {
   W = w; H = h;
   if (const char* e = getenv("ZINC_GL_ONLY")) only = atoi(e) % MODES;
   probe();
+  mask_clip_on = getenv("ZINC_GL_MASK_CLIP") ? atoi(getenv("ZINC_GL_MASK_CLIP")) != 0 : caps.family == glcaps::POWERVR && caps.lean;
   rclip_on = getenv("ZINC_GL_RCLIP") ? atoi(getenv("ZINC_GL_RCLIP")) != 0 : caps.tiler;
   lean_on = !GLR_CORE && (getenv("ZINC_GL_LEAN") ? atoi(getenv("ZINC_GL_LEAN")) != 0 : caps.lean);   // the tuning table's choice unless asked
   set_groups(getenv("ZINC_GL_GROUPS"));
@@ -460,6 +527,51 @@ static void apply_clip() {
   applied = clip;
 }
 /** The layout of V in the bound buffer, from byte `base`. */
+static void attribs(size_t base);
+#if !GLR_CORE
+// OpenGL ES 3 (the context says so, ZINC_GL_ES3=0 turns it off): one vertex array for the quads, whose vertices go into a ring of 8 MB that is mapped
+// without synchronisation, so a flush neither reallocates a buffer nor sets six attributes again. GLES 2 headers: the entry points are looked up.
+enum { ES3_RING = 8 << 20, ES3_MAP_WRITE = 0x2, ES3_MAP_INVALIDATE_RANGE = 0x4, ES3_MAP_INVALIDATE_BUFFER = 0x8, ES3_MAP_UNSYNCHRONIZED = 0x20 };
+static void* (*es3_map)(GLenum, GLintptr, GLsizeiptr, GLbitfield);
+static GLboolean (*es3_unmap)(GLenum);
+static void (*es3_bind_vao)(GLuint);
+static void (*es3_draw_base)(GLenum, GLsizei, GLenum, const void*, GLint);   // ES 3.2, or its extensions: else the attributes follow the ring
+static GLuint es3_vao, es3_vbo;
+static size_t es3_at, es3_base;
+static bool es3_ready() {
+  static int state = -1;
+  if (state >= 0) return state != 0;
+  state = 0;
+  if (!caps.es || caps.major < 3 || (getenv("ZINC_GL_ES3") && atoi(getenv("ZINC_GL_ES3")) == 0)) return false;
+  void (*gen_vao)(GLsizei, GLuint*) = (void (*)(GLsizei, GLuint*))gl_proc("glGenVertexArrays");
+  es3_bind_vao = (void (*)(GLuint))gl_proc("glBindVertexArray");
+  es3_map = (void* (*)(GLenum, GLintptr, GLsizeiptr, GLbitfield))gl_proc("glMapBufferRange");
+  es3_unmap = (GLboolean (*)(GLenum))gl_proc("glUnmapBuffer");
+  for (const char* n : {"glDrawElementsBaseVertex", "glDrawElementsBaseVertexOES", "glDrawElementsBaseVertexEXT"})
+    if (!es3_draw_base) es3_draw_base = (void (*)(GLenum, GLsizei, GLenum, const void*, GLint))gl_proc(n);
+  if (!gen_vao || !es3_bind_vao || !es3_map || !es3_unmap) return false;
+  gen_vao(1, &es3_vao);
+  glGenBuffers(1, &es3_vbo);
+  es3_bind_vao(es3_vao);
+  glBindBuffer(GL_ARRAY_BUFFER, es3_vbo);
+  glBufferData(GL_ARRAY_BUFFER, ES3_RING, nullptr, GL_STREAM_DRAW);
+  attribs(0);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+  es3_bind_vao(0);
+  state = 1;
+  return true;
+}
+static void es3_upload(const void* data, size_t bytes) {
+  es3_bind_vao(es3_vao);
+  glBindBuffer(GL_ARRAY_BUFFER, es3_vbo);
+  GLbitfield how = ES3_MAP_WRITE | ES3_MAP_UNSYNCHRONIZED | ES3_MAP_INVALIDATE_RANGE;
+  if (es3_at + bytes > ES3_RING) { es3_at = 0; how = ES3_MAP_WRITE | ES3_MAP_INVALIDATE_BUFFER; }   // the GPU keeps the old storage until it has drawn it
+  if (void* p = es3_map(GL_ARRAY_BUFFER, (GLintptr)es3_at, (GLsizeiptr)bytes, how)) { memcpy(p, data, bytes); es3_unmap(GL_ARRAY_BUFFER); }
+  es3_base = es3_at;
+  if (!es3_draw_base) attribs(es3_at);
+  es3_at += bytes;
+}
+#endif
 static void attribs(size_t base) {
   const GLsizei S = sizeof(V);
   glEnableVertexAttribArray(0); glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, S, (void*)(base + 0));
@@ -470,8 +582,8 @@ static void attribs(size_t base) {
   glEnableVertexAttribArray(A_Z); glVertexAttribPointer(A_Z, 1, GL_FLOAT, GL_FALSE, S, (void*)(base + 56));
 }
 /** The quad about to be added to the batch is of `mode`: it starts a run when the last one is drawn by another program. */
-static inline void run_of(int mode, int lean = -1, bool opaque = false) {
-  const uint8_t k = lean >= 0 && nrc == 0 ? (uint8_t)(32 + lean) : key_of(mode);   // a lean program has no clip block
+static inline void run_of(int mode, int lean = -1, bool opaque = false, bool no_clip = false) {
+  const uint8_t k = lean >= 0 ? (uint8_t)((32 + lean) | (no_clip ? 0 : clip_key())) : key_of(mode) & (no_clip ? ~192 : ~0);
   if (!nruns || runs[nruns - 1].key != k || runs[nruns - 1].opaque != opaque) runs[nruns++] = Run{nq, k, opaque};
 }
 static void atlas_sync();
@@ -479,20 +591,38 @@ static bool blend_gl = true;   // GL_BLEND as flush() left it (it always leaves 
 static void flush() {
   if (!nq) return;
   atlas_sync();
-  glBindBuffer(GL_ARRAY_BUFFER, vbo);
-  glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)nq * 4 * sizeof(V), verts, GL_STREAM_DRAW);
-  attribs(0);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+#if !GLR_CORE
+  const bool ring = es3_ready();
+  if (ring) es3_upload(verts, (size_t)nq * 4 * sizeof(V));
+  else
+#endif
+  {
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)nq * 4 * sizeof(V), verts, GL_STREAM_DRAW);
+    attribs(0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+  }
   apply_clip();
   glBindTexture(GL_TEXTURE_2D, cur_tex);
   for (int r = 0; r < nruns; r++) {   // desktop GL: one run
+    const bool batch_time = tracing && getenv("ZINC_GL_BATCH_TIME");
+    if (batch_time) glFinish();
+    const double batch_start = batch_time ? now_us() : 0;
     const int q0 = runs[r].first, q1 = r + 1 < nruns ? runs[r + 1].first : nq;
     if (!use_prog(runs[r].key).id) continue;
     if (runs[r].opaque == blend_gl) { if (runs[r].opaque) glDisable(GL_BLEND); else glEnable(GL_BLEND); blend_gl = !runs[r].opaque; }
+#if !GLR_CORE
+    if (ring && es3_draw_base) es3_draw_base(GL_TRIANGLES, (q1 - q0) * 6, GL_UNSIGNED_SHORT, (void*)((size_t)q0 * 6 * sizeof(uint16_t)), (GLint)(es3_base / sizeof(V)));
+    else
+#endif
     glDrawElements(GL_TRIANGLES, (q1 - q0) * 6, GL_UNSIGNED_SHORT, (void*)((size_t)q0 * 6 * sizeof(uint16_t)));
+    if (batch_time) { glFinish(); fprintf(stderr, "zinc GPU batch: key=%u quads=%d texture=%u us=%.0f\n", runs[r].key, q1 - q0, cur_tex, now_us() - batch_start); }
     st.draws++;
   }
   if (!blend_gl) { glEnable(GL_BLEND); blend_gl = true; }
+#if !GLR_CORE
+  if (ring) { es3_bind_vao(0); glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo); }
+#endif
   st.quads += (uint32_t)nq;
   nq = 0; nruns = 0;
 }
@@ -517,12 +647,38 @@ static void set_filter(Tex2& t, bool nearest) {
   t.nearest = nearest;
 }
 static void setc(uint8_t* o, uint32_t c, uint32_t a) { o[0] = (uint8_t)(c >> 16); o[1] = (uint8_t)(c >> 8); o[2] = (uint8_t)c; o[3] = (uint8_t)a; }
-struct Q { float x0, y0, x1, y1, u0, v0, u1, v1, bx, by, bw, bh, r, p1; int mode, grad; uint32_t c1, c2; uint32_t alpha; bool full; };   // full: every pixel of the quad is inside its box (the interior of a split rounded rect)
+struct Q { float x0, y0, x1, y1, u0, v0, u1, v1, bx, by, bw, bh, r, p1; int mode, grad; uint32_t c1, c2; uint32_t alpha; bool full, cached; };   // full: every pixel of the quad is inside its box (the interior of a split rounded rect)
 // XFORM (ZN-263.01): while it is on, quads are given in a box's own coordinates and their corners go through this matrix; the boxes'
 // distance functions get their own coordinates in (u, v), with 16 added to the mode, and images and glyphs keep their texture coordinates.
 static bool xf_on;
 static float xf_m[6];
-static void quad(const Q& q) {
+static void quad(const Q& q, bool divide_clip = true) {
+  // Keep rounded-clip maths on the rim instead of shading a whole card with it.
+  if (divide_clip && mask_clip_on && nrc && (q.mode == FILL || q.mode == SOLID || q.mode == IMAGE_RGBA || q.mode == IMAGE_BGR || q.mode == TEXT_M) &&
+      (!xf_on || (xf_m[1] == 0 && xf_m[2] == 0 && xf_m[0] > 0 && xf_m[3] > 0))) {
+    const float sx = xf_on ? xf_m[0] : 1, sy = xf_on ? xf_m[3] : 1;
+    const float tx = xf_on ? xf_m[4] : 0, ty = xf_on ? xf_m[5] : 0;
+    float ax = q.x0, ay = q.y0, bx = q.x1, by = q.y1;
+    for (int i = 0; i < nrc; ++i) {
+      const RClip& r = rcs[i];
+      ax = fmaxf(ax, (ceilf(r.cx - r.hw + r.r + 1) - tx) / sx);
+      ay = fmaxf(ay, (ceilf(r.cy - r.hh + r.r + 1) - ty) / sy);
+      bx = fminf(bx, (floorf(r.cx + r.hw - r.r - 1) - tx) / sx);
+      by = fminf(by, (floorf(r.cy + r.hh - r.r - 1) - ty) / sy);
+    }
+    if ((bx - ax) * sx >= 16 && (by - ay) * sy >= 16 &&
+        (ax > q.x0 || ay > q.y0 || bx < q.x1 || by < q.y1)) {
+      const float boxes[5][4] = {{ax, ay, bx, by}, {q.x0, q.y0, q.x1, ay},
+        {q.x0, by, q.x1, q.y1}, {q.x0, ay, ax, by}, {bx, ay, q.x1, by}};
+      for (const auto& b : boxes) if (b[0] < b[2] && b[1] < b[3]) {
+        Q part = q; part.x0 = b[0]; part.y0 = b[1]; part.x1 = b[2]; part.y1 = b[3];
+        part.u0 = q.u0 + (b[0] - q.x0) / (q.x1 - q.x0) * (q.u1 - q.u0); part.u1 = q.u0 + (b[2] - q.x0) / (q.x1 - q.x0) * (q.u1 - q.u0);
+        part.v0 = q.v0 + (b[1] - q.y0) / (q.y1 - q.y0) * (q.v1 - q.v0); part.v1 = q.v0 + (b[3] - q.y0) / (q.y1 - q.y0) * (q.v1 - q.v0);
+        quad(part, false);
+      }
+      return;
+    }
+  }
   float xs[4] = {q.x0, q.x1, q.x1, q.x0}, ys[4] = {q.y0, q.y0, q.y1, q.y1}, us[4] = {q.u0, q.u1, q.u1, q.u0}, vs[4] = {q.v0, q.v0, q.v1, q.v1};
   float x0 = q.x0, y0 = q.y0, x1 = q.x1, y1 = q.y1;
   int mode = q.mode;
@@ -541,22 +697,29 @@ static void quad(const Q& q) {
   if (nq == MAXQ) flush();
   V* v = &verts[nq * 4];
   const int m15 = mode & 15;
+  bool needs_clip = false;
+  for (int i = 0; i < nrc; ++i) {
+    const RClip& rc = rcs[i];
+    if (!zn_gl::roundedClipCoversBox(rc.cx, rc.cy, rc.hw, rc.hh, rc.r, x0, y0, x1, y1)) needs_clip = true;
+  }
   int lean = -1;   // the lean program that draws this quad, when there is one (gl_replay_shaders.h)
   // A square box on whole pixels covers each of its pixels fully or not at all: no distance to work out, and when its colour is opaque no blending (a
   // tiling GPU then neither reads nor merges the destination: a Pi 3 fills 56 Mpixel/s of gradient with the distance and the blend, far more without)
   static const bool whole_on = !getenv("ZINC_GL_WHOLE") || atoi(getenv("ZINC_GL_WHOLE")) != 0;   // 0: every box through the general coverage maths (to compare)
-  const bool whole = whole_on && !xf_on && !paint_on && only < 0 && nrc == 0 && (m15 == FILL || m15 == SOLID) && q.grad <= 2 &&
+  const bool whole = whole_on && (!xf_on || q.full) && !paint_on && only < 0 && !needs_clip && (m15 == FILL || m15 == SOLID || ((m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.full)) && q.grad <= 2 &&
                      (q.full || (q.r <= 0 && q.bw > 0 && q.bh > 0 && q.bx - q.bw == floorf(q.bx - q.bw) && q.by - q.bh == floorf(q.by - q.bh) && q.bx + q.bw == floorf(q.bx + q.bw) && q.by + q.bh == floorf(q.by + q.bh)));
   static const bool whole_translucent = getenv("ZINC_GL_WHOLE_TRANSLUCENT") && atoi(getenv("ZINC_GL_WHOLE_TRANSLUCENT")) != 0;
   const bool opaque = whole && q.alpha >= 255;
-  if (lean_on && only < 0 && !paint_on) {
-    if (whole && (opaque || whole_translucent)) lean = LEAN_FILLSQ;   // a translucent one measured slower than LEAN_FILL on a Tegra 3 (16 fps against 22 for eight screens)
+  const bool plain_texture = (m15 == IMAGE_RGBA) && q.r <= 0 && q.grad == 2 && q.p1 == 0 && q.c1 == 0xffffff && q.alpha == 255;
+  if (only < 0 && !paint_on && plain_texture) lean = q.cached && caps.frag_highp ? LEAN_CACHED : LEAN_TEXTURE;
+  else if (lean_on && only < 0 && !paint_on) {
+    if (whole && (m15 == FILL || m15 == SOLID) && (opaque || whole_translucent)) lean = LEAN_FILLSQ;   // a translucent one measured slower than LEAN_FILL on a Tegra 3 (16 fps against 22 for eight screens)
     else if (m15 == FILL) lean = q.grad <= 2 ? LEAN_FILL : q.grad == 3 ? LEAN_RADIAL : -1;
     else if (m15 == BORDER_M) lean = LEAN_BORDER;
     else if (m15 == SHADOW_M) lean = LEAN_SHADOW;
-    else if (q.r <= 0) lean = m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.grad != 2 && q.p1 == 0 ? LEAN_IMAGE : -1;
+    else if (q.r <= 0) lean = m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.p1 == 0 ? LEAN_IMAGE : -1;
   }
-  run_of(mode, lean, opaque);
+  run_of(mode, lean, opaque, !needs_clip);
   nq++;
   for (int i = 0; i < 4; i++) {
     v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)mode, (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
@@ -750,6 +913,7 @@ static Tex2* dyn_tex(int32_t id) {
     texs = a; ntexs = n;
   }
   t = &texs[i];
+  t->identity = image_identity(id);
   if (!t->id) { t->key = id; t->nearest = -1; }
   if (!t) return nullptr;
   const uint32_t* px; int32_t w, h, stride;
@@ -1451,6 +1615,8 @@ static void draw_paint_rect(const Cmd& c, const float* g, const Rect& b) {
   end_paint();
 }
 
+static void bands(const Cmd&, const Rect&, const Rect&, int, float, int);
+static void solid_and_bands(const Cmd&, const Rect&, const Rect&, int, float);
 // XFORM (ZN-263.01): the command in its own coordinates (raster.cpp draw_xform has the payload), drawn by the paths of the untransformed
 // commands with quad() taking the corners through the matrix. Boxes take one more pixel around them for their edges; FILL instead of SOLID
 // for a plain rectangle, whose edges are no longer on pixel boundaries; glyphs are sampled linearly while turned.
@@ -1465,9 +1631,27 @@ static void draw_xform(const Cmd& c, const float* p, const char* text, const flo
     case RECT: {
       const Rect b = bounds(in.x - 1, in.y - 1, in.w + 2, in.h + 2, HUGE_R);
       if (in.grad == 5) { if (pool) draw_paint_rect(in, pool + in.off, b); break; }
+      if (split && in.grad <= 2 && !paint_on) {
+        const float r = clampf(in.r, 0, fminf(in.w, in.h) * 0.5f) + 1.f;
+        const Rect inner = isect(Rect{iceil(in.x + r), iceil(in.y + r), ifloor(in.x + in.w - r), ifloor(in.y + in.h - r)}, b);
+        if (inner.x0 < inner.x1 && inner.y0 < inner.y1) {
+          if (!in.grad) solid_and_bands(in, b, inner, FILL, 0);
+          else { Q q = box_q(in, inner, FILL); q.grad = in.grad; q.full = true; quad(q); bands(in, b, inner, FILL, 0, in.grad); }
+          break;
+        }
+      }
       Q q = box_q(in, b, FILL); q.grad = in.grad; quad(q); break;
     }
-    case BORDER: { Q q = box_q(in, bounds(in.x - 1, in.y - 1, in.w + 2, in.h + 2, HUGE_R), BORDER_M); q.p1 = in.s; quad(q); break; }
+    case BORDER: {
+      const Rect b = bounds(in.x - 1, in.y - 1, in.w + 2, in.h + 2, HUGE_R);
+      if (split) {
+        const float r = clampf(in.r, 0, fminf(in.w, in.h) * 0.5f);
+        const int32_t k = iceil(fmaxf(r, in.s)) + 2;
+        const Rect inner = {b.x0 + k, b.y0 + k, b.x1 - k, b.y1 - k};
+        if (inner.x0 < inner.x1 && inner.y0 < inner.y1) { bands(in, b, inner, BORDER_M, in.s, 0); break; }
+      }
+      Q q = box_q(in, b, BORDER_M); q.p1 = in.s; quad(q); break;
+    }
     case SHADOW: {
       const float blur = in.s > 0.5f ? in.s : 0.5f;
       Q q = box_q(in, bounds(in.x - blur - 1, in.y - blur - 1, in.w + 2 * blur + 2, in.h + 2 * blur + 2, HUGE_R), SHADOW_M);
@@ -1502,6 +1686,7 @@ static void bands(const Cmd& c, const Rect& b, const Rect& in, int mode, float p
 }
 static void solid_and_bands(const Cmd& c, const Rect& b, const Rect& in, int mode, float p1) {
   Q q = box_q(c, in, SOLID);
+  q.full = true; q.r = 0;
   quad(q);
   bands(c, b, in, mode, p1);
 }
@@ -1509,6 +1694,10 @@ static void solid_and_bands(const Cmd& c, const Rect& b, const Rect& in, int mod
 // ---- one command list
 // depth of command i of n in NDC: the first is farthest, the last nearest
 static inline float depth_of(uint32_t i, uint32_t n) { return 1.0f - 2.0f * (float)(i + 1) / (float)(n + 1); }
+static bool clipped_depth() {
+  static const bool enabled = getenv("ZINC_GL_CLIP_DEPTH") ? atoi(getenv("ZINC_GL_CLIP_DEPTH")) != 0 : (caps.family == glcaps::POWERVR && caps.lean) || caps.family == glcaps::INTEL;   // Intel HD: 40 stacked gradients 29 -> 118 fps, with the lean programs
+  return enabled;
+}
 // The occlusion pass: the opaque square RECTs and CLEARs outside any clip, from the last to the first with depth writes, so a pixel under
 // them is shaded once and every later draw behind them fails the depth test early (the GPU side of the raster's tiles, ZN-410).
 struct SV4 { float x, y; uint8_t c[4]; float z; };   // a corner (GLES 2: no instancing)
@@ -1609,6 +1798,44 @@ static bool any_occluder(const Frame& f) {
   for (uint32_t i = 0; i < f.count; i++) { const Cmd& c = f.cmds[i]; if (c.kind == RECT && c.r <= 0 && !c.grad && c.alpha == 255) return true; }
   return false;
 }
+// Only fully opaque interiors write depth: antialiased rims and translucent artwork remain in paint order.
+static void clipped_depth_pass(const Frame& f) {
+  Rect stack[16], inside = base;
+  int level = 0;
+  for (uint32_t i = 0; i < f.count; ++i) {
+    const Cmd& c = f.cmds[i];
+    if (c.kind == CLIP) { if (++level > 16) return; }
+    else if (c.kind == UNCLIP && level) --level;
+  }
+  level = 0;
+  glDepthMask(GL_TRUE); glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE); glDisable(GL_BLEND);
+  clip = base;
+  for (uint32_t i = 0; i < f.count; ++i) {
+    Cmd c = f.cmds[i];
+    if (c.kind == UNCLIP) { if (level) inside = stack[--level]; continue; }
+    if (c.kind != CLIP && c.kind != RECT && c.kind != XFORM) continue;
+    const bool is_clip = c.kind == CLIP;
+    float sx = 1, sy = 1, tx = 0, ty = 0;
+    if (c.kind == XFORM) {
+      const float* p = f.pts + c.off;
+      if (p[0] != RECT || p[2] != 0 || p[3] != 0 || !(p[1] > 0 && p[4] > 0)) continue;
+      sx = p[1]; sy = p[4]; tx = p[5]; ty = p[6];
+      c.x = p[7]; c.y = p[8]; c.w = p[9]; c.h = p[10]; c.r = p[11];
+    }
+    if (!is_clip && (c.alpha != 255 || c.grad > 2)) continue;
+    if (c.kind == RECT && level == 0 && c.r <= 0 && !c.grad) continue;   // outside any clip, a plain opaque rectangle has its depth from occlusion_pass: not twice (10k quads: 8.8 ms -> 6.7 on Intel HD)
+    const float r = clampf(c.r, 0, fminf(c.w, c.h) * 0.5f);
+    const float x0 = (c.x + r) * sx + tx + 1, y0 = (c.y + r) * sy + ty + 1;
+    const float x1 = (c.x + c.w - r) * sx + tx - 1, y1 = (c.y + c.h - r) * sy + ty - 1;
+    const bool finite = fabsf(x0) < 1e7f && fabsf(y0) < 1e7f && fabsf(x1) < 1e7f && fabsf(y1) < 1e7f;
+    const Rect b = finite ? Rect{iceil(x0), iceil(y0), ifloor(x1), ifloor(y1)} : Rect{0, 0, 0, 0};
+    if (is_clip) { stack[level++] = inside; inside = isect(inside, b); }
+    else { const Rect visible = isect(inside, b); if (visible.x0 < visible.x1 && visible.y0 < visible.y1) { cur_z = depth_of(i, f.count); solid(visible, 0); } }
+  }
+  sflush();
+  glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); glEnable(GL_BLEND); glDepthMask(GL_FALSE);
+  glDepthFunc(GL_LEQUAL);
+}
 // The occlusion pass pays for itself where opaque rectangles pile up: it writes and then stores a depth buffer (a tiling GPU stores it to memory
 // every frame) and draws the rectangles twice. 300 small rectangles that hardly touch each other (a moving square over a static decoration)
 // run 24 fps with it and 30 without on a Pi 3 at 1080p; eight full-screen panels run 40 fps with it and 15 without. So the pass starts when
@@ -1618,7 +1845,7 @@ static float opaque_ratio(const Cmd* cmds, uint32_t count) {
   const double full = (double)W * H;
   for (uint32_t i = 0; i < count; i++) {
     const Cmd& c = cmds[i];
-    if (c.kind == RECT && c.r <= 0 && !c.grad && c.alpha == 255) { const double a = (double)c.w * c.h; area += a < full ? a : full; if (area >= full) break; }
+    if (c.kind == RECT && c.alpha == 255 && ((c.r <= 0 && !c.grad) || (clipped_depth() && c.grad <= 2))) { const double a = (double)c.w * c.h; area += a < full ? a : full; if (area >= full) break; }
   }
   return (float)(area / full);
 }
@@ -1782,12 +2009,14 @@ static void frame_box(const HalFrame* f, Rect b) {
 }
 /** ZINC_GL_VERIFY (ZN-744): the surface texture as a partial replay left it, against a full replay of the same frame, which it keeps: the
  *  number of pixels that differ (0: the move and the rectangles drew what a whole replay draws); `box` gets their bounds. */
-static uint64_t verify(const HalFrame* f, Rect* box) {
+static uint64_t verify(const HalFrame* f, Rect* box, uint32_t* max_error = nullptr) {
+  *box = Rect{0, 0, W, H};
+  if (max_error) *max_error = 255;
   static uint32_t *a, *b;
   static size_t cap;
   const size_t n = (size_t)W * H;
   if (cap < n) { free(a); free(b); a = (uint32_t*)malloc(n * 4); b = (uint32_t*)malloc(n * 4); cap = a && b ? n : 0; }
-  if (!cap) return 0;
+  if (!cap) return ~(uint64_t)0;
   unrotate();
   glBindFramebuffer(GL_FRAMEBUFFER, fbo);
   glPixelStorei(GL_PACK_ALIGNMENT, 4);
@@ -1797,9 +2026,15 @@ static uint64_t verify(const HalFrame* f, Rect* box) {
   glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, b);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   uint64_t d = 0;
+  if (max_error) *max_error = 0;
   *box = Rect{W, H, 0, 0};
   for (size_t i = 0; i < n; i++) {
     if (a[i] == b[i]) continue;
+    if (max_error) for (uint32_t shift = 0; shift < 32; shift += 8) {
+      const int delta = (int)((a[i] >> shift) & 255) - (int)((b[i] >> shift) & 255);
+      const uint32_t magnitude = (uint32_t)(delta < 0 ? -delta : delta);
+      if (magnitude > *max_error) *max_error = magnitude;
+    }
     if (d++ < 3 && getenv("ZINC_GL_VERIFY_PX")) {
       const float px = (float)(i % (size_t)W) + 0.5f, py = (float)(i / (size_t)W) + 0.5f;
       fprintf(stderr, "zinc gl verify: pixel %d,%d moved %08x replayed %08x, under:", (int)px, (int)py, a[i], b[i]);
@@ -1819,6 +2054,8 @@ static uint64_t verify(const HalFrame* f, Rect* box) {
   return d;
 }
 
+static uint32_t paint_cache_draw(const Frame&, uint32_t, bool);
+static bool clear_done;   // the first command of the frame, a CLEAR, was done by the frame's own clear
 static void run(const Frame& f, bool first) {
   sp = 0; nrc = 0; clip_gen++;
   clip = base;
@@ -1827,6 +2064,8 @@ static void run(const Frame& f, bool first) {
     const uint32_t e = walk_entry(k, first), i = e & ~kCullOpaque;
     const Cmd& c = f.cmds[i];
     if (outside(c)) continue;
+    if (first && i == 0 && clear_done) continue;   // cleared in its colour when the frame began
+    if (!culled && c.kind == RECT && c.grad <= 2) { const uint32_t cached = paint_cache_draw(f, i, first); if (cached) { k += cached - 1; continue; } }
     if (occl && first) { if (culled ? (e & kCullOpaque) != 0 : drawn[i] != 0) continue; cur_z = depth_of(i, f.count); }
     use_blend(c.kind == IMAGE || (c.kind == XFORM && f.pts && f.pts[c.off] == (float)IMAGE) ? image_blend(c) : BLEND_NORMAL);
     switch (c.kind) {
@@ -1979,6 +2218,127 @@ static void run(const Frame& f, bool first) {
   use_blend(BLEND_NORMAL);
 }
 
+// Retained paint batches are populated before the main FBO, never in the middle of a tile pass.
+static bool paint_cache_on() { return !getenv("ZINC_GL_PAINT_CACHE") || atoi(getenv("ZINC_GL_PAINT_CACHE")) != 0; }
+static void paint_release(PaintEntry& e) {
+  if (e.texture) { glDeleteTextures(1, &e.texture); glDeleteFramebuffers(1, &e.framebuffer); e.framebuffer = 0; paint_bytes -= (uint64_t)e.batch.w * e.batch.h * 4; e.texture = 0; --paint_objects; ++paint_evictions; ++paint_generation; }
+}
+static bool paint_populate(PaintEntry& e) {
+  const uint64_t bytes = (uint64_t)e.batch.w * e.batch.h * 4;
+  while (paint_bytes + bytes > 8 * 1024 * 1024) {
+    PaintEntry* oldest = nullptr;
+    for (auto& v : paint_entries) if (v.texture && v.used != paint_tick && (!oldest || v.used < oldest->used)) oldest = &v;
+    if (!oldest) return false;
+    paint_release(*oldest);
+  }
+  e.texture = make_tex(e.batch.w, e.batch.h, GL_RGBA, GL_RGBA, nullptr, false); e.nearest = false;
+  glGenFramebuffers(1, &e.framebuffer);
+  glBindFramebuffer(GL_FRAMEBUFFER, e.framebuffer);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, e.texture, 0);
+  if (!e.texture || glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { if (e.texture) glDeleteTextures(1, &e.texture); glDeleteFramebuffers(1, &e.framebuffer); e.texture = e.framebuffer = 0; return false; }
+  const int old_w = W, old_h = H, old_ring = ring_ty;
+  const GLuint old_fbo = fbo; fbo = e.framebuffer;
+  const bool old_flip = flipy, old_stencil = stencil_ok, old_occl = occl, old_culled = culled;
+  const Rect old_base = base;
+  W = e.batch.w; H = e.batch.h; ring_ty = 0; flipy = false; stencil_ok = false; occl = culled = false;
+  base = Rect{0, 0, W, H}; clip = base; cur_z = 0; nrc = 0; clip_gen++; pstamp++; cur_prog = nullptr;
+  memset(&applied, 0xff, sizeof applied);
+  glViewport(0, 0, W, H); glDisable(GL_DITHER); glDisable(GL_DEPTH_TEST); glDisable(GL_STENCIL_TEST); glEnable(GL_SCISSOR_TEST);
+  apply_clip(); glClearColor(0, 0, 0, 0); glClear(GL_COLOR_BUFFER_BIT);
+  glEnable(GL_BLEND); blend_gl = true; cur_blend = BLEND_NORMAL; glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+  glActiveTexture(GL_TEXTURE0); cur_tex = white; glBindTexture(GL_TEXTURE_2D, white);
+  paint_busy = true;
+  run(Frame{e.batch.cmds, e.batch.count, e.batch.text, e.batch.pts}, false);
+  paint_busy = false;
+  fbo = old_fbo; W = old_w; H = old_h; ring_ty = old_ring; flipy = old_flip; stencil_ok = old_stencil; occl = old_occl; culled = old_culled; base = old_base;
+  paint_bytes += bytes; ++paint_objects; ++paint_populates; ++paint_generation;
+  return true;
+}
+static void paint_cache_prepare(const HalCmdList* const* lists, int n) {
+  paint_use_count = 0;
+  if (getenv("ZINC_GL_DUMP")) {
+    unsetenv("ZINC_GL_DUMP");
+    for (int l = 0; l < n; ++l) for (uint32_t i = 0; i < lists[l]->count && i < 512; ++i) {
+      const Cmd& c = ((const Cmd*)lists[l]->cmds)[i];
+      fprintf(stderr, "zinc command: list=%d i=%u kind=%u alpha=%u grad=%u box=%.3f,%.3f,%.3f,%.3f r=%.3f n=%u\n", l, i, c.kind, c.alpha, c.grad, c.x, c.y, c.w, c.h, c.r, c.n);
+    }
+  }
+  const bool enabled = paint_cache_on();
+  static bool was_enabled = true;
+  if (enabled != was_enabled) { ++paint_generation; was_enabled = enabled; }
+  if (!enabled) return;
+  ++paint_tick;
+  uint32_t populated = 0;
+  zn_gl::PaintBatch candidate;
+  for (int l = 0; l < n; ++l) {
+    const Frame f{(const Cmd*)lists[l]->cmds, lists[l]->count, lists[l]->text, lists[l]->pts};
+    for (uint32_t i = 0; i < f.count; ++i) {
+      if (!zn_gl::paintBatch(f, i, candidate) || candidate.w > caps.max_texture || candidate.h > caps.max_texture) continue;
+      if (candidate.x >= W || candidate.y >= H || candidate.x + candidate.w <= 0 || candidate.y + candidate.h <= 0) continue;
+      PaintEntry* entry = nullptr;
+      for (auto& v : paint_entries) if (v.seen && zn_gl::samePaint(v.batch, candidate)) { entry = &v; break; }
+      if (!entry) {
+        for (auto& v : paint_entries) if (v.used != paint_tick && (!entry || v.used < entry->used)) entry = &v;
+        if (!entry) continue;
+        paint_release(*entry); entry->batch = candidate; entry->seen = 0;
+      }
+      entry->used = paint_tick; if (entry->seen < 3) ++entry->seen;
+      if (tracing) fprintf(stderr, "zinc paint group: first=%u commands=%u hash=%llx seen=%u ready=%d\n", i, candidate.count, (unsigned long long)candidate.hash, entry->seen, entry->texture != 0);
+      if (!entry->texture && entry->seen >= 3 && populated < 2) { if (paint_populate(*entry)) ++populated; }
+      if (entry->texture && paint_use_count < 128) paint_uses[paint_use_count++] = PaintUse{f.cmds, i, entry, candidate.x, candidate.y};
+      i += candidate.count - 1;
+    }
+  }
+  if (tracing) fprintf(stderr, "zinc paint cache: uses=%u populated=%u bytes=%llu hits=%llu evictions=%llu\n", paint_use_count, populated, (unsigned long long)paint_bytes, (unsigned long long)paint_hits, (unsigned long long)paint_evictions);
+}
+static void paint_cache_idle() {
+  if (!paint_cache_on()) return;
+  for (auto& e : paint_entries) if (e.used == paint_tick && e.seen && !e.texture) {
+    if (e.seen < 3) ++e.seen;
+    if (e.seen >= 3) { paint_populate(e); return; }
+  }
+}
+static uint32_t paint_cache_draw(const Frame& f, uint32_t i, bool first) {
+  if (paint_busy) return 0;
+  for (uint32_t u = 0; u < paint_use_count; ++u) {
+    const PaintUse& use = paint_uses[u];
+    if (use.list != f.cmds || use.first != i || !use.entry->texture) continue;
+    auto& e = *use.entry;
+    const bool nearest = use.x == floorf(use.x) && use.y == floorf(use.y);
+    if (nearest != e.nearest) {
+      flush(); glBindTexture(GL_TEXTURE_2D, e.texture);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+      glBindTexture(GL_TEXTURE_2D, cur_tex); e.nearest = nearest;
+    }
+    if (occl && first) cur_z = depth_of(i + e.batch.count - 1, f.count);
+    const float px = 0.5f - use.x, py = 0.5f - use.y;
+    const float phase_x = px - floorf(px), phase_y = py - floorf(py);
+    if (copy_w != e.batch.w || copy_h != e.batch.h || copy_phase_x != phase_x || copy_phase_y != phase_y) flush();
+    copy_w = (float)e.batch.w; copy_h = (float)e.batch.h; copy_phase_x = phase_x; copy_phase_y = phase_y;
+    use_blend(BLEND_NORMAL); use_tex(e.texture);
+    Q q = {}; q.x0 = use.x; q.y0 = use.y; q.x1 = use.x + e.batch.w; q.y1 = use.y + e.batch.h;
+    q.u1 = q.v1 = 1; q.mode = IMAGE_RGBA; q.grad = 2; q.cached = true; q.c1 = 0xffffff; q.alpha = 255;
+    const Cmd& root = e.batch.cmds[0];
+    const float r = fmaxf(0, fminf(root.r, fminf(root.w, root.h) * 0.5f)) + 1;
+    const float ax = use.x + root.x + r, ay = use.y + root.y + r;
+    const float bx = use.x + root.x + root.w - r, by = use.y + root.y + root.h - r;
+    if (ax < bx && ay < by) {
+      const float boxes[5][4] = {{ax, ay, bx, by}, {q.x0, q.y0, q.x1, ay}, {q.x0, by, q.x1, q.y1}, {q.x0, ay, ax, by}, {bx, ay, q.x1, by}};
+      for (int k = 0; k < 5; ++k) {
+        const float* b = boxes[k]; if (b[0] >= b[2] || b[1] >= b[3]) continue;
+        Q part = q; part.x0 = b[0]; part.y0 = b[1]; part.x1 = b[2]; part.y1 = b[3]; part.full = k == 0;
+        part.u0 = (b[0] - use.x) / e.batch.w; part.u1 = (b[2] - use.x) / e.batch.w;
+        part.v0 = (b[1] - use.y) / e.batch.h; part.v1 = (b[3] - use.y) / e.batch.h;
+        quad(part);
+      }
+    } else quad(q);
+    ++paint_hits;
+    return e.batch.count;
+  }
+  return 0;
+}
+
 /** Replays every list of the frame. `direct`: into the window framebuffer (rows bottom-up; its content is undefined after
  *  a swap, so the whole surface is drawn); else into the surface texture, the whole surface too unless ZINC_GL_DMG=1
  *  limits it to `dmg`. ponytail: off by default, that scissored replay is the prime suspect of GPU hangs seen on the
@@ -1987,22 +2347,50 @@ static bool dmg_default = false;   // the includer's choice when ZINC_GL_DMG is 
 /** Whether a replay into the surface texture is limited to the damage. When it is not, the texture keeps nothing the next frame needs, and drawing
  *  into it and then copying it to the window is a full-surface pass for nothing (3 GPU jobs a frame on a Pi 3, 33 ms at 1080p for a square that moves). */
 static bool damage_limited() { return getenv("ZINC_GL_DMG") ? atoi(getenv("ZINC_GL_DMG")) != 0 : dmg_default; }
+static bool paint_prepared;
+static void prepare(const HalFrame* f) {
+  if (paint_prepared) return;
+  collect_images();
+  const HalCmdList* lists[8];
+  const int count = f->frames ? f->frames(lists, 8) : 0;
+  paint_cache_prepare(lists, count);
+  paint_prepared = true;
+}
+static bool cached_large_paint() {
+  uint64_t area = 0;
+  for (uint32_t i = 0; i < paint_use_count; ++i) {
+    const PaintUse& u = paint_uses[i];
+    const float w = fminf((float)W, u.x + u.entry->batch.w) - fmaxf(0, u.x);
+    const float h = fminf((float)H, u.y + u.entry->batch.h) - fmaxf(0, u.y);
+    if (w > 0 && h > 0) area += (uint64_t)(w * h);
+  }
+  return area * 2 >= (uint64_t)W * H;
+}
 static void frame(const HalFrame* f, bool direct, Rect dmg) {
+  prepare(f);
+  if (paint_draw_generation != paint_generation) { ring_off = 0; dmg = Rect{0, 0, W, H}; paint_draw_generation = paint_generation; }
   static const bool dmg_on = getenv("ZINC_GL_DMG") ? atoi(getenv("ZINC_GL_DMG")) != 0 : dmg_default;
   if (direct) ring_off = 0;   // the window gets the whole frame: the texture is drawn again whole after it
   if (direct) frame_in(f, true, Rect{0, 0, W, H});
   else frame_box(f, !dmg_on ? Rect{0, 0, W, H} : dmg);
+  paint_prepared = false;
 }
 /** Replays the frame into the surface texture inside each of the `n` rectangles only: what a scroll leaves to draw once move() moved the
  *  pixels (HalFrame.move). A pass per rectangle (one pass over their union with the depth buffer as a mask was slower on Tegra 3: the GPU
  *  still shades every command's quad there before the test). */
 static void frame_rects(const HalFrame* f, const HalRect* r, int32_t n) {
+  prepare(f);
+  if (paint_draw_generation != paint_generation) {
+    ring_off = 0; frame_in(f, false, Rect{0, 0, W, H});
+    paint_draw_generation = paint_generation; paint_prepared = false; return;
+  }
   static const int log = getenv("ZINC_GL_MOVE_LOG") ? atoi(getenv("ZINC_GL_MOVE_LOG")) : 0;   // 2: each pass's time, the GPU waited for
   for (int32_t i = 0; i < n; i++) {
     const double t0 = log > 1 ? now_us() : 0;
     frame_box(f, Rect{r[i].x0, r[i].y0, r[i].x1, r[i].y1});
     if (log > 1) { const double t1 = now_us(); glFinish(); fprintf(stderr, "zinc gl pass %dx%d: cpu %.2f gpu %.2f ms\n", r[i].x1 - r[i].x0, r[i].y1 - r[i].y0, (t1 - t0) / 1e3, (now_us() - t1) / 1e3); }
   }
+  paint_prepared = false;
 }
 /** The replay of the frame's lists into the window (`direct`) or the surface texture, inside `box` only, drawn `ty` rows lower in the texture
  *  (a piece of the rotated scroll area). */
@@ -2015,15 +2403,16 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
   const HalCmdList* lists[8];
   int32_t n = f->frames ? f->frames(lists, 8) : 0;
   flipy = direct;
-  glBindFramebuffer(GL_FRAMEBUFFER, direct ? 0 : fbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, direct ? window_fbo : fbo);
   glViewport(0, direct ? 0 : ring_ty, W, H);   // a piece of a rotated scroll area is drawn shifted (scroll())
+  glDisable(GL_DITHER);   // screen-space dithering changes blended RGBA8 pixels when retained rows move
   memset(&applied, 0xff, sizeof applied);
   glEnable(GL_SCISSOR_TEST);
   clip = base;
   apply_clip();   // the clear stays inside the base rectangle
   // occlusion (ZN-412.01) when the framebuffer has a depth buffer that tells the commands apart (16 bits: up to 16k commands); ZINC_GL_OCCLUDE=0 turns it off
   static const float occl_ratio = getenv("ZINC_GL_OCCLUDE_RATIO") ? (float)atof(getenv("ZINC_GL_OCCLUDE_RATIO")) : 0.5f;
-  static const bool occl_on = !getenv("ZINC_GL_OCCLUDE") || atoi(getenv("ZINC_GL_OCCLUDE")) != 0;
+  const bool occl_on = !getenv("ZINC_GL_OCCLUDE") || atoi(getenv("ZINC_GL_OCCLUDE")) != 0;
   // asked once per target (a query each pass made a driver validate the framebuffer: a scroll replays several rectangles a frame)
   GLint& bits = target_bits[direct][0];
   GLint& sbits = target_bits[direct][1];
@@ -2036,14 +2425,21 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
     glGetIntegerv(GL_STENCIL_BITS, &sbits);
 #endif
   }
-  static const bool gpu_poly = !getenv("ZINC_GL_POLY") || atoi(getenv("ZINC_GL_POLY")) != 0;   // 0: LINE/POLY on the CPU tiles, to compare
+  // SGX535's stencil fill shades the same translucent polygon box repeatedly; reuse a coverage texture instead.
+  static const bool gpu_poly = getenv("ZINC_GL_POLY") ? atoi(getenv("ZINC_GL_POLY")) != 0 : !(caps.family == glcaps::POWERVR && caps.lean);
   stencil_ok = gpu_poly && sbits >= 8;
   const uint32_t first_n = n > 0 ? lists[0]->count : 0;
   // and only over most of the surface: for a small rectangle (a scroll's strip) the pass costs more than the overdraw it saves
   occl = occl_on && bits >= 16 && (first_n >= 2 && opaque_ratio((const Cmd*)lists[0]->cmds, lists[0]->count) >= occl_ratio) && (uint64_t)first_n * 4 < (1ull << (bits > 24 ? 24 : bits)) && (int64_t)(base.x1 - base.x0) * (base.y1 - base.y0) * 4 >= (int64_t)W * H;
   if (occl) st.occl_frames++;
   occl_bits = bits;
-  glClearColor(0, 0, 0, 1);
+  // A frame that starts with a CLEAR is cleared once, in its colour. Under occlusion the depth pass paints that CLEAR as a rectangle: an immediate-mode
+  // GPU skips the clear of the colour (Intel HD: 4.7 ms for a clear, 2.9 for the same pixels drawn), a tiler keeps it (there it is free and spares loading the old pixels).
+  const Cmd* first_cmd = n > 0 && first_n > 0 ? (const Cmd*)lists[0]->cmds : nullptr;
+  const bool starts_clear = first_cmd && first_cmd->kind == CLEAR;
+  clear_done = starts_clear && !occl;
+  if (clear_done) glClearColor(((first_cmd->c1 >> 16) & 255) / 255.f, ((first_cmd->c1 >> 8) & 255) / 255.f, (first_cmd->c1 & 255) / 255.f, 1.f);
+  else glClearColor(0, 0, 0, 1);
 #if GLR_CORE
   glClearDepth(1.0);
 #else
@@ -2051,7 +2447,7 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
 #endif
   glDepthMask(GL_TRUE);   // the occlusion pass leaves it off: a depth clear needs it on
   if (stencil_ok) { glStencilMask(0xFF); glClearStencil(0); }
-  glClear(GL_COLOR_BUFFER_BIT | (occl ? GL_DEPTH_BUFFER_BIT : 0) | (stencil_ok ? GL_STENCIL_BUFFER_BIT : 0));
+  glClear((starts_clear && occl && !caps.tiler ? 0 : GL_COLOR_BUFFER_BIT) | (occl ? GL_DEPTH_BUFFER_BIT : 0) | (stencil_ok ? GL_STENCIL_BUFFER_BIT : 0));
   cur_z = 0;
   trace_q0 = st.quads;
   GLR_TRACE("frame %u, %s\n", st.frames, direct ? "into the window" : "into the surface texture");
@@ -2089,6 +2485,7 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
       glEnable(GL_DEPTH_TEST);
       glDepthFunc(GL_LESS);
       occlusion_pass(fr);
+      if (occl && clipped_depth()) clipped_depth_pass(fr);
       if (!occl) { glDisable(GL_DEPTH_TEST); glDepthMask(GL_TRUE); }   // too deep in clips: painted in order
     }
     run(fr, i == 0);
@@ -2097,19 +2494,31 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
   }
   glDisableVertexAttribArray(A_BOX); glDisableVertexAttribArray(A_PAR); glDisableVertexAttribArray(A_C1); glDisableVertexAttribArray(A_C2); glDisableVertexAttribArray(A_Z);
   glDisable(GL_SCISSOR_TEST);
+#if !GLR_CORE
+  // These attachments are cleared before reuse; tilers need not store them to external memory.
+  static auto discard = glcaps::has((const char*)glGetString(GL_EXTENSIONS), "GL_EXT_discard_framebuffer") ?
+    (void (*)(GLenum, GLsizei, const GLenum*))gl_proc("glDiscardFramebufferEXT") : nullptr;
+  if (discard && (!getenv("ZINC_GL_DISCARD_DEPTH") || atoi(getenv("ZINC_GL_DISCARD_DEPTH")) != 0)) {
+    const GLenum attachments[2] = {direct && !window_fbo ? (GLenum)0x1801 /* DEPTH_EXT */ : GL_DEPTH_ATTACHMENT,
+      direct && !window_fbo ? (GLenum)0x1802 /* STENCIL_EXT */ : GL_STENCIL_ATTACHMENT};
+    const int count = direct ? (sbits ? 2 : bits ? 1 : 0) : packed_ds ? 2 : 1;
+    if (count) discard(GL_FRAMEBUFFER, count, attachments);
+  }
+#endif
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   ring_ty = 0;
   gpu_end();
   st.frames++;
   st.us += now_us() - t0;
 }
-static void idle() { st.idle++; }
+static void idle() { collect_images(); paint_cache_idle(); st.idle++; }
 // ZINC_PROFILE=json: what the GL renderer did, published just before the summary prints (runtime/gfx.cpp). gl_gpu_us is the GL_TIME_ELAPSED average where the GPU has the query (0: it has not).
 static void gl_info_hook() {
   if (!zrt_prof_info || !st.frames) return;
   double n = st.frames;
   char b[40];
   auto put = [&](const char* k, double v, const char* f) { snprintf(b, sizeof b, f, v); zrt_prof_info(k, b); };
+  put("gl_paint_cache_bytes", paint_bytes, "%.0f"); put("gl_paint_cache_hits", paint_hits, "%.0f"); put("gl_paint_cache_populates", paint_populates, "%.0f"); put("gl_paint_cache_evictions", paint_evictions, "%.0f");
   put("gl_frames_replayed", st.frames, "%.0f"); put("gl_frames_idle", st.idle, "%.0f"); put("gl_draw_calls_per_frame", st.draws / n, "%.1f"); put("gl_quads_per_frame", st.quads / n, "%.0f");
   put("gl_cpu_submit_us", st.us / n, "%.0f"); put("gl_gpu_us", gpu_n ? gpu_us / gpu_n : 0.0, "%.0f"); zrt_prof_info("gl_timer_source", gpu_source); put("gl_gpu_samples", gpu_n, "%.0f"); put("gl_gpu_samples_lost", gpu_lost, "%.0f"); put("gl_programs_built", st.progs, "%.0f"); put("gl_program_build_ms", st.prog_us / 1e3, "%.1f");
   put("gl_occlusion_frames", st.occl_frames, "%.0f"); put("gl_depth_bits", occl_bits, "%.0f");

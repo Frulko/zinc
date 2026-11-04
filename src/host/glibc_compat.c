@@ -4,6 +4,7 @@
 #include <features.h>
 #if defined(__GLIBC__) && __GLIBC__ == 2 && __GLIBC_MINOR__ < 14
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <sys/epoll.h>
 #include <pthread.h>
@@ -13,7 +14,16 @@
 #include <time.h>
 #include <unistd.h>
 
-int accept4(int fd, struct sockaddr* addr, socklen_t* len, int flags) { return syscall(SYS_accept4, fd, addr, len, flags); }
+// libuv has no other path for this one, and ARM only has accept4 since 2.6.36: without accept a server never takes a connection
+int accept4(int fd, struct sockaddr* addr, socklen_t* len, int flags) {
+  int s = syscall(SYS_accept4, fd, addr, len, flags);
+  if (s >= 0 || errno != ENOSYS) return s;
+  s = accept(fd, addr, len);
+  if (s < 0) return s;
+  if (flags & O_NONBLOCK) fcntl(s, F_SETFL, fcntl(s, F_GETFL) | O_NONBLOCK);   // on Linux SOCK_NONBLOCK is O_NONBLOCK, SOCK_CLOEXEC is O_CLOEXEC
+  if (flags & O_CLOEXEC) fcntl(s, F_SETFD, FD_CLOEXEC);
+  return s;
+}
 int dup3(int from, int to, int flags) { return syscall(SYS_dup3, from, to, flags); }
 // glibc 2.8 for ARM has epoll_pwait as a stub that answers ENOSYS without a system call: libuv then never sees an event (and spins)
 int epoll_pwait(int fd, struct epoll_event* events, int n, int timeout, const sigset_t* mask) {

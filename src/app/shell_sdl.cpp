@@ -280,10 +280,31 @@ static int flush_background() {
   flush = false;
   return rc;
 }
+#ifdef __ANDROID__
+extern "C" uint32_t zn_gfx_idle_frames(void);   // runtime/gfx.cpp
+// SDL_WaitEventTimeout spins on Android: each turn pushes a poll sentinel, and pushing an event wakes the pump it waits in. The idle wait is
+// a semaphore instead, posted by every event SDL queues (a touch posts from the Java thread) but the sentinel.
+static SDL_Semaphore* queued;
+static bool SDLCALL on_queued(void*, SDL_Event* e) {
+  if (e->type != SDL_EVENT_POLL_SENTINEL) SDL_SignalSemaphore(queued);
+  return true;
+}
+#endif
 SDL_AppResult SDL_AppIterate(void*) {
   if (paused && !flush) { SDL_Delay(50); return SDL_APP_CONTINUE; }
   int rc = iterate();
   if (flush && rc == 0) rc = flush_background();
+#ifdef __ANDROID__
+  // A program idle for half a second (its frames kept, nothing changed on the screen) sleeps until an event instead of turning the loop 60
+  // times a second: a touch wakes it at once (the semaphore below), the event stays queued for the next frame.
+  // ponytail: timers and sockets do not wake SDL, so they wait up to 100 ms here; a next-timer query from the prelude would lift that cap
+  if (rc == 0 && zn_gfx_idle_frames() >= 30) {
+    if (!queued) { queued = SDL_CreateSemaphore(0); SDL_AddEventWatch(on_queued, nullptr); }
+    SDL_WaitSemaphoreTimeout(queued, 100);   // an event that came since the frame polled has posted already: no wait then
+  } else if (queued) {
+    while (SDL_TryWaitSemaphore(queued)) {}   // a busy frame reads the events itself: the posts of a long gesture do not pile up for the next idle
+  }
+#endif
   return rc == 0 ? SDL_APP_CONTINUE : rc == 1 ? SDL_APP_SUCCESS : SDL_APP_FAILURE;
 }
 

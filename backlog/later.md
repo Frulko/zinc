@@ -1008,6 +1008,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: Discord voice AEC: replace the `isHeadphones` name guess with the device type or transport that miniaudio/CoreAudio reports; add a T1 loopback with a simulated room in the fake microphone path.
 
 ## Cross-platform pass
+- music-airplay: music-tree's setup page and scrobbler on a real TouchPad (`openPort` through zinc-helper, a phone reaching the page, mode 600 under `/media/cryptofs`, `zinc:qrcode` in the webOS build) and `zinc:qrcode` on Android.
 - async-hot-paths: the parallel Sonos reads (7 SOAP calls at once, `update` and `readVolumes`) on the TouchPad; measured only from the Mac, one group of 3 rooms (32 to 50 ms, no failure).
 - ZN-918: check that `zn_webp_dec` links in the AOT and export builds on Windows and the cross targets (`tests/t0/webp_bytes.sh` runs AOT on the Mac only).
 - ZN-871: SpeexDSP and the `played` tap on Linux, the Pi and iOS; the speaker-to-microphone delay on Bluetooth and on the Pi, and a real call on laptop speakers.

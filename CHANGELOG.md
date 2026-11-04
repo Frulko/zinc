@@ -8,6 +8,14 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Music app and the AirPlay bridge
+
+#### New
+
+- `examples/music-tree` recognises a stream of airplay2-sonos-bridge: it shows the song and the sender from the bridge, hides previous, next and seek, and offers "Arrêter AirPlay"; Settings has its status and mode.
+- Last.fm scrobbling in `examples/music-tree`, set up from a phone: a QR code and a one-time code open a page served by the app for ten minutes at most.
+- `zinc:lastfm`, the scrobbler of `app/sonos-lastfm` as a plugin. `zinc:sonos` has `airplayBridge(uri)`.
+
 ### Hamlet city builder
 
 #### New

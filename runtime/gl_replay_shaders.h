@@ -5,6 +5,13 @@
 // What a quad is, in a vertex's v_par.z. The fragment shader has a block per mode (FS_MODE): desktop GL compiles them all behind a ladder
 // of ifs, GLES 2 one program per mode from that mode's block alone (fs_source, ZN-725).
 enum Mode { FILL, BORDER_M, TEXT_M, IMAGE_RGBA, IMAGE_BGR, SOLID, RESTORE, SHADOW_M, STROKE_M, EDGE_M, CONVEX_M, RAMP_M, MODES };
+#define ZN_RCLIP_VS_DECL "#ifdef ZN_RCLIP\nuniform vec4 u_ca0, u_ca1; varying vec4 v_cs;\n#endif\n"
+#define ZN_RCLIP_VS_APPLY "#ifdef ZN_RCLIP\nv_cs = vec4(a_pos.xy - u_ca0.xy, a_pos.xy - u_ca1.xy);\n#endif\n"
+#define ZN_RCLIP_FS "#ifdef ZN_RCLIP\nvarying vec4 v_cs; uniform vec4 u_ca0, u_ca1; uniform vec2 u_cr;\n" \
+  "float rcov(vec2 p, vec2 h, float r) { vec2 q = abs(p) - (h - r); float c = clamp(0.5 - (length(max(q, 0.0)) - r), 0.0, 1.0); return q.x > 0.0 && q.y > 0.0 ? c : 1.0; }\n" \
+  "#ifdef ZN_MASK_CLIP\nuniform sampler2D u_cm0, u_cm1; uniform vec2 u_cms;\n" \
+  "float clip_cov() { vec2 a = abs(v_cs.xy) - (u_ca0.zw - u_cr.x), b = abs(v_cs.zw) - (u_ca1.zw - u_cr.y); return texture2D(u_cm0, (a + 1.5) * u_cms.x).r * texture2D(u_cm1, (b + 1.5) * u_cms.y).r; }\n" \
+  "#else\nfloat clip_cov() { return rcov(v_cs.xy, u_ca0.zw, u_cr.x) * rcov(v_cs.zw, u_ca1.zw, u_cr.y); }\n#endif\n#endif\n"
 // The fragment shaders see positions relative to a whole pixel of the quad's own primitive (o: the box's centre or the segment's start,
 // floored), not to the surface (ZN-741, ZN-744): a fragment of mediump precision (Tegra 3: 13 bits, no highp) keeps a fraction of a pixel
 // where an absolute 1280 would keep an eighth, and a primitive moved by whole pixels (a scroll) gets the same values at the same places
@@ -40,11 +47,7 @@ static const char* const FS_HEAD =
   "varying vec4 v_pos; varying vec4 v_box; varying vec4 v_par; varying vec4 v_c1; varying vec4 v_c2;\n"
   "uniform sampler2D u_tex; uniform vec3 u_edge;\n"   // u_edge: the EDGE pass (side test, left side, inside); RAMP: z is the sign of |t|
   "uniform vec4 u_g0, u_g1, u_gc[8]; uniform float u_go[8];\n"   // a POLY's canvas gradient paint (ZN-590.04): (x0, y0, r0, kind), (x1, y1, r1, n), stops (rgb, alpha 0..255; offset)
-  "#ifdef ZN_RCLIP\n"
-  "varying vec4 v_cs; uniform vec4 u_ca0, u_ca1; uniform vec2 u_cr;\n"   // the two active rounded clips: centre (xy), half size (zw), radius (u_cr)
-  // only in the corner squares: the straight sides stay the scissor's whole pixels, like the software raster's clip (a fractional box does not blur its sides)
-  "float rcov(vec2 p, vec2 h, float r) { vec2 q = abs(p) - (h - r); float c = clamp(0.5 - (length(max(q, 0.0)) - r), 0.0, 1.0); return q.x > 0.0 && q.y > 0.0 ? c : 1.0; }\n"
-  "#endif\n"
+  ZN_RCLIP_FS
   "uniform vec3 u_cv[8]; uniform float u_cvn;\n"   // a convex POLY (ZN-679): its edges as (nx, ny, c), the signed distance n.p + c positive inside
   "float sdf(vec2 p, vec2 c, vec2 h, float r) {\n"
   "  vec2 q = abs(p - c) - (h - r);\n"
@@ -169,23 +172,25 @@ static const char* const FS_BLEND =
 // and nothing else: two or three varyings in place of five vectors, no distance, no branch, a plain premultiplied blend in place of the
 // raster's integer one (a unit of difference at most on a channel). On an Adreno 220 the general program takes 16 ms to fill 1024x768
 // with one colour and 32 ms with an image; a program of this kind takes 2 ms (docs/reports/hardware/hp-touchpad-webos.md).
-enum Lean { LEAN_SOLID, LEAN_TEXT, LEAN_IMAGE, LEAN_FILL, LEAN_RADIAL, LEAN_BORDER, LEAN_SHADOW, LEAN_FILLSQ, LEANS };
+enum Lean { LEAN_SOLID, LEAN_TEXT, LEAN_IMAGE, LEAN_TEXTURE, LEAN_CACHED, LEAN_FILL, LEAN_RADIAL, LEAN_BORDER, LEAN_SHADOW, LEAN_FILLSQ, LEANS };
 static const char* LVS =
+  ZN_RCLIP_VS_DECL
   "attribute vec4 a_pos; attribute vec4 a_par; attribute vec4 a_c1; attribute float a_z;\n"
   "uniform vec2 u_res; uniform float u_flip;\n"
-  "varying vec2 v_uv; varying vec4 v_col; varying vec2 v_k;\n"
-  "void main() { v_uv = a_pos.zw; v_col = a_c1;\n"
+  "varying vec2 v_uv; varying vec4 v_col; varying vec3 v_k;\n"
+  "void main() {\n" ZN_RCLIP_VS_APPLY "v_uv = a_pos.zw; v_col = a_c1;\n"
   "  float m = a_par.z > 15.5 ? a_par.z - 16.0 : a_par.z;\n"
-  "  v_k = vec2(m > 3.5 ? 1.0 : 0.0, m < 3.5 || a_par.w > 0.5 ? 1.0 : 0.0);\n"   // IMAGE: the texels are B, G, R; the texel's alpha counts
+  "  v_k = vec3(m > 3.5 ? 1.0 : 0.0, m < 3.5 || a_par.w > 0.5 ? 1.0 : 0.0, a_par.w > 1.5 ? 1.0 : 0.0);\n"   // IMAGE: the texels are B, G, R; the texel's alpha counts
   "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";
 // The boxes (a rounded fill with its two-colour gradient, a border, a shadow): the pixel from the box's centre, the box's half size, radius
 // and width or blur, and the gradient's place worked out per vertex (a linear gradient is an interpolation). Ten floats a pixel, one
 // distance (two for a border), no integer blend.
 static const char* LBVS =
+  ZN_RCLIP_VS_DECL
   "attribute vec4 a_pos; attribute vec4 a_box; attribute vec4 a_par; attribute vec4 a_c1; attribute vec4 a_c2; attribute float a_z;\n"
   "uniform vec2 u_res; uniform float u_flip;\n"
   "varying vec2 v_q; varying vec4 v_h; varying vec4 v_col; varying vec4 v_c2;\n"
-  "void main() { v_q = (a_par.z > 15.5 ? a_pos.zw : a_pos.xy) - a_box.xy; v_h = vec4(a_box.zw, a_par.x, a_par.y); v_col = a_c1;\n"
+  "void main() {\n" ZN_RCLIP_VS_APPLY "v_q = (a_par.z > 15.5 ? a_pos.zw : a_pos.xy) - a_box.xy; v_h = vec4(a_box.zw, a_par.x, a_par.y); v_col = a_c1;\n"
   "  float t = a_par.w < 0.5 ? 0.0 : a_par.w < 1.5 ? (v_q.y + a_box.w) / max(2.0 * a_box.w, 1e-6) : (v_q.x + a_box.z) / max(2.0 * a_box.z, 1e-6);\n"
   "  v_c2 = vec4(a_c2.rgb, t);\n"
   "  gl_Position = vec4(a_pos.x / u_res.x * 2.0 - 1.0, (a_pos.y / u_res.y * 2.0 - 1.0) * u_flip, a_z, 1.0); }\n";
@@ -195,9 +200,12 @@ static const char* const LFS[LEANS] = {
   "varying vec4 v_col; void main() { gl_FragColor = vec4(v_col.rgb * v_col.a, v_col.a); }\n",
   "varying vec2 v_uv; varying vec4 v_col; uniform sampler2D u_tex;\n"
   "void main() { float a = texture2D(u_tex, v_uv).r * v_col.a; gl_FragColor = vec4(v_col.rgb * a, a); }\n",
-  "varying vec2 v_uv; varying vec4 v_col; varying vec2 v_k; uniform sampler2D u_tex;\n"
+  "varying vec2 v_uv; varying vec4 v_col; varying vec3 v_k; uniform sampler2D u_tex;\n"
   "void main() { vec4 t = texture2D(u_tex, v_uv); float a = mix(1.0, t.a, v_k.y) * v_col.a;\n"
-  "  gl_FragColor = vec4(mix(t.rgb, t.bgr, v_k.x) * v_col.rgb * a, a); }\n",
+  "  gl_FragColor = vec4(mix(t.rgb, t.bgr, v_k.x) * v_col.rgb * mix(a, v_col.a, v_k.z), a); }\n",
+  "varying vec2 v_uv; uniform sampler2D u_tex; void main() { gl_FragColor = texture2D(u_tex, v_uv); }\n",
+  "varying vec2 v_uv; uniform sampler2D u_tex; uniform vec2 u_copy_size; uniform vec2 u_copy_phase;\n"
+  "void main() { vec2 p = floor(v_uv * u_copy_size - u_copy_phase + 0.5) + u_copy_phase; gl_FragColor = texture2D(u_tex, p / u_copy_size); }\n",
   // FILL, one colour or a linear gradient
   LB_HEAD "void main() { float a = cover(v_h.xy, v_h.z) * v_col.a; gl_FragColor = vec4(mix(v_col.rgb, v_c2.rgb, clamp(v_c2.a, 0.0, 1.0)) * a, a); }\n",
   // FILL, a radial gradient
@@ -216,8 +224,22 @@ static const char* const LFS[LEANS] = {
 // a whole pass per rounded clip, 50 ms a frame at 1080p on a Pi 3). An unused slot has a huge box.
 static const char* const FS_RCLIP =
   "#ifdef ZN_RCLIP\n"
-  "  cov *= rcov(v_cs.xy, u_ca0.zw, u_cr.x) * rcov(v_cs.zw, u_ca1.zw, u_cr.y);\n"
+  "  cov *= clip_cov();\n"
   "#endif\n";
+static bool lean_fs_source(int mode, bool clipped, char* out, size_t cap) {
+  if (mode < 0 || mode >= LEANS) return false;
+  if (!clipped) { const int n = snprintf(out, cap, "%s", LFS[mode]); return n >= 0 && (size_t)n < cap; }
+  size_t n = (size_t)snprintf(out, cap, "%svec4 zn_lean_color;\n#define main zn_lean_main\n", ZN_RCLIP_FS);
+  const char* source = LFS[mode];
+  while (*source && n < cap) {
+    const char* hit = strstr(source, "gl_FragColor");
+    if (!hit) { n += (size_t)snprintf(out + n, cap - n, "%s", source); break; }
+    n += (size_t)snprintf(out + n, cap - n, "%.*szn_lean_color", (int)(hit - source), source);
+    source = hit + strlen("gl_FragColor");
+  }
+  if (n < cap) n += (size_t)snprintf(out + n, cap - n, "\n#undef main\nvoid main() { zn_lean_main(); gl_FragColor = zn_lean_color * (floor(clip_cov() * 255.0 + 0.001) / 255.0); }\n");
+  return n < cap;
+}
 /** The fragment shader of the modes of `mask` (bit m: mode m), with the paint block or not, into `out`: one mode's block alone, or the
  *  blocks behind a ladder of ifs on the vertex's mode (every mode: desktop GL). A GPU without branches runs every block of a ladder
  *  for each pixel, and its driver takes as long to build the whole ladder whatever is kept of it (100 ms on a Pi 3 at 600 MHz, 30 to

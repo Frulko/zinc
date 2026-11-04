@@ -27,7 +27,9 @@ extern void (*mirror_present)(const HalFrame* f);
 extern void (*first_present)();
 extern void (*dev_restart)();
 extern int32_t (*wall_minute)();
+bool idle_frame = false;   // the last frame drew nothing new
 static void present(const HalFrame* f) {
+  idle_frame = !f->move && (f->x1 <= f->x0 || f->y1 <= f->y0);
   if (display_driver) hal_display->present(f); else hal_present(f);
   if (mirror_present) mirror_present(f);
   if (first_present) { void (*f1)() = first_present; first_present = nullptr; f1(); }
@@ -106,6 +108,7 @@ static double xf_m[6];
 static int32_t target_img = -1;  // beginImage: the commands draw into this image, in its (logical) pixels
 bool gpu_strokes = false;
 static bool kept = false;     // keep(): nothing changed, show the previous frame again
+static uint32_t idle_run = 0;   // kept frames in a row that changed nothing on the screen (zn_gfx_idle_frames: the app shell then waits)
 #ifndef ZRT_PEN_SAMPLES
 #define ZRT_PEN_SAMPLES 256
 #endif
@@ -1492,12 +1495,14 @@ void end_frame() {
   devbar::update();
     const raster::Rect d = damage_box();
     HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay || raster::shader_holes ? render_holes : nullptr, render_box};
+    idle_run = ovl_changed ? 0 : idle_run + 1;
     ovl_changed = false;
     present(&f);
     if (prof_on) prof::end();
     after_present();
     return;
   }
+  idle_run = 0;
   to_physical(bufs[cur]);
   place_layers(bufs[cur]);
   const Buf& now = bufs[cur];
@@ -2284,3 +2289,5 @@ extern "C" void zrt_prof_band(int32_t band, uint64_t t0, uint64_t t1) {
   using namespace zrt::gfx::prof;
   if (st && band >= 0 && band < ZRT_PROF_BANDS) { st->band[band][0] = t0; st->band[band][1] = t1; }
 }
+/** Kept frames in a row that changed nothing on the screen: the program is idle (src/app/shell_sdl.cpp then waits for an event). */
+extern "C" uint32_t zn_gfx_idle_frames(void) { return zrt::gfx::idle_run; }

@@ -2,6 +2,7 @@
 // ponytail: float math per pixel near edges; a fixed-point path would help FPU-less targets (ps1).
 #include "zrt.h"
 #include "zrt_raster.h"
+#include "zn/image_limits.h"
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
 #endif
@@ -20,7 +21,7 @@ namespace zrt { namespace raster {
 
 static inline float fabsf_(float v) { return v < 0 ? -v : v; }
 static inline float clampf(float v, float a, float b) { return v < a ? a : v > b ? b : v; }
-#if (defined(__APPLE__) || defined(__linux__) || defined(_WIN32)) && !defined(ESP_PLATFORM)   // each band thread of the CPU renderer needs its own scratch buffers (Windows too: SDL threads)
+#if (defined(__APPLE__) || defined(__linux__) || defined(_WIN32)) && !defined(ESP_PLATFORM) && !defined(ZRT_RASTER_SINGLE_THREAD)   // band threads need separate scratch; single-thread HALs never render concurrently
 #define ZRT_TLS thread_local
 #else
 #define ZRT_TLS
@@ -207,12 +208,13 @@ static inline void blend_alphas(uint32_t* p, const uint8_t* a, int32_t n, uint32
     p[i] = k >= 255 ? col : k ? mixed : d;
   }
 }
-template<class T> static T* grow_scratch(T*& buf, uint32_t& cap, uint32_t need) {
+template<class T> static T* grow_scratch(T*& buf, uint32_t& cap, uint32_t need, uint32_t keep = 0) {
   if (need <= cap) return buf;
   uint32_t n = cap ? cap : 256;
   while (n < need) n *= 2;
   T* nb = (T*)hal_alloc((size_t)n * sizeof(T));
   if (!nb) return nullptr;
+  if (keep) __builtin_memcpy(nb, buf, (size_t)keep * sizeof(T));
   if (buf) hal_free(buf);
   buf = nb; cap = n;
   return buf;
@@ -237,11 +239,12 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
   const uint32_t full = alpha_of(-1e30f);   // what a fully covered pixel gets: (uint32_t)(1 * alpha)
   const uint32_t ncol = (uint32_t)(b.x1 - b.x0), nrow = (uint32_t)(b.y1 - b.y0);
   // one alpha row per distinct key; without memory for the cache every row is computed into row 0
-  const bool cache = (uint64_t)ncol * nrow <= (8u << 20) && grow_scratch(shadow_rows, shadow_rows_cap, ncol * nrow) && grow_scratch(shadow_keys, shadow_keys_cap, nrow) &&
+  bool cache = (uint64_t)ncol * nrow <= (8u << 20) && grow_scratch(shadow_keys, shadow_keys_cap, nrow) &&
                      grow_scratch(shadow_slot, shadow_slot_cap, nrow);
-  if (!cache && !grow_scratch(shadow_rows, shadow_rows_cap, ncol)) return;
+  if (!grow_scratch(shadow_rows, shadow_rows_cap, ncol)) return;
   const float cx2 = cx * 2, cy2 = cy * 2;
-  const bool mirror_x = cx2 == (float)(int32_t)cx2 && fabsf_(cx2) < 1e7f, mirror_y = cache && cy2 == (float)(int32_t)cy2 && fabsf_(cy2) < 1e7f;
+  const bool mirror_x = cx2 == (float)(int32_t)cx2 && fabsf_(cx2) < 1e7f;
+  bool mirror_y = cache && cy2 == (float)(int32_t)cy2 && fabsf_(cy2) < 1e7f;
   const int32_t mx = mirror_x ? (int32_t)cx2 - 1 : 0, my = mirror_y ? (int32_t)cy2 - 1 : 0;
   uint32_t nkeys = 0, nslots = 0;
   int32_t column_row = -1;   // the slot middle rows share (mirror_y)
@@ -282,6 +285,8 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
       if (slot >= 0) a = shadow_rows + (size_t)shadow_keys[slot].row * ncol;
     }
     if (!a) {
+      // Reserve only distinct alpha rows; the middle of a tall shadow shares one row.
+      if (cache && !grow_scratch(shadow_rows, shadow_rows_cap, (nslots + 1) * ncol, nslots * ncol)) cache = mirror_y = false;
       a = shadow_rows + (cache ? (size_t)nslots * ncol : 0);
       auto fill = [&](int32_t from, int32_t to) {
         for (int32_t x = from; x < to; x++) {
@@ -608,7 +613,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
 #define ZRT_DYN_IMAGES 64
 #endif
 #endif
-struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used, alpha; void* blocks; uint32_t gl, nblocks; bool pre; Picture* pic; };
+struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used, alpha; void* blocks; uint32_t gl, nblocks; bool pre; Picture* pic; uint32_t identity; bool asset; };
 static const int32_t DYN_CHUNK = ZRT_DYN_IMAGES < 64 ? ZRT_DYN_IMAGES : 64;
 static Dyn* dyn_chunks[(ZRT_DYN_IMAGES + DYN_CHUNK - 1) / DYN_CHUNK];
 // A version is never given twice, not even to another image that takes a freed slot: whatever keeps an image by (id, version) (the GPU
@@ -647,7 +652,7 @@ int32_t dyn_wrap(int32_t w, int32_t h, const uint32_t* px, int32_t stride) {
       __atomic_store_n(&dyn_chunks[i / DYN_CHUNK], c, __ATOMIC_RELEASE);
       d = &c[i % DYN_CHUNK];
     }
-    if (!d->used) { *d = Dyn{px, nullptr, w, h, stride ? stride : w, ++dyn_versions, true, false, nullptr, 0, 0, false}; return DYN_BASE + i; }
+    if (!d->used) { *d = Dyn{px, nullptr, w, h, stride ? stride : w, ++dyn_versions, true, false, nullptr, 0, 0, false}; d->identity = d->version; return DYN_BASE + i; }
   }
   static bool warned = false;   // one warning, then -1 each time
   if (!warned) {
@@ -658,7 +663,7 @@ int32_t dyn_wrap(int32_t w, int32_t h, const uint32_t* px, int32_t stride) {
   return -1;
 }
 // w x h x 4 must not overflow size_t on 32-bit targets (a wrapped size is a heap overflow): 16384 per side at most
-static bool dyn_size_ok(int32_t w, int32_t h) { return w > 0 && h > 0 && w <= 16384 && h <= 16384; }
+static bool dyn_size_ok(int32_t w, int32_t h) { return w > 0 && h > 0 && w <= zn::kRuntimeImageMaxSide && h <= zn::kRuntimeImageMaxSide; }
 int32_t dyn_create(int32_t w, int32_t h) {
   if (!dyn_size_ok(w, h)) return -1;
   uint32_t* px = (uint32_t*)hal_alloc((size_t)w * h * 4);
@@ -725,7 +730,8 @@ void dyn_resize(int32_t id, int32_t w, int32_t h) {
   d->px = d->owned; d->w = w; d->h = h; d->stride = w; d->version = ++dyn_versions;
   dyn_drop_blocks(d);
 }
-void dyn_destroy(int32_t id) { if (Dyn* d = dyn_at(id)) { if (d->owned) hal_free(d->owned); dyn_drop_blocks(d); dyn_set_picture(id, nullptr); *d = Dyn{}; } }
+uint32_t dyn_releases;
+void dyn_destroy(int32_t id) { if (Dyn* d = dyn_at(id)) { if (d->owned) hal_free(d->owned); dyn_drop_blocks(d); dyn_set_picture(id, nullptr); *d = Dyn{}; ++dyn_releases; } }
 uint32_t dyn_pictures;
 void dyn_set_picture(int32_t id, Picture* p) {
   Dyn* d = dyn_at(id);
@@ -736,6 +742,7 @@ void dyn_set_picture(int32_t id, Picture* p) {
 Picture* dyn_picture(int32_t id) { Dyn* d = dyn_at(id); return d ? d->pic : nullptr; }
 static ZRT_TLS uint32_t layer_fill = HAL_LAYER_HOLE;
 bool shader_holes = false;
+bool clear_holes = false;
 void set_layer_fill(uint32_t color) { layer_fill = color; }
 Rect layer_rect(const Cmd& c, const Picture& p, int32_t iw, int32_t ih) {
   const float kx = c.w / (float)iw, ky = c.h / (float)ih;
@@ -752,8 +759,10 @@ bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* 
   *px = d->px; *w = d->w; *h = d->h; *stride = d->stride; return true;
 }
 uint32_t image_version(int32_t id) { Dyn* d = dyn_at(id); return d ? d->version : 0; }
+uint32_t image_identity(int32_t id) { Dyn* d = dyn_at(id); return d ? d->identity : 0; }
+void dyn_set_asset(int32_t id) { if (Dyn* d = dyn_at(id)) d->asset = true; }
 void dyn_set_alpha(int32_t id, bool on) { if (Dyn* d = dyn_at(id)) d->alpha = on; }
-bool dyn_alpha(int32_t id) { Dyn* d = dyn_at(id); return d && d->alpha; }
+bool dyn_alpha(int32_t id) { Dyn* d = dyn_at(id); return d && (d->alpha || d->asset); }
 
 // Bilinear sampling, separated: a pixel's value is (h(ya) * (1 - ty) + h(yb) * ty) per channel, where h(y) is the horizontal blend of source
 // row y at the pixel's column. h depends on the column and the source row only, so the rows of a picture stretched up (the music remote's
@@ -862,14 +871,15 @@ static inline void bspline(float f, float w[4]) {
 }
 constexpr int32_t kSmoothMax = 1024;   // texels a row: wider pictures take the linear blend
 static void draw_smooth(const Target& t, const Cmd& c, const Tex& im, const Box& m) {
-  static ZRT_TLS float row[3][kSmoothMax + 4];   // the four source rows blended, per channel; texel j at j + 2, the edges repeated twice
   const Rect b = intersect(bounds(c.x, c.y, c.w, c.h, t.clip), bounds(m.w < 0 ? m.x + m.w : m.x, m.h < 0 ? m.y + m.h : m.y, fabsf_(m.w), fabsf_(m.h), t.clip));
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   const int32_t n = b.x1 - b.x0;
   // the columns' taps and weights, the same for every row: computed once
   struct Col { int32_t i; float w[4]; };
-  Col* col = (Col*)hal_alloc((size_t)n * sizeof(Col));
+  Col* col = (Col*)hal_alloc((size_t)n * sizeof(Col) + 3 * (im.w + 4) * sizeof(float));
   if (!col) return;
+  float* rows = (float*)(col + n);
+  float* row[3] = {rows, rows + im.w + 4, rows + 2 * (im.w + 4)};
   const float kx = (float)im.w / m.w, ky = (float)im.h / m.h;
   for (int32_t x = b.x0; x < b.x1; x++) {
     const float fx = (x + 0.5f - m.x) * kx - 0.5f;
@@ -985,24 +995,9 @@ static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
   }
 }
 
-static void draw_image(const Target& t, const Cmd& c) {
-  // sample positions (x - c.x) * scale stay in int range: finite origin and size, at most 1e6 texels per pixel
-  if (!(c.w > 0 && c.h > 0 && c.w < 1e30f && c.h < 1e30f && c.x - c.x == 0 && c.y - c.y == 0)) return;
-  if (const Dyn* d = dyn_at(c.res)) {
-    if ((c.pad & kImageLayer) && d->pic) {   // the picture is on a hardware layer under the frame: a hole there, the image's own pixels around it
-      const Rect hole = layer_rect(c, *d->pic, d->w, d->h), b = intersect(hole, t.clip), all = bounds(c.x, c.y, c.w, c.h, Rect{-100000, -100000, 100000, 100000});
-      if (hole.x0 > all.x0 || hole.y0 > all.y0 || hole.x1 < all.x1 || hole.y1 < all.y1) { Cmd bars = c; bars.pad &= (uint8_t)~kImageLayer; draw_image(t, bars); }
-      for (int32_t y = b.y0; y < b.y1; y++) if (b.x1 > b.x0) fill_row(&at(t, b.x0, y), b.x1 - b.x0, layer_fill);
-      return;
-    }
-    if (!d->px) return;
-    if (d->alpha || (c.pad & kImageBox) || c.grad == 2) draw_boxed(t, c, Tex{nullptr, d->px, d->w, d->h, d->stride, d->alpha});
-    else if ((float)d->w / c.w < 1e6f && (float)d->h / c.h < 1e6f) draw_dyn(t, c, *d);
-    return;
-  }
-  if (c.res < 0 || c.res >= image_count) return;
-  const Image& im = images[c.res];
-  if (c.pad & kImageBox) { draw_boxed(t, c, Tex{im.rgba, nullptr, im.w, im.h, im.w, true}); return; }
+// Embedded and file-backed immutable assets use identical sample positions and arithmetic.
+static void draw_asset(const Target& t, const Cmd& c, const Tex& im) {
+  if (c.pad & kImageBox) { draw_boxed(t, c, im); return; }
   if (!((float)im.w / c.w < 1e6f && (float)im.h / c.h < 1e6f)) return;
   Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
   float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;
@@ -1015,15 +1010,39 @@ static void draw_image(const Target& t, const Cmd& c) {
       float fx = (x + 0.5f - c.x) * sx - 0.5f;
       int32_t x0i = ifloor_fast(fx); float tx = fx - x0i;
       int32_t xa = x0i < 0 ? 0 : x0i >= im.w ? im.w - 1 : x0i, xb = x0i + 1 >= im.w ? im.w - 1 : x0i + 1 < 0 ? 0 : x0i + 1;
-      const uint8_t *p00 = im.rgba + (ya * im.w + xa) * 4, *p01 = im.rgba + (ya * im.w + xb) * 4, *p10 = im.rgba + (yb * im.w + xa) * 4, *p11 = im.rgba + (yb * im.w + xb) * 4;
+      const uint32_t p00 = texel(im, xa, ya), p01 = texel(im, xb, ya), p10 = texel(im, xa, yb), p11 = texel(im, xb, yb);
       float ch[4];
-      for (int k = 0; k < 4; k++) ch[k] = (p00[k] * (1 - tx) + p01[k] * tx) * (1 - ty) + (p10[k] * (1 - tx) + p11[k] * tx) * ty;
+      for (int k = 0; k < 4; k++) {
+        const int shift = k == 3 ? 24 : 16 - k * 8;
+        ch[k] = (((p00 >> shift) & 255) * (1 - tx) + ((p01 >> shift) & 255) * tx) * (1 - ty) + (((p10 >> shift) & 255) * (1 - tx) + ((p11 >> shift) & 255) * tx) * ty;
+      }
       float a = ch[3] / 255 * c.alpha;
       if (c.r > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1);
       if (a < 1) continue;
       blend(at(t, x, y), ((uint32_t)ch[0] << 16) | ((uint32_t)ch[1] << 8) | (uint32_t)ch[2], (uint32_t)a);
     }
   }
+}
+
+static void draw_image(const Target& t, const Cmd& c) {
+  // sample positions (x - c.x) * scale stay in int range: finite origin and size, at most 1e6 texels per pixel
+  if (!(c.w > 0 && c.h > 0 && c.w < 1e30f && c.h < 1e30f && c.x - c.x == 0 && c.y - c.y == 0)) return;
+  if (const Dyn* d = dyn_at(c.res)) {
+    if ((c.pad & kImageLayer) && d->pic) {   // the picture is on a hardware layer under the frame: a hole there, the image's own pixels around it
+      const Rect hole = layer_rect(c, *d->pic, d->w, d->h), b = intersect(hole, t.clip), all = bounds(c.x, c.y, c.w, c.h, Rect{-100000, -100000, 100000, 100000});
+      if (hole.x0 > all.x0 || hole.y0 > all.y0 || hole.x1 < all.x1 || hole.y1 < all.y1) { Cmd bars = c; bars.pad &= (uint8_t)~kImageLayer; draw_image(t, bars); }
+      for (int32_t y = b.y0; y < b.y1; y++) if (b.x1 > b.x0) fill_row(&at(t, b.x0, y), b.x1 - b.x0, layer_fill);
+      return;
+    }
+    if (!d->px) return;
+    if (d->asset) draw_asset(t, c, Tex{nullptr, d->px, d->w, d->h, d->stride, true});
+    else if (d->alpha || (c.pad & kImageBox) || c.grad == 2) draw_boxed(t, c, Tex{nullptr, d->px, d->w, d->h, d->stride, d->alpha});
+    else if ((float)d->w / c.w < 1e6f && (float)d->h / c.h < 1e6f) draw_dyn(t, c, *d);
+    return;
+  }
+  if (c.res < 0 || c.res >= image_count) return;
+  const Image& im = images[c.res];
+  draw_asset(t, c, Tex{im.rgba, nullptr, im.w, im.h, im.w, true});
 }
 
 // ---------------------------------------------------------------- transformed boxes (ZN-263.01)
@@ -1339,7 +1358,8 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
 #endif
 struct RoundClip { float x, y, w, h, r; int32_t R; uint32_t off; bool on; };
 #if ZRT_CLIP_CORNER_PX > 0
-static ZRT_TLS uint32_t corner_px[ZRT_CLIP_CORNER_PX];
+static ZRT_TLS uint32_t* corner_px;
+static ZRT_TLS uint32_t corner_cap;
 #endif
 /** Visits the pixels of the four corner squares of a rounded clip that lie in the target's clip `lim`. */
 template<class F> static void corners(const Target& t, const RoundClip& k, Rect lim, F f) {
@@ -1366,7 +1386,7 @@ template<class Pick> static void run_cmds(const Frame& f, Target t, uint32_t n, 
 #endif
     switch (c.kind) {
       case CLEAR:
-        for (int32_t y = t.clip.y0; y < t.clip.y1; y++) fill_row(&at(t, t.clip.x0, y), t.clip.x1 - t.clip.x0, c.c1);
+        for (int32_t y = t.clip.y0; y < t.clip.y1; y++) fill_row(&at(t, t.clip.x0, y), t.clip.x1 - t.clip.x0, clear_holes ? layer_fill : c.c1);
         break;
       case RECT: if (c.r <= 0 && !c.grad && c.alpha == 255) {
           Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
@@ -1391,6 +1411,7 @@ template<class Pick> static void run_cmds(const Frame& f, Target t, uint32_t n, 
 #if ZRT_CLIP_CORNER_PX > 0
         k.R = c.r > 0 ? iceil(c.r < c.w / 2 ? (c.r < c.h / 2 ? c.r : c.h / 2) : (c.w / 2 < c.h / 2 ? c.w / 2 : c.h / 2)) : 0;
         if (k.R > 0 && pool + 4u * k.R * k.R <= ZRT_CLIP_CORNER_PX) {
+          if (!grow_scratch(corner_px, corner_cap, pool + 4u * k.R * k.R, pool)) hal_panic("out of memory saving rounded clip corners", __FILE__, __LINE__);
           k.on = true;
           pool += 4u * k.R * k.R;
           corners(t, k, t.clip, [&](int32_t x, int32_t y, uint32_t i) { corner_px[i] = at(t, x, y); });

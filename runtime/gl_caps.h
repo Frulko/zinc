@@ -69,11 +69,12 @@ static inline Family family_of(const char* vendor, const char* renderer) {
  *  - lean: an Adreno 220 fills 1024x768 in 16 ms with the full program and 2 ms with a lean one (docs/reports/hardware/hp-touchpad-webos.md);
  *    Tegra 3 replays a scroll's strip and the perf panel in about half the GPU time with them (ZN-741 notes);
  *    VideoCore IV at 1080p (Pi 3B+, 2026-10-19): gradients 3 -> 20 fps, translucent full-screen layers 8 -> 20, shadows 30 -> 60, with at most 23 levels
- *    of difference from the software frame (docs/reports/pi-1080p.md). */
+ *    of difference from the software frame (docs/reports/pi-1080p.md);
+ *    Intel HD (Atom x5-Z8350, 2026-11-03): gradients 29 -> 89 fps, nested clips 63 -> 88. */
 struct Tune { Family family; bool tiler, lean; };
 static const Tune tune[] = {
   {VC4, true, true}, {ADRENO2, true, true}, {ADRENO, true, false}, {TEGRA3, false, true}, {MALI_UTGARD, true, false}, {MALI, true, false},
-  {POWERVR, true, false}, {APPLE, true, false},
+  {POWERVR, true, false}, {APPLE, true, false}, {INTEL, false, true},
 };
 
 static inline void fill(Caps& c, const Info& in) {
@@ -106,6 +107,7 @@ static inline void fill(Caps& c, const Info& in) {
   c.partial_update = has(in.egl_extensions, "EGL_KHR_partial_update");
   c.swap_damage = has(in.egl_extensions, "EGL_KHR_swap_buffers_with_damage") || has(in.egl_extensions, "EGL_EXT_swap_buffers_with_damage");
   for (const Tune& t : tune) if (t.family == c.family) { c.tiler = t.tiler; c.lean = t.lean; }
+  if (c.family == POWERVR && (contains(in.renderer, "SGX 535") || contains(in.renderer, "SGX535"))) c.lean = true;
 }
 
 /** The record as `gl-info:` lines (ZINC_GL_INFO), into out; the length written. */

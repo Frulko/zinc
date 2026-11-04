@@ -74,6 +74,8 @@ struct Fetch {
   bool progress = false;               // a large body: its upload is reported (event 43) as the socket takes it
   uint64_t wireTotal = 0, wireSent = 0;
   tls::Conn* tls = nullptr;
+  bool tlsBusy = false;                // a worker is in the handshake: nothing here touches the connection until it is back
+  std::string tlsWaiting;              // what the socket gave meanwhile
   int closing = 0;
   int log = 0;   // the entry of this hop in the network log (netlog.h), 0 when nobody records
 };
@@ -121,7 +123,8 @@ void onFetchClosed(uv_handle_t* h) {
   maybeFree(f);
 }
 void closeTcp(Fetch* f) {
-  if (f->tls) { tls::destroy(f->tls); f->tls = nullptr; }
+  if (f->tls) { if (!f->tlsBusy) tls::destroy(f->tls); f->tls = nullptr; }   // busy: onTlsStepped destroys it
+  f->tlsWaiting.clear();
   f->reqSent = false;
   if (f->tcpOpen) { f->closing++; uv_close(reinterpret_cast<uv_handle_t*>(&f->tcp), onFetchClosed); f->tcpOpen = false; }
 }
@@ -240,8 +243,36 @@ std::string buildRequest(Fetch* k) {
   return req + "\r\n" + k->reqBody;
 }
 // Moves what the TLS connection has to say to the socket, then takes what it can say to the program.
+void pumpTls(Fetch* f);
+// The handshake's signatures and key exchange take the CPU for 60 to 800 ms on a 2011 tablet (a frame's budget is 16): on a worker. One step at
+// a time for a connection, so its bytes wait in tlsWaiting; `closing` keeps the Fetch alive until the step is back.
+struct TlsStep { uv_work_t work; Fetch* f; tls::Conn* conn; tls::State st; };
+void onTlsStepped(uv_work_t* w, int) {
+  auto* j = static_cast<TlsStep*>(w->data);
+  Fetch* f = j->f;
+  const bool current = j->conn == f->tls;
+  const tls::State st = j->st;
+  f->tlsBusy = false;
+  f->closing--;
+  if (current) rawWrite(f, tls::takeOutput(f->tls)); else tls::destroy(j->conn);   // the fetch ended or restarted meanwhile
+  delete j;
+  if (f->tls && !f->finished && !f->restart) {
+    const bool more = !f->tlsWaiting.empty();
+    if (more) { tls::feed(f->tls, f->tlsWaiting.data(), f->tlsWaiting.size()); f->tlsWaiting.clear(); }
+    if (more || !current || st != tls::State::Handshaking) pumpTls(f);
+  }
+  maybeFree(f);
+}
 void pumpTls(Fetch* f) {
-  if (!f->tls || f->finished || f->restart) return;
+  if (!f->tls || f->finished || f->restart || f->tlsBusy) return;
+  if (!tls::settled(f->tls)) {
+    auto* j = new TlsStep{{}, f, f->tls, tls::State::Handshaking};
+    j->work.data = j;
+    f->tlsBusy = true;
+    f->closing++;
+    uv_queue_work(static_cast<uv_loop_t*>(loop::uvLoop()), &j->work, [](uv_work_t* w) { auto* s = static_cast<TlsStep*>(w->data); s->st = tls::step(s->conn); }, onTlsStepped);
+    return;
+  }
   tls::State st = tls::step(f->tls);
   rawWrite(f, tls::takeOutput(f->tls));
   if (st == tls::State::Failed) { finish(f, false, "fetch failed: " + tls::error(f->tls)); return; }
@@ -259,7 +290,8 @@ void pumpTls(Fetch* f) {
 void onFetchRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
   auto* f = static_cast<Fetch*>(s->data);
   if (n > 0 && !f->finished && !f->restart) {
-    if (f->tls) { tls::feed(f->tls, buf->base, static_cast<size_t>(n)); pumpTls(f); }
+    if (f->tlsBusy) f->tlsWaiting.append(buf->base, static_cast<size_t>(n));
+    else if (f->tls) { tls::feed(f->tls, buf->base, static_cast<size_t>(n)); pumpTls(f); }
     else parseBytes(f, buf->base, static_cast<size_t>(n));
   } else if (n < 0 && !f->finished && !f->restart) {
     // Some servers drop mbedTLS's TLS 1.3 session once the request is in, without a word (no response, no alert); OpenSSL's works.
@@ -271,9 +303,7 @@ void onFetchRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
   if (buf->base) std::free(buf->base);
 }
 
-void startConnection(Fetch* f) {
-  sockaddr_in a;
-  if (!loop::resolveHost(f->host, f->port, &a)) { finish(f, false, "fetch failed: ENOTFOUND"); return; }
+void connectTo(Fetch* f, sockaddr_in a) {
   netlog::mark(f->log, netlog::Dns);
   uv_tcp_init(L(), &f->tcp);
   f->tcp.data = f->creq.data = f;
@@ -315,6 +345,31 @@ void startConnection(Fetch* f) {
 
   });
   if (rc != 0) finish(f, false, "fetch failed: ECONNREFUSED");
+}
+
+// A name asks the network and can take seconds (5 s seen for a radio's logo on a tablet): on a worker, or every frame waits for it.
+void startConnection(Fetch* f) {
+  sockaddr_in a;
+  if (uv_ip4_addr(f->host.c_str(), f->port, &a) == 0) { connectTo(f, a); return; }
+  struct Lookup { uv_getaddrinfo_t req; Fetch* f; };
+  auto* lookup = new Lookup{{}, f};
+  addrinfo hints{};
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  f->closing++;
+  const int rc = uv_getaddrinfo(L(), &lookup->req, [](uv_getaddrinfo_t* q, int status, addrinfo* res) {
+    auto* done = reinterpret_cast<Lookup*>(q);
+    Fetch* k = done->f;
+    delete done;
+    k->closing--;
+    if (!k->finished) {
+      if (status != 0 || !res) finish(k, false, "fetch failed: ENOTFOUND");
+      else { sockaddr_in found = *reinterpret_cast<sockaddr_in*>(res->ai_addr); found.sin_port = htons(static_cast<uint16_t>(k->port)); connectTo(k, found); }
+    }
+    if (res) uv_freeaddrinfo(res);
+    maybeFree(k);
+  }, f->host.c_str(), nullptr, &hints);
+  if (rc != 0) { delete lookup; f->closing--; finish(f, false, "fetch failed: ENOTFOUND"); }
 }
 
 // ---------------------------------------------------------------- server
