@@ -1,0 +1,16 @@
+150 move 500 380
+151 down
+153 move 650 430
+155 up
+185 key p
+500 key p
+551 key ArrowUp
+552 key ArrowUp
+553 key ArrowUp
+554 key ArrowUp
+555 key ArrowUp
+556 key ArrowRight
+560 key Space
+590 touch 1 500 380
+593 touch 1 650 430
+595 touchup 1
