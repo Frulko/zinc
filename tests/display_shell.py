@@ -10,8 +10,8 @@ XR24 = 0x34325258
 BG, BOX = 0x2040C0, 0xFF8000
 tmp = tempfile.mkdtemp(prefix="zsh")
 PROGRAM = """
-import { onFrame, clear, rect, width, height, pointerX, pointerY, pointerDown } from 'zinc:gfx';
-let n = 0; let was = false; let lastW = 0;
+import { onFrame, clear, rect, width, height, pointerX, pointerY, pointerDown, isDown, Btn } from 'zinc:gfx';
+let n = 0; let left = false, was = false; let lastW = 0;
 onFrame((dt: number): void => {
   clear(0x2040c0);
   rect(10, 10, 50, 30, 0xff8000);
@@ -20,6 +20,7 @@ onFrame((dt: number): void => {
   if (width() !== lastW) { lastW = width(); console.log(`size ${width()}x${height()}`); }
   if (pointerDown() && !was) console.log(`down ${pointerX()},${pointerY()}`);
   was = pointerDown();
+  if (isDown(Btn.Left) !== left) { left = !left; console.log(`left ${left}`); }
 });
 """
 main = os.path.join(tmp, "main.ts")
@@ -91,9 +92,9 @@ class Buffers:
         for fd in self.files: os.close(fd)
     def px(self, b, x, y): return struct.unpack_from("<I", self.maps[b], y * self.stride + x * 4)[0] & 0xFFFFFF
 
-def input_msg(x, y, down):
+def input_msg(x, y, down, buttons=0):
     # mirror.cpp's INPUT: x, y, down, pbuttons, mods, buttons, wheel, wheel_x, no keys, no button events; then no touches
-    return struct.pack("<ffBBIIffHH", x, y, down, 1 if down else 0, 0, 0, 0.0, 0.0, 0, 0) + b"\x00"
+    return struct.pack("<ffBBIIffHH", x, y, down, 1 if down else 0, 0, buttons, 0.0, 0.0, 0, 0) + b"\x00"
 
 def listen(name):
     path = os.path.join(tmp, name)
@@ -144,6 +145,13 @@ try:
     for _ in range(5): pace(2)
     check(app.wait_line("down 160,50", 3) is not None, "the tap reaches the program at (160, 50): %r" % app.lines)
     conn.send(SH_INPUT, input_msg(0.5, 0.25, 0))
+    # a held button (a key the viewer maps, a gamepad) lets go when the shell says so: it stayed down for ever
+    conn.send(SH_INPUT, input_msg(0.5, 0.25, 0, 4))
+    for _ in range(5): pace(2)
+    check(app.wait_line("left true", 3) is not None, "the held button reaches the program: %r" % app.lines)
+    conn.send(SH_INPUT, input_msg(0.5, 0.25, 0, 0))
+    for _ in range(5): pace(2)
+    check(app.wait_line("left false", 3) is not None, "the button is let go: %r" % app.lines)
     # a new size: new buffers, the program lays out again and the next whole frame fills a new buffer
     bufs2 = Buffers(conn, 200, 120)
     whole = None; end = time.time() + 5

@@ -1083,6 +1083,7 @@ void hal_poll_input(HalInput* in) {
   if (!gfx_on && (!hal_display || hal_display->owns_input || !SDL_WasInit(SDL_INIT_VIDEO))) {
     if (frames_left >= 0 && frames_left-- == 0) quit = true;
     in->quit = quit;
+    in->buttons = 0; in->mods = 0;   // the driver adds what is held at each poll (|=): a button it set once must not stay down for ever
     return;
   }
   if (!ns_tried && win) { ns_tried = true; native_scroll = hal_sdl_scroll_monitor(SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr), ns_scroll) != 0; }
