@@ -188,10 +188,10 @@ PY
 # a second mapper takes the time of the first (how right it is: fleet_clock)
 second="$tmp/second"; cp -R "$project" "$second"
 fleet=$(python3 -c "import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
-ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=600 "$ZINC" run "$second/src/main.ts" -- --port 0 --web off --fleet-port "$fleet" >"$tmp/m.log" 2>&1 & master=$!
+ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=600 "$ZINC" run "$second/src/main.ts" -- --port 0 --web off --fleet-port "$fleet" >"$tmp/m.log" 2>&1 & master=$!
 web2=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
 third="$tmp/third"; cp -R "$project" "$third"
-ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=600 "$ZINC" run "$third/src/main.ts" -- --port 0 --web "$web2" --join "127.0.0.1:$fleet" >"$tmp/p.log" 2>&1 & player=$!
+ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=600 "$ZINC" run "$third/src/main.ts" -- --port 0 --web "$web2" --join "127.0.0.1:$fleet" >"$tmp/p.log" 2>&1 & player=$!
 n=0; while [ $n -lt 600 ] && ! grep -q "editor at" "$tmp/p.log"; do sleep 0.1; n=$((n+1)); done
 sleep 1
 token2=$(sed -n 's/^mapper: editor at .*token=//p' "$tmp/p.log")
