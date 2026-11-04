@@ -1,0 +1,17 @@
+{
+  "name": "clear",
+  "entry": "src/main.tsx",
+  "app": {
+    "name": "Clear — Zinc",
+    "id": "dev.zinc.clear",
+    "version": "0.1.0",
+    "icon": "assets/icon-ios.png",
+    "orientation": "portrait",
+    "window": { "title": "Clear", "width": 420, "height": 760, "minWidth": 300, "minHeight": 380 }
+  },
+  "targets": { "macos": { "width": 420, "height": 760, "resize": "fill" } },
+  "permissions": ["fs", "window"],
+  "requires": ["display", "pointer|touch", "keyboard"],
+  "icons": ["menu", "chevron-right", "check", "x"],
+  "scheme": "dark"
+}
