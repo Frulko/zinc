@@ -65,7 +65,8 @@ export class PanoramaView extends Orbit {
   }
 
   /** Frees the sphere and the picture the view is drawn into (the panorama's image is its owner's). */
-  dispose(): void { this.camera.dispose(); this.sphere.dispose(); }
+  suspend(): void { this.camera.dispose(); }
+  dispose(): void { this.suspend(); this.sphere.dispose(); }
 
   /** The field of view in degrees: what a pinch changes here. */
   get fov(): number { return this.reach; }

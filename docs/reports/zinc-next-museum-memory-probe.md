@@ -121,3 +121,7 @@ byte-bounded idle cache; video output rings and view-sized render targets should
 The [resource lifecycle research](zinc-next-resource-lifecycle.md) explains these policies and primary sources.
 The probe now provides a repeatable before/after check: home should shed the relevant native resources,
 while successive passes should reach the same post-release state.
+
+## Update — 2026-10-31
+
+The scenario now includes the panorama (`garden`). Hidden camera targets are released after completed transitions and stopped films close their native decoder/source contexts. The regression now expects zero targets, video buffers and sources at home; the model/panorama state remains cached. Five native GL cycles verify this release. See [current measurements and remaining embedded image payload](engine-image-memory-2026-10-31.md); the historical retained-resource tables above describe the old behavior.

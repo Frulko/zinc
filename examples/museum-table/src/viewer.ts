@@ -147,6 +147,8 @@ export class ObjectView extends Orbit {
   }
 
   setLanguage(lang: string): void { this.lang = lang; }
+  /** Releases the large output buffers while preserving the model and its view. Camera.render recreates them on demand. */
+  suspend(): void { this.camera.dispose(); }
   /** Frees the object's meshes and the picture it is drawn into: an editor's preview makes the viewer again for each state of the project.
    *  ponytail: the textures a glTF model brought are not freed (zinc:3d/gltf does not say which images it made); an OBJ's texture is its
    *  reader's. */

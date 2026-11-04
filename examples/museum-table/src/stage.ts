@@ -16,6 +16,11 @@ import { word } from './words';
 export class Views {
   viewers = new Map<string, ObjectView>();
   lookouts = new Map<string, Lookout>();
+  /** Hidden views retain their small scene/view state, but no full-size render targets. */
+  trimTargets(active: Stage[]): void {
+    for (const v of this.viewers.values()) if (!active.some((s: Stage): boolean => s.viewer === v)) v.suspend();
+    for (const v of this.lookouts.values()) if (!active.some((s: Stage): boolean => s.lookout === v)) v.suspend();
+  }
   /** Frees them all: the player that made them is done. */
   dispose(): void {
     for (const v of this.viewers.values()) v.dispose();

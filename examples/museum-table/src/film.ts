@@ -9,8 +9,7 @@ import { Project, Media } from './project';
 import { Cue, cuesOf } from './narration';
 import { files } from './files';
 
-/** The decoders opened so far, by file: a clip is opened once, and shows on one card at a time.
- *  ponytail: zinc:video runs 16 players at most; a project of more films has to close the ones of the sequences it left. */
+/** The active decoders by file: a clip shows on one card at a time; stopped clips reopen from their source on demand. */
 const decoders = new Map<string, Decoder>();
 export function retainedDecoders(): i32 { return decoders.size; }
 
@@ -71,7 +70,8 @@ export class Film {
   }
   /** Stops the film: its card shows the poster again. */
   stop(): void {
-    this.decoder?.stop();
+    const d = this.decoder;
+    if (d !== null) { d.close(); if (decoders.get(this.media.file) === d) decoders.delete(this.media.file); this.decoder = null; }
     this.on = false; this.paused = false; this.t = 0; this.cue = '';
   }
 

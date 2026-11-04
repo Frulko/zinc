@@ -261,7 +261,9 @@ export class Player {
     const top: Stage | null = stack.length > 0 ? stack[stack.length - 1] : null;
     for (const s of this.stack) if (s !== top) { s.table.rest(); this.hear(s); }
     this.stack = stack;
+    if (this.change === null) this.trimViews();
   }
+  private trimViews(): void { this.views.trimTargets(this.stack); this.shows.trimTargets(this.stack); }
   /** Tells the story what happened to the films of a sequence. */
   private hear(s: Stage): void {
     for (const line of s.table.news) this.tell(line);
@@ -587,6 +589,7 @@ export class Player {
   private showBoard(open: boolean): void {
     const m = this.board;
     if (m === null || m.open === open) return;
+    if (open) m.prepare();
     m.open = open;
     this.top().table.opened = null;
     this.layOutDock();
@@ -678,7 +681,7 @@ export class Player {
       for (const f of fingers.down) if (f.fresh) f.owner = NOTHING;
       c.p += dt / (c.kind === 'slide' ? SLIDE : FADE);
       if (c.p >= 0.5 && this.stack !== c.after) { this.show(c.after); this.arrived(this.top().sequence); this.layOutDock(); }
-      if (c.p >= 1) this.change = null;
+      if (c.p >= 1) { this.change = null; this.trimViews(); }
     } else if (this.tour !== null && !this.paused) {   // a presentation plays by itself: a touch pauses it, and does nothing else
       let touched = false;
       for (const f of fingers.down) if (f.fresh) { f.owner = NOTHING; touched = true; }

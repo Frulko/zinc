@@ -91,7 +91,7 @@ assets in `Contents/Resources/assets` and needs no Zinc checkout or Homebrew ins
 current Mac architecture. Developer ID signing and notarization remain the final distribution steps
 ([guide](../../docs/guide/07-distribution.md)).
 
-Size inspection on 2026-10-12 (macOS arm64): the executable is 93.65 MB before dependency-path rewriting,
+Historical size inspection on 2026-10-12 (macOS arm64): the executable is 93.65 MB before dependency-path rewriting,
 including 75.60 MB of decoded RGBA images and 11.69 MB of glyph tables/bitmaps. The source assets are only 9.16 MB;
 the adjacent development pack expands them to roughly 79 MB because it also stores decoded images. The legacy
 renderer still embeds the same images, so the development build duplicates that payload. The app carries no
@@ -99,8 +99,7 @@ development pack. With 15 bundled dylibs (34.65 MB), the app is 137.51 MB and it
 decimal MB; filesystem tools displaying MiB give smaller numbers.
 
 The [asset storage and RAM report](../../docs/reports/zinc-next-assets-outside-binary.md) lists the exact
-embedded images, the proposed external resource layout and what the memory tests establish. Externalization
-and automatic view unload have not yet been implemented.
+embedded images, the proposed external resource layout and what the memory tests establish. JPEG/WebP images now stay as compressed asset files in source runs and native bundles, decoded on first access. The resource file shrank from 92.38 to 16.78 MB; [current measurements](../../docs/reports/engine-assets-presentation-2026-10-31.md). Hidden storyboard thumbnails are prepared when the map opens. Inactive 3D output targets and stopped video decoders are released after navigation; model/view state stays available for return visits.
 
 ## Remote lifecycle diagnostics (Zinc Next)
 
@@ -116,7 +115,7 @@ settings live in `tools/scenarios/museum.json`. Copy that scenario for another d
 the sampler. `resource-probe --scenario <json> --remote --port <forwarded-port>` also collects device counters
 without querying a local process for a remote PID. See [reusable diagnostics](../../docs/dev-mode.md#reusable-resource-diagnostics).
 
-The route is `ukiyo-e` (home), `porcelain` (model), `wave` (video), then home. The driver waits for each fade to
+The route is `ukiyo-e` (home), `porcelain` (model), `wave` (video), `garden` (panorama), then home. The driver waits for each fade to
 finish, dwells for two seconds, and writes `samples.jsonl` with the app PID, RSS, player state and live resource
 counters. `--dwell 5` changes the settling time. `--screenshots` also writes PNGs, but full-resolution captures
 allocate large temporary buffers: leave it off for memory measurements. A launched app closes after the route;

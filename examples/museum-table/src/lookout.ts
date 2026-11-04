@@ -46,6 +46,7 @@ export class Lookout {
   reset(): void { this.view.set(this.media.view); this.opened = null; this.followed = ''; this.button = []; }
   /** Frees what the view holds in the 3D renderer. */
   dispose(): void { this.view.dispose(); }
+  suspend(): void { this.view.suspend(); }
   inside(x: number, y: number): boolean { return Math.abs(x - this.x) <= this.w / 2 && Math.abs(y - this.y) <= this.h / 2; }
 
   /** Where a point of interest is on the table now: [x, y], or [] when it is behind the visitor or out of the window. */

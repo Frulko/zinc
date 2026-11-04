@@ -40,6 +40,12 @@ export class Storyboard {
 
   constructor(project: Project, colours: Colours, frame: Frame) {
     this.project = project; this.colours = colours; this.frame = frame;
+  }
+
+  /** Loads the map's pictures when it is opened, before its drawing/animation begins. */
+  prepare(): void {
+    if (this.thumbs.size > 0) return;
+    const project = this.project;
     for (const s of project.sequences) {
       const list: Thumb[] = [];
       for (const it of s.items) {

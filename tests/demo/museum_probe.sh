@@ -18,6 +18,9 @@ while True:
         if time.monotonic() > deadline: raise
         time.sleep(.1)
 p['wait_scene'](port, 'ukiyo-e', scenario)
+cold = p['request'](port, 'Zinc.getResourceStats')
+assert cold['baked.images']['cpuBytes'] == 0, cold
+assert cold['images']['cpuBytes'] < 40 * 1024 * 1024, cold   # a closed storyboard must not decode the other sequences
 for method, params in [('Museum.navigate', {'sequence': 'missing'}), ('Runtime.evaluate', {})]:
     try: p['request'](port, method, **params)
     except RuntimeError: pass
@@ -28,20 +31,25 @@ except RuntimeError: pass
 else: raise AssertionError('navigation accepted during fade')
 state = p['wait_scene'](port, 'porcelain', scenario); assert state['retainedModels'] == 1, state
 p['request'](port, 'Museum.navigate', sequence='ukiyo-e'); p['wait_scene'](port, 'ukiyo-e', scenario)
-sys.argv = ['resource-probe', '--scenario', 'tools/scenarios/museum.json', '--port', str(port), '--pid', str(state['pid']), '--cycles', '1', '--dwell', '.1', '--output', out]
+sys.argv = ['resource-probe', '--scenario', 'tools/scenarios/museum.json', '--port', str(port), '--pid', str(state['pid']), '--cycles', '2', '--dwell', '.1', '--output', out]
 p['main']()
 samples = [json.loads(line) for line in open(out + '/samples.jsonl')]
-assert [s['state']['sequence'] for s in samples] == ['ukiyo-e', 'porcelain', 'wave', 'ukiyo-e']
+assert [s['state']['sequence'] for s in samples] == ['ukiyo-e'] + ['porcelain', 'wave', 'garden', 'ukiyo-e'] * 2
 assert all(s['rssBytes'] > 0 for s in samples)
-assert samples[-1]['state']['retainedModels'] == samples[-1]['state']['retainedDecoders'] == 1
-assert samples[-1]['resources']['video.buffers']['objects'] == 1, samples[-1]
-assert samples[-1]['resources']['video.buffers']['active'] == 0
-assert samples[-1]['resources']['3d.targets']['objects'] > 0
+assert samples[-1]['state']['retainedModels'] == samples[-1]['state']['retainedPanoramas'] == 1
+assert samples[-1]['state']['retainedDecoders'] == 0
+for sample in samples:
+    if sample['state']['sequence'] == 'ukiyo-e':
+        for provider in ('video.buffers', 'video.sources', '3d.targets'):
+            assert sample['resources'][provider]['objects'] == 0, (provider, sample)
+assert samples[1]['resources']['3d.targets']['objects'] > 0
+assert samples[3]['resources']['3d.targets']['objects'] > 0
 sys.argv = ['resource-probe', '--scenario', 'tools/scenarios/museum.json', '--remote', '--port', str(port), '--cycles', '1', '--dwell', '0', '--output', out + '/remote']
 p['main']()
 remote = [json.loads(line) for line in open(out + '/remote/samples.jsonl')]
-assert len(remote) == 4 and all(s['rssBytes'] is None and s['pid'] == state['pid'] for s in remote)
-assert remote[-1]['resources']['video.buffers']['objects'] == 1
+assert len(remote) == 5 and all(s['rssBytes'] is None and s['pid'] == state['pid'] for s in remote)
+assert remote[-1]['resources']['video.buffers']['objects'] == 0
+assert remote[-1]['resources']['3d.targets']['objects'] == 0
 assert not __import__('pathlib').Path(out + '/app.log').read_bytes().startswith(b'\0')
 PY
 echo 'museum_probe: ok (remote transitions, errors, real native counters and RSS)'
