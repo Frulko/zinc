@@ -1,0 +1,8 @@
+{
+  "name": "Zinc Live",
+  "entry": "main.tsx",
+  "app": {"id": "dev.zinc.figma-live", "name": "Zinc Live", "version": "0.1.0"},
+  "permissions": ["fs", "net:127.0.0.1", "clipboard"],
+  "ui": {"layout": "rn"},
+  "targets": {"macos": {"width": 1180, "height": 820, "resize": "fill"}}
+}

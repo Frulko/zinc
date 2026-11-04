@@ -944,6 +944,11 @@ selectors and the React Native transform-array syntax are not implemented. Unsup
 Static font sizes (1–256 px) are passed to font baking; dynamic sizes use Zinc's existing nearest baked font behavior.
 Fonts of the app: every `assets/<Family>.ttf` is `font-[Family]`, its weights `<Family>-Medium.ttf`, `-SemiBold`, `-Bold` (... `-Black`, `-Italic`);
 `ui.setFontSans('Family')` makes it what `font-sans`, the default, means (Tailwind's `--font-sans`; `examples/nuxt-ui` uses Public Sans), Inter otherwise.
+For a TrueType face chosen at runtime, `ui.registerFont('MyFace', file)` connects
+`font-[MyFace]` to `gfx.loadFont(file, size)` for both measurement and rendering.
+One registration denotes one exact face (including its weight/italic variant).
+The app needs filesystem permission for external files; relative names resolve
+inside its assets, as with `gfx.loadFont`. An unavailable file falls back to sans.
 
 ### Precedence, reset and caching
 

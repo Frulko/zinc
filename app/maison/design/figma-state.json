@@ -1,0 +1,71 @@
+{
+  "runId": "maison-2026-10-23",
+  "fileKey": "9cmBj0SLj0e5RhpkFF7OqZ",
+  "sessionId": "dac78d14-3e3e-47ef-87bd-8a88ebc620a9",
+  "pageId": "0:1",
+  "rootId": "4:2",
+  "discardedImportId": "2:2",
+  "sliderSetId": "5:105",
+  "switchSetId": "5:66",
+  "completedSteps": [
+    "discovery",
+    "editable-html-import",
+    "library-controls",
+    "tokens",
+    "components",
+    "responsive-screens",
+    "prototype",
+    "native-live",
+    "semantic-adapters",
+    "photo-extraction",
+    "standalone-export"
+  ],
+  "pendingValidations": [
+    "physical Home Assistant server",
+    "cross-platform pass"
+  ],
+  "screens": [
+    {
+      "id": "4:2",
+      "name": "Maison / Overview / Tablet",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "id": "10:1207",
+      "name": "Maison / Devices / Tablet",
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "id": "10:2169",
+      "name": "Maison / Connection",
+      "width": 540,
+      "height": 460
+    },
+    {
+      "id": "10:1306",
+      "name": "Maison / Overview / Portrait",
+      "width": 834,
+      "height": 1194
+    },
+    {
+      "id": "20:449",
+      "name": "Maison / Devices / Portrait",
+      "width": 834,
+      "height": 1194
+    },
+    {
+      "id": "10:1629",
+      "name": "Maison / Overview / Mobile",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "id": "20:553",
+      "name": "Maison / Devices / Mobile",
+      "width": 390,
+      "height": 844
+    }
+  ]
+}

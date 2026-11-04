@@ -1,0 +1,1 @@
+{"name":"Maison","entry":"main.tsx","app":{"id":"dev.zinc.maison","name":"Maison","version":"0.1.0"},"permissions":["fs","net"],"ui":{"layout":"rn"},"targets":{"macos":{"width":1280,"height":900,"resize":"fill"}}}

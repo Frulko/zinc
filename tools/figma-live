@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+"""Local Figma design receiver; Zinc owns compilation, rendering and refresh."""
+import argparse
+import base64
+import hashlib
+import hmac
+import json
+import math
+import os
+from pathlib import Path
+import re
+import secrets
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import plistlib
+import shlex
+import http.client
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'integrations/figma'))
+from document import LIMIT, normalize, source
+from fonts import resolve as resolve_font
+from exporter import project_files, write_project, choose_folder
+SESSION = Path.home() / '.zinc/figma-live-session.json'
+
+
+def generate(document):
+    checked, assets, _ = normalize(document)
+    first = checked['screens'][0]
+    return source(checked), assets, first['width'], first['height']
+
+
+class Preview:
+    def __init__(self, directory, zinc, lan=False, companion=False, app_project=None):
+        self.directory, self.zinc, self.lan = directory, zinc, lan
+        self.companion = companion
+        self.server_only = False
+        self.app_project = str(app_project or ROOT / 'app/figma-live')
+        self.owned = {}
+        self.child = None
+        self.size = None
+        self.revision = 0
+        self.document = None
+        self.last_seen = 0
+        self.plugin_live = False
+        self.error = ''
+        self.token = ''
+        self.last_document = ''
+        self.applied = 0
+        self.origin = 'http://127.0.0.1:7331'
+        self.export = {'status': 'idle', 'path': '', 'error': '', 'revision': 0}
+        self.export_cancel = threading.Event()
+        self.export_thread = None
+
+    def start(self, token):
+        self.token = token
+        if self.companion and self.child is None:
+            env = dict(os.environ, ZINC_ROOT=str(ROOT), ZINC_BACKGROUND='1', ZINC_LIVE_TOKEN=token,
+                       ZINC_LIVE_PROJECT=str(self.directory), ZINC_LIVE_ORIGIN=self.origin)
+            self.child = subprocess.Popen([self.zinc, 'run', self.app_project, '--interp'],
+                                          env=env, start_new_session=True)
+
+    def state(self, after=-1):
+        state = {'revision': self.revision, 'connected': time.monotonic() - self.last_seen < 6,
+                 'live': self.plugin_live, 'error': self.error, 'project': str(self.directory),
+                 'link': 'http://localhost:7331/#' + self.token, 'applied': self.applied, 'export': self.export}
+        if self.document is not None and after != self.revision:
+            state['document'] = self.document
+        return state
+
+    def start_export(self, revision):
+        if self.export['status'] == 'choosing': raise ValueError('An export is already open')
+        if self.document is None: raise ValueError('Send a design before exporting')
+        if type(revision) is not int or revision != self.revision: raise ValueError('Design changed; wait for the preview and export again')
+        # Snapshot first: edits received while the picker is open belong to the next export.
+        files = project_files(self.document, self.directory, Path(self.app_project))
+        name = self.document['name']
+        self.export = {'status': 'choosing', 'path': '', 'error': '', 'revision': revision}
+        def save():
+            try:
+                parent = choose_folder(self.export_cancel)
+                target = write_project(files, parent, name) if parent is not None else None
+                self.export = {'status': 'done' if target else 'cancelled', 'path': str(target) if target else '', 'error': '', 'revision': revision}
+            except (OSError, ValueError) as error:
+                self.export = {'status': 'error', 'path': '', 'error': str(error), 'revision': revision}
+        self.export_thread = threading.Thread(target=save, name='figma-export', daemon=True)
+        self.export_thread.start()
+
+    def update(self, document):
+        checked, assets, mapping = normalize(document)
+        for font in checked['fonts']:
+            if font['extraction'] == 'contours demandés': continue
+            data, reason = resolve_font(font['family'], font['style'])
+            if data is None:
+                font['extraction'] = 'repli natif Inter'
+                checked['warnings'].append(font['family'] + ' / ' + font['style'] + ' : ' + reason + '. Texte conservé, repli Inter.')
+            else:
+                name = 'font-' + hashlib.sha256(data).hexdigest()[:20] + '.ttf'
+                assets[name] = data
+                font.update(asset=name, name='ZincFont' + hashlib.sha256(data).hexdigest()[:20], extraction='fichier TrueType natif')
+        self.last_seen = time.monotonic()
+        self.plugin_live = True
+        self.error = ''
+        fingerprint = json.dumps(checked, sort_keys=True) + ''.join(hashlib.sha256(v).hexdigest() for v in assets.values())
+        if fingerprint == self.last_document:
+            return
+        first = checked['screens'][0]
+        width, height = first['width'], first['height']
+        files = {}
+        for font in checked['fonts']:
+            license_file = ROOT / 'lib/fonts' / (font['family'] + '-OFL.txt')
+            if license_file.parent.resolve() == (ROOT / 'lib/fonts').resolve() and license_file.is_file():
+                relative = 'assets/' + license_file.name
+                files[relative] = license_file.read_bytes()
+                font['licensePath'] = str(self.directory / relative)
+        paths = {}
+        for name, data in assets.items():
+            filename = hashlib.sha256(data).hexdigest()[:20] + Path(name).suffix
+            paths[name] = 'assets/' + filename
+            files[paths[name]] = data
+        def locate(node):
+            if node.get('asset'):
+                node['assetPath'] = str(self.directory / paths[node['asset']])
+            for child in node['children']: locate(child)
+        for screen in checked['screens']: locate(screen['tree'])
+        for font in checked['fonts']:
+            if font.get('asset'): font['path'] = str(self.directory / paths[font['asset']])
+        exported = json.loads(json.dumps(checked))
+        def relative(node):
+            if node.get('asset'): node['assetPath'] = paths[node['asset']]
+            for child in node['children']: relative(child)
+        for screen in exported['screens']: relative(screen['tree'])
+        for font in exported['fonts']:
+            if font.get('asset'): font['path'] = Path(paths[font['asset']]).name
+            if font.get('licensePath'): font['licensePath'] = 'assets/' + Path(font['licensePath']).name
+        files['src/design.tsx'] = source(exported).encode()
+        files['design-map.json'] = json.dumps(mapping, ensure_ascii=False, indent=2).encode()
+        files['design.zui.json'] = json.dumps(exported, ensure_ascii=False, indent=2).encode()
+        files['fonts.json'] = json.dumps(exported['fonts'], ensure_ascii=False, indent=2).encode()
+        files['design-system.json'] = json.dumps(checked['designSystem'], ensure_ascii=False, indent=2).encode()
+        for runtime in ['scene.ts', 'model.ts', 'native.ts']:
+            files['src/' + runtime] = (ROOT / 'app/figma-live' / runtime).read_bytes()
+        if self.size is None:
+            files['src/main.tsx'] = b"import { render } from 'zinc:ui/solid';\nimport { Design } from './design';\nrender(() => <Design />, 0xffffff, null);\n"
+        if self.size != (width, height):
+            files['zinc.json'] = json.dumps({'name': 'Figma Live', 'entry': 'src/main.tsx', 'permissions': ['fs'],
+                'ui': {'layout': 'rn'},
+                'targets': {'macos': {'width': width, 'height': height}}}).encode()
+        # Refuse to overwrite a file somebody edited, including generated image assets.
+        for name in files:
+            path = self.directory / name
+            if path.exists() and self.owned.get(name) != hashlib.sha256(path.read_bytes()).digest():
+                raise ValueError('Local changes preserved: ' + name)
+        # Assets first, then the source that references them. No file is exposed half-written.
+        for name in sorted(files, key=lambda n: n == 'src/design.tsx'):
+            data = files[name]
+            path = self.directory / name
+            if path.exists() and path.read_bytes() == data:
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            stage = path.with_suffix(path.suffix + '.tmp')
+            stage.write_bytes(data)
+            stage.replace(path)
+            self.owned[name] = hashlib.sha256(data).digest()
+        self.size = width, height
+        self.document = checked
+        self.last_document = fingerprint
+        self.revision += 1
+        if not self.companion and not self.server_only and (self.child is None or self.child.poll() is not None):
+            env = dict(os.environ, ZINC_ROOT=str(ROOT), ZINC_BACKGROUND='1')
+            self.child = subprocess.Popen([self.zinc, 'dev', str(self.directory), '--no-devtools'] +
+                (['--lan'] if self.lan else []), env=env, start_new_session=True)
+
+    def close(self):
+        self.export_cancel.set()
+        if self.export_thread is not None: self.export_thread.join(timeout=2)
+        if self.child is not None and self.child.poll() is None:
+            # zinc dev owns its window child. Signal its group so both end on bridge exit.
+            try:
+                os.killpg(self.child.pid, signal.SIGTERM)
+                self.child.wait(timeout=5)
+            except ProcessLookupError:
+                pass
+            except subprocess.TimeoutExpired:
+                os.killpg(self.child.pid, signal.SIGKILL)
+                self.child.wait()
+
+
+def handler(preview, token):
+    class Receiver(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass  # Pairing secrets and document content do not belong in logs.
+
+        def reply(self, status, body):
+            data = json.dumps(body).encode()
+            self.send_response(status)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+            self.send_header('Access-Control-Allow-Private-Network', 'true')
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_OPTIONS(self):
+            self.reply(200, {})
+
+        def authorized(self):
+            return self.headers.get('Host') in {'localhost:' + str(self.server.server_port), '127.0.0.1:' + str(self.server.server_port)} and hmac.compare_digest(
+                self.headers.get('Authorization', '').encode(), ('Bearer ' + token).encode())
+
+        def do_GET(self):
+            if not self.authorized():
+                self.reply(401, {'error': 'Reconnect with the session link'}); return
+            if self.path.startswith('/state?after='):
+                try:
+                    after = int(self.path.split('=', 1)[1])
+                    self.reply(200, preview.state(after))
+                except ValueError:
+                    self.reply(400, {'error': 'Invalid revision'})
+            else:
+                self.reply(404, {'error': 'Unknown endpoint'})
+
+        def do_POST(self):
+            self.connection.settimeout(5)
+            if self.headers.get('Host') not in {'localhost:' + str(self.server.server_port), '127.0.0.1:' + str(self.server.server_port)}:
+                self.reply(403, {'error': 'Loopback host required'}); return
+            if not hmac.compare_digest(self.headers.get('Authorization', '').encode(), ('Bearer ' + token).encode()):
+                self.reply(401, {'error': 'Reconnect with the link printed by tools/figma-live'}); return
+            if self.path not in {'/design', '/heartbeat', '/applied', '/export'}:
+                self.reply(404, {'error': 'Unknown endpoint'}); return
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= LIMIT or self.headers.get('Transfer-Encoding'):
+                    self.reply(413, {'error': 'Design exceeds 32 MiB'}); return
+                if self.headers.get_content_type() != 'application/json':
+                    self.reply(415, {'error': 'Expected application/json'}); return
+                raw = self.rfile.read(length)
+                if len(raw) != length:
+                    raise ValueError('Incomplete design')
+                body = json.loads(raw)
+                if self.path == '/export':
+                    if not isinstance(body, dict) or set(body) != {'revision'}: raise ValueError('Expected only the displayed revision')
+                    preview.start_export(body['revision'])
+                elif self.path == '/heartbeat':
+                    if not isinstance(body, dict) or type(body.get('live')) is not bool:
+                        raise ValueError('Invalid heartbeat')
+                    preview.last_seen = time.monotonic(); preview.plugin_live = body['live']
+                elif self.path == '/applied':
+                    if not isinstance(body, dict) or type(body.get('revision')) is not int or not 0 <= body['revision'] <= preview.revision:
+                        raise ValueError('Invalid applied revision')
+                    preview.applied = body['revision']
+                else:
+                    preview.update(body)
+                self.reply(200, {'received': True, 'revision': preview.revision, 'applied': preview.applied})
+            except (ValueError, TypeError, RecursionError, OSError) as e:
+                if self.path != '/export': preview.error = str(e)
+                self.reply(400, {'error': str(e)})
+    return Receiver
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--zinc', default=os.environ.get('ZINC', str(Path(__file__).resolve().parents[1] / 'build/zinc')))
+    parser.add_argument('--lan', action='store_true', help='Serve to Zinc Go instead of opening a Mac window')
+    parser.add_argument('--app-project', type=Path, help='Use a compiled project entry that calls startLive(setup) with its TypeScript controller')
+    parser.add_argument('--design', type=Path, help='Load a local Figma snapshot before opening the viewer')
+    parser.add_argument('--app', action='store_true', help='Open the persistent native companion')
+    parser.add_argument('--make-app', action='store_true', help='Create the local development Mac app bundle')
+    parser.add_argument('--server-only', action='store_true', help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    zinc = shutil.which(args.zinc)
+    if not zinc:
+        parser.error('Zinc not found. Run tools/build zinc, or pass --zinc /path/to/zinc')
+    if args.make_app:
+        out = ROOT / 'build/Zinc Live.app/Contents'
+        (out / 'MacOS').mkdir(parents=True, exist_ok=True)
+        (out / 'Resources').mkdir(exist_ok=True)
+        with (out / 'Info.plist').open('wb') as file:
+            plistlib.dump({'CFBundleExecutable': 'ZincLive', 'CFBundleIdentifier': 'dev.zinc.figma-live',
+                          'CFBundleName': 'Zinc Live', 'CFBundlePackageType': 'APPL', 'CFBundleVersion': '1',
+                          'NSHighResolutionCapable': True}, file)
+        launcher = out / 'MacOS/ZincLive'
+        command = [sys.executable, str(Path(__file__).resolve()), '--app', '--zinc', zinc]
+        launcher.write_text('#!/bin/sh\nexec ' + ' '.join(shlex.quote(x) for x in command) + ' >> "$HOME/Library/Logs/ZincLive.log" 2>&1\n')
+        launcher.chmod(0o755)
+        print(out.parent)
+        return 0
+    companion = not args.lan and not args.server_only
+    if SESSION.exists():
+        try:
+            saved = json.loads(SESSION.read_text())
+            check = http.client.HTTPConnection('127.0.0.1', 7331, timeout=1)
+            check.request('GET', '/state?after=-1', headers={'Authorization': 'Bearer ' + saved['token']})
+            response = check.getresponse()
+            same = response.status == 200
+            response.read(); check.close()
+            if same:
+                print('Zinc Live is already running. Use its window and this plugin link:\nhttp://localhost:7331/#' + saved['token'])
+                return 0
+        except (OSError, ValueError, KeyError, http.client.HTTPException):
+            pass
+    directory = Path(tempfile.mkdtemp(prefix='zinc-figma-'))
+    preview = Preview(directory, zinc, args.lan, companion=companion, app_project=args.app_project.resolve() if args.app_project else None)
+    preview.server_only = args.server_only
+    token = secrets.token_hex(24)
+    try:
+        server = HTTPServer(('127.0.0.1', 7331), handler(preview, token))
+        server.timeout = 0.5
+        if args.design:
+            if args.design.stat().st_size > LIMIT: raise ValueError('Design exceeds 32 MiB')
+            preview.update(json.loads(args.design.read_text()))
+        preview.start(token)
+        SESSION.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(SESSION), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as file:
+            json.dump({'pid': os.getpid(), 'token': token, 'project': str(directory)}, file)
+        print('Zinc Live — paste in the Figma plugin:\nhttp://localhost:7331/#' + token, flush=True)
+        print('Project: ' + str(directory) + '\nCtrl-C closes the preview. The project is kept.', flush=True)
+        def interrupt(*_):
+            raise KeyboardInterrupt
+        signal.signal(signal.SIGTERM, interrupt)
+        while True:
+            server.handle_request()
+            if companion and preview.child is not None and preview.child.poll() is not None:
+                break
+    except KeyboardInterrupt:
+        pass
+    except (OSError, ValueError) as e:
+        print('Zinc Live: ' + str(e) + ' (another bridge may be running)', file=sys.stderr)
+        return 1
+    finally:
+        preview.close()
+        if 'server' in locals():
+            server.server_close()
+            try:
+                if json.loads(SESSION.read_text()).get('pid') == os.getpid(): SESSION.unlink()
+            except (OSError, ValueError):
+                pass
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
