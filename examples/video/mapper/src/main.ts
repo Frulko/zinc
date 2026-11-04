@@ -1,6 +1,6 @@
 // mapper: GPU video mapping (zinc:mapping on display-gl) controlled over OSC. The web companion
 // (companion/server.mjs) serves the editor and relays it to this app as OSC.
-// Usage: mapper [--media DIR]   (default: media). Keys: Tab status card, F fullscreen, Esc quit.
+// Usage: mapper [--media DIR] [--port N]   (default: media, 9000). Keys: Tab status card, F fullscreen, Esc quit.
 // Any runtime image id can feed a layer (video player, camera, gfx.createImage), also over OSC:
 // /layer/<n>/source "image" <id>. Player image ids are stable per player, so saved setups keep their videos.
 import * as gfx from 'zinc:gfx';
@@ -11,20 +11,21 @@ import { createDemoLayers } from './layers';
 import { liveImage, paintLiveImage } from './live';
 import { drawHud } from './hud';
 
-const OSC_PORT: i32 = 9000;
 const SETUP_FILE = 'mapping.json';   // written by the companion's "save", read at start
 
-/** --media DIR, else 'media'. */
-function mediaFolder(): string {
+/** The value after --name, else the fallback. */
+function option(name: string, fallback: string): string {
   const argv = args();
-  const at = argv.indexOf('--media');
-  return at >= 0 && at + 1 < argv.length ? argv[at + 1] : 'media';
+  const at = argv.indexOf(`--${name}`);
+  return at >= 0 && at + 1 < argv.length ? argv[at + 1] : fallback;
 }
+
+const OSC_PORT: i32 = parseInt(option('port', '9000'));
 
 // the videos of the folder, looped on one layer
 const player = new Player(640, 360);
 player.repeat = LOOP;
-const videos = player.addFolder(mediaFolder(), EXTENSIONS);
+const videos = player.addFolder(option('media', 'media'), EXTENSIONS);
 if (videos > 0) player.play();
 
 // a saved setup, else the demo layers

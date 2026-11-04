@@ -386,7 +386,8 @@ bool oscListen(int port) {
   uv_udp_init(loop(), h);
   sockaddr_in a;
   uv_ip4_addr("0.0.0.0", port, &a);
-  if (uv_udp_bind(h, reinterpret_cast<sockaddr*>(&a), UV_UDP_REUSEADDR) != 0 || uv_udp_recv_start(h, onOscAlloc, onOscRecv) != 0) {
+  // no UV_UDP_REUSEADDR: with it the bind succeeds beside another program on the port, and that program silently gets the datagrams
+  if (uv_udp_bind(h, reinterpret_cast<sockaddr*>(&a), 0) != 0 || uv_udp_recv_start(h, onOscAlloc, onOscRecv) != 0) {
     uv_close(reinterpret_cast<uv_handle_t*>(h), onOscClosed);
     return false;
   }

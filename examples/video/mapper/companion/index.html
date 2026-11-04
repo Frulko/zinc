@@ -83,6 +83,7 @@ const status = s => $('status').textContent = s;
 async function sync() {
   await new Promise(r => setTimeout(r, 80));  // let queued commands land first
   const r = await fetch('/state', { headers: AUTH }).catch(() => null);
+  if (r && r.status === 401) return status('wrong token: open the URL the companion printed at its last start');
   if (!r || !r.ok) return status('app not answering (is it running? OSC port?)');
   S = await r.json();
   if (sel >= S.layers.length) sel = S.layers.length - 1;

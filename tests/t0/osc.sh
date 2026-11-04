@@ -4,6 +4,13 @@ ZINC=${ZINC:-build/zinc}
 "$ZINC" run tests/golden/host/osc.ts 2>&1 | diff -q - tests/golden/host/osc.out >/dev/null || { echo "zinc:osc loopback output differs"; exit 1; }
 d=$(mktemp -d); printf "import * as osc from 'zinc:osc';\nconsole.log('ok');\n" > "$d/main.ts"   # ZN-155: the only import of a program (it needs the event loop)
 [ "$("$ZINC" run "$d/main.ts" 2>&1)" = ok ] || { echo "a program importing only zinc:osc does not compile: $("$ZINC" run "$d/main.ts" 2>&1 | head -2)"; exit 1; }
+# a port another program holds, even on one address only, is refused: sharing it would hand that program the datagrams
+printf "import * as osc from 'zinc:osc';\ntry { osc.listen(19323, (m) => {}); console.log('bound'); } catch (e) { console.log('refused'); }\nosc.close();\n" > "$d/main.ts"
+busy=$(python3 -c "
+import socket, subprocess, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(('127.0.0.1', 19323))
+print(subprocess.run([sys.argv[1], 'run', sys.argv[2]], capture_output=True, text=True).stdout.strip())" "$ZINC" "$d/main.ts")
+[ "$busy" = refused ] || { echo "listen on a port another program holds: $busy"; exit 1; }
 rm -rf "$d"
 out=$(mktemp)
 "$ZINC" run tests/golden/host/osc_listen.ts >"$out" 2>&1 &

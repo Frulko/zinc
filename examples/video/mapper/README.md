@@ -18,7 +18,9 @@ node examples/video/mapper/companion/server.mjs --app 127.0.0.1:9000   # editor 
 node examples/video/mapper/companion/demo.mjs                          # drives a running app through the editor API
 ```
 
-Keys: Tab status card on / off, F fullscreen, Esc quit. The app listens for OSC on UDP 9000; the companion saves
+Keys: Tab status card on / off, F fullscreen, Esc quit. The app listens for OSC on UDP 9000. When another program
+holds that port (nqptp, the AirPlay 2 timing daemon, does), it stops with an error: pick another with
+`zinc run examples/video/mapper -- --port 9100` and give the companion `--app 127.0.0.1:9100`. The companion saves
 the setup to `mapping.json` (in the working directory), which the app loads at start instead of the demo layers.
 The companion listens on all interfaces without authentication: use it on a trusted network.
 

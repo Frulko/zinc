@@ -1038,7 +1038,7 @@ export function send(host: string, port: i32, address: string, numbers: f64[], s
 }
 export function listen(port: i32, cb: (m: OscMessage) => void): void {
   const bound = __host_oscListen(port);
-  if (bound !== 1) throw new Error('osc: ' + (bound === -1 ? __host_sockError() : 'cannot bind port'));
+  if (bound !== 1) throw new Error('osc: ' + (bound === -1 ? __host_sockError() : 'cannot listen on UDP port ' + port + ', another program may be using it'));
   __oscCb = cb;
   if (__oscHooked) return;
   __oscHooked = true;
