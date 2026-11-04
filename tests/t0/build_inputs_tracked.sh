@@ -18,7 +18,7 @@ for d, _, files in os.walk(build):
             for p in re.findall(r'(/[^\s"\\]+)', open(os.path.join(d, f), errors='replace').read()): paths.add(p.rstrip(':'))
 missing = []
 for p in sorted(paths):
-    if not p.startswith(root + '/') or p.startswith(build + '/') or '/CMakeFiles/' in p or not os.path.isfile(p): continue
+    if not p.startswith(root + '/') or p.startswith(build + '/') or p.startswith(root + '/.git/') or '/CMakeFiles/' in p or not os.path.isfile(p): continue
     rel = os.path.relpath(p, root)
     if rel not in tracked: missing.append(rel)
 if missing:

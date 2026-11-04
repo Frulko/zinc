@@ -22,6 +22,14 @@ A program with workers (`zinc:worker`) is sampled on every thread: `SIGPROF` goe
 by `rt::worker::machineHook` before its program runs) gets the sample. The report has a table per thread, the speedscope file a profile per
 thread, and the folded stacks of a worker start with its thread's name (`zinc worker work.ts#1;main;...`).
 
+The report opens with the wall-clock and CPU split (`wall 91 ms, CPU 91 ms`): the samples count CPU time only, so a wait (a timer, I/O, vsync,
+the GPU, an upload) is the difference between the two and shows in no row. A closure is named by where it is, as V8 infers names:
+`outer/inner`, `Class.method/<anonymous>`, `lambda3:outer/inner` (the `lambdaN` prefix is its index in the module).
+
+`zinc profile` samples the interpreter, not the AOT binary a windowed `zinc run` starts: the AOT-compiled code keeps no frame stack to sample
+(a native-stack sampler with symbol names is the open step; `sample`, `perf` or Instruments read the AOT binary meanwhile). To profile what
+a windowed app does, run it with `ZINC_PROFILE=1` (frame summary) and `ZINC_PRESENT_STATS=1` for the present and upload time.
+
 The optimiser inlines small functions (`ZN_NO_OPT=1` keeps the structure of the source). Native (AOT) programs are measured with the
 system's tools (`sample`, `perf`, Instruments); `tools/resmon` covers their CPU and memory over a run.
 

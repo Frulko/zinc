@@ -3,7 +3,7 @@ import { world } from '../world/world';
 import { economy } from '../world/economy';
 import { population } from '../engine/villagers';
 import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE } from '../constants';
-import { resourceShown } from '../hud';
+import { summary, foodStock } from '../hud';
 import { drawResource, drawGlyph, drawBuilding } from './icons';
 import { kit, col, winClick, slab, well, block, button, text, textR, textC, measure, glyphButton, labelButton, addHit, parchment, BTN_PRESSED } from './kit';
 import { ui, act, WIN_MENU, TOP_H, STATUS_H, COL_W, COL_FOLDED, SPEEDS, columnX, viewport } from './state';
@@ -17,7 +17,7 @@ import { advisorClick, openAdvisor } from './Advisors';
 import { campaignClick, openCampaign } from './Campaign';
 import { debugClick } from './Debug';
 import { endingClick } from './Ending';
-import { treeClick, openTree } from './Tree';
+import { guideClick } from './Guide';
 import { dateText, SEASONS, season } from './clock';
 import { villageWord } from '../rules/needs';
 
@@ -32,11 +32,22 @@ function flash(key: number, value: number): number {
 function flashColor(sign: number): number { return sign > 0 ? col('good') : sign < 0 ? col('bad') : col('barText'); }
 
 export function topBar(): void {
-  const w = width();
+  const w = width(), sm = summary(), lab = sm.labour;
   slab(0, 0, w, TOP_H); block(0, 0, w, TOP_H);
   let x = 8;
-  for (let k = 0; k < economy.resources.length; k++) {
-    if (!resourceShown(k)) continue;
+  // what the village lives on: population, then the work (hands against places), then the goods that matter
+  const people = sm.people, pw = 30 + Math.max(measure('000'), measure(String(people)));
+  well(x, 5, pw, 24); drawGlyph('person', x + 4, 7, 18);
+  text(kit.body, x + 26, 8, String(people), flashColor(flash(100, people)));
+  addHit('top:pop', x, 5, pw, 24, 'Habitants\nLes maisons les logent : posez-en au bord d’une route reliée à la porte.');
+  x += pw + 5;
+  const work = lab.filled + ' / ' + lab.jobs, state = lab.pool === 0 ? 'en attente d’habitants' : lab.unemployed > 0 ? lab.unemployed + ' sans emploi' : lab.shortage > 0 ? lab.shortage + ' postes vides' : 'au complet';
+  const ww = 30 + measure(work) + 12 + measure(state);
+  well(x, 5, ww, 24); drawGlyph('hammer', x + 4, 7, 18);
+  text(kit.body, x + 26, 8, work, col('barText')); text(kit.small, x + 38 + measure(work), 10, state, lab.pool === 0 ? col('muted') : lab.unemployed > 0 ? col('warn') : lab.shortage > 0 ? col('bad') : col('good'));
+  addHit('top:work', x, 5, ww, 24, 'Travail : ' + lab.filled + ' postes tenus sur ' + lab.jobs + ' (habitants qui peuvent travailler : ' + lab.pool + ').\n' + (lab.unemployed > 0 ? 'Des bras attendent : posez un atelier.' : lab.shortage > 0 ? 'Il manque des bras : posez des maisons.' : 'Tout le monde est employé.'));
+  x += ww + 5;
+  for (const k of sm.matters) {
     const n = world.stock[k], label = String(n), cw = 30 + Math.max(measure('000'), measure(label));
     well(x, 5, cw, 24);
     drawResource(k, x + 4, 7, 18);
@@ -44,11 +55,14 @@ export function topBar(): void {
     addHit('top:res', x, 5, cw, 24, economy.resources[k].label + '\nEn entrepôt : ' + n);
     x += cw + 5;
   }
-  const people = population(), pw = 30 + Math.max(measure('000'), measure(String(people)));
-  well(x, 5, pw, 24); drawGlyph('person', x + 4, 7, 18);
-  text(kit.body, x + 26, 8, String(people), flashColor(flash(100, people)));
-  addHit('top:pop', x, 5, pw, 24, 'Habitants');
-  x += pw + 5;
+  const fk = sm.food.length > 0 ? sm.food[0] : -1;
+  if (fk >= 0) {
+    const n = foodStock(), label = String(n), cw = 30 + Math.max(measure('000'), measure(label));
+    well(x, 5, cw, 24); drawResource(fk, x + 4, 7, 18);
+    text(kit.body, x + 26, 8, label, n > 0 ? flashColor(flash(99, n)) : col('bad'));
+    addHit('top:food', x, 5, cw, 24, 'Vivres : ' + sm.food.map((f: number): string => economy.resources[f].label + ' ' + world.stock[f]).join(', ') + '\nLes maisons mangent ces réserves.');
+    x += cw + 5;
+  }
   if (people > 0) {                                        // the village's mood: a coloured badge and the average satisfaction
     const mood = world.mood, mc = mood >= 55 ? col('good') : mood >= 40 ? col('warn') : col('bad'), label = mood + ' %', mw = 34 + Math.max(measure('000 %'), measure(label));
     well(x, 5, mw, 24); rect(x + 6, 11, 12, 12, mc);
@@ -102,10 +116,9 @@ export function column(): void {
   for (let i = 0; i < cats.length; i++) { items.push('cat:' + i); labels.push(cats[i].label); glyphs2.push(cats[i].glyph); }
   items.push('tool:' + TOOL_ERASE); labels.push('Démolir'); glyphs2.push('erase');
   items.push('tool:' + TOOL_NONE); labels.push('Info'); glyphs2.push('eye');
-  items.push('win:tree'); labels.push('Arbre'); glyphs2.push('log');
   for (let i = 0; i < items.length; i++) {
     const bx = x + pad + (i % 2) * (bw + 6), by = y + Math.floor(i / 2) * 32, id = items[i];
-    const selected = id === 'win:tree' ? ui.tree : id.startsWith('tool:') ? ui.tool === Number(id.slice(5)) : ui.category === Number(id.slice(4));
+    const selected = id.startsWith('tool:') ? ui.tool === Number(id.slice(5)) : ui.category === Number(id.slice(4));
     button(id, bx, by, bw, 28, labels[i] === 'Info' ? 'Cliquer un bâtiment ou un habitant pour le voir' : '', true, selected);
     drawGlyph(glyphs2[i], bx + 5, by + 5, 18);
     text(kit.small, bx + 27, by + 7, labels[i], col('barText'));
@@ -124,12 +137,11 @@ export function statusStrip(text_: string, color: number): void {
 
 /** A click on a widget of the frame (the id the widget registered). */
 export function hudClick(id: string): void {
-  if (winClick(id) || buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id) || campaignClick(id) || endingClick(id) || debugClick(id) || treeClick(id) || overlayClick(id)) return;
+  if (winClick(id) || buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id) || campaignClick(id) || endingClick(id) || debugClick(id) || guideClick(id) || overlayClick(id)) return;
   if (id.startsWith('tool:')) { act.setTool(Number(id.slice(5))); ui.category = -1; return; }
   if (id.startsWith('cat:')) { const i = Number(id.slice(4)); ui.category = ui.category === i ? -1 : i; return; }
   if (id === 'win:advisor') { openAdvisor(ui.advisor); return; }
   if (id === 'win:campaign') { openCampaign(); return; }
-  if (id === 'win:tree') { openTree(); return; }
   if (id === 'win:menu') { ui.window = WIN_MENU; return; }
   if (id === 'col:fold') { ui.collapsed = !ui.collapsed; act.rebake(); return; }
   if (id === 'speed:pause') { act.togglePause(); return; }

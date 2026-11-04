@@ -1,0 +1,9 @@
+{
+  "id": "01-premier-village",
+  "title": "Le premier village",
+  "briefing": "Une vallée tranquille, une rivière, de la forêt à perte de vue. Posez un chemin depuis l’entrée, bâtissez des maisons, ouvrez une cabane de bûcheron et une scierie : le bois est la base de tout. Quand les premiers habitants seront installés, le village pourra grandir.",
+  "map": { "preset": "Vallée", "seed": 1101, "size": 32 },
+  "difficulty": "normal",
+  "buildings": ["house", "lumberhut", "sawmill", "storehouse"],
+  "goals": ["wood", "planks", "street", "hunt", "leather", "square", { "ref": "growth", "final": true }]
+}

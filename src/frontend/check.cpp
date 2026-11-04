@@ -1619,7 +1619,7 @@ struct Checker {
         if (args.size() < 3) pad("2147483647");
         result = at;
         sig = "(a: " + A + ", x: " + Es + ", start: i32, end: i32): " + A;
-        body = "  let s: i32 = start < 0 ? a.length + start : start;\n  if (s < 0) s = 0;\n  let e: i32 = end < 0 ? a.length + end : end;\n  if (e > a.length) e = a.length;\n  for (let k: i32 = s; k < e; k++) a[k] = x;\n  return a;\n";
+        body = "  let s: i32 = start < 0 ? a.length + start : start;\n  if (s < 0) s = 0;\n  let e: i32 = end < 0 ? a.length + end : end;\n  if (e > a.length) e = a.length;\n  if (s < e) a.__fill(x, s, e);\n  return a;\n";
       }
     } else if (fold) {
       TypeId want = kNoType;  // an empty array literal takes the type its callback annotates for the accumulator
@@ -1891,6 +1891,7 @@ struct Checker {
         if (str) return rewrite("__H0", {{args[0]}});
         if (num_ || bl) return rewrite("`${__H0}`", {{args[0]}});
         if (arr) return rewrite("__H0.join(',')", {{args[0]}});
+        if (!rawDyn() && isDyn(at)) return rewrite("__dynString(__H0)", {{args[0]}});
         if (at == tNull) return rewrite((n(args[0]).flags & kFlagUndefined) ? "'undefined'" : "'null'", {});
         if (t.k == TK::Union && hasNull(at)) return rewrite("`${__H0}`", {{args[0]}});  // a nullable number, boolean or string: its text, or null / undefined
       } else if (nm == "Number") {
@@ -2258,6 +2259,11 @@ struct Checker {
         std::vector<std::vector<std::uint32_t>> holes;
         for (std::uint32_t an : argNodes) holes.push_back({an});
         if (!replaceWith(i, argNodes.size() == 1 ? "__workerPost(__H0)" : "__workerPost(__H0, __H1)", holes)) return tError;
+        return expr0(i, kNoType);
+      }
+      if (!bad(ot) && argNodes.size() == 2 && lookup("__workerSend") != kNone && ty(ot).k == TK::Object && lookupMember(ty(ot).obj, "__zincWorker", false)) {   // worker.postMessage(v, [arrays]): any numeric array moves
+        std::vector<std::vector<std::uint32_t>> holes{{n(callee).kids[0]}, {argNodes[0]}, {argNodes[1]}};
+        if (!replaceWith(i, "__workerSend(__H0, __H1, __H2)", holes)) return tError;
         return expr0(i, kNoType);
       }
     }
@@ -4536,10 +4542,10 @@ struct Checker {
       return rec;
     }
     std::vector<std::pair<std::string, TypeId>> shape;
-    bool bad_ = false;
     // an interface of methods expected: its method types type the literal's parameters (`{ cb(x, y) { ... } }`)
     const std::uint32_t ifx = expected != kNoType && !bad(expected) && ty(expected).k == TK::Object && out.objs[ty(expected).obj].isInterface && !out.objs[ty(expected).obj].isRecord ? ty(expected).obj : kNone;
     if (ifx != kNone) ensureBuilt(ifx);
+    bool bad_ = false;
     for (std::uint32_t p : props) {
       const Node& pn = n(p);
       const Member* ctx = ifx != kNone ? lookupMember(ifx, pn.text, false) : nullptr;

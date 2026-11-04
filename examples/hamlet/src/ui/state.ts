@@ -12,7 +12,8 @@ export const ui = {
   category: -1,             // the open build flyout (index of categories()), -1 none
   collapsed: false,         // the control column folded to a handle
   window: WIN_NONE,         // the modal dialog (menu, slots, new game, the ending); the windows below stack, any number open
-  info: false, advisors: false, campaign: false, tree: false,
+  info: false, advisors: false, campaign: false,
+  guide: true,              // the guided start card (dismissed for good, saved with the options)
   overlay: 0,
   overlayMenu: false,               // index of the overlay on the map (0: none)
   selKind: 0,               // 1 a building, 2 a person

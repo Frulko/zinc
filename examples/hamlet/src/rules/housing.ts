@@ -1,5 +1,6 @@
-import { world, Building } from '../world/world';
+import { world, Building, growSpot } from '../world/world';
 import { economy, Housing, HouseLevel } from '../world/economy';
+import { level } from './difficulty';
 
 // Housing levels: what a house holds, what it needs to climb, and the plain words for what it lacks. Pure functions of the world: the UI reads them, the daily slice acts on them.
 
@@ -13,13 +14,33 @@ export function litBonus(b: Building): number { let n = 0; for (const k of housi
 /** The food kinds the house ate lately. */
 export function foodKinds(b: Building): number { let n = 0; for (const k of housing().eats) if (b.fed[k] > 0) n++; return n; }
 
+export const FOOD_DAYS = 4;   // days one meal of a kind lasts; it is bought again with one day left (one meal every three days), so a vendor who passes every day or two never lets a kind lapse
+/** A house buys its meals from `from` (the market that serves it, or the stores): enough kinds with more than a day left for the next level (or its own), one unit per two people, and candles for the light (one unit per four people). */
+export function feed(b: Building, from: (k: number, n: number) => number): void {
+  const h = housing();
+  if (b.residents <= 0) return;
+  let wanted = 1, have = 0;
+  for (let l = 0; l <= Math.min(b.level + 1, levelCount() - 1); l++) wanted = Math.max(wanted, h.levels[l].foods);
+  for (const k of h.eats) if (b.fed[k] > 1) have++;
+  for (const k of h.eats) {
+    if (have >= wanted) break;
+    if (b.fed[k] > 1) continue;
+    if (from(k, Math.ceil(b.residents / 2 * level().eat / 100)) >= 1) { b.fed[k] = FOOD_DAYS; have++; }
+  }
+  for (const k of h.uses) if (b.fed[k] <= 1 && from(k, Math.ceil(b.residents / 4)) >= 1) b.fed[k] = FOOD_DAYS;
+}
 /** One requirement of a level: `met` now, with the words for it ("Il manque l’eau"). `id` is the service id, `food` or `appeal`. */
 export class Requirement { id: string = ''; met: boolean = false; text: string = ''; }
-function requirements(b: Building, lv: HouseLevel, slack: number): Requirement[] {
+function requirements(b: Building, lv: HouseLevel, slack: number, growing: boolean = false): Requirement[] {
   const out: Requirement[] = [];
   for (const k of lv.services) {
     const r = new Requirement(); r.id = economy.services[k].id; r.met = b.cover[k] > 0;
     r.text = r.met ? economy.services[k].label + ' : desservie' : 'Il manque : ' + economy.services[k].label.toLowerCase() + ' (aucun service ne passe ici)';
+    out.push(r);
+  }
+  if (growing && (lv.w > b.w || lv.h > b.h)) {                    // only the next level asks for room: a house that has the level keeps it
+    const r = new Requirement(); r.id = 'space'; r.met = growSpot(b, lv.w, lv.h) >= 0;
+    r.text = r.met ? 'Place : ' + lv.w + ' x ' + lv.h + ' cases libres' : 'Il manque : de la place (' + lv.w + ' x ' + lv.h + ' cases plates et libres autour de la maison)';
     out.push(r);
   }
   if (lv.foods > 0) {
@@ -37,7 +58,7 @@ function requirements(b: Building, lv: HouseLevel, slack: number): Requirement[]
 const allMet = (list: Requirement[]): boolean => list.every((r: Requirement): boolean => r.met);
 
 /** True when the house meets what the level asks. `slack` slackens the appeal (the margin a house keeps its level with). */
-export function meets(b: Building, level: number, slack: number): boolean { return allMet(requirements(b, housing().levels[level], slack)); }
+export function meets(b: Building, level: number, slack: number): boolean { return allMet(requirements(b, housing().levels[level], slack, level > b.level)); }
 
 /** What to do about the first requirement a house lacks, as an instruction: a missing service names the building to raise (or the road a walker needs), a missing food kind names the
  *  foods the village does not yet eat or hold. '' when nothing is missing or the lack is the neighbourhood (its own text already lists what helps). */
@@ -69,7 +90,7 @@ export function housingReport(b: Building): HousingReport {
   r.level = Math.min(b.level, h.levels.length - 1); r.levelName = h.levels[r.level].label; r.capacity = capacityOf(b); r.residents = b.residents;
   r.top = r.level >= h.levels.length - 1;
   if (r.level > 0) r.atRisk = !allMet(requirements(b, h.levels[r.level], h.margin));
-  if (!r.top) { r.next = requirements(b, h.levels[r.level + 1], 0); r.missing = r.next.filter((q: Requirement): boolean => !q.met); }
+  if (!r.top) { r.next = requirements(b, h.levels[r.level + 1], 0, true); r.missing = r.next.filter((q: Requirement): boolean => !q.met); }
   let text = r.levelName + ' (' + r.residents + '/' + r.capacity + ')';
   if (r.atRisk) text += '. Elle va reculer : ' + requirements(b, h.levels[r.level], h.margin).filter((q: Requirement): boolean => !q.met).map((q: Requirement): string => q.text).join(' ; ');
   else if (r.top) text += '. Niveau maximal.';
@@ -81,4 +102,18 @@ export function housingReport(b: Building): HousingReport {
   }
   r.text = text;
   return r;
+}
+
+/** The buildings that give a service (their labels), for "posez : ..." lines. */
+export function providersOf(service: number): string[] {
+  const out: string[] = [];
+  for (const def of economy.buildings) if (def.service !== null && def.service.service === service && def.buildable) out.push(def.label);
+  return out;
+}
+/** What to build for an unmet requirement id (a service, 'food' or 'appeal'), as a short instruction. */
+export function buildAdvice(id: string): string {
+  if (id === 'food') return 'posez une ferme, une pêche ou une chasse, et un marché';
+  if (id === 'appeal') return 'plus d’agrément : puits, taverne, arbres, eau ; éloignez les ateliers';
+  const k = economy.serviceOf(id);
+  return k < 0 ? '' : 'posez : ' + providersOf(k).join(' ou ').toLowerCase();
 }

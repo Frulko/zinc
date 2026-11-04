@@ -1,15 +1,30 @@
 import { HOUSE, COVER_DAYS, ST_ROAM } from '../constants';
-import { world, Person, Building, Alert, random, neighbor, tileIndex, tileAt, tileI, tileJ } from '../world/world';
+import { world, Person, Building, Alert, neighbor, tileIndex, tileAt, tileI, tileJ } from '../world/world';
 import { economy } from '../world/economy';
 import { isWalkable, planPath } from './path';
+import { edgeTiles } from './network';
+import { feed } from '../rules/housing';
+import { marketStocked } from './transport';
 
 // Services reach houses two ways: a walker leaves its building and roams the roads (every house beside its route is covered), or a building covers every
 // house within its radius. Either way the house keeps a counter of days (Building.cover[service]) that decays once a day: covered = counter > 0.
 
 const isHouse = (id: number): boolean => id >= 0 && world.buildings[id].alive && world.buildings[id].type === HOUSE;
-/** Covers the houses on the four sides of a tile (the road a walker is on). */
-export function coverAround(t: number, service: number): void {
-  for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && isHouse(world.build[v])) world.buildings[world.build[v]].cover[service] = COVER_DAYS; }
+/** The distributor of a market hands a house what the market holds of the goods it lacks. */
+function handOut(market: Building, house: Building): void {
+  feed(house, (k: number, n: number): number => { const got = Math.min(n, market.stock[k] - market.reserved[k]); if (got < 1) return 0; market.stock[k] -= got; return got; });
+}
+/** Covers the houses within `economy.sim.walkerReach` tiles of a tile (the road a walker is on): their counter goes back to COVER_DAYS and decays by a day each day. */
+export function coverAround(t: number, service: number, market: Building | null = null): void {
+  const reach = economy.sim.walkerReach, ci = tileI(t), cj = tileJ(t);
+  for (let dj = -reach; dj <= reach; dj++) for (let di = -reach; di <= reach; di++) {
+    const i = ci + di, j = cj + dj;
+    if (i < 0 || j < 0 || i >= world.size || j >= world.size) continue;
+    const id = world.build[j * world.size + i];
+    if (!isHouse(id)) continue;
+    world.buildings[id].cover[service] = COVER_DAYS;
+    if (market !== null) handOut(market, world.buildings[id]);
+  }
   const kind = economy.services[service].risk;
   if (kind !== '') guard(t, kind);
 }
@@ -33,28 +48,45 @@ function guard(t: number, kind: string): void {
 
 /** A road tile next to the building (the walker's first step), or -1. */
 function roadBeside(b: Building): number {
-  for (let d = 0; d < 4; d++) { const v = neighbor(tileIndex(b.i, b.j), d); if (v >= 0 && world.road[v] && isWalkable(v)) return v; }
+  for (const v of edgeTiles(b)) if (world.road[v] && isWalkable(v)) return v;
   return -1;
 }
-/** A random walk over the road tiles: never straight back unless it is a dead end. Uses the world's generator, so the same ticks walk the same round. */
-function roamFrom(start: number, steps: number): number[] {
+/** The round of a roamer over the road tiles, with no dice: it goes straight on where the road does, and at a junction takes the way the building's own turn counter points at (the counter rotates, so
+ *  successive walkers of one building cover different streets); it turns back only at a dead end. Same ticks, same round. */
+function roamFrom(site: Building, start: number, steps: number, preview: boolean = false): number[] {
   const out: number[] = [];
-  let at = start, from = -1;
+  let turn = site.turn;                                       // the preview reads the round without turning the counter
+  let at = start, from = -1, heading = -1;
   for (let k = 0; k < steps; k++) {
-    const options: number[] = [];
-    for (let d = 0; d < 4; d++) { const v = neighbor(at, d); if (v >= 0 && world.road[v] && isWalkable(v) && v !== from) options.push(v); }
-    if (options.length === 0 && from >= 0) options.push(from);
-    if (options.length === 0) break;
-    const next = options[Math.floor(random() * options.length)];
-    out.push(next); from = at; at = next;
+    const dirs: number[] = [];
+    for (let d = 0; d < 4; d++) { const v = neighbor(at, d); if (v >= 0 && world.road[v] && isWalkable(v) && v !== from) dirs.push(d); }
+    let dir = -1;
+    if (dirs.length === 0) { if (from < 0) break; for (let d = 0; d < 4; d++) if (neighbor(at, d) === from) dir = d; }
+    else if (dirs.length === 1) dir = dirs[0];
+    else {
+      turn++;
+      const straight = heading >= 0 && dirs.indexOf(heading) >= 0;
+      if (straight && turn % 3 !== 0) dir = heading;
+      else { const others = dirs.filter((d: number): boolean => d !== heading || !straight); dir = others[turn % others.length]; }
+    }
+    if (dir < 0) break;
+    const next = neighbor(at, dir);
+    out.push(next); from = at; at = next; heading = dir;
   }
+  if (!preview) site.turn = turn;
   return out;
+}
+/** The road tiles the next walker of a service building will cover (for the hover preview): the tile beside it, then its round. Empty when the building has no walker or no road. */
+export function roamPreview(site: Building): number[] {
+  const road = roadBeside(site), def = economy.buildings[site.type];
+  if (road < 0 || def.service === null || !def.service.walker) return [];
+  return [road].concat(roamFrom(site, road, def.service.range, true));
 }
 /** The walker of a service building sets out: to the road beside the building, then a random round. False when there is no road. */
 export function startRoam(p: Person, site: Building): boolean {
   const road = roadBeside(site), def = economy.buildings[site.type];
   if (road < 0 || def.service === null || !planPath(p, road)) return false;
-  p.path = p.path.concat(roamFrom(road, def.service.range));
+  p.path = p.path.concat(roamFrom(site, road, def.service.range));
   p.target = -1; p.state = ST_ROAM;
   return true;
 }
@@ -63,9 +95,12 @@ export function roamTick(p: Person, site: Building): void {
   const here = tileAt(p.x, p.y);
   if (here < 0 || here === p.target) return;
   p.target = here;
-  const sd = economy.buildings[site.type].service;
-  if (sd !== null && world.road[here]) coverAround(here, sd.service);
+  const def = economy.buildings[site.type], sd = def.service;
+  if (def.market && !marketStocked(site)) return;      // a market with nothing to hand out covers nothing
+  if (sd !== null && world.road[here]) coverAround(here, sd.service, def.market ? site : null);
 }
+/** The distance on one axis between the nearest tiles of two spans [a, a + aw) and [b, b + bw): the plain difference for two single tiles, 0 when they overlap. */
+export function spanGap(a: number, aw: number, b: number, bw: number): number { return b >= a + aw ? b - (a + aw - 1) : a >= b + bw ? a - (b + bw - 1) : 0; }
 /** The daily slice for services: counters decay by a day, then buildings with a radius cover the houses within it. */
 export function dailyServices(): void {
   for (const b of world.buildings) if (b.alive && b.type === HOUSE) for (let k = 0; k < b.cover.length; k++) if (b.cover[k] > 0) b.cover[k]--;
@@ -76,7 +111,7 @@ export function dailyServices(): void {
     const r = def.service.radius;
     for (const h of world.buildings) {
       if (!h.alive || h.type !== HOUSE) continue;
-      const dx = h.i - s.i, dy = h.j - s.j;
+      const dx = spanGap(h.i, h.w, s.i, s.w), dy = spanGap(h.j, h.h, s.j, s.h);      // from the nearest edge of the footprints
       if (dx * dx + dy * dy <= r * r) h.cover[def.service.service] = COVER_DAYS;
     }
   }

@@ -276,6 +276,11 @@ FN(fStreamInfo) {
 FN(fStreamSetVolume) { (void)r; if (Stream* s = streamAt(a[0].i)) s->vol = static_cast<float>(a[1].d > 0 ? a[1].d : 0); return ZN_OK; }
 FN(fStreamClose) { (void)r; if (Stream* s = streamAt(a[0].i)) { for (Voice& v : voices) if (v.used && v.stream == a[0].i) v.used = false; *s = Stream{}; } return ZN_OK; }
 FN(fSetMasterVolume) { (void)r; master = static_cast<float>(a[0].d > 0 ? a[0].d : 0); return ZN_OK; }
+FN(fPlayed) {   // a console keeps no copy of what it played
+  outD.clear();
+  r->v = dview();
+  return ZN_OK;
+}
 FN(fMix) {   // the null backend only: with an output the HAL takes the mix
   outD.clear();
   int frames = static_cast<int>(a[0].i);
@@ -304,7 +309,7 @@ const ZnExport kExports[] = {
   {"voicePlaying", "i>b", fVoicePlaying, 0}, {"pcm", "Dii>i", fPcm, 0}, {"channels", "i>i", fChannels, 0}, {"rate", "i>i", fRate, 0},
   {"samples", "ii>D", fSamples, 0}, {"time", ">d", fTime, 0}, {"streamOpen", "ii>i", fStreamOpen, 0}, {"streamWrite", "iD>i", fStreamWrite, 0},
   {"streamInfo", "i>D", fStreamInfo, 0}, {"streamSetVolume", "id>n", fStreamSetVolume, 0}, {"streamClose", "i>n", fStreamClose, 0},
-  {"setMasterVolume", "d>n", fSetMasterVolume, 0}, {"mix", "i>D", fMix, 0},
+  {"setMasterVolume", "d>n", fSetMasterVolume, 0}, {"mix", "i>D", fMix, 0}, {"played", ">D", fPlayed, 0},
   {"musicOpen", "s>i", fMusicOpen, 0}, {"musicPlay", "ib>n", fMusicNop, 0}, {"musicSeek", "id>n", fMusicNop, 0}, {"musicInfo", "i>D", fMusicInfo, 0},
   {"musicError", "i>s", fMusicError, 0}, {"musicSetVolume", "id>n", fMusicNop, 0}, {"musicClose", "i>n", fMusicNop, 0},
 };

@@ -1,0 +1,26 @@
+Purpose: old Bionic (Android API below 21) has no pthread_condattr_setclock: js_cond_init takes the plain init and the timed wait uses
+  pthread_cond_timedwait_monotonic_np, so the Android legacy target (API 18) compiles and waits on the monotonic clock.
+Measured: behaviour, the android-legacy build of the engine (targets/android-legacy).
+Upstream: not upstreamable: quickjs-ng supports no API level this old.
+
+--- a/cutils.h	2026-11-04 14:42:43
++++ b/cutils.h	2026-11-04 14:42:43
+@@ -1864,7 +1864,7 @@
+ }
+ 
+ static inline void js_cond_init(js_cond_t *cond) {
+-#if defined(__APPLE__) && defined(__MACH__)
++#if (defined(__APPLE__) && defined(__MACH__)) || (defined(__ANDROID__) && __ANDROID_API__ < 21)
+     if (pthread_cond_init(cond, NULL))
+         abort();
+ #else
+@@ -1960,6 +1960,9 @@
+     ts.tv_nsec = timeout % NANOSEC;
+ #if defined(__APPLE__) && defined(__MACH__)
+     r = pthread_cond_timedwait_relative_np(cond, mutex, &ts);
++#elif defined(__ANDROID__) && __ANDROID_API__ < 21
++    /* Old Bionic has a monotonic wait, but no condition attribute clock setter. */
++    r = pthread_cond_timedwait_monotonic_np(cond, mutex, &ts);
+ #else
+     r = pthread_cond_timedwait(cond, mutex, &ts);
+ #endif

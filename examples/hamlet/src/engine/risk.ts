@@ -31,7 +31,7 @@ function destroy(id: number, burn: number): void {
   for (let k = 0; k < b.stock.length; k++) b.stock[k] = 0;
   b.type = economy.risk.ruin; b.residents = 0; b.workers = 0; b.level = 0; b.streak = 0; b.happy = 60; b.state = BS_IDLE; b.waitFor = -1;
   b.fire = 0; b.damage = 0; b.crime = 0; b.burn = burn;
-  recount(); world.revision++; world.saveDirty = true;
+  recount(); world.revision++; world.netRev++; world.saveDirty = true;
 }
 function ignite(id: number): void {
   const b = world.buildings[id], name = label(b.type), people = b.type === HOUSE ? b.residents : 0, tile = tileIndex(b.i, b.j);
@@ -57,9 +57,9 @@ function steal(id: number): void {
 /** The fire of a burning ruin passes to the buildings around it, and it burns down by a day. */
 function burnDown(id: number): void {
   const b = world.buildings[id], r = economy.risk;
-  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+  for (let dj = -1; dj <= b.h; dj++) for (let di = -1; di <= b.w; di++) {
     const i = b.i + di, j = b.j + dj;
-    if ((di === 0 && dj === 0) || i < 0 || j < 0 || i >= world.size || j >= world.size) continue;
+    if ((di >= 0 && di < b.w && dj >= 0 && dj < b.h) || i < 0 || j < 0 || i >= world.size || j >= world.size) continue;
     const n = world.build[tileIndex(i, j)];
     if (n >= 0 && world.buildings[n].alive && !world.buildings[n].fixed && !isRuin(world.buildings[n].type)) world.buildings[n].fire += r.spread;
   }

@@ -11,6 +11,7 @@
 #include <fstream>
 #include <map>
 #ifndef _WIN32
+#include <sys/resource.h>
 #include <sys/time.h>
 #endif
 #include "platform/platform.h"
@@ -52,6 +53,16 @@ std::uint64_t nowUs() {   // async-signal-safe
   timespec ts{};
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return static_cast<std::uint64_t>(ts.tv_sec) * 1000000u + static_cast<std::uint64_t>(ts.tv_nsec) / 1000u;
+}
+
+double processCpuMs() {   // user + system time of every thread of the process (0 where there is no getrusage)
+#ifdef _WIN32
+  return 0;
+#else
+  rusage r{};
+  getrusage(RUSAGE_SELF, &r);
+  return static_cast<double>(r.ru_utime.tv_sec + r.ru_stime.tv_sec) * 1000.0 + static_cast<double>(r.ru_utime.tv_usec + r.ru_stime.tv_usec) / 1000.0;
+#endif
 }
 
 [[maybe_unused]] void onProf(int) {   // no SIGPROF on Windows
@@ -187,7 +198,11 @@ rt::Result profile(const zbc::Module& m, std::string& out, const ProfileOptions&
   g = sampler.get();
   rt::worker::machineHook = onWorker;
   if (!o.trace.empty()) rt::worker::traceThreads(1, nowUs, nullptr);   // the workers' messages as flows, on the samples' clock
+  const std::uint64_t wall0 = nowUs();
+  const double cpu0 = processCpuMs();
   rt::Result res = vm::runHooked(m, out, startTimer, &o, stopTimer, nullptr);
+  const double wallMs = static_cast<double>(nowUs() - wall0) / 1000.0;
+  const double cpuMs = processCpuMs() - cpu0;
   rt::worker::machineHook = nullptr;
   std::string flows;
   if (!o.trace.empty()) { std::size_t n = 0; const char* p = rt::worker::traceThreads(0, nullptr, &n); flows.assign(p, n); }
@@ -252,6 +267,9 @@ rt::Result profile(const zbc::Module& m, std::string& out, const ProfileOptions&
   }
   char line[256];
   report.clear();
+  std::snprintf(line, sizeof line, "zinc profile: wall %.0f ms, CPU %.0f ms (%.0f%% of the wall clock, all threads); the samples below count CPU time only: a wait (timer, I/O, vsync, GPU) is in the wall clock, not in them\n",
+                wallMs, cpuMs, wallMs > 0 ? 100.0 * cpuMs / wallMs : 0.0);
+  report += line;
   for (int k = 0; k < nt; ++k) {   // a table per thread: functions by self time
     const Track& t = sampler->tracks[k];
     const auto& ss = per[static_cast<std::size_t>(k)];

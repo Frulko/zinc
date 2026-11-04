@@ -1,6 +1,7 @@
 ﻿// SDL3 HAL for macos and linux (TGT-MAC-02, D-05): window, renderer, keyboard/mouse input.
 #include <string>
 #include "hal.h"
+extern "C" __attribute__((weak)) uint32_t zrt_frame_stats[8];   // runtime/gfx.cpp: the GL replay's per frame counts (gfx.frameStat)
 extern "C" __attribute__((weak)) void zrt_prof_info(const char* key, const char* val);   // runtime/gfx.cpp: what ZINC_PROFILE=json prints about the machine
 #include "hal_window.h"
 #include "zrt_raster.h"   // move_pixels (HalFrame.move, ZN-744)
@@ -91,6 +92,10 @@ extern "C" void hal_mtl_present(void);
 extern "C" const char* hal_mtl_name(void);
 extern "C" uint32_t* hal_mtl_idle(void);
 extern "C" void hal_mtl_close(void);
+// The Metal replay (hal_metal.mm): the frame's command lists drawn on the GPU, ZINC_RENDERER=metal; a frame it cannot draw goes through the raster
+extern "C" bool hal_mtl_replay(const HalCmdList* const* lists, int n, int pw, int ph);
+extern "C" void hal_mtl_readback(void);
+extern "C" bool hal_mtl_gpu_enable(void);
 static bool mtl_on;
 #else
 static const bool mtl_on = false;
@@ -1274,6 +1279,7 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
 enum { PS_RASTER, PS_UPLOAD, PS_DRAW, PS_SWAP, PS_MOVE, PS_GAP, PS_N };   // gap: since the previous present began
 static int ps_on = -1, ps_n;
 static uint32_t ps_us[PS_N][120];
+static uint32_t ps_gl[3][120];   // the GL replay's draw calls, image bytes uploaded (KB) and microseconds uploading them, per frame
 static uint64_t ps_t;
 static void ps_begin() {
   if (ps_on < 0) { const char* e = getenv("ZINC_PRESENT_STATS"); ps_on = e && *e && *e != '0'; }
@@ -1295,16 +1301,22 @@ static void ps_end() {
   uint32_t total = 0;
   for (int k = 0; k < PS_N; k++) total += k == PS_SWAP || k == PS_GAP ? 0 : ps_us[k][ps_n];
   if (total < 50) return;   // a frame that drew nothing (its swap is the wait for the display): not counted
+  if (zrt_frame_stats) { ps_gl[0][ps_n] = zrt_frame_stats[0]; ps_gl[1][ps_n] = zrt_frame_stats[2] / 1024; ps_gl[2][ps_n] = zrt_frame_stats[4]; }
   if (++ps_n < 120) return;
   ps_n = 0;
   static const char* const names[PS_N] = {"raster", "upload", "draw", "swap", "move", "interval"};
-  char b[320]; int n = snprintf(b, sizeof b, "zinc present:");
+  char b[480]; int n = snprintf(b, sizeof b, "zinc present:");
   for (int k = 0; k < PS_N; k++) {
     uint32_t* v = ps_us[k];
     std::sort(v, v + 120);
     n += snprintf(b + n, sizeof b - n, " %s p50 %.2f p99 %.2f", names[k], v[59] / 1000.0, v[118] / 1000.0);
   }
-  n += snprintf(b + n, sizeof b - n, " ms\n");
+  n += snprintf(b + n, sizeof b - n, " ms");
+  if (zrt_frame_stats) {   // the GPU side: what the replay submitted and uploaded (swap above is the present wait)
+    for (int k = 0; k < 3; k++) std::sort(ps_gl[k], ps_gl[k] + 120);
+    n += snprintf(b + n, sizeof b - n, "; gl draws p50 %u p99 %u, image upload p50 %u KB (p99 %u KB) %.2f ms", ps_gl[0][59], ps_gl[0][118], ps_gl[1][59], ps_gl[1][118], ps_gl[2][59] / 1000.0);
+  }
+  n += snprintf(b + n, sizeof b - n, "\n");
   hal_log_err(b, (size_t)n);
 }
 
@@ -1714,12 +1726,13 @@ static bool gl_moved(const HalFrame* f) {
   if (check) {
     static uint32_t moved, bad;
     glr::Rect b;
-    const uint64_t d = glr::verify(f, &b);
+    uint32_t max_error = 0;
+    const uint64_t d = glr::verify(f, &b, &max_error);
     moved++; bad += d != 0;
     if (d || moved % 60 == 0) {
       char s[240];
       int k = snprintf(s, sizeof s, "zinc gl verify: %u moved frames, %u differ from a whole replay", moved, bad);
-      if (d) k += snprintf(s + k, sizeof s - k, "; this one (%d, %d): %llu pixels in %d,%d %d,%d", m.dx, m.dy, (unsigned long long)d, b.x0, b.y0, b.x1, b.y1);
+      if (d) k += snprintf(s + k, sizeof s - k, "; this one (%d, %d): %llu pixels, max channel error %u in %d,%d %d,%d", m.dx, m.dy, (unsigned long long)d, max_error, b.x0, b.y0, b.x1, b.y1);
       if (d && getenv("ZINC_GL_VERIFY_PX")) {
         k += snprintf(s + k, sizeof s - k, "; area %d,%d %d,%d, drawn", m.area.x0, m.area.y0, m.area.x1, m.area.y1);
         for (int32_t i = 0; i < m.n && k < (int)sizeof s - 40; i++) k += snprintf(s + k, sizeof s - k, " %d,%d %d,%d", m.damage[i].x0, m.damage[i].y0, m.damage[i].x1, m.damage[i].y1);
@@ -1960,14 +1973,30 @@ static void present_frame(const HalFrame* f) {
 #endif
   ps_begin();
 #ifdef ZN_HAL_GL
-  if (gl_on) { gl_present(f); ps_mark(PS_SWAP); ps_end(); return; }
+  if (gl_on) {
+    const uint64_t t0 = hal_time_us();
+    gl_present(f); ps_mark(PS_SWAP);
+    if (zrt_frame_stats) zrt_frame_stats[5] = (uint32_t)(hal_time_us() - t0);   // gfx.frameStat(5): the present, vsync wait included
+    ps_end(); return;
+  }
 #endif
 #ifdef __ANDROID__
   if (anw_mode) { anw_present(f); ps_end(); return; }
 #endif
 #if defined(SDL_PLATFORM_IOS) || defined(SDL_PLATFORM_MACOS)
   if (mtl_on) {   // a frame without damage presents nothing: the layer keeps the last one and the display link paces the loop
-    if (f->y1 <= f->y0 || f->x1 <= f->x0) { if (uint32_t* pixels = hal_mtl_idle()) fb = pixels; return; }
+    static int gpu = -1; static bool gpu_drawn;   // the Metal replay: on by ZINC_RENDERER=metal; gpu_drawn: fb is older than the screen
+    if (gpu < 0) { const char* rr = getenv("ZINC_RENDERER"); gpu = rr && !strcmp(rr, "metal") && hal_mtl_gpu_enable(); if (zrt_prof_info) zrt_prof_info("renderer", gpu ? "metal" : "cpu"); }
+    const bool dmg = f->y1 > f->y0 && f->x1 > f->x0;
+    if (gpu && f->frames) {
+      const HalCmdList* L[8];
+      const int n = f->frames(L, 8);
+      const uint64_t t0 = hal_time_us();
+      if (hal_mtl_replay(L, dmg ? n : 0, PW, PH)) { gpu_drawn |= dmg; if (zrt_frame_stats) zrt_frame_stats[5] = (uint32_t)(hal_time_us() - t0); ps_end(); return; }
+      hal_mtl_readback();   // a frame the replay does not draw: the raster's, over pixels (of the images too) that are current
+      if (gpu_drawn) { hal_mtl_wait(true); render_rows_parallel(f->render, 0, PH); gpu_drawn = false; ps_mark(PS_RASTER); hal_mtl_present(); ps_end(); return; }
+    }
+    if (!dmg) { if (uint32_t* pixels = hal_mtl_idle()) fb = pixels; return; }
     const bool surface = !strcmp(hal_mtl_name(), "IOSurface");
     const bool full = surface && f->x0 == 0 && f->y0 == 0 && f->x1 == PW && f->y1 == PH;
     hal_mtl_wait(!full);

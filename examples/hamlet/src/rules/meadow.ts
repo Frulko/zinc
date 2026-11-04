@@ -11,7 +11,7 @@ export function flowersAround(b: Building, def: BuildingDef): number {
   if (def.bloom === null) return 0;
   const r = def.bloom.radius;
   let n = 0;
-  for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+  for (let dj = -r; dj <= r + b.h - 1; dj++) for (let di = -r; di <= r + b.w - 1; di++) {
     const i = b.i + di, j = b.j + dj;
     if (i >= 0 && j >= 0 && i < world.size && j < world.size && flower(world.deco[tileIndex(i, j)])) n++;
   }
@@ -23,7 +23,7 @@ export function soilAround(b: Building, def: BuildingDef): number {
   if (def.soil === null) return 0;
   const r = def.soil.radius;
   let n = 0;
-  for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+  for (let dj = -r; dj <= r + b.h - 1; dj++) for (let di = -r; di <= r + b.w - 1; di++) {
     const i = b.i + di, j = b.j + dj;
     if (i >= 0 && j >= 0 && i < world.size && j < world.size && world.biome[tileIndex(i, j)] === BI_PLAIN) n++;
   }

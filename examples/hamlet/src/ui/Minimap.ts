@@ -1,9 +1,11 @@
 import { rect, border, createImage, destroyImage, updatePixels, drawImageRect, ImageFlag } from 'zinc:gfx';
 import { unproject, W, H } from '../pixel';
-import { world } from '../world/world';
+import { world, heightAt } from '../world/world';
 import { TERRAIN_WATER, TERRAIN_VOID, TILE } from '../constants';
 import { economy } from '../world/economy';
 import { aimAt } from '../view/scenery';
+import { settings } from '../settings';
+import { citeJump, cornerWorld } from '../cite';
 import { rgb } from '../pixel';
 import { ui } from './state';
 import { col, well } from './kit';
@@ -22,10 +24,17 @@ function tileOfPixel(px: number, py: number): number {
 function pictureX(x: number, y: number): number { return world.size + ((x - y) / TILE); }
 function pictureY(x: number, y: number): number { return (x + y + 2 * world.half) / TILE / 2; }
 
+/** Brightness of a tile out of 256: light from the north-west on the drop to its west and north neighbours, and a little lighter the higher it stands. 256 on flat ground. */
+function hillshade(t: number): number {
+  const n = world.size, i = t % n, h = heightAt(t);
+  const w = i > 0 ? heightAt(t - 1) : h, u = t >= n ? heightAt(t - n) : h, e = i < n - 1 ? heightAt(t + 1) : h, s = t < n * (n - 1) ? heightAt(t + n) : h;
+  return Math.max(150, Math.min(340, 256 + (w + u - e - s) * 18 + h * 5));
+}
+
 // The ground is one small picture, redone when the village changed and at most twice a second: a draw call, not a rectangle per tile.
 let image: i32 = -1, imageSize = 0, madeAt = -10, madeFor = -1;
 function refresh(): void {
-  if (image >= 0 && imageSize === world.size && madeFor === world.revision && ui.time - madeAt < .5) return;
+  if (image >= 0 && imageSize === world.size && (madeFor === world.revision || ui.time - madeAt < .5)) return;     // redone when the village changed, at most twice a second
   if (image < 0 || imageSize !== world.size) { if (image >= 0) destroyImage(image); image = createImage(2 * world.size, world.size); imageSize = world.size; }
   const px: u32[] = [];
   for (let y = 0; y < world.size; y++) for (let x = 0; x < 2 * world.size; x++) {
@@ -34,7 +43,8 @@ function refresh(): void {
     const terrain = world.terrain[t], id = world.build[t];
     const color = terrain === TERRAIN_VOID ? 0 : terrain === TERRAIN_WATER ? WATER : world.road[t] !== 0 ? ROAD : id >= 0 ? (economy.buildings[world.buildings[id].type].housing !== null ? HOUSE : WORK)
       : world.tree[t] !== 0 ? TREE : world.rock[t] !== 0 ? ROCK : GRASS;
-    px.push(color === 0 ? 0 : rgb((color >> 16) & 255, (color >> 8) & 255, color & 255));
+    const shade = color === 0 || color === WATER ? 256 : hillshade(t);
+    px.push(color === 0 ? 0 : rgb(Math.min(255, ((color >> 16) & 255) * shade >> 8), Math.min(255, ((color >> 8) & 255) * shade >> 8), Math.min(255, (color & 255) * shade >> 8)));
   }
   updatePixels(image, px, false);
   madeAt = ui.time; madeFor = world.revision;
@@ -43,7 +53,8 @@ function refresh(): void {
 export function minimapContains(x: number, y: number): boolean { return x >= box.x - 3 && y >= box.y - 3 && x < box.x + box.w + 3 && y < box.y + box.h + 3; }
 export function minimapClick(x: number, y: number): void {
   const n = world.size, u = (x - box.x) / box.scale - n, v = (y - box.y) / box.scale * 2;
-  aimAt(((u + v) / 2) * TILE - world.half, ((v - u) / 2) * TILE - world.half);
+  const wx = ((u + v) / 2) * TILE - world.half, wy = ((v - u) / 2) * TILE - world.half;
+  if (settings.view === 'cite') citeJump(wx, wy); else aimAt(wx, wy);
 }
 /** Draws the map in a well of (size x size) pixels; the picture is centred in it at the largest whole scale. */
 export function drawMinimap(x: number, y: number, size: number): void {
@@ -53,10 +64,12 @@ export function drawMinimap(x: number, y: number, size: number): void {
   refresh();
   drawImageRect(image, 0, 0, 2 * n, n, ox, oy, w, h, 255, ImageFlag.Nearest);
   const d = Math.max(2, sc);
-  for (const p of world.people) rect(ox + pictureX(p.x, p.y) * sc - d / 2, oy + pictureY(p.x, p.y) * sc - d / 2, d, d, PERSON);
-  for (const e of world.deer) rect(ox + pictureX(e.x, e.y) * sc - d / 2, oy + pictureY(e.x, e.y) * sc - d / 2, d, d, DEER);
+  const ps = Math.max(1, Math.floor(world.people.length / 400)), es = Math.max(1, Math.floor(world.deer.length / 400));   // a dot per unit up to a few hundred: a big map would draw thousands of rectangles every frame
+  for (let k = 0; k < world.people.length; k += ps) { const p = world.people[k]; rect(ox + pictureX(p.x, p.y) * sc - d / 2, oy + pictureY(p.x, p.y) * sc - d / 2, d, d, PERSON); }
+  for (let k = 0; k < world.deer.length; k += es) { const e = world.deer[k]; rect(ox + pictureX(e.x, e.y) * sc - d / 2, oy + pictureY(e.x, e.y) * sc - d / 2, d, d, DEER); }
   // The camera window: a rectangle on this picture (the same projection as the main view), kept inside it.
-  const a = unproject(0, 0), b = unproject(W, H), c = unproject(W, 0), e = unproject(0, H);
+  const cite = settings.view === 'cite';
+  const a = cite ? cornerWorld(0, 0) : unproject(0, 0), b = cite ? cornerWorld(1, 1) : unproject(W, H), c = cite ? cornerWorld(1, 0) : unproject(W, 0), e = cite ? cornerWorld(0, 1) : unproject(0, H);
   let x0 = Math.min(pictureX(a.x, a.y), pictureX(b.x, b.y), pictureX(c.x, c.y), pictureX(e.x, e.y)), x1 = Math.max(pictureX(a.x, a.y), pictureX(b.x, b.y), pictureX(c.x, c.y), pictureX(e.x, e.y));
   let y0 = Math.min(pictureY(a.x, a.y), pictureY(b.x, b.y), pictureY(c.x, c.y), pictureY(e.x, e.y)), y1 = Math.max(pictureY(a.x, a.y), pictureY(b.x, b.y), pictureY(c.x, c.y), pictureY(e.x, e.y));
   x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(2 * n, x1); y1 = Math.min(n, y1);

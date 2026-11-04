@@ -342,6 +342,9 @@ function __fnName(n: string): string {
   else {
     const k: i32 = n.indexOf(':');
     if (k >= 0) name = n.slice(k + 1);
+    const j: i32 = name.lastIndexOf('/');   // `Class.method/inner`: profiles name a closure by where it is, the function keeps its own name
+    if (j >= 0) name = name.slice(j + 1);
+    if (name === '<anonymous>') name = '';
   }
   return name === '' ? '[Function (anonymous)]' : '[Function: ' + name + ']';
 }

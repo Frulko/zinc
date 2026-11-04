@@ -16,14 +16,14 @@ interface fn (i32) => i32
 interface fn (i32) => void
   method .call
 class cell i32 { i }
-class lambda0 { ref cell i32 }
-  vtable .call -> @lambda0
-class lambda1 { ref fn (i32) => i32, ref fn (i32) => i32 }
-  vtable .call -> @lambda1
-class lambda2 { i }
-  vtable .call -> @lambda2
-class lambda3:on { ref Button }
-  vtable .call -> @lambda3:on
+class lambda0:makeCounter/<anonymous> { ref cell i32 }
+  vtable .call -> @lambda0:makeCounter/<anonymous>
+class lambda1:compose/<anonymous> { ref fn (i32) => i32, ref fn (i32) => i32 }
+  vtable .call -> @lambda1:compose/<anonymous>
+class lambda2:makeAdder/<anonymous> { i }
+  vtable .call -> @lambda2:makeAdder/<anonymous>
+class lambda3:Button.constructor/on { ref Button }
+  vtable .call -> @lambda3:Button.constructor/on
 class lambda4:add5 {}
   vtable .call -> @lambda4:add5
 class lambda5 {}
@@ -44,7 +44,7 @@ func @main() -> void nregs=11
    2  LoadI    r0, 0
    3  New      r1, cell i32
    4  SetField r1, r0, .0
-   5  New      r0, lambda0
+   5  New      r0, lambda0:makeCounter/<anonymous>
    6  SetField r0, r1, .0
    7  Move     r1, r0
    8  Retain   r1
@@ -58,7 +58,7 @@ func @main() -> void nregs=11
   16  LoadI    r0, 0
   17  New      r2, cell i32
   18  SetField r2, r0, .0
-  19  New      r0, lambda0
+  19  New      r0, lambda0:makeCounter/<anonymous>
   20  SetField r0, r2, .0
   21  Move     r2, r0
   22  Retain   r2
@@ -95,7 +95,7 @@ func @main() -> void nregs=11
   53  Move     r1, r0
   54  Retain   r1
   55  Release  r0
-  56  New      r0, lambda1
+  56  New      r0, lambda1:compose/<anonymous>
   57  SetField r0, r1, .0
   58  SetField r0, r3, .1
   59  Move     r1, r0
@@ -109,12 +109,12 @@ func @main() -> void nregs=11
   67  Retain   r1
   68  Release  r0
   69  LoadI    r0, 3
-  70  New      r2, lambda2
+  70  New      r2, lambda2:makeAdder/<anonymous>
   71  SetField r2, r0, .0
   72  Move     r0, r2
   73  Retain   r0
   74  Release  r2
-  75  New      r2, lambda1
+  75  New      r2, lambda1:compose/<anonymous>
   76  SetField r2, r0, .0
   77  SetField r2, r1, .1
   78  Move     r0, r2
@@ -138,7 +138,7 @@ func @main() -> void nregs=11
   96  New      r0, Button
   97  LoadI    r1, 0
   98  SetField r0, r1, .0
-  99  New      r1, lambda3:on
+  99  New      r1, lambda3:Button.constructor/on
  100  Retain   r0
  101  SetField r1, r0, .0
  102  Move     r2, r1
@@ -199,7 +199,7 @@ func @Error.__errorString(ref Error) -> ref str nregs=4
   15  Release  r1
   16  Move     r1, r2
   17  Ret      r1
-func @lambda0(ref lambda0) -> i nregs=3
+func @lambda0:makeCounter/<anonymous>(ref lambda0:makeCounter/<anonymous>) -> i nregs=3
    0  GetField r1, r0, .0
    1  GetField r1, r1, .0
    2  AddI32K  r1, r1, 1
@@ -209,7 +209,7 @@ func @lambda0(ref lambda0) -> i nregs=3
    6  GetField r1, r1, .0
    7  Release  r0
    8  Ret      r1
-func @lambda1(ref lambda1, i) -> i nregs=5
+func @lambda1:compose/<anonymous>(ref lambda1:compose/<anonymous>, i) -> i nregs=5
    0  GetField r2, r0, .0
    1  Retain   r2
    2  GetField r3, r0, .1
@@ -224,12 +224,12 @@ func @lambda1(ref lambda1, i) -> i nregs=5
   11  Release  r2
   12  Throw    r0
   handler 6 -> 11 r0 Error
-func @lambda2(ref lambda2, i) -> i nregs=3
+func @lambda2:makeAdder/<anonymous>(ref lambda2:makeAdder/<anonymous>, i) -> i nregs=3
    0  GetField r2, r0, .0
    1  Release  r0
    2  AddI32   r0, r1, r2
    3  Ret      r0
-func @lambda3:on(ref lambda3:on) -> i nregs=3
+func @lambda3:Button.constructor/on(ref lambda3:Button.constructor/on) -> i nregs=3
    0  GetField r1, r0, .0
    1  GetField r2, r1, .0
    2  AddI32K  r2, r2, 1

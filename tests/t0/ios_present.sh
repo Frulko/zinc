@@ -11,6 +11,6 @@ inc="-Iruntime -Iruntime/include -Iinclude -Isrc -Ithird_party/SDL3/include"
 fail=0
 $cxx $inc -c targets/macos/hal_sdl.cpp > "$tmp/sdl.log" 2>&1 || { echo "hal_sdl.cpp for iOS:"; head -20 "$tmp/sdl.log"; fail=1; }
 grep -q "hal_mtl_present" targets/macos/hal_sdl.cpp || { echo "hal_sdl.cpp does not present through Metal on iOS"; fail=1; }
-$cxx -x objective-c++ -fobjc-arc -Ithird_party/SDL3/include -c targets/macos/hal_metal.mm > "$tmp/mtl.log" 2>&1 || { echo "hal_metal.mm for iOS:"; head -20 "$tmp/mtl.log"; fail=1; }
+$cxx -x objective-c++ -fobjc-arc -Iruntime -Iruntime/include -Iinclude -Ithird_party/SDL3/include -c targets/macos/hal_metal.mm > "$tmp/mtl.log" 2>&1 || { echo "hal_metal.mm for iOS:"; head -20 "$tmp/mtl.log"; fail=1; }
 [ $fail -eq 0 ] && echo "ios present: hal_sdl.cpp and hal_metal.mm compile for the iOS simulator"
 exit $fail

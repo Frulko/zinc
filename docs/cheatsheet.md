@@ -48,7 +48,8 @@ Every function of the engine's modules on one page: its signature and what it do
 - `cancelImageDecode(handle: i32): void` Gives up a decode that was not polled to its end (a picture that scrolled away): its pixels are dropped.
 - `imageFromPixels(rgba: u8[], w: i32, h: i32): i32` Runtime image of w x h pixels from RGBA bytes (four a pixel, rows top first), with its transparency: no file format between a picture a program computes and the screen.
 - `updateImage(image: i32, rgba: u8[]): void` New RGBA pixels for a runtime image of imageFromPixels (as many bytes as it has pixels times four; fewer: nothing changes).
-- `updatePixels(image: i32, pixels: u32[], opaque: boolean): void` The same with one `u32` a pixel (red in the low byte, then green, blue, alpha), for an image of `createImage`: a quarter of the array and no per-byte loop; `opaque` forces alpha 255. The fast way to show a picture a program computes every frame.
+- `updatePixels(image: i32, pixels: u32[], opaque: boolean): void` New pixels for an image of `createImage` from one `u32` a pixel (red in the low byte, then green, blue, alpha), rows top first.
+- `updatePixelsRect(image: i32, pixels: u32[], x: i32, y: i32, w: i32, h: i32): void` Like updatePixels for the rectangle (x, y, w, h) of the image only, from an array of w x h pixels (rows top first); nothing changes when the rectangle leaves the image or the array is too short.
 - `shaderProgram(fragment: string, scale?: i32): i32` A fragment program for drawShader, in GLSL ES 1.00 (WebGL 1's language): its main() sets gl_FragColor from `varying vec2 v_uv` (0..1 across the box, top left fi…
 - `drawShader(program: i32, x: number, y: number, w: number, h: number, uniforms: number[]): void` Fills the box with the program (at most 32 uniforms, u_p[0].x first), on the GPU; under it what was drawn before, over it what follows.
 - `shaderAvailable(): boolean` Whether this display draws drawShader on the GPU (the GL window of a desktop, an Android window whose program made a shader before its first frame); false on th…
@@ -61,7 +62,9 @@ Every function of the engine's modules on one page: its signature and what it do
 - `setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void` A 2D matrix for the commands that follow, after translate, in logical pixels: x' = a x + c y + e, y' = b x + d y + f (the canvas setTransform order).
 - `resetTransform(): void`
 - `stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void` Stroked polyline [x0, y0, x1, y1, ...] with round joins and caps.
-- `createImage(w: i32, h: i32): i32` Runtime image (black) usable with drawImage, and as a render target.
+- `createImage(w: i32, h: i32, alpha?: boolean): i32` Runtime image usable with drawImage, and as a render target.
+- `frameStat(which: i32): i32` What the last presented frame cost the GPU side, for a game's own debug overlay: 0 draw calls, 1 quads, 2 bytes uploaded to image textures, 3 image uploads, 4 m…
+- `clearImage(image: i32): void` Every pixel of the image transparent black (an opaque image of createImage reads black again).
 - `destroyImage(image: i32): void`
 - `commandCount(): i32` Draw commands recorded so far in this frame, and how many more the frame still takes.
 - `commandsFree(): i32`
@@ -302,6 +305,12 @@ Every function of the engine's modules on one page: its signature and what it do
 - `const Infinity: number`
 - `Math.PI: number`
 - `Math.E: number`
+- `Math.LN10: number`
+- `Math.LN2: number`
+- `Math.LOG10E: number`
+- `Math.LOG2E: number`
+- `Math.SQRT1_2: number`
+- `Math.SQRT2: number`
 - `Math.abs(x: number): number`
 - `Math.min(...values: number[]): number`
 - `Math.max(...values: number[]): number`
@@ -318,7 +327,7 @@ Every function of the engine's modules on one page: its signature and what it do
 - `Math.atan2(y: number, x: number): number`
 - `Math.exp(x: number): number`
 - `Math.log(x: number): number`
-- `Math.hypot(a: number, b: number): number`
+- `Math.hypot(...values: number[]): number`
 - `Math.cbrt(x: number): number`
 - `Math.log2(x: number): number`
 - `Math.log10(x: number): number`

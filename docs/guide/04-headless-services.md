@@ -228,7 +228,7 @@ w.postMessage({ query: 'jazz', limit: 50 });
 - `Worker<In, Out>` names what the app sends (`In`) and what the worker posts back (`Out`). Both must be data: numbers, `i32`, `u32`,
   booleans, strings, `u8[]` buffers, arrays, `T | null` and records of those (Z5012 names the field that is not). Messages are copied;
   nothing is shared.
-- `postMessage(value, [buffer])`: a `u8[]` in the second argument is moved, and is empty on the sender's side afterwards.
+- `postMessage(value, [buffer])`: a numeric array (`u8[]`, `i32[]`, `u32[]`, `f32[]`, `f64[]`) in the second argument is moved, and is empty on the sender's side afterwards. Every message is copied on a dense wire (numeric arrays are written in one loop); the heaps share no memory, as there is no `SharedArrayBuffer`.
 - The worker's file is a literal path, or `new URL('./file.ts', import.meta.url)` (Z5013): it is compiled with the program, and `zinc run` and
   `zinc build` take it with them.
 - `onerror` gets the worker's uncaught exception; its program has ended. Without `onerror` the error is printed.

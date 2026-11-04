@@ -823,6 +823,9 @@ void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alph
 void stroke(const double* pts, uint32_t n, double width, uint32_t color, int32_t alpha, bool closed);
 int32_t createImage(int32_t w, int32_t h);
 void destroyImage(int32_t i);
+int32_t frameStat(int32_t which);   // the last presented frame: 0 draw calls, 1 quads, 2 image upload bytes, 3 image uploads, 4 upload us, 5 present wait us (0 on the software raster)
+void clearImage(int32_t i);   // every pixel transparent black
+void imageAlpha(int32_t i, bool on);   // a transparent render target (straight alpha), see gfx.cpp endImage
 void beginImage(int32_t i);
 void endImage();
 /** More windows (ZN-663): a window beside the main one (id > 0, -1 when it cannot open); its frames are drawn between beginWindow and endWindow. */

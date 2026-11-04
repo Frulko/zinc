@@ -12,7 +12,7 @@ export const MODEL_SAWMILL = 1;
 export const MODEL_LODGE = 2;
 export const MODEL_FISHERY = 3;
 /** The model id of each building type, in the order of assets/economy.json (a building's model sits at its own index). */
-export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern', 'firehouse', 'works', 'watchpost', 'ruin'];
+export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern', 'firehouse', 'works', 'watchpost', 'ruin', 'chapel', 'theatre'];
 export const MODEL_GATE = MODEL_IDS.length;
 export const MODEL_TREE = MODEL_GATE + 1;            // 4 variants
 export const MODEL_ROCK = MODEL_TREE + 4;            // 2 variants
@@ -500,6 +500,27 @@ function watchpost(): void {
   for (const y of [.15, .27]) capsule([.7, y, .1], [.5, y, 2.1], .03, .03, flat(WOOD_BROWN), 'solid');            // ladder
 }
 
+/** The chapel: a small stone nave under a gabled roof, a bell tower with a spire at the gable end, an arched door and a lit window. */
+function chapel(): void {
+  box(-.7, -.5, 0, .5, .5, 1.1, STONE);
+  gableRoof(-.75, .55, -.55, .55, 1.1, .55, [112, 78, 66], 23);
+  box(.2, -.3, 0, .7, .3, 1.9, STONE);                                    // tower
+  gableRoof(.15, .75, -.35, .35, 1.9, .9, [96, 70, 64], 24);
+  box(.68, -.1, 0, .72, .1, .7, WOOD_BROWN);                              // door
+  box(-.3, .5, .5, -.1, .54, .9, [244, 200, 80]);                         // window
+  capsule([.45, 0, 2.7], [.45, 0, 3.1], .02, .02, flat([210, 200, 160]), 'solid');   // cross
+  capsule([.45, -.1, 2.95], [.45, .1, 2.95], .02, .02, flat([210, 200, 160]), 'solid');
+}
+
+/** The festival ground: a raised timber stage with a striped awning on four posts, a curtain and two lanterns. */
+function theatre(): void {
+  box(-.9, -.7, 0, .9, .7, .25, WOOD_HONEY);
+  for (const x of [-.85, .75]) for (const y of [-.65, .55]) box(x, y, .25, x + .1, y + .1, 1.6, WOOD_BROWN);
+  for (let k = 0; k < 8; k++) box(-.95 + k * .24, -.75, 1.55 + (k % 2) * .02, -.75 + k * .24, .75, 1.65, k % 2 === 0 ? [196, 70, 56] : [236, 226, 200], k);   // awning stripes
+  box(-.8, .45, .25, .8, .55, 1.5, [120, 70, 90]);                        // back curtain
+  for (const x of [-.7, .6]) sphere(x, -.55, 1.4, .08, [244, 200, 80], 'solid');   // lanterns
+}
+
 /** The ruin: a charred foundation with broken wall stumps, fallen beams, scattered stones and ash. Also what a collapse leaves. */
 function ruin(): void {
   box(-.8, -.8, 0, .8, .8, .08, [70, 64, 60]);                            // burnt floor
@@ -520,8 +541,17 @@ function ruin(): void {
  * index of its first variant in this list, variants counted). They are baked through the atlas, so one cache and one invalidation serve all.
  */
 const MODEL_DEFS: [string, number, (variant: number) => void][] = [
-  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['quarry', 1, quarry], ['claypit', 1, claypit], ['mine', 1, mine], ['forge', 1, forge], ['forager', 1, forager], ['apiary', 1, apiary], ['chandlery', 1, chandlery], ['meadery', 1, meadery], ['tavern', 1, tavern], ['firehouse', 1, firehouse], ['works', 1, works], ['watchpost', 1, watchpost], ['ruin', 1, ruin], ['gate', 1, gate], ['tree', 4, tree], ['rock', ROCK_VARIANTS, rock], ['house2', 1, house2], ['house3', 1, house3],
+  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['quarry', 1, quarry], ['claypit', 1, claypit], ['mine', 1, mine], ['forge', 1, forge], ['forager', 1, forager], ['apiary', 1, apiary], ['chandlery', 1, chandlery], ['meadery', 1, meadery], ['tavern', 1, tavern], ['firehouse', 1, firehouse], ['works', 1, works], ['watchpost', 1, watchpost], ['ruin', 1, ruin], ['chapel', 1, chapel], ['theatre', 1, theatre], ['gate', 1, gate], ['tree', 4, tree], ['rock', ROCK_VARIANTS, rock], ['house2', 1, house2], ['house3', 1, house3],
 ];
+
+/** Draws the static model of an id (the order of `models`) at the world origin, lit like the live scene: what the Cite atlas bakes into its sprites. False for an unknown id. */
+export function drawModelId(id: number): boolean {
+  let n = 0;
+  for (const m of MODEL_DEFS) { if (id < n + m[1]) { m[2](id - n); return true; } n += m[1]; }
+  return false;
+}
+/** Draws tree variant v (0 to 2 pines, 3 birch) as it looks in month m, at the world origin. */
+export function drawTreeMonth(v: number, m: number): void { treeSeason = m; tree(v); treeSeason = 4; }
 
 const MODEL_FIXED: string[] = ['tree', 'rock', 'gate'];     // the models that never turn
 /** The name and variant of a model id (the order of `models`). */

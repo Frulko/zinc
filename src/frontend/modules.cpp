@@ -202,6 +202,8 @@ export function imageFromPixels(rgba: u8[], w: i32, h: i32): i32 { return __host
 export function updateImage(img: i32, rgba: u8[]): void { __host_gfxUpdateImage(img, rgba); }
 /** New pixels for an image from one u32 a pixel (red in the low byte, then green, blue, alpha), rows top first; `opaque` forces alpha 255. A quarter of the array of updateImage and no per-byte loop. */
 export function updatePixels(img: i32, pixels: u32[], opaque: boolean): void { __host_gfxUpdatePixels(img, pixels, opaque); }
+/** Like updatePixels for the rectangle (x, y, w, h) of the image only, from an array of w x h pixels: only that part is damaged and uploaded again. */
+export function updatePixelsRect(img: i32, pixels: u32[], x: i32, y: i32, w: i32, h: i32): void { __host_gfxUpdateRect(img, pixels, x, y, w, h); }
 export function shaderProgram(fragment: string, scale: i32 = 1): i32 { return __host_gfxShaderProgram(fragment, scale); }
 export function drawShader(program: i32, x: number, y: number, w: number, h: number, uniforms: number[]): void { __host_gfxDrawShader(program, x, y, w, h, uniforms); }
 export function shaderAvailable(): boolean { return __host_gfxShaderAvailable() !== 0; }
@@ -217,7 +219,12 @@ export function translate(x: number, y: number): void { __host_gfxTranslate(x, y
 export function setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void { __host_gfxSetTransform(a, b, c, d, e, f); }
 export function resetTransform(): void { __host_gfxResetTransform(); }
 export function keep(): void { __host_gfxKeep(); }
-export function createImage(w: i32, h: i32): i32 { return __host_gfxCreateImage(w, h); }
+export function createImage(w: i32, h: i32, alpha?: boolean): i32 { const id = __host_gfxCreateImage(w, h); if (alpha && id >= 0) __host_gfxImageAlpha(id, true); return id; }
+/** What the last presented frame cost the GPU side, for a game's own debug overlay: 0 draw calls, 1 quads, 2 bytes uploaded to image textures, 3 image
+ *  uploads, 4 microseconds spent uploading them, 5 microseconds the present waited (swap, vsync included). All 0 on the software raster and headless. */
+export function frameStat(which: i32): i32 { return __host_gfxFrameStat(which); }
+/** Every pixel of the image transparent black (a transparent target drawn again from nothing). */
+export function clearImage(image: i32): void { __host_gfxClearImage(image); }
 export function destroyImage(image: i32): void { __host_gfxDestroyImage(image); }
 export function beginImage(image: i32): void { __host_gfxBeginImage(image); }
 export function endImage(): void { __host_gfxEndImage(); }
@@ -1621,7 +1628,7 @@ std::string lowerWorkerEntries(const std::string& text, const std::string& path,
   }
   out += text.substr(from);
   if (path.find("lib/std/worker.ts") == std::string::npos) {   // and its event classes, which are not the web's (a generic MessageEvent<T>) when the file does not import them
-    std::string names = "__workerOnMessage, __workerPost";
+    std::string names = "__workerOnMessage, __workerPost, __workerSend";
     for (const char* nm : {"MessageEvent", "ErrorEvent"})
       if (std::regex_search(text, std::regex(std::string("\\b") + nm + "\\b")) && !std::regex_search(text, std::regex(std::string("import\\s*(type\\s*)?\\{[^}]*\\b") + nm + "\\b"))) names += std::string(", ") + nm;
     out += "\nimport { " + names + " } from 'zinc:worker';\n";
@@ -2779,6 +2786,7 @@ let __ids: i32 = 0;
 const __loopMode: i32 = __host_loopReal();   // bit 0: a real clock; bit 1: an app shell steps the program (zn_app_iterate, ZN-620)
 const __real: boolean = (__loopMode & 1) !== 0;
 const __appMode: boolean = (__loopMode & 2) !== 0;
+const __clockTick: f64 = (__loopMode >> 2) / 1000;   // ZINC_CLOCK_TICK (ms): a virtual clock moves by this much at each performance.now() read, so a time-sliced job meets its deadline inside one frame, the same on every run
 const __epoch: f64 = __real ? __host_loopEpoch() : 0;
 function __now(): f64 { if (__real) __clock = __host_loopNow(); return __clock; }
 function __addTimer(f: () => void, ms: f64, every: f64): i32 {
@@ -3154,7 +3162,7 @@ class Performance {
   timeOrigin: f64 = __epoch;
   markNames: string[] = [];
   markTimes: f64[] = [];
-  now(): f64 { return __now(); }
+  now(): f64 { if (!__real && __clockTick > 0) __clock += __clockTick; return __now(); }
   mark(name: string): f64 { const t = __now(); this.markNames.push(name); this.markTimes.push(t); return t; }
   // the time between two marks (the end defaults to now): the duration of the measure, 0 when a mark is unknown
   measure(name: string, startMark: string = '', endMark: string = ''): f64 {

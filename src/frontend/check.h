@@ -145,6 +145,8 @@ bool isSubclass(const Checked& c, std::uint32_t a, std::uint32_t b);            
 const Member* lookupMember(const Checked& c, std::uint32_t obj, std::string_view name, bool wantStatic);
 // A method type that takes only the first parameters of `want` (TypeScript lets an implementation or override ignore trailing arguments); lowering adapts the call.
 bool fewerParams(const Checked& c, TypeId impl, TypeId want);
+// A method type that takes only the first parameters of `want` (TypeScript lets an implementation or override ignore trailing arguments); lowering adapts the call.
+bool fewerParams(const Checked& c, TypeId impl, TypeId want);
 bool objAssignable(const Checked& c, std::uint32_t a, std::uint32_t b);               // subclass, or structurally an interface
 std::string typeName(const Checked& c, TypeId t);
 

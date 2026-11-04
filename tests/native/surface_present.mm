@@ -2,6 +2,25 @@
 #include <cstdio>
 #include <vector>
 #include "../../targets/macos/hal_metal.mm"
+// The presenter alone: the GPU replay's raster calls are stubs.
+namespace zrt::raster {
+extern const Image images[1] = {};
+extern const int image_count = 0;
+const Font* font_at(int32_t) { return nullptr; }
+const Glyph* runtime_glyph(int32_t, uint32_t) { return nullptr; }
+uint32_t* dyn_pixels(int32_t) { return nullptr; }
+bool dyn_alpha(int32_t) { return false; }
+uint32_t image_version(int32_t) { return 0; }
+bool dyn_view(int32_t, const uint32_t**, int32_t*, int32_t*, int32_t*) { return false; }
+Picture* dyn_picture(int32_t) { return nullptr; }
+bool dyn_gpu(int32_t, Rect*) { return false; }
+void dyn_gpu_synced(int32_t) {}
+void dyn_gpu_release(int32_t) {}
+}
+uint32_t zrt_frame_stats[8];
+const ZrtPass* zrt_passes(uint32_t* n) { *n = 0; return nullptr; }
+void zrt_passes_done() {}
+bool zrt_gpu_targets = false;
 extern "C" void zrt_prof_info(const char*, const char*) {}
 extern "C" void hal_panic(const char* msg, const char*, int) { std::fprintf(stderr, "%s\n", msg); std::abort(); }
 int main() {

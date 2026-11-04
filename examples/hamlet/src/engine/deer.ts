@@ -1,11 +1,12 @@
 import { settings } from '../settings';
-import { REFERENCE_AREA, DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD, DEER_GONE, DEER_REST, DEER_DRINK, DEER_ALERT, DEER_CHARGE, DEER_STALK, DEER_CHASE, DEER_EAT, DEER_HOWL, ST_SLEEP, ST_STALK as ST_STALK_HUNT, ROLE_HUNTER } from '../constants';
-import { world, Deer, random, neighbor, tileAt, tileX, tileY, tileI, tileJ, tileCount, spawnDeer, waterNeighbor, treesAround } from '../world/world';
+import { REFERENCE_AREA, TILE, DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD, DEER_GONE, DEER_REST, DEER_DRINK, DEER_ALERT, DEER_CHARGE, DEER_STALK, DEER_CHASE, DEER_EAT, DEER_HOWL, ST_SLEEP, ST_STALK as ST_STALK_HUNT, ROLE_HUNTER } from '../constants';
+import { world, Deer, Building, random, neighbor, tileAt, tileX, tileY, tileI, tileJ, tileCount, spawnDeer, waterNeighbor, treesAround } from '../world/world';
 import { SPECIES, Species, KIND_HOPPER, KIND_BOAR, KIND_WOLF, SP_DEER } from '../rules/species';
 import { season } from '../rules/season';
+import { wakeNearCamera } from './wild';
 import { isNight, dayFraction } from '../rules/needs';
 import { sound } from '../audio';
-import { isWalkable, fieldFrom, approachTile, pathTo } from './path';
+import { isWalkable, fieldFrom, approachTile, pathTo, UNREACHABLE } from './path';
 import { BI_HILLS } from '../gen/terrain';
 import { losePerson } from './villagers';
 
@@ -47,6 +48,24 @@ function index(): void {
     if (list === undefined) herds.set(r, [d]); else list.push(d);
   }
 }
+// The awake people by cell of CELL world units (a linked list per cell): an animal looks at the few people near it, not at the whole village.
+const CELL = 16;
+let cells = 0, cellHead: number[] = [], nextOf: number[] = [], burning: Building[] = [];
+function indexPeople(): void {
+  cells = Math.ceil(world.size * TILE / CELL) + 1;
+  if (cellHead.length !== cells * cells) cellHead = Array.from({ length: cells * cells }, (): number => -1);
+  else for (let c = 0; c < cellHead.length; c++) cellHead[c] = -1;
+  while (nextOf.length < world.people.length) nextOf.push(-1);
+  for (let k = 0; k < world.people.length; k++) {
+    const p = world.people[k];
+    if (p.state === ST_SLEEP) continue;
+    const c = Math.floor((p.y + world.half) / CELL) * cells + Math.floor((p.x + world.half) / CELL);
+    if (c < 0 || c >= cellHead.length) continue;
+    nextOf[k] = cellHead[c]; cellHead[c] = k;
+  }
+  burning = [];
+  for (const b of world.buildings) if (b.burn > 0) burning.push(b);
+}
 function leaderOf(d: Deer): Deer | null {
   if (d.leader < 0) return null;
   const o = byId.get(d.leader);
@@ -70,18 +89,20 @@ let byWolf = false;
  *  a hunter creeping up is seen from less far. */
 function nearestThreat(d: Deer): number {
   const sp = SPECIES[d.species], wolf = sp.kind === KIND_WOLF, starving = wolf && d.hunger > starveAt(), sharp = .8 + (d.id % 5) * .1;
-  let best = 1e9;
+  let best = 1e9, bestK = 1e9;
   byWolf = false;
-  for (const p of world.people) {
-    if (p.state === ST_SLEEP) continue;
-    if (wolf && d.prey === -2 && p.role !== ROLE_HUNTER) continue;           // it is going for a villager alone: only a hunter turns it
-    let g = dist(p.x, p.y, d.x, d.y);
-    if (wolf) g *= p.role === ROLE_HUNTER ? .6 : starving ? 1.8 : 1;
-    else if (d.hunted) g *= p.state === ST_STALK_HUNT ? 1.3 * sharp : sharp;           // the hunter's crouch hides him
-    if (g < best) { best = g; d.threatX = p.x; d.threatY = p.y; }
+  const reach = Math.ceil(sp.alert * 2 / .6 / CELL), cx = Math.floor((d.x + world.half) / CELL), cy = Math.floor((d.y + world.half) / CELL);   // beyond this nobody can matter (the scaling below is never under .6 and the calls compare with 2 x alert at most)
+  for (let cj = Math.max(0, cy - reach); cj <= Math.min(cells - 1, cy + reach); cj++) for (let ci = Math.max(0, cx - reach); ci <= Math.min(cells - 1, cx + reach); ci++) {
+    for (let k = cellHead[cj * cells + ci]; k >= 0; k = nextOf[k]) {
+      const p = world.people[k];
+      if (wolf && d.prey === -2 && p.role !== ROLE_HUNTER) continue;           // it is going for a villager alone: only a hunter turns it
+      let g = dist(p.x, p.y, d.x, d.y);
+      if (wolf) g *= p.role === ROLE_HUNTER ? .6 : starving ? 1.8 : 1;
+      else if (d.hunted) g *= p.state === ST_STALK_HUNT ? 1.3 * sharp : sharp;           // the hunter's crouch hides him
+      if (g < best || (g === best && k < bestK)) { best = g; bestK = k; d.threatX = p.x; d.threatY = p.y; }
+    }
   }
-  for (const b of world.buildings) {
-    if (b.burn <= 0) continue;
+  for (const b of burning) {
     const t = b.j * world.size + b.i, g = dist(tileX(t), tileY(t), d.x, d.y) * (wolf ? .3 : .35);   // a fire scares from farther than a person
     if (g < best) { best = g; d.threatX = tileX(t); d.threatY = tileY(t); }
   }
@@ -183,7 +204,7 @@ function planNear(d: Deer, goal: number): boolean {
   const from = tileAt(d.x, d.y);
   if (from < 0) return false;
   plans++;
-  const field = fieldFrom(from, NEAR), target = approachTile(field, goal);
+  const field = fieldFrom(from, NEAR, UNREACHABLE, goal), target = approachTile(field, goal);      // towards the goal (A*): it stops there, it does not explore the whole radius
   if (target < 0) return false;
   d.path = pathTo(field, target); d.step = 0;
   return d.path.length > 0;
@@ -234,15 +255,28 @@ function startFlee(d: Deer, sp: Species, scatter: boolean = false): void {
   }
 }
 
+let shoreFor: number[] = [], shoreMask: number[] = [];
+/** 1 for a tile with water beside it (built once per generated map: the water never changes, the search tests it for every tile it settles). */
+function shore(t: number): number {
+  if (shoreFor !== world.terrain) {
+    shoreFor = world.terrain; shoreMask = [];
+    for (let u = 0; u < world.terrain.length; u++) shoreMask.push(waterNeighbor(u) >= 0 ? 1 : 0);
+  }
+  return shoreMask[t];
+}
+let failedFor: number[] = [], failedUntil: number[] = [];
+const NO_SHORE_TICKS = 32 * 60;     // a search that found no shore within reach is not repeated for the animals of the same 4x4 tiles for a minute (the herd asks one after the other, each explored the whole radius)
 function goDrink(d: Deer, sp: Species): boolean {
   const from = tileAt(d.x, d.y);
   if (from < 0) return false;
+  if (failedFor !== world.terrain) { failedFor = world.terrain; const c = (world.size + 3) >> 2; failedUntil = []; for (let k = 0; k < c * c; k++) failedUntil.push(0); }
+  const cell = (Math.floor(from / world.size) >> 2) * ((world.size + 3) >> 2) + ((from % world.size) >> 2);
+  if (failedUntil[cell] > world.tick) { d.thirst = sp.drinkEvery / 2; return false; }
   if (plans >= PLANS_PER_TICK) { d.timer = .5; return true; }              // the searches of this tick are taken: ask again in a moment
   plans++;
-  const field = fieldFrom(from, NEAR);
-  let best = -1, bestCost = NEAR;
-  for (let t = 0; t < field.dist.length; t++) if (field.dist[t] < bestCost && isWalkable(t) && waterNeighbor(t) >= 0) { bestCost = field.dist[t]; best = t; }
-  if (best < 0) { d.thirst = sp.drinkEvery / 2; return false; }            // no shore within reach: try again later
+  let best = -1;
+  const field = fieldFrom(from, NEAR, UNREACHABLE, -1, (t: number, cost: number): boolean => { if (cost < NEAR && shore(t) === 1 && isWalkable(t)) { best = t; return true; } return false; });   // the nearest shore: the search stops at the first one it settles (it explored the whole radius, then scanned it)
+  if (best < 0) { d.thirst = sp.drinkEvery / 2; failedUntil[cell] = world.tick + NO_SHORE_TICKS; return false; }            // no shore within reach: try again later
   d.path = pathTo(field, best); d.step = 0; d.errand = 1; d.state = DEER_WALK;
   return true;
 }
@@ -438,7 +472,8 @@ function update(d: Deer, dt: number): void {
 }
 
 export function updateDeer(dt: number): void {
-  index(); plans = 0;
+  wakeNearCamera();
+  index(); indexPeople(); plans = 0;
   const n = world.deer.length;
   let count = 0;
   for (let k = 0; k < n; k++) {

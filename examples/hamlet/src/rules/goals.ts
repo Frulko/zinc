@@ -3,6 +3,7 @@ import { world } from '../world/world';
 import { economy, Goal, Condition } from '../world/economy';
 import { give } from './stock';
 import { population } from '../engine/villagers';
+import { labourStats } from './labour';
 
 // Goals and progression as data (economy.json "goals"): each goal has conditions, and a reward when they hold: buildings unlocked, resources given.
 // Goals are checked once a day (engine/day.ts); the reward goes through the command log (rules/commands.ts). A building named by a goal's `unlock` stays
@@ -15,9 +16,15 @@ export function lockText(type: number): string {
   for (const g of economy.goals) if (g.unlock.indexOf(type) >= 0) return 'Se débloque avec l’objectif : ' + g.title;
   return '';
 }
+/** Days in a row a stock condition has held, per (goal, condition): goalReady runs once a day (engine/day.ts), so it keeps the count. Not saved: a loaded village counts again. */
+let held: number[] = [];
+export function resetHolds(): void { held = []; }
 function holds(c: Condition): boolean {
   if (c.kind === 'population') return population() >= c.count;
   if (c.kind === 'stock') return world.stock[c.id] >= c.count;
+  if (c.kind === 'jobs') return labourStats().filled >= c.count;
+  if (c.kind === 'peace') return world.crime.peace >= c.count;
+  if (c.kind === 'mood') return world.mood >= c.count;
   let n = 0;
   for (const b of world.buildings) {
     if (!b.alive || b.fixed) continue;
@@ -26,13 +33,39 @@ function holds(c: Condition): boolean {
   }
   return n >= c.count;
 }
-/** Is the goal open (not done, its required goals done) and are all its conditions true now? */
+/** Is the goal open (not done, its required goals done) and are all its conditions true now (a stock condition with `days` for that many days in a row)? Called once a day per goal. */
 export function goalReady(k: number): boolean {
   const g: Goal = economy.goals[k];
   if (world.goals[k] !== 0) return false;
   for (const r of g.requires) if (world.goals[r] === 0) return false;
-  for (const c of g.when) if (!holds(c)) return false;
-  return true;
+  let ok = true;
+  for (let n = 0; n < g.when.length; n++) {
+    const c = g.when[n], at = k * 16 + n;
+    while (held.length <= at) held.push(0);
+    if (!holds(c)) { held[at] = 0; ok = false; continue; }
+    if (c.days > 0) { held[at]++; if (held[at] < c.days) ok = false; }
+  }
+  return ok;
+}
+/** Days a stock condition still has to hold, for the goals panel ("tenir 3 jours"): 0 when it needs none or is satisfied. */
+export function holdLeft(k: number, n: number): number {
+  const c = economy.goals[k].when[n], at = k * 16 + n;
+  return c.days > 0 ? Math.max(0, c.days - (at < held.length ? held[at] : 0)) : 0;
+}
+/** The line of a condition for the goals panel, with how far the village is: "Habitants 12 / 40". */
+export function conditionText(c: Condition): string {
+  if (c.kind === 'population') return 'Habitants ' + population() + ' / ' + c.count;
+  if (c.kind === 'stock') return economy.resources[c.id].label + ' ' + Math.floor(world.stock[c.id]) + ' / ' + c.count + (c.days > 0 ? ' pendant ' + c.days + ' jours' : '');
+  if (c.kind === 'jobs') return 'Emplois pourvus ' + labourStats().filled + ' / ' + c.count;
+  if (c.kind === 'peace') return 'Paix ' + Math.floor(world.crime.peace) + ' / ' + c.count;
+  if (c.kind === 'mood') return 'Humeur ' + Math.floor(world.mood) + ' / ' + c.count;
+  let n = 0;
+  for (const b of world.buildings) {
+    if (!b.alive || b.fixed) continue;
+    if (c.kind === 'building' && b.type === c.id) n++;
+    else if (c.kind === 'houses' && b.type === HOUSE && b.level >= c.level) n++;
+  }
+  return c.kind === 'building' ? economy.buildings[c.id].label + ' ' + Math.min(n, c.count) + ' / ' + c.count : 'Maisons niveau ' + c.level + ' ' + Math.min(n, c.count) + ' / ' + c.count;
 }
 /** The reward of a goal (the `goal` command): marks it done, unlocks buildings, gives resources, and leaves a line for the news. False when it cannot apply. */
 export function applyGoal(k: number): boolean {

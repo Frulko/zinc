@@ -613,7 +613,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
 #define ZRT_DYN_IMAGES 64
 #endif
 #endif
-struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used, alpha; void* blocks; uint32_t gl, nblocks; bool pre; Picture* pic; uint32_t identity; bool asset; };
+struct Dyn { const uint32_t* px; uint32_t* owned; int32_t w, h, stride; uint32_t version; bool used, alpha; void* blocks; uint32_t gl, nblocks; bool pre; Picture* pic; uint32_t identity; bool asset; bool gpu; Rect dirty; };
 static const int32_t DYN_CHUNK = ZRT_DYN_IMAGES < 64 ? ZRT_DYN_IMAGES : 64;
 static Dyn* dyn_chunks[(ZRT_DYN_IMAGES + DYN_CHUNK - 1) / DYN_CHUNK];
 // A version is never given twice, not even to another image that takes a freed slot: whatever keeps an image by (id, version) (the GPU
@@ -675,7 +675,7 @@ int32_t dyn_create(int32_t w, int32_t h) {
 }
 static void dyn_drop_blocks(Dyn* d) { if (d->blocks) { hal_free(d->blocks); d->blocks = nullptr; d->nblocks = 0; } }
 void dyn_update(int32_t id, const uint32_t* px, int32_t stride) {
-  if (Dyn* d = dyn_at(id)) { if (px) { d->px = px; if (stride) d->stride = stride; } d->version = ++dyn_versions; dyn_drop_blocks(d); }
+  if (Dyn* d = dyn_at(id)) { if (px) { d->px = px; if (stride) d->stride = stride; } d->version = ++dyn_versions; d->gpu = false; dyn_drop_blocks(d); }
 }
 // dyn_update_rect's changes (main thread only, as the frame diff that reads them): image `id` went from version `from` to `to` with only `r`
 // of its pixels changed. ponytail: a ring of 16 shared by every image; a change that fell out of it damages the whole image, as dyn_update does
@@ -686,11 +686,17 @@ void dyn_update_rect(int32_t id, int32_t x, int32_t y, int32_t w, int32_t h, con
   Dyn* d = dyn_at(id);
   if (!d) return;
   const uint32_t from = d->version;
+  const bool g = d->gpu;
   dyn_update(id, px, 0);
+  if (g) {   // the GPU holds the image: only this rectangle of the CPU pixels is newer than it
+    d->gpu = true;
+    Rect& u = d->dirty; const Rect r{x, y, x + w, y + h};
+    if (u.x0 >= u.x1 || u.y0 >= u.y1) u = r; else { u.x0 = r.x0 < u.x0 ? r.x0 : u.x0; u.y0 = r.y0 < u.y0 ? r.y0 : u.y0; u.x1 = r.x1 > u.x1 ? r.x1 : u.x1; u.y1 = r.y1 > u.y1 ? r.y1 : u.y1; }
+  }
   dyn_parts[dyn_nparts++ % 16] = DynPart{id, from, d->version, Rect{x, y, x + w, y + h}};
 }
 /** The part of image `id` (its pixels) that changed from version `from` to `to`, when only dyn_update_rect changed it in between. */
-static bool dyn_changed(int32_t id, uint32_t from, uint32_t to, Rect* out) {
+bool dyn_changed(int32_t id, uint32_t from, uint32_t to, Rect* out) {
   Rect u = {1 << 30, 1 << 30, -(1 << 30), -(1 << 30)};
   for (uint32_t cur = to; cur != from;) {   // versions only grow: the walk ends
     const DynPart* p = nullptr;
@@ -761,6 +767,10 @@ bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* 
 uint32_t image_version(int32_t id) { Dyn* d = dyn_at(id); return d ? d->version : 0; }
 uint32_t image_identity(int32_t id) { Dyn* d = dyn_at(id); return d ? d->identity : 0; }
 void dyn_set_asset(int32_t id) { if (Dyn* d = dyn_at(id)) d->asset = true; }
+void dyn_gpu_touch(int32_t id) { if (Dyn* d = dyn_at(id)) { d->version = ++dyn_versions; if (!d->gpu) d->dirty = Rect{0, 0, 0, 0}; d->gpu = true; } }
+bool dyn_gpu(int32_t id, Rect* dirty) { Dyn* d = dyn_at(id); if (!d || !d->gpu) return false; *dirty = d->dirty; return true; }
+void dyn_gpu_synced(int32_t id) { if (Dyn* d = dyn_at(id)) d->dirty = Rect{0, 0, 0, 0}; }
+void dyn_gpu_release(int32_t id) { if (Dyn* d = dyn_at(id)) { d->gpu = false; d->dirty = Rect{0, 0, 0, 0}; } }
 void dyn_set_alpha(int32_t id, bool on) { if (Dyn* d = dyn_at(id)) d->alpha = on; }
 bool dyn_alpha(int32_t id) { Dyn* d = dyn_at(id); return d && (d->alpha || d->asset); }
 

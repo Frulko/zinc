@@ -95,6 +95,10 @@ declare module 'zinc:gfx' {
   export function updateImage(image: i32, rgba: u8[]): void;
   /** New pixels for an image of `createImage` from one `u32` a pixel (red in the low byte, then green, blue, alpha), rows top first. A quarter of the array of `updateImage` and no per-byte loop; `opaque` forces alpha 255. */
   export function updatePixels(image: i32, pixels: u32[], opaque: boolean): void;
+  /** Like updatePixels for the rectangle (x, y, w, h) of the image only, from an array of w x h pixels (rows top first); nothing changes when the
+   *  rectangle leaves the image or the array is too short. The rest of the image is not touched, and a GL display uploads only that rectangle
+   *  to the GPU (a dirty part of a big atlas or a streamed ground). An image that is not transparent stays opaque (alpha forced to 255). */
+  export function updatePixelsRect(image: i32, pixels: u32[], x: i32, y: i32, w: i32, h: i32): void;
   /** A fragment program for drawShader, in GLSL ES 1.00 (WebGL 1's language): its main() sets gl_FragColor from `varying vec2 v_uv` (0..1
    *  across the box, top left first), `uniform vec2 u_size` (the box in pixels) and `uniform vec4 u_p[8]` (drawShader's uniforms, four a
    *  vector); mediump floats are enough on every GPU (the shader runs where fragment highp is missing). On Android the window puts a GPU
@@ -133,8 +137,20 @@ declare module 'zinc:gfx' {
   export function resetTransform(): void;
   /** Stroked polyline [x0, y0, x1, y1, ...] with round joins and caps. */
   export function stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void;
-  /** Runtime image (black) usable with drawImage, and as a render target. Video/camera plugins create their own. */
-  export function createImage(w: i32, h: i32): i32;
+  /** Runtime image usable with drawImage, and as a render target. Video/camera plugins create their own. Black and opaque, or with `alpha`
+   *  true transparent (every pixel 0x00000000): a transparent target keeps what is drawn into it with its transparency (a ground region or a sprite
+   *  sheet made of sprites with partial alpha), stored as straight alpha like imageFromPixels, and drawImageRect / drawImage blend it
+   *  over the frame as any sprite (ImageFlag.Nearest honoured). Drawing into it composites over its content (clearImage to start again); `clear`
+   *  paints it opaque. Inside a transparent target Blend.Normal is exact (to a rounding of 1 in alpha and colour); Add, Multiply and Screen act on
+   *  the backdrop that is not there, so draw those into the frame instead. Drawing into a target is rasterized by the CPU on every display; a
+   *  transparent one is drawn twice (over black and over white) to recover the alpha, so it costs two passes. */
+  export function createImage(w: i32, h: i32, alpha?: boolean): i32;
+  /** What the last presented frame cost the GPU side, for a game's own debug overlay: 0 draw calls, 1 quads, 2 bytes uploaded to image textures, 3 image
+   *  uploads, 4 microseconds spent uploading them, 5 microseconds the present waited (the swap, the wait for the display included). All 0 on the software
+   *  raster and headless. ZINC_PRESENT_STATS=1 prints the same every 120 frames (GL display), ZINC_GL_STATS=1 the totals at exit. */
+  export function frameStat(which: i32): i32;
+  /** Every pixel of the image transparent black (an opaque image of createImage reads black again). */
+  export function clearImage(image: i32): void;
   export function destroyImage(image: i32): void;
   /** Draw commands recorded so far in this frame, and how many more the frame still takes. */
   export function commandCount(): i32;

@@ -11,7 +11,7 @@ import {
   TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE, MIN_SIZE, MAX_SIZE, PLACE_OK, ROLE_NAMES,
 } from './constants';
 import * as assets from 'zinc:assets';
-import { world, generate, tileAt } from './world/world';
+import { world, generate, tileAt, tileIndex } from './world/world';
 import { TerrainParams } from './gen/terrain';
 import { economy, loadEconomy, amountText } from './world/economy';
 import { MODEL_IDS } from './view/models';
@@ -38,18 +38,21 @@ import { look, record, Snapshot, beginGroup, endGroup, undo, drawPlacementLabel,
 import { planRoad, linePath, RoadPlan, buildRoad, demolishRoad, costOf } from './rules/roadplan';
 import { WIN_MAIN } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
+import { drawGuide } from './ui/Guide';
 import { loadPrefs, savePrefs } from './ui/prefs';
-import { drawOverlay, drawReach, drawOverlayMenu, drawLegend } from './ui/Overlays';
+import { drawOverlay, drawReach, drawRoute, drawOverlayMenu, drawLegend } from './ui/Overlays';
 import { drawAdvisors, sampleHistory, openAdvisor } from './ui/Advisors';
 import { drawCampaign, openCampaign } from './ui/Campaign';
-import { drawTree, openTree, treeScroll, treeDrag } from './ui/Tree';
+import { loadMissions } from './world/missions';
 import { perfBegin, perfEnd, perfFrame } from './ui/PerfTrace';
 import { drawDebug, drawDebugWindow, cycleDebug, debugBegin, debugLap, debugHooks } from './ui/Debug';
 import { drawEnding, checkEnding, resetEnding } from './ui/Ending';
 import { drawMenus, isModal, closeMenus, openNew, openMenu, typeKey } from './ui/Menu';
 import { refreshModels, aimAt, cancelAim, stepAim, aiming, zoomScale, zooming } from './view/scenery';
-import { camera, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY, fit, setFit, windowWidth, windowHeight } from './view/camera';
+import { camera, centerPoint, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY, fit, setFit, windowWidth, windowHeight } from './view/camera';
 import { W, H } from './pixel';
+import { citeReset, citeLayout, citeStep, citeDraw, citeJump, citeProjection, zoomAt as citeZoomAt, panPixels as citePan, pickAt as citePick, pick as citePicked, cam as citeCam } from './cite';
+import { setView, setPixelOrigin } from './pixel';
 
 const ACCEL_TAU = .09, COAST_TAU = .2, DRAG_TAU = .06, FLING_MIN = 40, STOP_BELOW = 6;   // seconds to reach about two thirds of the way to the wished speed; the speed below which a slide stops
 /** How much of the way to a target an exponential ease covers in `dt` seconds: the same curve at any frame rate. */
@@ -64,6 +67,7 @@ export class HamletScene extends Sprite {
   get paused(): boolean { return ui.paused; }
   set paused(v: boolean) { ui.paused = v; }
   private surface = new PixelSurface();
+  private cite: boolean = settings.view === 'cite';       // the GPU tile view of src/cite replaces the pixel renderer of src/view
   private frame = new PixelGame('hamlet', 'Hameau', '');
   private time: number = 0;
   private acc: number = 0;               // seconds the simulation still owes: it advances in whole ticks of TICK
@@ -101,6 +105,7 @@ export class HamletScene extends Sprite {
   private lineCount: number = -1;
   private lineSoundAt: number = 0;
   private hover: number = -1;
+  private under: number = -1;                     // the tile under the pointer whatever the tool: the roamer route preview of a hovered service building
   private message: string = '';
   private messageUntil: number = 0;
   private newVillageAt: number = -100;
@@ -118,6 +123,7 @@ export class HamletScene extends Sprite {
   constructor() {
     super('Hamlet');
     loadEconomy(assets.readText('economy.json'), MODEL_IDS, ROLE_NAMES);
+    loadMissions((path: string): string => assets.readText(path));
     loadKit(); loadPrefs(); ui.tool = TOOL_NONE; escapeByApp(true);   // no tool at the start; Escape drops the tool or opens the menu, it never quits
     this.frame.cropX = 10; this.frame.cropY = 22; this.frame.cropWidth = 340; this.frame.cropHeight = 226;
     const built = buildSettingsPanel({
@@ -130,11 +136,11 @@ export class HamletScene extends Sprite {
       refreshModels: (): void => { refreshModels(); this.baked = world.revision; },
     });
     this.panel = built.panel; this.fpsRow = built.fps; this.panel.open = false;
-    winRegister('info', drawInfo); winRegister('campaign', drawCampaign); winRegister('tree', drawTree); winRegister('advisors', drawAdvisors);
+    winRegister('info', drawInfo); winRegister('campaign', drawCampaign); winRegister('advisors', drawAdvisors);
     winRegister('overlays', drawOverlayMenu); winRegister('debug', drawDebugWindow); winRegister('panel', (): void => this.drawPanel());
     world.autosave = true;
     if (loadGame()) ui.window = WIN_MAIN; else generate(randomSeed());
-    bakeVillage(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size;
+    this.bake(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size;
     debugHooks.devPanel = (): void => { this.panel.open = !this.panel.open; }; debugHooks.rebake = (): void => { this.baked = -1; };
     act.setTool = (tool: number): void => { this.tool = tool; uiState.dirty = true; };
     act.say = (message: string): void => this.say(message);
@@ -144,7 +150,7 @@ export class HamletScene extends Sprite {
     act.rebake = (): void => { uiState.dirty = true; };
     act.togglePause = (): void => this.key('p', true);
     act.setSpeed = (i: number): void => { ui.speed = i; settings.simSpeed = SPEEDS[i]; savePrefs(); uiState.dirty = true; };
-    act.jump = (x: number, y: number): void => { aimAt(x, y); uiState.dirty = true; };
+    act.jump = (x: number, y: number): void => { if (this.cite) citeJump(x, y); else aimAt(x, y); uiState.dirty = true; };
     setAmbience('meadow');
     windowCtl(0, 3, 'Hameau', 0, 0);
   }
@@ -160,6 +166,14 @@ export class HamletScene extends Sprite {
     if (W !== this.bufferW || H !== this.bufferH) { this.surface.resize(); this.bufferW = W; this.bufferH = H; }
   }
   private layoutSurface(): void {
+    if (this.cite) {                                                // the map is the viewport itself, at scale 1
+      const v = viewport();
+      citeLayout(v.x, v.y, v.w, v.h);
+      this.frame.cropX = 0; this.frame.cropY = 0; this.frame.cropWidth = v.w; this.frame.cropHeight = v.h;
+      this.surface.layout(this.frame); this.surface.scale = 1; this.surface.x = v.x; this.surface.y = v.y;
+      const pr = citeProjection(); setView(pr[0], pr[1], pr[2]); setPixelOrigin(0, 0);     // the shared overlays project onto this view
+      return;
+    }
     // Zooming out shows a wider window with smaller pixels: the buffer follows the level, the picture is scaled by the normal integer scale divided by the window's growth.
     this.syncBuffer();
     const vp = viewport();
@@ -177,6 +191,7 @@ export class HamletScene extends Sprite {
 
   private tileUnder(x: number, y: number): number {
     if (!this.surface.contains(x, y)) return -1;
+    if (this.cite) return citePick(x, y);
     const p = unproject(this.surface.sourceXAt(x), this.surface.sourceYAt(y));
     return tileAt(p.x, p.y);
   }
@@ -187,7 +202,12 @@ export class HamletScene extends Sprite {
     this.say('Nouveau hameau · graine ' + seed + ' · ' + size + '×' + size);
   }
   /** A village was just made or loaded: bake it, rebuild the tools. */
-  private loaded(): void { resetEnding(); bakeVillage(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size; ui.category = -1; closeInfo(); uiState.dirty = true; }
+  private bake(): void { if (this.cite) citeReset(); else bakeVillage(); }
+  private worldAt(x: number, y: number): { x: number; y: number } {
+    if (!this.cite) return unproject(this.surface.sourceXAt(x), this.surface.sourceYAt(y));
+    citePick(x, y); return { x: citePicked.x, y: citePicked.y };
+  }
+  private loaded(): void { resetEnding(); this.bake(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size; ui.category = -1; closeInfo(); uiState.dirty = true; }
   /** The panel's "new map": the same seed on another grid size. */
   private resizeVillage(): void { this.createVillage(world.seed, Math.max(MIN_SIZE, Math.min(MAX_SIZE, this.pendingSize)), world.progression, world.risks, world.params); }
   private act(t: number): void {
@@ -196,15 +216,26 @@ export class HamletScene extends Sprite {
     if (code === PLACE_OK) { record(this.tool, t, before); sound(this.tool === TOOL_ERASE ? 'erase' : this.tool === TOOL_ROAD ? 'road' : 'place', .6); return; }
     if (this.tool !== TOOL_ROAD && t >= 0) { sound('error', .5); this.say(reasonText(this.tool, code)); }
   }
+  /** The zoom keys: one step in or out of the pixel view; the tile view zooms smoothly about the middle of the map (0: back to 1). */
+  private zoomKey(dir: number): void {
+    if (!this.cite) { if (dir === 0) resetView(); else stepZoom(dir); this.baked = world.revision; return; }
+    if (dir === 0) citeCam.target = 1;
+    citeZoomAt(dir > 0 ? 1.25 : dir < 0 ? .8 : 1, this.surface.x + this.frame.cropWidth / 2, this.surface.y + this.frame.cropHeight / 2);
+  }
+  /** A wheel notch or a pinch: one pixel-view zoom step, or a smooth tile-view zoom anchored on the pointer. */
+  private zoomWheel(dir: number, x: number, y: number): void {
+    if (this.cite) citeZoomAt(pinch() !== 1 ? pinch() : Math.pow(1.18, dir), x, y); else { stepZoom(dir); this.baked = world.revision; }
+    uiState.dirty = true;
+  }
   private key(name: string, down: boolean): void {
     if (name === 'ArrowLeft' || name === 'a' || name === 'A') this.panLeft = down;
     else if (name === 'ArrowRight' || name === 'd' || name === 'D') this.panRight = down;
     else if (name === 'ArrowUp' || name === 'w' || name === 'W') this.panUp = down;
     else if (name === 'ArrowDown' || name === 's' || name === 'S') this.panDown = down;
     if (!down) return;
-    if (name === '+' || name === '=') { stepZoom(1); this.baked = world.revision; }
-    else if (name === '-' || name === '_') { stepZoom(-1); this.baked = world.revision; }
-    else if (name === '0' || name === 'Home') { resetView(); this.baked = world.revision; }
+    if (name === '+' || name === '=') this.zoomKey(1);
+    else if (name === '-' || name === '_') this.zoomKey(-1);
+    else if (name === '0' || name === 'Home') this.zoomKey(0);
     else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.category >= 0) ui.category = -1; else if (closeTopWindow()) { /* the topmost window closed */ } else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
     else if (name === '[' || name === ']') { const i = this.tools.indexOf(this.tool); this.tool = this.tools[(Math.max(0, i) + (name === ']' ? 1 : this.tools.length - 1)) % this.tools.length]; }
     else if (name >= '1' && name <= '9' && Number(name) <= this.tools.length) this.tool = this.tools[Number(name) - 1];
@@ -213,7 +244,6 @@ export class HamletScene extends Sprite {
     else if (name === 'h' || name === 'H') settings.hints = !settings.hints;
     else if (name === 'f' || name === 'F') openAdvisor(ui.advisor);
     else if (name === 'c' || name === 'C') openCampaign();
-    else if (name === 't' || name === 'T') openTree();
     else if (name === 'x' || name === 'X') { this.flip = !this.flip; this.say(this.flip ? 'Route : le coude passe de l’autre côté.' : 'Route : le coude suit le côté le plus long.'); }
     else if (name === 'r' || name === 'R') { this.route = !this.route; this.anchor = -1; this.say(this.route ? 'Route automatique : cliquez le départ, puis l’arrivée ; elle contourne les obstacles.' : 'Route à la main : glissez du départ à l’arrivée.'); }
     else if (name === 'v' || name === 'V') { settings.appeal = !settings.appeal; this.say(settings.appeal ? 'Désirabilité : points verts et rouges sur la carte.' : 'Désirabilité masquée.'); }
@@ -232,7 +262,7 @@ export class HamletScene extends Sprite {
       this.panel.release(); this.onMap = false; if (winDragEnd()) savePrefs();
       if (this.grabbing) {                // a click that never became a drag picks what is under the pointer
         this.grabbing = false; this.panning = false;
-        if (!this.grabMoved && !this.paused && this.surface.contains(x, y)) { const g = unproject(this.surface.sourceXAt(x), this.surface.sourceYAt(y)); if (!pickAt(g.x, g.y, tileAt(g.x, g.y))) closeInfo(); }
+        if (!this.grabMoved && !this.paused && this.surface.contains(x, y)) { const g = this.worldAt(x, y); if (!pickAt(g.x, g.y, tileAt(g.x, g.y))) closeInfo(); }
       }
       if (pointer.down !== '') { const hit = hitAt(x, y); if (hit !== null && hit.id === pointer.down && hit.id !== 'map') { sound('click', .5); hudClick(hit.id); } pointer.down = ''; }
     }
@@ -259,7 +289,7 @@ export class HamletScene extends Sprite {
   /** A right click: info on the building or person under the pointer, else it backs out of the current window, menu or tool. */
   private rightClick(x: number, y: number): void {
     if (hitAt(x, y) === null && !this.paused && this.surface.contains(x, y)) {
-      const g = unproject(this.surface.sourceXAt(x), this.surface.sourceYAt(y));
+      const g = this.worldAt(x, y);
       if (pickAt(g.x, g.y, tileAt(g.x, g.y))) return;
     }
     if (ui.info) closeInfo(); else if (ui.category >= 0) ui.category = -1; else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE;
@@ -351,7 +381,6 @@ export class HamletScene extends Sprite {
     if (events === 0 && held !== this.held) this.press(x, y, held);
     else if (events === 0 && held && this.dragging) this.drag(x, y, false);
     if (held && this.panel.dragging()) { this.panel.drag(x); uiState.dirty = true; }
-    if (held && pointer.down === 'tree:pan') { treeDrag(x, y); uiState.dirty = true; }
     if (held && this.onMap) { minimapClick(x, y); uiState.dirty = true; }
     const where = x * 10000 + y;
     if (this.pointerStart < 0) this.pointerStart = where; else if (where !== this.pointerStart) this.pointerMoved = true;
@@ -360,10 +389,12 @@ export class HamletScene extends Sprite {
     ambientTick(dt, season(), (world.tick * TICK / 20) % 1 > .72 ? 1 : 0, this.forest(), wolfCount() > 0, rainAmount(), dayFraction());
     if (track(x, y)) uiState.dirty = true;
     this.moveView(dt, x, y);
-    this.hover = this.paused || this.tool === TOOL_NONE || hitAt(x, y) !== null ? -1 : this.tileUnder(x, y);
+    this.under = this.paused || hitAt(x, y) !== null ? -1 : this.tileUnder(x, y);
+    this.hover = this.tool === TOOL_NONE ? -1 : this.under;
     this.held = held;
     this.updateLine();
-    const signature = camera.x * 7919 + camera.y * 31 + camera.level * 100003;
+    world.watch = this.cite ? tileIndex(Math.max(0, Math.min(world.size - 1, Math.round(citeCam.ci))), Math.max(0, Math.min(world.size - 1, Math.round(citeCam.cj)))) : tileAt(centerPoint().x, centerPoint().y);   // the animals far from it sleep (engine/wild.ts)
+    const signature = this.cite ? citeCam.ci * 7919 + citeCam.cj * 31 + citeCam.zoom * 100003 : camera.x * 7919 + camera.y * 31 + camera.level * 100003;
     if (signature !== this.cameraSignature) { this.cameraSignature = signature; this.sinceMove = 0; } else this.sinceMove += dt;
     if (!this.paused && !isModal() && (!settings.pauseOnMove || this.sinceMove > .3)) {
       this.time += dt;
@@ -375,7 +406,8 @@ export class HamletScene extends Sprite {
       if (pose !== this.lastPose) uiState.dirty = true;
       this.lastPose = pose;
     }
-    if (this.baked !== world.revision) { rebakeStatic(); this.baked = world.revision; uiState.dirty = true; }
+    if (this.baked !== world.revision) { if (!this.cite) rebakeStatic(); this.baked = world.revision; uiState.dirty = true; }
+    if (this.cite) { citeStep(dt); uiState.dirty = true; }          // the tile view animates every frame
     if (zooming()) uiState.dirty = true;                              // the glide advances in the drawing: draw every frame until it ends
     debugLap(0); perfEnd(0);
   }
@@ -383,7 +415,8 @@ export class HamletScene extends Sprite {
   /** Camera: keys, right-button drag and trackpad scroll pan; the wheel, a pinch and + / - zoom. */
   private moveView(dt: number, x: number, y: number): void {
     if (this.paused) { if (stepAim(dt) || aiming()) uiState.dirty = true; return; }       // a jump asked while paused still glides
-    let wishX = ((this.panRight ? 1 : 0) - (this.panLeft ? 1 : 0)) * PAN_SPEED, wishY = ((this.panDown ? 1 : 0) - (this.panUp ? 1 : 0)) * PAN_SPEED;   // the velocity the keys and the edge ask for
+    const pk = this.cite ? 3 : 1;                                   // the tile view pans in screen pixels: the keys keep the speed they have at the pixel view's usual scale
+    let wishX = ((this.panRight ? 1 : 0) - (this.panLeft ? 1 : 0)) * PAN_SPEED * pk, wishY = ((this.panDown ? 1 : 0) - (this.panUp ? 1 : 0)) * PAN_SPEED * pk;   // the velocity the keys and the edge ask for
     let dx = 0, dy = 0;
     if (this.panning) {                                            // dragging the map: it follows the pointer one to one, and remembers how fast it went
       const mx = (this.panX - x) / this.surface.scale, my = (this.panY - y) / this.surface.scale, a = easing(dt, DRAG_TAU);
@@ -391,10 +424,9 @@ export class HamletScene extends Sprite {
       this.dragVX += (mx / Math.max(dt, .001) - this.dragVX) * a; this.dragVY += (my / Math.max(dt, .001) - this.dragVY) * a;
       this.wasDragging = true; this.velX = 0; this.velY = 0;
     } else if (this.wasDragging) { this.wasDragging = false; this.velX = Math.abs(this.dragVX) > FLING_MIN ? this.dragVX : 0; this.velY = Math.abs(this.dragVY) > FLING_MIN ? this.dragVY : 0; this.dragVX = 0; this.dragVY = 0; }   // let go: it carries on and slows down
-    if (ui.tree && winAt(x, y) === 'tree') { if (scrollPhase() !== 0) { treeScroll(-scrollDX(), -scrollDY()); uiState.dirty = true; } else if (wheel() !== 0) { treeScroll(0, -wheel() * 40); uiState.dirty = true; } return; }
     if (scrollPhase() !== 0) { dx -= scrollDX() / this.surface.scale; dy -= scrollDY() / this.surface.scale; }
-    else if (wheel() !== 0) { stepZoom(wheel() > 0 ? 1 : -1); this.baked = world.revision; uiState.dirty = true; }
-    if (pinch() !== 1) { stepZoom(pinch() > 1 ? 1 : -1); this.baked = world.revision; uiState.dirty = true; }
+    else if (wheel() !== 0) this.zoomWheel(wheel() > 0 ? 1 : -1, x, y);
+    if (pinch() !== 1) this.zoomWheel(pinch() > 1 ? 1 : -1, x, y);
     if (this.panning && !this.rightMoved && !this.grabbing && Math.abs(x - this.rightX) + Math.abs(y - this.rightY) > 6) this.rightMoved = true;
     if (this.grabbing && pointerDown() && !this.grabMoved && Math.abs(x - this.grabX) + Math.abs(y - this.grabY) > 6) { this.grabMoved = true; this.panning = true; this.panX = x; this.panY = y; }
     if (settings.edgePan && this.pointerMoved) {   // the window's own edge, even where the interface sits on it
@@ -413,7 +445,7 @@ export class HamletScene extends Sprite {
       this.restX -= wholeX; this.restY -= wholeY; dx += wholeX; dy += wholeY;
     } else { this.restX = 0; this.restY = 0; cancelAim(); }
     if (dx !== 0 || dy !== 0) {
-      if (moveCamera(dx, dy)) uiState.dirty = true; else { this.velX = 0; this.velY = 0; }        // the edge of the map stops it
+      if (this.cite ? citePan(dx, dy) : moveCamera(dx, dy)) uiState.dirty = true; else { this.velX = 0; this.velY = 0; }        // the edge of the map stops it
     } else if (stepAim(dt)) uiState.dirty = true;
     if (aiming()) uiState.dirty = true;
   }
@@ -428,21 +460,28 @@ export class HamletScene extends Sprite {
 
   override onDraw(w: number, h: number): void {
     debugBegin(); perfBegin();
-    const ok = this.hover >= 0 && this.tool !== TOOL_NONE && checkTool(this.tool, this.hover) === PLACE_OK;
-    drawVillage(Math.floor(this.time * settings.animFps) / settings.animFps, this.hover, ok, this.tool >= TOOL_HOUSE && this.tool < TOOL_ERASE && ok ? this.tool - TOOL_HOUSE : -1);
-    debugLap(1); perfEnd(1);
+    if (!this.cite) {
+      const ok = this.hover >= 0 && this.tool !== TOOL_NONE && checkTool(this.tool, this.hover) === PLACE_OK;
+      drawVillage(Math.floor(this.time * settings.animFps) / settings.animFps, this.hover, ok, this.tool >= TOOL_HOUSE && this.tool < TOOL_ERASE && ok ? this.tool - TOOL_HOUSE : -1);
+      debugLap(1); perfEnd(1);
+    }
     this.syncBuffer(); this.layoutSurface();
     const vp = viewport();
     rect(0, 0, w, h, col('stoneDeep'));
-    if (frameDirty.full) { this.surface.upload(); frameDirty.full = false; } else this.surface.uploadSpans(frameDirty.spans);
-    this.surface.draw(); drawSky(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale); perfEnd(2);
+    if (this.cite) {
+      const okc = this.hover >= 0 && this.tool !== TOOL_NONE && checkTool(this.tool, this.hover) === PLACE_OK;
+      citeDraw(this.time, this.hover, okc, this.tool >= TOOL_HOUSE && this.tool < TOOL_ERASE ? this.tool - TOOL_HOUSE : -1); debugLap(1); perfEnd(1); perfEnd(2);
+    } else {
+      if (frameDirty.full) { this.surface.upload(); frameDirty.full = false; } else this.surface.uploadSpans(frameDirty.spans);
+      this.surface.draw(); drawSky(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale); perfEnd(2);
+    }
     beginFrame();
     mapView.x = this.surface.x; mapView.y = this.surface.y; mapView.scale = this.surface.scale; mapView.cropX = this.frame.cropX; mapView.cropY = this.frame.cropY;
     clip(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale);
-    drawOverlay(); drawLine(); drawReach(this.tool, this.hover);
+    drawOverlay(); drawLine(); drawReach(this.tool, this.hover); drawRoute(this.tool, this.under);
     unclip(); drawLegend();
     topBar(); column(); drawFlyout(); drawWindows();
-    drawBanner(vp.x + vp.w / 2, vp.y + 8);
+    drawGuide(); drawBanner(vp.x + vp.w / 2, vp.y + 8);
     const note = this.time < this.messageUntil;
     statusStrip(note ? this.message : adviceLine(), note ? col('gold') : 0);
     if (this.paused) { const cx = vp.x + vp.w / 2; parchment(cx - 70, vp.y + 14, 140, 34); textC(kit.big, cx, vp.y + 12, 'PAUSE', col('accent')); }

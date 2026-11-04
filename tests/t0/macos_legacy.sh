@@ -15,7 +15,7 @@ for example in hello bouncing-ball; do
   mkdir "$tmp/$example"
   "$Z" pack "examples/$example" -o "$tmp/$example.zapp" >"$tmp/pack.log" 2>&1 || { cat "$tmp/pack.log"; exit 1; }
   tar -xf "$tmp/$example.zapp" -C "$tmp/$example"
-  ZINC_HEADLESS=1 ZINC_FRAMES=60 ZINC_FRAMEHASH=last "$Z" run --interp "examples/$example" >"$tmp/want" 2>&1
+  ZINC_STEPS=0 ZINC_HEADLESS=1 ZINC_FRAMES=60 ZINC_FRAMEHASH=last "$Z" run --interp "examples/$example" >"$tmp/want" 2>&1
   ZINC_HEADLESS=1 ZINC_FRAMES=60 ZINC_FRAMEHASH=last "$core" "$tmp/$example/program.zbc" >"$tmp/framed" 2>&1
   sed '1d;$d' "$tmp/framed" >"$tmp/got"
   diff -u "$tmp/want" "$tmp/got"

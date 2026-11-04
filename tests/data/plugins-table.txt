@@ -9,7 +9,7 @@ plugin (import / display)  targets                             description
   zinc:device              esp32,macos,linux,windows          Device services for board demos: backlight level (PWM), chip, flash, firmware and heap figures, frame statistics; on the computer, in the AOT firmware and under mquickjs on the ESP32 (native/device.abi.c)
   zinc:devtools            macos,linux,windows,rpi1           UI inspector for Chrome DevTools (subset of the DevTools protocol on port 9229); zinc dev adds it
   display: fbdev           linux,rpi1                         Linux framebuffer (/dev/fb0, 16/24/32 bpp) with evdev keyboard, mouse and multitouch
-  display: gl              macos,rpi1,webos,linux             GPU screen: OpenGL 3.2 (SDL3) on macOS, KMS/DRM + GBM + EGL + GLES2 on Raspberry Pi and Linux, GLES2 through Palm's SDL on webOS 3; UI as an overlay
+  display: gl              macos,rpi1,webos,linux             GPU screen: OpenGL 3.2 (SDL3) on macOS, KMS/DRM + GBM + EGL + GLES on Raspberry Pi and Linux, a GLES 3 window on a Linux desktop, GLES2 through Palm's SDL on webOS 3; UI as an overlay
   display: remote          macos,linux,rpi1                   Headless: streams frames over TCP (damage + RLE) to zinc:remote viewers, takes their input, LAN beacon
   display: rmpp            rmpp,macos,linux                   reMarkable Paper Pro: e-ink refresh policy, Marker pen + touch (emulated e-ink look on desktop)
   display: scrollphat      rpi1,linux,macos                   Pimoroni Scroll pHAT 11x5 white LEDs, IS31FL3730 over I2C (Raspberry Pi, macOS emulator)
@@ -22,7 +22,7 @@ plugin (import / display)  targets                             description
   zinc:gphoto2             macos,linux,rpi1                   Camera remote control over libgphoto2 (USB PTP): config, capture, events, JPEG live view
   zinc:gsap                macos,linux,android,ios,windows,rpi1,rmpp,webos,wasm,esp32 GSAP's core API in Zinc: tweens, timelines, eases, staggers, position parameters, labels and utils; typed, so it runs in the interpreter, in zinc build programs (AOT) and on every target
   zinc:imu                 esp32,macos,linux                  QMI8658 6-axis IMU: accel, gyro, temperature, tilt and shake (ESP32 I2C; emulated from keys/mouse elsewhere)
-  zinc:ink                 macos,linux,windows,rpi1,wasm,rmpp Handwriting surface: pressure strokes, eraser, undo, JSON/SVG export
+  zinc:ink                 macos,linux,windows,rpi1,wasm,rmpp,ios,android Handwriting surface (pressure strokes, writing tools, erasers, undo, JSON/SVG export) and a local recogniser for letters, circles, crosses and ticks (point-cloud matcher in C++, no cloud)
   zinc:leapmotion          macos,windows                      Ultraleap hand tracking: hands, finger joints and pinch strength through LeapC, with an explicit simulator
   zinc:link                macos,linux,android,ios            Two Zinc programs find each other (DNS-SD), pair once with a 6-digit code (TLS EC J-PAKE) and talk over an encrypted channel (TLS 1.3 with the paired key): JSON and bytes, reconnecting while paired; the protocol of zinc agent
   zinc:loader              macos,linux,windows,rpi1,wasm,esp32,ps2 The screens of the loader stage (zinc.json "loading"): a progress bar, the splash with a thin bar, and a zinc:ui <Loader> component
@@ -56,4 +56,4 @@ plugin (import / display)  targets                             description
   zinc:wasm                macos,linux,windows,rpi1,rmpp      WebAssembly (the JS API's shape) on the wasm3 interpreter 0.5.0 (MIT): validate, compile, instantiate with host function imports, exported functions, memory and globals
   zinc:webos               macos,linux,android,ios            HP webOS 3 (HP TouchPad): calls to the system's services (the Luna bus, through the PDK's libpdl), launching an installed application
   zinc:webrtc              macos,linux,rpi1,ios               WebRTC (RTCPeerConnection): data channels and audio and video tracks on libdatachannel (MPL-2.0) with libjuice, usrsctp, libsrtp and the engine's mbedTLS; Opus audio (libopus), VP8 video (libvpx) everywhere and H.264 through VideoToolbox on macOS; STUN/TURN, stats, an in-process loopback
-  zinc:webview             macos,ios,android                  Web views over the app window (WKWebView, android.webkit.WebView) placed by a zinc:ui NativeView, zinc:// assets, postMessage and invoke RPC (Tauri-like)
+  zinc:webview             macos,ios,linux,android            Web views over the app window (WKWebView, android.webkit.WebView, WebKitGTK) placed by a zinc:ui NativeView, zinc:// assets, postMessage and invoke RPC (Tauri-like)

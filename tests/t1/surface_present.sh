@@ -5,7 +5,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 build=$(dirname "${ZINC:-build/zinc}")
-"${CXX:-c++}" -std=c++17 -O2 -fobjc-arc -Wall -Wextra -Ithird_party/SDL3/include -Iruntime/include \
+"${CXX:-c++}" -std=c++17 -O2 -fobjc-arc -Wall -Wextra -Ithird_party/SDL3/include -Iruntime -Iruntime/include -Iinclude \
   tests/native/surface_present.mm "$build/third_party/SDL3/libSDL3.a" \
   -framework Cocoa -framework CoreMedia -framework CoreVideo -framework IOKit -framework Carbon \
   -framework Foundation -framework Metal -framework QuartzCore -framework IOSurface -framework AppKit \

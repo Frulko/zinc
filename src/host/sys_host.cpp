@@ -1289,6 +1289,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       if (clock && !strcmp(clock, "virtual")) r->i = 0;
       else if (clock && !strcmp(clock, "real")) r->i = 1;
       else r->i = set("ZINC_REALTIME") || !(set("ZINC_DETERMINISTIC") || getenv("ZINC_RECORD") || getenv("ZINC_REPLAY")) ? 1 : 0;
+      if (!(r->i & 1)) if (const char* tk = getenv("ZINC_CLOCK_TICK")) { const double ms = atof(tk); if (ms > 0 && ms < 1e5) r->i |= static_cast<std::int32_t>(ms * 1000) << 2; }   // virtual clock: each performance.now() read moves it by this many ms (in microseconds from bit 2)
 #ifdef ZN_APP_LIBRARY
       r->i |= 2;   // an app shell steps the program (zn_app_iterate): the prelude returns from __runLoop and waits never sleep (ZN-620)
 #endif

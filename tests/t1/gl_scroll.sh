@@ -18,7 +18,8 @@ for e in examples/rn-showcase:a tests/data/scroll_header:b ${ZINC_SCROLL_EXTRA:-
   grep -Eq "window renderer gl \(|display-gl renderer gl:" "$tmp/log" || { echo "skipped: no GL window here"; exit 77; }
   moves=$(grep -o "[0-9]* scrolls moved on the GPU" "$tmp/log" | cut -d' ' -f1)
   [ "${moves:-0}" -ge 10 ] || { echo "gl_scroll: $p: ${moves:-0} scrolls moved on the GPU"; fail=1; continue; }
-  worst=$(grep -o "this one ([-0-9]*, [-0-9]*): [0-9]* pixels" "$tmp/log" | sed 's/.*: \([0-9]*\) pixels/\1/' | sort -n | tail -1)
+  # a level of rounding on a blend edge is invisible and no missed damage (a missed damage is off by far more): only errors above 1 count
+  worst=$(grep -o "this one ([-0-9]*, [-0-9]*): [0-9]* pixels, max channel error [0-9]*" "$tmp/log" | sed 's/.*: \([0-9]*\) pixels, max channel error \([0-9]*\)/\1 \2/' | awk '$2 > 1 { print $1 }' | sort -n | tail -1)
   [ "${worst:-0}" -le 4 ] || { echo "gl_scroll: $p: a moved frame differs from a whole replay in $worst pixels: $(grep 'gl verify' "$tmp/log" | head -3)"; fail=1; }
 done
 [ $fail -eq 0 ] && echo "gl_scroll: ok"

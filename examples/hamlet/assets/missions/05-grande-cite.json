@@ -1,0 +1,16 @@
+{
+  "id": "05-grande-cite",
+  "title": "La grande cité",
+  "briefing": "Une vaste vallée, de quoi bâtir une vraie ville. Ici tout le monde ne travaille pas : seule une partie des habitants prend un poste, il faut donc beaucoup de maisons pour peu d’ateliers. Les quartiers qui ont un marché, de l’eau, une taverne et une table variée deviennent des demeures. Quatre cents habitants et des maisons de haut niveau : la cité est née.",
+  "map": { "preset": "Vallée", "seed": 5505, "size": 64, "water": 0.5, "river": true },
+  "difficulty": "easy",
+  "sim": { "labourShare": 60, "walkerReach": 2 },
+  "limitYears": 90,
+  "goals": [
+    { "id": "town", "title": "Un bourg", "text": "Quarante habitants et quelques emplois pourvus.", "when": [{ "population": 40 }, { "jobs": 10 }], "give": { "plank": 20, "log": 12 } },
+    { "id": "services", "title": "Les services", "text": "Un marché, un puits et une taverne dans le quartier.", "requires": ["town"], "when": [{ "building": "market" }, { "building": "well" }, { "building": "tavern" }], "give": { "plank": 20 } },
+    { "id": "homes", "title": "De belles demeures", "text": "Six maisons de niveau 2 : de la place, de l’eau, une table variée.", "requires": ["services"], "when": [{ "houses": 6, "level": 2 }], "give": { "plank": 30, "stone": 8 } },
+    { "id": "city", "title": "Une ville", "text": "Cent cinquante habitants, quarante emplois pourvus.", "requires": ["homes"], "when": [{ "population": 150 }, { "jobs": 40 }], "give": { "plank": 40, "log": 20 } },
+    { "id": "metropolis", "title": "La grande cité", "text": "Quatre cents habitants, vingt maisons de niveau 2, une humeur d’au moins 60.", "requires": ["city"], "when": [{ "population": 400 }, { "houses": 20, "level": 2 }, { "mood": 60 }], "final": true }
+  ]
+}

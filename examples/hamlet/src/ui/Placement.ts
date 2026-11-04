@@ -2,7 +2,7 @@ import { width } from 'zinc:gfx';
 import { TERRAIN_WATER } from '../constants';
 import { world } from '../world/world';
 import { economy, amountText } from '../world/economy';
-import { TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_LOCKED, PLACE_NO_LODE } from '../constants';
+import { TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_LOCKED, PLACE_NO_LODE, PLACE_UNEVEN, PLACE_ROCKY } from '../constants';
 import { checkTool, destroyBuilding, addBuilding } from '../rules/build';
 import { give } from '../rules/stock';
 import { lockText } from '../rules/goals';
@@ -44,7 +44,7 @@ export function look(t: number): Snapshot {
   s.type = s.building >= 0 ? world.buildings[s.building].type : -1; return s;
 }
 export function record(tool: number, t: number, before: Snapshot): void {
-  const a = new Action(); a.tile = t; drag.count++;
+  const a = new Action(); a.tile = before.building >= 0 ? world.buildings[before.building].j * world.size + world.buildings[before.building].i : t; drag.count++;      // a building is named by its anchor tile
   if (tool === TOOL_ROAD) a.kind = A_ROAD;
   else if (tool === TOOL_ERASE) { a.kind = before.building >= 0 ? A_ERASE_BUILDING : A_ERASE_ROAD; a.type = before.type; }
   else { a.kind = A_BUILD; a.type = tool - TOOL_HOUSE; }
@@ -55,6 +55,7 @@ export function undo(): string {
   const group = groups.pop();
   if (group === undefined) return '';
   const paid: number[] = [], taken: number[] = [];
+  world.netRev++;
   for (let i = group.length - 1; i >= 0; i--) {
     const a = group[i];
     if (a.kind === A_ROAD) { world.road[a.tile] = 0; paid.push(a.tile); }
@@ -76,6 +77,8 @@ export function reasonText(tool: number, code: number): string {
   if (code === PLACE_NO_WATER) return 'Ce bâtiment se pose au bord de l’étang.';
   if (code === PLACE_LOCKED) return lockText(tool - TOOL_HOUSE);
   if (code === PLACE_NO_LODE) return 'Aucun gisement de ce genre à moins de huit cases : posez-le près de la roche ou du minerai.';
+  if (code === PLACE_UNEVEN) return 'Le terrain n’est pas plat : un bâtiment demande une case de niveau, sans pente ni falaise à côté.';
+  if (code === PLACE_ROCKY) return 'La montagne est trop haute et trop dure pour y bâtir.';
   if (code === PLACE_NO_ROAD) return 'Il faut poser le bâtiment au bord d’une route.';
   if (code === PLACE_NO_STOCK) return 'Il manque : ' + amountText(economy.buildings[tool - TOOL_HOUSE].cost, world.stock) + '.';
   return 'Cette case n’est pas libre.';

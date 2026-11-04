@@ -30,8 +30,8 @@ __addEvHandler((h: i32, kind: i32, data: string) => {
   if (p !== undefined) p();
 });
 
-function __detach(transfer: u8[][]): void {
-  for (const b of transfer) b.length = 0;   // moved: the receiver has the bytes, the sender an empty array (ponytail: copied, then emptied; zero-copy is a later step)
+function __detach<B>(transfer: B[][]): void {
+  for (const b of transfer) b.length = 0;   // moved: the receiver has the data, the sender an empty array (copied on the wire, then emptied: the heaps share nothing)
 }
 
 export class Worker<In, Out> {
@@ -52,7 +52,7 @@ export class Worker<In, Out> {
     __workerPumps.set(this.h, () => { this.pump(); });
   }
 
-  /** Sends a message to the worker; the u8[] arrays of `transfer` are moved (emptied here). */
+  /** Sends a message to the worker; the arrays of `transfer` (u8[], i32[], u32[], f32[], f64[]) are moved (emptied here: a call with a transfer list is rewritten by the checker into __workerSend, which takes any numeric array). */
   postMessage(message: In, transfer: u8[][] = []): void {
     __recPost(this.h, message, this.sIn);   // encoded from the objects themselves, by the schema (src/rt/worker.cpp)
     __detach(transfer);
@@ -87,7 +87,7 @@ export class Worker<In, Out> {
 // __workerOnMessage(handler) and `self.postMessage(v)` into __workerPost(v) by the checker (a setter or a method cannot take its own type parameter).
 export class WorkerSelf {
   private __zincWorkerSelf: boolean = true;
-  /** Posts a message to the parent; the u8[] arrays of `transfer` are moved (emptied here). */
+  /** Posts a message to the parent; the numeric arrays of `transfer` are moved (emptied here). */
   postMessage(message: any, transfer: u8[][] = []): void { throw new Error('self.postMessage is rewritten by the checker'); }
   /** Ends the worker once its pending work is done. */
   close(): void { __host_workerClose(0); }
@@ -95,7 +95,13 @@ export class WorkerSelf {
 
 export const self: WorkerSelf = new WorkerSelf();
 
-export function __workerPost<T>(message: T, transfer: u8[][] = []): void {
+/** Worker.postMessage(message, transfer) of any numeric arrays: the call is rewritten into this one by the checker (a method cannot take a type parameter). */
+export function __workerSend<In, Out, B>(w: Worker<In, Out>, message: In, transfer: B[][]): void {
+  w.postMessage(message);
+  __detach(transfer);
+}
+
+export function __workerPost<T, B = u8>(message: T, transfer: B[][] = []): void {
   __recPost(0, message, __host_workerSchema(1));   // the parent's schema of what it receives, matched by name against T
   __detach(transfer);
 }

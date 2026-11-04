@@ -5,7 +5,7 @@ import {
   DEER_GRAZE, DEER_FLEE, DEER_CHASE, DEER_DEAD, DEER_GONE, DEER_DRINK, ST_STALK, STALK_CROUCH,
 } from '../constants';
 import { sleepsIndoors } from '../engine/routine';
-import { world, Person, Deer } from '../world/world';
+import { world, onMap, Person, Deer } from '../world/world';
 import { SPECIES } from '../rules/species';
 import { beastEntries, drawBeast } from './beasts';
 import { isMoving } from '../engine/path';
@@ -181,7 +181,7 @@ function personShadow(x: number, y: number): void {
 
 /** People are the same lit volumes as the rest of the diorama (figure() of the shared renderer), never flat sprites: live bone by bone, or stamped from the atlas. */
 export function drawPerson(p: Person, time: number, atlas: Atlas | null): void {
-  if (sleepsIndoors(p)) return;                                       // asleep in his house
+  if (sleepsIndoors(p) || !onMap(p.x, p.y)) return;                   // asleep in his house, or off the map
   const kind = kindOf(p), hairTone = p.hair;
   if (atlas === null || kind === KIND_CREEP) {
     const look = lookOf(p.role, kind, kind === KIND_CHOP ? p.phase * 4.2 : p.phase, Math.sin(time * 1.6 + p.hair * 2) * .01);
@@ -265,7 +265,7 @@ function deerEntry(): AtlasEntry {
 }
 
 export function drawDeer(d: Deer, time: number, atlas: Atlas | null): void {
-  if (d.state === DEER_GONE) return;
+  if (d.state === DEER_GONE || !onMap(d.x, d.y)) return;
   if (d.species !== 0) { drawBeast(d, time, atlas); return; }
   const dead = d.state === DEER_DEAD, flee = d.state === DEER_FLEE || d.state === DEER_CHASE, grazing = d.state === DEER_GRAZE || d.state === DEER_DRINK;
   const falling = dead && d.timer < FALL_SECONDS, arrow = d.errand !== 9, down = Math.min(1, d.timer / FALL_SECONDS);   // d.timer is the time since it fell
@@ -282,3 +282,8 @@ export function drawDeer(d: Deer, time: number, atlas: Atlas | null): void {
   }
   if (dead) castShadow(d.x, d.y, .3, fawn ? .35 : .55); else castShadow(d.x, d.y, fawn ? .3 : .5, fawn ? .35 : .55);
 }
+
+/** The load of a carrier at the world origin, facing `yaw` (the Cite atlas bakes it apart from the body). */
+export function paintCarry(carry: number, yaw: number): void { const p = new Person(); p.carry = carry; paintProps(p, yaw, [0, 0, 0]); }
+/** Forgets the baked frames of the actors (the Cite baker draws them live; a cached frame would be stamped instead). */
+export function forgetActorAtlases(): void { actorAtlases.clear(); }

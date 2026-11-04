@@ -1,11 +1,16 @@
 import { Cursor } from 'zinc:gfx';
-import { world, tileX, tileY, tileIndex, Building } from '../world/world';
+import { world, tileIndex, Building } from '../world/world';
+import { edgeTiles } from '../engine/network';
 import { economy } from '../world/economy';
 import { housingReport } from '../rules/housing';
 import { sourceOf, harvestLines } from '../rules/harvest';
 import { applyTool } from '../rules/build';
+import { orderOf, setOrder } from '../rules/storage';
+import { normalizePriority } from '../rules/labour';
+import { resourceShown, summary } from '../hud';
+import { doesText, needsText } from './BuildMenu';
 import {
-  TOOL_ERASE, BS_ISOLATED, BS_WAITING, BS_FULL, BS_NO_SOURCE, BS_WORKING, ROLE_NAMES,
+  TOOL_ERASE, ORDER_ACCEPT, BS_ISOLATED, BS_OFF_NET, BS_WAITING, BS_FULL, BS_NO_SOURCE, BS_WORKING, ROLE_NAMES,
   ST_SLEEP, ST_HOME, ST_FREE, ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_TO_SHORE, ST_FISH, ST_WORK, ST_FETCH, ST_BRING, ST_ROAM, ST_ROAM_BACK,
 } from '../constants';
 import { drawBuilding, drawResource, drawGlyph } from './icons';
@@ -54,15 +59,18 @@ export function pickAt(gx: number, gy: number, tile: number): boolean {
   return false;
 }
 
-/** Why a workplace does not produce, in a sentence ('' when it works). */
+function roadBeside(b: Building): boolean { return edgeTiles(b).some((v: number): boolean => world.road[v] !== 0); }
+/** Why a building does not produce, in one plain sentence ('' when it works): the first thing that is wrong, with what to do. */
 export function whyIdle(id: number): string {
   const b = world.buildings[id], def = economy.buildings[b.type];
-  if (def.needsRoad && !def.store && b.state === BS_ISOLATED) return 'Inactif : aucune route ne le relie à un entrepôt.';
-  if (def.workers > 0 && b.workers === 0) return 'Inactif : personne n’y travaille.';
-  if (b.state === BS_WAITING && b.waitFor >= 0) return 'Attend : ' + economy.resources[b.waitFor].label.toLowerCase() + '.';
+  if (def.needsRoad && !roadBeside(b)) return 'Inactif : aucune route à côté. Posez une route contre ce bâtiment.';
+  if (b.state === BS_OFF_NET) return 'Inactif : sa route ne mène pas à l’entrée du hameau. Reliez-la à la porte.';
+  if (def.needsRoad && !def.store && b.state === BS_ISOLATED) return 'Inactif : aucune route ne le relie à un entrepôt. Posez un entrepôt au bord de la route.';
+  if (def.workers > 0 && b.workers === 0) return summary().labour.unemployed > 0 ? 'Inactif : personne n’y travaille. Donnez-lui la priorité (flèches ci-dessous).' : 'Inactif : personne n’y travaille, tous les habitants ont déjà un poste. Posez une maison.';
+  if (b.state === BS_WAITING && b.waitFor >= 0) return 'Attend : ' + economy.resources[b.waitFor].label.toLowerCase() + (world.stock[b.waitFor] > 0 ? ' (en route, le porteur arrive).' : ' : aucun entrepôt n’en a. Posez de quoi en produire.');
   if (b.state === BS_NO_SOURCE) return def.gather === 'tree' ? 'Plus d’arbre à portée : abattez ceux qui ferment la route (gomme) ou prolongez la route.' : 'Rien à portée : rapprochez ce bâtiment de sa ressource.';
-  if (b.state === BS_FULL) return 'Plein : posez un entrepôt au bord de la route.';
-  if (def.workers > 0 && b.workers < def.workers) return 'Il manque ' + (def.workers - b.workers) + ' ouvrier(s).';
+  if (b.state === BS_FULL) return 'Plein : posez un entrepôt au bord de la route, ou videz celui d’à côté.';
+  if (def.workers > 0 && b.workers < def.workers) return 'Il manque ' + (def.workers - b.workers) + ' ouvrier(s) : il produit plus lentement.';
   if (b.state === BS_WORKING) return 'Au travail.';
   return def.workers > 0 ? 'Au repos.' : '';
 }
@@ -77,37 +85,59 @@ function riskText(b: Building): string {
   return 'Risque : incendie ' + level(b.fire, r.fireAt) + ', usure ' + level(b.damage, r.collapseAt) + (def.risk.crime > 0 ? ', vols ' + level(b.crime, r.crimeAt) : '') + '.';
 }
 
-const WIN_W = 330;
+const WIN_W = 400;
 function origin(h: number): { x: number; y: number } { const vp = viewport(); return winOrigin('info', vp.x + 22, vp.y + 22, WIN_W, h); }
 export function drawInfo(): void {
   if (!ui.info) return;
   if (ui.selKind === 1) building();
   else if (ui.selKind === 2) person();
 }
+const ORDER_LABELS: string[] = ['Accepte', 'Refuse', 'Cherche'], ORDER_TIPS: string[] = ['Accepte : les charrettes y apportent ce bien et il est distribué.', 'Refuse : personne n’y apporte ce bien (ce qu’il garde reste distribué).', 'Va chercher : il prend ce bien et le garde, ses porteurs le cherchent dans les autres entrepôts.'];
 function building(): void {
   const b = world.buildings[ui.selId];
   if (b === undefined || !b.alive) { closeInfo(); return; }
-  const def = economy.buildings[b.type], lh = kit.lineH;
-  let h = 130;
-  const why = whyIdle(ui.selId), whyLines = wrap(why, WIN_W - 24);
-  const report = (def.housing !== null ? wrap(housingReport(b).text, WIN_W - 24) : []).concat(wrap(riskText(b), WIN_W - 24));
+  const def = economy.buildings[b.type], lh = kit.lineH, iw = WIN_W - 24;
+  const why = def.housing !== null ? '' : whyIdle(ui.selId), whyLines = wrap(why, iw);
+  const does = wrap(doesText(def), iw, kit.small), need = needsText(def), needLines = need === '' ? [] : wrap('Il lui faut : ' + need + '.', iw, kit.small);
+  const report = (def.housing !== null ? wrap(housingReport(b).text, iw) : []).concat(wrap(riskText(b), iw));
   const src = sourceOf(def), gather = src >= 0 ? harvestLines(src, def) : [];
-  const stocks: number[] = [];
-  for (let k = 0; k < economy.resources.length; k++) if (b.stock[k] > 0) stocks.push(k);
-  h += whyLines.length * lh + report.length * lh + gather.length * lh + (gather.length > 0 ? 6 : 0) + stocks.length * 20 + (def.workers > 0 ? 24 : 0) + 40;
+  const stocks: number[] = [], shown: number[] = [];
+  for (let k = 0; k < economy.resources.length; k++) { if (b.stock[k] > 0) stocks.push(k); if (def.store && resourceShown(k)) shown.push(k); }
+  const orders = def.store ? Math.ceil(shown.length / 2) * 22 + 22 : 0, prio = def.workers > 0 && !b.fixed ? 30 : 0;
+  const h = 96 + (does.length + needLines.length) * lh + whyLines.length * lh + report.length * lh + gather.length * lh + (gather.length > 0 ? 6 : 0) + (def.store ? orders : stocks.length * 20 + (stocks.length > 0 ? lh + 4 : 0)) + (def.workers > 0 ? 24 : 0) + prio + 44;
   const o = origin(h), x = o.x, y = o.y;
   window_(x, y, WIN_W, h, def.label, 'info', closeInfo);
-  drawBuilding(b.type, x + 8, y + 30, 64);
-  text(kit.body, x + 82, y + 32, def.hint !== '' ? '' : '', col('ink'));
+  drawBuilding(b.type, x + 8, y + 30, 56);
   let py = y + 34;
-  if (def.workers > 0) { text(kit.small, x + 82, py, 'Ouvriers ' + b.workers + ' / ' + def.workers, col('ink')); meter(x + 82, py + lh, WIN_W - 98, 12, b.workers / def.workers, col('good')); py += lh + 16; }
-  if (def.housing !== null) { text(kit.small, x + 82, py, 'Habitants ' + b.residents + ' / ' + housingReport(b).capacity, col('ink')); py += lh + 4; }
-  py = Math.max(py, y + 100);
-  for (const line of whyLines) { text(kit.body, x + 12, py, line, why.startsWith('Inactif') || why.startsWith('Plein') || why.startsWith('Il manque') ? col('bad') : col('ink')); py += lh; }
+  if (def.workers > 0) { text(kit.small, x + 74, py, 'Ouvriers ' + b.workers + ' / ' + def.workers, col('ink')); meter(x + 74, py + lh, WIN_W - 90, 12, b.workers / def.workers, col('good')); py += lh + 16; }
+  if (def.housing !== null) { text(kit.small, x + 74, py, 'Habitants ' + b.residents + ' / ' + housingReport(b).capacity, col('ink')); py += lh + 4; }
+  py = Math.max(py, y + 92);
+  for (const line of does) { text(kit.small, x + 12, py, line, col('ink')); py += lh; }
+  for (const line of needLines) { text(kit.small, x + 12, py, line, col('muted')); py += lh; }
+  py += 4;
+  const bad = why.startsWith('Inactif') || why.startsWith('Plein') || why.startsWith('Il manque') || why.startsWith('Attend') || why.startsWith('Plus') || why.startsWith('Rien');
+  for (const line of whyLines) { text(kit.body, x + 12, py, line, bad ? col('bad') : col('good')); py += lh; }
   for (const line of report) { text(kit.small, x + 12, py, line, col('muted')); py += lh; }
   if (gather.length > 0) { py += 4; for (const line of gather) { text(kit.small, x + 12, py, line, col('muted')); py += lh; } }
-  if (stocks.length > 0) { py += 4; text(kit.small, x + 12, py, 'Réserve', col('muted')); py += lh; }
-  for (const k of stocks) { drawResource(k, x + 12, py, 16); text(kit.body, x + 34, py + 1, economy.resources[k].label + ' : ' + b.stock[k], col('ink')); py += 20; }
+  if (def.store) {
+    py += 6; text(kit.small, x + 12, py, 'Ordres de l’entrepôt', col('accent')); py += lh + 2;
+    for (let n = 0; n < shown.length; n++) {
+      const k = shown[n], order = orderOf(b, k), cx = x + 12 + (n % 2) * (iw / 2 + 2), cy = py + Math.floor(n / 2) * 22;
+      drawResource(k, cx, cy, 16);
+      text(kit.small, cx + 20, cy + 2, economy.resources[k].label + ' ' + b.stock[k], col('ink'));
+      labelButton('ord:' + k, cx + iw / 2 - 78, cy - 2, 74, 20, ORDER_LABELS[order], ORDER_TIPS[order] + '\nCliquez pour changer.', true, order !== ORDER_ACCEPT);
+    }
+    py += Math.ceil(shown.length / 2) * 22;
+  } else if (stocks.length > 0) {
+    py += 4; text(kit.small, x + 12, py, 'Réserve', col('muted')); py += lh;
+    for (const k of stocks) { drawResource(k, x + 12, py, 16); text(kit.body, x + 34, py + 1, economy.resources[k].label + ' : ' + b.stock[k], col('ink')); py += 20; }
+  }
+  if (prio > 0) {
+    const order = normalizePriority(), at = order.indexOf(b.type);
+    text(kit.small, x + 12, y + h - 66, 'Priorité des bras : ' + (at + 1) + ' sur ' + order.length, col('muted'));
+    glyphButton('prio:up:' + b.type, x + 170, y + h - 70, 26, 20, 'left', 'Servir en premier');
+    glyphButton('prio:down:' + b.type, x + 200, y + h - 70, 26, 20, 'right', 'Servir plus tard');
+  }
   if (!b.fixed) labelButton('info:demolish', x + 12, y + h - 34, 110, 26, 'Démolir', 'Rendre la case au hameau');
 }
 function person(): void {
@@ -130,6 +160,7 @@ function person(): void {
   labelButton('info:goto', x + 12, y + H - 32, 120, 24, 'Suivre', 'Centrer la carte sur lui');
 }
 export function infoClick(id: string): boolean {
+  if (id.startsWith('ord:')) { const b = world.buildings[ui.selId]; if (b !== undefined && b.alive) { const k = Number(id.slice(4)); setOrder(ui.selId, k, (orderOf(b, k) + 1) % 3); } return true; }
   if (id === 'info:goto') { const p = world.people[ui.selId]; if (p !== undefined) act.jump(p.x, p.y); return true; }
   if (id === 'info:demolish') {
     const b = world.buildings[ui.selId];

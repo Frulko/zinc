@@ -1,6 +1,6 @@
 import { drawDots, project, rgb } from '../pixel';
 import { appealTiles } from '../rules/appeal';
-import { tileX, tileY, tileIndex, world } from '../world/world';
+import { tileX, tileY, tileIndex, world, footprint } from '../world/world';
 import { economy } from '../world/economy';
 import { isRuin } from '../engine/risk';
 
@@ -29,10 +29,9 @@ export function riskTiles(): number[][] {
   if (!world.risks) return out;
   for (const b of world.buildings) {
     if (!b.alive || b.fixed || economy.buildings[b.type].risk === null && !isRuin(b.type)) continue;
-    const t = tileIndex(b.i, b.j);
-    if (isRuin(b.type)) { out.push([t, 2, RISK_RUIN]); continue; }
+    if (isRuin(b.type)) { for (const t of footprint(b)) out.push([t, 2, RISK_RUIN]); continue; }
     const f = b.fire / r.fireAt, c = b.damage / r.collapseAt, k = b.crime / r.crimeAt, top = Math.max(f, c, k);
-    out.push([t, top < .35 ? 0 : top < .7 ? 1 : 2, top === f ? RISK_FIRE : top === c ? RISK_COLLAPSE : RISK_CRIME]);
+    for (const t of footprint(b)) out.push([t, top < .35 ? 0 : top < .7 ? 1 : 2, top === f ? RISK_FIRE : top === c ? RISK_COLLAPSE : RISK_CRIME]);
   }
   return out;
 }

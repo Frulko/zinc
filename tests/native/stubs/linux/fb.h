@@ -4,6 +4,9 @@
 #define FBIOGET_VSCREENINFO 0x4600
 #define FBIOGET_FSCREENINFO 0x4602
 #define FBIO_WAITFORVSYNC 0x40044620
+#define FBIOBLANK 0x4611
+#define FB_BLANK_UNBLANK 0
+#define FB_BLANK_POWERDOWN 4
 struct fb_bitfield { uint32_t offset, length, msb_right; };
 struct fb_var_screeninfo {
   uint32_t xres, yres, xres_virtual, yres_virtual, xoffset, yoffset, bits_per_pixel, grayscale;

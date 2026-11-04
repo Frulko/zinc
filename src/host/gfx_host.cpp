@@ -270,6 +270,25 @@ int32_t imageFromPixels(const uint64_t* slots, uint32_t n, int32_t w, int32_t h)
   return id;
 }
 
+// zinc:gfx updatePixelsRect: the same pixels for the rectangle (x, y, w, h) of the image only, from an array of w x h of them. Only that part is
+// damaged on the screen and uploaded again by a GL display. An image that is not transparent (createImage's alpha) stays opaque.
+static bool putRect(int32_t id, const uint64_t* slots, uint32_t n, int32_t x, int32_t y, int32_t w, int32_t h) {
+  const uint32_t* cur; int32_t iw = 0, ih = 0, stride = 0;
+  uint32_t* px = zrt::raster::dyn_pixels(id);
+  if (!px || !zrt::raster::dyn_view(id, &cur, &iw, &ih, &stride) || w <= 0 || h <= 0 || x < 0 || y < 0 || x > iw - w || y > ih - h || static_cast<uint64_t>(w) * h > n) return false;
+  const uint32_t keep = zrt::raster::dyn_alpha(id) ? 0 : 0xFF000000u;   // opaque image: alpha forced to 255
+  for (int32_t r = 0; r < h; r++) {
+    const uint64_t* row = slots + static_cast<size_t>(r) * w;
+    uint32_t* out = px + static_cast<size_t>(y + r) * stride + x;
+    for (int32_t c = 0; c < w; c++) {
+      const uint32_t v = static_cast<uint32_t>(row[c]);
+      out[c] = ((v & 0xFF000000u) | keep) | (v & 0xFF00u) | (v & 0xFF) << 16 | (v >> 16 & 0xFF);
+    }
+  }
+  zrt::raster::dyn_update_rect(id, x, y, w, h);
+  return true;
+}
+
 static void (*frameEnd[4])();   // zn::host::onFrameEnd
 static int nFrameEnd = 0;
 #ifdef ZN_APP_LIBRARY
@@ -379,6 +398,10 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxWidth: r->i = g::width(); break;
     case Rt::HostGfxHeight: r->i = g::height(); break;
     case Rt::HostGfxPixelScale: r->i = g::pixelScale(); break;
+    case Rt::HostGfxFrameStat: r->i = g::frameStat(n(0)); break;
+    case Rt::HostGfxClearImage: g::clearImage(n(0)); break;
+    case Rt::HostGfxImageAlpha: g::imageAlpha(n(0), a[1].i != 0); break;
+    case Rt::HostGfxUpdateRect: putRect(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n, n(2), n(3), n(4), n(5)); break;
     case Rt::HostGfxPoll: {  // the start of a frame as the runtime's loop does it: input, then the time step (fixed headless, measured with a window)
       hal_frame_begin();
       zrt::prev_input = zrt::input;

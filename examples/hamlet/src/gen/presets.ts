@@ -1,9 +1,9 @@
 // Map presets of the new-village form: a name and the generator's request. The first one is the default village (the biome generator: forests, meadows, marsh and hills in
 // clumps); Classique is the uniform scatter of the first villages.
-import { TerrainParams, BIOME_MIXED, BIOME_PINE, BIOME_BIRCH, BIOME_MEADOW } from './terrain';
+import { TerrainParams, GEN_CLUSTERED, BIOME_MIXED, BIOME_PINE, BIOME_BIRCH, BIOME_MEADOW } from './terrain';
 
 export class Preset { label: string = ''; params: TerrainParams = new TerrainParams(); }
-function preset(label: string, set: (p: TerrainParams) => void): Preset { const r = new Preset(); r.label = label; set(r.params); return r; }
+function preset(label: string, set: (p: TerrainParams) => void): Preset { const r = new Preset(); r.label = label; r.params.genStyle = GEN_CLUSTERED; set(r.params); return r; }
 
 export const PRESETS: Preset[] = [
   preset('Vallée', (_p: TerrainParams): void => {}),
@@ -11,7 +11,10 @@ export const PRESETS: Preset[] = [
   preset('Rivière', (p: TerrainParams): void => { p.waterAmount = 0; p.river = true; p.forestDensity = .55; p.biome = BIOME_BIRCH; p.flowers = .3; p.biomes = 1; }),
   preset('Lac', (p: TerrainParams): void => { p.waterAmount = 2; p.forestDensity = .45; p.biome = BIOME_MIXED; p.biomes = 1; }),
   preset('Forêt', (p: TerrainParams): void => { p.waterAmount = .3; p.forestDensity = 1; p.rockDensity = .3; p.biome = BIOME_PINE; p.biomes = 1; p.wolves = 1; }),
-  preset('Montagne', (p: TerrainParams): void => { p.waterAmount = .3; p.forestDensity = .35; p.rockDensity = 1; p.outcrop = .8; p.biome = BIOME_PINE; p.biomes = 1; p.wolves = 1; }),
+  preset('Montagne', (p: TerrainParams): void => { p.waterAmount = .3; p.forestDensity = .35; p.rockDensity = 1; p.outcrop = .8; p.biome = BIOME_PINE; p.biomes = 1; p.wolves = 1; p.relief = .45; }),
+  preset('Montagnes', (p: TerrainParams): void => { p.waterAmount = .3; p.river = true; p.forestDensity = .4; p.rockDensity = 1; p.outcrop = .3; p.biome = BIOME_PINE; p.biomes = 1; p.wolves = 1; p.relief = 1; }),
   preset('Côte', (p: TerrainParams): void => { p.waterAmount = 0; p.coast = 1; p.forestDensity = .4; p.flowers = .4; p.biome = BIOME_MIXED; p.biomes = 1; }),
-  preset('Classique', (p: TerrainParams): void => { p.biomes = 0; }),
+  preset('Classique', (p: TerrainParams): void => { p.biomes = 0; p.genStyle = 0; }),
 ];
+/** The index of a preset by its label (a mission names its landscape), -1 when there is none. */
+export function presetIndex(label: string): number { for (let k = 0; k < PRESETS.length; k++) if (PRESETS[k].label === label) return k; return -1; }

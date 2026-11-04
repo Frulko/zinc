@@ -120,6 +120,14 @@ struct Cmd {
 };
 
 struct Rect { int32_t x0, y0, x1, y1; };
+bool dyn_changed(int32_t id, uint32_t from, uint32_t to, Rect* out);
+/** GPU-held images (render targets drawn on the GPU): the pixels live in a GPU texture and the CPU copy is stale, except `dirty` (the rectangle
+ *  dyn_update_rect changed since the GPU last took it; empty: none). dyn_gpu_touch: the GPU changed the image (version + 1); dyn_gpu_release: the CPU
+ *  pixels were read back and are the image again; a whole-image dyn_update also ends it. */
+void dyn_gpu_touch(int32_t id);
+bool dyn_gpu(int32_t id, Rect* dirty);
+void dyn_gpu_synced(int32_t id);
+void dyn_gpu_release(int32_t id);   // only dyn_update_rect changed it from version `from` to `to`: the union of those rectangles
 
 /** An IMAGE with pad bit kImageBox draws part of its image (gfx::drawImageRect): x, y, w, h is the rectangle painted, and the box the
  *  whole image would cover is kept as four floats in s, c1, off and n, which an IMAGE has no other use for. The source rectangle is

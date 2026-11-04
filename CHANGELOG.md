@@ -22,6 +22,44 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Murdoku uses new furniture and composed character artwork, with clear continuous room walls and facade windows shared by the drawing and clues. Witness cards use two columns, letter badges clarify relations, and mobile tools stay accessible while scrolling.
 - Murdoku windows have ivory frames, blue panes, reflections and interior sills. Walls use a consistent thickness, with windows centered on them and a drawing margin that prevents edge clipping.
 - Murdoku deductions use pairs and triples of reserved rows or columns. Hints now account for current placements and crossed-out cells and flag contradictions before revealing another position.
+### Rendering and performance
+
+#### New
+
+- `ZINC_RENDERER=metal` draws a macOS window on the GPU with Metal (sprites, boxes, text, images, render targets with transparency, one draw call for sprites from many sheets); frames it cannot draw yet still go through the software renderer.
+
+### Hamlet city builder
+
+#### New
+
+- Build a village with `zinc run examples/hamlet`: roads laid by dragging with a live preview (`X` flips the corner, `R` auto-routes), houses that grow through three levels, production chains from wood and stone to bread, leather, tools, honey, candles and mead, a market, a tavern, and a campaign of goals that unlock buildings, with a peddler and adventures (`C`).
+- Seven landscapes (Vallée, Plaine, Rivière, Lac, Forêt, Montagne, Côte, Classique) with biomes, rivers, lakes and the sea, maps up to 128 × 128, and seasons that change the land gradually: blossom, russet leaves, snow, frozen water, falling leaves, rain, and light that follows the hour.
+- Villagers have moods, sleep at night, stroll to the market and show their thoughts; deer, rabbits and boar live in herds, wolves can roam forest maps, and birds, ducks and fish share the scene. Working a resource shows it: trees shiver and fall, rocks throw chips.
+- Fire, collapse and theft risks with a fire post, a repair works and a watch post; Easy, Normal and Hard difficulties.
+- A GPU tile view for Hamlet (`ZINC_HAMLET_VIEW=cite`): isometric tiles with slopes, cliffs and snow by height, smooth pointer-anchored zoom, inertia panning and a placement ghost, drawing only what is on screen.
+- Hamlet buildings can cover several tiles (`"size": [w, h]` in `economy.json`): the storehouse, market, mill and tavern are 2x2, the sawmill and chapel 2x1, the farm and theatre 3x3, and a house grows into a 2x2 Manoir when the ground around it is free.
+- Hamlet carts and settlers on big maps read one cached distance map per store and per gate instead of each searching the whole road network, so a 256 x 256 village with thousands of walkers no longer stalls when many ask where the nearest store is.
+- Hovering a market, tavern, chapel or other service building in Hamlet lights the road tiles its next walker will cover.
+- On Hamlet maps of 192 x 192 and more, animals far from every building and from the camera rest as a count per region (they breed and die by the season) and reappear when you scroll or build near them.
+- A technical window (`F3`) shows frame times, the world and the tile under the pointer; windows drag by their title bar and close with their button or `Esc`.
+- Message clicks point an arrow at the place, and a double click opens its window. Separate volumes for ambience and effects, with synthesised sounds.
+- Hamlet villagers and carts now keep to the roads: a workshop whose road does not lead to the village entrance stays idle and says so, service walkers (market, fire, watch) go straight on and take turns at junctions, covering the houses within two tiles, and a store can be set to accept, refuse or only collect a good.
+- Hamlet land now has relief: hills, plateaus, rivers in valleys and, in the new Montagnes landscape, mountain ranges whose rock cannot be built on and which hold the ore. Houses need level ground, roads climb one level a tile at a higher cost, walkers slow down on slopes, and nothing crosses a cliff. The minimap is shaded by height.
+- Hamlet's Cite view has the Pixel Plays look: sprites and ground are baked from the same models, figures, light and ramps as the old view, with walk, work and graze animations, at 1x and 2x. Choose `ZINC_HAMLET_ATLAS=computed|files` (or the settings panel): `files` loads the exported PNG sheets of `assets/atlas/` when they match the code, `computed` bakes them at start.
+- Hamlet has six missions, from a first village to a mountain with mines, the peddler, a city of 400 people and a hard survival with fire and crime: each has a briefing, a map, goals that unlock buildings (with new kinds: jobs filled, mood, peace, a stock held for days) and sometimes a time limit, a win or lose ending and a next mission. Pick one in the new-village form (`N`); the goals window (`C`) follows it, and the village save remembers its mission.
+- A new Hamlet sandbox form: seed, size up to 256 × 256, landscape, lakes, forest, rock and relief steppers, river, infinite resources, risks and a start, with a small preview of the map the seed will make.
+- Hamlet markets keep a stock: the buyer fetches food and candles from the stores and the vendor hands them to the houses on the round; a market with nothing to sell serves nobody. A chapel (religion) and a festival ground (entertainment, with the tavern) join the services, and a house climbs to a fourth level, the Manoir, when all four services, three foods and a pleasant street reach it.
+- New Hamlet villages and the six missions are now generated in groups instead of by a dice per tile: woods and flower meadows with clearings, edges and one tree mix per grove, stone, clay, iron and berries in patches that are richest at their centre and richer farther from the gate, and deer, rabbits and boar in herds that follow a leader. Villages saved before keep the map they had, and the Classique landscape keeps the old spread.
+
+#### Changed
+
+- Every resource has its harvest time, yield and percentage in `economy.json`; the campaign is balanced to be winnable.
+- Hamlet saves from before this version start a new village.
+- The production-chain tree window is gone: Hamlet now explains itself, like Caesar III. The top bar shows population, jobs filled against places (with the unemployed or the empty posts), the goods that matter and the food; recipes and costs are in the build menu tooltips.
+- The advisors (`F`) are rewritten: Work, Housing (per house level, how many houses lack what, and what to build), Food and stores, Services, Safety and People, each problem line saying what to build.
+- Click any building: it says what it does, what it needs and, in one sentence, why it stands idle (no road, off the entrance network, no workers, missing input, store full). Stores get accept, refuse or fetch orders per good, and workplaces a labour priority.
+- Hamlet map overlays follow the slopes in the tile view, count the houses served or short, and show where a well reaches.
+- A four-step guided start (a road from the gate, a house, a lumber hut, a well) shows on a new village and can be dismissed with Pass.
 
 ### Developer tools
 
@@ -29,6 +67,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - `zinc run` and `zinc dev` show every step again, as `zinc build` does and in English: engine, cache, compile, plugins, resources, run and exit. `zinc dev` adds `watch`, `change`, `swap` and `check`. `-q` hides them, `ZINC_STEPS=brief` keeps only the first-build line.
 - `tools/zinc-go-iphone` shows export, configuration, compilation, installation and launch progress directly in the terminal while keeping the build log.
+- The Hamlet top bar no longer scans every building each frame.
+- Large Hamlet maps open much faster and use much less memory, and panning is up to 40 % faster on the interpreter.
+- Hamlet maps of 512 tiles generate in 3 s instead of 12 s, and big villages no longer freeze for a second at a time when many villagers look for work or goods at once.
+- A Hamlet village of 500 people and 300 animals now steps in about 1.5 ms instead of 58 ms, on maps of 128 and 256 tiles.
 
 #### Fixed
 - A program that sets its window title (`windowCtl`) now runs in the browser, where it sets the page title, instead of stopping with an error.
@@ -41,8 +83,32 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Shake the phone to open Zinc Go’s Reload / Go home menu, including installed apps. Mobile builds enable the accelerometer backend, and motion detection pauses while the app is in the background.
 - On iPhone, choose “Ajouter une note” in Zinc Go’s shake menu to save feedback locally per app, with a timestamp, device and system details, Zinc version, resolution and safe-area information.
 - `zinc export` and `zinc build --bundle` on macOS accept an SVG `app.icon`; the export used to fail on it.
+- Hamlet's late-winter snow lies in soft patches instead of dithered white noise.
+- Hamlet's Cite view never shows a black map while the camera moves: a whole-map overview is always drawn under the ground, and regions are baked ahead along the camera's direction.
+- Zooming out in Hamlet no longer leaves the village as a small clipped rectangle in the dark while the new view is prepared; the picture stays until it can grow smaller.
+- In a Hamlet city whose labour pool is under 100 %, people outside the pool no longer count as jobless (no permanent mood penalty, newcomers keep coming), and a scarce pool staffs every workshop once before filling any twice, so a sawmill is no longer left empty beside full lumber huts.
+- Hamlet no longer puts trees, rocks, deposits, flowers, animals or people on the dark border of the map: the outermost ring of tiles is border too (the entrance excepted), saves from before drop what stood there, and both views refuse to draw anything over it.
+
+### Graphics
+
+#### New
+
+- `createImage(w, h, true)` makes a transparent render target: sprites and boxes with partial alpha drawn between `beginImage` and `endImage` keep their transparency, so ground regions and sprite sheets can be composed with `drawImageRect` instead of pixel by pixel; `clearImage` empties it.
+- `updatePixelsRect` changes one rectangle of an image, and a GL display uploads only that part to the GPU.
+- `frameStat(n)` tells a game the last frame's draw calls, quads, bytes uploaded to image textures and present wait, and `ZINC_PRESENT_STATS=1` prints them with the GPU display's frame times.
 
 ### Performance
+
+#### New
+
+- `zinc profile` opens with the wall-clock and CPU split and names closures by where they are (`outer/inner`, `Class.method/<anonymous>`).
+- `ZINC_CLOCK_TICK=<ms>` makes the deterministic clock move at each `performance.now()` read, so tests can observe time-sliced work.
+
+#### Fixed
+
+- A function with more than 256 live values now fails with a message that names the function and says how to split it.
+- `zinc run --native` compiles a program that does not draw too, instead of silently interpreting it.
+- The one-line "compiling for this machine" notice goes to a terminal only; a redirected stderr stays empty.
 
 #### Faster
 - On the web, pictures that a program redraws every frame (a pixel scene, a software-rendered canvas) upload without re-allocating their buffer: about 15% less script time per frame on the Pixel Plays demos.
@@ -64,6 +130,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 #### Fixed
 
 - Spotify calls that find an expired token share one refresh, so simultaneous calls cannot invalidate the rotated token.
+- `array.fill(...)` and `array.set(...)` run as one block copy: filling a million elements takes 0.13 ms instead of 7 ms in the interpreter.
 
 ### Plugins
 

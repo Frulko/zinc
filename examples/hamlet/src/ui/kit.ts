@@ -100,7 +100,7 @@ function winClamp(x: number, y: number, w: number, h: number): number[] {
 }
 const winDraw = new Map<string, () => void>();       // id -> its draw function (each one draws nothing while closed)
 const winZ: string[] = [];                           // every registered window, bottom to top
-const CASCADE = ['info', 'campaign', 'tree', 'advisors', 'debug'];    // first places are shifted so windows opened together do not hide each other
+const CASCADE = ['info', 'campaign', 'advisors', 'debug'];    // first places are shifted so windows opened together do not hide each other
 /** Registers a window's draw function; it starts at the back. */
 export function winRegister(id: string, draw: () => void): void { winDraw.set(id, draw); if (winZ.indexOf(id) < 0) winZ.push(id); }
 /** Brings a window to the front. */

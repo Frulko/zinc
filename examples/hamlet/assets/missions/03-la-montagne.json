@@ -1,0 +1,16 @@
+{
+  "id": "03-la-montagne",
+  "title": "La montagne",
+  "briefing": "Les crêtes ferment la vallée. La roche et le minerai sont là-haut, sur les pentes où l’on ne bâtit pas : il faut des carrières et des mines au pied des falaises, des entrepôts pour la pierre, et des outils pour tout cela. Le fer demande de l’argile et du bois, la forge ne chôme jamais.",
+  "map": { "preset": "Montagnes", "seed": 3303, "size": 48 },
+  "difficulty": "normal",
+  "start": { "log": 34, "plank": 30, "leather": 2, "stone": 6, "coin": 20, "bread": 12, "tools": 2 },
+  "buildings": ["house", "lumberhut", "sawmill", "storehouse", "farm", "lodge", "fishery", "market"],
+  "goals": [
+    { "id": "stores", "title": "Des entrepôts", "text": "Deux entrepôts : la pierre prend de la place.", "when": [{ "building": "storehouse", "count": 2 }], "unlock": ["quarry", "claypit", "mine"] },
+    { "id": "quarry", "title": "La carrière", "text": "Posez une carrière contre la roche (elle demande un outil).", "requires": ["stores"], "when": [{ "building": "quarry" }], "give": { "plank": 6 } },
+    { "id": "ore", "title": "Le minerai", "text": "Une mine au pied de la montagne et une fosse d’argile pour la forge.", "requires": ["stores"], "when": [{ "building": "mine" }, { "building": "claypit" }], "unlock": ["forge", "well"], "give": { "log": 6 } },
+    { "id": "forge", "title": "La forge", "text": "Fer, bois et argile : la forge fait les outils.", "requires": ["ore"], "when": [{ "building": "forge" }, { "stock": "tools", "count": 4 }], "give": { "plank": 8 } },
+    { "id": "stone", "title": "Une réserve de pierre", "text": "Quarante pierres en stock pour les puits et les grands chantiers.", "requires": ["quarry", "forge"], "when": [{ "stock": "stone", "count": 40 }, { "population": 20 }], "final": true }
+  ]
+}

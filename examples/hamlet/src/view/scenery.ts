@@ -122,7 +122,7 @@ function tileWater(shore: number[], x: number, y: number): number {
 }
 
 /** Is this water pixel frozen in the season? The edge first (a bank within a step), then the open water as the cold deepens. */
-function frozen(layer: Layer, x: number, y: number, field: number, share: number): boolean {
+function frozen(layer: { rivers: boolean; shore: number[] }, x: number, y: number, field: number, share: number): boolean {
   if (share <= 0) return false;
   if (!layer.rivers) return field > 1 - share * .55 + (noise(x * .6 + 4, y * .6) - .5) * .3 || noise(x * .5 + 7, y * .5) < share * .5;
   const near = tileWater(layer.shore, x + .9, y) >= 1 || tileWater(layer.shore, x - .9, y) >= 1 || tileWater(layer.shore, x, y + .9) >= 1 || tileWater(layer.shore, x, y - .9) >= 1;
@@ -164,7 +164,7 @@ function paintChunk(layer: Layer, cx: number, cy: number, s: number, row0: numbe
         if (Math.sqrt(lx * lx + ly * ly) < .42 + (noise(px * 2.5, py * 2.5) - .5) * .4) color = blendTone(color, DIRT, .5 + hash(ix * 3, iy) * .25);
       }
       const sn = snowShare(biome, tm);
-      if (sn > 0 && noise(px * .9, py * .9) * .55 + hash(ix * 7, iy * 13) * .45 < sn) { color = snow[clamp(Math.floor(noise(px * 1.4, py * 1.4) * snow.length + hash(ix, iy) * .5), 0, snow.length - 1)]; }
+      if (sn > 0 && noise(px * .35, py * .35) * .85 + hash(ix * 7, iy * 13) * .15 < sn) { color = snow[clamp(Math.floor(noise(px * 1.4, py * 1.4) * snow.length + hash(ix, iy) * .5), 0, snow.length - 1)]; }
       else if (hash(ix * 3, iy * 5) < .14) kind |= 8;
     }
     chunkKinds[i] = kind; chunkPix[i] = rgbColor(color);
@@ -172,6 +172,40 @@ function paintChunk(layer: Layer, cx: number, cy: number, s: number, row0: numbe
   if (row1 >= CHUNK) layer.stamp[cy * layer.columns + cx] = s;           // a chunk painted a few rows at a time is not done until its last row
 }
 const blendTone = (a: number[], b: number[], k: number): number[] => blend(a, b, k);
+
+// ---- the same painting, one pixel at a time, for the Cite view ----
+const gl = { rivers: false, shore: [] as number[], rev: -1, size: -1 };
+/** The ground colour of the art pixel (ix, iy) at the world point (px, py) in month s: exactly what paintChunk paints there (biome tones, ponds, rivers and ice, trails, snow), without
+ *  the dissolved border. `groundKind` holds its kind (KIND_* | 8 for a tuft). */
+export let groundKind = 0;
+export function groundAt(px: number, py: number, ix: number, iy: number, s: number): number {
+  if (gl.rev !== world.revision || gl.size !== world.size) { gl.shore = shoreTiles(); gl.rivers = gl.shore.some((v: number): boolean => v === 1); gl.rev = world.revision; gl.size = world.size; }
+  const half = world.half, snow = biomes.snow, ice = biomes.iceTones, share = iceShare(s);
+    const field = Math.min(world.pondR < .01 ? 9 : waterField(px, py), gl.rivers ? tileWater(gl.shore, px, py) : 9);
+    let color: number[], kind: number;
+    if (field < 1) {
+      kind = KIND_WATER;
+      color = frozen(gl, px, py, field, share) ? ice[clamp(Math.floor(noise(px * .5, py * .45) * 2.4 + hash(ix, iy) * .6), 0, ice.length - 1)] : WATER_TONES[clamp(Math.floor(.8 + noise(px * .4, py * .35) * 2.3 + hash(ix, iy) * .2), 0, 3)];
+    }
+    else if (field < 1.2) { kind = KIND_SAND; color = SAND_TONES[clamp(Math.floor(noise(px * .8, py * .8) * 3 + hash(ix, iy) * .4), 0, 2)]; }
+    else {
+      kind = KIND_GRASS;
+      const bt = tileAt(clamp(px + (noise(px * .9 + 31, py * .9) - .5) * 1.6, -half + .01, half - .01), clamp(py + (noise(px * .9, py * .9 + 31) - .5) * 1.6, -half + .01, half - .01));
+      const biome = bt < 0 ? 0 : world.biome[bt];
+      const t = tileAt(clamp(px, -half + .01, half - .01), clamp(py, -half + .01, half - .01));
+      const tm = tileMonth(biome, t < 0 ? 0 : t, s);                                          // high and shaded ground turns first in autumn and thaws last
+      color = groundTone(biome, tm, clamp(Math.floor(noise(px * .6, py * .7) * 3.5), 0, 3));
+      if (t >= 0 && world.deco[t] === DECO_TRAIL) {                                         // a game trail: bare earth, ragged at the edges
+        const lx = (px - tileX(t)) / TILE, ly = (py - tileY(t)) / TILE;
+        if (Math.sqrt(lx * lx + ly * ly) < .42 + (noise(px * 2.5, py * 2.5) - .5) * .4) color = blendTone(color, DIRT, .5 + hash(ix * 3, iy) * .25);
+      }
+      const sn = snowShare(biome, tm);
+      if (sn > 0 && noise(px * .35, py * .35) * .85 + hash(ix * 7, iy * 13) * .15 < sn) { color = snow[clamp(Math.floor(noise(px * 1.4, py * 1.4) * snow.length + hash(ix, iy) * .5), 0, snow.length - 1)]; }
+      else if (hash(ix * 3, iy * 5) < .14) kind |= 8;
+    }
+  groundKind = kind;
+  return rgbColor(color);
+}
 /** Makes sure the layer pixels of a rectangle (layer coordinates, x1 and y1 excluded) are painted for the current season. */
 function paintRect(layer: Layer, x0: number, y0: number, x1: number, y1: number): void {
   if (!layer.lazy) return;
@@ -393,7 +427,7 @@ function bakeRects(layer: Layer, rects: number[]): void {
         treeModel(v, Math.floor(hash(t, 11) * 3) - 1).drawAt(tx, ty, 0); treeShadow(tx, ty, TREE_HEIGHT[v]);
       }
       if (world.rock[t] > 0) { models[MODEL_ROCK + world.rock[t] - 1].drawAt(x, y, 0); castShadow(x, y, .4, .6); }
-      if (world.build[t] >= 0) {
+      if (world.build[t] >= 0 && t === world.buildings[world.build[t]].j * world.size + world.buildings[world.build[t]].i) {       // this view draws a building at 1 x 1 on its anchor tile (the Cite view draws its footprint)
         const id = modelOf(world.buildings[world.build[t]].type, world.buildings[world.build[t]].level);
         (facesEast(t) ? mirrorOf(id) : models[id]).drawAt(x, y, 0);
         for (let z = .4; z < 2.6; z += .55) castShadow(x, y, z, .85);

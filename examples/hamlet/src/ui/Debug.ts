@@ -5,6 +5,8 @@ import { stateHash } from '../world/hash';
 import { saveGame } from '../world/save';
 import { stepWorld } from '../engine/simulate';
 import { arrivalFactor } from '../rules/needs';
+import { labourStats } from '../rules/labour';
+import { networkCount, gateNetwork } from '../engine/network';
 import { peaceReasons } from '../engine/crime';
 import { levelLabel, level } from '../rules/difficulty';
 import { settings } from '../settings';
@@ -85,11 +87,12 @@ function worldTab(): string[] {
     pair('Difficulté', levelLabel() + (world.difficulty >= 0 ? ' (arrivées ' + level().arrival + ' %, appétit ' + level().eat + ' %, risques ' + level().risk + ' %)' : '')), pair('Campagne / risques', (world.progression ? 'oui' : 'non') + ' / ' + (world.risks ? 'oui' : 'non')),
     pair('Effets vivants', fxStats.events + ' évén., fumée ' + fxStats.smoke + ', lueurs ' + fxStats.glow)].concat(counts());
 }
+function labourText(): string { const l = labourStats(); return 'réserve ' + l.pool + ', places ' + l.jobs + ', tenues ' + l.filled + ', sans emploi ' + l.unemployed + ', places vides ' + l.shortage; }
 function simulation(): string[] {
   let working = 0, idle = 0;
   for (const p of world.people) { if (p.job >= 0) working++; else idle++; }
   const lines = [pair('Vitesse', String(settings.simSpeed)), pair('Tick par seconde', String(Math.round(1 / TICK))), pair('Pause', ui.paused ? 'oui' : 'non'),
-    pair('Postes tenus / sans poste', working + ' / ' + idle), pair('Chômage', world.jobless + ' %'), pair('Humeur du village', String(world.mood)), pair('Paix', world.risks ? world.crime.peace + ' % (' + peaceReasons().join(', ') + ') · voleurs ' + world.crime.outlaws.length + ' · ' + world.crime.robbed + ' vols, ' + world.crime.caught + ' arrêtés, ' + world.crime.riots + ' émeutes' : 'sans risques'), pair('Difficulté', levelLabel()),
+    pair('Postes tenus / sans poste', working + ' / ' + idle), pair('Main-d’œuvre', labourText()), pair('Réseaux routiers', networkCount() + ' (celui de l’entrée : ' + gateNetwork() + ')'), pair('Chômage', world.jobless + ' %'), pair('Humeur du village', String(world.mood)), pair('Paix', world.risks ? world.crime.peace + ' % (' + peaceReasons().join(', ') + ') · voleurs ' + world.crime.outlaws.length + ' · ' + world.crime.robbed + ' vols, ' + world.crime.caught + ' arrêtés, ' + world.crime.riots + ' émeutes' : 'sans risques'), pair('Difficulté', levelLabel()),
     pair('Arrivées', arrivalFactor(world.mood) === 0 ? 'personne ne vient' : 'facteur ' + arrivalFactor(world.mood) + (world.waitingForFood ? ', attend de la nourriture' : ''))];
   for (let k = 0; k < economy.resources.length; k++) if (world.stock[k] > 0) lines.push(pair('Stock ' + economy.resources[k].label, String(world.stock[k])));
   return lines;

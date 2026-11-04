@@ -1,6 +1,12 @@
 // A seeded terrain generator: (seed, width, height, params) -> layers of tile classes. No game types in here, so another game can take the folder.
 // Integer hash and value noise only (no sin): the same seed, size and params give the same layers on every engine and CPU.
 import { hash, noise } from '../world/noise';
+import { MAX_HEIGHT, MOUNTAIN_LEVEL } from '../constants';
+import { ensureStart } from './start';
+import { CoverField, coverPass, M_OPEN, M_BLOOM, M_EDGE, M_WOOD, M_SCREE, M_REED } from './cover';
+
+export const GEN_SCATTER = 0;     // the first generator: a dice per tile (old saves and the Classique preset)
+export const GEN_CLUSTERED = 1;   // groups: Wave Function Collapse ground cover, deposit patches, herds (gen/cover.ts, gen/deposits.ts)
 
 export const BIOME_MIXED = 0;      // pines and birches together
 export const BIOME_PINE = 1;
@@ -26,13 +32,15 @@ export class TerrainParams {
   flowers: number = 0;             // 0 the default, up to 1: meadows full of flowers
   biomes: number = 1;              // 1: forests, meadows, marsh and rocky hills come from moisture, warmth and height fields (clumps and clearings); 0: the uniform scatter of the first villages
   wolves: number = 0;              // 0 none; 1 a pack or two in forest country (and only there); 2 the same, and they can maul a villager alone at night
+  relief: number = .3;            // 0 flat; .3 (the default) gentle rises on the hills; above, rolling plateaus and, up to 1, mountain ranges (levels 8+ are rock), a river valley and a flat valley at the gate
+  genStyle: number = GEN_SCATTER;  // GEN_SCATTER or GEN_CLUSTERED: how trees, flowers, deposits and animals are spread (the new villages and missions use the clustered one)
   edge: number = .985;             // beyond this superellipse radius the tiles are `outside` (the dissolved border of a diorama); 0 turns it off
 }
 /** A copy: the generator writes the entrance into the params it is given, so a shared set (a preset) must not be passed as is. */
 export function copyTerrainParams(p: TerrainParams): TerrainParams {
   const q = new TerrainParams();
   q.waterAmount = p.waterAmount; q.river = p.river; q.forestDensity = p.forestDensity; q.rockDensity = p.rockDensity; q.biome = p.biome; q.tile = p.tile; q.clearI = p.clearI; q.clearJ = p.clearJ; q.clearR = p.clearR;
-  q.coast = p.coast; q.outcrop = p.outcrop; q.flowers = p.flowers; q.biomes = p.biomes; q.edge = p.edge; q.wolves = p.wolves;
+  q.coast = p.coast; q.outcrop = p.outcrop; q.flowers = p.flowers; q.biomes = p.biomes; q.edge = p.edge; q.wolves = p.wolves; q.relief = p.relief; q.genStyle = p.genStyle;
   return q;
 }
 /** One value per tile, row after row (index = j * width + i). */
@@ -45,7 +53,11 @@ export class TerrainLayers {
   rock: number[] = [];             // 0 none, else the rock variant + 1 (1 or 2)
   deco: number[] = [];             // 0 none, 1 and 2 flowers, 3 reeds, 4 a game trail
   biome: number[] = [];            // BI_*: the kind of ground of every tile
+  hilly: boolean = false;          // some tile is above level 0
+  level: number[] = [];            // height level of every tile, 0..MAX_HEIGHT (all 0 without relief; water is always 0)
   pondX: number = 0; pondY: number = 0; pondR: number = 0; offsetX: number = 0; offsetY: number = 0;   // the pond's blob, for drawing its shore per pixel
+  wfcRestarts: number = 0; wfcForced: number = 0;   // the cover solver's repairs (clustered style): restarts, and cells that had to break a rule (always 0)
+  startRepair: number = 0;         // what the start guarantee had to do (gen/start.ts): 0 nothing, 1 cleared, 2 flattened, +4 grove planted, +8 fields made
   riverI: number[] = [];           // the column of the river in each row (empty without a river)
 }
 
@@ -59,7 +71,7 @@ export function terrain(seed: number, w: number, h: number, p: TerrainParams): T
   const l = new TerrainLayers(), n = w * h, ts = p.tile, halfX = w * ts / 2, halfY = h * ts / 2;
   l.width = w; l.height = h;
   const zeros = (): number[] => Array.from({ length: n }, (): number => 0);
-  l.outside = zeros(); l.water = zeros(); l.wet = zeros(); l.forest = zeros(); l.rock = zeros(); l.deco = zeros(); l.biome = zeros();
+  l.outside = zeros(); l.water = zeros(); l.wet = zeros(); l.forest = zeros(); l.rock = zeros(); l.deco = zeros(); l.biome = zeros(); l.level = zeros();
   l.offsetX = hash(seed, 1) * 40; l.offsetY = hash(seed, 2) * 40;
   const pondI = Math.floor(w * (.42 + hash(seed, 3) * .33));
   const pondJ = hash(seed, 4) < .5 ? Math.floor(h * (.08 + hash(seed, 5) * .25)) : Math.floor(h * (.67 + hash(seed, 5) * .25));
@@ -71,7 +83,8 @@ export function terrain(seed: number, w: number, h: number, p: TerrainParams): T
   for (let t = 0; t < n; t++) {
     const i = t % w, j = Math.floor(t / w), x = (i + .5) * ts - halfX, y = (j + .5) * ts - halfY;
     const ex = x / halfX, ey = y / halfY, edge = Math.sqrt(Math.sqrt(ex * ex * ex * ex + ey * ey * ey * ey));
-    if (p.edge > 0 && edge > p.edge) { l.outside[t] = 1; continue; }
+    const rim = i === 0 || j === 0 || i === w - 1 || j === h - 1;                                  // the outermost ring renders half out of the map: it is border too
+    if (p.edge > 0 && (edge > p.edge || rim) && !(p.clearR > 0 && Math.abs(i - p.clearI) + Math.abs(j - p.clearJ) <= p.clearR)) { l.outside[t] = 1; continue; }   // the entrance is never cut off by the border
     if (p.coast > 0 && j > h * (.9 - p.coast * .14) + (noise(i * .3 + l.offsetX, 7.7) - .5) * h * .1) { l.water[t] = 1; continue; }
     if (p.waterAmount > 0 && pondField(l, x, y) < 1) { l.water[t] = 1; continue; }
     if (p.clearR > 0 && Math.abs(i - p.clearI) + Math.abs(j - p.clearJ) <= p.clearR) continue;   // the entrance stays clear
@@ -87,6 +100,7 @@ export function terrain(seed: number, w: number, h: number, p: TerrainParams): T
   }
   if (p.river) carveRiver(l, seed, p);
   if (p.biomes > 0) { biomePass(l, seed, p); gameTrails(l, seed, p); }
+  if (p.relief > 0) heightPass(l, seed, p);
   for (let t = 0; t < n; t++) if (l.water[t] === 0 && l.outside[t] === 0) {          // wetness: how close the shore is
     const i = t % w, j = Math.floor(t / w);
     let best = 0;
@@ -99,6 +113,7 @@ export function terrain(seed: number, w: number, h: number, p: TerrainParams): T
     if (best === 2 && l.biome[t] === BI_MEADOW) l.biome[t] = BI_MARSH;
     if (best > 0 && p.coast > 0 && j > h * .7) { l.biome[t] = BI_COAST; if (l.deco[t] === DECO_REEDS) l.deco[t] = 0; }    // the sea shore is sand, not marsh
   }
+  if (p.clearR > 0) l.startRepair = ensureStart(l, seed, p.clearI, p.clearJ, BI_PLAIN);
   return l;
 }
 
@@ -118,8 +133,8 @@ function carveRiver(l: TerrainLayers, seed: number, p: TerrainParams): void {
 }
 
 /** Manhattan distance to the nearest water tile, capped at 9 (two passes over the grid). */
-function waterDistance(l: TerrainLayers): number[] {
-  const w = l.width, h = l.height, d: number[] = Array.from({ length: w * h }, (_v: number, t: number): number => l.water[t] === 1 ? 0 : 9);
+function waterDistance(l: TerrainLayers, cap: number = 9): number[] {
+  const w = l.width, h = l.height, d: number[] = Array.from({ length: w * h }, (_v: number, t: number): number => l.water[t] === 1 ? 0 : cap);
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const t = j * w + i; if (i > 0) d[t] = Math.min(d[t], d[t - 1] + 1); if (j > 0) d[t] = Math.min(d[t], d[t - w] + 1); }
   for (let j = h - 1; j >= 0; j--) for (let i = w - 1; i >= 0; i--) { const t = j * w + i; if (i < w - 1) d[t] = Math.min(d[t], d[t + 1] + 1); if (j < h - 1) d[t] = Math.min(d[t], d[t + w] + 1); }
   return d;
@@ -132,7 +147,8 @@ function waterDistance(l: TerrainLayers): number[] {
 function biomePass(l: TerrainLayers, seed: number, p: TerrainParams): void {
   const w = l.width, h = l.height, dw = waterDistance(l), ox = l.offsetX, oy = l.offsetY;
   const cover = .62 - (p.forestDensity - .5) * .5 + (p.biome === BIOME_MEADOW ? .12 : 0);        // the patch noise above this is forest
-  const hills = .66 - (p.rockDensity - .5) * .3;
+  const hills = .66 - (p.rockDensity - .5) * .3, clustered = p.genStyle === GEN_CLUSTERED, f = new CoverField();
+  if (clustered) { const z = (): number[] => Array.from({ length: w * h }, (): number => 0); f.init = z(); f.patch = z(); f.bloom = z(); f.warm = z(); f.near = z(); f.cover = cover; f.flowers = p.flowers; f.pines = p.biome; f.reeds = DECO_REEDS; }
   for (let t = 0; t < w * h; t++) {
     if (l.outside[t] === 1 || l.water[t] === 1) continue;
     const i = t % w, j = Math.floor(t / w);
@@ -140,19 +156,28 @@ function biomePass(l: TerrainLayers, seed: number, p: TerrainParams): void {
     const moist = noise(i * .07 + ox + 100, j * .07 + oy), warm = noise(i * .06 + ox + 200, j * .06 + oy + 50), high = noise(i * .08 + ox + 300, j * .08 + oy + 80) + (p.outcrop > 0 ? p.outcrop * .12 : 0);
     const patch = noise(i * .16 + ox + 400, j * .16 + oy) * .7 + noise(i * .45 + ox, j * .45 + oy + 400) * .3 + (moist - .5) * .25 - (dw[t] <= 3 ? (4 - dw[t]) * .07 : 0);   // trees thin out toward water
     const near = dw[t];
-    if (near <= 1) {                                                                              // the shore and the marsh: open ground, reeds at the water's edge
+    if (clustered) { f.patch[t] = patch; f.warm[t] = warm; f.bloom[t] = noise(i * .22 + ox + 600, j * .22 + oy); f.near[t] = near <= 1 ? 1 : 0; }
+    if (near <= 1) {
+      if (clustered) { l.biome[t] = BI_MARSH; f.init[t] = M_OPEN | M_BLOOM | M_REED | M_EDGE; continue; }   // EDGE in every set: the glue a chunk seam always accepts                                                                              // the shore and the marsh: open ground, reeds at the water's edge
       l.biome[t] = BI_MARSH;
       if (near === 1) l.deco[t] = hash(i + seed, j * 3) > .55 ? DECO_REEDS : hash(i * 7, j + seed) > .85 ? 1 : 0;
       continue;
     }
     if (high > hills) {                                                                           // rocky hills: outcrops and scree
       l.biome[t] = BI_HILLS;
+      if (clustered) { f.init[t] = M_SCREE | M_OPEN | M_EDGE | (patch > cover + .08 ? M_WOOD : 0); continue; }
       if (noise(i * .4 + ox + 500, j * .4 + oy) > .5 && hash(i * 3 + seed, j * 7) > .45) l.rock[t] = 1 + Math.floor(hash(j, i) * 2);
       else if (patch > cover + .08 && hash(i + seed, j) > .6) l.forest[t] = p.biome === BIOME_BIRCH ? 4 : 1 + Math.floor(hash(i, j + seed) * 3);
       continue;
     }
     if (patch > cover - .03) l.biome[t] = p.biome === BIOME_PINE || warm < .38 && p.biome !== BIOME_BIRCH ? BI_PINE : p.biome === BIOME_BIRCH || warm > .62 ? BI_GROVE : BI_FOREST;   // the ground under a clump follows its trees
     else if (dw[t] >= 2 && dw[t] <= 5 && moist > .4 && high < hills - .08) l.biome[t] = BI_PLAIN;     // fertile plain: open, damp, near water (the farms like it)
+    if (clustered) {
+      const home = Math.abs(i - p.clearI) + Math.abs(j - p.clearJ) <= p.clearR + 2;                  // the village start: open ground around the gate (no dense wood within two tiles of the clear zone), the woods begin close behind it
+      if (home) { f.patch[t] = Math.min(patch, cover - .05); f.init[t] = M_OPEN | M_BLOOM | M_EDGE; }
+      else f.init[t] = patch > cover + .06 ? M_WOOD | M_EDGE : patch > cover - .06 ? M_EDGE | M_OPEN | M_WOOD : M_OPEN | M_BLOOM | M_EDGE;
+      continue;
+    }
     if (patch > cover && hash(i + seed, j) > (patch > cover + .08 ? .2 : .55)) {                  // forest: dense inside a clump, ragged on its edge
       const v = hash(i, j + seed);
       l.forest[t] = p.biome === BIOME_PINE ? 1 + Math.floor(v * 3) : p.biome === BIOME_BIRCH ? 4 : warm < .38 ? 1 + Math.floor(v * 3) : warm > .62 ? 4 : 1 + Math.floor(v * 4);
@@ -166,6 +191,7 @@ function biomePass(l: TerrainLayers, seed: number, p: TerrainParams): void {
       l.deco[t] = r < bloom * .35 ? 1 : r < bloom && moist > .3 ? 2 : 0;
     }
   }
+  if (clustered) { const wfc = coverPass(l, seed, f); l.wfcRestarts = wfc.restarts; l.wfcForced = wfc.forced; }
 }
 
 /**
@@ -191,5 +217,46 @@ function gameTrails(l: TerrainLayers, seed: number, p: TerrainParams): void {
       const i2 = t % w, j2 = Math.floor(t / w);
       if (l.deco[t] === 0 && l.forest[t] === 0 && l.rock[t] === 0 && l.water[t] === 0 && !(p.clearR > 0 && Math.abs(i2 - p.clearI) + Math.abs(j2 - p.clearJ) <= p.clearR)) l.deco[t] = DECO_TRAIL;
     }
+  }
+}
+
+const smooth = (a: number, b: number, x: number): number => { const u = Math.max(0, Math.min(1, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+/**
+ * Heights (integer levels, integer-hash noise only). Hills get a rise of one to three levels; above relief .3 the land rolls in plateaus and ridged noise raises mountain ranges
+ * (a ridge line is where two noise fields cross .5, so ranges are thin, long and branch); a flat valley of level 0 (seven tiles at least) surrounds the entrance; land never stands higher than its
+ * distance to the water minus two (beaches at level 0, banks that climb a level a tile, so rivers and lakes sit in valleys). Below MOUNTAIN_LEVEL no step is steeper than one level; from it the
+ * rock may drop in cliffs. Mountain tiles have no trees, rocks or flowers of their own.
+ */
+function heightPass(l: TerrainLayers, seed: number, p: TerrainParams): void {
+  const w = l.width, h = l.height, ox = l.offsetX, oy = l.offsetY, gentle = Math.min(1, p.relief / .3), mount = Math.max(0, Math.min(1, (p.relief - .3) / .7));
+  const dw = waterDistance(l, 60), vr = Math.max(7, Math.floor(w / 6)), lv = l.level;
+  for (let t = 0; t < w * h; t++) {
+    if (l.outside[t] === 1 || l.water[t] === 1) continue;
+    const i = t % w, j = Math.floor(t / w);
+    let v = l.biome[t] === BI_HILLS ? 1 + noise(i * .12 + ox + 800, j * .12 + oy) * 2.5 * gentle : 0;
+    if (mount > 0) {
+      const a = noise(i * .07 + ox + 1000, j * .07 + oy) * .65 + noise(i * .15 + ox, j * .15 + oy + 1000) * .35, r = 1 - Math.abs(2 * a - 1);
+      v += noise(i * .06 + ox + 900, j * .06 + oy) * 2.6 * mount + r * r * r * smooth(.3, .5, noise(i * .04 + ox + 1100, j * .04 + oy + 50)) * (MAX_HEIGHT + 3) * mount;
+    }
+    v *= smooth(0, vr * 1.5, Math.abs(i - p.clearI) + Math.abs(j - p.clearJ) - vr);             // the flat valley of the entrance
+    lv[t] = Math.min(MAX_HEIGHT, Math.floor(v + .5), Math.max(0, dw[t] - 2));
+  }
+  for (let pass = 0; pass < 16; pass++) {                                                      // foothills: no step steeper than one level below the rock
+    let changed = false;
+    for (let t = 0; t < w * h; t++) {
+      if (lv[t] === 0 || lv[t] >= MOUNTAIN_LEVEL) continue;
+      const i = t % w, j = Math.floor(t / w);
+      let low = lv[t];
+      if (i > 0) low = Math.min(low, lv[t - 1] + 1); if (i < w - 1) low = Math.min(low, lv[t + 1] + 1);
+      if (j > 0) low = Math.min(low, lv[t - w] + 1); if (j < h - 1) low = Math.min(low, lv[t + w] + 1);
+      if (low < lv[t]) { lv[t] = low; changed = true; }
+    }
+    if (!changed) break;
+  }
+  for (let t = 0; t < w * h; t++) {
+    if (lv[t] >= MOUNTAIN_LEVEL) { l.forest[t] = 0; l.rock[t] = 0; l.deco[t] = 0; }
+    else if (lv[t] >= 6 && hash(t + seed, 41) > .35) l.forest[t] = 0;                       // the tree line
+    if (lv[t] >= 5) l.biome[t] = BI_HILLS;
+    if (lv[t] > 0) l.hilly = true;
   }
 }

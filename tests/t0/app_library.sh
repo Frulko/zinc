@@ -10,7 +10,7 @@ Z=${ZINC:-$BUILD/zinc}
 tmp=${KEEP:-$(mktemp -d)}; [ -n "$KEEP" ] || trap 'rm -rf "$tmp"' EXIT
 fail=0
 case $(uname) in
-  Darwin) sys="-Wl,-dead_strip"; for fw in Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore AppKit CoreFoundation CoreGraphics CoreServices UniformTypeIdentifiers CoreHaptics GameController ForceFeedback AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreMotion OpenGL; do sys="$sys -framework $fw"; done; sys="$sys -lobjc" ;;
+  Darwin) sys="-Wl,-dead_strip"; for fw in Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore IOSurface AppKit CoreFoundation CoreGraphics CoreServices UniformTypeIdentifiers CoreHaptics GameController ForceFeedback AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreMotion OpenGL; do sys="$sys -framework $fw"; done; sys="$sys -lobjc" ;;
   *) sys="-Wl,--gc-sections -ldl -lm -lpthread" ;;
 esac
 libs=$(tr '\n' ' ' < "$BUILD/zn_app.link")

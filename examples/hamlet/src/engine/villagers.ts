@@ -1,12 +1,12 @@
 import {
   HOUSE, ST_TO_SHORE, ST_FISH, ROLE_SETTLER, ROLE_RESIDENT, ROLE_PEDDLER,
   ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_WORK, ST_FETCH, ST_BRING,
-  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, BS_NO_SOURCE, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, STALK_CROUCH, WORK_RADIUS, SETTLER_INTERVAL,
+  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, BS_NO_SOURCE, BS_OFF_NET, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, STALK_CROUCH, WORK_RADIUS, SETTLER_INTERVAL,
   DEER_DEAD, DEER_FLEE, DEER_GONE, WALK_SPEED,
 } from '../constants';
 import { Housing, BuildingDef, Harvest } from '../world/economy';
 import { world, recount, Person, Building, random, tileAt, tileX, tileY, tileIndex, tileI, tileJ, neighbor, waterNeighbor } from '../world/world';
-import { fieldFrom, approachTile, pathTo, planPath, walk, isWalkable, isMoving, UNREACHABLE } from './path';
+import { fieldFrom, approachTile, pathTo, planPath, planFromHub, walk, isWalkable, isMoving, payPathDebt, pathBusy, UNREACHABLE, Field, ESCAPE } from './path';
 import { sound } from '../audio';
 import { emitFx, FX_LEAVES, FX_FELL, FX_CHIPS, FX_SPLASH, LODE_FX, CHIP_SPARK, CHIP_CHAFF, CHIP_SAWDUST, CHIP_FLOUR, CHIP_DUST } from '../world/fx';
 import { settings } from '../settings';
@@ -14,16 +14,19 @@ import { economy } from '../world/economy';
 import { take } from '../rules/stock';
 import { resting, workScale } from '../rules/meadow';
 import { BLOW_ANGLE, TAU, harvestFor, sourceOf, cycleSeconds, succeeds, depletes, rollUnits, swingRate } from '../rules/harvest';
-import { rankOf } from '../rules/labour';
+import { rankOf, labourPool, employed, labourStats, defaultPriority } from '../rules/labour';
 import { capacityOf } from '../rules/housing';
 import { startRoam, roamTick } from './services';
 import { routine, freeTime } from './routine';
+import { onGateNetwork, doorOf, goalOf } from './network';
 import { arrivalFactor, workPace } from '../rules/needs';
 import { level } from '../rules/difficulty';
-import { findLoad, haulOut, fetchInput, atTarget, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
+import { findLoad, haulOut, fetchInput, atTarget, hasRoomFor, readyBatch, exportsOk, restock, marketStocked, pickUp, putDown, cancelTransport } from './transport';
 
+const STROLL_REACH = 10;   // path cost of a stroll beside the house: a spot walled off by neighbours is dropped, not searched for
+const HUNT_REACH = 40;   // path cost a hunter accepts to reach his game (a deer in a walled pocket is let go, not searched for over the whole map)
 const gap = (ax: number, ay: number, bx: number, by: number): number => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
-const buildingTile = (b: Building): number => tileIndex(b.i, b.j);
+const buildingTile = (b: Building): number => goalOf(b);
 const tileOf = (p: Person): number => tileAt(p.x, p.y);
 const faceTile = (p: Person, t: number): void => { p.yaw = Math.atan2(tileY(t) - p.y, tileX(t) - p.x); };
 function isNear(p: Person, t: number): boolean {
@@ -49,30 +52,9 @@ export function newPerson(role: number, home: number, t: number): Person {
   return p;
 }
 
-// ---- who is connected to the entrance by road ----
-let reachRevision = -1;
-let reached: number[] = [];
-function roadReach(): number[] {
-  if (reachRevision === world.revision) return reached;
-  reached = Array.from({ length: world.road.length }, (): number => 0);
-  const queue: number[] = [world.gate];
-  reached[world.gate] = 1;
-  while (queue.length > 0) {
-    const t = queue.pop() as number;
-    for (let d = 0; d < 4; d++) {
-      const v = neighbor(t, d);
-      if (v >= 0 && world.road[v] && !reached[v]) { reached[v] = 1; queue.push(v); }
-    }
-  }
-  reachRevision = world.revision;
-  return reached;
-}
-/** A building is connected when a road tile next to it leads back to the entrance. */
-export function isConnected(b: Building): boolean {
-  const reach = roadReach();
-  for (let d = 0; d < 4; d++) { const v = neighbor(buildingTile(b), d); if (v >= 0 && reach[v]) return true; }
-  return false;
-}
+// ---- who is connected to the entrance by road (engine/network.ts) ----
+/** A building is connected when a road at its door leads back to the entrance. */
+export function isConnected(b: Building): boolean { return onGateNetwork(b); }
 
 // ---- arrivals and jobs ----
 export function population(): number {
@@ -91,12 +73,15 @@ function updateSettlers(dt: number): void {
     const needsFood = population() >= housing.free;
     let food = -1;
     for (const k of housing.eats) if (food < 0 && world.stock[k] >= 1) food = k;
-    const arrival = arrivalFactor(world.mood);                // an unhappy village draws nobody
+    // what draws settlers: a content village (mood), places to work (a village where a third of the people have no job draws nobody), room to live and food; shortage of hands draws faster
+    let arrival = arrivalFactor(world.mood);
+    if (world.jobless >= economy.sim.stopJobless) arrival = 0;
+    else if (arrival > 0 && labourStats().shortage > 0) arrival *= .8;
     if (arrival === 0) { b.timer = 2; continue; }
     if (needsFood && food < 0) { world.waitingForFood = true; b.timer = 1; continue; }
     const settler = newPerson(ROLE_SETTLER, world.buildings.indexOf(b), world.gate);
     settler.state = ST_WALK_IN;
-    if (!planPath(settler, buildingTile(b))) { b.timer = 2; continue; }
+    if (!planFromHub(settler, world.gate, buildingTile(b))) { b.timer = 2; continue; }
     if (needsFood) take(food, 1);
     b.residents++; b.timer = SETTLER_INTERVAL * arrival * 100 / level().arrival; world.people.push(settler); world.saveDirty = true;
   }
@@ -105,7 +90,9 @@ export function createResident(houseId: number): void {
   const house = world.buildings[houseId];
   const t = buildingTile(house);
   let spot = t;
-  for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && isWalkable(v)) { spot = v; break; } }
+  const door = doorOf(house);                                  // people appear on the road at the door
+  if (door >= 0) spot = door;
+  else for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && isWalkable(v)) { spot = v; break; } }
   const p = newPerson(ROLE_RESIDENT, houseId, spot);
   p.state = ST_IDLE;
   world.people.push(p);
@@ -120,19 +107,29 @@ function reclaimPorter(): void {
   }
 }
 function assignJobs(): void {
-  for (const b of world.buildings) if (b.alive && b.type !== HOUSE && !economy.buildings[b.type].store) {   // the hint: no road to a store
-    if (!exportsOk(b)) b.state = BS_ISOLATED; else if (b.state === BS_ISOLATED) b.state = BS_IDLE;
+  for (let id = 0; id < world.buildings.length; id++) {
+    const b = world.buildings[id], def = economy.buildings[b.type];
+    if (!b.alive || b.type === HOUSE) continue;
+    if (def.needsRoad && !onGateNetwork(b)) {                  // off the gate's network: idle, and its people are given back to the pool
+      if (b.workers > 0) releaseWorkers(id);
+      b.state = BS_OFF_NET; continue;
+    }
+    if (b.state === BS_OFF_NET) b.state = BS_IDLE;
+    if (!def.store) { if (!exportsOk(b)) b.state = BS_ISOLATED; else if (b.state === BS_ISOLATED) b.state = BS_IDLE; }   // the hint: no road to a store
   }
   let producers = 0, vacancies = 0;
   for (const b of world.buildings) if (b.alive && b.type !== HOUSE && !economy.buildings[b.type].store) { producers++; vacancies += economy.buildings[b.type].workers - b.workers; }
   const order: number[] = world.buildings.map((_b: Building, id: number): number => id);
-  order.sort((a: number, b: number): number => rankOf(world.buildings[a].type) - rankOf(world.buildings[b].type) || a - b);   // the player's priority, then the oldest first
-  for (let pass = 0; pass < 2; pass++) for (const id of order) {   // producers are staffed first; porters only once something produces and no producer lacks hands
+  let free = labourPool() - employed();                        // the pool: only a share of the residents work, the rest are children, elders and carers
+  const spread = defaultPriority();
+  const rank: number[] = economy.buildings.map((_d: BuildingDef, type: number): number => rankOf(type));
+  order.sort((a: number, b: number): number => rank[world.buildings[a].type] - rank[world.buildings[b].type] || a - b);   // the player's priority, then the oldest first
+  for (let pass = 0; pass < 2; pass++) for (let cap = spread ? 1 : 4; cap <= 4; cap++) for (const id of order) {   // default order: one hand to each building, then a second to each...: a scarce pool starts every workshop instead of filling the first huts; an order the player set is strict   // producers are staffed first; porters only once something produces and no producer lacks hands
     if (pass === 1 && (producers === 0 || vacancies > 0)) break;
     const site = world.buildings[id];
-    if (!site.alive || site.type === HOUSE || economy.buildings[site.type].store !== (pass === 1)) continue;
+    if (!site.alive || site.type === HOUSE || economy.buildings[site.type].store !== (pass === 1) || site.state === BS_OFF_NET) continue;
     const def = economy.buildings[site.type];
-    while (site.workers < def.workers) {
+    while (site.workers < Math.min(def.workers, cap) && free > 0) {
       let best: Person | null = null, bestDist = 1e9;
       if (pass === 0) reclaimPorter();                          // a producer lacking hands takes a porter back before it waits for a newcomer
       for (const p of world.people) {
@@ -142,7 +139,7 @@ function assignJobs(): void {
       }
       if (best === null) break;
       best.role = def.roleId;
-      best.job = id; site.workers++; best.state = ST_GO_WORK; if (pass === 0) vacancies--;
+      best.job = id; site.workers++; free--; best.state = ST_GO_WORK; if (pass === 0) vacancies--;
       if (!planPath(best, buildingTile(site))) best.timer = 0;
     }
   }
@@ -200,14 +197,23 @@ export function removeResidents(houseId: number): void {
 // ---- the daily life of one person: what a worker does is read from the definition of its building (economy.json) ----
 const defOf = (site: Building): BuildingDef => economy.buildings[site.type];
 const kindOf = (p: Person): string => p.job >= 0 ? defOf(world.buildings[p.job]).gather : '';
-function nearestTree(p: Person): boolean {
-  const field = fieldFrom(tileOf(p));
+/** The tile satisfying `wanted` that sits beside the cheapest reached tile of `field` (within the work radius; ties go to the lowest tile): what a gatherer walks up to. */
+function nearestBeside(field: Field, wanted: (t: number) => boolean): number {
   let best = -1, bestCost = WORK_RADIUS;
-  for (let t = 0; t < world.tree.length; t++) {
-    if (world.tree[t] === 0 || world.claimed[t]) continue;
-    const ap = approachTile(field, t);
-    if (ap >= 0 && field.dist[ap] < bestCost) { bestCost = field.dist[ap]; best = t; }
+  for (let k = 0; k < field.count; k++) {
+    const r = field.reached[k], c = field.dist[r];
+    if (c > bestCost) continue;
+    for (let d = 0; d < 4; d++) {
+      const t = neighbor(r, d);
+      if (t < 0 || isWalkable(t) || !wanted(t)) continue;
+      if (c < bestCost || (c === bestCost && (best < 0 || t < best))) { bestCost = c; best = t; }
+    }
   }
+  return best;
+}
+function nearestTree(p: Person): boolean {
+  const field = fieldFrom(tileOf(p), WORK_RADIUS);          // only the ground a worker reaches within his radius is looked at, never the map
+  const best = nearestBeside(field, (t: number): boolean => world.tree[t] !== 0 && world.claimed[t] === 0);
   if (best < 0) return false;
   p.path = pathTo(field, approachTile(field, best)); p.step = 0;
   world.claimed[best] = 1; p.target = best; p.state = ST_TO_TREE;
@@ -215,13 +221,8 @@ function nearestTree(p: Person): boolean {
 }
 /** The nearest deposit of kind k that nobody works: a gatherer walks next to it (the tile itself is blocked, like a tree). */
 function nearestLode(p: Person, k: number): boolean {
-  const field = fieldFrom(tileOf(p));
-  let best = -1, bestCost = WORK_RADIUS;
-  for (let t = 0; t < world.rock.length; t++) {
-    if (world.rock[t] !== ROCK_DEPOSIT + k || world.claimed[t]) continue;
-    const ap = approachTile(field, t);
-    if (ap >= 0 && field.dist[ap] < bestCost) { bestCost = field.dist[ap]; best = t; }
-  }
+  const field = fieldFrom(tileOf(p), WORK_RADIUS);
+  const best = nearestBeside(field, (t: number): boolean => world.rock[t] === ROCK_DEPOSIT + k && world.claimed[t] === 0);
   if (best < 0) return false;
   p.path = pathTo(field, approachTile(field, best)); p.step = 0;
   world.claimed[best] = 1; p.target = best; p.state = ST_TO_LODE;
@@ -229,11 +230,13 @@ function nearestLode(p: Person, k: number): boolean {
 }
 /** The nearest free shore tile (walkable, next to the pond): where a fisher stands. */
 function nearestShore(p: Person): boolean {
-  const field = fieldFrom(tileOf(p));
-  let best = -1, bestCost = WORK_RADIUS;
-  for (let t = 0; t < world.tree.length; t++) {
-    if (world.claimed[t] || !isWalkable(t) || waterNeighbor(t) < 0 || field.dist[t] >= bestCost) continue;
-    bestCost = field.dist[t]; best = t;
+  const field = fieldFrom(tileOf(p), WORK_RADIUS);
+  let best = -1, bestCost = UNREACHABLE;
+  for (let k = 0; k < field.count; k++) {
+    const t = field.reached[k];
+    const c = field.dist[t];
+    if (world.claimed[t] || c >= WORK_RADIUS || waterNeighbor(t) < 0 || c > bestCost || (c === bestCost && best >= 0 && t > best)) continue;
+    bestCost = c; best = t;
   }
   if (best < 0) return false;
   p.path = pathTo(field, best); p.step = 0;
@@ -241,7 +244,7 @@ function nearestShore(p: Person): boolean {
   return true;
 }
 function nearestGame(p: Person): boolean {
-  const field = fieldFrom(tileOf(p));
+  const field = fieldFrom(tileOf(p), WORK_RADIUS);
   let best = -1, bestCost = WORK_RADIUS, bestBody = false;
   for (let k = 0; k < world.deer.length; k++) {
     const d = world.deer[k];
@@ -255,7 +258,7 @@ function nearestGame(p: Person): boolean {
   }
   if (best < 0) return false;
   const deer = world.deer[best];
-  if (!planPath(p, tileAt(deer.x, deer.y))) return false;
+  if (!planPath(p, tileAt(deer.x, deer.y), UNREACHABLE, HUNT_REACH)) return false;
   deer.hunted = true; p.target = best; p.state = bestBody ? ST_TO_BODY : ST_STALK; p.timer = .9;
   return true;
 }
@@ -287,7 +290,7 @@ function goDeliver(p: Person, variant: number, ok: boolean = true): void {
   p.load = !ok ? 0 : h === null ? def.outputs[first] : rollUnits(src, h);
   if (p.load <= 0) { p.carry = 0; p.state = ST_SEEK; p.timer = .3; return; }   // nothing came of it: back to the next source
   p.state = ST_TO_SITE;
-  if (!planPath(p, buildingTile(site))) { p.carry = 0; p.load = 0; p.state = ST_SEEK; p.timer = 1; }
+  if (!planPath(p, buildingTile(site), WORK_RADIUS + ESCAPE)) { p.carry = 0; p.load = 0; p.state = ST_SEEK; p.timer = 1; }   // home from the source: across the ground it was worked on, then the roads
 }
 /** The harvest of the building's first raw output for a variant (a harvest that never fails and never ends when it has none). */
 const NONE = new Harvest();
@@ -329,7 +332,8 @@ function updateWorker(p: Person, dt: number): void {
       if (def.store) found = findLoad(p);                        // a porter
       else if (!hasRoomFor(site, def.outputs)) { site.state = BS_FULL; found = haulOut(p, p.job); }   // full: the worker carries it to a store itself
       else if (readyBatch(site, def.outputs) && haulOut(p, p.job)) found = true;                       // a batch is ready and no porter came: carry it
-      else if (def.service !== null && def.service.walker) found = startRoam(p, site);
+      else if (def.market && restock(p, p.job)) found = true;                                         // a market's buyer fetches goods from a store
+      else if (def.service !== null && def.service.walker) found = (!def.market || marketStocked(site)) && startRoam(p, site);
       else if (def.lode >= 0) found = nearestLode(p, def.lode);
       else if (def.gather === 'tree') found = nearestTree(p);
       else if (def.gather === 'shore') found = nearestShore(p);
@@ -341,7 +345,7 @@ function updateWorker(p: Person, dt: number): void {
       if (def.gather !== '' && !def.store && hasRoomFor(site, def.outputs)) {              // a gatherer says why it idles: nothing within reach, or a stale "full" cleared
         if (found) { if (site.state === BS_FULL || site.state === BS_NO_SOURCE) site.state = BS_IDLE; } else site.state = BS_NO_SOURCE;
       }
-      if (!found) p.timer = def.store ? 1.5 : 2;
+      if (!found) p.timer = (def.store ? 1.5 : 2) + ((p.job * 7 + p.hair * 3 + p.home) % 10) * .1;   // each worker looks again at its own moment: the retries do not all land on one tick
       break;
     }
     case ST_WORK: {
@@ -432,7 +436,7 @@ function updateWorker(p: Person, dt: number): void {
         break;
       }
       p.timer -= dt;
-      if (walk(p, dt, gap(deer.x, deer.y, p.x, p.y) < STALK_CROUCH ? speed * .55 : speed) || p.timer <= 0) { p.timer = .9; if (!planPath(p, tileAt(deer.x, deer.y))) { releaseClaims(p); p.state = ST_SEEK; p.timer = 1; } }
+      if (walk(p, dt, gap(deer.x, deer.y, p.x, p.y) < STALK_CROUCH ? speed * .55 : speed) || p.timer <= 0) { p.timer = .9; if (!planPath(p, tileAt(deer.x, deer.y), UNREACHABLE, HUNT_REACH)) { releaseClaims(p); p.state = ST_SEEK; p.timer = 1; } }
       break;
     }
     case ST_AIM: {
@@ -453,7 +457,7 @@ function updateWorker(p: Person, dt: number): void {
         deer.state = DEER_DEAD; deer.path = []; deer.step = 0; deer.timer = 0; deer.errand = 0;
         sound('hit', .6); emitFx(FX_CHIPS, deer.x, deer.y, deer.stag ? 14 : 9, 0, CHIP_DUST);
         p.state = ST_TO_BODY;
-        if (!planPath(p, tileAt(deer.x, deer.y))) { deer.hunted = false; p.state = ST_SEEK; p.timer = 1; }
+        if (!planPath(p, tileAt(deer.x, deer.y), UNREACHABLE, HUNT_REACH)) { deer.hunted = false; p.state = ST_SEEK; p.timer = 1; }
       } else {
         deer.state = DEER_FLEE; deer.timer = 4; deer.path = []; deer.step = 0; deer.hunted = false;
         p.target = -1; p.state = ST_SEEK; p.timer = 1;
@@ -499,11 +503,12 @@ function updatePerson(p: Person, dt: number): void {
     if (p.timer > 0) return;
     if (freeTime(p)) return;
     const home = world.buildings[p.home];
-    const t = tileIndex(Math.max(0, Math.min(11, home.i + Math.floor(random() * 5) - 2)), Math.max(0, Math.min(11, home.j + Math.floor(random() * 5) - 2)));
-    if (isWalkable(t) && planPath(p, t)) p.state = ST_STROLL; else p.timer = 1 + random() * 2;
+    const t = tileIndex(Math.max(0, Math.min(world.size - 1, home.i + Math.floor(random() * 5) - 2)), Math.max(0, Math.min(world.size - 1, home.j + Math.floor(random() * 5) - 2)));
+    if (isWalkable(t) && !pathBusy() && planPath(p, t, UNREACHABLE, STROLL_REACH)) p.state = ST_STROLL; else p.timer = 1 + random() * 2;
   } else updateWorker(p, dt);
 }
 export function updatePeople(dt: number): void {
+  payPathDebt();
   updateSettlers(dt);
   for (const p of world.people) updatePerson(p, dt);
 }

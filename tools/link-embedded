@@ -9,7 +9,7 @@ prefix, output, *sources = sys.argv[1:]
 libs = (build / 'zn_app.link').read_text().splitlines()
 plugins = pathlib.Path(prefix + '.libs')
 if plugins.exists(): libs = shlex.split(plugins.read_text()) + libs
-frameworks = 'Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore AppKit CoreFoundation CoreGraphics CoreServices UniformTypeIdentifiers CoreHaptics GameController ForceFeedback AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreMotion OpenGL'.split()
+frameworks = 'Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore IOSurface AppKit CoreFoundation CoreGraphics CoreServices UniformTypeIdentifiers CoreHaptics GameController ForceFeedback AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreMotion OpenGL'.split()
 cmd = ['c++', '-std=c++20', '-O1', '-w', '-ffp-contract=off', '-DZN_APP_LIBRARY']
 for inc in ['include', 'src', 'third_party/mimalloc/include', 'third_party/SDL3/include']: cmd += ['-I', str(root / inc)]
 cmd += shlex.split(os.environ.get('EMBED_LINK_FLAGS', ''))
