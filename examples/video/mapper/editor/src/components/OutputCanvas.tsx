@@ -340,7 +340,7 @@ export function selectedPointText(): string {
 }
 
 export function OutputCanvas(): i32 {
-  return <PointCanvas className="w-full aspect-video" editor={outputEditor} points={() => linkFrom !== null ? [] : outputPoints()} pixelSize={() => store.pixels} draw={draw} onEmpty={(x: number, y: number, w: number, h: number) => {
+  return <PointCanvas className="w-full h-full" aspect={() => store.aspect} editor={outputEditor} points={() => linkFrom !== null ? [] : outputPoints()} pixelSize={() => store.pixels} draw={draw} onEmpty={(x: number, y: number, w: number, h: number) => {
     if (linkFrom !== null) linkToCornerAt(x, y, w, h);
     else if (mode === MODE_EDGES) selectEdgeAt(x, y, w, h);
     else selectLayerAt(x, y);

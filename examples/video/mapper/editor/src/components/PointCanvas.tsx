@@ -12,14 +12,15 @@ export interface PointCanvasProps {
   draw: (x: i32, y: i32, w: i32, h: i32) => void;
   onEmpty?: (x: number, y: number, w: number, h: number) => void;
   onShiftPoint?: (index: i32) => void;   // replaces the selection on a shift-click (a mask takes the point out)
+  aspect?: () => number;              // draws in the largest box of this width over height, centred in the canvas
 }
 
 export function PointCanvas(props: PointCanvasProps): i32 {
-  let w = 1, h = 1;
+  let w = 1, h = 1, left = 0, top = 0;
   let dragging = false, lastX = 0, lastY = 0;
 
   const down = (e: ui.PointerEvent): void => {
-    const x = e.x / w, y = e.y / h;
+    const x = (e.x - left) / w, y = (e.y - top) / h;
     const all = props.points();
     const hit = hitPoint(all, x, y, w, h, HIT_RADIUS);
     const shift = (e.mods & ui.SHIFT) !== 0;
@@ -39,7 +40,7 @@ export function PointCanvas(props: PointCanvasProps): i32 {
   };
   const move = (e: ui.PointerEvent): void => {
     if (!dragging) return;
-    const x = e.x / w, y = e.y / h;
+    const x = (e.x - left) / w, y = (e.y - top) / h;
     props.editor.move(props.points(), x - lastX, y - lastY);
     lastX = x;
     lastY = y;
@@ -65,6 +66,13 @@ export function PointCanvas(props: PointCanvasProps): i32 {
     onDraw={(x: i32, y: i32, width: i32, height: i32) => {
       w = width;
       h = height;
-      props.draw(x, y, width, height);
+      if (props.aspect !== undefined) {
+        const aspect = (props.aspect as () => number)();
+        w = Math.floor(Math.min(width, height * aspect));
+        h = Math.floor(w / aspect);
+      }
+      left = Math.floor((width - w) / 2);
+      top = Math.floor((height - h) / 2);
+      props.draw((x + left) as i32, (y + top) as i32, w as i32, h as i32);
     }} />;
 }

@@ -35,6 +35,28 @@ head -c 3000000 /dev/urandom >"$tmp/clip.bin"
 curl -s -m 20 -o /dev/null -H "x-zinc-token: $token" --data-binary @"$tmp/clip.bin" "http://127.0.0.1:$web/media/clip.bin"
 cmp -s "$tmp/clip.bin" "$media/clip.bin" || { echo "an upload does not arrive byte for byte"; fail=1; }
 [ "$(curl -s -m 2 -o /dev/null -w '%{http_code}' -H "x-zinc-token: $token" --data-binary x "http://127.0.0.1:$web/media/..%2Fevil")" = 400 ] || { echo "a media name with a path is accepted"; fail=1; }
+# the show: a clip fires alone, a column empties the layers it has no clip for, what plays survives what the page saves
+api() { curl -s -m 3 -H "x-zinc-token: $token" "$@"; }
+api -X PUT -d '{"columns":[{"name":"a","cells":[{"label":"Red","source":"solid","color":[1,0,0]},{"label":"Blue","source":"solid","color":[0,0,1]}]},{"name":"b","cells":[{"label":"Green","source":"solid","color":[0,1,0]},null]}]}' "http://127.0.0.1:$web/show"
+api -d '[["/add","pattern","one"],["/add","pattern","two"],["/cell",0,1]]' "http://127.0.0.1:$web/osc" >/dev/null; sleep 0.3
+api "http://127.0.0.1:$web/state" >"$tmp/s1.json"; api "http://127.0.0.1:$web/show" >"$tmp/show1.json"
+api -d '[["/column",1]]' "http://127.0.0.1:$web/osc" >/dev/null; sleep 0.3
+api "http://127.0.0.1:$web/state" >"$tmp/s2.json"; api "http://127.0.0.1:$web/show" >"$tmp/show2.json"
+api -X PUT -d '{"columns":[]}' "http://127.0.0.1:$web/show"; api "http://127.0.0.1:$web/show" >"$tmp/show3.json"
+python3 - "$tmp" <<'PY' || fail=1
+import json, sys
+t = sys.argv[1]; load = lambda n: json.load(open(f"{t}/{n}.json"))
+s1, s2 = load("s1")["layers"], load("s2")["layers"]
+n = len(s1) - 2   # the project's own layers come first; the cells above are for layers 0 and 1
+problems = []
+if s1[1]["source"][0] != "solid" or s1[1]["color"][2] != 1: problems.append(f"/cell does not play its clip: {s1[1]}")
+if load("show1")["playing"][1] != 0: problems.append(f"/cell is not remembered: {load('show1')}")
+if s2[0]["color"][1] != 1: problems.append(f"/column does not play its clip: {s2[0]}")
+if s2[1]["source"][0] != "none": problems.append(f"/column does not empty a layer with no clip: {s2[1]}")
+if load("show2")["active"] != 1: problems.append("/column is not remembered")
+if load("show3")["active"] != 1: problems.append("a save from the page changes what plays")
+if problems: print("; ".join(problems)); sys.exit(1)
+PY
 node examples/video/mapper/tests/editor-check.mjs "http://127.0.0.1:$web/?token=$token" >"$tmp/check.log" 2>&1
 grep -q "^ok:" "$tmp/check.log" || { echo "the scripted editor check fails: $(tail -c 600 "$tmp/check.log") / app: $(tail -c 300 "$tmp/app.log")"; fail=1; }
 exit $fail

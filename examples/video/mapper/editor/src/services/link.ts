@@ -14,7 +14,8 @@ export function connect(address: string, onProblem: (message: string) => void): 
   const at = address.indexOf('?token=');
   token = at >= 0 ? address.slice(at + 7) : '';
   const cut = at >= 0 ? address.slice(0, at) : address;
-  base = cut.endsWith('/') ? cut.slice(0, cut.length - 1) : cut;
+  const trimmed = cut.endsWith('/') ? cut.slice(0, cut.length - 1) : cut;
+  base = trimmed === '' || trimmed.includes('://') ? trimmed : `http://${trimmed}`;   // an address typed by hand, as the mapper shows it
   onLost = onProblem;
 }
 
@@ -73,6 +74,12 @@ export async function getJson(path: string): Promise<any> {
   if (reply.status === 401) throw new Error('wrong token: open the address shown on the mapper (Tab)');
   if (!reply.ok) throw new Error(`the mapper answered ${reply.status}`);
   return JSON.parse(await reply.text());
+}
+
+/** The bytes of a reply, with its status; none when it is not 200. */
+export async function getBytes(path: string): Promise<{ status: i32; bytes: u8[] }> {
+  const reply = await fetch(`${base}${path}`, { headers: auth() });
+  return { status: reply.status as i32, bytes: reply.status === 200 ? await reply.bytes() : [] };
 }
 
 export async function putJson(path: string, json: string): Promise<void> {

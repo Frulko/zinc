@@ -86,6 +86,7 @@ UDP port given to `listen` (9000 in the example). Numbers may be `i`, `f` or `d`
 | `/layer/<n>/gain` | `r g b` (1 1 1) | |
 | `/layer/<n>/crop` | `x0 y0 x1 y1 [feather]` | surface-space rectangle, feathered inwards |
 | `/layer/<n>/edge` | `left right top bottom [gamma]` | edge-blend ramp widths in surface units; gamma = projector gamma (2.2) |
+| `/layer/<n>/source` | `pattern`, `solid`, `gradient`, `image` or `none` | what a layer shows without a media; `none` shows nothing, a selected layer then shows the test pattern under its frame |
 | `/layer/<n>/inset` | `left right top bottom` | what each side hides outright, in surface units; its edge ramp starts after it: a hard cut then a gradient, to hide light that spills past a real edge |
 | `/layer/<n>/mask/<k>` | `feather invert x0 y0 x1 y1 ...` | polygon mask k (0..3, 3..32 points, surface space); invert 0 = show inside, 1 = hide inside; fewer than 3 points removes it |
 | `/layer/<n>/maskimage` | `id` (−1: none) | multiplies by the image's luminance (updates with the image) |
@@ -123,7 +124,7 @@ blend, colour and transform, media upload, columns, calibration, and a three.js 
 in the address (`?token=...`, header `x-zinc-token`), which also keeps other pages open in the same browser from driving the app:
 `/state`, `/osc` (`[[address, ...args], ...]`), `/media`, `/media/<name>`, `/show`, `/scenes`, `/scenes/<name>` (`GET` its file, `POST` saves
 the scene on now, or imports the file in its body, `DELETE`), `/scenes/<name>/load` and `/new-scene`. More commands exist on that route and
-on OSC, handled by the program: `/column n`, `/hud 0|1`, `/volume v`, `/mute 0|1`, `/card kind [target]`.
+on OSC, handled by the program: `/column n`, `/cell column layer`, `/stop [layer]`, `/hud 0|1`, `/volume v`, `/mute 0|1`, `/card kind [target]`.
 
 The app's OSC port has no authentication (UDP senders can be spoofed): `listen(port)` binds every interface unless
 `ZINC_BIND=127.0.0.1` restricts it. Over OSC, `/save` and `/load` take a

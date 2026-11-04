@@ -27,6 +27,7 @@ export function command(address: string, numbers: number[], strings: string[]): 
     sync(strings[0], numbers[0]);
     return true;
   }
+  if (address === '/thumbnail') return false;   // it takes paths: thumbnail() below, for the program itself
   // commands arrive over the network: a media is a file name of the media folder, not a path
   if (address.endsWith('/media') && strings.length > 0 && strings[0].length > 0 && !isFileName(strings[0])) return false;
   return Native.command(address, numbers, strings);
@@ -60,6 +61,9 @@ export function set(layer: i32, key: string, numbers: number[]): boolean {
 export function setImage(layer: i32, image: i32): boolean {
   return Native.command(`/layer/${layer}/source`, [image], ['image']);
 }
+
+/** Writes a small JPEG of the video at `path` to `out`, in the background, where the compositor plays media itself (playsMedia). */
+export function thumbnail(path: string, out: string): boolean { return Native.command('/thumbnail', [], [path, out]); }
 
 export function layerCount(): i32 { return Native.layerCount(); }
 export function toJson(): string { return Native.toJson(); }

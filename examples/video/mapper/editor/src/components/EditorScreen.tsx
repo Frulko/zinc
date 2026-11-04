@@ -1,13 +1,12 @@
-// The editor: layers and media on the left, the views in the middle, the layer's settings on the right.
+// The editor: the library on the left, the views in the middle, the settings of the clip and its layer on the right, the grid of clips below.
 import { Button, Switch, Tabs } from 'zinc:ui/kit';
 import { createSignal } from 'zinc:ui/solid';
 import { send } from '../services/link';
 import { MASK_SLOTS, currentLayer, loadState, maskValues, pointRevision, revision, setLayer, status, store, touch } from '../state';
 import { CalibrationPanel } from './CalibrationPanel';
-import { ColumnGrid } from './ColumnGrid';
+import { DragGhost, Dashboard } from './Dashboard';
 import { Heading } from './Field';
-import { LayerList } from './LayerList';
-import { MediaBin } from './MediaBin';
+import { Library } from './Library';
 import { EdgeControls } from './EdgeControls';
 import { MODE_CORNERS, MODE_EDGES, MODE_MESH, OutputCanvas, isLinking, outputMode, selectedCornerIsLinked, selectedPointText, setOutputMode, startLinking, unlinkSelectedCorner } from './OutputCanvas';
 import { PropsPanel } from './PropsPanel';
@@ -18,7 +17,7 @@ import { SoundPanel } from './SoundPanel';
 import { SurfaceCanvas, currentMask, selectMask } from './SurfaceCanvas';
 import { Rebuilt } from './Rebuilt';
 
-const VIEWS: string[] = ['Output', 'Masks', 'Columns', 'Calibration', 'Room', 'Sound', 'Scenes', 'Options'];
+const VIEWS: string[] = ['Output', 'Masks', 'Calibration', 'Room', 'Sound', 'Scenes', 'Options'];
 const MESH_PRESETS: i32[] = [3, 4, 6, 9];
 const NEW_MASK: number[] = [0.05, 0, 0.3, 0.3, 0.7, 0.3, 0.7, 0.7, 0.3, 0.7];
 
@@ -44,7 +43,7 @@ function LinkTools(): i32 {
 function pointText(version: i32): string { return selectedPointText(); }
 
 function OutputView(): i32 {
-  return <View className="p-3 gap-2">
+  return <View className="h-0 grow p-3 gap-2">
     <View className="flex-row flex-wrap gap-1 items-center">
       <Rebuilt make={ModeTabs} />
       {MESH_PRESETS.map((size: i32) => <Button size="sm" variant="secondary" label={`${size} x ${size}`} onClick={() => resizeGrid(size)} />)}
@@ -55,9 +54,9 @@ function OutputView(): i32 {
       <Button size="sm" variant="ghost" label="Reset corners" onClick={() => { setLayer('corners', [0, 0, 1, 0, 1, 1, 0, 1]); touch(); }} />
     </View>
     <Rebuilt make={LinkTools} />
-    <OutputCanvas />
+    <View className="h-0 grow"><OutputCanvas /></View>
     <Rebuilt make={EdgeControls} />
-    <Text className="text-xs text-zinc-400">{pointText(pointRevision() + revision())}</Text>
+    <View className="h-[34] overflow-hidden"><Text className="text-xs text-zinc-400">{pointText(pointRevision() + revision())}</Text></View>
   </View>;
 }
 
@@ -112,22 +111,22 @@ export function EditorScreen(): i32 {
       <View className="grow" />
       <Text className="text-xs text-zinc-400">{status()}</Text>
     </View>
-    <View className="flex-row grow">
-      <ScrollView className="w-[260] p-3 bg-zinc-900 gap-3">
-        <LayerList />
-        <MediaBin />
-      </ScrollView>
-      <ScrollView className="w-0 grow">
+    <View className="flex-row h-0 grow">
+      <Library />
+      <View className="w-0 grow">
         {view() === 0 && <OutputView />}
-        {view() === 1 && <MasksView />}
-        {view() === 2 && <ColumnGrid />}
-        {view() === 3 && <CalibrationPanel />}
-        {view() === 4 && <RoomPanel />}
-        {view() === 5 && <SoundPanel />}
-        {view() === 6 && <ScenePanel />}
-        {view() === 7 && <OptionsPanel />}
-      </ScrollView>
+        {view() !== 0 && <ScrollView className="h-0 grow">
+          {view() === 1 && <MasksView />}
+          {view() === 2 && <CalibrationPanel />}
+          {view() === 3 && <RoomPanel />}
+          {view() === 4 && <SoundPanel />}
+          {view() === 5 && <ScenePanel />}
+          {view() === 6 && <OptionsPanel />}
+        </ScrollView>}
+      </View>
       <PropsPanel />
     </View>
+    <Dashboard />
+    <DragGhost />
   </View>;
 }

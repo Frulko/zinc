@@ -3,7 +3,7 @@ import { listen, OscMessage } from 'zinc:osc';
 import { OUTPUT_TARGET, showCard } from './cards';
 import { applyLayerCommand, LayerCommand } from './layerCommands';
 import { setMasterVolume, setMuted } from './sound';
-import { fireColumn } from './show';
+import { fireCell, fireColumn, followLayerMove, followLayerRemoval, stopAll, stopLayer } from './show';
 
 let hudShown = true;
 
@@ -12,6 +12,14 @@ export function setHudShown(shown: boolean): void { hudShown = shown; }
 
 export function applyCommand(command: LayerCommand): boolean {
   if (command.address === '/column') return command.numbers.length > 0 && fireColumn(Math.trunc(command.numbers[0]) as i32);
+  if (command.address === '/cell') return command.numbers.length > 1 && fireCell(Math.trunc(command.numbers[0]) as i32, Math.trunc(command.numbers[1]) as i32);
+  if (command.address === '/stop') {
+    if (command.numbers.length > 0) stopLayer(Math.trunc(command.numbers[0]) as i32);
+    else stopAll();
+    return true;
+  }
+  if (command.address === '/move' && command.numbers.length > 1) followLayerMove(Math.trunc(command.numbers[0]) as i32, Math.trunc(command.numbers[1]) as i32);
+  if (command.address === '/remove' && command.numbers.length > 0) followLayerRemoval(Math.trunc(command.numbers[0]) as i32);
   if (command.address === '/hud') {
     hudShown = command.numbers.length > 0 && command.numbers[0] > 0;
     return true;

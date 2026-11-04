@@ -27,7 +27,8 @@ enum { MAX_LAYERS = 16, MAX_MESH = 16, MAX_MASKS = 4, MAX_PTS = 32, MAX_ARGS = 2
 enum { PATTERN, SOLID, GRADIENT, IMAGE, BAKED, EXTERNAL, NPROG };  // BAKED: IMAGE from a baked (RGBA) asset; EXTERNAL: the decoder's pictures
 enum { STRETCH, CONTAIN, COVER };
 enum { NORMAL, ADD, MULTIPLY, SCREEN };
-const char* SRC_NAMES[] = {"pattern", "solid", "gradient", "image"};
+const char* SRC_NAMES[] = {"pattern", "solid", "gradient", "image", "none"};
+const int SOURCE_NONE = 4;   // an emptied layer draws nothing; a stored source only: BAKED and EXTERNAL, its neighbours in the enum, are worked out at the draw
 const char* BLEND_NAMES[] = {"normal", "add", "multiply", "screen"};
 const char* FIT_NAMES[] = {"stretch", "contain", "cover"};
 typedef char Str[64];
@@ -507,6 +508,11 @@ void draw(int32_t w, int32_t h) {
     sync_media(l);   // before the visibility: a hidden layer's film goes on, and its sound
 #endif
     if (l.visible < 0.5f || l.opacity <= 0) continue;
+    bool emptied = l.source == SOURCE_NONE && l.card < 0;
+#ifdef ZN_MAPPING_MEDIA
+    if (l.mediaShown && l.frame.ready) emptied = false;
+#endif
+    if (emptied && i != selected) continue;   // selected, it shows the test pattern under its frame: it stays findable while it is placed
     if (!l.vbo || l.geom_dirty) tessellate(l);
     if (l.maskimage >= 0 && sync_tex(l.mimg, l.maskimage) > 0) l.mask_dirty = true;
     if (!l.mfbo || l.mask_dirty) {   // back to the framebuffer display-gl bound: the window, or a screenshot's target (zgl.h)
@@ -514,7 +520,7 @@ void draw(int32_t w, int32_t h) {
       glGetIntegerv(GL_FRAMEBUFFER_BINDING, &to);
       build_mask(l); glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)to); glViewport(0, 0, w, h);
     }
-    int src = l.card >= 0 ? (int)IMAGE : l.source;
+    int src = l.card >= 0 ? (int)IMAGE : l.source == SOURCE_NONE ? (int)PATTERN : l.source;
     if (src == IMAGE) src = sync_tex(l.tex, l.card >= 0 ? l.card : l.image) < 0 ? PATTERN : l.tex.rgba ? BAKED : IMAGE;  // missing image: test pattern
     int32_t sourceW = src >= IMAGE ? l.tex.w : 0, sourceH = src >= IMAGE ? l.tex.h : 0;
     GLuint sourceTex = src >= IMAGE ? l.tex.id : white;
@@ -598,7 +604,7 @@ bool apply(Layer& l, const char* key, const double* v, int nn, const Str* s, int
     }
   if (!strcmp(key, "name")) { if (ns < 1) return false; snprintf(l.name, sizeof l.name, "%s", s[0]); return true; }
   if (!strcmp(key, "source")) {
-    int k = ns > 0 ? find(s[0], SRC_NAMES, 4) : -1;
+    int k = ns > 0 ? find(s[0], SRC_NAMES, 5) : -1;
     if (k < 0) return false;
     l.source = k;
     if (nn > 0) l.image = (int)v[0];
@@ -664,6 +670,13 @@ bool command(const char* a, const double* v, int nn, const Str* s, int ns) {
     if (end == a + 7 || *end != '/' || i < 0 || i >= nl) return false;
     return apply(L[i], end + 1, v, nn, s, ns);
   }
+#ifdef ZN_MAPPING_MEDIA
+  if (!strcmp(a, "/thumbnail")) {
+    if (ns < 2) return false;
+    media_thumbnail(s[0], s[1]);
+    return true;
+  }
+#endif
   if (!strcmp(a, "/add")) {
     int i = add_layer();
     if (i < 0) return false;

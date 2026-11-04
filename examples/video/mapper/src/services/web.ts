@@ -6,11 +6,12 @@ import * as mapping from 'zinc:mapping';
 import { serveAsync, Request, Reply, BodyStream } from 'zinc:net';
 import * as os from 'zinc:os';
 import * as sys from 'zinc:sys';
+import { EXTENSIONS, isVideo } from 'zinc:video';
 import { TOKEN_FILE } from '../constants';
 import { cardKind } from './cards';
 import { applyCommand, isHudShown } from './control';
 import { LayerCommand } from './layerCommands';
-import { deleteMedia, mediaExists, mediaListJson, mediaPath, receiveMedia } from './mediaStore';
+import { deleteMedia, mediaExists, mediaListJson, mediaPath, receiveMedia, thumbnailPath } from './mediaStore';
 import { deleteScene, importScene, isSceneName, loadScene, newScene, saveScene, sceneJson, sceneListJson } from './scenes';
 import { replaceShow, showJson } from './show';
 import { soundJson } from './sound';
@@ -100,6 +101,22 @@ async function mediaRoute(req: Request, name: string): Promise<Reply> {
   return { status: 200, body: '', contentType: typeOf(name, FILE_TYPES), file: mediaPath(name) };
 }
 
+const THUMBNAIL_COMING = 202;   // try again in a moment
+const asked: string[] = [];     // a video gives its picture or none, once: the next upload of that name clears it
+
+/** A picture for the editor's grid: an image is its own, a video's is made on the mapper where it plays media itself. */
+function thumbnailRoute(name: string): Reply {
+  if (!mediaExists(name)) return errorReply(404, 'no such media');
+  if (!isVideo(name, EXTENSIONS)) return { status: 200, body: '', contentType: typeOf(name, FILE_TYPES), file: mediaPath(name) };
+  if (fs.exists(thumbnailPath(name))) return { status: 200, body: '', contentType: 'image/jpeg', file: thumbnailPath(name) };
+  if (!mapping.playsMedia()) return errorReply(404, 'no thumbnails here');
+  if (!asked.includes(name)) {
+    asked.push(name);
+    mapping.thumbnail(mediaPath(name), thumbnailPath(name));
+  }
+  return { status: THUMBNAIL_COMING, body: '', contentType: JSON_TYPE };
+}
+
 async function sceneRoute(req: Request, rest: string): Promise<Reply> {
   const loading = rest.endsWith('/load');
   const name = loading ? rest.slice(0, rest.length - 5) : rest;
@@ -138,10 +155,15 @@ async function apiRoute(req: Request, path: string): Promise<Reply> {
   }
   if (path.startsWith('/scenes/')) return sceneRoute(req, path.slice(8));
   if (path === '/media' && req.method === 'GET') return jsonReply(200, mediaListJson());
-  if (path.startsWith('/media/')) return mediaRoute(req, path.slice(7));
+  if (path.startsWith('/media/')) {
+    const named = path.slice(7);
+    if (asked.includes(named) && req.method === 'POST') asked.splice(asked.indexOf(named), 1);
+    return mediaRoute(req, named);
+  }
+  if (path.startsWith('/thumbs/')) return thumbnailRoute(path.slice(8));
   if (path === '/show' && req.method === 'GET') return jsonReply(200, showJson());
   if (path === '/show' && req.method === 'PUT') {
-    const problem = replaceShow(await readBody(req));
+    const problem = replaceShow(await readBody(req), true);
     return problem === '' ? { status: 204, body: '', contentType: JSON_TYPE } : errorReply(400, problem);
   }
   return errorReply(404, 'no such route');

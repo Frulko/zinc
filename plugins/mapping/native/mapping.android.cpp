@@ -62,6 +62,16 @@ static void media_set(MediaHandle* handle, float volume, bool loop) {
   env->CallVoidMethod(handle->media, mediaVolume, (jfloat)volume);
   env->CallVoidMethod(handle->media, mediaLooping, (jboolean)loop);
 }
+// Writes a small picture of a video on its own thread: the show goes on (ZincMappingMedia.writeThumbnail).
+static void media_thumbnail(const char* path, const char* out) {
+  JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
+  if (!env || !loadMediaClass(env)) return;
+  jstring javaPath = env->NewStringUTF(path), javaOut = env->NewStringUTF(out);
+  env->CallStaticVoidMethod(mediaClass, env->GetStaticMethodID(mediaClass, "writeThumbnail", "(Ljava/lang/String;Ljava/lang/String;)V"), javaPath, javaOut);
+  if (env->ExceptionCheck()) env->ExceptionClear();
+  env->DeleteLocalRef(javaPath);
+  env->DeleteLocalRef(javaOut);
+}
 static void media_close(MediaHandle* handle) {
   JNIEnv* env = (JNIEnv*)SDL_GetAndroidJNIEnv();
   env->CallVoidMethod(handle->media, mediaRelease);

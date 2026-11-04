@@ -2,6 +2,7 @@
 import { createSignal } from 'zinc:ui/solid';
 import { Mask, TemplateLayer } from './model/templates';
 import * as storage from 'zinc:storage';
+import { Clip, Column, EMPTY_CLIP, clipFrom, ensureColumns, firstFreeColumn, isEmptyClip } from './model/clips';
 import { Lens, Link } from './model/room';
 import { Placement } from './model/geometry';
 import { SETTLE_MS } from './constants';
@@ -22,8 +23,6 @@ export const [status, setStatus] = createSignal('connecting');
 export const [connected, setConnected] = createSignal(false);
 
 export interface MediaFile { name: string; bytes: number }
-export interface Cell { media: string; fit: string }
-export interface Column { name: string; cells: Cell[] }
 
 /** This editor's preferences: they stay in the browser or the client, not in a scene. */
 export interface Options { selectionFrame: boolean; focusRing: boolean; fineStep: number; coarseStep: number }
@@ -50,7 +49,10 @@ export const store = {
   surfaces: {} as any,
   lens: { throwRatio: 1.4, shiftY: 0 } as Lens,
   links: [] as Link[],
-  armedMedia: '',      // the media a click on a cell puts there
+  playing: [] as i32[],      // per layer, the column of what plays; -1: nothing
+  armed: EMPTY_CLIP as Clip,  // what a click on a cell puts there
+  clipColumn: -1 as i32,      // the clip the inspector shows, with `clipLayer`
+  clipLayer: -1 as i32,
   hudShown: true,
   card: 'off',
   masterVolume: 1,
@@ -98,6 +100,14 @@ export function setLayer(key: string, values: number[]): void {
   if (layer === null) return;
   layer[key] = values;
   send(`/layer/${store.selected}/${key}`, values);
+}
+
+/** The same without building the panels again: for a field being typed in. */
+export function setWordQuietly(key: string, value: string): void {
+  const layer = currentLayer();
+  if (layer === null) return;
+  layer[key] = [value];
+  send(`/layer/${store.selected}/${key}`, [], [value]);
 }
 
 export function setWord(key: string, value: string): void {
@@ -154,7 +164,9 @@ export async function loadMedia(): Promise<void> {
 
 export async function loadShow(): Promise<void> {
   const show = await getJson('/show');
-  store.columns = show.columns as Column[];
+  const columns: Column[] = (show.columns as any[]).map((column: any): Column => ({ name: column.name as string, cells: (column.cells as any[]).map(clipFrom) }));
+  store.columns = ensureColumns(columns);
+  store.playing = Array.isArray(show.playing) ? show.playing as i32[] : [];
   store.activeColumn = show.active as i32;
   if (show.surfaces !== undefined) store.surfaces = show.surfaces;
   if (show.lens !== undefined) store.lens = show.lens as Lens;
@@ -175,10 +187,100 @@ export function saveShow(): void {
   putShow(JSON.stringify({ columns: store.columns, active: store.activeColumn, surfaces: store.surfaces, lens: store.lens, links: store.links, scene: store.sceneName }));
 }
 
+export function clipAt(column: i32, layer: i32): Clip {
+  const cells = store.columns[column].cells;
+  while (cells.length <= layer) cells.push({ ...EMPTY_CLIP });
+  return cells[layer];
+}
+
+/** The clip the inspector shows; empty when none. */
+export function selectedClip(): Clip {
+  return store.clipColumn < 0 || store.clipColumn >= store.columns.length ? EMPTY_CLIP : clipAt(store.clipColumn, store.clipLayer);
+}
+
+export function isPlaying(column: i32, layer: i32): boolean { return layer < store.playing.length && store.playing[layer] === column; }
+
+function markPlaying(layer: i32, column: i32): void {
+  while (store.playing.length <= layer) store.playing.push(-1);
+  store.playing[layer] = column;
+}
+
 export function fireColumn(index: i32): void {
   store.activeColumn = index;
+  for (let layer: i32 = 0; layer < store.layers.length; layer++) markPlaying(layer, isEmptyClip(clipAt(index, layer)) ? -1 : index);
   send('/column', [index]);
   touch();
+}
+
+export function fireCell(column: i32, layer: i32): void {
+  markPlaying(layer, column);
+  store.clipColumn = column;
+  store.clipLayer = layer;
+  store.selected = layer;
+  showSelection();
+  send('/cell', [column, layer]);
+  touch();
+}
+
+export function stopLayer(layer: i32): void {
+  markPlaying(layer, -1);
+  send(`/stop`, [layer]);
+  touch();
+}
+
+export function stopAll(): void {
+  store.playing = [];
+  store.activeColumn = -1;
+  send('/stop', []);
+  touch();
+}
+
+/** Puts a clip in a cell, in place of what was there; the grid keeps a free column at its end. */
+export function placeClip(column: i32, layer: i32, clip: Clip): void {
+  clipAt(column, layer);
+  store.columns[column].cells[layer] = { ...clip };
+  store.columns = ensureColumns(store.columns);
+  store.clipColumn = column;
+  store.clipLayer = layer;
+  saveShow();
+  touch();
+}
+
+export function removeClip(column: i32, layer: i32): void {
+  if (isPlaying(column, layer)) stopLayer(layer);
+  placeClip(column, layer, EMPTY_CLIP);
+  store.clipColumn = -1;
+  touch();
+}
+
+/** A dragged clip changes cell; what was there goes to where it came from. */
+export function swapClips(fromColumn: i32, fromLayer: i32, toColumn: i32, toLayer: i32): void {
+  const moved = clipAt(fromColumn, fromLayer), there = clipAt(toColumn, toLayer);
+  store.columns[fromColumn].cells[fromLayer] = there;
+  store.columns[toColumn].cells[toLayer] = moved;
+  store.clipColumn = toColumn;
+  store.clipLayer = toLayer;
+  saveShow();
+  touch();
+}
+
+/** A change to the selected clip; if it plays, its layer follows at once. */
+export function changeClip(change: (clip: Clip) => void): void {
+  const clip = selectedClip();
+  if (isEmptyClip(clip)) return;
+  change(clip);
+  if (isPlaying(store.clipColumn, store.clipLayer)) {
+    send(`/layer/${store.clipLayer}/fit`, [], [clip.fit]);
+    send(`/layer/${store.clipLayer}/loop`, [clip.loop ? 1 : 0]);
+  }
+  saveShow();
+  touch();
+}
+
+/** A layer changed place or left: the mapper moves its clips with it. */
+export async function afterLayerChange(): Promise<void> {
+  await loadState();
+  await loadShow();
 }
 
 export function showCalibrationCard(kind: string, target: i32): void {
@@ -239,9 +341,7 @@ export async function importScene(path: string): Promise<void> {
   touch();
 }
 
-export function playOnLayer(name: string): void { setWord('media', name); }
-
-/** Sends files to the mapper; the last one plays on the selected layer at once. */
+/** Sends files to the mapper; the last one becomes a clip of the selected layer and plays at once. */
 export async function sendMedia(paths: string[]): Promise<void> {
   let last = '';
   for (const path of paths) {
@@ -255,12 +355,27 @@ export async function sendMedia(paths: string[]): Promise<void> {
       setStatus(`${name} did not arrive: ${e}`);
     }
   }
-  if (last === '') return;
-  setWord('media', '');   // the same name again: the layer reopens the new file
-  setWord('media', last);
+  if (last === '' || store.selected < 0) return;
+  const layer = store.selected;
+  const column = firstFreeColumn(store.columns, layer);
+  if (isPlaying(column, layer)) stopLayer(layer);
+  if (column >= store.columns.length) store.columns = ensureColumns(store.columns);
+  placeClip(column, layer, { ...EMPTY_CLIP, label: last, media: last });
+  await new Promise<void>((resolve: () => void) => { setTimeout(resolve, SETTLE_MS); });   // the show has the clip before it fires
+  fireCell(column, layer);
 }
 
 export async function removeMedia(name: string): Promise<void> {
   store.media = await deleteJson(`/media/${name}`) as MediaFile[];
+  for (let c: i32 = 0; c < store.columns.length; c++) {
+    const cells = store.columns[c].cells;
+    for (let l: i32 = 0; l < cells.length; l++) {
+      if (cells[l].media !== name) continue;
+      if (isPlaying(c, l)) stopLayer(l);
+      cells[l] = { ...EMPTY_CLIP };
+    }
+  }
+  if (store.armed.media === name) store.armed = EMPTY_CLIP;
+  saveShow();
   touch();
 }

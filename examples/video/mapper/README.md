@@ -48,8 +48,13 @@ is the status card, F fullscreen, Esc quits. Options: `--media <folder>`, `--por
    and export at that size.
 4. **Send the media.** Drop files on the window or use *Send files*. They are copied to the device, with progress, and a broken
    transfer leaves nothing behind.
-5. **Build the show.** In *Columns*, one row is a layer, one column a moment of the show. Click a media name, click a cell, and
-   click a column's title to play it. The remote steps through the columns; the last one played comes back after a restart.
+5. **Build the show.** The grid below the views works like Resolume's and Millumin's: a row per layer, a column per moment of the
+   show. Drag a tile of the library onto a cell, or click a tile and then click cells. It holds your media and the mapper's own
+   sources (test pattern, gradient, plain colours).
+6. **Play it.** A click on a clip plays it on its layer, and the others go on; a column's title plays the whole column and empties
+   the layers it has nothing for. A layer's **x** empties it, **Stop all** empties every layer. The clip that plays has a green
+   border; its fit and its looping are in the inspector and follow at once. Drag a clip to another cell to move it. The remote
+   steps through the columns that have clips, and what played comes back after a restart.
 
 ### Calibration cards
 
@@ -130,7 +135,7 @@ sh docs/reports/hardware/toumei-c800-api19.sh apply examples/video/mapper/dist/m
 ## Control it from anything
 
 The editor speaks one small HTTP API, and every setting is also an OSC command on UDP 9000: a lighting desk, TouchOSC or a script
-can drive a show. The address space is in [docs/plugins/mapping.md](../../../docs/plugins/mapping.md); `/column <n>` plays a column,
+can drive a show. The address space is in [docs/plugins/mapping.md](../../../docs/plugins/mapping.md); `/column <n>` plays a column, `/cell <column> <layer>` one clip, `/stop [layer]` empties one layer or all,
 `/hud <0|1>` shows the status card, `/volume <0..1>` and `/mute <0|1>` set the master, and `/card <kind> [target]` shows a calibration card
 (`grid`, `focus`, `colours`, `white` or `off`; target -1 the whole output, -2 every layer, or a layer).
 

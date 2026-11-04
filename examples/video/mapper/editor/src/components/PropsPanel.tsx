@@ -1,11 +1,11 @@
 // The selected layer's settings: what it shows, how a media fits, its sound and its colour.
 import { Button, Switch } from 'zinc:ui/kit';
 import { send } from '../services/link';
-import { currentLayer, loadState, numbers, setLayer, setWord, store, touch, word } from '../state';
+import { Clip, isEmptyClip } from '../model/clips';
+import { changeClip, currentLayer, fireCell, loadState, numbers, removeClip, saveShow, selectedClip, setLayer, setWord, setWordQuietly, store, touch, word } from '../state';
 import { Heading, Row, ValueSlider } from './Field';
 import { Rebuilt } from './Rebuilt';
 
-const SOURCES: string[] = ['pattern', 'solid', 'gradient', 'image'];
 const BLENDS: string[] = ['normal', 'add', 'multiply', 'screen'];
 const FITS: string[] = ['stretch', 'contain', 'cover'];
 
@@ -37,16 +37,49 @@ function Choice(props: { label: string; options: string[]; layer: any; property:
   </Row>;
 }
 
+function ClipProps(): i32 {
+  const clip = selectedClip();
+  if (isEmptyClip(clip)) return <Text className="text-[11px] text-zinc-500">Click a clip in the grid: it plays, and its settings show here.</Text>;
+  const column = store.clipColumn, layer = store.clipLayer;
+  return <View className="gap-1">
+    <Row label="name"><Text className="text-xs text-zinc-100" numberOfLines={1}>{clip.label}</Text></Row>
+    {clip.media !== '' && <Row label="fit">
+      <View className="flex-row flex-wrap gap-1">
+        {FITS.map((fit: string) => <Button size="sm" variant={clip.fit === fit ? 'default' : 'ghost'} label={fit} onClick={() => changeClip((c: Clip) => { c.fit = fit; })} />)}
+      </View>
+    </Row>}
+    {clip.media !== '' && <Row label="loop"><Switch checked={() => clip.loop} onChange={(on: boolean) => changeClip((c: Clip) => { c.loop = on; })} /></Row>}
+    <View className="flex-row gap-1 mt-1">
+      <Button size="sm" variant="secondary" label="Play" onClick={() => fireCell(column, layer)} />
+      <Button size="sm" variant="ghost" label="Remove from the grid" onClick={() => removeClip(column, layer)} />
+    </View>
+  </View>;
+}
+
+function renameLayer(layer: any, name: string): void {
+  const old = word(layer, 'name');
+  for (const link of store.links) {
+    if (link.a === old) link.a = name;
+    if (link.b === old) link.b = name;
+  }
+  if (store.surfaces[old] !== undefined) {
+    store.surfaces[name] = store.surfaces[old];
+    store.surfaces[old] = null;
+  }
+  setWordQuietly('name', name);
+  saveShow();
+}
+
 function LayerProps(props: { layer: any }): i32 {
   const layer = props.layer;
   return <View>
-    <Heading text="Media" />
-    <Row label="file"><Text className="text-xs text-zinc-100">{word(layer, 'media') === '' ? '(none)' : word(layer, 'media')}</Text></Row>
-    <Choice label="fit" options={FITS} layer={layer} property="fit" />
+    <Heading text="Clip" />
+    <ClipProps />
+    <Heading text="Layer" />
+    <Row label="name"><Input className="h-[28] px-2 rounded bg-zinc-800 text-zinc-100 text-xs" aria-label="layer name" value={word(layer, 'name')} onChange={(text: string) => {
+      if (text !== '') renameLayer(layer, text);
+    }} /></Row>
     <PropSlider layer={layer} def={s('volume', 0, 0, 1, 'volume')} />
-    <Row label="loop"><Switch checked={() => numbers(layer, 'loop')[0] > 0} onChange={(on: boolean) => { setLayer('loop', [on ? 1 : 0]); touch(); }} /></Row>
-    <Heading text="Without a media" />
-    <Choice label="source" options={SOURCES} layer={layer} property="source" />
     <Choice label="blend" options={BLENDS} layer={layer} property="blend" />
     <Row label="grid"><Switch checked={() => numbers(layer, 'grid')[0] > 0} onChange={(on: boolean) => { setLayer('grid', [on ? 1 : 0]); touch(); }} /></Row>
     {GROUPS.map((group: [string, SliderDef[]]) => <View>

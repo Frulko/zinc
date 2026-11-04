@@ -4,12 +4,14 @@ import { isFileName } from 'zinc:mapping';
 import { BodyStream } from 'zinc:net';
 import { EXTENSIONS, isVideo } from 'zinc:video';
 
+const THUMBNAILS = '.thumbs';   // hidden: never listed as a media
 let folder = '';
 let videos: i32 = 0;   // what the status card shows; counted when the folder changes, not at each frame
 
 export function openMediaFolder(dir: string): void {
   folder = dir;
   fs.mkdir(folder, true);
+  fs.mkdir(`${folder}/${THUMBNAILS}`, true);
   countVideos();
 }
 
@@ -37,8 +39,16 @@ export function mediaListJson(): string {
   return `[${files.join(',')}]`;
 }
 
+/** Where a video's small picture goes. */
+export function thumbnailPath(name: string): string { return `${folder}/${THUMBNAILS}/${name}.jpg`; }
+
+function forgetThumbnail(name: string): void {
+  if (fs.exists(thumbnailPath(name))) fs.remove(thumbnailPath(name));
+}
+
 export function deleteMedia(name: string): boolean {
   if (!isFileName(name)) return false;
+  forgetThumbnail(name);
   const removed = fs.remove(mediaPath(name));
   countVideos();
   return removed;
@@ -51,6 +61,7 @@ export async function receiveMedia(name: string, body: BodyStream): Promise<void
   try {
     await body.each((chunk: string) => { fs.appendText(coming, chunk); });
     fs.rename(coming, mediaPath(name));
+    forgetThumbnail(name);
     countVideos();
   } catch (e) {
     fs.remove(coming);

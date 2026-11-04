@@ -2,6 +2,7 @@
 import { Point, footprint, insertMaskPoint, insidePolygon, mediaSize } from '../editor/src/model/geometry';
 import { Lens, Link, SolvedSurface, Vec3, sceneGlb, solveRoom, surfaceGrid, surfaceShape, surfacePose } from '../editor/src/model/room';
 import { addLink, linkedCorners, removeLinksOf } from '../editor/src/model/links';
+import { Clip, Column, EMPTY_CLIP, clipFrom, ensureColumns, firstFreeColumn, isEmptyClip } from '../editor/src/model/clips';
 import { PointEditor } from '../editor/src/model/pointEditor';
 
 let failures = 0;
@@ -95,5 +96,15 @@ near('no double link', chain.length, 2, 0);
 near('linked through', linkedCorners(chain, { layer: 'a', corner: 0 }).length, 2, 0);
 removeLinksOf(chain, { layer: 'b', corner: 1 });
 near('unlinked', linkedCorners(chain, { layer: 'a', corner: 0 }).length, 0, 0);
+
+// the grid keeps room for one more clip, and reads the shows saved before sources
+const grid: Column[] = ensureColumns([]);
+near('eight columns to begin with', grid.length, 8, 0);
+grid[7].cells.push({ ...EMPTY_CLIP, label: 'a', source: 'solid' });
+ensureColumns(grid);
+near('a free column stays at the end', grid.length, 9, 0);
+near('first free skips what is taken', firstFreeColumn([{ name: 'a', cells: [{ ...EMPTY_CLIP, media: 'x' }] }, { name: 'b', cells: [] as Clip[] }], 0), 1, 0);
+near('an old cell keeps its media', isEmptyClip(clipFrom({ media: 'x.mp4', fit: 'cover' })) ? 0 : 1, 1, 0);
+near('an old empty cell stays empty', isEmptyClip(clipFrom({ media: '', fit: 'cover' })) ? 1 : 0, 1, 0);
 
 console.log(failures === 0 ? 'ok' : `${failures} failed`);

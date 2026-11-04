@@ -3,12 +3,15 @@ package dev.zinc.mapping;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.SurfaceTexture;
+import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
 import android.util.Log;
 import android.view.Surface;
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.util.Locale;
 
 /**
@@ -36,6 +39,40 @@ final class ZincMappingMedia {
     private volatile Bitmap decodedImage;
     private boolean imageShown;
     private int width, height;
+
+    private static final int THUMBNAIL_WIDTH = 320, THUMBNAIL_QUALITY = 80;
+    private static final long THUMBNAIL_AT_US = 1000000;
+    private static final Object THUMBNAIL_TURN = new Object();   // one at a time: each takes a decoder from the show
+
+    /** A JPEG of a video's picture one second in, at the lowest priority; a file that gives none leaves no file. */
+    static void writeThumbnail(final String path, final String out) {
+        Thread worker = new Thread(new Runnable() {
+            @Override public void run() {
+                synchronized (THUMBNAIL_TURN) {
+                    MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                    try {
+                        retriever.setDataSource(path);
+                        Bitmap frame = retriever.getFrameAtTime(THUMBNAIL_AT_US);
+                        if (frame == null) return;
+                        Bitmap small = Bitmap.createScaledBitmap(frame, THUMBNAIL_WIDTH, THUMBNAIL_WIDTH * frame.getHeight() / frame.getWidth(), true);
+                        frame.recycle();
+                        File coming = new File(out + ".part");
+                        FileOutputStream stream = new FileOutputStream(coming);
+                        small.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_QUALITY, stream);
+                        stream.close();
+                        small.recycle();
+                        coming.renameTo(new File(out));
+                    } catch (Exception e) {
+                        Log.w(TAG, "no thumbnail for " + path + ": " + e);
+                    } finally {
+                        retriever.release();
+                    }
+                }
+            }
+        }, "mapping-thumbnail");
+        worker.setPriority(Thread.MIN_PRIORITY);
+        worker.start();
+    }
 
     ZincMappingMedia(int texture, String path, boolean loop, float volume) {
         this.texture = texture;
