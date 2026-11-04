@@ -2253,21 +2253,35 @@ static bool paint_populate(PaintEntry& e) {
   glGenFramebuffers(1, &e.framebuffer);
   glBindFramebuffer(GL_FRAMEBUFFER, e.framebuffer);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, e.texture, 0);
-  if (!e.texture || glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { if (e.texture) glDeleteTextures(1, &e.texture); glDeleteFramebuffers(1, &e.framebuffer); e.texture = e.framebuffer = 0; return false; }
+  // the frame's POLY go to the GPU through the stencil, so the batch borrows a stencil buffer for this pass: without it every shape that is not a
+  // convex strip would be rasterized on the CPU
+  GLuint srb = 0;
+  if (stencil_ok) {
+    glGenRenderbuffers(1, &srb); glBindRenderbuffer(GL_RENDERBUFFER, srb);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, e.batch.w, e.batch.h);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, srb);
+  }
+  if (!e.texture || glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    if (e.texture) glDeleteTextures(1, &e.texture);
+    glDeleteFramebuffers(1, &e.framebuffer); if (srb) glDeleteRenderbuffers(1, &srb);
+    e.texture = e.framebuffer = 0; return false;
+  }
   const int old_w = W, old_h = H, old_ring = ring_ty;
   const GLuint old_fbo = fbo; fbo = e.framebuffer;
   const bool old_flip = flipy, old_stencil = stencil_ok, old_occl = occl, old_culled = culled;
   const Rect old_base = base;
-  W = e.batch.w; H = e.batch.h; ring_ty = 0; flipy = false; stencil_ok = false; occl = culled = false;
+  W = e.batch.w; H = e.batch.h; ring_ty = 0; flipy = false; stencil_ok = srb != 0; occl = culled = false;
   base = Rect{0, 0, W, H}; clip = base; cur_z = 0; nrc = 0; clip_gen++; pstamp++; cur_prog = nullptr;
   memset(&applied, 0xff, sizeof applied);
   glViewport(0, 0, W, H); glDisable(GL_DITHER); glDisable(GL_DEPTH_TEST); glDisable(GL_STENCIL_TEST); glEnable(GL_SCISSOR_TEST);
-  apply_clip(); glClearColor(0, 0, 0, 0); glClear(GL_COLOR_BUFFER_BIT);
+  if (stencil_ok) { glStencilMask(0xFF); glClearStencil(0); }
+  apply_clip(); glClearColor(0, 0, 0, 0); glClear(GL_COLOR_BUFFER_BIT | (stencil_ok ? GL_STENCIL_BUFFER_BIT : 0));
   glEnable(GL_BLEND); blend_gl = true; cur_blend = BLEND_NORMAL; glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
   glActiveTexture(GL_TEXTURE0); cur_tex = white; glBindTexture(GL_TEXTURE_2D, white);
   paint_busy = true;
   run(Frame{e.batch.cmds, e.batch.count, e.batch.text, e.batch.pts}, false);
   paint_busy = false;
+  if (srb) { flush(); glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0); glBindRenderbuffer(GL_RENDERBUFFER, 0); glDeleteRenderbuffers(1, &srb); }
   fbo = old_fbo; W = old_w; H = old_h; ring_ty = old_ring; flipy = old_flip; stencil_ok = old_stencil; occl = old_occl; culled = old_culled; base = old_base;
   paint_bytes += bytes; ++paint_objects; ++paint_populates; ++paint_generation;
   return true;
