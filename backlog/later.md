@@ -713,7 +713,7 @@ The next backlog review turns lines into tasks or deletes them.
 - mapper: the frontend refuses an `async` arrow with no `Promise<T>` return type (Z0005); TypeScript infers it, and a callback written the plain way hits it.
 - mapper: zinc:link's FOUND takes the first address a host announces: on a Mac with a VM bridge it gave 192.168.139.3, which other machines cannot reach; prefer the interface the answer came in on.
 - compositor: a window covered in mid-run can stall about 1 s (nextDrawable times out at 1001.9 ms and holds up the script), and a covered window with an animation redraws at about 100 fps (the 8 ms cap of `src/host/gfx_host.cpp`); both waste a machine's time for nothing visible.
-- compositor_spinner: isolated stalls of 139 and 247 ms in a visible window stay unexplained, and the test's default window is usually fully covered, so it does not prove the display's pace; measure in a foreground window on a quiet machine.
+- compositor: nothing tests the spinner's pace while the script is busy since `compositor_spinner` was removed (owner, 2026-11-05: its window usually covered, it counted startup gaps); isolated stalls of 139 and 247 ms in a visible window stay unexplained; measure in a foreground window on a quiet machine.
 - zinc device: `update --local` replaces the engine but leaves the shell on the old binary, so a deployed app can run on a mismatched engine until the session restarts; restart it, or say so.
 - zinc device: `screen --live` runs at about 4 fps on a Pi 3B+, too slow to play through; rumble does not travel to the viewer's gamepad.
 - gfx: a fixed-size app with `"resize":"letterbox"` reads a wrong `width()` at start under a display driver or a crop; the pinball dropped the key, other apps still meet it.
