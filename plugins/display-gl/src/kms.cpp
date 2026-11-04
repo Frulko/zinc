@@ -195,8 +195,16 @@ bool zgl_backend_init(const HalConfig* cfg) {
     }
   }
   if (!chosen) { fprintf(stderr, "display-gl: no XRGB8888 EGL config\n"); return false; }
-  const EGLint cattr[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
-  ctx = eglCreateContext(dpy, chosen, EGL_NO_CONTEXT, cattr);
+  // the newest GLES the driver gives: the replay takes its ES 3 path from the version the context reports, and GLSL ES 1.00 programs compile on all of them
+  ctx = EGL_NO_CONTEXT;
+  const int versions[][2] = {{3, 2}, {3, 1}, {3, 0}, {2, 0}};
+  for (const auto& v : versions) {
+    const EGLint cattr[] = {EGL_CONTEXT_MAJOR_VERSION, v[0], EGL_CONTEXT_MINOR_VERSION, v[1], EGL_NONE};
+    const EGLint old[] = {EGL_CONTEXT_CLIENT_VERSION, v[0], EGL_NONE};   // EGL 1.4 without EGL_KHR_create_context: major version only
+    ctx = eglCreateContext(dpy, chosen, EGL_NO_CONTEXT, cattr);
+    if (ctx == EGL_NO_CONTEXT) ctx = eglCreateContext(dpy, chosen, EGL_NO_CONTEXT, old);
+    if (ctx != EGL_NO_CONTEXT) break;
+  }
   surf = eglCreateWindowSurface(dpy, chosen, (EGLNativeWindowType)gs, nullptr);
   if (ctx == EGL_NO_CONTEXT || surf == EGL_NO_SURFACE || !eglMakeCurrent(dpy, surf, surf, ctx)) { fprintf(stderr, "display-gl: EGL context failed\n"); return false; }
   saved = drmModeGetCrtc(fd, crtc_id);

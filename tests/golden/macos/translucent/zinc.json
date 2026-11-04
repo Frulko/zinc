@@ -1,0 +1,1 @@
+{"name":"translucent","entry":"main.tsx","permissions":["window","fs"],"app":{"id":"dev.zinc.test.translucent","name":"Translucent Test","window":{"transparent":true,"frame":false,"width":320,"height":200}},"targets":{"macos":{"width":320,"height":200,"zoom":1}}}

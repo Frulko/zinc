@@ -33,6 +33,16 @@ int main() {
     CHECK(glcaps::print(c, b, sizeof b) > 0 && strstr(b, "family Tegra 3") && strstr(b, "fragment highp no, mediump 13 bits"));
   }
   {
+    const char* name = "iPhone 4";
+    glcaps::Info in{"Imagination Technologies", "PowerVR SGX 535", "OpenGL ES 2.0", nullptr, nullptr, 2048, 23, 10, 24, 8};
+    glcaps::Caps c;
+    glcaps::fill(c, in);
+    CHECK(c.family == glcaps::POWERVR); CHECK(c.tiler); CHECK(c.lean);
+    in.renderer = "SGX535";
+    glcaps::fill(c, in);
+    CHECK(c.lean);
+  }
+  {
     const char* name = "PS Vita (vitaGL)";   // the record the owner's PS Vita printed (targets/vita/gl_vita.cpp)
     glcaps::Info in{"Rinnegatamante", "SGX543MP4+", "OpenGL ES 2.0", "GL_OES_packed_depth_stencil GL_OES_depth24", nullptr, 4096, 23, 23, 32, 8};
     glcaps::Caps c;
@@ -78,7 +88,7 @@ int main() {
     CHECK(c.family == glcaps::SOFTWARE); CHECK(!c.tiler);
     in.renderer = "Intel(R) Iris(TM) Plus Graphics 655";
     glcaps::fill(c, in);
-    CHECK(c.family == glcaps::INTEL); CHECK(!c.tiler);
+    CHECK(c.family == glcaps::INTEL); CHECK(!c.tiler); CHECK(c.lean);
   }
   {
     const char* name = "whole words";
@@ -86,6 +96,6 @@ int main() {
     CHECK(!glcaps::has(nullptr, "GL_X"));
   }
   if (fails) return 1;
-  printf("5 GPUs, record and tuning as expected\n");
+  printf("GPU records and tuning as expected\n");
   return 0;
 }

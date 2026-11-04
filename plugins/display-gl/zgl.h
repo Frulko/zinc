@@ -3,9 +3,17 @@
 // preamble that makes them compile as GLSL 1.50 core on desktop GL.
 #pragma once
 #ifdef __APPLE__
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#include <OpenGLES/ES2/gl.h>
+#define GLR_CORE 0
+#else
 #include <OpenGL/gl3.h>
+#define GLR_CORE 1
+#endif
 #else
 #include <GLES2/gl2.h>
+#define GLR_CORE 0
 #endif
 #include <stdint.h>
 

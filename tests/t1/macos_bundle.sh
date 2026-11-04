@@ -1,5 +1,5 @@
 #!/bin/sh
-# macOS bundles (ZN-234): `zinc run` of an app with app.id and permissions runs from the dev bundle (right CFBundleIdentifier, valid ad-hoc signature, an unchanged refresh under 50 ms),
+# macOS bundles (ZN-234): `zinc run` of an app with app.id, including without permissions runs from the dev bundle (right CFBundleIdentifier, valid ad-hoc signature, an unchanged refresh under 50 ms),
 # and `zinc build --bundle` writes a launchable, signed .app with the Info.plist keys of the manifest and an icon.icns from the PNG.
 [ "$(uname)" = Darwin ] || { echo "skipped: macOS only"; exit 77; }
 cd "$(dirname "$0")/../.." || exit 2
@@ -14,6 +14,28 @@ cd "$tmp/app" || exit 2
 out=$(env -u ZINC_DETERMINISTIC ZINC_DEVAPP_SELFTEST=1 "$ZINC" run main.ts 2>&1)
 case "$out" in *"refreshed"*"bundle id of this process: dev.zinc.test.bundle"*) ;; *) echo "dev bundle: $out"; fail=1 ;; esac
 case "$out" in *"macos"*) ;; *) echo "the program did not run in the bundle: $out"; fail=1 ;; esac
+# No system permission is needed for the app to carry its macOS identity.
+python3 - <<'PYEDIT'
+import json
+p = 'zinc.json'
+s = json.load(open(p))
+s['permissions'] = []
+open(p, 'w').write(json.dumps(s))
+PYEDIT
+out=$(env -u ZINC_DETERMINISTIC ZINC_DEVAPP_SELFTEST=1 "$ZINC" run main.ts 2>&1)
+case "$out" in *"bundle id of this process: dev.zinc.test.bundle"*) ;; *) echo "permissionless dev bundle: $out"; fail=1 ;; esac
+# The plain-JavaScript/WebGL engine must take the same launch path.
+cp zinc.json typed.json
+printf "console.log('javascript app ready');\n" > main.js
+python3 - <<'PYEDIT'
+import json
+s = json.load(open('zinc.json'))
+s.update(entry='main.js', web=True)
+open('zinc.json', 'w').write(json.dumps(s))
+PYEDIT
+out=$(env -u ZINC_DETERMINISTIC ZINC_DEVAPP_SELFTEST=1 "$ZINC" run . 2>&1)
+case "$out" in *"bundle id of this process: dev.zinc.test.bundle"*"javascript app ready"*) ;; *) echo "JavaScript dev bundle: $out"; fail=1 ;; esac
+mv typed.json zinc.json
 codesign -v "$ZINC_HOME/cache/macos/devapp/dev.zinc.test.bundle.app" 2>/dev/null || { echo "dev bundle signature is not valid"; fail=1; }
 out=$(env -u ZINC_DETERMINISTIC ZINC_DEVAPP_SELFTEST=1 "$ZINC" run main.ts 2>&1)
 ms=$(printf '%s\n' "$out" | sed -n 's/.*up to date .* in \([0-9.]*\) ms.*/\1/p' | head -1)
@@ -26,6 +48,11 @@ for want in '"CFBundleIdentifier" => "dev.zinc.test.bundle"' '"LSUIElement" => 1
 done
 [ -s "$tmp/Test.app/Contents/Resources/icon.icns" ] || { echo "no icon.icns"; fail=1; }
 [ "$("$tmp/Test.app/Contents/MacOS/zinc" 2>&1)" = "" ] || true
+# an SVG app.icon is drawn: sips refused to write it back as an SVG, and the whole export failed
+printf '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="9" stroke="black" fill="none"/></svg>' > "$tmp/app/icon.svg"
+cp zinc.json "$tmp/zinc.json.png" && sed -i '' 's/icon\.png/icon.svg/' zinc.json
+"$ZINC" build --bundle main.ts -o "$tmp/Svg.app" >"$tmp/log" 2>&1 && [ -s "$tmp/Svg.app/Contents/Resources/icon.icns" ] || { echo "SVG icon: $(tail -3 "$tmp/log")"; fail=1; }
+cp "$tmp/zinc.json.png" zinc.json
 # an out without .app gets it, so the bundle does not take the path of the plain program; a plain build into a folder says so
 "$ZINC" build --bundle main.ts -o "$tmp/Named" >"$tmp/log" 2>&1 && [ -d "$tmp/Named.app/Contents/MacOS" ] && [ ! -e "$tmp/Named" ] || { echo "build --bundle -o Named did not write Named.app: $(cat "$tmp/log")"; fail=1; }
 mkdir "$tmp/plain"

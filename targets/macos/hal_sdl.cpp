@@ -82,13 +82,14 @@ static ANativeWindow* anw;    // our reference to the window's surface (SDL rele
 static bool anw_locked;       // the CPU is connected to the surface's buffer queue (a lock since the surface came or was let go, window_kind)
 #endif
 #if defined(SDL_PLATFORM_IOS) || defined(SDL_PLATFORM_MACOS)
-// The software raster draws into memory the GPU reads, shown through the window's CAMetalLayer (ZN-627, hal_metal.mm): no SDL_Renderer, no
-// texture upload. ZINC_PRESENT=texture keeps SDL_Renderer. macOS too since ZN-764: the window's default, three surface-sized buffers in all
-// (the frame and two drawables) where the GL replay held nine (216 MB of footprint for a 1180x760 window at density 2, 68 MB here)
+// macOS keeps immutable IOSurfaces at rest and uses Metal for animation; iOS uses Metal (hal_metal.mm).
+// ZINC_PRESENT=metal keeps the Metal path on Mac; texture keeps SDL_Renderer.
 extern "C" bool hal_mtl_open(SDL_Window* w, bool nearest);
 extern "C" uint32_t* hal_mtl_pixels(int w, int h);
-extern "C" void hal_mtl_wait(void);
+extern "C" void hal_mtl_wait(bool preserve);
 extern "C" void hal_mtl_present(void);
+extern "C" const char* hal_mtl_name(void);
+extern "C" uint32_t* hal_mtl_idle(void);
 extern "C" void hal_mtl_close(void);
 static bool mtl_on;
 #else
@@ -339,11 +340,13 @@ static void alloc_surface() {
 #endif
   if (tex) SDL_DestroyTexture(tex);
   free(fb);
-  SDL_SetRenderLogicalPresentation(ren, PW, PH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+  if (wcfg_set && wcfg.transparent == 2) SDL_SetRenderLogicalPresentation(ren, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED);   // the frame is put down pixel for pixel (hal_present)
+  else SDL_SetRenderLogicalPresentation(ren, PW, PH, SDL_LOGICAL_PRESENTATION_LETTERBOX);
   // ARGB8888 even for an opaque window: SDL's Metal renderer has no XRGB texture, so an XRGB one was converted at every SDL_UpdateTexture (3.6% of
   // the main thread at 200k balls with ZINC_RENDERER=cpu, ZN-426); blending off makes the alpha byte, which the raster leaves at 0, irrelevant
   tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, PW, PH);
-  SDL_SetTextureBlendMode(tex, wcfg_set && wcfg.transparent ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
+  SDL_SetTextureBlendMode(tex, !wcfg_set || !wcfg.transparent ? SDL_BLENDMODE_NONE : wcfg.transparent == 2 ? SDL_BLENDMODE_BLEND_PREMULTIPLIED : SDL_BLENDMODE_BLEND);
+  zrt::raster::clear_holes = wcfg_set && wcfg.transparent == 2;
   SDL_SetTextureScaleMode(tex, logical_px ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
   fb = (uint32_t*)calloc((size_t)PW * PH, 4);
 }
@@ -366,12 +369,15 @@ static void apply_size() {
 // window tiling animate the same way: SDL calls this watcher from inside that loop, at each size change and at 60 Hz (the live-resize expose of
 // SDL_OnWindowLiveResizeUpdate). The program draws a whole frame here (zrt_redraw: the engine runs its frame step), at the new size, so the
 // layout follows the mouse and animations, timers and video keep going; the window server never has to stretch an old frame.
+static bool in_poll;                      // inside hal_poll_input: anywhere else the program is mid-frame
 static bool in_watch;                     // a frame drawn from the watcher: its poll takes what is queued without pumping (no tracking loop inside one)
 static int live_frames, live_w, live_h;   // frames presented from the watcher and the size of the last (ZINC_LIVE_RESIZE, tests)
 static bool SDLCALL watch(void*, SDL_Event* e) {
   // only on the thread that draws: Android sends the size changes from its UI thread, where a redraw makes the GL context current on a second
   // thread (eglMakeCurrent crashed the Tegra 3 driver, ZN-622); the poll of the next frame applies them there
   if (!SDL_IsMainThread() || in_watch) return true;
+  // the program resized its window during a frame: that frame is finished and shown at the size it was made for, and the next poll takes the new size
+  if (!in_poll) { if (e->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) resize_pending = true; return true; }
   // the expose of SDL's 60 Hz timer keeps animations going while the mouse holds still; after a size change it has nothing new to show
   static bool sized;   // a frame was drawn for a size change since the timer's last expose
   const bool size = e->type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED;
@@ -627,6 +633,9 @@ void hal_init(const HalConfig* cfg) {
 #ifdef ZN_HAL_GL
   }
 #endif
+#if defined(__linux__) && !defined(__ANDROID__)
+  if (win) hal_x11_window = (uintptr_t)SDL_GetNumberProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
+#endif
 #if defined(__ANDROID__) || defined(SDL_PLATFORM_IOS)
   // the window is the screen (Zinc Next, ZN-622; iOS ZN-624): the program follows it, in logical pixels of the screen's density (a whole zoom: the
   // Nexus 7 2012's 1.33 stays 1); a deterministic run keeps its fixed surface, letterboxed. The part of the scale the window's pixel density
@@ -639,7 +648,10 @@ void hal_init(const HalConfig* cfg) {
   if (ren) SDL_SetRenderVSync(ren, 1);
   if (zrt_prof_info) {   // how the frames reach the screen: ZINC_PROFILE=json and the inspector's Info view (Zinc.getProgramInfo)
     int vs = 1;
-    const char* present = mtl_on ? "Metal" : ren ? SDL_GetRendererName(ren) : "window buffer";
+    const char* present = ren ? SDL_GetRendererName(ren) : "window buffer";
+#if defined(SDL_PLATFORM_IOS) || defined(SDL_PLATFORM_MACOS)
+    if (mtl_on) present = hal_mtl_name();
+#endif
 #ifdef ZN_HAL_GL
     if (gl_on) { present = "OpenGL"; SDL_GL_GetSwapInterval(&vs); }
 #endif
@@ -1037,6 +1049,7 @@ static void live_resize_sim(int n) {
 
 void hal_poll_input(HalInput* in) {
   in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;
+  struct Polling { bool was = in_poll; Polling() { in_poll = true; } ~Polling() { in_poll = was; } } polling;   // a frame drawn from the watcher polls inside this poll
   if (resize_pending) { resize_pending = false; apply_size(); }
   sim_turned();
   static const int live_steps = getenv("ZINC_LIVE_RESIZE") ? atoi(getenv("ZINC_LIVE_RESIZE")) : 0;
@@ -1179,7 +1192,7 @@ static std::condition_variable &band_go = *new std::condition_variable, &band_do
 // profiler hooks (runtime/gfx.cpp): band spans for the raster phase and the trace; no-ops without zinc:gfx
 extern "C" __attribute__((weak)) int32_t zrt_profiling(void) { return 0; }
 extern "C" __attribute__((weak)) void zrt_prof_band(int32_t, uint64_t, uint64_t) {}
-static bool band_prof;
+static bool band_prof, band_opaque;
 static uint32_t* band_px;   // the buffer the bands write: fb, or the window's own (ZN-743); PW pixels per row
 // The raster's pixel is 0x00RRGGBB (bytes B, G, R, 0); an RGBA window buffer takes R, G, B, A
 static inline uint32_t to_rgba(uint32_t p) { return (p & 0x0000FF00u) | (p >> 16 & 0xFFu) | (p & 0xFFu) << 16 | 0xFF000000u; }
@@ -1191,7 +1204,12 @@ static void run_band(int i) {
   uint64_t t0 = band_prof ? hal_time_us() : 0;
   for (int32_t a; (a = band_y0 + band_next.fetch_add(1, std::memory_order_relaxed) * kStripe) < band_y1;) {
     const int32_t e = a + kStripe < band_y1 ? a + kStripe : band_y1;
-    if (!band_swap) { band_fn(band_px + (size_t)a * PW, a, e); continue; }
+    if (!band_swap) {
+      uint32_t* rows = band_px + (size_t)a * PW;
+      band_fn(rows, a, e);
+      if (band_opaque) for (size_t j = 0, n = (size_t)(e - a) * PW; j < n; ++j) rows[j] |= 0xFF000000u;
+      continue;
+    }
     thread_local std::vector<uint32_t> rows;
     rows.resize((size_t)kStripe * PW);
     band_fn(rows.data(), a, e);
@@ -1235,7 +1253,7 @@ static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_
   band_prof = zrt_profiling() != 0;
   band_px = px ? px : fb;
   if (workers == 0 || y1 - y0 < 2 * kStripe) {
-    if (band_swap) { band_fn = fn; band_y0 = y0; band_y1 = y1; band_next.store(0, std::memory_order_relaxed); run_band(0); return; }
+    if (band_swap || band_opaque) { band_fn = fn; band_y0 = y0; band_y1 = y1; band_next.store(0, std::memory_order_relaxed); run_band(0); return; }
     uint64_t t0 = band_prof ? hal_time_us() : 0;
     fn(band_px + (size_t)y0 * PW, y0, y1);
     if (band_prof) zrt_prof_band(0, t0, hal_time_us());
@@ -1858,6 +1876,29 @@ static void layers_follow(const HalFrame* f) {
 #ifdef __APPLE__
 // The window's own colour follows the frame's background (its first command: a CLEAR, or an opaque rectangle over the whole surface): AppKit
 // shows it at a growing edge before the frame of the new size is in, instead of white or black (Electron's backgroundColor)
+// A window with an alpha per pixel: the raster has no alpha, so the damaged rows are rendered over black and over white. The black render is the
+// premultiplied colour, and how much of the white came through is the transparency. A frame that changes costs two renders of its rows.
+static void (*tl_render)(uint32_t*, int32_t, int32_t);
+static uint32_t* tl_white;
+static size_t tl_white_n;
+static void tl_over_black(uint32_t* rows, int32_t y0, int32_t y1) { zrt::raster::set_layer_fill(0); tl_render(rows, y0, y1); zrt::raster::set_layer_fill(HAL_LAYER_HOLE); }
+static void tl_over_white(uint32_t* rows, int32_t y0, int32_t y1) { zrt::raster::set_layer_fill(0xFFFFFF); tl_render(rows, y0, y1); zrt::raster::set_layer_fill(HAL_LAYER_HOLE); }
+static void translucent_upload(const HalFrame* f) {
+  const size_t whole = (size_t)PW * PH, n = (size_t)PW * (size_t)(f->y1 - f->y0);
+  if (tl_white_n != whole) { free(tl_white); tl_white = (uint32_t*)malloc(whole * 4); tl_white_n = whole; }
+  if (tbuf_n < n) { free(tbuf); tbuf = (uint32_t*)malloc(n * 4); tbuf_n = n; }
+  tl_render = f->render;
+  render_rows_parallel(tl_over_black, f->y0, f->y1);
+  render_rows_parallel(tl_over_white, f->y0, f->y1, tl_white);
+  const uint32_t* black = fb + (size_t)f->y0 * PW;
+  const uint32_t* white = tl_white + (size_t)f->y0 * PW;
+  for (size_t i = 0; i < n; i++) {
+    const int32_t through = (int32_t)((white[i] >> 8) & 255) - (int32_t)((black[i] >> 8) & 255);
+    tbuf[i] = (uint32_t)(255 - (through < 0 ? 0 : through)) << 24 | (black[i] & 0xFFFFFF);
+  }
+  const SDL_Rect r = {0, f->y0, PW, f->y1 - f->y0};
+  SDL_UpdateTexture(tex, &r, tbuf, PW * 4);
+}
 static void window_background(const HalFrame* f) {
   static uint32_t bg = 0xFFFFFFFFu;
   if (!f->frames || (wcfg_set && wcfg.transparent)) return;
@@ -1926,17 +1967,29 @@ static void present_frame(const HalFrame* f) {
 #endif
 #if defined(SDL_PLATFORM_IOS) || defined(SDL_PLATFORM_MACOS)
   if (mtl_on) {   // a frame without damage presents nothing: the layer keeps the last one and the display link paces the loop
-    if (f->y1 <= f->y0 || f->x1 <= f->x0) return;
-    hal_mtl_wait();   // the GPU is still copying the previous frame out of fb: almost never, a blit takes a fraction of a frame
+    if (f->y1 <= f->y0 || f->x1 <= f->x0) { if (uint32_t* pixels = hal_mtl_idle()) fb = pixels; return; }
+    const bool surface = !strcmp(hal_mtl_name(), "IOSurface");
+    const bool full = surface && f->x0 == 0 && f->y0 == 0 && f->x1 == PW && f->y1 == PH;
+    hal_mtl_wait(!full);
+    fb = hal_mtl_pixels(PW, PH);
     ps_mark(PS_SWAP);
-    if (f->move && f->render_box) apply_move(f, fb);
+    band_opaque = surface;
+    if (full) render_rows_parallel(f->render, 0, PH);
+    else if (f->move && f->render_box) apply_move(f, fb);
     else render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);
     ps_mark(PS_RASTER);
+    band_opaque = false;
     hal_mtl_present();
     ps_mark(PS_DRAW);
     ps_end();
     return;
   }
+#endif
+#ifdef __APPLE__
+  if (wcfg_set && wcfg.transparent == 2) {
+    if (f->y1 > f->y0 && f->x1 > f->x0) translucent_upload(f);
+    ps_mark(PS_UPLOAD);
+  } else
 #endif
   if (f->y1 > f->y0 && f->x1 > f->x0) {
     if (f->move && f->render_box) apply_move(f, fb);   // fb keeps the previous frame: its pixels move
@@ -1954,7 +2007,10 @@ static void present_frame(const HalFrame* f) {
   }
   if (wcfg_set && wcfg.transparent) SDL_SetRenderDrawColor(ren, 0, 0, 0, 0);
   SDL_RenderClear(ren);
-  SDL_RenderTexture(ren, tex, nullptr, nullptr);
+  if (wcfg_set && wcfg.transparent == 2) {   // pixel for pixel: a window that follows its content is a frame ahead of it, and stretching would make the content wobble
+    const SDL_FRect one_to_one = {0, 0, (float)PW, (float)PH};
+    SDL_RenderTexture(ren, tex, nullptr, &one_to_one);
+  } else SDL_RenderTexture(ren, tex, nullptr, nullptr);
   ps_mark(PS_DRAW);
   SDL_RenderPresent(ren);
   ps_mark(PS_SWAP);

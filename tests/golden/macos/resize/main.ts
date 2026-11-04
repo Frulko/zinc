@@ -11,6 +11,11 @@ let frame = 0;
 onFrame((dt: number) => {
   clear(0x203040);
   frame++;
+  if (env('FOLLOW') === '1') {   // the window moved during every frame, as one that follows its content: the frames still show, and the surface catches up
+    if (frame <= 60) window.setFrame(100, 100, 500, 300 + frame);
+    if (frame === 64) { console.log('surface', width(), height()); system.quit(0); }
+    return;
+  }
   if (frame === 3) window.setSize(640, 360);
   if (frame === 12) { console.log('surface', width(), height()); system.quit(0); }
 });

@@ -74,11 +74,13 @@ void zgl_backend_native(int32_t*, int32_t*) {}   // a window: the size the progr
 void zgl_backend_swap() { SDL_GL_SwapWindow(win); }
 
 void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
+  static const bool scripted = getenv("ZINC_INPUT") && *getenv("ZINC_INPUT");
   int ww, wh;
   SDL_GetWindowSize(win, &ww, &wh);
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
     if (e.type == SDL_EVENT_QUIT) quit = true;
+    if (scripted) continue;   // hal_poll_input already applied the script; live events must not overwrite it
     if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE) quit = true;
     if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F && !e.key.repeat)
       SDL_SetWindowFullscreen(win, !(SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN));
@@ -95,7 +97,7 @@ void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
     }
   }
   static const bool det = getenv("ZINC_DETERMINISTIC") && strcmp(getenv("ZINC_DETERMINISTIC"), "0") != 0;
-  if (det) { in->quit = quit; return; }   // a deterministic run (tests) reads no live keyboard or mouse: the pointer over the window changed hover states
+  if (det || scripted) { in->quit |= quit; return; }   // controlled runs keep the host's input, including a scripted quit
   const bool* k = SDL_GetKeyboardState(nullptr);
   uint32_t b = 0;
   if (k[SDL_SCANCODE_UP] || k[SDL_SCANCODE_W]) b |= HAL_UP;

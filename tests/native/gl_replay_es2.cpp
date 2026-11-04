@@ -29,10 +29,15 @@ int main() {
       if (glr::fs_source(mode < 0 ? ~0u : 1u << mode, paint, fs, sizeof fs)) {
         programs.push_back({name, glr::VS, fs});
         programs.push_back({name + " with rounded clips", rc + glr::VS, rc + fs});
+        programs.push_back({name + " with sampled rounded clips", rc + "#define ZN_MASK_CLIP 1\n" + glr::VS, rc + "#define ZN_MASK_CLIP 1\n" + fs});
       }
       else { std::printf("%s: the source does not fit the replay's buffer\n", name.c_str()); bad++; }
     }
-  for (int l = 0; l < glr::LEANS; l++) programs.push_back({"lean program " + std::to_string(l), l < glr::LEAN_FILL ? glr::LVS : glr::LBVS, glr::LFS[l]});   // ZINC_GL_LEAN
+  for (int l = 0; l < glr::LEANS; l++) for (int clipped = 0; clipped < 3; clipped++) {
+    if (!glr::lean_fs_source(l, clipped != 0, fs, sizeof fs)) { bad++; continue; }
+    const std::string defs = (clipped ? rc : "") + (clipped == 2 ? "#define ZN_MASK_CLIP 1\n" : "");
+    programs.push_back({"lean program " + std::to_string(l) + " clip " + std::to_string(clipped), defs + (l < glr::LEAN_FILL ? glr::LVS : glr::LBVS), defs + fs});
+  }
   for (const Program& p : programs) {
     const std::string vs = pre_vs + p.vs, fs = pre_fs + p.fs;
     std::string vpre, fpre, expanded;
