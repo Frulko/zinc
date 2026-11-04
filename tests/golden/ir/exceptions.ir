@@ -679,7 +679,7 @@ bb1:
 bb2(%8: str):
   %9: str = const ""
   %10: bool = eq %8, %9
-  condbr %10, bb6, bb7
+  condbr %10, bb10, bb11
 bb3:
   %11: str = const ":"
   %12: i32 = const 0
@@ -694,18 +694,38 @@ bb4:
   %19: str = rt string.slice(%0, %17, %18)
   br bb5(%19)
 bb5(%20: str):
-  br bb2(%20)
+  %21: str = const "/"
+  %22: i32 = const 2147483647
+  %23: i32 = rt string.lastIndexOf(%20, %21, %22)
+  %24: i32 = const 0
+  %25: bool = ge %23, %24
+  condbr %25, bb6, bb7(%20)
 bb6:
-  %21: str = const "[Function (anonymous)]"
-  br bb8(%21)
-bb7:
-  %22: str = const "[Function: "
-  %23: str = strconcat %22, %8
-  %24: str = const "]"
-  %25: str = strconcat %23, %24
-  br bb8(%25)
-bb8(%26: str):
-  ret %26
+  %26: i32 = const 1
+  %27: i32 = add %23, %26
+  %28: i32 = const 2147483647
+  %29: str = rt string.slice(%20, %27, %28)
+  br bb7(%29)
+bb7(%30: str):
+  %31: str = const "<anonymous>"
+  %32: bool = eq %30, %31
+  condbr %32, bb8, bb9(%30)
+bb8:
+  %33: str = const ""
+  br bb9(%33)
+bb9(%34: str):
+  br bb2(%34)
+bb10:
+  %35: str = const "[Function (anonymous)]"
+  br bb12(%35)
+bb11:
+  %36: str = const "[Function: "
+  %37: str = strconcat %36, %8
+  %38: str = const "]"
+  %39: str = strconcat %37, %38
+  br bb12(%39)
+bb12(%40: str):
+  ret %40
 }
 func @__num(%0: f64) -> str {
 bb0:

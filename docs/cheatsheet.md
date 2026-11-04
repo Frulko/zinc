@@ -68,6 +68,11 @@ Every function of the engine's modules on one page: its signature and what it do
 - `destroyImage(image: i32): void`
 - `commandCount(): i32` Draw commands recorded so far in this frame, and how many more the frame still takes.
 - `commandsFree(): i32`
+- `ease(kind: i32, t: number): number` The easing curve `kind` at t (0 linear, 1 in, 2 out, 3 inOut, 4 spring, 5-8 the CSS béziers, 9-11 the iOS curves): zinc:ui and the compositor share it.
+- `layerBegin(id: i32, cx: number, cy: number): void` The compositor (D182): the commands drawn until layerEnd() form layer `id`, turned around (cx, cy) by its declared animation.
+- `layerEnd(): boolean`
+- `layerAnim(id: i32, prop: i32, from: number, to: number, start: number, dur: number, easing: i32, iterations: number): void` Declares layer `id`'s animation (prop 0: rotate, degrees); dur < 0 removes it.
+- `compClock(ms: number): boolean` The script's animation clock this frame (ms < 0: no change); true when the compositor plays the declared animations.
 - `beginImage(image: i32): void` Draw commands until endImage() are rasterized into `image` instead of the screen (tile caches, static layers).
 - `endImage(): void`
 - `wheel(): number` Mouse wheel / scroll steps this frame (+ = up).
