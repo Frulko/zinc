@@ -52,7 +52,7 @@ struct Layer {
 #ifdef ZN_MAPPING_MEDIA
   MediaHandle* mediaShown; MediaHandle* mediaComing;  // a new file replaces the old at its first picture: no black between two media
   GLuint mediaShownTex, mediaComingTex;
-  MediaFrame frame;
+  MediaFrame shown;
   float volumeSet, loopSet;
 #endif
 };
@@ -476,7 +476,7 @@ void sync_media(Layer& l) {
       }
     } else {
       close_media(l.mediaShown, l.mediaShownTex);
-      l.frame.ready = false;
+      l.shown.ready = false;
     }
   }
   if (l.mediaComing) {
@@ -486,7 +486,7 @@ void sync_media(Layer& l) {
       close_media(l.mediaShown, l.mediaShownTex);
       l.mediaShown = l.mediaComing; l.mediaShownTex = l.mediaComingTex;
       l.mediaComing = nullptr; l.mediaComingTex = 0;
-      l.frame = first;
+      l.shown = first;
     }
   }
   if (!l.mediaShown) return;
@@ -553,7 +553,7 @@ void draw(int32_t w, int32_t h) {
     if (l.visible < 0.5f || l.opacity <= 0) continue;
     bool emptied = l.source == SOURCE_NONE && l.card < 0;
 #ifdef ZN_MAPPING_MEDIA
-    if (l.mediaShown && l.frame.ready) emptied = false;
+    if (l.mediaShown && l.shown.ready) emptied = false;
 #endif
     if (emptied && i != selected) continue;   // selected, it shows its frame alone: it stays findable while it is placed, and shows nothing
     if (!l.vbo || l.geom_dirty) tessellate(l);
@@ -568,9 +568,9 @@ void draw(int32_t w, int32_t h) {
     int32_t sourceW = src >= IMAGE ? l.tex.w : 0, sourceH = src >= IMAGE ? l.tex.h : 0;
     GLuint sourceTex = src >= IMAGE ? l.tex.id : white;
 #ifdef ZN_MAPPING_MEDIA
-    if (l.card < 0 && l.mediaShown && l.frame.ready) {
-      src = l.frame.image ? BAKED : EXTERNAL;
-      sourceW = l.frame.w; sourceH = l.frame.h;
+    if (l.card < 0 && l.mediaShown && l.shown.ready) {
+      src = l.shown.image ? BAKED : EXTERNAL;
+      sourceW = l.shown.w; sourceH = l.shown.h;
       sourceTex = l.mediaShownTex;
     }
 #endif
@@ -600,7 +600,7 @@ void draw(int32_t w, int32_t h) {
     glUniform4fv(glGetUniformLocation(p, "u_clip"), 1, clip);
 #ifdef ZN_MAPPING_MEDIA
     // the decoder's picture has its first row at the end of the texture: the surface's top reads t = 1 of the player's matrix
-    if (src == EXTERNAL) glUniform4f(glGetUniformLocation(p, "u_stm"), l.frame.scaleS, -l.frame.scaleT, l.frame.offsetS, l.frame.offsetT + l.frame.scaleT);
+    if (src == EXTERNAL) glUniform4f(glGetUniformLocation(p, "u_stm"), l.shown.scaleS, -l.shown.scaleT, l.shown.offsetS, l.shown.offsetT + l.shown.scaleT);
 #endif
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, l.mtex.id);
