@@ -1,4 +1,5 @@
 // What the editor's bottom bar shows: this device, and what it is busy with.
+import { fleetState } from './fleet';
 import * as mapping from 'zinc:mapping';
 import * as os from 'zinc:os';
 import { mediaBytes, mediaCount } from './mediaStore';
@@ -32,5 +33,6 @@ export function deviceJson(name: string, address: string): string {
     layers: mapping.layerCount(),
     mediaFiles: mediaCount(), mediaBytes: mediaBytes(),
     tasks,
+    fleet: fleetState(),
   });
 }

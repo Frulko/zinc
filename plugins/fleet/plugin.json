@@ -1,0 +1,16 @@
+{
+  "name": "fleet",
+  "kind": "module",
+  "module": "zinc:fleet",
+  "entry": "index.ts",
+  "description": "A clock shared by several machines over UDP, so they can act at the same moment; written in Zinc on zinc:socket",
+  "requires": ["net"],
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "windows": {},
+    "android": {},
+    "ios": {},
+    "rpi1": {}
+  }
+}

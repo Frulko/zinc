@@ -165,6 +165,8 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - `zinc:link` announces a short public text (`advertise({ info })`, `Peer.info`), and a web export builds with it: each call answers that a page has no sockets.
 - `zinc:mapping`: `/layer/<n>/edgeoffset` moves where each side's gradient starts, and `/layer/<n>/picture` moves, turns and fades the picture inside its zone.
 - `zinc:mapping`: `/layer/<n>/maskcurve/<k>` gives a polygon mask Bézier handles.
+- `zinc:fleet` gives several machines one clock over the network.
+- `zinc:mapping`: `/output/viewport` shows a part of the canvas, so that machines side by side show one picture.
 
 #### Changed
 - `zinc:net`: a program can serve several ports at once, each with its own handler (`serve`/`serveAsync` again on another port no longer replaces the first server), and `stop(port)` stops one; `stop()` still stops them all. The Spotify login now stops only its own callback server.
@@ -392,6 +394,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - In the video mapper, a soft edge has an **offset** that slides where its gradient starts, from -10 % to +10 %, and a clip has its own **x**, **y**, **scale**, **rotation** and **opacity**.
 - In the video mapper, a mask point can become a curve with two handles (**Curve**, **Corner**), and **feather** sets how soft its edge is, sharp by default.
 - The video mapper editor speaks French: choose the language in *Options*, its texts live in `assets/i18n/<lang>.json`, and a new language is a new file.
+- The video mapper starts on several machines: `--join` takes another mapper's clock, `--viewport` chooses the part of the canvas, and the **sync** card shows how far apart the screens are.
 
 #### Changed
 - Discord: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro) and logs a clamp as "over the ceiling".

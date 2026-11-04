@@ -1220,3 +1220,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-hamlet-quiet: Hamlet windowed Metal and QuickJS fluidity numbers on a quiet machine.
 - ZN-hamlet-atlas-deer: `hamlet_atlas` deer stamps differ from live deer (1670 pixels) on develop; not from the fluidity pass.
 - Lumen: a box's `shadow-*` is painted under its whole box, so it shows through a translucent background; CSS clips it to the outside. Lumen's glass cards have no shadow because of it.
+- Mapper: a value of type `any` is refused as a ternary's condition (Z0103 any to boolean) where TypeScript takes it; hit in the sync card, typed the state instead.

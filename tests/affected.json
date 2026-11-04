@@ -49,6 +49,7 @@
     {"paths": ["examples/godot-zinc-ui/", "tests/t1/godot_zinc_ui.sh", "tests/demo/godot_zinc_ui_visual.sh", "tools/godot/fetch-cpp"], "tests": ["godot_zinc_ui", "godot_zinc_ui_visual"]},
     {"paths": ["tests/golden/ui-press-no-reveal/", "tests/t0/ui_press_no_reveal.sh", "lib/std/ui.ts"], "tests": ["ui_press_no_reveal"]},
     {"paths": ["examples/video/mapper/", "plugins/mapping/", "tests/t0/mapper_model.sh", "tests/t1/mapper.sh"], "tests": ["mapper_model", "mapper"]},
+    {"paths": ["plugins/fleet/", "tests/t0/fleet_clock.sh"], "tests": ["fleet_clock"]},
     {"paths": ["examples/godot-to-zinc/", "tools/godot/", "tests/t1/godot_export.sh", "tests/data/godot-export/"], "tests": ["godot_export"]},
     {"paths": ["include/zn/embed.h", "src/app/embed.cpp", "tools/link-embedded", "tests/data/embed/", "tests/t0/embed.sh"], "tests": ["embed"]},
     {"paths": ["src/assets/scene_world.", "examples/blender-world/", "tests/t1/blender_world.sh"], "tests": ["blender_world"]},

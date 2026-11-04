@@ -1,9 +1,9 @@
 // mapper: GPU video mapping (zinc:mapping on display-gl). Any browser edits it live through the web editor the app serves (services/web.ts); OSC desks reach the same commands.
-// Usage: mapper [--media DIR] [--port N] [--web N|off] [--name NAME]   (default: media, 9000, 8080). Keys: Tab status card, Left/Right columns, F fullscreen, Esc quit.
+// Usage: mapper [--media DIR] [--port N] [--web N|off] [--name NAME] [--join HOST[:PORT]] [--viewport X,Y,W,H] [--fleet-port N]   (default: media, 9000, 8080). Keys: Tab status card, Left/Right columns, F fullscreen, Esc quit.
 import * as gfx from 'zinc:gfx';
 import * as mapping from 'zinc:mapping';
 import { args } from 'zinc:sys';
-import { DEFAULT_MEDIA_DIR, DEFAULT_OSC_PORT, DEFAULT_WEB_PORT, SETUP_FILE } from './constants';
+import { DEFAULT_FLEET_PORT, DEFAULT_MEDIA_DIR, DEFAULT_OSC_PORT, DEFAULT_WEB_PORT, SETUP_FILE } from './constants';
 import { drawHud, drawAddress, drawPairingCode } from './hud';
 import { drawOutputCard } from './services/cards';
 import { createDemoLayers } from './layers';
@@ -18,6 +18,7 @@ import { closeCodeNow, openCode, pairingCode } from './services/pairing';
 import { openScenes } from './services/scenes';
 import { loadShow, resumeShow, stepColumn } from './services/show';
 import { loadVolume } from './services/sound';
+import { startFleet } from './services/fleet';
 import { startWebEditor } from './services/web';
 
 /** The value after --name, else the fallback. */
@@ -42,6 +43,8 @@ resumeShow();
 openScenes();
 startHistory();
 onLayerChange(() => { noteChange(); });
+
+startFleet(option('join', ''), parseInt(option('fleet-port', DEFAULT_FLEET_PORT)), option('viewport', ''));
 
 const oscPort: i32 = parseInt(option('port', DEFAULT_OSC_PORT));
 const oscOn = listenOsc(oscPort);

@@ -27,7 +27,7 @@ function facts(): string {
   if (known === null) return tr('mapper.status.noAnswer');
   const d = known as Device;
   return [d.name, d.address, d.system, `${store.pixels[0]} x ${store.pixels[1]}`, `${d.fps} fps`, trn('mapper.status.layers', d.layers),
-    tr('mapper.status.media', ['count', `${d.mediaFiles}`, 'size', megabytes(d.mediaBytes)]), tr('mapper.status.memory', ['used', megabytes(d.totalMemory - d.freeMemory), 'total', megabytes(d.totalMemory)]),
+    trn('mapper.status.media', d.mediaFiles, ['size', megabytes(d.mediaBytes)]), tr('mapper.status.memory', ['used', megabytes(d.totalMemory - d.freeMemory), 'total', megabytes(d.totalMemory)]),
     tr('mapper.status.load', ['value', d.load.toFixed(1)]), tr('mapper.status.up', ['time', duration(d.uptime)])].join('   ');
 }
 

@@ -2,11 +2,14 @@
 // source and its media without changing the setup. Nothing here is saved: a restart shows the show.
 import * as gfx from 'zinc:gfx';
 import * as mapping from 'zinc:mapping';
+import { fleetNow, fleetState, fleetViewport } from './fleet';
 
 export const OUTPUT_TARGET: i32 = -1;   // the card covers the whole output, straight, one image pixel per pixel
 const EVERY_LAYER: i32 = -2;
 const CARDS: string[] = ['grid', 'focus', 'colours', 'white'];
 const OFF = 'off';
+export const SYNC_CARD = 'sync';   // drawn each frame from the shared clock: over several machines its bar crosses from one to the next
+const SYNC_SWEEP_MS = 2000, SYNC_BAR = 0.02, SYNC_FRAME_MS = 1000 / 60;
 
 const MAX_SIDE = 1024;       // a layer's card is drawn at the pixels the layer covers, up to this
 const GRID_ROWS = 9;
@@ -136,11 +139,12 @@ export function hideCards(): void {
 
 /** `kind` from CARDS or 'off'; `target` a layer, EVERY_LAYER or OUTPUT_TARGET. False when there is no such card or layer. */
 export function showCard(kind: string, target: i32): boolean {
-  if (kind !== OFF && CARDS.indexOf(kind) < 0) return false;
+  if (kind !== OFF && kind !== SYNC_CARD && CARDS.indexOf(kind) < 0) return false;
   if (target >= mapping.layerCount() || target < EVERY_LAYER) return false;
   hideCards();
   if (kind === OFF) return true;
   shown = kind;
+  if (kind === SYNC_CARD) return true;   // the whole output, whatever the target
   if (target === OUTPUT_TARGET) {
     const pixels = JSON.parse(mapping.info()).pixels as number[];
     outputImage = paintedCard(kind, gfx.width(), gfx.height(), `output ${pixels[0]}x${pixels[1]}`);
@@ -153,6 +157,20 @@ export function showCard(kind: string, target: i32): boolean {
 }
 
 /** In the frame, over the layers. */
+function drawSyncCard(): void {
+  const w = gfx.width(), h = gfx.height(), place = fleetViewport(), now = fleetNow();
+  gfx.rect(0, 0, w, h, BLACK);
+  const along = (now % SYNC_SWEEP_MS) / SYNC_SWEEP_MS;
+  gfx.rect((along - place[0]) / place[2] * w, 0, SYNC_BAR / place[2] * w, h, WHITE);
+  const state = fleetState();
+  drawLabel(w, h, `${Math.floor(now / SYNC_FRAME_MS)}`);
+  gfx.text(8, 8, state.master === '' ? 'master' : `player ${state.synced ? `offset ${state.offsetMs.toFixed(1)} ms, rtt ${state.rttMs.toFixed(1)} ms` : 'no clock yet'}`, WHITE, 2);
+}
+
 export function drawOutputCard(): void {
+  if (shown === SYNC_CARD) {
+    drawSyncCard();
+    return;
+  }
   if (outputImage >= 0) gfx.drawImage(outputImage, 0, 0, gfx.width(), gfx.height(), 255, 0);
 }

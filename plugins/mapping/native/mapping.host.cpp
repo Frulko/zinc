@@ -60,6 +60,7 @@ struct Layer {
 };
 Layer L[MAX_LAYERS];
 int nl = 0, selected = -1;
+float viewport[4] = {0, 0, 1, 1};   // /output/viewport: the part of the canvas this output shows; the device's, not a setup's
 float masterVolume = 1;   // /master: over every layer's own volume; the program keeps it, it is not part of a setup
 float aspect = 16.f / 9.f;
 int outputW, outputH;   // the pixels of the last frame: what a calibration is measured in
@@ -220,7 +221,8 @@ void layer_matrix(const Layer& l, float out[9]) {
   const M3 rs = {cs, -sn / aspect, 0, sn * aspect, cs, 0, 0, 0, 1};
   const M3 to = {1, 0, -cx, 0, 1, -cy, 0, 0, 1}, back = {1, 0, cx + l.position[0], 0, 1, cy + l.position[1], 0, 0, 1};
   const M3 ndc = {2, 0, -1, 0, -2, 1, 0, 0, 1};
-  mul(rs, to, t); mul(back, t, t); mul(t, h, m); mul(ndc, m, m);
+  const M3 shown = {1 / viewport[2], 0, -viewport[0] / viewport[2], 0, 1 / viewport[3], -viewport[1] / viewport[3], 0, 0, 1};
+  mul(rs, to, t); mul(back, t, t); mul(t, h, m); mul(shown, m, m); mul(ndc, m, m);
   for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) out[j * 3 + i] = m[i * 3 + j];
 }
 
@@ -691,7 +693,9 @@ void draw(int32_t w, int32_t h) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &px);
   }
   outputW = w; outputH = h;
-  if (h > 0 && fabsf((float)w / h - aspect) > 1e-3f) { aspect = (float)w / h; for (int i = 0; i < nl; i++) L[i].geom_dirty = true; }
+  // the proportions of the canvas, of which this output shows a part
+  const float canvasAspect = h > 0 ? (float)w / h * viewport[3] / viewport[2] : aspect;
+  if (h > 0 && fabsf(canvasAspect - aspect) > 1e-3f) { aspect = canvasAspect; for (int i = 0; i < nl; i++) L[i].geom_dirty = true; }
   for (int i = 0; i < nl; i++) {
     Layer& l = L[i];
 #ifdef ZN_MAPPING_MEDIA
@@ -893,6 +897,11 @@ bool command(const char* a, const double* v, int nn, const Str* s, int ns) {
     return true;
   }
   if (!strcmp(a, "/remove")) { int i = nn > 0 ? (int)v[0] : -1; if (i < 0 || i >= nl) return false; remove_layer(i); return true; }
+  if (!strcmp(a, "/output/viewport")) {
+    if (nn < 4 || v[2] <= 0 || v[3] <= 0) return false;
+    for (int i = 0; i < 4; i++) viewport[i] = (float)v[i];
+    return true;
+  }
   if (!strcmp(a, "/master")) { if (nn < 1) return false; masterVolume = (float)v[0]; return true; }
   if (!strcmp(a, "/clear")) { while (nl) remove_layer(nl - 1); return true; }
   if (!strcmp(a, "/select")) { selected = nn > 0 && v[0] >= 0 && v[0] < nl ? (int)v[0] : -1; return true; }

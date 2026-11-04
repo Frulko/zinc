@@ -69,6 +69,26 @@ if between(.3, .4) > 4: problems.append(f"the edge of a mask with no feather is 
 if between(.55, .7) < w * .03: problems.append(f"a feather is {between(.55, .7)} pixels wide of {w}")
 if problems: print("masks: " + "; ".join(problems)); sys.exit(1)
 PY
+# one canvas on two outputs: a white band over the middle of the canvas fills the right half of the left part, the left half of the right part
+parts="$tmp/parts"; cp -R "$project" "$parts"
+python3 - >"$parts/mapping.json" <<'PY'
+import json
+print(json.dumps({"version": [1], "layers": [{"name": ["band"], "source": ["solid"], "color": [1, 1, 1], "corners": [.25, 0, .75, 0, .75, 1, .25, 1]}]}))
+PY
+for part in "0,0,.5,1 left" ".5,0,.5,1 right"; do
+  set -- $part
+  ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SHOT="$tmp/$2.bmp" timeout 120 "$ZINC" run "$parts/src/main.ts" -- --port 0 --web off --fleet-port 0 --viewport "$1" >"$tmp/$2.log" 2>&1
+done
+python3 - "$tmp" <<'PY' || fail=1
+import struct, sys
+def light(name, x):
+    b = open(f"{sys.argv[1]}/{name}.bmp", "rb").read()
+    start = struct.unpack("<I", b[10:14])[0]; w, h = struct.unpack("<ii", b[18:26]); depth = struct.unpack("<H", b[28:30])[0] // 8
+    return b[start + (h // 2) * ((w * depth + 3) & ~3) + int(x * w) * depth]
+want = [("left", .25, 0), ("left", .75, 255), ("right", .25, 255), ("right", .75, 0)]
+problems = [f"{name} at {x}: {light(name, x)}, not {v}" for name, x, v in want if abs(light(name, x) - v) > 40]
+if problems: print("viewport: " + "; ".join(problems)); sys.exit(1)
+PY
 # a picture 2:1 of four bands (red, green, blue, white) in square zones: what each fit shows of it
 fits="$tmp/fits"; cp -R "$project" "$fits"; mkdir -p "$fits/media"
 python3 - "$fits" <<'PY'
@@ -164,6 +184,23 @@ s3 = load("s3")["layers"]
 if s3[0]["source"][0] != "none" or s3[1]["color"][1] != 1 or s3[1]["color"][2] != 0: problems.append(f"a moved clip does not follow: {s3[:2]}")
 if load("show3")["active"] != 1: problems.append("a save from the page changes what plays")
 if problems: print("; ".join(problems)); sys.exit(1)
+PY
+# a second mapper takes the time of the first (how right it is: fleet_clock)
+second="$tmp/second"; cp -R "$project" "$second"
+fleet=$(python3 -c "import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
+ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=600 "$ZINC" run "$second/src/main.ts" -- --port 0 --web off --fleet-port "$fleet" >"$tmp/m.log" 2>&1 & master=$!
+web2=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
+third="$tmp/third"; cp -R "$project" "$third"
+ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=600 "$ZINC" run "$third/src/main.ts" -- --port 0 --web "$web2" --join "127.0.0.1:$fleet" >"$tmp/p.log" 2>&1 & player=$!
+n=0; while [ $n -lt 600 ] && ! grep -q "editor at" "$tmp/p.log"; do sleep 0.1; n=$((n+1)); done
+sleep 1
+token2=$(sed -n 's/^mapper: editor at .*token=//p' "$tmp/p.log")
+curl -s -m 3 -H "x-zinc-token: $token2" "http://127.0.0.1:$web2/device" >"$tmp/d-fleet.json"
+kill $master $player 2>/dev/null; wait $master $player 2>/dev/null
+python3 - "$tmp" <<'PY' || fail=1
+import json, sys
+f = json.load(open(f"{sys.argv[1]}/d-fleet.json"))["fleet"]
+if not f["synced"] or f["rttMs"] > 100 or f["master"] == "": print(f"the fleet clock: {f}"); sys.exit(1)
 PY
 # the device tells what it runs: an upload shows while it arrives, and is gone after
 api "http://127.0.0.1:$web/device" >"$tmp/d0.json"

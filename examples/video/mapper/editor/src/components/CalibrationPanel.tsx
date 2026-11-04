@@ -48,7 +48,7 @@ function LayerLines(): i32 {
   return <View>{store.layers.map((layer: any) => <LayerLine layer={layer} />)}</View>;
 }
 
-const CARDS: string[] = ['grid', 'focus', 'colours', 'white'];
+const CARDS: string[] = ['grid', 'focus', 'colours', 'white', 'sync'];
 function cardTargets(): string[] { return [tr('mapper.calibration.target.output'), tr('mapper.calibration.target.layers'), tr('mapper.calibration.target.selected')]; }
 const [cardTarget, setCardTarget] = createSignal(0 as i32);
 

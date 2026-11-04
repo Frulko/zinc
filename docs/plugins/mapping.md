@@ -86,6 +86,7 @@ UDP port given to `listen` (9000 in the example). Numbers may be `i`, `f` or `d`
 | `/layer/<n>/hue` | degrees (0) | |
 | `/layer/<n>/gamma` | (1) | > 1 brightens mid-tones |
 | `/layer/<n>/gain` | `r g b` (1 1 1) | |
+| `/output/viewport` | `x y w h` | the part of the canvas this output shows, from 0 to 1 (default `0 0 1 1`): machines given neighbouring parts show one picture. Not saved |
 | `/layer/<n>/crop` | `x0 y0 x1 y1 [feather]` | surface-space rectangle, feathered inwards |
 | `/layer/<n>/edge` | `left right top bottom [gamma]` | edge-blend ramp widths in surface units; gamma = projector gamma (2.2) |
 | `/layer/<n>/source` | `pattern`, `solid`, `gradient`, `image` or `none` | what a layer shows without a media; `none` shows nothing, a selected layer then shows the test pattern under its frame |

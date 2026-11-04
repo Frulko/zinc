@@ -99,6 +99,17 @@ a layer: its **cut** hides a strip outright, its **gradient** fades what follows
 from the edge: into the layer, past it onto what stands behind, or both. Outside, the **cut** brings the far end of the gradient back toward the edge. **Offset** slides where the gradient starts, from -10 % to +10 %, without moving the layer. It follows the warp, and the lines on the
 canvas show where each one ends.
 
+### Several machines, one picture
+
+Start one mapper as usual, and the others with `--join <its address>`: they take its clock. `--viewport x,y,w,h` says which part of the canvas each one shows, from 0 to 1:
+
+```sh
+zinc run examples/video/mapper -- --viewport 0,0,.5,1                              # the left half, gives the time
+zinc run examples/video/mapper -- --join 192.168.1.20 --viewport .5,0,.5,1         # the right half
+```
+
+The **sync** card of *Calibration* (or `/card sync` over OSC, on each machine) draws a bar that crosses the whole canvas from the shared clock alone, with a frame counter and each player's clock error: film it with a phone to see how far apart the screens are. For now each machine still has its own show; replicating it is the next step.
+
 ### Sending media, following the device
 
 **Send files** and **Send a folder** in the library, or a drop on the window, open a window that follows each file; close it and they keep
