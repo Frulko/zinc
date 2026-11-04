@@ -37,6 +37,7 @@ struct Tex { GLuint id; int32_t image, w, h; uint32_t version; bool rgba; };
 struct Layer {
   char name[32];
   int source, blend, cols, rows, image, maskimage, fit;
+  int card;   // a runtime image shown instead of the source and the media while calibrating (-1: none); not saved
   float visible, color[3], color2[3], angle, corners[8], position[2], scale, rotation, opacity;
   float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], grid;
   float inputRect[4], volume, loop;  // inputRect: the part of the source shown (x y w h in 0..1)
@@ -55,6 +56,7 @@ struct Layer {
 };
 Layer L[MAX_LAYERS];
 int nl = 0, selected = -1;
+float masterVolume = 1;   // /master: over every layer's own volume; the program keeps it, it is not part of a setup
 float aspect = 16.f / 9.f;
 int outputW, outputH;   // the pixels of the last frame: what a calibration is measured in
 
@@ -77,7 +79,7 @@ void identity_mesh(Layer& l) {
 void defaults(Layer& l, int idx) {
   static const float palette[6][3] = {{0.2f, 0.6f, 1}, {1, 0.45f, 0.2f}, {0.3f, 0.9f, 0.4f}, {0.9f, 0.3f, 0.8f}, {1, 0.85f, 0.2f}, {0.3f, 0.9f, 0.9f}};
   snprintf(l.name, sizeof l.name, "layer %d", idx);
-  l.source = PATTERN; l.blend = NORMAL; l.image = -1; l.maskimage = -1;
+  l.source = PATTERN; l.blend = NORMAL; l.image = -1; l.maskimage = -1; l.card = -1;
   l.visible = 1; memcpy(l.color, palette[idx % 6], sizeof l.color); l.color2[0] = l.color2[1] = l.color2[2] = 0; l.angle = 0;
   const float c[8] = {0, 0, 1, 0, 1, 1, 0, 1};
   memcpy(l.corners, c, sizeof c);
@@ -430,8 +432,8 @@ void sync_media(Layer& l) {
       if (getcwd(cwd, sizeof cwd)) {
         snprintf(path, sizeof path, "%s/media/%s", cwd, l.media);
         glGenTextures(1, &l.mediaComingTex);
-        l.mediaComing = media_open(l.mediaComingTex, path, l.loop > 0.5f, l.volume);
-        l.volumeSet = l.volume; l.loopSet = l.loop;
+        l.mediaComing = media_open(l.mediaComingTex, path, l.loop > 0.5f, l.volume * masterVolume);
+        l.volumeSet = l.volume * masterVolume; l.loopSet = l.loop;
       }
     } else {
       close_media(l.mediaShown, l.mediaShownTex);
@@ -449,9 +451,9 @@ void sync_media(Layer& l) {
     }
   }
   if (!l.mediaShown) return;
-  if (l.volume != l.volumeSet || l.loop != l.loopSet) {
-    media_set(l.mediaShown, l.volume, l.loop > 0.5f);
-    l.volumeSet = l.volume; l.loopSet = l.loop;
+  if (l.volume * masterVolume != l.volumeSet || l.loop != l.loopSet) {
+    media_set(l.mediaShown, l.volume * masterVolume, l.loop > 0.5f);
+    l.volumeSet = l.volume * masterVolume; l.loopSet = l.loop;
   }
   media_update(l.mediaShown, &l.frame);
 }
@@ -510,12 +512,12 @@ void draw(int32_t w, int32_t h) {
       glGetIntegerv(GL_FRAMEBUFFER_BINDING, &to);
       build_mask(l); glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)to); glViewport(0, 0, w, h);
     }
-    int src = l.source;
-    if (src == IMAGE) src = sync_tex(l.tex, l.image) < 0 ? PATTERN : l.tex.rgba ? BAKED : IMAGE;  // missing image: test pattern
+    int src = l.card >= 0 ? (int)IMAGE : l.source;
+    if (src == IMAGE) src = sync_tex(l.tex, l.card >= 0 ? l.card : l.image) < 0 ? PATTERN : l.tex.rgba ? BAKED : IMAGE;  // missing image: test pattern
     int32_t sourceW = src >= IMAGE ? l.tex.w : 0, sourceH = src >= IMAGE ? l.tex.h : 0;
     GLuint sourceTex = src >= IMAGE ? l.tex.id : white;
 #ifdef ZN_MAPPING_MEDIA
-    if (l.mediaShown && l.frame.ready) {
+    if (l.card < 0 && l.mediaShown && l.frame.ready) {
       src = l.frame.image ? BAKED : EXTERNAL;
       sourceW = l.frame.w; sourceH = l.frame.h;
       sourceTex = l.mediaShownTex;
@@ -607,6 +609,7 @@ bool apply(Layer& l, const char* key, const double* v, int nn, const Str* s, int
   if (!strcmp(key, "fit")) { int k = ns > 0 ? find(s[0], FIT_NAMES, 3) : -1; if (k < 0) return false; l.fit = k; return true; }
   if (!strcmp(key, "blend")) { int k = ns > 0 ? find(s[0], BLEND_NAMES, 4) : -1; if (k < 0) return false; l.blend = k; return true; }
   if (!strcmp(key, "image")) { if (nn < 1) return false; l.image = (int)v[0]; return true; }
+  if (!strcmp(key, "card")) { if (nn < 1) return false; l.card = (int)v[0]; return true; }
   if (!strcmp(key, "maskimage")) { if (nn < 1) return false; l.maskimage = (int)v[0]; l.mimg.image = -2; l.mask_dirty = true; return true; }
   if (!strcmp(key, "corner")) {
     int i = nn >= 3 ? (int)v[0] : -1;
@@ -667,6 +670,7 @@ bool command(const char* a, const double* v, int nn, const Str* s, int ns) {
     return true;
   }
   if (!strcmp(a, "/remove")) { int i = nn > 0 ? (int)v[0] : -1; if (i < 0 || i >= nl) return false; remove_layer(i); return true; }
+  if (!strcmp(a, "/master")) { if (nn < 1) return false; masterVolume = (float)v[0]; return true; }
   if (!strcmp(a, "/clear")) { while (nl) remove_layer(nl - 1); return true; }
   if (!strcmp(a, "/select")) { selected = nn > 0 && v[0] >= 0 && v[0] < nl ? (int)v[0] : -1; return true; }
   if (!strcmp(a, "/move")) {  // from to (draw order: later layers are on top)

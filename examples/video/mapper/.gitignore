@@ -3,6 +3,8 @@ media/
 mapping.json
 show.json
 web-token.txt
+scenes/
+volume.json
 # the editor built for the page the app serves (README): zinc export editor --target web -o assets/editor
 assets/editor/
 editor/build/

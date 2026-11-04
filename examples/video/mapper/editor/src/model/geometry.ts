@@ -107,6 +107,17 @@ export function mediaSize(covered: Point, surfaceW: number, surfaceH: number): P
   return [evenUp(covered[1] * shape), evenUp(covered[1])];
 }
 
+/** Even-odd test: whether (x, y) is inside the outline [x0, y0, x1, y1, ...]. */
+export function insidePolygon(outline: number[], x: number, y: number): boolean {
+  let inside = false;
+  const count: i32 = (outline.length / 2) as i32;
+  for (let i: i32 = 0, j: i32 = count - 1; i < count; j = i, i++) {
+    const xi = outline[i * 2], yi = outline[i * 2 + 1], xj = outline[j * 2], yj = outline[j * 2 + 1];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 const MASK_HEADER: i32 = 2;   // feather and invert come before the points
 
 /** Puts a point in a mask's outline on the edge nearest to it, so that clicking around a shape never makes the outline cross itself. */

@@ -7,10 +7,13 @@ import { serveAsync, Request, Reply, BodyStream } from 'zinc:net';
 import * as os from 'zinc:os';
 import * as sys from 'zinc:sys';
 import { TOKEN_FILE } from '../constants';
-import { applyCommand } from './control';
+import { cardKind } from './cards';
+import { applyCommand, isHudShown } from './control';
 import { LayerCommand } from './layerCommands';
 import { deleteMedia, mediaExists, mediaListJson, mediaPath, receiveMedia } from './mediaStore';
+import { deleteScene, importScene, isSceneName, loadScene, newScene, saveScene, sceneJson, sceneListJson } from './scenes';
 import { replaceShow, showJson } from './show';
+import { soundJson } from './sound';
 
 const JSON_TYPE = 'application/json';
 const MAX_COMMANDS_BYTES = 1048576;
@@ -40,7 +43,7 @@ function stateJson(): string {
   const layers: string[] = [];
   for (let i: i32 = 0; i < mapping.layerCount(); i++) layers.push(mapping.layerJson(i));
   const info = mapping.info();
-  return `{"layers":[${layers.join(',')}],${info.slice(1, info.length - 1).replace(/"layers":\d+,/, '')}}`;
+  return `{"layers":[${layers.join(',')}],"hud":${isHudShown()},"card":${JSON.stringify(cardKind())},${soundJson()},${info.slice(1, info.length - 1).replace(/"layers":\d+,/, '')}}`;
 }
 
 async function readBody(req: Request): Promise<string> {
@@ -97,6 +100,27 @@ async function mediaRoute(req: Request, name: string): Promise<Reply> {
   return { status: 200, body: '', contentType: typeOf(name, FILE_TYPES), file: mediaPath(name) };
 }
 
+async function sceneRoute(req: Request, rest: string): Promise<Reply> {
+  const loading = rest.endsWith('/load');
+  const name = loading ? rest.slice(0, rest.length - 5) : rest;
+  if (!isSceneName(name)) return errorReply(400, 'a scene name has letters, digits, - and _ only');
+  if (loading) {
+    if (req.method !== 'POST') return errorReply(405, 'POST');
+    return loadScene(name) ? jsonReply(200, sceneListJson()) : errorReply(404, 'no such scene');
+  }
+  if (req.method === 'GET') {
+    const scene = sceneJson(name);
+    return scene === '' ? errorReply(404, 'no such scene') : jsonReply(200, scene);
+  }
+  if (req.method === 'DELETE') return deleteScene(name) ? jsonReply(200, sceneListJson()) : errorReply(404, 'no such scene');
+  if (req.method !== 'POST') return errorReply(405, 'GET, POST or DELETE');
+  // no body: the scene on now, under this name; a body: a scene file brought from elsewhere
+  const body = await readBody(req);
+  if (body === '') saveScene(name);
+  else if (!importScene(name, body)) return errorReply(400, 'not a scene file');
+  return jsonReply(200, sceneListJson());
+}
+
 async function apiRoute(req: Request, path: string): Promise<Reply> {
   if (path === '/state' && req.method === 'GET') return jsonReply(200, stateJson());
   if (path === '/osc' && req.method === 'POST') {
@@ -107,6 +131,12 @@ async function apiRoute(req: Request, path: string): Promise<Reply> {
     }
     return { status: 204, body: '', contentType: JSON_TYPE };
   }
+  if (path === '/scenes' && req.method === 'GET') return jsonReply(200, sceneListJson());
+  if (path === '/new-scene' && req.method === 'POST') {
+    newScene();
+    return jsonReply(200, sceneListJson());
+  }
+  if (path.startsWith('/scenes/')) return sceneRoute(req, path.slice(8));
   if (path === '/media' && req.method === 'GET') return jsonReply(200, mediaListJson());
   if (path.startsWith('/media/')) return mediaRoute(req, path.slice(7));
   if (path === '/show' && req.method === 'GET') return jsonReply(200, showJson());

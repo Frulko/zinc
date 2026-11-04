@@ -84,9 +84,21 @@ export async function deleteJson(path: string): Promise<any> {
   return JSON.parse(await reply.text());
 }
 
-/** Sends a picked or dropped file; the media list after it. Throws what the mapper said. */
-export async function sendFile(name: string, path: string, onProgress: (part: number) => void): Promise<any> {
-  const reply = await uploadFile(`${base}/media/${name}`, path, [['x-zinc-token', token]], (sent: number, total: number) => { onProgress(total > 0 ? sent / total : 0); });
+export async function postJson(path: string): Promise<any> {
+  const reply = await fetch(`${base}${path}`, { method: 'POST', body: '', headers: auth() });
+  if (!reply.ok) throw new Error(`the mapper answered ${reply.status}`);
+  return JSON.parse(await reply.text());
+}
+
+export async function getText(path: string): Promise<string> {
+  const reply = await fetch(`${base}${path}`, { headers: auth() });
+  if (!reply.ok) throw new Error(`the mapper answered ${reply.status}`);
+  return await reply.text();
+}
+
+/** Sends a picked or dropped file to a route ("/media/clip.mp4"); what the mapper answers after it. Throws what it said against. */
+export async function sendFile(route: string, path: string, onProgress: (part: number) => void): Promise<any> {
+  const reply = await uploadFile(`${base}${route}`, path, [['x-zinc-token', token]], (sent: number, total: number) => { onProgress(total > 0 ? sent / total : 0); });
   if (reply.status !== 200) throw new Error(reply.body);
   return JSON.parse(reply.body);
 }

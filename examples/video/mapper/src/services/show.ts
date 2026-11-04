@@ -41,7 +41,6 @@ function cellCommands(cell: any, layer: i32): LayerCommand[] {
   const prefix = `/layer/${layer}`;
   const commands: LayerCommand[] = [];
   if (typeof cell.fit === 'string') commands.push({ address: `${prefix}/fit`, numbers: [], strings: [cell.fit as string] });
-  if (typeof cell.volume === 'number') commands.push({ address: `${prefix}/volume`, numbers: [cell.volume as number], strings: [] });
   commands.push({ address: `${prefix}/media`, numbers: [], strings: [typeof cell.media === 'string' ? cell.media as string : ''] });
   return commands;
 }

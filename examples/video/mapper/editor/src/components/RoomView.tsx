@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import * as ui from 'zinc:ui';
 import { createSignal } from 'zinc:ui/solid';
 import { SceneSurface, toWebAxes } from '../model/room';
-import { revision } from '../state';
+import { revision, roomRevision } from '../state';
 
 const BACKGROUND = 0x08090b, FLOOR = 0x16181d, PROJECTOR = 0xffa600;
 const FLOOR_METRES = 20, FLOOR_DROP_METRES = 1.5;
@@ -54,7 +54,7 @@ export function RoomView(props: { className: string; surfaces: () => SceneSurfac
       camera = new THREE.PerspectiveCamera(45, 1, 0.05, 100);
     }
     const r = renderer as THREE.WebGLRenderer, s = scene as THREE.Scene, c = camera as THREE.PerspectiveCamera;
-    const current = revision();
+    const current = revision() + roomRevision();
     if (current !== builtRevision) {
       for (const mesh of surfaces) s.remove(mesh);
       surfaces = props.surfaces().map(surfaceMesh);
@@ -78,7 +78,7 @@ export function RoomView(props: { className: string; surfaces: () => SceneSurfac
     lastX = e.x;
     lastY = e.y;
   };
-  return <Canvas className={props.className} onDraw={draw} onPointerMove={move}
+  return <Canvas className={props.className} grab="keep" onDraw={draw} onPointerMove={move}
     onPointerDown={(e: ui.PointerEvent) => { dragging = true; lastX = e.x; lastY = e.y; }}
     onPointerUp={(e: ui.PointerEvent) => { dragging = false; }}
     onWheel={(e: ui.PointerEvent) => {

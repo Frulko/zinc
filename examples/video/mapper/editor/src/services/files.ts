@@ -11,6 +11,13 @@ export async function pickMedia(): Promise<string[]> {
   return paths === null ? [] : paths as string[];
 }
 
+export async function pickScene(): Promise<string | null> {
+  const options = new dialog.OpenOptions();
+  options.title = 'Scene file to bring to the mapper';
+  const paths = await dialog.open(options);
+  return paths === null || (paths as string[]).length === 0 ? null : (paths as string[])[0];
+}
+
 export function onFileDropped(handler: (path: string) => void): void {
   on('drop', (args: string[]) => {
     if (args.length > 0) handler(args[0]);

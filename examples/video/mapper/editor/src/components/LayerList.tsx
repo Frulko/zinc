@@ -1,8 +1,9 @@
 // The layers: select, show or hide, reorder, add, delete. Later layers draw on top.
 import { Button, Switch } from 'zinc:ui/kit';
 import { send } from '../services/link';
-import { loadState, numbers, revision, selectLayer, store, touch, word } from '../state';
+import { loadState, numbers, selectLayer, store, touch, word } from '../state';
 import { Heading } from './Field';
+import { Rebuilt } from './Rebuilt';
 
 function moveSelected(delta: i32): void {
   const to: i32 = store.selected + delta;
@@ -45,7 +46,7 @@ function Rows(): i32 {
 export function LayerList(): i32 {
   return <View>
     <Heading text="Layers" />
-    {revision() >= 0 && <Rows />}
+    <Rebuilt make={Rows} />
     <View className="flex-row flex-wrap gap-1 mt-2">
       <Button size="sm" variant="secondary" label="Add" onClick={() => addLayer('pattern')} />
       <Button size="sm" variant="secondary" label="Up" onClick={() => moveSelected(1)} />

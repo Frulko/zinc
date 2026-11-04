@@ -5,12 +5,15 @@ import * as mapping from 'zinc:mapping';
 import { args } from 'zinc:sys';
 import { DEFAULT_MEDIA_DIR, DEFAULT_OSC_PORT, DEFAULT_WEB_PORT, SETUP_FILE } from './constants';
 import { drawHud, drawAddress } from './hud';
+import { drawOutputCard } from './services/cards';
 import { createDemoLayers } from './layers';
 import { liveImage, paintLiveImage } from './live';
 import { isHudShown, listenOsc, setHudShown } from './services/control';
 import { bindDecodedVideos, followLayerMedia, useMediaFolder } from './services/layerMedia';
 import { openMediaFolder, videoCount } from './services/mediaStore';
+import { openScenes } from './services/scenes';
 import { loadShow, resumeShow, stepColumn } from './services/show';
+import { loadVolume } from './services/sound';
 import { startWebEditor } from './services/web';
 
 /** The value after --name, else the fallback. */
@@ -30,7 +33,9 @@ if (!hadSetup) createDemoLayers(liveImage);
 setHudShown(!hadSetup);
 loadShow();
 followLayerMedia();
+loadVolume();
 resumeShow();
+openScenes();
 
 const oscPort: i32 = parseInt(option('port', DEFAULT_OSC_PORT));
 const oscOn = listenOsc(oscPort);
@@ -51,6 +56,7 @@ gfx.onFrame((dt: number) => {
   paintLiveImage(t);
 
   gfx.clear(0);   // display-gl key colour: the GPU layers show through, only the status card covers them
+  drawOutputCard();
   if (!isHudShown()) return;
   drawHud([
     { label: 'OSC', value: oscOn ? `udp ${oscPort}` : 'off' },

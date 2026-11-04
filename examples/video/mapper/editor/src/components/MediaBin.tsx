@@ -1,8 +1,9 @@
 // The media on the mapper: send files, play one on the selected layer, arm one for a column cell.
 import { Button } from 'zinc:ui/kit';
 import { pickMedia } from '../services/files';
-import { MediaFile, playOnLayer, removeMedia, revision, sendMedia, store, touch } from '../state';
+import { MediaFile, playOnLayer, removeMedia, sendMedia, store, touch } from '../state';
 import { Heading } from './Field';
+import { Rebuilt } from './Rebuilt';
 
 function size(bytes: number): string {
   return bytes < 1048576 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
@@ -30,7 +31,7 @@ function Rows(): i32 {
 export function MediaBin(): i32 {
   return <View>
     <Heading text="Media" />
-    {revision() >= 0 && <Rows />}
+    <Rebuilt make={Rows} />
     <View className="mt-2"><Button size="sm" label="Send files" onClick={() => { pickAndSend(); }} /></View>
     <Text className="text-[11px] text-zinc-500 mt-1">Or drop them on this window. Click a name, then a column cell, to place it there.</Text>
   </View>;

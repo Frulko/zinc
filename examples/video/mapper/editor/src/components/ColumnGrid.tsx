@@ -1,10 +1,11 @@
 // Columns of media, as in Resolume: a row per layer, a column per moment of the show. A column's title plays it; a click on a cell places the armed media.
 import { Button } from 'zinc:ui/kit';
-import { Cell, Column, fireColumn, revision, saveShow, store, touch, word } from '../state';
+import { Cell, Column, fireColumn, saveShow, store, touch, word } from '../state';
 import { Heading } from './Field';
+import { Rebuilt } from './Rebuilt';
 
 function cellOf(column: Column, layer: i32): Cell {
-  while (column.cells.length <= layer) column.cells.push({ media: '', fit: 'cover', volume: 1 });
+  while (column.cells.length <= layer) column.cells.push({ media: '', fit: 'cover' });
   return column.cells[layer];
 }
 
@@ -50,7 +51,7 @@ function Grid(): i32 {
 export function ColumnGrid(): i32 {
   return <View className="p-3">
     <Heading text="Columns" />
-    {revision() >= 0 && <Grid />}
+    <Rebuilt make={Grid} />
     <View className="flex-row gap-1 mt-2 items-center">
       <Button size="sm" variant="secondary" label="Add column" onClick={addColumn} />
       <Button size="sm" variant="secondary" label="Remove last" onClick={removeLastColumn} />

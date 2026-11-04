@@ -56,10 +56,12 @@ UDP port given to `listen` (9000 in the example). Numbers may be `i`, `f` or `d`
 | `/clear` | | deletes every layer |
 | `/move` | `from to` | changes draw order |
 | `/select` | `n` (−1: none) | shows the calibration grid on layer n |
+| `/master` | 0..1 | over every layer's volume; the program keeps it, it is not saved with the setup |
 | `/save`, `/load` | `[path]` (default `mapping.json`) | whole setup as JSON (`zinc:fs`) |
 | `/sync` | `host port` | replies to host:port with `/state/info {json}` then `/state/layer i {json}` per layer |
 | `/layer/<n>/media` | `file` (empty: none) | Android: plays a file of the media folder, with its sound. Elsewhere it is stored, and the program plays it (`playsMedia()`) |
 | `/layer/<n>/fit` | `stretch`, `contain`, `cover` | how the media takes the layer's zone |
+| `/layer/<n>/card` | `id` (−1: none) | shows a runtime image instead of the source and the media, without changing them (a calibration card); not saved |
 | `/layer/<n>/inputRect` | `x y w h` | the part of the source shown, 0..1 |
 | `/layer/<n>/volume`, `loop` | 0..1, `0/1` | the media's sound and looping |
 | `/layer/<n>/name` | `s` | |
@@ -118,8 +120,9 @@ message: send `/mesh cols rows` then `/point` per point.
 runs natively as well (`zinc run examples/video/mapper/editor -- --app <url>`). Corner pins and deformation grid, masks, crop and edge
 blend, colour and transform, media upload, columns, calibration, and a three.js view of the room. Its HTTP API needs the token printed
 in the address (`?token=...`, header `x-zinc-token`), which also keeps other pages open in the same browser from driving the app:
-`/state`, `/osc` (`[[address, ...args], ...]`), `/media`, `/media/<name>` and `/show`. Two more commands exist on that route and on
-OSC, handled by the program: `/column n` and `/hud 0|1`.
+`/state`, `/osc` (`[[address, ...args], ...]`), `/media`, `/media/<name>`, `/show`, `/scenes`, `/scenes/<name>` (`GET` its file, `POST` saves
+the scene on now, or imports the file in its body, `DELETE`), `/scenes/<name>/load` and `/new-scene`. More commands exist on that route and
+on OSC, handled by the program: `/column n`, `/hud 0|1`, `/volume v`, `/mute 0|1`, `/card kind [target]`.
 
 The app's OSC port has no authentication (UDP senders can be spoofed): `listen(port)` binds every interface unless
 `ZINC_BIND=127.0.0.1` restricts it. Over OSC, `/save` and `/load` take a

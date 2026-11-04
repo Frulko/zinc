@@ -1,7 +1,6 @@
 // Shared names and limits of the editor.
 export const SEND_INTERVAL_MS = 33;      // commands are coalesced and sent 30 times a second
 export const SETTLE_MS = 80;             // queued commands land before a state is read back
-export const COARSE_STEP = 10;           // pixels an arrow moves with Shift
 export const HIT_RADIUS = 14;            // pixels around a point that catch it
 export const CURVE_STEPS = 24;           // segments of a warped line
 export const MAX_MASK_VALUES = 66;       // 32 points, after the feather and the invert

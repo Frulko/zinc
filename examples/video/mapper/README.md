@@ -38,7 +38,7 @@ is the status card, F fullscreen, Esc quits. Options: `--media <folder>`, `--por
 
 ## How you work
 
-1. **Pin the surfaces.** In *Output*, drag a layer's corners onto the real object while watching the wall. Click a point: the
+1. **Pin the surfaces.** In *Output*, click a zone to select it and drag its corners onto the real object while watching the wall. Click a point: the
    arrows move it by one pixel of the output, with Shift by ten, and Tab goes to the next point. Curved or uneven surface? Open
    *Deformation grid*, pick 3 x 3 up to 9 x 9, and move any point of the grid, as in Resolume.
 2. **Cut the shapes.** In *Masks*, add a polygon mask and click around the shape; set its feather, or invert it. Crop and edge
@@ -50,6 +50,20 @@ is the status card, F fullscreen, Esc quits. Options: `--media <folder>`, `--por
    transfer leaves nothing behind.
 5. **Build the show.** In *Columns*, one row is a layer, one column a moment of the show. Click a media name, click a cell, and
    click a column's title to play it. The remote steps through the columns; the last one played comes back after a restart.
+
+### Calibration cards
+
+Before the media, set up the light. *Calibration* shows four cards, on the whole output, on every layer or on the selected one:
+**grid** (square cells and a circle, so a stretched surface shows at once, and a colour per corner to tell which way up),
+**focus** (fine lines and a star: turn the lens until they are crisp), **colours** (bars, greys, the shades near black and near
+white) and **white** (an even light, for overlaps). A card changes nothing in the scene, and a restart shows the show.
+
+### Save and load
+
+The scene on now saves itself as it changes and comes back after a restart: nothing to do. *Scenes* keeps named copies on the
+device: **Save** under a name, **Load**, **Delete**, and **New empty scene** for no layer and no column. **Export** gives a file to
+keep or to bring to another mapper with **Import a file**. A scene holds the layers and the columns; the media stay on the device,
+so another mapper needs the same files. Loading or starting new first keeps what was on as `previous`: a wrong click loses nothing.
 
 ### A 1920x1080 media in a smaller zone
 
@@ -79,8 +93,15 @@ The size you type is what fixes the scale: the corners alone give the shape, not
 
 ### Sound
 
-On Android a layer plays the sound of its media, with its own volume in the layer's settings. On a computer the layers show the
-picture only for now.
+On Android a layer plays the sound of its media. *Sound* is the mixer: a master volume and a mute, which belong to the device (a
+scene does not change them, a restart keeps them), and each layer's volume. The sound leaves by the device's own output, its speaker
+or what is plugged into it; Android mixes everything to that output, so two physical outputs cannot have different levels. Its volume
+keys set the level above the mixer. On a computer the layers show the picture only for now.
+
+### Options
+
+*Options* holds what stays with your browser or client: the frame around the selected layer on the projector, the focus ring on the
+canvases, the steps of the arrow keys (1 and 10 by default). The status card is there too.
 
 ## What runs where
 
@@ -101,8 +122,9 @@ sh docs/reports/hardware/toumei-c800-api19.sh apply examples/video/mapper/dist/m
 ## Control it from anything
 
 The editor speaks one small HTTP API, and every setting is also an OSC command on UDP 9000: a lighting desk, TouchOSC or a script
-can drive a show. The address space is in [docs/plugins/mapping.md](../../../docs/plugins/mapping.md); `/column <n>` plays a column
-and `/hud <0|1>` shows the status card.
+can drive a show. The address space is in [docs/plugins/mapping.md](../../../docs/plugins/mapping.md); `/column <n>` plays a column,
+`/hud <0|1>` shows the status card, `/volume <0..1>` and `/mute <0|1>` set the master, and `/card <kind> [target]` shows a calibration card
+(`grid`, `focus`, `colours`, `white` or `off`; target -1 the whole output, -2 every layer, or a layer).
 
 Anyone who has the token controls the mapper, and OSC has no token at all: keep the device on a network you trust.
 
@@ -120,7 +142,7 @@ Anyone who has the token controls the mapper, and OSC has no token at all: keep 
 | --- | --- |
 | `src/main.ts` | composes everything, the frame loop, the remote's keys |
 | `src/layers.ts`, `src/live.ts`, `src/hud.ts` | the demo layers, a live image, the status card and its QR code |
-| `src/services/` | one file per outside thing: `web` (the editor's server), `mediaStore`, `show` (columns), `control` (commands), `layerMedia` (video on a computer) |
+| `src/services/` | one file per outside thing: `web` (the editor's server), `mediaStore`, `show` (columns), `scenes`, `cards`, `sound`, `control` (commands), `layerMedia` (video on a computer) |
 | `editor/src/model/` | the maths, with no interface: warp, the surface's pose from its corners, the GLB, the SVG templates |
 | `editor/src/components/`, `editor/src/services/` | the editor's views, its link to the mapper, its file dialogs |
 | `tests/` | `model_check.ts` (the maths), `editor-check.mjs` (the HTTP API) |

@@ -1,10 +1,12 @@
 // Calibration: the size each media should be, and the templates to compose over in Premiere or Cavalry.
-import { Button } from 'zinc:ui/kit';
+import { Button, Tabs } from 'zinc:ui/kit';
+import { createSignal } from 'zinc:ui/solid';
 import { Point, footprint, mediaSize } from '../model/geometry';
 import { layerSvg, outputSvg } from '../model/templates';
 import { saveText } from '../services/files';
-import { placementOf, revision, store, surfaceOf, templateOf, word } from '../state';
+import { placementOf, store, surfaceOf, templateOf, word, showCalibrationCard } from '../state';
 import { Heading } from './Field';
+import { Rebuilt } from './Rebuilt';
 
 function recommended(layer: any): Point {
   const surface = surfaceOf(layer);
@@ -45,11 +47,37 @@ function LayerLines(): i32 {
   return <View>{store.layers.map((layer: any) => <LayerLine layer={layer} />)}</View>;
 }
 
+const CARDS: string[] = ['grid', 'focus', 'colours', 'white'];
+const CARD_TARGETS: string[] = ['Whole output', 'Every layer', 'Selected layer'];
+const [cardTarget, setCardTarget] = createSignal(0 as i32);
+
+function targetOfCard(): i32 {
+  if (cardTarget() === 0) return -1;
+  return cardTarget() === 1 ? -2 : store.selected;
+}
+
+function CardButtons(): i32 {
+  return <View className="flex-row flex-wrap gap-1 mt-1">
+    {CARDS.map((kind: string) => <Button size="sm" variant={store.card === kind ? 'default' : 'secondary'} label={kind} onClick={() => showCalibrationCard(kind, targetOfCard())} />)}
+    <Button size="sm" variant="ghost" label="Off" onClick={() => showCalibrationCard('off', -1)} />
+  </View>;
+}
+
+function CardChooser(): i32 {
+  return <View className="mb-2">
+    <Tabs items={CARD_TARGETS} selected={cardTarget} onSelect={setCardTarget} />
+    <Rebuilt make={CardButtons} />
+  </View>;
+}
+
 export function CalibrationPanel(): i32 {
   return <View className="p-3">
+    <Heading text="Calibration cards" />
+    <Text className="text-xs text-zinc-400 mb-2">Grid: square cells, so a stretched surface shows at once. Focus: turn the lens until the fine lines are crisp. Colours: bars, greys, near black and near white. White: an even light, overlaps. They change nothing in the scene.</Text>
+    <CardChooser />
     <Heading text="Make media that fit" />
     <Text className="text-xs text-zinc-400 mb-2">Each size is the pixels the layer covers on the output: a media of that size is shown 1:1. Compose over its template; the mapper warps the result.</Text>
-    {revision() >= 0 && <LayerLines />}
+    <Rebuilt make={LayerLines} />
     <View className="flex-row gap-1 mt-2">
       <Button size="sm" variant="secondary" label="Stage SVG" onClick={() => { saveText('stage-template.svg', allTemplates()); }} />
       <Button size="sm" variant="secondary" label="calibration.json" onClick={() => { saveText('calibration.json', calibrationJson()); }} />

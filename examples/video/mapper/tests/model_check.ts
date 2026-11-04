@@ -1,5 +1,5 @@
 // The editor's maths without its interface: a surface placed in a known spot comes back from its corners, media sizes, the GLB's shape.
-import { Point, footprint, insertMaskPoint, mediaSize } from '../editor/src/model/geometry';
+import { Point, footprint, insertMaskPoint, insidePolygon, mediaSize } from '../editor/src/model/geometry';
 import { Lens, Vec3, sceneGlb, surfaceGrid, surfacePose } from '../editor/src/model/room';
 import { PointEditor } from '../editor/src/model/pointEditor';
 
@@ -60,5 +60,10 @@ insertMaskPoint(mask, 0.9, 0.5);
 near('inserted x', mask[6], 0.9, 0);
 near('inserted y', mask[7], 0.5, 0);
 near('next corner keeps its place', mask[8], 0.7, 0);
+
+// a click inside a zone hits it, even a slanted one; beside it does not
+const zone: number[] = [0.1, 0.1, 0.5, 0.2, 0.4, 0.9, 0.05, 0.8];
+near('inside', insidePolygon(zone, 0.3, 0.5) ? 1 : 0, 1, 0);
+near('outside', insidePolygon(zone, 0.48, 0.8) ? 1 : 0, 0, 0);
 
 console.log(failures === 0 ? 'ok' : `${failures} failed`);

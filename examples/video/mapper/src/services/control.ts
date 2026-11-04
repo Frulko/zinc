@@ -1,6 +1,8 @@
-// One way in for every command, from the web editor or OSC: the mapper's own (/column <n> plays a column, /hud <0|1> shows the status card), then the layers'.
+// One way in for every command, from the web editor or OSC: the mapper's own (/column <n> plays a column, /card <kind> [target] shows a calibration card, /hud <0|1> shows the status card), then the layers'.
 import { listen, OscMessage } from 'zinc:osc';
+import { OUTPUT_TARGET, showCard } from './cards';
 import { applyLayerCommand, LayerCommand } from './layerCommands';
+import { setMasterVolume, setMuted } from './sound';
 import { fireColumn } from './show';
 
 let hudShown = true;
@@ -13,6 +15,12 @@ export function applyCommand(command: LayerCommand): boolean {
   if (command.address === '/hud') {
     hudShown = command.numbers.length > 0 && command.numbers[0] > 0;
     return true;
+  }
+  if (command.address === '/volume') return command.numbers.length > 0 && setMasterVolume(command.numbers[0]);
+  if (command.address === '/mute') return command.numbers.length > 0 && setMuted(command.numbers[0] > 0);
+  if (command.address === '/card') {
+    if (command.strings.length === 0) return false;
+    return showCard(command.strings[0], command.numbers.length > 0 ? Math.trunc(command.numbers[0]) as i32 : OUTPUT_TARGET);
   }
   return applyLayerCommand(command);
 }

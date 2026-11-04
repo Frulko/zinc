@@ -1,8 +1,9 @@
 // The selected layer's settings: what it shows, how a media fits, its sound and its colour.
 import { Button, Slider, Switch } from 'zinc:ui/kit';
 import { send } from '../services/link';
-import { currentLayer, loadState, numbers, revision, setLayer, setWord, store, touch, word } from '../state';
+import { currentLayer, loadState, numbers, setLayer, setWord, store, touch, word } from '../state';
 import { Heading, Row } from './Field';
+import { Rebuilt } from './Rebuilt';
 
 const SOURCES: string[] = ['pattern', 'solid', 'gradient', 'image'];
 const BLENDS: string[] = ['normal', 'add', 'multiply', 'screen'];
@@ -66,6 +67,6 @@ function Content(): i32 {
 
 export function PropsPanel(): i32 {
   return <ScrollView className="w-[300] p-3 bg-zinc-900">
-    {revision() >= 0 && <Content />}
+    <Rebuilt make={Content} />
   </ScrollView>;
 }

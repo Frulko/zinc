@@ -3,9 +3,10 @@ import { Button } from 'zinc:ui/kit';
 import { footprint } from '../model/geometry';
 import { SceneSurface, sceneGlb, surfaceGrid, surfacePose } from '../model/room';
 import { saveBytes } from '../services/files';
-import { currentLayer, numbers, placementOf, revision, saveShow, store, surfaceOf, touch, word } from '../state';
+import { currentLayer, numbers, placementOf, saveShow, store, surfaceOf, touchRoom, word } from '../state';
 import { Heading, NumberField, Row } from './Field';
 import { RoomView } from './RoomView';
+import { Rebuilt } from './Rebuilt';
 
 /** A size in metres for a layer with none entered: one metre wide, with the shape it has on the output. */
 function sizeOf(layer: any): number[] {
@@ -33,7 +34,7 @@ function setSelectedSize(axis: i32, value: number): void {
   size[axis] = value;
   store.surfaces[word(layer, 'name')] = [size[0], size[1]];
   saveShow();
-  touch();
+  touchRoom();
 }
 
 function SizeFields(): i32 {
@@ -49,9 +50,9 @@ function SizeFields(): i32 {
 export function RoomPanel(): i32 {
   return <View className="p-3">
     <Heading text="Room" />
-    {revision() >= 0 && <SizeFields />}
-    <Row label="throw"><NumberField label="throw ratio, distance over picture width" value={() => store.lens.throwRatio} onChange={(v: number) => { if (v > 0) { store.lens.throwRatio = v; saveShow(); touch(); } }} /></Row>
-    <Row label="lens shift"><NumberField label="lens shift, in picture heights" value={() => store.lens.shiftY} onChange={(v: number) => { store.lens.shiftY = v; saveShow(); touch(); }} /></Row>
+    <Rebuilt make={SizeFields} />
+    <Row label="throw"><NumberField label="throw ratio, distance over picture width" value={() => store.lens.throwRatio} onChange={(v: number) => { if (v > 0) { store.lens.throwRatio = v; saveShow(); touchRoom(); } }} /></Row>
+    <Row label="lens shift"><NumberField label="lens shift, in picture heights" value={() => store.lens.shiftY} onChange={(v: number) => { store.lens.shiftY = v; saveShow(); touchRoom(); }} /></Row>
     <RoomView className="w-full h-[420] mt-2" surfaces={sceneSurfaces} />
     <View className="mt-2"><Button size="sm" variant="secondary" label="Scene GLB" onClick={() => { saveBytes('mapper-scene.glb', sceneGlb(sceneSurfaces())); }} /></View>
     <Text className="text-[11px] text-zinc-500 mt-1">Metres, projector at the origin. The GLB opens in three.js, model-viewer, Blender.</Text>

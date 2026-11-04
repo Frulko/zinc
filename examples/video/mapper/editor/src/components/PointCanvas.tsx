@@ -1,8 +1,8 @@
 // A canvas of points: what the output and the surface views share. A click selects (Shift adds), a drag moves, arrows move by 1 pixel and with Shift by 10, Tab goes to the next point.
 import * as ui from 'zinc:ui';
-import { COARSE_STEP, HIT_RADIUS } from '../constants';
+import { HIT_RADIUS } from '../constants';
 import { EditablePoint, PointEditor, hitPoint } from '../model/pointEditor';
-import { touchPoint } from '../state';
+import { store, touchPoint } from '../state';
 
 export interface PointCanvasProps {
   className: string;
@@ -47,7 +47,7 @@ export function PointCanvas(props: PointCanvasProps): i32 {
   };
   const key = (e: ui.KeyEvent): void => {
     const size = props.pixelSize();
-    const step = e.shift ? COARSE_STEP : 1;
+    const step = e.shift ? store.options.coarseStep : store.options.fineStep;
     let dx = 0, dy = 0;
     if (e.key === 'ArrowLeft') dx = -1;
     else if (e.key === 'ArrowRight') dx = 1;
@@ -60,7 +60,7 @@ export function PointCanvas(props: PointCanvasProps): i32 {
     e.preventDefault();
     touchPoint();
   };
-  return <Canvas className={props.className} focusable
+  return <Canvas className={`${props.className} ${store.options.focusRing ? '' : 'outline-none'}`} focusable grab="keep"
     onPointerDown={down} onPointerMove={move} onPointerUp={(e: ui.PointerEvent) => { dragging = false; }} onKeyDown={key}
     onDraw={(x: i32, y: i32, width: i32, height: i32) => {
       w = width;

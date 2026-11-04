@@ -1,10 +1,10 @@
 // The output: every layer's warped surface, and the points of the selected one (corner pins, or the deformation grid).
 import * as gfx from 'zinc:gfx';
 import { ACCENT, CANVAS_BLACK, CURVE_STEPS, SELECTED_POINT } from '../constants';
-import { Mat3, Point, apply, invert, placementMatrix, placementTransform, warp } from '../model/geometry';
+import { Mat3, Point, apply, insidePolygon, invert, placementMatrix, placementTransform, warp } from '../model/geometry';
 import { EditablePoint, PointEditor } from '../model/pointEditor';
 import { send } from '../services/link';
-import { currentLayer, numbers, placementOf, store } from '../state';
+import { currentLayer, numbers, placementOf, selectLayer, store } from '../state';
 import { PointCanvas } from './PointCanvas';
 
 export const outputEditor = new PointEditor();
@@ -73,25 +73,56 @@ function drawLine(line: Point[], colour: u32): void {
   for (let i: i32 = 1; i < line.length; i++) gfx.line(line[i - 1][0], line[i - 1][1], line[i][0], line[i][1], colour);
 }
 
-function drawLayer(layer: any, isSelected: boolean, x: i32, y: i32, w: i32, h: i32): void {
+/** Where a point of the layer's surface lands on the output, 0..1. */
+function surfaceToOutput(layer: any): (s: number, t: number) => Point {
   const placement = placementOf(layer);
   const M: Mat3 = placementMatrix(placement, store.aspect);
-  const at = (s: number, t: number): Point => {
+  return (s: number, t: number): Point => {
     const warped = warp(placement.mesh, s, t);
-    const q = apply(M, warped[0], warped[1]);
-    return [x + q[0] * w, y + q[1] * h];
+    return apply(M, warped[0], warped[1]);
   };
-  const fill: number[] = [];
-  const addEdge = (from: Point, to: Point, along: (k: number) => Point): void => {
+}
+
+/** The warped border of a layer on the output: [x0, y0, x1, y1, ...]. */
+function layerOutline(layer: any): number[] {
+  const at = surfaceToOutput(layer);
+  const outline: number[] = [];
+  const addEdge = (along: (k: number) => Point): void => {
     for (let k: i32 = 0; k < CURVE_STEPS; k++) {
       const p = along(k / CURVE_STEPS);
-      fill.push(p[0], p[1]);
+      outline.push(p[0], p[1]);
     }
   };
-  addEdge([0, 0], [1, 0], (k: number) => at(k, 0));
-  addEdge([1, 0], [1, 1], (k: number) => at(1, k));
-  addEdge([1, 1], [0, 1], (k: number) => at(1 - k, 1));
-  addEdge([0, 1], [0, 0], (k: number) => at(0, 1 - k));
+  addEdge((k: number) => at(k, 0));
+  addEdge((k: number) => at(1, k));
+  addEdge((k: number) => at(1 - k, 1));
+  addEdge((k: number) => at(0, 1 - k));
+  return outline;
+}
+
+/** A click on a zone selects its layer, the top one where several overlap. */
+function selectLayerAt(x: number, y: number): void {
+  for (let n: i32 = store.layers.length - 1; n >= 0; n--) {
+    const layer = store.layers[n];
+    if (numbers(layer, 'visible')[0] > 0 && insidePolygon(layerOutline(layer), x, y)) {
+      if (n !== store.selected) selectLayer(n);
+      return;
+    }
+  }
+}
+
+function drawLayer(layer: any, isSelected: boolean, x: i32, y: i32, w: i32, h: i32): void {
+  const placement = placementOf(layer);
+  const toOutput = surfaceToOutput(layer);
+  const at = (s: number, t: number): Point => {
+    const q = toOutput(s, t);
+    return [x + q[0] * w, y + q[1] * h];
+  };
+  const fill: number[] = layerOutline(layer);
+  for (let i: i32 = 0; i < fill.length; i += 2) {
+    fill[i] = x + fill[i] * w;
+    fill[i + 1] = y + fill[i + 1] * h;
+  }
   const colour = colourOf(numbers(layer, 'color'));
   gfx.polygon(fill, colour, Math.round(90 * numbers(layer, 'opacity')[0]) as i32);
 
@@ -124,8 +155,9 @@ function draw(x: i32, y: i32, w: i32, h: i32): void {
 }
 
 export function selectedPointText(): string {
+  if (store.layers.length === 0) return 'An empty scene: Add makes a layer that covers the whole output.';
   const all = outputPoints();
-  if (outputEditor.selection.length === 0) return 'Click a point; the arrows move it by 1 pixel, with Shift by 10; Tab goes to the next one.';
+  if (outputEditor.selection.length === 0) return 'Click a zone to select it. Click a point; the arrows move it by 1 pixel, with Shift by 10; Tab goes to the next one.';
   const first = all[outputEditor.selection[0]];
   if (first === undefined) return '';
   const many = outputEditor.selection.length > 1 ? `${outputEditor.selection.length} points, first at ` : '';
@@ -133,5 +165,5 @@ export function selectedPointText(): string {
 }
 
 export function OutputCanvas(): i32 {
-  return <PointCanvas className="w-full aspect-video" editor={outputEditor} points={outputPoints} pixelSize={() => store.pixels} draw={draw} />;
+  return <PointCanvas className="w-full aspect-video" editor={outputEditor} points={outputPoints} pixelSize={() => store.pixels} draw={draw} onEmpty={selectLayerAt} />;
 }
