@@ -13,6 +13,8 @@ export interface Spec extends NativeModule {
   /** Announces the server as `name` for `service` ("notify": the instance answers _zinclink._tcp with TXT svc=notify), '' stops.
    *  False when the machine has no multicast. */
   advertise(service: string, name: string): boolean;
+  /** A short text announced with the next advertise() (TXT info), for those who browse: before any pairing, so nothing secret. */
+  setInfo(info: string): void;
   /** One question for the instances of `service` ('' stops browsing); FOUND events follow, one per answer. */
   browse(service: string): boolean;
   /** A new 6-digit code for one peer, five minutes, three tries; it replaces an open one. '' when the server is not listening. */

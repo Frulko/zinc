@@ -33,6 +33,12 @@ The editor is built once, into the mapper's assets. The mapper explains this if 
 zinc export examples/video/mapper/editor --target web -o examples/video/mapper/assets/editor
 ```
 
+**No QR code at hand?** The mapper announces itself on the network (DNS-SD, under its own service type, so it never meets another
+program's). The native editor lists the mappers it finds: choose one, press **Show a code on it**, type the six digits that appear on
+the output. It is paired for good and finds the mapper again when its address changes. A browser cannot look for devices, so open
+`http://<the mapper's address>:8080` and enter the same code. A code lasts five minutes and three tries, and the remote's Select opens
+one too. `--name` sets the name in the list.
+
 On the device: the left and right arrows of the remote change column, Select shows or hides the status card. On a computer: Tab
 is the status card, F fullscreen, Esc quits. Options: `--media <folder>`, `--port <osc port>`, `--web <port>` or `--web off`.
 

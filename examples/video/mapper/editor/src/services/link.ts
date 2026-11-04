@@ -71,7 +71,7 @@ export function startSending(): void {
 
 export async function getJson(path: string): Promise<any> {
   const reply = await fetch(`${base}${path}`, { headers: auth() });
-  if (reply.status === 401) throw new Error('wrong token: open the address shown on the mapper (Tab)');
+  if (reply.status === 401) throw new Error('not paired with this mapper yet');
   if (!reply.ok) throw new Error(`the mapper answered ${reply.status}`);
   return JSON.parse(await reply.text());
 }
@@ -80,6 +80,12 @@ export async function getJson(path: string): Promise<any> {
 export async function getBytes(path: string): Promise<{ status: i32; bytes: u8[] }> {
   const reply = await fetch(`${base}${path}`, { headers: auth() });
   return { status: reply.status as i32, bytes: reply.status === 200 ? await reply.bytes() : [] };
+}
+
+/** A POST to a mapper not connected yet: its status, and its answer. */
+export async function postOpen(url: string, body: string): Promise<{ status: i32; text: string }> {
+  const reply = await fetch(url, { method: 'POST', body });
+  return { status: reply.status as i32, text: await reply.text() };
 }
 
 export async function putJson(path: string, json: string): Promise<void> {

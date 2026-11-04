@@ -709,6 +709,9 @@ The next backlog review turns lines into tasks or deletes them.
 - music-tree: `warmRenderSinglePageOffscreen` costs 60-160 ms per page in the interpreter on a Pi 3 and runs ~2 s after a gesture (the remaining stalls of the frame profile); warm in slices or before the first touch only. The clock slide holds ~1200 RECT, 3100 POLY and 640 CLIP commands per frame: batch/cache the analog face.
 - Engine: `zinc:gfx` startImageDecode needs a real or stub host on the console and web targets (the console stub always refuses).
 
+- mapper: the frontend refuses an `async` arrow with no `Promise<T>` return type (Z0005); TypeScript infers it, and a callback written the plain way hits it.
+- mapper: zinc:link's FOUND takes the first address a host announces: on a Mac with a VM bridge it gave 192.168.139.3, which other machines cannot reach; prefer the interface the answer came in on.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -1022,6 +1025,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: Discord voice AEC: replace the `isHeadphones` name guess with the device type or transport that miniaudio/CoreAudio reports; add a T1 loopback with a simulated room in the fake microphone path.
 
 ## Cross-platform pass
+- mapper: zinc:link has no Windows target, so a Windows mapper or client neither announces nor browses (address and page code still work); add it with `src/net/dnssd.cpp` on Winsock.
+- mapper: announce, pair by code and video thumbnails on the Toumei projector (Android 4.4), and on the Xiaomi box and the Chromecast.
 - Pi sleep (image/player, display-fbdev `backlight`): on the Pi, prove a touch wakes the dark DSI screen, then the DPMS path on HDMI (output off and back, an app on a plane, a USB touch screen); on the Mac only the fade, the input swallowed and the settings are proven.
 - music-airplay: music-tree's setup page and scrobbler on a real TouchPad (`openPort` through zinc-helper, a phone reaching the page, mode 600 under `/media/cryptofs`, `zinc:qrcode` in the webOS build) and `zinc:qrcode` on Android.
 - async-hot-paths: the parallel Sonos reads (7 SOAP calls at once, `update` and `readVolumes`) on the TouchPad; measured only from the Mac, one group of 3 rooms (32 to 50 ms, no failure).

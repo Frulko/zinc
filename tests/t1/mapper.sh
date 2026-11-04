@@ -35,6 +35,14 @@ head -c 3000000 /dev/urandom >"$tmp/clip.bin"
 curl -s -m 20 -o /dev/null -H "x-zinc-token: $token" --data-binary @"$tmp/clip.bin" "http://127.0.0.1:$web/media/clip.bin"
 cmp -s "$tmp/clip.bin" "$media/clip.bin" || { echo "an upload does not arrive byte for byte"; fail=1; }
 [ "$(curl -s -m 2 -o /dev/null -w '%{http_code}' -H "x-zinc-token: $token" --data-binary x "http://127.0.0.1:$web/media/..%2Fevil")" = 400 ] || { echo "a media name with a path is accepted"; fail=1; }
+# no QR code at hand: anyone can ask for the code on screen, only that code gives the token, and three wrong ones close it
+post() { curl -s -m 3 -o /dev/null -w '%{http_code}' -d "$2" "http://127.0.0.1:$web$1"; }
+[ "$(post /pair/ask '')" = 200 ] || { echo "a code cannot be asked for"; fail=1; }
+n=0; while [ $n -lt 30 ] && ! grep -q "pairing code" "$tmp/app.log"; do sleep 0.1; n=$((n+1)); done
+pairing=$(sed -n 's/^mapper: pairing code //p' "$tmp/app.log" | tail -1)
+[ "$(post /pair 000000)" = 403 ] || { echo "a wrong code is not refused"; fail=1; }
+curl -s -m 3 -d "$pairing" "http://127.0.0.1:$web/pair" | grep -q "\"$token\"" || { echo "the code on screen gives no token ($pairing)"; fail=1; }
+[ "$(post /pair "$pairing")" = 403 ] || { echo "a code works twice"; fail=1; }
 # the show: a clip fires alone, a column empties the layers it has no clip for, what plays survives what the page saves
 api() { curl -s -m 3 -H "x-zinc-token: $token" "$@"; }
 api -X PUT -d '{"columns":[{"name":"a","cells":[{"label":"Red","source":"solid","color":[1,0,0]},{"label":"Blue","source":"solid","color":[0,0,1]}]},{"name":"b","cells":[{"label":"Green","source":"solid","color":[0,1,0]},null]}]}' "http://127.0.0.1:$web/show"

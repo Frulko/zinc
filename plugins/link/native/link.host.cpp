@@ -143,7 +143,7 @@ struct HostLink : NativeLink, zrt::Poller {
   std::vector<Peer> peerList;
   int listener = -1, listenPort = 0;
   zn::dnssd::Responder responder;
-  std::string advService, advName;
+  std::string advService, advName, advInfo;
   zn::dnssd::Browser browser;
   std::string browseService;
   std::string code;   // the server's open pairing
@@ -271,8 +271,9 @@ struct HostLink : NativeLink, zrt::Poller {
     return listenPort;
   }
   zn::dnssd::Txt txt() {
-    return {{"id", selfId}, {"svc", advService}, {"name", selfName}, {"pair", code.empty() ? "0" : "1"}, {"v", "1"}};
+    return {{"id", selfId}, {"svc", advService}, {"name", selfName}, {"pair", code.empty() ? "0" : "1"}, {"v", "1"}, {"info", advInfo}};
   }
+  void setInfo(zrt::String info) override { advInfo = std::string(info.ptr(), info.bytes()); }
   bool advertise(zrt::String service, zrt::String name) override {
     advService = std::string(service.ptr(), service.bytes());
     if (name.bytes()) selfName = field(std::string(name.ptr(), name.bytes()));
@@ -398,7 +399,7 @@ struct HostLink : NativeLink, zrt::Poller {
         if (f.get("svc") != browseService || f.get("id").size() != 16 || f.get("id") == selfId) continue;
         const std::string name = f.get("name").empty() ? f.name : f.get("name");
         emit(-1, FOUND, "{\"name\":" + json(name) + ",\"host\":" + json(f.host) + ",\"port\":" + std::to_string(f.port) + ",\"id\":" + json(f.get("id")) +
-                            ",\"service\":" + json(browseService) + ",\"pairing\":" + (f.get("pair") == "1" ? "true" : "false") + "}");
+                            ",\"service\":" + json(browseService) + ",\"pairing\":" + (f.get("pair") == "1" ? "true" : "false") + ",\"info\":" + json(f.get("info")) + "}");
       }
     }
     if (listener >= 0) {

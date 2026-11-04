@@ -6,7 +6,7 @@ the Mac's notifications on a tablet ([the relay](../reports/notification-relay-d
 protocol is [zinc agent](../reports/zinc-next-agent.md)'s, and so is the code: discovery is `src/net/dnssd.cpp` (DNS-SD over mDNS,
 mjansson/mdns), the TLS sessions are `src/host/tls.cpp` (mbedTLS), the frames `src/net/frame.h`.
 
-Targets: macOS, Linux, Android. Engines: the native engine (`zinc run`, `zinc build`) and the interpreter (`--interp`). The QuickJS engine
+Targets: macOS, Linux, Android; a web export builds and each call answers that a page has no sockets. Engines: the native engine (`zinc run`, `zinc build`) and the interpreter (`--interp`). The QuickJS engine
 loads it, but its timers run on a virtual clock that does not wait, so a program there gives up before the network answers (`later.md`).
 
 ## The advertiser (the tablet)
@@ -66,7 +66,7 @@ program's key: pair again` (no more retries).
 | | |
 |---|---|
 | `init({ name?, store? }): string` | loads this program's identity and its peers (called by the first other call when not called); its id, 16 hex digits |
-| `advertise({ service, name?, port? }): number` | a server on `port` (default 7744, any free port when taken and no port was asked) announced for `service`; the port. Throws when it cannot listen. `stopAdvertising()` |
+| `advertise({ service, name?, port?, info? }): number` | a server on `port` (default 7744, any free port when taken and no port was asked) announced for `service`, with a short public text `info`; the port. Throws when it cannot listen. `stopAdvertising()` |
 | `browse(service, cb(peer, present))` | the programs that advertise `service`; asked every 4 s, gone after 12 s without an answer. `stopBrowsing()` |
 | `openPairing(): string` / `closePairing()` | a 6-digit code (advertise first): five minutes, three tries, one peer; its TXT record says `pair=1` meanwhile |
 | `onPairing(cb(state))` / `onPaired(cb(peer))` | the advertiser's pairing (`try 1`, `try 2`, `closed`, `paired`); a pairing that succeeded, on either side |
@@ -75,7 +75,7 @@ program's key: pair again` (no more retries).
 | `onConnection(cb(channel))` | each channel a paired peer opens to this program |
 | `peers(): Peer[]`, `forget(id): boolean`, `addresses(): string[]`, `id(): string` | the store; this machine's IPv4 addresses (for the "type this address" step) |
 | `Channel` | `peer`, `connected`; `send(value)` (JSON), `sendBytes(kind 0..255, bytes)` (at most 1 MiB), both false while disconnected (nothing is queued); `onOpen`, `onMessage`, `onBytes`, `onClose(reason)`; `close()` |
-| `Peer` | `id`, `name`, `host`, `port`, `service`, `pairing` (a code is open there), `paired` (this program holds its key) |
+| `Peer` | `id`, `name`, `host`, `port`, `service`, `pairing` (a code is open there), `paired` (this program holds its key), `info` (what it announces) |
 
 ## Protocol and security
 

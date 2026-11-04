@@ -18,6 +18,8 @@ export interface Peer {
   pairing: boolean;
   /** This program holds a key for it. */
   paired: boolean;
+  /** What it announces with `advertise({ info })`; anyone on the network reads it. */
+  info: string;
 }
 
 export interface InitOptions {
@@ -34,6 +36,8 @@ export interface AdvertiseOptions {
   name?: string;
   /** The TCP port (default 7744, or any free one when it is taken). */
   port?: number;
+  /** A short text for those who browse, before any pairing: nothing secret. */
+  info?: string;
 }
 
 export const DEFAULT_PORT: number = 7744;
@@ -123,7 +127,7 @@ const pairingCbs: ((state: string) => void)[] = [];
 
 function peerOf(j: any, pairing: boolean): Peer {
   const id = '' + j.id;
-  return { id: id, name: '' + j.name, host: '' + j.host, port: j.port as number, service: '' + j.service, pairing: pairing, paired: isPaired(id) };
+  return { id: id, name: '' + j.name, host: '' + j.host, port: j.port as number, service: '' + j.service, pairing: pairing, paired: isPaired(id), info: j.info === undefined ? '' : '' + j.info };
 }
 
 function isPaired(id: string): boolean {
@@ -230,6 +234,7 @@ export function advertise(opts: AdvertiseOptions): number {
   }
   watch();
   advertised = opts.service;
+  L.setInfo(opts.info ?? '');
   if (!L.advertise(opts.service, opts.name ?? selfName)) console.error('zinc:link: not announced (' + L.error() + '); the address can still be typed');
   return serverPort;
 }
@@ -296,7 +301,7 @@ export function peers(): Peer[] {
   const list = JSON.parse(L.peers());
   for (let i = 0; i < (list.length as i32); i++) {
     const j = list[i];
-    out.push({ id: '' + j.id, name: '' + j.name, host: '' + j.host, port: j.port as number, service: '' + j.service, pairing: false, paired: true });
+    out.push({ id: '' + j.id, name: '' + j.name, host: '' + j.host, port: j.port as number, service: '' + j.service, pairing: false, paired: true, info: '' });
   }
   return out;
 }

@@ -161,6 +161,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - Native plugins: a spec can declare interfaces and pass them, in lists, optional or nested, as parameters, results and promise results; the generated C++ header has a plain struct per record with `zn::rec::encode`/`decode`, safe on a worker thread, and fields appended later stay readable both ways. `zinc:gphoto2`'s `detect()` uses it.
 - A stand-in `x.sim.ts` can `import type { ... } from './x.spec'` to use its spec's records instead of copying them, and the plugin still imports them from the spec.
 - `zinc:system` opens and saves files in a web export (the browser's picker, a download) and reports files dropped on the page, and `uploadFile` of `zinc:web/fetch` sends a file of any size with its progress, in the browser and natively.
+- `zinc:link` announces a short public text (`advertise({ info })`, `Peer.info`), and a web export builds with it: each call answers that a page has no sockets.
 
 #### Changed
 - `zinc:net`: a program can serve several ports at once, each with its own handler (`serve`/`serveAsync` again on another port no longer replaces the first server), and `stop(port)` stops one; `stop()` still stops them all. The Spotify login now stops only its own callback server.
@@ -376,6 +377,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - The video mapper saves and loads named scenes, exports and imports them as files and starts a new empty one; shows calibration cards (grid, focus, colours, white) on the whole output or on layers; has a sound mixer with a master volume, a mute and each layer's volume; selects a zone with a click, and its options remove the selection frame and the focus ring.
 - The video mapper links corners of two layers so they move together, softens one edge of a layer with a cut and a gradient you set (`/layer/<n>/inset` in `zinc:mapping`), and rebuilds its 3D view from the corners, the lens and those links: faces of one box now meet.
 - The video mapper works like Resolume and Millumin: a library of media and sources with thumbnails, a grid of clips always on screen, a clip dragged onto a cell, fired alone or with its column, and a layer emptied with one click (`/cell`, `/stop`, and `none` as a layer source of `zinc:mapping`).
+- The video mapper announces itself on the network and shows a pairing code: the native editor lists the mappers it finds and pairs once, a browser opened at the address enters the same code.
 
 #### Changed
 - Discord: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro) and logs a clamp as "over the ceiling".

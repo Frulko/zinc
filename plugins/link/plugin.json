@@ -5,6 +5,7 @@
   "entry": "index.ts",
   "description": "Two Zinc programs find each other (DNS-SD), pair once with a 6-digit code (TLS EC J-PAKE) and talk over an encrypted channel (TLS 1.3 with the paired key): JSON and bytes, reconnecting while paired; the protocol of zinc agent",
   "requires": ["net"],
+  "web": { "native": "Link", "impl": "web/link.js", "needs": [] },
   "targets": {
     "macos": {
       "sources": ["../../src/net/dnssd.cpp", "../../src/host/tls.cpp"],

@@ -13,7 +13,11 @@ import { onFileDropped } from './services/files';
 import { connected, loadMedia, loadShow, loadState, sendMedia, setStatus } from './state';
 
 function givenAddress(): string {
-  if (platform() === 'web') return current()[0];
+  if (platform() === 'web') {
+    const page = current()[0];
+    if (page.includes('?token=') || !storage.keys().includes(ADDRESS_KEY)) return page;
+    return storage.get(ADDRESS_KEY);   // paired with a code: the token stayed with this browser
+  }
   const argv = args();
   const at = argv.indexOf('--app');
   if (at >= 0 && at + 1 < argv.length) return argv[at + 1];
@@ -24,7 +28,7 @@ async function open(address: string): Promise<void> {
   connect(address, setStatus);
   await loadState();
   if (!connected()) return;
-  if (platform() !== 'web') storage.set(ADDRESS_KEY, address);
+  storage.set(ADDRESS_KEY, address);
   await loadMedia();
   await loadShow();
 }

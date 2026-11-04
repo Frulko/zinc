@@ -13,6 +13,7 @@ import { applyCommand, isHudShown } from './control';
 import { LayerCommand } from './layerCommands';
 import { deleteMedia, mediaExists, mediaListJson, mediaPath, receiveMedia, thumbnailPath } from './mediaStore';
 import { deleteScene, importScene, isSceneName, loadScene, newScene, saveScene, sceneJson, sceneListJson } from './scenes';
+import { askForCode, pairPage, startPairing } from './pairing';
 import { replaceShow, showJson } from './show';
 import { soundJson } from './sound';
 
@@ -176,7 +177,7 @@ function queryToken(url: string): string {
 }
 
 /** Serves the editor on `port`; its URL, '' when the port is taken (the mapping still runs, over OSC). */
-export function startWebEditor(port: i32): string {
+export function startWebEditor(port: i32, deviceName: string): string {
   const token = loadToken();
   const handle = async (req: Request): Promise<Reply> => {
     const query = req.path.indexOf('?');
@@ -184,6 +185,11 @@ export function startWebEditor(port: i32): string {
     if (req.method === 'GET') {
       const page = servePage(path);
       if (page !== null) return page as Reply;
+    }
+    if (path === '/pair/ask' && req.method === 'POST') return askForCode() ? jsonReply(200, '{}') : errorReply(429, 'asked a moment ago');
+    if (path === '/pair' && req.method === 'POST') {
+      const given = pairPage((await readBody(req)).trim());
+      return given !== '' ? jsonReply(200, JSON.stringify({ token: given })) : errorReply(403, 'wrong code, or no code on the mapper');
     }
     if (req.headers.get('x-zinc-token') !== token && queryToken(req.path) !== token) return errorReply(401, 'wrong token');
     return apiRoute(req, path);
@@ -195,6 +201,7 @@ export function startWebEditor(port: i32): string {
     console.error(`mapper: no web editor: ${e}`);
     return '';
   }
+  startPairing(port, token, deviceName);
   return `http://${lanAddress()}:${port}/?token=${token}`;
 }
 
