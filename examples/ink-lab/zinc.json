@@ -5,13 +5,13 @@
   "app": {
     "name": "Ink Lab",
     "id": "dev.zinc.inklab",
-    "version": "0.1.0",
+    "version": "0.2.3",
     "orientation": "landscape"
   },
   "display": {
     "driver": "rmpp",
     "refresh_mode": "ui",
-    "header": "remarkable"
+    "ink": "session"
   },
   "targets": {
     "macos": { "width": 1320, "height": 900, "resize": "fill" },

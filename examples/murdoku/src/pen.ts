@@ -3,17 +3,21 @@
 // a bare letter is a pencil note, an X crosses the cell out. What is not recognised stays on the page as ink; what is recognised is
 // erased and the cell shows the typeset state (docs/reports/murdoku-eink-handwriting.md s2 D-d, s3).
 import { Ink, Stroke, StrokeGrouper, recogniseAsync, Recognition, RecogniseOptions } from 'zinc:ink';
-import { refreshRect } from 'zinc:gfx';
+import { refreshRect, penCount } from 'zinc:gfx';
+import { setPenMode } from 'zinc:remarkable';
+import { env } from 'zinc:sys';
 import { puzzle, placements, notes, eliminated, setActiveCell, setSelected, place, toggleElimination } from './state';
 import { personLetter } from './puzzle';
 import { cellSize } from './layout';
 
 export const ink = new Ink();
 ink.width = 4; ink.overlay = true;
-const grouper = new StrokeGrouper({ debounceMs: 450, gapPx: 40 });
+const grouper = new StrokeGrouper({ gapPx: 40 });
 let nowMs: number = 0;
 export let ox: number = 0, oy: number = 0;   // the plan's top left corner on the surface, as the overlay canvas drew last
 let was: Stroke | null = null;
+export const QUILL = env('ZINC_LEASE') !== '';   // the ink session: the pen on the Pen waveform (a refreshRect of the UI leaves it, the next stroke takes it back)
+let penWaveform = false;
 
 /** The plan's overlay canvas draws here: it feeds the pen samples of the frame and the finished strokes go to the grouper. */
 export function penDraw(x: i32, y: i32, w: i32, h: i32): void {
@@ -61,6 +65,7 @@ function settle(group: Stroke[], r: Recognition): void {
   ink.setStrokes(ink.strokes.filter((s: Stroke): boolean => group.indexOf(s) < 0));
   const cs = cellSize(), p = puzzle();
   refreshRect(ox + (cell % p.columns) * cs, oy + Math.floor(cell / p.columns) * cs, cs, cs, 'quality');   // the typeset state, one clean refresh
+  penWaveform = false;
 }
 
 function classify(group: Stroke[]): void {
@@ -77,6 +82,7 @@ function classify(group: Stroke[]): void {
 /** Once per frame (dt seconds): finished groups are named. */
 export function penStep(dt: number): void {
   nowMs += dt * 1000;
+  if (QUILL && !penWaveform && penCount() > 0) { penWaveform = true; setPenMode(true); }
   const groups = grouper.poll(nowMs);
   if (groups !== null) for (const g of groups) classify(g);
 }

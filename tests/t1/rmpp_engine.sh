@@ -71,9 +71,13 @@ out=$(ZA_QUEUE=$tmp/queue HOME=/home/root "$ZINC_APPLOAD/zinc-notes/launch.sh" |
 [ "$out" = "zinc run $tmp/notes.zapp zinc run $tmp/notes.zapp zinc run $tmp/typer.zapp zinc run $tmp/notes.zapp " ] || fail "ZINC_NEXT runs: $out"
 V=$(sha256sum "$ZINC_QSGEPAPER" | cut -c1-64)
 out=$("$ZINC_APPLOAD/zinc-notes-session/launch.sh")
-[ "$out" = "lease launch --watchdog 10 --vendor-sha256 $V $z/bin/zinc-app $tmp/notes.zapp" ] || fail "session launch: $out"
-out=$(env -u HOME ZINC_LEASE=1 "$z/bin/zinc-app" "$tmp/notes.zapp")   # what the lease's unit runs: no HOME, ZINC_LEASE set
+[ "$out" = "lease launch --max 7200 --watchdog 10 --vendor-sha256 $V $z/bin/zinc-app $tmp/notes.zapp" ] || fail "session launch: $out"
+out=$(env -u HOME ZINC_LEASE=1 ZINC_HUB_ZAPP=$tmp/no-hub.zapp "$z/bin/zinc-app" "$tmp/notes.zapp")   # what the lease's unit runs: no HOME, ZINC_LEASE set
 [ "$out" = "zinc run $tmp/notes.zapp LD_LIBRARY_PATH=$z/lib:/usr/lib/plugins/scenegraph ZINC_RMPP_INK=session HOME=/home/root" ] || fail "zinc-app under the lease: $out"
+# Quill mode: the app quits and the Hub comes on the same lease, the Hub opens typer, typer quits and the Hub comes back, the Hub quits and the session ends
+touch "$tmp/hub.zapp"; printf '%s\n' - "$tmp/typer.zapp" - - > "$tmp/queue"
+out=$(ZA_QUEUE=$tmp/queue ZINC_LEASE=1 ZINC_HUB_ZAPP=$tmp/hub.zapp HOME=/home/root "$z/bin/zinc-app" "$tmp/notes.zapp" | sed 's/ LD_LIBRARY_PATH.*//' | tr '\n' ' ')
+[ "$out" = "zinc run $tmp/notes.zapp zinc run $tmp/hub.zapp zinc run $tmp/typer.zapp zinc run $tmp/hub.zapp " ] || fail "Quill mode runs: $out"
 sed 's/^/x/' "$z/share/zinc/rmpp/verified" > "$tmp/v" && mv "$tmp/v" "$z/share/zinc/rmpp/verified"   # an OS update: the hash is no longer verified
 "$ZINC_APPLOAD/zinc-notes-session/launch.sh" > /dev/null 2>&1 && fail "the session launcher ran the lease on an unverified display engine"
 "$z/bin/zinc-tile" --remove zinc-notes-session > /dev/null && [ ! -e "$ZINC_APPLOAD/zinc-notes-session" ] || fail "zinc-tile --remove"

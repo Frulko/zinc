@@ -5,7 +5,7 @@
 import { Stroke } from './index';
 
 export interface GrouperOptions {
-  /** Pen-up time after which a group is finished (default 450 ms; 300 to 900 suits most writers). */
+  /** Pen-up time after which a group is finished (default 900 ms: a person takes that long between the strokes of an A or an X). */
   debounceMs?: number;
   /** How far apart (px) two strokes may be and still be one mark: the cell size times 0.2 for a board (default 40). */
   gapPx?: number;
@@ -20,7 +20,7 @@ export class StrokeGrouper {
   x0: number = 0; y0: number = 0; x1: number = 0; y1: number = 0;
 
   constructor(opts: GrouperOptions = {}) {
-    this.debounceMs = opts.debounceMs !== undefined ? opts.debounceMs : 450;
+    this.debounceMs = opts.debounceMs !== undefined ? opts.debounceMs : 900;
     this.gapPx = opts.gapPx !== undefined ? opts.gapPx : 40;
   }
 

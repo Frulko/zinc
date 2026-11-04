@@ -1,0 +1,16 @@
+{
+  "name": "quill-lab",
+  "entry": "src/main.tsx",
+  "description": "Every demo of Quill (reMarkable Paper Pro direct e-ink) in one app, with Quitter always on top.",
+  "app": { "name": "Quill Lab", "id": "dev.zinc.quilllab", "version": "0.1.0", "author": "Zinc", "icon": "icon.svg" },
+  "display": {
+    "driver": "rmpp",
+    "ink": "session",
+    "refresh_mode": "ui"
+  },
+  "targets": {
+    "macos": { "width": 1620, "height": 2160 },
+    "linux": { "width": 1620, "height": 2160 }
+  },
+  "permissions": []
+}

@@ -41,6 +41,8 @@ On Linux (the reMarkable runs the package's linux build) the native module reads
 
 Finger events control the UI. `InkCanvas` consumes the separate pen sample queue, so fingers do not draw. This component does not itself alter display ownership or the e-ink waveform.
 
+**Raw modes**: under an ink session `setWaveform(mode, colour)` names the engine mode of the next updates (0 the Pen, 1 greys, 3 to 5 colour) and `autoWaveform()` gives the choice back to the driver; both answer false on qtfb.
+
 **Writing tools**: `<InkPalette ink={ink} />` is xochitl's palette for a `zinc:ink` surface: ballpoint, fineliner, marker, pencil,
 calligraphy, highlighter, the stroke and area erasers, the Paper Pro's nine pen colours (`PEN_COLORS`) or the highlighter's
 (`HIGHLIGHTER_COLORS`), thin / medium / thick, undo, redo, erase all; **Hide** folds it to a small handle that names the tool. Props:

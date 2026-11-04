@@ -201,6 +201,11 @@ const PAL_ON = 'px-5 h-[80px] items-center justify-center rounded-lg border-2 bo
 /** The panel's Pen waveform (fast, black and white, for writing) or its UI one (greys and colours, clean pages). The switch takes about
  *  a second on the tablet, so call it when the user starts or stops writing, not per stroke. false where there is no such mode. */
 export function setPenMode(on: boolean): boolean { return device('display.mode', on ? 'fast' : 'ui') === '1'; }
+/** Under the ink session, the engine mode of every next update of the panel: 0 the Pen's, 1 greys, 3 to 5 colour (`colour` false forces the
+ *  Mono content). false elsewhere (qtfb has one waveform for all): the app still draws, in the waveform it had. */
+export function setWaveform(mode: i32, colour: boolean): boolean { return device('display.waveform', `${mode},${colour ? 1 : 0}`) === '1'; }
+/** Back to the driver's own choice after setWaveform. */
+export function autoWaveform(): boolean { return device('display.waveform', 'auto') === '1'; }
 
 export interface InkPaletteProps {
   ink: Ink;

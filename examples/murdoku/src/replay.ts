@@ -18,6 +18,8 @@ const script: Script | null = file !== '' ? JSON.parse(fs.readText(file)) as Scr
 let step: i32 = 0, stroke: i32 = 0, at: i32 = 0, wait: i32 = 0, phase: i32 = 0, warm: i32 = 6, crossed: number = 0;
 const PER_FRAME: i32 = 6;
 
+export function replaying(): boolean { return script !== null; }
+
 /** One frame of the script, called before the frame's draw. */
 export function replayStep(): void {
   if (script === null) return;
@@ -42,7 +44,7 @@ export function replayStep(): void {
   if (at >= pts.length) {   // pen up
     ink.feed(0, 0, 0, 0);
     at = 0; stroke++;
-    if (stroke >= strokes.length) { stroke = 0; step++; wait = 60; }   // 60 frames: past the 450 ms debounce, and the recogniser answers
+    if (stroke >= strokes.length) { stroke = 0; step++; wait = 70; }   // 70 frames: past the 900 ms debounce, and the recogniser answers
   }
   feedEnd();
 }

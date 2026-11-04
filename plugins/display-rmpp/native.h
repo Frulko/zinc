@@ -72,7 +72,9 @@ void copy(const eink::Panel& p, eink::Rect r) {  // 0x00RRGGBB -> the engine's R
     for (int32_t x = r.x0; x < r.x1; x++) d[x] = s[x] | 0xff000000u;
   }
 }
+int raw_mode = -1, raw_content = 0;  // "display.waveform" (zinc:remarkable setWaveform): the app names the engine's mode; -1 the driver chooses
 void swap(eink::Rect r, bool ink) {
+  if (raw_mode >= 0) { api.swap(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0, raw_mode, 0, raw_content); return; }
   api.swap(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0, ink ? row->pen_mode : row->colour_mode, 0, ink ? 0 : row->colour_content);
 }
 /** One frame: Pen/Mono swaps while the Marker is down, the stroke's box settled in colour at pen-up. */

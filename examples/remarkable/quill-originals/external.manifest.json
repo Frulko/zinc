@@ -1,0 +1,7 @@
+{
+  "name": "Quill (vrais binaires)",
+  "application": "launch.sh",
+  "qtfb": false,
+  "workingDirectory": "/home/root/xovi/exthome/appload/quill-originals",
+  "disablesWindowedMode": true
+}

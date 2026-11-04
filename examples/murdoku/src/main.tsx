@@ -1,7 +1,7 @@
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
-import { width, height } from 'zinc:gfx';
+import { width, height, penCount } from 'zinc:gfx';
 import { INK, ink } from './skin';
 import { viewport, setViewport, viewportHeight, setViewportHeight, compact, boardWidth, mobileTab, setMobileTab } from './layout';
 import { puzzle, assignLetter, clearCell, toggleElimination, draft, setDraft, freshAsync, busy, hint, verify, undo, message } from './state';
@@ -13,7 +13,7 @@ import { MobileTabs } from './components/MobileTabs';
 import { GameControls } from './components/GameControls';
 import { InkApp } from './components/InkApp';
 import { penStep } from './pen';
-import { replayStep } from './replay';
+import { replayStep, replaying } from './replay';
 function App(): i32 {
  return <View className="w-full h-full bg-[#f2f0f7] flex-col pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
   <View className={compact() ? 'h-[56] px-3 flex-row items-center border-b border-[#e5e5ea] gap-3 shrink-0' + ink('border-black') : 'h-[64] px-6 flex-row items-center border-b border-[#e5e5ea] gap-6 shrink-0' + ink('border-black')}>
@@ -60,4 +60,4 @@ ui.onKey((e: ui.KeyEvent) => {
  if (k === 'enter') { verify(); e.preventDefault(); }
 });
 ui.onTwoFingerTap(() => undo());   // a two-finger tap takes the last move back, recognised pen marks included
-render(INK ? InkApp : App,INK ? 0xffffff : 0xf2f0f7,(dt: number) => { replayStep(); penStep(dt); const safe = ui.safeArea(); const current = width()-safe[1]-safe[3]; if (current !== viewport()) setViewport(current); const currentHeight = height()-safe[0]-safe[2]; if (currentHeight !== viewportHeight()) setViewportHeight(currentHeight); });
+render(INK ? InkApp : App,INK ? 0xffffff : 0xf2f0f7,(dt: number) => { replayStep(); penStep(dt); if (INK && (penCount() > 0 || replaying())) ui.repaint(); const safe = ui.safeArea(); const current = width()-safe[1]-safe[3]; if (current !== viewport()) setViewport(current); const currentHeight = height()-safe[0]-safe[2]; if (currentHeight !== viewportHeight()) setViewportHeight(currentHeight); });

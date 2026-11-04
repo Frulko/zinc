@@ -1,0 +1,12 @@
+Scribble|scribble
+Vanishing trail|vanishing_trail
+Drawlab|drawlab
+Marauders map|map_demo
+Image dithered|image_demo ../media/marauders_map.png fit
+Image colour|color_image_demo ../media/great-wave.jpg fit
+Regional fade|image_anim_demo ../media/great-wave.jpg fit
+Gif playback|gif_demo ../media/medium-map.gif fit ordered
+Colour probe|color_probe
+Mode compare|color_mode_compare
+Partial probe|color_partial_probe
+Blend probe|color_blend_probe

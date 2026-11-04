@@ -14,7 +14,7 @@ no model download: a first stage names letters and shapes by matching them again
 ```ts
 import { Ink, StrokeGrouper, recognise, recogniseAsync } from 'zinc:ink';
 
-const grouper = new StrokeGrouper({ debounceMs: 450, gapPx: 40 });
+const grouper = new StrokeGrouper({ gapPx: 40 });
 // when the pen lifts: grouper.add(ink.strokes[ink.strokes.length - 1], now);
 // every frame:
 const groups = grouper.poll(now);              // Stroke[][] | null: the marks that are finished
@@ -36,7 +36,8 @@ const later = await recogniseAsync(group);      // the same answer, matched on a
 - `recogniseAsync(strokes, opts?)`: the matching runs on a worker thread of the plugin and the promise resolves on the UI thread; use it when a
   frame must not wait (a tablet's CPU takes tens of milliseconds where a computer takes one).
 - `StrokeGrouper`: `add(stroke, nowMs)`, `poll(nowMs)`, `flush()`. A stroke whose box (grown by `gapPx`) touches the open group's joins it; one
-  elsewhere closes the open group at once; a group with no new stroke for `debounceMs` is finished.
+  elsewhere closes the open group at once; a group with no new stroke for `debounceMs` (default 900 ms) is finished.
+- `netLoadBase64(b64)`, `netLoadBuiltin()`: another letter net without a file, and back to the built-in one.
 - `loadModel(path)`: a `.znm` file replaces the built-in letter net (below); any other file replaces the built-in templates by a file of `[label, strokes]` pairs, the format `tools/ink-train/make-templates` writes
   (`false` if the file is unreadable). Classes are whatever labels the file holds, so an app can teach it other letters or digits.
 
@@ -65,13 +66,17 @@ probabilities over the classes asked for plus `scribble`, and the score of a cla
 (your own templates through `loadModel`), the template matcher answers alone.
 
 The model is `plugins/ink/model.ts` (base64 of `tools/ink-train/data/ink-net.znm`, 49 KB), written by `tools/ink-train/train` (PyTorch; the held-out
-writers never train it, nor do they pick its calibration): the train writers plus 100 more synthetic writers, each mark bent five times
-(rotation, shear, stretch, a smooth warp, noise, dropped points), post-training int8 quantisation with calibrated activations. The `.znm` format
-is in `tools/ink-train/inknet.py`. How far to trust the numbers: the data is synthetic (pen skeletons bent by a made-up hand, no real person
-wrote it). On the held-out synthetic writers the matcher already reads 99.7 % of the letters and the net 100 %; on the same marks bent harder than
-the training did (`inknet.py stress`) 95.4 % against 99.4 %. A real hand is harder than both. The next step is real pen data: the notes app's record mode
-(`NOTES_RECORD=<name>`) writes `ink-<writer>.json` in the notes directory, `zinc device` (or any file copy) brings the files off the tablet,
-`make-dataset --real <dir>` adds them as held-out and train writers, and `tools/ink-train/train` makes a new model.
+writers never train it, nor do they pick its calibration). It learns from real hands: `tools/ink-train/add-uji` merges UJI Pen Characters v2
+(Llorens et al., [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), 60 writers, not stored in this repository) into the synthetic set. Writers
+W01 to W40 train it, each class mark eight times and their other letters and digits as `scribble`, so it learns to refuse what is not a class; each mark is
+bent five times (rotation, shear, stretch, a smooth warp, noise, dropped points), then int8 quantisation with calibrated activations. The `.znm` format
+is in `tools/ink-train/inknet.py`.
+
+How far to trust the numbers: on the 20 writers kept out (W41 to W60, 400 marks of A to E, V, circle and cross, classes limited to those) it reads 94.5 % right,
+0.5 % wrong and refuses 5 %, where the net trained on synthetic strokes alone read 75 % and refused 23.8 %. It accepts 1.4 % of 720 other characters
+(14.2 % before) but 8.9 % of 56 synthetic scribbles (0 % before). Circle and cross stand on O and X, tick and line are still synthetic, and those writers used
+other devices: a person's own marks on the Marker are not measured here. Ink Lab's `new net` and `old net` read the same marks with both.
+The notes app's record mode (`NOTES_RECORD=<name>`) writes `ink-<writer>.json` in the notes directory, and `make-dataset --real <dir>` adds them as writers.
 
 ## Templates and training data
 

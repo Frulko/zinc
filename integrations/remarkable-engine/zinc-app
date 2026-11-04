@@ -6,6 +6,24 @@
 Z=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 export HOME="${HOME:-/home/root}"   # a systemd unit (the lease's) has none: ~/.zinc holds the unpacked apps
 export ZINC_RMPP_ENGINE="$Z"   # the engine directory: the Hub app (app/hub) updates the engine in place
+# Quill mode, one session for several apps: under the lease, quitting an app leads to the Hub on the same panel, the Hub's Open runs the next one
+# (ZINC_NEXT) without giving the panel back, and quitting the Hub ends the session, so the lease brings xochitl back. A Hub that fails ends it too.
+if [ -n "$ZINC_LEASE" ] && [ -z "${ZINC_NEXT:-}" ]; then
+  export ZINC_NEXT="${TMPDIR:-/tmp}/zinc-next.$$"
+  hub=${ZINC_HUB_ZAPP:-/home/root/zinc-apps/hub.zapp}
+  cur=$1 pid=
+  trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null; rm -f "$ZINC_NEXT"; exit 0' TERM INT   # the lease's way out: the app first
+  while :; do
+    rm -f "$ZINC_NEXT"
+    "$0" "$cur" & pid=$!
+    wait "$pid"
+    if [ -s "$ZINC_NEXT" ]; then cur=$(cat "$ZINC_NEXT"); continue; fi
+    [ "$cur" != "$hub" ] && [ -f "$hub" ] || break
+    cur=$hub
+  done
+  rm -f "$ZINC_NEXT"
+  exit 0
+fi
 export LD_LIBRARY_PATH="$Z/lib:/usr/lib/plugins/scenegraph${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 if [ -n "$ZINC_LEASE" ]; then export ZINC_RMPP_INK="${ZINC_RMPP_INK:-session}"; fi
 # One instance per app: a tap on the tile of an app already running (minimized, or a widget) or an update stops the old one first

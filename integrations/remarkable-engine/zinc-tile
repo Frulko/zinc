@@ -1,7 +1,7 @@
 #!/bin/sh
 # An AppLoad tile for a .zapp, run by the engine of this directory (ZN-841; docs/targets/remarkable-paper-pro.md, "The engine on the tablet").
 #   zinc-tile <app.zapp> [--session [--max S]]   the tile zinc-<name> (--session: zinc-<name>-session) in AppLoad's directory;
-#                                                --max: the session's dead-man in seconds (the lease's 30 min by default, 2 h at most)
+#                                                --max: the session's dead-man in seconds (2 h by default and at most: the session can hold several apps)
 #   zinc-tile --remove <tile>
 # Default: AppLoad's shared framebuffer (qtfb), xochitl keeps running. --session: the ink session, xochitl stopped by the display lease and
 # brought back on every way out; refused here when this OS's display engine is not one the engine verified (share/zinc/rmpp/verified).
@@ -18,7 +18,7 @@ if [ "$1" = --remove ]; then
   case $2 in zinc-*) ;; *) echo "zinc-tile: $2 is not a tile of zinc-tile (zinc-<name>)" >&2; exit 2 ;; esac
   rm -rf "${APPLOAD:?}/$2"; echo "removed $2: reload AppLoad"; exit 0
 fi
-session= max=
+session= max="--max 7200 "
 [ "${2:-}" = --session ] && session=1
 if [ "${3:-}" = --max ]; then case ${4:-} in ''|*[!0-9]*) usage ;; esac; max="--max $4 "; fi
 [ -f "$1" ] || { echo "zinc-tile: no file $1" >&2; exit 2; }
@@ -45,8 +45,9 @@ printf '{\n  "name": "%s",\n  "application": "launch.sh",\n  "qtfb": %s,\n  "wor
 if [ -n "$session" ]; then
   cat > "$dir/launch.sh.new" <<EOF
 #!/bin/sh
-# zinc-tile --session: the display lease runs $name with xochitl stopped and brings xochitl back on every way out
-# (the app quits, crashes or hangs 10 s, a 2 s press on the power button, systemctl stop zinc-lease, its dead-man: 30 minutes, or --max).
+# zinc-tile --session: the display lease runs $name with xochitl stopped; quitting it shows the Hub in the same session (zinc-app), quitting the Hub
+# brings xochitl back, as every other way out does
+# (the app quits, crashes or hangs 10 s, a 2 s press on the power button, systemctl stop zinc-lease, its dead-man: 2 hours, or --max).
 V=\$(sha256sum "\${ZINC_QSGEPAPER:-/usr/lib/plugins/scenegraph/libqsgepaper.so}" | cut -c1-64)
 grep -qx "\$V" "$Z/share/zinc/rmpp/verified" || { echo "$name: this OS's display engine (\$V) is not verified for the ink session" >&2; exit 1; }
 exec "$Z/bin/lease" launch ${max}--watchdog 10 --vendor-sha256 "\$V" "$Z/bin/zinc-app" "$zapp"

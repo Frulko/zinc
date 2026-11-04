@@ -691,6 +691,16 @@ const char* rm_device(const char* query, const char* arg) {
     if (!arg || (strcmp(arg, "fast") && strcmp(arg, "ui"))) return "0";
     return zinc_rmpp_set_fast(strcmp(arg, "fast") == 0) || layer == L0 ? "1" : "0";
   }
+  // "display.waveform" "<mode>,<content>" | "auto" (zinc:remarkable setWaveform): the engine mode of the next updates, under the ink session only
+  // (qtfb has one mode for the whole window). Mode 2 is not a mode of the engine: refused, as an unknown content is.
+  if (strcmp(query, "display.waveform") == 0) {
+    if (layer != L2 || !arg) return "0";
+    if (strcmp(arg, "auto") == 0) { native::raw_mode = -1; return "1"; }
+    int m = 0, c = 0;
+    if (sscanf(arg, "%d,%d", &m, &c) != 2 || m < 0 || m > 5 || m == 2 || (c != 0 && c != 1)) return "0";
+    native::raw_mode = m; native::raw_content = c;
+    return "1";
+  }
   // "display.ghost" "begin x,y,w,h" (the view, framebuffer pixels: "1" when this driver draws the ghost), "move ox,oy,k" (the view's top left
   // shows at (ox, oy), scaled by k), "end" (kept until the app draws the view again), "cancel"
   if (strcmp(query, "display.ghost") == 0) {

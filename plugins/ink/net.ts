@@ -28,6 +28,17 @@ export function netLoadFile(path: string): boolean {
   }
 }
 
+/** Loads a model given as base64 (what model.ts holds) in place of the current one; false when it is not a model (the loaded one stays). */
+export function netLoadBase64(b64: string): boolean {
+  if (N.netLoadB64(b64) <= 0) return false;
+  labels = N.netLabels().split(',');
+  state = 1;
+  return true;
+}
+
+/** Back to the net that ships with the plugin. */
+export function netLoadBuiltin(): boolean { return netLoadBase64(MODEL); }
+
 /** The labels the net knows (empty when there is no model). */
 export function netLabels(): string[] { return ensure() ? labels : []; }
 

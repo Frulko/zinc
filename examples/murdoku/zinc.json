@@ -3,14 +3,16 @@
   "entry": "src/main.tsx",
   "app": {
     "name": "Minuit au manoir",
+    "icon": "assets/icon.png",
     "id": "dev.zinc.murdoku",
-    "version": "0.3.8",
+    "version": "0.3.12",
     "orientation": "landscape"
   },
   "display": {
     "driver": "rmpp",
     "refresh_mode": "ui",
-    "header": "remarkable"
+    "header": "remarkable",
+    "ink": "session"
   },
   "targets": {
     "macos": {

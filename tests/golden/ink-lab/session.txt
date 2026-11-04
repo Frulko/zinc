@@ -1,7 +1,11 @@
-lab-state marks=A ink=2 guess=A
-lab-state marks=A,E ink=6 guess=E
-lab-state marks=A,E,x,line ink=8 guess=line
-lab-state marks=A,E,x ink=7 guess=-
-lab-state marks= ink=0 guess=-
-lab-state marks=tick ink=1 guess=tick
-lab-state marks=?,V ink=2 guess=V
+lab-state marks=A ink=2 guess=A last=0.930
+lab-state marks=A,E ink=6 guess=E last=0.927
+lab-state marks=A,E,x,line ink=8 guess=line last=0.966
+lab-state marks=A,E,x ink=7 guess=- last=0.876
+lab-state marks= ink=0 guess=- last=-
+lab-state marks=tick ink=1 guess=tick last=0.970
+lab-state marks=?,V ink=2 guess=V last=0.952
+lab-state marks=?,V ink=2 guess=- last=0.952
+lab-state marks=?,V ink=2 guess=- last=0.952
+lab-state marks=A ink=2 guess=A last=0.950
+lab-state marks=x ink=2 guess=x last=0.925

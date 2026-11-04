@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Real hands for the letter net: UJI Pen Characters v2 (Llorens et al., CC BY 4.0) merged into ink-set.json.
+Get the file (not in the repository):
+  curl -O https://archive.ics.uci.edu/ml/machine-learning-databases/uji-penchars/version2/ujipenchars2.txt
+  tools/ink-train/add-uji ujipenchars2.txt mix.json [--heldout dir] [--reject CHARS]
+  tools/ink-train/train --set mix.json --extra 20 --aug 5 --epochs 25
+Writers W01-W40 train it: the marks of the classes (X and x as x, O and o as circle, a person's closed loop) eight times, the others as `scribble`,
+so the net learns to refuse what a person writes that is not a class. W41-W60 never train it: --heldout writes them as label|x y ...;x y ... lines."""
+import argparse, json, os, re
+HERE = os.path.dirname(os.path.abspath(__file__))
+CLASSES = {'A': 'A', 'B': 'B', 'C': 'C', 'D': 'D', 'E': 'E', 'V': 'V', 'X': 'x', 'x': 'x', 'O': 'circle', 'o': 'circle'}
+REPEAT, TRAIN_WRITERS = 8, 40   # each repeat gets its own augmentation
+# Not the look-alikes of a class: c is a C, v a V and 0 a circle, so refusing them would teach the net to refuse the class.
+REJECT = 'FGHIJKLMNPQRSTUWYZabdefghijklmnpqrstuwyz123456789'
+
+ap = argparse.ArgumentParser()
+ap.add_argument('uji'); ap.add_argument('out')
+ap.add_argument('--heldout'); ap.add_argument('--reject', default=REJECT)
+args = ap.parse_args()
+
+def scaled(strokes):   # the longest side 70 px, what a person writes in a 96 px cell
+    xs = [v for s in strokes for v in s[0::2]]; ys = [v for s in strokes for v in s[1::2]]
+    k = 70 / max(max(xs) - min(xs), max(ys) - min(ys), 1)
+    return [[round((v - (min(xs) if i % 2 == 0 else min(ys))) * k + 10, 2) for i, v in enumerate(s)] for s in strokes]
+
+marks = []
+for line in open(args.uji, errors='replace'):
+    line = line.strip()
+    if line.startswith('WORD'):
+        _, ch, tag = line.split()[:3]
+        marks.append((ch, int(re.search(r'W(\d+)', tag).group(1)), []))
+    elif line.startswith('POINTS'):
+        marks[-1][2].append([float(v) for v in line.split('#')[1].split()])
+
+d = json.load(open(os.path.join(HERE, 'data', 'ink-set.json')))
+d['writers'] = [w for w in d['writers'] if w['split'] == 'train'] + [{'id': 'uji-test', 'split': 'test', 'synthetic': False}, {'id': 'uji-train', 'split': 'train', 'synthetic': False}]
+known = {w['id'] for w in d['writers']}
+d['samples'] = [s for s in d['samples'] if s['w'] in known]
+d['license'] = d.get('license', '') + ' + UJI Pen Characters v2, CC BY 4.0, Llorens et al.'
+held, rejected = [], []
+for ch, w, strokes in marks:
+    st = scaled(strokes)
+    label = CLASSES.get(ch)
+    if w > TRAIN_WRITERS:
+        if label: d['samples'].append({'w': 'uji-test', 'c': label, 's': st})
+        held.append((label or 'other', st))
+    elif label: d['samples'] += [{'w': 'uji-train', 'c': label, 's': st}] * REPEAT
+    elif ch in args.reject: d['samples'].append({'w': 'uji-train', 'c': 'scribble', 's': st})
+json.dump(d, open(args.out, 'w'))
+if args.heldout:
+    os.makedirs(args.heldout, exist_ok=True)
+    with open(os.path.join(args.heldout, 'heldout.txt'), 'w') as f, open(os.path.join(args.heldout, 'other.txt'), 'w') as g:
+        for label, st in held:
+            (g if label == 'other' else f).write(label + '|' + ';'.join(' '.join(str(v) for v in s) for s in st) + '\n')
+print('samples', len(d['samples']), 'writers', len(d['writers']))

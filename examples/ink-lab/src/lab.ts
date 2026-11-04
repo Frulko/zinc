@@ -1,17 +1,17 @@
 // The lab's state: the strokes on the writing rectangle, the marks that settled, the live guess. Recognition is zinc:ink's
 // (recogniseAsync on a worker thread); this file only decides when to ask and what to keep.
 import { createSignal } from 'zinc:ui/solid';
-import { Ink, Stroke, StrokeGrouper, recogniseAsync, Recognition, RecogniseOptions } from 'zinc:ink';
+import { Ink, Stroke, StrokeGrouper, recogniseAsync, Recognition, RecogniseOptions, netLoadBase64, netLoadBuiltin } from 'zinc:ink';
+import { SYNTHETIC_NET } from './synthetic-net';
 
 export const MODES: string[] = ['letters', 'shapes', 'all'];   // digits: no digit class in the model yet (docs/reports/handwriting-research-2026-11.md)
 const CLASSES: string[][] = [['A', 'B', 'C', 'D', 'E', 'V'], ['circle', 'x', 'tick', 'line'], []];   // [] = every class of the model
-export const SETTLE_MS = 250;   // pen-up time that finishes a mark (the library default is 450)
 const LIVE_EVERY_MS = 120;      // while the pen is down, a new guess at most this often
 
 export class Mark { strokes: Stroke[] = []; r: Recognition | null = null; box: number[] = [0, 0, 0, 0]; }
 export const ink = new Ink();
-ink.width = 4; ink.overlay = true;
-const grouper = new StrokeGrouper({ debounceMs: SETTLE_MS, gapPx: 60 });
+ink.width = 5;   // as Quill Lab's scribble: baked strokes, the live one drawn sample by sample on the Pen waveform
+const grouper = new StrokeGrouper({ gapPx: 60 });
 export const [mode, setMode] = createSignal(2);
 export const [guess, setGuess] = createSignal<Recognition | null>(null);   // the live answer for the mark being written
 export const [marks, setMarks] = createSignal<Mark[]>([]);               // settled marks, oldest first
@@ -64,7 +64,7 @@ export function afterDraw(): void {
   was = live;
 }
 
-/** Once per frame (dt seconds): marks with no new stroke for SETTLE_MS settle. */
+/** Once per frame (dt seconds): marks with no new stroke for the grouper's debounce settle. */
 export function labStep(dt: number): void {
   nowMs += dt * 1000;
   const groups = grouper.poll(nowMs);
@@ -96,6 +96,15 @@ export function chooseMode(i: number): void {
   setMarks([]);
   for (const g of old) settle(g);
   ask(grouper.open, nowMs);
+}
+
+export const NETS: string[] = ['new net', 'old net'];
+export const [net, setNet] = createSignal(0);
+/** Another net: the same marks are read again, so what changes on the rectangle is what the net changes. */
+export function chooseNet(i: number): void {
+  if (!(i === 0 ? netLoadBuiltin() : netLoadBase64(SYNTHETIC_NET))) return;
+  setNet(i);
+  chooseMode(mode());
 }
 
 /** The box of the mark being written (not settled yet), or null. */

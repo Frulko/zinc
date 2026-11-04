@@ -18,6 +18,6 @@ export function Board(): i32 {
    const run = labelRun(puzzle(),r);
    return <View className="absolute pointer-events-none items-center" style={{ left: 16+(run[0]%puzzle().columns)*cellSize(), top: 16+(Math.floor(run[0]/puzzle().columns)+1)*cellSize()-26, width: run[1]*cellSize() }}><View className="px-3 py-[1] rounded-full bg-[#ffffff] border-[2] border-[#191922]"><Text className="text-[13px] font-black text-[#000000] whitespace-nowrap">{puzzle().roomNames[r].toUpperCase()}</Text></View></View>;
   }}</For>
-  {INK && <Canvas aria-label="Écriture au stylet" style={{ left: 16, top: 16, width: cellSize()*puzzle().columns, height: cellSize()*puzzle().rows }} className="absolute pointer-events-none" onDraw={penDraw} />}
+  {INK && <Canvas aria-label="Écriture au stylet" style={{ lazy: 1, left: 16, top: 16, width: cellSize()*puzzle().columns, height: cellSize()*puzzle().rows }} className="absolute pointer-events-none" onDraw={penDraw} />}
  </View>;
 }

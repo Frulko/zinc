@@ -1,13 +1,13 @@
-A letter A 0.944402 circled=false box=221x183
-C letter C 0.933719 circled=false box=234x190
-E letter E 0.931617 circled=false box=275x211
-V letter V 0.937496 circled=false box=235x208
-circle shape circle 0.933622 circled=false box=223x189
-x shape x 0.907178 circled=false box=229x208
-tick shape tick 0.942155 circled=false box=275x190
-B circled after letter B 0.938520 circled=true box=325x325
-B circled before letter B 0.938520 circled=true box=325x325
-E among A-D,V B,D,A,V,C
+A letter A 0.951842 circled=false box=221x183
+C letter C 0.953163 circled=false box=234x190
+E letter E 0.938356 circled=false box=275x211
+V letter V 0.941651 circled=false box=235x208
+circle shape circle 0.948599 circled=false box=223x189
+x shape x 0.877535 circled=false box=229x208
+tick shape tick 0.962743 circled=false box=275x190
+B circled after letter B 0.941577 circled=true box=325x325
+B circled before letter B 0.941577 circled=true box=325x325
+E among A-D,V C,B,D,A,V
 priors V V -> circle unknown
 scribble unknown
 reference true

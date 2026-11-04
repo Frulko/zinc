@@ -1,6 +1,8 @@
 // The e-ink layout (owner feedback on the Paper Pro, 2026-11-01): one screen, nothing scrolls. Landscape (1080x810): the plan on the left with the clue,
 // the suspect letters and the tools under it, the six testimonies in a column on the right. Portrait (810x1080): plan on top, tools, then the testimonies
 // in two columns. Targets are 48 px or more, a state is a filled (inverted) or a thick-bordered box, never a tint or an opacity. Only used when INK.
+import { quit } from 'zinc:gfx';
+import { QUILL } from '../pen';
 import { For } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import { Clue, relational } from '../clues';
@@ -65,6 +67,7 @@ export function InkApp(): i32 {
  return <View className="w-full h-full bg-white flex-col pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
   <View className="h-[56] px-4 flex-row items-center border-b-[3] border-black gap-3 shrink-0">
    <View className="grow min-w-0"><Text className="text-[20px] font-black text-black whitespace-nowrap">Minuit au manoir</Text><Text className="text-[10px] text-black">{'Enquête '+puzzle().seed+' · '+['Découverte','Enquête','Expert'][puzzle().level]}</Text></View>
+   {QUILL && <Button onClick={() => quit()} aria-label="Quitter" className="px-4 h-[48] rounded-[8] border-[3] border-black bg-white items-center justify-center"><Text className="text-[14px] font-bold text-black">Quitter</Text></Button>}
    <Button disabled={busy()} onClick={() => freshAsync(puzzle().level, () => setMobileTab('plan'))} className="px-4 h-[48] rounded-[8] border-[3] border-black bg-white items-center justify-center"><Text className="text-[13px] font-bold text-black">{busy() ? 'Génération…' : 'Nouvelle affaire'}</Text></Button>
    {COLOUR_PANEL && <Button onClick={() => setColour(!colour())} aria-label="Couleur ou noir et blanc" className="px-4 h-[48] rounded-[8] border-[3] border-black bg-white items-center justify-center"><Text className="text-[13px] font-bold text-black">{colour() ? 'Mode N&B' : 'Mode couleur'}</Text></Button>}
    <Button onClick={() => setMobileTab(mobileTab() === 'aide' ? 'plan' : 'aide')} aria-label="Règles et niveau" className={'w-[48] h-[48] rounded-full border-[3] border-black items-center justify-center '+(mobileTab() === 'aide' ? 'bg-black' : 'bg-white')}><Text className={'text-[18px] font-bold '+(mobileTab() === 'aide' ? 'text-white' : 'text-black')}>?</Text></Button>
