@@ -494,7 +494,7 @@ void sync_media(Layer& l) {
     media_set(l.mediaShown, l.volume * masterVolume, l.loop > 0.5f);
     l.volumeSet = l.volume * masterVolume; l.loopSet = l.loop;
   }
-  media_update(l.mediaShown, &l.frame);
+  media_update(l.mediaShown, &l.shown);
 }
 #endif
 
