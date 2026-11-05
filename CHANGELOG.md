@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.11.5] - 2026-11-05
+
 This version makes Zinc a better place to build and debug real apps: a documentation generator, threads with `zinc:worker`, a much richer Inspector and faster builds. It also grows the apps that run on it, with Sidecar turning almost any screen into a second display, a full iPod manager, a deeper reMarkable experience, and new games such as Hamlet.
 
 ### Developer tools
@@ -1572,7 +1574,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.18...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.11.5...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -1599,3 +1601,4 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 [0.10.15]: https://github.com/Frulko/zinc/compare/v0.10.13...v0.10.15
 [0.10.16]: https://github.com/Frulko/zinc/compare/v0.10.15...v0.10.16
 [0.10.18]: https://github.com/Frulko/zinc/compare/v0.10.16...v0.10.18
+[0.11.5]: https://github.com/Frulko/zinc/compare/v0.10.18...v0.11.5
