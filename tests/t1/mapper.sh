@@ -140,7 +140,8 @@ ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_FRAMES=30 timeout 120 "$ZINC" run "$p
 command -v node >/dev/null || { echo "no node: the editor check is skipped"; exit $fail; }
 web=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
 media="$tmp/media"; mkdir -p "$media"
-ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=1800 "$ZINC" run "$project/src/main.ts" -- --port 0 --web "$web" --media "$media" >"$tmp/app.log" 2>&1 & app=$!
+# the frames are only a ceiling if this script dies (its exit kills the app): 1800, half a minute, ended the app before a slow CI runner had finished asking it
+ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=100000 "$ZINC" run "$project/src/main.ts" -- --port 0 --web "$web" --media "$media" >"$tmp/app.log" 2>&1 & app=$!
 n=0; while [ $n -lt 600 ] && ! grep -q "editor at" "$tmp/app.log"; do sleep 0.1; n=$((n+1)); done   # the app compiles first (a minute on a CI runner)
 url=$(sed -n 's/^mapper: editor at //p' "$tmp/app.log")
 token=${url##*token=}
@@ -361,7 +362,8 @@ PY
 # the device tells what it runs: an upload shows while it arrives, and is gone after
 api "http://127.0.0.1:$web/device" >"$tmp/d0.json"
 curl -s -m 20 -o /dev/null --limit-rate 1M -H "x-zinc-token: $token" --data-binary @"$tmp/clip.bin" "http://127.0.0.1:$web/media/slow.bin" & slow=$!
-sleep 1; api "http://127.0.0.1:$web/device" >"$tmp/d1.json"; wait $slow; api "http://127.0.0.1:$web/device" >"$tmp/d2.json"
+n=0; while [ $n -lt 30 ]; do api "http://127.0.0.1:$web/device" >"$tmp/d1.json"; grep -q 'slow.bin' "$tmp/d1.json" && break; sleep 0.1; n=$((n+1)); done   # on a busy machine it starts late
+wait $slow; api "http://127.0.0.1:$web/device" >"$tmp/d2.json"
 python3 - "$tmp" <<'PY' || fail=1
 import json, sys
 t = sys.argv[1]; load = lambda n: json.load(open(f"{t}/{n}.json"))
