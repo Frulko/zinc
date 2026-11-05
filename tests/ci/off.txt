@@ -94,3 +94,10 @@ sonos_plugin        # waits a fixed time for the fake speaker's ZoneGroupTopolog
 # 2026-11-05, owner: the mapper is under way; back on the CI once it settles. It still runs on the Mac
 mapper                 # mapper under way
 mapper_model           # mapper under way
+# 2026-11-05, owner: every test of the Discord example leaves the CI; they still run on the Mac
+discord_code           # Discord example
+discord_echo           # Discord example
+discord_i18n           # Discord example
+discord_layout         # Discord example
+discord_viewer         # Discord example
+discord_voice_sps      # Discord example
