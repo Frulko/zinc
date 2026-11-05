@@ -2796,7 +2796,7 @@ const __loopMode: i32 = __host_loopReal();   // bit 0: a real clock; bit 1: an a
 const __real: boolean = (__loopMode & 1) !== 0;
 const __appMode: boolean = (__loopMode & 2) !== 0;
 const __clockTick: f64 = (__loopMode >> 2) / 1000;   // ZINC_CLOCK_TICK (ms): a virtual clock moves by this much at each performance.now() read, so a time-sliced job meets its deadline inside one frame, the same on every run
-const __epoch: f64 = __real ? __host_loopEpoch() : 0;
+const __epoch: f64 = __real ? __host_loopEpoch() - __host_loopNow() : 0;   // the program's time has already run: Date.now = this + its time
 function __now(): f64 { if (__real) __clock = __host_loopNow(); return __clock; }
 function __addTimer(f: () => void, ms: f64, every: f64): i32 {
   __timerSeq++;
