@@ -2227,6 +2227,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (fs::exists(fs::path(p.dir) / "assets")) fs::copy(fs::path(p.dir) / "assets", out / "assets", fs::copy_options::recursive, ec);
   writeFile(out / "run.sh", "#!/bin/sh\ncd \"$(dirname \"$0\")\" || exit 1\nexec ./" + p.name + " \"$@\"\n");
   fs::permissions(out / "run.sh", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
+  fs::copy_file(fs::path(p.dir) / "zinc.json", out / "zinc.json", fs::copy_options::overwrite_existing, ec);   // what an agent installing it reads: "display": "gl" takes the screen from the player
   writeFile(out / "README.txt", p.name + " " + p.version + " (" + target + ") built with Zinc.\nRun: ./run.sh\n" + (embed.empty() ? "The executable is self-contained: the fonts and images are baked in" : "The fonts and images are baked in " + p.name + ".res, which stays beside the executable") + "; assets/ holds the files the program reads at run time.\n");
   if (!zt.empty() && zt.find("linux") != std::string::npos)
     writeFile(out / (p.name + ".desktop"), "[Desktop Entry]\nType=Application\nName=" + p.name + "\nExec=" + p.name + "\nTerminal=false\nCategories=Utility;\n");

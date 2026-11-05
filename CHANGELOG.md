@@ -347,6 +347,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 #### Fixed
 - `zinc device <device> screen --live`: a key or gamepad button you let go no longer stays pressed for an app under the player shell or on a display driver; games stopped responding because of it. It no longer freezes on its first image.
 - Animations under the Pi shell are smooth: an app now draws one frame per screen refresh, instead of bursts where one frame in three was never shown.
+- `zinc device deploy --target rpi` of a program with `"display": "gl"` takes the screen from the player: it used to run with no picture ("is another program the DRM master?").
 
 ### Games
 
