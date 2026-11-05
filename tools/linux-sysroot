@@ -9,7 +9,7 @@ GLES, ALSA and libffi, and the libraries' files to read their sonames from (SDL3
 They come from Debian bookworm's -dev packages, frozen on snapshot.debian.org at one date and pinned by SHA-256: a changed archive is refused.
 Every package is MIT/X11 or similarly permissive (copyright files under usr/share/doc of the sysroot), except libasound2 (LGPL-2.1, loaded at
 run time, never linked statically). armv7 builds use the armhf sysroot (same libraries; armv7-linux is a link to it).
-ZINC_SYSROOT_MIRROR replaces the snapshot's address (a directory with the same pool/ paths).
+ZINC_SYSROOT_MIRROR replaces both addresses, deb.debian.org and the snapshot's (a directory with the same pool/ paths).
 """
 import argparse, hashlib, io, lzma, os, shutil, subprocess, sys, tarfile, tempfile, time, urllib.error, urllib.request
 
@@ -43,6 +43,16 @@ def fetch(url):
         except (urllib.error.URLError, TimeoutError) as e:
             if attempt == 4 or (isinstance(e, urllib.error.HTTPError) and e.code < 500): raise
             time.sleep(10 * (attempt + 1))
+
+
+def package(path):
+    """A locked .deb: Debian's mirror first, the snapshot (every version, but down for hours) once a point release has dropped it. The caller checks its SHA-256."""
+    if "ZINC_SYSROOT_MIRROR" not in os.environ:
+        try:
+            return fetch(f"https://deb.debian.org/debian/{path}")
+        except urllib.error.URLError:
+            pass
+    return fetch(f"{base()}/{path}")
 
 
 def write_lock():
@@ -90,7 +100,7 @@ def install(arch, home):
     tmp = tempfile.mkdtemp(prefix="zinc-sysroot-")
     try:
         for _, pkg, version, path, sha in rows:
-            deb = fetch(f"{base()}/{path}")
+            deb = package(path)
             got = hashlib.sha256(deb).hexdigest()
             if got != sha: sys.exit(f"linux-sysroot: {pkg} {version}: SHA-256 {got}, the lock says {sha}: refused")
             with data_tar(deb) as t:
