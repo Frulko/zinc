@@ -8,4 +8,5 @@ export const PREVIOUS_SCENE = 'previous';    // what was on before the last load
 export const DEFAULT_MEDIA_DIR = 'media';    // where uploads land (Android layers always read this one)
 export const DEFAULT_OSC_PORT = '9000';
 export const DEFAULT_WEB_PORT = '8080';
+export const FLEET_FILE = 'fleet.json';      // the machines this mapper leads and where each one sits in the picture
 export const DEFAULT_FLEET_PORT = '7790';   // the clock of several mappers, udp; 0 serves none

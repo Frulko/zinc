@@ -1,5 +1,5 @@
 // mapper: GPU video mapping (zinc:mapping on display-gl). Any browser edits it live through the web editor the app serves (services/web.ts); OSC desks reach the same commands.
-// Usage: mapper [--media DIR] [--port N] [--web N|off] [--name NAME] [--join HOST[:PORT]] [--viewport X,Y,W,H] [--fleet-port N]   (default: media, 9000, 8080). Keys: Tab status card, Left/Right columns, F fullscreen, Esc quit.
+// Usage: mapper [--media DIR] [--port N] [--web N|off] [--name NAME] [--viewport X,Y,W,H] [--fleet-port N] [--keys FILE]   (default: media, 9000, 8080). Keys: Tab status card, Left/Right columns, F fullscreen, Esc quit.
 import * as gfx from 'zinc:gfx';
 import * as mapping from 'zinc:mapping';
 import { args } from 'zinc:sys';
@@ -8,7 +8,7 @@ import { drawHud, drawAddress, drawPairingCode } from './hud';
 import { drawOutputCard } from './services/cards';
 import { createDemoLayers } from './layers';
 import { liveImage, paintLiveImage } from './live';
-import { isHudShown, listenOsc, setHudShown } from './services/control';
+import { applyCommand, isHudShown, listenOsc, setHudShown } from './services/control';
 import { setFrameRate } from './services/device';
 import { noteChange, startHistory } from './services/history';
 import { onLayerChange } from './services/layerCommands';
@@ -16,9 +16,9 @@ import { bindDecodedVideos, followLayerMedia, useMediaFolder } from './services/
 import { openMediaFolder, videoCount } from './services/mediaStore';
 import { closeCodeNow, openCode, pairingCode } from './services/pairing';
 import { openScenes } from './services/scenes';
-import { loadShow, resumeShow, stepColumn } from './services/show';
+import { loadShow, resumeShow } from './services/show';
 import { loadVolume } from './services/sound';
-import { startFleet } from './services/fleet';
+import { runDue, startFleet } from './services/fleet';
 import { startWebEditor } from './services/web';
 
 /** The value after --name, else the fallback. */
@@ -44,12 +44,12 @@ openScenes();
 startHistory();
 onLayerChange(() => { noteChange(); });
 
-startFleet(option('join', ''), parseInt(option('fleet-port', DEFAULT_FLEET_PORT)), option('viewport', ''));
+startFleet(parseInt(option('fleet-port', DEFAULT_FLEET_PORT)), option('viewport', ''));
 
 const oscPort: i32 = parseInt(option('port', DEFAULT_OSC_PORT));
 const oscOn = listenOsc(oscPort);
 const webPort = option('web', DEFAULT_WEB_PORT);
-const editorUrl = webPort === 'off' ? '' : startWebEditor(parseInt(webPort), option('name', ''));
+const editorUrl = webPort === 'off' ? '' : startWebEditor(parseInt(webPort), option('name', ''), option('keys', ''));
 console.log(`mapper: ${oscOn ? `OSC on udp ${oscPort}` : 'no OSC'}, ${mapping.layerCount()} layers (Tab: status, F: fullscreen, Esc: quit)`);
 if (editorUrl !== '') console.log(`mapper: editor at ${editorUrl}`);
 if (isHudShown()) openCode();   // a first start: nobody has the editor yet
@@ -65,8 +65,9 @@ gfx.onFrame((dt: number) => {
     if (isHudShown()) openCode();
     else closeCodeNow();
   }
-  if (gfx.wasPressed(gfx.Btn.Right)) stepColumn(1);
-  if (gfx.wasPressed(gfx.Btn.Left)) stepColumn(-1);
+  if (gfx.wasPressed(gfx.Btn.Right)) applyCommand({ address: '/step', numbers: [1], strings: [] });
+  if (gfx.wasPressed(gfx.Btn.Left)) applyCommand({ address: '/step', numbers: [-1], strings: [] });
+  runDue();
   bindDecodedVideos();
   paintLiveImage(t);
 

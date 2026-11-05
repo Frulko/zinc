@@ -185,22 +185,82 @@ if s3[0]["source"][0] != "none" or s3[1]["color"][1] != 1 or s3[1]["color"][2] !
 if load("show3")["active"] != 1: problems.append("a save from the page changes what plays")
 if problems: print("; ".join(problems)); sys.exit(1)
 PY
-# a second mapper takes the time of the first (how right it is: fleet_clock)
-second="$tmp/second"; cp -R "$project" "$second"
-fleet=$(python3 -c "import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
-ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=600 "$ZINC" run "$second/src/main.ts" -- --port 0 --web off --fleet-port "$fleet" >"$tmp/m.log" 2>&1 & master=$!
-web2=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
-third="$tmp/third"; cp -R "$project" "$third"
-ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=600 "$ZINC" run "$third/src/main.ts" -- --port 0 --web "$web2" --join "127.0.0.1:$fleet" >"$tmp/p.log" 2>&1 & player=$!
-n=0; while [ $n -lt 600 ] && ! grep -q "editor at" "$tmp/p.log"; do sleep 0.1; n=$((n+1)); done
-sleep 1
-token2=$(sed -n 's/^mapper: editor at .*token=//p' "$tmp/p.log")
-curl -s -m 3 -H "x-zinc-token: $token2" "http://127.0.0.1:$web2/device" >"$tmp/d-fleet.json"
-kill $master $player 2>/dev/null; wait $master $player 2>/dev/null
-python3 - "$tmp" <<'PY' || fail=1
-import json, sys
-f = json.load(open(f"{sys.argv[1]}/d-fleet.json"))["fleet"]
-if not f["synced"] or f["rttMs"] > 100 or f["master"] == "": print(f"the fleet clock: {f}"); sys.exit(1)
+# a second mapper follows the first: paired once, it takes the setup, the show, the commands and the time, and comes back after a restart
+python3 - "$ZINC" "$project" "$tmp" <<'PY' || fail=1
+import json, os, re, shutil, socket, subprocess, sys, time, urllib.request
+zinc, project, tmp = sys.argv[1:4]
+def free(kind):
+    s = socket.socket(socket.AF_INET, kind); s.bind(("127.0.0.1", 0)); p = s.getsockname()[1]; s.close(); return p
+env = dict(os.environ, ZINC_DETERMINISTIC="0", ZINC_NATIVE="real", ZINC_DISPLAY="gl")
+procs, tokens, web = {}, {}, {}
+def start(name):
+    d = f"{tmp}/{name}"
+    if not os.path.exists(d):
+        shutil.copytree(project, d)
+        web[name] = free(socket.SOCK_STREAM)
+    log = f"{d}/run.log"
+    procs[name] = subprocess.Popen([zinc, "run", "src/main.ts", "--", "--port", str(free(socket.SOCK_DGRAM)), "--web", str(web[name]), "--fleet-port", str(free(socket.SOCK_DGRAM)), "--keys", "link.keys", "--name", name], cwd=d, env=env, stdout=open(log, "w"), stderr=subprocess.STDOUT)
+    for _ in range(600):
+        m = re.search(r"token=(\S+)", open(log).read())
+        if m: tokens[name] = m.group(1); return
+        time.sleep(0.1)
+    sys.exit(f"{name} did not start: {open(log).read()[-400:]}")
+def call(name, path, body=None, method=None):
+    r = urllib.request.Request(f"http://127.0.0.1:{web[name]}{path}", data=None if body is None else body.encode(), headers={"x-zinc-token": tokens[name]}, method=method or ("GET" if body is None else "POST"))
+    text = urllib.request.urlopen(r, timeout=5).read().decode()
+    return json.loads(text) if text else None
+def osc(name, *message): call(name, "/osc", json.dumps([list(message)]))
+def wait(what, test, seconds=15):
+    end = time.time() + seconds
+    while time.time() < end:
+        if test(): return
+        time.sleep(0.1)
+    sys.exit(f"the fleet: {what}; master {json.dumps(call('master', '/fleet'))[:400]}; player {json.dumps(call('player', '/fleet'))[:300]}")
+try:
+    start("master"); start("player")
+    port = call("player", "/fleet")["self"]["linkPort"]
+    call("player", "/pair/ask", "")
+    wait("no code", lambda: "pairing code" in open(f"{tmp}/player/run.log").read())
+    code = re.findall(r"pairing code (\d+)", open(f"{tmp}/player/run.log").read())[-1]
+    osc("master", "/fleet/add", f"127.0.0.1:{port}", "000000" if code != "000000" else "111111")
+    wait("a wrong code is said", lambda: call("master", "/fleet")["problem"] != "")
+    if call("master", "/fleet")["devices"]: sys.exit("a wrong code paired")
+    osc("master", "/fleet/add", f"127.0.0.1:{port}", code)
+    online = lambda: any(d["online"] for d in call("master", "/fleet")["devices"])
+    wait("the player is not online", online)
+    wait("the player does not report", lambda: call("master", "/fleet")["devices"][0]["fps"] > 0)
+    wait("the player has no time", lambda: call("player", "/fleet")["self"]["synced"] and call("player", "/fleet")["self"]["master"] != "")
+    me = call("player", "/fleet")["self"]
+    if me["masterName"] != "master" or me["rttMs"] > 20: sys.exit(f"the player's clock: {me}")
+    opacity = lambda: call("player", "/state")["layers"][0]["opacity"][0]
+    osc("master", "/layer/0/opacity", 0.42)
+    wait("a command does not arrive", lambda: abs(opacity() - 0.42) < 0.001)
+    # a change no command carries: the show, sent whole; then a column runs on both
+    show = call("master", "/show")
+    show["columns"] = [{"name": "one", "cells": [{"source": "white"}]}, {"name": "two", "cells": [{"source": "red"}]}]
+    call("master", "/show", json.dumps(show), "PUT")
+    wait("the show does not arrive", lambda: len(call("player", "/show")["columns"]) == 2)
+    osc("master", "/column", 1)
+    wait("a column does not run on the master", lambda: call("master", "/show")["active"] == 1)
+    wait("a column does not run on the player", lambda: call("player", "/show")["active"] == 1)
+    osc("master", "/fleet/sidebyside")
+    wait("the place does not arrive", lambda: call("player", "/fleet")["self"]["viewport"] == [0.5, 0, 0.5, 1])
+    if call("master", "/fleet")["self"]["viewport"] != [0, 0, 0.5, 1]: sys.exit("the master's own place")
+    # a player that restarts catches up, with no code
+    procs["player"].kill(); procs["player"].wait()
+    wait("a dead player looks online", lambda: not online())
+    osc("master", "/layer/0/opacity", 0.3)
+    start("player")
+    wait("the player does not come back", online, 40)
+    wait("the player did not catch up", lambda: abs(opacity() - 0.3) < 0.001 and call("player", "/show")["active"] == 1)
+    # a master that restarts knows its players
+    procs["master"].kill(); procs["master"].wait()
+    start("master")
+    wait("the master forgot its player", online, 40)
+    osc("master", "/fleet/remove", call("master", "/fleet")["devices"][0]["id"])
+    wait("a removed player stays", lambda: call("master", "/fleet")["devices"] == [])
+finally:
+    for p in procs.values(): p.kill()
 PY
 # the device tells what it runs: an upload shows while it arrives, and is gone after
 api "http://127.0.0.1:$web/device" >"$tmp/d0.json"

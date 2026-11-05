@@ -15,7 +15,8 @@ import { LayerCommand } from './layerCommands';
 import { beginTask, deviceJson, endTask } from './device';
 import { deleteMedia, mediaExists, mediaListJson, mediaPath, receiveMedia, thumbnailPath } from './mediaStore';
 import { deleteScene, importScene, isSceneName, loadScene, newScene, saveScene, sceneJson, sceneListJson } from './scenes';
-import { askForCode, pairPage, startPairing } from './pairing';
+import { fleetJson } from './fleetMaster';
+import { askForCode, pairPage, pairingPort, startPairing } from './pairing';
 import { replaceShow, showJson } from './show';
 import { soundJson } from './sound';
 
@@ -171,6 +172,7 @@ async function apiRoute(req: Request, path: string): Promise<Reply> {
     return mediaRoute(req, named);
   }
   if (path.startsWith('/thumbs/')) return thumbnailRoute(path.slice(8));
+  if (path === '/fleet' && req.method === 'GET') return jsonReply(200, fleetJson(pairingPort()));
   if (path === '/device' && req.method === 'GET') return jsonReply(200, deviceJson(shownName, shownAddress));
   if (path === '/history' && req.method === 'GET') return jsonReply(200, historyJson());
   if (path.startsWith('/history/') && req.method === 'POST') return stepHistory(path.slice(9)) ? jsonReply(200, historyJson()) : errorReply(404, 'no such entry');
@@ -190,7 +192,7 @@ function queryToken(url: string): string {
 }
 
 /** Serves the editor on `port`; its URL, '' when the port is taken (the mapping still runs, over OSC). */
-export function startWebEditor(port: i32, deviceName: string): string {
+export function startWebEditor(port: i32, deviceName: string, keys: string): string {
   const token = loadToken();
   const handle = async (req: Request): Promise<Reply> => {
     const query = req.path.indexOf('?');
@@ -214,7 +216,7 @@ export function startWebEditor(port: i32, deviceName: string): string {
     console.error(`mapper: no web editor: ${e}`);
     return '';
   }
-  startPairing(port, token, deviceName);
+  startPairing(port, token, deviceName, keys);
   shownName = deviceName !== '' ? deviceName : os.hostname();
   shownAddress = `${lanAddress()}:${port}`;
   return `http://${shownAddress}/?token=${token}`;

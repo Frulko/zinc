@@ -25,7 +25,11 @@ const STAR_SPOKES: i32 = 72;
 const CIRCLE_STEPS: i32 = 96;
 const TEXT_CELL = 6;         // width of a character of gfx.text at scale 1
 
+const IDENTIFY_MS = 3000;
+
 let shown = OFF;
+let identity = '';
+let identityUntil = 0;
 let images: i32[] = [];
 let outputImage: i32 = -1;
 
@@ -167,7 +171,18 @@ function drawSyncCard(): void {
   gfx.text(8, 8, state.master === '' ? 'master' : `player ${state.synced ? `offset ${state.offsetMs.toFixed(1)} ms, rtt ${state.rttMs.toFixed(1)} ms` : 'no clock yet'}`, WHITE, 2);
 }
 
+/** Which machine is this: its name on its output for a moment. */
+export function showIdentity(name: string): void {
+  identity = name;
+  identityUntil = performance.now() + IDENTIFY_MS;
+}
+
 export function drawOutputCard(): void {
+  if (performance.now() < identityUntil) {
+    gfx.rect(0, 0, gfx.width(), gfx.height(), BLACK);
+    drawLabel(gfx.width(), gfx.height(), identity);
+    return;
+  }
   if (shown === SYNC_CARD) {
     drawSyncCard();
     return;

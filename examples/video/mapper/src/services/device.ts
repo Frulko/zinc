@@ -10,6 +10,7 @@ const tasks: Task[] = [];
 let frameRate = 0;
 
 export function setFrameRate(fps: number): void { frameRate = fps; }
+export function currentFrameRate(): number { return frameRate; }
 
 export function beginTask(kind: string, name: string, total: number): Task {
   const task: Task = { kind, name, done: 0, total: isNaN(total) ? 0 : total };

@@ -169,6 +169,8 @@ Add a **Devices** view (list from the master's `fleet`: name, role, platform, fp
 
 ### D7. Staged plan (each step demoable alone)
 
+State on 2026-11-05: steps 1 and 2 are done, measured between two windowed instances on one Mac (not yet between machines). The clock agrees within 0.3 ms round trip, using the arrival time the kernel stamps on each datagram; 24 of 24 columns ran on both, the shared times of their runs 0.06 to 0.19 ms apart in the median and 2 ms at most. Two windows on one display share a vsync: separate machines will add up to one frame, which video (step 3) and a real film (fleet-sync A) must measure. As built, step 2 differs from D2 to D4: no `--role` (a mapper leads as soon as it has devices), viewports are 0 to 1 with no canvas size, the setup and the show go whole on change (compared every 500 ms) rather than as a hashed `show` message, and the time goes through `runAt` in the frame loop.
+
 | # | Step | Demo / test | Size |
 |---|---|---|---|
 | 1 | **Smallest: shared clock + a clock-driven test pattern over two viewports.** `plugins/fleet` clock (UDP probes, offset/drift), `mapper --role player --join <host>`, `/output/viewport` in `plugins/mapping`, new `/card sync`: a vertical bar sweeping the whole canvas at 1 canvas/s as a pure function of `FleetClock.now()` plus a big frame counter. Master and one player show left and right half. No video, no decoder, no seek. | Two instances on one Mac side by side: the bar crosses the seam continuously. Headless test: two processes, injected offset (`ZINC_FLEET_SKEW_US`) and delay, assert converged offset < 1 ms and equal bar position hash at given timeline instants. Film on two real machines with a phone at 240 fps (fleet-sync §5). | S-M |

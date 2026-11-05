@@ -26,7 +26,8 @@ function auth(): Headers {
   return headers;
 }
 
-function coalesceKey(address: string, args: string): string {
+function coalesceKey(address: string, args: string, words: string): string {
+  if (address.startsWith('/fleet/')) return `${address} ${words}`;   // each machine has its own
   const isPoint = address.endsWith('/corner') || address.endsWith('/point');
   if (!isPoint) return address;
   const second = args.indexOf(',', args.indexOf(',') + 1);
@@ -37,7 +38,7 @@ function coalesceKey(address: string, args: string): string {
 export function send(address: string, numbers: number[], words: string[] = []): void {
   const numberList = JSON.stringify(numbers), wordList = JSON.stringify(words);
   const inner = numberList.slice(1, numberList.length - 1);
-  const key = coalesceKey(address, inner);
+  const key = coalesceKey(address, inner, wordList);
   const parts: string[] = [JSON.stringify(address)];
   if (numbers.length > 0) parts.push(inner);
   if (words.length > 0) parts.push(wordList.slice(1, wordList.length - 1));

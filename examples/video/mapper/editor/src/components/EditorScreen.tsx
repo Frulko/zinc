@@ -7,6 +7,7 @@ import { send } from '../services/link';
 import { MASK_SLOTS, currentLayer, loadState, maskValues, pointRevision, revision, setLayer, removeChosenClip, status, stepHistory, store, touch } from '../state';
 import { CalibrationPanel } from './CalibrationPanel';
 import { DragGhost, Dashboard } from './Dashboard';
+import { DevicesPanel } from './DevicesPanel';
 import { HistoryPanel } from './HistoryPanel';
 import { Heading, IconButton, IconTabs, Row, ValueSlider } from './Field';
 import { Library } from './Library';
@@ -22,8 +23,8 @@ import { TransferDialog } from './TransferDialog';
 import { SurfaceCanvas, curveChosenPoints, currentMask, selectMask } from './SurfaceCanvas';
 import { Rebuilt } from './Rebuilt';
 
-const VIEW_KEYS: string[] = ['output', 'masks', 'calibration', 'room', 'sound', 'scenes', 'history', 'options'];
-const VIEW_ICONS: string[] = ['monitor', 'square-dashed', 'ruler', 'box', 'volume-2', 'clapperboard', 'clock', 'settings'];
+const VIEW_KEYS: string[] = ['output', 'masks', 'calibration', 'room', 'sound', 'scenes', 'history', 'devices', 'options'];
+const VIEW_ICONS: string[] = ['monitor', 'square-dashed', 'ruler', 'box', 'volume-2', 'clapperboard', 'clock', 'network', 'settings'];
 const MESH_PRESETS: i32[] = [3, 4, 6, 9];
 const NEW_MASK: number[] = [0, 0, 0.3, 0.3, 0.7, 0.3, 0.7, 0.7, 0.3, 0.7];
 const MAX_FEATHER = 0.3;
@@ -154,7 +155,8 @@ function Screen(props: { view: () => i32; setView: (index: i32) => void }): i32 
           {view() === 4 && <SoundPanel />}
           {view() === 5 && <ScenePanel />}
           {view() === 6 && <HistoryPanel />}
-          {view() === 7 && <OptionsPanel />}
+          {view() === 7 && <DevicesPanel />}
+          {view() === 8 && <OptionsPanel />}
         </ScrollView>}
       </View>
       <PropsPanel />

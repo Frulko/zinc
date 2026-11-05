@@ -719,6 +719,8 @@ The next backlog review turns lines into tasks or deletes them.
 - gfx: a fixed-size app with `"resize":"letterbox"` reads a wrong `width()` at start under a display driver or a crop; the pinball dropped the key, other apps still meet it.
 - webcam_demo: the golden hash was refreshed for 1 and 58 pixels of at most 1 level with no commit of its own naming the cause; find which change moved them.
 
+- mapper fleet: `aria-label` (any hyphenated attribute) on a component made of a function lowers to `{ aria-label: ... }`, a syntax error in generated code with the wrong column; quote the key or say the prop is unknown.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.

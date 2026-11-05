@@ -34,6 +34,9 @@ export function replaceShow(json: string, keepPlaying: boolean = false): string 
     return 'not JSON';
   }
   if (next === null || !Array.isArray(next.columns)) return 'expected {"columns": [...]}';
+  for (const column of next.columns as any[]) {
+    if (column === null || !Array.isArray(column.cells)) return 'expected {"cells": [...]} in each column';
+  }
   const follow = next.setPlaying === true;
   const before = playingList().slice();
   if (keepPlaying && !follow) {

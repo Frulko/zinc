@@ -2,17 +2,34 @@
 import { listen, OscMessage } from 'zinc:osc';
 import { OUTPUT_TARGET, showCard } from './cards';
 import { applyLayerCommand, LayerCommand } from './layerCommands';
+import { runAt } from './fleet';
+import { fleetCommand, shareCommand } from './fleetMaster';
 import { setMasterVolume, setMuted } from './sound';
-import { fireCell, fireColumn, followLayerMove, followLayerRemoval, stopAll, stopLayer } from './show';
+import { fireCell, fireColumn, followLayerMove, followLayerRemoval, stepColumn, stopAll, stopLayer } from './show';
 
 let hudShown = true;
 
 export function isHudShown(): boolean { return hudShown; }
 export function setHudShown(shown: boolean): void { hudShown = shown; }
 
+/** A command that came in here: the machines this one leads get it too, and all run it at the same moment. */
 export function applyCommand(command: LayerCommand): boolean {
+  if (command.address.startsWith('/fleet/')) return fleetCommand(command);
+  const at = shareCommand(command);
+  if (at === 0) return runCommand(command);
+  runAt(at, () => { runCommand(command); });
+  return true;
+}
+
+/** Runs a command on this machine only. */
+export function runCommand(command: LayerCommand): boolean {
   if (command.address === '/column') return command.numbers.length > 0 && fireColumn(Math.trunc(command.numbers[0]) as i32);
   if (command.address === '/cell') return command.numbers.length > 1 && fireCell(Math.trunc(command.numbers[0]) as i32, Math.trunc(command.numbers[1]) as i32);
+  if (command.address === '/step') {
+    if (command.numbers.length === 0) return false;
+    stepColumn(Math.trunc(command.numbers[0]) as i32);
+    return true;
+  }
   if (command.address === '/stop') {
     if (command.numbers.length > 0) stopLayer(Math.trunc(command.numbers[0]) as i32);
     else stopAll();

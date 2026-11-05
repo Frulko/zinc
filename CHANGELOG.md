@@ -398,6 +398,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - In the video mapper, a mask point can become a curve with two handles (**Curve**, **Corner**), and **feather** sets how soft its edge is, sharp by default.
 - The video mapper editor speaks French: choose the language in *Options*, its texts live in `assets/i18n/<lang>.json`, and a new language is a new file.
 - The video mapper starts on several machines: `--join` takes another mapper's clock, `--viewport` chooses the part of the canvas, and the **sync** card shows how far apart the screens are.
+- The video mapper leads other mappers from a new *Devices* view: pair a machine once with a code shown on its output, place it in the canvas, and it takes the setup, the show and every command, with columns launched at the same moment over a shared clock; `/fleet/...` does the same over OSC, and this replaces `--join`.
 
 #### Changed
 - Discord: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro) and logs a clamp as "over the ceiling".

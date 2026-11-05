@@ -3,6 +3,8 @@
 // is opened at the mapper's address and sends the same code to /pair. Both come away with the editor's address and token.
 import * as link from 'zinc:link';
 import * as os from 'zinc:os';
+import { startFleetMaster } from './fleetMaster';
+import { listenForMaster } from './fleetPlayer';
 
 const SERVICE = 'zinc-mapper';
 const MAX_TRIES: i32 = 3;           // for a page, as zinc:link does for a program
@@ -13,6 +15,10 @@ let token = '';
 let code = '';
 let tries: i32 = 0;
 let lastAsked = -1e12;
+let linkPort: i32 = 0;
+
+/** The TCP port others pair on, for the Devices view of a machine they cannot find. */
+export function pairingPort(): i32 { return linkPort; }
 
 function closeCode(): void {
   code = '';
@@ -57,19 +63,22 @@ export function pairPage(sent: string): string {
 }
 
 /** Starts announcing the editor at `port`. A network that refuses it leaves the address, the QR code and the code for a page. */
-export function startPairing(port: i32, editorToken: string, name: string): void {
+export function startPairing(port: i32, editorToken: string, name: string, keys: string): void {
   webPort = port;
   token = editorToken;
   try {
     const host = os.hostname();   // Android says localhost: the list shows the address beside the name
-    link.init({ name: name !== '' ? name : host === 'localhost' || host === '' ? 'Mapper' : `${host} mapper` });
+    const shown = name !== '' ? name : host === 'localhost' || host === '' ? 'Mapper' : `${host} mapper`;
+    if (keys !== '') link.init({ name: shown, store: keys });
+    else link.init({ name: shown });
     link.onPairing((state: string) => { if (state === 'closed' || state === 'paired') closeCode(); });
     link.onPaired((peer: link.Peer) => { closeCode(); });
     link.onConnection((channel: link.Channel) => {
       channel.send({ t: 'editor', port: webPort, token });
-      channel.onMessage((message: any) => {});
+      listenForMaster(channel, shown);
     });
-    link.advertise({ service: SERVICE, info: `${port}` });
+    linkPort = link.advertise({ service: SERVICE, info: `${port}` }) as i32;
+    startFleetMaster(shown);
   } catch (e) {
     console.error(`mapper: not announced on the network: ${e}`);
     webPort = -1;

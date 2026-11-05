@@ -27,6 +27,11 @@ export class FleetClock {
   /** Whether an answer has come (always true on the machine that serves). */
   synced = false;
   private samples: Sample[] = [];
+  private stopAsking: () => void = () => {};
+
+  /** Stops asking (a clock from joinClock): the machine follows another one, or none. */
+  close(): void { this.stopAsking(); }
+  setStop(stop: () => void): void { this.stopAsking = stop; }
 
   /** The shared time in milliseconds. */
   now(): number { return localNow() + this.offset; }
@@ -73,6 +78,11 @@ export async function joinClock(host: string, port: i32): Promise<FleetClock> {
     probe();
     if (++sent >= BURST) clearInterval(burst);
   }, BURST_MS);
-  setInterval(probe, STEADY_MS);
+  const steady = setInterval(probe, STEADY_MS);
+  clock.setStop(() => {
+    clearInterval(burst);
+    clearInterval(steady);
+    socket.close();
+  });
   return clock;
 }

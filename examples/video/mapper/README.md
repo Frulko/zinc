@@ -101,14 +101,13 @@ canvas show where each one ends.
 
 ### Several machines, one picture
 
-Start one mapper as usual, and the others with `--join <its address>`: they take its clock. `--viewport x,y,w,h` says which part of the canvas each one shows, from 0 to 1:
+Start a mapper on each machine, open the editor of the one that leads, and go to *Devices*: the other mappers on the network are listed. **Show a code on it** puts a code on that machine's output; type it and **Add** (once: they find each other again after a restart, wherever they moved). A machine on another network is added by its address. **Side by side** cuts the canvas between them, and each one's left, top, width and height are yours to set.
 
-```sh
-zinc run examples/video/mapper -- --viewport 0,0,.5,1                              # the left half, gives the time
-zinc run examples/video/mapper -- --join 192.168.1.20 --viewport .5,0,.5,1         # the right half
-```
+From then on the leader sends its setup, its show and every command to the others. What must look simultaneous (a column, a clip, a stop, a card, the volume) carries the shared time to run at: *Commands ahead* is how far ahead (80 ms by default: less on a cable, more on Wi-Fi), and each machine's *Delay* makes up for a projector slower than the others. Everything also goes over OSC to the leader: `/fleet/ask id`, `/fleet/add id code`, `/fleet/remove id`, `/fleet/viewport id x y w h`, `/fleet/trim id ms`, `/fleet/identify id`, `/fleet/lookahead ms`, `/fleet/sidebyside`, and `/step 1` or `/step -1` for the next or previous column.
 
-The **sync** card of *Calibration* (or `/card sync` over OSC, on each machine) draws a bar that crosses the whole canvas from the shared clock alone, with a frame counter and each player's clock error: film it with a phone to see how far apart the screens are. For now each machine still has its own show; replicating it is the next step.
+Each machine keeps its own media under the same names, for now: nothing copies them yet, and a video starts at the same moment on each machine but is not held to the clock afterwards. A machine that loses the leader keeps playing, and catches up when it comes back.
+
+The **sync** card of *Calibration* (or `/card sync` over OSC) draws a bar that crosses the whole canvas from the shared clock alone, with a frame counter and each player's clock error: film it with a phone to see how far apart the screens are. For now each machine still has its own show; replicating it is the next step.
 
 ### Sending media, following the device
 
