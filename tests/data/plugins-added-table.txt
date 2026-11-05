@@ -21,3 +21,4 @@
   zinc:monitors            macos                              Control the machine's displays: modes and HiDPI, brightness, DDC (contrast, volume, input), dimming and warmth, XDR boost, arrangement, mirroring, rotation, connection, virtual displays (macOS); two fake displays for tests
   zinc:sf-symbols          macos                              Apple's SF Symbols as runtime images, white to be tinted (macOS)
   zinc:lastfm              macos,linux,windows,android,ios,rpi1 Last.fm scrobbling: counts what was really heard, a saved outbox with retries, signed API calls; written in Zinc on fetch and zinc:fs
+  zinc:fleet               macos,linux,windows,android,ios,rpi1 A clock shared by several machines over UDP, so they can act at the same moment; written in Zinc on zinc:socket

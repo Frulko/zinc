@@ -309,7 +309,7 @@ jobs:
       - name: Dependencies (macOS)
         run: |   # ccache: the build tree names it as its compiler launcher, tests that run cmake --build on it need it; PyYAML and actionlint: release_workflow checks this file
           brew install cmake sdl3 coreutils quickjs pixman libgcrypt sdl2 ccache actionlint openssl@3 pkgconf ffmpeg libgphoto2 jpeg-turbo   # ffmpeg: the real decode of video and museum_*; libgphoto2 and jpeg-turbo: camera's fake camera
-          python -m pip install --quiet pyyaml jsonschema tuf 'securesystemslib[crypto]' cryptography   # sbom (SPDX schema), tuf_interop (python-tuf)
+          python -m pip install --quiet pillow numpy pyyaml jsonschema tuf 'securesystemslib[crypto]' cryptography   # sbom (SPDX schema), tuf_interop (python-tuf)
           echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"   # tls and netlog need openssl 3.4+ (x509 -not_before), not the system LibreSSL
       - name: Cache pinned toolchains
         uses: actions/cache@v4
@@ -746,6 +746,11 @@ jobs:
           echo "$sha  $RUNNER_TEMP/$file" | sha256sum -c -
           mkdir -p "$ZINC_HOME/toolchains/zig-x86_64-linux-$version"
           tar -xJf "$RUNNER_TEMP/$file" -C "$ZINC_HOME/toolchains/zig-x86_64-linux-$version" --strip-components=1
+      - name: Cache the sysroot   # snapshot.debian.org answers 503 for hours at a time; the lock pins its bytes
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/zinc-home/sysroots
+          key: linux-sysroot-${{ matrix.arch }}-${{ hashFiles('tools/linux-sysroot', 'tools/linux-sysroot.lock') }}
       - name: Cross build zinc and its archive
         run: tools/build-linux --arch ${{ matrix.arch }}
       - name: zinc starts, runs a program, checks it
