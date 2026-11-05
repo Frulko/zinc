@@ -14,12 +14,16 @@ struct NativeVideo : zrt::Object {
   virtual void pause(int32_t p, bool on) = 0;
   virtual void skip(int32_t p, int32_t delta) = 0;
   virtual void jump(int32_t p, int32_t index) = 0;
+  virtual void seek(int32_t p, double seconds) = 0;
+  virtual void setRate(int32_t p, double rate) = 0;
   virtual int32_t image(int32_t p) = 0;
   virtual int32_t width(int32_t p) = 0;
   virtual int32_t height(int32_t p) = 0;
   virtual int32_t index(int32_t p) = 0;
   virtual int32_t count(int32_t p) = 0;
   virtual double position(int32_t p) = 0;
+  virtual double playhead(int32_t p) = 0;
+  virtual bool seeking(int32_t p) = 0;
   virtual double duration(int32_t p) = 0;
   virtual int32_t loops(int32_t p) = 0;
   virtual bool playing(int32_t p) = 0;
