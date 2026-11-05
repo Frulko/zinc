@@ -82,6 +82,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - On QuickJS, `Date.now()` and `performance.now()` stood still while a piece of code ran, so a program that timed its own work read 0 and one that waited on them never returned; they now read the real time, as on the other engines.
 - `Date.now()` and `performance.timeOrigin` were off from the real time by however long the program took to start (a few hundred ms, different at each run); they now give the real time.
 - `fetch` of a URL with no host says `invalid URL` instead of an empty reason.
+- `fetch(url, {saveTo})` writes on a worker thread and syncs what it wrote, so a slow disk or SD card no longer freezes the frames while a file downloads.
 
 ### UI
 

@@ -23,6 +23,9 @@
 #include "zn/loop.h"
 
 #include <sys/stat.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 namespace zn::http {
 std::string gError;
@@ -80,7 +83,12 @@ struct Fetch {
   int closing = 0;
   int log = 0;   // the entry of this hop in the network log (netlog.h), 0 when nobody records
   std::string savePath;                // the body goes to this file, never to memory (RequestInit.saveTo)
-  FILE* saving = nullptr;
+  FILE* saving = nullptr;              // open on the worker thread; written there, so a slow disk never holds up the frames (an SD card: seconds)
+  uv_work_t saveWork;
+  std::string saveWaiting, saveChunk;  // what came in; what the worker is writing
+  bool saveAppend = false, saveWriting = false, saveWriteFailed = false, saveReadPaused = false;
+  bool held = false, heldOk = false;   // the answer is in: told once the file has it all
+  std::string heldWhy;
   bool saveFailed = false;
 };
 std::vector<std::unique_ptr<Fetch>> gFetches;   // index = handle - 1
@@ -133,9 +141,45 @@ void closeTcp(Fetch* f) {
   f->reqSent = false;
   if (f->tcpOpen) { f->closing++; uv_close(reinterpret_cast<uv_handle_t*>(&f->tcp), onFetchClosed); f->tcpOpen = false; }
 }
+void onFetchRead(uv_stream_t* s, ssize_t n, const uv_buf_t* b);
+void finish(Fetch* f, bool ok, const std::string& why);
+const size_t kSaveWaitingCap = 8u << 20;   // beyond this the network waits for the disk
+void saveWritten(uv_work_t* w, int);
+void saveMore(Fetch* f) {
+  if (f->saveWriting || f->saveWaiting.empty()) return;
+  f->saveChunk.clear();
+  f->saveChunk.swap(f->saveWaiting);
+  f->saveWriting = true;
+  f->closing++;
+  f->saveWork.data = f;
+  uv_queue_work(L(), &f->saveWork, [](uv_work_t* w) {
+    auto* k = static_cast<Fetch*>(w->data);
+    if (k->saveWriteFailed) return;
+    if (!k->saving) k->saving = std::fopen(k->savePath.c_str(), k->saveAppend ? "ab" : "wb");
+    if (!k->saving || std::fwrite(k->saveChunk.data(), 1, k->saveChunk.size(), k->saving) != k->saveChunk.size() || std::fflush(k->saving) != 0) k->saveWriteFailed = true;
+#ifndef _WIN32
+    if (!k->saveWriteFailed) fsync(fileno(k->saving));   // written now, not in a burst later that holds up what reads the disk (a film, on an SD card)
+#endif
+  }, saveWritten);
+}
+void saveWritten(uv_work_t* w, int) {
+  auto* f = static_cast<Fetch*>(w->data);
+  f->saveWriting = false;
+  f->closing--;
+  if (f->saveWriteFailed) f->saveFailed = true;
+  if (f->saveReadPaused) {
+    f->saveReadPaused = false;
+    if (f->tcpOpen && !f->finished) uv_read_start(reinterpret_cast<uv_stream_t*>(&f->tcp), alloc, onFetchRead);
+  }
+  saveMore(f);
+  if (f->held && !f->saveWriting) { f->held = false; finish(f, f->heldOk, f->heldWhy); }
+  maybeFree(f);
+}
 void finish(Fetch* f, bool ok, const std::string& why) {
-  if (f->finished) return;
+  if (f->finished || f->held) return;
+  if (f->saveWriting || !f->saveWaiting.empty()) { f->held = true; f->heldOk = ok; f->heldWhy = why; return; }
   f->finished = true;
+  if (f->saveFailed) ok = false;
   if (f->saving) { if (std::fclose(f->saving) != 0 && ok) { ok = false; f->saveFailed = true; } f->saving = nullptr; }
   if (f->timerOpen) { uv_timer_stop(&f->timer); f->closing++; uv_close(reinterpret_cast<uv_handle_t*>(&f->timer), onFetchClosed); f->timerOpen = false; }
   closeTcp(f);
@@ -322,8 +366,11 @@ void connectTo(Fetch* f, sockaddr_in a) {
   f->settings.on_body = [](llhttp_t* p, const char* at, size_t n) {
     auto* k = static_cast<Fetch*>(p->data);
     if (!k->savePath.empty() && (p->status_code == 200 || p->status_code == 206)) {
-      if (!k->saving) k->saving = std::fopen(k->savePath.c_str(), p->status_code == 206 ? "ab" : "wb");
-      if (!k->saving || std::fwrite(at, 1, n, k->saving) != n) { k->saveFailed = true; return -1; }
+      if (k->saveFailed) return -1;
+      k->saveAppend = p->status_code == 206;
+      k->saveWaiting.append(at, n);
+      saveMore(k);
+      if (k->saveWaiting.size() > kSaveWaitingCap && !k->saveReadPaused && k->tcpOpen) { k->saveReadPaused = true; uv_read_stop(reinterpret_cast<uv_stream_t*>(&k->tcp)); }
       return 0;
     }
     if (k->msg.body.size() + n > static_cast<size_t>(k->maxBytes)) { k->tooBig = true; return -1; }
