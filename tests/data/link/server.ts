@@ -8,7 +8,7 @@ const port = link.advertise({ service: env('LINK_SERVICE'), name: 'Tablet', port
 link.onPairing((s: string) => console.log('pairing ' + s));
 link.onPaired((p: link.Peer) => console.log('paired ' + p.name));
 link.onConnection((ch: link.Channel) => {
-  console.log('accept ' + ch.peer.name);
+  console.log('accept ' + ch.peer.name + ' from ' + ch.peer.host);
   ch.onMessage((m: any) => { console.log('got ' + m.t + ' ' + m.n); ch.send({ t: 'echo', n: (m.n as number) + 1 }); });
   ch.onBytes((kind: i32, b: u8[]) => {
     const r: u8[] = [];

@@ -189,6 +189,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - `zinc:mapping`: the `cover` fit deformed the picture instead of cutting what exceeds; `/layer/<n>/fit` also takes `width` and `height`, and `/layer/<n>/frame` slides and zooms the picture.
 - `zinc:mapping`: a mask with no feather has a clean edge at the size it is shown, and drawing one no longer costs a slow graphics chip a shader per pixel.
 - `zinc:fleet`: two machines with windows open agree on the time within a fraction of a millisecond instead of up to 8 ms, because the wait for a frame no longer counts.
+- `zinc:link`: on a channel from `onConnection`, `peer.host` is now the address the session comes from; it was empty.
 
 ### iPod
 

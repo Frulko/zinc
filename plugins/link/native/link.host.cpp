@@ -404,11 +404,15 @@ struct HostLink : NativeLink, zrt::Poller {
     }
     if (listener >= 0) {
       for (int i = 0; i < 16; ++i) {
-        const int s = ::accept(listener, nullptr, nullptr);
+        sockaddr_in from{};
+        socklen_t fromSize = sizeof from;
+        const int s = ::accept(listener, reinterpret_cast<sockaddr*>(&from), &fromSize);
         if (s < 0) break;
         prepare(s);
         Conn c;
         c.fd = s;
+        char ip[INET_ADDRSTRLEN] = "";
+        if (inet_ntop(AF_INET, &from.sin_addr, ip, sizeof ip)) c.host = ip;
         c.server = true;
         c.phase = Conn::Line;
         c.since = c.heard = c.said = now;
@@ -546,7 +550,9 @@ struct HostLink : NativeLink, zrt::Poller {
     if (c.server) {
       c.peer = tls::pskIdentity(c.t);
       c.shown = true;
-      emit(h, ACCEPT, peerJson(c.peer));
+      Peer at = findPeer(c.peer) ? *findPeer(c.peer) : Peer{c.peer, "", "", "", "", 0};
+      at.host = c.host;   // where this session comes from; the stored peer keeps the address it is reached at
+      emit(h, ACCEPT, peerJson(at));
     } else {
       if (Peer* p = findPeer(c.peer); p && (p->host != c.host || p->port != c.port)) { p->host = c.host; p->port = c.port; save(); }   // where it is now
       emit(h, OPEN, peerJson(c.peer));

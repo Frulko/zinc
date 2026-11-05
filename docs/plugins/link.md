@@ -75,7 +75,7 @@ program's key: pair again` (no more retries).
 | `onConnection(cb(channel))` | each channel a paired peer opens to this program |
 | `peers(): Peer[]`, `forget(id): boolean`, `addresses(): string[]`, `id(): string` | the store; this machine's IPv4 addresses (for the "type this address" step) |
 | `Channel` | `peer`, `connected`; `send(value)` (JSON), `sendBytes(kind 0..255, bytes)` (at most 1 MiB), both false while disconnected (nothing is queued); `onOpen`, `onMessage`, `onBytes`, `onClose(reason)`; `close()` |
-| `Peer` | `id`, `name`, `host`, `port`, `service`, `pairing` (a code is open there), `paired` (this program holds its key), `info` (what it announces) |
+| `Peer` | `id`, `name`, `host`, `port`, `service`, `pairing` (a code is open there), `paired` (this program holds its key), `info` (what it announces). On a channel from `onConnection`, `host` is the address the session comes from |
 
 ## Protocol and security
 

@@ -36,6 +36,7 @@ grep -q "^paired Tablet" "$tmp/pair.log" || bad "the client did not pair: $(cat 
 grep -q "^message echo 2" "$tmp/pair.log" || bad "no JSON answer: $(cat "$tmp/pair.log")"
 grep -q "^bytes 8 250,3,2,1" "$tmp/pair.log" || bad "no bytes answer: $(cat "$tmp/pair.log")"
 grep -q "^paired Client" "$tmp/server1.log" && grep -q "^got hi 1" "$tmp/server1.log" || bad "the advertiser's side: $(cat "$tmp/server1.log")"
+grep -q "^accept Client from 127.0.0.1" "$tmp/server1.log" || grep -Eq "^accept Client from [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$" "$tmp/server1.log" || bad "an accepted channel does not say where it comes from: $(cat "$tmp/server1.log")"
 for f in server client; do [ "$(ls -l "$tmp/$f.keys" | cut -c1-10)" = "-rw-------" ] || bad "$f.keys is readable by others"; done
 
 # both restarted: no code, the stored keys; the advertiser restarts again under the open channel, on another port
