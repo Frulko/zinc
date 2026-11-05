@@ -79,6 +79,9 @@ struct Fetch {
   std::string tlsWaiting;              // what the socket gave meanwhile
   int closing = 0;
   int log = 0;   // the entry of this hop in the network log (netlog.h), 0 when nobody records
+  std::string savePath;                // the body goes to this file, never to memory (RequestInit.saveTo)
+  FILE* saving = nullptr;
+  bool saveFailed = false;
 };
 std::vector<std::unique_ptr<Fetch>> gFetches;   // index = handle - 1
 Fetch* fetchAt(int h) { return h > 0 && static_cast<size_t>(h) <= gFetches.size() ? gFetches[static_cast<size_t>(h) - 1].get() : nullptr; }
@@ -98,7 +101,8 @@ bool splitUrl(const std::string& u, Fetch* f, std::string* why) {
   if (colon != std::string::npos) { f->port = std::atoi(auth.c_str() + colon + 1); auth.resize(colon); }
   f->host = auth;
   f->url = u;
-  return !f->host.empty() && f->port > 0 && f->port < 65536;
+  if (f->host.empty() || f->port <= 0 || f->port >= 65536) { *why = "invalid URL " + u; return false; }
+  return true;
 }
 
 void startConnection(Fetch* f);
@@ -132,11 +136,12 @@ void closeTcp(Fetch* f) {
 void finish(Fetch* f, bool ok, const std::string& why) {
   if (f->finished) return;
   f->finished = true;
+  if (f->saving) { if (std::fclose(f->saving) != 0 && ok) { ok = false; f->saveFailed = true; } f->saving = nullptr; }
   if (f->timerOpen) { uv_timer_stop(&f->timer); f->closing++; uv_close(reinterpret_cast<uv_handle_t*>(&f->timer), onFetchClosed); f->timerOpen = false; }
   closeTcp(f);
   loop::addActive(-1);
   if (ok) netlog::response(f->log, f->status, f->reason, f->msg.head, f->msg.body); else netlog::close(f->log, why);
-  loop::pushEvent(f->handle, ok ? 40 : 41, why);
+  loop::pushEvent(f->handle, ok ? 40 : 41, f->saveFailed ? "fetch failed: cannot write " + f->savePath : why);
 }
 
 std::string resolveLocation(Fetch* f, const std::string& loc) {
@@ -223,7 +228,7 @@ void parseBytes(Fetch* f, const char* data, size_t n) {
   f->answered = true;
   netlog::mark(f->log, netlog::FirstByte);
   llhttp_errno_t e = llhttp_execute(&f->parser, data, n);
-  if (e != HPE_OK && e != HPE_PAUSED && !f->finished && !f->restart) finish(f, false, f->tooBig ? "fetch failed: response too large" : std::string("fetch failed: ") + llhttp_get_error_reason(&f->parser));
+  if (e != HPE_OK && e != HPE_PAUSED && !f->finished && !f->restart) finish(f, false, f->tooBig ? "fetch failed: response too large" : std::string("fetch failed: ") + (f->saveFailed ? "cannot write " + f->savePath : llhttp_get_error_reason(&f->parser)));
 }
 void parseEof(Fetch* f) {
   if (f->finished || f->restart) return;
@@ -316,6 +321,11 @@ void connectTo(Fetch* f, sockaddr_in a) {
   f->settings.on_headers_complete = [](llhttp_t* p) { static_cast<Fetch*>(p->data)->msg.flush(); return static_cast<Fetch*>(p->data)->method == "HEAD" ? 1 : 0; };
   f->settings.on_body = [](llhttp_t* p, const char* at, size_t n) {
     auto* k = static_cast<Fetch*>(p->data);
+    if (!k->savePath.empty() && (p->status_code == 200 || p->status_code == 206)) {
+      if (!k->saving) k->saving = std::fopen(k->savePath.c_str(), p->status_code == 206 ? "ab" : "wb");
+      if (!k->saving || std::fwrite(at, 1, n, k->saving) != n) { k->saveFailed = true; return -1; }
+      return 0;
+    }
     if (k->msg.body.size() + n > static_cast<size_t>(k->maxBytes)) { k->tooBig = true; return -1; }
     k->msg.body.append(at, n);
     return 0;
@@ -934,6 +944,8 @@ std::string base64(const unsigned char* p, size_t n) {
 }
 
 }  // namespace
+
+void fetchSaveTo(int h, const std::string& path) { if (Fetch* f = fetchAt(h)) f->savePath = path; }
 
 int fetchOpen(const std::string& url, const std::string& method, const std::string& headers, const std::string& body, int timeoutMs, int maxBytes, const std::string& fail) {
   auto f = std::make_unique<Fetch>();

@@ -108,7 +108,8 @@ are fetched, following at most 20 redirects; on hosts, a redirect to another sch
 at most 30 s). A response body larger than `maxBytes` (default: a quarter of the heap, at most 64 MiB) is refused with
 `fetch failed: response too large`. To send a file, `bodyFile: path` lets the engine read it (the program never holds it),
 between `bodyPrefix` and `bodySuffix` (a multipart form's parts); `onProgress(sent, total)` is called as a body over 64 KiB
-goes out (bytes on the wire), for an upload bar. The handler receives
+goes out (bytes on the wire), for an upload bar. To receive a file, `saveTo: path` has the engine write the response body there,
+whatever its size and with no `maxBytes`: a 200 replaces the file, a 206 (you asked a `Range`) adds to it, another status stays in the response. The handler receives
 `method`, `path`, `body`; there is no routing framework — branch on `req.path` yourself.
 
 ## MQTT, OSC, telemetry

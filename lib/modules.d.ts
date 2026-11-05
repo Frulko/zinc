@@ -134,8 +134,9 @@ declare module 'zinc:net' {
     forEach(f: (value: string, name: string) => void): void;
   }
   /** bodyBytes: a binary body (wins over body). timeoutMs: the whole request (default 120000; connecting: 30 s at
-   *  most). maxBytes: the largest response body accepted (default: a quarter of the heap, at most 64 MiB). */
-  export interface RequestInit { method?: string; body?: string; bodyBytes?: u8[]; contentType?: string; headers?: Headers; timeoutMs?: i32; maxBytes?: i32 }
+   *  most). maxBytes: the largest response body accepted (default: a quarter of the heap, at most 64 MiB). saveTo: the response body goes
+   *  to that file, written by the engine, whatever its size: a 200 replaces the file, a 206 adds to it, another status stays in the Response. */
+  export interface RequestInit { method?: string; body?: string; bodyBytes?: u8[]; contentType?: string; headers?: Headers; timeoutMs?: i32; maxBytes?: i32; saveTo?: string }
   export class Response {
     readonly status: i32;
     readonly ok: boolean;

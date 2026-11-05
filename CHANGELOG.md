@@ -62,6 +62,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - Arrays have the standard `copyWithin(target, start, end?)`: a block moved inside an array in one native call, the same on every engine.
 - JSX: `style={seg(on)}` and `style={card}` take a style computed by a function or held in a constant of the same file; its object is lowered as a `style={{...}}` written in place, on every engine.
 - `<Image image={img} />` shows a runtime image (from `imageFromBytes`, `imageFromPixels` or a plugin), as `src` shows an image of the assets; it follows a signal like any prop.
+- `fetch(url, { saveTo: path })` of `zinc:net` has the engine write the response to a file, whatever its size and without holding the program up: a 200 replaces the file, a 206 adds to it, so a cut download goes on with a `Range`.
 
 #### Faster
 - `JSON.parse` is about twice as fast and `JSON.stringify` a quarter faster on large documents (a 4.5 MB array of 96,000 objects: 30 to 15 ms, 24 to 17 ms), and a `Map` or `Set` of up to 8 entries no longer allocates a hash index.
@@ -80,6 +81,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - A function that returns `cond ? <A /> : <B />` mounts as a component: it printed a number where the UI should be.
 - On QuickJS, `Date.now()` and `performance.now()` stood still while a piece of code ran, so a program that timed its own work read 0 and one that waited on them never returned; they now read the real time, as on the other engines.
 - `Date.now()` and `performance.timeOrigin` were off from the real time by however long the program took to start (a few hundred ms, different at each run); they now give the real time.
+- `fetch` of a URL with no host says `invalid URL` instead of an empty reason.
 
 ### UI
 

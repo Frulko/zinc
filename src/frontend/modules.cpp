@@ -654,9 +654,10 @@ export class Headers {
   forEach(f: (value: string, name: string) => void): void { for (const k of this.keys()) f(this.get(k), k); }
 }
 export interface RequestInit { method?: string; body?: string; bodyBytes?: u8[]; contentType?: string; headers?: Headers; timeoutMs?: i32; maxBytes?: i32;
-  bodyFile?: string; bodyPrefix?: string; bodySuffix?: string; onProgress?: (sent: number, total: number) => void }
+  bodyFile?: string; bodyPrefix?: string; bodySuffix?: string; onProgress?: (sent: number, total: number) => void; saveTo?: string }
 // bodyFile: the body is that file, read by the engine (not held by the program), between bodyPrefix and bodySuffix (a multipart form's parts);
-// onProgress: called as a body over 64 KB is sent, with the bytes on the wire so far and in all
+// onProgress: called as a body over 64 KB is sent, with the bytes on the wire so far and in all;
+// saveTo: the response body goes to that file, written by the engine (not held by the program): a 200 replaces the file, a 206 adds to it
 export class Response {
   status: i32;
   ok: boolean;
@@ -929,6 +930,7 @@ export function fetch(url: string, init?: RequestInit): Promise<Response> {
     const file = init !== undefined && init.bodyFile !== undefined ? init.bodyFile as string : '';
     const h = file !== '' ? __host_httpFetchFile(url, method, lines, file, init !== undefined && init.bodyPrefix !== undefined ? init.bodyPrefix as string : '', init !== undefined && init.bodySuffix !== undefined ? init.bodySuffix as string : '', timeout, max)
       : bytes !== null ? __host_httpFetchBytes(url, method, lines, bytes as u8[], timeout, max) : __host_httpFetch(url, method, lines, body, timeout, max);
+    if (init !== undefined && init.saveTo !== undefined) __host_httpSaveTo(h, init.saveTo as string);
     const call = new NetCall(h, resolve, reject);
     if (init !== undefined && init.onProgress !== undefined) call.progress = init.onProgress as (sent: number, total: number) => void;
     __netCalls.push(call);

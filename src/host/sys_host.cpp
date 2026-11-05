@@ -1386,6 +1386,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       r->i = zn::http::fetchOpen(s(0), s(1), s(2), body, n(6), n(7), why);
       break;
     }
+    case Rt::HostHttpSaveTo: zn::http::fetchSaveTo(n(0), s(1)); break;
     case Rt::HostHttpStatus: r->i = zn::http::fetchStatus(n(0)); break;
     case Rt::HostHttpHead: ret(r, zn::http::fetchHead(n(0))); break;
     case Rt::HostHttpBody: case Rt::HostHttpBodyBytes: ret(r, zn::http::fetchBody(n(0))); break;
