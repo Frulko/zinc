@@ -55,6 +55,7 @@ Using `zinc:video` on an unlisted target is error Z5003 at build time.
 - **Zero copy on the GPU** (Linux, `zinc:mapping`): with `zinc:mapping` loaded, a decoder's dmabufs become a texture (`EGL_EXT_image_dma_buf_import`,
   `zgl_picture_texture`) and every warp, mask and colour of the layer applies; the processor reads no picture. On a Pi 3B+, 720p30 goes from 43 fps
   and 400 ms behind to 60 fps and on time. A GPU that refuses the import says so once and the films go through the processor.
+  On Intel and AMD the decoder is VA-API, only in this case for now; written, not yet run on such a machine.
 - **Hand-over**: a ring of `buffers` slots (plugin option, default 4). The worker only writes free slots; the main
   thread (a `zrt::Poller`, once per loop iteration, before `onFrame`) picks the newest frame whose timestamp is due,
   frees older ones (`dropped`), and publishes it with `raster::dyn_update`. The player's image id never changes:

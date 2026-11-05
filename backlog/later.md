@@ -1034,6 +1034,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: Discord voice AEC: replace the `isHeadphones` name guess with the device type or transport that miniaudio/CoreAudio reports; add a T1 loopback with a simulated room in the fake microphone path.
 
 ## Cross-platform pass
+- Mapper, copy during a show on a Pi: a 1080p film plus an 89 MiB copy on the SD card put the film 733 ms behind (p50); `saveTo` writing on a worker, a sync per slice and the copy waiting for a late film were never measured there (the Pi left the network first). `lazytime` in the Pi image's fstab would also spare the frame loop ext4's journal: a `write` to a log waited 2.5 to 3.9 s on it.
+- Mapper on a NUC: `zinc:video` VA-API with dmabufs and `zgl_picture_texture` on Intel never ran (two-layer NV12, modifiers); the export for `x86_64-linux` only started in a Debian 12 container, and needs FFmpeg's `libavcodec.so.59` (Debian 12) there.
+- Mapper on Android: `zgl_program` now writes `#extension GL_OES_EGL_image_external : require` for external textures; check it on the Toumei C800 (Mali-400) at the next install.
 - A mapper follows its master on Android: the compositor's `MediaPlayer` has no rate before API 23, `seekTo` and a hold could do; and `zinc:video` seek on Android (real), iOS and webOS (decodes up to the place) never ran on a device, nor the mapper's media copy between two real machines.
 - gl: the paint_populate stencil's GL_STENCIL_INDEX8 path was only run on the Mac; try it on GLES 2 hardware (Pi, Nexus 7).
 - pinball: try the vertical mode, the flippers and a real gamepad on the rotated Pi; only the probe and a 480x768 window on the Mac have proved them.

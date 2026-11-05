@@ -39,7 +39,7 @@ struct Source : SourceBase {
   bool draining;
   bool uncached;               // the decoder's frames lie in device memory mapped without a cache (V4L2): publish copies them first
   bool prime;                  // the decoder is asked for dmabufs (AV_PIX_FMT_DRM_PRIME): the display has hardware layers
-  AVPacket* pkt; AVFrame *fr, *sw;   // the packet read, the frame decoded, its copy in memory (hardware or uncached frames)
+  AVPacket* pkt; AVFrame *fr, *sw, *mapped;   // the packet read, the frame decoded, its copy in memory (hardware or uncached frames), a VA-API surface as dmabufs
 };
 
 static AVPixelFormat pick_format(AVCodecContext* c, const AVPixelFormat* f) {
@@ -80,13 +80,27 @@ static bool open_decoder(Source* s, const AVCodec* sw, const AVCodecParameters* 
 #ifdef ZP_VIDEO_PRIME
   // ZINC_VIDEO_PRIME=0: the decoder's frames as pixels in memory whatever the display (to compare, or a decoder whose dmabufs fail)
   const char* off = getenv("ZINC_VIDEO_PRIME");
-  s->prime = hal_display && (hal_display->layers || hal_display->gpu_pictures) && !(off && *off == '0');
+  const bool prime = hal_display && (hal_display->layers || hal_display->gpu_pictures) && !(off && *off == '0');
+  s->prime = prime;
 #endif
   if (const AVCodec* m2m = avcodec_find_decoder_by_name(n)) if (try_decoder(s, m2m, par, false)) {
     snprintf(s->name, sizeof s->name, "%s%s", n, s->prime ? " (dmabuf)" : "");
     s->uncached = true;
     return true;
   }
+#ifdef ZP_VIDEO_PRIME
+  // Intel and AMD (a NUC, a PC): VA-API, when something takes its surfaces as dmabufs. Fails fast with no driver.
+  // ponytail: only there, the other programs stay in software as they were; open it to them (the transfer below works) once it has run on a NUC
+  if (prime && av_hwdevice_ctx_create(&s->hw, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0) == 0) {
+    s->hwfmt = AV_PIX_FMT_VAAPI;
+    if (try_decoder(s, sw, par, true)) {
+      snprintf(s->name, sizeof s->name, "%s (va-api, dmabuf)", sw->name);
+      return true;
+    }
+    s->hwfmt = AV_PIX_FMT_NONE;
+    av_buffer_unref(&s->hw);
+  }
+#endif
   s->prime = false;
 #endif
 #endif
@@ -100,7 +114,7 @@ static void src_close(Source* s) {
   avformat_close_input(&s->fmt);
   av_buffer_unref(&s->hw);
   sws_freeContext(s->cv.sws);
-  av_packet_free(&s->pkt); av_frame_free(&s->fr); av_frame_free(&s->sw);
+  av_packet_free(&s->pkt); av_frame_free(&s->fr); av_frame_free(&s->sw); av_frame_free(&s->mapped);
   free(s);
 }
 static void src_close(SourceBase* s) { src_close(static_cast<Source*>(s)); }
@@ -153,8 +167,8 @@ static SourceBase* src_open(const char* path, int item) {
   s->tb = av_q2d(vs->time_base);
   s->fdur = vs->avg_frame_rate.num > 0 && vs->avg_frame_rate.den > 0 ? av_q2d(av_inv_q(vs->avg_frame_rate)) : 1.0 / 30;
   s->dur = fmt->duration > 0 ? fmt->duration / (double)AV_TIME_BASE : 0;
-  s->pkt = av_packet_alloc(); s->fr = av_frame_alloc(); s->sw = av_frame_alloc();
-  if (!s->pkt || !s->fr || !s->sw || !open_decoder(s, codec, vs->codecpar)) { src_close(s); return nullptr; }
+  s->pkt = av_packet_alloc(); s->fr = av_frame_alloc(); s->sw = av_frame_alloc(); s->mapped = av_frame_alloc();
+  if (!s->pkt || !s->fr || !s->sw || !s->mapped || !open_decoder(s, codec, vs->codecpar)) { src_close(s); return nullptr; }
   return s;
 }
 
@@ -186,10 +200,23 @@ static void conv_free(Conv* c) { sws_freeContext(c->sws); c->sws = nullptr; }
 /** A dmabuf frame for the display: its buffers by descriptor, nothing mapped. False: a layout a HalPicture does not describe. */
 static bool picture_of(const AVFrame* fr, int range, HalPicture* h) {
   const AVDRMFrameDescriptor* d = (const AVDRMFrameDescriptor*)fr->data[0];
-  if (!d || d->nb_layers != 1 || d->layers[0].nb_planes > 4) return false;
-  const AVDRMLayerDescriptor& l = d->layers[0];
-  h->modifier = d->objects[0].format_modifier; h->format = l.format; h->w = fr->width; h->h = fr->height; h->nplanes = l.nb_planes;
-  for (int i = 0; i < l.nb_planes; i++) { h->fd[i] = d->objects[l.planes[i].object_index].fd; h->offset[i] = (uint32_t)l.planes[i].offset; h->pitch[i] = (uint32_t)l.planes[i].pitch; }
+  if (!d || d->nb_layers < 1) return false;
+  h->format = d->layers[0].format;
+  if (d->nb_layers == 2) {   // VA-API: each plane a layer of its own
+    const uint32_t a = d->layers[0].format, b = d->layers[1].format;
+    if (a == MKTAG('R', '8', ' ', ' ') && (b == MKTAG('G', 'R', '8', '8') || b == MKTAG('R', 'G', '8', '8'))) h->format = MKTAG('N', 'V', '1', '2');
+    else if (a == MKTAG('R', '1', '6', ' ') && b == MKTAG('G', 'R', '3', '2')) h->format = MKTAG('P', '0', '1', '0');
+    else return false;
+  } else if (d->nb_layers != 1) return false;
+  h->modifier = d->objects[0].format_modifier; h->w = fr->width; h->h = fr->height; h->nplanes = 0;
+  for (int k = 0; k < d->nb_layers; k++) {
+    const AVDRMLayerDescriptor& l = d->layers[k];
+    for (int i = 0; i < l.nb_planes; i++) {
+      if (h->nplanes == 4) return false;
+      const int at = h->nplanes++;
+      h->fd[at] = d->objects[l.planes[i].object_index].fd; h->offset[at] = (uint32_t)l.planes[i].offset; h->pitch[at] = (uint32_t)l.planes[i].pitch;
+    }
+  }
   h->full_range = (range != AVCOL_RANGE_UNSPECIFIED ? range : fr->color_range) == AVCOL_RANGE_JPEG;
   h->bt709 = fr->colorspace == AVCOL_SPC_BT709;
   return true;
@@ -240,6 +267,13 @@ static void publish(Player* p, Source* s, AVFrame* fr, uint32_t gen, double base
   double fd = FRAME_DURATION(fr) > 0 ? FRAME_DURATION(fr) * s->tb : s->fdur;
   if (pos + fd > s->end) s->end = pos + fd;
   if (before_seek(s, pos, fd)) return;
+#ifdef ZP_VIDEO_PRIME
+  if (s->prime && fr->format == AV_PIX_FMT_VAAPI && !p->want_px) {   // the surface as dmabufs; a frame that draws it in software gets the transfer below
+    av_frame_unref(s->mapped);
+    s->mapped->format = AV_PIX_FMT_DRM_PRIME;
+    if (av_hwframe_map(s->mapped, fr, AV_HWFRAME_MAP_READ) == 0 && av_frame_copy_props(s->mapped, fr) == 0) fr = s->mapped;
+  }
+#endif
   AVFrame* f = fr;
   AVFrame* sw = s->sw;
   const bool prime = fr->format == AV_PIX_FMT_DRM_PRIME;
