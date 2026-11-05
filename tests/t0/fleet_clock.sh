@@ -8,6 +8,8 @@ cat >"$tmp/server.ts" <<TS
 import { serveClock } from 'zinc:fleet';
 console.log(\`\${Date.now() - performance.now()}\`);
 serveClock($port);
+// A loop that reads its sockets late, like a window's: the answers must not count that wait.
+setInterval(() => { const start = performance.now(); while (performance.now() - start < 30) {} }, 1);
 setTimeout(() => {}, 20000);
 TS
 cat >"$tmp/client.ts" <<TS
@@ -27,5 +29,24 @@ python3 - "$out" "$(tail -1 "$tmp/server.log")" <<'PY' || { echo "fleet clock: $
 import sys
 synced, rtt, offset, base = sys.argv[1].split()
 want = float(base) - float(sys.argv[2]) - 5000   # shared time - this clock: (wall - server base) - (wall - base + 5000)
-sys.exit(0 if synced == "true" and float(rtt) < 50 and abs(float(offset) - want) < 20 else 1)
+sys.exit(0 if synced == "true" and float(rtt) < 10 and abs(float(offset) - want) < 20 else 1)
 PY
+# The native socket (ZINC_NATIVE=real, what a program with plugins runs) stamps its datagrams too.
+cat >"$tmp/age.ts" <<TS
+import { udp, Datagram, UdpSocket } from 'zinc:socket';
+import { exit } from 'zinc:sys';
+udp(0, '127.0.0.1').then((socket: UdpSocket) => {
+  socket.onMessage((m: Datagram) => { console.log(\`age \${m.age}\`); exit(0); });
+  socket.send('127.0.0.1', socket.port, 'hi');
+  const start = performance.now();
+  while (performance.now() - start < 60) {}
+});
+TS
+# QuickJS too, whose time must move inside a turn (the program waits on it).
+check_age() {
+  age=$(timeout 60 "$@" 2>/dev/null | tail -1)
+  python3 -c "import sys; sys.exit(0 if 50 < float(sys.argv[1].split()[1]) < 1000 else 1)" "$age" || { echo "datagram age ($*): $age"; exit 1; }
+}
+check_age "$ZINC" run "$tmp/age.ts"
+ZINC_NATIVE=real check_age "$ZINC" run "$tmp/age.ts"
+check_age "$ZINC" run "$tmp/age.ts" --engine quickjs

@@ -89,7 +89,9 @@ export class Server {
 
 export class Datagram {
   bytes: u8[]; address: string; port: i32;
-  constructor(bytes: u8[], address: string, port: i32) { this.bytes = bytes; this.address = address; this.port = port; }
+  /** Milliseconds between the system receiving it and this object: the wait for the event loop. 0 where the system does not tell. */
+  age: number;
+  constructor(bytes: u8[], address: string, port: i32, age: number = 0) { this.bytes = bytes; this.address = address; this.port = port; this.age = age; }
   /** The payload as UTF-8 text. */
   get text(): string { return utf8Decode(this.bytes); }
 }
@@ -138,7 +140,8 @@ function listen0(): void {
     if (kind === DGRAM) {
       const u = udps.get(h);
       if (u === undefined) return;
-      const m = new Datagram(bytes, text, a);
+      const sep = text.indexOf('\u001e');
+      const m = sep < 0 ? new Datagram(bytes, text, a) : new Datagram(bytes, text.slice(0, sep), a, parseFloat(text.slice(sep + 1)) / 1000);
       for (const cb of u.msgCbs) cb(m);
       return;
     }

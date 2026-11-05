@@ -31,7 +31,8 @@ export default {
       else if (k === 2) cb(h, 2, parseInt(data), '', NONE);
       else if (k === 5) {
         const i1 = data.indexOf('\u001e');
-        cb(h, 5, parseInt(data.slice(i1 + 1)), data.slice(0, i1), utf8Encode(host.payload()));
+        const i2 = data.indexOf('\u001e', i1 + 1);   // address, port, age: text keeps "address\u001eage"
+        cb(h, 5, parseInt(data.slice(i1 + 1, i2)), `${data.slice(0, i1)}\u001e${data.slice(i2 + 1)}`, utf8Encode(host.payload()));
       } else cb(h, k, 0, data, NONE);
     });
   },

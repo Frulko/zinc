@@ -33,7 +33,7 @@ export interface Spec extends NativeModule {
   error(): string;
   /** kind 0 DATA (bytes), 1 OPEN (connected / listening / bound), 2 ACCEPT (a = new handle), 3 CLOSE (peer closed
    *  or reset), 4 ERROR (text; after a failed connect, listen or bind the handle is gone), 5 DGRAM (bytes, text =
-   *  sender address, a = sender port), 6 LOOKUP (text = addresses joined with ','), 7 LOOKUP_ERROR (text). */
+   *  sender address, then optionally U+001E and the microseconds since the system received it; a = sender port), 6 LOOKUP (text = addresses joined with ','), 7 LOOKUP_ERROR (text). */
   onEvent(cb: (h: i32, kind: i32, a: i32, text: string, bytes: u8[]) => void): void;
 }
 export default requireNative<Spec>('Socket');

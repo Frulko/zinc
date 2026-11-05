@@ -49,7 +49,7 @@ main();
 |---|---|
 | `udp(port, host = ''): Promise<UdpSocket>` | Port 0 picks a free port. |
 | `u.send(host, port, text)` / `sendBytes(host, port, u8[])` | |
-| `u.onMessage(cb(d))` | `d.bytes`, `d.text`, `d.address`, `d.port`. |
+| `u.onMessage(cb(d))` | `d.bytes`, `d.text`, `d.address`, `d.port`, and `d.age`: the milliseconds since the system received it (0 on Windows). |
 | `lookup(host): Promise<string[]>` | Every address, from getaddrinfo. |
 
 ## WebSocket (RFC 6455)

@@ -16,7 +16,7 @@ clock.now();                                           // milliseconds, the same
 |---|---|
 | `clock.now()` | the shared time in milliseconds |
 | `clock.offset` | what is added to this machine's clock, in ms |
-| `clock.rtt` | how long the answer in use took to come back, in ms: the offset is right within half of it |
+| `clock.rtt` | how long the answer in use spent on the network, in ms: the offset is right within half of it. The wait for a frame to read a datagram does not count, on either side |
 | `clock.synced` | whether an answer has come |
 
 A clock probes eight times at the start, then once a second, and keeps the fastest answer of its last eight: queues on a network only add delay. Probes are plain UDP with no authentication: they tell the time and nothing else. Without genlock, two screens can still differ by up to one refresh even with a perfect clock.

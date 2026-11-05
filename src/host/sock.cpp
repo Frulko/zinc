@@ -2,6 +2,11 @@
 
 #include <uv.h>
 
+#ifndef _WIN32
+#include <sys/socket.h>
+#include <sys/time.h>
+#endif
+
 #include <cstdlib>
 #include <cstring>
 #include <map>
@@ -29,6 +34,7 @@ struct Sock {
   int log = 0;          // the entry of the network log (netlog.h): outgoing TCP only
   tls::Conn* tls = nullptr;   // a TLS client (connectTls): the stream carries its records, the events its plain bytes
   bool tlsOpen = false;       // its handshake is done (the open event went out)
+  uv_poll_t* udpPoll = nullptr;   // reads a UDP socket with its arrival time (udp())
   ~Sock() { tls::destroy(tls); }
 };
 std::map<int, Sock*> gSocks;
@@ -58,6 +64,7 @@ void release(Sock* s) {   // closes the handle; the object goes with its close c
   gSocks.erase(s->id);
   loop::addActive(-1);
   if (s->kind != Kind::Udp && s->kind != Kind::Server) uv_read_stop(s->stream());
+  if (s->udpPoll) uv_close(reinterpret_cast<uv_handle_t*>(s->udpPoll), [](uv_handle_t* h) { delete reinterpret_cast<uv_poll_t*>(h); });
   uv_close(s->handle(), [](uv_handle_t* h) { delete reinterpret_cast<Sock*>(h->data); });
 }
 std::string errName(int rc) { return uv_err_name(rc); }
@@ -206,6 +213,54 @@ int listenUnix(const std::string& path) {
   loop::pushEvent(s->id, kOpen, "");
   return s->id;
 }
+// A datagram event: "address\x1eport\x1eage", age in microseconds since the system received it (0 unknown).
+void pushDatagram(Sock* k, const sockaddr* from, const char* data, size_t n, long long ageUs) {
+  char ip[64] = "";
+  uv_ip4_name(reinterpret_cast<const sockaddr_in*>(from), ip, sizeof ip);
+  loop::pushEvent(k->id, kDatagram, std::string(ip) + '\x1e' + std::to_string(ntohs(reinterpret_cast<const sockaddr_in*>(from)->sin_port)) + '\x1e' + std::to_string(ageUs), std::string(data, n));
+}
+#ifndef _WIN32
+// libuv drops the time the system stamps on a datagram, and the loop reads once a frame: a clock (zinc:fleet) needs that
+// stamp, so the socket is read here with recvmsg. libuv keeps the bind, the sends and the close of the same socket.
+int readWithStamps(Sock* s) {
+  int fd = -1, one = 1;
+  int rc = uv_fileno(s->handle(), reinterpret_cast<uv_os_fd_t*>(&fd));
+  if (rc != 0) return rc;
+  setsockopt(fd, SOL_SOCKET, SO_TIMESTAMP, &one, sizeof one);
+  s->udpPoll = new uv_poll_t;
+  rc = uv_poll_init_socket(L(), s->udpPoll, fd);
+  if (rc != 0) { delete s->udpPoll; s->udpPoll = nullptr; return rc; }
+  s->udpPoll->data = s;
+  return uv_poll_start(s->udpPoll, UV_READABLE, [](uv_poll_t* p, int, int) {
+    auto* k = static_cast<Sock*>(p->data);
+    static char buf[65536];
+    int fd = -1;
+    uv_fileno(k->handle(), reinterpret_cast<uv_os_fd_t*>(&fd));
+    while (!k->closing) {
+      sockaddr_in from;
+      iovec io{buf, sizeof buf};
+      char control[CMSG_SPACE(sizeof(timeval))];
+      msghdr m{};
+      m.msg_name = &from; m.msg_namelen = sizeof from;
+      m.msg_iov = &io; m.msg_iovlen = 1;
+      m.msg_control = control; m.msg_controllen = sizeof control;
+      ssize_t n = recvmsg(fd, &m, 0);
+      if (n < 0) break;
+      if (n == 0) continue;
+      long long ageUs = 0;
+      for (cmsghdr* c = CMSG_FIRSTHDR(&m); c; c = CMSG_NXTHDR(&m, c)) {
+        if (c->cmsg_level != SOL_SOCKET || c->cmsg_type != SCM_TIMESTAMP) continue;
+        timeval got, now;
+        std::memcpy(&got, CMSG_DATA(c), sizeof got);
+        gettimeofday(&now, nullptr);
+        ageUs = (now.tv_sec - got.tv_sec) * 1000000LL + (now.tv_usec - got.tv_usec);
+        if (ageUs < 0) ageUs = 0;   // the wall clock stepped back
+      }
+      pushDatagram(k, reinterpret_cast<sockaddr*>(&from), buf, static_cast<size_t>(n), ageUs);
+    }
+  });
+}
+#endif
 int udp(const std::string& host, int port) {
   sockaddr_in a;
   std::string target = (host.empty() ? "0.0.0.0" : host) + ":" + std::to_string(port);
@@ -214,15 +269,16 @@ int udp(const std::string& host, int port) {
   uv_udp_init(L(), &s->h.udp);
   s->handle()->data = s;
   int rc = uv_udp_bind(&s->h.udp, reinterpret_cast<sockaddr*>(&a), UV_UDP_REUSEADDR);
+#ifdef _WIN32
+  // ponytail: no arrival time on Windows (age 0), so a clock there is right within one frame; WSARecvMsg when it matters
   if (rc == 0) rc = uv_udp_recv_start(&s->h.udp, allocBuf, [](uv_udp_t* u, ssize_t n, const uv_buf_t* b, const sockaddr* from, unsigned) {
     auto* k = static_cast<Sock*>(u->data);
-    if (n > 0 && from && !k->closing) {
-      char ip[64] = "";
-      uv_ip4_name(reinterpret_cast<const sockaddr_in*>(from), ip, sizeof ip);
-      loop::pushEvent(k->id, kDatagram, std::string(ip) + '\x1e' + std::to_string(ntohs(reinterpret_cast<const sockaddr_in*>(from)->sin_port)), std::string(b->base, static_cast<size_t>(n)));
-    }
+    if (n > 0 && from && !k->closing) pushDatagram(k, from, b->base, static_cast<size_t>(n), 0);
     if (b->base) std::free(b->base);
   });
+#else
+  if (rc == 0) rc = readWithStamps(s);
+#endif
   if (rc != 0) { release(s); return fail("bind " + errName(rc) + " " + target); }
   loop::pushEvent(s->id, kOpen, "");
   return s->id;

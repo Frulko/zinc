@@ -2,6 +2,8 @@
 // Non-blocking sockets in a fixed handle table, polled with poll(2) on every event loop iteration (no thread).
 #include "zinc_native_socket.h"
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/uio.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -173,6 +175,7 @@ struct HostSocket : NativeSocket, zrt::Poller {
     int fd = socket(fam, SOCK_DGRAM, 0);
     if (fd < 0) { snprintf(err_msg, sizeof err_msg, "socket %s", strerror(errno)); return -1; }
     int one = 1; setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+    setsockopt(fd, SOL_SOCKET, SO_TIMESTAMP, &one, sizeof one);
     if (bind(fd, (sockaddr*)&ss, len) < 0) { snprintf(err_msg, sizeof err_msg, "bind %s %s", code_of(errno), what); close(fd); return -1; }
     nonblock(fd);
     int h = alloc_handle(UDP, fd);
@@ -308,13 +311,29 @@ struct HostSocket : NativeSocket, zrt::Poller {
       }
       if (x.type == UDP) {
         for (;;) {
-          char buf[65536]; sockaddr_storage ss; socklen_t len = sizeof ss;
-          ssize_t n = recvfrom(x.fd, buf, sizeof buf, 0, (sockaddr*)&ss, &len);
+          char buf[65536]; sockaddr_storage ss;
+          iovec io = {buf, sizeof buf};
+          char control[CMSG_SPACE(sizeof(timeval))];
+          msghdr m = {};
+          m.msg_name = &ss; m.msg_namelen = sizeof ss; m.msg_iov = &io; m.msg_iovlen = 1;
+          m.msg_control = control; m.msg_controllen = sizeof control;
+          ssize_t n = recvmsg(x.fd, &m, 0);
           if (n < 0) break;
+          long long age_us = 0;   // the time the system stamped on it: the wait for this poll, which a clock (zinc:fleet) leaves out
+          for (cmsghdr* c = CMSG_FIRSTHDR(&m); c; c = CMSG_NXTHDR(&m, c)) {
+            if (c->cmsg_level != SOL_SOCKET || c->cmsg_type != SCM_TIMESTAMP) continue;
+            timeval got, now;
+            memcpy(&got, CMSG_DATA(c), sizeof got);
+            gettimeofday(&now, nullptr);
+            age_us = (now.tv_sec - got.tv_sec) * 1000000LL + (now.tv_usec - got.tv_usec);
+            if (age_us < 0) age_us = 0;   // the wall clock stepped back
+          }
           char ip[64] = {0}; int port = 0;
           if (ss.ss_family == AF_INET) { inet_ntop(AF_INET, &((sockaddr_in*)&ss)->sin_addr, ip, sizeof ip); port = ntohs(((sockaddr_in*)&ss)->sin_port); }
           else if (ss.ss_family == AF_INET6) { inet_ntop(AF_INET6, &((sockaddr_in6*)&ss)->sin6_addr, ip, sizeof ip); port = ntohs(((sockaddr_in6*)&ss)->sin6_port); }
-          emit(h, DGRAM, port, ip, buf, (int)n);
+          char from[96];
+          snprintf(from, sizeof from, "%s\x1e%lld", ip, age_us);
+          emit(h, DGRAM, port, from, buf, (int)n);
           if (hs[h].type != UDP) break;
         }
         continue;

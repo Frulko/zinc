@@ -168,6 +168,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - `zinc:mapping`: `/layer/<n>/maskcurve/<k>` gives a polygon mask Bézier handles.
 - `zinc:fleet` gives several machines one clock over the network.
 - `zinc:mapping`: `/output/viewport` shows a part of the canvas, so that machines side by side show one picture.
+- `zinc:socket`: a UDP `Datagram` has `age`, the milliseconds since the system received it, which tells how long it waited for the program to read it.
 
 #### Changed
 - `zinc:net`: a program can serve several ports at once, each with its own handler (`serve`/`serveAsync` again on another port no longer replaces the first server), and `stop(port)` stops one; `stop()` still stops them all. The Spotify login now stops only its own callback server.
@@ -186,6 +187,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - On the web, `zinc:system/dialog` can pick a folder, and a folder dropped on the page gives the files in it.
 - `zinc:mapping`: the `cover` fit deformed the picture instead of cutting what exceeds; `/layer/<n>/fit` also takes `width` and `height`, and `/layer/<n>/frame` slides and zooms the picture.
 - `zinc:mapping`: a mask with no feather has a clean edge at the size it is shown, and drawing one no longer costs a slow graphics chip a shader per pixel.
+- `zinc:fleet`: two machines with windows open agree on the time within a fraction of a millisecond instead of up to 8 ms, because the wait for a frame no longer counts.
 
 ### iPod
 
