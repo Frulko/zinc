@@ -18,6 +18,8 @@ if command -v pkg-config >/dev/null && pkg-config --exists libavformat libavcode
   tools/pngdiff "$tmp/first.png" tests/golden/host/video_first.png --crop 0,0,192,108 --psnr 30 --mae 4 >/dev/null || { echo "the first frame differs from the prototype's"; fail=1; }
   out=$(env -u ZINC_DETERMINISTIC ZINC_NATIVE=real VIDEO_A=$A VIDEO_B=$B ZINC_HEADLESS=1 ZINC_FRAMES=3000000 timeout 200 "$ZINC" run tests/golden/host/video_playlist.ts 2>&1)
   echo "$out" | grep -q "index sequence 0,1,0 blank frames 0 playing true" || { echo "the playlist is not gapless: $(echo "$out" | head -c 300)"; fail=1; }
+  out=$(env -u ZINC_DETERMINISTIC ZINC_NATIVE=real VIDEO_A=$A ZINC_HEADLESS=1 ZINC_FRAMES=3000000 timeout 60 "$ZINC" run tests/golden/host/video_seek.ts 2>&1)
+  [ "$(echo "$out" | grep -c '^ok ')" = 6 ] && ! echo "$out" | grep -q '^FAIL' || { echo "seek and rate: $out"; fail=1; }
 else
   real=0
   echo "note: no FFmpeg libraries or no compiler: the examples run on the fake player (video.next.ts)" >&2

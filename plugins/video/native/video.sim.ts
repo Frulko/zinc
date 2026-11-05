@@ -4,16 +4,16 @@ import { createImage, destroyImage, frame } from 'zinc:gfx';
 import { exists } from 'zinc:fs';
 
 const DUR = 5, FPS = 60;
-interface P { w: number; h: number; img: number; files: string[]; repeat: number; running: boolean; paused: boolean; t0: number; held: number; first: number }
+interface P { w: number; h: number; img: number; files: string[]; repeat: number; running: boolean; paused: boolean; t0: number; held: number; first: number; rate: number }
 const ps: (P | null)[] = [];
 const at = (p: number) => ps[p] ?? null;
-const elapsed = (p: P) => !p.running ? p.held : p.paused ? p.held : p.held + (frame() - p.t0) / FPS;
+const elapsed = (p: P) => !p.running ? p.held : p.paused ? p.held : p.held + (frame() - p.t0) / FPS * p.rate;
 const total = (p: P) => { const t = elapsed(p); return p.repeat === 1 ? t : Math.min(t, (p.repeat === 2 ? 1 : p.files.length) * DUR); };
 const entry = (p: P) => p.files.length ? (p.first + Math.floor(total(p) / DUR)) % p.files.length : -1;
 
 export default {
   create(w: number, h: number): number {
-    const p: P = { w, h, img: -1, files: [], repeat: 1, running: false, paused: false, t0: 0, held: 0, first: 0 };
+    const p: P = { w, h, img: -1, files: [], repeat: 1, running: false, paused: false, t0: 0, held: 0, first: 0, rate: 1 };
     if (w > 0 && h > 0) p.img = createImage(w, h);
     ps.push(p);
     return ps.length - 1;
@@ -38,12 +38,16 @@ export default {
   },
   skip(id: number, delta: number): void { const p = at(id); if (p && p.files.length) { p.first = (entry(p) + delta + p.files.length) % p.files.length; p.held = 0; p.t0 = frame(); p.running = true; } },
   jump(id: number, index: number): void { const p = at(id); if (p && index >= 0 && index < p.files.length) { p.first = index; p.held = 0; p.t0 = frame(); p.running = true; } },
+  seek(id: number, seconds: number): void { const p = at(id); if (p && p.files.length && seconds >= 0) { p.first = entry(p); p.held = seconds; p.t0 = frame(); p.running = true; } },
+  setRate(id: number, rate: number): void { const p = at(id); if (p && rate > 0) { p.held = elapsed(p); p.t0 = frame(); p.rate = Math.min(16, Math.max(0.0625, rate)); } },
   image(id: number): number { return at(id)?.img ?? -1; },
   width(id: number): number { const p = at(id); return p && p.img >= 0 ? p.w : 0; },
   height(id: number): number { const p = at(id); return p && p.img >= 0 ? p.h : 0; },
   index(id: number): number { const p = at(id); return p ? entry(p) : -1; },
   count(id: number): number { return at(id)?.files.length ?? 0; },
   position(id: number): number { const p = at(id); return p ? total(p) % DUR : 0; },
+  playhead(id: number): number { const p = at(id); return p ? total(p) % DUR : 0; },
+  seeking(_id: number): boolean { return false; },
   duration(id: number): number { const p = at(id); return p && p.files.length ? DUR : 0; },
   loops(id: number): number { const p = at(id); return p && p.files.length ? Math.floor(total(p) / (DUR * p.files.length)) : 0; },
   playing(id: number): boolean { const p = at(id); return !!p && p.running && (p.repeat === 1 || total(p) < (p.repeat === 2 ? 1 : p.files.length) * DUR); },

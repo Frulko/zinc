@@ -133,6 +133,13 @@ static bool src_probe(const char* path, int* w, int* h) {
   avformat_close_input(&fmt);
   return true;
 }
+static void src_seek(SourceBase* b, double seconds) {
+  Source* s = static_cast<Source*>(b);
+  const int64_t first = s->fmt->streams[s->stream]->start_time;
+  s->start = first != AV_NOPTS_VALUE ? first : 0;   // no first picture will say it: the keyframe before the place is not the file's first
+  av_seek_frame(s->fmt, s->stream, s->start + (int64_t)(seconds / s->tb), AVSEEK_FLAG_BACKWARD);
+  avcodec_flush_buffers(s->dec);
+}
 static SourceBase* src_open(const char* path, int item) {
   int st; const AVCodec* codec = nullptr;
   AVFormatContext* fmt = open_input(path, &st, &codec);
@@ -224,6 +231,15 @@ static bool held_convert(Player* p, Held* h, int range, uint32_t* px) { AVFrame*
 
 /** Worker: converts the decoded frame into a free slot and marks it ready with its timeline position. */
 static void publish(Player* p, Source* s, AVFrame* fr, uint32_t gen, double base, int loop) {
+  int64_t pts = fr->best_effort_timestamp;
+  if (pts == AV_NOPTS_VALUE) pts = s->last == AV_NOPTS_VALUE ? 0 : s->last + (int64_t)(s->fdur / s->tb + 0.5);
+  if (s->start == AV_NOPTS_VALUE) s->start = pts;
+  s->last = pts;
+  double pos = (pts - s->start) * s->tb;
+  if (pos < 0) pos = 0;
+  double fd = FRAME_DURATION(fr) > 0 ? FRAME_DURATION(fr) * s->tb : s->fdur;
+  if (pos + fd > s->end) s->end = pos + fd;
+  if (before_seek(s, pos, fd)) return;
   AVFrame* f = fr;
   AVFrame* sw = s->sw;
   const bool prime = fr->format == AV_PIX_FMT_DRM_PRIME;
@@ -245,14 +261,6 @@ static void publish(Player* p, Source* s, AVFrame* fr, uint32_t gen, double base
     sw->sample_aspect_ratio = fr->sample_aspect_ratio; sw->colorspace = fr->colorspace; sw->color_range = fr->color_range;
     f = sw;
   }
-  int64_t pts = fr->best_effort_timestamp;
-  if (pts == AV_NOPTS_VALUE) pts = s->last == AV_NOPTS_VALUE ? 0 : s->last + (int64_t)(s->fdur / s->tb + 0.5);
-  if (s->start == AV_NOPTS_VALUE) s->start = pts;
-  s->last = pts;
-  double pos = (pts - s->start) * s->tb;
-  if (pos < 0) pos = 0;
-  double fd = FRAME_DURATION(fr) > 0 ? FRAME_DURATION(fr) * s->tb : s->fdur;
-  if (pos + fd > s->end) s->end = pos + fd;
   const int k = slot_take(p, gen);
   if (k < 0) return;
   const uint64_t c0 = vlog ? hal_time_us() : 0;

@@ -172,6 +172,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - `zinc:fleet` gives several machines one clock over the network.
 - `zinc:mapping`: `/output/viewport` shows a part of the canvas, so that machines side by side show one picture.
 - `zinc:socket`: a UDP `Datagram` has `age`, the milliseconds since the system received it, which tells how long it waited for the program to read it.
+- `zinc:video`: `player.seek(seconds)` (a paused player stays paused, on the picture of that moment), `player.rate` (0.0625 to 16) and `player.playhead`, the position that runs between two pictures, with `player.seeking`.
 
 #### Changed
 - `zinc:net`: a program can serve several ports at once, each with its own handler (`serve`/`serveAsync` again on another port no longer replaces the first server), and `stop(port)` stops one; `stop()` still stops them all. The Spotify login now stops only its own callback server.

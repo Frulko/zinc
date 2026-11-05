@@ -14,9 +14,9 @@ p.play();                                          // loops forever (repeat = LO
 gfx.onFrame(() => p.draw(0, 0, gfx.width(), gfx.height()));
 ```
 
-`Player`: `add`, `addFolder`, `play`, `stop`, `pause(on)`, `next`, `previous`, `jump(i)`, `close`; setters `order`,
-`repeat`, `background`; getters `image`, `width`, `height`, `index`, `count`, `position`, `duration`, `loops`,
-`playing`, `paused`, `decoder`, `frames`, `dropped`. Several players run at once (up to 16).
+`Player`: `add`, `addFolder`, `play`, `stop`, `pause(on)`, `next`, `previous`, `jump(i)`, `seek(seconds)`, `close`; setters `order`,
+`repeat`, `background`, `rate` (1 normal, 0.0625 to 16: pictures are dropped or held); getters `image`, `width`, `height`, `index`, `count`, `position` (the picture's), `playhead` (runs between two pictures), `seeking`, `duration`, `loops`,
+`playing`, `paused`, `decoder`, `frames`, `dropped`. A paused player stays paused through a seek, on the picture of that moment. On iOS and webOS a seek decodes from the start of the file up to the place. Several players run at once (up to 16).
 
 ## Support matrix
 
@@ -119,4 +119,3 @@ files directory (Android `files/`, iOS `Library/Application Support/zinc/`; `exa
 - Zero-copy paths on the other targets: a VideoToolbox `CVPixelBuffer` (an IOSurface) to the window's compositor on
   macOS, VA-API surfaces as dmabufs on a Linux desktop, an EGLImage in `display-gl` for a film that is turned or
   blended. The contract is the one the KMS planes use (`HalDisplay.layers`, `raster::Picture`).
-- Seeking (`seek(seconds)`), playback rate, frame-accurate sync between players or machines.

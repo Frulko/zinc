@@ -42,6 +42,8 @@ export class Player {
   set order(o: i32) { Video.setOrder(this.id, o); }
   set repeat(r: i32) { Video.setRepeat(this.id, r); }
   set background(c: u32) { Video.setBackground(this.id, c); }
+  /** How fast time passes: 1 normal, from 0.0625 to 16. */
+  set rate(r: number) { Video.setRate(this.id, r); }
 
   play(): void { Video.play(this.id); }
   stop(): void { Video.stop(this.id); }
@@ -49,6 +51,8 @@ export class Player {
   next(): void { Video.skip(this.id, 1); }
   previous(): void { Video.skip(this.id, -1); }
   jump(index: i32): void { Video.jump(this.id, index); }
+  /** Goes to `seconds` into the entry shown. A paused player stays paused, on the picture of that moment. */
+  seek(seconds: number): void { Video.seek(this.id, seconds); }
   close(): void { Video.close(this.id); }
 
   /** Runtime image id, -1 until the size is known. */
@@ -59,6 +63,10 @@ export class Player {
   get index(): i32 { return Video.index(this.id); }
   get count(): i32 { return Video.count(this.id); }
   get position(): number { return Video.position(this.id); }
+  /** Seconds into the entry at this moment: `position` is the picture's, this runs between two pictures. */
+  get playhead(): number { return Video.playhead(this.id); }
+  /** A seek has not shown its picture yet. */
+  get seeking(): boolean { return Video.seeking(this.id); }
   get duration(): number { return Video.duration(this.id); }
   get loops(): i32 { return Video.loops(this.id); }
   get playing(): boolean { return Video.playing(this.id); }

@@ -232,6 +232,8 @@ static bool held_any(const Held*) { return false; }
 static bool held_picture(const Held*, int, HalPicture*) { return false; }
 static bool held_convert(Player*, Held*, int, uint32_t*) { return false; }
 
+// ponytail: decodes from the start up to the place; gst_element_seek if a seek must be quick here.
+static void src_seek(SourceBase*, double) {}
 static int src_step(Player* p, SourceBase* b, uint32_t gen, double base, int loop) {
   Source* s = static_cast<Source*>(b);
   GstBuffer* buf = gst.pull_buffer(s->sink);   // null at the end of the stream
@@ -245,6 +247,7 @@ static int src_step(Player* p, SourceBase* b, uint32_t gen, double base, int loo
   double pos = ts != NONE && s->start != NONE && ts >= s->start ? (ts - s->start) / 1e9 : s->frames / 30.0;
   const double fd = buf->duration != NONE && buf->duration > 0 ? buf->duration / 1e9 : 1 / 30.0;
   if (pos + fd > s->end) s->end = pos + fd;
+  if (before_seek(s, pos, fd)) { s->frames++; gst.mini_object_unref(buf); return 1; }   // frames: the next picture's position when it has no timestamp
   const int k = ok ? slot_take(p, gen) : -1;
   if (k >= 0) {
     const uint64_t c0 = vlog ? hal_time_us() : 0;

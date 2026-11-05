@@ -19,6 +19,10 @@ export interface Spec extends NativeModule {
   skip(p: i32, delta: i32): void;
   /** Plays playlist entry `index` now. */
   jump(p: i32, index: i32): void;
+  /** Goes to `seconds` into the entry shown. A paused player stays paused, on the picture of that moment. */
+  seek(p: i32, seconds: f64): void;
+  /** How fast time passes: 1 normal, from 0.0625 to 16. Pictures are dropped or held, the decoder does not change. */
+  setRate(p: i32, rate: f64): void;
   /** Runtime image id (gfx.drawImage, GPU compositors via raster::dyn_view); -1 before the size is known. */
   image(p: i32): i32;
   width(p: i32): i32;
@@ -27,6 +31,10 @@ export interface Spec extends NativeModule {
   index(p: i32): i32;
   count(p: i32): i32;
   position(p: i32): f64;
+  /** Seconds into the entry at this moment: `position` is the picture's, this runs between two pictures. */
+  playhead(p: i32): f64;
+  /** A seek has not shown its picture yet. */
+  seeking(p: i32): boolean;
   duration(p: i32): f64;
   /** Completed passes over the playlist. */
   loops(p: i32): i32;

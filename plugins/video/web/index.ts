@@ -174,6 +174,10 @@ export class Player {
   next(): void { this.jump((this.cur + 1) % Math.max(1, this.entries.length)); }
   previous(): void { this.jump((this.cur - 1 + this.entries.length) % Math.max(1, this.entries.length)); }
   jump(index: i32): void { if (this.entries.length === 0) return; this.select(index); if (this.wanted) this.start(); }
+  /** Goes to `seconds` into the entry shown. A paused player stays paused, on the picture of that moment. */
+  seek(seconds: number): void { this.element.currentTime = seconds; }
+  /** How fast time passes: 1 normal, from 0.0625 to 16. */
+  set rate(r: number) { this.element.playbackRate = r; }
   close(): void {
     this.wanted = false;
     const v = this.element;
@@ -198,6 +202,10 @@ export class Player {
   get index(): i32 { return this.cur; }
   get count(): i32 { return this.entries.length; }
   get position(): number { return this.element.currentTime || 0; }
+  /** Seconds into the entry at this moment; the browser's position already runs between two pictures. */
+  get playhead(): number { return this.element.currentTime || 0; }
+  /** A seek has not shown its picture yet. */
+  get seeking(): boolean { return this.element.seeking; }
   get duration(): number { const d = this.element.duration; return isFinite(d) ? d : 0; }
   get loops(): i32 { return this.passes; }
   get playing(): boolean { return !this.element.paused && !this.element.ended; }

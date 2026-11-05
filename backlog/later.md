@@ -1034,6 +1034,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: Discord voice AEC: replace the `isHeadphones` name guess with the device type or transport that miniaudio/CoreAudio reports; add a T1 loopback with a simulated room in the fake microphone path.
 
 ## Cross-platform pass
+- A mapper follows its master on Android: the compositor's `MediaPlayer` has no rate before API 23, `seekTo` and a hold could do; and `zinc:video` seek on Android (real), iOS and webOS (decodes up to the place) never ran on a device, nor the mapper's media copy between two real machines.
 - gl: the paint_populate stencil's GL_STENCIL_INDEX8 path was only run on the Mac; try it on GLES 2 hardware (Pi, Nexus 7).
 - pinball: try the vertical mode, the flippers and a real gamepad on the rotated Pi; only the probe and a 480x768 window on the Mac have proved them.
 - mapper: zinc:link has no Windows target, so a Windows mapper or client neither announces nor browses (address and page code still work); add it with `src/net/dnssd.cpp` on Winsock.

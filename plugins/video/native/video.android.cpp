@@ -22,7 +22,7 @@
 
 // libmediandk is opened at run time: Android 4.4 has none (it came with API 21), and a library linked against it would not even load there, so the
 // rest of the app would be lost with the videos. Without it a player finds no video.
-#define ZV_MEDIA(X) X(AImage_delete) X(AImage_getCropRect) X(AImage_getHeight) X(AImage_getPlaneData) X(AImage_getPlanePixelStride) X(AImage_getPlaneRowStride) X(AImage_getWidth) X(AImageReader_acquireLatestImage) X(AImageReader_delete) X(AImageReader_getWindow) X(AImageReader_new) X(AMediaCodec_configure) X(AMediaCodec_createDecoderByType) X(AMediaCodec_delete) X(AMediaCodec_dequeueInputBuffer) X(AMediaCodec_dequeueOutputBuffer) X(AMediaCodec_getInputBuffer) X(AMediaCodec_getOutputBuffer) X(AMediaCodec_getOutputFormat) X(AMediaCodec_queueInputBuffer) X(AMediaCodec_releaseOutputBuffer) X(AMediaCodec_start) X(AMediaCodec_stop) X(AMediaExtractor_advance) X(AMediaExtractor_delete) X(AMediaExtractor_getSampleTime) X(AMediaExtractor_getTrackCount) X(AMediaExtractor_getTrackFormat) X(AMediaExtractor_new) X(AMediaExtractor_readSampleData) X(AMediaExtractor_selectTrack) X(AMediaExtractor_setDataSourceFd) X(AMediaFormat_delete) X(AMediaFormat_getInt32) X(AMediaFormat_getInt64) X(AMediaFormat_getString)
+#define ZV_MEDIA(X) X(AImage_delete) X(AImage_getCropRect) X(AImage_getHeight) X(AImage_getPlaneData) X(AImage_getPlanePixelStride) X(AImage_getPlaneRowStride) X(AImage_getWidth) X(AImageReader_acquireLatestImage) X(AImageReader_delete) X(AImageReader_getWindow) X(AImageReader_new) X(AMediaCodec_configure) X(AMediaCodec_createDecoderByType) X(AMediaCodec_delete) X(AMediaCodec_dequeueInputBuffer) X(AMediaCodec_dequeueOutputBuffer) X(AMediaCodec_getInputBuffer) X(AMediaCodec_getOutputBuffer) X(AMediaCodec_getOutputFormat) X(AMediaCodec_queueInputBuffer) X(AMediaCodec_releaseOutputBuffer) X(AMediaCodec_start) X(AMediaCodec_stop) X(AMediaExtractor_advance) X(AMediaExtractor_delete) X(AMediaExtractor_getSampleTime) X(AMediaExtractor_getTrackCount) X(AMediaExtractor_getTrackFormat) X(AMediaExtractor_new) X(AMediaExtractor_readSampleData) X(AMediaExtractor_seekTo) X(AMediaExtractor_selectTrack) X(AMediaExtractor_setDataSourceFd) X(AMediaFormat_delete) X(AMediaFormat_getInt32) X(AMediaFormat_getInt64) X(AMediaFormat_getString)
 #define ZV_DECL(n) static decltype(&n) zv_##n;
 ZV_MEDIA(ZV_DECL)
 static bool media_load() {
@@ -58,6 +58,7 @@ static bool media_load() {
 #define AMediaCodec_queueInputBuffer zv_AMediaCodec_queueInputBuffer
 #define AMediaCodec_releaseOutputBuffer zv_AMediaCodec_releaseOutputBuffer
 #define AMediaCodec_start zv_AMediaCodec_start
+#define AMediaExtractor_seekTo zv_AMediaExtractor_seekTo
 #define AMediaCodec_stop zv_AMediaCodec_stop
 #define AMediaExtractor_advance zv_AMediaExtractor_advance
 #define AMediaExtractor_delete zv_AMediaExtractor_delete
@@ -306,6 +307,11 @@ static void feed(Source* s) {
     AMediaExtractor_advance(s->ex);
   }
 }
+static void src_seek(SourceBase* b, double seconds) {
+  Source* s = static_cast<Source*>(b);
+  s->start = AMediaExtractor_getSampleTime(s->ex);   // the first picture of the file, which no output will show now
+  AMediaExtractor_seekTo(s->ex, s->start + (int64_t)(seconds * 1e6), AMEDIAEXTRACTOR_SEEK_PREVIOUS_SYNC);
+}
 static int src_step(Player* p, SourceBase* b, uint32_t gen, double base, int loop) {
   Source* s = static_cast<Source*>(b);
   for (int idle = 0; !s->out_done;) {
@@ -326,6 +332,7 @@ static int src_step(Player* p, SourceBase* b, uint32_t gen, double base, int loo
     double pos = (info.presentationTimeUs - s->start) / 1e6;
     if (pos < 0) pos = 0;
     if (pos + s->fdur > s->end) s->end = pos + s->fdur;
+    if (before_seek(s, pos, s->fdur)) { AMediaCodec_releaseOutputBuffer(s->dec, o, false); continue; }
     const int k = slot_take(p, gen);
     if (k < 0) { AMediaCodec_releaseOutputBuffer(s->dec, o, false); return 1; }
     const uint64_t c0 = vlog ? hal_time_us() : 0;

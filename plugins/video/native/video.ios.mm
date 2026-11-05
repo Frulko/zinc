@@ -124,6 +124,8 @@ static bool to_box(Player* p, Conv* c, const uint8_t* src, size_t bpr, int w, in
   return true;
 }
 
+// ponytail: decodes from the start up to the place, an AVAssetReader takes its range before it starts; read a new one with timeRange if a seek must be quick here.
+static void src_seek(SourceBase*, double) {}
 static int src_step(Player* p, SourceBase* b, uint32_t gen, double base, int loop) {
   Source* s = static_cast<Source*>(b);
   for (;;) @autoreleasepool {
@@ -140,6 +142,7 @@ static int src_step(Player* p, SourceBase* b, uint32_t gen, double base, int loo
     if (!(pos >= 0)) pos = 0;
     const double fd = s->fdur;
     if (pos + fd > s->end) s->end = pos + fd;
+    if (before_seek(s, pos, fd)) { CFRelease(sb); continue; }
     const int k = slot_take(p, gen);
     if (k >= 0) {
       const uint64_t c0 = vlog ? hal_time_us() : 0;

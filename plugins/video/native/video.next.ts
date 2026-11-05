@@ -7,12 +7,12 @@ const DUR: number = 5;
 const FPS: number = 60;
 class P {
   w: number; h: number; img: number = -1; files: string[] = []; repeat: number = 1;
-  running: boolean = false; paused: boolean = false; t0: number = 0; held: number = 0; first: number = 0;
+  running: boolean = false; paused: boolean = false; t0: number = 0; held: number = 0; first: number = 0; rate: number = 1;
   constructor(w: number, h: number) { this.w = w; this.h = h; }
 }
 const ps: (P | null)[] = [];
 function at(p: number): P | null { return p >= 0 && p < ps.length ? ps[p] : null; }
-function elapsed(p: P): number { return !p.running ? p.held : p.paused ? p.held : p.held + (frame() - p.t0) / FPS; }
+function elapsed(p: P): number { return !p.running ? p.held : p.paused ? p.held : p.held + (frame() - p.t0) / FPS * p.rate; }
 function total(p: P): number { const t = elapsed(p); return p.repeat === 1 ? t : Math.min(t, (p.repeat === 2 ? 1 : p.files.length) * DUR); }
 function entry(p: P): number { return p.files.length > 0 ? (p.first + Math.floor(total(p) / DUR)) % p.files.length : -1; }
 
@@ -53,12 +53,22 @@ export default {
     const p = at(id);
     if (p !== null && index >= 0 && index < p.files.length) { p.first = index; p.held = 0; p.t0 = frame(); p.running = true; }
   },
+  seek(id: number, seconds: number): void {
+    const p = at(id);
+    if (p !== null && p.files.length > 0 && seconds >= 0) { p.first = entry(p); p.held = seconds; p.t0 = frame(); p.running = true; }
+  },
+  setRate(id: number, rate: number): void {
+    const p = at(id);
+    if (p !== null && rate > 0) { p.held = elapsed(p); p.t0 = frame(); p.rate = Math.min(16, Math.max(0.0625, rate)); }
+  },
   image(id: number): number { const p = at(id); return p !== null ? p.img : -1; },
   width(id: number): number { const p = at(id); return p !== null && p.img >= 0 ? p.w : 0; },
   height(id: number): number { const p = at(id); return p !== null && p.img >= 0 ? p.h : 0; },
   index(id: number): number { const p = at(id); return p !== null ? entry(p) : -1; },
   count(id: number): number { const p = at(id); return p !== null ? p.files.length : 0; },
   position(id: number): number { const p = at(id); return p !== null ? total(p) % DUR : 0; },
+  playhead(id: number): number { const p = at(id); return p !== null ? total(p) % DUR : 0; },
+  seeking(_id: number): boolean { return false; },
   duration(id: number): number { const p = at(id); return p !== null && p.files.length > 0 ? DUR : 0; },
   loops(id: number): number { const p = at(id); return p !== null && p.files.length > 0 ? Math.floor(total(p) / (DUR * p.files.length)) : 0; },
   playing(id: number): boolean {

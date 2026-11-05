@@ -32,6 +32,7 @@ using namespace zrt;
 struct SourceBase {
   int item, frames;
   double dur, end;    // the file's duration, the end of its last frame (s)
+  double skip_to;     // after a seek: the pictures that end before this are decoded and not shown
   bool wrapped;       // opening it completed a pass over the playlist
   int range;          // the stream's colour range, when it names one
   char name[48];      // the decoder, e.g. "h264 (videotoolbox)"
@@ -42,6 +43,7 @@ static SourceBase* src_open(const char* path, int item);        // null: cannot 
 static void src_close(SourceBase* s);
 static bool src_probe(const char* path, int* w, int* h);     // playable; *w x *h its display size when asked (w non-null)
 static int src_step(Player* p, SourceBase* s, uint32_t gen, double base, int loop);  // decodes and publishes the next picture: 1, or 0 at the end
+static void src_seek(SourceBase* s, double seconds);         // starts reading near `seconds`, not after it; s->skip_to does the rest
 static Held* held_new();
 static void held_free(Held*& h);
 static void held_unref(Held* h);
@@ -73,11 +75,12 @@ struct Player {
   bool quit, running;
   uint32_t gen;
   int target, from;     // entry to start at on a restart (-1: next in order after `from`)
+  double seek_to;       // and where in it, 0 from its start
   // worker only
   int* bag; int nbag, round; unsigned seed;
   // main thread only
-  bool started, paused;
-  double clock, last_t, fdur, pos, dur;
+  bool started, paused, seeking;
+  double clock, last_t, fdur, pos, dur, rate;
   uint64_t last_us;
   int shown, item, loops, frames, dropped, resume;
   int hist[32], nhist;
@@ -214,6 +217,14 @@ static void fill_picture(void* user) {
   raster::dyn_update(p->img, sl.px, p->w);
 }
 
+/** A picture ending before the place a seek asked for is not shown. */
+static bool before_seek(SourceBase* s, double pos, double fd) {
+  if (s->skip_to <= 0) return false;
+  if (pos + fd <= s->skip_to) return true;
+  s->skip_to = 0;
+  return false;
+}
+
 static void* worker(void* arg) {
   Player* p = (Player*)arg;
   SourceBase *cur = nullptr, *nxt = nullptr;
@@ -227,6 +238,7 @@ static void* worker(void* arg) {
     if (p->quit) { pthread_mutex_unlock(&p->mu); break; }
     bool restart = p->gen != gen || !cur;
     int target = p->target, from = p->from;
+    double seek_to = p->seek_to;
     gen = p->gen;
     pthread_mutex_unlock(&p->mu);
     if (restart) {  // play / skip / jump: new timeline
@@ -243,6 +255,7 @@ static void* worker(void* arg) {
         pthread_mutex_unlock(&p->mu);
         continue;
       }
+      if (seek_to > 0 && cur->item == e) { src_seek(cur, seek_to); cur->skip_to = seek_to; }
     }
     if (src_step(p, cur, gen, base, loop)) {
       if (cur->frames == 1 && !nxt && !stop_after) {  // pre-roll the next file while this one plays
@@ -308,7 +321,7 @@ static void show_blank(Player* p) {
 }
 /** Restart the timeline at `target` (-1: next entry in order). Caller holds the lock. */
 static void restart(Player* p, int target) {
-  p->gen++; p->target = target; p->from = p->item; p->running = true; p->started = false; p->paused = false;
+  p->gen++; p->target = target; p->seek_to = 0; p->seeking = false; p->from = p->item; p->running = true; p->started = false; p->paused = false;
   for (int k = 0; k < NBUF; k++) if (p->slot[k].state == READY) p->slot[k].state = FREE;
   pthread_cond_broadcast(&p->cv);
 }
@@ -318,7 +331,7 @@ static bool update(Player* p, uint64_t now) {
   pthread_mutex_lock(&p->mu);
   double dt = p->last_us ? (now - p->last_us) / 1e6 : 0;
   p->last_us = now;
-  if (p->started && !p->paused) p->clock += dt;
+  if (p->started && !p->paused) p->clock += dt * p->rate;
   int first = -1, best = -1, ready = 0;
   bool freed = false;
   for (int k = 0; k < NBUF; k++) {
@@ -340,7 +353,7 @@ static bool update(Player* p, uint64_t now) {
     Slot& b = p->slot[best];
     for (int k = 0; k < NBUF; k++) if (k != best && p->slot[k].state == READY && p->slot[k].t < b.t) { p->slot[k].state = FREE; p->dropped++; }
     if (p->shown >= 0) retire(p, p->slot[p->shown]);
-    b.state = SHOWN; p->shown = best; freed = true;
+    b.state = SHOWN; p->shown = best; freed = true; p->seeking = false;
     if (b.item != p->item) { if (p->nhist == 32) { memmove(p->hist, p->hist + 1, sizeof(int) * 31); p->nhist--; } p->hist[p->nhist++] = b.item; }
     p->item = b.item; p->pos = b.pos; p->dur = b.dur; p->fdur = b.fdur; p->last_t = b.t; p->loops = b.loop; p->frames++;
     memcpy(p->dec, b.dec, sizeof p->dec);
@@ -390,7 +403,7 @@ struct VideoImpl : NativeVideo {
       Player* p = &players[i];
       if (p->used) continue;
       *p = Player{};
-      p->used = true; p->img = -1; p->shown = -1; p->item = -1; p->resume = -1; p->order = 0; p->repeat = 1;
+      p->used = true; p->img = -1; p->shown = -1; p->item = -1; p->resume = -1; p->order = 0; p->repeat = 1; p->rate = 1;
       p->seed = (unsigned)hal_time_us() + i;
       pthread_mutex_init(&p->mu, nullptr);
       pthread_cond_init(&p->cv, nullptr);
@@ -464,6 +477,36 @@ struct VideoImpl : NativeVideo {
     pthread_mutex_unlock(&p->mu);
     if (!p->th_on) p->th_on = pthread_create(&p->th, nullptr, worker, p) == 0;
   }
+  void seek(int32_t id, double seconds) override {
+    Player* p = at(id);
+    if (!p || !p->nfiles || p->img < 0 || !(seconds >= 0)) return;
+    pthread_mutex_lock(&p->mu);
+    const bool paused = p->paused;
+    restart(p, p->item >= 0 ? p->item : p->resume >= 0 ? p->resume : 0);
+    p->seek_to = seconds; p->seeking = true; p->paused = paused;
+    pthread_mutex_unlock(&p->mu);
+    if (!p->th_on) p->th_on = pthread_create(&p->th, nullptr, worker, p) == 0;
+  }
+  void setRate(int32_t id, double rate) override {
+    Player* p = at(id);
+    if (!p || !(rate > 0)) return;
+    pthread_mutex_lock(&p->mu);
+    p->rate = rate < 0.0625 ? 0.0625 : rate > 16 ? 16 : rate;
+    pthread_mutex_unlock(&p->mu);
+  }
+  double playhead(int32_t id) override {
+    Player* p = at(id);
+    if (!p) return 0;
+    pthread_mutex_lock(&p->mu);
+    double t = p->seeking ? p->seek_to : 0;
+    if (!p->seeking && p->shown >= 0) {
+      t = p->pos + p->clock - p->last_t;
+      if (p->started && !p->paused && p->running) t += (hal_time_us() - p->last_us) / 1e6 * p->rate;
+    }
+    pthread_mutex_unlock(&p->mu);
+    return t > 0 ? t : 0;   // a picture is shown a little before its time
+  }
+  bool seeking(int32_t id) override { Player* p = at(id); return p && p->seeking; }
   int32_t image(int32_t id) override { Player* p = at(id); return p ? p->img : -1; }
   int32_t width(int32_t id) override { Player* p = at(id); return p && p->img >= 0 ? p->w : 0; }
   int32_t height(int32_t id) override { Player* p = at(id); return p && p->img >= 0 ? p->h : 0; }
