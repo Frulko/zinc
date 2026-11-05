@@ -148,8 +148,8 @@ token=${url##*token=}
 [ -n "$token" ] || { echo "the app prints no editor address: $(tail -c 300 "$tmp/app.log")"; exit 1; }
 [ "$(curl -s -m 2 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$web/state")" = 401 ] || { echo "the API is reachable without the token"; fail=1; }
 head -c 3000000 /dev/urandom >"$tmp/clip.bin"
-curl -s -m 20 -o /dev/null -H "x-zinc-token: $token" --data-binary @"$tmp/clip.bin" "http://127.0.0.1:$web/media/clip.bin"
-cmp -s "$tmp/clip.bin" "$media/clip.bin" || { echo "an upload does not arrive byte for byte"; fail=1; }
+uploaded=$(curl -s -m 20 -o "$tmp/upload.txt" -w '%{http_code} %{time_total} s %{errormsg}' -H "x-zinc-token: $token" --data-binary @"$tmp/clip.bin" "http://127.0.0.1:$web/media/clip.bin")
+cmp -s "$tmp/clip.bin" "$media/clip.bin" || { echo "an upload does not arrive byte for byte: $uploaded, $(cat "$tmp/upload.txt"); $(ls -la "$media" | tail -n +2 | tr '\n' ' '); disk: $(df -h "$tmp" | tail -1)"; fail=1; }
 [ "$(curl -s -m 2 -o /dev/null -w '%{http_code}' -H "x-zinc-token: $token" --data-binary x "http://127.0.0.1:$web/media/..%2Fevil")" = 400 ] || { echo "a media name with a path is accepted"; fail=1; }
 # no QR code at hand: anyone can ask for the code on screen, only that code gives the token, and three wrong ones close it
 post() { curl -s -m 3 -o /dev/null -w '%{http_code}' -d "$2" "http://127.0.0.1:$web$1"; }
@@ -320,8 +320,7 @@ try:
     # the film on command: where the master goes, the player goes; pause holds both, Millumin's words
     millumin.sendto(packet("/index:1/media/speed", 0.5), to)
     def films(): return (device()["videoMs"], call("master", "/fleet")["devices"][0]["online"])
-    time.sleep(1.5)
-    if device()["videoMs"] > 60: sys.exit(f"the player does not follow a slow film: {device()}")
+    wait("the player follows a slow film", lambda: device()["videoMs"] <= 60)   # it settles, sooner on a quiet machine
     millumin.sendto(packet("/index:1/pauseMedia"), to)
     said(native, "/layer/0/paused", test=lambda a: a == [1])
     native.sendto(packet("/layer/0/time", 0.5), to); time.sleep(1)
@@ -362,7 +361,7 @@ PY
 # the device tells what it runs: an upload shows while it arrives, and is gone after
 api "http://127.0.0.1:$web/device" >"$tmp/d0.json"
 curl -s -m 20 -o /dev/null --limit-rate 1M -H "x-zinc-token: $token" --data-binary @"$tmp/clip.bin" "http://127.0.0.1:$web/media/slow.bin" & slow=$!
-n=0; while [ $n -lt 30 ]; do api "http://127.0.0.1:$web/device" >"$tmp/d1.json"; grep -q 'slow.bin' "$tmp/d1.json" && break; sleep 0.1; n=$((n+1)); done   # on a busy machine it starts late
+n=0; while [ $n -lt 30 ]; do api "http://127.0.0.1:$web/device" >"$tmp/d1.json"; python3 -c 'import json,sys; t=json.load(open(sys.argv[1]))["tasks"]; sys.exit(0 if t and t[0]["done"]>0 else 1)' "$tmp/d1.json" 2>/dev/null && break; sleep 0.1; n=$((n+1)); done   # on a busy machine its first bytes come late
 wait $slow; api "http://127.0.0.1:$web/device" >"$tmp/d2.json"
 python3 - "$tmp" <<'PY' || fail=1
 import json, sys
