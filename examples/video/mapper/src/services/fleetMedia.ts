@@ -4,10 +4,13 @@ import * as fs from 'zinc:fs';
 import { isFileName } from 'zinc:mapping';
 import { fetch, Headers } from 'zinc:net';
 import { MediaFile, mediaPath, takeMedia } from './mediaStore';
-import { mediaArrived } from './layerMedia';
+import { mediaArrived, videoErrorMs } from './layerMedia';
 
 const SLICE_BYTES = 1048576;       // what the frame loop may be held up by; 8 MiB at once stopped the picture for 200 ms
 const BREATH_MS = 10;              // between two slices, for the frames: about 50 MB/s at most, a copy never competes with the show
+const FILM_LATE_MS = 40;           // a film further than this from its place holds the copy
+const FILM_WAIT_MS = 200;
+const FILM_WAITS: i32 = 10;        // so at least 0.5 MB/s, whatever the film does
 const SLICE_TIMEOUT_MS = 30000;
 const RETRY_MS = 3000;
 const STAMPS = '.fleet.json';   // hidden: never listed as a media
@@ -55,6 +58,14 @@ function stillWanted(file: MediaFile): boolean {
   return wanted.some((other: MediaFile): boolean => other.name === file.name && other.stamp === file.stamp);
 }
 
+/** Between two slices. The film comes first: while it has fallen behind (a Pi reads it from the card the copy writes to) the copy waits, a bounded time so it always ends. */
+async function breathe(): Promise<void> {
+  let waited: i32 = 0;
+  do {
+    await new Promise<void>((go: () => void) => { setTimeout(go, waited === 0 ? BREATH_MS : FILM_WAIT_MS); });
+  } while (videoErrorMs() > FILM_LATE_MS && ++waited < FILM_WAITS);
+}
+
 async function copy(file: MediaFile): Promise<void> {
   const coming = mediaPath(`.${file.name}.part`), partKey = `.${file.name}.part`;
   if (stamps.get(partKey) !== file.stamp || !fs.exists(coming)) {
@@ -77,7 +88,7 @@ async function copy(file: MediaFile): Promise<void> {
     if (now === done) throw new Error('the master sends nothing');
     done = now;
     state.done = done;
-    await new Promise<void>((go: () => void) => { setTimeout(go, BREATH_MS); });
+    await breathe();
   }
   takeMedia(coming, file.name);
   stamps.delete(partKey);

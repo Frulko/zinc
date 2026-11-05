@@ -414,6 +414,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - Discord: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro) and logs a clamp as "over the ceiling".
 - Discord uses `zinc:ui/image-cache` with background cleanup and off-thread decoding at display size; portable WebP thumbnails resize during decoding.
 - The video mapper inspector speaks of one thing at a time, in two tabs: **Clip** (fill, framing, playback) and **Layer** (name, sound, colour, position, crop, edges). The grid shows where a clip can land, says *Drop here* or *Replace*, and icons mark its buttons and views.
+- Video mapper: copying media to a follower waits while its film is behind, at least 0.5 MB/s, so the show comes first.
 
 #### Faster
 - Musique (arbre) decodes covers and radio logos on a background thread, only after a quiet second or two while you touch it, so a new cover no longer freezes the screen.
