@@ -6,11 +6,15 @@ import * as mapping from 'zinc:mapping';
 import { fetch } from 'zinc:web/fetch';
 import { FLEET_FILE } from '../constants';
 import { clockPort, fleetNow, fleetState, setViewport } from './fleet';
+import { CopyState } from './fleetMedia';
 import { LayerCommand } from './layerCommands';
+import { VideoTime, videoTimes } from './layerMedia';
+import { mediaFiles } from './mediaStore';
 import { showJson } from './show';
 
 const SERVICE = 'zinc-mapper';
 const SYNC_MS = 500;              // how soon an edit that came another way than a command (a scene, undo) reaches the others
+const VIDEO_TIME_MS = 250;        // how soon a video that started or jumped reaches the others
 const LOOKAHEAD_MS = 80;          // wired needs less, Wi-Fi more: /fleet/lookahead
 const TIMED: string[] = ['/column', '/cell', '/step', '/stop', '/card', '/volume', '/mute'];   // these must look simultaneous
 const THIS_DEVICE: string[] = ['/hud'];                                                        // these stay on the machine that got them
@@ -20,6 +24,7 @@ interface Device {
   channel: link.Channel | null;
   viewport: number[]; trimMs: number;
   fps: number; offsetMs: number; rttMs: number; synced: boolean; late: number; system: string; output: number[];
+  media: CopyState; videoMs: number;
 }
 
 const devices: Device[] = [];
@@ -27,8 +32,10 @@ const found = new Map<string, link.Peer>();
 let lookaheadMs = LOOKAHEAD_MS;
 let selfTrimMs = 0;
 let selfName = '';
+let webPort: i32 = 0, webToken = '';
 let lastMapping = '';
 let lastShow = '';
+let lastMedia = '';
 let problem = '';
 
 function deviceOf(id: string): Device | null {
@@ -49,7 +56,7 @@ function connect(device: Device, peer: link.Peer): void {
   const channel = link.connect(peer);
   device.channel = channel;
   channel.onOpen(() => {
-    channel.send({ t: 'master', name: selfName, clockPort: clockPort(), viewport: device.viewport, mapping: mapping.toJson(), show: showJson() });
+    channel.send({ t: 'master', name: selfName, clockPort: clockPort(), viewport: device.viewport, mapping: mapping.toJson(), show: showJson(), web: webPort, token: webToken, media: mediaFiles() });
   });
   channel.onMessage((message: any) => {
     if (message.t !== 'status') return;
@@ -60,6 +67,8 @@ function connect(device: Device, peer: link.Peer): void {
     device.late = message.late as number;
     device.system = message.system as string;
     device.output = message.output as number[];
+    device.media = message.media as CopyState;
+    device.videoMs = message.videoMs as number;
   });
 }
 
@@ -67,7 +76,7 @@ function addDevice(peer: link.Peer): void {
   problem = '';
   let device = deviceOf(peer.id);
   if (device === null) {
-    device = { id: peer.id, name: peer.name, host: peer.host, channel: null, viewport: [0, 0, 1, 1], trimMs: 0, fps: 0, offsetMs: 0, rttMs: 0, synced: false, late: 0, system: '', output: [0, 0] };
+    device = { id: peer.id, name: peer.name, host: peer.host, channel: null, viewport: [0, 0, 1, 1], trimMs: 0, fps: 0, offsetMs: 0, rttMs: 0, synced: false, late: 0, system: '', output: [0, 0], media: { left: 0, name: '', done: 0, total: 0, problem: '' }, videoMs: 0 };
     devices.push(device as Device);
     save();
   }
@@ -92,6 +101,25 @@ function sendChanges(): void {
   lastMapping = setup;
   lastShow = show;
   for (const device of players) (device.channel as link.Channel).send({ t: 'state', mapping: setup, show });
+}
+
+function sendMedia(): void {
+  const players = connected();
+  if (players.length === 0) return;
+  const files = mediaFiles(), now = JSON.stringify(files);
+  if (now === lastMedia) return;
+  lastMedia = now;
+  for (const device of players) (device.channel as link.Channel).send({ t: 'media', files });
+}
+
+/** A device's trim moves its videos as it moves its commands. */
+function sendVideoTimes(): void {
+  const players = connected();
+  if (players.length === 0) return;
+  const times = videoTimes();
+  for (const device of players) {
+    (device.channel as link.Channel).send({ t: 'videos', times: times.map((time: VideoTime): VideoTime => ({ layer: time.layer, media: time.media, at: time.at + device.trimMs - selfTrimMs })) });
+  }
 }
 
 /** Sends a command to the others. When this machine should run it itself: at a shared time, or 0 for now. */
@@ -183,14 +211,16 @@ export function fleetJson(linkPort: i32): string {
   found.forEach((peer: link.Peer, id: string) => { if (!known(id)) seen.push({ id, name: peer.name, host: peer.host, pairing: peer.pairing }); });
   const list = devices.map((d: Device): any => ({
     id: d.id, name: d.name, host: d.host, online: d.channel !== null && (d.channel as link.Channel).connected,
-    viewport: d.viewport, trimMs: d.trimMs, fps: d.fps, offsetMs: d.offsetMs, rttMs: d.rttMs, synced: d.synced, late: d.late, system: d.system, output: d.output,
+    viewport: d.viewport, trimMs: d.trimMs, fps: d.fps, offsetMs: d.offsetMs, rttMs: d.rttMs, synced: d.synced, late: d.late, system: d.system, output: d.output, media: d.media, videoMs: d.videoMs,
   }));
   return JSON.stringify({ self: { id: link.id(), name: selfName, linkPort, trimMs: selfTrimMs, ...fleetState() }, lookaheadMs, devices: list, found: seen, problem });
 }
 
 /** Finds the others and goes back to the ones this mapper leads. After link.init(). */
-export function startFleetMaster(name: string): void {
+export function startFleetMaster(name: string, port: i32, token: string): void {
   selfName = name;
+  webPort = port;
+  webToken = token;
   link.browse(SERVICE, (peer: link.Peer, present: boolean) => {
     if (present) found.set(peer.id, peer);
     else found.delete(peer.id);
@@ -215,5 +245,9 @@ export function startFleetMaster(name: string): void {
       console.error(`mapper: ${FLEET_FILE} ignored: ${e}`);
     }
   }
-  setInterval(sendChanges, SYNC_MS);
+  setInterval(() => {
+    sendChanges();
+    sendMedia();
+  }, SYNC_MS);
+  setInterval(sendVideoTimes, VIDEO_TIME_MS);
 }

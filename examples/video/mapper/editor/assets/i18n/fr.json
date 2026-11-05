@@ -56,7 +56,11 @@
   "mapper.devices.noneFound": "Aucun autre mapper vu sur le réseau. Saisissez son adresse s'il est sur un autre réseau.",
   "mapper.devices.offline": "{host} : pas de réponse, elle revient toute seule",
   "mapper.devices.onNetwork": "Ajouter une machine",
-  "mapper.devices.online": "{host}, {system}, {fps} i/s, réseau {rtt} ms, {late} commandes en retard",
+  "mapper.devices.online": "{host}, {system}, {fps} i/s, réseau {rtt} ms, {late} commandes en retard, film décalé de {video} ms",
+
+  "mapper.devices.copying": "Copie de {name} : {percent} %, encore {left}",
+
+  "mapper.devices.copyProblem": "La copie est arrêtée : {problem}",
   "mapper.devices.remove": "Retirer",
   "mapper.devices.showCode": "Y afficher un code",
   "mapper.devices.sideBySide": "Côte à côte",

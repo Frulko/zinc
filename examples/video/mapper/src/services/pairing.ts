@@ -78,7 +78,7 @@ export function startPairing(port: i32, editorToken: string, name: string, keys:
       listenForMaster(channel, shown);
     });
     linkPort = link.advertise({ service: SERVICE, info: `${port}` }) as i32;
-    startFleetMaster(shown);
+    startFleetMaster(shown, port, token);
   } catch (e) {
     console.error(`mapper: not announced on the network: ${e}`);
     webPort = -1;

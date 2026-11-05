@@ -46,6 +46,19 @@ export function mediaListJson(): string {
   return `[${files.join(',')}]`;
 }
 
+export interface MediaFile { name: string; bytes: number; stamp: number }
+
+/** The files as another machine compares them: `stamp` changes when the file does. */
+export function mediaFiles(): MediaFile[] {
+  const files: MediaFile[] = [];
+  for (const entry of fs.readDir(folder)) {
+    if (entry.name.startsWith('.')) continue;
+    const info = fs.stat(mediaPath(entry.name));
+    files.push({ name: entry.name, bytes: info.size, stamp: info.mtimeMs });
+  }
+  return files;
+}
+
 /** Where a video's small picture goes. */
 export function thumbnailPath(name: string): string { return `${folder}/${THUMBNAILS}/${name}.jpg`; }
 
@@ -61,6 +74,13 @@ export function deleteMedia(name: string): boolean {
   return removed;
 }
 
+/** A hidden file, whole, becomes the media `name`. */
+export function takeMedia(coming: string, name: string): void {
+  fs.rename(coming, mediaPath(name));
+  forgetThumbnail(name);
+  countVideos();
+}
+
 /** Writes the body to the folder under `name`. Rejects when the client leaves or the disk refuses; no partial file stays. */
 export async function receiveMedia(name: string, body: BodyStream, onPart: (bytes: number) => void): Promise<void> {
   const coming = mediaPath(`.${name}.part`);
@@ -70,9 +90,7 @@ export async function receiveMedia(name: string, body: BodyStream, onPart: (byte
       fs.appendText(coming, chunk);
       onPart(chunk.length);
     });
-    fs.rename(coming, mediaPath(name));
-    forgetThumbnail(name);
-    countVideos();
+    takeMedia(coming, name);
   } catch (e) {
     fs.remove(coming);
     throw e;

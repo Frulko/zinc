@@ -12,7 +12,7 @@ import { applyCommand, isHudShown, listenOsc, setHudShown } from './services/con
 import { setFrameRate } from './services/device';
 import { noteChange, startHistory } from './services/history';
 import { onLayerChange } from './services/layerCommands';
-import { bindDecodedVideos, followLayerMedia, useMediaFolder } from './services/layerMedia';
+import { bindDecodedVideos, followLayerMedia, keepVideosOnTime, useMediaFolder } from './services/layerMedia';
 import { openMediaFolder, videoCount } from './services/mediaStore';
 import { closeCodeNow, openCode, pairingCode } from './services/pairing';
 import { openScenes } from './services/scenes';
@@ -68,6 +68,7 @@ gfx.onFrame((dt: number) => {
   if (gfx.wasPressed(gfx.Btn.Right)) applyCommand({ address: '/step', numbers: [1], strings: [] });
   if (gfx.wasPressed(gfx.Btn.Left)) applyCommand({ address: '/step', numbers: [-1], strings: [] });
   runDue();
+  keepVideosOnTime();
   bindDecodedVideos();
   paintLiveImage(t);
 

@@ -5,8 +5,9 @@ import { tr } from '../i18n';
 import { getJson, send } from '../services/link';
 import { Heading, IconButton, NumberField, Row, ValueSlider } from './Field';
 
+interface Copying { left: i32; name: string; done: number; total: number; problem: string }
 interface Place { id: string; name: string; viewport: number[]; trimMs: number }
-interface Device extends Place { host: string; online: boolean; fps: number; offsetMs: number; rttMs: number; synced: boolean; late: number; system: string; output: number[] }
+interface Device extends Place { host: string; online: boolean; fps: number; offsetMs: number; rttMs: number; synced: boolean; late: number; system: string; output: number[]; media: Copying; videoMs: number }
 interface Found { id: string; name: string; host: string; pairing: boolean }
 interface Fleet {
   self: { id: string; name: string; linkPort: i32; trimMs: number; masterName: string; viewport: number[] };
@@ -59,7 +60,16 @@ function statusOf(device: Device | null): string {
   if (device === null) return '';
   const d = device as Device;
   if (!d.online) return tr('mapper.devices.offline', ['host', d.host]);
-  return tr('mapper.devices.online', ['host', d.host, 'system', d.system, 'fps', `${d.fps}`, 'rtt', d.rttMs.toFixed(2), 'late', `${d.late}`]);
+  return tr('mapper.devices.online', ['host', d.host, 'system', d.system, 'fps', `${d.fps}`, 'rtt', d.rttMs.toFixed(2), 'late', `${d.late}`, 'video', d.videoMs.toFixed(0)]);
+}
+
+function copyOf(device: Device | null): string {
+  if (device === null) return '';
+  const copying = (device as Device).media;
+  if (copying.problem !== '') return tr('mapper.devices.copyProblem', ['problem', copying.problem]);
+  if (copying.left === 0) return '';
+  const percent = copying.total > 0 ? Math.round(copying.done * 100 / copying.total) : 0;
+  return tr('mapper.devices.copying', ['name', copying.name, 'percent', `${percent}`, 'left', `${copying.left}`]);
 }
 
 function Placement(props: { id: string; viewport: number[]; trimMs: number }): i32 {
@@ -84,6 +94,7 @@ function DeviceCard(props: { device: Device }): i32 {
       <IconButton icon="trash" label={tr('mapper.devices.remove')} onClick={() => { send('/fleet/remove', [], [id]); refresh(); }} />
     </View>
     <Text className="text-xs text-zinc-400">{statusOf(deviceNow(id))}</Text>
+    <Text className="text-xs text-amber-400">{copyOf(deviceNow(id))}</Text>
     <Placement id={id} viewport={props.device.viewport} trimMs={props.device.trimMs} />
   </View>;
 }

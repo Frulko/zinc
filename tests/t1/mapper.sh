@@ -140,7 +140,7 @@ ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_FRAMES=30 timeout 120 "$ZINC" run "$p
 command -v node >/dev/null || { echo "no node: the editor check is skipped"; exit $fail; }
 web=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
 media="$tmp/media"; mkdir -p "$media"
-ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=1200 "$ZINC" run "$project/src/main.ts" -- --port 0 --web "$web" --media "$media" >"$tmp/app.log" 2>&1 & app=$!
+ZINC_DETERMINISTIC=0 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_FRAMES=1800 "$ZINC" run "$project/src/main.ts" -- --port 0 --web "$web" --media "$media" >"$tmp/app.log" 2>&1 & app=$!
 n=0; while [ $n -lt 600 ] && ! grep -q "editor at" "$tmp/app.log"; do sleep 0.1; n=$((n+1)); done   # the app compiles first (a minute on a CI runner)
 url=$(sed -n 's/^mapper: editor at //p' "$tmp/app.log")
 token=${url##*token=}
@@ -246,13 +246,33 @@ try:
     osc("master", "/fleet/sidebyside")
     wait("the place does not arrive", lambda: call("player", "/fleet")["self"]["viewport"] == [0.5, 0, 0.5, 1])
     if call("master", "/fleet")["self"]["viewport"] != [0, 0, 0.5, 1]: sys.exit("the master's own place")
+    # the media come by themselves, and a film stays on the master's: a column of a file the player does not have yet, then the same name with new content
+    A, B = "examples/video/looper/media/02-bars.mp4", "examples/video/looper/media/03-life.mp4"
+    def media_on(name):
+        path = f"{tmp}/player/media/clip.mp4"
+        return os.path.exists(path) and open(path, "rb").read() == open(name, "rb").read()
+    def send_media(name):
+        r = urllib.request.Request(f"http://127.0.0.1:{web['master']}/media/clip.mp4", data=open(name, "rb").read(), headers={"x-zinc-token": tokens["master"]}, method="POST")
+        urllib.request.urlopen(r, timeout=20).read()
+    send_media(A)
+    show = call("master", "/show")
+    show["columns"].append({"name": "film", "cells": [{"media": "clip.mp4"}]})
+    call("master", "/show", json.dumps(show), "PUT")
+    osc("master", "/column", 2)
+    wait("the media does not reach the player", lambda: media_on(A))
+    wait("the film does not play on the player", lambda: call("player", "/state")["layers"][0]["media"][0] == "clip.mp4")
+    device = lambda: call("master", "/fleet")["devices"][0]
+    wait("the film stays away from the master's", lambda: device()["videoMs"] < 60 and device()["videoMs"] > 0 and device()["media"]["left"] == 0, 20)
+    send_media(B)
+    wait("a changed media does not reach the player", lambda: media_on(B))
+    if device()["media"]["problem"] != "": sys.exit(f"the copy says: {device()['media']}")
     # a player that restarts catches up, with no code
     procs["player"].kill(); procs["player"].wait()
     wait("a dead player looks online", lambda: not online())
     osc("master", "/layer/0/opacity", 0.3)
     start("player")
     wait("the player does not come back", online, 40)
-    wait("the player did not catch up", lambda: abs(opacity() - 0.3) < 0.001 and call("player", "/show")["active"] == 1)
+    wait("the player did not catch up", lambda: abs(opacity() - 0.3) < 0.001 and call("player", "/show")["active"] == 2)
     # a master that restarts knows its players
     procs["master"].kill(); procs["master"].wait()
     start("master")
