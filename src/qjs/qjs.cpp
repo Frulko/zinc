@@ -532,7 +532,7 @@ bool virtualClock() {
 }
 long long wallBaseMs() {
   if (virtualClock()) return 0;
-  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() - static_cast<long long>(zn::loop::programMs());
 }
 
 void hostCall(zn::Rt id, HostArg* r, const HostArg* a = nullptr) { (zn::isLayoutRow(id) ? zn::host::hostLayout : zn::isSysRow(id) ? zn::host::hostSys : zn::host::hostGfx)(static_cast<int>(id), a, r); }
@@ -791,6 +791,7 @@ bool context(Engine& e, const std::string& mainDir) {
     const std::string defs = "globalThis.__ZINC_ENGINE__ = 'quickjs'; globalThis.__ZINC_CAPS__ = " + caps +
                              "; globalThis.__ZINC_TARGET__ = __ZINC_CAPS__.TARGET; globalThis.__ZINC_PROFILE__ = __ZINC_CAPS__.PROFILE;" +
                              "globalThis.__zincWallBase = " + std::to_string(wallBaseMs()) + ";" +
+                             "globalThis.__zincReal = " + (virtualClock() ? "false" : "true") + ";" +
                              "globalThis.__zincClockTick = " + std::to_string(std::getenv("ZINC_DETERMINISTIC") && std::getenv("ZINC_CLOCK_TICK") ? std::atof(std::getenv("ZINC_CLOCK_TICK")) : 0.0) + ";";
     JS_FreeValue(e.ctx, JS_Eval(e.ctx, defs.data(), defs.size(), "<defines>", JS_EVAL_TYPE_GLOBAL));
   }

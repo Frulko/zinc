@@ -78,6 +78,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - `fetch` returns a binary download byte for byte: `response.bytes()` and `arrayBuffer()` no longer lose two bytes where a gzip or an archive holds two surrogate halves side by side, and a server reads a large upload's bytes in one step.
 - `serveAsync` and `listen` with `requestTimeoutMs: 0` wait as long as a request needs, as documented: the connection was closed at once.
 - A function that returns `cond ? <A /> : <B />` mounts as a component: it printed a number where the UI should be.
+- On QuickJS, `Date.now()` and `performance.now()` stood still while a piece of code ran, so a program that timed its own work read 0 and one that waited on them never returned; they now read the real time, as on the other engines.
 
 ### UI
 
