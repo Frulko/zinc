@@ -187,19 +187,20 @@ if problems: print("; ".join(problems)); sys.exit(1)
 PY
 # a second mapper follows the first: paired once, it takes the setup, the show, the commands and the time, and comes back after a restart
 python3 - "$ZINC" "$project" "$tmp" <<'PY' || fail=1
-import json, os, re, shutil, socket, subprocess, sys, time, urllib.request
+import json, os, re, shutil, socket, struct, subprocess, sys, time, urllib.request
 zinc, project, tmp = sys.argv[1:4]
 def free(kind):
     s = socket.socket(socket.AF_INET, kind); s.bind(("127.0.0.1", 0)); p = s.getsockname()[1]; s.close(); return p
 env = dict(os.environ, ZINC_DETERMINISTIC="0", ZINC_NATIVE="real", ZINC_DISPLAY="gl")
-procs, tokens, web = {}, {}, {}
+procs, tokens, web, oscs = {}, {}, {}, {}
 def start(name):
     d = f"{tmp}/{name}"
     if not os.path.exists(d):
         shutil.copytree(project, d)
         web[name] = free(socket.SOCK_STREAM)
+        oscs[name] = free(socket.SOCK_DGRAM)
     log = f"{d}/run.log"
-    procs[name] = subprocess.Popen([zinc, "run", "src/main.ts", "--", "--port", str(free(socket.SOCK_DGRAM)), "--web", str(web[name]), "--fleet-port", str(free(socket.SOCK_DGRAM)), "--keys", "link.keys", "--name", name], cwd=d, env=env, stdout=open(log, "w"), stderr=subprocess.STDOUT)
+    procs[name] = subprocess.Popen([zinc, "run", "src/main.ts", "--", "--port", str(oscs[name]), "--web", str(web[name]), "--fleet-port", str(free(socket.SOCK_DGRAM)), "--keys", "link.keys", "--name", name], cwd=d, env=env, stdout=open(log, "w"), stderr=subprocess.STDOUT)
     for _ in range(600):
         m = re.search(r"token=(\S+)", open(log).read())
         if m: tokens[name] = m.group(1); return
@@ -266,13 +267,88 @@ try:
     send_media(B)
     wait("a changed media does not reach the player", lambda: media_on(B))
     if device()["media"]["problem"] != "": sys.exit(f"the copy says: {device()['media']}")
+    # OSC from a desk made for another program: the words of Resolume and Millumin, a bundle, and what the mapper tells back in each one's words
+    def pad(b): return b + b"\0" * (4 - len(b) % 4)
+    def packet(address, *args):
+        tags, body = ",", b""
+        for a in args:
+            if isinstance(a, str): tags += "s"; body += pad(a.encode())
+            elif isinstance(a, float): tags += "f"; body += struct.pack(">f", a)
+            else: tags += "i"; body += struct.pack(">i", a)
+        return pad(address.encode()) + pad(tags.encode()) + body
+    def read(raw):
+        end = raw.index(b"\0"); address = raw[:end].decode(); at = (end + 4) & ~3
+        end = raw.index(b"\0", at); tags = raw[at + 1:end].decode(); at = (end + 4) & ~3
+        out = []
+        for t in tags:
+            if t == "s": end = raw.index(b"\0", at); out.append(raw[at:end].decode()); at = (end + 4) & ~3
+            elif t == "f": out.append(struct.unpack(">f", raw[at:at + 4])[0]); at += 4
+            elif t == "i": out.append(struct.unpack(">i", raw[at:at + 4])[0]); at += 4
+        return address, out
+    def desk():
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.1", 0)); s.settimeout(0.05); return s
+    resolume, millumin, native = desk(), desk(), desk()
+    to = ("127.0.0.1", oscs["master"])
+    def said(sock, address, seconds=5, test=lambda args: True):
+        end = time.time() + seconds
+        while time.time() < end:
+            try: a, args = read(sock.recv(2048))
+            except socket.timeout: continue
+            if a == address and test(args): return args
+        sys.exit(f"nobody said {address}")
+    resolume.sendto(packet("/feedback/subscribe", "resolume"), to)
+    millumin.sendto(packet("/feedback/subscribe", "millumin"), to)
+    native.sendto(packet("/feedback/subscribe"), to)
+    said(resolume, "/composition/columns/3/connect", test=lambda a: a == [1])       # told what is on as soon as it asks
+    said(millumin, "/millumin/board/launchedColumn", test=lambda a: a == [3, "film"])
+    said(native, "/layer/0/time")                                                   # the film's time, while it plays
+    resolume.sendto(packet("/composition/layers/1/video/opacity", 0.5), to)
+    wait("Resolume's opacity", lambda: abs(opacity() - 0.5) < 0.001)                # on the player too
+    said(native, "/layer/0/opacity", test=lambda a: abs(a[0] - 0.5) < 0.001)
+    resolume.sendto(packet("/composition/columns/1/connect", 0), to); time.sleep(0.2)   # a button let go does nothing
+    if call("master", "/show")["active"] != 2: sys.exit("a button let go launched a column")
+    millumin.sendto(packet("/millumin/action/launchColumn", "two"), to)             # by name, and from 1 by number
+    said(millumin, "/millumin/board/stoppedColumn", test=lambda a: a == [3, "film"])
+    said(millumin, "/millumin/board/launchedColumn", test=lambda a: a == [2, "two"])
+    wait("Millumin's column on the player", lambda: call("player", "/show")["active"] == 1)
+    bundle = pad(b"#bundle") + b"\0" * 7 + b"\1"
+    for message in (packet("/composition/columns/3/connect", 1), packet("/layer/0/opacity", 0.7)): bundle += struct.pack(">i", len(message)) + message
+    native.sendto(bundle, to)
+    said(resolume, "/composition/layers/1/video/opacity", test=lambda a: abs(a[0] - 0.7) < 0.001)
+    said(native, "/column/launched", test=lambda a: a == [2, "film"])
+    # the film on command: where the master goes, the player goes; pause holds both, Millumin's words
+    millumin.sendto(packet("/index:1/media/speed", 0.5), to)
+    def films(): return (device()["videoMs"], call("master", "/fleet")["devices"][0]["online"])
+    time.sleep(1.5)
+    if device()["videoMs"] > 60: sys.exit(f"the player does not follow a slow film: {device()}")
+    millumin.sendto(packet("/index:1/pauseMedia"), to)
+    said(native, "/layer/0/paused", test=lambda a: a == [1])
+    native.sendto(packet("/layer/0/time", 0.5), to); time.sleep(1)
+    if device()["videoMs"] > 40: sys.exit(f"the player does not stay on a film moved while paused: {device()}")
+    native.sendto(packet("/transport", "play"), to)
+    said(native, "/layer/0/paused", test=lambda a: a == [0])
+    native.sendto(packet("/layer/0/speed", 1.0), to)
+    resolume.sendto(packet("/composition/layers/1/video/opacity", 1.0), to)
+    resolume.sendto(packet("/nothing/of/mine", "?"), to)                            # a question answers whatever the address
+    said(resolume, "/composition/layers/1/video/opacity")
+    # what the Chataigne project sends is all understood: it was written without a Chataigne to try it
+    log = f"{tmp}/master/run.log"
+    project_file = json.load(open("examples/video/mapper/chataigne/mapper-control.noisette"))
+    before = open(log).read().count("ignored")
+    for action in project_file["states"]["items"][0]["processors"]["items"]:
+        for step in action.get("consequences", {}).get("items", []):
+            args = [a["param"]["value"] for a in step["command"]["argManager"]["items"]]
+            native.sendto(packet(step["command"]["parameters"][0]["value"], *args), to)
+    time.sleep(0.5)
+    if open(log).read().count("ignored") != before: sys.exit("the Chataigne project sends what the mapper ignores: " + open(log).read()[-300:])
+    for s in (resolume, millumin, native): s.close()
     # a player that restarts catches up, with no code
     procs["player"].kill(); procs["player"].wait()
     wait("a dead player looks online", lambda: not online())
     osc("master", "/layer/0/opacity", 0.3)
     start("player")
     wait("the player does not come back", online, 40)
-    wait("the player did not catch up", lambda: abs(opacity() - 0.3) < 0.001 and call("player", "/show")["active"] == 2)
+    wait("the player did not catch up", lambda: abs(opacity() - 0.3) < 0.001)
     # a master that restarts knows its players
     procs["master"].kill(); procs["master"].wait()
     start("master")

@@ -94,6 +94,28 @@ function emptyLayer(layer: i32): void {
 }
 
 /** Plays one clip on its layer, the others go on. False when the cell is empty. */
+/** The column on, -1 when none. */
+export function activeColumn(): i32 { return typeof show.active === 'number' ? show.active as i32 : -1; }
+
+export function columnNameOf(index: i32): string {
+  const columns = show.columns as any[];
+  return index >= 0 && index < columns.length && typeof columns[index].name === 'string' ? columns[index].name as string : '';
+}
+
+/** -1 when none has that name. */
+export function columnNamed(name: string): i32 {
+  const wanted = name.toLowerCase();
+  const columns = show.columns as any[];
+  for (let index: i32 = 0; index < columns.length; index++) if (columnNameOf(index).toLowerCase() === wanted) return index;
+  return -1;
+}
+
+/** The column whose clip a layer plays, -1 when none. */
+export function playingColumn(layer: i32): i32 {
+  const list = playingList();
+  return layer < list.length ? list[layer] as i32 : -1;
+}
+
 export function fireCell(column: i32, layer: i32): boolean {
   const clip = clipAt(column, layer);
   if (clip === null || layer >= mapping.layerCount()) return false;

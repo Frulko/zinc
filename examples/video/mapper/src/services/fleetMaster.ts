@@ -17,7 +17,7 @@ const SYNC_MS = 500;              // how soon an edit that came another way than
 const VIDEO_TIME_MS = 250;        // how soon a video that started or jumped reaches the others
 const LOOKAHEAD_MS = 80;          // wired needs less, Wi-Fi more: /fleet/lookahead
 const TIMED: string[] = ['/column', '/cell', '/step', '/stop', '/card', '/volume', '/mute'];   // these must look simultaneous
-const THIS_DEVICE: string[] = ['/hud'];                                                        // these stay on the machine that got them
+const THIS_DEVICE: string[] = ['/hud', '/ping'];                                                        // these stay on the machine that got them
 
 interface Device {
   id: string; name: string; host: string;
@@ -118,7 +118,7 @@ function sendVideoTimes(): void {
   if (players.length === 0) return;
   const times = videoTimes();
   for (const device of players) {
-    (device.channel as link.Channel).send({ t: 'videos', times: times.map((time: VideoTime): VideoTime => ({ layer: time.layer, media: time.media, at: time.at + device.trimMs - selfTrimMs })) });
+    (device.channel as link.Channel).send({ t: 'videos', times: times.map((time: VideoTime): VideoTime => ({ layer: time.layer, media: time.media, at: time.at + device.trimMs - selfTrimMs, position: time.position, rate: time.rate })) });
   }
 }
 
@@ -202,6 +202,13 @@ export function fleetCommand(command: LayerCommand): boolean {
   } else return false;
   save();
   return true;
+}
+
+/** How the machines this mapper leads are doing, for OSC. */
+export interface DeviceState { id: string; name: string; online: boolean; fps: number; videoMs: number }
+
+export function deviceStates(): DeviceState[] {
+  return devices.map((d: Device): DeviceState => ({ id: d.id, name: d.name, online: d.channel !== null && (d.channel as link.Channel).connected, fps: d.fps, videoMs: d.videoMs }));
 }
 
 /** What the Devices view shows. */

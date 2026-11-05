@@ -12,11 +12,14 @@ const FIRST_MARGIN_S = 0.25;       // how far ahead a seek lands, to have its pi
 const MAX_MARGIN_S = 4;
 const SPEED_PER_S = 2;             // 10 ms off: 2% faster for a moment
 const MAX_SPEED_CHANGE = 0.1;
+const STILL_WITHIN_S = 0.02;       // a paused film further off than this goes to the right picture
 
-interface Playing { media: string; player: Player | null; bound: boolean; holding: boolean; margin: number; aimedAt: number; errorMs: number }
+interface Playing { media: string; player: Player | null; bound: boolean; holding: boolean; margin: number; aimedAt: number; errorMs: number; speed: number; paused: boolean }
 
-/** A video's place on the shared time: the moment its start would have played. */
-export interface VideoTime { layer: i32; media: string; at: number }
+/** A film's place: at the shared time `at` it was at `position` seconds, going at `rate` (0: paused). */
+export interface VideoTime { layer: i32; media: string; at: number; position: number; rate: number }
+
+export interface FilmState { time: number; duration: number; paused: boolean }
 
 let mediaDir = '';
 const playing: Playing[] = [];
@@ -32,6 +35,8 @@ function stop(entry: Playing): void {
   entry.holding = false;
   entry.margin = FIRST_MARGIN_S;
   entry.errorMs = 0;
+  entry.speed = 1;
+  entry.paused = false;
 }
 
 function start(entry: Playing, layer: i32, media: string): void {
@@ -55,7 +60,7 @@ export function followLayerMedia(): void {
   if (mapping.playsMedia()) return;
   const count = mapping.layerCount();
   for (let layer: i32 = 0; layer < count; layer++) {
-    if (layer >= playing.length) playing.push({ media: '', player: null, bound: false, holding: false, margin: FIRST_MARGIN_S, aimedAt: 0, errorMs: 0 });
+    if (layer >= playing.length) playing.push({ media: '', player: null, bound: false, holding: false, margin: FIRST_MARGIN_S, aimedAt: 0, errorMs: 0, speed: 1, paused: false });
     const asked = (JSON.parse(mapping.layerJson(layer)).media as string[])[0];
     const entry = playing[layer];
     if (asked === entry.media) continue;
@@ -87,15 +92,38 @@ export function videoTimes(): VideoTime[] {
   playing.forEach((entry: Playing, layer: i32) => {
     if (entry.player === null) return;
     const player = entry.player as Player;
-    if (player.frames > 0 && !player.seeking) times.push({ layer, media: entry.media, at: fleetNow() - player.playhead * 1000 });
+    if (player.frames > 0 && !player.seeking) times.push({ layer, media: entry.media, at: fleetNow(), position: player.playhead, rate: entry.paused ? 0 : entry.speed });
   });
   return times;
 }
 
 /** What the master says; [] when none leads this machine, and the videos go on as they are. */
 export function followVideoTimes(times: VideoTime[]): void {
-  if (times.length === 0) for (const entry of playing) if (entry.player !== null) (entry.player as Player).rate = 1;
+  if (times.length === 0) for (const entry of playing) if (entry.player !== null) (entry.player as Player).rate = entry.speed;
   led = times;
+}
+
+/** `what`: time (seconds), normalizedTime (0 to 1), speed (above 0), pause (1, 0, or below 0 to swap). False where this program does not play the layer's film. */
+export function controlFilm(layer: i32, what: string, value: number): boolean {
+  if (layer < 0 || layer >= playing.length || playing[layer].player === null) return false;
+  const entry = playing[layer], player = entry.player as Player;
+  if (what === 'time' && value >= 0) player.seek(value);
+  else if (what === 'normalizedTime' && value >= 0 && value <= 1) player.seek(value * player.duration);
+  else if (what === 'speed' && value > 0) {
+    entry.speed = value;
+    player.rate = value;
+  } else if (what === 'pause') {
+    entry.paused = value < 0 ? !entry.paused : value > 0;
+    player.pause(entry.paused);
+  } else return false;
+  return true;
+}
+
+/** Null when the layer plays no film here. */
+export function filmState(layer: i32): FilmState | null {
+  if (layer < 0 || layer >= playing.length || playing[layer].player === null) return null;
+  const entry = playing[layer], player = entry.player as Player;
+  return { time: player.playhead, duration: player.duration, paused: entry.paused };
 }
 
 /** The furthest a followed video is from the master, in ms. */
@@ -112,8 +140,8 @@ function ahead(to: number, from: number, period: number): number {
   return up > period / 2 ? up - period : up;
 }
 
-function seekAhead(entry: Playing, player: Player, wanted: number, period: number): void {
-  entry.aimedAt = (wanted + entry.margin) % period;
+function seekAhead(entry: Playing, player: Player, wanted: number, period: number, rate: number): void {
+  entry.aimedAt = (wanted + entry.margin * rate) % period;
   entry.holding = true;
   player.rate = 1;
   player.pause(true);
@@ -124,22 +152,30 @@ function keepOnTime(entry: Playing, time: VideoTime): void {
   const player = entry.player as Player;
   const period = player.duration;
   if (period <= 0) return;
-  const wanted = (fleetNow() - time.at) / 1000 % period;
+  const place = (time.position + (fleetNow() - time.at) / 1000 * time.rate) % period;
+  const wanted = place < 0 ? place + period : place;   // a trim can put `at` ahead of now
   const off = ahead(wanted, player.playhead, period);
   entry.errorMs = off * 1000;
+  if (time.rate === 0) {
+    entry.holding = false;
+    player.pause(true);
+    if (!player.seeking && Math.abs(off) > STILL_WITHIN_S) player.seek(wanted);
+    return;
+  }
   if (entry.holding) {
     if (player.seeking) {
       if (ahead(wanted, entry.aimedAt, period) <= 0) return;
       entry.margin = Math.min(entry.margin * 2, MAX_MARGIN_S);
-      seekAhead(entry, player, wanted, period);
+      seekAhead(entry, player, wanted, period, time.rate);
     } else if (off >= 0) {
       entry.holding = false;
       player.pause(false);
-    } else if (off < -entry.margin - SEEK_OVER_S) seekAhead(entry, player, wanted, period);   // the master moved while this one waited
+    } else if (off < -entry.margin * time.rate - SEEK_OVER_S) seekAhead(entry, player, wanted, period, time.rate);   // the master moved while this one waited
     return;
   }
-  if (Math.abs(off) > SEEK_OVER_S) seekAhead(entry, player, wanted, period);
-  else player.rate = 1 + Math.min(MAX_SPEED_CHANGE, Math.max(-MAX_SPEED_CHANGE, off * SPEED_PER_S));
+  if (player.paused) player.pause(false);
+  if (Math.abs(off) > SEEK_OVER_S) seekAhead(entry, player, wanted, period, time.rate);
+  else player.rate = time.rate * (1 + Math.min(MAX_SPEED_CHANGE, Math.max(-MAX_SPEED_CHANGE, off * SPEED_PER_S)));
 }
 
 /** Each frame. */

@@ -1,5 +1,5 @@
 // mapper: GPU video mapping (zinc:mapping on display-gl). Any browser edits it live through the web editor the app serves (services/web.ts); OSC desks reach the same commands.
-// Usage: mapper [--media DIR] [--port N] [--web N|off] [--name NAME] [--viewport X,Y,W,H] [--fleet-port N] [--keys FILE]   (default: media, 9000, 8080). Keys: Tab status card, Left/Right columns, F fullscreen, Esc quit.
+// Usage: mapper [--media DIR] [--port N] [--web N|off] [--name NAME] [--viewport X,Y,W,H] [--fleet-port N] [--keys FILE] [--feedback HOST:PORT[:mapper|millumin|resolume]]   (default: media, 9000, 8080). Keys: Tab status card, Left/Right columns, F fullscreen, Esc quit.
 import * as gfx from 'zinc:gfx';
 import * as mapping from 'zinc:mapping';
 import { args } from 'zinc:sys';
@@ -47,10 +47,11 @@ onLayerChange(() => { noteChange(); });
 startFleet(parseInt(option('fleet-port', DEFAULT_FLEET_PORT)), option('viewport', ''));
 
 const oscPort: i32 = parseInt(option('port', DEFAULT_OSC_PORT));
-const oscOn = listenOsc(oscPort);
+let oscOn = false;
+listenOsc(oscPort, option('feedback', '')).then((on: boolean) => { oscOn = on; });
 const webPort = option('web', DEFAULT_WEB_PORT);
 const editorUrl = webPort === 'off' ? '' : startWebEditor(parseInt(webPort), option('name', ''), option('keys', ''));
-console.log(`mapper: ${oscOn ? `OSC on udp ${oscPort}` : 'no OSC'}, ${mapping.layerCount()} layers (Tab: status, F: fullscreen, Esc: quit)`);
+console.log(`mapper: OSC on udp ${oscPort}, ${mapping.layerCount()} layers (Tab: status, F: fullscreen, Esc: quit)`);
 if (editorUrl !== '') console.log(`mapper: editor at ${editorUrl}`);
 if (isHudShown()) openCode();   // a first start: nobody has the editor yet
 

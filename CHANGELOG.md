@@ -405,6 +405,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - The video mapper starts on several machines: `--join` takes another mapper's clock, `--viewport` chooses the part of the canvas, and the **sync** card shows how far apart the screens are.
 - The video mapper leads other mappers from a new *Devices* view: pair a machine once with a code shown on its output, place it in the canvas, and it takes the setup, the show and every command, with columns launched at the same moment over a shared clock; `/fleet/...` does the same over OSC, and this replaces `--join`.
 - Video mapper, several machines: the leader's media reach the others by themselves, in the background and without troubling the picture (a cut copy goes on where it stopped), and each film stays on the leader's, within a frame between two instances on one Mac; *Devices* shows the progress and how far off each machine is.
+- Video mapper over OSC: it also understands the addresses of Millumin and Resolume and bundles, moves, pauses and changes the speed of films (`/layer/n/time`, `speed`, `pause`, `/transport`), and tells those who subscribe what happens, in the words of each (`/feedback/subscribe`). `chataigne/mapper-control.noisette` is a ready project to drive it from Chataigne.
 
 #### Changed
 - Discord: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro) and logs a clamp as "over the ceiling".

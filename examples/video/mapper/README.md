@@ -107,6 +107,30 @@ From then on the leader sends its setup, its show and every command to the other
 
 The media go by themselves: what the leader has and a machine lacks is copied in the background, without troubling the picture (about 17 MB/s on a loaded Mac, 50 at most), and a cut copy goes on where it stopped. A file a layer is waiting for starts as soon as it arrives. A file the leader no longer has stays on the others. Files you copied by hand are kept when their size is right. Each film then follows the leader's: a small difference by playing a little faster or slower, a large one by a jump ahead and a wait for that moment. *Devices* shows how far off each machine is. On Android the system's player plays the media, and does not follow yet.
 
+## OSC
+
+The mapper listens on UDP 9000 (`--port`), in its own words and in those of Millumin and Resolume, single messages or bundles. Send to the leader: the others follow.
+
+| Doing | The mapper's words (from 0) | Millumin (from 1) | Resolume (from 1) |
+|---|---|---|---|
+| A column | `/column n`, `/step 1`, `/step -1` | `/action/launchColumn n` or `"name"`, `launchNextColumn`, `launchPreviousColumn`, `launchOrStopColumn`, `stopColumn` | `/composition/columns/n/connect` |
+| A clip | `/cell column layer` | `/index:n/startMedia column` | `/composition/layers/l/clips/c/connect` |
+| Stop | `/stop`, `/stop layer` | `/index:n/stopMedia` | `/composition/disconnectall`, `/composition/layers/l/clear` |
+| Opacity | `/layer/n/opacity v` | `/selectedLayer/opacity`, `/layer:name/opacity`, `/index:n/opacity` | `/composition/layers/l/video/opacity`, `/composition/layers/l/master` |
+| A corner | `/layer/n/corner i x y` | `/index:n/mapping/topLeft x y` (and `topRight`, `bottomRight`, `bottomLeft`) | |
+| The film | `/layer/n/time s`, `normalizedTime`, `speed`, `pause` (1, 0, -1 swaps), `/transport play\|pause\|toggle\|stop` | `/index:n/media/time` (seconds or `hh:mm:ss.mmm`), `media/speed`, `media/normalizedTime`, `pauseMedia`, `startOrPauseMedia`, `/action/play`, `pause`, `playOrPause` | `/composition/layers/l/clips/c/transport/position` |
+| Test card | `/card grid\|focus\|colours\|white\|off` | `/action/displayTestCard`, `hideTestCard` | |
+
+The prefix `/millumin` is optional, case does not matter in their words, and a button let go (`0`) does nothing. All other settings are the `/layer/n/...` of `mapping.json`.
+
+**Being told.** `/feedback/subscribe [port] [host] [mapper|millumin|resolume]` asks to be told what happens, in those words, from now on and after restarts; with nothing, the sender at the port it sends from. `--feedback host:port[:words]` does it from the command line, `/feedback/unsubscribe [port] [host]` ends it. A message with the argument `?`, an address ending in `/?` and `/ping` answer with the whole state.
+
+- Mapper: `/column/launched n name`, `/column/stopped n name`, `/layer/n/playing media duration`, `/layer/n/stopped media`, `/layer/n/paused 0|1`, `/layer/n/opacity v`, `/layer/n/time t duration` (ten times a second while a film plays), `/fleet/device/id/state online fps videoMs name` (each second).
+- Millumin: `/millumin/board/launchedColumn`, `stoppedColumn`, `/millumin/index:n/mediaStarted`, `mediaPaused`, `mediaStopped`, `opacity`, `media/time`, `/millumin/selectedLayer/media/time`.
+- Resolume: `/composition/columns/n/connect`, `/composition/layers/l/clips/c/connect`, `clips/c/transport/position`, `/composition/layers/l/clear`, `video/opacity`.
+
+**Chataigne.** Open `chataigne/mapper-control.noisette`: a plain OSC module, listening on 12000 and sending to `127.0.0.1:9000` (change the address for another machine), with actions for the columns, the transport and the cards, and two variables, the opacity and the speed of the film on layer 1, mapped to OSC. Trigger *Tell me what happens* first. The file was written from Chataigne's format and has not been opened in a real Chataigne yet; a test sends everything it says to a mapper.
+
 Each machine keeps its own media under the same names, for now: nothing copies them yet, and a video starts at the same moment on each machine but is not held to the clock afterwards. A machine that loses the leader keeps playing, and catches up when it comes back.
 
 The **sync** card of *Calibration* (or `/card sync` over OSC) draws a bar that crosses the whole canvas from the shared clock alone, with a frame counter and each player's clock error: film it with a phone to see how far apart the screens are. For now each machine still has its own show; replicating it is the next step.

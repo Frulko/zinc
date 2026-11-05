@@ -1,0 +1,815 @@
+{
+ "metaData": {
+  "version": "1.10.4",
+  "versionNumber": 68100
+ },
+ "modules": {
+  "items": [
+   {
+    "niceName": "Mapper",
+    "type": "OSC",
+    "params": {
+     "containers": {
+      "oscInput": {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        },
+        {
+         "value": 12000,
+         "controlAddress": "/localPort",
+         "hexMode": false
+        }
+       ]
+      },
+      "oscOutputs": {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        }
+       ],
+       "items": [
+        {
+         "parameters": [
+          {
+           "value": true,
+           "controlAddress": "/enabled"
+          },
+          {
+           "value": true,
+           "controlAddress": "/local"
+          },
+          {
+           "value": "127.0.0.1",
+           "controlAddress": "/remoteHost"
+          },
+          {
+           "value": 9000,
+           "controlAddress": "/remotePort",
+           "hexMode": false
+          }
+         ],
+         "niceName": "OSC Output",
+         "type": "BaseItem"
+        }
+       ]
+      }
+     }
+    },
+    "values": {
+     "parameters": [
+      {
+       "controlAddress": "/_column_launched",
+       "type": "Integer",
+       "niceName": "/column/launched",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_column_launched",
+       "value": 0
+      },
+      {
+       "controlAddress": "/_layer_0_opacity",
+       "type": "Float",
+       "niceName": "/layer/0/opacity",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_layer_0_opacity",
+       "value": 1.0,
+       "minValue": 0.0,
+       "maxValue": 1.0
+      },
+      {
+       "controlAddress": "/_layer_0_time",
+       "type": "Float",
+       "niceName": "/layer/0/time",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_layer_0_time",
+       "value": 0.0
+      },
+      {
+       "controlAddress": "/_layer_0_paused",
+       "type": "Integer",
+       "niceName": "/layer/0/paused",
+       "customizable": true,
+       "removable": true,
+       "description": "",
+       "hideInEditor": false,
+       "feedbackOnly": false,
+       "shortName": "_layer_0_paused",
+       "value": 0
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "customVariables": {
+  "items": [
+   {
+    "niceName": "Mapper",
+    "type": "CVGroup",
+    "variables": {
+     "items": [
+      {
+       "parameters": [
+        {
+         "value": 1.0,
+         "minValue": 0.0,
+         "maxValue": 1.0,
+         "default": 1.0,
+         "controlAddress": "/opacity",
+         "feedbackOnly": false,
+         "type": "Float",
+         "niceName": "Opacity",
+         "customizable": true,
+         "removable": false,
+         "description": "",
+         "hideInEditor": false
+        }
+       ],
+       "niceName": "Opacity",
+       "type": "Float Parameter"
+      },
+      {
+       "parameters": [
+        {
+         "value": 1.0,
+         "minValue": 0.1,
+         "maxValue": 2.0,
+         "default": 1.0,
+         "controlAddress": "/speed",
+         "feedbackOnly": false,
+         "type": "Float",
+         "niceName": "Speed",
+         "customizable": true,
+         "removable": false,
+         "description": "",
+         "hideInEditor": false
+        }
+       ],
+       "niceName": "Speed",
+       "type": "Float Parameter"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "states": {
+  "items": [
+   {
+    "parameters": [
+     {
+      "value": [
+       -200.0,
+       -150.0
+      ],
+      "controlAddress": "/viewUIPosition"
+     },
+     {
+      "value": [
+       400.0,
+       420.0
+      ],
+      "controlAddress": "/viewUISize"
+     },
+     {
+      "value": true,
+      "controlAddress": "/active"
+     }
+    ],
+    "niceName": "Mapper control",
+    "type": "State",
+    "processors": {
+     "items": [
+      {
+       "niceName": "Tell me what happens (first)",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Tell me what happens (first)",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/feedback/subscribe",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Integer",
+              "param": {
+               "value": 12000
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Column 1",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Column 1",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/column",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Integer",
+              "param": {
+               "value": 0
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Column 2",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Column 2",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/column",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Integer",
+              "param": {
+               "value": 1
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Column 3",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Column 3",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/column",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Integer",
+              "param": {
+               "value": 2
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Column 4",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Column 4",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/column",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Integer",
+              "param": {
+               "value": 3
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Next column",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Next column",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/step",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Integer",
+              "param": {
+               "value": 1
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Previous column",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Previous column",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/step",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Integer",
+              "param": {
+               "value": -1
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Stop everything",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Stop everything",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/stop",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": []
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Play or pause",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Play or pause",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/transport",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "String",
+              "param": {
+               "value": "toggle"
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Film back to its start",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Film back to its start",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/layer/0/time",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Float",
+              "param": {
+               "value": 0.0
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Card: grid",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Card: grid",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/card",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "String",
+              "param": {
+               "value": "grid"
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Card: off",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Card: off",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/card",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "String",
+              "param": {
+               "value": "off"
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "niceName": "Card: sync bar",
+       "type": "Action",
+       "conditions": {
+        "items": []
+       },
+       "consequences": {
+        "items": [
+         {
+          "niceName": "Card: sync bar",
+          "type": "Consequence",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/card",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "String",
+              "param": {
+               "value": "sync"
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        }
+       ],
+       "niceName": "Opacity of layer 1",
+       "type": "Mapping",
+       "im": {
+        "items": [
+         {
+          "parameters": [
+           {
+            "value": "/customVariables/mapper/variables/opacity/opacity",
+            "controlAddress": "/inputValue"
+           }
+          ],
+          "niceName": "Input Value",
+          "type": "Input Value"
+         }
+        ]
+       },
+       "filters": {
+        "items": []
+       },
+       "outputs": {
+        "items": [
+         {
+          "niceName": "MappingOutput",
+          "type": "BaseItem",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/layer/0/opacity",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Float",
+              "param": {
+               "value": 0.0
+              },
+              "paramLink": {
+               "linkType": 1,
+               "mappingValueIndex": 0
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      },
+      {
+       "parameters": [
+        {
+         "value": true,
+         "controlAddress": "/enabled"
+        }
+       ],
+       "niceName": "Speed of the film on layer 1",
+       "type": "Mapping",
+       "im": {
+        "items": [
+         {
+          "parameters": [
+           {
+            "value": "/customVariables/mapper/variables/speed/speed",
+            "controlAddress": "/inputValue"
+           }
+          ],
+          "niceName": "Input Value",
+          "type": "Input Value"
+         }
+        ]
+       },
+       "filters": {
+        "items": []
+       },
+       "outputs": {
+        "items": [
+         {
+          "niceName": "MappingOutput",
+          "type": "BaseItem",
+          "commandModule": "mapper",
+          "commandPath": "",
+          "commandType": "Custom Message",
+          "command": {
+           "parameters": [
+            {
+             "value": "/layer/0/speed",
+             "controlAddress": "/address"
+            }
+           ],
+           "paramLinks": {},
+           "argManager": {
+            "items": [
+             {
+              "niceName": "#1",
+              "type": "Float",
+              "param": {
+               "value": 0.0
+              },
+              "paramLink": {
+               "linkType": 1,
+               "mappingValueIndex": 0
+              }
+             }
+            ]
+           }
+          }
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "sequences": {
+  "items": []
+ }
+}
