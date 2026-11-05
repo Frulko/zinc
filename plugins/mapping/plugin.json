@@ -6,8 +6,8 @@
   "description": "GPU video-mapping compositor (corner pin, mesh warp, masks, edge blend, colour) driven by OSC; needs display gl",
   "targets": {
     "macos": {},
-    "rpi1": {},
-    "linux": {},
+    "rpi1": { "defines": ["ZGL_PICTURES"] },
+    "linux": { "defines": ["ZGL_PICTURES"] },
     "android": { "sources": ["native/android/ZincMappingMedia.java"], "libs": ["GLESv2"], "flags": ["-I${ZINC_ENGINE}/plugins/display-gl"] }
   }
 }

@@ -50,6 +50,9 @@ struct Layer {
   Mask masks[MAX_MASKS];
   GLuint vbo, mfbo;
   Tex tex, mtex, mimg;  // source, mask render target, mask image
+#ifdef ZGL_PICTURES
+  GLuint pictureTex; void* pictureImage; uint32_t pictureSerial;   // the decoder's dmabuf, when its image has one (zgl_picture_texture)
+#endif
   bool geom_dirty, mask_dirty;
 #ifdef ZN_MAPPING_MEDIA
   MediaHandle* mediaShown; MediaHandle* mediaComing;  // a new file replaces the old at its first picture: no black between two media
@@ -119,6 +122,10 @@ void free_gl(Layer& l) {
 #ifdef ZN_MAPPING_MEDIA
   close_media(l.mediaShown, l.mediaShownTex);
   close_media(l.mediaComing, l.mediaComingTex);
+#endif
+#ifdef ZGL_PICTURES
+  zgl_picture_texture(nullptr, 0, &l.pictureImage);
+  if (l.pictureTex) glDeleteTextures(1, &l.pictureTex);
 #endif
   if (l.vbo) glDeleteBuffers(1, &l.vbo);
   if (l.mfbo) glDeleteFramebuffers(1, &l.mfbo);
@@ -397,6 +404,24 @@ int sync_tex(Tex& t, int32_t id) {
   t.image = id; t.version = v; t.w = w; t.h = h; t.rgba = rgba != nullptr;
   return 1;
 }
+
+#ifdef ZGL_PICTURES
+bool pictures_refused = false;
+/** The decoder's picture on this layer's texture, without the processor. False when this GPU cannot: its pixels are asked for, as for a frame that draws it. */
+bool show_picture(Layer& l, raster::Picture* p) {
+  if (!pictures_refused) {
+    if (!l.pictureTex) glGenTextures(1, &l.pictureTex);
+    if (l.pictureSerial == p->hal.serial) return true;
+    if (zgl_picture_texture(&p->hal, l.pictureTex, &l.pictureImage)) { l.pictureSerial = p->hal.serial; return true; }
+    pictures_refused = true;
+    hal_display->gpu_pictures = 0;   // the next films decode to pixels from the start
+    fprintf(stderr, "mapping: this GPU does not take the decoder's pictures (format %.4s): films go through the processor\n", (const char*)&p->hal.format);
+  }
+  if (!p->filled && p->fill) p->fill(p->user);
+  p->software = true;
+  return false;
+}
+#endif
 
 void draw_quad() {
   glBindBuffer(GL_ARRAY_BUFFER, quad);
@@ -715,9 +740,17 @@ void draw(int32_t w, int32_t h) {
       build_mask(l); glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)to); glViewport(0, 0, w, h);
     }
     int src = l.card >= 0 ? (int)IMAGE : l.source == SOURCE_NONE ? (int)PATTERN : l.source;
+#ifdef ZGL_PICTURES
+    raster::Picture* picture = src == IMAGE && l.card < 0 && l.image >= raster::DYN_BASE ? raster::dyn_picture(l.image) : nullptr;
+    if (picture && !show_picture(l, picture)) picture = nullptr;
+    if (picture) src = EXTERNAL;
+#endif
     if (src == IMAGE) src = sync_tex(l.tex, l.card >= 0 ? l.card : l.image) < 0 ? PATTERN : l.tex.rgba ? BAKED : IMAGE;  // missing image: test pattern
     int32_t sourceW = src >= IMAGE ? l.tex.w : 0, sourceH = src >= IMAGE ? l.tex.h : 0;
     GLuint sourceTex = src >= IMAGE ? l.tex.id : white;
+#ifdef ZGL_PICTURES
+    if (picture) { sourceW = picture->bw; sourceH = picture->bh; sourceTex = l.pictureTex; }
+#endif
 #ifdef ZN_MAPPING_MEDIA
     if (l.card < 0 && l.mediaShown && l.shown.ready) {
       src = l.shown.image ? BAKED : EXTERNAL;
@@ -751,6 +784,9 @@ void draw(int32_t w, int32_t h) {
     glUniform4fv(glGetUniformLocation(p, "u_turn"), 1, turn);
     glUniform2f(glGetUniformLocation(p, "u_move"), l.picture[0], l.picture[1]);
     glUniform4fv(glGetUniformLocation(p, "u_clip"), 1, clip);
+#ifdef ZGL_PICTURES
+    if (src == EXTERNAL) glUniform4f(glGetUniformLocation(p, "u_stm"), 1, 1, 0, 0);
+#endif
 #ifdef ZN_MAPPING_MEDIA
     // the decoder's picture has its first row at the end of the texture: the surface's top reads t = 1 of the player's matrix
     if (src == EXTERNAL) glUniform4f(glGetUniformLocation(p, "u_stm"), l.shown.scaleS, -l.shown.scaleT, l.shown.offsetS, l.shown.offsetT + l.shown.scaleT);
@@ -1083,5 +1119,8 @@ NativeMapping* zinc_create_Mapping() {
   static Mapping m;
   m.rc = zrt::IMMORTAL;
   zgl_layers = draw;
+#ifdef ZGL_PICTURES
+  if (hal_display) hal_display->gpu_pictures = 1;
+#endif
   return &m;
 }

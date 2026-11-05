@@ -252,6 +252,9 @@ struct HalDisplay {
   // the shell's buffers): the driver closes the display and its input devices, and presents nothing; on = 0: it opens them again and
   // presents a whole frame.
   void (*suspend)(int on);
+  // 1: something on this display draws a decoder's dmabufs on the GPU itself (zinc:mapping through display-gl), so a video decoder is asked for them
+  // even with no hardware layers. A frame that draws the image in software still asks for its pixels.
+  int gpu_pictures;
 };
 extern HalDisplay* hal_display;
 // A driver's registration: `static int reg = hal_display_register(&d, "sidecar");`. A driver linked on demand (zinc.json "displays": the

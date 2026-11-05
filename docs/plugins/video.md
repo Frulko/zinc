@@ -52,6 +52,9 @@ Using `zinc:video` on an unlisted target is error Z5003 at build time.
   and the decode thread converts the following ones, as long as frames draw them so. The frame is the same either way.
   `ZINC_VIDEO_PRIME=0` turns the dmabufs off. Measured on a Pi 3B+: 3.4 to 4.8 ms of CPU a picture for the whole
   program against 35 to 38 (`docs/reports/raspberry-pi.md`).
+- **Zero copy on the GPU** (Linux, `zinc:mapping`): with `zinc:mapping` loaded, a decoder's dmabufs become a texture (`EGL_EXT_image_dma_buf_import`,
+  `zgl_picture_texture`) and every warp, mask and colour of the layer applies; the processor reads no picture. On a Pi 3B+, 720p30 goes from 43 fps
+  and 400 ms behind to 60 fps and on time. A GPU that refuses the import says so once and the films go through the processor.
 - **Hand-over**: a ring of `buffers` slots (plugin option, default 4). The worker only writes free slots; the main
   thread (a `zrt::Poller`, once per loop iteration, before `onFrame`) picks the newest frame whose timestamp is due,
   frees older ones (`dropped`), and publishes it with `raster::dyn_update`. The player's image id never changes:
@@ -117,5 +120,4 @@ files directory (Android `files/`, iOS `Library/Application Support/zinc/`; `exa
 - Audio (SDL3 audio on macOS, ALSA on Linux) with the video clock slaved to the audio clock; `wait_time` pauses and
   one-shot already work without it.
 - Zero-copy paths on the other targets: a VideoToolbox `CVPixelBuffer` (an IOSurface) to the window's compositor on
-  macOS, VA-API surfaces as dmabufs on a Linux desktop, an EGLImage in `display-gl` for a film that is turned or
-  blended. The contract is the one the KMS planes use (`HalDisplay.layers`, `raster::Picture`).
+  macOS, VA-API surfaces as dmabufs on a Linux desktop, an EGLImage for a film the UI draws turned or blended. The contract is the one the KMS planes use (`HalDisplay.layers`, `raster::Picture`).

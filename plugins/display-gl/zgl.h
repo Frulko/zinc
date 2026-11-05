@@ -25,4 +25,9 @@ extern void (*zgl_layers)(int32_t w, int32_t h);
 GLuint zgl_program(const char* defines, const char* vs, const char* fs);
 /** Logical UI surface size (zinc.json width/height). */
 void zgl_logical_size(int32_t* w, int32_t* h);
+#ifdef ZGL_PICTURES
+/** A decoder's dmabufs on an external texture (GL_TEXTURE_EXTERNAL_OES), nothing copied. `image` keeps what the texture shows: the one before it is
+ *  let go. A null picture only lets go. False: this GPU cannot import it, and nothing changed. */
+bool zgl_picture_texture(const struct HalPicture* pic, GLuint tex, void** image);
+#endif
 }

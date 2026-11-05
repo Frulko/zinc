@@ -31,10 +31,10 @@ API: `command(address, numbers, strings)`, `addLayer(source, name)`, `set(layer,
 |---|---|---|
 | macos | supported, verified | driven over OSC and through the editor, screenshots before/after (warp, masks, colour, blend, video layer, save/load) |
 | android | supported, verified on Android 4.4 (RK3128, Mali-400) with the patch of `docs/reports/hardware/toumei-c800-api19.sh` | plays `/layer/<n>/media` itself (`MediaPlayer` into a texture: hardware decoding, sound); newer devices not tried |
-| rpi1 on Pi 4 / 5 (32-bit OS) | builds in docker; **not run on hardware** | GLES 2 on Mesa v3d; 1080p output with a few layers is the expected sweet spot |
-| rpi1 on Pi 3B+ | builds; **not run on hardware** | Mesa vc4 (VideoCore IV): keep to 720p/1080p30 and 2–3 layers; video uploads (`glTexSubImage2D` of every new frame) are the bottleneck, decode small (`new Player(640, 360)`) |
+| Raspberry Pi 3B+, 64-bit (`--target rpi`, `zinc device deploy`) | supported, verified on a Pi 3B+ with its 800x480 screen, as a follower of a Mac | films go from the hardware decoder to the GPU without a copy (dmabuf, EGLImage): 720p30 at 60 fps, 1080p30 on time with the interface at about 35 fps; same frame as the Mac within 33 ms |
+| Pi 4 / 5 | same code, not run | GLES 2 on Mesa v3d |
 | rpi1 on Pi 1 / Zero | not supported | same GPU, but the ARMv6 CPU cannot feed texture uploads and decoding at the same time |
-| linux | not supported | display-gl has no linux backend wired (the KMS one would work) |
+| linux (`--target x86_64-linux`, a NUC or a PC) | builds; **not run on hardware** | KMS without a desktop, a window on X11 |
 | esp32, ps1, ps2, wasm | no | no GL |
 | sim | accepted and ignored | commands return true, nothing is drawn |
 

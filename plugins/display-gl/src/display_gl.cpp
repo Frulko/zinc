@@ -78,7 +78,9 @@ extern "C" GLuint zgl_program(const char* defines, const char* vs, const char* f
   static const char* pre_fs = "#version 150\n#define varying in\n#define texture2D texture\nout vec4 zgl_color;\n#define gl_FragColor zgl_color\n";
 #else
   static const char* pre_vs = "#version 100\n";
-  static const char* pre_fs = "#version 100\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n";
+  // the extension line comes before any other token: Mesa refuses it after the precision
+  const char* pre_fs = strstr(fs, "samplerExternalOES") ? "#version 100\n#extension GL_OES_EGL_image_external : require\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n"
+                                                       : "#version 100\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n";
 #endif
   GLuint p = glCreateProgram();
   const char* src[2][3] = {{pre_vs, defines, vs}, {pre_fs, defines, fs}};

@@ -136,6 +136,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - The Sonos plugin reads a group and its rooms in parallel, and a new `eachGroup` runs work over groups, three at a time. The inspector, the Markdown reader's Notion sync and pictures, Zinc Hub's icons, Discord file uploads and iPod library loads no longer wait for one request at a time.
 - Museum releases hidden 3D output buffers and stopped video decoders after navigation, recreating them when needed.
 - On an Android device that tells apps a larger screen than its panel really has, the GL renderer draws only the panel's pixels: no setting needed.
+- `zinc:mapping` on Linux and Raspberry Pi takes films straight from the hardware decoder into the GPU, with no copy: a Pi 3B+ plays a mapped 720p film at 60 fps (43 before) and 1080p30 on time.
 
 #### Fixed
 - macOS keeps Metal presentation continuous by default and retains the last snapshot during resize, avoiding empty frames from adaptive renderer transitions.

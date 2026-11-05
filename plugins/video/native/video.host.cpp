@@ -80,7 +80,7 @@ static bool open_decoder(Source* s, const AVCodec* sw, const AVCodecParameters* 
 #ifdef ZP_VIDEO_PRIME
   // ZINC_VIDEO_PRIME=0: the decoder's frames as pixels in memory whatever the display (to compare, or a decoder whose dmabufs fail)
   const char* off = getenv("ZINC_VIDEO_PRIME");
-  s->prime = hal_display && hal_display->layers && !(off && *off == '0');
+  s->prime = hal_display && (hal_display->layers || hal_display->gpu_pictures) && !(off && *off == '0');
 #endif
   if (const AVCodec* m2m = avcodec_find_decoder_by_name(n)) if (try_decoder(s, m2m, par, false)) {
     snprintf(s->name, sizeof s->name, "%s%s", n, s->prime ? " (dmabuf)" : "");
