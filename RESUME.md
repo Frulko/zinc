@@ -1,4 +1,12 @@
-# Resume — 2026-11-01
+# Resume — 2026-11-06
+
+## Implicit state machines hardened, the tree committed — 2026-11-06
+
+- Audit of the implicit state machines of the engine, lib/std and plugins: `docs/reports/implicit-state-machines.md` (about 150 findings, read from code). Two batches fixed what reproduced, each with a regression test: ZN-993 (reactivity survives a throw, release(h) gesture refs), ZN-994 (job workers restart, shot_watch), ZN-995 (script/webview/screen-capture handles carry a generation), ZN-996 (app and OTA update trials, `doc --serve`), ZN-997 (gestures, navigation, Press, keyboard, image viewer), ZN-998 (lexer JSX in templates, toolchain FileLock, LSP versions), ZN-999 (`"crash"` zinc.json key removed: J0001). About a third of the findings did not reproduce and were left alone; follow-ups are in `backlog/later.md`.
+- The crash longjmp/restart path of the runtime is never used by shipped builds (ZRT_CRASH 0); only `tests/t0/zrt_restart.sh` builds it.
+- The other sessions' uncommitted work is committed (owner asked): sidecar remote control + stream leaks (38c8b05a8), translucent window resize (600280df6), bundle executable named after the app (0e1cfb988), the Python/Lua study (8d9e8c9dd), Riffle without its debug log (cbfce7dd3), macOS NSLocalNetworkUsageDescription + EHOSTUNREACH hint (650058999). The tree is clean.
+- 19 merged worktrees removed. 16 remain in `.claude/worktrees/` with commits not on develop (15 agents of Nov 2-5) or uncommitted work (`rmpp-engine`): review before removing.
+- Open: deblab (192.168.10.131) answered nothing on Nov 6 morning; the direct Sidecar connection (no tunnel), the Kenney cursor on the real screen and `sidecar_remote` (uses the clipboard) wait for it. Possible worker loop leak at `src/host/loop.cpp:30`, unmeasured. Nothing pushed.
 
 ## `develop` compiles again, async hot paths — 2026-11-03
 
