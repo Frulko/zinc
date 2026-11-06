@@ -16,6 +16,7 @@
 #include <deque>
 #include <cstring>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
@@ -26,13 +27,32 @@ extern char** environ;
 namespace zn::loop {
 namespace {
 
+const int kOwned = 0;   // the data of a handle this file allocated with new: freed when the loop of an ending thread closes it
+const std::thread::id kMainThread = std::this_thread::get_id();   // static initialisation runs on the main thread
+
+void onOwnedClose(uv_handle_t* h) {
+  if (h->data != &kOwned) return;
+  if (h->type == UV_ASYNC) delete reinterpret_cast<uv_async_t*>(h);
+  else if (h->type == UV_TIMER) delete reinterpret_cast<uv_timer_t*>(h);
+}
+
+// One loop per thread: each worker (zinc:worker, D181) runs its own. A worker's loop is closed when its thread ends (ZN-1001: before, each
+// worker left its kqueue, the descriptor of its async wake-up and their memory behind, ~2 descriptors a worker until the process ran out).
+// Constructed before any handle of the thread, so destroyed after the thread_local owners of handles. The main thread's loop lives as long as the process.
+struct ThreadLoop {
+  uv_loop_t* l = nullptr;
+  ThreadLoop() { l = new uv_loop_t; uv_loop_init(l); }
+  ~ThreadLoop() {
+    if (std::this_thread::get_id() == kMainThread) return;
+    uv_walk(l, [](uv_handle_t* h, void*) { if (!uv_is_closing(h)) uv_close(h, onOwnedClose); }, nullptr);
+    uv_run(l, UV_RUN_NOWAIT);   // one round runs the close callbacks; never blocks the thread's end
+    if (uv_loop_close(l) == 0) delete l;   // ponytail: a loop with a request still in flight (a DNS lookup) is left open, as before
+  }
+};
+
 uv_loop_t* loop() {
-  thread_local uv_loop_t* l = [] {   // one loop per thread: each worker (zinc:worker, D181) runs its own (ponytail: never closed, a worker thread's loop lives as long as the process)
-    auto* x = new uv_loop_t;
-    uv_loop_init(x);
-    return x;
-  }();
-  return l;
+  thread_local ThreadLoop t;
+  return t.l;
 }
 
 struct Child {
@@ -86,7 +106,7 @@ static void trimHeap(bool idle) {
 void pump() {
   trimHeap(false);
   // uv_run polls only while some handle is active, and the signal and stdin watchers are unreferenced: an active zero timer makes one polling round happen
-  thread_local uv_timer_t* t = [] { auto* x = new uv_timer_t; uv_timer_init(loop(), x); return x; }();
+  thread_local uv_timer_t* t = [] { auto* x = new uv_timer_t; uv_timer_init(loop(), x); x->data = const_cast<int*>(&kOwned); return x; }();
   uv_timer_start(t, onTimer, 0, 0);
   uv_run(loop(), UV_RUN_NOWAIT);
   uv_timer_stop(t);
@@ -438,7 +458,8 @@ void* wakeNew() {
   auto* a = new uv_async_t;
   uv_async_init(loop(), a, [](uv_async_t*) {});
   uv_unref(reinterpret_cast<uv_handle_t*>(a));
-  return a;   // ponytail: never closed, one per thread that owns or is a worker, kept for the life of the process
+  a->data = const_cast<int*>(&kOwned);
+  return a;   // closed and freed with its thread's loop (a worker's when its thread ends; the main thread's never)
 }
 void wakeSend(void* h) { if (h) uv_async_send(static_cast<uv_async_t*>(h)); }
 void readStdin() {

@@ -30,6 +30,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Covering a running window on macOS no longer freezes the program for about a second.
 - A translucent window that follows its content (an accordion in a menu bar panel) grows and shrinks smoothly on macOS: its picture was stretched or squashed during the animation.
 - A `zinc device screen` request withdrawn before it was answered no longer keeps a video off its hardware layer for the rest of the run.
+- A program that starts and terminates many `zinc:worker` workers no longer runs out of open files or grows in memory: each ended worker left two open files and about 8 KB behind.
 
 ### Plugins
 

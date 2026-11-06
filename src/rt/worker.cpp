@@ -539,22 +539,26 @@ void join(W& w) {
   if (w.joined) return;
   w.joined = true;
   pthread_join(w.th, nullptr);
+  {   // the record stays as its handle's slot (handle = index + 1); what it held goes (ZN-1001: ~8 KB a worker kept for the life of the program)
+    std::lock_guard<std::mutex> g(w.mu);
+    decltype(w.toWorker)().swap(w.toWorker);
+    decltype(w.toMain)().swap(w.toMain);
+    w.mod.reset();
+  }
   std::lock_guard<std::mutex> g(gRegMu);
   for (std::size_t i = 0; i < gAll.size(); ++i) if (gAll[i].get() == &w) { gAll.erase(gAll.begin() + static_cast<std::ptrdiff_t>(i)); break; }
 }
 
 void terminate(W& w) {
-  void* ww;
   {
     std::lock_guard<std::mutex> g(w.mu);
     if (w.terminated) return;
     w.terminated = true;
     w.toMain.clear();   // its pending messages are dropped, as on the web
-    ww = w.wakeWorker;
     if (!w.endTaken) { w.endTaken = true; finishOwn(w); }
+    w.stop = true;
+    wake(w.wakeWorker);   // under the lock: the worker's thread closes its loop (and this wake-up) once it set wakeWorker to null
   }
-  w.stop = true;
-  wake(ww);
   trace(Terminate, w);
 }
 
@@ -584,17 +588,15 @@ const char* post(Slot h, std::vector<std::uint8_t>&& b) {   // a message's bytes
   }
   W* w = owned(h);
   if (!w) return "postMessage: not a worker of this program";
-  void* ww;
   {
     std::lock_guard<std::mutex> g(w->mu);
     if (w->terminated || w->ended) return nullptr;   // a message to a worker that is gone is dropped, as on the web
     w->idle.store(false, std::memory_order_relaxed);
     w->toWorker.push_back(std::move(b));
-    ww = w->wakeWorker;
+    wake(w->wakeWorker);   // under the lock, as terminate()
   }
   w->in.fetch_add(1, std::memory_order_relaxed);
   trace(PostToWorker, *w, n);
-  wake(ww);
   return nullptr;
 }
 
