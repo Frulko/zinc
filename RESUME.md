@@ -6,7 +6,7 @@
 - The crash longjmp/restart path of the runtime is never used by shipped builds (ZRT_CRASH 0); only `tests/t0/zrt_restart.sh` builds it.
 - The other sessions' uncommitted work is committed (owner asked): sidecar remote control + stream leaks (38c8b05a8), translucent window resize (600280df6), bundle executable named after the app (0e1cfb988), the Python/Lua study (8d9e8c9dd), Riffle without its debug log (cbfce7dd3), macOS NSLocalNetworkUsageDescription + EHOSTUNREACH hint (650058999). The tree is clean.
 - 19 merged worktrees removed. 16 remain in `.claude/worktrees/` with commits not on develop (15 agents of Nov 2-5) or uncommitted work (`rmpp-engine`): review before removing.
-- Open: deblab (192.168.10.131) answered nothing on Nov 6 morning; the direct Sidecar connection (no tunnel), the Kenney cursor on the real screen and `sidecar_remote` (uses the clipboard) wait for it. Possible worker loop leak at `src/host/loop.cpp:30`, unmeasured. Nothing pushed.
+- Open: deblab is no longer available. The direct Sidecar connection (macOS Local Network permission, no tunnel) and the Kenney cursor on a real screen wait for any LAN screen running `sidecar-screen` (iPad, Android, another Mac); loopback tests cannot show the permission. `sidecar_remote` needs no screen but uses the clipboard: run it when nobody works on the Mac. Possible worker loop leak at `src/host/loop.cpp:30`, unmeasured. Nothing pushed.
 
 ## `develop` compiles again, async hot paths — 2026-11-03
 
