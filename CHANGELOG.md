@@ -21,8 +21,13 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Rendering and performance
 
+#### Faster
+
+- On macOS a window that nobody sees (covered by other windows, minimized or hidden) stops drawing and slows its loop to 10 frames a second, about a tenth of the CPU it used, and is back at full speed the moment it shows again; `ZINC_UNSEEN=draw` keeps it drawing.
+
 #### Fixed
 
+- Covering a running window on macOS no longer freezes the program for about a second.
 - A translucent window that follows its content (an accordion in a menu bar panel) grows and shrinks smoothly on macOS: its picture was stretched or squashed during the animation.
 - A `zinc device screen` request withdrawn before it was answered no longer keeps a video off its hardware layer for the rest of the run.
 

@@ -531,6 +531,10 @@ static int windowCall(const char* op, NSDictionary* a, char* out, int cap) {
     else if (!strcmp(op, "window.maximize")) { if (!w.isZoomed) [w zoom:nil]; }
     else if (!strcmp(op, "window.minimize")) [w miniaturize:nil];
     else if (!strcmp(op, "window.hide")) [w orderOut:nil];
+    else if (!strcmp(op, "window.show") && getenv("ZINC_BACKGROUND") && getenv("ZINC_BACKGROUND")[0] != '0') {   // shown without taking the focus
+      if (w.isMiniaturized) [w deminiaturize:nil];
+      [w orderFront:nil];
+    }
     else if (!strcmp(op, "window.show")) { [w makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES]; }
     else if (!strcmp(op, "window.focus")) { [w makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES]; }
     else if (!strcmp(op, "window.setTitleBar")) {

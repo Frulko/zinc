@@ -96,6 +96,7 @@ extern "C" void hal_mtl_close(void);
 extern "C" bool hal_mtl_replay(const HalCmdList* const* lists, int n, int pw, int ph);
 extern "C" void hal_mtl_readback(void);
 extern "C" bool hal_mtl_gpu_enable(void);
+extern "C" bool hal_mtl_dropped;
 static bool mtl_on;
 #else
 static const bool mtl_on = false;
@@ -859,6 +860,15 @@ static Sec secs[8];
 static bool main_hidden = false;
 static SDL_Window* text_win = nullptr;   // the window being drawn (hal_win_current): text input follows it
 static uint64_t hidden_at = 0;           // pacing while the main window is hidden (its present no longer waits for the display)
+// Unseen (ZN-1000): the main window covered by other windows (occluded), minimized or hidden, with no other window open. Its presents would
+// show nothing: a covered CAMetalLayer hands out no drawable and nextDrawable holds the present (and the script behind it) up to its 1 s
+// timeout, and a present that does not wait lets the loop run at the 8 ms cap. So, as Chrome and Electron throttle a hidden window, nothing
+// is presented and the poll waits for an event up to kUnseenUs between frames: the script keeps running (timers, sockets, its own state) at
+// 10 frames a second, and any event (shown again, uncovered, restored) wakes it at once; the first frame shown is drawn whole.
+// Not in deterministic runs nor with ZINC_FRAMES (tests and measures count frames), nor with ZINC_UNSEEN=draw.
+static std::atomic<bool> unseen{false};
+static bool redraw_whole = false;        // frames were not presented: the window's buffer is older than the frame, the next present is whole
+static constexpr uint64_t kUnseenUs = 100000;
 static Sec* sec_by_id(int32_t id) { for (Sec& s : secs) if (s.open && s.id == id) return &s; return nullptr; }
 static Sec* sec_of(SDL_Window* w) { if (!w || w == win) return nullptr; for (Sec& s : secs) if (s.open && s.w == w) return &s; return nullptr; }
 static int secs_open() { int n = 0; for (Sec& s : secs) n += s.open; return n; }
@@ -1097,6 +1107,12 @@ void hal_poll_input(HalInput* in) {
   if (!ns_tried && win) { ns_tried = true; native_scroll = hal_sdl_scroll_monitor(SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr), ns_scroll) != 0; }
   SDL_Event e;
   const bool several = secs_open() > 0 || main_hidden;
+  if (unseen && !in_watch && !no_pump) {   // pace the unseen window: until an event, kUnseenUs after the last poll at most
+    static uint64_t last;
+    const uint64_t now = SDL_GetTicksNS() / 1000;
+    if (now - last < kUnseenUs) SDL_WaitEventTimeout(nullptr, (Sint32)((kUnseenUs - (now - last) + 999) / 1000));
+    last = SDL_GetTicksNS() / 1000;
+  }
   while (next_event(&e)) {
     if (several) {   // the events of the other windows are theirs; closing the main window hides it while they are open
       SDL_Window* ew = SDL_GetWindowFromEvent(&e);
@@ -1203,6 +1219,13 @@ void hal_poll_input(HalInput* in) {
   in->px = mx; in->py = my; in->pdown = (mb & SDL_BUTTON_LMASK) != 0;
   in->pbuttons = ((mb & SDL_BUTTON_LMASK) ? 1u : 0u) | ((mb & SDL_BUTTON_RMASK) ? 2u : 0u) | ((mb & SDL_BUTTON_MMASK) ? 4u : 0u);
   in->mods = mods_of(SDL_GetModState());
+  static const bool throttle = !det && frames_left < 0 && !(getenv("ZINC_UNSEEN") && !strcmp(getenv("ZINC_UNSEEN"), "draw"));
+  const bool now_unseen = throttle && win && shown && !main_hidden && secs_open() == 0 &&
+                          (SDL_GetWindowFlags(win) & (SDL_WINDOW_OCCLUDED | SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN));
+  if (now_unseen != unseen) {
+    unseen = now_unseen;
+    if (getenv("ZINC_WINDOW_LOG")) fprintf(stderr, "zinc: window %s\n", now_unseen ? "unseen" : "seen");
+  }
   if (frames_left >= 0 && frames_left-- == 0) quit = true;
   in->quit = quit;
 }
@@ -2053,10 +2076,20 @@ void hal_present(const HalFrame* f) {
     }
     return;
   }
+  if (unseen) { redraw_whole = true; return; }   // nothing would show (ZN-1000)
+  HalFrame whole;
+  if (redraw_whole) {   // shown again: the window's buffer holds the last frame presented, not the one before this
+    redraw_whole = false;
+    whole = *f; whole.x0 = whole.y0 = 0; whole.x1 = f->w; whole.y1 = f->h; whole.render_damage = nullptr; whole.move = nullptr;
+    f = &whole;
+  }
 #ifdef __APPLE__
   window_background(f);
 #endif
   present_frame(f);
+#if defined(SDL_PLATFORM_MACOS) || defined(SDL_PLATFORM_IOS)
+  if (hal_mtl_dropped) { hal_mtl_dropped = false; redraw_whole = true; }   // no drawable came in time (hal_metal.mm next_drawable)
+#endif
   if (in_watch) { live_frames++; live_w = f->w; live_h = f->h; }
   if (shown) return;
   shown = true;

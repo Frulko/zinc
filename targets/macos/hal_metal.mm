@@ -16,6 +16,7 @@
 #include <math.h>
 #include <time.h>
 #include <algorithm>
+#include <mutex>
 #include <vector>
 #include <unordered_map>
 #include "zrt_raster.h"
@@ -35,6 +36,41 @@ static int fw, fh;
 static id<MTLCommandBuffer> reading;   // the last present: the GPU reads the frame until it completes
 
 extern "C" bool hal_mtl_gpu_enable(void);
+// The next drawable without the 1 s stall of a covered window (ZN-1000). A drawable comes back once the one after it is taken by the screen;
+// a covered, hidden or minimized window shows nothing, so nextDrawable waits for its timeout (1001.9 ms measured) and holds the present, and
+// the script behind it. So nextDrawable runs on a queue of its own and the present waits kDrawableWaitNs for it (three frames at 60 Hz; a shown
+// window gets one within a frame or two): past that the frame is not presented (the frame buffer keeps it, the next present copies it whole)
+// and the drawable, when it comes, goes to the next present. The window HAL stops presenting once it hears that the window is unseen.
+static std::mutex fetch_mu;
+static id<CAMetalDrawable> fetched;       // a drawable that came after its present gave up
+static dispatch_semaphore_t fetch_done;   // the nextDrawable running, nil when none
+static constexpr int64_t kDrawableWaitNs = 50000000;
+extern "C" { bool hal_mtl_dropped; }   // a frame was not presented: the window HAL presents the next one whole, damaged or not
+static id<CAMetalDrawable> next_drawable() {
+  static dispatch_queue_t q = dispatch_queue_create("zinc drawable", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, 0));
+  dispatch_semaphore_t done;
+  {
+    std::lock_guard<std::mutex> g(fetch_mu);
+    if (!(done = fetch_done)) {
+      if (fetched) { id<CAMetalDrawable> d = fetched; fetched = nil; return d; }
+      done = fetch_done = dispatch_semaphore_create(0);
+      CAMetalLayer* l = layer;
+      dispatch_async(q, ^{
+        id<CAMetalDrawable> d = [l nextDrawable];
+        { std::lock_guard<std::mutex> g2(fetch_mu); fetched = d; fetch_done = nil; }
+        dispatch_semaphore_signal(done);
+      });
+    }
+  }
+  if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, kDrawableWaitNs)) != 0) {
+    if (getenv("ZINC_METAL_LOG")) fprintf(stderr, "metal: no drawable within 50 ms: the frame is not presented\n");
+    hal_mtl_dropped = true;
+    return nil;
+  }
+  std::lock_guard<std::mutex> g(fetch_mu);
+  id<CAMetalDrawable> d = fetched; fetched = nil;
+  return d;
+}
 #if TARGET_OS_OSX
 static bool surface_mode;
 static CALayer* image_layer;
@@ -117,6 +153,7 @@ static bool metal_open(SDL_Window* w, bool nearest) {
 static void metal_close() {
   @autoreleasepool {
     if (reading) { [reading waitUntilCompleted]; reading = nil; }
+    { std::lock_guard<std::mutex> g(fetch_mu); fetched = nil; }   // a drawable of this layer, not of the next one
     frame = nil; queue = nil; layer = nil;
     if (view) { SDL_Metal_DestroyView(view); view = nullptr; }
     [CATransaction flush];
@@ -233,7 +270,7 @@ extern "C" void hal_mtl_present(void) {
       layer.drawableSize = CGSizeMake(fw, fh);
       [CATransaction commit];
     }
-    id<CAMetalDrawable> d = [layer nextDrawable];
+    id<CAMetalDrawable> d = next_drawable();
     if (!d) return;
     const NSUInteger w = SDL_min((NSUInteger)fw, d.texture.width), h = SDL_min((NSUInteger)fh, d.texture.height);   // a drawable of the old size, mid-rotation
     id<MTLCommandBuffer> cb = [queue commandBuffer];
@@ -605,7 +642,7 @@ extern "C" bool hal_mtl_replay(const HalCmdList* const* lists, int n, int pw, in
     id<CAMetalDrawable> d = nil;
     if (n > 0) {
       if (layer.drawableSize.width != pw || layer.drawableSize.height != ph) layer.drawableSize = CGSizeMake(pw, ph);
-      d = [layer nextDrawable];
+      d = next_drawable();
     }
     if (getenv("ZINC_METAL_LOG")) fprintf(stderr, "metal: %d lists, %u passes, drawable %p, size %dx%d\n", n, np, (__bridge void*)d, pw, ph);
     id<MTLTexture> dtex = d ? d.texture : nil;
