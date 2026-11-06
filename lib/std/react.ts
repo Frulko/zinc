@@ -56,7 +56,9 @@ function rerender(inst: Instance): void {
   for (const n of inst.nodes) ui.detachChildren(n);
   const prev = cur;
   cur = inst;
-  const node = inst.render();
+  let node: i32 | null = null;
+  try { node = inst.render(); }
+  catch (e) { cur = prev; ui.endChildUpdate(); throw e; }   // a parent that catches it (an error boundary) renders on in a sane state
   cur = prev;
   for (let k = inst.cursor; k < inst.nodes.length; k++) ui.destroy(inst.nodes[k]);
   for (const kid of inst.kids) if (inst.nextKids.indexOf(kid) < 0) unmount(kid);

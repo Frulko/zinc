@@ -103,8 +103,7 @@ function run(c: Computation): void {
   cleanUp(c);
   const prev = current, prevOwner = owner;
   current = c; owner = c;
-  c.fn();
-  current = prev; owner = prevOwner;
+  try { c.fn(); } finally { current = prev; owner = prevOwner; }
 }
 function notify(subs: Computation[]): void {
   const list = subs.slice();
@@ -144,19 +143,19 @@ export function createSubtree(make: () => i32): Subtree {
 export function untrack<T>(fn: () => T): T {
   const prev = current;
   current = null;
-  const r = fn();
-  current = prev;
-  return r;
+  try { return fn(); } finally { current = prev; }
 }
 export function batch(fn: () => void): void {
   batchDepth++;
-  fn();
-  batchDepth--;
-  if (batchDepth === 0) {
-    while (pending.length > 0) {
-      const c = pending.shift();
-      c.queued = false;
-      run(c);
+  try { fn(); }
+  finally {   // a throw still ends the batch and flushes it (as Solid): otherwise every later write stays queued
+    batchDepth--;
+    if (batchDepth === 0) {
+      while (pending.length > 0) {
+        const c = pending.shift();
+        c.queued = false;
+        run(c);
+      }
     }
   }
 }

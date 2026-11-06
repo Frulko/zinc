@@ -724,6 +724,20 @@ function release(h: i32): void {
   if (capture === h) capture = -1;
   if (selecting === h) selecting = -1;
   if (tsNode === h || tsEnd === h) tsNode = -1;
+  // the gesture under way lets go of it too: handles are recycled, and a drag begun on this node scrolled the next node made
+  if (dragScroller === h) { dragScroller = -1; dragging = false; }
+  if (grabber === h) { grabber = -1; grabKind = 0; }
+  if (tapNode === h) tapNode = -1;
+  if (longNode === h) longNode = -1;
+  if (gHit === h) gHit = -1;
+  if (dragCands.indexOf(h) >= 0) dragCands.splice(dragCands.indexOf(h), 1);
+  if (tapEdit === h) tapEdit = -1;
+  if (fingerField === h) fingerField = -1;
+  if (touchSel === h) touchSel = -1;
+  if (padScroller === h) padScroller = -1;
+  if (padEdit === h) padEdit = -1;
+  if (momScroller === h) momScroller = -1;
+  if (momEdit === h) momEdit = -1;
   for (const a of anims) if (a.node === h) a.node = -1;
   nodes[h] = DEAD;
   free.push(h);
