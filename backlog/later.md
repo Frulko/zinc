@@ -720,6 +720,10 @@ The next backlog review turns lines into tasks or deletes them.
 - webcam_demo: the golden hash was refreshed for 1 and 58 pixels of at most 1 level with no commit of its own naming the cause; find which change moved them.
 
 - mapper fleet: `aria-label` (any hyphenated attribute) on a component made of a function lowers to `{ aria-label: ... }`, a syntax error in generated code with the wrong column; quote the key or say the prop is unknown.
+- ZN-995: `Promise.catch` with a void arrow body is refused (Z0110 "not all paths return a value") while TypeScript accepts it; reproduce and fix in the checker.
+- ZN-993: `const r = fn()` is refused (Z0109) when a generic T is inferred as void, e.g. `untrack(() => {...})`; any generic helper written that way breaks for void callbacks.
+- ZN-995: screen-capture holds a raw `Session*` in the startCapture completion and polls `open()` every 10 ms with no timeout; harden with the generation scheme if a late start completion is seen.
+- ZN-993: `swapSurface` keeps per-window gesture fields that `release(h)` does not clear for a background window; `releaseAt` early returns, `grabKind===3 && !pinching` freezing pan and releases while backgrounded remain (docs/reports/implicit-state-machines.md #17).
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -1227,3 +1231,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-hamlet-atlas-deer: `hamlet_atlas` deer stamps differ from live deer (1670 pixels) on develop; not from the fluidity pass.
 - Lumen: a box's `shadow-*` is painted under its whole box, so it shows through a translucent background; CSS clips it to the outside. Lumen's glass cards have no shadow because of it.
 - Mapper: a value of type `any` is refused as a ternary's condition (Z0103 any to boolean) where TypeScript takes it; hit in the sync card, typed the state instead.
+- ZN-995: build and run the webview slot-reuse scenario of `tests/t1/webview.sh` on Linux (`webview.linux.cpp` got the same generation handles, unbuilt on the Mac).
