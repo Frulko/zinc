@@ -1,0 +1,2 @@
+  virtual void pointer(int32_t v, double x, double y, int32_t kind, double dx, double dy) = 0;
+  virtual void cursor(int32_t v, int32_t shape) = 0;

@@ -57,7 +57,7 @@ open(os.path.join(proj, "main.js"), "w").write("console.log('exported', __ZINC_E
 expect("export", True, run([zinc, "export", proj, "--target", "macos"], home))
 app = os.path.join(proj, "dist", "hi-macos", "hi.app")
 if not os.path.isfile(os.path.join(app, "Contents", "Resources", "engines", "jsc", "libzn_engine_jsc.dylib")): fails.append("the exported app has no pack: " + str(os.listdir(os.path.join(app, "Contents", "Resources"))))
-ent = subprocess.run(["codesign", "-d", "--entitlements", "-", os.path.join(app, "Contents", "MacOS", "zinc")], capture_output=True, text=True)
+ent = subprocess.run(["codesign", "-d", "--entitlements", "-", os.path.join(app, "Contents", "MacOS", "hi")], capture_output=True, text=True)
 if "com.apple.security.cs.allow-jit" not in ent.stdout + ent.stderr: fails.append("the exported zinc has no allow-jit: " + ent.stdout + ent.stderr)
 v = subprocess.run(["codesign", "--verify", "--deep", "--strict", app], capture_output=True, text=True)
 if v.returncode: fails.append("the exported app's signature does not verify: " + v.stderr)

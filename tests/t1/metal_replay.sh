@@ -11,6 +11,8 @@ d=tests/data/image_alpha
 env -u ZINC_DETERMINISTIC ZINC_METAL_LOG=1 ZINC_METAL_SHOT="$tmp/m-%d.bmp" ZINC_RENDERER=metal ZINC_FRAMES=3 ZINC_SIZE=200x100 ZINC_SCALE=1 timeout 90 "$ZINC" run --interp $d/main.ts >"$tmp/m.log" 2>&1
 [ -s "$tmp/m-1.bmp" ] || { echo "skipped: no Metal window here"; exit 77; }
 grep -q "1 passes" "$tmp/m.log" || { echo "metal_replay: the render target was not drawn on the GPU: $(tail -3 "$tmp/m.log")"; exit 1; }
+# a frame with no drawable within 50 ms is not presented (a covered or unseen window, a CI runner's virtual display): the shots no longer match the frames
+grep -q "the frame is not presented" "$tmp/m.log" && { echo "skipped: a frame was not presented, the window is not shown here"; exit 77; }
 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=200x100 ZINC_SCALE=1 ZINC_SHOT_FRAMES=1,3 ZINC_SHOT="$tmp/s.png" "$ZINC" run --interp $d/main.ts >/dev/null 2>&1
 for n in 1 3; do
   o=$(python3 tools/glcompare "$tmp/m-$n.bmp" "$tmp/s-$n.png") || { echo "metal_replay: frame $n: $o"; exit 1; }

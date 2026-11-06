@@ -242,11 +242,12 @@ void permissions() {
                    "    <uses-permission android:name=\"android.permission.RECORD_AUDIO\" />\n"
                    "    <uses-feature android:name=\"android.hardware.camera\" android:required=\"false\" />\n", "AndroidManifest lines:\n%s", android.c_str());
   auto mac = usageStrings(p, "macos", "Webcam");
-  CHECK(mac.size() == 1 && mac[0].first == "NSCameraUsageDescription" && mac[0].second == "Webcam shows your camera & saves photos.", "macOS usage strings");
+  CHECK(mac.size() == 2 && mac[0].first == "NSCameraUsageDescription" && mac[0].second == "Webcam shows your camera & saves photos." &&
+        mac[1].first == "NSLocalNetworkUsageDescription", "macOS usage strings");   // macOS 15 asks every app before the LAN
   Project q;
   CHECK(parseProject(R"({ "name": "q", "permissions": ["camera", "location"] })", q, err), "parse q");
   auto d = usageStrings(q, "macos", "Q");
-  CHECK(d.size() == 3 && d[0].second == "Q uses the camera." && d[2].first == "NSLocationUsageDescription", "macOS defaults");
+  CHECK(d.size() == 4 && d[0].second == "Q uses the camera." && d[2].first == "NSLocationUsageDescription" && d[3].second == "Q talks to devices on your network.", "macOS defaults");
   Project ph, add;   // zinc:photos: "photos" reads and saves (both keys, the one text), "photos-add" saves only
   CHECK(parseProject(R"({ "name": "ph", "permissions": ["photos"], "permissionStrings": { "photos": "Shows your pictures." } })", ph, err) &&
         parseProject(R"({ "name": "add", "permissions": ["photos-add", "photos"] })", add, err), "parse photos: %s", err.c_str());
