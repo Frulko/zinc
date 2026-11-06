@@ -3,6 +3,7 @@
 // that the host drains in poll().
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
+#import <QuartzCore/QuartzCore.h>
 #import <UserNotifications/UserNotifications.h>
 #import <objc/runtime.h>
 #include <unistd.h>
@@ -518,9 +519,10 @@ static int windowCall(const char* op, NSDictionary* a, char* out, int cap) {
   else {
     watchWindow(w);
     if (!strcmp(op, "window.setTitle")) w.title = a[@"title"] ?: @"";
-    else if (!strcmp(op, "window.setSize")) { NSRect f = w.frame; f.size = NSMakeSize([a[@"w"] doubleValue], [a[@"h"] doubleValue]); [w setFrame:f display:YES]; }
-    else if (!strcmp(op, "window.setPosition")) [w setFrameOrigin:NSMakePoint([a[@"x"] doubleValue], [a[@"y"] doubleValue])];
-    else if (!strcmp(op, "window.setFrame")) [w setFrame:NSMakeRect([a[@"x"] doubleValue], [a[@"y"] doubleValue], [a[@"w"] doubleValue], [a[@"h"] doubleValue]) display:YES];
+    // committed at once: the frame loop never lets the run loop commit it, and a window resized at each frame would stay at its old size on screen until the changes stop
+    else if (!strcmp(op, "window.setSize")) { NSRect f = w.frame; f.size = NSMakeSize([a[@"w"] doubleValue], [a[@"h"] doubleValue]); [w setFrame:f display:YES]; [CATransaction flush]; }
+    else if (!strcmp(op, "window.setPosition")) { [w setFrameOrigin:NSMakePoint([a[@"x"] doubleValue], [a[@"y"] doubleValue])]; [CATransaction flush]; }
+    else if (!strcmp(op, "window.setFrame")) { [w setFrame:NSMakeRect([a[@"x"] doubleValue], [a[@"y"] doubleValue], [a[@"w"] doubleValue], [a[@"h"] doubleValue]) display:YES]; [CATransaction flush]; }
     else if (!strcmp(op, "window.center")) [w center];
     else if (!strcmp(op, "window.setAlwaysOnTop")) w.level = [a[@"on"] boolValue] ? NSFloatingWindowLevel : NSNormalWindowLevel;
     else if (!strcmp(op, "window.setOpacity")) w.alphaValue = [a[@"value"] doubleValue];

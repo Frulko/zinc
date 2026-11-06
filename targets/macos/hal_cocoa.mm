@@ -1,5 +1,6 @@
 // The one piece of the SDL HAL that needs AppKit (ZN-249): a transparent window also needs its Metal layer to stop being opaque, or the compositor ignores the alpha of what is drawn.
 #import <Cocoa/Cocoa.h>
+#import <QuartzCore/QuartzCore.h>
 extern "C" void hal_sdl_transparent_layers(void* nswindow) {
   NSWindow* w = (__bridge NSWindow*)nswindow;
   if (!w) return;
@@ -8,7 +9,8 @@ extern "C" void hal_sdl_transparent_layers(void* nswindow) {
   NSView* content = w.contentView;
   content.wantsLayer = YES;
   content.layer.opaque = NO;
-  for (NSView* v in content.subviews) { v.wantsLayer = YES; v.layer.opaque = NO; }
+  // the top-left corner holds the last frame while the window grows or shrinks: the default gravity stretches it to the new bounds until the next present
+  for (NSView* v in content.subviews) { v.wantsLayer = YES; v.layer.opaque = NO; v.layer.contentsGravity = kCAGravityTopLeft; }
 }
 // The colour behind the frame (hal_sdl.cpp window_background): the window's and its content layer's, so an edge that grows during a live resize
 // shows the app's background until the frame of the new size covers it

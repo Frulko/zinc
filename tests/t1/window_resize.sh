@@ -19,6 +19,28 @@ got=$(run ui.tsx ZINC_RESIZE=letterbox); [ "$got" = "surface 500 300;" ] || { ec
 got=$(cd "$d" && env -u ZINC_DETERMINISTIC -u ZINC_HEADLESS FOLLOW=1 "$ZINC" run main.ts 2>&1)
 echo "$got" | grep -q "do not fit" && { echo "window_resize: moved every frame: frames dropped"; fail=1; }
 case "$got" in *"surface 500 332"*) ;; *) echo "window_resize: moved every frame: $(echo "$got" | grep -E '^surface')"; fail=1 ;; esac
+# ... and the screen follows at each change: not committed at once, the window server kept the old size until the changes stopped, and the frames were stretched to it
+cat > "$tmp/heights.swift" <<'SWIFT'
+import CoreGraphics
+import Foundation
+var seen = Set<Double>(), shown = false
+let end = Date().addingTimeInterval(20)
+while Date() < end {
+  let found = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String: Any]]).filter { ($0["kCGWindowOwnerName"] as? String ?? "").contains("Resize Test") }
+  for w in found { seen.insert((w["kCGWindowBounds"] as! [String: Any])["Height"] as! Double) }
+  if shown && found.isEmpty { break }
+  if !found.isEmpty { shown = true }
+  usleep(4000)
+}
+print(seen.count)
+SWIFT
+if swiftc "$tmp/heights.swift" -o "$tmp/heights" 2>/dev/null; then
+  "$tmp/heights" > "$tmp/heights.out" &
+  (cd "$d" && env -u ZINC_DETERMINISTIC -u ZINC_HEADLESS FOLLOW=1 "$ZINC" run main.ts >/dev/null 2>&1)
+  wait
+  got=$(cat "$tmp/heights.out")
+  [ "${got:-0}" -ge 20 ] || { echo "window_resize: resized every frame: the screen saw ${got:-0} heights of 60"; fail=1; }
+fi
 # a program zinc build writes keeps zinc.json's resize: a copy of ui.tsx whose project says letterbox
 mkdir -p "$tmp/built" && cp "$d/ui.tsx" "$tmp/built/" && sed 's/"width":500,"height":300}/"width":500,"height":300,"resize":"letterbox"}/' "$d/zinc.json" > "$tmp/built/zinc.json"
 if (cd "$tmp/built" && "$ZINC" build ui.tsx -o app >/dev/null 2>&1); then
