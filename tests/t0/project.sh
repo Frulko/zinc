@@ -38,4 +38,9 @@ cat > "$tmp/app/zinc.json" <<'JSON'
 JSON
 out=$(run "$tmp/app" "$tmp/other")
 case "$out" in *"draw command pool is full"*) echo "growDrawCommands does not lift the pool limit: $out"; fail=1 ;; esac
+# the "crash" key is gone (ZN-999): refused with J0001, which zinc explain knows
+echo '{ "name": "app", "entry": "src/main.ts", "crash": "restart" }' > "$tmp/app/zinc.json"
+out=$(run "$tmp/app" "$tmp/other")
+case "$out" in *'"crash" is gone'*J0001*) ;; *) echo "zinc.json crash is not refused with J0001: $out"; fail=1 ;; esac
+"$ZINC" explain J0001 | grep -q '^J0001: ' || { echo "zinc explain J0001 prints nothing"; fail=1; }
 exit $fail

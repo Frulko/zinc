@@ -7,7 +7,7 @@ extern "C" { HalDisplay* hal_display = nullptr; HalOverlays* hal_overlays = null
 extern "C" __attribute__((weak)) void hal_trap_faults(void (*on_fault)(const char* what));
 extern "C" __attribute__((weak)) int hal_heap_region_more(int, void**, size_t*) { return 0; }
 
-// Crash policy (docs/dev-mode.md): 0 exit (default), 1 red box, 2 restart. ZRT_DEV: dev build (hot reload host).
+// Crash policy: 0 exit (default), 1 red box, 2 restart. No zinc.json key selects it any more (ZN-999); only tests/t0/zrt_restart.sh builds 2. ZRT_DEV: dev build (hot reload host).
 #ifndef ZRT_CRASH
 #define ZRT_CRASH 0
 #endif

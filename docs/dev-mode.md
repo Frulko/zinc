@@ -14,9 +14,7 @@ What is possible depends on the target:
 | **console streaming** | terminal + DevTools console | page console panel | terminal | ssh terminal + DevTools | terminal | serial monitor |
 | **console.warn/error banner** | yes | yes | no | yes | yes | no |
 
-Release builds choose a crash policy in `zinc.json`: `"crash": "exit" | "redbox" | "restart"` (default `exit`, the
-previous behaviour). `redbox` and `restart` work on every target, the overlay is drawn by the runtime with the
-software rasterizer, so it also shows on esp32/ps2 screens.
+A panic in a release build always ends the program with its message (the `"crash"` key of `zinc.json` is gone: `zinc explain J0001`).
 
 ## Fast Refresh (Zinc Next: macos, linux)
 
@@ -535,5 +533,5 @@ program; the program's standard output and error arrive as `output` events. `tes
 ## Not available
 
 - esp32 / ps1 / ps2: no process to replace. `zinc build` + flash; a flash-and-monitor loop for esp32 is a possible
-  follow-up. The crash policy (`zinc.json` `crash`) does apply to their release builds.
+  follow-up.
 - sim: the Node process restarts; use `node --inspect` for a debugger.

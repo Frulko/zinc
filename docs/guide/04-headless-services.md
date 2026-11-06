@@ -178,7 +178,7 @@ sys.onSignal('SIGINT', () => { sys.exit(130); });   // Ctrl-C
 - **Sending.** `sys.kill(pid, 'SIGTERM')` sends a signal, and `sys.pid()` is this process.
 - **Other targets.** ESP32, PS1, PS2 and wasm have no signals: there `onSignal` does nothing.
 
-Fatal faults (SIGSEGV, SIGBUS, SIGFPE…) keep going to the crash policy below. `sys.exit(code)` still ends the process
+Fatal faults (SIGSEGV, SIGBUS, SIGFPE…) end the process (see the watchdog below). `sys.exit(code)` still ends the process
 at once.
 
 ## Process, files, sockets
@@ -263,11 +263,7 @@ journalctl -u sensor-hub -f                       # pair with ZINC_LOG_FORMAT=js
 Two independent layers:
 
 - **systemd** restarts the process if it exits non-zero (`Restart=on-failure`). This is your production watchdog.
-- **`zinc.json` `"crash"`** decides what a *crash inside the program* does before the process ends:
-  `exit` (default — die, let systemd restart), `redbox` (draw the error and wait; on a headless service `redbox`
-  behaves as `restart`), or `restart` (re-run init/teardown in place; three crashes within five seconds gives up with
-  exit 101). For a daemon, `"crash": "restart"` recovers from transient panics without a process bounce; `exit` +
-  systemd is the simplest robust choice.
+- **A panic ends the process** with exit 101 and its message; there is no in-process restart (the `"crash"` key of `zinc.json` is gone), so systemd above is the only watchdog.
 
 ## Resource budgets
 

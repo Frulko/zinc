@@ -1,10 +1,11 @@
 ---
 id: ZN-999
 title: Remove the ignored zinc.json crash policy
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-06 07:48'
+updated_date: '2026-11-06 07:56'
 labels:
   - size-S
   - tools
@@ -20,7 +21,13 @@ From ZN-994: the zinc.json key "crash" (exit/redbox/restart) is accepted and ign
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 zinc.json "crash" gives a clear diagnostic that the key is gone (zinc explain entry), instead of being silently accepted
-- [ ] #2 docs/dev-mode.md and any other doc, template or example no longer mention the crash policy
-- [ ] #3 Dead code only reachable through the policy is removed or left with a one-line reason; tests/t0/zrt_restart.sh still builds and passes
+- [x] #1 zinc.json "crash" gives a clear diagnostic that the key is gone (zinc explain entry), instead of being silently accepted
+- [x] #2 docs/dev-mode.md and any other doc, template or example no longer mention the crash policy
+- [x] #3 Dead code only reachable through the policy is removed or left with a one-line reason; tests/t0/zrt_restart.sh still builds and passes
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+J0001 (zinc explain J0001, projectExplain in src/frontend/project.cpp) refuses zinc.json crash; docs (dev-mode, guides 01/04/08 + i18n), sensor-hub example cleaned; runtime ZRT_CRASH kept for tests/t0/zrt_restart.sh (comment says so). tests/run --only project, zrt_restart pass.
+<!-- SECTION:NOTES:END -->

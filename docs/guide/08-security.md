@@ -60,7 +60,7 @@ for 0 live objects at exit.
   runtime's own recursive parsers are bounded (JSON 512 levels, 32 on esp32/ps1; SVG 256; map styles 64). Releasing
   a long chain of objects is sliced (256 levels, then a 4096-entry queue): only a graph both deeper and wider than
   that recurses further.
-- **Crash = exit.** A panic ends the program (or restarts it, `"crash": "restart"`): a hostile input can still stop a
+- **Crash = exit.** A panic ends the program: a hostile input can still stop a
   service, it cannot corrupt it. Put systemd's restart behind it (below).
 - **No isolation between the program and the device.** `zinc:fs`, `zinc:sys`, `zinc:net`, `zinc:gpio`,
   `zinc:process` do what the OS user can do; `zinc:fs` has no root directory (a path from outside must be checked by

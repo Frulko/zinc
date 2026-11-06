@@ -3775,6 +3775,7 @@ int main(int argc, char** argv) {
                     : !std::strcmp(argv[2], "--catalog")  ? zn::frontend::catalog()   // the English of i18n/en/diag.json (tests/t0/diagnostics.sh)
                                                           : zn::frontend::explain(code);
     if (out.empty()) out = zn::cli::webExplain(code);   // W0601 to W0604: the web export's warnings
+    if (out.empty()) out = zn::frontend::projectExplain(code);   // J0001: a zinc.json key that is gone
     if (out.empty()) out = zn::cli::pmExplain(code);    // P0001, P0002: the package manager of npm packages
     if (out.empty()) { std::fprintf(stderr, "%s\n", zn::i18n::tr("diag.unknownCode", {{"code", argv[2]}}).c_str()); return 1; }
     std::fputs(out.c_str(), stdout);

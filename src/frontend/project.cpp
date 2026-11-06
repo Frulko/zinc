@@ -633,7 +633,8 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(t, i, n, k, v) if (yyjson_val* pm = yyjson_obj_get(v, "permissions")) if (!permissionList(pm, out.targetPermissions[yyjson_get_str(k)], "targets.<name>.permissions")) return false;
   }
-  static const char* known[] = {"3d", "app", "permissions", "permissionStrings", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "displays", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher", "player", "shell"};
+  if (yyjson_obj_get(root, "crash")) { out.fatal = true; err = "line " + std::to_string(lineOf(text, "crash")) + ": \"crash\" is gone from zinc.json: a panic always ends the program (J0001, `zinc explain J0001`)"; return false; }
+  static const char* known[] = {"3d", "app", "permissions", "permissionStrings", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "display", "displays", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher", "player", "shell"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {
@@ -673,5 +674,13 @@ std::string entryOf(const std::string& dir, const Project* project) {
 namespace { LoaderStage gStage; }
 void setLoaderStage(LoaderStage s) { gStage = std::move(s); }
 const LoaderStage& loaderStage() { return gStage; }
+
+std::string projectExplain(const std::string& code) {
+  if (code != "J0001") return "";
+  return "J0001: zinc.json \"crash\" is gone\n\n"
+         "Why: the key (\"exit\", \"redbox\" or \"restart\") was accepted and never acted on: a panic always ends the program with a message and a non-zero exit status.\n"
+         "Fix: delete the \"crash\" line. To restart a service that stops, let the system do it (systemd Restart=on-failure, docs/guide/04-headless-services.md). `zinc dev` still draws a red box on a compile error.\n\n"
+         "Example:\n{ \"name\": \"app\", \"crash\": \"restart\" }   // error J0001: \"crash\" is gone from zinc.json\n";
+}
 
 }  // namespace zn::frontend

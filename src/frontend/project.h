@@ -152,6 +152,8 @@ std::string byteSize(std::uint64_t bytes);
 
 // The zinc.json that governs `path` (a file or a directory): its own directory first, then each parent. "" when there is none.
 std::string findProjectFile(const std::string& path);
+// `zinc explain J0001`: the zinc.json keys that were removed ("" for another code)
+std::string projectExplain(const std::string& code);
 
 // The entry source of a directory argument (`zinc run examples/breakout`): zinc.json "entry"/"main", then src/main.ts[x], main.ts[x]; "" when none exists.
 std::string entryOf(const std::string& dir, const Project* project);

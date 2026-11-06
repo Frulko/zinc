@@ -262,7 +262,6 @@ Le reste de cette page est une référence.
   "version": "0.1.0",
   "id": "com.example.myapp",
   "icon": "assets/icon.png",
-  "crash": "exit",
   "display": "fbdev",
   "plugins": { "devtools": { "port": 9229 } },
   "pluginDirs": ["../shared-plugins"],
@@ -285,7 +284,6 @@ Le reste de cette page est une référence.
 | `version` | version sémantique ; elle va dans le `Info.plist` de macOS, le `.desktop` de Linux, et `README.txt` à l'export |
 | `id` | identifiant de bundle ou d'application (`CFBundleIdentifier` de macOS) ; `dev.zinc.<name>` par défaut |
 | `icon` | PNG utilisé pour fabriquer le `.icns` de macOS, l'icône Linux, l'icône AppLoad de rmpp et le favicon de wasm (voir [la distribution](07-distribution.md)) |
-| `crash` | politique en cas de plantage en version finale : `exit` (par défaut), `redbox` (dessiner l'erreur, attendre) ou `restart` (voir [le mode développement](../dev-mode.md)) |
 | `display` | pilote d'affichage pour les écrans qui ne sont pas la fenêtre par défaut (`fbdev`, `ws2812`, `ssd1306`, `st7789`, `rmpp`, `gl`) ; chaîne ou `{ driver, ...options }` |
 | `plugins` | options par plugin, qui remplacent les valeurs par défaut de `plugin.json` |
 | `pluginDirs` | dossiers supplémentaires où chercher des plugins (relatifs au projet) |

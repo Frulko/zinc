@@ -30,6 +30,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Developer tools
 
+#### Changed
+
+- The `"crash"` key of `zinc.json` is gone: it was never acted on, and a panic always ends the program. A project that still has it is refused with a message (`zinc explain J0001`); delete the line, and let systemd restart a service.
+
 #### Fixed
 
 - App updates are judged more carefully: an update that exits with an error code is rolled back, opening the app a second time while an update is on trial no longer rolls back a good update, and a device update with no previous version to restore stays on trial instead of losing its way back.
