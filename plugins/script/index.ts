@@ -78,14 +78,14 @@ export interface ScriptEngine {
 }
 
 // ---------------------------------------------------------------- QuickJS engine (native/quickjs.*)
-const engines: (QuickJSEngine | null)[] = [];
+const engines: Map<i32, QuickJSEngine> = new Map<i32, QuickJSEngine>();   // by handle: a handle carries a generation, never reused
 let listening = false;
 function listen(): void {
   if (listening) return;
   listening = true;
   Q.onEvent((h: i32, kind: i32, id: i32, v: unknown) => {
-    const e = h >= 0 && h < engines.length ? engines[h] : null;
-    if (e !== null) e.settled(kind, id, v);
+    const e = engines.get(h);
+    if (e !== undefined) e.settled(kind, id, v);
   });
 }
 function hostError(message: string): ScriptError {
@@ -111,8 +111,7 @@ class QuickJSEngine implements ScriptEngine {
     listen();
     this.h = Q.create(memoryLimit, timeLimitMs, stackSize);
     if (this.h < 0) throw hostError('zinc:script: cannot create a QuickJS context');
-    while (engines.length <= this.h) engines.push(null);
-    engines[this.h] = this;
+    engines.set(this.h, this);
     if (importAssets) Q.resolver(this.h, (name: string) => assets.exists(name) ? assets.readText(name) : '');
   }
   private fail(): ScriptError { return new ScriptError(Q.error(this.h) as ErrorInfo); }
@@ -165,8 +164,8 @@ class QuickJSEngine implements ScriptEngine {
   interrupt(): void { Q.interrupt(this.h); }
   memoryUsed(): number { return Q.memoryUsed(this.h); }
   dispose(): void {
-    if (engines[this.h] !== this) return;
-    engines[this.h] = null;
+    if (engines.get(this.h) !== this) return;
+    engines.delete(this.h);
     Q.destroy(this.h);
     const pending: ((e: Error) => void)[] = [];
     this.rejects.forEach((reject: (e: Error) => void) => { pending.push(reject); });

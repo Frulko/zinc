@@ -55,7 +55,8 @@ uint32_t gens = 0;
 zrt::Fn<void(int32_t, int32_t, int32_t, Dyn)> on_event;
 bool finish_hooked = false;
 
-Vm* vm_of(int32_t h) { return h >= 0 && h < MAXVM && vms[h] && !vms[h]->closing ? vms[h] : nullptr; }
+// a handle is slot + MAXVM * generation: a disposed Script's handle never reaches the Vm that reuses its slot
+Vm* vm_of(int32_t h) { Vm* v = h >= 0 ? vms[h % MAXVM] : nullptr; return v && v->h == h && !v->closing ? v : nullptr; }
 
 // ---------------------------------------------------------------- script functions as Dyn values
 int ref_add(Vm* vm, JSValueConst f) {
@@ -84,7 +85,7 @@ struct JsFnBox : zrt::Object {
   void zrt_str(zrt::StrBuilder& sb) const override { sb.cstr("function"); }
   void zrt_json(zrt::StrBuilder& sb) const override { sb.cstr("null"); }
   void zrt_inspect(zrt::StrBuilder& sb, zrt::Insp&) const override { sb.cstr("[Function]"); }
-  ~JsFnBox() override { Vm* vm = h >= 0 && h < MAXVM ? vms[h] : nullptr; if (vm && vm->gen == gen) ref_drop(vm, ref); }
+  ~JsFnBox() override { Vm* vm = h >= 0 ? vms[h % MAXVM] : nullptr; if (vm && vm->gen == gen) ref_drop(vm, ref); }
 };
 
 // ---------------------------------------------------------------- values
@@ -454,7 +455,7 @@ void free_vm(Vm* vm) {
   free(vm->refs); free(vm->calls); free(vm->ns); free(vm->mods);
   JS_FreeContext(ctx);
   JS_FreeRuntime(vm->rt);
-  vms[vm->h] = nullptr;
+  vms[vm->h % MAXVM] = nullptr;
   vm->~Vm();
   free(vm);
 }
@@ -477,13 +478,14 @@ struct HostQuickJS : NativeQuickJS {
     JSContext* ctx = JS_NewContext(rt);
     if (!ctx) { JS_FreeRuntime(rt); return -1; }
     Vm* vm = new (calloc(1, sizeof(Vm))) Vm();
-    vm->h = h; vm->gen = ++gens; vm->rt = rt; vm->ctx = ctx; vm->limitMs = timeLimitMs; vm->memLimit = memoryLimit;
+    gens = gens % 0xFFFFFF + 1;
+    vm->h = h + MAXVM * (int32_t)gens; vm->gen = gens; vm->rt = rt; vm->ctx = ctx; vm->limitMs = timeLimitMs; vm->memLimit = memoryLimit;
     JS_SetContextOpaque(ctx, vm);
     JS_SetInterruptHandler(rt, interrupt_handler, vm);
     JS_SetModuleLoaderFunc(rt, nullptr, module_loader, vm);
     vms[h] = vm;
     if (!finish_hooked) { finish_hooked = true; zrt::at_finish(free_all); }
-    return h;
+    return vm->h;
   }
   void destroy(int32_t h) override {
     Vm* vm = vm_of(h);

@@ -26,11 +26,12 @@ static const char* DENIED = "screen recording permission is not granted: allow t
 @public
   pthread_mutex_t mu;
   CVPixelBufferRef pending;   // the newest complete frame, not taken yet
-  std::atomic<int>* state;
-  std::string* why;           // under mu
+  std::atomic<int>* state;    // the session's, under mu; null once the session let go (release): a late stop of an old stream must not
+  std::string* why;           // end the next capture in that slot
 }
 @end
 @implementation ZnScOut
+- (void)dealloc { pthread_mutex_destroy(&mu); [super dealloc]; }   // the stream may still hold this object after release()
 - (void)stream:(SCStream*)stream didOutputSampleBuffer:(CMSampleBufferRef)sb ofType:(SCStreamOutputType)type {
   if (type != SCStreamOutputTypeScreen) return;
   CFArrayRef atts = CMSampleBufferGetSampleAttachmentsArray(sb, false);
@@ -47,9 +48,11 @@ static const char* DENIED = "screen recording permission is not granted: allow t
 }
 - (void)stream:(SCStream*)stream didStopWithError:(NSError*)error {   // the window closed, the display went away, the person stopped it
   pthread_mutex_lock(&mu);
-  *why = error ? std::string("the capture stopped: ") + error.localizedDescription.UTF8String : "the capture stopped";
+  if (state) {
+    *why = error ? std::string("the capture stopped: ") + error.localizedDescription.UTF8String : "the capture stopped";
+    *state = -1;
+  }
   pthread_mutex_unlock(&mu);
-  *state = -1;
 }
 @end
 
@@ -173,8 +176,10 @@ void build(Session& s, SCShareableContent* content, const std::string& id, int f
 void release(Session& s) {
   if (s.frames) { dispatch_sync(s.frames, ^{}); dispatch_release(s.frames); }   // no frame is being handed over any more
   [s.stream release];
+  pthread_mutex_lock(&s.out->mu);
   if (s.out->pending) CVPixelBufferRelease(s.out->pending);
-  pthread_mutex_destroy(&s.out->mu);
+  s.out->pending = nullptr; s.out->state = nullptr; s.out->why = nullptr;
+  pthread_mutex_unlock(&s.out->mu);
   [s.out release];
   s.stream = nil; s.out = nil; s.frames = nullptr;
   s.why.clear(); s.state = 0; s.closing = false;

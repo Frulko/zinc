@@ -141,7 +141,9 @@ struct View { WKWebView* wv; ZincBridge* br; ZView* clip; double x, y, w, h, cx,
 // the snapshots of the off-screen web views (hal_overlays): the newest picture of each, BGRA premultiplied, at `scale` pixels a point
 struct Shot { uint32_t* px = nullptr; int w = 0, h = 0; unsigned gen = 0; bool taking = false; };
 static View views[MAXV];
-static View* at(int32_t v) { return v >= 0 && v < MAXV && views[v].wv ? &views[v] : nullptr; }
+// a handle is slot + MAXV * generation (the bridge's vid): a closed view's handle and its queued events never reach the view that reuses the slot
+static int32_t viewGen = 0;
+static View* at(int32_t v) { View* p = v >= 0 ? &views[v % MAXV] : nullptr; return p && p->wv && p->br.vid == v ? p : nullptr; }
 #if !TARGET_OS_IPHONE
 static NSWindow* offscreen;   // the web views' window when the app has none (offscreenView)
 static Shot shots[MAXV];
@@ -326,7 +328,8 @@ struct MacWebview : NativeWebview, zrt::Poller {
       while (slot < MAXV && views[slot].wv) slot++;
       if (!hv || slot == MAXV) return -1;
       ZincBridge* br = [[ZincBridge alloc] init];
-      br.vid = slot;
+      viewGen = viewGen % 0xFFFFFF + 1;
+      br.vid = slot + MAXV * viewGen;
       br.port = -1;
       WKWebViewConfiguration* cfg = [[[WKWebViewConfiguration alloc] init] autorelease];
       [cfg setURLSchemeHandler:br forURLScheme:@"zinc"];
@@ -354,7 +357,7 @@ struct MacWebview : NativeWebview, zrt::Poller {
       [hv addSubview:clip];
       views[slot] = View{wv, br, clip, x, y, w, h, x, y, w, h};
       frameOf(views[slot]);
-      return slot;
+      return br.vid;
     }
   }
   void setBounds(int32_t v, double x, double y, double w, double h) override { place(v, x, y, w, h, x, y, w, h); }
@@ -437,6 +440,7 @@ struct MacWebview : NativeWebview, zrt::Poller {
       [queue removeAllObjects];
       for (NSArray* e in evs) {
         if (!cb) break;
+        if (!at([e[0] intValue])) continue;   // the view closed after the event was queued
         zrt::Fn<void(int32_t, int32_t, int32_t, zrt::String, zrt::String)> f = cb;
         f([e[0] intValue], [e[1] intValue], [e[2] intValue], zs(e[3]), zs(e[4]));
         zrt::check_uncaught();
@@ -446,7 +450,7 @@ struct MacWebview : NativeWebview, zrt::Poller {
   }
   void shutdown() override {
     cb = nullptr;
-    for (int i = 0; i < MAXV; i++) close(i);
+    for (View& v : views) if (v.wv) close(v.br.vid);
     [queue removeAllObjects];
   }
 };

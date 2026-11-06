@@ -61,7 +61,8 @@ const int kMaxVm = 64;
 Vm* vms[kMaxVm];
 uint64_t onEventCb = 0;
 
-Vm* vmOf(int64_t h) { return h >= 0 && h < kMaxVm && vms[h] && !vms[h]->closing ? vms[h] : nullptr; }
+int32_t gGen = 0;   // a handle is slot + kMaxVm * generation: a disposed Script's handle never reaches the Vm that reuses its slot
+Vm* vmOf(int64_t h) { Vm* v = h >= 0 ? vms[h % kMaxVm] : nullptr; return v && v->h == h && !v->closing ? v : nullptr; }
 
 std::string jsonString(const char* s) {   // a JSON string literal
   std::string r = "\"";
@@ -516,7 +517,7 @@ void freeVm(Vm* vm) {
   zn::qjs::napiRelease(ctx);
   JS_FreeContext(ctx);
   JS_FreeRuntime(vm->rt);
-  vms[vm->h] = nullptr;
+  vms[vm->h % kMaxVm] = nullptr;
   delete vm;
 }
 
@@ -539,12 +540,13 @@ int32_t qCreate(void*, ZnCtx*, Args a, ZnVal* r) {
   if (const char* wg = std::getenv("ZINC_WEBGL"); wg && *wg && *wg != '0') zn::qjs::runContextHooks(zn::qjs::napiEnv(ctx));   // zinc.json "webgl": true: document.createElement('canvas').getContext('webgl') in scripts (ZN-205)
   { JSValue r = JS_Eval(ctx, zn::qjs::kWebShims, strlen(zn::qjs::kWebShims), "<web-shims>", JS_EVAL_TYPE_GLOBAL); JS_FreeValue(ctx, r); }   // TextDecoder and friends: GLTFLoader and other loaders need them
   Vm* vm = new Vm();
-  vm->h = h; vm->rt = rt; vm->ctx = ctx; vm->limitMs = a[1].d; vm->memLimit = a[0].d;
+  gGen = gGen % 0xFFFFFF + 1;
+  vm->h = h + kMaxVm * gGen; vm->rt = rt; vm->ctx = ctx; vm->limitMs = a[1].d; vm->memLimit = a[0].d;
   JS_SetContextOpaque(ctx, vm);
   JS_SetInterruptHandler(rt, interruptHandler, vm);
   JS_SetModuleLoaderFunc(rt, nullptr, moduleLoader, vm);
   vms[h] = vm;
-  r->i = h;
+  r->i = vm->h;
   return ZN_OK;
 }
 int32_t qDestroy(void*, ZnCtx*, Args a, ZnVal*) {

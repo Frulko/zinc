@@ -99,9 +99,11 @@ static bool load() {
 struct Event { int v, kind, id; std::string a, b; };
 static std::vector<Event> queue;
 static const int MAXV = 16;
-struct View { void* win, *wv; unsigned long clip, xid; long port; double x, y, w, h, cx, cy, cw, ch; int fx, fy, fw, fh, bx, by, bw, bh; };
+struct View { void* win, *wv; unsigned long clip, xid; long port; double x, y, w, h, cx, cy, cw, ch; int fx, fy, fw, fh, bx, by, bw, bh; int32_t id; };
 static View views[MAXV];
-static View* at(int32_t v) { return v >= 0 && v < MAXV && views[v].wv ? &views[v] : nullptr; }
+// a handle is slot + MAXV * generation: a closed view's handle and its queued events never reach the view that reuses the slot
+static int32_t viewGen = 0;
+static View* at(int32_t v) { View* p = v >= 0 ? &views[v % MAXV] : nullptr; return p && p->wv && p->id == v ? p : nullptr; }
 static int focused = -1;   // the view that has the X focus: a click elsewhere in the app takes it back
 
 // ---------------------------------------------------------------- zinc:// assets
@@ -259,7 +261,9 @@ struct LinuxWebview : NativeWebview, zrt::Poller {
       return true;
     }();
     (void)scheme;
-    void* data = (void*)(intptr_t)slot;
+    viewGen = viewGen % 0xFFFFFF + 1;
+    const int32_t id = slot + MAXV * viewGen;
+    void* data = (void*)(intptr_t)id;
     void* ucm = webkit_user_content_manager_new();
     void* script = webkit_user_script_new(bridge.c_str(), 1 /* top frame */, 0 /* document start */, nullptr, nullptr);
     webkit_user_content_manager_add_script(ucm, script);
@@ -280,11 +284,11 @@ struct LinuxWebview : NativeWebview, zrt::Poller {
     XReparentWindow(xd, xid, clip, 0, 0);
     XMapWindow(xd, clip);
     XSync(xd, 0);
-    views[slot] = View{win, wv, clip, xid, -1, x, y, w, h, x, y, w, h, -1, -1, -1, -1, -1, -1, -1, -1};
+    views[slot] = View{win, wv, clip, xid, -1, x, y, w, h, x, y, w, h, -1, -1, -1, -1, -1, -1, -1, -1, id};
     unsigned pw, ph;
     if (parentSize(&pw, &ph)) frameOf(slot, pw, ph);
     gtk_widget_show_all(win);
-    return slot;
+    return id;
   }
   void setBounds(int32_t v, double x, double y, double w, double h) override { place(v, x, y, w, h, x, y, w, h); }
   void place(int32_t v, double x, double y, double w, double h, double cx, double cy, double cw, double ch) override {
@@ -292,7 +296,7 @@ struct LinuxWebview : NativeWebview, zrt::Poller {
     if (!p) return;
     p->x = x; p->y = y; p->w = w; p->h = h; p->cx = cx; p->cy = cy; p->cw = cw; p->ch = ch;
     unsigned pw, ph;
-    if (parentSize(&pw, &ph)) frameOf(v, pw, ph);
+    if (parentSize(&pw, &ph)) frameOf(v % MAXV, pw, ph);
   }
   void setVisible(int32_t v, bool on) override {
     View* p = at(v);
@@ -358,6 +362,7 @@ struct LinuxWebview : NativeWebview, zrt::Poller {
     evs.swap(queue);
     for (const Event& e : evs) {
       if (!cb) break;
+      if (!at(e.v)) continue;   // the view closed after the event was queued
       zrt::Fn<void(int32_t, int32_t, int32_t, zrt::String, zrt::String)> f = cb;
       f(e.v, e.kind, e.id, zrt::String::from(e.a.data(), (uint32_t)e.a.size()), zrt::String::from(e.b.data(), (uint32_t)e.b.size()));
       zrt::check_uncaught();
@@ -366,7 +371,7 @@ struct LinuxWebview : NativeWebview, zrt::Poller {
   }
   void shutdown() override {
     cb = nullptr;
-    for (int i = 0; i < MAXV; i++) close(i);
+    for (const View& v : views) if (v.wv) close(v.id);
     queue.clear();
   }
 };

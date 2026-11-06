@@ -31,7 +31,8 @@ class JsFnBox {
   toJSON(): null { return null; }
 }
 
-const vmOf = (h: number): Vm | null => { const v = vms[h]; return v && !v.closing ? v : null; };
+// a handle is slot + 64 * generation (quickjs.host.cpp): a disposed Script's handle never reaches the Vm that reuses its slot
+const vmOf = (h: number): Vm | null => { const v = h >= 0 ? vms[h % 64] : null; return v && v.h === h && !v.closing ? v : null; };
 function refAdd(v: Vm, f: AnyFn): number {
   let i = v.refs.indexOf(undefined);
   if (i < 0) { i = v.refs.length; v.refs.push(undefined); }
@@ -205,12 +206,12 @@ function moduleOf(v: Vm, name: string, src: string): any {
   }));
   return m;
 }
-function free(v: Vm): void { vms[v.h] = null; v.refs = []; v.calls.clear(); }
+function free(v: Vm): void { vms[v.h % 64] = null; v.refs = []; v.calls.clear(); }
 
 export default {
   create(memoryLimit: number, timeLimitMs: number, _stackSize: number): number {
     let h = vms.indexOf(null);
-    if (h < 0) { h = vms.length; vms.push(null); }
+    if (h < 0) { if (vms.length === 64) return -1; h = vms.length; vms.push(null); }
     const ctx = vm.createContext({}, { microtaskMode: 'afterEvaluate', codeGeneration: { strings: true, wasm: false } });
     const boot = vm.runInContext(`(now, atob, btoa) => {
       globalThis.queueMicrotask = f => { Promise.resolve().then(f); };
@@ -219,14 +220,14 @@ export default {
       return { C: { Array, Object, Error, ReferenceError, TypeError, Promise, JSON }, wrap: h => function (...a) { return h(a); } };
     }`, ctx, { filename: 'node:zinc' })(() => performance.now(), atob, btoa);
     const v: Vm = {
-      h, gen: ++gens, ctx, g: vm.runInContext('globalThis', ctx), C: boot.C, limitMs: timeLimitMs, memLimit: memoryLimit, depth: 0,
+      h: h + 64 * (gens = gens % 0xFFFFFF + 1), gen: gens, ctx, g: vm.runInContext('globalThis', ctx), C: boot.C, limitMs: timeLimitMs, memLimit: memoryLimit, depth: 0,
       interrupted: false, closing: false, result: undefined, err: undefined, refs: [], calls: new Map(), mods: new Map(),
       loaded: new Map(), ns: [], resolver: null, nextId: 0, pending: new Set(), wrap: boot.wrap,
       invoker: new vm.Script('(s => s.f.apply(undefined, s.a))(globalThis[Symbol.for("zinc:script.call")])', { filename: 'node:zinc-call' }),
       drain: new vm.Script('', { filename: 'node:zinc-drain' }),
     };
     vms[h] = v;
-    return h;
+    return v.h;
   },
   destroy(h: number): void { const v = vmOf(h); if (!v) return; if (v.depth > 0) v.closing = true; else free(v); },
   eval(h: number, src: string, file: string): boolean {

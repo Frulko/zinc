@@ -8,6 +8,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Plugins
+
+#### Fixed
+
+- A disposed `Script` or a closed `WebView` stays dead: it can no longer run code in, settle a call of, or send its late messages to the script or web view created after it.
+
 ## [0.11.5] - 2026-11-05
 
 This version makes Zinc a better place to build and debug real apps: a documentation generator, threads with `zinc:worker`, a much richer Inspector and faster builds. It also grows the apps that run on it, with Sidecar turning almost any screen into a second display, a full iPod manager, a deeper reMarkable experience, and new games such as Hamlet.
