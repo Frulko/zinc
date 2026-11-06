@@ -1,5 +1,5 @@
 ---
-source: dbfb9c4c1347ecc0a9b017910c28097afbe353c5
+source: a32dd7d15016c035d18ada96b212252b1f7f07f7
 ---
 # 1. Primeros pasos
 
@@ -167,33 +167,37 @@ cuadrado rojo. Ctrl-C detiene `zinc dev`.
 
 ## Un primer error
 
-Un error no detiene nada: `zinc run` (o `zinc check`, que solo comprueba) imprime una línea por error, `file:line:column: error
-code: what is wrong`, y una última línea que dice qué hacer. Con `zinc dev` aparecen las mismas líneas en la terminal y en un cuadro
-rojo en la ventana hasta el siguiente guardado correcto. Seis errores que todo el mundo comete, y lo que responde Zinc (`my-game/` representa la
-ruta completa que imprime):
+Un error no detiene nada: `zinc run` (o `zinc check`, que solo comprueba) imprime cada error como `file:line:column: error code:
+what is wrong`, la línea de tu código con una marca bajo el error, y una última línea que dice qué hacer. El archivo se
+escribe desde la carpeta en la que estás. Con `zinc dev` aparecen las mismas líneas en la terminal y en un cuadro rojo en la
+ventana hasta el siguiente guardado correcto. Seis errores que todo el mundo comete, y lo que responde Zinc:
 
 **Un nombre mal escrito en un import** (`isDwon` en vez de `isDown`):
 
 ```
-my-game/src/main.ts:1:53: error Z0101: Cannot find name: 'isDwon' is not exported by 'zinc:gfx' (did you mean 'isDown'?)
-my-game/src/main.ts:5:7: error Z0101: Cannot find name: 'isDown'
-...
-zinc: 5 errors, start with the first. Declare it before use, or fix the spelling. `zinc explain Z0101` shows an example.
+src/main.ts:1:53: error Z0101: Cannot find name: 'isDwon' is not exported by 'zinc:gfx' (did you mean 'isDown'?)
+ 1 | import { onFrame, clear, rect, text, width, height, isDwon, Btn } from 'zinc:gfx';
+   |                                                     ^^^^^^
+zinc: 1 error. Declare it before use, or fix the spelling. `zinc explain Z0101` shows an example.
 ```
 
-Corrige primero el primer error: los otros cuatro son los lugares que usan el nombre que el import no trajo.
+Un solo error, aunque el código usa `isDown` cuatro veces más abajo: un nombre se señala una vez por archivo.
 
 **Un archivo mal escrito en un import** (`'./confg'` cuando el archivo es `src/config.ts`):
 
 ```
-my-game/src/main.ts:1:1: error Z0119: Cannot find module: './confg' (no file my-game/src/confg.ts or .tsx; did you mean './config'?)
+src/main.ts:1:23: error Z0119: Cannot find module: './confg' (no file src/confg.ts or .tsx; did you mean './config'?)
+ 1 | import { speed } from './confg';
+   |                       ^^^^^^^^^
 zinc: 1 error. Fix the path or create the file. `zinc explain Z0119` shows an example.
 ```
 
 **Un error de tipo** (`let score: number = "ten";`):
 
 ```
-my-game/src/main.ts:13:21: error Z0103: Type is not assignable: 'string' to 'number'
+src/main.ts:13:21: error Z0103: Type is not assignable: 'string' to 'number'
+ 13 | let score: number = "ten";
+    |                     ^^^^^
 zinc: 1 error. Convert explicitly or change the declared type. `zinc explain Z0103` shows an example.
 ```
 
@@ -203,13 +207,17 @@ El mensaje dice `number`, como el programa (en un escritorio es un número de co
 **Un módulo `zinc:` que no existe** (`'zinc:stoarge'`):
 
 ```
-my-game/src/main.ts:1:1: error Z0119: Cannot find module: 'zinc:stoarge' (did you mean 'zinc:storage'?)
+src/main.ts:1:21: error Z0119: Cannot find module: 'zinc:stoarge' (did you mean 'zinc:storage'?)
+ 1 | import { get } from 'zinc:stoarge';
+   |                     ^^^^^^^^^^^^^^
 ```
 
 **Un plugin que no está instalado** (`'zinc:confetti'`):
 
 ```
-my-game/src/main.ts:1:1: error Z0119: Cannot find module: 'zinc:confetti' is not a module of the engine and no plugin of this project provides it (`zinc plugins` lists the ones it has, `zinc plugins search confetti` looks in the index, `zinc add <name>` installs one)
+src/main.ts:1:23: error Z0119: Cannot find module: 'zinc:confetti' is not a module of the engine and no plugin of this project provides it (`zinc plugins` lists the ones it has, `zinc plugins search confetti` looks in the index, `zinc add <name>` installs one)
+ 1 | import { burst } from 'zinc:confetti';
+   |                       ^^^^^^^^^^^^^^^
 ```
 
 `zinc plugins` imprime todos los módulos que puedes importar ahora, con una línea de descripción cada uno.
@@ -217,7 +225,9 @@ my-game/src/main.ts:1:1: error Z0119: Cannot find module: 'zinc:confetti' is not
 **Una etiqueta JSX que se queda abierta** (en un proyecto `.tsx` como `zinc new remarkable`, un `<Text>` sin su `</Text>`):
 
 ```
-my-app/src/main.tsx:10:7: error Z0002: Expected a specific token: JSX: <Text> is not closed (line 15 closes </View> instead): add </Text>, or end the tag with />
+src/main.tsx:10:7: error Z0002: Expected a specific token: JSX: <Text> is not closed (line 15 closes </View> instead): add </Text>, or end the tag with />
+ 10 |       <Text className="text-[48px] font-bold text-black">My app
+    |       ^
 ```
 
 La línea es la de la etiqueta que se abrió, no el lugar donde el analizador se rindió.
