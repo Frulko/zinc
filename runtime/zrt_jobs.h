@@ -113,6 +113,11 @@ class Jobs : public Poller {
   void stop() {
     { std::lock_guard<std::mutex> l(mu_); quit_ = true; cv_.notify_one(); }
     if (thread_.joinable()) thread_.join();
+    // ready for the next run (a crash-restart or a later frame loop): queued jobs are dropped with their promises
+    std::lock_guard<std::mutex> l(mu_);
+    running_ -= static_cast<int>(jobs_.size());
+    jobs_.clear();
+    quit_ = false;
   }
 
   std::mutex mu_;

@@ -3,10 +3,12 @@
 // frame over it as a plane does; the frame must be the one the software rasterizer draws from the image's pixels.
 //   -- plain    the image upright and whole, with what a program draws over a film: an opaque box, a rounded one (antialiased corners),
 //               a translucent bar, a shadow. It goes to the layer, and all of that stays in front of it
+//   -- cancel   plain, and the screenshot request (ZINC_SHOT_REQUEST) is emptied before it is answered: the picture goes back to its layer
 //   -- turned | blend | round | part
 //               the image under a matrix that turns, half transparent, with rounded corners, a part of it: drawn in software
 import { onFrame, clear, rect, rrect, shadow, drawImage, drawImageRect, createImage, beginImage, endImage, setTransform, resetTransform } from 'zinc:gfx';
-import { args } from 'zinc:sys';
+import { args, env } from 'zinc:sys';
+import { writeText } from 'zinc:fs';
 
 const mode = args().length > 0 ? args()[0] : 'plain';
 const img = createImage(160, 90);
@@ -14,10 +16,13 @@ beginImage(img);
 for (let i: i32 = 0; i < 16; i++) for (let j: i32 = 0; j < 9; j++) rect(i * 10, j * 10, 10, 10, ((i * 16) << 16) | ((j * 28) << 8) | ((i + j) % 2 === 0 ? 230 : 60));
 endImage();
 
+let frame: i32 = 0;
 onFrame((dt: number) => {
+  frame++;
+  if (mode === 'cancel' && frame === 11) writeText(env('ZINC_SHOT_REQUEST'), '');   // the request is read at frame 10 and answered at 13
   clear(0x1f2937);
   rect(20, 20, 280, 160, 0xe5e7eb);
-  if (mode === 'plain') {
+  if (mode === 'plain' || mode === 'cancel') {
     drawImage(img, 80, 50, 160, 90, 255, 0);
     rect(70, 60, 30, 20, 0xdc2626);                 // across its left edge
     rrect(120, 70, 60, 30, 12, 0xfacc15, 255);      // inside it, round corners

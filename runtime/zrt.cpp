@@ -1108,7 +1108,8 @@ static void on_fault(const char* what) { crash(what, "", 0); }
 
 // Runs f; false when it crashed (the runtime state is reset to the guard point).
 static bool guarded(void (*f)()) {
-  if (setjmp(crash_env)) { loc_top = &loc_root; cascade_depth = 0; return false; }
+  // a crash mid-frame: the frame is abandoned (the next begin_frame starts its buffer over), redraws work again
+  if (setjmp(crash_env)) { loc_top = &loc_root; cascade_depth = 0; in_frame = false; return false; }
   armed = true;
   f();
   armed = false;

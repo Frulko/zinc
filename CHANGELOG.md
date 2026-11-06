@@ -8,11 +8,18 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Rendering and performance
+
+#### Fixed
+
+- A `zinc device screen` request withdrawn before it was answered no longer keeps a video off its hardware layer for the rest of the run.
+
 ### Plugins
 
 #### Fixed
 
 - A disposed `Script` or a closed `WebView` stays dead: it can no longer run code in, settle a call of, or send its late messages to the script or web view created after it.
+- Plugins that do their slow work on a worker thread, such as `zinc:ipod`, answer again after the program's frame loop has ended instead of never settling.
 
 ### UI
 

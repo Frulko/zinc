@@ -155,6 +155,8 @@
     {"paths": ["src/frontend/modules.cpp", "tests/data/late_frame.ts", "tests/t0/late_frame.sh"], "tests": ["late_frame"]},
     {"paths": ["src/frontend/modules.cpp", "src/qjs/prelude.cpp", "tests/data/timer-yield/", "tests/t0/timer_yield.sh"], "tests": ["timer_yield"]},
     {"paths": ["src/qjs/qjs.cpp", "src/qjs/prelude.cpp", "runtime/zrt.cpp", "tests/t0/timers_wall_clock.sh"], "tests": ["timers_wall_clock"]},
+    {"paths": ["runtime/zrt.cpp", "runtime/zrt_jobs.h", "tests/native/zrt_restart.cpp", "tests/t0/zrt_restart.sh"], "tests": ["zrt_restart"]},
+    {"paths": ["runtime/gfx.cpp"], "tests": ["video_layers"]},
     {"paths": ["tests/data/busy_spinner/", "tests/t1/busy_spinner.sh"], "tests": ["busy_spinner"]},
     {"paths": ["src/host/loop.cpp", "third_party/mimalloc/", "tests/data/heap_trim.ts", "tests/t0/heap_trim.sh"], "tests": ["heap_trim"]},
     {"paths": ["targets/ios-legacy/", "tools/build-ios-legacy", "tests/native/ios_legacy_clock.c"], "tests": ["thread_local", "console_clock", "console_core"]},

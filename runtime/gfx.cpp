@@ -1406,7 +1406,8 @@ static void after_present() {
       save(to);
       shot_watch = false; shot_at = -1;
       if (void* f = zrt_host_open(request, "wb")) zrt_host_close(f);   // done: the agent waits for an empty request
-    }
+    } else if (!got) { shot_watch = false; shot_at = -1; }   // emptied before it was answered: the layers come back
+
   }
   if (state == 2 && (list || every)) {
     bool want = every > 0 && n % every == 0;

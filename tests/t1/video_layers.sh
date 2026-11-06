@@ -63,5 +63,12 @@ bad = [(x, y) for y in range(h) for x in range(w) if max(abs(u - v) for u, v in 
 if (w, h) != (pw, ph) or bad: print("watched: the screenshot differs from the software frame at %d pixels (first %s)" % (len(bad), bad[:3])); sys.exit(1)
 PY
 grep -q "layertest: layers offered [1-9]" "$tmp/watched.log" || { echo "watched: the picture never went to a layer before the shot: $(grep layertest "$tmp/watched.log")"; fail=1; }
+# a request emptied before it is answered (the agent gave up): the layer comes back instead of the software frame staying for good (ZN-994)
+printf '%s\n' "$tmp/never.bmp" >"$tmp/cancel.request"
+env LAYERTEST=on LAYERTEST_OUT="$tmp/cancel.ppm" ZINC_SHOT_REQUEST="$tmp/cancel.request" ZINC_DISPLAY=layertest ZINC_LAYER_LOG=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=30 ZINC_RUN=interp \
+  timeout 120 "$ZINC" run -q tests/data/video_layers -- cancel >"$tmp/cancel.log" 2>&1
+last=$(grep "gfx: a picture" "$tmp/cancel.log" | tail -1)
+case $last in *"on a hardware layer"*) ;; *) echo "cancel: the picture stays off its layer after the request went: $(grep 'gfx: a picture' "$tmp/cancel.log" | head -3)"; fail=1 ;; esac
+[ -e "$tmp/never.bmp" ] && { echo "cancel: a screenshot was written for an emptied request"; fail=1; }
 [ $fail -eq 0 ] && echo "video layers: ok"
 exit $fail
