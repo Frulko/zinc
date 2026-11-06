@@ -1,0 +1,25 @@
+{
+  "name": "riffle",
+  "entry": "src/main.tsx",
+  "text": "shaped",
+  "icons": ["settings", "power", "panel-top", "keyboard", "palette", "sliders-horizontal", "minimize-2", "eye-off", "layers"],
+  "description": "A keyboard window switcher for macOS: hold Cmd, press Tab, and go to any window, in the order you last used them. A plain list, no previews.",
+  "app": {
+    "id": "com.madewithzinc.riffle",
+    "name": "Riffle",
+    "version": "0.1.0",
+    "icon": "icon.png",
+    "dock": false,
+    "window": {
+      "width": 460,
+      "height": 520,
+      "frame": false,
+      "resizable": false,
+      "transparent": true
+    }
+  },
+  "targets": {
+    "macos": { "width": 460, "height": 520, "zoom": 1 }
+  },
+  "permissions": ["fs", "window", "tray", "menu", "autostart", "instance", "power"]
+}

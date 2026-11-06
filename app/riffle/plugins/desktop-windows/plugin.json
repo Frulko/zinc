@@ -1,0 +1,12 @@
+{
+  "name": "desktop-windows",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:desktop-windows",
+  "entry": "index.ts",
+  "description": "The machine's windows for a switcher: a global hold-to-cycle hotkey, the list of real windows, focus tracking and raising (macOS, Accessibility permission); fixed fake windows in a deterministic run",
+  "native": { "impl": { "macos": "native/desktopwindows.macos.mm" } },
+  "targets": {
+    "macos": { "frameworks": ["AppKit", "ApplicationServices", "Carbon", "CoreGraphics", "QuartzCore", "Foundation"] }
+  }
+}

@@ -58,6 +58,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The language server tags its diagnostics with the document version, so an editor no longer shows the errors of an older edit, and it ignores changes to files that were never opened.
 - A macOS app names its executable after itself, in a `zinc build --bundle` and in the dev bundle of `zinc run`: login items, Activity Monitor and the process list show the app's name instead of `zinc`, and a start-at-login item belongs to its app.
 
+### Apps and examples
+
+#### New
+
+- Riffle (`app/riffle`), a window switcher for macOS: hold Cmd and press Tab to go to any window in the order you last used it, minimized, hidden or on another Space included, from a plain list with a menu bar icon and settings.
+
 ## [0.11.5] - 2026-11-05
 
 This version makes Zinc a better place to build and debug real apps: a documentation generator, threads with `zinc:worker`, a much richer Inspector and faster builds. It also grows the apps that run on it, with Sidecar turning almost any screen into a second display, a full iPod manager, a deeper reMarkable experience, and new games such as Hamlet.
