@@ -17,6 +17,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 #### Fixed
 
 - A long stream with moving pictures (a video in a web view shown on a tablet) no longer eats the Mac's memory until macOS ends the app.
+- macOS apps ask for Local Network access with their own words (`permissionStrings.net` in `zinc.json`), and a Sidecar screen that macOS keeps out of reach is reported with where to allow it, instead of only "no route to host".
 
 ### Rendering and performance
 

@@ -43,7 +43,7 @@ ms=$(printf '%s\n' "$out" | sed -n 's/.*up to date .* in \([0-9.]*\) ms.*/\1/p' 
 "$ZINC" build --bundle main.ts -o "$tmp/Test.app" >"$tmp/log" 2>&1 || { echo "build --bundle: $(cat "$tmp/log")"; fail=1; }
 codesign -v "$tmp/Test.app" 2>/dev/null || { echo "bundle signature is not valid"; fail=1; }
 plist=$(plutil -p "$tmp/Test.app/Contents/Info.plist" 2>&1)
-for want in '"CFBundleIdentifier" => "dev.zinc.test.bundle"' '"LSUIElement" => 1' '"CFBundleShortVersionString" => "2.0.1"' '0 => "zbt"' '"CFBundleIconFile" => "icon"'; do
+for want in '"CFBundleIdentifier" => "dev.zinc.test.bundle"' '"LSUIElement" => 1' '"CFBundleShortVersionString" => "2.0.1"' '0 => "zbt"' '"CFBundleIconFile" => "icon"' '"NSLocalNetworkUsageDescription" => "Bundle Test talks to devices on your network."'; do
   case "$plist" in *"$want"*) ;; *) echo "Info.plist lacks $want"; fail=1 ;; esac
 done
 [ -s "$tmp/Test.app/Contents/Resources/icon.icns" ] || { echo "no icon.icns"; fail=1; }

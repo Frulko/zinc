@@ -129,7 +129,15 @@ static bool connectScreen() {
   const char* colon = strrchr(h, ':');   // an address may name its port (a tunnel to the screen)
   fd = !strncmp(h, "adb", 3) ? adb(h[3] == ':' ? h + 4 : "") : !strncmp(h, "usb", 3) ? usbmux()
      : colon ? tcp(std::string(h, colon).c_str(), atoi(colon + 1)) : tcp(h, PORT);
-  if (fd < 0) { fprintf(stderr, "display-sidecar: no Sidecar screen at %s: %s (is its app open?)\n", h, strerror(errno)); return false; }
+  if (fd < 0) {
+    const int err = errno;
+    fprintf(stderr, "display-sidecar: no Sidecar screen at %s: %s (is its app open?)\n", h, strerror(err));
+#ifdef __APPLE__
+    // macOS answers a refused Local Network permission with "no route to host", even for a screen it can ping
+    if (err == EHOSTUNREACH) fprintf(stderr, "display-sidecar: if the screen answers a ping, allow this app in System Settings > Privacy & Security > Local Network\n");
+#endif
+    return false;
+  }
   char line[512]; size_t n = 0;
   while (n + 1 < sizeof line && recv(fd, line + n, 1, 0) == 1 && line[n] != '\n') n++;
   line[n] = 0;

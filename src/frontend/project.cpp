@@ -385,6 +385,8 @@ std::vector<std::pair<std::string, std::string>> usageStrings(const Project& p, 
     } else if (e == "net" && target == "ios") out.push_back({"NSLocalNetworkUsageDescription", say("net", who + " talks to devices on your network.")});   // only the LAN asks; the internet needs no key
     else if (e == "motion") out.push_back({"NSMotionUsageDescription", say("motion", who + " uses the motion sensors.")});
   }
+  // macOS 15 asks every app before it reaches the LAN (a Sidecar screen, a board, a printer), whatever zinc.json declares: give the question its text
+  if (target == "macos") out.push_back({"NSLocalNetworkUsageDescription", say("net", who + " talks to devices on your network.")});
   return out;
 }
 
