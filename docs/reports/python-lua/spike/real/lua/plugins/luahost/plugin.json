@@ -1,0 +1,10 @@
+{
+  "name": "luahost",
+  "kind": "module",
+  "module": "zinc:luahost",
+  "entry": "index.ts",
+  "description": "Spike: real Lua 5.5 in the Zinc process (paths of this Mac's Homebrew, see 00-study.md)",
+  "targets": {
+    "macos": { "flags": ["-I/opt/homebrew/include/lua"], "defines": ["ZRT_HOSTED_CPP"], "linkFlags": ["-L/opt/homebrew/lib", "-llua"] }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "pyhost",
+  "kind": "module",
+  "module": "zinc:pyhost",
+  "entry": "index.ts",
+  "description": "Spike: the real CPython in the Zinc process (paths of this Mac's Homebrew, see 00-study.md)",
+  "targets": {
+    "macos": {
+      "flags": [
+        "-I/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/include/python3.12",
+        "-Wno-unused-parameter"
+      ],
+      "linkFlags": [
+        "-L/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/lib",
+        "-lpython3.12"
+      ],
+      "defines": [
+        "ZRT_HOSTED_CPP"
+      ]
+    }
+  }
+}
