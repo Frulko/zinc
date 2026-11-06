@@ -17,7 +17,8 @@
         "UserNotifications",
         "Carbon",
         "IOKit",
-        "MediaPlayer"
+        "MediaPlayer",
+        "ServiceManagement"
       ],
       "flags": [
         "-fobjc-arc"

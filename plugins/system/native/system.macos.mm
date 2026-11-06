@@ -12,6 +12,7 @@
 #import <IOKit/ps/IOPowerSources.h>
 #import <IOKit/ps/IOPSKeys.h>
 #import <MediaPlayer/MediaPlayer.h>
+#import <ServiceManagement/ServiceManagement.h>
 #include <string.h>
 
 static NSString* const kNone = nil;
@@ -867,6 +868,37 @@ static int mediaCall(const char* op, NSDictionary* a, char* out, int cap) {
   return 1;
 }
 
+/** autostart.set / .get for an exported .app on macOS 13+: SMAppService.mainApp puts the app itself in Login Items > Open at Login,
+ *  with its name and icon even when it is signed ad hoc (a LaunchAgent is listed under its id's prefix, "com.example", without a team id).
+ *  A login item takes no arguments: `hidden` alone is accepted (a tray app, LSUIElement, starts without a window anyway); extra `args`,
+ *  `zinc run` (a bare executable or its dev bundle) or an older macOS answer 0 and system.host.cpp writes the LaunchAgent. A LaunchAgent this app wrote
+ *  before, with no argument but --hidden, moves to the login item on the next get or set. */
+static NSString* legacyAgent(NSString* bid) { return [NSHomeDirectory() stringByAppendingFormat:@"/Library/LaunchAgents/%@.plist", bid]; }
+static int autostartCall(const char* op, NSDictionary* a, char* out, int cap) {
+  if (@available(macOS 13.0, *)) {
+    NSString* bid = [[NSBundle mainBundle] bundleIdentifier];
+    if (!bid || getenv("ZINC_DEVAPP") || ![[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"] || ![a[@"id"] isEqual:bid]) return 0;   // zinc run's dev bundle lives in a cache: not a login item
+    NSArray* extra = a[@"args"];
+    if ([extra isKindOfClass:[NSArray class]] && extra.count) return 0;
+    SMAppService* svc = [SMAppService mainAppService];
+    NSString* legacy = legacyAgent(bid);
+    NSArray* oldArgs = [NSDictionary dictionaryWithContentsOfFile:legacy][@"ProgramArguments"];
+    BOOL movable = oldArgs && (oldArgs.count == 1 || (oldArgs.count == 2 && [oldArgs[1] isEqual:@"--hidden"]));
+    if (oldArgs && !movable) return 0;   // the app asked for arguments before: its LaunchAgent stays
+    NSError* err = nil;
+    BOOL want = !strcmp(op, "autostart.get") ? (movable || svc.status == SMAppServiceStatusEnabled) : [a[@"enabled"] boolValue];
+    if (want && svc.status != SMAppServiceStatusEnabled && ![svc registerAndReturnError:&err]) {
+      snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [err.localizedDescription stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String);
+      return 1;
+    }
+    if (!want && svc.status == SMAppServiceStatusEnabled) [svc unregisterAndReturnError:nil];
+    if (oldArgs) [[NSFileManager defaultManager] removeItemAtPath:legacy error:nil];
+    snprintf(out, (size_t)cap, !strcmp(op, "autostart.get") ? (want ? "{\"enabled\":true}" : "{\"enabled\":false}") : "{}");
+    return 1;
+  }
+  return 0;
+}
+
 extern "C" {
 
 /** Answers a notification op; 1 when handled (out holds the JSON result), 0 for an op this backend does not do. */
@@ -897,6 +929,7 @@ int zn_sys_live_call(const char* op, const char* args, char* out, int cap) {
       @try { return trayCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }
     }
+    if (!strncmp(op, "autostart.", 10)) { @try { return autostartCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
     if (!strncmp(op, "dock.", 5)) {
       @try { return dockCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }

@@ -41,6 +41,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - A disposed `Script` or a closed `WebView` stays dead: it can no longer run code in, settle a call of, or send its late messages to the script or web view created after it.
 - Plugins that do their slow work on a worker thread, such as `zinc:ipod`, answer again after the program's frame loop has ended instead of never settling.
+- On macOS 13 and later, `autostart.enable()` in an exported app adds the app itself to Login Items under its own name and icon, instead of a background item named after its id; an app that started at login before moves over by itself.
 
 ### UI
 
