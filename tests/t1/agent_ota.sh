@@ -100,6 +100,15 @@ out=$(dev run otaapp 2>&1) && bad "the run of a broken update reports success: $
 echo "$out" | grep -q "exited at once (status 101): it was rolled back, version 1.1.0 is back" && echo "$out" | grep -q "a broken build" || bad "the client is not told of the rollback: $out"
 cmp -s "$app/app.zapp" "$tmp/v11.zapp" && [ ! -e "$app/previous.zapp" ] && [ ! -e "$app/trial" ] || bad "the previous version is not back: $(ls "$app")"
 until_grep "this is 1.1.0" "$log" || bad "the previous version was not started again: $(cat "$log")"
+# no previous version to come back to (ZN-996): the update stays on trial, and is rolled back once the previous version is there again
+dev install "$tmp/v12.zapp" > /dev/null 2>&1 || bad "the broken update could not be installed again"
+mv "$app/previous.zapp" "$tmp/kept.zapp"
+dev run otaapp > /dev/null 2>&1
+[ -f "$app/trial" ] || bad "a failed rollback removed the trial marker: $(ls "$app")"
+mv "$tmp/kept.zapp" "$app/previous.zapp"
+out=$(dev run otaapp 2>&1) && bad "the second run of the broken update reports success: $out"
+echo "$out" | grep -q "it was rolled back, version 1.1.0 is back" && cmp -s "$app/app.zapp" "$tmp/v11.zapp" && [ ! -e "$app/trial" ] || bad "the kept trial was not rolled back: $out | $(ls "$app")"
+until_grep "this is 1.1.0" "$log" || bad "the previous version was not started again: $(cat "$log")"
 
 # from the channel: zinc publish wrote it, the device fetches and checks it
 ZINC_HOME="$W" "$Z" publish "$tmp/v13" --key "$k_seed" -o "$www" > /dev/null 2>&1 || bad "publish"

@@ -79,6 +79,12 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "zapp.h"
 #include <thread>
 #include <set>
+#include <atomic>
+#include <mutex>
+#include <fcntl.h>
+#ifndef _WIN32
+#include <sys/file.h>   // flock: the app update trial
+#endif
 #include "host/permissions.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
 #include "res/codec.h"   // the JavaScript engines decode images through it, with or without the graphics host
@@ -1581,16 +1587,22 @@ std::string fusedWindowModule() {
 // App updates at launch (ZN-324.02). ~/.zinc/apps/<id>/ holds `staged` (the path of a verified update to try), `current` (the update in use) and
 // `trial` (written when a staged update starts; removed when it proves healthy). A launch finding `trial` left behind means the update on trial
 // crashed: it is dropped and the previous version runs. Nothing is overwritten, so a fused executable updates the same way as a .zapp.
-static std::string gTrialDir;   // set while a staged update runs on trial: promoted once it ran 5 s or exited normally
-static void promoteTrial() {
+// The process that runs a trial holds an flock on `trial.lock` until it ends (a crash releases it too): another launch meanwhile leaves the
+// trial alone and runs the version in use (ZN-996).
+static std::string gTrialDir, gTrialZapp;   // set while a staged update runs on trial: promoted once it ran 5 s or exited with 0
+static std::atomic<bool> gOnTrial{false};
+static std::mutex gTrialMu;   // at file scope: it outlives the atexit call
+static void promoteTrial() {   // from the 5 s thread, update.healthy or the exit: the first one promotes
   namespace fs = std::filesystem;
-  if (gTrialDir.empty()) return;
+  std::lock_guard<std::mutex> g(gTrialMu);
+  if (!gOnTrial.exchange(false)) return;
   std::error_code ec;
+  std::ofstream(gTrialDir + "/current") << gTrialZapp << "\n";
   std::ifstream sf(gTrialDir + "/staged"); std::string staged; std::getline(sf, staged); sf.close();
-  if (!staged.empty()) { std::ofstream(gTrialDir + "/current") << staged << "\n"; }
-  fs::remove(gTrialDir + "/staged", ec); fs::remove(gTrialDir + "/trial", ec);
-  gTrialDir.clear();
+  if (staged == gTrialZapp) fs::remove(gTrialDir + "/staged", ec);   // a newer one downloaded meanwhile stays staged
+  fs::remove(gTrialDir + "/trial", ec);
 }
+static void failTrial(int code) { if (code != 0) gOnTrial = false; }   // a non-zero exit leaves `trial` for the next launch to roll back
 static std::string chooseAppVersion(const std::string& zbc) {
   namespace fs = std::filesystem;
   std::ifstream pf(fs::path(zbc).parent_path() / "zinc.json");
@@ -1607,6 +1619,19 @@ static std::string chooseAppVersion(const std::string& zbc) {
     zn::frontend::Project p2; std::string e2;
     return zn::frontend::parseProject(js.str(), p2, e2) && p2.app.id == proj.app.id ? (p2.app.version.empty() ? "0.0.0" : p2.app.version) : std::string();
   };
+  bool mine = true;   // no other launch is running a trial
+  int lock = -1;
+#ifndef _WIN32
+  fs::create_directories(dir, ec);
+  lock = ::open((dir + "/trial.lock").c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+  mine = lock < 0 || ::flock(lock, LOCK_EX | LOCK_NB) == 0;
+#endif   // ponytail: no lock on Windows yet (LockFileEx), a second launch there rolls a running trial back
+  struct Release { int fd; ~Release() { if (fd >= 0 && !gOnTrial) ::close(fd); } } release{lock};   // a trial keeps its lock until the process ends
+  if (!mine) {   // another launch runs an update on trial: this one runs the version in use and leaves the trial to it
+    std::string z; const std::string current = line(dir + "/current");
+    if (!current.empty()) { std::string v = versionOf(current, z); if (!v.empty() && zn::tc::newerVersion(v, base)) return z; }
+    return zbc;
+  }
   if (fs::exists(dir + "/trial", ec)) {   // the update on trial did not make it: back to the previous version
     std::fprintf(stderr, "zinc: the update %s of %s failed to start; it was rolled back\n", line(dir + "/staged").c_str(), proj.app.id.c_str());
     fs::remove(dir + "/trial", ec); fs::remove(dir + "/staged", ec);
@@ -1617,7 +1642,12 @@ static std::string chooseAppVersion(const std::string& zbc) {
   const std::string staged = line(dir + "/staged");
   if (!staged.empty()) {
     std::string v = versionOf(staged, z);
-    if (!v.empty() && zn::tc::newerVersion(v, best)) { std::ofstream(dir + "/trial") << v << "\n"; gTrialDir = dir; std::atexit(promoteTrial); return z; }
+    if (!v.empty() && zn::tc::newerVersion(v, best)) {
+      std::ofstream(dir + "/trial") << v << "\n";
+      gTrialDir = dir; gTrialZapp = staged; gOnTrial = true;
+      std::atexit(promoteTrial); zn::rt::gOnExit = failTrial;
+      return z;
+    }
     fs::remove(dir + "/staged", ec);   // not newer than what runs (or unreadable): nothing to try
   }
   return run;
@@ -2868,7 +2898,7 @@ int main(int argc, char** argv) {
 #endif
     if (compiled && !gDebug) zbccache::store(absPath, zm, blob, hotUnit.get());   // the next interpreted run of an unchanged program starts from here (ZN-415)
     if (!hotRun) std::vector<std::uint8_t>().swap(blob);   // installResources copied what the raster draws: the 7 MB of a UI program's blob were held for the whole run (ZN-885)
-    if (!gTrialDir.empty()) std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(5)); promoteTrial(); }).detach();   // an update on trial that runs 5 s is healthy
+    if (gOnTrial) std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(5)); promoteTrial(); }).detach();   // an update on trial that runs 5 s is healthy
     gRunOut = &out;
     zn::log::write("run", zn::log::Info, "engine interpreter (ZBC), " + std::to_string(zm.functions.size()) + " functions");   // ZN-368
 #ifdef ZN_HOST_GFX
@@ -2900,8 +2930,8 @@ int main(int argc, char** argv) {
       }, &d, nullptr, nullptr);
     }();
     if (gDebug && !res.ok && res.error.rfind("stopped by the debugger", 0) == 0) { std::fwrite(out.data(), 1, out.size(), stdout); return 0; }   // q in zinc debug
-    if (!gTrialDir.empty() && !res.ok) std::_Exit(zn::rt::report(res, out, trace));   // failed on trial: leave `trial` for the next launch to roll back
     const int runCode = zn::rt::report(res, out, trace);
+    failTrial(res.ok ? runCode : 1);   // failed on trial: `trial` stays for the next launch to roll back
     zn::log::step("exit", "code " + std::to_string(runCode), zn::log::since(runStarted));
     return runCode;
   }

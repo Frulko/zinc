@@ -234,10 +234,10 @@ bool otaRolledBack(const std::string& home, const std::string& name, long pid, s
   }
   if (status == -1 || status == 128 + SIGTERM || status == 128 + SIGKILL) return false;   // stopped by someone: on trial again at its next start
   std::error_code ec;
-  fs::remove(dir + "/trial", ec);
-  if (status == 0) { fs::remove(dir + "/previous.zapp", ec); return false; }   // it holds, or it did its work and left
+  if (status == 0) { fs::remove(dir + "/trial", ec); fs::remove(dir + "/previous.zapp", ec); return false; }   // it holds, or it did its work and left
   fs::rename(dir + "/previous.zapp", dir + "/app.zapp", ec);
-  if (ec) return false;   // no previous version to come back to
+  if (ec) return false;   // no previous version to come back to: still on trial, judged again at its next start
+  fs::remove(dir + "/trial", ec);   // only once the previous version is back
   why = "the update of " + name + " exited at once (status " + std::to_string(status) + "): it was rolled back, version " + was + " is back and started. What the update printed:\n" +
         log.substr(log.size() > 800 ? log.size() - 800 : 0);
   return true;

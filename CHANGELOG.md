@@ -28,6 +28,13 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - One error no longer freezes a reactive app: a throw inside `batch`, `untrack` or an effect used to hold every later signal update back, and a render caught by its parent (an error boundary) stopped reordered children from moving.
 - Removing a scroll view in the middle of a drag no longer makes the next view created scroll under the same finger.
 
+### Developer tools
+
+#### Fixed
+
+- App updates are judged more carefully: an update that exits with an error code is rolled back, opening the app a second time while an update is on trial no longer rolls back a good update, and a device update with no previous version to restore stays on trial instead of losing its way back.
+- `zinc doc --serve` rebuilds again when a page is saved while it is rebuilding, instead of missing the change.
+
 ## [0.11.5] - 2026-11-05
 
 This version makes Zinc a better place to build and debug real apps: a documentation generator, threads with `zinc:worker`, a much richer Inspector and faster builds. It also grows the apps that run on it, with Sidecar turning almost any screen into a second display, a full iPod manager, a deeper reMarkable experience, and new games such as Hamlet.

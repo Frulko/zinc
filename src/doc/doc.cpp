@@ -998,13 +998,17 @@ int serve(const std::function<bool(std::string&, std::size_t&)>& rebuild, const 
     last = now;
     const std::uint64_t st = stamp(inputs);
     if (st == seen) continue;
+    seen = st;   // the inputs as this rebuild reads them: a save during the rebuild changes the stamp and rebuilds again
     std::string err;
     std::size_t pages = 0;
     if (rebuild(err, pages)) version++;
     else std::fprintf(stderr, "zinc doc: %s\n", err.c_str());
     std::fflush(stdout);
-    inputs = site.inputs;   // rebuild replaced the site: new pages are watched too
-    seen = stamp(inputs);
+    if (site.inputs != inputs) {   // rebuild replaced the site: new pages are watched too
+      const bool still = stamp(inputs) == st;
+      inputs = site.inputs;
+      seen = still ? stamp(inputs) : 0;   // ponytail: a page added and saved within one rebuild is seen at its next save
+    }
   }
 }
 

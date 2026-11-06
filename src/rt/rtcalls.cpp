@@ -798,6 +798,7 @@ void redrawFrame() {
 const char* gStop = nullptr;
 bool& gOnWorker() { struct State { bool value = false; }; return zn::threadLocal<State>().value; }
 bool gExitEndsRun = false;
+void (*gOnExit)(int code) = nullptr;
 const char* gDeviceProfile = nullptr;
 
 // ---- the host (zinc:gfx, zinc:sys, zinc:fs...): arguments decoded by their letters, the work done through the installed call (zn/host.h)
@@ -818,6 +819,7 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
   if (id == Rt::HostSysExit) {
     m.flushOut();
     if (gExitEndsRun || gOnWorker()) { ZN_THREAD_LOCAL(std::string, why, {}); why ="exit " + std::to_string(static_cast<std::int32_t>(a[0])); return why.c_str(); }
+    if (gOnExit) gOnExit(static_cast<std::int32_t>(a[0]));
     std::exit(static_cast<int>(static_cast<std::int32_t>(a[0])));
   }
   if (gOnWorker()) {
