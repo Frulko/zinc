@@ -727,6 +727,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-994: wire the zinc.json "crash" policy (exit/redbox/restart) to ZRT_CRASH and zrt::app_main, or drop the key and its docs/dev-mode.md section; today it is accepted and ignored, and the runtime's restart path runs only in tests/t0/zrt_restart.sh.
 - ZN-994: if the crash policy is wired, unwind hal_sdl in_watch/in_poll after a longjmp out of the live-resize watcher (a depth counter reset from the guard point).
 - ZN-996: a program that ends through a host-side `std::exit(1)` (not `zinc:sys exit` nor the end of the run) still counts as healthy for an app update on trial.
+- ZN-997: ui.ts touchSecondary: when the primary finger lifts first, the other fingers stay recorded and block the next pinch; clear them when the primary lifts.
+- ZN-997: ui.ts releaseAt: a left press while a right press holds the capture loses its onPointerUp; give each button its own capture.
+- ZN-997: navigation.tsx Stack rerender uses a version captured at render time; use a functional update (v => v + 1) once react.ts useState takes one.
+- ZN-997: kit/imageviewer.ts: gestures still act during the 165 ms paging window of go(), and pinch and drag share the startPan* fields.
+- ZN-998: the unmatched-closing-tag check runs only with JSX lowering; a file whose only JSX is a lone </X> gets a generic parser error.
+- ZN-998: LSP still answers requests before initialize or after shutdown, and a failed .d.ts read sets dtsRead_ for good.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -1236,3 +1242,4 @@ The next backlog review turns lines into tasks or deletes them.
 - Mapper: a value of type `any` is refused as a ternary's condition (Z0103 any to boolean) where TypeScript takes it; hit in the sync card, typed the state instead.
 - ZN-995: build and run the webview slot-reuse scenario of `tests/t1/webview.sh` on Linux (`webview.linux.cpp` got the same generation handles, unbuilt on the Mac).
 - ZN-996: lock the app update trial on Windows (LockFileEx); there, a second launch still rolls a running trial back.
+- ZN-998: FileLock has no Windows implementation (LockFileEx): concurrent tool installs and plugin builds still race there.
