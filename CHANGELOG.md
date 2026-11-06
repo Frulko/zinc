@@ -56,6 +56,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A closing JSX tag with no opening tag (`</View>`) is now an error that names it, instead of confusing errors further down the file.
 - Two `zinc` commands that download the same tool at once (the zig, esptool, the console SDKs, basisu) no longer break each other's install: the second waits and uses the first one's.
 - The language server tags its diagnostics with the document version, so an editor no longer shows the errors of an older edit, and it ignores changes to files that were never opened.
+- A macOS app names its executable after itself, in a `zinc build --bundle` and in the dev bundle of `zinc run`: login items, Activity Monitor and the process list show the app's name instead of `zinc`, and a start-at-login item belongs to its app.
 
 ## [0.11.5] - 2026-11-05
 

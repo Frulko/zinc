@@ -47,7 +47,10 @@ for want in '"CFBundleIdentifier" => "dev.zinc.test.bundle"' '"LSUIElement" => 1
   case "$plist" in *"$want"*) ;; *) echo "Info.plist lacks $want"; fail=1 ;; esac
 done
 [ -s "$tmp/Test.app/Contents/Resources/icon.icns" ] || { echo "no icon.icns"; fail=1; }
-[ "$("$tmp/Test.app/Contents/MacOS/zinc" 2>&1)" = "" ] || true
+# the executable carries the app's name, in the build and in the dev bundle: macOS names the app by it in its login items and process lists
+case "$plist" in *'"CFBundleExecutable" => "Bundle Test"'*) ;; *) echo "CFBundleExecutable is not the app's name"; fail=1 ;; esac
+[ -x "$tmp/Test.app/Contents/MacOS/Bundle Test" ] && [ ! -e "$tmp/Test.app/Contents/MacOS/zinc" ] || { echo "the bundle's executable is not named after the app: $(ls "$tmp/Test.app/Contents/MacOS")"; fail=1; }
+[ -x "$ZINC_HOME/cache/macos/devapp/dev.zinc.test.bundle.app/Contents/MacOS/Bundle Test" ] || { echo "the dev bundle's executable is not named after the app"; fail=1; }
 # an SVG app.icon is drawn: sips refused to write it back as an SVG, and the whole export failed
 printf '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="9" stroke="black" fill="none"/></svg>' > "$tmp/app/icon.svg"
 cp zinc.json "$tmp/zinc.json.png" && sed -i '' 's/icon\.png/icon.svg/' zinc.json

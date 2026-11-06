@@ -2162,7 +2162,8 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
     if (target != "macos") { std::fprintf(stderr, "zinc export: a native export on the %s engine supports macos only for now; use zinc device deploy <project> to run it with a Raspberry Pi's installed engine\n", p.engine.c_str()); return 2; }
     const fs::path app = out / (p.name + ".app");
     if (const int rc = status(std::system((q(self()) + " build --bundle " + q(p.entry) + " -o " + q(app.string())).c_str()))) { std::fprintf(stderr, "zinc export: the .app could not be made\n"); return rc; }
-    writeFile(out / "run.sh", "#!/bin/sh\nexec \"$(dirname \"$0\")/" + p.name + ".app/Contents/MacOS/zinc\" \"$@\"\n");
+    // the executable carries the app's name, which only the bundle knows here
+    writeFile(out / "run.sh", "#!/bin/sh\napp=\"$(dirname \"$0\")/" + p.name + ".app\"\nexec \"$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' \"$app/Contents/Info.plist\")\" \"$@\"\n");
     fs::permissions(out / "run.sh", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
     std::printf("%s\n", out.string().c_str());
     return 0;

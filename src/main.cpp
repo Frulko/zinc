@@ -889,7 +889,7 @@ extern "C" const ZnModule* fixture_module(void);
 // The BundleSpec of a zinc.json `app` (icon made absolute against the project directory).
 static zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std::string& projectDir) {
   zn::tc::BundleSpec b;
-  b.id = p.app.id; b.name = p.app.name.empty() ? p.name : p.app.name; b.version = p.app.version; b.category = p.app.category; b.copyright = p.app.copyright;
+  b.id = p.app.id; b.name = p.app.name.empty() ? p.name : p.app.name; b.exeName = zn::tc::bundleExeName(b.name); b.version = p.app.version; b.category = p.app.category; b.copyright = p.app.copyright;
   b.dock = p.app.dock; b.urlSchemes = p.app.urlSchemes; b.fileTypes = p.app.fileTypes;
   if (!p.app.icon.empty()) b.icon = (std::filesystem::path(projectDir) / p.app.icon).lexically_normal().string();
   b.assets = (std::filesystem::path(projectDir) / "assets").lexically_normal().string();   // copied into the .app when it exists (ZN-645)
@@ -1700,14 +1700,15 @@ static void launchDevBundle(const zn::frontend::Project& project, const std::str
     std::string engine = zn::tc::executablePath(), app, berr;
     bool refreshed = false;
     auto t0 = std::chrono::steady_clock::now();
-    if (!engine.empty() && zn::tc::ensureDevBundle(bundleSpecOf(project, projectDir), engine, zn::tc::home() + "/cache/macos/devapp", app, refreshed, berr)) {
+    const zn::tc::BundleSpec spec = bundleSpecOf(project, projectDir);
+    if (!engine.empty() && zn::tc::ensureDevBundle(spec, engine, zn::tc::home() + "/cache/macos/devapp", app, refreshed, berr)) {
       if (std::getenv("ZINC_DEVAPP_SELFTEST")) std::fprintf(stderr, "devapp: %s %s in %.1f ms\n", refreshed ? "refreshed" : "up to date", app.c_str(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
       setenv("ZINC_DEVAPP", app.c_str(), 1);
       setenv("ZINC_ROOT", gRoot.c_str(), 0);
       std::vector<char*> av;
       for (std::string& a : gOriginalArgs) av.push_back(a.data());
       av.push_back(nullptr);
-      std::string exe = app + "/Contents/MacOS/zinc";
+      std::string exe = app + "/Contents/MacOS/" + spec.exeName;
       execv(exe.c_str(), av.data());
       std::fprintf(stderr, "zinc: cannot start the dev bundle %s: %s\n", app.c_str(), std::strerror(errno));
     } else if (!berr.empty()) std::fprintf(stderr, "zinc: no dev bundle (%s); running without a bundle id\n", berr.c_str());
@@ -2210,11 +2211,11 @@ int main(int argc, char** argv) {
       argc = static_cast<int>(keep.size());
     }
   }
-  if (gProfile) { zn::frontend::applyProfile(*gProfile); if (gProfile->strict && argc > 1 && !std::strcmp(argv[1], "build")) gStrict = true; }   // `run` keeps gradual typing on the host (the .f32 goldens run so); a build for the target is strict
 #ifdef __linux__
   // a native build links with the system c++ and its libstdc++, which cannot resolve what a plugin compiled against zig's libc++ needs (std::thread, shared_ptr)
   if (argc > 1 && !std::strcmp(argv[1], "build") && (std::getenv("CXX") || !std::system("command -v c++ >/dev/null 2>&1"))) setenv("ZINC_PLUGIN_CC", "system", 0);
 #endif
+  if (gProfile) { zn::frontend::applyProfile(*gProfile); if (gProfile->strict && argc > 1 && !std::strcmp(argv[1], "build")) gStrict = true; }   // `run` keeps gradual typing on the host (the .f32 goldens run so); a build for the target is strict
   if (argc >= 2 && !std::strcmp(argv[1], "doctor")) {   // zinc doctor: the engine, the renderer of this machine, the pinned tools, the host tools (ZN-138, ZN-175)
     const zn::frontend::Profile* hp = gProfile ? gProfile : zn::frontend::findProfile(
         zn::plat::osName()

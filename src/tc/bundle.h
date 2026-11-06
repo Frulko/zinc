@@ -10,7 +10,7 @@ struct BundleSpec {
   std::string id, name, version, category, copyright, icon;   // icon: a PNG path (made absolute by the caller), "" = none
   bool dock = true;                                          // false: LSUIElement, a tray-only app
   std::vector<std::string> urlSchemes, fileTypes;            // file types are extensions without the dot
-  std::string exeName = "zinc";                              // the executable inside Contents/MacOS
+  std::string exeName = "zinc";                              // the executable inside Contents/MacOS: what macOS names the app by in its login items and process lists (bundleExeName)
   std::vector<std::pair<std::string, std::string>> usage;    // NSCameraUsageDescription... and their text: what zinc.json "permissions" asks of the system (ZN-322.03)
   std::string assets;                                        // the project's assets/ directory, copied to Contents/Resources/assets (ZN-645); "" = none
   std::string identity = "-", keychain;                      // codesign identity ("-": ad hoc) and the keychain that holds it (ZN-321)
@@ -18,6 +18,8 @@ struct BundleSpec {
 };
 
 /** The entitlements plist of `spec` (an empty dict when it has none). */
+/** The executable's name for an app: its own, with only what a file name cannot hold replaced; "zinc" when it has none. */
+std::string bundleExeName(const std::string& appName);
 std::string entitlementsPlist(const BundleSpec& spec);
 
 /** The Info.plist text (XML) of `spec`. */

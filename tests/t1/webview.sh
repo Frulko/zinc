@@ -24,10 +24,10 @@ HTML
 printf 'bundled' > "$t/project/assets/msg.txt"
 printf '{"name":"webview-test","entry":"main.ts","app":{"id":"dev.zinc.test.webview"}}\n' > "$t/project/zinc.json"
 "$Z" build --bundle "$t/project/main.ts" -o "$t/Probe.app" > "$t/build" 2>&1 || { cat "$t/build"; exit 1; }
-otool -L "$t/Probe.app/Contents/MacOS/zinc" | grep -q WebKit || { echo 'webview: no WebKit linked'; exit 1; }
+otool -L "$t/Probe.app/Contents/MacOS/webview-test" | grep -q WebKit || { echo 'webview: no WebKit linked'; exit 1; }
 mv "$t/Probe.app" "$t/moved/Probe.app"
 mv "$t/project/assets" "$t/project/gone"
-(cd / && timeout 15 "$t/moved/Probe.app/Contents/MacOS/zinc") > "$t/native" 2>&1 || { cat "$t/native"; exit 1; }
+(cd / && timeout 15 "$t/moved/Probe.app/Contents/MacOS/webview-test") > "$t/native" 2>&1 || { cat "$t/native"; exit 1; }
 grep -qx 'bundled|reply:rpc|rejected' "$t/native" || { echo 'webview: bundle page or bridge failed'; cat "$t/native"; exit 1; }
 mv "$t/project/gone" "$t/project/assets"
 timeout 15 "$Z" run --interp "$t/project/main.ts" > "$t/interp" 2>&1 || { cat "$t/interp"; exit 1; }

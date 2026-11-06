@@ -36,7 +36,7 @@ PY
 if [ "$(uname)" = Darwin ]; then
   printf '%s\n' '{"entry":"main.ts","app":{"id":"dev.zinc.test.photo-files","name":"Photos"}}' > "$tmp/project/zinc.json"
   "$ZINC" build --bundle "$tmp/project" -o "$tmp/Photos.app" > "$tmp/build" 2>&1 || { cat "$tmp/build"; exit 1; }
-  (cd "$tmp"; ZINC_HEADLESS=1 ZINC_BACKGROUND=1 ZINC_DETERMINISTIC=1 ZINC_FRAMEHASH=last ZINC_FRAMES=3 timeout 20 "$tmp/Photos.app/Contents/MacOS/zinc") > "$tmp/log" 2>&1 || { cat "$tmp/log"; exit 1; }
+  (cd "$tmp"; ZINC_HEADLESS=1 ZINC_BACKGROUND=1 ZINC_DETERMINISTIC=1 ZINC_FRAMEHASH=last ZINC_FRAMES=3 timeout 20 "$tmp/Photos.app/Contents/MacOS/Photos") > "$tmp/log" 2>&1 || { cat "$tmp/log"; exit 1; }
   sed -n 's/^zinc: framehash .* //p' "$tmp/log" > "$tmp/hash"
   cmp "$tmp/reference" "$tmp/hash"
   python3 - "$tmp/log" <<'PY'

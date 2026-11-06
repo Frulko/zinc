@@ -69,7 +69,7 @@ async function main(): Promise<void> { await autostart.enable(true, ['--mode', '
 main();
 T
 "$ZINC" run main.ts >/dev/null 2>&1
-if [ "$(uname)" = Darwin ]; then f="$HOME/Library/LaunchAgents/dev.zinc.test.auto.plist"; plutil -lint "$f" >/dev/null 2>&1 || { echo "the LaunchAgent is not a valid plist"; fail=1; }; grep -q "RunAtLoad" "$f" && grep -q -- "--hidden" "$f" && grep -q -- "<string>tray</string>" "$f" || { echo "LaunchAgent content: $(cat "$f" 2>&1)"; fail=1; }
+if [ "$(uname)" = Darwin ]; then f="$HOME/Library/LaunchAgents/dev.zinc.test.auto.plist"; plutil -lint "$f" >/dev/null 2>&1 || { echo "the LaunchAgent is not a valid plist"; fail=1; }; grep -q "<key>AssociatedBundleIdentifiers</key><array><string>dev.zinc.test.auto</string>" "$f" || { echo "the LaunchAgent does not name its app"; fail=1; }; grep -q "RunAtLoad" "$f" && grep -q -- "--hidden" "$f" && grep -q -- "<string>tray</string>" "$f" || { echo "LaunchAgent content: $(cat "$f" 2>&1)"; fail=1; }
 else f="$HOME/.config/autostart/dev.zinc.test.auto.desktop"; grep -q "^Name=Auto Test" "$f" && grep -q -- "--hidden" "$f" || { echo ".desktop content: $(cat "$f" 2>&1)"; fail=1; }; fi
 [ $fail -eq 0 ] && echo "system instance: ok"
 exit $fail

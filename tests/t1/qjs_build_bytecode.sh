@@ -44,7 +44,7 @@ if [ "$(uname)" = Darwin ]; then
   r="$tmp/dist/qb.app/Contents/Resources/app"
   [ -s "$r/app.qbc" ] && [ -s "$r/app.js" ] && [ "$(cat "$r/engine")" = quickjs ] || { echo "the exported app carries no app.qbc: $(ls "$r" 2>&1)"; fail=1; }
   echo "console.log('not the bytecode');" > "$r/app.js" && touch "$r/app.qbc"
-  got=$(ZINC_HEADLESS=1 "$tmp/dist/qb.app/Contents/MacOS/zinc" 2>&1)
+  got=$(ZINC_HEADLESS=1 "$tmp/dist/qb.app/Contents/MacOS/qb" 2>&1)
   [ "$got" = "from the source" ] || { echo "the exported app does not start from app.qbc: $got"; fail=1; }
 fi
 exit $fail

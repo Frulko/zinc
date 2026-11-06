@@ -442,7 +442,7 @@ struct Sim : NativeSystem, zrt::Poller {
     fprintf(f, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>\n<key>Label</key><string>%s</string>\n<key>ProgramArguments</key><array><string>%s</string>", id, exe);
     for (int i = 0; i < n; i++) fprintf(f, "<string>%s</string>", extra[i]);
     if (hidden) fprintf(f, "<string>--hidden</string>");
-    fprintf(f, "</array>\n<key>RunAtLoad</key><true/>\n</dict></plist>\n");
+    fprintf(f, "</array>\n<key>AssociatedBundleIdentifiers</key><array><string>%s</string></array>\n<key>RunAtLoad</key><true/>\n</dict></plist>\n", id);   // Login Items shows the app, not the executable
 #else
     fprintf(f, "[Desktop Entry]\nType=Application\nName=%s\nExec=%s", title[0] ? title : id, exe);
     for (int i = 0; i < n; i++) fprintf(f, " %s", extra[i]);

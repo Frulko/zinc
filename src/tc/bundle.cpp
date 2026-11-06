@@ -36,6 +36,12 @@ bool run(const std::string& cmd, std::string& err, const char* what) {
 
 }  // namespace
 
+std::string bundleExeName(const std::string& appName) {
+  std::string name = appName;
+  for (char& c : name) if (c == '/' || c == ':') c = '-';
+  return name.empty() || name == "." || name == ".." ? "zinc" : name;
+}
+
 std::string infoPlist(const BundleSpec& s, bool hasIcon) {
   std::ostringstream o;
   auto kv = [&](const char* k, const std::string& v) { o << "<key>" << k << "</key><string>" << esc(v) << "</string>\n"; };
@@ -104,6 +110,7 @@ bool ensureDevBundle(const BundleSpec& spec, const std::string& engine, const st
   if (fs::exists(exe, ec) && readAll(stamp) == want && readAll(plist) == plistText) return true;   // nothing changed: two small reads and a few stats
   fs::create_directories(exe.parent_path(), ec);
   fs::remove(exe, ec);
+  if (spec.exeName != "zinc") fs::remove(exe.parent_path() / "zinc", ec);   // a bundle written before the executable took the app's name
   fs::copy_file(engine, exe, fs::copy_options::overwrite_existing, ec);
   if (ec) { err = "cannot copy the engine into " + appPath + ": " + ec.message(); return false; }
   fs::permissions(exe, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
@@ -127,6 +134,7 @@ bool writeBundle(const BundleSpec& spec, const std::string& exe, const std::stri
   fs::create_directories(macos, ec);
   fs::create_directories(res, ec);
   fs::path target = macos / spec.exeName;
+  if (spec.exeName != "zinc") fs::remove(macos / "zinc", ec);   // a bundle written before the executable took the app's name
   if (fs::absolute(exe) != fs::absolute(target)) { fs::remove(target, ec); fs::copy_file(exe, target, fs::copy_options::overwrite_existing, ec); if (ec) { err = "cannot write " + target.string() + ": " + ec.message(); return false; } }
   fs::permissions(target, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
   bool hasIcon = false;
