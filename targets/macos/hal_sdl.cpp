@@ -548,6 +548,17 @@ void hal_init(const HalConfig* cfg) {
 #endif
   }
   SDL_SetHint(SDL_HINT_IME_IMPLEMENTED_UI, "composition");   // zinc:ui draws the composing text in the field (SDL_EVENT_TEXT_EDITING)
+  {
+    // SDL turns the screen saver off for every window (a game's default): an app lets the display sleep, as a web page does. A program keeps it
+    // on with navigator.wakeLock.request('screen') (zinc:sys "wakelock"), a kiosk always (zinc.json "kiosk", ZINC_KIOSK).
+#ifdef ZINC_KIOSK
+    bool awake = true;
+#else
+    bool awake = false;
+#endif
+    if (const char* v = getenv("ZINC_KIOSK")) awake = v[0] == '1';
+    SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, awake ? "0" : "1");
+  }
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   // window size in points: zinc.json targets.<id>.zoom (ZINC_ZOOM overrides); auto only enlarges tiny surfaces
 #ifdef ZINC_ZOOM

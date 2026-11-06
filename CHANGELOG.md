@@ -33,6 +33,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A translucent window that follows its content (an accordion in a menu bar panel) grows and shrinks smoothly on macOS: its picture was stretched or squashed during the animation.
 - A `zinc device screen` request withdrawn before it was answered no longer keeps a video off its hardware layer for the rest of the run.
 - A program that starts and terminates many `zinc:worker` workers no longer runs out of open files or grows in memory: each ended worker left two open files and about 8 KB behind.
+- An open Zinc window no longer keeps the screen from going to sleep on the desktop: an app that must stay visible asks with `navigator.wakeLock.request('screen')`, and a kiosk (`"kiosk": true`) still keeps it on.
 
 ### Plugins
 

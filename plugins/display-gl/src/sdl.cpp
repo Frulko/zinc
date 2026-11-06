@@ -30,6 +30,10 @@ bool zgl_backend_init(const HalConfig* cfg) {
     SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");   // no Dock icon, never the active application
 #endif
   }
+  {   // the display may sleep unless a kiosk shows (as targets/macos/hal_sdl.cpp); navigator.wakeLock keeps it on
+    const char* k = getenv("ZINC_KIOSK");
+    SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, k && k[0] == '1' ? "0" : "1");
+  }
   if (!SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "display-gl: %s\n", SDL_GetError()); return false; }
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);

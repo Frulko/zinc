@@ -98,6 +98,7 @@
     {"paths": ["app/riffle/", "tests/t1/riffle.sh"], "tests": ["riffle"]},
     {"paths": ["lib/std/ui.ts", "tests/data/border_transparent/", "tests/t1/ui_border_transparent.sh"], "tests": ["ui_border_transparent"]},
     {"paths": ["targets/macos/hal_sdl.cpp", "runtime/raster.cpp", "tests/golden/macos/translucent/", "tests/t1/macos_translucent.sh"], "tests": ["macos_translucent"]},
+    {"paths": ["targets/macos/hal_sdl.cpp", "plugins/display-gl/src/sdl.cpp", "tests/t1/macos_screensaver.sh"], "tests": ["macos_screensaver"]},
     {"paths": ["targets/macos/hal_sdl.cpp", "targets/macos/hal_metal.mm", "plugins/system/native/system.macos.mm", "tests/golden/macos/covered/", "tests/t1/covered_window.sh"], "tests": ["covered_window"]},
     {"paths": ["plugins/system/", "lib/std/system/", "tests/data/mobile-services/", "tests/t0/system_phone.sh"], "tests": ["system_phone", "system_ops", "system_media", "macos_media"]},
     {"paths": ["plugins/leapmotion/", "tests/t0/leapmotion.sh", "tests/data/leapmotion/", "docs/plugins/leapmotion.md", "docs/reports/zinc-next-leapmotion.md"], "tests": ["leapmotion", "leapmotion_demo"]},
