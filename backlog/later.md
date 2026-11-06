@@ -733,6 +733,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-997: kit/imageviewer.ts: gestures still act during the 165 ms paging window of go(), and pinch and drag share the startPan* fields.
 - ZN-998: the unmatched-closing-tag check runs only with JSX lowering; a file whose only JSX is a lone </X> gets a generic parser error.
 - ZN-998: LSP still answers requests before initialize or after shutdown, and a failed .d.ts read sets dtsRead_ for good.
+- ZN-1000: minimize and restore hold the event pump 0.56-0.65 s for the genie animation (SDL_PollEvent inside AppKit), so the script stalls once each way; the live-resize watcher (zrt_redraw from inside the pump) could keep frames coming.
+- ZN-1000: while the window is unseen, the compositor's render-thread ticks (animated layers) still run at their floor rate and hal_present throws them away; stop them too (comp_live) if a profile shows them.
+- ZN-1001: a terminated worker's record stays in tOwned() (about 0.4 KB, walked at every delivery turn) because the handle is its index; a free list of handles would remove both.
+- ZN-1001: a worker thread that ends with a DNS lookup in flight leaves its loop open (uv_loop_close refuses while a request is pending).
+- macos_window failed once (fullscreen close check "close 20,22 | fullscreen 1") and passed on the rerun right after, 2026-11-06; watch for a flake.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -1243,3 +1248,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-995: build and run the webview slot-reuse scenario of `tests/t1/webview.sh` on Linux (`webview.linux.cpp` got the same generation handles, unbuilt on the Mac).
 - ZN-996: lock the app update trial on Windows (LockFileEx); there, a second launch still rolls a running trial back.
 - ZN-998: FileLock has no Windows implementation (LockFileEx): concurrent tool installs and plugin builds still race there.
+- ZN-1000: give Linux (X11 VisibilityNotify, Wayland frame callbacks), Windows (DWM cloaked, minimized) and iOS/Android backgrounding the same unseen-window throttle.
+- ZN-1001: run worker_churn on Linux (open files via /proc/PID/fd; libuv on epoll and eventfd).

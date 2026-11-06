@@ -1513,3 +1513,9 @@ Uncapped (`ZINC_VSYNC=0` now lifts both limits), same machine and surface, 2 run
 The ES 3 path (vertex array, unsynchronized ring), before the fix of the double depth draw: clip_nested 9.09 -> 7.15 ms, gradients 6.12 -> 5.25, the other scenes within noise.
 
 zinc:video on the same machine, `render_media`, 30 s real time, H.264 720p25 drawn at 1440x900, software decode, no audio, nothing on screen: local file 747 frames, 0 dropped, 139% of a core; HLS stream 577 frames, 0 dropped, 98% of a core, about 7 s before the first frame counts. ffmpeg alone: 219 fps on 4 threads, 85 fps on one.
+
+## Covered windows and worker churn — 2026-11-06 (M1 Pro, load 5-10, other trees building)
+
+ZN-1000, an animating window that nobody sees (develop binary -> fix): hidden with `orderOut` 115.6 -> 10.5 fps, minimized 101.2 -> 8.8 fps, covered by other windows: one frame waited 1008.1 ms -> longest gap 103.8 ms (the idle pace); shown again 58-62 fps, first frame within 30-40 ms; a visible window unchanged at 59-61 fps. CPU of a 1100x700 window drawing 300 rects, hidden 10 s: 2.55 s -> 0.29 s (user+sys). `nextDrawable` now waits at most 50 ms. Minimize and restore still hold the event pump 0.56-0.65 s each way (the genie animation inside `SDL_PollEvent`), unchanged.
+
+ZN-1001, a headless program that starts a worker, exchanges 50 messages and terminates it, in a loop: interpreter 1400 workers in 50 s, open files 7 -> 3091 and RSS 13 -> 30 MB, live heap after 1000 workers 9025 KB; after the fix 6000 workers in 3 min, open files flat at 13, RSS 10.7-13.2 MB, live heap 994 KB. QuickJS: open files 8 -> 716 in 30 s before, flat at 16 (RSS 26-29 MB) over 90 s after.
