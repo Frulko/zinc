@@ -226,6 +226,8 @@ export function Keyboard(props: KeyboardProps): i32 {
     const i: i32 = Math.floor((e.gx - r[0] - accX()) / cellW);
     setAccentIx(Math.max(0, Math.min(accents().length - 1, i)));
   }
+  /** The press lost (a gesture took the pointer, the app went to the background): no repeat, no popup, nothing typed. */
+  function cancel(): void { clearTimers(); setBubble(''); setAccents([]); pressToken = ''; }
   function up(k: Key): void {
     clearTimers();
     setBubble('');
@@ -250,7 +252,9 @@ export function Keyboard(props: KeyboardProps): i32 {
       style={{ height: keyH, width: 1, grow: Math.round(k.width * 10) }}
       onPointerDown={(e: ui.PointerEvent) => down(k, ref)}
       onPointerMove={(e: ui.PointerEvent) => move(e)}
-      onPointerUp={(e: ui.PointerEvent) => up(k)}>
+      onPointerUp={(e: ui.PointerEvent) => up(k)}
+      onPointerCancel={(e: ui.PointerEvent) => cancel()}
+      onPointerLeave={(e: ui.PointerEvent) => { if (pressToken === 'bksp') cancel(); }}>
       <Text className={size}>{k.special ? specialLabel(k.token, layout()) : k.label}</Text>
     </View>;
   }

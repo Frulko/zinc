@@ -2338,7 +2338,7 @@ export function systemSignal(line: string): void {
   else if (kind === 'layouttrace') traceLayout = arg === 'on';
   else if (kind === 'fontscale') setFontScale(parseFloat(arg));
   else if (kind === 'reducemotion') reduceMotion = arg === '1' || arg === 'true';
-  else if (kind === 'background' || kind === 'foreground') appActive = kind === 'foreground';
+  else if (kind === 'background' || kind === 'foreground') { appActive = kind === 'foreground'; if (!appActive) cancelPress(); }
   else if (kind === 'focus') windowFocus = arg === '1';
   else if (kind === 'keyboard') setKeyboardInset(Math.max(0, parseFloat(a[0])), a.length > 1 ? parseFloat(a[1]) : 0, a.length > 2 ? parseInt(a[2]) : 0);
   else if (kind === 'compose') composeText(arg);
@@ -6127,11 +6127,12 @@ function pressAt(px: number, py: number, button: i32): void {
 function releaseAt(px: number, py: number, button: i32): void {
   held = held & ~bitOf(button);
   if (handleDrag !== 0 && button === 0) { handleDrag = 0; menuOpen = true; paintDirty = true; return; }   // a handle let go: the menu again
-  if (longDone && button === 0) { longDone = false; fingerField = -1; selecting = -1; tapEdit = -1; gestureEnd(px, py); dragScroller = -1; dragging = false; return; }
   if (capture >= 0 && button === captureBtn) { const c = capture; capture = -1; fire(c, PUP, px, py, button); }
   else if (capture < 0 && grabKind === 0) { const u = bubble(hit(px, py, HIT_ANY), PUP, false); if (u >= 0) fire(u, PUP, px, py, button); }
   hoverDirty = true;
   if (button !== 0) return;
+  // a long press selected a word in a field: its lift only ends the press (the capture above got its onPointerUp)
+  if (longDone) { longDone = false; fingerField = -1; selecting = -1; tapEdit = -1; gestureEnd(px, py); dragScroller = -1; dragging = false; return; }
   gestureEnd(px, py);
   selecting = -1;
   tsDrag = false;
@@ -6154,6 +6155,19 @@ function releaseAt(px: number, py: number, button: i32): void {
   dragScroller = -1; dragging = false;
 }
 /** One pointer sample: position, and whether `button` is held (HAL button events, the held state, or test hooks). */
+/** The app went to the background with a press under way: its lift is never seen, so the press is cancelled (iOS's touchesCancelled,
+ *  Android's ACTION_CANCEL): onPointerCancel, no click, tap or drag end, the scroll keeps its inertia. */
+function cancelPress(): void {
+  if (held === 0) return;
+  if (capture >= 0) { const c = capture; capture = -1; if (handlerOf(nodes[c], PCANCEL) !== null) fire(c, PCANCEL, ptrX, ptrY, captureBtn); }
+  if (grabKind === 2 && nodes[grabber].alive) fireGesture(grabber, PDRAG, ptrX, ptrY, 3);
+  else if (grabKind === 3 && pinching) pinchEnd(ptrX, ptrY);
+  grabber = -1; grabKind = 0; tapNode = -1; longNode = -1; dragCands = []; pinching = false; spreadD = 0;
+  if (pressed >= 0) { pressed = -1; paintDirty = true; }
+  if (dragging && dragScroller >= 0) releaseScroll(dragScroller);
+  dragScroller = -1; dragging = false; selecting = -1; tapEdit = -1; tsDrag = false; longDone = false; fingerField = -1; handleDrag = 0;
+  held = 0; primaryId = -1; fIds = []; fXs = []; fYs = []; halPrimary = -1; halFingers = [];
+}
 function pointerSample(px: number, py: number, button: i32, down: boolean): void {
   if (button >= 3) { pointerMove(px, py); lastX = px; lastY = py; if (down) { if (button === 3) goBack(); else goForward(); } return; }   // the side buttons: back and forward, as browsers take them
   const was = (held & bitOf(button)) !== 0;
@@ -7129,6 +7143,14 @@ function pinchUpdate(ax: number, ay: number): void {
   pinchRot = r;
   if (nodes[grabber].alive) fireGesture(grabber, PPINCH, (ax + fXs[0]) / 2, (ay + fYs[0]) / 2, 1);
 }
+/** The second finger of a pinch lifted first: the pointer finger, still down, pans and scrolls again, as from a new press where it is
+ *  (no tap, no long press: the pinch was the gesture). */
+function regrab(): void {
+  const under = scrollerTop(ptrX, ptrY, 3);
+  dragScroller = under >= 0 && dragScrolls() ? under : -1;
+  gestureBegin(gHit, ptrX, ptrY);
+  tapNode = -1; longNode = -1; longFired = true;
+}
 function pinchEnd(ax: number, ay: number): void {
   pinching = false;
   const bx = fXs.length > 0 ? fXs[0] : ax, by = fYs.length > 0 ? fYs[0] : ay;
@@ -7155,7 +7177,7 @@ function touchSecondary(id: i32, x: number, y: number, phase: i32): void {
   if (i < 0) return;
   fXs[i] = x; fYs[i] = y;
   if (phase === 2) {
-    if (i === 0 && pinching) pinchEnd(ptrX, ptrY);
+    if (i === 0 && pinching) { pinchEnd(ptrX, ptrY); regrab(); }
     if (i === 0) spreadD = 0;
     fIds.splice(i, 1); fXs.splice(i, 1); fYs.splice(i, 1);
   } else if (i === 0 && pinching) pinchUpdate(ptrX, ptrY);

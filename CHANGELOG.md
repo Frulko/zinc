@@ -27,6 +27,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - One error no longer freezes a reactive app: a throw inside `batch`, `untrack` or an effect used to hold every later signal update back, and a render caught by its parent (an error boundary) stopped reordered children from moving.
 - Removing a scroll view in the middle of a drag no longer makes the next view created scroll under the same finger.
+- Touch gestures recover cleanly: lifting one finger of a pinch lets the other scroll again, a press held while the app goes to the background is cancelled instead of clicking on return, and a long press in a text field still sends `onPointerUp`.
+- The navigation stack no longer keeps a screen when a swipe or Android's back gesture starts during a pop, and dragging a sheet down while pressing back closes only the sheet.
+- `Pressable` sends `onPressOut` for a very quick tap, and an `Alert` button pressed twice runs once.
+- The on-screen keyboard's backspace stops repeating when its press is lost, and the image viewer ignores zoom and drags while it closes.
 
 ### Developer tools
 

@@ -50,11 +50,12 @@ const FEEDBACK = new ui.Style(['pressFeedback'], [1]), NO_FEEDBACK = new ui.Styl
 const ENABLED = new ui.Style(['disabled'], [0]), DISABLED = new ui.Style(['disabled'], [1]);
 function Press(p: PressableProps, pressedStyle: ui.Style | null, feedback: boolean = true): i32 {
   const [pressed, setPressed] = useState<boolean>(false);
+  const held = useRef<boolean>(false);   // pressed as of now: a down and an up in one frame see each other (the state is the last render's)
   const off = p.disabled ?? false;
   const press = (): void => { const f = p.onPress; if (!off && f !== undefined) f(); };
   const long = (e: ui.PointerEvent): void => { const f = p.onLongPress; if (!off && f !== undefined) f(); };
-  const down = (e: ui.PointerEvent): void => { if (off) return; setPressed(true); const f = p.onPressIn; if (f !== undefined) f(); };
-  const up = (e: ui.PointerEvent): void => { if (!pressed) return; setPressed(false); const f = p.onPressOut; if (f !== undefined) f(); };
+  const down = (e: ui.PointerEvent): void => { if (off) return; held.current = true; setPressed(true); const f = p.onPressIn; if (f !== undefined) f(); };
+  const up = (e: ui.PointerEvent): void => { if (!held.current) return; held.current = false; setPressed(false); const f = p.onPressOut; if (f !== undefined) f(); };
   const sf = p.styleFn, st: PressableStateCallbackType = { pressed: pressed };
   return <View style={[sf !== undefined ? sf(st) : p.style ?? NONE, pressedStyle !== null || !feedback ? NO_FEEDBACK : FEEDBACK, off ? DISABLED : ENABLED, pressed && pressedStyle !== null && (pressedStyle as ui.Style)]} onPress={press} onLongPress={long} onPointerDown={down}
     onPointerUp={up} onPointerCancel={up} aria-label={p.accessibilityLabel ?? ''}>{renderPressable(p, st)}</View>;
@@ -618,7 +619,7 @@ export function Modal(p: ModalProps): i32 {
 }
 
 export type AlertButton = { text?: string; onPress?: () => void; style?: string };
-class AlertBox { node: i32 = -1; cancel: (() => void) | null = null; }
+class AlertBox { node: i32 = -1; cancel: (() => void) | null = null; closed: boolean = false; }
 const DEFAULT_OK: AlertButton[] = [{ text: 'OK' }];
 /** React Native's Alert.alert as an in-app dialog over the app (a modal layer): the buttons close it, then call their onPress; Escape presses the
  *  'cancel' button (or just closes when there is none and the alert is not a choice). */
@@ -631,7 +632,7 @@ export class Alert {
       return;
     }
     const box = new AlertBox();
-    const close = (): void => { ui.setNumber(box.node, 'hidden', 1); setTimeout((): void => { ui.remove(root, box.node); }, 200); };   // it fades out, then leaves
+    const close = (): void => { if (box.closed) return; box.closed = true; ui.setNumber(box.node, 'hidden', 1); setTimeout((): void => { ui.remove(root, box.node); }, 200); };   // it fades out, then leaves
     const shade = ui.createNode(ui.VIEW);
     ui.setStyles(shade, [new ui.Style(['position', 'left', 'top', 'right', 'bottom', 'alignItems', 'justifyContent', 'backgroundColor', 'backgroundAlpha'], [1, 0, 0, 0, 0, 1, 1, 0x000000, 90])]);
     const card = ui.createNode(ui.VIEW);
@@ -652,7 +653,7 @@ export class Alert {
       const label = ui.createText(b.text ?? 'OK');
       ui.setStyles(label, [new ui.Style(['fontSize', 'fontWeight', 'color'], [17, b.style === 'cancel' ? 1 : 0, b.style === 'destructive' ? 0xff3b30 : 0x007aff])]);
       ui.insert(btn, label, -1);
-      const press = (): void => { close(); const f = b.onPress; if (f !== undefined) f(); };
+      const press = (): void => { if (box.closed) return; close(); const f = b.onPress; if (f !== undefined) f(); };
       if (b.style === 'cancel') box.cancel = press;
       ui.listen(btn, press);
       ui.insert(row, btn, -1);

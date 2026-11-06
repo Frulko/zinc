@@ -168,6 +168,7 @@ class Viewer {
   }
   zoomBy(f: number, px: number, py: number): void { this.zoomTo(this.zoom * f, px, py); }
   toggle(x: number, y: number): void {
+    if (this.closing) return;
     const to = this.zoom > 1.01 ? 1 : DBL_ZOOM, cx = x - (this.fx + this.fw / 2), cy = y - (this.fy + this.fh / 2), k = to / this.zoom;
     const px = to === 1 ? 0 : cx - k * (cx - this.panX), py = to === 1 ? 0 : cy - k * (cy - this.panY);
     const b = this.bounds(to);
@@ -181,15 +182,19 @@ class Viewer {
     const cx = this.fx + this.fw / 2 + this.panX, cy = this.fy + this.fh / 2 + this.panY, hw = this.fw * this.zoom / 2, hh = this.fh * this.zoom / 2;
     return x >= cx - hw && x <= cx + hw && y >= cy - hh && y <= cy + hh;
   }
+  // while it closes (the picture flies back to its thumbnail) the gestures are over: they would move what the close animates
   wheel(e: ui.PointerEvent): void {
+    if (this.closing) return;
     if (e.pinch !== 1) { this.zoomBy(e.pinch, e.x, e.y); return; }
     if (e.wheel !== 0) this.zoomBy(Math.exp(0.18 * e.wheel), e.x, e.y);
   }
   pinch(e: ui.PointerEvent): void {
+    if (this.closing) return;
     if (e.phase === 0) { this.startZoom = this.zoom; this.startPanX = this.panX; this.startPanY = this.panY; return; }
     if (e.phase === 1) { this.zoomTo(this.startZoom * e.scale, e.x, e.y); }
   }
   drag(e: ui.PointerEvent): void {
+    if (this.closing) return;
     if (e.phase === 0) {
       this.startPanX = this.panX; this.startPanY = this.panY; this.mode = 0;
       return;
@@ -230,6 +235,7 @@ class Viewer {
     }, 165);
   }
   key(e: ui.KeyEvent): void {
+    if (this.closing) return;
     const k = e.key;
     if (k === 'ArrowLeft') this.go(-1); else if (k === 'ArrowRight') this.go(1);
     else if (k === '+' || k === '=') this.zoomBy(1.5, this.W / 2, this.H / 2); else if (k === '-') this.zoomBy(1 / 1.5, this.W / 2, this.H / 2);

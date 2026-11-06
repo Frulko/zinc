@@ -53,6 +53,7 @@ export class Navigation {
   /** Opens a screen above the current one, with the platform's transition. */
   push(name: string, title: string = '', params: number = 0): void {
     if (this.kind === 2) this.finish();
+    this.predictive = false; this.edge = 1;   // a swipe or a predictive back under way gives way to the push
     this.routes.push(this.route(name, title, params, false));
     this.animate(1, 0, 1);
     this.rerender();
@@ -136,9 +137,9 @@ export class Navigation {
   alphaOf(key: i32): number { const a = this.alphas.get(key); return a === undefined ? 1 : a; }
   // ---- the iOS edge swipe: the top screen follows the finger, the release velocity decides
   swipe(e: ui.PointerEvent): void {
-    if (this.stackDepth() < 2) return;
+    if (this.stackDepth() < 2 || this.kind === 2) return;   // a pop under way finishes: the screen the finger took is going
     const w = Math.max(1, width());
-    if (e.phase === 0) { this.kind = 3; this.dragAt = []; this.dragX = []; this.wake(); }
+    if (e.phase === 0) { this.kind = 3; this.predictive = false; this.edge = 1; this.dragAt = []; this.dragX = []; this.wake(); }
     if (this.kind !== 3) return;
     const dx = Math.max(0, e.dx);
     this.t = 1 - Math.min(1, dx / w);
@@ -155,7 +156,7 @@ export class Navigation {
   }
   // ---- Android's predictive back and back key
   signal(kind: string, arg: string): void {
-    if (this.style !== 'android' || this.stackDepth() < 2 || this.modalOpen()) return;
+    if (this.style !== 'android' || this.stackDepth() < 2 || this.modalOpen() || this.kind === 2) return;   // a pop under way finishes
     if (kind === 'backstart') { this.kind = 4; this.predictive = true; this.edge = arg === 'right' ? -1 : 1; this.t = 1; this.wake(); }
     else if (kind === 'backprogress' && this.kind === 4) { this.t = 1 - Math.max(0, Math.min(1, parseFloat(arg))); this.apply(); }
     else if (kind === 'backcancel' && this.kind === 4) this.animate(5, this.t, 1);
@@ -224,7 +225,9 @@ function Screen(q: { nav: Navigation; route: Route; index: i32; prev: string; p:
 function Presented(q: { nav: Navigation; p: StackProps }): i32 {
   const [drag, setDrag] = useState<number>(0);
   const nav = q.nav, android = nav.style === 'android', h = height(), shown = nav.modalOpen();
-  const close = (): void => { const later: () => void = (): void => { ui.removeStepper(later); setDrag(0); nav.pop(); }; ui.addStepper(later); };
+  // the modal shown when it was asked: a second close (a back and a drag in one frame) finds it gone and pops nothing under it
+  const key = shown ? nav.top().key : -1;
+  const close = (): void => { const later: () => void = (): void => { ui.removeStepper(later); setDrag(0); if (nav.modalOpen() && nav.top().key === key) nav.pop(); }; ui.addStepper(later); };
   const grab = (e: ui.PointerEvent): void => {
     if (e.phase === 1) setDrag(Math.max(0, e.dy));
     else if (e.phase === 2 || e.phase === 3) { if (e.phase === 2 && e.dy > h * 0.25) close(); else setDrag(0); }
