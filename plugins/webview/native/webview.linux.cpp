@@ -323,6 +323,8 @@ struct LinuxWebview : NativeWebview, zrt::Poller {
   void eval(int32_t v, zrt::String js) override { run(v, str(js)); }
   void setZoom(int32_t v, double factor) override { if (View* p = at(v)) webkit_web_view_set_zoom_level(p->wv, factor > 0.25 ? factor : 0.25); }
   void key(int32_t, bool, zrt::String, zrt::String, int32_t) override {}   // ponytail: a remote keyboard is macOS only (sidecar); a real keyboard reaches the page by itself
+  void pointer(int32_t, double, double, int32_t, double, double) override {}   // ponytail: a pointer from afar is macOS only (sidecar), as key
+  void cursor(int32_t, int32_t) override {}
   void post(int32_t v, zrt::String data) override { run(v, "window.zinc.__dispatch(" + quoted(data) + ")"); }
   void reply(int32_t v, int32_t id, bool ok, zrt::String result) override {
     run(v, "window.zinc.__settle(" + std::to_string(id) + "," + (ok ? "true," : "false,") + quoted(result) + ")");

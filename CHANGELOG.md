@@ -8,6 +8,16 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Sidecar
+
+#### New
+
+- `sidecar-browser` controls the page from the Mac: **Control** turns the window into a pad where the mouse moves, clicks and scrolls on the screen, with a Kenney pointer; the keyboard types in the page, and ⌘C, ⌘X, ⌘V, ⌘A and ⌘Z use the Mac's clipboard.
+
+#### Fixed
+
+- A long stream with moving pictures (a video in a web view shown on a tablet) no longer eats the Mac's memory until macOS ends the app.
+
 ### Rendering and performance
 
 #### Fixed

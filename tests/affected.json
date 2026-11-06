@@ -58,7 +58,7 @@
     {"paths": ["plugins/animation/", "third_party/ozz-animation/", "examples/animation-lab/", "tests/t0/animation_pipeline.sh", "tests/t1/animation_lab.sh", "tests/golden/animation-lab/", "tests/data/scene-exchange/bad_skin.py"], "tests": ["animation_pipeline", "animation_lab"]},
     {"paths": ["tools/scene-exchange", "tools/scene_exchange/", "tools/build-blender-extension", "integrations/blender/", "plugins/3d/scene.ts", "tests/data/scene-exchange/", "tests/t0/scene_exchange.sh"], "tests": ["scene_exchange", "blender_library"]},
     {"paths": ["examples/blender-library/", "tests/t1/blender_library.sh", "tests/golden/blender-library/"], "tests": ["blender_library"]},
-    {"paths": ["plugins/display-sidecar/", "tests/t1/display_on_demand.sh"], "tests": ["display_on_demand"]},
+    {"paths": ["plugins/display-sidecar/", "tests/t1/display_on_demand.sh", "tests/t1/sidecar_memory.sh", "tests/t1/sidecar_remote.sh", "tests/native/sidecar/ack_screen.py", "examples/webview/sidecar-browser/"], "tests": ["display_on_demand", "sidecar_memory", "sidecar_remote"]},
     {"paths": ["plugins/display-shell/", "plugins/display-remote/remote_proto.h", "tests/display_shell.py", "tests/t0/display_shell.sh"], "tests": ["display_shell"]},
     {"paths": ["plugins/shell/", "plugins/display-remote/remote_proto.h", "tests/golden/shell/", "tests/t0/shell_plugin.sh", "runtime/raster.cpp", "runtime/zrt.cpp", "src/host/gfx_host.cpp"], "tests": ["shell_plugin"]},
     {"paths": ["plugins/display-rmpp/", "integrations/remarkable-ink/protocol.h", "tests/native/rmpp/sim.cpp", "tests/t1/rmpp_sim.sh", "tests/golden/sim/rmpp-", "examples/remarkable/notes/", "examples/remarkable/dashboard/", "tests/fixtures/rmpp-keys/"], "tests": ["rmpp_sim", "rmpp_ink_latency"]},

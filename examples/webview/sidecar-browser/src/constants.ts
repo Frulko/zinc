@@ -9,6 +9,8 @@ export const START_URL = 'zinc://app/start.html';
 export interface Shortcut { label: string; url: string; }
 export const SHORTCUTS: Shortcut[] = [
   { label: 'Start page', url: START_URL },
+  { label: 'Camera 1', url: 'zinc://app/webcam.html#nce.32' },
+  { label: 'Camera 2', url: 'zinc://app/webcam.html#nce.55' },
   { label: 'Wikipedia', url: 'https://en.m.wikipedia.org/wiki/Special:Random' },
   { label: 'Hacker News', url: 'https://news.ycombinator.com' },
   { label: 'OpenStreetMap', url: 'https://www.openstreetmap.org' },

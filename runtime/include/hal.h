@@ -278,6 +278,9 @@ struct HalOverlays {
   // a touch at (x, y) points: kind 0 press, 1 release, 2 drag, 3 scroll by (dx, dy), 4 pinch by the factor dx, 5 / 6 the right button
   // pressed / let go, 7 a mouse moving with no button; 1 when a picture's owner took it, else it is the app's
   int (*pointer)(double x, double y, int kind, double dx, double dy);
+  // where a pointer driven from afar is (not the screen's own touches), in points, and its shape (0 arrow, 1 I-beam, 2 hand), for a driver to
+  // draw; 0 when there is none
+  int (*cursor)(double* x, double* y, int* shape);
 };
 extern HalOverlays* hal_overlays;
 }

@@ -17,6 +17,11 @@ export interface Spec extends NativeModule {
   /** A key of the keyboard for the page, as if typed in it: its KeyboardEvent.code ("KeyA", "Enter", "ArrowLeft"...), the text it types
    *  ("" for none), the modifiers (1 shift, 2 control, 4 option, 8 command). macOS; elsewhere nothing yet. */
   key(v: i32, down: boolean, code: string, text: string, mods: i32): void;
+  /** A mouse for the off-screen page, as a display driver's touches: at (x, y) points of the surface, kind 0 press, 1 release, 2 drag, 3 scroll
+   *  by (dx, dy) points, 5 / 6 the right button pressed / let go, 7 a move; the driver draws its pointer. macOS; elsewhere nothing yet. */
+  pointer(v: i32, x: f64, y: f64, kind: i32, dx: f64, dy: f64): void;
+  /** That pointer's shape: 0 arrow, 1 I-beam, 2 hand. */
+  cursor(v: i32, shape: i32): void;
   /** Delivers `data` (a string, parsed when it is JSON) to the page: zinc.onmessage and a 'zinc' window event. */
   post(v: i32, data: string): void;
   /** Settles the page's zinc.invoke call `id` (result parsed when it is JSON). */

@@ -148,6 +148,7 @@ static View* at(int32_t v) { View* p = v >= 0 ? &views[v % MAXV] : nullptr; retu
 static NSWindow* offscreen;   // the web views' window when the app has none (offscreenView)
 static Shot shots[MAXV];
 static void snap(int i, int scale) {
+  @autoreleasepool {   // a driver asks from its frame, where no pool is ever drained
   View& v = views[i];
   Shot& s = shots[i];
   if (s.taking || v.w < 1 || v.h < 1) return;
@@ -167,6 +168,7 @@ static void snap(int i, int scale) {
     CGContextRelease(ctx); CGColorSpaceRelease(cs);
     s.gen++;
   }];
+  }
 }
 /** Web view i's newest picture for a display driver: its box and clip in points, its pixels (w x h, `scale` a point), a number that
  *  changes with each new picture; 0 when there is none (no such view, hidden, not taken yet). Asks for the next picture meanwhile. */
@@ -252,10 +254,25 @@ static void typeKey(WKWebView* wv, bool down, NSString* code, NSString* text, in
                                timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:wv.window.windowNumber context:nil characters:chars
              charactersIgnoringModifiers:chars isARepeat:NO keyCode:(unsigned short)(k ? [k[0] intValue] : 0)];
   if (wv.window.firstResponder != wv) [wv.window makeFirstResponder:wv];
-  if (flags & NSEventModifierFlagCommand) { if (down) [wv performKeyEquivalent:e]; }   // copy, paste, select all: the menu's shortcuts
+  if (flags & NSEventModifierFlagCommand) {   // the menu's shortcuts: this process has no menu to turn them into commands, so they are run here
+    if (!down) return;
+    if ([code isEqualToString:@"KeyC"]) [wv copy:nil];
+    else if ([code isEqualToString:@"KeyX"]) [wv cut:nil];
+    else if ([code isEqualToString:@"KeyV"]) [wv paste:nil];
+    else if ([code isEqualToString:@"KeyA"]) [wv selectAll:nil];
+    else if ([code isEqualToString:@"KeyZ"]) { if (flags & NSEventModifierFlagShift) [wv.undoManager redo]; else [wv.undoManager undo]; }
+    else [wv performKeyEquivalent:e];
+  }
   else if (down) [wv keyDown:e]; else [wv keyUp:e];
 }
-static HalOverlays overlays = {overlayPicture, overlayPointer};
+// the pointer driven from afar (WebView.pointer): the display driver draws it
+static bool farOn; static double farX, farY; static int farShape;
+static int overlayCursor(double* x, double* y, int* shape) {
+  if (!farOn) return 0;
+  *x = farX; *y = farY; *shape = farShape;
+  return 1;
+}
+static HalOverlays overlays = {overlayPicture, overlayPointer, overlayCursor};
 static int overlaysRegistered = (hal_overlays = &overlays, 0);
 #endif
 
@@ -398,6 +415,17 @@ struct MacWebview : NativeWebview, zrt::Poller {
   void key(int32_t v, bool down, zrt::String code, zrt::String text, int32_t mods) override {
 #if !TARGET_OS_IPHONE
     @autoreleasepool { if (View* p = at(v)) typeKey(p->wv, down, ns(code), ns(text), mods); }
+#endif
+  }
+  void pointer(int32_t, double x, double y, int32_t kind, double dx, double dy) override {
+#if !TARGET_OS_IPHONE
+    farOn = true; farX = x; farY = y;
+    overlayPointer(x, y, kind, dx, dy);
+#endif
+  }
+  void cursor(int32_t, int32_t shape) override {
+#if !TARGET_OS_IPHONE
+    farShape = shape;
 #endif
   }
   void call(int32_t v, NSString* js, NSDictionary* args) {

@@ -147,6 +147,8 @@ public class WebviewModule implements WebviewSpec {
     @Override public void eval(int v, String js) { ui(() -> { Entry e = views.get(v); if (e != null) e.wv.evaluateJavascript(js, null); }); }
     @Override public void setZoom(int v, double factor) { ui(() -> { Entry e = views.get(v); if (e != null) e.wv.getSettings().setTextZoom((int) Math.round(factor * 100)); }); }
     @Override public void key(int v, boolean down, String code, String text, int mods) {}   // ponytail: the device's own keyboard types here
+    @Override public void pointer(int v, double x, double y, int kind, double dx, double dy) {}   // ponytail: a pointer from afar is macOS only (sidecar), as key
+    @Override public void cursor(int v, int shape) {}
 
     @Override
     public void post(int v, String data) {

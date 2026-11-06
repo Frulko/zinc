@@ -10,6 +10,8 @@ export default {
   eval(_v: number, _js: string): void {},
   setZoom(_v: number, _f: number): void {},
   key(_v: number, _down: boolean, _code: string, _text: string, _mods: number): void {},
+  pointer(_v: number, _x: number, _y: number, _kind: number, _dx: number, _dy: number): void {},
+  cursor(_v: number, _shape: number): void {},
   post(_v: number, _data: string): void {},
   reply(_v: number, _id: number, _ok: boolean, _r: string): void {},
   close(_v: number): void {},

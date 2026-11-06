@@ -8,11 +8,16 @@ brings the page back to the window.
 While it streams, the Mac's keyboard types into the page on the tablet (tap a field there first), the − / 100 % / + buttons zoom it,
 and a pinch on the tablet magnifies it around the fingers. A mouse plugged into the tablet hovers and right clicks.
 
+A screen with no touch or mouse of its own (a Linux box behind a TV) is used from the Mac: **Control** turns the window into a pad of the
+screen's shape, where moving, clicking, right clicking and scrolling happen on the page at the same place, with a Kenney pointer (arrow,
+hand, I-beam, as the page's CSS asks) on the screen. The keyboard types in the page, and ⌘C, ⌘X, ⌘V, ⌘A and ⌘Z work with the Mac's clipboard. **Done** brings the remote back. CSS `:hover` and `mousemove` do not fire there: WebKit gives them only to an
+active window, and this one stays inactive so it never takes the Mac's focus.
+
 ```sh
 zinc run examples/webview/sidecar-browser
 ```
 
-The tablet runs the Sidecar app (`app/sidecar`), open and connected by USB (Android: USB debugging on). The page runs in WebKit on the Mac.
+The tablet runs the Sidecar app (`app/sidecar`), open and connected by USB (Android: USB debugging on), or waits on the network: type its address under **Screen on the network** (`ZINC_SIDECAR=<address>` fills it in). The page runs in WebKit on the Mac.
 
 - `src/main.tsx` picks the role: the window, or the tablet's side (`SIDECAR_BROWSER_ROLE=screen`, set by the window).
 - `src/state.ts` holds the window's state and starts the tablet's side (`sys.execPath()` with `zinc:process`), its orders on stdin.

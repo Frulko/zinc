@@ -13,7 +13,13 @@ export const [streaming, setStreaming] = createSignal<boolean>(false);
 export const [connected, setConnected] = createSignal<boolean>(false);
 export const [status, setStatus] = createSignal<string>('');
 export const [tabletUrl, setTabletUrl] = createSignal<string>(START_URL);
+/** The window is a pad for the tablet's page: the mouse and the keys go to it. */
+export const [controlling, setControlling] = createSignal<boolean>(false);
+/** The tablet's screen, width over height; its driver says its pixels. */
+export const [aspect, setAspect] = createSignal<number>(1.6);
 export const [zoom, setZoomSignal] = createSignal<number>(1);
+/** The address of a screen on the network; ZINC_SIDECAR fills it in. */
+export const [screenHost, setScreenHost] = createSignal<string>(sys.env('ZINC_SIDECAR'));
 
 const ZOOMS: number[] = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];   // Safari's steps
 
@@ -65,12 +71,18 @@ export function typeOnTablet(key: string, text: string, mods: i32): boolean {
   return true;
 }
 
+/** The Mac's mouse for the tablet's page, x and y from 0 to 1 over its screen; kind as WebView.pointer. */
+export function pointOnTablet(kind: i32, x: number, y: number, dx: number, dy: number): void {
+  if (tablet !== null) tablet.write(`ptr ${kind} ${x} ${y} ${dx} ${dy}\n`);
+}
+
 /** Starts the tablet's process (this program again, its screen the tablet over display-sidecar) on the page the window shows. */
 export function startStream(host: string): void {
   if (tablet !== null) return;
   const exe = sys.execPath();
-  // ponytail: under `zinc run --interp` the executable is zinc itself, which runs the project again; a built app is the program
-  const args: string[] = exe.endsWith('/zinc') ? ['run', sys.cwd()] : [];
+  // under `zinc run` (ZINC_LAUNCH_DIR is set) the executable is the engine, whatever its dev bundle names it, and the program starts in
+  // its project: it runs that project again; a built app is the program
+  const args: string[] = sys.env('ZINC_LAUNCH_DIR') !== '' ? ['run', sys.cwd()] : [];
   // ZINC_HEADLESS=0: a scripted run of the window (SIDECAR_BROWSER_DEMO) is headless, the tablet's side never is
   const p = proc.spawn(exe, args, { env: [`${ROLE_ENV}=${ROLE_SCREEN}`, 'ZINC_DISPLAY=sidecar', `ZINC_SIDECAR=${host}`, 'ZINC_BACKGROUND=1', 'ZINC_HEADLESS=0'] });
   tablet = p;
@@ -87,13 +99,18 @@ export function startStream(host: string): void {
   p.onStderr((line: string) => {
     if (!line.startsWith('display-sidecar: ')) return;
     setStatus(line.substring(17));
-    if (line.indexOf(' pixels, ') > 0) setConnected(true);   // "adb, 1280x800 pixels, the app at 640x400 points": the tablet answered
+    const pixels = line.indexOf(' pixels, ');
+    if (pixels > 0) {   // "adb, 1280x800 pixels, the app at 640x400 points": the tablet answered
+      setConnected(true);
+      const size = line.substring(line.lastIndexOf(' ', pixels - 1) + 1, pixels).split('x');
+      if (size.length === 2 && parseInt(size[1]) > 0) setAspect(parseInt(size[0]) / parseInt(size[1]));
+    }
     // no screen: the driver gave up and the process would show the page in a window of its own on the Mac
     if (line.indexOf('no Sidecar screen') > 0 || line.indexOf('not a colour Sidecar screen') > 0) p.kill(15);
   });
   p.onExit((code: i32) => {
     tablet = null;
-    setStreaming(false); setConnected(false);
+    setStreaming(false); setConnected(false); setControlling(false);
     if (code !== 0 && code !== 143) setStatus(`The tablet's side stopped (code ${code}). ${status()}`);
     else if (code === 143) setStatus(`${status()} Open the Sidecar app on the tablet, then stream again.`);
     web.show();

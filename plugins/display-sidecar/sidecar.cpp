@@ -5,9 +5,10 @@
 // once; the screen ACKs each RECT, and at most `inflight` frames are on the way (damage accumulates meanwhile, so a slow link gets fewer,
 // larger frames, never a queue). Its touches, Pencil and two-finger scrolls come back as the app's pointer, pen and wheel.
 // The screen: ZINC_SIDECAR (else the `host` option): "adb[:serial]" (Android on the USB cable, through the adb server), "usb" (an iPad or
-// iPhone on the cable, through usbmuxd), or an address. ZINC_SIDECAR_SCALE overrides `scale`; ZINC_SIDECAR_LOG=1 prints a line a second.
+// iPhone on the cable, through usbmuxd), or an address, its port after a colon when it is not 7710. ZINC_SIDECAR_SCALE overrides `scale`; ZINC_SIDECAR_LOG=1 prints a line a second.
 #include "hal.h"
 #include "zstd.h"
+#include "cursors.h"
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -125,8 +126,10 @@ static int usbmux() {
 static bool connectScreen() {
   if (fd >= 0) return true;
   const char* h = getenv("ZINC_SIDECAR") ? getenv("ZINC_SIDECAR") : ZP_DISPLAY_SIDECAR_HOST;
-  fd = !strncmp(h, "adb", 3) ? adb(h[3] == ':' ? h + 4 : "") : !strncmp(h, "usb", 3) ? usbmux() : tcp(h, PORT);
-  if (fd < 0) { fprintf(stderr, "display-sidecar: no Sidecar screen at %s (is its app open?)\n", h); return false; }
+  const char* colon = strrchr(h, ':');   // an address may name its port (a tunnel to the screen)
+  fd = !strncmp(h, "adb", 3) ? adb(h[3] == ':' ? h + 4 : "") : !strncmp(h, "usb", 3) ? usbmux()
+     : colon ? tcp(std::string(h, colon).c_str(), atoi(colon + 1)) : tcp(h, PORT);
+  if (fd < 0) { fprintf(stderr, "display-sidecar: no Sidecar screen at %s: %s (is its app open?)\n", h, strerror(errno)); return false; }
   char line[512]; size_t n = 0;
   while (n + 1 < sizeof line && recv(fd, line + n, 1, 0) == 1 && line[n] != '\n') n++;
   line[n] = 0;
@@ -148,9 +151,8 @@ static bool connectScreen() {
 // --- a frame's damage as RECTs: bands of 64 rows, each Sub-filtered B G R and zstd-compressed on its own thread
 struct Band { int x, y, w, h; std::vector<uint8_t> plain, packed; size_t n; };
 static std::vector<Band> bands;
-static void encode(Band& b) {
+static void encode(Band& b, ZSTD_CCtx* cx) {
   const int x = b.x, w = b.w;
-  static thread_local ZSTD_CCtx* cx = ZSTD_createCCtx();
   const size_t stride = (size_t)w * 3, raw = stride * b.h;
   b.plain.resize(raw);
   for (int r = 0; r < b.h; r++) {
@@ -170,9 +172,12 @@ static void sendJob() {
   for (const Box& j : job) { Band b; b.x = j.x; b.y = j.y; b.w = j.w; b.h = j.h; bands.push_back(std::move(b)); }
   // ponytail: a thread a band group each frame (~20 us each); a pool if it shows in a profile
   const int nt = (int)std::min<size_t>(bands.size(), std::max(1u, std::thread::hardware_concurrency()));
+  // one context a worker, kept: the threads end with the frame, ~490 KB each
+  static std::vector<ZSTD_CCtx*> cxs;
+  while ((int)cxs.size() < nt) cxs.push_back(ZSTD_createCCtx());
   std::vector<std::thread> ts;
-  for (int t = 1; t < nt; t++) ts.emplace_back([t, nt] { for (size_t i = t; i < bands.size(); i += nt) encode(bands[i]); });
-  for (size_t i = 0; i < bands.size(); i += nt) encode(bands[i]);
+  for (int t = 1; t < nt; t++) ts.emplace_back([t, nt] { for (size_t i = t; i < bands.size(); i += nt) encode(bands[i], cxs[t]); });
+  for (size_t i = 0; i < bands.size(); i += nt) encode(bands[i], cxs[0]);
   for (auto& t : ts) t.join();
   const uint64_t enc = hal_time_us() - t0;
   size_t bytes = 0;
@@ -191,9 +196,47 @@ static void sendJob() {
   frameEnds.push_back(rectsSent);
   stFrames++; stBytes += bytes; stEncodeUs += enc;
 }
+// --- a pointer driven from afar (hal_overlays->cursor): the screen draws it over the picture. It costs that screen its fast path while it shows,
+// so it goes after a moment without moving.
+static const uint64_t POINTER_IDLE_US = 3000000;
+struct Far { bool on; int x, y, shape; };
+static Far far, farSent = {false, -1, -1, -1};
+static bool farDirty;
+static uint64_t farMoved;
+static void sendFar(Far p) {
+  uint8_t h[16] = {};
+  if (p.on && p.shape != farSent.shape) {
+    const CursorMask& c = CURSORS[p.shape];
+    std::vector<uint8_t> m((size_t)c.w * c.h);
+    for (size_t i = 0; i < m.size(); i++) m[i] = c.rows[i] == '#' ? 2 : c.rows[i] == 'o' ? 1 : 0;
+    h[0] = 4; h[1] = 8; put16(h + 2, c.hx); put16(h + 4, c.hy); put16(h + 6, c.w); put16(h + 8, c.h);
+    h[11] = 1;   // more: the panel is updated once, with its place
+    for (int k = 0; k < 4; k++) h[12 + k] = (uint8_t)(m.size() >> (8 * k));
+    if (!writeAll(h, 16) || !writeAll(m.data(), m.size())) { std::lock_guard<std::mutex> l(mu); broken = true; return; }
+    farSent.shape = p.shape;
+  }
+  memset(h, 0, sizeof h);
+  h[0] = 5; put16(h + 2, p.x); put16(h + 4, p.y); put16(h + 6, p.on);
+  if (!writeAll(h, 16)) { std::lock_guard<std::mutex> l(mu); broken = true; }
+}
+static void followPointer() {
+  if (!hal_overlays || !hal_overlays->cursor) return;
+  double x, y; int shape;
+  if (!hal_overlays->cursor(&x, &y, &shape)) return;
+  const uint64_t t = hal_time_us();
+  const int px_ = std::max(0, std::min(RW - 1, (int)(x * K))), py_ = std::max(0, std::min(RH - 1, (int)(y * K)));
+  if (shape < 0 || shape > 2) shape = 0;
+  std::lock_guard<std::mutex> l(mu);
+  if (px_ != far.x || py_ != far.y || shape != far.shape) farMoved = t;
+  far = {t - farMoved < POINTER_IDLE_US, px_, py_, shape};
+  if (far.on != farSent.on || (far.on && (far.x != farSent.x || far.y != farSent.y || far.shape != farSent.shape))) { farDirty = true; cv.notify_one(); }
+}
 static void sender() {
   for (;;) {
-    { std::unique_lock<std::mutex> l(mu); cv.wait(l, [] { return busy; }); }
+    bool dirty, work; Far p;
+    { std::unique_lock<std::mutex> l(mu); cv.wait(l, [] { return busy || farDirty; }); dirty = farDirty; farDirty = false; work = busy; p = far; if (dirty) { farSent.on = p.on; farSent.x = p.x; farSent.y = p.y; } }
+    if (dirty) sendFar(p);
+    if (!work) continue;
     sendJob();
     std::lock_guard<std::mutex> l(mu); busy = false;
   }
@@ -321,7 +364,7 @@ static void s_present(const HalFrame* f) {
   const bool drew = f->x1 > f->x0 && f->y1 > f->y0;
   if (fd >= 0 && !gone && f->w == RW && f->h == RH) layWebViews(drew, f->x0, f->y0, f->x1, f->y1);
   { std::lock_guard<std::mutex> l(mu); if (broken) gone = true; }
-  if (fd >= 0 && !gone) handOver();
+  if (fd >= 0 && !gone) { followPointer(); handOver(); }
   uint64_t t = hal_time_us();
   if (logit && t - stT0 >= 1000000) {
     std::lock_guard<std::mutex> l(mu);

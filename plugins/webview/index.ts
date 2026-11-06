@@ -88,6 +88,11 @@ export class WebView {
   eval(js: string): void { W.eval(this.id, js); }
   /** The page's zoom, as Cmd + and Cmd - do in a browser: 1 is 100 %. */
   setZoom(factor: number): void { W.setZoom(this.id, factor); }
+  /** A mouse for the off-screen page, at (x, y) points of the surface: kind 0 press, 1 release, 2 drag, 3 scroll by (dx, dy) points, 5 / 6 the
+   *  right button pressed / let go, 7 a move. The display driver draws its pointer. macOS for now (examples/webview/sidecar-browser). */
+  pointer(x: number, y: number, kind: i32, dx: number, dy: number): void { W.pointer(this.id, x, y, kind, dx, dy); }
+  /** That pointer's shape: 0 arrow, 1 I-beam, 2 hand. */
+  cursor(shape: i32): void { W.cursor(this.id, shape); }
   /** A key typed in the page: its KeyboardEvent.code ("KeyA", "Enter"...), its text, the modifiers (1 shift, 2 control, 4 option, 8
    *  command), pressed then let go. macOS for now (a remote keyboard: examples/webview/sidecar-browser). */
   key(code: string, text: string, mods: i32): void { W.key(this.id, true, code, text, mods); W.key(this.id, false, code, text, mods); }

@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Webcam</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; }
+  video { width: 100%; height: 100%; object-fit: contain; display: block; }
+</style></head>
+<body>
+<video id="cam" muted autoplay loop playsinline></video>
+<script>
+// Not a live stream: the server replaces a 20 s clip now and then. The clip loops, and the page reloads every 30 s to fetch it again.
+// The camera is the page's hash: webcam.html#nce.55 (nce.32 by default).
+const CAMS = 'https://www.webcams-dir.centre-est.developpement-durable.gouv.fr/streams/last/';
+const video = document.getElementById('cam');
+function load() { video.src = CAMS + (location.hash.substring(1) || 'nce.32') + '.mp4?t=' + Date.now(); }
+video.addEventListener('error', () => { setTimeout(load, 5000); });
+window.addEventListener('hashchange', load);
+setTimeout(() => { location.reload(); }, 30000);
+load();
+</script>
+</body></html>
