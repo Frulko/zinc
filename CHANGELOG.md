@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+This version is about staying solid when things go wrong: gestures, navigation, reactive updates and app updates now recover cleanly from interruptions and errors instead of getting stuck. A window that is covered stops drawing and costs almost nothing, Sidecar can be driven from the Mac's mouse and keyboard, and Riffle joins the apps as a window switcher for macOS.
+
 ### Sidecar
 
 #### New
