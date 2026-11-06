@@ -726,6 +726,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-993: `swapSurface` keeps per-window gesture fields that `release(h)` does not clear for a background window; `releaseAt` early returns, `grabKind===3 && !pinching` freezing pan and releases while backgrounded remain (docs/reports/implicit-state-machines.md #17).
 - ZN-994: wire the zinc.json "crash" policy (exit/redbox/restart) to ZRT_CRASH and zrt::app_main, or drop the key and its docs/dev-mode.md section; today it is accepted and ignored, and the runtime's restart path runs only in tests/t0/zrt_restart.sh.
 - ZN-994: if the crash policy is wired, unwind hal_sdl in_watch/in_poll after a longjmp out of the live-resize watcher (a depth counter reset from the guard point).
+- ZN-996: a program that ends through a host-side `std::exit(1)` (not `zinc:sys exit` nor the end of the run) still counts as healthy for an app update on trial.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -1234,3 +1235,4 @@ The next backlog review turns lines into tasks or deletes them.
 - Lumen: a box's `shadow-*` is painted under its whole box, so it shows through a translucent background; CSS clips it to the outside. Lumen's glass cards have no shadow because of it.
 - Mapper: a value of type `any` is refused as a ternary's condition (Z0103 any to boolean) where TypeScript takes it; hit in the sync card, typed the state instead.
 - ZN-995: build and run the webview slot-reuse scenario of `tests/t1/webview.sh` on Linux (`webview.linux.cpp` got the same generation handles, unbuilt on the Mac).
+- ZN-996: lock the app update trial on Windows (LockFileEx); there, a second launch still rolls a running trial back.
