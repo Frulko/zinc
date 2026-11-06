@@ -121,7 +121,8 @@ struct Scanner {
       else if (c == '$' && at(pos) == '{') {
         ++pos;
         emit(first ? Tok::TemplateHead : Tok::TemplateMiddle, st);
-        frames.push_back({'t', 0});
+        frames.push_back({'t', depth});  // the substitution is its own expression context
+        depth = 0;
         return;
       }
     }
@@ -158,7 +159,7 @@ struct Scanner {
     Frame f = frames.empty() ? Frame{'b', 0} : frames.back();
     if (!frames.empty()) frames.pop_back();
     ++pos;
-    if (f.kind == 't') { templatePart(st, false); return; }
+    if (f.kind == 't') { depth = f.savedDepth; mode = Mode::Normal; templatePart(st, false); return; }
     emit(Tok::Punct, st);
     if (f.kind == 'c') { depth = f.savedDepth; mode = Mode::JsxChildren; }
     else if (f.kind == 'a') { depth = f.savedDepth; mode = Mode::JsxTag; }
@@ -203,12 +204,14 @@ struct Scanner {
     if (c == '>' ) {
       ++pos;
       emit(Tok::Punct, st);
-      if (tagClosing) --depth; else ++depth;
+      if (!tagClosing) ++depth;
+      else if (depth > 0) --depth;  // an unmatched </x> stays at 0: the JSX lowering reports it
       tagClosing = false;
       mode = depth > 0 ? Mode::JsxChildren : Mode::Normal;
     } else if (c == '/' && at(pos + 1) == '>') {
       pos += 2;
       emit(Tok::Punct, st);
+      tagClosing = false;
       mode = depth > 0 ? Mode::JsxChildren : Mode::Normal;
     } else if (c == '"' || c == '\'') {  // attribute strings: no escapes, may span lines
       ++pos;

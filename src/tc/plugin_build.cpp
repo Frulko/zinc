@@ -901,20 +901,6 @@ bool pluginSource(const frontend::FoundPlugin& p, const std::string& engineRoot,
   return true;
 }
 
-namespace {
-struct BuildLock {   // an exclusive flock on $ZINC_HOME/cache/.build-lock, released when the process ends whatever happens
-#ifndef _WIN32
-  int fd = -1;
-  BuildLock() {
-    std::error_code ec;
-    fs::create_directories(home() + "/cache", ec);
-    fd = ::open((home() + "/cache/.build-lock").c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
-    if (fd >= 0) ::flock(fd, LOCK_EX);
-  }
-  ~BuildLock() { if (fd >= 0) ::close(fd); }
-#endif   // ponytail: no lock on Windows yet (LockFileEx when it builds plugins in parallel)
-};
-}  // namespace
 
 bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err) {
   const auto t0 = std::chrono::steady_clock::now();
@@ -935,7 +921,7 @@ bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, 
   }
   // one build at a time per ZINC_HOME: two programs started together (the examples run in parallel, a test beside an app) would compile
   // and link the same cache entry over each other, and macOS on arm64 refuses a library rewritten under a process that mapped it
-  BuildLock lock;
+  FileLock lock(home() + "/cache/.build-lock");
   if (!stamp.empty() && readStamp(stamp, out)) return true;   // built by the program that held the lock
   if (!buildPluginSlow(p, engineRoot, projectDir, target, out, err)) return false;
   if (!stamp.empty()) writeStamp(stamp, out, stampInputs(p, engineRoot, target));

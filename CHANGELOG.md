@@ -42,6 +42,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - App updates are judged more carefully: an update that exits with an error code is rolled back, opening the app a second time while an update is on trial no longer rolls back a good update, and a device update with no previous version to restore stays on trial instead of losing its way back.
 - `zinc doc --serve` rebuilds again when a page is saved while it is rebuilding, instead of missing the change.
+- A closing JSX tag with no opening tag (`</View>`) is now an error that names it, instead of confusing errors further down the file.
+- Two `zinc` commands that download the same tool at once (the zig, esptool, the console SDKs, basisu) no longer break each other's install: the second waits and uses the first one's.
+- The language server tags its diagnostics with the document version, so an editor no longer shows the errors of an older edit, and it ignores changes to files that were never opened.
 
 ## [0.11.5] - 2026-11-05
 

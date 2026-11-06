@@ -117,6 +117,19 @@ check(len(got) >= 2 and norm(got) == norm(want), "diagnostics differ from check 
 notify("textDocument/didChange", {"textDocument": {"uri": uri, "version": 6}, "contentChanges": [{"text": text}]})
 check(diagnostics(uri) == [], "fix leaves diagnostics")
 
+# 7b. (ZN-998) the diagnostics carry the version of the change; a change to a document that is not open is ignored
+notify("textDocument/didChange", {"textDocument": {"uri": uri, "version": 7}, "contentChanges": [{"text": bad}]})
+while not any(m.get("method") == "textDocument/publishDiagnostics" and m["params"]["uri"] == uri for m in inbox): inbox.append(read())
+pub = next(m for m in inbox if m.get("method") == "textDocument/publishDiagnostics" and m["params"]["uri"] == uri)
+inbox.remove(pub)
+check(pub["params"].get("version") == 7, "diagnostics carry the document version: %r" % pub["params"].get("version"))
+ghost = "file://" + os.path.join(tmp, "never-opened.ts")
+notify("textDocument/didChange", {"textDocument": {"uri": ghost, "version": 1}, "contentChanges": [{"text": "const x: number = 'a';\n"}]})
+check(request("textDocument/hover", {"textDocument": {"uri": ghost}, "position": {"line": 0, "character": 6}}) is None, "an unopened document is not served")
+check(not any(m.get("method") == "textDocument/publishDiagnostics" and m["params"]["uri"] == ghost for m in inbox), "a change to an unopened document publishes nothing")
+notify("textDocument/didChange", {"textDocument": {"uri": uri, "version": 8}, "contentChanges": [{"text": text}]})
+check(diagnostics(uri) == [], "fix leaves diagnostics")
+
 # 8. signatures and doc comments (ZN-732): completion items, signature help, hover; a member's definition
 uri2 = "file://" + os.path.join(tmp, "docs.ts")
 docs = open(os.path.join(HERE, "docs.ts")).read()

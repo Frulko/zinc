@@ -16,6 +16,10 @@
 #include <sstream>
 #include <thread>
 #include <unistd.h>
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/file.h>
+#endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -377,7 +381,25 @@ bool downloadBytes(const std::string& origin, const std::string& rel, std::strin
 
 // Downloads `pin` from `url`, checks it against the pin before anything is unpacked, and unpacks it into `dir` (the archive holds one directory).
 // `marker` is a file that must be in the unpacked directory. Nothing happens when `marker` is already there.
+FileLock::FileLock(const std::string& path) {
+#ifndef _WIN32
+  std::error_code ec;
+  fs::create_directories(fs::path(path).parent_path(), ec);
+  fd = ::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+  if (fd >= 0) ::flock(fd, LOCK_EX);
+#endif   // ponytail: no lock on Windows yet (LockFileEx when it installs or builds in parallel)
+}
+FileLock::~FileLock() {
+#ifndef _WIN32
+  if (fd >= 0) ::close(fd);
+#endif
+}
+
 static bool fetchTool(const char* what, const Pin& pin, const std::string& url, const fs::path& dir, const char* marker, std::string& err) {
+  if (fs::exists(dir / marker)) return true;
+  // two programs installing the same tool at once would share the .part download and the extraction directory: one at a time, and the
+  // second finds the tool in place
+  FileLock lock(dir.string() + ".lock");
   if (fs::exists(dir / marker)) return true;
   std::error_code ec;
   fs::create_directories(dir.parent_path(), ec);
@@ -609,6 +631,8 @@ bool ensureSourceTool(const SourceTool& t, std::string& path, std::string& err) 
   if (std::getenv(t.env) || fs::exists(path)) return true;
   std::string zig;
   if (!ensureZig(zig, err)) return false;
+  FileLock lock(fs::path(path).parent_path().string() + ".lock");   // one build of the tool at a time; the second finds it built
+  if (fs::exists(path)) return true;
   const fs::path dir = fs::path(path).parent_path(), work = dir.parent_path() / ("build-" + dir.filename().string() + "-" + std::to_string(::getpid()));
   std::error_code ec;
   fs::remove_all(work, ec);

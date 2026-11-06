@@ -263,7 +263,7 @@ class Server {
       std::string message = m == std::string::npos ? line.substr(c + 1) : line.substr(line.find(": ", m + 8) + 2);
       items += std::string(n++ ? "," : "") + "{\"range\":{\"start\":{\"line\":" + std::to_string(ln) + ",\"character\":" + std::to_string(col) + "},\"end\":{\"line\":" + std::to_string(ln) + ",\"character\":" + std::to_string(col + 1) + "}},\"severity\":1,\"code\":" + quote(dg.code) + ",\"source\":\"zinc\",\"message\":" + quote(message) + "}";
     }
-    notify("textDocument/publishDiagnostics", "{\"uri\":" + quote(uri) + ",\"diagnostics\":[" + items + "]}");
+    notify("textDocument/publishDiagnostics", "{\"uri\":" + quote(uri) + ",\"version\":" + std::to_string(d.version) + ",\"diagnostics\":[" + items + "]}");
   }
 
   // the innermost node of file 0 around `off` that satisfies `pred`
@@ -719,11 +719,13 @@ int Server::run() {
       publish(uri, d);
     } else if (method == "textDocument/didChange") {
       yyjson_val* changes = params ? yyjson_obj_get(params, "contentChanges") : nullptr;
-      if (changes && yyjson_arr_size(changes) > 0) {
+      auto it = docs_.find(uri);   // a change to a document that is not open is the client's mistake: ignored
+      if (it != docs_.end() && changes && yyjson_arr_size(changes) > 0) {
         yyjson_val* last = yyjson_arr_get(changes, yyjson_arr_size(changes) - 1);   // full document sync
         yyjson_val* v = yyjson_obj_get(last, "text");
-        Doc& d = docs_[uri];
+        Doc& d = it->second;
         d.text = v && yyjson_is_str(v) ? yyjson_get_str(v) : d.text;
+        if (yyjson_val* ver = yyjson_obj_get(td, "version"); ver && yyjson_is_int(ver)) d.version = static_cast<int>(yyjson_get_sint(ver));
         publish(uri, d);
       }
     } else if (method == "textDocument/didClose") {

@@ -3156,13 +3156,20 @@ int main(int argc, char** argv) {
       for (const auto& s : zn::tc::consoleSdks()) std::printf("%-14s %s\n", s.target, s.needs);   // consoles and the iPhone 4S (ZN-456)
       return 0;
     }
+    if (sub == "fetch" && argc == 7) {   // zinc toolchain fetch <url> <sha256> <dir> <marker>: a pinned archive unpacked into <dir>, as the tools are
+      std::string err;
+      const std::string url = argv[3];
+      if (!zn::tc::fetchArchive("the archive", url.substr(url.find_last_of('/') + 1), argv[4], url, argv[5], argv[6], err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      std::puts(argv[5]);
+      return 0;
+    }
     if (sub == "sha256" && argc == 4) {
       std::string h = zn::tc::sha256File(argv[3]);
       if (h.empty()) { std::fprintf(stderr, "cannot read %s\n", argv[3]); return 2; }
       std::printf("%s  %s\n", h.c_str(), argv[3]);
       return 0;
     }
-    std::fprintf(stderr, "usage: zinc toolchain install [psp|vita|ps2|n3ds|ios-legacy|ppsspp-headless|ppsspp|vita3k|play|pcsx2|azahar] | path | esptool | esbuild | basisu | gltfpack | targets | sha256 <file>\n");
+    std::fprintf(stderr, "usage: zinc toolchain install [psp|vita|ps2|n3ds|ios-legacy|ppsspp-headless|ppsspp|vita3k|play|pcsx2|azahar] | path | esptool | esbuild | basisu | gltfpack | targets | sha256 <file> | fetch <url> <sha256> <dir> <marker>\n");
     return 2;
   }
   if (argc == 7 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[2], "--target") && !std::strcmp(argv[5], "-o")) {  // zinc build --target <t> <file> -o <out>: a program for another machine

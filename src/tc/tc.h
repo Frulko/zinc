@@ -24,6 +24,16 @@ const std::vector<Target>& appTargets();
 const Target* findAppTarget(const std::string& name);
 
 std::string home();         // $ZINC_HOME or ~/.zinc
+
+// An exclusive flock on `path` (created with its directory), held until destroyed and released when the process ends whatever happens:
+// two zinc processes that install or build the same thing take turns.
+struct FileLock {
+  explicit FileLock(const std::string& path);
+  ~FileLock();
+  FileLock(const FileLock&) = delete;
+  FileLock& operator=(const FileLock&) = delete;
+  int fd = -1;
+};
 std::string hostName();     // the pin key of this machine: aarch64-macos, x86_64-linux, ...
 std::string zigVersion();   // the pinned version
 

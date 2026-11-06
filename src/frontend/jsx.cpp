@@ -486,6 +486,10 @@ struct Lowering {
     if (t[i + 1].kind == Tok::Ident && i + 3 < t.size() && (isP(i + 2, ",") || (tx(i + 2) == "extends" && !isP(i + 3, "=") && !isP(i + 3, ">") && !isP(i + 3, "/")))) return false;
     return t[i + 1].kind == Tok::Ident || isP(i + 1, ">");
   }
+  // `</x>` outside any element: the elements skip their own closing tags, so one met by a scan has no opening tag
+  void unmatchedClose(std::size_t i) const {
+    if (isP(i, "</")) throw Failure{t[i].start, "closing tag </" + (i + 1 < t.size() && t[i + 1].kind == Tok::Ident ? tx(i + 1) : std::string()) + "> has no opening tag", "Z0002"};
+  }
   // index of the `}` / `)` / `]` closing the bracket at `i`
   std::size_t match(std::size_t i) const {
     int d = 0;
@@ -572,6 +576,7 @@ struct Lowering {
     std::string out;
     std::size_t pos = t[a].start;
     for (std::size_t i = a; i < b; ++i) {
+      unmatchedClose(i);
       if (jsxStart(i)) {
         auto e = parseElem(i);
         out += mark(pos, 'C') + std::string(s.substr(pos, t[i].start - pos)) + lower(*e);
@@ -1769,6 +1774,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
         i = L.match(i);
         continue;
       }
+      L.unmatchedClose(i);
       if (!L.jsxStart(i)) continue;
       auto e = L.parseElem(i);
       out += L.mark(pos, 'C') + std::string(src.substr(pos, L.t[i].start - pos)) + L.lower(*e);
