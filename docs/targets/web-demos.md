@@ -30,7 +30,9 @@ Result after the fixes of this pass. "ok": no problem, frames running, input hea
 | examples/maps/svg-gallery | ok | ok | | |
 | examples/pinball | ok | ok | | |
 | examples/platformer | **fails** | **fails** | | "the atlas game has no animation hero_idle": the export does not run the asset build (atlases, tilemaps), see later.md |
-| examples/zed-editor | refused | refused | | `requires fs`: the export says so (Z-code, `--force` builds anyway) |
+| examples/zed-editor | not rerun | not rerun | | was refused (`requires fs`); the web has a `zinc:fs` since 2026-11-07, not tried since |
+| examples/carnet | runs | | | 2026-11-07: starts on its welcome pages (`targets.web.files`); edits kept in the page; "Offline" without its sync server |
+| examples/kanban | runs | | | 2026-11-07: starts and says it finds no project (it reads a repository's `backlog/` folder) |
 | templates 3d, dashboard, desktop-app, game (after `zinc new`) | ok | ok | | a template folder itself holds `{{id}}` placeholders: create it with `zinc new` first |
 
 ## What this pass found and fixed

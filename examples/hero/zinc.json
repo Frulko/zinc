@@ -20,6 +20,9 @@
     "sim": {
       "width": 1100,
       "height": 700
+    },
+    "web": {
+      "files": ["media"]
     }
   },
   "requires": [

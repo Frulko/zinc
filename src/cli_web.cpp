@@ -88,6 +88,7 @@ struct Cfg {
   bool pwa = true, strict = false, rnLayout = false;
   int w = 0, h = 0;   // a fixed surface (web.width, web.height); 0: the page's size
   std::vector<std::string> pluginDirs;
+  std::vector<std::string> files;   // web.files: the project's files and folders the program reads, shipped read-only next to the page (media streamed)
 };
 std::string kBaseline = "chrome >= 111, edge >= 111, firefox >= 115, safari >= 16.4";
 Cfg readCfg(const WebArgs& a) {
@@ -112,6 +113,9 @@ Cfg readCfg(const WebArgs& a) {
       c.strict = flag(w, "strict", false);
       if (yyjson_val* v = yyjson_obj_get(w, "width")) c.w = static_cast<int>(yyjson_get_num(v));
       if (yyjson_val* v = yyjson_obj_get(w, "height")) c.h = static_cast<int>(yyjson_get_num(v));
+      size_t i, n;
+      yyjson_val* v;
+      if (yyjson_val* fl = yyjson_obj_get(w, "files"); yyjson_is_arr(fl)) yyjson_arr_foreach(fl, i, n, v) if (yyjson_is_str(v)) c.files.push_back(yyjson_get_str(v));
     }
     yyjson_val* app = yyjson_obj_get(j.root, "app");
     if (c.icon.empty()) c.icon = str(app, "icon");
@@ -593,10 +597,11 @@ std::vector<Asset> builtAssets(const std::string& dir, const fs::path& out, std:
   return r;
 }
 
+const std::set<std::string> kMedia = {".mp4", ".m4v", ".mov", ".webm", ".ogv", ".mp3", ".m4a", ".ogg", ".wav", ".flac"};   // played by a <video> or <audio> element from its url
 // zinc dev: the media files a program reads by their path in the project, outside assets/ (examples/hero's media/bbb.mp4), served at /__project/ with byte ranges
 std::vector<Asset> projectMedia(const std::string& dir) {
   std::vector<Asset> out;
-  static const std::set<std::string> media = {".mp4", ".m4v", ".mov", ".webm", ".ogv", ".mp3", ".m4a", ".ogg", ".wav", ".flac"};
+  const std::set<std::string>& media = kMedia;
   std::error_code ec;
   for (auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
     const std::string n = it->path().filename().string();
@@ -609,6 +614,31 @@ std::vector<Asset> projectMedia(const std::string& dir) {
     a.size = static_cast<std::size_t>(fs::file_size(it->path(), ec));
     a.stream = true;
     out.push_back(a);
+  }
+  return out;
+}
+
+// zinc export: the files and folders of zinc.json targets.web.files, under their path in the project (the program reads them by it, read only); media are streamed
+std::vector<Asset> projectFiles(const std::string& dir, const std::vector<std::string>& list) {
+  std::vector<Asset> out;
+  std::error_code ec;
+  auto add = [&](const fs::path& f) {
+    Asset a;
+    a.name = f.lexically_relative(dir).generic_string();
+    a.file = f.string();
+    a.size = static_cast<std::size_t>(fs::file_size(f, ec));
+    a.stream = kMedia.count(lower(f.extension().string())) > 0;
+    out.push_back(a);
+  };
+  for (const std::string& e : list) {
+    const fs::path p = (fs::path(dir) / e).lexically_normal();
+    if (p.lexically_relative(dir).generic_string().rfind("..", 0) == 0) { std::fprintf(stderr, "warning: targets.web.files: %s is outside the project: not shipped\n", e.c_str()); continue; }
+    if (fs::is_regular_file(p, ec)) { add(p); continue; }
+    if (!fs::is_directory(p, ec)) { std::fprintf(stderr, "warning: targets.web.files: %s does not exist: the page will not have it\n", e.c_str()); continue; }
+    std::vector<fs::path> files;
+    for (auto it = fs::recursive_directory_iterator(p, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) if (it->is_regular_file()) files.push_back(it->path());
+    std::sort(files.begin(), files.end());
+    for (const fs::path& f : files) add(f);
   }
   return out;
 }
@@ -803,13 +833,15 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
     for (Asset& as : builtAssets(a.dir, tmp / "built", berr)) assets.push_back(as);
     if (!berr.empty()) { std::fprintf(stderr, "zinc export: the asset build: %s\n", berr.c_str()); return 1; }
   }
+  for (Asset& as : projectFiles(a.dir, cm.cfg.files)) assets.push_back(as);
   std::size_t assetBytes = 0;
+  std::set<std::string> streamUrls;   // (not in the service worker's list: a video is streamed, never fetched whole)
   for (Asset& as : assets) {
     const std::string bytes = readAll(as.file);
     const fs::path p(as.name);
     const std::string rel = (p.parent_path() / p.stem()).generic_string(), ext = p.extension().string();
     as.url = publish(rel, ext, bytes);
-    assetBytes += bytes.size();
+    if (as.stream) streamUrls.insert(as.url); else assetBytes += bytes.size();
   }
   if (assetBytes > (40u << 20)) std::fprintf(stderr, "warning: the assets are %s; the web profile budgets 40 MB of download (they are all fetched before the app starts)\n", humanKb(assetBytes).c_str());
   // 5. the icon, the manifest, the service worker
@@ -837,7 +869,7 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
     if (!iconUrl.empty()) man += ",\"icons\":[{\"src\":" + jstr(iconUrl) + ",\"sizes\":" + jstr(iconSizes.empty() ? "512x512" : iconSizes) + ",\"type\":" + jstr(mime(iconUrl)) + ",\"purpose\":\"any\"}]";
     out["manifest.webmanifest"] = man + "}\n";
     std::string files = "[\"./\"";
-    for (const auto& [n, b] : out) if (!endsWith(n, ".map")) files += "," + jstr(n);
+    for (const auto& [n, b] : out) if (!endsWith(n, ".map") && !streamUrls.count(n)) files += "," + jstr(n);
     files += "]";
     std::string sw = "// Generated by zinc export --target web: the app works offline after the first visit. Hashed files are cached for good; the page is fetched fresh when online.\n"
                      "const V = " + jstr("zinc-" + hash10(files)) + ", FILES = " + files + ", ISOLATE = " + (isolate ? "true" : "false") + ";\n"

@@ -60,6 +60,16 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Scrolling up a `VirtualList` with `estimatedItemHeight` (a chat history) with the trackpad or the wheel no longer makes the messages jump as older ones come into view.
 - `ui.focusNode` no longer gives the focus to a `disabled` field, as a click never did.
 
+### The web
+
+#### New
+
+- An exported page has a real `zinc:fs`: what the program writes is kept across reloads in the browser's storage, and the project files listed in `zinc.json` `targets.web.files` ship with the page, read only, so apps that require `fs` (Carnet, Kanban) export without `--force` and `examples/hero` plays its video in the page.
+
+#### Fixed
+
+- An exported page whose program read a file's bytes (`readBytes` of `zinc:fs` or `zinc:assets`, as the hero demo's map does) no longer stops at start with `__qjs_bytes is not defined`, and an app that makes transparent images no longer gets a W0603 warning for it.
+
 ### Developer tools
 
 #### New

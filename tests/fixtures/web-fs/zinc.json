@@ -1,0 +1,6 @@
+{
+  "name": "web-fs",
+  "entry": "src/main.ts",
+  "requires": ["fs"],
+  "targets": { "web": { "files": ["data"] } }
+}

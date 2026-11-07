@@ -50,6 +50,7 @@ dist/hero-web/
     "themeColor": "#111827", "backgroundColor": "#ffffff", "lang": "en",
     "icon": "assets/icon.png", "pwa": true,   "comment2": "scroll: \"app\" (a window-sized stage) or \"page\" (the document scrolls, dom render)",
     "width": 960, "height": 600,                         "comment": "a fixed surface; without them the app fills the window and follows its size",
+    "files": ["data", "media"],                          "comment3": "project files and folders the program reads by their path, shipped read-only (see Files)",
     "strict": false } } }
 ```
 
@@ -238,6 +239,25 @@ zinc:ui app). A program that draws with `zinc:gfx` alone (or with three.js), wit
 - **`zinc:map`**: MapLibre GL JS (BSD-3, `third_party/maplibre`, 5.24, loaded as a classic script: a minifier breaks its inline worker) behind the plugin's own `MapView`. Tiles come from the app's
   `assets/tiles/z/x/y.pbf` or from `url` through `fetch` (CORS; gzip is handled); labels use the glyph server `demotiles.maplibre.org` unless the style names one. Not in `zinc dev` (unbundled modules).
   The desktop engine's `stats()` are zeros.
+
+### Files: `zinc:fs` in the page
+
+A page has a real `zinc:fs` (the `web` row of `targets/capabilities.json` says `fs: true`, so a `zinc.json` that `requires` fs exports without `--force`):
+
+- **The project's files, read only.** The assets, and the files and folders listed in `targets.web.files`, are in the page under their path in the project (`data/levels.json`,
+  `welcome/intro.md`). `readText`, `readBytes`, `exists`, `stat`, `list` read them; a write of the same path makes a copy of the program's own, and `remove` never deletes them.
+  Media files among them (mp4, webm, mp3, ogg...) are not fetched before the app starts: `zinc:video`'s `<video>` element streams them from their url, so `examples/hero` plays
+  `media/bbb.mp4` by the path it gives (`"files": ["media"]`). The others count against the download budget, as the assets do. A listed path that does not exist is a warning.
+- **What the program writes survives a reload.** Files and folders it writes, appends, copies, renames, makes or removes are kept in IndexedDB, per app id and per site (origin),
+  written a moment after each change and when the page is hidden, read back before the program starts. `tmp/` (`tmpdir()`, `mkdtemp`) is not kept. The browser decides the
+  quota (a share of the free disk) and may clear a site's data under storage pressure or when the person clears it; Safari clears it after seven days without a visit unless
+  the app was added to the home screen.
+- **What a page has not**: symbolic links, `readTextAsync`/`writeTextAsync`, file modes (`chmod` is accepted and ignored; `stat` says 644 and 755) and the person's own
+  folders (a `zinc:system/dialog` save downloads the file). Those calls throw `ZnUnsupported`.
+- Under `zinc dev --target web` the program's files are this machine's instead (see "The dev bridge").
+
+Why IndexedDB and not the origin private file system (OPFS): the synchronous OPFS handles exist only in a worker, and the main thread's writer is missing from older Safari;
+the in-memory files written through to IndexedDB are what Emscripten's IDBFS and Pyodide do for the same reason.
 
 ## Capabilities and honest limits
 

@@ -667,9 +667,56 @@ for (const ev of ['pointerdown', 'keydown', 'touchend']) addEventListener(ev, un
 // ---------------------------------------------------------------- assets, files, storage
 const assets = new Map();   // 'assets/path' and 'path' -> ArrayBuffer
 const memfs = new Map();    // the files the app writes: path -> Uint8Array
+const memdirs = new Set();  // the directories it made
+const mtimes = new Map();   // path -> the time of its last change (ms)
 let lastBytes = new Uint8Array(0), fsErr = '';
 const enc = new TextEncoder(), dec = new TextDecoder();
-const normName = (n) => String(n).replace(/^["']|["']$/g, '').replace(/^\/+/, '').replace(/^\.\//, '');
+/** A path of the page's file system: no leading slash, '.' and '..' resolved ("/a/./b/../c" -> "a/c"); the root is ''. */
+const normName = (n) => { const r = []; for (const s of String(n).replace(/^["']|["']$/g, '').split('/')) { if (s === '..') r.pop(); else if (s && s !== '.') r.push(s); } return r.join('/'); };
+// What the program writes survives a reload: the files live in memory (zinc:fs is synchronous, as on a desktop) and are written through to IndexedDB, per app,
+// a moment after each change and when the page is hidden; they are read back before the program starts. IndexedDB rather than OPFS: OPFS's synchronous
+// handles exist only in a worker, and its main-thread writer is missing from older Safari. tmp/ (mkdtemp, tmpdir) stays in memory.
+const disk = (() => {
+  const dirty = new Set();
+  let db = null, timer = 0;
+  const flush = () => {
+    clearTimeout(timer); timer = 0;
+    if (!db || !dirty.size) return;
+    try {
+      const st = db.transaction('files', 'readwrite').objectStore('files');
+      for (const p of dirty) {
+        const b = memfs.get(p), t = mtimes.get(p) || Date.now();
+        if (b) st.put({ b, t }, p); else if (memdirs.has(p)) st.put({ d: 1, t }, p); else st.delete(p);
+      }
+    } catch (e) { console.warn('zinc: the files could not be saved', e); }
+    dirty.clear();
+  };
+  addEventListener('pagehide', flush);
+  addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+  return {
+    load: () => new Promise((res) => {
+      try {
+        const r = indexedDB.open('zinc-fs:' + (CFG.id || CFG.name), 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('files');
+        r.onerror = () => res();
+        r.onsuccess = () => {
+          db = r.result;
+          const c = db.transaction('files').objectStore('files').openCursor();
+          c.onerror = () => res();
+          c.onsuccess = () => {
+            const cur = c.result;
+            if (!cur) return res();
+            const v = cur.value;
+            if (v.d) memdirs.add(cur.key); else memfs.set(cur.key, v.b);
+            mtimes.set(cur.key, v.t);
+            cur.continue();
+          };
+        };
+      } catch { res(); }   // (no IndexedDB: a sandboxed frame, a private window of an old browser) the files last as long as the page
+    }),
+    touch: (p) => { mtimes.set(p, Date.now()); if (p === 'tmp' || p.startsWith('tmp/')) return; dirty.add(p); if (!timer) timer = setTimeout(flush, 100); },
+  };
+})();
 function assetBytes(name) {
   const n = normName(name);
   const b = assets.get(n) || assets.get('assets/' + n) || (n.startsWith('assets/') ? assets.get(n.slice(7)) : undefined);
@@ -686,6 +733,34 @@ function written(p) {
   link.download = name;
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+const bootTime = Date.now();
+memdirs.add('tmp');
+let statD = [], statI = [], listingKinds = [];
+function put(p, b) { const n = normName(p); memfs.set(n, b); disk.touch(n); written(n); }
+function concat(a, b) { if (!a) return b; const r = new Uint8Array(a.length + b.length); r.set(a); r.set(b, a.length); return r; }
+// a media file of the project the page streams by its url (a <video> element) instead of holding its bytes
+const streamed = (n) => (CFG.assets || []).find((a) => a.stream && (a.name === n || a.name === 'assets/' + n));
+const fileNames = () => [...memfs.keys(), ...assets.keys(), ...(CFG.assets || []).filter((a) => a.stream).map((a) => a.name)];
+const isFile = (n) => n !== '' && (memfs.has(n) || !!assetBytes(n) || !!streamed(n));
+// ponytail: a scan of every name per call, fine for an app's few hundred files; an index of the directories if one holds thousands
+const isDir = (n) => n === '' || memdirs.has(n) || [...memdirs, ...fileNames()].some((k) => k.startsWith(n + '/'));
+function makeDir(n, recursive) {
+  if (isFile(n)) return false;
+  if (isDir(n)) return !!recursive;   // (EEXIST unless recursive, as on a desktop)
+  if (!recursive && !isDir(n.slice(0, Math.max(0, n.lastIndexOf('/'))))) return false;
+  memdirs.add(n); disk.touch(n);
+  return true;
+}
+// what the program wrote can be removed; the assets and the project's files are read only
+function removePath(n, recursive) {
+  if (memfs.delete(n)) { disk.touch(n); return true; }
+  if (!isDir(n) || n === '') return false;
+  const under = [...memfs.keys(), ...memdirs].filter((k) => k.startsWith(n + '/'));
+  if (under.length && !recursive) return false;
+  for (const k of under) { memfs.delete(k); memdirs.delete(k); disk.touch(k); }
+  memdirs.delete(n); disk.touch(n);
+  return true;
 }
 const store = (() => {
   const prefix = 'zinc:' + (CFG.id || CFG.name) + ':';
@@ -754,6 +829,7 @@ const rows = {
   gfxClip: (...a) => B.clip(...a), gfxUnclip: () => B.unclip(),
   gfxTranslate: (x, y) => { tx += x; ty += y; B.transformChanged && B.transformChanged(); }, gfxSetTransform: (a, b, c, d, e, f) => { xf = [a, b, c, d, e, f]; B.transformChanged && B.transformChanged(); }, gfxResetTransform: () => { xf = null; B.transformChanged && B.transformChanged(); },
   gfxCreateImage: (w, h) => newImage(w, h), gfxDestroyImage: (i) => { images[i] = null; },
+  gfxImageAlpha: () => {},   // (an image of the page is a canvas: it always keeps its transparency)
   gfxBeginImage: (i) => B.beginImage(i), gfxEndImage: () => { const t = target; B.endImage(); if (t) t.rev = (t.rev || 0) + 1; },
   gfxImageFromPixels: (rgbaBytes, w, h) => { const id = newImage(w, h); rows.gfxUpdateImage(id, rgbaBytes); return id; },
   gfxUpdateImage: (id, bytes) => {
@@ -816,18 +892,55 @@ const rows = {
   sysUtf8Decode: (b) => dec.decode(Uint8Array.from(b)), sysBytesToString: (b) => String.fromCharCode(...b),
   sysLaunchDir: () => '/', sysLocale: () => navigator.language || 'en-US', sysExecPath: () => '', sysDevice: (q, a) => deviceQuery(q, a),
   sysAllocations: () => 0, sysLiveBlocks: () => 0,
-  // files: the assets are read only, what the app writes lives in memory for the page's life; storage is the page's localStorage
+  // files: the app's assets and the project's files (zinc.json targets.web.files) are read only; what the app writes is kept in IndexedDB (disk above);
+  // storage is the page's localStorage
   fsFailed: () => fsErr !== '', fsError: () => fsErr,
   fsReadText: (p) => { fsErr = ''; const b = fileBytes(p); if (!b) { fsErr = 'ENOENT: readText ' + p; return ''; } return dec.decode(b); },
-  fsWriteText: (p, s) => { fsErr = ''; memfs.set(normName(p), enc.encode(s)); written(p); },
-  fsAppendText: (p, s) => { fsErr = ''; const o = fileBytes(p) || new Uint8Array(0), a = enc.encode(s), r = new Uint8Array(o.length + a.length); r.set(o); r.set(a, o.length); memfs.set(normName(p), r); },
-  fsExists: (p) => !!fileBytes(p) || assetUrl(p) !== '', fsLoad: (p) => { fsErr = ''; const b = fileBytes(p); if (!b) { fsErr = 'ENOENT: readBytes ' + p; return 0; } lastBytes = b; return b.length; },
-  fsByte: (i) => lastBytes[i] || 0, fsWriteBytes: (p, b) => { fsErr = ''; memfs.set(normName(p), Uint8Array.from(b)); written(p); },
-  fsAppendBytes: (p, b) => { fsErr = ''; const o = fileBytes(p) || new Uint8Array(0), r = new Uint8Array(o.length + b.length); r.set(o); r.set(b, o.length); memfs.set(normName(p), r); },
-  fsRemove: (p) => memfs.delete(normName(p)), fsMkdir: () => true, fsTmpdir: () => '/tmp',
-  fsListCount: (d) => { const pre = normName(d).replace(/\/?$/, '/'); const set = new Set(); for (const k of [...memfs.keys(), ...assets.keys()]) if (k.startsWith(pre === '/' ? '' : pre)) set.add(k.slice(pre === '/' ? 0 : pre.length).split('/')[0]); listing = [...set]; return listing.length; },
-  fsListName: (i) => listing[i] || '', fsListKind: () => 0,
-  fsStat: (p) => !!fileBytes(p), fsStatD: () => 0, fsStatI: (i) => (i === 0 ? (lastBytes.length) : 0),
+  fsWriteText: (p, s) => { fsErr = ''; put(p, enc.encode(s)); },
+  fsAppendText: (p, s) => { fsErr = ''; put(p, concat(fileBytes(p), enc.encode(s))); },
+  fsExists: (p) => { const n = normName(p); return isFile(n) || isDir(n); },
+  fsLoad: (p) => { fsErr = ''; const b = fileBytes(p); if (!b) { fsErr = 'ENOENT: readBytes ' + p; return 0; } lastBytes = b; return b.length; },
+  fsByte: (i) => lastBytes[i] || 0, fsWriteBytes: (p, b) => { fsErr = ''; put(p, Uint8Array.from(b)); },
+  fsAppendBytes: (p, b) => { fsErr = ''; put(p, concat(fileBytes(p), Uint8Array.from(b))); },
+  fsRemove: (p, recursive) => removePath(normName(p), recursive), fsMkdir: (p, recursive) => makeDir(normName(p), recursive), fsTmpdir: () => '/tmp',
+  fsListCount: (d) => {
+    fsErr = '';
+    const n = normName(d), pre = n ? n + '/' : '', kinds = new Map();
+    listing = []; listingKinds = [];
+    if (!isDir(n)) { fsErr = 'ENOENT: list ' + d; return 0; }
+    for (const k of [...fileNames(), ...memdirs]) {
+      if (k === n || !k.startsWith(pre)) continue;
+      const rest = k.slice(pre.length), name = rest.split('/')[0];
+      kinds.set(name, rest.includes('/') || memdirs.has(pre + name) ? 2 : kinds.get(name) || 1);
+    }
+    listing = [...kinds.keys()]; listingKinds = [...kinds.values()];
+    return listing.length;
+  },
+  fsListName: (i) => listing[i] || '', fsListKind: (i) => listingKinds[i] || 0,
+  fsStat: (p) => {
+    fsErr = '';
+    const n = normName(p), t = mtimes.get(n) || bootTime;
+    if (isFile(n)) { const b = fileBytes(n), s = streamed(n); statD = [b ? b.length : (s && s.size) || 0, t, t, t]; statI = [0o100644, 1, 0, 0]; return true; }
+    if (isDir(n)) { statD = [0, t, t, t]; statI = [0o40755, 0, 1, 0]; return true; }
+    fsErr = 'ENOENT: stat ' + p; return false;
+  },
+  fsStatD: (i) => statD[i] || 0, fsStatI: (i) => statI[i] || 0,
+  fsRename: (a, b) => {
+    fsErr = '';
+    const f = normName(a), t = normName(b);
+    if (memfs.has(f)) { put(t, memfs.get(f)); memfs.delete(f); disk.touch(f); return; }
+    if (!memdirs.has(f) && ![...memfs.keys()].some((k) => k.startsWith(f + '/'))) { fsErr = (isFile(f) || isDir(f) ? 'EROFS: ' : 'ENOENT: ') + 'rename ' + a; return; }
+    for (const k of [...memfs.keys(), ...memdirs]) {
+      if (k !== f && !k.startsWith(f + '/')) continue;
+      const to = t + k.slice(f.length);
+      if (memfs.has(k)) { memfs.set(to, memfs.get(k)); memfs.delete(k); } else { memdirs.add(to); memdirs.delete(k); }
+      disk.touch(k); disk.touch(to);
+    }
+  },
+  fsCopyFile: (a, b) => { fsErr = ''; const bytes = fileBytes(a); if (!bytes) fsErr = 'ENOENT: copyFile ' + a; else put(b, bytes); },
+  fsRealpath: (p) => { fsErr = ''; const n = normName(p); if (!isFile(n) && !isDir(n)) { fsErr = 'ENOENT: realpath ' + p; return ''; } return '/' + n; },
+  fsMkdtemp: (prefix) => { fsErr = ''; const n = normName(prefix) + Math.random().toString(36).slice(2, 8); memdirs.add(n); disk.touch(n); return '/' + n; },
+  fsChmod: (p) => { fsErr = ''; const n = normName(p); if (!isFile(n) && !isDir(n)) fsErr = 'ENOENT: chmod ' + p; },   // (a page has no file modes: stat says 644 and 755)
   assetsExists: (n) => !!assetBytes(n), assetsReadText: (n) => { fsErr = ''; const b = assetBytes(n); if (!b) { fsErr = 'ENOENT: asset ' + n; return ''; } return dec.decode(b); },
   assetsStat: () => 0,   // (6: under zinc dev with assets rebuilt on save; a page reloads instead)
   assetsLoad: (n) => { fsErr = ''; const b = assetBytes(n); if (!b) { fsErr = 'ENOENT: asset ' + n; return 0; } lastBytes = b; return b.length; },
@@ -869,6 +982,8 @@ const UNSUPPORTED = CFG.unsupported || [];
 const why = (n) => (/^(sock|net|http|tls|mqtt|osc|dns)/i.test(n) ? 'raw sockets and TLS: use fetch or WebSocket (docs/targets/web.md)' : /^(proc|sig|stdin)/i.test(n) ? 'processes and signals' : /^(ev|loop)/i.test(n) ? 'the native event loop' : /^layout/.test(n) ? 'the React Native layout engine (Yoga) is not built for the web target yet; use the classic layout' : /^assets/.test(n) ? 'asset groups and packs' : 'a native service');
 for (const n of UNSUPPORTED) G['__host_' + n] = function () { throw new ZnUnsupported(n, why(n)); };
 for (const [n, f] of Object.entries(rows)) G['__host_' + n] = f;
+// readBytes of zinc:fs and zinc:assets: the bundle (built by the QuickJS loader) takes the bytes of the last load as one array, as src/qjs/qjs.cpp gives them
+G.__qjs_bytes = (n) => { const r = new Array(n); for (let i = 0; i < n; i++) r[i] = G.__host_fsByte(i); return r; };
 G.__addEvHandler = G.__addEvHandler || (() => {});   // the native event loop's handlers (signals, stdin, plugin events): none of those events reach a page
 if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host services the page lacks are this machine's, as under zinc run (the dev bridge)
   const remote = (n) => (...a) => Z.bridge.call('__rows', n, a);
@@ -1020,6 +1135,7 @@ async function preload() {
       try { const ff = new FontFace(a.font, buf); await ff.load(); document.fonts.add(ff); } catch (e) { console.warn('zinc: cannot load font ' + a.font, e); }
     }
   });
+  if (!(Z.bridge && CFG.bridge.rows)) jobs.push(disk.load());   // the files the program wrote in an earlier visit (under zinc dev they are this machine's)
   for (const w of CFG.wasm || []) jobs.push((async () => { const r = await pageFetch(w.url); if (!r.ok) throw new Error(`cannot load ${w.name}: ${r.status}`); Z.wasm[w.name] = await WebAssembly.compile(await r.arrayBuffer()); })());
   await Promise.all(jobs);
 }

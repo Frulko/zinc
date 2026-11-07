@@ -23,6 +23,9 @@
     "sim": {
       "width": 1280,
       "height": 820
+    },
+    "web": {
+      "files": ["welcome"]
     }
   },
   "permissions": [

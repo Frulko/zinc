@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """A web export in headless Chrome (docs/targets/web.md; tests/t1/web_export.sh): serves a folder over HTTP, opens it, waits for frames, prints one JSON line.
-usage: web-browser-test <dir> [--wait SECONDS] [--shot out.png] [--eval EXPR] [--size WxH] [--path /index.html] [--click X,Y] [--expect-text TEXT] [--init JS]
+usage: web-browser-test <dir> [--wait SECONDS] [--shot out.png] [--eval EXPR] [--size WxH] [--path /index.html] [--click X,Y] [--expect-text TEXT] [--init JS] [--reload SECONDS]
 --init: a script that runs in the page before any of its own (Page.addScriptToEvaluateOnNewDocument).
+--reload: reloads the page once after the first wait (and the clicks) and waits that long again; the console holds both loads (what a page keeps across a visit).
 --click-text and --expect-text poll for their text up to 10 s x ZN_WAIT_SCALE (a slow runner boots the page later), so --wait and --after are minimums, not deadlines.
 The JSON: {"console": [...], "errors": [...], "frames": N, "eval": value, "nonblank": fraction of pixels not equal to the first, "text": document text}
 Exit 77 (skip) without Chrome. Chrome only: Firefox and Safari are not tested here."""
@@ -12,7 +13,7 @@ from cdp import Chrome, find_chrome
 args = sys.argv[1:]
 if not args: sys.exit("usage: web-browser-test <dir> [options]")
 root = args.pop(0)
-opt = {"--wait": "3", "--shot": "", "--eval": "", "--size": "900x600", "--path": "/", "--click": "", "--expect-text": "", "--after": "1", "--click-text": "", "--init": "", "--frame-pause": ""}
+opt = {"--wait": "3", "--shot": "", "--eval": "", "--size": "900x600", "--path": "/", "--click": "", "--expect-text": "", "--after": "1", "--click-text": "", "--init": "", "--frame-pause": "", "--reload": ""}
 while args:
     k = args.pop(0)
     if k not in opt: sys.exit("unknown option " + k)
@@ -63,6 +64,10 @@ with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "
         click(x, y)
         t0 = time.monotonic()
         while time.monotonic() - t0 < float(opt["--after"]): c._recv(-1, 0.2)
+    if opt["--reload"]:
+        c.call("Page.reload")
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < float(opt["--reload"]): c._recv(-1, 0.2)
     if opt["--frame-pause"]:   # stop the page's frame loop after N frames so a screenshot shows a known frame
         c.eval("(() => { const f = window.requestAnimationFrame.bind(window); const n = %s; const t = () => { if ((globalThis.__zincFrames || 0) >= n) { window.requestAnimationFrame = () => 0; } }; window.requestAnimationFrame = (cb) => f((x) => { cb(x); t(); }); })()" % int(opt["--frame-pause"]))
         t0 = time.monotonic()
