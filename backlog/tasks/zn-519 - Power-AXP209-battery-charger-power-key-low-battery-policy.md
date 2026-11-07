@@ -11,7 +11,7 @@ milestone: m-24
 dependencies:
   - ZN-514
 ordinal: 95300
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,4 +32,5 @@ zinc:system power on Linux from sysfs (no D-Bus): axp20x-battery capacity, statu
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. AXP209 power on the CHIP: needs the board.
+Review 2026-11-07: parked. AXP209 power: board needed.
 <!-- SECTION:NOTES:END -->

@@ -6,7 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:34'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - perf
   - size-M
@@ -36,4 +36,5 @@ Also carries, since the backlog review of 2026-10-10: ZN-185 (R3.6 Render thread
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-10-10, re-prioritised to the cross-platform pass (owner: the development Mac first). Since ZN-412.02 the macOS window renders with the GL replay by default: a sample at bouncing-ball 200k shows no zrt::raster::render on the main thread, 119 fps with ZINC_VSYNC=0 and 60 fps with vsync. The 63% wait this task removes exists only on the software raster: Linux without GL, fbdev/KMS, the Pi, the handhelds, ZINC_RENDERER=cpu. Measure and do it there, with the CPU renderer's own numbers.
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

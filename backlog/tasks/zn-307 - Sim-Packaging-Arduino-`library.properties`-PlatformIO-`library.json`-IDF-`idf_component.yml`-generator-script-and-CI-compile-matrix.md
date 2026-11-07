@@ -16,7 +16,7 @@ dependencies:
   - ZN-304
   - ZN-305
 ordinal: 90200
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,4 +34,5 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-16). Wokwi-styl
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Packaging of the Arduino/PlatformIO/IDF library: only after ZN-304/305 and a release decision; publishing is the owner's step.
+Review 2026-11-07: parked. publishing packages for Arduino/PlatformIO/IDF, far from the goal; already labeled parked.
 <!-- SECTION:NOTES:END -->

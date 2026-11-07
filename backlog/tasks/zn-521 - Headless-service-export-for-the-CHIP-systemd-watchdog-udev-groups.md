@@ -11,7 +11,7 @@ milestone: m-24
 dependencies:
   - ZN-517
 ordinal: 93200
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,4 +32,5 @@ zinc export --target chip writes a systemd unit (restart on failure, sunxi watch
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Headless service export for the CHIP: the Pi image and `zinc agent` cover the service story for Linux boards; CHIP-only parts need the board.
+Review 2026-11-07: parked. CHIP systemd export; nobody uses it now.
 <!-- SECTION:NOTES:END -->

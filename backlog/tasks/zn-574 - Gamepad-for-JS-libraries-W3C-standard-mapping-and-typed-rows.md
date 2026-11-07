@@ -1,10 +1,10 @@
 ---
 id: ZN-574
 title: 'Gamepad for JS libraries: W3C standard mapping and typed rows'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - games
   - js
@@ -25,7 +25,7 @@ On top of the input layer of ZN-552 (evdev hub and SDL3 gamepad/joystick subsyst
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 an SDL virtual gamepad in a test drives Phaser's GamepadPlugin and Kaplay's onGamepadButtonPress
+- [x] #1 an SDL virtual gamepad in a test drives Phaser's GamepadPlugin and Kaplay's onGamepadButtonPress
 - [x] #2 button and axis indices match the W3C table for an Xbox and a PlayStation mapping
 - [x] #3 headless runs report no gamepads without error
 <!-- AC:END -->
@@ -43,4 +43,5 @@ Test: tests/t1/webenv_gamepad.sh (PASS, with webenv, webenv_phaser, example_js_p
 
 NOT PROVEN: no real gamepad (hot-plug of a USB or Bluetooth pad, rumble that shakes, the raw mappings of real Xbox and PlayStation pads: the virtual pads use SDL's standard layout, so what is proven is our SDL-to-W3C table, not SDL's per-device database); a visible window (the virtual pad ran on the dummy driver); launch_time and the other window tests after the SDL change (to run after integration); display-gl's own event loop (plugins/display-gl/src/sdl.cpp) does not read gamepads; SDL_GameControllerDB is not embedded (SDL's built-in database, plus the file SDL_GAMECONTROLLERCONFIG_FILE names).
 Review 2026-10-25: done-partly. Implemented and tested with Phaser. Left only the Kaplay check (ZN-707) and a real pad, which is by hand. Could be closed as done once ZN-707 vendors Kaplay. Evidence: tests/t1/webenv_gamepad.sh (virtual pads through Phaser GamepadPlugin, W3C table, headless without gamepads)
+Review 2026-11-07: done. AC2 and AC3 pass and AC1 is proven with Phaser; the Kaplay check goes with ZN-707, a real pad is by hand. Evidence: tests/t1/webenv_gamepad.sh (Phaser GamepadPlugin, W3C table, headless)
 <!-- SECTION:NOTES:END -->

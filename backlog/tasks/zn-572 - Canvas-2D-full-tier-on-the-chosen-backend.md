@@ -4,7 +4,7 @@ title: 'Canvas 2D full tier: WPT subset and p5 2.3'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - games
   - js
@@ -17,6 +17,8 @@ ordinal: 10100
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Replace the WPT 80% criterion by a small pinned WPT subset run in seconds; p5 2.3 2D examples SSIM >= 0.95 on one engine; list the full WPT run for a milestone.
+
 **What is left (review 2026-10-25):** Keep the done list. Remaining criteria: WPT html/canvas/element subset at 80 percent; p5 2.3 2D examples at SSIM 0.95; the fps criterion measured on the jsc/v8 engines instead of QuickJS. Already there: tests/t1 webenv_canvas2d_full.sh, webenv_canvas2d_libs.sh, example_js_p5.sh; handover in the task notes.
 
 On the backend chosen by JSG-08, behind the same JS facade as the text-first tier: paths, arcs, ellipses, bezier, roundRect, Path2D (+ SVG path strings; every p5 2.x shape goes through Path2D), clip with arbitrary paths, all 26 globalCompositeOperation values, shadows, patterns, conic gradients, filter (CSS filter subset), imageSmoothingEnabled/Quality, isPointInPath/isPointInStroke, OffscreenCanvas, toDataURL/toBlob. Needed by p5 P2D, Phaser's CANVAS renderer, PixiJS v8's Canvas renderer and matter-js Render. (From docs/reports/games/js-game-libraries.md.)
@@ -61,4 +63,5 @@ HANDOVER (2026-10-11, end of the second session). Back in Backlog, no criterion 
 OPEN: #1 WPT subset: not started, as the first handover says (pin a commit, tools/test-lib, a testharness shim, a tests/t2 script). #2: p5 1.11 at 0.988 and Phaser CANVAS at 0.995 are there; p5 2.3 is not in tools/test-lib and was not run: add it there, a p5-2 page beside libs/p5.js, its Chrome frame. #3 (60 fps for 1,000 ellipses) cannot pass on QuickJS as written (first handover): unchanged, not measured again.
 NEXT COMMAND: tools/test-lib (add p5 2.3), then 'tools/canvas2d-ref libs p5v2' with a new page; for #1 the plan of the first handover.
 Review 2026-10-25: done-partly. Steps 1 to 3 plus Phaser CANVAS and p5 1.11 (0.988) match Chrome. Left: WPT canvas subset at 80 percent, p5 2.3 reference, and the 60 fps / 1,000 ellipses criterion the notes say cannot pass on QuickJS (move it to the JSC/V8 engines or drop). Evidence: tests/t1 webenv_canvas2d_full.sh, webenv_canvas2d_libs.sh, example_js_p5.sh; handover in the task notes
+Review 2026-11-07: done-partly. Full tier is largely built; WPT 80% sweep, p5 2.3 SSIM and fps gate remain. Evidence: tests/t1/webenv_canvas2d_full.sh; webenv_canvas2d_libs.sh; example_js_p5.sh
 <!-- SECTION:NOTES:END -->

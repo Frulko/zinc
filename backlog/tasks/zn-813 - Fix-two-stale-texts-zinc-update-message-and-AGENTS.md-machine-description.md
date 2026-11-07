@@ -1,7 +1,7 @@
 ---
 id: ZN-813
 title: 'Fix two stale texts: zinc update message and AGENTS.md machine description'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-24 23:56'
 labels:
@@ -9,6 +9,7 @@ labels:
 milestone: m-19
 dependencies: []
 ordinal: 13100
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -22,5 +23,11 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `zinc update` says to unpack the tar.gz or run install.sh again
+- [x] #1 `zinc update` says to unpack the tar.gz or run install.sh again
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: done. The old drag-it-over text is gone from src; AGENTS.md describes the M1 Pro. Evidence: grep src: no "drag it over"; AGENTS.md machine section
+<!-- SECTION:NOTES:END -->

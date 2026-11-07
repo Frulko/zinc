@@ -13,10 +13,12 @@ labels:
   - multiplayer
   - docs
   - size-S
+  - parked
 milestone: m-30
 dependencies:
   - ZN-971
 ordinal: 730020
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -31,3 +33,9 @@ Turn docs/reports/hamlet-multiplayer-design-2026-11-01.md into the protocol: mes
 - [ ] #2 Lists what the client sim must expose (seam checklist) and ticks each item against the tasks
 - [ ] #3 A reviewer can implement a server skeleton from it without reading the code
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. (corrected: drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks).)
+<!-- SECTION:NOTES:END -->

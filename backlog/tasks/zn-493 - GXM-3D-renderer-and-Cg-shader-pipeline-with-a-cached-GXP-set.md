@@ -4,10 +4,11 @@ title: 'Vita GXM 3D renderer for cooked packs: prove a triangle on hardware, the
 status: Review
 assignee: []
 created_date: '2026-10-09 07:39'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - handheld
   - pocketjs
+  - parked
 milestone: m-23
 dependencies:
   - ZN-490
@@ -43,4 +44,5 @@ Debug session 2 (Vita3K, ZINC_VITA_GPU_PROBE probes in gxm_vita.cpp): all GXM ca
 Vita3K log is the smoking gun: 'Stubbed sceGxmMapVertexUsseMemory' and 'Stubbed sceGxmMapFragmentUsseMemory - always return success'. The patcher path we use therefore does not reach the GPU emulation on this Vita3K build. Software path fully paints (standalone probe: hello with ZINC_VITA_SOFT_FRAMES=10000 shows content, 59.8fps), so the shot path and the display library are fine and the failure is only in the GXM colour surface.
 Next probe: a standalone (bypass the shader patcher, write the SDL 2D vertex/loong pair directly via sceGxmSetVertexProgram with the hardcoded uniform buffer) program to see whether raw draws paint at all on this emulator. Alternative: try the pinned emu's OpenGL backend instead of MoltenVK/Metal, or run the pin's own SDL test app.
 Review 2026-10-25: rewrite. Status Review but nothing is provable yet: first milestone staged, GXP blobs built, Vita3K stubs the GXM memory calls so no 3D proof. Back to Backlog; GXM 2D now works on hardware, so the proof moves to the owner's Vita. Evidence: targets/vita/gxm_3d.cpp; targets/vita/shaders; tests/t0/vita_gxp_3d.sh; commits 761e5f8d, 903153a6
+Review 2026-11-07: parked. Needs the owner Vita (Vita3K stubs GXM memory); status Review is stale. Evidence: targets/vita/gxm_3d.cpp; tests/t0/vita_gxp_3d.sh; commits 761e5f8d3, 903153a6a
 <!-- SECTION:NOTES:END -->

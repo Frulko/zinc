@@ -11,11 +11,14 @@ labels:
 milestone: m-14
 dependencies: []
 ordinal: 7500
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-11-07:** Drop criterion 1 (done, tools/hermes-pack:30). Keep V8 pin, .qbc stamp (src/qjs/bundle.cpp), source-map sources embedded.
+
 From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlog-review-2026-10-25.md). The lines it carries:
 
 - ZN-773.07: Hermes pack: add the licences of libhermesvm's vendored parts (llvh, dtoa, zip...) to the pack before publishing one.
@@ -31,3 +34,9 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 - [ ] #3 .qbc is stamped with the zinc version and a mismatch recompiles
 - [ ] #4 Source maps of a moved build resolve (sources embedded or absolute)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: rewrite. Hermes licences already in tools/hermes-pack LICENSES (llvh, dtoa, zip); left: pin V8 in tools/v8-pack, stamp zinc version in .qbc, source-map paths.
+<!-- SECTION:NOTES:END -->

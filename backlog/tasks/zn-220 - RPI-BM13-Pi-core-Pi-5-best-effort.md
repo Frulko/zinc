@@ -11,7 +11,7 @@ labels:
 milestone: m-11
 dependencies: []
 ordinal: 92100
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -29,4 +29,5 @@ UART, GPIO, Ethernet through Circle's RP1 drivers; no QEMU. See docs/reports/zin
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. (drop proposed, corrected by the verifier) Pi 5 is part of 'widest hardware', and no decision drops it. It is a parked tail of the open RPI-BM chain, the same case as ZN-217.
+Review 2026-11-07: parked. Bare-metal Pi core (Circle): parked chain, needs a Pi and a licence decision; the Pi runs the Linux image now.
 <!-- SECTION:NOTES:END -->

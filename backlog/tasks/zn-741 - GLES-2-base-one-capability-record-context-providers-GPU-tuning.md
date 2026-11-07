@@ -4,12 +4,13 @@ title: 'GLES 2 base: standalone CMake target and the Android default decision'
 status: Backlog
 assignee: []
 created_date: '2026-10-16 12:41'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - mobile
   - gl
   - perf
   - size-L
+  - parked
 milestone: m-26
 dependencies:
   - ZN-622
@@ -83,4 +84,5 @@ Lines for backlog/later.md:
 
 Handover (2026-10-16 late): open AC1 (hero: ZN-628), AC4 (the coordinator adds the later.md lines), AC6 (the replay as its own target), AC7 second half (Android default: the fling is 3 to 4 ms behind the software raster at p99). Next: profile a replay pass on the Nexus 7 (ZINC_GL_MOVE_LOG=2 prints each pass CPU and GPU time; 1 to 3 ms of A9 each), then compare again with the scripts in /tmp/zn744 (FLING=fling-c.txt sh pair.sh s 900 2 170 890 "gl:ZINC_RENDERER=gl" "cpu:").
 Review 2026-10-25: done-partly. Capability record, tuning table and mediump build are done and tested; open: hero timings, the later.md lines, the replay as its own CMake target, and the Android-default decision (the fling is 3-4 ms behind the software raster at p99). Evidence: runtime/gl_replay.cpp; task notes 2026-10-16; docs/reports/zinc-next-android.md
+Review 2026-11-07: parked. Remaining criteria are Nexus 7, Pi 3 and TouchPad measurements and a CMake target. Evidence: runtime/gl_replay.cpp
 <!-- SECTION:NOTES:END -->

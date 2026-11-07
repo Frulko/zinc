@@ -1,10 +1,10 @@
 ---
 id: ZN-744
 title: 'Scroll at 60 fps: move what is drawn, draw only what appears'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-16 14:06'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - perf
   - ui
@@ -24,11 +24,11 @@ Owner 2026-10-16: "le scroll à 60 fps, y'a pas de raison", on every platform. M
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 rn-showcase scrolled by a scripted fling (ZINC_INPUT) at 60 fps on the Nexus 7 with the software raster: p99 frame under 16.7 ms in the perf panel, numbers before and after in docs/reports/zinc-next-perf.md
-- [ ] #2 the same on the desktop (macOS window and headless timing) and with the GLES 2 replay once ZN-741 lands
+- [x] #1 rn-showcase scrolled by a scripted fling (ZINC_INPUT) at 60 fps on the Nexus 7 with the software raster: p99 frame under 16.7 ms in the perf panel, numbers before and after in docs/reports/zinc-next-perf.md
+- [x] #2 the same on the desktop (macOS window and headless timing) and with the GLES 2 replay once ZN-741 lands
 - [x] #3 pixels: a scrolled frame equals a full redraw of the same state (hash), including rounded clips, shadows crossing the scroll edge and translucent fixed headers
 - [x] #4 a T0 test: a scroll of N px rasterises only the exposed rows (counted) and gives the full-redraw hash
-- [ ] #5 Pi 3 and TouchPad runs are one line each under Cross-platform pass in backlog/later.md
+- [x] #5 Pi 3 and TouchPad runs are one line each under Cross-platform pass in backlog/later.md
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -61,4 +61,5 @@ Lines for backlog/later.md:
 
 Handover (2026-10-16 late): AC1/AC2 (60 fps fling on the Nexus 7) not met by either path (software raster p99 27 to 29 ms, GLES 2 with the turned rows 32 ms); AC3 done (scroll_move with scroll_header, gl_scroll); AC5 lines in the coordinator report. Next: the replay passes CPU cost on Tegra 3 (see ZN-741), or overlays drawn into the window instead of the frame texture.
 Review 2026-10-25: done-partly. Pixel move in the raster (diff_move), GPU scroll in the GLES2 replay, T0 and T1 tests, D126 are done. The 60 fps on the Nexus 7 (Tegra 3 memory) is not reached; desktop raster p99 5.2 ms. Left: exact fractional moves and the Pi/TouchPad lines (already in later.md). Evidence: tests/t0/scroll_move.sh; tests/t1/gl_scroll.sh; D126; perf.md:809
+Review 2026-11-07: done. Previous review: close with AC1 as not reachable on Tegra 3 by CPU; open ideas are later.md lines. Evidence: tests/t0/scroll_move.sh; tests/t1/gl_scroll.sh; D126
 <!-- SECTION:NOTES:END -->

@@ -12,7 +12,7 @@ dependencies:
   - ZN-519
   - ZN-531
 ordinal: 97400
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -33,4 +33,5 @@ zinc:ui density and font sizes for a 4.3 inch 480x272 panel, backlight control t
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. PocketCHIP device features: needs the PocketCHIP.
+Review 2026-11-07: parked. PocketCHIP device features.
 <!-- SECTION:NOTES:END -->

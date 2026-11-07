@@ -16,7 +16,7 @@ dependencies:
   - ZN-292
   - ZN-126
 ordinal: 92500
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,4 +34,5 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-12). Wokwi-styl
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. WASM custom chips with a Wokwi-shaped API: niche, large; the 14 built-in chip models (src/sim/chips) cover the shipped boards. Revisit on demand.
+Review 2026-11-07: parked. wasm chips need the wasm plugin; far from the goal; already labeled parked.
 <!-- SECTION:NOTES:END -->

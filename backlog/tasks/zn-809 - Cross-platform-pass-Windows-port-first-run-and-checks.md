@@ -7,9 +7,11 @@ created_date: '2026-10-24 23:56'
 labels:
   - size-L
   - cross
+  - parked
 milestone: m-11
 dependencies: []
 ordinal: 54400
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -51,3 +53,9 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 - [ ] #3 zinc tour/new/device/dev, loadFont drive paths, live resize, taskbar name checked on a Windows machine
 - [ ] #4 Installer (install.ps1, zip, winget) and signing path run once
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Windows is first of the cross pass but needs a Windows machine.
+<!-- SECTION:NOTES:END -->

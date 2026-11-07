@@ -16,7 +16,7 @@ dependencies:
   - ZN-305
   - ZN-141
 ordinal: 95600
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,4 +34,5 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-15). Wokwi-styl
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Hot load for the Arduino library: depends on ZN-305, parked with it.
+Review 2026-11-07: parked. needs a board or QEMU, Arduino hot load; already labeled parked.
 <!-- SECTION:NOTES:END -->

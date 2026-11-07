@@ -8,11 +8,12 @@ labels:
   - rpi
   - sdk
   - size-L
+  - parked
 milestone: m-25
 dependencies:
   - ZN-535
 ordinal: 52100
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -35,4 +36,5 @@ v1 spawns rpicam-vid (YUV420 to stdout) through zinc:process and exposes frames 
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. zinc:camera on Linux already does V4L2 capture with a fake camera (plugins/camera/native/camera.linux.cpp, camera.rpi1.cpp, commit 57bb7b04). Left: the Pi CSI camera (rpicam-vid pipe v1; libcamera DMA-BUF v2), currently only shown through `libcamerify`. Evidence: plugins/camera/native/camera.linux.cpp:1-5
+Review 2026-11-07: parked. Pi CSI camera via rpicam-vid; board needed. Evidence: plugins/camera/native/camera.linux.cpp
 <!-- SECTION:NOTES:END -->

@@ -11,10 +11,12 @@ labels:
   - pixel-plays
   - reuse
   - size-M
+  - parked
 milestone: m-30
 dependencies:
   - ZN-940
 ordinal: 700120
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -31,3 +33,9 @@ Third copy rule: terrain bake loop (harbor, fishing, hamlet), grass/water tones 
 - [ ] #4 deer and birch moved to models/animals.ts and models/trees.ts with parameters (x,y,yaw,state,phase,stag)
 - [ ] #5 pixel-plays T1 tests and tests/t1/hamlet.sh pass
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. (corrected: drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks).)
+<!-- SECTION:NOTES:END -->

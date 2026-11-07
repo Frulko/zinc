@@ -10,6 +10,7 @@ labels:
 milestone: m-25
 dependencies: []
 ordinal: 54200
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -75,3 +76,9 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 - [ ] #3 Pi 1/Zero armhf start time and memory; fbdev pacing; splash timing
 - [ ] #4 Results in docs/reports/raspberry-pi.md and zinc-next-perf.md
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
+<!-- SECTION:NOTES:END -->

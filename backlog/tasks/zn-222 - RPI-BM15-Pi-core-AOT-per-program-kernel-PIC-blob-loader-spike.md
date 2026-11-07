@@ -11,7 +11,7 @@ labels:
 milestone: m-11
 dependencies: []
 ordinal: 92200
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -29,4 +29,5 @@ Per-program kernel via the Circle bootloader, then a position-independent blob l
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. (drop proposed, corrected by the verifier) It is a speculative perf spike on a parked chain, but no decision supersedes it. If the reviewer wants fewer tasks, merging it into ZN-216/219 keeps the criterion. Deleting it is not justified by the brief's definition of useless.
+Review 2026-11-07: parked. Bare-metal Pi core (Circle): parked chain, needs a Pi and a licence decision; the Pi runs the Linux image now.
 <!-- SECTION:NOTES:END -->

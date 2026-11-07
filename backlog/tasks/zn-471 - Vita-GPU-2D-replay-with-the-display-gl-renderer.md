@@ -4,13 +4,14 @@ title: 'Vita: move the GXM replay onto the shared ff_replay (rounded shapes on t
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:38'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - gpu
   - handheld
   - handhelds
   - vita
   - size-M
+  - parked
 milestone: m-23
 dependencies:
   - ZN-470
@@ -41,4 +42,5 @@ Run plugins/display-gl/src/gl_renderer.cpp on the path chosen by vita-gpu-spike,
 
 2026-10-17 handover: the replay runs on hardware (Meadow Run 60 fps, see ZN-470's note). Not done: AC#1 kit-gallery and bouncing-ball are drawn mostly by the software fallback, since their rounded RECTs, BORDERs and SHADOWs are not in the replay. Next step: rounded corners on the GPU without new shaders, with a quarter-disc coverage texture in the glyph atlas (nine quads per rounded RECT, a ring for BORDER), then gradients as vertex colours. Then compare with the CPU frame (tools/glcompare tolerance) using a Vita3K window capture, and measure the ball count on the Vita (AC#2: at least 2x vita-ball). AC#3: gl_renderer.cpp untouched.
 Review 2026-10-25: done-partly. Vita GXM replay runs on hardware, but rounded RECT, BORDER, SHADOW and gradients still fall back to the software frame; the shared ff_replay now has the coverage atlas the Vita copy lacks. Evidence: targets/vita/gxm_vita.cpp; targets/console/ff_replay.cpp
+Review 2026-11-07: parked. Vita GXM replay needs the Vita or an emulator run; follows ZN-467.
 <!-- SECTION:NOTES:END -->

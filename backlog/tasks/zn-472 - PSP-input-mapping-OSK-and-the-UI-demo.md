@@ -10,11 +10,12 @@ labels:
   - psp
   - ui
   - size-M
+  - parked
 milestone: m-23
 dependencies:
   - ZN-468
 ordinal: 51600
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -38,4 +39,5 @@ D-pad and Cross focus navigation, a virtual cursor on the analog nub (Select tog
 Review 2026-10-25: rewrite. The kit-gallery it names is gone and the hardware demos already map pad, touch and sticks per console; what is missing is text input and zinc:ui focus navigation. Merges 473 and 474 (same job, three APIs). Evidence: no sceUtilityOsk/sceImeDialog/swkbd in targets/*/hal_*.cpp; examples/hardware-kit
 Review 2026-10-25: merged ZN-473 here (Vita: touch, IME and the UI demo). Carry over: Vita touch/back touch exist in the hardware demo; the IME part is the same task as ZN-472. No console implements hal_text_input (grep of targets/: only hal_sdl.cpp), so the IME is open everywhere; ZN-472 is open. Carry over sceImeDialog, hero at 960x544 with scripted touch in Vita3K and idle 60 fps: it is a different system API from PSP's OSK, so 472 must name each console.
 Review 2026-10-25: merged ZN-474 here (3DS: screens, touch, swkbd and the UI demo). Carry over: 3DS touch and bottom screen exist (hardware demo, bottom window on the GPU); swkbd is the same task as ZN-472. Same as ZN-473: carry swkbd, targets.n3ds.screen top|bottom|both and the UI demo criterion (kit-gallery is gone: use examples/hardware-n3ds or hero).
+Review 2026-11-07: parked. Console text input needs PPSSPP scripted input and hardware (OSK, swkbd).
 <!-- SECTION:NOTES:END -->

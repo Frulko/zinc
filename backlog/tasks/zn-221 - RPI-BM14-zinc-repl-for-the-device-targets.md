@@ -7,16 +7,17 @@ created_date: '2026-10-07 10:11'
 labels:
   - rpi
   - baremetal
-  - parked
 milestone: m-11
 dependencies: []
 ordinal: 90300
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-11-07:** Drop the parked/baremetal labels: host compiles one line to a ZBC module, uploads to device-sim or an agent device, persistent module scope; T1 test on device-sim.
+
 **Rewritten by the review of 2026-10-25:** The host compiles one line to a ZBC module and uploads it to device-sim or a paired device through the agent; state of earlier globals is decided (keep a persistent module scope). Proof: T1 test on device-sim.
 
 The host compiles one line to a ZBC module and uploads it. See docs/reports/zinc-next-baremetal-pi.md section 10.
@@ -31,4 +32,5 @@ The host compiles one line to a ZBC module and uploads it. See docs/reports/zinc
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. A zinc repl does not exist (no src hit) and would be useful for makers and education, but the text is about bare-metal QEMU. Re-aim it at the device-sim/ESP32 simulator and the device agent.
+Review 2026-11-07: rewrite. Repl is doable on device-sim and the paired-device agent; not tied to bare-metal Pi.
 <!-- SECTION:NOTES:END -->

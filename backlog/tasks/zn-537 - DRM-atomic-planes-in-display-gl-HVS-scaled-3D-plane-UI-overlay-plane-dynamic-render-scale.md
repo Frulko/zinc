@@ -12,7 +12,7 @@ milestone: m-25
 dependencies:
   - ZN-536
 ordinal: 52500
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -36,4 +36,5 @@ Move plugins/display-gl/src/kms.cpp to atomic commits. The primary plane takes a
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. Atomic planes exist in display-fbdev (fbdev.cpp:298-477, ZN-735 flip + hardware layers) but display-gl/kms.cpp only uses legacy calls plus the cursor plane. Rewrite: move the plane code into a shared KMS helper and give display-gl the HVS-scaled 3D plane, UI overlay plane and render scale. Evidence: plugins/display-fbdev/fbdev.cpp:298; plugins/display-gl/src/kms.cpp:84
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

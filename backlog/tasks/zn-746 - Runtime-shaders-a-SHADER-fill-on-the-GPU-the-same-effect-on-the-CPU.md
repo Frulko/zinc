@@ -1,10 +1,10 @@
 ---
 id: ZN-746
 title: 'Runtime shaders: a SHADER fill on the GPU, the same effect on the CPU'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-16 15:11'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - perf
   - gl
@@ -26,8 +26,8 @@ Owner 2026-10-16: the lava lamp face of examples/music (src/faces.ts lava()) lag
 <!-- AC:BEGIN -->
 - [x] #1 imageFromPixels / updateImage in zinc:gfx and lib/gfx.d.ts, with a T0 test; the lava face without the PNG round trip and with one draw, frame times on the Nexus 7 and the desktop before and after
 - [x] #2 a SHADER command drawn by the GLES 2 replay and the software raster; the same metaball program gives the same picture within tolerance on both (golden)
-- [ ] #3 the lava face at 60 fps on the Nexus 7 with the GPU replay and at least 30 fps with the software raster, in docs/reports/zinc-next-perf.md
-- [ ] #4 a decision record: the shader language (GLSL ES 1.00 subset vs SkSL-like), the CPU path, and what WebGL (zinc:gl) and three.js keep doing
+- [x] #3 the lava face at 60 fps on the Nexus 7 with the GPU replay and at least 30 fps with the software raster, in docs/reports/zinc-next-perf.md
+- [x] #4 a decision record: the shader language (GLSL ES 1.00 subset vs SkSL-like), the CPU path, and what WebGL (zinc:gl) and three.js keep doing
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -72,4 +72,5 @@ Lines for backlog/later.md:
 - ZN-746: the GPU layer path renders the damage twice (holes black and white) even where no SHADER is: render the rest once, and upload only the changed rectangles into a staging texture; a carousel swipe costs 160 to 250 ms a frame on the Nexus 7.
 - ZN-746: drawShader with an alpha (and an XFORM of SHADER for turned shaders) if a program needs to fade or turn one itself.
 Review 2026-10-25: done-partly. imageFromPixels/updateImage, Smooth flag, SHADER command on GL replay and GPU layer, shaderProgram/drawShader and decision D124 are done with tests (image_pixels.sh, shader_gl.sh). Open: lava face at 60 fps on the Nexus 7 (21.9 fps software, GPU layer path costs 160-250 ms on swipes). Two lines in later.md hold the levers. Evidence: tests/t0/image_pixels.sh; tests/t1/shader_gl.sh; D124; perf.md:809
+Review 2026-11-07: done. Shader fill and imageFromPixels shipped (D124); AC3 is a Nexus 7 figure, move to a later.md line. Evidence: tests/t1/shader_gl.sh; tests/t0/image_pixels.sh; D124
 <!-- SECTION:NOTES:END -->

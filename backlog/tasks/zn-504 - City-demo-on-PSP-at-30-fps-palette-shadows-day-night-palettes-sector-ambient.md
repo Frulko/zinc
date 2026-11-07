@@ -15,7 +15,7 @@ dependencies:
   - ZN-492
   - ZN-503
 ordinal: 94700
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -35,4 +35,5 @@ PSP city renderer: a worker thread sweeps the height field when the sun moves an
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. (drop proposed, corrected by the verifier) Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule).
+Review 2026-11-07: parked. PSP city renderer.
 <!-- SECTION:NOTES:END -->

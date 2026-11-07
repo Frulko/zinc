@@ -11,7 +11,7 @@ milestone: m-24
 dependencies:
   - ZN-522
 ordinal: 96500
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,4 +32,5 @@ In the display plugins' evdev code: a PocketCHIP keymap with the Fn layer (brack
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. PocketCHIP input (TCA8418, touch calibration): needs the PocketCHIP; touch calibration of a device exists for the ESP32 only.
+Review 2026-11-07: parked. PocketCHIP input hardware.
 <!-- SECTION:NOTES:END -->

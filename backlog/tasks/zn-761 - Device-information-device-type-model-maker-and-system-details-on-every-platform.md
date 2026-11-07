@@ -6,7 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-18 10:55'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - mobile
   - platform
@@ -19,6 +19,8 @@ ordinal: 51500
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Run the device-info app on the iOS simulator and the Android emulator; tick AC1, AC4, AC5.
+
 **What is left (review 2026-10-25):** Run the device-info app on the iPhone simulator and the Android emulator (commands in the notes), tick AC1, AC4, AC5. Already there: src/host/sys_host.cpp; lib/std; tests/golden/device-info; task notes 2026-10-18.
 
 Owner, 2026-10-18 (after rn-showcase ran on an iPad Pro): a real platform layer that reports the kind of device and its details, on iOS and Android first, then every other platform. Today Platform.isPad and Platform.isTV are false constants (lib/std/react-native.tsx) and zinc:sys device('device') is uname's machine and release (src/host/sys_host.cpp). Model on expo-device (deviceType PHONE/TABLET/DESKTOP/TV/UNKNOWN, brand, manufacturer, modelName, modelId, designName, osName, osVersion, osBuildId, totalMemory, supportedCpuArchitectures, isDevice, deviceYearClass) and React Native's Platform (isPad, isTV, Platform.constants: interfaceIdiom, systemName, Brand, Manufacturer, Model, Release). Sources: iOS UIDevice (userInterfaceIdiom, systemName, systemVersion), sysctl hw.machine (iPad6,7) mapped to a marketing name by a table; Android Build.* (MANUFACTURER, BRAND, MODEL, DEVICE, ID) and the smallest screen width / UI_MODE_TYPE_TELEVISION for tablet and TV; macOS sysctl hw.model and IOKit's product name; Linux /sys/firmware/devicetree/base/model (Raspberry Pi), /sys/class/dmi/id/product_name; web navigator.userAgentData. ZINC_PLATFORM=ios|android on the desktop answers a simulated phone.
@@ -45,4 +47,5 @@ Owner, 2026-10-18 (after rn-showcase ran on an iPad Pro): a real platform layer 
 
 2026-10-18, real device: rn-showcase's Platform screen on the owner's iPad Pro 12.9 (iPad6,7, iOS 16.7.16) shows Model 'iPad Pro (12.9-inch) (1st generation)', System 'iPadOS 16.7.16', isPad true, isTV false (owner confirmed). Criterion 3 ticked on that run; the iPhone half of 1 and 5, and Android (4), stay open.
 Review 2026-10-25: done-partly. Device info module, Platform.isPad/isTV and the iPad run are done (owner confirmed on an iPad Pro); left: iPhone/Android proofs and the Android tablet/TV rule. Evidence: src/host/sys_host.cpp; lib/std; tests/golden/device-info; task notes 2026-10-18
+Review 2026-11-07: done-partly. Query and goldens shipped (e1c0488); left: the iPhone simulator and Android emulator runs. Evidence: git: e1c0488, f161907; src/host/sys_host.cpp
 <!-- SECTION:NOTES:END -->

@@ -15,11 +15,14 @@ dependencies:
   - ZN-939
   - ZN-941
 ordinal: 730000
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Route place/demolish/road/pause through issue(); same hash on 3 engines.
+
 Every player action becomes data (Command {tick, player, type, args}); the scene calls submit(cmd) and the sim consumes the queue at the tick. Single-player uses the same path a server will use. No network code. See docs/reports/hamlet-roadmap-2026-11-01.md.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -30,3 +33,9 @@ Every player action becomes data (Command {tick, player, type, args}); the scene
 - [ ] #3 Command validation lives in rules/ and rejects with a reason (shown by the HUD)
 - [ ] #4 The scripted session of hamlet.sh runs through submit
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: done-partly. src/rules/commands.ts routes goals, trades, adventures through issue() with a log; placement, demolition and roads still call the tools directly.
+<!-- SECTION:NOTES:END -->

@@ -11,7 +11,7 @@ labels:
 dependencies:
   - ZN-320.01
 ordinal: 97700
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -24,3 +24,9 @@ Follow-up of ZN-320.01 (and ZN-320.03): the .deb is written and read back on mac
 <!-- AC:BEGIN -->
 - [ ] #1 in the Linux CI job: dpkg -i of the exported .deb succeeds, dpkg -L lists /opt/<name>/<name> and /usr/bin/<name>, and /usr/bin/<name> prints the app's output
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. dpkg and AppImage checks in a Linux CI job; labeled parked.
+<!-- SECTION:NOTES:END -->

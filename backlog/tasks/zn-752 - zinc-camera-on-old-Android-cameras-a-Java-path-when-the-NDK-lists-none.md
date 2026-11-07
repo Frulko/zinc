@@ -8,11 +8,12 @@ labels:
   - mobile
   - media
   - size-M
+  - parked
 milestone: m-26
 dependencies:
   - ZN-628
 ordinal: 53900
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -27,3 +28,9 @@ Found by the owner on 2026-10-17 trying Zinc Go on the Nexus 7: the QR scanner s
 - [ ] #2 the API 37 emulator keeps the NDK path (its virtual camera unchanged)
 - [ ] #3 a T0 test with no Android tool: the export tree carries the Java backend and the camera permission
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Needs the Nexus 7 and a Java camera path.
+<!-- SECTION:NOTES:END -->

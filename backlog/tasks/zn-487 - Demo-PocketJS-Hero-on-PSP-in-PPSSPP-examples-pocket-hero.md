@@ -7,11 +7,12 @@ created_date: '2026-10-09 07:39'
 labels:
   - handheld
   - pocketjs
+  - parked
 milestone: m-23
 dependencies:
   - ZN-486
 ordinal: 50400
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -27,3 +28,9 @@ First demo. Build examples/pocket-hero (the PocketJS Hero compiled by Zinc throu
 - [ ] #3 Frame work per frame is logged and compared with the PocketJS numbers in the task notes
 - [ ] #4 A screenshot is added to docs/targets/psp.md
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. PocketJS Hero on PSP: handheld demo, cross pass end.
+<!-- SECTION:NOTES:END -->

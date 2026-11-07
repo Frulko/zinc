@@ -8,11 +8,12 @@ labels:
   - rpi
   - sdk
   - size-L
+  - parked
 milestone: m-25
 dependencies:
   - ZN-537
 ordinal: 53400
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,4 +35,5 @@ zinc:video uses FFmpeg h264_v4l2m2m on Pi 0-4, HEVC through the V4L2 request API
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: done-partly. H.264 V4L2 M2M decode with dmabuf frames shown on a KMS plane exists on the 32-bit path (plugins/video/native/video.rpi1.cpp, plugins/display-fbdev hardware layers, docs/plugins/video.md:42-50). Left: HEVC request API (Pi 4/5), display-gl EGLImage/plane path (later line ZN-731), 1080p30 CPU figure, visl/vicodec tests. Evidence: docs/plugins/video.md:46; docs/plugins/display-fbdev.md:47,124
+Review 2026-11-07: parked. HEVC V4L2 on Pi 4/5: board needed. Evidence: docs/plugins/video.md:46
 <!-- SECTION:NOTES:END -->

@@ -1,6 +1,6 @@
 ---
 id: ZN-946
-title: 'Hamlet: save format H2: the whole state, versioned, H1 still loads'
+title: 'Hamlet save: refuse future versions, storage-free snapshot'
 status: Backlog
 assignee: []
 created_date: '2026-11-01 13:00'
@@ -15,11 +15,14 @@ milestone: m-30
 dependencies:
   - ZN-943
 ordinal: 700070
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Rename: Hamlet save: refuse future versions, storage-free snapshot.
+
 The save keeps people, deer, stocks, tick and PRNG, in one text line per town, and the snapshot/restore code is separate from zinc:storage so a server can reuse it. See docs/reports/hamlet-roadmap-2026-11-01.md.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -30,3 +33,9 @@ The save keeps people, deer, stocks, tick and PRNG, in one text line per town, a
 - [ ] #3 H1 saves still load (test fixture from the current format)
 - [ ] #4 Unknown future versions are refused with a message, not a crash
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: done-partly. Save is versioned (H19 to H22 all still load, examples/hamlet/src/world/save.ts:71); the Command log exists. Left: refuse unknown future versions with a message and a storage-free snapshot/restore.
+<!-- SECTION:NOTES:END -->

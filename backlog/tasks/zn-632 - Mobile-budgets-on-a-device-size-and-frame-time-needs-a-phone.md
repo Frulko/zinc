@@ -13,7 +13,7 @@ milestone: m-26
 dependencies:
   - ZN-627
 ordinal: 95500
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,4 +32,5 @@ Measure the app size per ABI (hello, rn-showcase) and frame times on one mid-ran
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Needs a mid-range Android phone and an iPhone; already parked and labelled.
+Review 2026-11-07: parked. Needs a mid-range Android phone and an iPhone. Evidence: labelled parked, needs-board
 <!-- SECTION:NOTES:END -->

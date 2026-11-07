@@ -7,10 +7,11 @@ created_date: '2026-10-09 07:39'
 labels:
   - handheld
   - pocketjs
+  - parked
 milestone: m-23
 dependencies: []
 ordinal: 50200
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -36,4 +37,5 @@ Review 2026-10-25: rewrite. Bench and tape harness for the consoles: ZINC_PROFIL
 Review 2026-10-25: merged ZN-463 here (PSP: bouncing-ball with the software raster and a GE copy). Carry over: Software raster on PSP runs bouncing-ball (breakout/bouncing-ball in PPSSPP, GE replay since 27202ba5); only the recorded ball count and gate are left, shared with 464/465. ZN-486 is open and is the receipts/gate harness; carry over bouncing-ball's max ball count at 60 fps and the 90% gate. docs/reports/handheld-perf.md (named in AC3) does not exist; the emulator proof in console_emulators.sh is breakout's pad session, not bouncing-ball, so carry the bouncing-ball golden too.
 Review 2026-10-25: merged ZN-464 here (Vita: bouncing-ball with 3-core band raster). Carry over: Same remaining work (ball count at 60 fps and a gate) as ZN-463 for the Vita; Vita hardware already measured on Meadow Run (60 fps, none missed). The 3-core band raster is superseded by GXM (D151); carry over the Vita ball count with 90% gate and the logic/raster/present split into ZN-486.
 Review 2026-10-25: merged ZN-465 here (3DS: bouncing-ball on the top screen). Carry over: 3DS bouncing-ball runs in Azahar (600 balls pixel-identical on the PICA); only the recorded ball count and gate remain. Carry over Old/New 3DS ball counts with 90% gate (hardware: later.md:681 line) and the RetroArch screenshot into ZN-486.
+Review 2026-11-07: parked. Console bench harness: emulator/hardware receipts for handhelds; far from the Mac goal, no hardware loop tonight. Evidence: tools/console-demos --input; docs/targets/handhelds.md
 <!-- SECTION:NOTES:END -->

@@ -4,7 +4,7 @@ title: 'AOT program diet: hero 21.8 MB binary, 105 s build, 33.5 MB of C++'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 09:48'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - perf
   - aot
@@ -18,6 +18,8 @@ ordinal: 5002
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Measure hero now; next lever: unreachable-function removal (ZN-431) and split translation units; set targets from the measure.
+
 Owner 2026-10-09: 'how can it be so heavy?'. Measured on examples/hero: 21.8 MB binary (20.3 MB __TEXT), 105 s for zinc build, 33.5 MB of generated C++. Causes: (1) 2775 functions compiled, the whole zinc:ui and kit libraries: no unreachable-function removal (ZN-431); (2) the whole 3.25 MB ZBC module embedded (11.5 MB of decimal text) although every function is compiled: the program needs only the class, string, constant and global tables, and decoding and verifying it costs at every launch (ZN-592); (3) about 8 KB of C++ per function: every instruction carries its own error path with an inline message (shared trap labels per function would cut it); (4) one translation unit at -O2 (ZN-427).
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -36,4 +38,5 @@ hero after ZN-431 + ZN-603: generated C++ 33.5 -> 16.6 MB, zinc build 105 -> 48 
 Tests: fib AOT golden refreshed, tests/run --changed 30/30, aot, canvas, ui, script, profile, layout_bridge, host_direct, run_compiled, reach_callbacks, export_wasm, macos_bundle, native_plugins, text_shaped, svg_lottie; interpreter = AOT frames on bouncing-ball, nuxt-ui, rn-showcase.
 usage: n/a
 Review 2026-10-25: reopened. The notes promise a follow-up for the remaining 8 MB of baked fonts, 4.3 MB of code and 5 MB of runtime, but none was filed. Hero is the showcase demo: measure the current size, move baked fonts to assets (or compress), and decide whether 30 s build is still a goal.
+Review 2026-11-07: done-partly. Part done; hero binary <= 8 MB, build <= 30 s and C++ <= 10 MB not shown met. Evidence: AC2 ticked (tables-only module, run-length packed; hero module 3.0 MB -> 184 KB); one error exit per function done
 <!-- SECTION:NOTES:END -->

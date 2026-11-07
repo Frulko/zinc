@@ -4,7 +4,7 @@ title: 'Sim: hw.h `remote` backend and host server (QEMU ESP32 with chip models)
 status: Backlog
 assignee: []
 created_date: '2026-10-07 13:13'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - simulator
   - arduino
@@ -33,4 +33,5 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-07). Wokwi-styl
 <!-- SECTION:NOTES:BEGIN -->
 Started 2026-10-08, stopped when the owner asked for UI first. Plan: split into 298.01 (hw.h remote backend = the sim backend with proxy models, 8-byte framed request/reply with seq and timeout; host server src/sim/remote.{h,cpp}; T0 test over a socketpair: ssd1306 golden through the remote, 10 000 round trips, dropped frame -> timeout) and 298.02 (firmware UART2 transport, QEMU -serial tcp, zinc run --target esp32 --qemu --board). Draft of the hw.h part: .logs/zn-298-hw-remote.patch (untested).
 Review 2026-10-25: parked. QEMU ESP32 with host chip models: esp32sim (Rust emulator, tools/esp32sim) is now the shipped ESP32 emulator; the QEMU remote backend is far from the goal. The 298.01 sim-side draft stays in .logs.
+Review 2026-11-07: parked. QEMU ESP32 board simulator with chip models; large, needs the ESP32 QEMU.
 <!-- SECTION:NOTES:END -->

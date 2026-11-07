@@ -16,7 +16,7 @@ dependencies:
   - ZN-127
   - ZN-293
 ordinal: 92600
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,4 +34,5 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-17). Wokwi-styl
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. (drop proposed, corrected by the verifier) No host Arduino shim exists and esp32sim is not shown running a sketch: commit 209fc865 only puts a sketch in the real ESP32 firmware (examples/esp32-arduino), never touches tools/esp32sim, and examples/esp32-arduino/README.md says 'on the computer ARDUINO is not defined'. Simulating unmodified sketches without a board is maker/education value, not superseded. Evidence: tools/esp32sim/README.md; commit 209fc865
+Review 2026-11-07: parked. Arduino host core with 20 libraries is a large project, not Mac-sized now; already labeled parked.
 <!-- SECTION:NOTES:END -->

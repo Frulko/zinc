@@ -8,12 +8,14 @@ labels:
   - rmpp
   - needs-board
   - size-M
+  - parked
 milestone: m-29
 dependencies:
   - ZN-935
   - ZN-936
   - ZN-937
 ordinal: 632460
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -26,3 +28,9 @@ Latency, ghosting, recognition on the real Marker, recorder dataset, landscape i
 <!-- AC:BEGIN -->
 - [ ] #1 Numbers logged in docs/reports/zinc-next-perf.md and tuned debounce/thresholds committed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Needs the reMarkable tablet; run as Zinc apps through zinc-tile.
+<!-- SECTION:NOTES:END -->

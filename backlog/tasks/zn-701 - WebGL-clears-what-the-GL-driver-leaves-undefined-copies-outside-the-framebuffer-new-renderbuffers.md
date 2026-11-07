@@ -13,7 +13,7 @@ labels:
 milestone: m-8
 dependencies: []
 ordinal: 17500
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -27,3 +27,9 @@ Found by ZN-612 on the Intel Mac's AMD driver: misc/uninitialized-test fails (co
 - [ ] #1 misc/uninitialized-test and multisampled-renderbuffer-initialization pass on the Intel Mac's AMD driver
 - [ ] #2 the pass list holds 695 pages or more on Apple Silicon, no regression
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
+<!-- SECTION:NOTES:END -->

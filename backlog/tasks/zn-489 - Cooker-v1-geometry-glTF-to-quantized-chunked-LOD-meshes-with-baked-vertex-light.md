@@ -6,7 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:39'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - handheld
   - pocketjs
@@ -19,6 +19,8 @@ ordinal: 214554
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-11-07:** Add to tests/t0/cook.sh: over-budget failure names cell and section; receipt carries quantization error and LOD counts; psp output has no float positions. Drop the CLI/criteria already met.
+
 zinc cook, a desktop program (Zinc code AOT-compiled plus C++ helpers): read glTF (cgltf) or a three.js scene exported by Zinc's three.js, split into cells, simplify per level with meshoptimizer, quantize positions to i16/u16 over the cell box (PSP: signed with a x32768 model scale), pack per-profile vertex layouts (PSP 8-12 B, 3DS/iOS 8-16 B, Vita 12-20 B), u16 indices in batches <= 65,535 vertices, and bake light into vertex colours (sun + ambient + AO by BVH ray casts, adaptive edge splits). Profiles psp30, vita60, n3ds30, ios60 carry triangle budgets and fail the cook with the section named. (From docs/reports/hardware/pocketjs-pocket3d.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -37,4 +39,5 @@ Partial: cook.cpp/cook.h implemented (glTF->quantized mesh, vertex light bake, L
 
 Done: cook module + CLI 'zinc assets cook' + T0 test (cook.sh, byte-identical). Profile budgets enforced.
 Review 2026-10-25: reopened. Cooker works but three of four criteria have no test. Add a T0 test over the four profiles: byte-identical, over-budget failure names cell and section, receipt carries quantization error and LOD counts, psp output has no float positions.
+Review 2026-11-07: rewrite. Cooker exists (zinc assets cook, tests/t0/cook.sh); only the missing tests remain, all on the Mac. Evidence: src/assets/cook.cpp; tests/t0/cook.sh (byte-identical and receipt only)
 <!-- SECTION:NOTES:END -->

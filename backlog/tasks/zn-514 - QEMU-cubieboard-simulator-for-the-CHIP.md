@@ -11,7 +11,7 @@ milestone: m-24
 dependencies:
   - ZN-512
 ordinal: 94000
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,4 +32,5 @@ Run armv7-linux programs on a real Cortex-A8 under qemu-system-arm -M cubieboard
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. QEMU cubieboard simulator for the CHIP: needs kernel images and a CHIP target the owner does not have a rig for (memory: rigs are Pi, TouchPad, Nexus 7, Toumei).
+Review 2026-11-07: parked. QEMU cubieboard needs a kernel build; qemu runs are out of scope now and the CHIP is not in hand.
 <!-- SECTION:NOTES:END -->

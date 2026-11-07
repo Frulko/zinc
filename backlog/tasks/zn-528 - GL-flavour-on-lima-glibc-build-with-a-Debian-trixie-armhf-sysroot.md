@@ -12,7 +12,7 @@ dependencies:
   - ZN-522
   - ZN-132
 ordinal: 96400
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -33,4 +33,5 @@ A dynamic armv7 glibc flavour (arm-linux-gnueabihf.2.36, cortex_a8+neon) linked 
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. GL flavour on lima (glibc armhf): needs the CHIP; the Pi GL path (display-gl, tools/linux-sysroot) is the proven one.
+Review 2026-11-07: parked. lima sysroot build for the CHIP.
 <!-- SECTION:NOTES:END -->

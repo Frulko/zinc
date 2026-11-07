@@ -9,9 +9,11 @@ created_date: '2026-10-24 23:55'
 labels:
   - size-L
   - cross
+  - parked
 milestone: m-23
 dependencies: []
 ordinal: 54100
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -43,3 +45,9 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 - [ ] #2 TouchPad/Nexus 7: screen-off, SSDP, zinc:stage music-tree, webOS strip, zinc:link pairing
 - [ ] #3 Linux CI for the console runners
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Handhelds and old tablets hardware pass.
+<!-- SECTION:NOTES:END -->

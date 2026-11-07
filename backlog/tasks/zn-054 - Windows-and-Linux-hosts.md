@@ -4,7 +4,7 @@ title: 'Windows host: T0/T1 green in CI and zinc run --target esp32 from Windows
 status: Review
 assignee: []
 created_date: '2026-10-06 16:42'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - size-L
   - parked
@@ -33,4 +33,5 @@ Port the host side: toolchain pins for Windows (zig, esptool, QEMU), serial port
 <!-- SECTION:NOTES:BEGIN -->
 usage: n/a. Linux verified in an ubuntu:24.04 aarch64 container: T0, T1, T2 pass (oracle tests skip via exit 77 + tools/oracle --available); build warning-free on gcc; -ffp-contract=off everywhere (pinball AOT diff on gcc); QEMU missing-library message; ZINC_TEST_HOME; CI workflow written, not run. Windows not ported (doc lists the work). ACs left open: Windows, CI.
 Review 2026-10-25: done-partly. Linux verified in a container (T0-T2), CI workflow exists in .github/workflows/zinc-next.yml and Windows builds exist (commits ea1837a9, 8133059a); left: T0/T1 green on Windows in CI, esp32 emulator from each host. Evidence: .github/workflows/zinc-next.yml; git log ea1837a9 4fc7f02c
+Review 2026-11-07: parked. Windows opens the cross-platform pass; Linux part is done (CI workflow, container run). Needs a Windows machine. Evidence: git log ea1837a9 8133059a; .github/workflows/zinc-next.yml
 <!-- SECTION:NOTES:END -->

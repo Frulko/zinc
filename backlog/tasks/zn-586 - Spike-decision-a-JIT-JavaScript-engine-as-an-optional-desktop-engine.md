@@ -4,7 +4,7 @@ title: 'Spike (decision): a JIT JavaScript engine as an optional desktop engine'
 status: Done
 assignee: []
 created_date: '2026-10-09 08:12'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - games
   - js
@@ -12,10 +12,7 @@ labels:
   - size-M
 milestone: m-22
 dependencies:
-  - ZN-577
   - ZN-578
-  - ZN-579
-  - ZN-580
 ordinal: 65500
 ---
 

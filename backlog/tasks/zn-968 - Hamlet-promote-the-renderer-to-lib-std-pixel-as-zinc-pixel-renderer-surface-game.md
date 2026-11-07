@@ -14,11 +14,13 @@ labels:
   - reuse
   - engine
   - size-M
+  - parked
 milestone: m-30
 dependencies:
   - ZN-952
   - ZN-955
 ordinal: 720090
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,3 +36,9 @@ Like zinc:stage: module registration (src/frontend/modules.cpp, lib/modules.d.ts
 - [ ] #3 Reference doc and a T0 test for the module
 - [ ] #4 CHANGELOG line under the right theme
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. (corrected: drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks).)
+<!-- SECTION:NOTES:END -->

@@ -3,7 +3,7 @@ id: ZN-649
 title: >-
   Pinball 3D: a Space Cadet style table in real 3D, data-driven, with a table
   editor
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-10 17:49'
 labels:
@@ -14,7 +14,7 @@ labels:
 milestone: m-27
 dependencies: []
 ordinal: 3800
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -29,12 +29,13 @@ Owner's answers, 2026-10-10: complete 3D physics on Jolt; both layouts, the one 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 every subtask is Done
-- [ ] #2 the demo is listed in the examples status and has a README with screenshots
+- [x] #1 every subtask is Done
+- [x] #2 the demo is listed in the examples status and has a README with screenshots
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: done-partly. All subtasks Done except 649.11 (measure) and 649.12 (needs a person). Close the epic once those are dropped/parked. Evidence: examples/pinball3d (README with 3 images), tests/t1/pinball3d.sh, pinball3d_editor.sh; 18 of 20 subtasks Done
+Review 2026-11-07: done. Epic: all subtasks Done except 649.12 (a person plays it, parked). Close the epic. Evidence: examples/pinball3d, tests/t1/pinball3d.sh, pinball3d_editor.sh; 649.11 has no open task file
 <!-- SECTION:NOTES:END -->

@@ -9,12 +9,14 @@ labels:
   - size-S
 dependencies: []
 ordinal: 5000
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Expose sha256 of bytes and of a file read in chunks (no whole-file load) from a std module; test vectors on 3 engines; short run, no 100 MB test now.
+
 **What is left (review 2026-10-25):** Expose the vendored mbedTLS/Monocypher hash through a std module; AC: test vectors on 3 engines, 100 MB file without loading it whole. Already there: lib/std/web.ts:2007; src/cli_core.cpp:113.
 
 Found by the pinball editor: a program has no hash function, so a package cannot carry a hash per file. Monocypher and mbedTLS are vendored: expose SHA-256 (and BLAKE2b if free) for bytes and for a file read in chunks.
@@ -30,4 +32,5 @@ Found by the pinball editor: a program has no hash function, so a package cannot
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: done-partly. sha256 of bytes exists in pure Zinc (lib/std/web.ts:2007) and the CLI hashes files (zinc toolchain sha256). Left: a native, fast SHA-256 (mbedTLS) for bytes and for a file in chunks, on all three engines. Evidence: lib/std/web.ts:2007; src/cli_core.cpp:113
+Review 2026-11-07: done-partly. sha256(bytes) exists in lib/std/web.ts:2034; left: a std-level chunked file hash and the 3-engine vector test. Evidence: lib/std/web.ts:2034
 <!-- SECTION:NOTES:END -->

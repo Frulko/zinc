@@ -4,13 +4,19 @@ title: 'Retake the Electron/Tauri comparison on the M1 Pro, alone'
 status: Backlog
 assignee: []
 created_date: '2026-10-11 16:08'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - perf
   - size-M
 milestone: m-21
 dependencies: []
 ordinal: 1900
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Re-run the five-run measure on a quiet machine at a milestone and log in perf.md.
+<!-- SECTION:DESCRIPTION:END -->
 ---
 
 ## Acceptance Criteria
@@ -56,4 +62,5 @@ Lines for `backlog/later.md` (the coordinator adds them):
 
 Next command, on a quiet machine (no other tree building, `pmset -g therm` at 100), from `bench/vs-electron`: `./measure.sh build measure` (or `./measure.sh measure` while the bundles are still there), then log the table in `docs/reports/zinc-next-perf.md` and tick criterion 2.
 Review 2026-10-25: rewrite. bench/vs-electron and measure.sh exist; the numbers were taken on the Intel Mac under load. The machine is an M1 Pro now: retake alone and log them (AC2). Assigned to a finished @parallel session, stale. Evidence: bench/vs-electron/measure.sh; perf.md line 668
+Review 2026-11-07: done-partly. Bench dir and later.md lines exist (ed4aca035, 330af81b3); left: quiet-machine numbers (AC2), a milestone benchmark. Evidence: git: ed4aca035, 330af81b3
 <!-- SECTION:NOTES:END -->

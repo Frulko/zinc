@@ -16,7 +16,7 @@ dependencies:
   - ZN-553
   - ZN-557
 ordinal: 96700
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -36,4 +36,5 @@ On a Pi 5 (owner provides): GPIO through pinctrl-rp1, the 4-channel PWM map, the
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Needs a Pi 5 the owner must provide.
+Review 2026-11-07: parked. Needs a Pi 5 the owner must provide. Evidence: labelled parked
 <!-- SECTION:NOTES:END -->

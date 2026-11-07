@@ -10,12 +10,13 @@ labels:
   - simulator
   - arduino
   - size-M
+  - parked
 milestone: m-18
 dependencies:
   - ZN-126
   - ZN-164
 ordinal: 2400
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -28,3 +29,9 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-13). Wokwi-styl
 <!-- AC:BEGIN -->
 - [ ] #1 1) `arduino-cli compile` of a blink sketch including `zinc_app.h` succeeds for `esp32:esp32:esp32` and `rp2040:rp2040:rpipico`. 2) text size of the AOT runtime reported per board and under 150 KB on thumb2. 3) a pin reserved by the sketch makes loading fail with the pin number.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Needs arduino-cli and board cores for esp32 and rp2040; cross work.
+<!-- SECTION:NOTES:END -->

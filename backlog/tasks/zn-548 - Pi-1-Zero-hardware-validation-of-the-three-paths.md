@@ -14,7 +14,7 @@ dependencies:
   - ZN-545
   - ZN-164
 ordinal: 97500
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,4 +34,5 @@ On a Pi Zero W or Pi 1 B+ (owner provides) running Raspberry Pi OS 32-bit Trixie
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Needs a Pi 1 / Zero W the owner must provide; the three paths do not exist yet.
+Review 2026-11-07: parked. Needs a Pi Zero/1 from the owner.
 <!-- SECTION:NOTES:END -->

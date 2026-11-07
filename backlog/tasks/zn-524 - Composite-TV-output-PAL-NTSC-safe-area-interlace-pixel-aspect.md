@@ -11,7 +11,7 @@ milestone: m-24
 dependencies:
   - ZN-522
 ordinal: 96100
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,4 +32,5 @@ zinc.json display.tv {standard: pal|ntsc, overscan}: mode selection on the TVE c
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Composite TV output: needs a CHIP and a TV.
+Review 2026-11-07: parked. Composite TV output on the CHIP.
 <!-- SECTION:NOTES:END -->

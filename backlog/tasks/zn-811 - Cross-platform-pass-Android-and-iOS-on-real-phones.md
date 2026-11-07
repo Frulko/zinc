@@ -7,9 +7,11 @@ created_date: '2026-10-24 23:56'
 labels:
   - size-L
   - cross
+  - parked
 milestone: m-26
 dependencies: []
 ordinal: 54600
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -57,3 +59,9 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 - [ ] #2 arm64-v8a/x86_64 emulator smoke run; --aab/--apk on Linux; IPA with the owner team
 - [ ] #3 Camera and microphone backends run on both
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Real phones; mobile is last.
+<!-- SECTION:NOTES:END -->

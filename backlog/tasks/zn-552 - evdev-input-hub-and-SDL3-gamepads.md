@@ -12,7 +12,7 @@ milestone: m-25
 dependencies:
   - ZN-535
 ordinal: 51300
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -36,4 +36,5 @@ Also carries, since the backlog review of 2026-10-10: ZN-527 (Gamepads and USB H
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. display-fbdev (fbdev.cpp:100-230, MT protocol B) and display-gl (kms.cpp:77) each carry their own evdev reader; no gamepads, no hot-plug. Rewrite: one shared reader with hot-plug and SDL3 gamepad mapping on glibc. Carries ZN-527. Evidence: plugins/display-fbdev/fbdev.cpp:100; plugins/display-gl/src/kms.cpp:77
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

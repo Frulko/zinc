@@ -4,7 +4,7 @@ title: Worker on a second QuickJS runtime
 status: Backlog
 assignee: []
 created_date: '2026-10-09 08:12'
-updated_date: '2026-10-30 15:50'
+updated_date: '2026-11-07 18:30'
 labels:
   - games
   - js
@@ -18,6 +18,8 @@ ordinal: 18400
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Finish web Worker facade for Pixi preferWorkers and the Tone.js ticker; remove the sprite-studio catch.
+
 Worker (module and Blob URL), postMessage with structured clone and transferable ArrayBuffers; OffscreenCanvas transfer later. Every library falls back when Worker is absent (PixiJS asset loading, Tone.js clock, three's DRACO/KTX2), so this is an optimisation, not a blocker. (From docs/reports/games/js-game-libraries.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -38,4 +40,5 @@ Messages use the D173 record wire: the transform (src/qjs/strip.cpp workerTypesF
 Proof: worker_engines (worker_basic and worker_wire on QuickJS equal expected.out), worker_basic, worker_wire, sprite_studio (the preview window on QuickJS is byte-equal to the interpreter's at frame 3; the 'no workers yet' catch is gone from examples/sprite-studio), multiwin, qjs, worker_profile: all PASS.
 #3: worker_basic checks that a timer of the main program fires after the worker's crash went to onerror ('the main loop goes on'), on the interpreter, the AOT build and QuickJS.
 Handover for #1 and #2 (PixiJS preferWorkers, Tone.js Ticker): they need the web environment's global Worker, which lib/std/webenv.js leaves out on purpose (its createImageBitmap comment, near line 854): a Worker class over __host_workerStart that accepts a Blob URL (the worker's source text: runWorker takes a file today), messages with '' schemas (structured clone, ArrayBuffer transfer), and a worker context with the web environment (self.addEventListener, postMessage, fetch, createImageBitmap). The runtime per thread is in place. Next command: `grep -n createImageBitmap lib/std/webenv.js`, then add the class and a test that loads a PixiJS texture with preferWorkers: true.
+Review 2026-11-07: done-partly. zinc:worker runs on QuickJS; the PixiJS preferWorkers and Tone.js Ticker criteria remain, plus removing the sprite-studio 'no workers' catch (src/qjs/prelude.cpp). Evidence: src/qjs/qjs.cpp runWorker; src/rt/worker.cpp; AC3 and AC4 ticked
 <!-- SECTION:NOTES:END -->

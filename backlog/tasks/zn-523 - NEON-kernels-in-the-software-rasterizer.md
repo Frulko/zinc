@@ -6,11 +6,12 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-512
 ordinal: 53200
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,4 +33,5 @@ NEON intrinsics for span fill, source-over blend, XRGB8888 to RGB565 conversion 
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. NEON in the rasterizer is partly there (runtime/raster.cpp:15,898 bilinear and opaque picture paths; commit fb31e083). Missing: span fill, source-over blend, XRGB to RGB565 conversion in display-fbdev, glyph blits, and a microbenchmark. Pi 2/3 on 32-bit OS benefit too. Evidence: runtime/raster.cpp:898; plugins/display-fbdev/fbdev.cpp has no arm_neon
+Review 2026-11-07: parked. NEON kernels need qemu-arm/board proof; not Mac-provable. Evidence: runtime/raster.cpp:898
 <!-- SECTION:NOTES:END -->

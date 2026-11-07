@@ -10,7 +10,7 @@ labels:
 dependencies: []
 priority: medium
 ordinal: 18700
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -39,4 +39,5 @@ Carry the supported contract into Zinc Next through its existing generic host AB
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. Written around the prototype (compiler/src/abi.ts, tests/engines/prebuilt-core.mjs, which no longer exists). The ABI array snapshot idea may still matter but there is no user for it now.
+Review 2026-11-07: dropped. Written around the prototype (compiler/src/abi.ts); no user needs ABI array snapshots; ZN-591 AC4 test is gone. Evidence: no plugin returns arrays across the ABI; draft lived in the removed prototype
 <!-- SECTION:NOTES:END -->

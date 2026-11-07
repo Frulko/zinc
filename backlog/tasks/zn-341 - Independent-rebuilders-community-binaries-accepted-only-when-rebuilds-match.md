@@ -9,13 +9,14 @@ labels:
   - security
   - ci
   - size-M
+  - parked
 milestone: m-19
 dependencies:
   - ZN-333
   - ZN-338
   - ZN-340
 ordinal: 10700
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -37,4 +38,5 @@ A rebuilder job (ours on CI, others anywhere) rebuilds published community plugi
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: done-partly. (drop proposed, corrected by the verifier) The client half already ships: src/tc/plugin_build.cpp:315-322 reads rebuilds/<sha256>.json and builds locally when matches < policy.rebuilds; the policy setting exists (src/tc/policy.cpp:32, ZINC_REBUILDS_MIN at :62) and docs/guide/08-security.md:256 documents it. Only AC1 (the rebuilder job) is missing; dropping leaves shipped code and a documented feature with no task.
+Review 2026-11-07: parked. (corrected: drop proposed; the client half ships (src/tc/plugin_build.cpp:337-354 reads rebuilds/<sha256>.json, policy `rebuilds` in src/tc/policy.cpp:32,62, documented), only the rebuilder job is missing: far from the goal, not useless (as the 2026-10-25 verifier found).)
 <!-- SECTION:NOTES:END -->

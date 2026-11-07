@@ -10,12 +10,9 @@ labels:
   - size-M
 milestone: m-22
 dependencies:
-  - ZN-577
   - ZN-578
-  - ZN-579
-  - ZN-580
 ordinal: 56400
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -30,3 +27,9 @@ Run JSG-14..17 plus the zinc:gfx and zinc:game bunnymarks on Pi 4 or 5 and on th
 - [ ] #2 each demo's README states its supported boards
 - [ ] #3 failures filed as tasks
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
+<!-- SECTION:NOTES:END -->

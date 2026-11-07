@@ -6,7 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-12 10:41'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - perf
   - gl
@@ -115,4 +115,5 @@ HANDOVER (task back to Backlog; #5, #6, #7 open):
 - #7: tick when the performance log has its lines.
 - tools/device: `capture <name> <file.bmp>` (a frame read back by the program), `stop` and the measures kill what is left running (main's fix 036a084d taken as is).
 Review 2026-10-25: done-partly. AC1-AC4 are done (per-mode programs, glslang test, pixels, strips for edges; navigation 181 -> 25 ms on the Pi). #5 not met (25 ms vs bands 19 ms), #6 partly, #7 numbers are in perf.md and raspberry-pi.md; D111 keeps renderer cpu on GLES2. Remaining is Pi-rig work with a doubtful payoff. Evidence: docs/reports/zinc-next-perf.md:697; D111; tests/native/gl_replay_es2.cpp
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

@@ -17,7 +17,7 @@ dependencies:
   - ZN-569
   - ZN-572
 ordinal: 10300
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -41,4 +41,5 @@ examples/games/p5-sketches: a 2D sketch (shapes, text, image, mouse, pixels[]) a
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. (merge proposed, corrected by the verifier) ZN-578 is a PixiJS v8 bunnymark task; it does not cover p5. examples/js-p5 has a WEBGL and a 2D sketch on p5 1.11 only: no p5 2.x switch, no 500-shapes/100-boxes 60 fps gate, no Chrome SSIM. Rewrite this task to the gates on the existing demo instead of folding four libraries into one Pixi task. Evidence: examples/js-p5 (WEBGL), tests/t1/example_js_p5.sh
+Review 2026-11-07: merged into ZN-578. ZN-578 already says it absorbs ZN-577, 579 and 580: one FPS-gate task for the js-* demos. Evidence: examples/js-p5, tests/t1/example_js_p5.sh
 <!-- SECTION:NOTES:END -->

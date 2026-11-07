@@ -7,9 +7,11 @@ created_date: '2026-10-24 23:56'
 labels:
   - size-M
   - cross
+  - parked
 milestone: m-18
 dependencies: []
 ordinal: 54500
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,3 +34,9 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 - [ ] #2 --emulator/--live on Linux and Windows; esp32 core rebuilt with gfxGradientPaint
 - [ ] #3 async-storage mergeItem on the strict profile; 8-tween budget
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. ESP32 boards on hardware.
+<!-- SECTION:NOTES:END -->

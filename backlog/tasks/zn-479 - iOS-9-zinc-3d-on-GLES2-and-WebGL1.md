@@ -16,7 +16,7 @@ milestone: m-23
 dependencies:
   - ZN-466
 ordinal: 95800
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -36,4 +36,5 @@ render3d.ios-legacy.cpp on GLES2; libzn_webgl linked statically (no dlopen) with
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. iOS 9 zinc:3d: needs the owner's iPhone 4S, the old Xcode 13.4.1 armv7 SDK and a jailbreak or free-profile signing; no targets/ios-legacy or libc++ build tool exists; far from the owner goal (the modern iOS export is ZN-624..631). Park with the iOS 9 cluster (461, 462, 466, 475, 479, 483, 497, 498). Evidence: no targets/ios-legacy, no tools/build-ios-legacy-libcxx
+Review 2026-11-07: parked. iOS 9 3D and WebGL1 on the 4S; needs the iPhone 4S and Xcode; mobile is last in the owner's order.
 <!-- SECTION:NOTES:END -->

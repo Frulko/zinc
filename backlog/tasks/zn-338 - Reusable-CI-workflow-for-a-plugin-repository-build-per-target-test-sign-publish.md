@@ -15,7 +15,7 @@ dependencies:
   - ZN-334
   - ZN-336
 ordinal: 10500
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -37,4 +37,5 @@ A `workflow_call` workflow any plugin repository uses: matrix macos-arm64, linux
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. The reusable workflow exists since ZN-354 (written there because this one was Backlog). Left: provenance (ZN-342), publishing an index entry on a tag, sysroots (ZN-334) and a fixture run on GitHub. The workflow still names zinc-engine/zinc but origin is Frulko/zinc. Evidence: .github/workflows/plugin.yml (workflow_call, 4-target matrix, tools/plugin-pack, tag release, signing stops without secret); tests/t1/plugin_starter.sh
+Review 2026-11-07: merged ZN-335.01 here (A split plugin repository builds alone with the reusable plugin workflow). Same criterion as ZN-338's fixture repository running the reusable workflow alone. Its open criteria: a split repository builds alone with the reusable workflow of D-plugin-ci (no path into the engine repo).
 <!-- SECTION:NOTES:END -->

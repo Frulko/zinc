@@ -4,7 +4,7 @@ title: 'Vita: zinc:3d and WebGL1 (zinc:script) on vitaGL'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:38'
-updated_date: '2026-10-25 00:27'
+updated_date: '2026-11-07 18:30'
 labels:
   - 3d
   - handheld
@@ -12,6 +12,7 @@ labels:
   - vita
   - webgl
   - size-L
+  - parked
 milestone: m-23
 dependencies:
   - ZN-471
@@ -42,4 +43,5 @@ render3d.vita.cpp on GLES2; libzn_webgl linked statically with Api::Gles2 on the
 Review 2026-10-25: rewrite. vitaGL now builds and runs on the owner's Vita (D165), and D165 sends zinc:gl/WebGL1/three/zinc:3d there while D144 names GXM; the task text names GLES2 on PVR_PSP2. Rewrite on vitaGL. Evidence: targets/vita/gl_vita.cpp; third_party/vitagl
 
 2026-10-25: zinc:3d on GXM (df12637b, render3d.vita.cpp): CPU per-vertex lighting (the software renderer's shade) into a colour stream, GPU transform, depth, culling, textures and blending; psp2spvc cannot compile the lighting shader. Vita3K: cubes 0.74 ms vs 6.02 software, orbit 2.21 ms at 61.5 fps. Left: WebGL1 on vitaGL, the hardware run.
+Review 2026-11-07: parked. Vita 3D and WebGL1 on vitaGL; hardware.
 <!-- SECTION:NOTES:END -->

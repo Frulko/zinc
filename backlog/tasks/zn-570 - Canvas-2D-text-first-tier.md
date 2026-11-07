@@ -1,10 +1,10 @@
 ---
 id: ZN-570
 title: 'Canvas 2D, text-first tier'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - games
   - js
@@ -26,7 +26,7 @@ A CanvasRenderingContext2D for QuickJS on a CPU RGBA8 premultiplied bitmap, enou
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 PixiJS Text, Phaser Text, Kaplay text() and LittleJS overlay text match headless Chrome at SSIM >= 0.90, glyph boxes within 1 px
+- [x] #1 PixiJS Text, Phaser Text, Kaplay text() and LittleJS overlay text match headless Chrome at SSIM >= 0.90, glyph boxes within 1 px
 - [x] #2 measureText('Hello').width within 1% of Chrome for the bundled sans font
 - [x] #3 unsupported calls are recorded no-ops (debug counter), not exceptions
 <!-- AC:END -->
@@ -69,4 +69,5 @@ ALSO DONE: roundRect with circular corners (p5 calls it), ellipse, FontFace and 
 NOT DONE, NOT IN THIS TIER: nearest-neighbour drawImage (imageSmoothingEnabled is kept and ignored: always bicubic), italic and bold synthesis, a bold monospaced face, toDataURL. The three example READMEs say Text is now possible; the examples themselves are unchanged (ZN-577 to ZN-579).
 LINES FOR later.md (the coordinator adds them): see the final report.
 Review 2026-10-25: done-partly. Text-first tier done, AC2 and AC3 ticked, Pixi/Phaser/p5 text at SSIM 0.976 to 0.988. Left: Kaplay and LittleJS text against Chrome, which needs those libraries vendored; fold into ZN-707. Evidence: src/qjs/canvas2d.cpp; tests/t1/webenv_canvas2d.sh, webenv_canvas2d_libs.sh; D98, D99
+Review 2026-11-07: done. (corrected: merge into ZN-707 proposed, but ZN-707 is rewritten to PixiJS, Phaser and p5 only; AC2 and AC3 are ticked and PixiJS, Phaser and p5 text match Chrome (SSIM 0.976 to 0.988, tests/t1/webenv_canvas2d_libs.sh); Kaplay and LittleJS text go to a later.md line with the other ZN-707 libraries.)
 <!-- SECTION:NOTES:END -->

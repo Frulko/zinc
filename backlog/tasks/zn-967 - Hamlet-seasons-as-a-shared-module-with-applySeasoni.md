@@ -11,11 +11,13 @@ labels:
   - pixel-plays
   - reuse
   - size-M
+  - parked
 milestone: m-30
 dependencies:
   - ZN-951
   - ZN-955
 ordinal: 720080
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -31,3 +33,9 @@ river/seasons.ts moves beside the renderer with one applySeason that sets lighti
 - [ ] #3 Ambience ids are data in the season table, not river-specific
 - [ ] #4 Save H2 stores the season clock
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. (corrected: drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks).)
+<!-- SECTION:NOTES:END -->

@@ -9,9 +9,11 @@ created_date: '2026-10-24 23:55'
 labels:
   - size-L
   - cross
+  - parked
 milestone: m-14
 dependencies: []
 ordinal: 54000
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -46,3 +48,9 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 - [ ] #2 Linux/Windows/Android/iOS backends build and run (V4L2, Media Foundation, camera2, WASAPI)
 - [ ] #3 WebRTC builds on Linux/armhf and runs between two machines
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Real peripherals and other OS backends.
+<!-- SECTION:NOTES:END -->

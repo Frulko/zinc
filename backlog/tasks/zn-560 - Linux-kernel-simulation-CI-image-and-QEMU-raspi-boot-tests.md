@@ -8,11 +8,12 @@ labels:
   - rpi
   - sdk
   - size-L
+  - parked
 milestone: m-25
 dependencies:
   - ZN-133
 ordinal: 52600
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -27,3 +28,9 @@ A pinned Linux VM image (QEMU virt) with gpio-sim, i2c-stub, vkms, vivid, vicode
 - [ ] #2 QEMU raspi boots report the right model through zinc:board
 - [ ] #3 image and QEMU pinned with checksums
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Linux VM image plus QEMU raspi boots on CI: large, cross-platform pass, no Mac proof. Evidence: no tools/*qemu-ci* image
+<!-- SECTION:NOTES:END -->

@@ -12,7 +12,7 @@ milestone: m-25
 dependencies:
   - ZN-549
 ordinal: 51200
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -27,3 +27,9 @@ Hardware PWM through /dev/pwmchipN ioctls when present (atomic waveform), otherw
 - [ ] #2 on the Pi 3B+ a GPIO edge timer measures period and duty within 1 %
 - [ ] #3 Pi 5 map validated in RPI-SDK-14
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
+<!-- SECTION:NOTES:END -->

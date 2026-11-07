@@ -12,7 +12,7 @@ dependencies:
   - ZN-522
   - ZN-523
 ordinal: 96200
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -33,4 +33,5 @@ Measure on hardware with ZINC_PROFILE and the display stats: bouncing-ball balls
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Performance baseline on the CHIP: needs the board.
+Review 2026-11-07: parked. Needs the CHIP (already parked).
 <!-- SECTION:NOTES:END -->

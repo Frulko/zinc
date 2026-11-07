@@ -13,7 +13,7 @@ dependencies:
   - ZN-195
 priority: medium
 ordinal: 55400
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -28,3 +28,9 @@ The raster is 32-bit only; fbdev (fbdev.cpp:60-75) converts every band to 565. T
 - [ ] #2 Pi rig fbdev stats: raster+convert time -30% or better on hero navigation
 - [ ] #3 565 pixel goldens per format
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
+<!-- SECTION:NOTES:END -->

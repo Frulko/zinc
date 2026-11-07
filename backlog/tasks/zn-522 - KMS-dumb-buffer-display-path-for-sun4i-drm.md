@@ -6,11 +6,12 @@ assignee: []
 created_date: '2026-10-09 07:41'
 labels:
   - chip
+  - parked
 milestone: m-24
 dependencies:
   - ZN-514
 ordinal: 10800
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -31,4 +32,5 @@ Software raster presented through two DRM dumb buffers and page flips (vsync pac
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: kept open. (merge proposed, corrected by the verifier) display-fbdev only flips through KMS when the CRTC has HAL_MAX_LAYERS+1 free overlay planes with zpos (plugins/display-fbdev/fbdev.cpp:346-375 find_planes returns n == HAL_MAX_LAYERS+1); otherwise it writes /dev/fb0 and tears (backlog/later.md:193). A primary-plane-only dumb-buffer flip for sun4i-drm, the vkms CRC check and the PocketCHIP LCD/composite run are not in ZN-553, which is card/connector discovery for vc4/v3d/RP1. Evidence: plugins/display-fbdev/fbdev.cpp:298; docs/plugins/display-fbdev.md:124
+Review 2026-11-07: parked. sun4i KMS needs the CHIP.
 <!-- SECTION:NOTES:END -->

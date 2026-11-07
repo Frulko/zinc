@@ -10,12 +10,14 @@ labels:
   - size-S
 dependencies: []
 ordinal: 5700
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Decoding exists; a WebP and GIF test on interpreter and AOT plus the size note remain.
+
 **What is left (review 2026-10-25):** Add the runtime test (interpreter and AOT) and the size measure; no engine change expected. Already there: src/res/res.cpp:762-775; third_party/README.md:13.
 
 (Follow-up of ZN-432, D73.) imageFromBytes decodes PNG and JPEG only.
@@ -31,4 +33,5 @@ updated_date: '2026-10-25 01:53'
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: done-partly. Decoding exists: decodeRgba handles WebP (libwebp) and GIF (stb_image has GIF enabled), and imageFromBytes uses decodeRgba. Left: a test with a WebP and a GIF on interpreter and AOT, and the size note. Evidence: src/res/res.cpp:762-775; third_party/README.md:13
+Review 2026-11-07: done-partly. Decoding exists; a WebP and GIF test on interpreter and AOT plus the size note remain. Evidence: src/res/res.cpp:762-775 decodeRgba; tests/t*/webp.sh exists
 <!-- SECTION:NOTES:END -->

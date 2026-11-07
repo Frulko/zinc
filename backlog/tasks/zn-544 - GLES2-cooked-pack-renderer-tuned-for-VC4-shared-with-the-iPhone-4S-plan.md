@@ -8,14 +8,13 @@ labels:
   - rpi
   - 3d
   - size-L
-  - parked
 milestone: m-25
 dependencies:
   - ZN-433
   - ZN-490
   - ZN-537
 ordinal: 95400
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -35,4 +34,5 @@ The native renderer for cooked packs (the pack and cooker tasks of docs/reports/
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Cooked-pack VC4 renderer depends on the Pocket3D pack and cooker tasks and is large; the Pi 3D path goes through three/WebGL first.
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

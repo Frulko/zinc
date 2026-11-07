@@ -7,9 +7,11 @@ created_date: '2026-10-24 23:56'
 labels:
   - size-L
   - cross
+  - parked
 milestone: m-11
 dependencies: []
 ordinal: 54300
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -66,3 +68,9 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 - [ ] #3 V8, JSC, Hermes and wasm packs build and run on Linux; .deb export and verify
 - [ ] #4 Release job publishes the Linux archives
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Linux machines pass; second in the cross phase after Windows.
+<!-- SECTION:NOTES:END -->

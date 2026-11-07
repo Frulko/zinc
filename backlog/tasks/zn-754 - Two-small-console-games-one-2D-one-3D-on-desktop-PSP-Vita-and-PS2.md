@@ -4,11 +4,12 @@ title: 'Platformer and marble in the console emulators'
 status: Backlog
 assignee: []
 created_date: '2026-10-17 08:07'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - handheld
   - games
   - size-L
+  - parked
 milestone: m-23
 dependencies:
   - ZN-759
@@ -56,4 +57,5 @@ Owner 2026-10-17: "un petit jeu 3D et un petit jeu 2D" for the consoles (with ZN
 
 2026-10-17 (owner, D144): the 3D runs on each console's GPU through the existing SDKs and code (PSP sceGu/sceGum + VFPU, Vita GXM with precompiled GXP, 3DS citro3d + picasso, PS2 gsKit then AthenaEnv's VU1), with Pocket3D's methods: `zinc build --target <console>` cooks and bakes what each console needs (meshes ZN-489, textures ZN-452) from one source. Marble comes last, after ZN-759's hardware demos and the GPU back ends (dependencies set); then the owner runs everything on the real consoles (AC4).
 Review 2026-10-25: rewrite. Both games exist and are proven on the desktop; the consoles now have cores, audio and GPU 2D, so AC3 can run for the platformer on PSP/Vita/3DS/PS2; marble waits for the 3D back ends. The note that zinc:audio has no psp/ps2 target is stale. Evidence: docs/reports/zinc-next-consoles.md; examples/platformer, examples/marble
+Review 2026-11-07: parked. Desktop games done; the rest is console emulators and the owner real hardware.
 <!-- SECTION:NOTES:END -->

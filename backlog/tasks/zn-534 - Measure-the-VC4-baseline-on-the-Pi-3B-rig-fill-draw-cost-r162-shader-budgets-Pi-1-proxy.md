@@ -11,7 +11,7 @@ labels:
 milestone: m-25
 dependencies: []
 ordinal: 52200
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,4 +34,5 @@ Replace the estimates of the report (A4, A5, A7) with measurements. On the Pi 3B
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: done-partly. VC4 fill/draw-cost measurements were made on the Pi 3B+ (docs/reports/pi-1080p.md, docs/reports/hardware/vc4-gles2-performance.md, tools/zbench 19 scenes). Left only the three r162 per-material QPU table and C1-C4 fps, which need ZN-540 first. Evidence: docs/reports/pi-1080p.md; docs/reports/bench/zbench-render-pi-*.json
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

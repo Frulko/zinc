@@ -10,7 +10,6 @@ labels:
   - rpi
   - 3d
   - size-L
-  - parked
 milestone: m-25
 dependencies:
   - ZN-489
@@ -18,7 +17,7 @@ dependencies:
   - ZN-439
   - ZN-544
 ordinal: 96600
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -38,4 +37,5 @@ Add a T2-VC4 profile to the cooker: per-board budgets (draws, triangles, texture
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Cooker T2-VC4 profile: same dependency as ZN-544.
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

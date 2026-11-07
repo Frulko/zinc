@@ -12,7 +12,7 @@ dependencies:
   - ZN-522
   - ZN-515
 ordinal: 96300
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -33,4 +33,5 @@ Use NTC's mainline overlays (x-chip-dip-hdmi: Chrontel CH7033 on I2C1 0x76; x-ch
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. HDMI/VGA DIPs: needs the DIPs.
+Review 2026-11-07: parked. HDMI/VGA DIPs hardware.
 <!-- SECTION:NOTES:END -->

@@ -10,7 +10,7 @@ labels:
 milestone: m-27
 dependencies: []
 ordinal: 55100
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -24,3 +24,9 @@ updated_date: '2026-10-25 01:53'
 - [ ] #1 both demos run on the Pi target at a measured frame rate
 - [ ] #2 what had to be reduced (resolution, effects) is listed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
+<!-- SECTION:NOTES:END -->

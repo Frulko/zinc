@@ -11,11 +11,13 @@ labels:
   - audio
   - perf
   - size-M
+  - parked
 milestone: m-30
 dependencies:
   - ZN-951
   - ZN-963
 ordinal: 720070
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -31,3 +33,9 @@ audio.ts synthesises 9 single-oscillator tones and 3 s water loops in script on 
 - [ ] #3 Water loops come from the bank: no 72,000-iteration stall at first use (measured)
 - [ ] #4 Played in the scene and judged by listening; the decision (kept or reverted) is in the task notes
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. (corrected: drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks).)
+<!-- SECTION:NOTES:END -->

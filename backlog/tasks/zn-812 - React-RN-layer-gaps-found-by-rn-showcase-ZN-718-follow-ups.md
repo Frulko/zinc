@@ -9,11 +9,14 @@ labels:
 milestone: m-5
 dependencies: []
 ordinal: 3100
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Keep AC2 (host tag shadowing, ActivityIndicator), AC3 (View props), AC4 (DevTools names); drop AC1.
+
 From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlog-review-2026-10-25.md). The lines it carries:
 
 - ZN-718: JSX: let a declaration of the same name in the file shadow the host element as React does (today only an import does: studio kit.tsx declares a `Button` component and still uses the host `<Button>` inside it).
@@ -34,3 +37,9 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 - [ ] #3 View accepts pointerEvents and accessibilityLabel, TextInput placeholderTextColor; ui.onScroll drops dead watchers
 - [ ] #4 DevTools DOM view shows <View className> names; inspector tests updated; one T1 test covers the set
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: done-partly. useEffect cleanup now exists (lib/std/react.ts:127-139); left AC2-AC4. Evidence: lib/std/react.ts:127
+<!-- SECTION:NOTES:END -->

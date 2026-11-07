@@ -4,11 +4,12 @@ title: 'Zero-copy present: the software raster draws into the window buffer'
 status: Backlog
 assignee: []
 created_date: '2026-10-16 14:00'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - mobile
   - perf
   - size-M
+  - parked
 milestone: m-26
 dependencies:
   - ZN-622
@@ -54,4 +55,5 @@ Also in this commit: hal_dispatch.cpp lets a window run take a ZINC_INPUT script
 
 Handover: everything is in except the hero half of AC3, which needs hero to export (zinc:video without libavformat, ZN-628). Then build hero's APK (zinc export --target android, gradlew assembleDebug -Pzinc.abis=armeabi-v7a) and repeat the measures of these notes with ZINC_PRESENT=texture and with the default (am start with zinc.env ZINC_PERF_HUD=1 ZINC_PROFILE=1 ZINC_PRESENT_STATS=1 ZINC_TRACE=trace.json).
 Review 2026-10-25: done-partly. Present measured and zero-copy ANativeWindow path written and verified (0 stale pixels); only hero numbers remain, blocked by zinc:video on phones. Evidence: targets/macos/hal_sdl.cpp anw_present; docs/reports/zinc-next-android.md; task notes
+Review 2026-11-07: parked. Only the Nexus 7 measurement is left (AC1, AC2 done). Evidence: targets/macos/hal_sdl.cpp
 <!-- SECTION:NOTES:END -->

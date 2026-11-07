@@ -14,12 +14,14 @@ milestone: m-25
 dependencies:
   - ZN-080
 ordinal: 1000
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-11-07:** Decoder over a root-prefixed fixture tree (T0 test with Pi 1-5 fixtures), then zinc:platform constants and has(cap), doctor line; no hardware.
+
 Decode old- and new-style revision codes and read /proc/device-tree (model, compatible, system/linux,revision, hat/*). Probe gpiochips by label, pwmchips, i2c and spidev nodes, V4L2 devices by driver, DRM cards by driver, ALSA cards, hci0, wlan0. Expose them as zinc:platform constants and has(cap); zinc doctor --target pi prints profile and probed values; a simulator twin returns a configurable board. (From docs/reports/hardware/raspberry-pi-threejs-and-sdk.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -30,3 +32,9 @@ Decode old- and new-style revision codes and read /proc/device-tree (model, comp
 - [ ] #3 zinc doctor on the Pi 3B+ lists gpio, i2c, spi, pwm, hwdec h264, wifi and ble correctly
 - [ ] #4 missing nodes give has() = false, never an error
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: rewrite. Pi/board identity from /proc/device-tree; testable on the Mac with fixture trees, runs on Linux only. Evidence: no src/platform revision decoder found
+<!-- SECTION:NOTES:END -->

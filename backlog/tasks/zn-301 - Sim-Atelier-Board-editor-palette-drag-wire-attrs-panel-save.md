@@ -8,11 +8,12 @@ labels:
   - simulator
   - arduino
   - size-L
+  - parked
 milestone: m-18
 dependencies:
   - ZN-300
 ordinal: 6600
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -25,3 +26,9 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-10). Wokwi-styl
 <!-- AC:BEGIN -->
 - [ ] #1 1) scripted session adds an LED and resistor, wires them, saves; the file loads in SIM-03 and passes a netlist check. 2) undo/redo of 10 operations. 3) a pin conflict (two outputs on one net) shows a warning.
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Board editor in Atelier; large, behind ZN-300.
+<!-- SECTION:NOTES:END -->

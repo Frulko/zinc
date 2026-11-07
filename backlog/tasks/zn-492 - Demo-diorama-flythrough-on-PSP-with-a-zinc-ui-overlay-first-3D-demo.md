@@ -7,12 +7,13 @@ created_date: '2026-10-09 07:39'
 labels:
   - handheld
   - pocketjs
+  - parked
 milestone: m-23
 dependencies:
   - ZN-486
   - ZN-491
 ordinal: 52300
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -37,4 +38,5 @@ First 3D demo: a small CC0 scene (for example a Kenney city or town kit) authore
 Review 2026-10-25: rewrite. First 3D demo (diorama) for the three consoles: absorbs the Vita (494) and 3DS (496) ports as steps of one task. Evidence: no examples/diorama
 Review 2026-10-25: merged ZN-494 here (Demo: diorama on PS Vita at 60 fps with 4x MSAA). Carry over: Same diorama on the Vita; a profile change of the PSP demo. ZN-492 is open; same program, profile change. Carry over the Vita bloom enhancement, the 60 fps 150 s hardware receipt and Vita3K goldens.
 Review 2026-10-25: merged ZN-496 here (Demo: diorama on Nintendo 3DS at 30 fps with a touch map on the lower screen). Carry over: Same diorama on the 3DS with a touch map. ZN-492 is open; carry over the 3DS lower-screen touch map layout, the 90 s 30 fps hardware receipt and Azahar goldens of both screens.
+Review 2026-11-07: parked. Diorama demo on three consoles; handheld end of the pass.
 <!-- SECTION:NOTES:END -->

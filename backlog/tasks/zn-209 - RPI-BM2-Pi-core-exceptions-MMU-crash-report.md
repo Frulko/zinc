@@ -11,7 +11,7 @@ labels:
 milestone: m-11
 dependencies: []
 ordinal: 91000
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -29,4 +29,5 @@ Enable Circle caches, route the exception handler to ZN log, watchdog reset into
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Bare-metal Raspberry Pi core. The Pi OS image builder, device agent and fast-boot image shipped, and cover the Pi for makers; the bare-metal core only buys boot time and needs Circle (GPLv3 question), a rig and no Mac proof. Park the chain; first step is ZN-207. Evidence: docs/reports/zinc-next-baremetal-pi.md; no firmware/rpi; image/ (Pi OS image) shipped
+Review 2026-11-07: parked. Bare-metal Pi core (Circle): parked chain, needs a Pi and a licence decision; the Pi runs the Linux image now.
 <!-- SECTION:NOTES:END -->

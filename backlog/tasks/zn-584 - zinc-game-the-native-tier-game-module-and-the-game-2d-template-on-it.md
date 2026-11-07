@@ -16,7 +16,7 @@ dependencies:
   - ZN-583
   - ZN-438
 ordinal: 14000
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -31,3 +31,9 @@ Scenes, sprites and animations (on zinc:sprite of ZN-438 and the batcher), tilem
 - [ ] #2 10,000 animated sprites and 500 physics bodies >= 60 fps in AOT
 - [ ] #3 API reference in docs/ and a guide chapter
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: split into subtasks (zinc:game: scenes, sprites and animation; tilemaps (Tiled, LDtk); camera and input actions; game-2d template on it with interpreter/AOT equal frames; API doc and guide chapter). Native game module is too big for one session and lower priority than UI and performance. Evidence: no zinc:game plugin; examples game-2d template exists
+<!-- SECTION:NOTES:END -->

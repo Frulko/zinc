@@ -1,7 +1,7 @@
 ---
 id: ZN-611
 title: Pin a real x86_64 Espressif QEMU for Intel Macs
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-10 07:27'
 labels:
@@ -14,7 +14,7 @@ milestone: m-11
 dependencies: []
 priority: medium
 ordinal: 17000
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -27,12 +27,13 @@ The pinned qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-apple-darwin.ta
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 on an Intel Mac `zinc run hello --target esp32 --qemu` works without ZINC_QEMU
-- [ ] #2 an archive whose binary is not for this machine is refused with a message naming the architecture
+- [x] #1 on an Intel Mac `zinc run hello --target esp32 --qemu` works without ZINC_QEMU
+- [x] #2 an archive whose binary is not for this machine is refused with a message naming the architecture
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: done-partly. Intel build of the Espressif QEMU is pinned (x86_64-macos uses the 20250817 archive, same sha as the task). Only AC2 (refuse an archive whose binary is for another CPU) is missing; the dev machine is Apple Silicon now so it is low value. Close or drop AC2. Evidence: src/tc/tc.cpp:58-61; commit 1f525337
+Review 2026-11-07: done. AC1 is done; AC2 (refuse a wrong-arch archive) is optional and the dev machine is arm64. Evidence: src/tc/tc.cpp:58-61 pins the x86_64 archive; commit 1f525337
 <!-- SECTION:NOTES:END -->

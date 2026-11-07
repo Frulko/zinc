@@ -13,7 +13,7 @@ dependencies:
   - ZN-488
   - ZN-471
 ordinal: 95100
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -33,4 +33,5 @@ A Figma-class viewer: a large image or vector document baked to CLUT8 tile pyram
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. (drop proposed, corrected by the verifier) Not useless by the brief's definition: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule).
+Review 2026-11-07: parked. Tile-pyramid viewer on PSP/Vita.
 <!-- SECTION:NOTES:END -->

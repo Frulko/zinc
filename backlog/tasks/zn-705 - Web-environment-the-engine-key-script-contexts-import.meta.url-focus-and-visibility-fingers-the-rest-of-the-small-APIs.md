@@ -11,12 +11,14 @@ labels:
 milestone: m-22
 dependencies: []
 ordinal: 16800
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-11-07:** Remaining items only; one short test each; the 3-library boot trace check later.
+
 **What is left (review 2026-10-25):** Remove the engine key and import.meta.url from the description. Keep: window focus/blur/visibilitychange, touch as pointers, modifier-key events, Script({web:true}), FormData and storage properties. Already there: src/qjs/qjs.cpp:348 (import.meta.url); zinc.json "engine" key shipped (CHANGELOG 223).
 
 (Left by the web environment, ZN-568, see its decision record and docs/reports/zinc-next-webenv.md.) zinc.json `"engine": "quickjs"` and `new Script({web: true})` from zinc:script; `import.meta.url`; window focus, blur and visibilitychange, touch points as pointers and modifier keys (needs host rows); localStorage as properties, FormData, a binary request body, matchMedia, canvas toDataURL.
@@ -32,4 +34,5 @@ updated_date: '2026-10-25 01:53'
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: done-partly. import.meta.url and the engine key are done. Left: focus/blur/visibilitychange, fingers as pointers, modifier keys, new Script({web:true}), small APIs (FormData, localStorage properties). Evidence: src/qjs/qjs.cpp:348 (import.meta.url); zinc.json "engine" key shipped (CHANGELOG 223)
+Review 2026-11-07: rewrite. Drop engine key and import.meta.url (shipped: src/qjs/qjs.cpp:348, zinc.json engine key). Keep focus/blur/visibilitychange, touch as pointers, modifier keys, Script({web:true}), FormData, storage properties. Evidence: src/qjs/qjs.cpp:348
 <!-- SECTION:NOTES:END -->

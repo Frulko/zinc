@@ -14,7 +14,7 @@ dependencies:
   - ZN-197
   - ZN-489
 ordinal: 94100
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,4 +34,5 @@ Owner 2026-10-17: the consoles draw 3D on their GPUs, built on existing code and
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. PS2 3D on the GS (gsKit then VU1) is a large task on a console far from the goal; depends on the parked ZN-197 and ZN-489. Reopen when the owner wants PS2 3D.
+Review 2026-11-07: parked. PS2 GS and VU1 work in PCSX2; cross pass.
 <!-- SECTION:NOTES:END -->

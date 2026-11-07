@@ -4,7 +4,7 @@ title: 'Web environment: asynchronous image decode and createImageBitmap'
 status: Backlog
 assignee: []
 created_date: '2026-10-09 08:11'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - games
   - js
@@ -18,6 +18,8 @@ ordinal: 10000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Do async read+decode on the libuv pool, single-call file read, texImage2D without the extra copy; prove with a short test (4096x4096 PNG <= 2 ms on a frame, PixiJS Assets.load). Worker/createImageBitmap stays with ZN-587.
+
 **What is left (review 2026-10-25):** Do (a) async read+decode on the libuv pool under permission checks, (b) read a file in one call, (c) texImage2D without the extra copy; Worker/createImageBitmap stays with ZN-587. Criteria: a 4096x4096 PNG adds at most 2 ms to any frame; reading 40 MiB takes under 30 ms; PixiJS Assets.load works. Already there: lib/std/webenv.js Image/ImageBitmap; src/qjs/webenv.cpp decodeImage; tests/t1/webenv_image.sh.
 
 Image.src (files, data/blob URLs, http through zinc:net) and createImageBitmap decode PNG, JPEG and WebP off the main thread with the vendored stb_image and libwebp (decision D34); texImage2D from them honours UNPACK_FLIP_Y_WEBGL, UNPACK_PREMULTIPLY_ALPHA_WEBGL and UNPACK_COLORSPACE_CONVERSION_WEBGL, and createImageBitmap applies imageOrientation/premultiplyAlpha itself; FontFace.load registers TTF/OTF with the text tier; document.fonts. Closes the known gap of examples/webgl-studio (GLTFLoader decodes textures through createImageBitmap). Related: ZN-432 adds imageFromBytes to zinc:gfx and the thread-pool decoding plan of docs/reports/games/toolchain-assets-loading.md; share the decoder entry points. (From docs/reports/games/js-game-libraries.md.)
@@ -108,4 +110,5 @@ FOLLOW-UP TASKS (not created; for the coordinator to file):
 
 2026-10-22: back to Backlog; it was In Progress with no worktree working it (left by an earlier session). The notes above say what is done.
 Review 2026-10-25: done-partly. Images, decode with stb_image/libwebp, flip/premultiply flags and size bound are done; the 2 ms-frame criterion was measured (525 ms) and deliberately not attempted. Left: asynchronous read+decode on libuv, a Worker with createImageBitmap, a one-call file read (the follow-ups (a) to (e) in the notes). Evidence: lib/std/webenv.js Image/ImageBitmap; src/qjs/webenv.cpp decodeImage; tests/t1/webenv_image.sh
+Review 2026-11-07: done-partly. Decode works; the off-main-thread pool read, one-call file read and copy-free texImage2D remain. Evidence: lib/std/webenv.js Image/ImageBitmap; src/qjs/webenv.cpp decodeImage; tests/t1/webenv_image.sh
 <!-- SECTION:NOTES:END -->

@@ -12,7 +12,7 @@ dependencies:
   - ZN-528
   - ZN-178
 ordinal: 97200
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,4 +32,5 @@ Run the GL UI renderer (R2/R3) on lima: mediump-only shaders (SDF and AA math ch
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. GPU UI on Mali-400: needs the CHIP.
+Review 2026-11-07: parked. Mali-400 renderer: board needed.
 <!-- SECTION:NOTES:END -->

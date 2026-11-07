@@ -14,7 +14,7 @@ milestone: m-25
 dependencies:
   - ZN-541
 ordinal: 11100
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,4 +34,5 @@ Host functions callable from QuickJS replace hot three.js paths on T2: world-mat
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: kept open. (merge proposed, corrected by the verifier) ZN-597's own description scopes it to per-method accelerators and says 'ZN-543 then builds the Pi-specific batch operations (subtree world matrices, culling lists, skinning) on this mechanism', so the target does not cover this work. ZN-543 AC2 (CPU skinning on WebGL1 r162, which has no GPU skinning) is a capability gap on the Pi, not only speed. Note D110 scored per-library accelerators (option e) 46 and did not take them: if anything both tasks should be reviewed together, not merged.
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

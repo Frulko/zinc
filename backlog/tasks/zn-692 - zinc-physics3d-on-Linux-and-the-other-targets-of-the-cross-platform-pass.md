@@ -7,10 +7,9 @@ created_date: '2026-10-10 19:46'
 labels:
   - physics
   - size-S
-  - parked
 dependencies: []
 ordinal: 97900
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -29,4 +28,5 @@ updated_date: '2026-10-25 01:53'
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. arm64 and Linux builds of physics3d: cross-platform pass.
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

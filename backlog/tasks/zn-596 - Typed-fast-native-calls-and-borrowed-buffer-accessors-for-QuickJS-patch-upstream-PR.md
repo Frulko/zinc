@@ -17,12 +17,14 @@ dependencies:
   - ZN-567
 priority: high
 ordinal: 7600
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-11-07:** Drop AC4 (upstream PR); keep AC1-3 with a boundary micro-bench and conformance unchanged.
+
 Measured in the report (M1 Pro harness): a generic C method with 4 doubles costs 40-45 ns over the empty loop, 28 ns through a typed fast path taken straight from OP_call_method (no JS_CallInternal, no stack frame, no JS_ToFloat64 calls); 1 int 27 -> 21 ns; int + Float32Array 32-34 -> 25-26 ns. Add to the patch queue: (1) a JS_CFUNC_fast prototype with a signature descriptor (f64, i32, u32, bool, borrowed typed-array pointer+length, opaque of `this` by class id), falling back to the generic function whenever a tag does not match; fast functions may not allocate, throw or re-enter JS; (2) JS_GetTypedArrayData (borrowed pointer, length, element size, no throw, no dup: 33-36 ns path vs 39-43 with the public checks) and a borrowed fast-array accessor for plain Arrays of numbers (what accelerators need). Bind the runtime table's host rows (letters d, i, u, b) and the hot WebGL entry points (uniform*, bind*, enable/disable, vertexAttribPointer, drawArrays/drawElements, viewport) as fast functions, generated from their signatures. Open an upstream PR to quickjs-ng for (1) and (2). (From docs/reports/quickjs-aot-jit-and-ffi.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -33,3 +35,9 @@ Measured in the report (M1 Pro harness): a generic C method with 4 doubles costs
 - [ ] #3 WebGL conformance unchanged (695 of 787 or better); fallback path covered by a test that passes strings, objects and detached buffers
 - [ ] #4 upstream PR opened on quickjs-ng (link in the patch header)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: rewrite. Useful speed-up of the host boundary; the upstream PR is the owner's outward step. Evidence: third_party/quickjs-ng/patches has 0001-0003, no fast-call patch
+<!-- SECTION:NOTES:END -->

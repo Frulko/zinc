@@ -17,7 +17,7 @@ dependencies:
   - ZN-472
   - ZN-497
 ordinal: 96000
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -37,4 +37,5 @@ Port the PocketJS showcase set to Zinc on PSP, Vita, 3DS and iPhone 4S: Motion L
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. (drop proposed, corrected by the verifier) PocketJS 2D parity is a stated owner target: the owner listed 'PSP, PS Vita, 3DS, iPhone 4S (PocketJS/Pocket3D demo parity)' as hardware to target (owner, 2026-10-09, project memory perf-first-and-handheld-targets; docs/reports/hardware/pocketjs-pocket3d.md:700 proposes the 'PocketJS/Pocket3D parity' milestone) and AGENTS.md names PocketJS as the performance reference; far and board-bound is park, not drop (BRIEF rule).
+Review 2026-11-07: parked. Port of the PocketJS showcase set to four handhelds.
 <!-- SECTION:NOTES:END -->

@@ -13,12 +13,14 @@ dependencies:
   - ZN-566
   - ZN-445
 ordinal: 16000
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**What is left (review 2026-11-07):** Verify the run-time bytecode cache against Phaser/Babylon (record numbers); then run the cycle collector at frame boundaries within a budget and show GC as a phase in ZINC_PROFILE=1.
+
 QuickJS-ng frees acyclic garbage at once but cyclic garbage waits for a whole-heap cycle scan: measured p99 11.8 ms with 100k live objects and 99-171 ms with 1M (Node stays under 6 ms); matter-js frames reached 166 ms. Run the cycle collector at frame boundaries within a budget, raise the threshold while a level loads, show GC pauses as a phase in zinc profile / zinc mem. Start-up: Phaser 3 evaluates in 450-640 ms and Babylon.js in 1.3 s; reuse ZN-445's JS_WriteObject writer for a content-hash bytecode cache in ~/.zinc/cache so zinc run (not only packs) skips parsing. (From docs/reports/games/js-game-libraries.md.)
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -28,3 +30,9 @@ QuickJS-ng frees acyclic garbage at once but cyclic garbage waits for a whole-he
 - [ ] #2 GC pauses appear as a phase in ZINC_PROFILE=1 output
 - [ ] #3 second zinc run of Phaser 3.90 evaluates in <= 100 ms (today 450-640 ms) and Babylon.js 9.30 in <= 250 ms (today 1.3 s)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: done-partly. A bytecode cache for zinc run appears to exist already; GC scheduling at frame boundaries and the GC phase in profile output do not. Evidence: src/qjs/qjs.cpp:759 JS_WriteObject; tests/t1/launch_time.sh (cached bytecode for zinc run)
+<!-- SECTION:NOTES:END -->

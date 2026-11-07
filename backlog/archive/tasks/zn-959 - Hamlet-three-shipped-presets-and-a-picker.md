@@ -16,6 +16,7 @@ dependencies:
   - ZN-958
   - ZN-950
 ordinal: 700190
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -30,3 +31,9 @@ Clearing (today, 12x12), Riverside (32x32, a river and two forests), Highlands (
 - [ ] #2 New-village screen lists the presets (keyboard and pointer) with a thumbnail from the overview render
 - [ ] #3 Save/load of a user preset from the UI (key F5/F9 or menu) round trips
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: dropped. Presets and a menu exist (gen/presets.ts, ui/Menu.ts); the three shipped presets of the old plan are superseded.
+<!-- SECTION:NOTES:END -->

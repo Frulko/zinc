@@ -19,7 +19,7 @@ dependencies:
   - ZN-574
   - ZN-576
 ordinal: 10400
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -43,4 +43,5 @@ examples/games/three-arena: a third-person controller over a textured glTF level
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. (merge proposed, corrected by the verifier) examples/js-three is a lighthouse scene with GLTFLoader and OrbitControls; it has no third-person controller, 200 dynamic meshes, shadows, positional audio or HUD, and the >= 200 draw calls with shadows gate is not ZN-578's (PixiJS) work. Rewrite as the gate on js-three or keep as written. Evidence: examples/js-three, tests/t1/example_js_three.sh
+Review 2026-11-07: merged into ZN-578. The arena game is not wanted now; the gate on js-three is ZN-578's. Evidence: examples/js-three (lighthouse, GLTFLoader), tests/t1/example_js_three.sh
 <!-- SECTION:NOTES:END -->

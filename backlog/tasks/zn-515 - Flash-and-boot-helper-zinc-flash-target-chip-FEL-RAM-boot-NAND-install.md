@@ -11,7 +11,7 @@ milestone: m-24
 dependencies:
   - ZN-513
 ordinal: 95200
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,4 +32,5 @@ Pin sunxi-tools (built from source, with the macOS bulk-error patch of Datanoise
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. FEL flash helper for the CHIP: needs the board; far from the goal.
+Review 2026-11-07: parked. Needs the CHIP board (FEL).
 <!-- SECTION:NOTES:END -->

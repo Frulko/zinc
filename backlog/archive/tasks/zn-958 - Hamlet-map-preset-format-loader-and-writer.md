@@ -16,6 +16,7 @@ dependencies:
   - ZN-947
   - ZN-946
 ordinal: 720000
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -31,3 +32,9 @@ A preset is one JSON file: version, name, size w,h, seed, terrain (row strings),
 - [ ] #3 A preset can be 'seeded' (generator params only, tiny) or 'baked' (explicit tiles)
 - [ ] #4 Presets live in examples/hamlet/presets/*.json and user presets in the app data directory
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: dropped. Presets exist as generator parameters (src/gen/presets.ts) plus missions (world/missions.ts); a baked JSON map format has no user now.
+<!-- SECTION:NOTES:END -->

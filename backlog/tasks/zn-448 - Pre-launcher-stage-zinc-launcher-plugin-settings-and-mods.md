@@ -8,12 +8,13 @@ labels:
   - games
   - assets
   - size-L
+  - parked
 milestone: m-22
 dependencies:
   - ZN-436
   - ZN-447
 ordinal: 15600
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -27,3 +28,9 @@ launcher key. Stage API: mounted packs, settings, update check through zinc:syst
 - [ ] #1 a zinc sim scenario chooses fullscreen and enables a mod, and the game sees the setting and the mod's replacement asset
 - [ ] #2 --skip-launcher and 'do not show again' work
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. Launcher plugin with settings and mods is large and far from UI, performance and reach.
+<!-- SECTION:NOTES:END -->

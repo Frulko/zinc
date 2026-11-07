@@ -7,12 +7,13 @@ created_date: '2026-10-09 07:39'
 labels:
   - handheld
   - pocketjs
+  - parked
 milestone: m-23
 dependencies:
   - ZN-490
   - ZN-472
 ordinal: 51700
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -27,3 +28,9 @@ PICA kernel (clean-room): linear-memory buffers and textures with explicit relea
 - [ ] #2 Hardware: 30 fps with 0 late frames on the route on the owner's 3DS, CPU and GPU ms recorded
 - [ ] #3 Uniform usage stays within 96 float vectors (checked at build)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: parked. PICA200 renderer, handheld pass.
+<!-- SECTION:NOTES:END -->

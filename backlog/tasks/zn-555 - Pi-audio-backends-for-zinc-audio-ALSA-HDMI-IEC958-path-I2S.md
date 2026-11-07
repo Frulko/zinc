@@ -12,7 +12,7 @@ milestone: m-25
 dependencies:
   - ZN-390
 ordinal: 51400
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -36,4 +36,5 @@ Make the miniaudio backend of ZN-390 work on every Pi: ALSA through alsa-lib dev
 Review 2026-10-25: rewrite. zinc:audio uses miniaudio, which picks ALSA/Pulse at run time (docs/plugins/audio.md:17, "not built or run yet" on Linux). First step is to prove it on the Pi 3B+ (HDMI, jack), then the static armhf story. Carries ZN-533. Evidence: docs/plugins/audio.md:17; plugins/audio/native/audio.host.cpp
 Review 2026-10-25: merged ZN-533 here (PocketCHIP audio through zinc:audio). Carry over: PocketCHIP audio: the same ALSA / tinyalsa static-flavour question as ZN-555; carry the speaker/headphone routing. ZN-555 already asks to decide the static armhf audio story (tinyalsa custom backend or none) for miniaudio. Carry the PocketCHIP speaker/headphone routing on sun4i-codec and 'static flavour has no libasound' as a criterion.
 Review 2026-10-25: merged ZN-651 here (zinc:audio on Linux: build the plugin and play through ALSA or PulseAudio). Carry over: The task says itself it may fold into ZN-555 (Pi audio backends); same ALSA/PulseAudio work, cross pass. The task itself says it may fold into ZN-555 (Backlog). Carry tests/t1/audio.sh in the Linux container and the PulseAudio/PipeWire desktop case (ZN-555 is worded for the Pi) plus the linux row of docs/plugins/audio.md.
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

@@ -13,7 +13,7 @@ dependencies:
   - ZN-486
   - ZN-468
 ordinal: 93900
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -33,4 +33,5 @@ zinc run --target psp --device: load the build over PSPLINK/usbhostfs_pc, stream
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. PSPLINK/usbhostfs hardware loop needs a real PSP; the owner has run the PSP demo only under Adrenaline on the Vita. Park until a PSP is on the bench.
+Review 2026-11-07: parked. Needs a real PSP and PSPLINK.
 <!-- SECTION:NOTES:END -->

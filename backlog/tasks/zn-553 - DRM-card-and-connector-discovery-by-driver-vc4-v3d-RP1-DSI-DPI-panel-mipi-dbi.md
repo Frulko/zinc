@@ -12,7 +12,7 @@ milestone: m-25
 dependencies:
   - ZN-535
 ordinal: 53100
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,4 +34,5 @@ display-gl and display-fbdev pick the DRM card by driver and connected connector
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. display-gl picks the first card with a connected connector (kms.cpp:35-43); display-fbdev finds the console's CRTC. Left: choice by driver and connector from zinc.json, the v3d render node, rotation/backlight, vkms test. Carries ZN-522 (sun4i connector names). Evidence: plugins/display-gl/src/kms.cpp:35
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
 <!-- SECTION:NOTES:END -->

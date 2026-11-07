@@ -12,7 +12,7 @@ milestone: m-25
 dependencies:
   - ZN-535
 ordinal: 52000
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -27,3 +27,9 @@ Temperatures from thermal zones, current and maximum CPU clock, throttled flags 
 - [ ] #2 a QEMU raspi3b run degrades to unknown without errors
 - [ ] #3 an under-voltage event is reported with a weak supply on the rig (manual check)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
+<!-- SECTION:NOTES:END -->

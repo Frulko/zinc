@@ -4,10 +4,11 @@ title: 'Android GLES 3 replay and the frame times of rn-showcase and hero on bot
 status: Backlog
 assignee: []
 created_date: '2026-10-10 14:07'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - mobile
   - size-M
+  - parked
 milestone: m-26
 dependencies:
   - ZN-741
@@ -61,4 +62,5 @@ The plan for the Metal back end. It is not built: it is an L task of 4 to 5 sess
 
 2026-10-17: the iOS decision is D137 (coordinator); the iOS numbers are in docs/reports/zinc-next-perf.md. Released: the Android GLES 3 half of AC1 and AC2 remain.
 Review 2026-10-25: done-partly. iOS decision done (D119, Metal present with no texture upload, step 1) and scored; left: the GLES 3 replay on capable Android and the frame-time/pixel criteria. Evidence: targets/macos/hal_metal.mm; tests/t0/ios_present.sh; task notes 2026-10-17
+Review 2026-11-07: parked. Mobile is last in the cross-platform pass and needs the phones. Evidence: needs Android phones; iOS decision done (D119)
 <!-- SECTION:NOTES:END -->

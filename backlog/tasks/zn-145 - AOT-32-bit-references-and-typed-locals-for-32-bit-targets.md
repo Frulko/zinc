@@ -4,7 +4,7 @@ title: 'AOT: 4-byte references and typed locals on 32-bit targets'
 status: Backlog
 assignee: []
 created_date: '2026-10-06 23:02'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - parked
 milestone: m-12
@@ -32,4 +32,5 @@ Second half of ZN-042's criteria: no 8-byte Slot for typed numeric locals and 4-
 <!-- SECTION:NOTES:BEGIN -->
 parked 2026-10-08: both criteria run armhf programs under qemu-user (Linux only), and the 4-byte value representation touches include/zn/value.h, the AOT emitter and every runtime table; it cannot be verified on this machine. Resume on a Linux host (the wasm32 build already runs the interpreter with 4-byte pointers).
 Review 2026-10-25: rewrite. Still useful (4-byte references and typed locals matter for 32-bit PSP, 3DS, Vita, ESP32 and PS1) but both criteria run armhf under qemu-user, which a Mac cannot do. Re-aim at the 32-bit targets that now run on the Mac: wasm32 and the console emulators.
+Review 2026-11-07: parked. 32-bit AOT value representation; needs wasm/3DS/PSP proof, do with ZN-418.
 <!-- SECTION:NOTES:END -->

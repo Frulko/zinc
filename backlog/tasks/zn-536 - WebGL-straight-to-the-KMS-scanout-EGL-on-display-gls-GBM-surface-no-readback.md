@@ -14,7 +14,7 @@ milestone: m-25
 dependencies:
   - ZN-330
 ordinal: 50600
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -30,3 +30,9 @@ On Linux KMS, libzn_webgl takes its EGL context and window surface from display-
 - [ ] #3 macOS behaviour unchanged (tests/t1/three.sh green)
 - [ ] #4 ZINC_GL_INFO reports the shared context
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
+<!-- SECTION:NOTES:END -->

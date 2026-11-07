@@ -19,7 +19,7 @@ dependencies:
   - ZN-573
   - ZN-574
 ordinal: 10900
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -42,4 +42,5 @@ examples/games/phaser-platformer: Tiled tilemap, arcade physics, animated sprite
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: rewrite. (merge proposed, corrected by the verifier) Not 'only the FPS gate': examples/js-phaser is a star catcher (README) without the Tiled tilemap, sounds/music, gamepad or title/play/game-over scenes the task names, and ZN-578 (PixiJS bunnymark) covers none of Phaser. Rewrite to what is wanted on js-phaser (300 arcade bodies gate, scripted score test) or drop the platformer content explicitly. Evidence: examples/js-phaser, tests/t1/example_js_phaser.sh
+Review 2026-11-07: merged into ZN-578. Platformer content is not wanted now; the gate (300 arcade bodies, scripted score test) is ZN-578's. Evidence: examples/js-phaser (star catcher), tests/t1/example_js_phaser.sh
 <!-- SECTION:NOTES:END -->

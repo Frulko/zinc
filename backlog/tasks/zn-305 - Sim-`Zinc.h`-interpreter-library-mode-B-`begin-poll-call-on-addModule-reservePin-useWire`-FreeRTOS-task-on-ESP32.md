@@ -15,7 +15,7 @@ milestone: m-18
 dependencies:
   - ZN-304
 ordinal: 90100
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -33,4 +33,5 @@ From docs/reports/hardware-simulator-and-arduino-interop.md (SIM-14). Wokwi-styl
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. Zinc.h interpreter library: depends on ZN-304 and on a use case the mquickjs+Arduino firmware already serves; far from the goal for now.
+Review 2026-11-07: parked. needs QEMU/board for Zinc.h on Arduino; already labeled parked.
 <!-- SECTION:NOTES:END -->

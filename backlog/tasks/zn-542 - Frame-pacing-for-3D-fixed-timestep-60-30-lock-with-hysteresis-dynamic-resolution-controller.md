@@ -14,7 +14,7 @@ milestone: m-25
 dependencies:
   - ZN-537
 ordinal: 6500
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -29,3 +29,9 @@ The animation loop gets a fixed-dt simulation with interpolated rendering. A fra
 - [ ] #2 render scale settles within 1 s after a load change and changes at most once per 2 s
 - [ ] #3 simulation state identical between 30 and 60 fps runs (deterministic test)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
+<!-- SECTION:NOTES:END -->

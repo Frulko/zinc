@@ -12,7 +12,7 @@ dependencies:
   - ZN-528
   - ZN-203
 ordinal: 97300
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -32,4 +32,5 @@ QuickJS + libzn_webgl on a GLES2 lima context: WebGL1 conformance run on the boa
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. WebGL1 and three r162 on lima: needs the CHIP; the r162 work is carried by ZN-540.
+Review 2026-11-07: parked. WebGL on lima: board needed.
 <!-- SECTION:NOTES:END -->

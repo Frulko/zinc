@@ -13,12 +13,14 @@ milestone: m-22
 dependencies: []
 priority: low
 ordinal: 15700
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+**Rewritten by the review of 2026-11-07:** Check whether the vendored miniaudio still drops the last frames; if fixed, bump and store 16-bit (halves memory, test a 480-frame clip); if not, drop the task.
+
 Found in ZN-390: miniaudio 0.11.25 (and its master on 2026-10-10) drops the last frames, up to 512, of any non-float sound (a 960-frame 16-bit clip played 512 frames, a 480-frame one nothing), so zinc:audio keeps every sound as float: 21 MiB per minute of 44.1 kHz stereo. Reporting it upstream is the owner's step (the reproduction is in the notes of ZN-390). May fold into ZN-440.
 <!-- SECTION:DESCRIPTION:END -->
 
@@ -28,3 +30,9 @@ Found in ZN-390: miniaudio 0.11.25 (and its master on 2026-10-10) drops the last
 - [ ] #2 a 480-frame 16-bit clip is heard whole (test)
 - [ ] #3 the memory of a loaded 16-bit sound halves
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Review 2026-11-07: rewrite. Upstream report is the owner's step. Memory for long sounds matters on modest machines. Evidence: plugins/audio keeps all sounds as float
+<!-- SECTION:NOTES:END -->

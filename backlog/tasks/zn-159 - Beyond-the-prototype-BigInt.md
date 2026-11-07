@@ -12,7 +12,7 @@ milestone: m-7
 dependencies:
   - ZN-155
 ordinal: 90600
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -30,4 +30,5 @@ BigInt literals and operations with libbf (MIT, from QuickJS) as a vendored libr
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-10-25: parked. (drop proposed, corrected by the verifier) This is far, not useless. docs/reports/parity/01-language-cli-std.md:116 lists BigInt as 'Beyond prototype, requested' (libbf is the cheap route), and plugins/wasm/index.ts:5 says WebAssembly i64 values lose precision without it. No decision supersedes it. Evidence: `10n*3n` is Z0005 not supported; no example or plugin needs BigInt
+Review 2026-11-07: parked. BigInt via libbf; no user in the target audience now, labelled parked. Evidence: src/frontend/lexer.cpp:99 only lexes it
 <!-- SECTION:NOTES:END -->
