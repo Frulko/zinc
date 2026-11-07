@@ -53,6 +53,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The navigation stack no longer keeps a screen when a swipe or Android's back gesture starts during a pop, and dragging a sheet down while pressing back closes only the sheet.
 - `Pressable` sends `onPressOut` for a very quick tap, and an `Alert` button pressed twice runs once.
 - The on-screen keyboard's backspace stops repeating when its press is lost, and the image viewer ignores zoom and drags while it closes.
+- Scrolling up a `VirtualList` with `estimatedItemHeight` (a chat history) with the trackpad or the wheel no longer makes the messages jump as older ones come into view.
 
 ### Developer tools
 

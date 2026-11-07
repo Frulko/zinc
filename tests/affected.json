@@ -470,6 +470,7 @@
     {"paths": ["src/text/"], "tests": ["text_layout", "segment", "text_shaped"]},
     {"paths": ["runtime/raster.cpp", "src/main.cpp", "src/text/shaped_gfx.cpp", "tests/t0/emoji_text.sh", "tests/data/emoji_text/"], "tests": ["emoji_text"]},
     {"paths": ["src/frontend/jsx.cpp", "lib/std/ui.ts", "tests/t0/virtual_stick.sh", "tests/data/virtual_stick/"], "tests": ["virtual_stick"]},
+    {"paths": ["lib/std/ui.ts", "tests/t0/virtual_settle.sh", "tests/data/virtual_settle/"], "tests": ["virtual_settle"]},
     {"paths": ["lib/std/react.ts", "lib/std/ui.ts", "tests/t0/virtual_rows.sh", "tests/data/virtual_rows/"], "tests": ["virtual_rows"]},
     {"paths": ["src/frontend/check.cpp", "tests/t0/splice_any.sh"], "tests": ["splice_any"]},
     {"paths": ["src/frontend/check.cpp", "tests/t0/forof_dyn_conditional.sh"], "tests": ["forof_dyn_conditional"]},

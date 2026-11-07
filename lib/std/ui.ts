@@ -897,7 +897,8 @@ function settleVirtuals(): void {
       if (v.known[i] && Math.abs(nh - v.hs[i]) < 0.01) return;
       const d = nh - v.hs[i];
       v.known[i] = true; v.hs[i] = nh; fwAdd(v, i, d);
-      if (n.pt + fwPrefix(v, i) + nh <= n.sy) n.sy += d;   // a row above the view: keep what is shown where it is
+      // a row above the view: keep what is shown where it is, in the running scroll too (fingers, inertia, wheel easing), or its next frame jumps back
+      if (n.pt + fwPrefix(v, i) + nh <= n.sy) { n.sy += d; shiftAxis(n.ay, d); }
       changed = true;
     });
     if (!changed) continue;
