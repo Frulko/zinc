@@ -18,7 +18,7 @@ import {
   PAGE_ROOMS,
 } from '../../constants';
 import { Fonts } from '../../fonts';
-import { DisplayObject, isZonePressed, registerTapZone } from 'zinc:stage';
+import { DisplayObject, isZonePressed, registerTapZone, uiState } from 'zinc:stage';
 import { drawGlyph } from '../../components/primitives';
 import {
   CardBox,
@@ -288,6 +288,8 @@ class SpeakerGroupCheckRowNode extends HBox {
   speaker: Speaker = new Speaker();
   isMemberOfGroup: boolean = false;
   isCoordinator: boolean = false;
+  /** While a join or leave is on its way to the Sonos: the state asked for (1 in the group, 0 out), shown at once, faded; -1: none. */
+  pendingMembership: i32 = -1;
   readonly speakerNameLabel: LabelNode;
   readonly zoneId: string;
 
@@ -313,13 +315,16 @@ class SpeakerGroupCheckRowNode extends HBox {
     this.speakerNameLabel.color = this.isCoordinator ? COLOR_TEXT_SECONDARY : COLOR_TEXT_PRIMARY;
   }
 
-  private toggleMembership(): void {
-    if (appState.sonosSystem === null || appState.activeGroup === null) return;
+  private async toggleMembership(): Promise<void> {
+    if (appState.sonosSystem === null || appState.activeGroup === null || this.pendingMembership >= 0) return;
     const system = appState.sonosSystem as System;
     const activeGroup = appState.activeGroup as Group;
     const speaker = this.speaker;
     const isMember = this.isMemberOfGroup;
-    runSafeNetworkAction('Regroupement', async (): Promise<void> => {
+    // the tap answers at once: the box shows the asked state, faded, until the Sonos topology says what it became (1 to 3 s)
+    this.pendingMembership = isMember ? 0 : 1;
+    uiState.dirty = true;
+    await runSafeNetworkAction('Regroupement', async (): Promise<void> => {
       if (isMember) {
         await system.leave(speaker);
       } else {
@@ -329,14 +334,19 @@ class SpeakerGroupCheckRowNode extends HBox {
       await pollSonosTopology();
       await pollAllRoomVolumes();
     });
+    this.pendingMembership = -1;
+    uiState.dirty = true;
   }
 
   override onDraw(localWidth: number, localHeight: number): void {
-    if (this.isMemberOfGroup) {
-      rrect(16, 16, 24, 24, 12, this.isCoordinator ? COLOR_TEXT_TERTIARY : COLOR_ACCENT, 255);
-      drawGlyph('check', 20, 20, 16, COLOR_TEXT_PRIMARY, 255, 3);
+    const pending = this.pendingMembership >= 0;
+    const shownMember = pending ? this.pendingMembership === 1 : this.isMemberOfGroup;
+    const alpha: i32 = pending ? 120 : 255;
+    if (shownMember) {
+      rrect(16, 16, 24, 24, 12, this.isCoordinator ? COLOR_TEXT_TERTIARY : COLOR_ACCENT, alpha);
+      drawGlyph('check', 20, 20, 16, COLOR_TEXT_PRIMARY, alpha, 3);
     } else {
-      rrect(16, 16, 24, 24, 12, COLOR_TEXT_TERTIARY, 255);
+      rrect(16, 16, 24, 24, 12, COLOR_TEXT_TERTIARY, alpha);
       rrect(18, 18, 20, 20, 10, COLOR_CARD, 255);
     }
     if (!this.isCoordinator) {
