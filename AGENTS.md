@@ -105,6 +105,11 @@ The goal of a session is progress on the backlog: finish tasks, improve and comp
 
 The development Mac has 16 GB, shared with the owner's own work. A session must never eat it.
 
+**Swap is fine, a runaway is not.** The Mac may swap under a build or a large run. What must never happen again is memory used climbing to hundreds of gigabytes (246 GB seen, RAM + swap + compressed): that is a runaway process or too many heavy jobs at once, and it freezes the owner's machine.
+
+- **Bound every run you start**: `timeout <s>` on every app, demo or test you launch by hand, so a leak or a loop cannot grow for an hour.
+- **Watch what you start**: a process of yours that passes a few GB and keeps growing is a bug, not a load. Kill it, find the cause (leak, loop, unbounded cache) in the smallest program, and only then run it again.
+
 - **Two trees building at most** on the machine, whoever started them, always through `tools/build`. Parallel agents that build count; research and document agents do not.
 - **One heavy process at a time**: one app, demo or windowed test running, never two `zinc` runs side by side, never a test while a link of `zinc` runs. Prefer `ZINC_HEADLESS=1` (no window, no GPU surface).
 - **Leave nothing running**: kill what you started (apps, `zinc dev`, servers, simulators) as soon as you have looked at it.
@@ -143,6 +148,19 @@ When a program, a plugin, a stand-in, a demo or a test hits something the engine
 - Reproduce it in the smallest program, fix it in the engine with a test, on every engine (interpreter, AOT, QuickJS), then write the original code as a person would.
 - A fix too big for the current task is a task of its own right after it (`New-task: blocks <what it stops>`), worked next; the code that hit it waits for it rather than carrying a workaround.
 - A limit that is a decision (a strict profile, a recorded `D` number) is not a gap: its diagnostic says what to write instead.
+
+## Explicit state: no implicit state machines (owner, 2026-11-07)
+
+The audit of 2026-11-06 (`docs/reports/implicit-state-machines.md`) found more than a hundred lifecycles held in loose flags, nullable handles and sentinels. They hang after a restart, free memory still in use, or let a stale handle drive somebody else's object. New code never adds one, and code you touch is left better than you found it.
+
+- **One enum and one transition function per lifecycle.** An object that has phases (connecting, ready, closing, closed, failed) stores one `state` field and changes it only through one function, which rejects illegal transitions. Two or more bools that together mean a phase, or a `-1`/`0`/`""`/`null` that means a phase, are a defect.
+- **Reset on restart.** Every stop, quit or failed flag is reset where the thing starts again (crash-restart, `zinc dev` reload, a long-lived LSP or agent). Never leave a flag that stays set forever.
+- **Restore with RAII or `finally`, never by hand.** A saved and restored depth, current owner or `in_frame` flag uses a C++ guard object or a TS `try/finally`, so an early return, a throw or a longjmp unwinds it. Code that `crash()`/longjmps past a frame resets its state at the restart point.
+- **Shared between threads: atomic or locked.** A flag read by another thread is `std::atomic` or lives under the same mutex as the data it guards. Never a plain `bool`.
+- **Handles carry a generation.** A slot table (plugin handles, views, sockets, VMs, players, UI nodes) hands out `index | generation << n`, or monotonic ids. A stale handle, or a queued event or reply for a closed slot, is refused, never delivered to the new object. Closing a slot drops its queued events.
+- **"Failed" is not "never tried".** A cache or registry keeps distinct states for not tried, in progress, ready and failed (with the error), so it can retry or report.
+- **State in files takes a lock.** Trials, leases, pairing and caches on disk use a lock file (`flock`) and an atomic rename. Never act on pids read from a stale file without checking they are still ours.
+- **Prove it.** A fix or a new lifecycle adds one T0 test that drives the bad transition (a throw inside `batch`, a second start, a stale handle after close, a restart) and checks the state afterwards.
 
 ## Never take the focus: run windows in the background (owner, 2026-10-16)
 
