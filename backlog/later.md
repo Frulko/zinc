@@ -738,6 +738,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1001: a terminated worker's record stays in tOwned() (about 0.4 KB, walked at every delivery turn) because the handle is its index; a free list of handles would remove both.
 - ZN-1001: a worker thread that ends with a DNS lookup in flight leaves its loop open (uv_loop_close refuses while a request is pending).
 - macos_window failed once (fullscreen close check "close 20,22 | fullscreen 1") and passed on the rerun right after, 2026-11-06; watch for a flake.
+- TouchPad (2026-11-07): music-tree ran ~4 days to 216 MB (webOS quota 160), then a touch started kgsl MMU page faults and the Adreno 220 hung (ringbuffer protected mode error, LunaSysMgr frozen, reboot needed); 22 min of scripted navigation plateaus at 123 MB, so the growth is time or event driven (track changes, Last.fm, listening log, Sonos events): read /media/internal/music-tree-res.jsonl and music-tree-watch.log after a few days.
+- TouchPad: a runtime image drawn by the GL renderer keeps its CPU pixels beside its texture (30 MB + 20 MB for music-tree's 120 pictures); dropping the CPU copy of an image never written again would halve picture memory on 1 GB devices.
+- TouchPad: zgl_backend_trace has no webOS definition (ZINC_GL_TRACE's per-frame GPU line never prints there); ZINC_TRACE works. A ZINC_INPUT script runs faster than real time between painted frames, so a scripted scroll does not measure what a finger feels.
+- TouchPad: music-tree's home page takes 60 to 190 ms a frame for its first 5 s (blurred living backdrop and covers arriving); measure the backdrop alone.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
