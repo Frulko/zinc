@@ -259,6 +259,12 @@ void permissions() {
   CHECK(androidManifestPermissions(open) == "    <uses-permission android:name=\"android.permission.INTERNET\" />\n", "no permissions declared: INTERNET only");
   Project bad;
   CHECK(!parseProject(R"({ "name": "b", "permissionStrings": ["camera"] })", bad, err) && err.find("permissionStrings") != std::string::npos, "a list is refused: %s", err.c_str());
+  // a first project gives its window a size without a bundle id (ZN-799): the manifests take dev.zinc.<name>; a wrong id is still refused
+  Project w;
+  CHECK(parseProject(R"({ "name": "first", "app": { "window": { "width": 420, "height": 300 } } })", w, err), "app.window without app.id: %s", err.c_str());
+  CHECK(w.app.window.find("420") != std::string::npos && iosInfoPlist(w).find("<string>dev.zinc.first</string>") != std::string::npos, "app.window kept, id defaulted");
+  Project badId;
+  CHECK(!parseProject(R"({ "name": "b", "app": { "id": "bad id" } })", badId, err) && err.find("reverse-DNS") != std::string::npos, "a bad app.id is refused: %s", err.c_str());
 }
 
 int main() {

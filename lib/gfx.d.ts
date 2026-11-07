@@ -20,6 +20,9 @@ declare module 'zinc:gfx' {
   export function overlay(draw: (dt: number) => boolean): void;
   /** Whether an overlay draws (zinc:ui paints its frame again instead of keeping it). */
   export function overlaid(): boolean;
+  /** What the next frames are, for an e-ink panel's waveform: 'interactive' while the picture follows a finger, 'settle' once its final picture
+   *  is drawn, 'normal' for the rest. Hosts without e-ink ignore it. */
+  export function refreshIntent(intent: string): void;
   /** zinc:devtools: `f` runs at each frame while the inspector pauses the program (Zinc.setPaused, F8), when no timer and no frame callback does. */
   export function onPausedFrame(f: () => void): void;
   export function width(): i32;

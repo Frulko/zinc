@@ -672,6 +672,23 @@ static std::string moduleSuffixesJson() {
   return "\"moduleSuffixes\": [" + s + "]";
 }
 
+// The declarations an editor reads, as the "files" of tsconfig.json: lib/*.d.ts (zinc:ui is lib/ui.d.ts, tools/ui-dts) and the JSX host tags
+// with their event attributes (lib/editor/jsx.d.ts)
+static std::string editorLibFiles(const std::string& engineRoot) {
+  std::error_code ec;
+  std::vector<std::string> files;
+  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / "lib", ec)) {
+    const std::string f = e.path().filename().string();
+    if (f.size() > 5 && f.compare(f.size() - 5, 5, ".d.ts") == 0) files.push_back(fs::weakly_canonical(e.path()).string());
+  }
+  std::sort(files.begin(), files.end());
+  const fs::path jsx = fs::path(engineRoot) / "lib" / "editor" / "jsx.d.ts";
+  if (fs::exists(jsx, ec)) files.push_back(fs::weakly_canonical(jsx).string());
+  std::string out;
+  for (const std::string& f : files) out += (out.empty() ? "" : ",\n    ") + jsonString(f);
+  return out;
+}
+
 int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   using zn::i18n::tr;
   const std::string cmd = args.size() > 1 ? args[1] : "new";   // `zinc init <dir> --template t` is `zinc new [t] <dir>`
@@ -780,10 +797,7 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     std::stringstream ss; ss << f.rdbuf();
     ok = writeFile(root / fillVariables(rel.string(), vars, false), fillVariables(ss.str(), vars, rel.extension() == ".json"));   // names too: deploy/{{id}}.service
   }
-  std::string libFiles;
-  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / "lib", ec))
-    if (e.path().extension() == ".ts" && e.path().filename().string().size() > 5 && e.path().filename().string().rfind(".d.ts") == e.path().filename().string().size() - 5)
-      libFiles += (libFiles.empty() ? "" : ",\n    ") + jsonString(fs::weakly_canonical(e.path()).string());
+  const std::string libFiles = editorLibFiles(engineRoot);
   // the editor configuration names this machine's engine files, so it is written here rather than kept in the template
   ok = ok && writeFile(root / "tsconfig.json", "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\", \"module\": \"ESNext\", \"moduleResolution\": \"Bundler\", \"strict\": true, \"noLib\": true, \"types\": [],\n    \"useUnknownInCatchVariables\": false, \"allowImportingTsExtensions\": true, \"noEmit\": true, \"jsx\": \"preserve\",\n    " + moduleSuffixesJson() + "\n  },\n  \"files\": [\n    " + libFiles + "\n  ],\n  \"include\": [\"src/**/*\", \"*.ts\", \"*.tsx\"]\n}\n");
   if (ok && external) {   // where the project came from: the source and, for git, the pinned commit
@@ -3085,11 +3099,7 @@ int tsconfig(const std::vector<std::string>& args, const std::string& engineRoot
   std::string dir = args.size() >= 3 ? args[2] : ".";
   std::error_code ec;
   if (!fs::is_directory(dir, ec)) { std::fprintf(stderr, "zinc tsconfig: %s is not a directory\n", dir.c_str()); return 2; }
-  std::string libFiles;
-  for (const auto& e : fs::directory_iterator(fs::path(engineRoot) / "lib", ec)) {
-    const std::string f = e.path().filename().string();
-    if (f.size() > 5 && f.compare(f.size() - 5, 5, ".d.ts") == 0) libFiles += (libFiles.empty() ? "" : ",\n    ") + jsonString(fs::weakly_canonical(e.path()).string());
-  }
+  const std::string libFiles = editorLibFiles(engineRoot);
   if (!writeFile(fs::path(dir) / "tsconfig.json", "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\", \"module\": \"ESNext\", \"moduleResolution\": \"Bundler\", \"strict\": true, \"noLib\": true, \"types\": [],\n    \"useUnknownInCatchVariables\": false, \"allowImportingTsExtensions\": true, \"noEmit\": true, \"jsx\": \"preserve\",\n    " + moduleSuffixesJson() + "\n  },\n  \"files\": [\n    " + libFiles + "\n  ],\n  \"include\": [\"src/**/*\", \"*.ts\", \"*.tsx\"]\n}\n")) { std::fprintf(stderr, "zinc tsconfig: cannot write %s/tsconfig.json\n", dir.c_str()); return 1; }
   std::printf("wrote %s/tsconfig.json\n", dir.c_str());
   return 0;

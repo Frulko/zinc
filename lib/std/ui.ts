@@ -5780,8 +5780,8 @@ export function refocus(root: i32): void {
     e.caret = imin(heldCaret, n); e.anchor = imin(heldAnchor, n); e.sx = heldSx; e.sy = heldSy; e.reveal = true;
   }
 }
-/** Gives the keyboard focus to a node (-1: none). A text field starts the text input. */
-export function focusNode(h: i32): void { setFocusTo(h); }
+/** Gives the keyboard focus to a node (-1: none). A text field starts the text input. A disabled node keeps it away, as the DOM's focus(). */
+export function focusNode(h: i32): void { if (h >= 0 && isDisabled(h)) return; setFocusTo(h); }
 export function focused(): i32 { if (overlays.length > 0 || restoreTo >= 0) flushOverlays(); return focus; }
 function focusStep(back: boolean): void {
   keyboardFocus = true;

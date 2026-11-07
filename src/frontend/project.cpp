@@ -542,8 +542,8 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     { char* js = yyjson_val_write(a, 0, nullptr); if (js) { app.json = js; std::free(js); } }
     auto str = [&](const char* key, std::string& dst) -> bool { yyjson_val* x = yyjson_obj_get(a, key); if (!x) return true; if (!yyjson_is_str(x)) return fatal(lineOf(text, key), std::string("app.") + key + " must be a string"); dst = yyjson_get_str(x); return true; };
     if (!str("id", app.id) || !str("name", app.name) || !str("version", app.version) || !str("icon", app.icon) || !str("copyright", app.copyright) || !str("category", app.category)) return false;
-    if (app.id.empty()) return fatal(lineOf(text, "app"), "app.id is required (a reverse-DNS id such as com.example.notes)");
-    if (!reverseDns(app.id)) return fatal(lineOf(text, app.id), "app.id '" + app.id + "' is not a reverse-DNS id (letters, digits and hyphens in two or more dot-separated labels, like com.example.notes)");
+    // app.id is optional (a first project gives a window size, not a bundle id, ZN-799); what bundles or signs asks for it or takes dev.zinc.<name>
+    if (!app.id.empty() && !reverseDns(app.id)) return fatal(lineOf(text, app.id), "app.id '" + app.id + "' is not a reverse-DNS id (letters, digits and hyphens in two or more dot-separated labels, like com.example.notes)");
     if (yyjson_val* vc = yyjson_obj_get(a, "versionCode")) {   // the build number of the stores (ZN-618): a positive integer that only grows
       if (!yyjson_is_int(vc) || yyjson_get_sint(vc) < 1 || yyjson_get_sint(vc) > 2100000000) return fatal(lineOf(text, "versionCode"), "app.versionCode must be a whole number from 1 to 2100000000");
       app.versionCode = static_cast<int>(yyjson_get_sint(vc));

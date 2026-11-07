@@ -357,6 +357,9 @@ zinc tsconfig            # or: zinc tsconfig path/to/project
 
 Then use the workspace's TypeScript as usual; `zinc check` remains the reference (Z codes, targets).
 
+`zinc:ui` is declared for the editor in `lib/ui.d.ts`, generated from `lib/std/ui.ts` by `tools/ui-dts`: `PointerEvent`, `KeyEvent` and the
+rest of the module show with their docs, and the event attributes of the host tags (`onPointerDown`, `onKeyDown`...) type their argument.
+
 ## Debugging
 
 `zinc debug src/main.ts` runs a program under the debugger on the command line: it stops at the first statement, then `b main.ts:12`

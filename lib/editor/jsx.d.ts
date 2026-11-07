@@ -1,8 +1,17 @@
-// Editor-only JSX typings (referenced by the tsconfig.json that `zinc init` / `zinc tsconfig` write; the compiler
+// Editor-only JSX typings (listed in the tsconfig.json that `zinc new` / `zinc tsconfig` write; the compiler
 // lowers JSX itself and never reads this file). Host tags are components returning node handles; component
 // attributes are checked against their props; the zinc-ts-plugin drops the children diagnostics that do not apply
 // (Zinc passes children as one thunk).
-type ZincHostProps = { [attr: string]: any; class?: never };   // className, never class (Z0006)
+type ZincPointerHandler = (e: import('zinc:ui').PointerEvent) => void;
+// className, never class (Z0006); the events with their argument (lib/ui.d.ts); any other attribute is checked by `zinc check`
+type ZincHostProps = {
+  [attr: string]: any; class?: never; className?: string; key?: any;
+  onClick?: () => void; onPress?: () => void; onSubmit?: () => void;
+  onInput?: (value: string) => void; onChange?: (value: string) => void; onKeyDown?: (e: import('zinc:ui').KeyEvent) => void;
+  onPointerDown?: ZincPointerHandler; onPointerMove?: ZincPointerHandler; onPointerUp?: ZincPointerHandler; onPointerCancel?: ZincPointerHandler;
+  onPointerEnter?: ZincPointerHandler; onPointerLeave?: ZincPointerHandler; onDoubleClick?: ZincPointerHandler; onContextMenu?: ZincPointerHandler;
+  onWheel?: ZincPointerHandler; onTap?: ZincPointerHandler; onLongPress?: ZincPointerHandler; onDrag?: ZincPointerHandler; onPinch?: ZincPointerHandler;
+};
 declare function View(props: ZincHostProps): i32;
 declare function Text(props: ZincHostProps): i32;
 declare function Button(props: ZincHostProps): i32;

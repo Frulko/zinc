@@ -45,6 +45,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 ### UI
 
+#### New
+
+- `zinc:ui/kit` has `Input` and `Textarea` in the shape of shadcn/ui's: a bordered, rounded field that follows the page, with a muted placeholder, a stronger border while focused and a dimmed `disabled` state.
+
 #### Fixed
 
 - One error no longer freezes a reactive app: a throw inside `batch`, `untrack` or an effect used to hold every later signal update back, and a render caught by its parent (an error boundary) stopped reordered children from moving.
@@ -54,16 +58,19 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `Pressable` sends `onPressOut` for a very quick tap, and an `Alert` button pressed twice runs once.
 - The on-screen keyboard's backspace stops repeating when its press is lost, and the image viewer ignores zoom and drags while it closes.
 - Scrolling up a `VirtualList` with `estimatedItemHeight` (a chat history) with the trackpad or the wheel no longer makes the messages jump as older ones come into view.
+- `ui.focusNode` no longer gives the focus to a `disabled` field, as a click never did.
 
 ### Developer tools
 
 #### New
 
 - `ZINC_RESOURCE_LOG=<file>[:seconds]` appends, every 30 seconds by default, a line with the app's memory and what each part holds (images, GPU textures, fonts, script heap): the way to see which part grows in an app that gets slower over days.
+- Editors now know `zinc:ui`: after `zinc tsconfig`, `PointerEvent`, `KeyEvent` and the rest of the module come with their docs, and the event attributes of `View`, `Button` and the other host tags (`onPointerDown`, `onKeyDown`, `onInput`...) type their argument.
 
 #### Changed
 
 - The `"crash"` key of `zinc.json` is gone: it was never acted on, and a panic always ends the program. A project that still has it is refused with a message (`zinc explain J0001`); delete the line, and let systemd restart a service.
+- `zinc.json` no longer needs `app.id` to give the window a size or limits in `app.window`: a first project can leave the id out until it packages the app (`zinc build --bundle` and `--dmg` ask for it).
 
 #### Fixed
 

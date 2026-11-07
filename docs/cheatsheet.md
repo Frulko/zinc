@@ -15,6 +15,7 @@ Every function of the engine's modules on one page: its signature and what it do
 - `windowCtl(id: i32, op: i32, s: string, a: i32, b: i32): i32` The raw call behind zinc:system/window on window `id` (0: the main one): op 0 move to a,b; 1 resize to a x b; 2 focus; 3 title s; 4..7 its x, y, w, h; 8 the last id opened; 9 the window being drawn.
 - `overlay(draw: (dt: number) => boolean): void` Draws over every frame of the main window, after the program, until `draw` returns false (the loader's fade, zinc.json loading.fadeMs).
 - `overlaid(): boolean` Whether an overlay draws (zinc:ui paints its frame again instead of keeping it).
+- `refreshIntent(intent: string): void` What the next frames are, for an e-ink panel's waveform: 'interactive' while the picture follows a finger, 'settle' once its final picture is drawn, 'normal' for the rest.
 - `onPausedFrame(f: () => void): void` zinc:devtools: `f` runs at each frame while the inspector pauses the program (Zinc.setPaused, F8), when no timer and no frame callback does.
 - `width(): i32`
 - `height(): i32`

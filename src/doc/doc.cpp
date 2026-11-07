@@ -351,7 +351,7 @@ bool collect(Site& s) {
         s.apis.push_back(std::move(a));
       }
     }
-    for (const char* d : {"modules.d.ts", "gfx.d.ts", "ui.d.ts", "zinc.d.ts"}) {
+    for (const char* d : {"modules.d.ts", "gfx.d.ts", "zinc.d.ts"}) {   // not ui.d.ts: generated from lib/std/ui.ts, already read above
       std::vector<Module> mods;
       const fs::path f = root / "lib" / d;
       readModules(s, f, std::string(d) == "zinc.d.ts" ? "Globals" : "", std::string("lib/") + d, mods);
