@@ -1,5 +1,7 @@
-// zinc:fs in a page (tests/t1/web_fs.sh): a project file shipped read-only (targets.web.files), and files written in an earlier visit read back after a reload.
+// zinc:fs in a page (tests/t1/web_fs.sh): a project file shipped read-only (targets.web.files), and files written in an earlier visit read back after a reload;
+// targets.web.demo names data/ as the sample data of a part (sampleData of zinc:browser, the page's demo bar).
 import * as fs from 'zinc:fs';
+import { sampleData } from 'zinc:browser';
 
 const seed = fs.readText('data/seed.txt').trim();
 let n = 1;
@@ -15,4 +17,4 @@ fs.remove('state/gone.txt');
 const names = fs.list('state').sort().join(',');
 const file = fs.stat('state/sub/b.bin'), dir = fs.stat('./state/sub/../sub');
 const runs = fs.readText('state/log.txt').trim().split('\n').length;
-console.log(`fs-run ${n} seed=${seed} list=${names} size=${file.size} file=${file.isFile} dir=${dir.isDirectory} runs=${runs} readonly=${!fs.remove('data/seed.txt')} moved=${fs.readText('/state/moved.txt').trim() === seed}`);
+console.log(`fs-run ${n} seed=${seed} list=${names} size=${file.size} file=${file.isFile} dir=${dir.isDirectory} runs=${runs} readonly=${!fs.remove('data/seed.txt')} moved=${fs.readText('/state/moved.txt').trim() === seed} sample=${sampleData('Spotify')}`);

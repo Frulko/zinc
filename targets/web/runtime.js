@@ -886,6 +886,7 @@ const rows = {
   // system
   sysFirst: () => {}, sysArgsCount: () => 0, sysArg: () => '', sysEnv: (n) => (CFG.env && CFG.env[n]) || '', sysExit: (c) => { quit = true; if (c) console.warn('zinc: exit ' + c); throw new ZnExit(c); },   // (stops the program where it stands, as process.exit does)
   sysPlatform: () => 'web', sysPid: () => 1, sysCwd: () => '/', sysChdir: () => true, sysSetEnv: (n, v) => { (CFG.env = CFG.env || {})[n] = v; }, sysUnsetEnv: (n) => { if (CFG.env) delete CFG.env[n]; },
+  sigWatch: () => 1,   // (sys.onSignal: a page is never sent SIGINT or SIGTERM; it closes with its tab)
   sysEnvKeysCount: () => Object.keys(CFG.env || {}).length, sysEnvKey: (i) => Object.keys(CFG.env || {})[i] || '', sysIsatty: () => false,
   sysWrite: (s) => writeLine(false, s), sysWriteErr: (s) => writeLine(true, s),
   sysRandomByte: () => crypto.getRandomValues(new Uint8Array(1))[0], sysUtf8Len: (s) => enc.encode(s).length, sysUtf8Byte: (s, i) => enc.encode(s)[i] || 0,
@@ -1062,6 +1063,30 @@ Z.wasmInstance = (name, extra = {}) => {
 };
 
 // ---------------------------------------------------------------- the loop
+// A hosted page (an export) that lacks parts of the app says so once, in a bar at the top, instead of failing later without a word: the native sides with no
+// browser backend and the host services a page has not (the export lists them, CFG.demo.missing), those the app gives sample data for (zinc.json
+// targets.web.demo.samples) marked as such, and the app's link (targets.web.demo.link). The person can close it. Under zinc dev the bridge runs those parts.
+const joinNames = (a) => (a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]);
+function demoBar() {
+  const d = CFG.demo;
+  if (!d || CFG.dev) return;
+  const samples = d.samples || {}, sampled = Object.keys(samples), needs = (d.missing || []).filter((m) => !(m in samples));
+  if (!needs.length && !sampled.length && !d.note) return;
+  const el = document.createElement('div');
+  el.id = 'zinc-demo'; el.setAttribute('role', 'status');
+  el.style.cssText = 'position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:9;box-sizing:border-box;width:max-content;max-width:calc(100vw - 32px);display:flex;gap:12px;align-items:center;padding:6px 6px 6px 14px;border-radius:8px;background:rgba(17,24,39,.94);color:#f9fafb;font:13px/1.4 system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.3)';
+  const text = document.createElement('span');
+  text.textContent = d.note || ('Web demo: ' + (needs.length ? joinNames(needs) + (needs.length > 1 ? ' need' : ' needs') + ' the desktop app.' : 'the app runs in your browser.') + (sampled.length ? ' ' + joinNames(sampled) + (sampled.length > 1 ? ' show' : ' shows') + ' sample data.' : ''));
+  el.appendChild(text);
+  if (d.link) { const a = document.createElement('a'); a.href = d.link; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Get the app'; a.style.cssText = 'color:#93c5fd;white-space:nowrap'; el.appendChild(a); }
+  const close = document.createElement('button');
+  close.type = 'button'; close.textContent = '\u00d7'; close.setAttribute('aria-label', 'Close');
+  close.style.cssText = 'border:0;background:none;color:inherit;font:18px/1 system-ui,sans-serif;padding:4px 8px;cursor:pointer';
+  close.onclick = () => el.remove();
+  el.appendChild(close);
+  document.body.appendChild(el);
+}
+Z.demoSample = (name) => (CFG.demo && !CFG.dev && CFG.demo.samples && CFG.demo.samples[name]) || '';   // (zinc:browser's sampleData)
 let last = performance.now(), overlayEl = null;
 const errSeen = new Map();   // an error thrown every frame is told once, not sixty times a second: the same message within a second of its last time only counts
 function showError(e, kind) {
@@ -1147,6 +1172,7 @@ async function boot() {
     if (CFG.rows) await import(/* @vite-ignore */ 'zinc:native');   // the host rows of rows-*.js (zinc:gl, runtime shaders) live in native.js and must be there before the app runs
     await (globalThis.__zincLoadEntry ? globalThis.__zincLoadEntry() : import(/* @vite-ignore */ CFG.entry));   // a bundler (the Vite plugin) sets __zincLoadEntry to its own import() of the app, so it can split and hash it
     document.getElementById('zinc-splash')?.remove();
+    demoBar();
     root.focus && root.focus();
     // a prerender capture (?zn-capture, headless Chrome without a display) gets no animation frame in time: the first frame runs from a timer
     if (/[?&]zn-capture/.test(location.search)) setTimeout(() => frame(performance.now()), 0); else requestAnimationFrame(frame);

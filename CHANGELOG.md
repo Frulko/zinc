@@ -65,10 +65,11 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### New
 
 - An exported page has a real `zinc:fs`: what the program writes is kept across reloads in the browser's storage, and the project files listed in `zinc.json` `targets.web.files` ship with the page, read only, so apps that require `fs` (Carnet, Kanban) export without `--force` and `examples/hero` plays its video in the page.
+- An exported page that uses parts no browser can run (a device plugin, processes, network servers) opens with a bar that names them and says they need the desktop app, with your download link from `targets.web.demo.link`; `targets.web.demo.samples` ships sample data for such a part and `sampleData()` of `zinc:browser` finds it.
 
 #### Fixed
 
-- An exported page whose program read a file's bytes (`readBytes` of `zinc:fs` or `zinc:assets`, as the hero demo's map does) no longer stops at start with `__qjs_bytes is not defined`, and an app that makes transparent images no longer gets a W0603 warning for it.
+- An exported page whose program read a file's bytes (`readBytes` of `zinc:fs` or `zinc:assets`, as the hero demo's map does) no longer stops at start with `__qjs_bytes is not defined`, an app that makes transparent images no longer gets a W0603 warning for it, and a program that installs a signal handler at start (`sys.onSignal`) runs in a page.
 
 ### Developer tools
 

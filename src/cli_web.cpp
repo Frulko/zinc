@@ -89,6 +89,8 @@ struct Cfg {
   int w = 0, h = 0;   // a fixed surface (web.width, web.height); 0: the page's size
   std::vector<std::string> pluginDirs;
   std::vector<std::string> files;   // web.files: the project's files and folders the program reads, shipped read-only next to the page (media streamed)
+  std::string demoLink, demoNote;   // web.demo: where the desktop app is, and the text of the page's demo bar instead of the default one
+  std::vector<std::pair<std::string, std::string>> demoSamples;   // web.demo.samples: a native side or plugin -> the folder of sample data the app ships for the page
 };
 std::string kBaseline = "chrome >= 111, edge >= 111, firefox >= 115, safari >= 16.4";
 Cfg readCfg(const WebArgs& a) {
@@ -116,6 +118,15 @@ Cfg readCfg(const WebArgs& a) {
       size_t i, n;
       yyjson_val* v;
       if (yyjson_val* fl = yyjson_obj_get(w, "files"); yyjson_is_arr(fl)) yyjson_arr_foreach(fl, i, n, v) if (yyjson_is_str(v)) c.files.push_back(yyjson_get_str(v));
+      if (yyjson_val* d = yyjson_obj_get(w, "demo"); yyjson_is_obj(d)) {
+        c.demoLink = str(d, "link");
+        c.demoNote = str(d, "note");
+        yyjson_val* k;
+        if (yyjson_val* sm = yyjson_obj_get(d, "samples"); yyjson_is_obj(sm)) yyjson_obj_foreach(sm, i, n, k, v) if (yyjson_is_str(v)) {
+          c.demoSamples.push_back({yyjson_get_str(k), yyjson_get_str(v)});
+          c.files.push_back(yyjson_get_str(v));   // (shipped as the project's files are)
+        }
+      }
     }
     yyjson_val* app = yyjson_obj_get(j.root, "app");
     if (c.icon.empty()) c.icon = str(app, "icon");
@@ -335,6 +346,18 @@ std::string rowWhy(const std::string& r) {
   return "a native service";
 }
 
+bool named(const std::vector<std::string>& missing, const char* native) { return std::find(missing.begin(), missing.end(), native) != missing.end(); }   // (zinc:process already named)
+// the same, in the words of the page's demo bar (what a person using the app would miss)
+std::string rowKind(const std::string& r) {
+  auto starts = [&](const char* p) { return r.rfind(p, 0) == 0; };
+  if (starts("sock") || starts("net") || starts("http") || starts("tls") || starts("mqtt") || starts("osc") || starts("dns") || starts("crypto") || starts("ws") || starts("osNet")) return "network servers and sockets";
+  if (starts("proc") || starts("sig") || starts("stdin")) return "processes";
+  if (starts("ev") || starts("loop")) return "";   // (the events of the services above: nothing of its own to a person)
+  if (starts("assets")) return "asset packs";
+  if (starts("worker")) return "threads";
+  return "native services";
+}
+
 // The codec and the container of a video file, read from its bytes (the head and the tail: an MP4 may keep its index at the end): "hevc", "av1", "vp9", "vp8", "h264" or "".
 std::string sniffVideoCodec(const fs::path& f) {
   std::ifstream in(f, std::ios::binary);
@@ -433,6 +456,7 @@ struct Common {
   std::vector<std::pair<std::string, std::string>> wasmOut;   // the native code of plugins built for the page: module name, url
   std::vector<std::pair<std::string, std::string>> scriptOut;   // the libraries plugins load on first use: name, url
   std::vector<std::string> rowJs;   // the rows-*.js files the program needs (loaded into native.js)
+  std::vector<std::string> missing;   // what the page cannot do, for its demo bar: native sides without a browser backend, then kinds of host services
 };
 // `bundle`: the minified bundle, whose reachable code names the host rows the program really calls ("" in dev: the staged modules hold unused code too, so every row they name gets a stub and nothing is reported)
 Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundle = "") {
@@ -465,6 +489,7 @@ Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundl
   const std::string browsers = !a.browsers.empty() ? a.browsers : c.cfg.browsers;
   std::string warnings = webCheckReport(c.browsersJson, browsers, std::vector<std::string>(needs.begin(), needs.end()), "the web host");
   for (const WebPlugin& p : c.used) warnings += webCheckReport(c.browsersJson, browsers, p.needs, "plugin " + p.name);
+  for (const std::string& nm : sc.natives) if (!claimed.count(nm)) c.missing.push_back(nm);
   for (const std::string& nm : sc.natives) if (!claimed.count(nm)) warnings += "warning W0602: the native side '" + nm + "' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported (docs/targets/web.md, \"The dev bridge\")\n";
   std::set<std::string> have = implementedRows(c.runtime);
   const std::vector<RowFile> rf = rowFiles(runtimeDir(a));
@@ -478,6 +503,8 @@ Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundl
     if (have.count(r)) continue;
     c.unsupported.push_back(r);
     if (r.rfind("layout", 0) != 0 || c.cfg.rnLayout) why.insert(rowWhy(r));   // the layout rows are in zinc:ui whatever the layout: reported only when zinc.json asks for rn
+    if (!bundle.empty() && r.rfind("layout", 0) != 0)   // (the page lays out by itself: the classic layout stands in for Yoga)
+      if (const std::string m = rowKind(r); !m.empty() && !(m == "processes" && named(c.missing, "Process")) && std::find(c.missing.begin(), c.missing.end(), m) == c.missing.end()) c.missing.push_back(m);
   }
   if (!bundle.empty()) for (const std::string& w : why) warnings += "warning W0603: the program calls " + w + ": it throws ZnUnsupported in the browser\n";
   for (const WebPlugin& p : c.used) for (const std::string& n : p.needs) needs.insert(n);
@@ -686,6 +713,13 @@ std::string configJson(const WebArgs& a, const Cfg& c, const Common& cm, const s
     }
   }
   if (!cm.rowJs.empty()) j += ",\"rows\":true";
+  if (!dev && (!cm.missing.empty() || !c.demoNote.empty() || !c.demoSamples.empty())) {   // an export that lacks parts of the app says so in a bar (runtime.js demoBar)
+    j += ",\"demo\":{\"link\":" + jstr(c.demoLink) + ",\"note\":" + jstr(c.demoNote) + ",\"missing\":[";
+    for (std::size_t i = 0; i < cm.missing.size(); ++i) j += (i ? "," : "") + jstr(cm.missing[i]);
+    j += "],\"samples\":{";
+    for (std::size_t i = 0; i < c.demoSamples.size(); ++i) j += (i ? "," : "") + jstr(c.demoSamples[i].first) + ":" + jstr(c.demoSamples[i].second);
+    j += "}}";
+  }
   j += ",\"unsupported\":[";
   for (std::size_t i = 0; i < cm.unsupported.size(); ++i) j += (i ? "," : "") + jstr(cm.unsupported[i]);
   j += "],\"wasm\":[";

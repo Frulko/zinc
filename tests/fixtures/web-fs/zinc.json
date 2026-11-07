@@ -2,5 +2,5 @@
   "name": "web-fs",
   "entry": "src/main.ts",
   "requires": ["fs"],
-  "targets": { "web": { "files": ["data"] } }
+  "targets": { "web": { "files": ["data"], "demo": { "link": "https://example.org/app", "samples": { "Spotify": "data" } } } }
 }

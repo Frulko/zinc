@@ -30,3 +30,6 @@ export function requireFeature(feature: string): void { throw new ZnUnsupported(
 export function shippedBy(feature: string): string { return ''; }
 /** A bar at the bottom of the page with `text` (a short sentence): the plain way to say that a part of the app is off in this browser. */
 export function banner(text: string): void { console.warn(text); }
+/** The folder of sample data the app ships for a part a web page cannot run (zinc.json targets.web.demo.samples, by native side or plugin name), or ''
+ *  outside an exported page: the app reads it and labels it as samples (the page's demo bar says so too). Never real data. */
+export function sampleData(name: string): string { return ''; }

@@ -37,3 +37,4 @@ export function banner(text: string): void {
   }
   bar.textContent = text;
 }
+export function sampleData(name: string): string { return Z.demoSample(name); }

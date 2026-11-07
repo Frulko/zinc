@@ -51,6 +51,7 @@ dist/hero-web/
     "icon": "assets/icon.png", "pwa": true,   "comment2": "scroll: \"app\" (a window-sized stage) or \"page\" (the document scrolls, dom render)",
     "width": 960, "height": 600,                         "comment": "a fixed surface; without them the app fills the window and follows its size",
     "files": ["data", "media"],                          "comment3": "project files and folders the program reads by their path, shipped read-only (see Files)",
+    "demo": { "link": "https://example.org/download", "note": "", "samples": { "Spotify": "demo/spotify" } },   "comment4": "see Demo pages",
     "strict": false } } }
 ```
 
@@ -281,6 +282,21 @@ Three layers tell a program, and its author, what the browser gives.
 
 3. **When a call cannot be served**, it throws `ZnUnsupported` (`error.code === 'ZN_UNSUPPORTED'`, `error.feature`) instead of crashing. An exception nobody catches shows as a bar at the bottom of the page in an
    export and as an overlay in `zinc dev`; the app's frame loop goes on.
+
+### Demo pages: what the page cannot run says so
+
+An export whose program uses parts no browser can run (a native side with no browser backend, the W0602 list: `zinc:process`, `zinc:cdp`, a device plugin; and the
+host services of W0603: network servers and sockets, processes, threads) opens with one bar at the top of the page: *Web demo: Cdp, Process and Three need the desktop app.*
+The person can close it. `zinc dev` never shows it (its bridge runs those parts on your machine).
+
+- `targets.web.demo.link`: a "Get the app" link in the bar (the download page of the desktop app).
+- `targets.web.demo.note`: the bar's text instead of the generated one.
+- `targets.web.demo.samples`: `{ "<native side or plugin>": "<folder>" }`. The folder ships with the page (as `files` do), the bar says that part *shows sample data*,
+  and `sampleData(name)` of `zinc:browser` gives the folder (`''` outside an exported page), so the app reads its samples and labels them as such. The page never fakes
+  a device or a service: a call to a missing part still throws `ZnUnsupported`, which the app catches and shows (the iPod demo says it could not look for iPods).
+- `sys.onSignal` is accepted in a page and never fires (a tab is never sent SIGINT), so a program that installs a handler at start runs.
+
+`tests/t1/web_demo.sh` exports `examples/museum-table` and `examples/ipod` and checks the bar and that nothing threw.
 
 ### Support matrix
 
