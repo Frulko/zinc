@@ -70,4 +70,16 @@ assert b['video.buffers']['objects'] == b['video.sources']['objects'] == 0, b
 assert b['video.buffers']['cpuBytes'] == b['images']['borrowedBytes'] == 0, b
 PY
 fi
-echo 'resource_stats: ok (interpreter, native create/destroy)'
+# ZINC_RESOURCE_LOG: one JSON line per period with the process's memory and the same counters (the first at the first frame)
+cat > "$tmp/frames.ts" <<'TS'
+import { onFrame, clear } from 'zinc:gfx';
+onFrame((): void => { clear(0); });
+TS
+ZINC_HEADLESS=1 ZINC_FRAMES=5 ZINC_RESOURCE_LOG="$tmp/res.jsonl:60" "$ZINC" run --interp "$tmp/frames.ts" > /dev/null
+python3 - "$tmp/res.jsonl" <<'PY'
+import json, sys
+rows = [json.loads(line) for line in open(sys.argv[1])]
+assert len(rows) == 1 and rows[0]['t'] == 0, rows
+assert 'images' in rows[0]['stats'] and rows[0]['rssKB'] >= 0, rows
+PY
+echo 'resource_stats: ok (interpreter, native create/destroy, periodic log)'

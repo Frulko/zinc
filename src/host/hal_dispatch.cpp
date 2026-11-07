@@ -316,6 +316,32 @@ static void heartbeat() {
   const char* st = zrt::display_driver && hal_display->device ? hal_display->device("window.state", nullptr) : nullptr;
   if (FILE* f = fopen(path, "w")) { fputs(st ? st : "full", f); fclose(f); }
 }
+// ZINC_RESOURCE_LOG=<file>[:seconds] (an app that runs for days and gets slower): every 30 s (or `seconds`), one line appended with the
+// seconds since start, the process's resident memory and the counters of every module (images, GPU textures, fonts, JS heap...; the
+// inspector's Info view), so a slow growth shows which module grows. The counters are read with the render thread idle.
+extern "C" const char* zn_resource_stats_json(void) __attribute__((weak));
+extern "C" void zrt_render_idle(void) __attribute__((weak));
+static long resident_kb() {
+  long kb = 0;
+  if (FILE* f = fopen("/proc/self/statm", "r")) { long size = 0, res = 0; if (fscanf(f, "%ld %ld", &size, &res) == 2) kb = res * 4; fclose(f); }   // ponytail: 4 KB pages (ARM, x86 Linux)
+  return kb;
+}
+static void resource_log() {
+  static const char* spec = getenv("ZINC_RESOURCE_LOG");
+  if (!spec || !*spec || !zn_resource_stats_json) return;
+  static std::string path; static int period = 0;
+  static const auto start = std::chrono::steady_clock::now();
+  static std::chrono::steady_clock::time_point next;
+  if (!period) { path = spec; const size_t c = path.rfind(':'); period = 30; if (c != std::string::npos && atoi(path.c_str() + c + 1) > 0) { period = atoi(path.c_str() + c + 1); path.resize(c); } }
+  const auto now = std::chrono::steady_clock::now();
+  if (now < next) return;
+  next = now + std::chrono::seconds(period);
+  if (zrt_render_idle) zrt_render_idle();
+  if (FILE* f = fopen(path.c_str(), "a")) {
+    fprintf(f, "{\"t\":%lld,\"rssKB\":%ld,\"stats\":%s}\n", (long long)std::chrono::duration_cast<std::chrono::seconds>(now - start).count(), resident_kb(), zn_resource_stats_json());
+    fclose(f);
+  }
+}
 #ifdef ZN_HOST_SDL
 #define PICK(live_expr, null_expr) (live ? (live_expr) : (null_expr))
 #ifdef ZN_WINDOW_SEPARATE
@@ -354,7 +380,7 @@ int zn_hal_wants_window(void) { return !headlessRequested() && zn_window_load();
 void hal_init(const HalConfig* c) { live = c->gfx && zn_hal_wants_window(); if (live) sdl_hal_init(c); else null_hal_init(c); }
 void hal_shutdown(void) { if (live) sdl_hal_shutdown(); else null_hal_shutdown(); }
 void hal_frame_begin(void) { if (live) sdl_hal_frame_begin(); else null_hal_frame_begin(); }
-void hal_frame_end(void) { heartbeat(); if (live) sdl_hal_frame_end(); else null_hal_frame_end(); }
+void hal_frame_end(void) { heartbeat(); resource_log(); if (live) sdl_hal_frame_end(); else null_hal_frame_end(); }
 // a window takes a ZINC_INPUT script too (ZN-744): a scripted fling measured on a real display (a phone, the desktop window); the script's pointer and
 // fingers then replace the live ones
 static bool windowScript() { static const bool on = [] { const char* p = getenv("ZINC_INPUT"); return p && *p; }(); return on; }
@@ -385,7 +411,7 @@ int zn_hal_wants_window(void) { return 0; }
 void hal_init(const HalConfig* c) { null_hal_init(c); }
 void hal_shutdown(void) { null_hal_shutdown(); }
 void hal_frame_begin(void) { null_hal_frame_begin(); }
-void hal_frame_end(void) { heartbeat(); null_hal_frame_end(); }
+void hal_frame_end(void) { heartbeat(); resource_log(); null_hal_frame_end(); }
 void hal_poll_input(HalInput* in) { null_hal_poll_input(in); applyScript(in); }
 void hal_present(const HalFrame* f) { null_hal_present(f); }
 int32_t hal_present_async(void) { return 1; }

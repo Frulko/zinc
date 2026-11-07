@@ -351,7 +351,8 @@ void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
   static const bool scripted = getenv("ZINC_INPUT") != nullptr;   // a scripted run (measurements): the script's pointer stays while no finger is on the screen
   bool any = false;
   for (const Finger& g : fingers) any = any || g.phase != IDLE;
-  if (scripted && !any) { if (quit) in->quit = 1; return; }
+  // in->quit = quit, as below: it clears the headless HAL's 60-frame budget (a cross build has no SDL HAL); ZINC_FRAMES is display_gl.cpp's poll()
+  if (scripted && !any) { in->quit = quit; return; }
   in->ntouch = 0;
   for (Finger& g : fingers) {
     if (g.phase == LEFT) g.phase = IDLE;

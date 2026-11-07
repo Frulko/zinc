@@ -96,10 +96,17 @@ ZnResourceStats runtimeStats(void*) { return {zn::rt::gAllocs() - zn::rt::gFrees
 std::string resourceSnapshot() {
   static ZnResourceStatsRegistration runtimeStatsRegistration("runtime.blocks", runtimeStats);
   static ZnResourceStatsRegistration assetsStats("assets.resident", assetStats);
+  // Two copies of one module (the GL replay is in the window host and in the display-gl plugin) register the same name: their counters add up
   std::string out = "{";
+  bool done[64] = {};
   for (unsigned i = 0; i < resourceProviderCount; ++i) {
-    const auto& p = resourceProviders[i]; const auto v = p.read(p.owner);
-    if (i) out += ",";
+    if (done[i]) continue;
+    const auto& p = resourceProviders[i]; auto v = p.read(p.owner);
+    for (unsigned j = i + 1; j < resourceProviderCount; ++j) if (!done[j] && !std::strcmp(resourceProviders[j].name, p.name)) {
+      const auto& q = resourceProviders[j]; const auto w = q.read(q.owner); done[j] = true;
+      v.objects += w.objects; v.cpuBytes += w.cpuBytes; v.gpuBytes += w.gpuBytes; v.borrowedBytes += w.borrowedBytes; v.active += w.active;
+    }
+    if (out.size() > 1) out += ",";
     out += "\"" + std::string(p.name) + "\":{\"objects\":" + std::to_string(v.objects) +
       ",\"cpuBytes\":" + std::to_string(v.cpuBytes) + ",\"gpuBytesEstimate\":" + std::to_string(v.gpuBytes) +
       ",\"borrowedBytes\":" + std::to_string(v.borrowedBytes) + ",\"active\":" + std::to_string(v.active) + "}";
@@ -114,7 +121,8 @@ extern "C" const char* zn_resource_stats_json(void) {
 extern "C" void zn_resource_stats_register(const char* name, ZnResourceStatsFn read, void* owner) {
   if (!name || !read) return;
   for (const char* c = name; *c; ++c) if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '.' || *c == '_')) return;
-  for (unsigned i = 0; i < resourceProviderCount; ++i) if (!std::strcmp(resourceProviders[i].name, name)) {
+  // the same provider again (a new owner) replaces itself; another provider of that name is kept beside it (resourceSnapshot adds them up)
+  for (unsigned i = 0; i < resourceProviderCount; ++i) if (!std::strcmp(resourceProviders[i].name, name) && resourceProviders[i].read == read) {
     resourceProviders[i] = {name, read, owner}; return;
   }
   if (resourceProviderCount < 64) resourceProviders[resourceProviderCount++] = {name, read, owner};
