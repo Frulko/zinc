@@ -1519,3 +1519,21 @@ zinc:video on the same machine, `render_media`, 30 s real time, H.264 720p25 dra
 ZN-1000, an animating window that nobody sees (develop binary -> fix): hidden with `orderOut` 115.6 -> 10.5 fps, minimized 101.2 -> 8.8 fps, covered by other windows: one frame waited 1008.1 ms -> longest gap 103.8 ms (the idle pace); shown again 58-62 fps, first frame within 30-40 ms; a visible window unchanged at 59-61 fps. CPU of a 1100x700 window drawing 300 rects, hidden 10 s: 2.55 s -> 0.29 s (user+sys). `nextDrawable` now waits at most 50 ms. Minimize and restore still hold the event pump 0.56-0.65 s each way (the genie animation inside `SDL_PollEvent`), unchanged.
 
 ZN-1001, a headless program that starts a worker, exchanges 50 messages and terminates it, in a loop: interpreter 1400 workers in 50 s, open files 7 -> 3091 and RSS 13 -> 30 MB, live heap after 1000 workers 9025 KB; after the fix 6000 workers in 3 min, open files flat at 13, RSS 10.7-13.2 MB, live heap 994 KB. QuickJS: open files 8 -> 716 in 30 s before, flat at 16 (RSS 26-29 MB) over 90 s after.
+
+## A chat of 10 million messages — 2026-11-07 (M1 Pro, load 3.5-5, no other build)
+
+Asked by the owner after a post that shows a native chat of 10 million messages in 280 MB at 1 % CPU. `bench/chat-10m`: one `VirtualList` with `estimatedItemHeight`, rows of their own heights (avatar, name, time, 2 to 48 words), the messages in two columns (`u8[]` author, `i32[]` minute), the words made from the index. Peak footprint by `/usr/bin/time -l`, headless, 30 frames:
+
+| | interpreter | compiled (`--native`) | QuickJS |
+|---|---:|---:|---:|
+| 10 M messages, start to 30 frames | 1.8 s, 597 MB | 4.9 s (with the compile), 612 MB | 4.9 s, 908 MB |
+| the same data, a list of 10 rows | 1.35 s, 258 MB | 1.8 s, 292 MB | 2.0 s, 349 MB |
+| 10 M with fixed `itemHeight` | 1.39 s, 264 MB | | |
+
+Where it goes: a `u8[]` or `i32[]` keeps 8 bytes per element on the interpreter and the compiled run alike (10 M `u8` pushed: 188 MB peak, 10 M `i32`: 205 MB; growth by doubling holds the old and the new storage at the copy), and a list with rows of their own heights keeps three arrays per row (`hs`, `known`, `tree`: about 24 bytes a row, 340 MB at 10 M; fixed rows keep none). The same data packed is 50 MB.
+
+Window 1200x760 @2x in the background, `ps` CPU over 10 s after 10 s, `footprint`: at rest **0.3 %** of a core, 441 MiB (CPU raster through Metal); scrolling 6 px a frame **38 %** with 10 M messages and with 1 000 (the list's size costs nothing per frame: it is the full-window raster at 2x); `ZINC_RENDERER=gl` scrolling **9 %**, at rest 4.7 %, 552 MiB.
+
+Fixed the same day: scrolling up with the trackpad or the wheel through rows not yet measured made what was shown jump (the offset followed the measured rows, the running gesture did not; `tests/t0/virtual_settle.sh`). Measured frame by frame on a `ZINC_INPUT` gesture of 14 px a frame: before, moves of 14 14 14 10 with outliers of 30, 19 and 0; after, 14 on every frame.
+
+Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` and the typed arrays as globals (`Uint8Array` is only in `zinc:gl`); one array per row instead of three in a variable list; the GL renderer's idle cost; the raster's cost per scrolled frame.

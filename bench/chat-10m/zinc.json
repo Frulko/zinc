@@ -1,0 +1,7 @@
+{
+  "name": "chat-10m",
+  "entry": "src/main.tsx",
+  "scheme": "dark",
+  "text": "shaped",
+  "targets": { "macos": { "width": 1200, "height": 760, "resize": "fill" } }
+}

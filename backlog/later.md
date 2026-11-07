@@ -742,6 +742,9 @@ The next backlog review turns lines into tasks or deletes them.
 - TouchPad: a runtime image drawn by the GL renderer keeps its CPU pixels beside its texture (30 MB + 20 MB for music-tree's 120 pictures); dropping the CPU copy of an image never written again would halve picture memory on 1 GB devices.
 - TouchPad: zgl_backend_trace has no webOS definition (ZINC_GL_TRACE's per-frame GPU line never prints there); ZINC_TRACE works. A ZINC_INPUT script runs faster than real time between painted frames, so a scripted scroll does not measure what a finger feels.
 - TouchPad: music-tree's home page takes 60 to 190 ms a frame for its first 5 s (blurred living backdrop and covers arriving); measure the backdrop alone.
+- chat-10m (2026-11-07, docs/reports/zinc-next-perf.md): `u8[]`/`i32[]`/`f32[]` keep 8 bytes an element on the interpreter and the compiled run (10 M `u8`: 188 MB peak); compact storage by element type would cut a big data set 4 to 8 times; and `Uint8Array`/`Int32Array` are refused outside `zinc:gl` although they are standard TypeScript.
+- chat-10m: a `VirtualList` with `estimatedItemHeight` keeps `hs`, `known` and `tree` per row (24 bytes, 340 MB at 10 M rows); the Fenwick tree alone gives a row's height (two prefixes) and a negative value can mark unmeasured, one array instead of three.
+- chat-10m: scrolling a 1200x760 @2x window costs 38 % of a core on the CPU raster against 9 % on `ZINC_RENDERER=gl`, which in turn costs 4.7 % at rest (0.3 % raster) and 100 MiB more: profile both.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
