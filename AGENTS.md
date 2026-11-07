@@ -80,14 +80,14 @@ Never ask the owner to choose, confirm or approve a design or technical decision
 - Pick the best option (score it as `RULES.md` §4 says when it matters), write the choice and why in the task notes or a decision record, and go on. A reversible choice is made at once.
 - Only an irreversible or outward-facing step (publishing, pushing, deleting data, spending money, sending a message) waits for the owner: do everything up to it and leave the exact command in the task notes.
 
-## Focus on the development platform; cross-platform comes last (owner, 2026-10-10)
+## Development platform first; the cross-platform work advances on two test machines (owner, 2026-10-10, revised 2026-11-07)
 
-For now the engine is built and tested on the development Mac only. Do as many backlog tasks as possible there.
+The engine is built on the development Mac. Since 2026-11-07 the cross-platform work advances too, cross builds included, proven on the two test machines of "The test machines" below (a Raspberry Pi 3B+ with the player, an Intel Mac on Mojave).
 
-- No builds or tests for ARM, Raspberry Pi, ESP32, Linux, the handhelds or the CHIP during a task (no `--target` cross builds, no QEMU, no `cross*` tests). Keep the code portable, but do not prove it on those targets now.
-- A task that touches a cross target: implement it, write its test, and write the cross-target verification as one line under "Cross-platform pass" in `backlog/later.md` (no new task while the backlog is frozen).
-- The cross-platform pass (the deferred group, the handheld and board milestones, their tests) is done at the end, as one phase.
-- Windows is a target (owner, 2026-10-11): it opens that pass, before the handhelds and the boards. Mobile (iOS, Android) stays at its end.
+- Cross builds (`zinc build --target`, `zinc export --target rpi`, the pinned zig) run on the development Mac, one at a time: a cross build counts as a building tree ("Spare the machine").
+- Prove a cross change with a short run on the test machine (deploy, a few frames or one command, `timeout` on it), as for any task; long runs and measurements there are listed under "Tests to run" in `RESUME.md`.
+- No QEMU and no emulators when the real machine is there. Targets without a machine (ESP32, the handhelds, the CHIP, Windows, mobile) stay as before: implement, write the test, and one line under "Cross-platform pass" in `backlog/later.md`.
+- Windows opens the rest of the pass when a machine is there; mobile (iOS, Android) stays at its end.
 
 ## Move fast: tests at big milestones, chosen by the owner (owner, 2026-10-10, revised 2026-11-07)
 
@@ -218,6 +218,15 @@ How it reads (owner, 2026-10-31): well-written Markdown that a person reads with
 ## The development machine
 
 An Apple M1 Pro Mac (arm64, 10 cores: 8 performance and 2 efficiency, 16 GB, macOS 15; until 2026-10 it was an Intel i7-9750H, and the build times and heat figures of older reports were measured there): builds through `tools/build`; ccache is `~/.local/bin/ccache`; Homebrew lives in `/opt/homebrew`; Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. 16 GB is the limit when several trees build: keep to the two building trees and the one heavy process of "Spare the machine". Known machine-specific test failures are listed in `RESUME.md`.
+
+## The test machines (owner, 2026-11-07)
+
+| Machine | Reach | What it is for |
+|---|---|---|
+| Raspberry Pi 3B+ (aarch64, 1 GB, Debian 13 trixie, the Zinc player image: `zinc-agent`, `zinc-shell`, `zinc-power-guard`) | `ssh spark@192.168.2.31` (hostname `zinc-player`); `zinc device` pairs with its agent | Linux ARM: cross builds and exports for `rpi`, the player and the shell, `zinc device` deploy, GPU and memory limits of a small board |
+| Intel MacBook Pro (i5-4288U, 8 GB, macOS 10.14.6 Mojave, x86_64) | `ssh mowmow@192.168.2.215` | Older and Intel macOS: the x86_64 build, the oldest supported macOS, packages and `.app` bundles on it |
+
+Both are shared with the owner: deploy under a directory of your own (`~/zn/<name>/` on the Pi), never touch what is already in the home directories, never restart the Pi's `zinc-shell` or agent unless the task is about them, and leave no process running. The Pi has 1 GB: one Zinc program at a time on it.
 
 ## App and demo authoring skills
 
