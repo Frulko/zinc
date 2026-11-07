@@ -781,6 +781,9 @@ struct FnEmitter {
           case ir::Builtin::MathSinh: op = Op::SinhF64; break;
           case ir::Builtin::MathCosh: op = Op::CoshF64; break;
           case ir::Builtin::MathTanh: op = Op::TanhF64; break;
+          case ir::Builtin::MathAsinh: op = Op::AsinhF64; break;
+          case ir::Builtin::MathAcosh: op = Op::AcoshF64; break;
+          case ir::Builtin::MathAtanh: op = Op::AtanhF64; break;
           case ir::Builtin::MathHypot: op = Op::HypotF64; break;
           case ir::Builtin::MathSign: op = Op::SignF64; break;
           case ir::Builtin::MathFround: op = Op::FroundF64; break;

@@ -70,7 +70,8 @@
   X(SqrtFx12, ABC, I, _, I) X(SqrtFx16, ABC, I, _, I) X(SinFx12, ABC, I, _, I) X(SinFx16, ABC, I, _, I) X(CosFx12, ABC, I, _, I) X(CosFx16, ABC, I, _, I) \
   X(LogFx12, ABC, _, _, _) X(LogFx16, ABC, _, _, _) \
   /* debug builds only (zinc debug, ZN-371.01): the first instruction of a statement, AX = its index in Module::lines; the interpreter stops there when the debugger asks */ \
-  X(Line, LX, _, _, _)
+  X(Line, LX, _, _, _) \
+  /* the rest of Math (ZN-699): the inverse hyperbolic functions */ X(AsinhF64, ABC, D, _, D) X(AcoshF64, ABC, D, _, D) X(AtanhF64, ABC, D, _, D)
 
 namespace zn {
 

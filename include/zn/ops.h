@@ -166,6 +166,9 @@ inline Slot fxSlot(std::int32_t v) { return sx32(v); }
   X(SinhF64, fromD(std::sinh(asD(x)))) \
   X(CoshF64, fromD(std::cosh(asD(x)))) \
   X(TanhF64, fromD(std::tanh(asD(x)))) \
+  X(AsinhF64, fromD(std::asinh(asD(x)))) \
+  X(AcoshF64, fromD(std::acosh(asD(x)))) \
+  X(AtanhF64, fromD(std::atanh(asD(x)))) \
   X(SignF64, fromD(asD(x) > 0 ? 1.0 : asD(x) < 0 ? -1.0 : asD(x))) \
   X(FroundF64, fromD(static_cast<double>(static_cast<float>(asD(x))))) \
   X(Clz32F64, fromD(std::countl_zero(static_cast<std::uint32_t>(static_cast<std::int64_t>(asD(x)))))) \

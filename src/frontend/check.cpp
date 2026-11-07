@@ -508,7 +508,7 @@ struct Checker {
     ObjInfo math;
     math.name = "Math";
     for (const auto& constant : zn::mathConstants) math.members.push_back({std::string(constant.name), num(gNumber), true, false});
-    for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "exp", "log", "cbrt", "log2", "log10", "log1p", "expm1", "asin", "acos", "sinh", "cosh", "tanh", "sign", "fround", "clz32"}) mathFn(f, 1, math);
+    for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "atan", "exp", "log", "cbrt", "log2", "log10", "log1p", "expm1", "asin", "acos", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "sign", "fround", "clz32"}) mathFn(f, 1, math);
     for (const char* f : {"pow", "atan2", "min", "max", "hypot"}) mathFn(f, 2, math);
     math.members.push_back({"imul", func({num(Num::i32), num(Num::i32)}, num(Num::i32), 2), true, true});
     out.objs.push_back(math);

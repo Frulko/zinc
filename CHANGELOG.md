@@ -72,6 +72,12 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - An exported page whose program read a file's bytes (`readBytes` of `zinc:fs` or `zinc:assets`, as the hero demo's map does) no longer stops at start with `__qjs_bytes is not defined`, an app that makes transparent images no longer gets a W0603 warning for it, and a program that installs a signal handler at start (`sys.onSignal`) runs in a page.
 
+### Language
+
+#### Fixed
+
+- `Math.atan`, `Math.asinh`, `Math.acosh` and `Math.atanh` were refused by the checker; they now work on every engine.
+
 ### Developer tools
 
 #### New
