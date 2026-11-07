@@ -5,6 +5,8 @@ tool output staying in the context, so every runner prints a summary and writes 
 
 ## What to run (read this first)
 
+**Owner rule (2026-11-07), above everything below:** tests run at big milestones, and the owner chooses them (AGENTS.md "Move fast"). A task is proven by the feature working (one short run) and at most a seconds-long T0 `--only`; T1, T2, `tests/demo`, pixel compares, benchmarks, conformance and fuzz start only when the owner asks, and are listed under "Tests to run" in `RESUME.md` until then. Demos and apps get **Proposed tests**, not new tests. The rest of this section is how those runs work once chosen.
+
 A task ends with the tests that cover **what it touched**, not with the corpus. Time spent on tests nobody needed is the most common waste of a session.
 
 - `tests/run --changed` runs the T0/T1 tests mapped to the files changed since HEAD (`tests/affected.json`; add a mapping when you add a module or a test). It prints `pixel canary` when the change is visible: then `tools/proto-capture compare` (4 entries, 4 seconds).

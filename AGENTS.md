@@ -50,23 +50,23 @@ The work is a backlog of precise tasks managed with **Backlog.md** (`backlog` CL
 - Order of work: `backlog/priority.json` and the `ordinal` of each task; `tools/next-task` prints the task to do (`--list N`, `--why`). The whole order comes from a review (`docs/reports/backlog-review-2026-10-10.md`, asked by the owner): the showcase demos first, then one list of everything that can be worked on the Mac, features and demos before hardening, then the cross-platform pass. No new task while the backlog is frozen (see "Keep the backlog shrinking" below). An epic (a task with open subtasks) is never handed out. Labels: `size-S/M/L`, topics (`perf`, `ui`...), `parked` (needs a board, Windows or a paid account; ordinal 90000+, skipped), `needs-board`.
 - `tools/status`: next tasks, progress per milestone, uncommitted work. `tools/tasks-import file.json`: bulk task creation with dependencies by key (`backlog/keys.json`).
 - Commands: `backlog task <id> --plain`, `backlog task edit <id> -s "In Progress"`, `--check-ac <n>`, `--notes`/`--append-notes`, `backlog task create "title" -p <parent> --ac ... -m <milestone> -l <labels>`.
-- A session: `/loop /zn-start` takes the next batch (the next task and up to four more of the same module), works each task start to end with its own commit (criteria ticked on real test output, Done or left open with a handover note), then `/zn-end` closes the batch once (`RESUME.md`, usage, next task). `.paused` stops the loop.
+- A session: `/loop /zn-start` takes the next batch (the next task and up to four more of the same module), works each task start to end with its own commit (criteria ticked on the feature's short run, Done or left open with a handover note), then `/zn-end` closes the batch once (`RESUME.md`, usage, next task). `.paused` stops the loop.
 - Commits: English, conventional (`type(scope): imperative description`, 72 chars max), no co-author, explicit paths (never `git add .`), the task file in the same commit as its code. Never commit someone else's uncommitted changes. Pushing is the owner's step. The `commit-msg` hook in `.githooks/` refuses a message that breaks these rules (type, 72 chars, English, final period, co-author): fix the message, never pass `--no-verify`. Enable it once per clone: `git config core.hooksPath .githooks` (worktrees share the setting).
 
 ## Several tasks at once: one worktree per agent
 
 Independent tasks can be worked in parallel: a coordinator session hands them out, and each agent works one task in its own git worktree and branch, so no two agents share a working tree, a build directory or an index.
 
-- **Choose** with `tools/next-task --list 10`: tasks with no dependency between them that touch different modules (their labels, `tests/affected.json`). Two tasks in the shared core (IR, runtime, raster, layout, text, `lib/std/ui.ts`) never run together. Three trees building at most on the development Mac in all, whoever started them: the loop's own tree counts when it builds, and `git worktree list` shows the agents of the other sessions. Agents that do not build (research, documents, a fix in a test) do not count.
+- **Choose** with `tools/next-task --list 10`: tasks with no dependency between them that touch different modules (their labels, `tests/affected.json`). Two tasks in the shared core (IR, runtime, raster, layout, text, `lib/std/ui.ts`) never run together. Two trees building at most on the development Mac in all, whoever started them ("Spare the machine"): the loop's own tree counts when it builds, and `git worktree list` shows the agents of the other sessions. Agents that do not build (research, documents, a fix in a test) do not count.
 - **Claim**: before the agents start, the coordinator reserves every task it hands out with `tools/next-task --claim ZN-a ZN-b` (refused, with nothing changed, when a task is already worked, claimed, parked or waiting) and commits the task files on develop: `tools/next-task` skips a task that has an assignee, so the loop on develop never takes it. `next-task --release ZN-a` gives a task back.
 - **Chains**: small tasks of one module go to one agent, in order, one commit per task: one worktree, one warm build, no conflict between them.
 - **The base**: a new worktree may start from `origin/main`, which is only the last release. The agent's first command is `git reset --hard develop` (the local develop), before it reads or builds anything.
 - **The agent** works its task as `/zn-start <id>` says, in its worktree, and commits code, test and task file on its branch. It leaves alone the files every task writes: `RESUME.md`, `backlog/priority.json`, `backlog/keys.json`, `docs/reports/zinc-next-decisions.md`, `docs/reports/zinc-next-perf.md`. It creates no task and no decision number (ids are allocated per tree and would collide): the lines for `backlog/later.md`, decisions and measured numbers go in the task notes and in its final report.
-- **The coordinator** integrates one branch at a time on develop (`git cherry-pick develop..<branch>`, linear history), builds once, runs the tests of the integrated tasks, then writes what the agents left: decision records, the performance log, the lines of `backlog/later.md`, `RESUME.md`. Then `git worktree remove <path>` and `git branch -D <branch>`.
+- **The coordinator** integrates one branch at a time on develop (`git cherry-pick develop..<branch>`, linear history), builds once, runs each integrated feature once (a short run, as for a task), adds the agents' proposed tests to "Tests to run" in `RESUME.md`, then writes what the agents left: decision records, the performance log, the lines of `backlog/later.md`, `RESUME.md`. Then `git worktree remove <path>` and `git branch -D <branch>`.
 - **A conflict** at integration is resolved by the coordinator when it is a few lines; otherwise the task goes back to an agent in a fresh worktree of the updated develop.
 - **Builds** go through `tools/build [target...]` in every tree, never a bare `cmake --build -jN`: one job per physical core, and make starts no new job while the load average is above the core count (above the core count the total work done drops), so trees that build at once share the cores instead of piling up, and a new build directory is configured with ccache (paths relative to the repository), so a fresh worktree reuses what another tree compiled. A task that changes only a test, a tool or a document builds nothing: it runs its test against the main tree's binary (`ZINC=<main>/build/zinc`, read-only).
 - **No synthetic load**: never start `yes` loops, stress runs or a second full build to "test under load" while other trees work; say what was not proven instead.
-- **Tests**: an agent runs its task's own test. Tests that open a window, bind a fixed port or measure time (benchmarks, `system_instance`, the macOS window tests) run only after integration, alone: a number measured while other agents build is not valid.
+- **Tests**: an agent runs no suite (see "Move fast"): it proves its feature with a short run and lists its proposed tests in its report. Tests that open a window, bind a fixed port or measure time (benchmarks, `system_instance`, the macOS window tests) run only at a milestone the owner chose, alone: a number measured while other agents build is not valid.
 
 ## Decide alone: the owner is not at the keyboard (owner, 2026-10-10)
 
@@ -85,19 +85,30 @@ For now the engine is built and tested on the development Mac only. Do as many b
 - The cross-platform pass (the deferred group, the handheld and board milestones, their tests) is done at the end, as one phase.
 - Windows is a target (owner, 2026-10-11): it opens that pass, before the handhelds and the boards. Mobile (iOS, Android) stays at its end.
 
-## Move fast: finish tasks, prove only what changed (owner, 2026-10-10)
+## Move fast: tests at big milestones, chosen by the owner (owner, 2026-10-10, revised 2026-11-07)
 
-The goal of a session is progress on the backlog: finish tasks, improve and complete the engine. Tests exist to prove a change, not to fill the session.
+The goal of a session is progress on the backlog: finish tasks, improve and complete the engine. Test runs are long, burn the machine's energy and memory, and stop the backlog: they run at big milestones, and the owner chooses which.
 
-**Feature first, tests after (owner, 2026-10-31).** Building a feature, go straight to the goal: make it work in the real app or on the real device, look at what it changes, then test. No test run between every edit while the feature takes shape; iterate in small steps and take the quick wins first. The tests come once the feature works, and prove it before the commit that closes it.
+**Feature first (owner, 2026-10-31).** Go straight to the goal: make it work in the real app, look at what it changes. Iterate in small steps, quick wins first.
 
-- Before running a test, ask what it proves. If your change cannot make it fail, do not run it.
-- End of a task: the task's own test (`tests/run --only <name>`) and the few tests that cover the files you touched. Run `tests/run --changed` only when it maps to a handful of tests; when it falls back to the whole tier, pick the relevant tests yourself.
-- End-to-end runs (full T1, T2, the demos, `examples_all`, the WebGL conformance, benchmarks, fuzz) belong to large milestones or to changes in the shared core (IR, runtime, raster, layout, text). Start them in the background and keep working; never wait for them.
-- A command that runs for more than a minute is a background job. Do not re-run a suite that already passed for code you did not touch, and do not re-verify what you already checked in the session.
+- **The proof of a task is the feature working**, not a suite: build the one target (`tools/build zinc`), `zinc check` what you touched, and one short run of the program the change affects (headless when it can be, few frames, a `ZINC_SHOT` to look at). The criteria are ticked on that.
+- **Only the cheap, exact check runs during the work**: a T0 test of the stage touched, seconds long, that your change can make fail (`tests/run --only <name>`). Nothing else: no T1, no `tests/demo`, no T2, no `tests/run --changed` that falls back to a tier, no `examples_all`, no pixel compare, no benchmark, conformance or fuzz run.
+- **Write the test, don't run the suite.** A bug fix still adds its small regression test, a new module its T0 test; they are committed with the code and run at the next milestone.
+- **Not broken at the milestone**, without running everything now: read the callers of what you change, keep the three engines (interpreter, AOT, QuickJS) in step, never leave a migration half done, build warning-free. Careful reading is cheaper than a suite.
+- **Demos and apps stay out of the tests.** A new or changed demo or app gets no new T1 session, golden or `tests/demo` script by default. The task notes and the batch report end with **Proposed tests**: one line each (the test or command, what it proves, rough duration and memory). The owner picks; only a chosen test is written and run.
+- **Big runs are the owner's call.** T1, T2, `tests/demo`, the pixel compare, benchmarks, conformance, fuzz and a CI run (`gh workflow run`) start only when the owner asks, or at a milestone the owner named. Until then they are listed under **Tests to run** in `RESUME.md` (command, why, since which commit) and the backlog goes on. Listing is not asking: the loop never stops for it (see "Decide alone").
+- A milestone run that fails is fixed first, before any new task.
 - Known failures recorded in `RESUME.md` and the backlog (machine, GPU or architecture specific) are not investigated again during an unrelated task.
 - Build only the target you need (`tools/build zinc`), never the whole tree for a change in one library.
-- Be critical and pragmatic: one targeted check that can fail beats a sweep of 300 tests that cannot.
+
+## Spare the machine: memory and energy (owner, 2026-11-07)
+
+The development Mac has 16 GB, shared with the owner's own work. A session must never eat it.
+
+- **Two trees building at most** on the machine, whoever started them, always through `tools/build`. Parallel agents that build count; research and document agents do not.
+- **One heavy process at a time**: one app, demo or windowed test running, never two `zinc` runs side by side, never a test while a link of `zinc` runs. Prefer `ZINC_HEADLESS=1` (no window, no GPU surface).
+- **Leave nothing running**: kill what you started (apps, `zinc dev`, servers, simulators) as soon as you have looked at it.
+- A long command runs in the background only when the owner asked for it; a background job is still a job on the machine and counts in the limits above.
 
 ## Keep the backlog shrinking and the sessions cheap (owner, 2026-10-11)
 
@@ -107,7 +118,7 @@ Between 2026-10-10 08:00 and 2026-10-11 09:00 the sessions closed 129 tasks and 
 - **Everything else is one line in `backlog/later.md`**: an idea, an improvement, hardening, a measure to take, a check on another target. `- ZN-n: what, and why it matters`, under its heading. The next backlog review (the owner asks for it) turns lines into tasks or deletes them. In a parallel worktree the lines go in the final report and the coordinator adds them.
 - **A task is finished, not cut.** A criterion that does not pass yet stays in its task: the task goes back to Backlog with a handover note (what is done, what fails, the next command) and keeps its place; Review when the rest needs a person, a board or another machine. No follow-up task to be able to write Done.
 - **Batches.** A session takes the next task and up to four more of the same module or parent among the ten that follow (`tools/next-task --list 10`), works them in order with one commit each, and closes once: one `RESUME.md`, one usage line, one `next-task`. The binding documents are read once per session, not once per task.
-- **One long proof, short smoke checks.** The scripted session of a feature (inputs, frames, goldens) runs on one engine; the other engines run the same program for a few frames and one hash. The comparison of the three engines over the corpus is `tools/diff-matrix` at a milestone. One golden per feature, not per step. A T1 test that lasts more than a minute on a quiet machine is shortened before it is committed.
+- **One long proof, short smoke checks** (when the owner chose the test). The scripted session of a feature (inputs, frames, goldens) runs on one engine; the other engines run the same program for a few frames and one hash. The comparison of the three engines over the corpus is `tools/diff-matrix` at a milestone. One golden per feature, not per step. A T1 test that lasts more than a minute on a quiet machine is shortened before it is committed.
 - **Fresh contexts.** A session can be restarted at any time from `RESUME.md` and the task notes: start a new one each morning and after a compaction instead of keeping one for days. The coordinator gives each batch to a new agent and resumes a finished agent only for a short answer; a brief names the task ids and the files to read, it does not retype them.
 
 ## Real JSX and TSX: `className` and capitalised components, always (owner, 2026-10-16)
@@ -121,7 +132,7 @@ The engine enforces both (a diagnostic with the fix, `zinc explain` entry, a tes
 
 ## Demos: the bar of `examples/GUIDELINES.md` (owner, 2026-10-19)
 
-A new demo, or a change to one, follows `examples/GUIDELINES.md` (layout of `src/`, performance rules, input, proof); `/zn-demo` runs it.
+A new demo, or a change to one, follows `examples/GUIDELINES.md` (layout of `src/`, performance rules, input); `/zn-demo` runs it. Its tests are proposed, not written or run: the owner picks ("Move fast").
 On old devices (HP TouchPad, Nexus 7) the UI is the AS3-style display tree on `zinc:gfx` of `examples/music-tree`, not `zinc:ui`: it is
 faster there and keeps the code organised.
 
@@ -162,7 +173,7 @@ How it reads (owner, 2026-10-31): well-written Markdown that a person reads with
 
 - `tests/<tier>/<name>.sh`, given `$ZINC`: T0 (seconds, the stage touched), T1 (end of a task, the feature's demo), T2 (milestone: whole corpus, interpreter vs AOT vs frozen output, benchmarks), and `tests/demo` (what a demo app itself does, beyond its one T1 session: by hand and `--changed`, never on CI). Runner: `tests/run [--tier t0|t1|t2|demo] [--only name] [--changed | --changed-from ref]`, one line per test, details in `.logs/`.
 - `tests/affected.json`: which tests cover which paths (add a mapping with a new module or test). Goldens: `tests/golden/` (outputs, checker cases, frozen pixel frames of the prototype in `examples/proto` with `manifest.json`).
-- A new module ships a T0 test; a behaviour change a golden or an expectation test; a bug fix a regression test.
+- A new module ships a T0 test; a behaviour change a golden or an expectation test; a bug fix a regression test. They are written with the code and run at the milestones the owner chooses ("Move fast"); demos and apps get proposed tests only.
 
 ## Tools (`tools/`)
 
@@ -184,7 +195,7 @@ How it reads (owner, 2026-10-31): well-written Markdown that a person reads with
 
 ## The development machine
 
-An Apple M1 Pro Mac (arm64, 10 cores: 8 performance and 2 efficiency, 16 GB, macOS 15; until 2026-10 it was an Intel i7-9750H, and the build times and heat figures of older reports were measured there): builds through `tools/build`; ccache is `~/.local/bin/ccache`; Homebrew lives in `/opt/homebrew`; Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. 16 GB is the limit when several trees build: keep to the three building trees of "Several tasks at once". Known machine-specific test failures are listed in `RESUME.md`.
+An Apple M1 Pro Mac (arm64, 10 cores: 8 performance and 2 efficiency, 16 GB, macOS 15; until 2026-10 it was an Intel i7-9750H, and the build times and heat figures of older reports were measured there): builds through `tools/build`; ccache is `~/.local/bin/ccache`; Homebrew lives in `/opt/homebrew`; Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. 16 GB is the limit when several trees build: keep to the two building trees and the one heavy process of "Spare the machine". Known machine-specific test failures are listed in `RESUME.md`.
 
 ## App and demo authoring skills
 

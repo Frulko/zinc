@@ -27,7 +27,7 @@ Show loading, failure and empty states for outside data the feature depends on. 
 
 ## Prove the requested behavior
 
-Run `zinc check`. Use the targeted app/demo/engine test tiers from `TESTING.md` and `examples/GUIDELINES.md`; do not invent a blanket suite. A visual change needs an actual capture and relevant interaction, plus idle/resource checks when touched. Use local fixtures for service failures and deterministic inputs for scripted sessions.
+Run `zinc check` and look at the demo running (a capture, the interaction touched). Write and run no new test: list **Proposed tests** (what, proves, duration, memory) in the task notes for the owner to pick (AGENTS.md "Move fast"). A visual change needs an actual capture and relevant interaction, plus idle/resource checks when touched. Use local fixtures for service failures and deterministic inputs for scripted sessions.
 
 Respect background-window and process-cleanup rules. Fix engine gaps at their source instead of rewriting the demo around them. Preserve provenance for ports and references. Update the manifest, README, affected-test mapping and changelog only as applicable to the actual change.
 

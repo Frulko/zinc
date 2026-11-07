@@ -16,7 +16,7 @@ Resume Zinc Next work. One invocation = one batch: the next task and up to four 
 3. Run `tools/status`. Changes in the tree that you did not make are someone else's: leave them alone and commit with explicit paths.
 4. Set the task In Progress (`backlog task edit <id> -s "In Progress"`), state in 3 lines the task, its acceptance criteria and your plan, then work without
    waiting for approval.
-5. When every acceptance criterion of a task passes on real test output, close that task (steps 0 to 3 of `/zn-end`: test, criteria, notes, commit) and
+5. When every acceptance criterion of a task passes on the feature's short run, close that task (steps 0 to 3 of `/zn-end`: test, criteria, notes, commit) and
    take the next one of the batch from step 4. After the last task run `/zn-end` yourself, then stop.
 
 Rules (the full text is `RULES.md`):
@@ -25,6 +25,7 @@ Rules (the full text is `RULES.md`):
 - Proven vendored libraries first (licence, pinned version, `third_party/README.md`); never reinvent regex, TLS, fonts, SQL, codecs, JSON.
 - The backlog is frozen: no new task. An idea, an improvement or a check for later is one line in `backlog/later.md`. Too big for one session: split
   with `backlog task create --parent` (the task's own criteria, nothing more; `New-task: split ZN-n` in the commit); stuck twice: write the failing case, fix the root cause; blocked for real: label `parked`, say why, take the next task.
-- Tests: the new feature's test plus `tests/run --changed` (see "What to run" in `TESTING.md`). Never the 42 demos, `examples_all`, T2, benchmarks or fuzz runs at the end of a task; those are milestone jobs, in the background. A wait over a minute is a mistake: go on with the next step. The long scripted session of a feature runs on one engine, the others get a few frames and one hash; a test that lasts over a minute is shortened before it is committed. One T0 test per new module, a regression test per bug, warning-free builds.
+- Tests (AGENTS.md "Move fast"): the proof is the feature working (build one target, `zinc check`, one short run, headless when it can be) plus at most a seconds-long T0 `--only` your change can break. No T1, T2, `tests/demo`, `--changed` falling back to a tier, demos, pixel compares, benchmarks or fuzz: list them under "Tests to run" in `RESUME.md` for the owner. Write one T0 test per new module and a regression test per bug, run at the milestone. Demos and apps: **Proposed tests** in the notes, nothing written or run. Warning-free builds.
+- Machine (AGENTS.md "Spare the machine"): two trees building at most, one heavy process at a time, kill what you started.
 - Commits: English, conventional (`type(scope): description`), no co-author, explicit paths, never `git add .`, never other people's uncommitted changes.
 - Use sub-agents for research and for independent investigations; measure performance, do not guess it.
