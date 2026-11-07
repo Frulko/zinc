@@ -14,8 +14,9 @@ Resume Zinc Next work. One invocation = one batch: the next task and up to four 
    its parent or its module (none In Progress, claimed or waiting). Only `STOP nothing left` ends the session. Read each task when its turn comes with
    `backlog task <id> --plain` and the documents it references (`docs/reports/parity/*`, the design, the prototype's code).
 3. Run `tools/status`. Changes in the tree that you did not make are someone else's: leave them alone and commit with explicit paths.
-4. Set the task In Progress (`backlog task edit <id> -s "In Progress"`), state in 3 lines the task, its acceptance criteria and your plan, then work without
-   waiting for approval.
+4. Set the task In Progress (`backlog task edit <id> -s "In Progress"`). Search the web first (AGENTS.md "Search the web before each task"): a short
+   sonnet sub-agent brings ideas, solutions, optimisations and libraries with links; keep the useful ones in the task notes. State in 3 lines the task,
+   its acceptance criteria and your plan, then work without waiting for approval.
 5. When every acceptance criterion of a task passes on the feature's short run, close that task (steps 0 to 3 of `/zn-end`: test, criteria, notes, commit) and
    take the next one of the batch from step 4. After the last task run `/zn-end` yourself, then stop.
 

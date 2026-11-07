@@ -68,6 +68,10 @@ Independent tasks can be worked in parallel: a coordinator session hands them ou
 - **No synthetic load**: never start `yes` loops, stress runs or a second full build to "test under load" while other trees work; say what was not proven instead.
 - **Tests**: an agent runs no suite (see "Move fast"): it proves its feature with a short run and lists its proposed tests in its report. Tests that open a window, bind a fixed port or measure time (benchmarks, `system_instance`, the macOS window tests) run only at a milestone the owner chose, alone: a number measured while other agents build is not valid.
 
+## Search the web before each task (owner, 2026-11-07)
+
+Every backlog task starts with a short web search: how other engines, runtimes and libraries solve it (V8, JavaScriptCore, QuickJS, Hermes, Bun, Deno, React Native, Flutter, Skia, Godot, the references named below), the papers and posts on it, a proven library that already does it, the known optimisations and pitfalls. Ten minutes, not a survey: a sub-agent (`model: "sonnet"`) brings back ideas, leads, solutions, optimisations and libraries worth a look, with links; the useful ones go in the task notes (a longer finding in `docs/reports/`). Then decide and build. A library found this way is vendored only as "Proven libraries" says (licence, pinned version).
+
 ## Decide alone: the owner is not at the keyboard (owner, 2026-10-10)
 
 Never ask the owner to choose, confirm or approve a design or technical decision: nobody is there to answer, and a question stops the loop.
