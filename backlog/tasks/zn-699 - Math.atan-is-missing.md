@@ -2,7 +2,8 @@
 id: ZN-699
 title: Math.atan is missing
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 21:52'
 labels:
   - language

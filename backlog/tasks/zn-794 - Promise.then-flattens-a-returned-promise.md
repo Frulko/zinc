@@ -2,7 +2,8 @@
 id: ZN-794
 title: Promise.then flattens a returned promise
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:54'
 labels:
   - size-S

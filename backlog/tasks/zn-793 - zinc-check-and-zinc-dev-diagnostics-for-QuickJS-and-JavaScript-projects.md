@@ -2,7 +2,8 @@
 id: ZN-793
 title: zinc check and zinc dev diagnostics for QuickJS and JavaScript projects
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:54'
 labels:
   - size-M
