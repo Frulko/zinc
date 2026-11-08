@@ -2,7 +2,8 @@
 id: ZN-1014
 title: 'Tests green on develop: stale goldens, a missing table row, an unbuilt test'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:35'
 labels:
   - tests

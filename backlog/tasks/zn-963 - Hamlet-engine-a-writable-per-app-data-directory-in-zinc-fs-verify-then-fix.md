@@ -4,7 +4,8 @@ title: >-
   Hamlet: engine: a writable per-app data directory in zinc:fs (verify, then
   fix)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 13:07'
 labels:
   - hamlet

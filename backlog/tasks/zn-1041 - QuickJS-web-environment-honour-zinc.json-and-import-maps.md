@@ -2,7 +2,8 @@
 id: ZN-1041
 title: 'QuickJS web environment: honour zinc.json and import maps'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:38'
 labels:
   - quickjs

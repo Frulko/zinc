@@ -2,7 +2,8 @@
 id: ZN-795
 title: 'Permission and network hardening of zinc monitor and zinc:fs watch'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:54'
 labels:
   - size-S
