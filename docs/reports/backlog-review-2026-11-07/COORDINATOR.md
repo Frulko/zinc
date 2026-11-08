@@ -34,3 +34,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: RN chain ZN-1064, ZN-812 and QuickJS web chain ZN-815, ZN-708 (D216). Smoke tree kept: .claude/worktrees/agent-aae96db4e67d4b8e6 (reset to develop, tools/build zinc, ZINC=$W/build/zinc tests/run --only ...); it counts as a building tree while it builds.
 - Integrated: GL replay chain ZN-182, ZN-183, ZN-666 (Review) (D217). Integrated: dev loop chain ZN-1026, ZN-1024 (Backlog, 1.2 s vs 200 ms) (D218), with the coordinator's background-build guard 3b149c4df.
 - Worker: JS games chain ZN-1042, ZN-1043 (claimed 21ffa329c).
+- Worker: ZN-805 lighter idle UI apps (claimed f8f010fc4), beside the JS games chain. ZN-1024 released for a later perf pass.
