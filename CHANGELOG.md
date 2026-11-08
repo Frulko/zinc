@@ -27,6 +27,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - On macOS a window that nobody sees (covered by other windows, minimized or hidden) stops drawing and slows its loop to 10 frames a second, about a tenth of the CPU it used, and is back at full speed the moment it shows again; `ZINC_UNSEEN=draw` keeps it drawing.
 - `charCodeAt`, `codePointAt`, `slice`, `charAt`, `indexOf` and `split('')` on text with accents or emoji no longer slow down with the length of the string: a loop over 1 MB of accented text takes tens of milliseconds instead of minutes.
+- The GPU renderer keeps up to four pages of glyphs and lets go of the one used longest ago when they are full, instead of starting over: text in many sizes or scripts no longer re-uploads every glyph each time the page fills.
 
 #### Fixed
 

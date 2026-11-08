@@ -61,9 +61,19 @@ static bool paint_busy;
 static uint64_t paint_hits, paint_populates, paint_evictions;
 
 static Tex2* baked;                 // by baked image index
-struct GSlot { uint64_t key; int16_t ax, ay; };
-static GSlot gtab[8192];
-static int gcount, gx, gy, growh;
+// The glyph atlas (ZN-182): up to APAGES pages of asize x asize, made when the ones there are full. A page is one shelf allocator (rows of
+// glyphs, a pixel apart). When every page is full the page used longest ago is cleared, after the batch so far is drawn (its quads may
+// sample it), and its glyphs come back as they are drawn again (Skia's GrDrawOpAtlas evicts plots the same way, by last use).
+// ponytail: a page is evicted whole and has one open shelf; Skia's plots per page if mixed sizes waste the pages.
+struct GSlot { uint64_t key; int16_t ax, ay; uint8_t page; };
+static const int GTAB = 16384, APAGES = 4;
+static GSlot gtab[GTAB], gold[GTAB];
+static int gcount;
+struct APage { GLuint tex; int32_t gx, gy, growh, glyphs; uint32_t used; uint8_t* shadow; int32_t row0, row1; };
+static APage apages[APAGES];
+static int npages;
+static int32_t asize = ATLAS;   // ZINC_GL_ATLAS=<px>: smaller pages (a test fills the atlas with a few hundred glyphs)
+static uint32_t aevicts;
 
 #if __has_include("zn/resource_stats.h")
 static ZnResourceStats replay_texture_stats(void*) {
@@ -81,7 +91,7 @@ static int32_t W, H;
 // that cannot reallocate a texture attached to a framebuffer (the Adreno 220 of the TouchPad answers GL_OUT_OF_MEMORY) never has to.
 static int32_t TW, TH, RW, RH;
 static GLuint window_fbo;   // EAGL drawable surfaces use a nonzero default framebuffer
-static GLuint vbo, ibo, fbo, fbo_tex, fbo_depth, white, atlas, corner_tex, cur_tex;
+static GLuint vbo, ibo, fbo, fbo_tex, fbo_depth, white, corner_tex, cur_tex;
 // The programs that draw the commands. Desktop GL: one, with a branch per mode. GLES 2: one per mode, and one more with the gradient paint
 // block, compiled at first use (ZN-725): a GPU without branches runs every mode of the single program for each pixel, VideoCore IV took
 // 181 ms for a map frame that takes 65 this way (docs/reports/raspberry-pi.md). A batch is then drawn run by run, a run being its consecutive quads of one
@@ -485,7 +495,7 @@ static bool init(int32_t w, int32_t h) {
   if (!ok) { fprintf(stderr, "display-gl: renderer gl: framebuffer %dx%d is not complete\n", W, H); return false; }
   static const uint8_t px1[4] = {255, 255, 255, 255};
   white = make_tex(1, 1, GL_RGBA, GL_RGBA, px1, true);
-  atlas = make_tex(ATLAS, ATLAS, A_IFMT, A_FMT, nullptr, true);
+  if (const char* e = getenv("ZINC_GL_ATLAS")) { const int v = atoi(e); asize = v < 64 ? 64 : v > ATLAS ? ATLAS : v; }
   corner_tex = make_tex(CORNER * 4, CORNER * LEVELS, GL_RGBA, GL_RGBA, nullptr, true);
   static uint16_t idx[MAXQ * 6];
   for (int i = 0; i < MAXQ; i++) { uint16_t b = (uint16_t)(i * 4); uint16_t q[6] = {b, (uint16_t)(b + 1), (uint16_t)(b + 2), b, (uint16_t)(b + 2), (uint16_t)(b + 3)}; memcpy(idx + i * 6, q, sizeof q); }
@@ -737,51 +747,124 @@ static Q box_q(const Cmd& c, const Rect& b, int mode) {
   return q;
 }
 
-// ---- glyph atlas
-static void atlas_reset() { flush(); memset(gtab, 0, sizeof gtab); gcount = gx = gy = growh = 0; }
+// ---- glyph atlas (pages: see GSlot)
+static inline uint32_t ghash(uint64_t key) { return (uint32_t)((key * 0x9E3779B97F4A7C15ull) >> 50); }   // 14 bits: GTAB
 #if !GLR_CORE
-// GLES 2 (ZN-725): a new glyph is written into a copy of the atlas in memory, and the rows that changed go to the texture in one upload
+static void atlas_rows(APage& p, int32_t y0, int32_t y1) { if (y0 < p.row0) p.row0 = y0; if (y1 > p.row1) p.row1 = y1; }
+#endif
+/** A new page, cleared; -1 when there are APAGES already or the memory is not there. */
+static int page_new() {
+  if (npages == APAGES) return -1;
+  APage& p = apages[npages];
+  p = APage{};
+  uint8_t* zero = (uint8_t*)calloc((size_t)asize, (size_t)asize);
+  if (!zero) return -1;
+  p.tex = make_tex(asize, asize, A_IFMT, A_FMT, zero, true);
+  glBindTexture(GL_TEXTURE_2D, cur_tex);
+#if GLR_CORE
+  free(zero);
+#else
+  p.shadow = zero; p.row0 = asize; p.row1 = 0;
+#endif
+  return npages++;
+}
+/** Page k is emptied: the batch so far is drawn first (it may sample the page), its rows in use are cleared (a scaled glyph is sampled
+ *  bilinearly and must find zeros around it, not an evicted glyph), and its glyphs leave the table. */
+static void page_evict(int k) {
+  flush();
+  APage& p = apages[k];
+  const int32_t rows = p.gy + p.growh + 1 < asize ? p.gy + p.growh + 1 : asize;
+#if GLR_CORE
+  if (uint8_t* zero = (uint8_t*)calloc((size_t)asize, (size_t)rows)) {
+    glBindTexture(GL_TEXTURE_2D, p.tex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, asize, rows, A_FMT, GL_UNSIGNED_BYTE, zero);
+    glBindTexture(GL_TEXTURE_2D, cur_tex);
+    free(zero);
+  }
+#else
+  memset(p.shadow, 0, (size_t)asize * rows);
+  atlas_rows(p, 0, rows);
+#endif
+  p.gx = p.gy = p.growh = p.glyphs = 0;
+  memcpy(gold, gtab, sizeof gtab);
+  memset(gtab, 0, sizeof gtab);
+  gcount = 0;
+  for (const GSlot& o : gold) {
+    if (!o.key || o.page == k) continue;
+    uint32_t i = ghash(o.key);
+    while (gtab[i].key) i = (i + 1) & (GTAB - 1);
+    gtab[i] = o; gcount++;
+  }
+  aevicts++;
+}
+/** The page a w x h glyph fits in now (opening a new shelf in it when the open one is too short), else a new page, else -1. */
+static int page_room(int32_t w, int32_t h) {
+  for (int k = 0; k < npages; k++) {
+    APage& p = apages[k];
+    if (p.gx + w + 1 <= asize && p.gy + h + 1 <= asize) return k;
+    if (p.gy + p.growh + 1 + h + 1 <= asize) { p.gy += p.growh + 1; p.gx = 0; p.growh = 0; return k; }
+  }
+  return page_new();
+}
+#if !GLR_CORE
+// GLES 2 (ZN-725): a new glyph is written into a copy of its page in memory, and the rows that changed go to the texture in one upload
 // before the next draw (flush). An upload per glyph into a texture the frame had already drawn with made VideoCore IV's driver submit
 // the frame so far and wait for the GPU, 1.9 to 3.7 ms a glyph on a throttled Pi 3: a stall at each new glyph.
 // frame() looks the glyphs of its TEXT commands up first (glyphs_ahead), so the upload comes before the frame's first draw.
-static uint8_t* ashadow;
-static int32_t arow0 = ATLAS, arow1 = 0;   // the rows that the texture has not got yet
 static void atlas_sync() {
-  if (arow1 <= arow0) return;
-  const double t0 = now_us();
-  GLR_TRACE("glyph atlas rows %d to %d, %d quads drawn so far\n", arow0, arow1, st.quads - trace_q0);
-  glBindTexture(GL_TEXTURE_2D, atlas);
-  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, arow0, ATLAS, arow1 - arow0, A_FMT, GL_UNSIGNED_BYTE, ashadow + (size_t)arow0 * ATLAS);
-  glBindTexture(GL_TEXTURE_2D, cur_tex);
-  arow0 = ATLAS; arow1 = 0;
-  st.glyph_us += now_us() - t0; st.atlas_ups++;
+  for (int k = 0; k < npages; k++) {
+    APage& p = apages[k];
+    if (p.row1 <= p.row0) continue;
+    const double t0 = now_us();
+    GLR_TRACE("glyph atlas page %d rows %d to %d, %d quads drawn so far\n", k, p.row0, p.row1, st.quads - trace_q0);
+    glBindTexture(GL_TEXTURE_2D, p.tex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, p.row0, asize, p.row1 - p.row0, A_FMT, GL_UNSIGNED_BYTE, p.shadow + (size_t)p.row0 * asize);
+    glBindTexture(GL_TEXTURE_2D, cur_tex);
+    p.row0 = asize; p.row1 = 0;
+    st.glyph_us += now_us() - t0; st.atlas_ups++;
+  }
 }
 #else
 static void atlas_sync() {}
 #endif
+/** The atlas filter: nearest for glyphs drawn at their size, linear for those drawn under a matrix (draw_cmd's TEXT). */
+static void atlas_filter(GLint f) {
+  for (int k = 0; k < npages; k++) {
+    glBindTexture(GL_TEXTURE_2D, apages[k].tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, f); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, f);
+  }
+  glBindTexture(GL_TEXTURE_2D, cur_tex);
+}
 static const GSlot* glyph_slot(int32_t font, const Font& f, const Glyph* g) {
-  if (g->w > ATLAS || g->h > ATLAS) return nullptr;
-  uint64_t key = ((uint64_t)(uint32_t)font << 32) | g->cp | (1ull << 63);
+  if (g->w + 1 > asize || g->h + 1 > asize) return nullptr;
+  const uint64_t key = ((uint64_t)(uint32_t)font << 32) | g->cp | (1ull << 63);
   for (;;) {
-    uint32_t i = (uint32_t)((key * 0x9E3779B97F4A7C15ull) >> 51);
-    while (gtab[i].key && gtab[i].key != key) i = (i + 1) & 8191;
-    if (gtab[i].key == key) return &gtab[i];
-    if (gcount > 6000 || gy + g->h > ATLAS) { atlas_reset(); continue; }   // ponytail: reset when full, glyphs come back lazily
-    if (gx + g->w + 1 > ATLAS) { gy += growh + 1; gx = 0; growh = 0; if (gy + g->h > ATLAS) continue; }
+    uint32_t i = ghash(key);
+    while (gtab[i].key && gtab[i].key != key) i = (i + 1) & (GTAB - 1);
+    if (gtab[i].key == key) { apages[gtab[i].page].used = pstamp; return &gtab[i]; }
+    const int k = gcount < GTAB * 3 / 4 ? page_room(g->w, g->h) : -1;
+    if (k < 0) {   // full (or the table is): the page used longest ago that holds glyphs goes
+      int lru = -1;
+      for (int j = 0; j < npages; j++) if (apages[j].glyphs && (lru < 0 || apages[j].used < apages[lru].used)) lru = j;
+      if (lru < 0) return nullptr;   // no page could be made at all
+      page_evict(lru);
+      continue;
+    }
+    APage& p = apages[k];
 #if GLR_CORE
-    glBindTexture(GL_TEXTURE_2D, atlas);
+    glBindTexture(GL_TEXTURE_2D, p.tex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, gx, gy, g->w, g->h, A_FMT, GL_UNSIGNED_BYTE, f.bitmap + g->off);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, p.gx, p.gy, g->w, g->h, A_FMT, GL_UNSIGNED_BYTE, f.bitmap + g->off);
     glBindTexture(GL_TEXTURE_2D, cur_tex);
 #else
-    if (!ashadow && !(ashadow = (uint8_t*)calloc(ATLAS, ATLAS))) return nullptr;
-    for (int32_t y = 0; y < g->h; y++) memcpy(ashadow + (size_t)(gy + y) * ATLAS + gx, f.bitmap + g->off + (size_t)y * g->w, (size_t)g->w);
-    if (gy < arow0) arow0 = gy;
-    if (gy + g->h > arow1) arow1 = gy + g->h;
+    for (int32_t y = 0; y < g->h; y++) memcpy(p.shadow + (size_t)(p.gy + y) * asize + p.gx, f.bitmap + g->off + (size_t)y * g->w, (size_t)g->w);
+    atlas_rows(p, p.gy, p.gy + g->h);
 #endif
-    gtab[i] = GSlot{key, (int16_t)gx, (int16_t)gy};
-    gx += g->w + 1; if (g->h > growh) growh = g->h;
+    gtab[i] = GSlot{key, (int16_t)p.gx, (int16_t)p.gy, (uint8_t)k};
+    p.gx += g->w + 1; if (g->h > p.growh) p.growh = g->h;
+    p.glyphs++; p.used = pstamp;
     gcount++; st.glyphs++;
     return &gtab[i];
   }
@@ -800,8 +883,8 @@ static uint32_t next_cp(const char* s, uint32_t n, uint32_t& i) {
   return cp;
 }
 /** The glyphs of a list's TEXT commands enter the atlas now, before the frame draws (GLES 2: see atlas_sync); those of a TEXT under a
- *  matrix (XFORM) too, in the font its glyphs are drawn from (draw_text). ponytail: not after the atlas filled up and was reset in this
- *  frame: they come as they are drawn. */
+ *  matrix (XFORM) too, in the font its glyphs are drawn from (draw_text). A page this frame needs that is evicted to make room for later
+ *  glyphs gets its glyphs back as they are drawn. */
 /** A command whose pixels all lie outside the clip (raster.cpp cmd_bounds, a pixel wider): a replay of a small rectangle (a scroll's strip,
  *  the perf panel) skips it before any work, a pass over 260 commands cost Tegra 3's CPU 2 to 5 ms when each was set up and then clipped. */
 static inline bool outside(const Cmd& c) {
@@ -857,20 +940,20 @@ static void draw_text(const Cmd& c, const char* s) {
       const GSlot* sl = b->w > 0 && b->h > 0 ? glyph_slot(gf, *gp, b) : nullptr;
       if (sl) {
         const float k = (float)gp->px / f.px;
-        use_tex(atlas);
+        use_tex(apages[sl->page].tex);
         Q q = {};
         q.x0 = fpen + b->x0 / k; q.y0 = c.y + f.ascent + b->y0 / k; q.x1 = q.x0 + b->w / k; q.y1 = q.y0 + b->h / k;
-        q.u0 = (float)sl->ax / ATLAS; q.v0 = (float)sl->ay / ATLAS; q.u1 = (float)(sl->ax + b->w) / ATLAS; q.v1 = (float)(sl->ay + b->h) / ATLAS;
+        q.u0 = (float)sl->ax / asize; q.v0 = (float)sl->ay / asize; q.u1 = (float)(sl->ax + b->w) / asize; q.v1 = (float)(sl->ay + b->h) / asize;
         q.mode = TEXT_M; q.c1 = c.c1; q.alpha = c.alpha;
         quad(q);
       }
     } else if (g->w > 0 && g->h > 0) {
       const GSlot* sl = glyph_slot(c.res, f, g);
       if (!sl) { pen += g->adv + f2i(c.s * 64); continue; }
-      use_tex(atlas);
+      use_tex(apages[sl->page].tex);
       Q q = {};
       q.x0 = (float)px; q.y0 = (float)py; q.x1 = (float)(px + g->w); q.y1 = (float)(py + g->h);
-      q.u0 = (float)sl->ax / ATLAS; q.v0 = (float)sl->ay / ATLAS; q.u1 = (float)(sl->ax + g->w) / ATLAS; q.v1 = (float)(sl->ay + g->h) / ATLAS;
+      q.u0 = (float)sl->ax / asize; q.v0 = (float)sl->ay / asize; q.u1 = (float)(sl->ax + g->w) / asize; q.v1 = (float)(sl->ay + g->h) / asize;
       q.mode = TEXT_M; q.c1 = c.c1; q.alpha = c.alpha;
       quad(q);
     }
@@ -1678,14 +1761,10 @@ static void draw_xform(const Cmd& c, const float* p, const char* text, const flo
     case IMAGE: if (!(in.pad & kImageTint)) in.r = 0; draw_image(in); break;   // ponytail: no rounded corners on a turned image (r: or a tint)
     case TEXT:
       flush();
-      glBindTexture(GL_TEXTURE_2D, atlas);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      glBindTexture(GL_TEXTURE_2D, cur_tex);
+      atlas_filter(GL_LINEAR);
       draw_text(in, text + in.off);
       flush();
-      glBindTexture(GL_TEXTURE_2D, atlas);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-      glBindTexture(GL_TEXTURE_2D, cur_tex);
+      atlas_filter(GL_NEAREST);
       break;
     default: break;
   }
@@ -2550,6 +2629,13 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
   }
 }
 static void idle() { collect_images(); paint_cache_idle(); st.idle++; }
+/** The rows in use of the pages made, in percent of their area (what eviction frees). */
+static double atlas_occupancy() {
+  if (!npages) return 0;
+  double rows = 0;
+  for (int k = 0; k < npages; k++) rows += apages[k].gy + apages[k].growh;
+  return 100.0 * rows / ((double)npages * asize);
+}
 // ZINC_PROFILE=json: what the GL renderer did, published just before the summary prints (runtime/gfx.cpp). gl_gpu_us is the GL_TIME_ELAPSED average where the GPU has the query (0: it has not).
 static void gl_info_hook() {
   if (!zrt_prof_info || !st.frames) return;
@@ -2561,6 +2647,7 @@ static void gl_info_hook() {
   put("gl_cpu_submit_us", st.us / n, "%.0f"); put("gl_gpu_us", gpu_n ? gpu_us / gpu_n : 0.0, "%.0f"); zrt_prof_info("gl_timer_source", gpu_source); put("gl_gpu_samples", gpu_n, "%.0f"); put("gl_gpu_samples_lost", gpu_lost, "%.0f"); put("gl_programs_built", st.progs, "%.0f"); put("gl_program_build_ms", st.prog_us / 1e3, "%.1f");
   put("gl_occlusion_frames", st.occl_frames, "%.0f"); put("gl_depth_bits", occl_bits, "%.0f");
   put("gl_glyph_uploads", GLR_CORE ? st.glyphs : st.atlas_ups, "%.0f");
+  put("gl_atlas_pages", npages, "%.0f"); put("gl_atlas_glyphs", gcount, "%.0f"); put("gl_atlas_occupancy", atlas_occupancy(), "%.1f"); put("gl_atlas_evictions", aevicts, "%.0f");
   put("gl_image_uploads", st.img_ups, "%.0f"); put("gl_image_upload_bytes_per_frame", st.img_bytes / n, "%.0f"); put("gl_image_upload_us_per_frame", st.img_us / n, "%.0f");
 }
 static void report() {
@@ -2570,6 +2657,7 @@ static void report() {
           st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n, gpu_n ? gpu_us / gpu_n : 0.0,
           st.blocks, (unsigned long long)st.block_bytes, st.decoded);
   fprintf(stderr, "display-gl renderer gl: %u command programs, %.0f ms to build them and the two of the occlusion and stencil passes; %u uploads of new glyphs, %.0f ms\n", st.progs, st.prog_us / 1e3, GLR_CORE ? st.glyphs : st.atlas_ups, st.glyph_us / 1e3);
+  fprintf(stderr, "display-gl renderer gl: glyph atlas: %d of %d pages of %d px, %d glyphs, %.1f%% of their rows in use, %u pages evicted\n", npages, APAGES, asize, gcount, atlas_occupancy(), aevicts);
   fprintf(stderr, "display-gl renderer gl: %u uploads of runtime images (%u of a rectangle only), %llu bytes, %.2f ms\n", st.img_ups, st.img_part, (unsigned long long)st.img_bytes, st.img_us / 1e3);
   if (mst.moves) fprintf(stderr, "display-gl renderer gl: %u scrolls moved on the GPU, %.0f pixels each\n", mst.moves, mst.px / mst.moves);
   fprintf(stderr, "display-gl renderer gl: the fringe quads of POLY cover %.0f pixels per frame in each of their passes (the surface has %d)\n", fringe_px / n, W * H);

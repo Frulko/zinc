@@ -212,6 +212,7 @@
     {"paths": ["runtime/raster.cpp", "lib/std/ui.ts", "src/host/render_bench.cpp", "tests/t0/damage_tap.sh"], "tests": ["damage_tap", "damage_sig"]},
     {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "lib/std/ui.ts", "targets/macos/hal_sdl.cpp", "src/host/render_bench.cpp", "tests/t0/scroll_move.sh", "tests/data/scroll_header/"], "tests": ["scroll_move"]},
     {"paths": ["runtime/gl_replay.cpp", "runtime/gl_replay_shaders.h", "runtime/gl_clip.h", "targets/macos/hal_sdl.cpp", "tests/t1/gl_scroll.sh", "tests/data/scroll_header/"], "tests": ["gl_scroll"]},
+    {"paths": ["runtime/gl_replay.cpp", "tests/t1/gl_atlas_churn.sh", "tests/data/gl_atlas_churn/"], "tests": ["gl_atlas_churn"]},
     {"paths": ["lib/std/ui.ts", "runtime/gl_paint_cache.h", "runtime/gl_replay.cpp", "tests/data/ui_canvas_fractional/", "tests/t1/ui_canvas_fractional.sh"], "tests": ["ui_canvas_fractional"]},
     {"paths": ["runtime/gl_paint_cache.h", "tests/native/gl_paint_cache.cpp", "tests/t0/gl_paint_cache_key.sh"], "tests": ["gl_paint_cache_key"]},
     {"paths": ["runtime/gl_replay.cpp", "runtime/gl_replay_shaders.h", "runtime/gl_paint_cache.h", "tests/data/gl_paint_cache/", "tests/t1/gl_paint_cache.sh"], "tests": ["gl_paint_cache"]},
