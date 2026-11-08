@@ -34,23 +34,83 @@ inline ArrObj* A(Slot s) { return reinterpret_cast<ArrObj*>(s); }
 inline MapObj* M(Slot s) { return reinterpret_cast<MapObj*>(s); }
 inline Slot P(const Obj* o) { return reinterpret_cast<Slot>(o); }
 
-// UTF-16 units of the string, as many as u16len counts (machine.cpp): one per byte that is not a continuation byte, two for a 4-byte
-// lead. Bytes that are not UTF-8 (a binary body read as text) become U+FFFD units instead of shifting every index after them.
+// The code point whose lead byte is at d[i] (not a continuation byte) as UTF-16: its one or two units in u, i moved past its bytes; returns how
+// many units. Bytes that are not UTF-8 (a binary body read as text) become U+FFFD units, as many as u16len counts for them (machine.cpp).
+inline unsigned decodeUnits(const std::uint8_t* d, std::uint32_t len, std::uint32_t& i, char16_t u[2]) {
+  std::uint32_t c = d[i++];
+  if (c < 0x80) { u[0] = static_cast<char16_t>(c); return 1; }
+  const std::uint32_t n = c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
+  c &= n == 2 ? 0x1Fu : n == 3 ? 0x0Fu : 0x07u;
+  std::uint32_t k = 1;
+  for (; k < n && i < len && (d[i] & 0xC0) == 0x80; ++k, ++i) c = c << 6 | (d[i] & 0x3Fu);
+  if (n == 4) {
+    if (k < n || c < 0x10000 || c > 0x10FFFF) { u[0] = u[1] = u'\uFFFD'; return 2; }
+    c -= 0x10000; u[0] = static_cast<char16_t>(0xD800 + (c >> 10)); u[1] = static_cast<char16_t>(0xDC00 + (c & 0x3FF)); return 2;
+  }
+  u[0] = k < n ? u'\uFFFD' : static_cast<char16_t>(c);
+  return 1;
+}
+inline bool contByte(std::uint8_t b) { return (b & 0xC0) == 0x80; }   // a stray one counts no unit, as u16len
+// the cursor at the code point that starts at byte b and unit u; it stays where it was when b - u does not fit its 24 bits (16 MB of non-ASCII
+// text, or lone 4-byte leads that count two units for one byte)
+inline void setCursor(const StrObj* s, std::uint32_t u, std::int64_t b) {
+  const std::int64_t delta = b - u;
+  if (delta < 0 || delta >= (1 << 24)) return;
+  s->curUnit = u;
+  s->curDelta[0] = static_cast<std::uint8_t>(delta); s->curDelta[1] = static_cast<std::uint8_t>(delta >> 8); s->curDelta[2] = static_cast<std::uint8_t>(delta >> 16);
+}
+inline std::uint32_t curByte(const StrObj* s) { return s->curUnit + (s->curDelta[0] | s->curDelta[1] << 8 | s->curDelta[2] << 16); }
+
+// UTF-16 units of the string, as many as u16len counts: one per byte that is not a continuation byte, two for a 4-byte lead.
 std::u16string toU16(const StrObj* s) {
   std::u16string r;
   const auto* d = reinterpret_cast<const std::uint8_t*>(s->data());
+  char16_t u[2];
   for (std::uint32_t i = 0; i < s->len;) {
-    std::uint32_t c = d[i++];
-    if (c < 0x80) { r += static_cast<char16_t>(c); continue; }
-    if ((c & 0xC0) == 0x80) continue;   // a stray continuation byte: no unit, as u16len
-    const std::uint32_t n = c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
-    c &= n == 2 ? 0x1Fu : n == 3 ? 0x0Fu : 0x07u;
-    std::uint32_t k = 1;
-    for (; k < n && i < s->len && (d[i] & 0xC0) == 0x80; ++k, ++i) c = c << 6 | (d[i] & 0x3Fu);
-    if (n == 4) {
-      if (k < n || c < 0x10000 || c > 0x10FFFF) { r += u'\uFFFD'; r += u'\uFFFD'; continue; }
-      c -= 0x10000; r += static_cast<char16_t>(0xD800 + (c >> 10)); r += static_cast<char16_t>(0xDC00 + (c & 0x3FF));
-    } else r += k < n ? u'\uFFFD' : static_cast<char16_t>(c);
+    if (contByte(d[i])) { ++i; continue; }
+    r.append(u, decodeUnits(d, s->len, i, u));
+  }
+  return r;
+}
+
+// The code point of a non-ASCII string that holds UTF-16 unit i (< u16len): it starts at byte `byte` and holds units [unit, unit + its count).
+// Walked from the string's cursor (StrObj::curUnit), forward or back, or from the start when that is nearer, and the cursor moves there: a loop of
+// charCodeAt, slice or indexOf over the string is linear instead of converting the whole string at each call (ZN-1015).
+struct U16Pos { std::uint32_t unit, byte; };
+U16Pos u16Seek(const StrObj* s, std::uint32_t i) {
+  const auto* d = reinterpret_cast<const std::uint8_t*>(s->data());
+  std::uint32_t u = s->curUnit;
+  std::int64_t b = curByte(s);
+  if (i < u && i <= u - i) u = 0, b = 0;   // the start is nearer than the cursor
+  if (i >= u) {
+    for (;;) {
+      while (b < s->len && contByte(d[b])) ++b;
+      const std::uint32_t n = d[b] >= 0xF0 ? 2 : 1;
+      if (i < u + n) break;
+      u += n; ++b;
+    }
+  } else {
+    while (u > i && b > 0) {
+      do --b; while (b > 0 && contByte(d[b]));
+      u -= d[b] >= 0xF0 ? 2 : 1;
+    }
+  }
+  setCursor(s, u, b);
+  return {u, static_cast<std::uint32_t>(b)};
+}
+
+// UTF-16 units [from, to) of a non-ASCII string (0 <= from < to <= u16len), decoded from the code point that holds `from`.
+std::u16string u16Range(const StrObj* s, std::uint32_t from, std::uint32_t to) {
+  const U16Pos p = u16Seek(s, from);
+  const auto* d = reinterpret_cast<const std::uint8_t*>(s->data());
+  std::u16string r;
+  char16_t u[2];
+  std::uint32_t skip = from - p.unit;   // 1 when `from` is the low half of a pair
+  for (std::uint32_t i = p.byte; r.size() < to - from && i < s->len;) {
+    if (contByte(d[i])) { ++i; continue; }
+    const unsigned n = decodeUnits(d, s->len, i, u);
+    for (unsigned k = skip; k < n && r.size() < to - from; ++k) r += u[k];
+    skip = 0;
   }
   return r;
 }
@@ -179,18 +239,20 @@ bool jsonOut(Machine& m, Obj* o, JsonText& out, int depth) {
 StrObj* subStr(Machine& m, const StrObj* s, std::int64_t from, std::int64_t to) {
   if (to <= from) return m.newStr("", 0);
   if (s->ascii) return m.newStr(s->data() + from, static_cast<std::size_t>(to - from));
-  std::u16string u = toU16(s);
-  std::string r = toUtf8(u.data() + from, static_cast<std::size_t>(to - from));
+  std::u16string u = u16Range(s, static_cast<std::uint32_t>(from), static_cast<std::uint32_t>(to));
+  std::string r = toUtf8(u.data(), u.size());
   return m.newStr(r.data(), r.size());
 }
 
-// UTF-16 index of a byte offset.
+// UTF-16 index of a byte offset (the start of a code point, or the end).
 std::int32_t u16Index(const StrObj* s, std::uint32_t byteOff) {
   if (s->ascii) return static_cast<std::int32_t>(byteOff);
-  std::int32_t n = 0;
   const auto* d = reinterpret_cast<const std::uint8_t*>(s->data());
-  for (std::uint32_t i = 0; i < byteOff; ++i) if ((d[i] & 0xC0) != 0x80) n += d[i] >= 0xF0 ? 2 : 1;
-  return n;
+  std::uint32_t n = s->curUnit, i = curByte(s);   // counted from the cursor (u16Seek) when it is before the offset
+  if (i > byteOff) n = 0, i = 0;
+  for (; i < byteOff; ++i) if (!contByte(d[i])) n += d[i] >= 0xF0 ? 2 : 1;
+  if (byteOff < s->len && !contByte(d[byteOff])) setCursor(s, n, byteOff);   // the cursor follows, for the next indexOf from here
+  return static_cast<std::int32_t>(n);
 }
 
 std::int64_t findBytes(const StrObj* h, const StrObj* n, std::uint32_t from) {
@@ -211,13 +273,14 @@ std::uint32_t wsAt(const std::uint8_t* p, std::uint32_t n) {
   return c == 0x1680 || (c >= 0x2000 && c <= 0x200A) || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000 || c == 0xFEFF ? 3 : 0;
 }
 
-// Byte offset of UTF-16 index u (already clamped to [0, length]).
+// Byte offset of UTF-16 index u (already clamped to [0, length]); an index between the halves of a pair gives the end of the character.
 std::uint32_t byteOf(const StrObj* s, std::int64_t u) {
   if (s->ascii) return static_cast<std::uint32_t>(u);
-  const auto* d = reinterpret_cast<const std::uint8_t*>(s->data());
-  std::int64_t n = 0;
-  std::uint32_t i = 0;
-  while (i < s->len && n < u) { n += d[i] >= 0xF0 ? 2 : 1; ++i; while (i < s->len && (d[i] & 0xC0) == 0x80) ++i; }
+  if (u >= s->u16len) return s->len;
+  const U16Pos p = u16Seek(s, static_cast<std::uint32_t>(u));
+  if (p.unit == u) return p.byte;
+  std::uint32_t i = p.byte + 1;
+  while (i < s->len && contByte(static_cast<std::uint8_t>(s->data()[i]))) ++i;
   return i;
 }
 
@@ -1368,7 +1431,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       NN(s);
       std::int64_t i = I(a[1]);
       if (i < 0 || i >= s->u16len) { a[0] = 0; return nullptr; }  // JavaScript gives NaN; i32 has none
-      a[0] = s->ascii ? static_cast<std::uint8_t>(s->data()[i]) : static_cast<Slot>(toU16(s)[static_cast<std::size_t>(i)]);
+      a[0] = s->ascii ? static_cast<std::uint8_t>(s->data()[i]) : static_cast<Slot>(u16Range(s, static_cast<std::uint32_t>(i), static_cast<std::uint32_t>(i) + 1)[0]);
       return nullptr;
     }
     case Rt::StrSlice: case Rt::StrSubstring: {
@@ -1431,9 +1494,9 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       std::int64_t i = I(a[1]);
       if (i < 0 || i >= s->u16len) { a[0] = static_cast<Slot>(-1); return nullptr; }
       if (s->ascii) { a[0] = static_cast<std::uint8_t>(s->data()[i]); return nullptr; }
-      std::u16string u = toU16(s);
-      std::uint32_t c = u[static_cast<std::size_t>(i)];
-      if (c >= 0xD800 && c < 0xDC00 && static_cast<std::size_t>(i) + 1 < u.size() && u[static_cast<std::size_t>(i) + 1] >= 0xDC00 && u[static_cast<std::size_t>(i) + 1] < 0xE000) c = 0x10000 + ((c - 0xD800) << 10) + (u[static_cast<std::size_t>(i) + 1] - 0xDC00u);
+      std::u16string u = u16Range(s, static_cast<std::uint32_t>(i), static_cast<std::uint32_t>(std::min<std::int64_t>(i + 2, s->u16len)));
+      std::uint32_t c = u[0];
+      if (c >= 0xD800 && c < 0xDC00 && u.size() > 1 && u[1] >= 0xDC00 && u[1] < 0xE000) c = 0x10000 + ((c - 0xD800) << 10) + (u[1] - 0xDC00u);
       a[0] = c;
       return nullptr;
     }

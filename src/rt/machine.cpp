@@ -352,6 +352,7 @@ StrObj* Machine::newStr(const char* p, std::size_t n) {
   }
   s->ascii = ascii;
   s->u16len = units;
+  s->curUnit = 0; s->curDelta[0] = s->curDelta[1] = s->curDelta[2] = 0;
   track(s);
   return s;
 }
@@ -374,6 +375,7 @@ StrObj* Machine::newStrCat(const StrObj* a, const StrObj* b) {
   d[n] = 0;
   s->ascii = a->ascii && b->ascii;
   s->u16len = a->u16len + b->u16len;
+  s->curUnit = 0; s->curDelta[0] = s->curDelta[1] = s->curDelta[2] = 0;
   track(s);
   return s;
 }

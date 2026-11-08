@@ -126,8 +126,14 @@ struct StrObj : Obj {
   std::uint32_t len;     // bytes (UTF-8)
   std::uint32_t u16len;  // UTF-16 code units, the JavaScript length
   bool ascii;
+  // A non-ASCII string's cursor (ZN-1015): the code point where the last UTF-16 index read landed starts at unit curUnit, byte curUnit + curDelta
+  // (24 bits). The next read walks from there, so a loop over the string is linear. 0, 0 when made; in the header's padding, so no string grows.
+  // Strings are not shared between threads (a worker gets copies), so the cursor needs no lock.
+  mutable std::uint8_t curDelta[3];
+  mutable std::uint32_t curUnit;
   const char* data() const { return reinterpret_cast<const char*>(this + 1); }
 };
+static_assert(sizeof(StrObj) == sizeof(Obj) + 16, "the string cursor lives in the header's padding");
 
 struct ArrObj : Obj {
   ObjVec<Slot> v;
