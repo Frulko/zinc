@@ -2550,12 +2550,13 @@ int main(int argc, char** argv) {
         yyjson_val *k, *v;
         yyjson_obj_foreach(imports, i, n, k, v) {
           std::string target = yyjson_is_str(v) ? yyjson_get_str(v) : "";
-          const fs::path abs = (mapDir / target).lexically_normal();
-          if (!target.empty() && target.find("://") == std::string::npos && abs.lexically_relative(projDir).generic_string().rfind("..", 0) == 0 && fs::is_regular_file(abs, ec)) {
+          const bool prefix = !target.empty() && target.back() == '/';   // "three/addons/": a folder
+          const fs::path abs = (mapDir / (prefix ? target.substr(0, target.size() - 1) : target)).lexically_normal();
+          if (!target.empty() && target.find("://") == std::string::npos && abs.lexically_relative(projDir).generic_string().rfind("..", 0) == 0 && (prefix ? fs::is_directory(abs, ec) : fs::is_regular_file(abs, ec))) {
             size_t r = 0;
             while (r < roots.size() && abs.lexically_relative(roots[r]).generic_string().rfind("..", 0) == 0) ++r;
             if (r == roots.size()) {
-              roots.push_back(abs.parent_path());
+              roots.push_back(prefix ? abs : abs.parent_path());
               for (auto it = fs::recursive_directory_iterator(roots[r], ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
                 if (it->path().filename().string()[0] == '.') { if (it->is_directory()) it.disable_recursion_pending(); continue; }
                 if (!it->is_regular_file()) continue;
@@ -2563,7 +2564,8 @@ int main(int argc, char** argv) {
                 files["vendor/" + std::to_string(r) + "/" + it->path().lexically_relative(roots[r]).generic_string()] = b.str();
               }
             }
-            target = (fs::path("vendor") / std::to_string(r) / abs.lexically_relative(roots[r])).lexically_relative(mapDir.lexically_relative(projDir)).generic_string();
+            target = (fs::path("vendor") / std::to_string(r) / abs.lexically_relative(roots[r])).lexically_normal().lexically_relative(mapDir.lexically_relative(projDir)).generic_string();
+            if (prefix) { if (target.size() > 1 && target.compare(target.size() - 2, 2, "/.") == 0) target.resize(target.size() - 2); if (target.back() != '/') target += '/'; }
           }
           yyjson_mut_obj_add(mimports, yyjson_mut_strcpy(md, yyjson_get_str(k)), yyjson_mut_strcpy(md, target.c_str()));
         }
@@ -2787,7 +2789,7 @@ int main(int argc, char** argv) {
       if (fs::is_directory(path, ec)) {  // `zinc run examples/breakout`: its zinc.json entry, or src/main.ts[x]
         std::error_code eq;   // `zinc run .` too: lexically_normal keeps a trailing slash on "./", so compare the directories themselves
         std::string e = zn::frontend::entryOf(path, have && fs::equivalent(fs::path(projectDir), fs::path(path), eq) ? &project : nullptr);
-        if (e.empty()) { std::fprintf(stderr, "zinc: %s: no entry (zinc.json \"entry\", src/main.ts, src/main.tsx, main.ts or main.tsx)\n", path.c_str()); return 2; }
+        if (e.empty()) { std::fprintf(stderr, "zinc: %s: no entry (zinc.json \"entry\", src/main.ts, src/main.tsx, main.ts, main.tsx, src/main.js or main.js)\n", path.c_str()); return 2; }
         path = e;
       }
       {   // zinc.json "permissions" at run time (ZN-322): warned while developing, refused when enforced (exported apps, ZINC_PERMISSIONS=enforce)

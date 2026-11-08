@@ -33,6 +33,25 @@ echo '{ "name": "t", "entry": "main.js", "engine": "spidermonkey" }' > "$tmp/t/z
 "$ZINC" run "$tmp/t" > "$tmp/out" 2>&1; rc=$?
 [ $rc -eq 2 ] && grep -q '"engine" must be "zinc", "quickjs", "jsc", "v8" or "hermes"' "$tmp/out" || { echo "run_js_engine: an unknown engine in zinc.json is not refused ($rc): $(head -c 200 "$tmp/out")"; fail=1; }
 
+# ZN-1041: a zinc.json with only app.window and a main.js beside it is a project (main.js is an entry by default), at that window's size
+mkdir -p "$tmp/w"
+echo '{ "app": { "window": { "width": 640, "height": 360 } }, "web": true }' > "$tmp/w/zinc.json"
+echo "console.log(window.innerWidth, window.innerHeight)" > "$tmp/w/main.js"
+is "app.window alone with main.js" "$(ZINC_HEADLESS=1 ZINC_FRAMES=2 "$ZINC" run "$tmp/w" 2>&1)" "640 360"
+
+# ZN-1041: importmap.json maps a prefix (a key ending in /, the longest wins, as a browser's import map); a prefix whose address does not end
+# in / is ignored with a warning, and a specifier that climbs out of its prefix with .. is not mapped
+mkdir -p "$tmp/m/lib/addons/deep" "$tmp/m/app"
+echo "export const a = 'exact';" > "$tmp/m/lib/a.js"
+echo "export const b = 'prefix';" > "$tmp/m/lib/addons/b.js"
+echo "export const c = 'longest';" > "$tmp/m/lib/addons/deep/c.js"
+echo '{ "imports": { "a": "../lib/a.js", "x/": "../lib/addons/", "x/deep/": "../lib/addons/deep/", "bad/": "../lib/a.js" } }' > "$tmp/m/app/importmap.json"
+printf "import { a } from 'a';\nimport { b } from 'x/b.js';\nimport { c } from 'x/deep/c.js';\nconsole.log(a, b, c);\n" > "$tmp/m/app/main.js"
+is "import map prefixes" "$("$ZINC" run "$tmp/m/app/main.js" 2>/dev/null)" "exact prefix longest"
+"$ZINC" run "$tmp/m/app/main.js" 2>&1 | grep -q '"bad/" ends in / and "../lib/a.js" does not' || { echo "run_js_engine: a prefix mapped to a file is not reported"; fail=1; }
+printf "import { a } from 'x/../a.js';\nconsole.log(a);\n" > "$tmp/m/app/up.js"
+"$ZINC" run "$tmp/m/app/up.js" > "$tmp/out" 2>&1 && { echo "run_js_engine: x/../a.js climbed out of its prefix: $(head -c 200 "$tmp/out")"; fail=1; }
+
 for e in three:800x500 pixi:800x500 p5:800x500 phaser:320x240; do   # the examples, a plain run: the first frame has the size of their zinc.json
   n=${e%%:*}; want=${e##*:}
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=1 ZINC_SHOT="$tmp/$n.png" "$ZINC" run examples/js-$n > "$tmp/out" 2>&1

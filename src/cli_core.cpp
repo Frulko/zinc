@@ -489,7 +489,7 @@ bool discoverEntryIn(std::vector<std::string>& args, std::string& err) {
   std::string perr;
   const bool have = !manifestText.empty() && zn::frontend::parseProject(manifestText, project, perr);
   std::string e = zn::frontend::entryOf(projDir, have ? &project : nullptr);
-  if (e.empty()) { err = "no project here: " + projDir + " has no zinc.json \"entry\" and no src/main.ts, src/main.tsx, main.ts or main.tsx (zinc init <dir> creates one)"; return false; }
+  if (e.empty()) { err = "no project here: " + projDir + " has no zinc.json \"entry\" and no src/main.ts, src/main.tsx, main.ts, main.tsx, src/main.js or main.js (zinc init <dir> creates one)"; return false; }
   const std::string name = have && !project.name.empty() ? project.name : fs::path(projDir).filename().string();
   if (have && !project.engine.empty() && project.engine != "quickjs" && project.engine != "jsc" && project.engine != "v8" && project.engine != "hermes" && project.engine != "zinc") { err = projDir + "/zinc.json: \"engine\" must be \"zinc\", \"quickjs\", \"jsc\", \"v8\" or \"hermes\", not \"" + project.engine + "\""; return false; }
   if (cmd == "run") { if (hasEntry) args[at] = projDir; else args.insert(args.begin() + at, projDir); pickEngine(e, have ? project.engine : ""); }

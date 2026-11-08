@@ -354,6 +354,38 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   return true;
 }
 
+// importmap.json next to the entry, as a browser's import map: {"imports": {"three": "../../third_party/three/three.module.js",
+// "three/addons/": "../../third_party/three/examples/jsm/"}}, the paths relative to the file. A key ending in "/" maps every specifier under it
+// (the WHATWG rule: its address ends in "/" too, or the entry is dropped with a warning)
+void readImportMap(const std::string& entry, std::map<std::string, std::string>& imports) {
+  std::string text, dir = dirOf(entry);
+  if (!readFile(dir + "/importmap.json", text)) return;
+  yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+  yyjson_val* im = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "imports") : nullptr;
+  size_t i, n; yyjson_val *k, *v;
+  if (im && yyjson_is_obj(im)) yyjson_obj_foreach(im, i, n, k, v) {
+    if (!yyjson_is_str(v) || !yyjson_get_len(k) || !yyjson_get_len(v)) continue;
+    const std::string key = yyjson_get_str(k), to = yyjson_get_str(v);
+    const bool prefix = key.back() == '/';
+    if (prefix && to.back() != '/') { std::fprintf(stderr, "zinc: %s/importmap.json: \"%s\" ends in / and \"%s\" does not: the entry is ignored\n", dir.c_str(), key.c_str(), to.c_str()); continue; }
+    imports[key] = normalize(to[0] == '/' ? to : dir + "/" + to) + (prefix ? "/" : "");
+  }
+  yyjson_doc_free(doc);
+}
+
+// the import map's answer for a specifier: its exact key, else the longest key ending in "/" it starts with, the rest of the specifier
+// joined to that address (refused when it climbs out of it with ..); "" when nothing maps it
+std::string mapImport(const std::map<std::string, std::string>& imports, const std::string& n) {
+  if (auto it = imports.find(n); it != imports.end()) return it->second;
+  const std::string* best = nullptr;
+  for (const auto& [key, to] : imports)
+    if (key.back() == '/' && n.rfind(key, 0) == 0 && (!best || key.size() > best->size())) best = &key;
+  if (!best) return "";
+  const std::string& to = imports.at(*best);
+  const std::string r = normalize(to + n.substr(best->size()));
+  return r.rfind(to, 0) == 0 ? r : "";
+}
+
 // QuickJS's module-name normalizer: importmap.json beside the entry (as a browser's import map), the board's modules (zinc:<name> under
 // --engine mquickjs), then the resolver every engine shares (frontend/resolve.h). A zinc: name it leaves as it is is a host or standard module (moduleText).
 char* normalizeName(JSContext* ctx, const char* base, const char* name, void* opaque) {
@@ -364,7 +396,7 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
     std::string_view f = zn::frontend::stdModuleFile(base);
     if (!f.empty() && !e.stdRoot.empty()) from = e.stdRoot + "/" + std::string(f);
   }
-  if (auto it = e.imports.find(n); it != e.imports.end()) r = it->second;
+  if (std::string m = mapImport(e.imports, n); !m.empty()) r = m;
   else if (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0) {
     r = normalize(dirOf(from) + "/" + n);
     if (std::string f = e.res.file(r, from); !f.empty()) r = f;
@@ -710,16 +742,7 @@ bool collect(const std::string& entry, const std::string& stdRoot, const std::st
   w.e.stdRoot = w.e.res.stdRoot = stdRoot;
   w.e.cacheDir = cacheDir;
   w.e.entry = program.empty() ? entry : program;
-  {   // importmap.json next to the entry, as run reads it
-    std::string text, dir = dirOf(w.e.entry);
-    if (readFile(dir + "/importmap.json", text)) {
-      yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
-      yyjson_val* im = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "imports") : nullptr;
-      size_t i, n; yyjson_val *k, *v;
-      if (im && yyjson_is_obj(im)) yyjson_obj_foreach(im, i, n, k, v) if (yyjson_is_str(v)) w.e.imports[yyjson_get_str(k)] = normalize(yyjson_get_str(v)[0] == '/' ? std::string(yyjson_get_str(v)) : dir + "/" + yyjson_get_str(v));
-      yyjson_doc_free(doc);
-    }
-  }
+  readImportMap(w.e.entry, w.e.imports);   // as run reads it
   JSRuntime* rt = JS_NewRuntime();
   JSContext* ctx = JS_NewContext(rt);
   JS_SetModuleLoaderFunc(rt, walkName, walkLoad, &w);
@@ -870,16 +893,7 @@ int run(const Options& o) {
   }
   e.entry = entry;
   if (!webEnv(e.ctx, e.stdRoot, entry)) return 101;
-  {   // importmap.json next to the entry: {"imports": {"three": "../../third_party/three/build/three.module.js"}} (paths relative to the file)
-    std::string text, dir = dirOf(entry);
-    if (readFile(dir + "/importmap.json", text)) {
-      yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
-      yyjson_val* im = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "imports") : nullptr;
-      size_t i, n; yyjson_val *k, *v;
-      if (im && yyjson_is_obj(im)) yyjson_obj_foreach(im, i, n, k, v) if (yyjson_is_str(v)) e.imports[yyjson_get_str(k)] = normalize(yyjson_get_str(v)[0] == '/' ? std::string(yyjson_get_str(v)) : dir + "/" + yyjson_get_str(v));
-      yyjson_doc_free(doc);
-    }
-  }
+  readImportMap(entry, e.imports);
   int rc = 0;
   std::string js, err;
   JSValue stage = JS_UNDEFINED;   // zinc.json "loading" (ZN-447): the loader stage runs before the entry's modules, as on the typed engines

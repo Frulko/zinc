@@ -74,6 +74,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 ### Language
 
+#### New
+
+- JavaScript projects: `importmap.json` maps a whole folder with a key ending in `/`, as a browser does (`"three/addons/": "../three/examples/jsm/"`), and a folder with a `main.js` runs with `zinc run` even when its `zinc.json` only sets `app.window`.
+
 #### Fixed
 
 - `Math.atan`, `Math.asinh`, `Math.acosh` and `Math.atanh` were refused by the checker; they now work on every engine.
@@ -117,6 +121,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Changed
 
 - In Musique (arbre), ticking a room to group it with the speakers shows the tick at once, faded until the Sonos confirms, instead of nothing for one to three seconds.
+- `examples/js-phaser` opens at three times its 320x240 game size on a desktop, instead of a small window.
 
 
 ## [0.11.5] - 2026-11-05

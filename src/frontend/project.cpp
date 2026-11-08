@@ -669,7 +669,7 @@ std::string entryOf(const std::string& dir, const Project* project) {
   std::error_code ec;
   std::vector<std::string> candidates;
   if (project && !project->entry.empty()) candidates.push_back(project->entry);
-  for (const char* c : {"src/main.ts", "src/main.tsx", "main.ts", "main.tsx"}) candidates.push_back(c);
+  for (const char* c : {"src/main.ts", "src/main.tsx", "main.ts", "main.tsx", "src/main.js", "main.js"}) candidates.push_back(c);   // a JavaScript project too (QuickJS, ZN-1041)
   for (const std::string& c : candidates) {
     fs::path f = fs::path(dir) / c;
     if (fs::is_regular_file(f, ec)) return f.string();
