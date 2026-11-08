@@ -111,4 +111,7 @@ FOLLOW-UP TASKS (not created; for the coordinator to file):
 2026-10-22: back to Backlog; it was In Progress with no worktree working it (left by an earlier session). The notes above say what is done.
 Review 2026-10-25: done-partly. Images, decode with stb_image/libwebp, flip/premultiply flags and size bound are done; the 2 ms-frame criterion was measured (525 ms) and deliberately not attempted. Left: asynchronous read+decode on libuv, a Worker with createImageBitmap, a one-call file read (the follow-ups (a) to (e) in the notes). Evidence: lib/std/webenv.js Image/ImageBitmap; src/qjs/webenv.cpp decodeImage; tests/t1/webenv_image.sh
 Review 2026-11-07: done-partly. Decode works; the off-main-thread pool read, one-call file read and copy-free texImage2D remain. Evidence: lib/std/webenv.js Image/ImageBitmap; src/qjs/webenv.cpp decodeImage; tests/t1/webenv_image.sh
+Review 2026-11-07, from backlog/later.md: ZN-569: a Worker in the web environment, and `createImageBitmap` with it; PixiJS `Assets.load` takes that path when both exist.
+Review 2026-11-07, from backlog/later.md: ZN-569: images read and decoded off the frame in the host; a large image stalls the frame that loads it.
+Review 2026-11-07, from backlog/later.md: ZN-587: the web environment's global Worker (Blob URL entries, structured clone with ArrayBuffer transfer, webenv in the worker) for PixiJS `preferWorkers` and Tone.js (criteria #1 and #2).
 <!-- SECTION:NOTES:END -->
