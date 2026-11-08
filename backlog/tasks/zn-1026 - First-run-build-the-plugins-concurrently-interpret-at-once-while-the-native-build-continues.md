@@ -4,7 +4,8 @@ title: >-
   First run: build the plugins concurrently, interpret at once while the native
   build continues
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:36'
 labels:
   - perf

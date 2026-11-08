@@ -2,7 +2,8 @@
 id: ZN-666
 title: The 30 style scenes through the GL replay
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 18:49'
 labels:
   - gpu
