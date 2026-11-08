@@ -488,6 +488,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-794: adopting a promise returned by `then` takes one extra microtask where the spec takes two; ordering tests (test262) could tell.
 - ZN-699: `Math.f16round` and `Math.sumPrecise` (ES2025+) are missing; add them when TypeScript's lib has them.
 - ZN-793: `zinc lint` of a JavaScript program skips the `@requires` and plugin target rules; give the QuickJS check the plugin list.
+- ZN-1007: `tools/site-examples` copies each sketch to a temp folder so it does not take Atelier's `zinc.json`; `zinc export <dir>` now stops at the folder (`ZINC_PROJECT_ROOT`), so the copy can go (keep the SKIP_DIRS filter).
+- ZN-1007: `zinc run <dir>` of a folder without a `zinc.json` still climbs to a parent's (window size, permissions); setting `ZINC_PROJECT_ROOT` in `discoverEntry` for a directory entry would match `zinc export`.
+- ZN-733: old links stay in `~/.zinc/cache/run/names` (one symlink per app name) and nothing prunes them.
+- ZN-802: `number | undefined` prints as `null | number` in Z0103 (undefined and null are one type); print the spelling the declaration used.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
