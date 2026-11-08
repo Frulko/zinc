@@ -4,7 +4,8 @@ title: >-
   QuickJS binary data: net bodies, u8 arguments to natives, large WebSocket
   messages, WebSocket and URL globals
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:34'
 labels:
   - quickjs

@@ -4,7 +4,8 @@ title: >-
   QuickJS agrees with the interpreter: typed JSON.parse, i32 truncation,
   Map.get, TOUCH, host events
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:34'
 labels:
   - quickjs

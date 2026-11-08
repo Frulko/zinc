@@ -2,7 +2,8 @@
 id: ZN-1011
 title: 'zinc:storage: one store per program, not one shared file'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:34'
 labels:
   - storage
