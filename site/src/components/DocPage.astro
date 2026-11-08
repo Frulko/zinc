@@ -4,7 +4,7 @@
 import { getCollection, render } from 'astro:content';
 import { execFileSync } from 'node:child_process';
 import Base from '../layouts/Base.astro';
-import { slugOf } from '../../docs-map.mjs';
+import { slugOf, groupsOf } from '../../docs-map.mjs';
 import { strings, route } from '../i18n';
 
 const { d, tr, lang = 'en' } = Astro.props;
@@ -31,19 +31,8 @@ const nice = (id: string) => {
   if (t === 'Syntax') return s['docs.title.syntax'];
   return fix[t] ?? t.replace(/\b(fbdev|gl)\b/i, (m) => m.toUpperCase()).replace(/^Display /, 'Display: ');
 };
-// README first, then by file name.
-const dir = (p: string) => ids.filter((x) => x.startsWith(`${p}/`)).sort((x, y) => (/\/readme$/.test(x) ? -1 : /\/readme$/.test(y) ? 1 : x.localeCompare(y)));
-const only = (list: string[]) => list.filter((x) => ids.includes(x));
 // Learn, Start, Guides, Reference, Concepts. Reports and decisions are not published: they stay on GitHub.
-const groups: [string, string[]][] = [
-  ['learn', dir('learn')],
-  ['start', only(['start/choose', ...dir('start').filter((x) => x !== 'start/choose')])],
-  ['guides', [...dir('guide'), ...only(['ui-kit', 'nuxt-ui', 'react-native', 'templates', 'boards', 'dev-mode', 'desktop-integration', 'zapp', 'studio', 'figma-ui'])]],
-  ['targets', dir('targets')],
-  ['reference', [...only(['reference/syntax', 'diagnostics']), ...dir('reference').filter((x) => x !== 'reference/syntax'), ...only(['ui', 'plugins', 'zpk', 'licenses'])]],
-  ['plugins', dir('plugins')],
-  ['concepts', only(['engines', 'diagnostics-vs-tsc', 'ir-format'])],
-].map(([g, l]) => [g, [...new Set(l as string[])]] as [string, string[]]).filter(([, l]) => l.length > 0);
+const groups: [string, string[]][] = groupsOf(ids);
 
 // A translation records the commit of the English file it came from (frontmatter `source`); stale = the English file differs now.
 // An unknown commit (a shallow clone) is not reported here: tools/i18n-docs-check is the gate.
@@ -55,6 +44,8 @@ if (tr && tr.data.source) {
 const enHref = `${b}docs/${slug(d.id)}/`;
 ---
 <Base title={nice(d.id)} lang={lang}>
+  <link slot="head" rel="alternate" type="text/markdown" href={`${route(b, lang, `docs/${slug(d.id)}/`)}index.md`} />
+  <link slot="head" rel="describedby" type="text/markdown" href={`${b}${lang === 'en' ? '' : `${lang}/`}llms.txt`} />
   <div class="wrap docs">
     <aside class="side">
       {groups.map(([g, list]) => <><h4>{s['docs.group.' + g]}</h4>{list.map((id) => <a href={route(b, lang, `docs/${slug(id)}/`)} class={id === d.id ? 'on' : ''}>{nice(id)}</a>)}</>)}

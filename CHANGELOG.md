@@ -128,6 +128,12 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `examples/js-phaser` opens at three times its 320x240 game size on a desktop, instead of a small window.
 
 
+### Docs and learning
+
+#### New
+
+- The docs speak to AI assistants: the site publishes `llms.txt`, `llms-full.txt` and a Markdown copy of every docs page (`index.md` beside it), in each of the five languages.
+
 ## [0.11.5] - 2026-11-05
 
 This version makes Zinc a better place to build and debug real apps: a documentation generator, threads with `zinc:worker`, a much richer Inspector and faster builds. It also grows the apps that run on it, with Sidecar turning almost any screen into a second display, a full iPod manager, a deeper reMarkable experience, and new games such as Hamlet.

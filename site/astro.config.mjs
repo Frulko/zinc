@@ -1,6 +1,8 @@
 import { defineConfig } from 'astro/config';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isPublished, slugOf } from './docs-map.mjs';
+import { writeLlms } from './llms.mjs';
 
 const REPO = 'https://github.com/Frulko/zinc/blob/main/';
 const DOCS = path.resolve('../docs');
@@ -57,5 +59,7 @@ export default defineConfig({
   site: 'https://frulko.github.io',
   base: BASE,
   trailingSlash: 'always',
+  // llms.txt, llms-full.txt and a Markdown copy beside every docs page, in each language (llms.mjs).
+  integrations: [{ name: 'llms', hooks: { 'astro:build:done': ({ dir }) => { writeLlms(fileURLToPath(dir)); } } }],
   markdown: { remarkPlugins: [remarkI18nImages], rehypePlugins: [rehypeDocLinks], shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' }, defaultColor: false } },
 });

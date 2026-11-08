@@ -236,6 +236,7 @@
     {"paths": ["learn/catalog.txt", "tools/site-examples", "tests/t1/site_examples.sh", "plugins/3d/web/", "site/src/pages/examples/", "site/src/data/catalog.ts", "site/public/play/", "docs/learn/samples/", "app/atelier/examples/"], "tests": ["site_examples"]},
     {"paths": ["i18n/", "src/i18n/", "tools/i18n-check", "tests/unit/i18n_test.cpp", "tests/t0/i18n.sh", "app/atelier/"], "tests": ["i18n"]},
     {"paths": ["docs/i18n/", "tools/i18n-docs-check", "tests/t0/i18n_docs.sh", "site/src/i18n/"], "tests": ["i18n_docs"]},
+    {"paths": ["site/llms.mjs", "site/docs-map.mjs", "tests/t0/site_llms.sh"], "tests": ["site_llms"]},
     {"paths": ["include/zn/diagnostics.h", "src/frontend/diagnostics", "i18n/en/diag.json", "i18n/fr/diag.json", "i18n/es/diag.json", "i18n/it/diag.json", "i18n/de/diag.json", "docs/diagnostics.md", "tests/t0/diagnostics.sh"], "tests": ["diagnostics", "i18n"]},
     {"paths": ["include/zn/diagnostics.h", "src/frontend/diagnostics.cpp", "docs/diagnostics.md", "tests/t0/explain_fixes.sh"], "tests": ["explain_fixes", "diagnostics"]},
     {"paths": ["i18n/", "src/cli_core.cpp", "src/main.cpp"], "tests": ["i18n", "first_run", "cli_core", "doctor_friendly"]},

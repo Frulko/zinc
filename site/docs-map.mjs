@@ -14,3 +14,18 @@ export const isPublished = (rel) => {
 };
 /** The route of a published doc: learn/README is the index of /docs/learn/. */
 export const slugOf = (rel) => rel.replace(/\.md$/, '').toLowerCase().replace(/^learn\/readme$/, 'learn');
+/** The docs navigation: [group, ids] in order (Learn, Start, Guides, Targets, Reference, Plugins, Concepts), from the published ids
+ *  ("guide/02-language", lower-cased like the collection's). Shared by the sidebar (DocPage.astro) and llms.txt (llms.mjs). */
+export const groupsOf = (ids) => {
+  const dir = (p) => ids.filter((x) => x.startsWith(`${p}/`)).sort((x, y) => (/\/readme$/.test(x) ? -1 : /\/readme$/.test(y) ? 1 : x.localeCompare(y)));
+  const only = (list) => list.filter((x) => ids.includes(x));
+  return [
+    ['learn', dir('learn')],
+    ['start', only(['start/choose', ...dir('start').filter((x) => x !== 'start/choose')])],
+    ['guides', [...dir('guide'), ...only(['ui-kit', 'nuxt-ui', 'react-native', 'templates', 'boards', 'dev-mode', 'desktop-integration', 'zapp', 'studio', 'figma-ui'])]],
+    ['targets', dir('targets')],
+    ['reference', [...only(['reference/syntax', 'diagnostics', 'cheatsheet']), ...dir('reference').filter((x) => x !== 'reference/syntax'), ...only(['ui', 'plugins', 'zpk', 'licenses'])]],
+    ['plugins', dir('plugins')],
+    ['concepts', only(['engines', 'diagnostics-vs-tsc', 'ir-format'])],
+  ].map(([g, l]) => [g, [...new Set(l)]]).filter(([, l]) => l.length > 0);
+};
