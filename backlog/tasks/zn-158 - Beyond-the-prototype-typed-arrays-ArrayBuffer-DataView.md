@@ -2,7 +2,8 @@
 id: ZN-158
 title: 'Beyond the prototype: typed arrays, ArrayBuffer, DataView'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-06 23:05'
 labels:
   - language

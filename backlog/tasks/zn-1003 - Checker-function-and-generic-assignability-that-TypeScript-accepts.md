@@ -2,7 +2,8 @@
 id: ZN-1003
 title: 'Checker: function and generic assignability that TypeScript accepts'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:33'
 labels:
   - checker
