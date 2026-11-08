@@ -553,6 +553,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1064: overlapping primitives of one canvas show through each other while it fades; a UI painted from inside `onDraw` multiplies its alpha twice.
 - ZN-182: plots inside an atlas page (as Skia does) instead of evicting whole pages, and RGBA pages for colour glyphs (emoji).
 - ZN-183: a startup check that draws a few known commands through the GL replay and compares them with the software raster, so `no-replay` turns on by itself on a driver that draws wrong (needs a device with a broken driver).
+- ZN-1024: code inside `import.meta.hot` blocks is not type-checked.
+- ZN-1024: the bake key hashes every font at each compile; the plugin provider calls discoverPlugins once per module; the module resolver's own work costs 165 ms per compile on hero (the three biggest costs left in the 1.2 s save-to-frame).
+- ZN-1026: plugin builds overlap only the loading; join them just before the native link to overlap lowering and the AOT emit too.
+- ZN-1026: give the baked resources (~1.4 MB) their own C++ unit keyed by content: about 1 s per rebuild.
+- ZN-1026: the background builder has no memory cap (sqlite3.c is the heaviest unit); watch it on the Pi and 8 GB Macs.
+- ZN-1026: `zinc doctor` could show a remembered native build failure with the hint `xcode-select --install`.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
