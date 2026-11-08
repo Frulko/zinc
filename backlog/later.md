@@ -506,6 +506,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1004: `nearest()` breaks ties poorly ('bel' suggests 'bed' rather than 'bell'); prefer insertions.
 - ZN-1006: choose the fallback font by language (Hiragino for ja, PingFang for zh) instead of Arial Unicode's Han forms.
 - ZN-1006: CBDT/COLR colour emoji (Noto Color Emoji on Linux) are still not drawn.
+- ZN-1010: an async function declaration or class method without `Promise<T>` is still refused.
+- ZN-1010: in `c ? await a() : b` the plain branch costs an extra microtask, and `c ? await a() : null` is still Z0005.
+- ZN-1010: `.then` callbacks that return `T | Promise<T>` are not flattened, and Promise and PromiseV are not merged.
+- ZN-1010: variables declared after a top-level `await` are locals of the wrapper, so an exported variable after the `await` is refused.
+- ZN-1025: a dashed key on a record that does not declare it is dropped silently; a diagnostic would help.
+- ZN-1050: the zip/inflate API named in the task description is not done.
+- ZN-1050: `toLocaleString` formats every locale as US English (digits from `toFixed`: 1.005 to 2 digits gives 1.00 where V8 gives 1.01; `style` and `currency` ignored); real locales need ICU data.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
