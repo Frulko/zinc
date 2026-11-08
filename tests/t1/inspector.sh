@@ -90,13 +90,13 @@ want 'payload: {"ask":"inspector"}'
 want "request headers: Content-Type: application/json"
 want "response headers: true, mime application/json, size 28"
 want "timing: DNS lookup, Initial connection, Request sent, Waiting for server response, Content download"
-want 'preview: - {1} | - echo: {1} | ask: "inspector"'
+want 'preview: ▾ {1} | ▾ echo: {1} | ask: "inspector"'
 want "-X POST -H 'Host: 127.0.0.1:$http'"
 want "--data-raw '{\"ask\":\"inspector\"}'"
 want "filter 5xx: 0"
 want "filter 2xx: 1"
 want "filter ws: 1"
-want "ws: /ws 101 >> hello, << echo: hello, >> [close], << [close]"
+want "ws: /ws 101 ↑ hello, ↓ echo: hello, ↑ [close], ↓ [close]"
 want "filter echo: 1"
 want "har: out.har"
 python3 -c "

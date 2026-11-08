@@ -60,6 +60,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The on-screen keyboard's backspace stops repeating when its press is lost, and the image viewer ignores zoom and drags while it closes.
 - Scrolling up a `VirtualList` with `estimatedItemHeight` (a chat history) with the trackpad or the wheel no longer makes the messages jump as older ones come into view.
 - `ui.focusNode` no longer gives the focus to a `disabled` field, as a click never did.
+- Japanese, Chinese, Persian and Arabic text, arrows and triangles such as `▸ ▾`, and emoji with skin tones or joined into one draw with the system's fonts instead of `?`, without adding `"text": "shaped"` to `zinc.json`; Latin text keeps exactly its pixels, and `"text": "simple"` keeps the old behaviour (and a smaller built program).
 
 ### The web
 

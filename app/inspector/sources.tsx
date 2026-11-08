@@ -140,7 +140,7 @@ export function DebugPane(): i32 {
       <Text className="text-xs font-mono text-slate-800">{f.name + ' ' + nameOf(f.script) + ':' + f.line}</Text></Button>)}
     <Text className="text-xs font-medium text-slate-600">Scope</Text>
     {scope().map((s: ScopeLine, i: i32) => <Button className="px-2 py-1 flex-row justify-start h-5 rounded bg-white" style={{ paddingLeft: s.depth * 12 }} onClick={() => { unfold(i); }}>
-      <Text className={'text-xs font-mono ' + (s.depth === 0 ? 'font-medium text-slate-600' : 'text-slate-800')}>{s.depth === 0 ? s.name : (s.objectId !== '' ? (s.open ? '- ' : '+ ') : '') + s.name + ': ' + s.value}</Text></Button>)}
+      <Text className={'text-xs font-mono ' + (s.depth === 0 ? 'font-medium text-slate-600' : 'text-slate-800')}>{s.depth === 0 ? s.name : (s.objectId !== '' ? (s.open ? '▾ ' : '▸ ') : '') + s.name + ': ' + s.value}</Text></Button>)}
     <Text className="text-xs font-medium text-slate-600">Watch</Text>
     {watches().map((w: string, i: i32) => <Text className="text-xs font-mono text-slate-800">{w + ' = ' + (i < watchVals().length ? watchVals()[i] : '')}</Text>)}
     <Input className="bg-slate-800 border-slate-600 py-1.5 text-slate-100 h-7 px-2 text-xs font-mono border rounded" value={watchDraft()} onInput={(v: string) => { setWatchDraft(v); }} />

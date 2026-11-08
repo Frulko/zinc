@@ -11,6 +11,12 @@
 #include "text/layout.h"
 #include "text/sbix.h"
 #include "zrt_raster.h"
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 namespace zn::text {
 namespace {
@@ -26,9 +32,11 @@ void openFaces() {
   for (int i = 0; i < zrt::raster::ttf_count; ++i) gFaces.push_back(Face::open(zrt::raster::ttf_files[i].data, zrt::raster::ttf_files[i].len));
 }
 
-// System fonts (ZN-225): the fallback behind the embedded files for what none of them covers, opened the first time a text needs one. Colour emoji come from the sbix table of Apple Color Emoji.
+// System fonts (ZN-225, ZN-1006): the fallback behind the embedded files for what none of them covers, opened the first time a text needs one,
+// in this order: colour emoji (the sbix table of Apple Color Emoji), symbols and arrows, then the broad fonts for CJK, Arabic and Persian. A
+// file is mapped, not read: Arial Unicode is 23 MB, and only the pages of the glyphs drawn come into memory.
 // ponytail: CBDT/COLR colour fonts (Noto Color Emoji on Linux) are not drawn yet, only glyf and CFF outlines and sbix bitmaps.
-struct SysFace { std::vector<uint8_t> data; std::unique_ptr<Face> face; bool color = false; };
+struct SysFace { const uint8_t* data = nullptr; size_t size = 0; std::unique_ptr<Face> face; bool color = false; };
 std::vector<SysFace> gSys;
 bool gSysLoaded = false;
 
@@ -37,17 +45,31 @@ void loadSystemFaces() {
   gSysLoaded = true;
 #if defined(__APPLE__)
   const char* paths[] = {"/System/Library/Fonts/Apple Color Emoji.ttc", "/System/Library/Fonts/Apple Symbols.ttf", "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"};
-#else
-  const char* paths[] = {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans.ttf"};
+#else   // Debian and Raspberry Pi OS (fonts-dejavu, fonts-noto-core, fonts-noto-cjk), Arch and Fedora: the files that are there
+  const char* paths[] = {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+                         "/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf", "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+                         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+                         "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc"};
 #endif
   for (const char* p : paths) {
+    SysFace f;
+#ifndef _WIN32
+    const int fd = ::open(p, O_RDONLY);
+    if (fd < 0) continue;
+    struct stat st;
+    void* m = fstat(fd, &st) == 0 && st.st_size > 0 ? mmap(nullptr, static_cast<size_t>(st.st_size), PROT_READ, MAP_PRIVATE, fd, 0) : MAP_FAILED;
+    ::close(fd);
+    if (m == MAP_FAILED) continue;
+    f.data = static_cast<const uint8_t*>(m); f.size = static_cast<size_t>(st.st_size);   // ponytail: kept mapped for the process, as the faces are
+#else
     std::ifstream in(p, std::ios::binary);
     if (!in) continue;
-    SysFace f;
-    f.data.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-    f.face = Face::open(f.data.data(), f.data.size());
+    auto* bytes = new std::vector<uint8_t>(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());   // kept for the process
+    f.data = bytes->data(); f.size = bytes->size();
+#endif
+    f.face = Face::open(f.data, f.size);
     if (!f.face) continue;
-    f.color = hasSbix(f.data.data(), f.data.size());
+    f.color = hasSbix(f.data, f.size);
     gSys.push_back(std::move(f));
   }
 }
@@ -114,7 +136,7 @@ const Rendered* shape(int32_t font, std::string_view text, float tracking) {
           const SysFace& sf = gSys[-1 - ff];
           auto ck = std::make_tuple(ff, g.gid, fp->px);
           auto ci = gColors.find(ck);
-          if (ci == gColors.end()) { ColorBitmap cb; if (!sbixGlyph(sf.data.data(), sf.data.size(), g.gid, o.size, cb)) cb = ColorBitmap(); ci = gColors.emplace(ck, std::move(cb)).first; }
+          if (ci == gColors.end()) { ColorBitmap cb; if (!sbixGlyph(sf.data, sf.size, g.gid, o.size, cb)) cb = ColorBitmap(); ci = gColors.emplace(ck, std::move(cb)).first; }
           const ColorBitmap& c = ci->second;
           if (c.w > 0) {
             r.colors.push_back(c); r.isColor.push_back(1); r.bitmaps.push_back(Bitmap());

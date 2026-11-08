@@ -87,6 +87,14 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #endif
 #include "host/permissions.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
+// The shaping tier (D32) is on wherever it is linked (ZN-1006): a text with a character the UI font lacks (CJK, Persian, arrows, emoji
+// sequences) is shaped over the fallback fonts instead of drawing '?', while Latin text keeps the codepoint tables and its pixels.
+// zinc.json "text": "simple" or ZINC_TEXT=simple keeps the tables alone; "shaped" from either one asks for the tier, as before.
+static bool shapedTextWanted(const std::string& projectText) {
+  const char* zt = std::getenv("ZINC_TEXT");
+  const std::string env = zt ? zt : "";
+  return env == "shaped" || projectText == "shaped" || (env != "simple" && projectText != "simple");
+}
 #include "res/codec.h"   // the JavaScript engines decode images through it, with or without the graphics host
 #ifdef ZN_HOST_GFX
 namespace zrt::raster { bool image_size(int32_t id, int32_t* w, int32_t* h); void dyn_resize(int32_t id, int32_t w, int32_t h); uint32_t* dyn_pixels(int32_t id); void dyn_update(int32_t id, const uint32_t* px, int32_t stride); }   // gl.zincPresent (ZN-205)
@@ -1114,8 +1122,11 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
       if (at != std::string::npos && c.find(")ZNW") == std::string::npos) { text.insert(at + 2, "  setenv(\"ZINC_WINDOW_CONFIG\", R\"ZNW(" + c + ")ZNW\", 1);   // zinc.json app.window\n"); std::ofstream o(cpp); o << text; }
     }
 #endif
-    const char* zt = std::getenv("ZINC_TEXT");   // zinc run's ZINC_TEXT=shaped asks for the tier as zinc.json does: the compiled run must link it too
-    if (proj.text == "shaped" || (zt && !std::strcmp(zt, "shaped"))) {
+    // the tier as the interpreter has it (shapedTextWanted), when this zinc has its archives; an app library or an Android export
+    // (ZN_AOT_CPP_ONLY) links it only when zinc.json or ZINC_TEXT asks for it
+    const char* zt = std::getenv("ZINC_TEXT");
+    const bool asked = proj.text == "shaped" || (zt && !std::strcmp(zt, "shaped"));
+    if (asked || (shapedTextWanted(proj.text) && !std::getenv("ZN_AOT_CPP_ONLY") && fs::exists(libs / "libzn_text_gfx.a"))) {
       std::string text;
       { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
       std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main(");
@@ -2394,6 +2405,7 @@ int main(int argc, char** argv) {
     }
     installDisplayDrivers("", argv[2]);   // zinc.json "display" (display-gl for zinc:mapping), before the window opens, as for the typed engines
 #ifdef ZN_HOST_GFX
+    std::string projectText;   // zinc.json "text"
     if (const std::string pf = zn::frontend::findProjectFile(argv[2]); !pf.empty()) {   // the splash (ZN-446), before the parse, the bake and the plugins
       std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf();
       zn::frontend::Project sp; std::string perr;
@@ -2402,10 +2414,10 @@ int main(int argc, char** argv) {
         windowEnv(hostWindow(sp));   // the size and window settings of zinc.json, as `zinc run` gives the typed engines
         if (sp.perfHud) setenv("ZINC_PERF_HUD", "1", 0);
         splashEnv(sp, std::filesystem::path(pf).parent_path().string(), zn::tc::pluginTarget().c_str());
-        if (sp.text == "shaped") zn::text::installShapedGfx();   // "text": "shaped" (ZN-224), as on the typed engines
+        projectText = sp.text;
       }
     }
-    if (const char* zt = std::getenv("ZINC_TEXT"); zt && !std::strcmp(zt, "shaped")) zn::text::installShapedGfx();
+    if (shapedTextWanted(projectText)) zn::text::installShapedGfx();   // as on the typed engines (ZN-224, ZN-1006)
     zn::host::showSplash();
     {
       std::vector<std::string> args;
@@ -2749,7 +2761,7 @@ int main(int argc, char** argv) {
     }
     std::string projectDir;
     zn::frontend::TargetOptions window;  // zinc.json: what concerns the host
-    bool shapedText = false;             // zinc.json "text": "shaped" (ZN-224)
+    std::string textTier;                // zinc.json "text": "shaped" or "simple" (ZN-224)
     {
       namespace fs = std::filesystem;
       std::string projFile = zn::frontend::findProjectFile(path);
@@ -2813,7 +2825,7 @@ int main(int argc, char** argv) {
       runPermissions(have ? &project : nullptr, projectDir);
       if (have) gUpdProject = project;   // zinc:system/update (ZN-324.03)
       if (have) {
-        shapedText = project.text == "shaped";
+        textTier = project.text;
         if (!project.keyboard.empty()) setenv("ZINC_KEYBOARD", project.keyboard.c_str(), 0);   // zinc.json "keyboard" (ZN-227)
         if (project.webgl) setenv("ZINC_WEBGL", "1", 0);   // zinc.json "webgl" (ZN-205)
         if (project.perfHud) setenv("ZINC_PERF_HUD", "1", 0);   // zinc.json "dev": {"perfHud": true} (ZN-375)
@@ -2834,7 +2846,7 @@ int main(int argc, char** argv) {
     installDisplayDrivers(projectDir, path.c_str());
     windowEnv(window);
 #ifdef ZN_HOST_GFX
-    if (shapedText || (std::getenv("ZINC_TEXT") && !std::strcmp(std::getenv("ZINC_TEXT"), "shaped"))) zn::text::installShapedGfx();   // ZN-224
+    if (shapedTextWanted(textTier)) zn::text::installShapedGfx();   // ZN-224, on by default (ZN-1006)
     zn::host::setGrowDrawCommands(window.growDrawCommands);
 #endif
 #ifdef ZN_HOST_GFX

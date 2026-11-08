@@ -13,7 +13,7 @@ import { Btn, Flat, Toggle, Field, Mono } from './widgets';
 export class WsFrame {
   sent: boolean = false; op: i32 = 1; data: string = ''; at: number = 0;
   /** As the Messages tab shows it: an arrow, then the text, or what a control or binary frame is. */
-  text(): string { return (this.sent ? '>> ' : '<< ') + (this.op === 1 ? this.data : this.op === 8 ? '[close]' : this.op === 9 ? '[ping]' : this.op === 10 ? '[pong]' : '[binary, ' + this.data.length + ' base64 characters]'); }
+  text(): string { return (this.sent ? '↑ ' : '↓ ') + (this.op === 1 ? this.data : this.op === 8 ? '[close]' : this.op === 9 ? '[ping]' : this.op === 10 ? '[pong]' : '[binary, ' + this.data.length + ' base64 characters]'); }
 }
 /** A request of the panel, built from its Network events. */
 export class Req {
@@ -122,7 +122,7 @@ export function jsonLines(v: any, key: string, depth: i32, path: string, folded:
   if (v === null) { out.push(pad + name + 'null'); paths.push(''); return; }
   if (Array.isArray(v)) {
     const open = !folded.has(path);
-    out.push(pad + (open ? '- ' : '+ ') + name + '[' + v.length + ']'); paths.push(path);
+    out.push(pad + (open ? '▾ ' : '▸ ') + name + '[' + v.length + ']'); paths.push(path);
     if (open) for (let i = 0; i < v.length; i++) jsonLines(v[i], '' + i, depth + 1, path + '/' + i, folded, out, paths);
     return;
   }
@@ -130,7 +130,7 @@ export function jsonLines(v: any, key: string, depth: i32, path: string, folded:
     let n = 0;
     for (const k in v) n++;
     const open = !folded.has(path);
-    out.push(pad + (open ? '- ' : '+ ') + name + '{' + n + '}'); paths.push(path);
+    out.push(pad + (open ? '▾ ' : '▸ ') + name + '{' + n + '}'); paths.push(path);
     if (open) for (const k in v) jsonLines(v[k], k, depth + 1, path + '/' + k, folded, out, paths);
     return;
   }
