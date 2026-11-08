@@ -869,19 +869,28 @@ void storageWrite(const std::string& p, const std::map<std::string, std::string>
 std::map<std::string, std::string> storageLoad() {
   const std::string p = storagePath();
   std::map<std::string, std::string> m = storageRead(p);
-  // once, when the app's own store does not exist yet: its keys ("<name>.…", as apps named them) move out of the shared store of older engines
+  // once per app (the marker storage.kv.migrated beside its store, ZN-1011): what the shared store of older engines holds for it comes over.
+  // Its keys ("<name>.…", as apps named them) move; AsyncStorage's ("@async/…") belong to no app by name, so every app gets a copy of them
+  // and the shared store keeps them (an app not run yet still finds its own). A key the app's store has already keeps its value.
   static bool migrated = false;
   if (!migrated && !getenv("ZINC_STORAGE") && !getenv("ZINC_APP_DATA") && p != legacyStoragePath()) {
     migrated = true;
+    const std::string mark = p + ".migrated";
     struct stat st;
-    if (stat(p.c_str(), &st) != 0) {
+    if (stat(mark.c_str(), &st) != 0) {
       std::map<std::string, std::string> shared = storageRead(legacyStoragePath());
       const std::string prefix = std::string(getenv("ZINC_APP_NAME")) + ".";
-      bool moved = false;
+      bool moved = false, copied = false;
       for (auto it = shared.begin(); it != shared.end();) {
-        if (it->first.compare(0, prefix.size(), prefix) == 0) { m[it->first] = it->second; it = shared.erase(it); moved = true; } else ++it;
+        if (it->first.compare(0, prefix.size(), prefix) == 0) { m.emplace(it->first, it->second); it = shared.erase(it); moved = true; continue; }
+        if (it->first.compare(0, 7, "@async/") == 0 && m.emplace(it->first, it->second).second) copied = true;
+        ++it;
       }
-      if (moved) { storageWrite(p, m); if (!gFailed) storageWrite(legacyStoragePath(), shared); }
+      if (moved || copied) storageWrite(p, m);
+      if (moved && !gFailed) storageWrite(legacyStoragePath(), shared);
+      const std::size_t slash = mark.find_last_of('/');
+      if (!gFailed && (slash == std::string::npos || mkdirs(mark.substr(0, slash))))
+        if (std::FILE* f = std::fopen(mark.c_str(), "wb")) std::fclose(f);
     }
   }
   return m;

@@ -3,12 +3,13 @@
 # and webcam (the fake camera) draw, headless and deterministic, the frame the interpreter draws (one hash each); the minified bundle of hero
 # (zinc bundle, with the pinned esbuild when ZINC_HOME has it) draws it too. webcam is compared at frame 40: at frame 20 the QuickJS virtual clock
 # fires the camera's setInterval one camera frame earlier (#9 against #8 in the HUD), an engine timing that the bundler does not change.
+# Each run has its own empty app folder (ZINC_APP_DATA), so rn-showcase reads no preferences of the user's own runs (ZN-1011).
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 shot() {   # frames, png, args...
   n=$1; png=$2; shift 2
-  ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=$n ZINC_SHOT="$png" "$ZINC" run "$@" >"$png.log" 2>&1 || { echo "$*: exit $?: $(tail -2 "$png.log")"; fail=1; }
+  ZINC_APP_DATA="$png.data" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=$n ZINC_SHOT="$png" "$ZINC" run "$@" >"$png.log" 2>&1 || { echo "$*: exit $?: $(tail -2 "$png.log")"; fail=1; }
 }
 same() { [ -f "$1" ] && cmp -s "$1" "$2"; }
 for d in hero:20 rn-showcase:20 nuxt-ui:20 breakout:20 webcam:40; do

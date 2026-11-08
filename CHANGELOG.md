@@ -109,6 +109,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `clock()` of `zinc:sys` measures below the millisecond on every engine, so a short loop no longer reads 0 ms.
 - `const p: Point = JSON.parse(text)` and `JSON.parse(text) as Point` behave the same on `--engine quickjs` as on the Zinc engines: only the declared fields are kept, and a missing or wrongly typed field throws a `TypeError`.
 - On `--engine quickjs`, bytes from a plugin behave as an array (`push`, `concat`, `map` to strings, `JSON.stringify`), so Discord voice encryption works and `zinc:socket` WebSocket messages of 60 KB and more arrive.
+- An app's first run on this version also brings over the AsyncStorage keys (`@async/…`) older engines kept in the shared `~/.zinc/storage.kv`, so apps that ran on `--engine quickjs` find their saved data again in their own store.
 
 ### Developer tools
 
