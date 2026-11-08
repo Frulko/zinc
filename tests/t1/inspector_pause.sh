@@ -49,7 +49,7 @@ if mode == "full":
     amber = sum(1 for y in range(min(h, 60)) for x in range(w) if tuple(d[(y * w + x) * bpp: (y * w + x) * bpp + 3]) == (0xfb, 0xbf, 0x24))
     check(amber == 0, "the badge is not in a capture (%d amber pixels)" % amber)
     w0 = call("DOM.getBoxModel", {"nodeId": b[3]})["model"]["width"]
-    call("DOM.setAttributeValue", {"nodeId": b[3], "name": "class", "value": "w-8 h-4 bg-rose-600"})
+    call("DOM.setAttributeValue", {"nodeId": b[3], "name": "className", "value": "w-8 h-4 bg-rose-600"})
     time.sleep(0.3)
     c = state()
     w1 = call("DOM.getBoxModel", {"nodeId": c[3]})["model"]["width"]

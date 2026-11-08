@@ -50,7 +50,7 @@ async function main(): Promise<void> {
   };
   await new Promise<void>((resolve) => { ws.onopen = () => { resolve(); }; });
   const doc = await call(ws, 'DOM.getDocument', '{}');
-  console.log('document', field(doc, 'nodeName'), doc.indexOf('Hello devtools') >= 0, doc.indexOf('"class"') >= 0);
+  console.log('document', field(doc, 'nodeName'), doc.indexOf('Hello devtools') >= 0, doc.indexOf('"className"') >= 0);
   const style = await call(ws, 'CSS.getComputedStyleForNode', '{"nodeId":1}');
   console.log('style', style.indexOf('computedStyle') >= 0);
   const unknown = await call(ws, 'Foo.bar', '{}');

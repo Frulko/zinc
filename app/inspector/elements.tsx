@@ -48,9 +48,9 @@ export function build(d: any, parent: TNode | null, byId: Map<i32, TNode>, roots
     else {
       const name: string = d.nodeName; const local: string = d.localName;
       x.stage = hasAttr(d, 'stage');   // zinc:stage: the element is named after the node's class (Sprite, GameManager...)
-      x.comp = !x.stage && name === local && name.length > 0 && name.charAt(0) !== name.charAt(0).toLowerCase();   // zinc:devtools names a component's wrapper as written
+      x.comp = !x.stage && local.length === 0 && name.length > 0 && name.charAt(0) !== name.charAt(0).toLowerCase();   // zinc:devtools names a component's wrapper as written, with no localName
       x.tag = x.comp || x.stage ? name : hostName(local);
-      x.cls = attr(d, 'class'); x.source = attr(d, 'source'); x.props = attr(d, 'props'); x.on = attr(d, 'on'); x.hidden = hasAttr(d, 'hidden');
+      x.cls = attr(d, 'className'); x.source = attr(d, 'source'); x.props = attr(d, 'props'); x.on = attr(d, 'on'); x.hidden = hasAttr(d, 'hidden');
       if (x.stage) stageValues(x, d.attributes);
       else x.hay = (x.tag + ' ' + x.cls + ' #' + x.id + ' ' + x.source + ' ' + x.props).toLowerCase();
     }
@@ -346,7 +346,7 @@ async function setClassList(on: string[], off: string[], rec: boolean = true): P
   const was = snap();
   previewBase = null;
   const v = on.join(' ');
-  const r = await call('DOM.setAttributeValue', `{"nodeId":${id},"name":"class","value":${JSON.stringify(v)}}`);
+  const r = await call('DOM.setAttributeValue', `{"nodeId":${id},"name":"className","value":${JSON.stringify(v)}}`);
   const e = errorOf(r);
   if (e.length > 0) { setStatus(e); return false; }
   (n as TNode).cls = v; offClasses.set(id, off);
@@ -379,7 +379,7 @@ export async function previewClass(c: string | null): Promise<void> {
   const base = previewBase as string;
   const v = c === null ? base : onClasses().filter((x: string) => x !== c).concat([c as string]).join(' ');
   if (c === null) previewBase = null;
-  await call('DOM.setAttributeValue', `{"nodeId":${id},"name":"class","value":${JSON.stringify(v)},"preview":true}`);
+  await call('DOM.setAttributeValue', `{"nodeId":${id},"name":"className","value":${JSON.stringify(v)},"preview":true}`);
   (n as TNode).cls = c === null ? base : (n as TNode).cls;
 }
 export function previewing(): boolean { return previewBase !== null; }

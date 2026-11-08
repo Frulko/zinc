@@ -9,7 +9,7 @@
 // own (ZN-864, as each window of Electron is in chrome://inspect): /json/list names them, and a client attached to a window beside the main
 // one gets that window's tree (zinc:ui inspectIn), screen and pick; the console, network, storage and pause stay the program's.
 import Cdp from './native/cdp.spec';
-import { inspectIn, inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectHit, onKey, KeyEvent, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, setText, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
+import { inspectIn, inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectHit, onKey, KeyEvent, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, setText, screenBox, knownClasses, TEXT, UiNode, Handlers } from 'zinc:ui';
 import { width, height, pointerX, pointerY, onPausedFrame, windowCtl } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import { saveLocation } from 'zinc:hardware';
@@ -64,7 +64,7 @@ function listeners(n: UiNode): string {
 }
 /** The element's attributes as [name, value] pairs: class, layout, then hidden / state / on when they apply. */
 function attrs(h: i32, n: UiNode): string[] {
-  const a = ['class', cls(n), 'layout', `${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}`];
+  const a = ['className', cls(n), 'layout', `${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}`];
   if (n.hidden) { a.push('hidden'); a.push(''); }
   const src = componentSource(h);   // a component of a dev run: where it is called, its props as written there
   if (src.length > 0) { a.push('source'); a.push(src); a.push('props'); a.push(componentProps(h)); }
@@ -88,13 +88,17 @@ function children(h: i32, n: UiNode): string[] {
   if (s !== null) kids.push(stageElement(s as DisplayObject));
   return kids;
 }
+/** The host nodes by tag as JSX writes them (zinc:ui's TAG_NAMES are the scene dump's lowercase words). */
+const HOST_NAMES: string[] = ['View', 'Text', 'Button', 'Image', 'ScrollView', 'Canvas', 'Fragment', 'Input', 'TextArea'];
 function element(h: i32): string {
   const n = inspectNode(h);
   if (n === null) return '';
   const kids = children(h, n);
-  const comp = componentName(h);  // a component's wrapper shows as <Card>, its host nodes as <view>, <text>...
-  const tag = comp.length > 0 ? comp : TAG_NAMES[n.tag];
-  return `{"nodeId":${h + 1},"backendNodeId":${h + 1},"nodeType":1,"nodeName":${q(comp.length > 0 ? tag : tag.toUpperCase())},"localName":${q(tag)},"nodeValue":"",` +
+  const comp = componentName(h);  // a component's wrapper shows as <Card>, its host nodes as JSX writes them, <View className>, <Text>...
+  // DevTools shows localName when it has nodeName's length, nodeName as given when localName is empty: a component's wrapper has none, which
+  // tells it from a host node of the same name (a file's own Button)
+  const tag = comp.length > 0 ? comp : HOST_NAMES[n.tag];
+  return `{"nodeId":${h + 1},"backendNodeId":${h + 1},"nodeType":1,"nodeName":${q(tag)},"localName":${q(comp.length > 0 ? '' : tag)},"nodeValue":"",` +
     `"childNodeCount":${kids.length},"children":[${kids.join(',')}],"attributes":[${attrs(h, n).map((v: string) => q(v)).join(',')}]}`;
 }
 function documentNode(): string {
@@ -128,11 +132,11 @@ function boxModel(hd: i32, n: UiNode): string {
   const content = quad(x + n.pl * k, y + n.pt * k, w - (n.pl + n.pr) * k, h - (n.pt + n.pb) * k), border = quad(x, y, w, h);
   return `{"model":{"content":${content},"padding":${border},"border":${border},"margin":${quad(x - n.ml * k, y - n.mt * k, w + (n.ml + n.mr) * k, h + (n.mt + n.mb) * k)},"width":${w},"height":${h}}}`;
 }
-/** Value of class="..." in a setAttributesAsText edit. */
+/** Value of className="..." in a setAttributesAsText edit. */
 function classFromText(text: string): string {
-  const i = text.indexOf('class="');
+  const i = text.indexOf('className="');
   if (i < 0) return text;
-  const rest = text.slice(i + 7);
+  const rest = text.slice(i + 11);
   const j = rest.indexOf('"');
   return j < 0 ? rest : rest.slice(0, j);
 }
@@ -164,8 +168,8 @@ function light(id: i32): void {
 function tipOf(h: i32, n: UiNode): string {
   let p = h;
   while (p >= 0 && componentName(p).length === 0) p = parentOf(p);
-  const tag = TAG_NAMES[n.tag], c = cls(n).split(' ').filter((t: string) => t.length > 0).join('.'), b = screenBox(h);
-  let head = (p >= 0 ? `<${componentName(p)}> ` : '') + tag.charAt(0).toUpperCase() + tag.slice(1) + (c.length > 0 ? '.' + c : '');
+  const tag = HOST_NAMES[n.tag], c = cls(n).split(' ').filter((t: string) => t.length > 0).join('.'), b = screenBox(h);
+  let head = (p >= 0 ? `<${componentName(p)}> ` : '') + tag + (c.length > 0 ? '.' + c : '');
   if (head.length > 64) head = head.slice(0, 63) + '…';
   const t = `${head}  ${Math.round(b[2])} × ${Math.round(b[3])}`;
   return n.tag !== TEXT ? t : t + `\nfont ${Math.round(n.size)}px ${n.weight > 0 ? n.weight : n.bold ? 700 : 400} · color ${hex(n.fg)}`;
@@ -305,13 +309,13 @@ function handleIn(client: i32, msg: string, win: i32): void {
     Cdp.send(client, `{"method":"DOM.setChildNodes","params":{"parentId":${nodeId},"nodes":[${children(h, n).join(',')}]}}`);
   } else if ((method === 'DOM.setAttributeValue' || method === 'DOM.setAttributesAsText') && n !== null) {
     const name = Cdp.str(msg, 'name');
-    if (name === 'class' || method === 'DOM.setAttributesAsText') {
+    if (name === 'className' || method === 'DOM.setAttributesAsText') {
       const v = method === 'DOM.setAttributeValue' ? Cdp.str(msg, 'value') : classFromText(Cdp.str(msg, 'text'));
       if (wasOf(h) === null) classWas.set(h, new Was(n, cls(n)));
       touch(h);
       setClass(h, v);
       if (msg.indexOf('"preview":true') < 0) printPatch();   // a class previewed while the completion is arrowed through is not a change yet
-      sendWin(win, `{"method":"DOM.attributeModified","params":{"nodeId":${nodeId},"name":"class","value":${q(v)}}}`);
+      sendWin(win, `{"method":"DOM.attributeModified","params":{"nodeId":${nodeId},"name":"className","value":${q(v)}}}`);
     }
   } else if (method === 'DOM.setNodeValue' && n !== null && nodeId >= TEXT_BASE && n.tag === TEXT) {   // a text edited in Elements: shown at once, not written to the source
     const v = Cdp.str(msg, 'value');
@@ -666,7 +670,7 @@ function label(h: i32, n: UiNode): string {
   let p = h;
   while (p >= 0 && componentName(p).length === 0) p = parentOf(p);
   const src = p >= 0 ? componentSource(p) : '';
-  return (p >= 0 ? `<${componentName(p)}> ` + (src.length > 0 ? src + ' ' : '') : '') + `${p === h ? '' : TAG_NAMES[n.tag] + ' '}#${h + 1}`;
+  return (p >= 0 ? `<${componentName(p)}> ` + (src.length > 0 ? src + ' ' : '') : '') + `${p === h ? '' : HOST_NAMES[n.tag] + ' '}#${h + 1}`;
 }
 /** A CSS name as a style object writes it (padding-left: paddingLeft). */
 function camel(name: string): string { let out = ''; for (const w of name.split('-')) out += out.length === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1); return out; }
@@ -788,7 +792,7 @@ function sync(h: i32, out: string[]): void {
   const s = snaps.get(id);
   if (n === null || s === undefined) return;
   const a = attrs(h, n);
-  for (const name of ['class', 'style', 'hidden', 'state', 'on']) {  // layout changes every animated frame: read on selection
+  for (const name of ['className', 'style', 'hidden', 'state', 'on']) {  // layout changes every animated frame: read on selection
     const was = attrValue(s.attrs, name), now = attrValue(a, name);
     if (now !== null && now !== was) out.push(`{"method":"DOM.attributeModified","params":{"nodeId":${id},"name":${q(name)},"value":${q(now as string)}}}`);
     else if (now === null && was !== null) out.push(`{"method":"DOM.attributeRemoved","params":{"nodeId":${id},"name":${q(name)}}}`);

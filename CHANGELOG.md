@@ -62,6 +62,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `ui.prependRows(list, n)` keeps the row on screen in place when older rows are loaded above a `VirtualList`, as a chat history does; JSX takes `onKeyUp` next to `onKeyDown`.
 - React Native screens get `ImageBackground`, `<Image source={{ uri }}>`, and Pressable's `hitSlop`, `pressRetentionOffset` and `delayLongPress`; React Native's `Button` fades to 0.2 when pressed on iOS and macOS, as its TouchableOpacity does.
 - A React Native `SectionList` section takes an optional `title` and a `key`, as in React Native, and sections declared first (`const DATA = [{ title, data }]`) pass to it as they are.
+- React Native's `pointerEvents` works as a `View` prop, `'box-none'` (only its children take touches) and `'box-only'` (not its children) included, and `transform: [{ rotate: angle }]` takes an angle decided at run time, such as `` `${deg}deg` ``.
 
 - Several windows: `win.open({ x, y, ... })` places a window as it opens, `onClosed(cb)` runs once after a window closes (`win.get(0).onClosed(quit)` ends the app with its main window), `onWindowClosed` of `zinc:gfx` reports any window, and a `port.handle` answer may be `async`: the reply leaves when its Promise settles, from the program or from a worker.
 
@@ -83,6 +84,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A JSX child that is a call making a node is mounted instead of printed as a number, whatever the helper is called: `{box(p.children)}`, `{wrap(() => <Text />)}`, `{ui.createNode(...)}` and a component kept in a class field, `{this.view()}`.
 - `a?.b !== undefined` now tells the checker that `a` and `a.b` are set, as TypeScript does, inside JSX too.
 - A canvas drawn with `onDraw`, and an `<Icon>`, now fade with the view they are in (an `opacity-50` card, a screen leaving a navigation stack) instead of staying fully opaque; `zinc:gfx` has `setGlobalAlpha` and `globalAlpha` for the same effect in your own drawing.
+- `onScroll` on a `ScrollView` or a `FlatList` runs once per scroll in a component that renders again: each render used to add another call.
 
 ### The web
 
@@ -147,6 +149,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The `"crash"` key of `zinc.json` is gone: it was never acted on, and a panic always ends the program. A project that still has it is refused with a message (`zinc explain J0001`); delete the line, and let systemd restart a service.
 - `zinc.json` no longer needs `app.id` to give the window a size or limits in `app.window`: a first project can leave the id out until it packages the app (`zinc build --bundle` and `--dmg` ask for it).
 - The Changes of Zinc Inspector write `className=` and fold an edited `padding: 12px` into `p-[12px]` (or `px-`/`py-`, margins alike) instead of four classes.
+- The Elements panel of Chrome DevTools shows the nodes as JSX writes them, `<View className="...">`, `<Text>`, `<ScrollView>`, instead of `<view class="...">`, and a class is edited through the `className` attribute.
 
 #### Fixed
 

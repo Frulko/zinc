@@ -224,6 +224,15 @@ export class Style {
 /** A Style with class tokens among its keys ('@font-mono', '@bg-[url(a.png)]'): the compiler emits it for such a style object, and it brings the class
  *  parser in (ZN-774.18). A function, not a subclass: arrays are invariant, so a subclass array would not be a Style[]. */
 export function styleC(keys: string[], values: number[]): Style { useClasses(); return new Style(keys, values); }
+/** A transform angle decided at run time, in degrees (ZN-812): a number of degrees, or a string as React Native writes it ('45deg', '-0.5rad',
+ *  '0.25turn'); JSX's `transform: [{ rotate: angle }]` goes through it. Anything else is 0. */
+export function angle(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (typeof v !== 'string') return 0;
+  const s: string = v, x = parseFloat(s);
+  if (isNaN(x)) return 0;
+  return s.endsWith('rad') ? x * 180 / Math.PI : s.endsWith('turn') ? x * 360 : x;
+}
 /** create() is lowered by Zinc: CSS literals become numeric style operations at build time. */
 export class StyleSheet {
   /** React Native's thinnest line: 0.4 rounded to the nearest device pixel, else one device pixel (0.5 at pixel scale 2, 1 at scale 1; ZN-385). */
@@ -447,7 +456,7 @@ export class UiNode {
   tx: number = 0; ty: number = 0;
     // border-dashed (1) / dotted (2), a colour per side, a radius per corner (-1: the node's own)
     // scroll snap: axes (1 y, 2 x), proximity, a child's alignment (1 start, 2 center, 3 end), scroll-padding
-  z: i32 = 0; invisible: boolean = false; noPointer: boolean = false; rel: boolean = false; sticky: boolean = false; stat: boolean = false; contentBox: boolean = false;   // z-index, visibility: hidden, pointer-events: none, position: relative / sticky / static (React Native's opt-out of its default relative), box-sizing: content-box
+  z: i32 = 0; invisible: boolean = false; ptr: i32 = 0; rel: boolean = false; sticky: boolean = false; stat: boolean = false; contentBox: boolean = false;   // z-index, visibility: hidden, pointer events (0 auto, 1 none, 2 box-none: its children only, 3 box-only: not its children), position: relative / sticky / static (React Native's opt-out of its default relative), box-sizing: content-box
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
   size: i32 = DEFAULT_TEXT; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; tsX: i32 = 0; tsY: i32 = 0; tsColor: i32 = -1; tsAlpha: i32 = 0; selBg: i32 = -1; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; decoC: i32 = -1; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline; the style << 3) and colour (-1: the text's), word spacing px, sub/super shift (em)
@@ -1089,12 +1098,17 @@ export class PanHandlers {
 export class PanResponderInstance { panHandlers: PanHandlers; constructor(c: PanResponderConfig) { this.panHandlers = new PanHandlers(c); } }
 export class PanResponder { static create(c: PanResponderConfig): PanResponderInstance { return new PanResponderInstance(c); } }
 
-const scrollWatch: i32[] = [], scrollFns: ResponderHandler[] = [], scrollSeen: number[] = [];
+const scrollWatch: i32[] = [], scrollFns: ResponderHandler[] = [], scrollSeen: number[] = [], scrollProp: boolean[] = [];
 const noGesture = new GestureState();
-/** onScroll: f gets nativeEvent.contentOffset once per frame in which the offset of scroll node h moved. */
-export function onScroll(h: i32, f: ResponderHandler): void { scrollWatch.push(h); scrollFns.push(f); scrollSeen.push(node(h).sx); scrollSeen.push(node(h).sy); }
+/** onScroll: f gets nativeEvent.contentOffset once per frame in which the offset of scroll node h moved. `prop`: the node's onScroll attribute,
+ *  which each render sets again: it replaces the one set before instead of adding a watcher (ZN-812). */
+export function onScroll(h: i32, f: ResponderHandler, prop: boolean = false): void {
+  // ponytail: a scan of the watchers per render of an onScroll attribute; a map from the node if lists of hundreds of them show up
+  if (prop) for (let i = 0; i < scrollWatch.length; i++) if (scrollWatch[i] === h && scrollProp[i]) { scrollFns[i] = f; return; }
+  scrollWatch.push(h); scrollFns.push(f); scrollProp.push(prop); scrollSeen.push(node(h).sx); scrollSeen.push(node(h).sy);
+}
 function forgetScrolls(h: i32): void {
-  for (let i = scrollWatch.length - 1; i >= 0; i--) if (scrollWatch[i] === h) { scrollWatch.splice(i, 1); scrollFns.splice(i, 1); scrollSeen.splice(2 * i, 2); }
+  for (let i = scrollWatch.length - 1; i >= 0; i--) if (scrollWatch[i] === h) { scrollWatch.splice(i, 1); scrollFns.splice(i, 1); scrollProp.splice(i, 1); scrollSeen.splice(2 * i, 2); }
 }
 function fireScrolls(): void {
   for (let i = 0; i < scrollWatch.length; i++) {
@@ -1421,7 +1435,7 @@ function writeProp(n: UiNode, id: i32, key: string, v: number): void {
     else if (id === P_TEXT_SHADOW_COLOR) { n.tsColor = iv; n.tsAlpha = 255; }   // a colour is a shadow, opaque until its alpha follows
     else if (id === P_TEXT_SHADOW_ALPHA) n.tsAlpha = iv;
     else if (id === P_TEXT_SHADOW_X) n.tsX = iv; else if (id === P_TEXT_SHADOW_Y) n.tsY = iv;
-    else if (id === P_POINTER_EVENTS) n.noPointer = iv !== 0;
+    else if (id === P_POINTER_EVENTS) n.ptr = iv < 0 || iv > 3 ? 0 : iv;
     else if (id === P_CURSOR) n.cursor = iv;
     else n.shAlpha = iv;
     paintDirty = true;
@@ -2667,8 +2681,8 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'sticky') { n.sticky = true; n.rel = false; return true; }
   if (tok === 'invisible') { n.invisible = true; return true; }
   if (tok === 'visible') { n.invisible = false; return true; }
-  if (tok === 'pointer-events-none') { n.noPointer = true; return true; }
-  if (tok === 'pointer-events-auto') { n.noPointer = false; return true; }
+  if (tok === 'pointer-events-none') { n.ptr = 1; return true; }
+  if (tok === 'pointer-events-auto') { n.ptr = 0; return true; }
   if (tok === 'z-auto') { n.z = 0; return true; }
   if (tok.startsWith('z-') || tok.startsWith('-z-')) {   // z-10, -z-10, z-[5]
     const neg = tok.startsWith('-'), k = tok.slice(neg ? 3 : 2);
@@ -2779,7 +2793,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     n.clamp = v; n.ellipsis = true;
     return true;
   }
-  if (tok === 'sr-only') { n.abs = true; n.left = 0; n.top = 0; n.w = 1; n.h = 1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.overflow = true; n.noPointer = true; n.invisible = true; return true; }
+  if (tok === 'sr-only') { n.abs = true; n.left = 0; n.top = 0; n.w = 1; n.h = 1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.overflow = true; n.ptr = 1; n.invisible = true; return true; }
   if (tok === 'uppercase') { n.transform = 1; return true; }
   if (tok === 'lowercase') { n.transform = 2; return true; }
   if (tok === 'capitalize') { n.transform = 3; return true; }
@@ -3006,7 +3020,7 @@ function resetStyle(n: UiNode): void {
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.contents = false; n.pct = null; n.overflow = n.tag === SCROLL || n.ed !== null; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = -1; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0; n.shAlpha = 255;
-  n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = BORDER_DEFAULT; n.borderAlpha = 255; n.fgAlpha = 255;
+  n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.ptr = 0; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = BORDER_DEFAULT; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = -1; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.decoC = -1; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1; n.pattern = 0; n.cache = false;
   if (n.ed !== null) { const e = n.ed as Edit; e.phC = -1; e.caretC = -1; }
@@ -5685,19 +5699,19 @@ function zSorted(n: UiNode): i32[] | null {
 /** Topmost node under (px, py) that `wants` the mode, through clips, scroll offsets and style transforms. */
 function hitIn(h: i32, px: number, py: number, ox: number, oy: number, k: number, mode: i32): i32 {
   const n = node(h);
-  if (n.hidden || n.invisible || n.noPointer || (n.layer && h !== layerPass)) return -1;
+  if (n.hidden || n.invisible || n.ptr === 1 || (n.layer && h !== layerPass)) return -1;
   const sd = n.sticky ? stickyDy(n) : 0;
   let x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + sd) * k + oy, kk = k * n.k;
   if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; untransform(n, px, py, x + n.lw * kk / 2, y + n.lh * kk / 2); px = tpx; py = tpy; }
   const inside = px >= x && py >= y && px < x + n.lw * kk && py < y + n.lh * kk;
   if (n.overflow && n.tag !== FRAGMENT && !inside) return n.hs !== null && inRect(n, px, py, x, y, kk, 0) && wants(n, mode) ? h : -1;
   const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
-  const zs = zSorted(n);
-  for (let i = n.children.length - 1; i >= 0; i--) {
+  const zs = n.ptr === 3 ? null : zSorted(n);
+  if (n.ptr !== 3) for (let i = n.children.length - 1; i >= 0; i--) {
     const r = hitIn(zs !== null ? zs[i] : n.children[i], px, py, cx, cy, kk, mode);
     if (r >= 0) return r;
   }
-  if (n.tag !== FRAGMENT && (inside || (n.hs !== null && inRect(n, px, py, x, y, kk, 0))) && wants(n, mode)) return h;
+  if (n.tag !== FRAGMENT && n.ptr !== 2 && (inside || (n.hs !== null && inRect(n, px, py, x, y, kk, 0))) && wants(n, mode)) return h;
   return -1;
 }
 /** Whether (px, py) is in node n's box at (x, y) scaled by kk, grown by its hitSlop (at 0) or by its hitSlop and press retention (at 4). */

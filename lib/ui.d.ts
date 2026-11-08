@@ -157,6 +157,8 @@ declare module 'zinc:ui' {
   /** A Style with class tokens among its keys ('@font-mono', '@bg-[url(a.png)]'): the compiler emits it for such a style object, and it brings the class
    *  parser in (ZN-774.18). A function, not a subclass: arrays are invariant, so a subclass array would not be a Style[]. */
   export function styleC(keys: string[], values: number[]): Style;
+  /** A transform angle decided at run time, in degrees: a number of degrees, or a string as React Native writes it ('45deg', '-0.5rad', '0.25turn'); anything else is 0. */
+  export function angle(v: unknown): number;
   /** create() is lowered by Zinc: CSS literals become numeric style operations at build time. */
   export class StyleSheet {
       /** React Native's thinnest line: 0.4 rounded to the nearest device pixel, else one device pixel (0.5 at pixel scale 2, 1 at scale 1; ZN-385). */
@@ -399,7 +401,7 @@ declare module 'zinc:ui' {
       ty: number;
       z: i32;
       invisible: boolean;
-      noPointer: boolean;
+      ptr: i32;
       rel: boolean;
       sticky: boolean;
       stat: boolean;
@@ -705,8 +707,9 @@ declare module 'zinc:ui' {
   export class PanResponder {
       static create(c: PanResponderConfig): PanResponderInstance;
   }
-  /** onScroll: f gets nativeEvent.contentOffset once per frame in which the offset of scroll node h moved. */
-  export function onScroll(h: i32, f: ResponderHandler): void;
+  /** onScroll: f gets nativeEvent.contentOffset once per frame in which the offset of scroll node h moved. `prop`: the node's onScroll attribute,
+   *  which each render sets again: it replaces the one set before instead of adding a watcher. */
+  export function onScroll(h: i32, f: ResponderHandler, prop?: boolean): void;
   /** Key handler of a node, called while it (or a descendant) has the focus. */
   export function onKeyDown(h: i32, f: (e: KeyEvent) => void): void;
   /** Global key handler (shortcuts): gets the keys that the focused node and text fields did not handle. */

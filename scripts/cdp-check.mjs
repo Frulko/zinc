@@ -26,7 +26,7 @@ check(events.some(e => e.method === 'Runtime.executionContextCreated'), 'Runtime
 if (stylesOnly) { await styles(); ws.close(); process.exit(); }
 const doc = (await call('DOM.getDocument', { depth: -1 })).root;
 const all = [];
-const walk = (n, d) => { all.push(n); console.log(`  ${'  '.repeat(d)}<${n.localName || n.nodeName}${n.attributes ? ` class="${n.attributes[1]}" layout="${n.attributes[3]}"` : ''}>${n.nodeValue ?? ''}`); (n.children ?? []).forEach(c => walk(c, d + 1)); };
+const walk = (n, d) => { all.push(n); console.log(`  ${'  '.repeat(d)}<${n.localName || n.nodeName}${n.attributes ? ` className="${n.attributes[1]}" layout="${n.attributes[3]}"` : ''}>${n.nodeValue ?? ''}`); (n.children ?? []).forEach(c => walk(c, d + 1)); };
 walk(doc, 0);
 check(doc.nodeType === 9 && all.length > 2, `DOM.getDocument: ${all.length} nodes`);
 const el = all.find(n => n.nodeType === 1 && n.childNodeCount > 0 && n !== doc);
@@ -38,8 +38,8 @@ await call('DOM.requestChildNodes', { nodeId: el.nodeId });
 check(events.some(e => e.method === 'DOM.setChildNodes' && e.params.parentId === el.nodeId), 'DOM.requestChildNodes -> setChildNodes');
 await call('Overlay.highlightNode', { nodeId: el.nodeId, highlightConfig: {} });
 check(true, 'Overlay.highlightNode');
-const target = all.find(n => n.localName === 'view' && n !== el) ?? el;
-await call('DOM.setAttributeValue', { nodeId: target.nodeId, name: 'class', value: 'p-4 bg-rose-600' });
+const target = all.find(n => n.localName === 'View' && n !== el) ?? el;
+await call('DOM.setAttributeValue', { nodeId: target.nodeId, name: 'className', value: 'p-4 bg-rose-600' });
 const after = JSON.stringify((await call('DOM.getDocument')).root);
 check(after.includes('bg-rose-600'), 'DOM.setAttributeValue class -> tree shows the new class');
 const bg = (await call('CSS.getComputedStyleForNode', { nodeId: target.nodeId })).computedStyle.find(p => p.name === 'background-color');
@@ -61,7 +61,7 @@ async function styles() {
   const walk = n => { nodes.push(n); (n.children ?? []).forEach(walk); };
   walk((await call('DOM.getDocument', { depth: -1 })).root);
   const attr = (n, k) => { const a = n.attributes ?? []; const i = a.indexOf(k); return i >= 0 && i % 2 === 0 ? a[i + 1] : undefined; };
-  const tagged = nodes.find(n => (attr(n, 'class') ?? '').includes('bg-rose-600'));
+  const tagged = nodes.find(n => (attr(n, 'className') ?? '').includes('bg-rose-600'));
   const parent = nodes.find(n => (n.children ?? []).includes(tagged));
   const sheetComp = nodes.find(n => n.nodeName === 'Sheet');   // a dev run names the components: <Tagged> and <Sheet> hold the two boxes
   const sheet = sheetComp ? sheetComp.children[0] : parent.children[parent.children.indexOf(tagged) + 1];
@@ -94,7 +94,7 @@ async function styles() {
   }
   const patch = events.filter(e => e.method === 'Runtime.consoleAPICalled').map(e => e.params.args[0].value).filter(v => v.includes('style patch')).at(-1) ?? '';
   console.log(patch);
-  check(patch.includes(`#${tagged.nodeId}: class="p-2 rounded pl-[20px] bg-[#000000]"`), 'the patch gives the class string: p-2 kept (it sets more than padding-left), bg-rose-600 replaced');
+  check(patch.includes(`#${tagged.nodeId}: className="p-2 rounded pl-[20px] bg-[#000000]"`), 'the patch gives the class string: p-2 kept (it sets more than padding-left), bg-rose-600 replaced');
   check(patch.includes(`#${sheet.nodeId}: style, add { paddingLeft: 20, backgroundColor: "#10b981" }`), 'the patch gives the StyleSheet keys to add');
   await edit(sheet, '');
   await settle();

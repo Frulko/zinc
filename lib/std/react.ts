@@ -176,7 +176,7 @@ export function _imgH(n: i32, img: i32): void { ui.setImageHandle(n, img); }
 // text fields and pointer / key events (onChange of a field fires on every edit, like React)
 export function _ptr(n: i32, kind: i32, f: (e: ui.PointerEvent) => void): void { ui.onPointer(n, kind, f); }
 export function _spread(n: i32, p: ui.PanHandlers): void { p.attach(n); }   // {...pan.panHandlers}
-export function _scroll(n: i32, f: ui.ResponderHandler): void { ui.onScroll(n, f); }
+export function _scroll(n: i32, f: ui.ResponderHandler): void { ui.onScroll(n, f, true); }
 export function _flat(styles: ui.Style[]): ui.Style { return ui.StyleSheet.flatten(styles); }   // style props of zinc:react-native components
 export function _key(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onKeyDown(n, f); }
 export function _keyUp(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onNodeKeyUp(n, f); }

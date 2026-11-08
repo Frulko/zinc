@@ -662,7 +662,7 @@ class Server {
     static const std::vector<const char*> v = {"className", "style", "key", "ref", "onClick", "onPress", "onPointerDown", "onPointerMove", "onPointerUp", "onPointerEnter",
       "onPointerLeave", "onPointerCancel", "onDoubleClick", "onContextMenu", "onWheel", "onTap", "onLongPress", "onDrag", "onPinch", "onKeyDown", "onKeyUp", "onInput",
       "onChange", "onSubmit", "onScroll", "onDraw", "value", "placeholder", "src", "source", "disabled", "hidden", "password", "readOnly", "focusable", "accessibilityLabel",
-      "accessibilityRole", "role", "numberOfLines", "inputMode", "resizeMode", "objectFit"};
+      "accessibilityRole", "role", "pointerEvents", "numberOfLines", "inputMode", "resizeMode", "objectFit"};
     return v;
   }
 

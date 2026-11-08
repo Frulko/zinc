@@ -46,6 +46,6 @@ if __name__ == "__main__":
     r = ws(port, "/zinc", [{"id": 1, "method": "DOM.getDocument", "params": {"depth": 2}}, {"id": 2, "method": "Runtime.enable", "params": {}}])
     root = r[0].get("result", {}).get("root", {})
     kids = root.get("children", [])
-    if root.get("nodeName") != "#document" or not kids or kids[0].get("nodeName") != "VIEW":
+    if root.get("nodeName") != "#document" or not kids or kids[0].get("nodeName") != "View":
         print("unexpected DOM.getDocument:", json.dumps(r)[:300]); sys.exit(1)
     print("cdp ok: #document with", len(kids), "child(ren)")

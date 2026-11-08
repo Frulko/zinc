@@ -177,7 +177,7 @@ const std::map<std::string, std::map<std::string, int>> kStyleEnums = {
     {"fontWeight", {{"normal", 400}, {"bold", 700}, {"100", 100}, {"200", 200}, {"300", 300}, {"400", 400}, {"500", 500}, {"600", 600}, {"700", 700}, {"800", 800}, {"900", 900}}},   // font-thin..font-black
     {"fontStyle", {{"normal", 0}, {"italic", 1}}}, {"textTransform", {{"none", 0}, {"uppercase", 1}, {"lowercase", 2}, {"capitalize", 3}}},
     {"textDecorationLine", {{"none", 0}, {"underline", 1}, {"line-through", 2}, {"underline line-through", 3}, {"overline", 4}}},
-    {"textDecorationStyle", {{"solid", 0}, {"double", 1}, {"dotted", 2}, {"dashed", 3}}}, {"pointerEvents", {{"auto", 0}, {"none", 1}}},
+    {"textDecorationStyle", {{"solid", 0}, {"double", 1}, {"dotted", 2}, {"dashed", 3}}}, {"pointerEvents", {{"auto", 0}, {"none", 1}, {"box-none", 2}, {"box-only", 3}}},
     {"outlineStyle", {{"solid", 0}, {"dashed", 1}, {"dotted", 2}, {"none", 3}}},
     {"transitionTimingFunction", {{"linear", 0}, {"ease", 8}, {"ease-in", 5}, {"ease-out", 6}, {"ease-in-out", 7}}},   // ui.ts ease(): the ease-* classes' curves, and CSS's ease
     {"cursor", {{"default", 0}, {"auto", 0}, {"text", 1}, {"pointer", 2}, {"move", 3}, {"ew-resize", 4}, {"col-resize", 4}, {"ns-resize", 5}, {"row-resize", 5}, {"crosshair", 6}, {"grab", 7}, {"grabbing", 8}, {"not-allowed", 9}}},   // ui.ts CURSOR_OF
@@ -1115,6 +1115,7 @@ struct Lowering {
             if (m[2] == "rad") deg = deg * 180 / 3.14159265358979323846; else if (m[2] == "turn") deg *= 360;
             value = jsNumber(deg);
           }
+          else if (kind == "rotate" || kind == "skewX" || kind == "skewY") value = "__ZAngle(" + rw(v0, v1) + ")";   // a run-time angle, '30deg' or 30 (ZN-812)
           if (kind == "scale") { keys.push_back(quote("scaleX")); values.push_back(value); keys.push_back(quote("scaleY")); values.push_back(value); }   // ponytail: a dynamic scale is read twice
           else { keys.push_back(quote(kind)); values.push_back(value); }
         }
@@ -1271,6 +1272,13 @@ struct Lowering {
       else if (name == "type" && lit && a.lit == "password") push("_num(" + v + ", 'password', 1);");
       else if (name == "type" && lit && a.lit == "text") {}
       else if ((name == "resizeMode" || name == "objectFit") && lit && kStyleEnums.at(name).count(a.lit)) push("_num(" + v + ", 'objectFit', " + num(kStyleEnums.at(name).at(a.lit)) + ");");   // <Image resizeMode="cover"> (ZN-262)
+      else if (name == "pointerEvents") {   // React Native's View prop: 'auto' | 'none' | 'box-none' | 'box-only', or a conditional between them (ZN-812)
+        std::string val;
+        if (lit && kStyleEnums.at(name).count(a.lit)) val = num(kStyleEnums.at(name).at(a.lit));
+        else if (a.kind == 2) { auto ch = literalChoice(name, a.eb, a.ee); if (ch.size() == 1) val = ch[0].second; }
+        if (val.empty()) fail(a.tok, "pointerEvents takes 'auto', 'none', 'box-none' or 'box-only', or a conditional between them (c ? 'auto' : 'none')");
+        push(react || lit ? "_num(" + v + ", 'pointerEvents', " + val + ");" : "_dynNum(" + v + ", 'pointerEvents', () => " + val + ");");
+      }
       else if (name == "inputMode" && lit && kInputModes.count(a.lit)) push("_num(" + v + ", 'inputMode', " + num(kInputModes.at(a.lit)) + ");");
       else if (kFlagAttrs.count(name)) {
         if (lit || a.kind == 0 || plainExpr == "true" || plainExpr == "false") push("_num(" + v + ", '" + name + "', " + (lit || plainExpr == "true" || a.kind == 0 ? "1" : "0") + ");");
@@ -1764,7 +1772,8 @@ std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std
     std::string hoisted;
     for (const std::string& st : L.staticStyles) hoisted += st + " ";
     const bool tokens = (hoisted + out).find("__ZStyleC([") != std::string::npos;
-    return std::string(tokens ? "import { Style as __ZStyle, styleC as __ZStyleC } from 'zinc:ui'; " : "import { Style as __ZStyle } from 'zinc:ui'; ") + hoisted + out;
+    const std::string angle = (hoisted + out).find("__ZAngle(") != std::string::npos ? "import { angle as __ZAngle } from 'zinc:ui'; " : "";
+    return std::string(tokens ? "import { Style as __ZStyle, styleC as __ZStyleC } from 'zinc:ui'; " : "import { Style as __ZStyle } from 'zinc:ui'; ") + angle + hoisted + out;
   } catch (const Failure& f) {
     diags.push_back({"Z0005", f.pos, "StyleSheet: " + f.msg, file});
     return std::string(src);
@@ -1903,6 +1912,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     if (out.find("_cn(") != std::string::npos) helpers += ", _cn";
     std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";
     if (out.find("__ZStyleC([") != std::string::npos && out.find("styleC as __ZStyleC") == std::string::npos) styleImport += "import { styleC as __ZStyleC } from 'zinc:ui'; ";
+    if (out.find("__ZAngle(") != std::string::npos && out.find("angle as __ZAngle") == std::string::npos) styleImport += "import { angle as __ZAngle } from 'zinc:ui'; ";
     return unmark(styleImport + "import { " + helpers + " } from '" + L.lib + "'; " + out, src, map);
   } catch (const Failure& f) {
     diags.push_back({f.code, f.pos, f.key ? f.msg : "JSX: " + f.msg, file, f.key, f.args});
