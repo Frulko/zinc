@@ -4,7 +4,8 @@ title: >-
   QuickJS and npm packages: Web globals, browser field, CommonJS, local Date,
   catch annotations
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:56'
 labels:
   - size-M

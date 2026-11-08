@@ -2,7 +2,8 @@
 id: ZN-1064
 title: 'Mobile feel: canvas alpha and the RN Modal host'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:42'
 labels:
   - ui

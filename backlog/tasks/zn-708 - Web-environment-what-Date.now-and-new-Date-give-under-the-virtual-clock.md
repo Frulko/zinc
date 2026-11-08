@@ -2,7 +2,8 @@
 id: ZN-708
 title: 'Web environment: what Date.now and new Date() give under the virtual clock'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 22:51'
 labels:
   - js

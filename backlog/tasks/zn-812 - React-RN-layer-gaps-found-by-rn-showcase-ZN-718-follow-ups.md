@@ -2,7 +2,8 @@
 id: ZN-812
 title: React/RN layer gaps found by rn-showcase (ZN-718 follow-ups)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:56'
 labels:
   - size-M
