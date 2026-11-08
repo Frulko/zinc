@@ -2,7 +2,8 @@
 id: ZN-1044
 title: 'zinc doctor, zinc update and plugin install polish'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:39'
 labels:
   - cli

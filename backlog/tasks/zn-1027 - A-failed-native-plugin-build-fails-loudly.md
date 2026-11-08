@@ -2,7 +2,8 @@
 id: ZN-1027
 title: A failed native plugin build fails loudly
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:36'
 labels:
   - plugins

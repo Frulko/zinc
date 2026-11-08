@@ -2,7 +2,8 @@
 id: ZN-1021
 title: '`zinc project --json` and `--json` output for check, steps and plugins'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:36'
 labels:
   - cli
