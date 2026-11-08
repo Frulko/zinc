@@ -479,6 +479,11 @@ The next backlog review turns lines into tasks or deletes them.
 - TouchPad: zgl_backend_trace has no webOS definition (ZINC_GL_TRACE's per-frame GPU line never prints there); ZINC_TRACE works. A ZINC_INPUT script runs faster than real time between painted frames, so a scripted scroll does not measure what a finger feels.
 - chat-10m: a `VirtualList` with `estimatedItemHeight` keeps `hs`, `known` and `tree` per row (24 bytes, 340 MB at 10 M rows); the Fenwick tree alone gives a row's height (two prefixes) and a negative value can mark unmeasured, one array instead of three.
 - chat-10m: scrolling a 1200x760 @2x window costs 38 % of a core on the CPU raster against 9 % on `ZINC_RENDERER=gl`, which in turn costs 4.7 % at rest (0.3 % raster) and 100 MiB more: profile both.
+- ZN-799: an outer box-shadow on a `bg-transparent` box paints under the whole box (CSS paints it only outside the border box), so shadcn's `shadow-xs` stays off the kit fields until fixed.
+- ZN-799: `zinc tsconfig` writes no `paths` for `zinc:ui/solid`, `zinc:ui/kit` and the other std modules, and omits the `zinc-ts-plugin` entry `docs/guide/01` describes: editors cannot resolve them.
+- ZN-863.02: a removed project file comes back in the web page (nothing hides the read-only layer); a folder index for apps that write thousands of files; `readTextAsync`/`writeTextAsync` in the page.
+- ZN-863.05: the web demo bar is English only (`zinc:i18n` exists); a plugin-level replay of recorded native answers would give samples without app code.
+- ZN-863.07: pin the resolved address in `serve.py`'s proxy (DNS rebinding); list the hosts of `examples/music` and `maps/explorer` in their zinc.json.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
