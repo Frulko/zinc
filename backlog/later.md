@@ -546,6 +546,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1032: an app-level window-all-closed listener that keeps a program with no windows running (tray apps): `close_window` in hal_sdl.cpp and `nullClose` would ask the program first.
 - ZN-1032: the checker refuses `await` of a `T | Promise<T>` value (Z0109); TypeScript accepts it.
 - ZN-1032: `ui.mountWindow` takes no x/y, so sprite-studio still calls `setPosition` on its tools window.
+- ZN-815: on unbundled QuickJS, named imports do not follow CommonJS re-exports (`module.exports = require('./x')`); Node does.
+- ZN-815: a package's browser build that reads `window` or `self` fails outside a web project; alias `self` to `globalThis` for packages when one shows up.
+- ZN-812: `import { Canvas } from 'zinc:canvas'` with `<Canvas onDraw>` gives a type error; the message should say the name is the host Canvas and name the alias to use.
+- ZN-812: `app/inspector/layoutcheck.ts` and the scene dump still name nodes with the lowercase `TAG_NAMES` (`view`, `scroll`).
+- ZN-1064: overlapping primitives of one canvas show through each other while it fades; a UI painted from inside `onDraw` multiplies its alpha twice.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

@@ -31,4 +31,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: devtools chain ZN-1031, ZN-640, ZN-1020 (D211) and export chain ZN-797, ZN-816, ZN-817 (D212), smoke tests pass in a clean worktree with ZINC_ROOT.
 - Integrated: runtime chain ZN-643, ZN-1015 (Review), ZN-1005 (D213) and tools chain ZN-1063, ZN-774.25, ZN-774.18 (D214). AOT smoke tests run from the main tree (not with ZINC_ROOT: rt.h WIP mismatch).
 - Integrated: checker chain ZN-1035, ZN-389 and multi-window ZN-1032 (D215); UI smoke tests ran on the agents' own develop-based binaries (main tree ui.ts WIP breaks UI programs).
-- Workers: RN chain ZN-1064, ZN-812 and QuickJS web chain ZN-815, ZN-708 (claimed d68714b73).
+- Integrated: RN chain ZN-1064, ZN-812 and QuickJS web chain ZN-815, ZN-708 (D216). Smoke tree kept: .claude/worktrees/agent-aae96db4e67d4b8e6 (reset to develop, tools/build zinc, ZINC=$W/build/zinc tests/run --only ...); it counts as a building tree while it builds.
