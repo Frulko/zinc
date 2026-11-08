@@ -4,7 +4,7 @@ title: 'Cross builds fetch the pinned Linux sysroot by themselves'
 status: Backlog
 assignee: []
 created_date: '2026-10-08 14:34'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - distribution
   - toolchain
@@ -12,7 +12,7 @@ labels:
 milestone: m-19
 dependencies:
   - ZN-332
-ordinal: 2700
+ordinal: 51900
 ---
 
 ## Description

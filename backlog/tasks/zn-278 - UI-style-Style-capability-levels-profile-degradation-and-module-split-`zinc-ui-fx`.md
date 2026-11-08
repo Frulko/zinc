@@ -4,7 +4,7 @@ title: 'Style levels: warning on ignored properties'
 status: Backlog
 assignee: []
 created_date: '2026-10-07 12:58'
-updated_date: '2026-10-24 23:58'
+updated_date: '2026-11-07 18:30'
 labels:
   - ui
   - style
@@ -14,7 +14,7 @@ dependencies:
   - ZN-175
   - ZN-183
   - ZN-251
-ordinal: 55200
+ordinal: 12300
 ---
 
 ## Description

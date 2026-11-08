@@ -14,7 +14,7 @@ labels:
 milestone: m-30
 dependencies:
   - ZN-944
-ordinal: 740000
+ordinal: 18300
 ---
 
 ## Description

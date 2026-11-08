@@ -13,8 +13,8 @@ labels:
 milestone: m-25
 dependencies:
   - ZN-203.06
-ordinal: 2300
-updated_date: '2026-10-25 01:53'
+ordinal: 50600
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description

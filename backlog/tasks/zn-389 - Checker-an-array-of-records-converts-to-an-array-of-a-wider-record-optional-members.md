@@ -11,8 +11,8 @@ labels:
   - checker
   - size-M
 dependencies: []
-ordinal: 7000
-updated_date: '2026-10-25 01:53'
+ordinal: 6600
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description

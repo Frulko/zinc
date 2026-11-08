@@ -1,0 +1,4228 @@
+{
+ "review": "2026-11-07",
+ "method": "docs/reports/backlog-review-2026-11-07/BRIEF.md; score = value*3 + maturity*3 + novelty*2 + unblocks*2 + confidence*2 + effort*2 + risk, a task inheriting the highest score of the open tasks it unblocks",
+ "open_before": 393,
+ "open_after": 438,
+ "status_after": {
+  "Backlog": 416,
+  "Ready": 3,
+  "In Progress": 5,
+  "Review": 14
+ },
+ "counts": {
+  "done": 12,
+  "review-close (closed as done)": 3,
+  "dropped (archived)": 6,
+  "merged (archived)": 4,
+  "done-partly": 26,
+  "rewrite": 26,
+  "split": 1,
+  "subtasks created": 5,
+  "parked": 119,
+  "moved from park to the cross-platform pass (Pi 3B+ / Intel Mac rig)": 26,
+  "keep": 137,
+  "parked label removed": 2,
+  "left alone (assignee, In Progress, ZN-1002)": 33,
+  "tasks created from later.md": 65
+ },
+ "applied": {
+  "done": [
+   "ZN-570",
+   "ZN-574",
+   "ZN-611",
+   "ZN-649",
+   "ZN-664",
+   "ZN-744",
+   "ZN-746",
+   "ZN-813",
+   "ZN-940",
+   "ZN-947",
+   "ZN-948",
+   "ZN-950"
+  ],
+  "review-close": [
+   "ZN-949",
+   "ZN-956",
+   "ZN-957"
+  ],
+  "drop": [
+   "ZN-591",
+   "ZN-700",
+   "ZN-958",
+   "ZN-959",
+   "ZN-964",
+   "ZN-965"
+  ],
+  "merge": {
+   "ZN-335.01": "ZN-338",
+   "ZN-577": "ZN-578",
+   "ZN-579": "ZN-578",
+   "ZN-580": "ZN-578"
+  },
+  "done-partly": [
+   "ZN-147",
+   "ZN-243",
+   "ZN-249",
+   "ZN-257",
+   "ZN-388",
+   "ZN-567",
+   "ZN-569",
+   "ZN-572",
+   "ZN-573",
+   "ZN-575",
+   "ZN-587",
+   "ZN-603",
+   "ZN-610",
+   "ZN-674",
+   "ZN-690",
+   "ZN-695",
+   "ZN-698",
+   "ZN-708",
+   "ZN-713",
+   "ZN-761",
+   "ZN-774.18",
+   "ZN-812",
+   "ZN-946",
+   "ZN-970",
+   "ZN-971",
+   "ZN-973"
+  ],
+  "rewrite": [
+   "ZN-143",
+   "ZN-162",
+   "ZN-164",
+   "ZN-203.06",
+   "ZN-203.09",
+   "ZN-221",
+   "ZN-394",
+   "ZN-444",
+   "ZN-445",
+   "ZN-481",
+   "ZN-489",
+   "ZN-512",
+   "ZN-513",
+   "ZN-535",
+   "ZN-549",
+   "ZN-559",
+   "ZN-578",
+   "ZN-596",
+   "ZN-600.01",
+   "ZN-653",
+   "ZN-703",
+   "ZN-705",
+   "ZN-707",
+   "ZN-727",
+   "ZN-814",
+   "ZN-817"
+  ],
+  "split": {
+   "ZN-584": [
+    "ZN-584.01",
+    "ZN-584.02",
+    "ZN-584.03",
+    "ZN-584.04",
+    "ZN-584.05"
+   ]
+  },
+  "park": [
+   "ZN-054",
+   "ZN-055",
+   "ZN-121",
+   "ZN-121.04",
+   "ZN-133",
+   "ZN-134",
+   "ZN-137",
+   "ZN-145",
+   "ZN-156",
+   "ZN-159",
+   "ZN-186",
+   "ZN-194",
+   "ZN-195",
+   "ZN-196",
+   "ZN-197",
+   "ZN-207",
+   "ZN-208",
+   "ZN-209",
+   "ZN-210",
+   "ZN-211",
+   "ZN-212",
+   "ZN-213",
+   "ZN-214",
+   "ZN-215",
+   "ZN-216",
+   "ZN-217",
+   "ZN-218",
+   "ZN-219",
+   "ZN-220",
+   "ZN-222",
+   "ZN-245",
+   "ZN-246",
+   "ZN-263.03",
+   "ZN-298",
+   "ZN-301",
+   "ZN-303",
+   "ZN-304",
+   "ZN-305",
+   "ZN-306",
+   "ZN-307",
+   "ZN-308",
+   "ZN-320.03",
+   "ZN-341",
+   "ZN-348",
+   "ZN-393",
+   "ZN-448",
+   "ZN-461",
+   "ZN-462",
+   "ZN-466",
+   "ZN-471",
+   "ZN-472",
+   "ZN-475",
+   "ZN-476",
+   "ZN-477",
+   "ZN-478",
+   "ZN-479",
+   "ZN-483",
+   "ZN-486",
+   "ZN-487",
+   "ZN-488",
+   "ZN-491",
+   "ZN-492",
+   "ZN-493",
+   "ZN-495",
+   "ZN-497",
+   "ZN-498",
+   "ZN-499",
+   "ZN-500",
+   "ZN-501",
+   "ZN-502",
+   "ZN-503",
+   "ZN-504",
+   "ZN-505",
+   "ZN-506",
+   "ZN-507",
+   "ZN-508",
+   "ZN-509",
+   "ZN-510",
+   "ZN-511",
+   "ZN-514",
+   "ZN-515",
+   "ZN-519",
+   "ZN-521",
+   "ZN-522",
+   "ZN-523",
+   "ZN-524",
+   "ZN-525",
+   "ZN-526",
+   "ZN-528",
+   "ZN-529",
+   "ZN-530",
+   "ZN-531",
+   "ZN-532",
+   "ZN-548",
+   "ZN-556",
+   "ZN-557",
+   "ZN-560",
+   "ZN-561",
+   "ZN-627",
+   "ZN-632",
+   "ZN-649.12",
+   "ZN-741",
+   "ZN-743",
+   "ZN-752",
+   "ZN-754",
+   "ZN-760",
+   "ZN-804",
+   "ZN-806",
+   "ZN-808",
+   "ZN-809",
+   "ZN-810",
+   "ZN-811",
+   "ZN-938",
+   "ZN-951",
+   "ZN-966",
+   "ZN-967",
+   "ZN-968",
+   "ZN-969",
+   "ZN-972"
+  ],
+  "cross": [
+   "ZN-350",
+   "ZN-373.06",
+   "ZN-412.04",
+   "ZN-412.07",
+   "ZN-416",
+   "ZN-419",
+   "ZN-440.03",
+   "ZN-534",
+   "ZN-536",
+   "ZN-537",
+   "ZN-542",
+   "ZN-543",
+   "ZN-544",
+   "ZN-545",
+   "ZN-551",
+   "ZN-552",
+   "ZN-553",
+   "ZN-554",
+   "ZN-555",
+   "ZN-558",
+   "ZN-585",
+   "ZN-662",
+   "ZN-692",
+   "ZN-701",
+   "ZN-725",
+   "ZN-807"
+  ],
+  "keep": [
+   "ZN-158",
+   "ZN-161",
+   "ZN-161.01",
+   "ZN-161.02",
+   "ZN-161.03",
+   "ZN-179",
+   "ZN-182",
+   "ZN-183",
+   "ZN-184",
+   "ZN-201",
+   "ZN-203",
+   "ZN-260",
+   "ZN-263",
+   "ZN-263.02",
+   "ZN-264",
+   "ZN-265",
+   "ZN-275",
+   "ZN-278",
+   "ZN-291",
+   "ZN-300",
+   "ZN-302",
+   "ZN-311",
+   "ZN-313",
+   "ZN-330.04",
+   "ZN-334",
+   "ZN-338",
+   "ZN-342",
+   "ZN-351.01",
+   "ZN-364.01",
+   "ZN-376",
+   "ZN-389",
+   "ZN-391",
+   "ZN-392",
+   "ZN-395",
+   "ZN-396",
+   "ZN-418",
+   "ZN-418.01",
+   "ZN-418.02",
+   "ZN-418.03",
+   "ZN-418.04",
+   "ZN-423",
+   "ZN-429",
+   "ZN-437",
+   "ZN-440",
+   "ZN-440.01",
+   "ZN-440.02",
+   "ZN-442",
+   "ZN-449",
+   "ZN-451",
+   "ZN-458",
+   "ZN-467",
+   "ZN-538",
+   "ZN-539",
+   "ZN-540",
+   "ZN-541",
+   "ZN-541.01",
+   "ZN-541.02",
+   "ZN-541.03",
+   "ZN-547",
+   "ZN-550",
+   "ZN-562.04",
+   "ZN-563.01",
+   "ZN-563.02",
+   "ZN-589.01",
+   "ZN-590.03",
+   "ZN-592.02",
+   "ZN-592.04",
+   "ZN-597",
+   "ZN-601",
+   "ZN-639",
+   "ZN-640",
+   "ZN-643",
+   "ZN-644",
+   "ZN-660",
+   "ZN-661",
+   "ZN-665",
+   "ZN-666",
+   "ZN-667",
+   "ZN-668",
+   "ZN-671",
+   "ZN-672",
+   "ZN-673",
+   "ZN-675",
+   "ZN-678",
+   "ZN-680",
+   "ZN-681",
+   "ZN-682",
+   "ZN-683",
+   "ZN-684",
+   "ZN-686",
+   "ZN-693",
+   "ZN-694",
+   "ZN-697",
+   "ZN-699",
+   "ZN-704",
+   "ZN-706",
+   "ZN-709",
+   "ZN-723",
+   "ZN-723.01",
+   "ZN-723.02",
+   "ZN-723.03",
+   "ZN-723.04",
+   "ZN-724",
+   "ZN-774",
+   "ZN-774.17",
+   "ZN-774.21",
+   "ZN-774.22",
+   "ZN-774.23",
+   "ZN-774.24",
+   "ZN-774.25",
+   "ZN-774.27",
+   "ZN-774.29",
+   "ZN-774.30",
+   "ZN-774.31",
+   "ZN-793",
+   "ZN-794",
+   "ZN-795",
+   "ZN-796",
+   "ZN-797",
+   "ZN-798",
+   "ZN-800",
+   "ZN-802",
+   "ZN-803",
+   "ZN-805",
+   "ZN-815",
+   "ZN-816",
+   "ZN-863",
+   "ZN-863.03",
+   "ZN-863.04",
+   "ZN-863.06",
+   "ZN-863.08",
+   "ZN-895",
+   "ZN-896",
+   "ZN-897",
+   "ZN-898",
+   "ZN-937",
+   "ZN-963"
+  ],
+  "unparked": [
+   "ZN-221",
+   "ZN-600.01"
+  ],
+  "skipped-untouchable": [
+   "ZN-1002",
+   "ZN-774.32",
+   "ZN-792",
+   "ZN-799",
+   "ZN-823",
+   "ZN-839",
+   "ZN-840",
+   "ZN-844",
+   "ZN-847",
+   "ZN-848",
+   "ZN-849",
+   "ZN-853",
+   "ZN-862",
+   "ZN-863.02",
+   "ZN-863.05",
+   "ZN-863.07",
+   "ZN-869",
+   "ZN-872",
+   "ZN-873",
+   "ZN-875",
+   "ZN-883",
+   "ZN-884",
+   "ZN-886",
+   "ZN-887",
+   "ZN-888",
+   "ZN-889",
+   "ZN-899",
+   "ZN-902",
+   "ZN-909",
+   "ZN-912",
+   "ZN-917",
+   "ZN-920",
+   "ZN-921"
+  ]
+ },
+ "task_corrections": {
+  "ZN-147": {
+   "verdict": "done-partly",
+   "why": "done proposed; `zinc run tests/fuzz/regress/check-dup-names-invalid-ir.ts` still ends in 'internal error: invalid IR after reference counting' (exit 3, build of 2026-11-07)",
+   "left": "The fuzz finding `tests/fuzz/regress/check-dup-names-invalid-ir.ts` (nested and top-level functions and classes of the same names) still ends in 'internal error: invalid IR after reference counting: setfield value type differs' (exit 3, checked 2026-11-07). Fix it in the checker or the lowering, and make `tests/t0/fuzz_regress.sh` fail on an internal error, not only on a signal or a hang (it accepts any exit below 124 today). The targets, the tool, the T2 gate and the 10-minute runs are done."
+  },
+  "ZN-388": {
+   "verdict": "done-partly",
+   "why": "done proposed; the core shipped (78c2d81a2) but 13 border and box-sizing cases are still in tests/golden/layout-conformance/classic.known-fail",
+   "left": "Borders take layout space in classic with the preset (78c2d81a2, classic.pass grew by 54 cases). Left: the 13 border and box-sizing cases still listed in `tests/golden/layout-conformance/classic.known-fail` (absolute children inside a border, reverse rows and columns with an inner border, `box_sizing_border_box_comtaining_block`)."
+  },
+  "ZN-341": {
+   "verdict": "park",
+   "why": "drop proposed; the client half ships (src/tc/plugin_build.cpp:337-354 reads rebuilds/<sha256>.json, policy `rebuilds` in src/tc/policy.cpp:32,62, documented), only the rebuilder job is missing: far from the goal, not useless (as the 2026-10-25 verifier found)"
+  },
+  "ZN-570": {
+   "verdict": "done",
+   "why": "merge into ZN-707 proposed, but ZN-707 is rewritten to PixiJS, Phaser and p5 only; AC2 and AC3 are ticked and PixiJS, Phaser and p5 text match Chrome (SSIM 0.976 to 0.988, tests/t1/webenv_canvas2d_libs.sh); Kaplay and LittleJS text go to a later.md line with the other ZN-707 libraries"
+  },
+  "ZN-951": {
+   "verdict": "park",
+   "why": "drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks)"
+  },
+  "ZN-966": {
+   "verdict": "park",
+   "why": "drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks)"
+  },
+  "ZN-967": {
+   "verdict": "park",
+   "why": "drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks)"
+  },
+  "ZN-968": {
+   "verdict": "park",
+   "why": "drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks)"
+  },
+  "ZN-969": {
+   "verdict": "park",
+   "why": "drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks)"
+  },
+  "ZN-972": {
+   "verdict": "park",
+   "why": "drop proposed; the Hamlet roadmap is the owner's (commit 489242bf9, New-task: owner): far from the goal, not useless (the 2026-10-25 rule for owner asks)"
+  },
+  "ZN-350": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-373.06": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-412.04": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-412.07": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-416": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-419": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-440.03": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-534": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-536": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-537": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-542": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-543": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-544": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-545": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-551": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-552": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-553": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-554": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-555": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-558": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-585": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-662": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-692": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-701": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-725": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  },
+  "ZN-807": {
+   "verdict": "cross",
+   "why": "park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked"
+  }
+ },
+ "later": {
+  "lines_before": 1128,
+  "lines_after": 529,
+  "verdicts_after_corrections": {
+   "done": 4,
+   "promote": 471,
+   "keep": 527,
+   "merge": 8,
+   "drop": 118
+  },
+  "corrections": {
+   "449": {
+    "from": "merge:ZN-894",
+    "to": "keep",
+    "why": "merge into ZN-894 proposed, but ZN-894 (impairment harness) is Done and holds nothing about primitive unions; no open task covers them"
+   },
+   "634": {
+    "from": "merge:ZN-894",
+    "to": "drop",
+    "why": "merge into ZN-894 proposed (Done); duplicate of line 449, which stays"
+   },
+   "387": {
+    "from": "merge:ZN-664",
+    "to": "done",
+    "why": "merge into ZN-664 proposed; ZN-664 is closed by this review and Object.keys and for-in on parsed JSON give the keys in file order on the three engines (probe 2026-11-07)"
+   },
+   "275": {
+    "from": "drop",
+    "to": "keep",
+    "why": "drop proposed; a real defect or a check of the cross-platform pass, not a measure nobody needs"
+   },
+   "337": {
+    "from": "drop",
+    "to": "keep",
+    "why": "drop proposed; a real defect or a check of the cross-platform pass, not a measure nobody needs"
+   },
+   "351": {
+    "from": "drop",
+    "to": "keep",
+    "why": "drop proposed; a real defect or a check of the cross-platform pass, not a measure nobody needs"
+   },
+   "372": {
+    "from": "drop",
+    "to": "keep",
+    "why": "drop proposed; a real defect or a check of the cross-platform pass, not a measure nobody needs"
+   },
+   "393": {
+    "from": "drop",
+    "to": "keep",
+    "why": "drop proposed; a real defect or a check of the cross-platform pass, not a measure nobody needs"
+   },
+   "398": {
+    "from": "drop",
+    "to": "keep",
+    "why": "drop proposed; a real defect or a check of the cross-platform pass, not a measure nobody needs"
+   },
+   "613": {
+    "from": "drop",
+    "to": "keep",
+    "why": "drop proposed; a real defect or a check of the cross-platform pass, not a measure nobody needs"
+   },
+   "741": {
+    "from": "drop",
+    "to": "keep",
+    "why": "drop proposed; a real defect or a check of the cross-platform pass, not a measure nobody needs"
+   },
+   "742": {
+    "from": "drop",
+    "to": "keep",
+    "why": "drop proposed; a real defect or a check of the cross-platform pass, not a measure nobody needs"
+   },
+   "743": {
+    "from": "drop",
+    "to": "keep",
+    "why": "drop proposed; a real defect or a check of the cross-platform pass, not a measure nobody needs"
+   },
+   "707": {
+    "from": "drop",
+    "to": "promote:cross-pi",
+    "why": "drop proposed; the Raspberry Pi 3B+ rig is available (owner 2026-11-07): a check of the Pi pass"
+   },
+   "710": {
+    "from": "drop",
+    "to": "promote:cross-pi",
+    "why": "drop proposed; the Raspberry Pi 3B+ rig is available (owner 2026-11-07): a check of the Pi pass"
+   },
+   "718": {
+    "from": "drop",
+    "to": "promote:cross-pi",
+    "why": "drop proposed; the Raspberry Pi 3B+ rig is available (owner 2026-11-07): a check of the Pi pass"
+   },
+   "1208": {
+    "from": "promote:cross-consoles-hw",
+    "to": "promote:cross-pi",
+    "why": "a Pi line in the console group: moved to the Pi pass"
+   },
+   "519": {
+    "from": "promote:web-dev-bridge",
+    "to": "promote:ipod-polish",
+    "why": "the iPod web Songs page is not the web dev bridge: moved to the iPod polish task"
+   },
+   "95": {
+    "from": "promote:tests-green",
+    "to": "merge:ZN-147",
+    "why": "ZN-147 stays open for the duplicate-names finding: its weak regression test goes with it"
+   },
+   "49": {
+    "from": "merge:ZN-794",
+    "to": "keep",
+    "why": "ZN-794 was claimed by a worker during the review (2026-11-07): its file is left alone and the line stays in later.md"
+   }
+  },
+  "added_lines": [
+   "ZN-707 libraries left out (Babylon, LittleJS, Kaplay)",
+   "ZN-700 shared editor kit"
+  ]
+ },
+ "created": [
+  {
+   "id": "ZN-1003",
+   "key": "checker-fn-types",
+   "title": "Checker: function and generic assignability that TypeScript accepts",
+   "lines": [
+    9,
+    46,
+    557,
+    590,
+    623,
+    723
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 5,
+    "novelty": 2,
+    "unblocks": 3,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1004",
+   "key": "clear-errors",
+   "title": "Say what to write: errors for silent no-ops in zinc:ui",
+   "lines": [
+    18,
+    25,
+    26,
+    27,
+    51,
+    261,
+    311
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 5,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1005",
+   "key": "headless-pacing",
+   "title": "Headless runs: pace frames in real time on request",
+   "lines": [
+    23,
+    208,
+    439,
+    476
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 1,
+    "unblocks": 2,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1006",
+   "key": "glyph-fallback",
+   "title": "UI font fallback: CJK, Persian, arrows and emoji sequences draw as \"?\"",
+   "lines": [
+    28,
+    270,
+    438,
+    475,
+    563
+   ],
+   "marks": {
+    "value": 5,
+    "maturity": 5,
+    "novelty": 4,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1007",
+   "key": "cli-polish",
+   "title": "CLI polish: argument order, example suggestions, port 0, clear pairing and export messages",
+   "lines": [
+    29,
+    183,
+    341,
+    459,
+    469,
+    530,
+    533,
+    543,
+    628,
+    648
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1008",
+   "key": "quickjs-binary-io",
+   "title": "QuickJS binary data: net bodies, u8 arguments to natives, large WebSocket messages, WebSocket and URL globals",
+   "lines": [
+    31,
+    98,
+    525,
+    566,
+    581
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1009",
+   "key": "quickjs-parity",
+   "title": "QuickJS agrees with the interpreter: typed JSON.parse, i32 truncation, Map.get, TOUCH, host events",
+   "lines": [
+    32,
+    158,
+    323,
+    416,
+    639,
+    686
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1010",
+   "key": "async-checker",
+   "title": "Async and generic inference gaps: async arrows, ternary await, top-level await, void generics",
+   "lines": [
+    33,
+    34,
+    45,
+    48,
+    377,
+    420,
+    422,
+    426,
+    427,
+    445,
+    567,
+    577,
+    713,
+    724
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 5,
+    "novelty": 2,
+    "unblocks": 3,
+    "confidence": 3,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1011",
+   "key": "storage-per-app",
+   "title": "zinc:storage: one store per program, not one shared file",
+   "lines": [
+    35,
+    211,
+    466
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1012",
+   "key": "plugin-docs",
+   "title": "Plugin docs: fill plugins/<name>/docs for the main plugins, links to source, site decision",
+   "lines": [
+    36,
+    37,
+    39,
+    40,
+    42
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1013",
+   "key": "translations-restamp",
+   "title": "Translations: restamp guides and fill the doc theme strings",
+   "lines": [
+    41,
+    528,
+    532,
+    535,
+    537
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1014",
+   "key": "tests-green",
+   "title": "Tests green on develop: stale goldens, a missing table row, an unbuilt test",
+   "lines": [
+    62,
+    223,
+    424,
+    432,
+    446,
+    538,
+    554,
+    558,
+    574,
+    578,
+    582,
+    607,
+    621,
+    625,
+    653,
+    706,
+    720,
+    740
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 1,
+    "unblocks": 4,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1015",
+   "key": "string-utf16",
+   "title": "charCodeAt on a non-ASCII string is quadratic",
+   "lines": [
+    80
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 1,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1016",
+   "key": "lint-targets",
+   "title": "zinc lint and pack: plugin targets, host modules per profile, honest assets error",
+   "lines": [
+    81,
+    83,
+    228,
+    335,
+    403
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1017",
+   "key": "rn-parity",
+   "title": "React Native parity: ImageBackground, Image source uri, unstyled Switch/Modal/ActivityIndicator, Pressable hitSlop",
+   "lines": [
+    153,
+    302,
+    310,
+    313,
+    314
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 4,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1019",
+   "key": "byte-bulk",
+   "title": "Bulk byte reads and writes: readBytes, utf8Encode, appendBytes, bytes bodies",
+   "lines": [
+    169,
+    378,
+    395,
+    419,
+    687,
+    699
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 1,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1020",
+   "key": "lsp-completion",
+   "title": "zinc lsp: completion in imports and JSX, auto-import, re-publish dependents, request order",
+   "lines": [
+    180,
+    181,
+    182,
+    735
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 4,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1021",
+   "key": "project-json",
+   "title": "`zinc project --json` and `--json` output for check, steps and plugins",
+   "lines": [
+    193,
+    297
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1022",
+   "key": "classic-layout",
+   "title": "Classic layout: CSS conformance of 100% sizes, basis, shrink and flex-1",
+   "lines": [
+    202,
+    203,
+    204,
+    497
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 1
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1023",
+   "key": "ui-pointer-edge",
+   "title": "Pointer and keyboard edge cases in zinc:ui",
+   "lines": [
+    205,
+    312,
+    562,
+    668,
+    730,
+    731
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 5,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 1
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1024",
+   "key": "dev-loop",
+   "title": "zinc dev loop: save-to-frame under 200 ms, side-effect imports, red box keeps state",
+   "lines": [
+    215,
+    222,
+    224,
+    225,
+    226
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 3,
+    "effort": 3,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1025",
+   "key": "jsx-lowering-gaps",
+   "title": "JSX gaps: all-optional props, `{list.map(fn)}` with a named or imported function, hyphenated attributes",
+   "lines": [
+    257,
+    479,
+    484,
+    485,
+    627,
+    644,
+    678,
+    679,
+    722
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 5,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1026",
+   "key": "build-first-run",
+   "title": "First run: build the plugins concurrently, interpret at once while the native build continues",
+   "lines": [
+    299,
+    434,
+    436
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 3,
+    "effort": 3,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1027",
+   "key": "native-fail-loud",
+   "title": "A failed native plugin build fails loudly",
+   "lines": [
+    300,
+    402
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1028",
+   "key": "net-bodies",
+   "title": "zinc:net server limits and streaming bodies",
+   "lines": [
+    365,
+    650,
+    652
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 1,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1029",
+   "key": "alloc-perf",
+   "title": "Allocation speed: JSON.parse in one block, mimalloc TLS slot, mimalloc upgrade",
+   "lines": [
+    413,
+    414,
+    589
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 1,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1030",
+   "key": "open-records",
+   "title": "Open records and interfaces: structural assignment and writes",
+   "lines": [
+    456,
+    462,
+    464,
+    483,
+    486
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 3,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1031",
+   "key": "inspector-polish",
+   "title": "Inspector polish: six small fixes and a stale test",
+   "lines": [
+    480,
+    481,
+    495,
+    500,
+    501,
+    502,
+    503,
+    504
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1032",
+   "key": "window-worker-api",
+   "title": "Multi-window and worker follow-ups (ZN-864): async handler, window-all-closed, x/y, stale surfaces",
+   "lines": [
+    505,
+    506,
+    507,
+    508,
+    509,
+    511,
+    512,
+    513
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1033",
+   "key": "web-dev-bridge",
+   "title": "Web dev bridge hardening and speed",
+   "lines": [
+    515,
+    516,
+    517,
+    518,
+    521
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 1,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1034",
+   "key": "ipod-polish",
+   "title": "iPod demo: layout and small usability fixes on the Mac",
+   "lines": [
+    519,
+    754,
+    755,
+    903,
+    904,
+    905,
+    908,
+    913,
+    916,
+    959,
+    963,
+    970,
+    972,
+    980
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1035",
+   "key": "any-methods",
+   "title": "Methods and mutation on an `any` value (map, filter, join, push, sort, string methods)",
+   "lines": [
+    602,
+    645,
+    682
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1036",
+   "key": "cross-pi",
+   "title": "Raspberry Pi verification pass",
+   "lines": [
+    707,
+    710,
+    718,
+    1062,
+    1063,
+    1066,
+    1067,
+    1070,
+    1082,
+    1083,
+    1084,
+    1089,
+    1096,
+    1097,
+    1100,
+    1101,
+    1106,
+    1145,
+    1204,
+    1205,
+    1206,
+    1207,
+    1208,
+    1239
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "cross",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1037",
+   "key": "ipod-daemon",
+   "title": "iPod daemon: parity with the Mac app for a remote iPod",
+   "lines": [
+    750,
+    751,
+    753,
+    923,
+    932,
+    934,
+    935,
+    940,
+    949,
+    965,
+    977
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1038",
+   "key": "ui-gaps",
+   "title": "zinc:ui, JSX and web API gaps found by demos",
+   "lines": [
+    756,
+    782,
+    837,
+    838,
+    839,
+    840,
+    1042,
+    1120,
+    1253
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 2
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1039",
+   "key": "pinball-editor",
+   "title": "Pinball editor: rules and scene follow-ups",
+   "lines": [
+    760,
+    773,
+    774,
+    775,
+    777,
+    779
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1040",
+   "key": "museum-editor",
+   "title": "Museum editor: usability gaps",
+   "lines": [
+    761,
+    762,
+    767,
+    769,
+    770,
+    771,
+    783,
+    784,
+    788,
+    789,
+    806,
+    808,
+    809,
+    812
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 3,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1041",
+   "key": "qjs-webenv",
+   "title": "QuickJS web environment: honour zinc.json and import maps",
+   "lines": [
+    791,
+    792,
+    793,
+    794,
+    810,
+    811,
+    814
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 2,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1042",
+   "key": "canvas2d",
+   "title": "Canvas 2D fidelity and speed for p5 and Phaser sketches",
+   "lines": [
+    798,
+    800,
+    801,
+    815,
+    831,
+    832,
+    833
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1043",
+   "key": "audio-gamepad",
+   "title": "Web audio and gamepad gaps for the JS games",
+   "lines": [
+    803,
+    804,
+    821,
+    822,
+    823,
+    824
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1044",
+   "key": "install-update",
+   "title": "zinc doctor, zinc update and plugin install polish",
+   "lines": [
+    826,
+    828,
+    1161
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1045",
+   "key": "tokyo-consoles",
+   "title": "Tokyo on 3DS and Vita: loading, selection and memory",
+   "lines": [
+    852,
+    853,
+    854,
+    862,
+    864,
+    865,
+    880,
+    882,
+    883,
+    884,
+    889,
+    890,
+    891,
+    892
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 3,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "cross",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1046",
+   "key": "tokyo-psp",
+   "title": "Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+   "lines": [
+    856,
+    857,
+    858,
+    859,
+    860,
+    875,
+    876,
+    877,
+    878,
+    881,
+    886,
+    887
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 3,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "cross",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1047",
+   "key": "world3d",
+   "title": "zinc:3d World: shadows switch and glTF night lights",
+   "lines": [
+    867,
+    869,
+    872
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1048",
+   "key": "sonos",
+   "title": "zinc:sonos and iPod Sonos: queue, ports, docs",
+   "lines": [
+    894,
+    895,
+    897,
+    898,
+    917,
+    968
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1049",
+   "key": "ipod-tests",
+   "title": "iPod demo tests: deterministic and independent of the machine",
+   "lines": [
+    896,
+    909,
+    947,
+    957,
+    962,
+    983
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 3,
+    "novelty": 1,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1050",
+   "key": "ts-lib-gaps",
+   "title": "TypeScript and runtime library gaps found by demos",
+   "lines": [
+    907,
+    912,
+    927,
+    941,
+    942,
+    1254
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 5,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1051",
+   "key": "zinc-ipod",
+   "title": "zinc:ipod plugin: tag and smart-rule gaps",
+   "lines": [
+    921,
+    922,
+    924,
+    925,
+    950,
+    951
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1052",
+   "key": "ipod-perf",
+   "title": "iPod For you and Genius: keep the UI thread free at 10k songs",
+   "lines": [
+    937,
+    944,
+    945,
+    971,
+    984,
+    985,
+    986,
+    988,
+    989,
+    990
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1053",
+   "key": "discord-ui",
+   "title": "Discord client: layout and message polish at real window sizes",
+   "lines": [
+    991,
+    992,
+    994,
+    996,
+    997,
+    1026,
+    1027,
+    1028,
+    1043,
+    1044,
+    1051,
+    1056,
+    1058
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1054",
+   "key": "discord-session",
+   "title": "Discord client: session and login safety",
+   "lines": [
+    1008,
+    1009,
+    1010,
+    1011,
+    1020,
+    1035,
+    1037
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1055",
+   "key": "cross-android-webos",
+   "title": "Android, webOS and TV box device checks",
+   "lines": [
+    1064,
+    1065,
+    1069,
+    1071,
+    1072,
+    1201,
+    1203
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 2,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "parked",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1056",
+   "key": "windows-pass",
+   "title": "Windows cross-platform pass: locks, capture, secure store, doc server, link",
+   "lines": [
+    1068,
+    1075,
+    1077,
+    1079,
+    1081,
+    1104,
+    1126,
+    1228,
+    1229,
+    1256,
+    1257
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 2,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "parked",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1057",
+   "key": "cross-linux",
+   "title": "Linux pass: backends, decoders, tests",
+   "lines": [
+    1073,
+    1076,
+    1078,
+    1080,
+    1085,
+    1086,
+    1087,
+    1091,
+    1092,
+    1093,
+    1095,
+    1099,
+    1103,
+    1105,
+    1107,
+    1134,
+    1150,
+    1225,
+    1226,
+    1246,
+    1255,
+    1258,
+    1259
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 2,
+    "confidence": 3,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "cross",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1058",
+   "key": "cross-esp32",
+   "title": "ESP32: ESP-IDF drivers and workers",
+   "lines": [
+    1088,
+    1135,
+    1136,
+    1149
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 2,
+    "effort": 5,
+    "risk": 4
+   },
+   "lane": "parked",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1059",
+   "key": "cross-mobile",
+   "title": "Android and iOS lifecycle checks",
+   "lines": [
+    1108,
+    1137,
+    1141,
+    1143,
+    1244,
+    1245
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 2,
+    "effort": 5,
+    "risk": 4
+   },
+   "lane": "parked",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1060",
+   "key": "cross-remarkable",
+   "title": "reMarkable Paper Pro: app and ink checks",
+   "lines": [
+    1114,
+    1115,
+    1116,
+    1117,
+    1118,
+    1119,
+    1247,
+    1248,
+    1249
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 2,
+    "effort": 3,
+    "risk": 5
+   },
+   "lane": "parked",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1061",
+   "key": "cross-consoles-hw",
+   "title": "Real PSP, Vita and 3DS measurements",
+   "lines": [
+    1130,
+    1132,
+    1133,
+    1200,
+    1202,
+    1209,
+    1210,
+    1211,
+    1212,
+    1213,
+    1214,
+    1215,
+    1216,
+    1217,
+    1218,
+    1219,
+    1220,
+    1221,
+    1222,
+    1223,
+    1224
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 2,
+    "effort": 3,
+    "risk": 5
+   },
+   "lane": "parked",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1062",
+   "key": "tnum",
+   "title": "Text: tabular figures through HarfBuzz",
+   "lines": [
+    1153
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1063",
+   "key": "lint-more",
+   "title": "zinc lint: more rules",
+   "lines": [
+    1157,
+    1158,
+    1159
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1064",
+   "key": "mobile-feel",
+   "title": "Mobile feel: canvas alpha and the RN Modal host",
+   "lines": [
+    1164,
+    1165
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 4,
+    "novelty": 3,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 5,
+    "risk": 3
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1065",
+   "key": "web-gaps",
+   "title": "Web target: dev server and DOM-mode gaps",
+   "lines": [
+    1170,
+    1172,
+    1176,
+    1182,
+    1183
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 5,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "S"
+  },
+  {
+   "id": "ZN-1066",
+   "key": "hermes-v8",
+   "title": "Hermes and V8 projects: export, pack, bytecode",
+   "lines": [
+    1186,
+    1187,
+    1190,
+    1191,
+    1192,
+    1193,
+    1194,
+    1195
+   ],
+   "marks": {
+    "value": 3,
+    "maturity": 3,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 3,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1067",
+   "key": "shell-fixes",
+   "title": "zinc:shell: touch routing, lazy listen, ABI check",
+   "lines": [
+    1230,
+    1231,
+    1232,
+    1233,
+    1234,
+    1235,
+    1236,
+    1237,
+    1238
+   ],
+   "marks": {
+    "value": 4,
+    "maturity": 4,
+    "novelty": 2,
+    "unblocks": 1,
+    "confidence": 4,
+    "effort": 3,
+    "risk": 4
+   },
+   "lane": "mac",
+   "size": "M"
+  },
+  {
+   "id": "ZN-1068",
+   "key": "hamlet",
+   "title": "Hamlet follow-ups: atlas test and sprite rects",
+   "lines": [
+    1250,
+    1251,
+    1252
+   ],
+   "marks": {
+    "value": 2,
+    "maturity": 2,
+    "novelty": 1,
+    "unblocks": 1,
+    "confidence": 5,
+    "effort": 5,
+    "risk": 5
+   },
+   "lane": "mac",
+   "size": "S"
+  }
+ ],
+ "order": {
+  "mac": [
+   [
+    "ZN-774.21",
+    62,
+    62,
+    "The docs speak to AI assistants: llms.txt and a Markdown copy of every page"
+   ],
+   [
+    "ZN-1041",
+    58,
+    58,
+    "QuickJS web environment: honour zinc.json and import maps"
+   ],
+   [
+    "ZN-774",
+    57,
+    57,
+    "Onboarding: a clear first run of the CLI and Atelier, in five languages"
+   ],
+   [
+    "ZN-863",
+    56,
+    56,
+    "Online demos: every example runs in a browser page, hosted as a gallery"
+   ],
+   [
+    "ZN-774.23",
+    56,
+    56,
+    "A first sketch that teaches by its comments"
+   ],
+   [
+    "ZN-774.22",
+    56,
+    56,
+    "Search the site in each of its five languages"
+   ],
+   [
+    "ZN-774.27",
+    56,
+    56,
+    "Help at hand: F1, zinc help and one search over the docs, offline"
+   ],
+   [
+    "ZN-1006",
+    56,
+    56,
+    "UI font fallback: CJK, Persian, arrows and emoji sequences draw as \"?"
+   ],
+   [
+    "ZN-863.08",
+    55,
+    55,
+    "A demo gallery: export every example that runs to site/public/play with an index page"
+   ],
+   [
+    "ZN-158",
+    55,
+    55,
+    "Beyond the prototype: typed arrays, ArrayBuffer, DataView"
+   ],
+   [
+    "ZN-1007",
+    54,
+    54,
+    "CLI polish: argument order, example suggestions, port 0, clear pairing and export messages"
+   ],
+   [
+    "ZN-802",
+    53,
+    53,
+    "First-run polish of the CLI messages and guide (ZN-711 follow-ups)"
+   ],
+   [
+    "ZN-805",
+    53,
+    53,
+    "Lighter exported and idle UI apps: link only what is used, idle redraw, memory owners"
+   ],
+   [
+    "ZN-774.24",
+    53,
+    53,
+    "First-run polish: empty panels, what's new, an accessible tour, doctor links"
+   ],
+   [
+    "ZN-963",
+    53,
+    53,
+    "Hamlet: engine: a writable per-app data directory in zinc:fs (verify, then fix)"
+   ],
+   [
+    "ZN-1003",
+    53,
+    53,
+    "Checker: function and generic assignability that TypeScript accepts"
+   ],
+   [
+    "ZN-1004",
+    53,
+    53,
+    "Say what to write: errors for silent no-ops in zinc:ui"
+   ],
+   [
+    "ZN-671",
+    52,
+    52,
+    "examples/nuxt-ui: the trash-2 icon is silently missing (the pinned Lucide set names it trash)"
+   ],
+   [
+    "ZN-795",
+    52,
+    52,
+    "Permission and network hardening of zinc monitor and zinc:fs watch"
+   ],
+   [
+    "ZN-1014",
+    52,
+    52,
+    "Tests green on develop: stale goldens, a missing table row, an unbuilt test"
+   ],
+   [
+    "ZN-1020",
+    52,
+    52,
+    "zinc lsp: completion in imports and JSX, auto-import, re-publish dependents, request order"
+   ],
+   [
+    "ZN-1050",
+    52,
+    52,
+    "TypeScript and runtime library gaps found by demos"
+   ],
+   [
+    "ZN-203.06",
+    52,
+    39,
+    "WebGL-F conformance round 2: the remaining 34 pages and the textures, glsl, extensions suites"
+   ],
+   [
+    "ZN-817",
+    51,
+    51,
+    "Release hygiene for the engine packs (Hermes licences, pinned V8, .qbc version stamp, source-map paths)"
+   ],
+   [
+    "ZN-1010",
+    51,
+    51,
+    "Async and generic inference gaps: async arrows, ternary await, top-level await, void generics"
+   ],
+   [
+    "ZN-1011",
+    51,
+    51,
+    "zinc:storage: one store per program, not one shared file"
+   ],
+   [
+    "ZN-1017",
+    51,
+    51,
+    "React Native parity: ImageBackground, Image source uri, unstyled Switch/Modal/ActivityIndicator, Pressable hitSlop"
+   ],
+   [
+    "ZN-1021",
+    51,
+    51,
+    "`zinc project --json` and `--json` output for check, steps and plugins"
+   ],
+   [
+    "ZN-1025",
+    51,
+    51,
+    "JSX gaps: all-optional props, `{list.map(fn)}` with a named or imported function, hyphenated attributes"
+   ],
+   [
+    "ZN-1027",
+    51,
+    51,
+    "A failed native plugin build fails loudly"
+   ],
+   [
+    "ZN-1031",
+    51,
+    51,
+    "Inspector polish: six small fixes and a stale test"
+   ],
+   [
+    "ZN-1044",
+    51,
+    51,
+    "zinc doctor, zinc update and plugin install polish"
+   ],
+   [
+    "ZN-640",
+    50,
+    50,
+    "Network log: mask multipart/form-data fields"
+   ],
+   [
+    "ZN-1008",
+    50,
+    50,
+    "QuickJS binary data: net bodies, u8 arguments to natives, large WebSocket messages, WebSocket and URL globals"
+   ],
+   [
+    "ZN-1023",
+    50,
+    50,
+    "Pointer and keyboard edge cases in zinc:ui"
+   ],
+   [
+    "ZN-1038",
+    50,
+    50,
+    "zinc:ui, JSX and web API gaps found by demos"
+   ],
+   [
+    "ZN-1064",
+    50,
+    50,
+    "Mobile feel: canvas alpha and the RN Modal host"
+   ],
+   [
+    "ZN-143",
+    49,
+    49,
+    "Atelier profile view: a flame graph from zinc profile"
+   ],
+   [
+    "ZN-275",
+    49,
+    49,
+    "Keyframes and animate-spin/pulse/ping"
+   ],
+   [
+    "ZN-1009",
+    49,
+    49,
+    "QuickJS agrees with the interpreter: typed JSON.parse, i32 truncation, Map.get, TOUCH, host events"
+   ],
+   [
+    "ZN-1032",
+    49,
+    49,
+    "Multi-window and worker follow-ups (ZN-864): async handler, window-all-closed, x/y, stale surfaces"
+   ],
+   [
+    "ZN-1063",
+    49,
+    49,
+    "zinc lint: more rules"
+   ],
+   [
+    "ZN-263",
+    49,
+    40,
+    "UI style: 2D transforms: rotate, skew, `scaleX/Y`, origin; RN `transform` array lowering; hit testing"
+   ],
+   [
+    "ZN-774.25",
+    48,
+    48,
+    "Run every tested lesson sample in its docs page"
+   ],
+   [
+    "ZN-643",
+    48,
+    48,
+    "Write the program's output before a blocking host call"
+   ],
+   [
+    "ZN-797",
+    48,
+    48,
+    "Four zinc export and build defects"
+   ],
+   [
+    "ZN-816",
+    48,
+    48,
+    "Web export fixes: asset build, sw.js scope, quiet unavailable modules, prerender wait"
+   ],
+   [
+    "ZN-774.18",
+    48,
+    48,
+    "Time the primitives-only start and build"
+   ],
+   [
+    "ZN-182",
+    48,
+    48,
+    "GL replay: glyph atlas pages and eviction"
+   ],
+   [
+    "ZN-1005",
+    48,
+    48,
+    "Headless runs: pace frames in real time on request"
+   ],
+   [
+    "ZN-1015",
+    48,
+    48,
+    "charCodeAt on a non-ASCII string is quadratic"
+   ],
+   [
+    "ZN-1035",
+    48,
+    48,
+    "Methods and mutation on an `any` value (map, filter, join, push, sort, string methods)"
+   ],
+   [
+    "ZN-1067",
+    48,
+    48,
+    "zinc:shell: touch routing, lazy listen, ABI check"
+   ],
+   [
+    "ZN-713",
+    47,
+    47,
+    "Retake the Electron/Tauri comparison on the M1 Pro, alone"
+   ],
+   [
+    "ZN-812",
+    47,
+    47,
+    "React/RN layer gaps found by rn-showcase (ZN-718 follow-ups)"
+   ],
+   [
+    "ZN-263.02",
+    47,
+    47,
+    "Transform origin and rotate/skew goldens"
+   ],
+   [
+    "ZN-389",
+    47,
+    47,
+    "Checker: an array of records converts to an array of a wider record (optional members)"
+   ],
+   [
+    "ZN-291",
+    47,
+    47,
+    "Document the layout modes"
+   ],
+   [
+    "ZN-815",
+    47,
+    47,
+    "QuickJS and npm packages: Web globals, browser field, CommonJS, local Date, catch annotations"
+   ],
+   [
+    "ZN-666",
+    47,
+    47,
+    "The 30 style scenes through the GL replay"
+   ],
+   [
+    "ZN-183",
+    47,
+    47,
+    "GL quirks table and forced-failure fallback"
+   ],
+   [
+    "ZN-708",
+    47,
+    47,
+    "Web environment: what Date.now and new Date() give under the virtual clock"
+   ],
+   [
+    "ZN-1019",
+    47,
+    47,
+    "Bulk byte reads and writes: readBytes, utf8Encode, appendBytes, bytes bodies"
+   ],
+   [
+    "ZN-1022",
+    47,
+    47,
+    "Classic layout: CSS conformance of 100% sizes, basis, shrink and flex-1"
+   ],
+   [
+    "ZN-1024",
+    47,
+    47,
+    "zinc dev loop: save-to-frame under 200 ms, side-effect imports, red box keeps state"
+   ],
+   [
+    "ZN-1026",
+    47,
+    47,
+    "First run: build the plugins concurrently, interpret at once while the native build continues"
+   ],
+   [
+    "ZN-1042",
+    47,
+    47,
+    "Canvas 2D fidelity and speed for p5 and Phaser sketches"
+   ],
+   [
+    "ZN-1043",
+    47,
+    47,
+    "Web audio and gamepad gaps for the JS games"
+   ],
+   [
+    "ZN-1052",
+    47,
+    47,
+    "iPod For you and Genius: keep the UI thread free at 10k songs"
+   ],
+   [
+    "ZN-1016",
+    47,
+    47,
+    "zinc lint and pack: plugin targets, host modules per profile, honest assets error"
+   ],
+   [
+    "ZN-774.30",
+    46,
+    46,
+    "Edit and run Zinc in the browser, the program in the link"
+   ],
+   [
+    "ZN-644",
+    46,
+    46,
+    "console.error and sys.exit leak program output to stdout under profile, mem and the device core"
+   ],
+   [
+    "ZN-684",
+    46,
+    46,
+    "plugins/gestures: fingers owned per target and a manipulate gesture (drag, pinch, turn)"
+   ],
+   [
+    "ZN-698",
+    46,
+    46,
+    "Native SHA-256 for bytes and files read in chunks"
+   ],
+   [
+    "ZN-567",
+    46,
+    46,
+    "WebGL binding fast paths (typed arrays, draw validation caches, host thunk)"
+   ],
+   [
+    "ZN-796",
+    46,
+    46,
+    "Typed numbers agree on --engine quickjs"
+   ],
+   [
+    "ZN-364.01",
+    46,
+    46,
+    "Animated native driver: transform and opacity animations without the program's code per frame"
+   ],
+   [
+    "ZN-376",
+    46,
+    46,
+    "Compiler: a function name used as a value is the same object each time; IR error in laStart with a debug accessor"
+   ],
+   [
+    "ZN-667",
+    46,
+    46,
+    "Compiler: a nested and a top-level declaration with the same name give invalid IR"
+   ],
+   [
+    "ZN-1030",
+    46,
+    46,
+    "Open records and interfaces: structural assignment and writes"
+   ],
+   [
+    "ZN-1062",
+    46,
+    46,
+    "Text: tabular figures through HarfBuzz"
+   ],
+   [
+    "ZN-1065",
+    46,
+    46,
+    "Web target: dev server and DOM-mode gaps"
+   ],
+   [
+    "ZN-774.29",
+    46,
+    40,
+    "Spike: the Zinc compiler built to wasm, measured"
+   ],
+   [
+    "ZN-338",
+    45,
+    45,
+    "Plugin workflow: publish to the index and run a fixture repository"
+   ],
+   [
+    "ZN-693",
+    45,
+    45,
+    "instanceof is false once a caught error went through a parameter typed any"
+   ],
+   [
+    "ZN-610",
+    45,
+    45,
+    "mqtt over TLS 1.3 and the handshake timeout test"
+   ],
+   [
+    "ZN-423",
+    45,
+    45,
+    "PERF-24 LTO across runtime, host and program"
+   ],
+   [
+    "ZN-1012",
+    45,
+    45,
+    "Plugin docs: fill plugins/<name>/docs for the main plugins, links to source, site decision"
+   ],
+   [
+    "ZN-682",
+    44,
+    44,
+    "zinc:3d: the bounds of a Node"
+   ],
+   [
+    "ZN-798",
+    44,
+    44,
+    "Fix five frontend defects a user program can hit"
+   ],
+   [
+    "ZN-674",
+    44,
+    44,
+    "Test imageFromBytes with WebP and GIF and record the size"
+   ],
+   [
+    "ZN-639",
+    44,
+    44,
+    "socket test: free UDP ports instead of 9731 and 9732"
+   ],
+   [
+    "ZN-589.01",
+    44,
+    44,
+    "Re-measure shadows and launch time on Apple Silicon"
+   ],
+   [
+    "ZN-429",
+    44,
+    44,
+    "AOT programs embed their resources with .incbin"
+   ],
+   [
+    "ZN-774.31",
+    44,
+    44,
+    "Share a sketch as one file or as a link"
+   ],
+   [
+    "ZN-440.01",
+    44,
+    44,
+    "Audio importer: QOA/ADPCM encode at pack time, per-codec bytes in report.json"
+   ],
+   [
+    "ZN-690",
+    44,
+    44,
+    "physics3d: measure the 1,000-body step alone and record it"
+   ],
+   [
+    "ZN-1047",
+    44,
+    44,
+    "zinc:3d World: shadows switch and glTF night lights"
+   ],
+   [
+    "ZN-1049",
+    44,
+    44,
+    "iPod demo tests: deterministic and independent of the machine"
+   ],
+   [
+    "ZN-1054",
+    44,
+    44,
+    "Discord client: session and login safety"
+   ],
+   [
+    "ZN-946",
+    44,
+    36,
+    "Hamlet save: refuse future versions, storage-free snapshot"
+   ],
+   [
+    "ZN-971",
+    44,
+    36,
+    "Hamlet: command log recorder and replay"
+   ],
+   [
+    "ZN-970",
+    44,
+    31,
+    "Hamlet: Command type, submit and advance: the one path for player input"
+   ],
+   [
+    "ZN-437",
+    43,
+    43,
+    "zinc assets check and report --diff"
+   ],
+   [
+    "ZN-709",
+    43,
+    43,
+    "zinc debug --cdp works in the real Chrome DevTools frontend"
+   ],
+   [
+    "ZN-675",
+    43,
+    43,
+    "Frame hash of a frame that does not cover the surface changes at every run"
+   ],
+   [
+    "ZN-418.01",
+    43,
+    43,
+    "Packed storage for u8[]/i32[]/f32[] in ArrObj (interpreter size switch, AOT typed views)"
+   ],
+   [
+    "ZN-418.04",
+    43,
+    43,
+    "Memory test: 1 M u8[] <= 1.1 MB, interpreter and AOT equal"
+   ],
+   [
+    "ZN-704",
+    43,
+    43,
+    "Styles panel edits work in the real Chrome DevTools frontend"
+   ],
+   [
+    "ZN-774.17",
+    43,
+    43,
+    "Measure the four styles on one program"
+   ],
+   [
+    "ZN-396",
+    43,
+    43,
+    "Freeze the engine interfaces plugins still include (hal.h, zrt_raster.h, hw.h, zgl.h)"
+   ],
+   [
+    "ZN-678",
+    43,
+    43,
+    "GL replay: smoothed edges and one filter rule for images through a matrix"
+   ],
+   [
+    "ZN-444",
+    43,
+    43,
+    "Shader validation at build, program binary cache on device"
+   ],
+   [
+    "ZN-278",
+    43,
+    43,
+    "Style levels: warning on ignored properties"
+   ],
+   [
+    "ZN-1013",
+    43,
+    43,
+    "Translations: restamp guides and fill the doc theme strings"
+   ],
+   [
+    "ZN-1028",
+    43,
+    43,
+    "zinc:net server limits and streaming bodies"
+   ],
+   [
+    "ZN-1033",
+    43,
+    43,
+    "Web dev bridge hardening and speed"
+   ],
+   [
+    "ZN-863.06",
+    42,
+    42,
+    "zinc dev --target web --engine wasm: the ZBC interpreter in the page for the programs the JS export cannot run"
+   ],
+   [
+    "ZN-601",
+    42,
+    42,
+    "QuickJS binding rules for native modules, with the boundary micro-benchmark in bench"
+   ],
+   [
+    "ZN-260",
+    42,
+    42,
+    "Box shadow: several layers, inset, spread"
+   ],
+   [
+    "ZN-596",
+    42,
+    42,
+    "Typed fast native calls and borrowed buffer accessors for QuickJS (patch + upstream PR)"
+   ],
+   [
+    "ZN-243",
+    42,
+    42,
+    "System: Deep links, file open, opener/reveal"
+   ],
+   [
+    "ZN-257",
+    42,
+    42,
+    "UI style: Border model: dashed/dotted, per-side colour, per-corner radius, border in layout (`box-border-layout`)"
+   ],
+   [
+    "ZN-697",
+    42,
+    42,
+    "zinc:audio: fade a voice to silence over a time"
+   ],
+   [
+    "ZN-706",
+    42,
+    42,
+    "Web environment: DOMParser on a vendored XML parser"
+   ],
+   [
+    "ZN-440.02",
+    42,
+    42,
+    "Streaming music from a ZPK pack under 64 KB resident"
+   ],
+   [
+    "ZN-442",
+    42,
+    42,
+    "Font importer: subsets, charsets, MSDF option"
+   ],
+   [
+    "ZN-705",
+    42,
+    42,
+    "Web environment: focus, visibility, fingers and the small APIs"
+   ],
+   [
+    "ZN-1040",
+    42,
+    42,
+    "Museum editor: usability gaps"
+   ],
+   [
+    "ZN-603",
+    41,
+    41,
+    "AOT program diet: hero 21.8 MB binary, 105 s build, 33.5 MB of C++"
+   ],
+   [
+    "ZN-249",
+    41,
+    41,
+    "System: Transparent frames, vibrancy and multiple windows"
+   ],
+   [
+    "ZN-418",
+    41,
+    41,
+    "PERF-19 Packed numeric arrays and narrow fields"
+   ],
+   [
+    "ZN-569",
+    41,
+    41,
+    "Web environment: asynchronous image decode and createImageBitmap"
+   ],
+   [
+    "ZN-394",
+    41,
+    41,
+    "macos_window: do not compare the fullscreen button position (display dependent)"
+   ],
+   [
+    "ZN-695",
+    41,
+    41,
+    "zinc:audio: pause and resume a voice"
+   ],
+   [
+    "ZN-575",
+    41,
+    41,
+    "QuickJS GC scheduling and pause reporting; bytecode cache for zinc run"
+   ],
+   [
+    "ZN-703",
+    41,
+    41,
+    "Math functions give the same bits on every CPU and libc, as the sim"
+   ],
+   [
+    "ZN-161.01",
+    41,
+    41,
+    "Object statics on records and Dyn (assign, freeze, fromEntries, getOwnPropertyNames, defineProperty)"
+   ],
+   [
+    "ZN-680",
+    41,
+    41,
+    "Software raster of transformed commands: 115 ms for 8 photo cards at 1080p"
+   ],
+   [
+    "ZN-898",
+    41,
+    41,
+    "Share links that open the Zinc app or join in the browser"
+   ],
+   [
+    "ZN-1029",
+    41,
+    41,
+    "Allocation speed: JSON.parse in one block, mimalloc TLS slot, mimalloc upgrade"
+   ],
+   [
+    "ZN-1048",
+    41,
+    41,
+    "zinc:sonos and iPod Sonos: queue, ports, docs"
+   ],
+   [
+    "ZN-1068",
+    41,
+    41,
+    "Hamlet follow-ups: atlas test and sprite rects"
+   ],
+   [
+    "ZN-895",
+    41,
+    39,
+    "Galène media server as a pinned tool of zinc toolchain"
+   ],
+   [
+    "ZN-445",
+    41,
+    37,
+    "QuickJS bytecode: log line on version mismatch, bytecode in packs"
+   ],
+   [
+    "ZN-896",
+    41,
+    37,
+    "examples/webrtc-call/server: one-command self-hosted call server"
+   ],
+   [
+    "ZN-897",
+    41,
+    35,
+    "webrtc-call: Galène protocol client (join by link, publish, receive, ICE restart)"
+   ],
+   [
+    "ZN-147",
+    40,
+    40,
+    "Fuzzing: parser, checker, ZBC decoder and verifier, native ABI"
+   ],
+   [
+    "ZN-179",
+    40,
+    40,
+    "R2.3 Hash-diff damage with LVGL joining"
+   ],
+   [
+    "ZN-265",
+    40,
+    40,
+    "UI style: Filters: `blur()`, `backdrop-blur`, brightness/grayscale; drop-shadow filter"
+   ],
+   [
+    "ZN-803",
+    40,
+    40,
+    "Museum table update: non-blocking and checked before staging (ZN-650.11 follow-ups)"
+   ],
+   [
+    "ZN-723",
+    40,
+    40,
+    "QuickJS bytecode compiler: stack to SSA, borrowed references, inline caches (spike with a gate, D110)"
+   ],
+   [
+    "ZN-723.04",
+    40,
+    40,
+    "Wire into examples/js-p5, test262 subset and QuickJS T1, go/no-go record against D110"
+   ],
+   [
+    "ZN-388",
+    40,
+    40,
+    "classic: borders that take layout space under the react-native preset"
+   ],
+   [
+    "ZN-668",
+    40,
+    40,
+    "Runtime: a closure that refers to itself is never freed"
+   ],
+   [
+    "ZN-161",
+    40,
+    40,
+    "Beyond the prototype: Object statics, Symbol, Reflect/Proxy subset, Intl subset"
+   ],
+   [
+    "ZN-587",
+    40,
+    40,
+    "Worker on a second QuickJS runtime"
+   ],
+   [
+    "ZN-1066",
+    40,
+    40,
+    "Hermes and V8 projects: export, pack, bytecode"
+   ],
+   [
+    "ZN-665",
+    39,
+    39,
+    "Kiosk: relaunch after a crash and the system kiosk presentation on macOS"
+   ],
+   [
+    "ZN-597",
+    39,
+    39,
+    "Bit-identical native accelerators for three.js math (mechanism for r162 and r186)"
+   ],
+   [
+    "ZN-203.09",
+    39,
+    39,
+    "WebGL-G conformance2 round 2: the 54 failing WebGL2 pages and the glsl3, textures and extensions suites"
+   ],
+   [
+    "ZN-264",
+    39,
+    39,
+    "UI style: Group opacity (`isolate`) and blend modes"
+   ],
+   [
+    "ZN-578",
+    39,
+    39,
+    "FPS gates for the JS-library demos (p5, Pixi, Phaser, three)"
+   ],
+   [
+    "ZN-1034",
+    39,
+    39,
+    "iPod demo: layout and small usability fixes on the Mac"
+   ],
+   [
+    "ZN-1037",
+    39,
+    39,
+    "iPod daemon: parity with the Mac app for a remote iPod"
+   ],
+   [
+    "ZN-1039",
+    39,
+    39,
+    "Pinball editor: rules and scene follow-ups"
+   ],
+   [
+    "ZN-1053",
+    39,
+    39,
+    "Discord client: layout and message polish at real window sizes"
+   ],
+   [
+    "ZN-162",
+    38,
+    38,
+    "Cycle collection for closure cycles"
+   ],
+   [
+    "ZN-184",
+    38,
+    38,
+    "R3.5 Optional instancing"
+   ],
+   [
+    "ZN-573",
+    38,
+    38,
+    "Web Audio facade: Howler and Kaplay, audio-thread assertion"
+   ],
+   [
+    "ZN-449",
+    38,
+    38,
+    "Browser loading path: streaming compile, group packs, Cache Storage, KTX2"
+   ],
+   [
+    "ZN-440",
+    38,
+    38,
+    "Audio pipeline on zinc:audio: codecs, streaming, importer"
+   ],
+   [
+    "ZN-161.02",
+    38,
+    38,
+    "Symbol and the well-known iteration symbols"
+   ],
+   [
+    "ZN-973",
+    38,
+    38,
+    "Hamlet: chain 3: farm -> wheat -> mill -> flour -> bakery -> bread"
+   ],
+   [
+    "ZN-395",
+    37,
+    37,
+    "zinc links with ZN_HOST_GFX=OFF again"
+   ],
+   [
+    "ZN-451",
+    37,
+    37,
+    "Templates and guide chapter for games; budgets in CI"
+   ],
+   [
+    "ZN-683",
+    37,
+    37,
+    "zinc:3d: a depth or visibility query, so a marker hides behind any shape"
+   ],
+   [
+    "ZN-1051",
+    37,
+    37,
+    "zinc:ipod plugin: tag and smart-rule gaps"
+   ],
+   [
+    "ZN-418.02",
+    36,
+    36,
+    "Natives, JSON, sort and typed-array interop on packed arrays"
+   ],
+   [
+    "ZN-572",
+    36,
+    36,
+    "Canvas 2D full tier: WPT subset and p5 2.3"
+   ],
+   [
+    "ZN-330.04",
+    36,
+    36,
+    "Shaped text (HarfBuzz, SheenBidi) as a module loaded when a project asks for it"
+   ],
+   [
+    "ZN-681",
+    36,
+    36,
+    "Museum table: ship the vase as a decimated GLB"
+   ],
+   [
+    "ZN-723.01",
+    36,
+    36,
+    "Lowering of QuickJS bytecode to values with operand stack and locals in C variables, kept apart from the emitter"
+   ],
+   [
+    "ZN-723.02",
+    36,
+    36,
+    "C emitter for numeric functions with direct calls, gate against bench/qjs three and matter-js"
+   ],
+   [
+    "ZN-201",
+    36,
+    36,
+    "R7.3 Text quality tier"
+   ],
+   [
+    "ZN-653",
+    35,
+    35,
+    "zinc:audio: 16-bit sounds in memory once miniaudio keeps the end of non-float sources"
+   ],
+   [
+    "ZN-724",
+    34,
+    34,
+    "Measure Longbridge's quickjs-jit as the base of QuickJS's JIT (decision against D110)"
+   ],
+   [
+    "ZN-800",
+    33,
+    33,
+    "Re-skin pinball, pinball3d and pocket-hero with Kenney CC0 packs"
+   ],
+   [
+    "ZN-418.03",
+    33,
+    33,
+    "Narrow struct fields in the PERF-10 structs"
+   ],
+   [
+    "ZN-584.01",
+    33,
+    33,
+    "zinc:game: scenes, sprites and animation"
+   ],
+   [
+    "ZN-584.02",
+    33,
+    33,
+    "zinc:game: tilemaps from Tiled and LDtk"
+   ],
+   [
+    "ZN-584.03",
+    33,
+    33,
+    "zinc:game: camera and input actions"
+   ],
+   [
+    "ZN-584.04",
+    33,
+    33,
+    "game-2d template on zinc:game"
+   ],
+   [
+    "ZN-584.05",
+    33,
+    33,
+    "zinc:game API reference and guide chapter"
+   ],
+   [
+    "ZN-723.03",
+    32,
+    32,
+    "Closures and per-site property caches"
+   ],
+   [
+    "ZN-727",
+    32,
+    32,
+    "Demo js-anatomy: the figures from their own render(host)"
+   ],
+   [
+    "ZN-161.03",
+    32,
+    32,
+    "Intl.NumberFormat/DateTimeFormat subset (with the zinc:i18n line of backlog/later.md)"
+   ],
+   [
+    "ZN-707",
+    31,
+    31,
+    "Web environment: boot tests for Phaser, PixiJS 8, p5 2, Babylon, LittleJS and Kaplay"
+   ],
+   [
+    "ZN-584",
+    29,
+    29,
+    "zinc:game, the native-tier game module, and the game-2d template on it"
+   ]
+  ],
+  "cross": [
+   [
+    "ZN-863.03",
+    55,
+    53,
+    "Device frames for web pages: a phone, tablet or handheld shell around the app"
+   ],
+   [
+    "ZN-863.04",
+    55,
+    44,
+    "The device simulator in the page: board demos (esp32-widgets) run on the web with their simulated panel"
+   ],
+   [
+    "ZN-550",
+    54,
+    54,
+    "zinc:i2c and zinc:spi modules over hw.h"
+   ],
+   [
+    "ZN-489",
+    54,
+    54,
+    "Cooker v1 geometry: glTF to quantized, chunked, LOD meshes with baked vertex light"
+   ],
+   [
+    "ZN-535",
+    54,
+    47,
+    "Board detection and capability probe: zinc:board and zinc:platform BOARD, SOC, RAM_MB, REVISION, has()"
+   ],
+   [
+    "ZN-540",
+    52,
+    52,
+    "Vendor three.js r162 as the WebGL 1 (tier T2) three, selected by tier"
+   ],
+   [
+    "ZN-538",
+    52,
+    48,
+    "ZN_WEBGL_PROFILE=vc4: the Pi 3B+ capability table enforced in libzn_webgl on any host"
+   ],
+   [
+    "ZN-547",
+    51,
+    51,
+    "Frame budget HUD and linter: draws, vertices, passes, uploads against the tier budget"
+   ],
+   [
+    "ZN-534",
+    51,
+    40,
+    "three r162 on the Pi 3B+: per-material shader cost and C1-C4"
+   ],
+   [
+    "ZN-1036",
+    50,
+    50,
+    "Raspberry Pi verification pass"
+   ],
+   [
+    "ZN-814",
+    49,
+    49,
+    "devices/iphone.json and devices/android-phone.json for zinc run --simulate"
+   ],
+   [
+    "ZN-311",
+    49,
+    49,
+    "Document zinc sim: board.json, scenarios, replay and esp32sim"
+   ],
+   [
+    "ZN-164",
+    49,
+    47,
+    "Host library split and size gates for Pi 1 and ESP32"
+   ],
+   [
+    "ZN-313",
+    49,
+    36,
+    "Device-sim core draws a frame: ZINC_FRAMEHASH equals the macOS emulator on the s3-matrix demos"
+   ],
+   [
+    "ZN-541.02",
+    48,
+    48,
+    "Split geometries over 65535 vertices and warm-up"
+   ],
+   [
+    "ZN-549",
+    48,
+    48,
+    "GPIO chardev v2 backend in hw.h and the real zinc:gpio"
+   ],
+   [
+    "ZN-1057",
+    48,
+    48,
+    "Linux pass: backends, decoders, tests"
+   ],
+   [
+    "ZN-391",
+    47,
+    47,
+    "Open .zapp files with zinc by double-click (macOS and Linux)"
+   ],
+   [
+    "ZN-541.01",
+    46,
+    46,
+    "Material downgrade and static mesh merge for T2"
+   ],
+   [
+    "ZN-334",
+    45,
+    40,
+    "Cross builds fetch the pinned Linux sysroot by themselves"
+   ],
+   [
+    "ZN-539",
+    44,
+    44,
+    "Exact ANGLE_instanced_arrays and 32-bit index emulation for GLES2 drivers"
+   ],
+   [
+    "ZN-592.02",
+    44,
+    44,
+    "Re-measure zinc's launch on arm64 (Apple Silicon): --version and console.log(1) <= 4 ms"
+   ],
+   [
+    "ZN-551",
+    44,
+    44,
+    "zinc:pwm: sysfs, chardev on kernel 6.17+, Pi 5 channel map"
+   ],
+   [
+    "ZN-554",
+    44,
+    44,
+    "zinc:power: thermal, clocks, throttling and under-voltage"
+   ],
+   [
+    "ZN-373.06",
+    44,
+    44,
+    "Zinc Inspector on Linux and a Raspberry Pi target over ssh forwarding"
+   ],
+   [
+    "ZN-342",
+    43,
+    43,
+    "Provenance for every official artifact (SLSA / in-toto) and `zinc verify --provenance`"
+   ],
+   [
+    "ZN-513",
+    43,
+    43,
+    "chip and pocketchip: capabilities rows and docs"
+   ],
+   [
+    "ZN-221",
+    43,
+    43,
+    "zinc repl for devices (device-sim, agent)"
+   ],
+   [
+    "ZN-937",
+    43,
+    43,
+    "Publish Murdoku to the reMarkable hub"
+   ],
+   [
+    "ZN-512",
+    43,
+    41,
+    "armv7-linux: NEON in -mcpu and its checks"
+   ],
+   [
+    "ZN-559",
+    42,
+    42,
+    "Pi capabilities rows (i2c, spi, pwm, camera, hwdec, wifi, ble) and permissions"
+   ],
+   [
+    "ZN-458",
+    42,
+    42,
+    "zinc run/export --target psp|vita|n3ds|ps2 --emu: prebuilt console cores, no SDK needed"
+   ],
+   [
+    "ZN-558",
+    42,
+    36,
+    "zinc:wifi and zinc:ble over D-Bus (NetworkManager, BlueZ)"
+   ],
+   [
+    "ZN-300",
+    41,
+    41,
+    "Sim: Atelier Board view (read-only): parts as SVG, wires, live LEDs, displays, clickable buttons and pots"
+   ],
+   [
+    "ZN-661",
+    41,
+    41,
+    "Showcase demos on the web: the wasm target runs the pinball and the museum table"
+   ],
+   [
+    "ZN-672",
+    41,
+    41,
+    "wasm target: imageFromBytes, runtime images and render targets in the browser host"
+   ],
+   [
+    "ZN-673",
+    41,
+    41,
+    "wasm target: baked fonts, gradients, clip, translate and setTransform in the browser host"
+   ],
+   [
+    "ZN-542",
+    40,
+    40,
+    "Frame pacing for 3D: fixed timestep, 60/30 lock with hysteresis, dynamic-resolution controller"
+   ],
+   [
+    "ZN-302",
+    40,
+    40,
+    "Sim: Atelier serial monitor, bus monitor, logic analyzer, time controls"
+   ],
+   [
+    "ZN-440.03",
+    40,
+    40,
+    "Opus decode (libopus) as an optional codec, decode CPU on the Pi 3 (cross)"
+   ],
+   [
+    "ZN-536",
+    40,
+    40,
+    "WebGL straight to the KMS scanout: EGL on display-gl's GBM surface, no readback"
+   ],
+   [
+    "ZN-552",
+    40,
+    40,
+    "Shared evdev input hub with hot-plug and gamepads"
+   ],
+   [
+    "ZN-555",
+    40,
+    40,
+    "zinc:audio on the Pi: ALSA, HDMI and the static build"
+   ],
+   [
+    "ZN-553",
+    40,
+    40,
+    "Select the DRM card, connector and mode from zinc.json"
+   ],
+   [
+    "ZN-350",
+    40,
+    40,
+    "Proof: a GPU UI app for Raspberry Pi built on a clean Mac, nothing installed"
+   ],
+   [
+    "ZN-416",
+    40,
+    40,
+    "PERF-17 Pipeline the script of frame N+1 with the CPU raster of frame N (Linux fbdev, Pi, handhelds)"
+   ],
+   [
+    "ZN-412.07",
+    40,
+    40,
+    "Linux GL window measured on a Mesa GPU"
+   ],
+   [
+    "ZN-412.04",
+    40,
+    40,
+    "Pi 3 numbers for the GL renderer on the rig"
+   ],
+   [
+    "ZN-537",
+    40,
+    36,
+    "display-gl: atomic planes shared with display-fbdev, render scale"
+   ],
+   [
+    "ZN-544",
+    40,
+    36,
+    "GLES2 cooked-pack renderer tuned for VC4, shared with the iPhone 4S plan"
+   ],
+   [
+    "ZN-545",
+    40,
+    36,
+    "Cooker tier T2-VC4: budgets, ETC1, 16-bit split, uniform-array batches, baked animation"
+   ],
+   [
+    "ZN-541.03",
+    39,
+    39,
+    "KTX2 ETC1S to ETC1 with a vendored transcoder"
+   ],
+   [
+    "ZN-761",
+    38,
+    38,
+    "Device information: device type, model, maker and system details on every platform"
+   ],
+   [
+    "ZN-467",
+    38,
+    38,
+    "ff_replay: desktop CPU reference backend, T1 against the raster, counters in zinc -v"
+   ],
+   [
+    "ZN-351.01",
+    37,
+    37,
+    "A publisher follows the security guide to a verified release with the reusable workflow"
+   ],
+   [
+    "ZN-600.01",
+    37,
+    37,
+    "Re-measure the QuickJS inline caches of ZN-600 on arm64 (Apple Silicon)"
+   ],
+   [
+    "ZN-541",
+    36,
+    36,
+    "zinc:three-pi helpers: material downgrade, merging, 16-bit split, warm-up, native KTX2 to ETC1"
+   ],
+   [
+    "ZN-543",
+    36,
+    36,
+    "Native accelerators for three on QuickJS: matrices, culling, CPU skinning (NEON/VFP)"
+   ],
+   [
+    "ZN-481",
+    36,
+    36,
+    "Device protocol over TCP: upload bytecode to a running handheld core"
+   ],
+   [
+    "ZN-419",
+    36,
+    36,
+    "PERF-20 Native RGB565 raster for 16-bit panels"
+   ],
+   [
+    "ZN-1045",
+    36,
+    36,
+    "Tokyo on 3DS and Vita: loading, selection and memory"
+   ],
+   [
+    "ZN-1046",
+    36,
+    36,
+    "Tokyo and zinc:3d on PSP: memory, streaming, CLUT8"
+   ],
+   [
+    "ZN-392",
+    32,
+    32,
+    "Prebuilt player runtimes per target for zinc fuse (linux, rpi, rpi1), pinned"
+   ],
+   [
+    "ZN-563.01",
+    32,
+    32,
+    "zinc:3d GPU renderer on Linux (GLES 3 or GL 3.3 through SDL3)"
+   ],
+   [
+    "ZN-592.04",
+    32,
+    32,
+    "Linux: the window host as a module (libzn_window.so) like macOS"
+   ],
+   [
+    "ZN-694",
+    32,
+    32,
+    "GL replay on Linux and the Raspberry Pi: convex polygons within the fragment uniform budget"
+   ],
+   [
+    "ZN-562.04",
+    31,
+    31,
+    "zinc:gl on the Raspberry Pi GLES2 tier (vc4 profile)"
+   ],
+   [
+    "ZN-660",
+    30,
+    30,
+    "Showcase demos on a Linux touch table: multi-touch, kiosk start, both demos"
+   ],
+   [
+    "ZN-563.02",
+    30,
+    30,
+    "zinc:3d GPU renderer on the Raspberry Pi GLES2 tier (vc4)"
+   ],
+   [
+    "ZN-686",
+    29,
+    29,
+    "Several windows on Linux: the SDL3 HAL routes events per window"
+   ],
+   [
+    "ZN-590.03",
+    28,
+    28,
+    "GPU strokes and fills of ZN-590 on the Raspberry Pi GLES2 tier (vc4)"
+   ],
+   [
+    "ZN-701",
+    27,
+    27,
+    "WebGL clears what the GL driver leaves undefined: copies outside the framebuffer, new renderbuffers"
+   ],
+   [
+    "ZN-807",
+    26,
+    26,
+    "Cross-platform pass: Raspberry Pi and ARM boards on the rig"
+   ],
+   [
+    "ZN-725",
+    24,
+    24,
+    "GLES 2 fast path of the GL replay: one program per mode, cheap antialiased edges (VideoCore IV)"
+   ],
+   [
+    "ZN-662",
+    23,
+    23,
+    "Showcase demos on the Raspberry Pi: the pinball and the museum table"
+   ],
+   [
+    "ZN-585",
+    23,
+    23,
+    "Raspberry Pi 4/5 and Pi 3 numbers for the four JS game demos"
+   ],
+   [
+    "ZN-692",
+    23,
+    23,
+    "zinc:physics3d on Linux and the other targets of the cross-platform pass"
+   ]
+  ],
+  "parked": [
+   "ZN-304",
+   "ZN-301",
+   "ZN-121.04",
+   "ZN-341",
+   "ZN-522",
+   "ZN-448",
+   "ZN-486",
+   "ZN-487",
+   "ZN-491",
+   "ZN-471",
+   "ZN-476",
+   "ZN-493",
+   "ZN-477",
+   "ZN-472",
+   "ZN-495",
+   "ZN-478",
+   "ZN-556",
+   "ZN-492",
+   "ZN-560",
+   "ZN-121",
+   "ZN-741",
+   "ZN-523",
+   "ZN-627",
+   "ZN-557",
+   "ZN-754",
+   "ZN-752",
+   "ZN-804",
+   "ZN-806",
+   "ZN-808",
+   "ZN-809",
+   "ZN-810",
+   "ZN-811",
+   "ZN-743",
+   "ZN-133",
+   "ZN-305",
+   "ZN-307",
+   "ZN-134",
+   "ZN-137",
+   "ZN-159",
+   "ZN-203",
+   "ZN-207",
+   "ZN-208",
+   "ZN-209",
+   "ZN-210",
+   "ZN-211",
+   "ZN-212",
+   "ZN-213",
+   "ZN-214",
+   "ZN-215",
+   "ZN-216",
+   "ZN-217",
+   "ZN-218",
+   "ZN-219",
+   "ZN-220",
+   "ZN-222",
+   "ZN-245",
+   "ZN-298",
+   "ZN-303",
+   "ZN-308",
+   "ZN-320.03",
+   "ZN-461",
+   "ZN-500",
+   "ZN-503",
+   "ZN-521",
+   "ZN-649.12",
+   "ZN-145",
+   "ZN-197",
+   "ZN-156",
+   "ZN-246",
+   "ZN-462",
+   "ZN-488",
+   "ZN-514",
+   "ZN-760",
+   "ZN-348",
+   "ZN-466",
+   "ZN-483",
+   "ZN-497",
+   "ZN-501",
+   "ZN-504",
+   "ZN-507",
+   "ZN-509",
+   "ZN-510",
+   "ZN-511",
+   "ZN-515",
+   "ZN-519",
+   "ZN-632",
+   "ZN-306",
+   "ZN-475",
+   "ZN-479",
+   "ZN-498",
+   "ZN-499",
+   "ZN-524",
+   "ZN-525",
+   "ZN-526",
+   "ZN-528",
+   "ZN-531",
+   "ZN-561",
+   "ZN-502",
+   "ZN-505",
+   "ZN-506",
+   "ZN-508",
+   "ZN-529",
+   "ZN-530",
+   "ZN-532",
+   "ZN-548",
+   "ZN-054",
+   "ZN-393",
+   "ZN-194",
+   "ZN-195",
+   "ZN-186",
+   "ZN-055",
+   "ZN-263.03",
+   "ZN-196",
+   "ZN-938",
+   "ZN-951",
+   "ZN-966",
+   "ZN-967",
+   "ZN-968",
+   "ZN-969",
+   "ZN-972",
+   "ZN-1055",
+   "ZN-1056",
+   "ZN-1058",
+   "ZN-1059",
+   "ZN-1060",
+   "ZN-1061"
+  ],
+  "fixed": {
+   "ZN-1002": 990000,
+   "ZN-1018": 40000
+  },
+  "mac_lane_in_cross_group": [
+   "ZN-351.01",
+   "ZN-302",
+   "ZN-672",
+   "ZN-311",
+   "ZN-937",
+   "ZN-541.03",
+   "ZN-164",
+   "ZN-541.01",
+   "ZN-592.02",
+   "ZN-547",
+   "ZN-313",
+   "ZN-513",
+   "ZN-550",
+   "ZN-539",
+   "ZN-541",
+   "ZN-540",
+   "ZN-391",
+   "ZN-600.01",
+   "ZN-559",
+   "ZN-863.04",
+   "ZN-538",
+   "ZN-814",
+   "ZN-863.03",
+   "ZN-221",
+   "ZN-541.02",
+   "ZN-673",
+   "ZN-467",
+   "ZN-342",
+   "ZN-661",
+   "ZN-300",
+   "ZN-489"
+  ],
+  "untouched": [
+   "ZN-1002",
+   "ZN-1018",
+   "ZN-699",
+   "ZN-774.32",
+   "ZN-792",
+   "ZN-793",
+   "ZN-794",
+   "ZN-823",
+   "ZN-839",
+   "ZN-840",
+   "ZN-844",
+   "ZN-847",
+   "ZN-848",
+   "ZN-849",
+   "ZN-853",
+   "ZN-862",
+   "ZN-863.02",
+   "ZN-863.05",
+   "ZN-863.07",
+   "ZN-869",
+   "ZN-872",
+   "ZN-873",
+   "ZN-875",
+   "ZN-883",
+   "ZN-884",
+   "ZN-886",
+   "ZN-887",
+   "ZN-888",
+   "ZN-889",
+   "ZN-899",
+   "ZN-902",
+   "ZN-909",
+   "ZN-912",
+   "ZN-917",
+   "ZN-920",
+   "ZN-921"
+  ]
+ }
+}

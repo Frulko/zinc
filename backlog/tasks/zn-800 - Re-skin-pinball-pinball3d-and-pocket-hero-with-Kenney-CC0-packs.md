@@ -4,12 +4,12 @@ title: 'Re-skin pinball, pinball3d and pocket-hero with Kenney CC0 packs'
 status: Backlog
 assignee: []
 created_date: '2026-10-24 23:55'
-updated_date: '2026-10-25 11:11'
+updated_date: '2026-11-07 18:30'
 labels:
   - size-M
 milestone: m-22
 dependencies: []
-ordinal: 3000
+ordinal: 19700
 ---
 
 ## Description

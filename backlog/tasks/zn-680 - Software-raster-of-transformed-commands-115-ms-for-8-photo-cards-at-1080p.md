@@ -9,8 +9,8 @@ labels:
   - raster
   - size-M
 dependencies: []
-ordinal: 18600
-updated_date: '2026-10-25 01:53'
+ordinal: 14800
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description

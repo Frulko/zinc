@@ -4,13 +4,13 @@ title: 'Online demos: every example runs in a browser page, hosted as a gallery'
 status: Backlog
 assignee: []
 created_date: '2026-10-30 00:12'
-updated_date: '2026-10-30 02:05'
+updated_date: '2026-11-07 18:30'
 labels:
   - web
   - size-L
 milestone: m-14
 dependencies: []
-ordinal: 91
+ordinal: 1300
 ---
 
 ## Description

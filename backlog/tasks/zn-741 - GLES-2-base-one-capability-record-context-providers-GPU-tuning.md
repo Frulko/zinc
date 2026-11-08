@@ -14,7 +14,7 @@ labels:
 milestone: m-26
 dependencies:
   - ZN-622
-ordinal: 52900
+ordinal: 92000
 ---
 
 ## Description

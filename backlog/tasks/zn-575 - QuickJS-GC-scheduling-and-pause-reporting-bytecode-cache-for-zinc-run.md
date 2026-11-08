@@ -12,7 +12,7 @@ milestone: m-22
 dependencies:
   - ZN-566
   - ZN-445
-ordinal: 16000
+ordinal: 14500
 updated_date: '2026-11-07 18:30'
 ---
 

@@ -10,7 +10,7 @@ labels:
   - size-S
 dependencies:
   - ZN-320.01
-ordinal: 97700
+ordinal: 100600
 updated_date: '2026-11-07 18:30'
 ---
 

@@ -8,8 +8,8 @@ labels:
   - 3d
   - size-S
 dependencies: []
-ordinal: 2800
-updated_date: '2026-10-25 01:53'
+ordinal: 9800
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description

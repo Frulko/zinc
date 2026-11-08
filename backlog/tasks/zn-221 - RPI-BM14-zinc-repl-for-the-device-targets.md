@@ -9,7 +9,7 @@ labels:
   - baremetal
 milestone: m-11
 dependencies: []
-ordinal: 90300
+ordinal: 52700
 updated_date: '2026-11-07 18:30'
 ---
 

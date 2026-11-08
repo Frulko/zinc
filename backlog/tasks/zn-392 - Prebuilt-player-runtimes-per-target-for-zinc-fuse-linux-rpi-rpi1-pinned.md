@@ -9,8 +9,8 @@ labels:
   - size-M
 dependencies:
   - ZN-319
-ordinal: 53700
-updated_date: '2026-10-25 01:53'
+ordinal: 56200
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description

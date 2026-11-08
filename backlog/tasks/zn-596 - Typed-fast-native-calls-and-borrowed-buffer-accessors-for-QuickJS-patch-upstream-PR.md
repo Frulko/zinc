@@ -16,7 +16,7 @@ dependencies:
   - ZN-595
   - ZN-567
 priority: high
-ordinal: 7600
+ordinal: 13000
 updated_date: '2026-11-07 18:30'
 ---
 

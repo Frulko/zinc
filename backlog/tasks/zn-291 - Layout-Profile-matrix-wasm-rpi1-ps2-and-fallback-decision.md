@@ -11,8 +11,8 @@ labels:
 milestone: m-17
 dependencies:
   - ZN-285
-ordinal: 11200
-updated_date: '2026-10-25 01:53'
+ordinal: 6700
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description

@@ -1,0 +1,5038 @@
+[
+ {
+  "line": 750,
+  "start": "- D178: ipod-web's `/api/devices` gives the volume name, not",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": {
+   "title": "iPod daemon: parity with the Mac app for a remote iPod",
+   "description": "ipod-web (the Pi daemon) lacks what the Mac app does locally: a remote iPod shows the volume name, smart playlists, lyrics and covers cannot be written, uploads are held in memory, /api is open to containers. Close the gaps the later.md lines list (D178 and iPod daemon lines).",
+   "ac": [
+    "`/api/devices` returns the iPod name (master playlist), `/api/add` takes a media kind, uploads stream to disk",
+    "A rules route lets a remote iPod save a smart playlist; routes for lyrics and cover upload; /api/genius and /api/mixes served from services/genius.ts",
+    "The Mac app tolerates missing Track/Playlist fields of an older daemon",
+    "`size` honoured for covers; --log-requests masks a POSTed form body; --token required through a container gateway; zinc.json declares fs",
+    "tests/t1/ipod_web.sh covers /api/eject on a fake image and the Subsonic methods named in the lines"
+   ],
+   "labels": [
+    "ipod",
+    "size-M",
+    "demo"
+   ],
+   "milestone": "m-15",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 751,
+  "start": "- D178: ipod-web streams uploads to disk instead of holding ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": null,
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 752,
+  "start": "- D178: ipod-web's management page on a Raspberry Pi with th",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 753,
+  "start": "- D178: ipod-web honours `size` for covers (scale or a cache",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": null,
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 754,
+  "start": "- ZN-857: the iPod demo's album grid should take its column ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": {
+   "title": "iPod demo: layout and small usability fixes on the Mac",
+   "description": "Small defects of examples/ipod seen at normal window sizes plus the missing hooks of the toast kit.",
+   "ac": [
+    "Album grid column count follows the window width; Title column keeps a minimum width at 1180 px; the now-playing time label no longer touches the cover",
+    "Devices page shows the waiting-for-the-iPod line; history resets when another iPod opens; covers cache invalidated after setArtwork",
+    "kit toast()/addToast return an updatable handle (title, progress, actions); the failed toast \"Show details\" opens the job row; album rows show per-track progress",
+    "The mood mixer tempo and volume bars drag; \"From A to B\" drafts are kept in genius.json",
+    "T1 of the demo still passes"
+   ],
+   "labels": [
+    "ipod",
+    "ui",
+    "size-M",
+    "demo"
+   ],
+   "milestone": "m-15",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "ipod-polish"
+ },
+ {
+  "line": 755,
+  "start": "- ZN-857: the Optimise page could offer one-click fixes for ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 756,
+  "start": "- ZN-857: `ZINC_NATIVE=sim` with `--engine quickjs` does not",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ui, JSX and web API gaps found by demos",
+  "task": {
+   "title": "zinc:ui, JSX and web API gaps found by demos",
+   "description": "Gaps that hide content or break layout silently.",
+   "ac": [
+    "A w-full max-w-[440px] child of an items-center parent is centred",
+    "JSX helper returning JSX is lowered whatever its name; icon names inside expressions are picked up or warned",
+    "getUserMedia requests camera permission first; QuickJS loads native/<name>.sim.ts stand-ins; a missing asset font leaves no pending fs error",
+    "Webcam photos taken in one second sort in order after a restart"
+   ],
+   "labels": [
+    "ui",
+    "size-M"
+   ],
+   "milestone": "m-5",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "ui-gaps"
+ },
+ {
+  "line": 757,
+  "start": "- examples/carnet-nbe: run against Carnet's own repository (",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 758,
+  "start": "- examples/carnet-nbe: what Obsidian has that the vault does",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 760,
+  "start": "- ZN-649.14: a rule of a pinball table can listen to the plu",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Pinball editor: rules and scene follow-ups",
+  "task": {
+   "title": "Pinball editor: rules and scene follow-ups",
+   "description": "Small features and defects of the table editor listed under ZN-649.",
+   "ac": [
+    "A rule can listen to the plunger; a rule event is narrowed by its on; deleting a thing hands its rules to a same-kind thing",
+    "A renamed counter is renamed in the rules; the scores grid scrolls under 1440 px",
+    "Dropping a table or package on the window joins the list; the leaving table frees scene and sounds",
+    "The editor mirror axis and view are saved with the table folder; Save as / Open package have a path test"
+   ],
+   "labels": [
+    "pinball",
+    "ui",
+    "size-M"
+   ],
+   "milestone": "m-27",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "pinball-editor"
+ },
+ {
+  "line": 761,
+  "start": "- ZN-650.10: the museum editor offers `accessibility.descrip",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": {
+   "title": "Museum editor: usability gaps",
+   "description": "Open follow-ups of the museum table editor and runtime that a visitor or an author meets.",
+   "ac": [
+    "The table lays out above the button rows at the two larger text sizes; editor offers accessibility.descriptions and plays one",
+    "Staff summary shows a week and a month; the attract loop shares mesh and texture",
+    "Refusal messages use the author words; editor problems panel reports a missing theme font or logo; the project opened by a relative path shows all families",
+    "Multi-selection drags together; menu items enable and disable; narration bar shows cues",
+    "museum_editor T1 still passes"
+   ],
+   "labels": [
+    "museum",
+    "ui",
+    "size-M"
+   ],
+   "milestone": "m-27",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "museum-editor"
+ },
+ {
+  "line": 762,
+  "start": "- ZN-650.10: at the two larger text sizes the button rows li",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 763,
+  "start": "- ZN-650.10: zinc:audio decodes nothing in a deterministic r",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 764,
+  "start": "- ZN-650.08: zinc:video has no sound; a film with a sound tr",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 765,
+  "start": "- ZN-650.08: film decoders are never closed (16 at most).",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 766,
+  "start": "- ZN-650.08: zinc:assets gives no path, so a film is copied ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 767,
+  "start": "- ZN-650.08: the museum editor does not play a film or offer",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 768,
+  "start": "- ZN-650.08: museum_visit (62 s) and museum_editor (123 s) s",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "a test over a minute is shortened at a milestone, not a task",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 769,
+  "start": "- ZN-650.12: the staff summary shows today only (week, month",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 770,
+  "start": "- ZN-650.13: storyboard miniatures ignore item rotation, and",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 771,
+  "start": "- ZN-650.13: the attract loop loads the model and the panora",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 772,
+  "start": "- ZN-650.13: a scripted drag on the panorama from a short si",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "scripted drag from a short side: niche",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 773,
+  "start": "- ZN-649.14: narrow a rule's `event` by its `on` (and multib",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Pinball editor: rules and scene follow-ups",
+  "task": null,
+  "group": "pinball-editor"
+ },
+ {
+  "line": 774,
+  "start": "- ZN-649.14: a deletion could hand the rules to another thin",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Pinball editor: rules and scene follow-ups",
+  "task": null,
+  "group": "pinball-editor"
+ },
+ {
+  "line": 775,
+  "start": "- ZN-649.17: a table or package dropped on the window could ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Pinball editor: rules and scene follow-ups",
+  "task": null,
+  "group": "pinball-editor"
+ },
+ {
+  "line": 776,
+  "start": "- ZN-649.18: a clip to a path in zinc:gfx (raster and GL), a",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 777,
+  "start": "- ZN-649.16: keep the editor's mirror axis and view with the",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Pinball editor: rules and scene follow-ups",
+  "task": null,
+  "group": "pinball-editor"
+ },
+ {
+  "line": 778,
+  "start": "- ZN-649.16: remove the Latin characters constant (`widgets.",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 779,
+  "start": "- ZN-649.16: Save as and Open a package have no button (a bu",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Pinball editor: rules and scene follow-ups",
+  "task": null,
+  "group": "pinball-editor"
+ },
+ {
+  "line": 780,
+  "start": "- ZN-649.06: measure what `assets.writePack` (zstd compresso",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 781,
+  "start": "- ZN-649.06: a package among the game's assets is copied to ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 782,
+  "start": "- ZN-650.14: `gfx.loadFont` on a missing asset file leaves i",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ui, JSX and web API gaps found by demos",
+  "task": null,
+  "group": "ui-gaps"
+ },
+ {
+  "line": 783,
+  "start": "- ZN-650.14: the editor's problems panel does not report a t",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 784,
+  "start": "- ZN-650.07.06: the refusal of a default language shows the ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 785,
+  "start": "- ZN-650.07.06: measure `museum_editor_views` (93 s under lo",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "a test timing; run at the milestone",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 786,
+  "start": "- ZN-711: no installer or release download: the first step i",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "No installer or release download yet (no install.sh in the tree): still the first-run gap; keep for the packaging task",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 787,
+  "start": "- ZN-711: open `zinc new game x && zinc run` and `zinc dev` ",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "by-hand run, nothing to build",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 788,
+  "start": "- ZN-650.07.04: subtitle cues or a waveform on the narration",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 789,
+  "start": "- ZN-650.07.04: `lengthOf` keeps a replaced file's first len",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 790,
+  "start": "- ZN-650.07.04: a French frame of the narration and film pan",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "a golden frame for one language when the test is next touched",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 791,
+  "start": "- ZN-712: `zinc run --engine quickjs` ignores the window siz",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: QuickJS web environment: honour zinc.json and import maps",
+  "task": {
+   "title": "QuickJS web environment: honour zinc.json and import maps",
+   "description": "The JS demos open at the wrong size or fail to run: engine gaps found by examples js-*.",
+   "ac": [
+    "`zinc run --engine quickjs` honours the zinc.json window size, and a JS project can name its engine in zinc.json",
+    "importmap.json maps a prefix such as three/addons/",
+    "ZINC_INPUT has key release; a webenv.js missing a host function of an older binary tests for it first",
+    "A zinc.json with only app.window is accepted; js-phaser opens at a usable zoom"
+   ],
+   "labels": [
+    "quickjs",
+    "js",
+    "size-S"
+   ],
+   "milestone": "m-14",
+   "size": "S",
+   "lane": "mac"
+  },
+  "group": "qjs-webenv"
+ },
+ {
+  "line": 792,
+  "start": "- ZN-712: a JS project cannot name its engine in zinc.json, ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: QuickJS web environment: honour zinc.json and import maps",
+  "task": null,
+  "group": "qjs-webenv"
+ },
+ {
+  "line": 793,
+  "start": "- ZN-712: importmap.json maps exact names only; a prefix suc",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: QuickJS web environment: honour zinc.json and import maps",
+  "task": null,
+  "group": "qjs-webenv"
+ },
+ {
+  "line": 794,
+  "start": "- ZN-712: ZINC_INPUT has no key release, so a scripted key s",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: QuickJS web environment: honour zinc.json and import maps",
+  "task": null,
+  "group": "qjs-webenv"
+ },
+ {
+  "line": 795,
+  "start": "- ZN-712: js-p5 (144 lit boxes) measured alone on the M1 Pro",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 796,
+  "start": "- ZN-712: when ZN-570 lands, add Text to js-pixi and js-phas",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 797,
+  "start": "- ZN-712: the figures of anatomy-figures 0.1.0 (MIT, npm; ea",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 798,
+  "start": "- ZN-570: showing a 2D canvas reads the whole bitmap back ev",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Canvas 2D fidelity and speed for p5 and Phaser sketches",
+  "task": {
+   "title": "Canvas 2D fidelity and speed for p5 and Phaser sketches",
+   "description": "canvas2d gaps and costs seen with the JS libraries.",
+   "ac": [
+    "imageSmoothingEnabled=false draws nearest-neighbour; Path2D exists; drawImage direct loop for unrotated images keeps converted rows",
+    "Showing a 2D canvas skips an unchanged frame (dirty flag)",
+    "Pattern under scale filters like Chrome; setTransform works",
+    "Phaser CANVAS blend modes survive picture load order in the web env"
+   ],
+   "labels": [
+    "canvas",
+    "perf",
+    "size-M"
+   ],
+   "milestone": "m-8",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "canvas2d"
+ },
+ {
+  "line": 799,
+  "start": "- ZN-570: a 640 x 480 fill costs 4 to 5 ms in canvas_ity (fl",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "a measure; decided with the benchmark run",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 800,
+  "start": "- ZN-570: `drawImage` is always bicubic; pixel-art games nee",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Canvas 2D fidelity and speed for p5 and Phaser sketches",
+  "task": null,
+  "group": "canvas2d"
+ },
+ {
+  "line": 801,
+  "start": "- ZN-570: no `Path2D`, no italic or bold synthesis, no bold ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Canvas 2D fidelity and speed for p5 and Phaser sketches",
+  "task": null,
+  "group": "canvas2d"
+ },
+ {
+  "line": 802,
+  "start": "- ZN-570: the js-pixi, js-phaser and js-p5 examples can now ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 803,
+  "start": "- ZN-574: embed SDL_GameControllerDB (Zlib) in the window ho",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web audio and gamepad gaps for the JS games",
+  "task": {
+   "title": "Web audio and gamepad gaps for the JS games",
+   "description": "Sound and pads that games expect and the engine lacks.",
+   "ac": [
+    "OscillatorNode makes sound; loopStart/loopEnd read; suspend() pauses; ZINC_AUDIO_LOG prints a peak per channel",
+    "A web program that makes sound does not stop at a first-run plugin build without a message",
+    "SDL_GameControllerDB embedded; display-gl reads gamepads",
+    "examples/midi plays a tone at first run"
+   ],
+   "labels": [
+    "audio",
+    "input",
+    "size-M"
+   ],
+   "milestone": "m-8",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "audio-gamepad"
+ },
+ {
+  "line": 804,
+  "start": "- ZN-574: read gamepads in display-gl's own event loop (`plu",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web audio and gamepad gaps for the JS games",
+  "task": null,
+  "group": "audio-gamepad"
+ },
+ {
+  "line": 805,
+  "start": "- ZN-574: Kaplay's `onGamepadButtonPress` (criterion 1) need",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 806,
+  "start": "- ZN-650.07.05: check the museum editor's menu bar, context ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 807,
+  "start": "- ZN-650.07.05: ZINC_SYSTEM_SCRIPT counts loop passes, not f",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 808,
+  "start": "- ZN-650.07.05: ZINC_INPUT \"down\" takes no modifier: Shift-c",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 809,
+  "start": "- ZN-650.07.05: museum editor: drag a multi-selection togeth",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 810,
+  "start": "- ZN-719: js-phaser opens at 320x240, its game size, small o",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: QuickJS web environment: honour zinc.json and import maps",
+  "task": null,
+  "group": "qjs-webenv"
+ },
+ {
+  "line": 811,
+  "start": "- ZN-719: a zinc.json with only `app.window` (no other `app`",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: QuickJS web environment: honour zinc.json and import maps",
+  "task": null,
+  "group": "qjs-webenv"
+ },
+ {
+  "line": 812,
+  "start": "- ZN-650.14: a museum project opened by a relative path show",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Museum editor: usability gaps",
+  "task": null,
+  "group": "museum-editor"
+ },
+ {
+  "line": 813,
+  "start": "- ZN-650.14: the font refusal is proven interpreted only (sa",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 814,
+  "start": "- ZN-712: a webenv.js that calls a host function missing fro",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: QuickJS web environment: honour zinc.json and import maps",
+  "task": null,
+  "group": "qjs-webenv"
+ },
+ {
+  "line": 815,
+  "start": "- ZN-572: a direct loop for an unrotated `drawImage`; a spri",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Canvas 2D fidelity and speed for p5 and Phaser sketches",
+  "task": null,
+  "group": "canvas2d"
+ },
+ {
+  "line": 816,
+  "start": "- ZN-572: Phaser's canvas renderer builds an Error (stack) e",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 817,
+  "start": "- ZN-571: take the p5 and Phaser CANVAS frame times again on",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "measurement at a milestone",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 818,
+  "start": "- ZN-716: one `zinc:osc`: the plugin (`zinc:osc/full`) takes",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 819,
+  "start": "- ZN-716: `zinc:osc/full` (OSC over TCP/SLIP) on QuickJS, no",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 820,
+  "start": "- ZN-717: ports on the libuv loop instead of the 5 ms timer ",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "only if resmon shows wake-ups",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 821,
+  "start": "- ZN-715: a `zinc:audio` tone in `examples/midi` so a first ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web audio and gamepad gaps for the JS games",
+  "task": null,
+  "group": "audio-gamepad"
+ },
+ {
+  "line": 822,
+  "start": "- ZN-573: a web program that makes sound builds plugins/audi",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web audio and gamepad gaps for the JS games",
+  "task": null,
+  "group": "audio-gamepad"
+ },
+ {
+  "line": 823,
+  "start": "- ZN-573: OscillatorNode is silent, loopStart/loopEnd are no",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web audio and gamepad gaps for the JS games",
+  "task": null,
+  "group": "audio-gamepad"
+ },
+ {
+  "line": 824,
+  "start": "- ZN-573: ZINC_AUDIO_LOG prints one peak for both channels (",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web audio and gamepad gaps for the JS games",
+  "task": null,
+  "group": "audio-gamepad"
+ },
+ {
+  "line": 825,
+  "start": "- ZN-573: listen to `zinc run examples/js-phaser` on Core Au",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "by-hand listen",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 826,
+  "start": "- ZN-718: a project that sets a plugin's options misses the ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc doctor, zinc update and plugin install polish",
+  "task": {
+   "title": "zinc doctor, zinc update and plugin install polish",
+   "description": "First-run and update paths are noisy or incomplete.",
+   "ac": [
+    "zinc doctor prints a short plugin summary in a source build",
+    "zinc update installs, not only downloads",
+    "A project with plugin options finds its prebuilt or its sources"
+   ],
+   "labels": [
+    "cli",
+    "size-S"
+   ],
+   "milestone": "m-19",
+   "size": "S",
+   "lane": "mac"
+  },
+  "group": "install-update"
+ },
+ {
+  "line": 827,
+  "start": "- ZN-718: `zinc:webview` does not compile on macOS, in the t",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 828,
+  "start": "- ZN-718: `zinc doctor` prints 35 plugin lines in a source b",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc doctor, zinc update and plugin install polish",
+  "task": null,
+  "group": "install-update"
+ },
+ {
+  "line": 829,
+  "start": "- ZN-718: the plugin libraries travel inside the archive (27",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "needs the owner keys, decided at release",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 830,
+  "start": "- ZN-718: five plugins have no prebuilt in the archive: vide",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "a statement of the archive, no action",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 831,
+  "start": "- ZN-572: web environment: a script element added right afte",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Canvas 2D fidelity and speed for p5 and Phaser sketches",
+  "task": null,
+  "group": "canvas2d"
+ },
+ {
+  "line": 832,
+  "start": "- ZN-572: the direct drawImage loop converts a row of the pi",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Canvas 2D fidelity and speed for p5 and Phaser sketches",
+  "task": null,
+  "group": "canvas2d"
+ },
+ {
+  "line": 833,
+  "start": "- ZN-572: a pattern under a scale is filtered over 16 pixels",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Canvas 2D fidelity and speed for p5 and Phaser sketches",
+  "task": null,
+  "group": "canvas2d"
+ },
+ {
+  "line": 834,
+  "start": "- ZN-572: p5 2.3 through `tools/test-lib`; the WPT subset (c",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "measurement at a milestone",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 835,
+  "start": "- ZN-713: profile launch to first frame of the exported app ",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "measurement taken at a milestone",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 836,
+  "start": "- ZN-203: webgl_conformance: glsl/bugs/sampler-struct-functi",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 837,
+  "start": "- ZN-: getUserMedia never asks for the camera (unlike a brow",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ui, JSX and web API gaps found by demos",
+  "task": null,
+  "group": "ui-gaps"
+ },
+ {
+  "line": 838,
+  "start": "- ZN-: zinc:ui layout: a `w-full max-w-[440px]` child of an ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ui, JSX and web API gaps found by demos",
+  "task": null,
+  "group": "ui-gaps"
+ },
+ {
+  "line": 839,
+  "start": "- ZN-: JSX lowering prints `{helper(p.children)}` as text un",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ui, JSX and web API gaps found by demos",
+  "task": null,
+  "group": "ui-gaps"
+ },
+ {
+  "line": 840,
+  "start": "- ZN-: webcam demo: photos taken in the same second get a `-",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ui, JSX and web API gaps found by demos",
+  "task": null,
+  "group": "ui-gaps"
+ },
+ {
+  "line": 841,
+  "start": "- music: deliver the Spotify login to an Android device with",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 842,
+  "start": "- ZN-758: mute from the tablet (`{t:\"mute\", app|domain}` on ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 843,
+  "start": "- ZN-758: no way to forget a paired Mac on the tablet (`link",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 844,
+  "start": "- ZN-758: StandBy over the lava face has 183-226 ms p99 fram",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 845,
+  "start": "- ZN-758: the notification list rows could show the sender's",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 846,
+  "start": "- ZN-757: avatars from WhatsApp's own cache (group.net.whats",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 847,
+  "start": "- ZN-757: the banner-capture avatar source (Accessibility + ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 848,
+  "start": "- ZN-757: check real Chrome, Firefox, Safari web notificatio",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 849,
+  "start": "- ZN-791: smooth the other players' movement in Paint Arena ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 851,
+  "start": "- tokyo: `ZINC_3D=software` on the desktop falls back to `re",
+  "verdict": "drop",
+  "evidence": "plugins/3d/native/render3d.sim.ts: `zinc check` reports no error",
+  "into": "",
+  "reason": "already done",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 852,
+  "start": "- tokyo: the Vita at a 2000 m mid reach did not finish in Vi",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": {
+   "title": "Tokyo on 3DS and Vita: loading, selection and memory",
+   "description": "3DS and Vita gaps of the Tokyo demo and the console player.",
+   "ac": [
+    "Mid chunk reads move off the frame (SD thread, larger batches); selection cost cut on 3DS",
+    "linearAlloc failures drop pictures instead of exiting; command buffer size raised if it shows; night pictures uploaded at dusk",
+    "Console player waiting screen has a font on PSP and Vita; host.assetsStat exists on n3ds",
+    "3DS doc says where packs live"
+   ],
+   "labels": [
+    "3ds",
+    "vita",
+    "size-M",
+    "consoles"
+   ],
+   "milestone": "m-23",
+   "size": "M",
+   "lane": "cross"
+  },
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 853,
+  "start": "- tokyo: the first frame after loading takes 26 to 62 ms on ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 854,
+  "start": "- tokyo: the World selection costs 3.9 ms a frame on the PSP",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 856,
+  "start": "- tokyo PSP: CLUT8 pictures with day and night palettes mixe",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": {
+   "title": "Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+   "description": "PSP gaps of the Tokyo demo, proven on PPSSPP.",
+   "ac": [
+    "Near level streams from the memory card; runtime heap fits PSP-1000",
+    "CLUT8 mipmaps and day/night palettes; shadow sweep on a low-priority thread; clut8 pictures freed with the world",
+    "Ordinary draws after a World use the right depth range; the 13 ms read goes to the reader thread"
+   ],
+   "labels": [
+    "psp",
+    "3d",
+    "size-M",
+    "consoles"
+   ],
+   "milestone": "m-23",
+   "size": "M",
+   "lane": "cross"
+  },
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 857,
+  "start": "- tokyo PSP: shadows from the height-grid sweep in bit 7 of ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 858,
+  "start": "- zinc:3d PSP: ordinary draws after a World in the same fram",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 859,
+  "start": "- zinc:3d select: per-sector ranges cost 0.4 ms of selection",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 860,
+  "start": "- zinc:3d PSP: the pre-World-GE PSP renderer crashed PPSSPP ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 862,
+  "start": "- tokyo 3DS: stream the near level (`c*.near.zwc`, 15 MB) fr",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 863,
+  "start": "- zinc pack: in auto mode tokyo's pack falls back to `plugin",
+  "verdict": "drop",
+  "evidence": "plugins/3d/native/render3d.sim.ts type-checks now",
+  "into": "",
+  "reason": "already done",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 864,
+  "start": "- tokyo 3DS: selection is still 3.6 ms in Azahar (cells 1.8,",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 865,
+  "start": "- n3ds: a develop baseline build of tokyo hit svcBreak in GP",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 867,
+  "start": "- world rule: night pictures and night glow per material (ma",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:3d World: shadows switch and glTF night lights",
+  "task": {
+   "title": "zinc:3d World: shadows switch and glTF night lights",
+   "description": "World cannot switch shadows; glTF cities cannot light up at night; TOP batches missing for textured grounds.",
+   "ac": [
+    "World shadows on/off is real (no fake flat height field)",
+    "Night pictures and night glow per material",
+    "TOP batches for textured grounds with x/z uvs"
+   ],
+   "labels": [
+    "3d",
+    "size-M"
+   ],
+   "milestone": "m-8",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "world3d"
+ },
+ {
+  "line": 868,
+  "start": "- world rule: a far chunk per region for very large worlds (",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 869,
+  "start": "- world rule: emit `TOP` batches for textured grounds whose ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:3d World: shadows switch and glTF night lights",
+  "task": null,
+  "group": "world3d"
+ },
+ {
+  "line": 870,
+  "start": "- defaults3D: zinc.json `\"3d\": {...}` overrides, and measure",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 872,
+  "start": "- zinc:3d: `World` needs a real shadows on/off; tokyo fakes ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:3d World: shadows switch and glTF night lights",
+  "task": null,
+  "group": "world3d"
+ },
+ {
+  "line": 873,
+  "start": "- tokyo: the panel's map is a 24 m-per-pixel height relief; ",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "cosmetic, nobody asked",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 875,
+  "start": "- tokyo PSP: a PSP-1000 fit needs a smaller runtime heap (th",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 876,
+  "start": "- tokyo PSP: run the shadow sweep on a low-priority thread d",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 877,
+  "start": "- tokyo PSP: CLUT8 mipmaps (Pocket's down to 16 texels) with",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 878,
+  "start": "- zinc:3d PSP: clut8 pictures are never freed; free a world'",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 880,
+  "start": "- n3ds: a mid chunk read from the pack inside the .3dsx take",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 881,
+  "start": "- tokyo PSP and Vita: stream the near level from the memory ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 882,
+  "start": "- zinc:3d: `zn_asset_image_free` also frees a near picture a",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 883,
+  "start": "- n3ds: night pictures go to the GPU at load even by day (ab",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 884,
+  "start": "- docs: with neither a launcher path nor `ZINC_SD_DIR`, the ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 886,
+  "start": "- tokyo PSP: CLUT8 mipmaps for the ground pictures, against ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 887,
+  "start": "- tokyo PSP: a 13 ms read in the 5th frame after loading is ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo and zinc:3d on PSP: memory, streaming, CLUT8",
+  "task": null,
+  "group": "tokyo-psp"
+ },
+ {
+  "line": 889,
+  "start": "- console player: the waiting screen has no font on PSP and ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 890,
+  "start": "- n3ds: render3d.n3ds.cpp does not check its linearAlloc res",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 891,
+  "start": "- tokyo 3DS: mid chunks now come from the card, so the loadi",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 892,
+  "start": "- consoles: `console host: host.assetsStat is not available ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Tokyo on 3DS and Vita: loading, selection and memory",
+  "task": null,
+  "group": "tokyo-consoles"
+ },
+ {
+  "line": 894,
+  "start": "- iPod Sonos: queue the songs before the one picked too (add",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:sonos and iPod Sonos: queue, ports, docs",
+  "task": {
+   "title": "zinc:sonos and iPod Sonos: queue, ports, docs",
+   "description": "Sonos playback is limited to the song picked; the plugin cannot address a speaker with a port; docs and manifest disagree.",
+   "ac": [
+    "Songs before the one picked are queued (add at a position); position carried over when the output switches; queue over 1,000 entries paged in",
+    "A speaker address may carry a port, so tests stop patching :1400",
+    "docs/plugins/sonos.md and plugin.json agree on permissions",
+    "Start radio reads the group queue first"
+   ],
+   "labels": [
+    "ipod",
+    "sonos",
+    "size-S",
+    "demo"
+   ],
+   "milestone": "m-9",
+   "size": "S",
+   "lane": "mac"
+  },
+  "group": "sonos"
+ },
+ {
+  "line": 895,
+  "start": "- iPod Sonos: carry the position over when switching output ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:sonos and iPod Sonos: queue, ports, docs",
+  "task": null,
+  "group": "sonos"
+ },
+ {
+  "line": 896,
+  "start": "- iPod Sonos: cover remote-iPod mode in tests/t1/ipod_sonos.",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo tests: deterministic and independent of the machine",
+  "task": {
+   "title": "iPod demo tests: deterministic and independent of the machine",
+   "description": "Several iPod T1 tests depend on timing, the host disk or a shared path.",
+   "ac": [
+    "ipod_deep: auto-sync step driven by the virtual clock; equally close songs ordered by title so the path is stable",
+    "Fixture iPods report a pinned capacity (ipod_nav, ipod_foryou goldens independent of free space)",
+    "ipod_demo uses a per-run disk image path",
+    "A headless test of listening.ts (play past half a song, check plays.json and history.jsonl); ipod_sonos covers remote-iPod mode"
+   ],
+   "labels": [
+    "ipod",
+    "test",
+    "size-S",
+    "demo"
+   ],
+   "milestone": "m-15",
+   "size": "S",
+   "lane": "mac"
+  },
+  "group": "ipod-tests"
+ },
+ {
+  "line": 897,
+  "start": "- zinc:sonos: let a speaker's address carry a port, so tests",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:sonos and iPod Sonos: queue, ports, docs",
+  "task": null,
+  "group": "sonos"
+ },
+ {
+  "line": 898,
+  "start": "- zinc:sonos: docs/plugins/sonos.md says the plugin needs th",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:sonos and iPod Sonos: queue, ports, docs",
+  "task": null,
+  "group": "sonos"
+ },
+ {
+  "line": 900,
+  "start": "- TypeScript: `arr.sort()` without a comparator is refused (",
+  "verdict": "drop",
+  "evidence": "build/zinc check: `arr.sort()` without comparator accepted",
+  "into": "",
+  "reason": "already done",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 901,
+  "start": "- zinc:sonos events: no ContentDirectory (queue, favorites) ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 903,
+  "start": "- iPod demo: the arrows of an album's or playlist's rows sho",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 904,
+  "start": "- iPod demo: \"Show details\" on a failed toast opens the fail",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 905,
+  "start": "- kit: toast() and addToast return a handle that can be upda",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 907,
+  "start": "- QuickJS: strings of raw bytes (Response.bytes(), an event'",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: TypeScript and runtime library gaps found by demos",
+  "task": {
+   "title": "TypeScript and runtime library gaps found by demos",
+   "description": "Engine gaps (fixed, not worked around): Number.prototype.toLocaleString, JSON.stringify with a replacer and Dyn key order, QuickJS UTF-8 bytes and clock resolution, a zip/inflate API.",
+   "ac": [
+    "toLocaleString on number compiles and formats in the interpreter, AOT and QuickJS",
+    "JSON.stringify accepts a replacer function; integer-like keys come first, ascending",
+    "QuickJS raw-byte strings keep UTF-8 bytes; sys.clock() resolves sub-millisecond",
+    "A test per item on every engine"
+   ],
+   "labels": [
+    "typescript",
+    "size-M"
+   ],
+   "milestone": "m-13",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "ts-lib-gaps"
+ },
+ {
+  "line": 908,
+  "start": "- iPod demo: covers in the cache are not invalidated after s",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 909,
+  "start": "- iPod demo: the listening service (listening.ts) has no hea",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo tests: deterministic and independent of the machine",
+  "task": null,
+  "group": "ipod-tests"
+ },
+ {
+  "line": 910,
+  "start": "- iPod demo: the opener scope for Last.fm sign-in was droppe",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 911,
+  "start": "- zinc:ui swipe back/forward gives no live feedback (Safari ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 912,
+  "start": "- QuickJS: sys.clock() read 0 ms around a sub-millisecond lo",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: TypeScript and runtime library gaps found by demos",
+  "task": null,
+  "group": "ts-lib-gaps"
+ },
+ {
+  "line": 913,
+  "start": "- iPod demo: history entries survive opening another iPod; r",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 914,
+  "start": "- iPod demo: the Linux right-click menu needs a stand-in (no",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 915,
+  "start": "- zinc:system: the Dock's Quit and a logout arrive as a wind",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 916,
+  "start": "- iPod demo: the Devices page does not show the \"waiting for",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 917,
+  "start": "- iPod demo: the queue copied to a Sonos speaker is capped a",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:sonos and iPod Sonos: queue, ports, docs",
+  "task": null,
+  "group": "sonos"
+ },
+ {
+  "line": 918,
+  "start": "- iPod demo: a running transfer cannot be cancelled midway (",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 919,
+  "start": "- zinc:system: ZINC_SYSTEM_SCRIPT ticks run faster than fram",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 921,
+  "start": "- zinc:ipod: ensureSysInfoExtended built from SysInfo never ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ipod plugin: tag and smart-rule gaps",
+  "task": {
+   "title": "zinc:ipod plugin: tag and smart-rule gaps",
+   "description": "The native plugin loses data or logs assertions for some iPods and playlists.",
+   "ac": [
+    "SQLiteDB key written by ensureSysInfoExtended for Nano 5G-7G",
+    "libgpod g_utf8_casefold assertion fixed in the vendored itdb_splr_eval",
+    "Track exposes checked, grouping, compilation, file kind, modified; smart preview maps every media bit",
+    "setSmartRules keeps or round-trips a rule it has no name for; a test per fix"
+   ],
+   "labels": [
+    "ipod",
+    "plugin",
+    "size-M",
+    "demo"
+   ],
+   "milestone": "m-9",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "zinc-ipod"
+ },
+ {
+  "line": 922,
+  "start": "- zinc:ipod: libgpod logs g_utf8_casefold assertions when a ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ipod plugin: tag and smart-rule gaps",
+  "task": null,
+  "group": "zinc-ipod"
+ },
+ {
+  "line": 923,
+  "start": "- iPod demo: the remote mode's JSON parse throws on a missin",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": null,
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 924,
+  "start": "- iPod Genius batch B: setSmartRules cannot write back a rul",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ipod plugin: tag and smart-rule gaps",
+  "task": null,
+  "group": "zinc-ipod"
+ },
+ {
+  "line": 925,
+  "start": "- zinc:ipod: expose Track.checked, grouping and compilation ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ipod plugin: tag and smart-rule gaps",
+  "task": null,
+  "group": "zinc-ipod"
+ },
+ {
+  "line": 927,
+  "start": "- TypeScript: Number.prototype.toLocaleString is missing; th",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: TypeScript and runtime library gaps found by demos",
+  "task": null,
+  "group": "ts-lib-gaps"
+ },
+ {
+  "line": 928,
+  "start": "- zinc: no zip or inflate API; the iPod's ListenBrainz zip i",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 929,
+  "start": "- iPod history: matching by MBID needs MUSICBRAINZ_TRACKID r",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 931,
+  "start": "- TypeScript: the checker refuses `x instanceof C` when x is",
+  "verdict": "drop",
+  "evidence": "build/zinc check: `x instanceof C` on `string[] | C` accepted",
+  "into": "",
+  "reason": "already done",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 932,
+  "start": "- iPod daemon: examples/ipod-web/zinc.json declares only net",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": null,
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 933,
+  "start": "- iPod app sharing: Subsonic scrobbles could feed listening.",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 934,
+  "start": "- iPod daemon: --log-requests masks query parameters only, n",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": null,
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 935,
+  "start": "- iPod daemon: OrbStack containers reach it as 127.0.0.1, so",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": null,
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 937,
+  "start": "- iPod Genius: build the model and mixes off the UI thread (",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod For you and Genius: keep the UI thread free at 10k songs",
+  "task": {
+   "title": "iPod For you and Genius: keep the UI thread free at 10k songs",
+   "description": "Genius and the daily mixes block the UI about 1.4 to 1.7 s at 10k songs and 100k listens; the SQL step, library parse and moodMix are synchronous or quadratic.",
+   "ac": [
+    "genius.mixes, genius() and the final JSON write run on a zinc:worker or in chunks; no frame gap above 50 ms on the FORYOU_MODE=big fixture",
+    "moodMix sorts once with indices (no indexOf per song)",
+    "The SQL step and the 10k-track library.json parse are sliced or counted in the worker",
+    "Before and after numbers logged in docs/reports/zinc-next-perf.md"
+   ],
+   "labels": [
+    "ipod",
+    "perf",
+    "size-M",
+    "demo"
+   ],
+   "milestone": "m-21",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "ipod-perf"
+ },
+ {
+  "line": 938,
+  "start": "- iPod Genius: loudness through libebur128 in a native zinc:",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "needs native libebur128, large and niche",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 939,
+  "start": "- iPod Genius: ListenBrainz similar artists (labs API) once ",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "ListenBrainz labs API, no user",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 940,
+  "start": "- iPod daemon: serve /api/genius and /api/mixes from service",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": null,
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 941,
+  "start": "- TypeScript: a Dyn JSON.stringify writes integer-like keys ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: TypeScript and runtime library gaps found by demos",
+  "task": null,
+  "group": "ts-lib-gaps"
+ },
+ {
+  "line": 942,
+  "start": "- TypeScript: JSON.stringify with a replacer function is ref",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: TypeScript and runtime library gaps found by demos",
+  "task": null,
+  "group": "ts-lib-gaps"
+ },
+ {
+  "line": 944,
+  "start": "- iPod For you: the daily mixes block the UI about 1.4 s at ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod For you and Genius: keep the UI thread free at 10k songs",
+  "task": null,
+  "group": "ipod-perf"
+ },
+ {
+  "line": 945,
+  "start": "- iPod For you: time a cached open and a full recompute on A",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod For you and Genius: keep the UI thread free at 10k songs",
+  "task": null,
+  "group": "ipod-perf"
+ },
+ {
+  "line": 946,
+  "start": "- iPod For you: the \"For this time of day\" and \"Loved but no",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 947,
+  "start": "- iPod tests: the folder-based fixture iPods (ipod_nav, ipod",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo tests: deterministic and independent of the machine",
+  "task": null,
+  "group": "ipod-tests"
+ },
+ {
+  "line": 949,
+  "start": "- iPod daemon: no smart playlist API (create, set rules, ref",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": null,
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 950,
+  "start": "- zinc:ipod: Track lacks file kind, grouping, compilation an",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ipod plugin: tag and smart-rule gaps",
+  "task": null,
+  "group": "zinc-ipod"
+ },
+ {
+  "line": 951,
+  "start": "- zinc:ipod: the smart preview maps mediaType to a single li",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ipod plugin: tag and smart-rule gaps",
+  "task": null,
+  "group": "zinc-ipod"
+ },
+ {
+  "line": 953,
+  "start": "- iPod AudioMuse: pull the MusiCNN embeddings (include_embed",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 954,
+  "start": "- iPod AudioMuse: read AudioMuse's own clustering playlists ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 955,
+  "start": "- iPod AudioMuse: an \"Analyse new songs\" button on For you w",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 957,
+  "start": "- ipod_deep: one QuickJS run of 3 gave the From X to Y path ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo tests: deterministic and independent of the machine",
+  "task": null,
+  "group": "ipod-tests"
+ },
+ {
+  "line": 959,
+  "start": "- iPod demo: the track tables at 1180 px leave the Title col",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 960,
+  "start": "- iPod daemon: smart playlists cannot be saved to a remote i",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "duplicate of line 949 (promoted)",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 961,
+  "start": "- iPod demo: ipod_deep's find_path line came out AAAAABBBBBB",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "duplicate of 957 (promoted in ipod-tests)",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 962,
+  "start": "- iPod demo: ipod_demo uses a fixed /tmp/zinc-ipod-demo disk",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo tests: deterministic and independent of the machine",
+  "task": null,
+  "group": "ipod-tests"
+ },
+ {
+  "line": 963,
+  "start": "- iPod demo: AudioMuse auto-sync only follows analysis tasks",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 965,
+  "start": "- iPod demo: the Info window cannot send a cover to a remote",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": null,
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 966,
+  "start": "- tests/t1/ipod_web.sh: a curl -d with nested braces inside ",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "bodies go from a file; cause not worth looking at",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 968,
+  "start": "- iPod radio on Sonos: \"Start radio\" before the group's queu",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:sonos and iPod Sonos: queue, ports, docs",
+  "task": null,
+  "group": "sonos"
+ },
+ {
+  "line": 969,
+  "start": "- iPod radio: queue.dropUpcoming filters the context but ign",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 970,
+  "start": "- iPod demo: \"From A to B\" drafts last only for the run (not",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 971,
+  "start": "- iPod moods: moodMix ranks energy with indexOf per song, O(",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod For you and Genius: keep the UI thread free at 10k songs",
+  "task": null,
+  "group": "ipod-perf"
+ },
+ {
+  "line": 972,
+  "start": "- iPod demo: the mood mixer's tempo bar and the volume bar a",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 974,
+  "start": "- iPod satellite: POST /devices/:id/jobs (pull with Range, o",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 975,
+  "start": "- iPod jukebox source: ALAC rather than AAC 256k for a roomy",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 977,
+  "start": "- iPod daemon: no lyrics nor cover writes for a remote iPod ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod daemon: parity with the Mac app for a remote iPod",
+  "task": null,
+  "group": "ipod-daemon"
+ },
+ {
+  "line": 978,
+  "start": "- iPod demo: the LRCLIB and MusicBrainz caches live under th",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "a decision with no impact",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 979,
+  "start": "- iPod demo: check the MusicBrainz pace (1 request/s) once i",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "by-hand real-time check",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 980,
+  "start": "- iPod demo: the now-playing display is crowded at 1180 px (",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo: layout and small usability fixes on the Mac",
+  "task": null,
+  "group": "ipod-polish"
+ },
+ {
+  "line": 981,
+  "start": "- iPod demo: Discover as a For you shelf; a QuickJS smoke ru",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 982,
+  "start": "- iPod sleep timer: zinc:sonos SetSleepTimer/GetRemainingSle",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 983,
+  "start": "- ipod_deep: its auto-sync step polls in real time and fails",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod demo tests: deterministic and independent of the machine",
+  "task": null,
+  "group": "ipod-tests"
+ },
+ {
+  "line": 984,
+  "start": "- iPod demo: Genius, For you and the cache parsing on a zinc",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod For you and Genius: keep the UI thread free at 10k songs",
+  "task": null,
+  "group": "ipod-perf"
+ },
+ {
+  "line": 985,
+  "start": "- iPod demo: For you's final write (JSON.stringify of the sh",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod For you and Genius: keep the UI thread free at 10k songs",
+  "task": null,
+  "group": "ipod-perf"
+ },
+ {
+  "line": 986,
+  "start": "- iPod demo: measure For you's frame gaps again now that a t",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod For you and Genius: keep the UI thread free at 10k songs",
+  "task": null,
+  "group": "ipod-perf"
+ },
+ {
+  "line": 987,
+  "start": "- Inspector: measure the Elements tree and rendered-only fil",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "a measure with no fix",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 988,
+  "start": "- iPod demo: a T1 frame-gap check of For you on the FORYOU_M",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod For you and Genius: keep the UI thread free at 10k songs",
+  "task": null,
+  "group": "ipod-perf"
+ },
+ {
+  "line": 989,
+  "start": "- iPod demo: For you's SQL step before the worker job (times",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod For you and Genius: keep the UI thread free at 10k songs",
+  "task": null,
+  "group": "ipod-perf"
+ },
+ {
+  "line": 990,
+  "start": "- iPod demo: the first sync after a library change parses li",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: iPod For you and Genius: keep the UI thread free at 10k songs",
+  "task": null,
+  "group": "ipod-perf"
+ },
+ {
+  "line": 991,
+  "start": "- ZN-867: the Discord client acks without checking whether i",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": {
+   "title": "Discord client: layout and message polish at real window sizes",
+   "description": "Visible gaps of examples/discord on a Mac window: narrow widths, lists, avatars, pins, thread composer, share dialog.",
+   "ac": [
+    "At 320 px the composer folds buttons into a menu and the Go Live dialog fits a 700 px window; minWidth verified",
+    "Markdown lists draw bullets; the member list reads its list id; the picture map is capped (LRU); acks only when the channel is visible and focused",
+    "Thread pane has a composer; newer pages load when a jump-back history is scrolled to its end; pin permission follows GUILD_MEMBER_UPDATE",
+    "Share dialog uses real gear and monitor icons and updates thumbnails in place; the shield has a tooltip"
+   ],
+   "labels": [
+    "discord",
+    "ui",
+    "size-M"
+   ],
+   "milestone": "m-28",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "discord-ui"
+ },
+ {
+  "line": 992,
+  "start": "- ZN-867: Discord lists (`- item`) stay plain text in the cl",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 993,
+  "start": "- ZN-872: alternative to native Discord voice (owner idea 20",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "owner idea not chosen",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 994,
+  "start": "- ZN-868: the Discord client's CDN picture map never evicts;",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 995,
+  "start": "- ZN-868: animated emoji show their first frame only.",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 996,
+  "start": "- ZN-868: the default avatar index needs the 64-bit shift (`",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 997,
+  "start": "- ZN-868: the member list ignores the list id of GUILD_MEMBE",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 998,
+  "start": "- ZN-872: Opus loss concealment and FEC, and reordering in t",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 999,
+  "start": "- ZN-872: DAVE verification codes (daveSessionGetPairwiseFin",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1000,
+  "start": "- ZN-872: READY_SUPPLEMENTAL's voice_states (capability bit ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1002,
+  "start": "- ZN-881: Discord interactive components (buttons, selects) ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1003,
+  "start": "- ZN-881: Discord inline video and voice-message playback, L",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1004,
+  "start": "- ZN-882: tests/t1/discord_voice.sh could check the speaking",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "needs shooting on an event; low value",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1006,
+  "start": "- ZN-883: tests/t1/discord_voice.sh should compare the call ",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "low value hash golden",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1008,
+  "start": "- ZN-886: resume the gateway session across launches (save s",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: session and login safety",
+  "task": {
+   "title": "Discord client: session and login safety",
+   "description": "The client starts a new gateway session at every launch and can run twice; small safety gaps listed by the ZN-886/890/910 lines.",
+   "ac": [
+    "Gateway session resumes across launches (session_id, seq, resume url saved at quit, also on Cmd+Q)",
+    "A second instance is refused; the daily IDENTIFY cap spans launches",
+    "Failed logins persist in zinc:storage; the fake Discord gives 401, captcha 400, long 429 and op 9 d:false and the T1 proves safe mode",
+    "Account safety page also shown at first login"
+   ],
+   "labels": [
+    "discord",
+    "size-S"
+   ],
+   "milestone": "m-28",
+   "size": "S",
+   "lane": "mac"
+  },
+  "group": "discord-session"
+ },
+ {
+  "line": 1009,
+  "start": "- ZN-886: refuse a second instance of the Discord client (tw",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: session and login safety",
+  "task": null,
+  "group": "discord-session"
+ },
+ {
+  "line": 1010,
+  "start": "- ZN-886: make the daily IDENTIFY cap span launches (it is p",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: session and login safety",
+  "task": null,
+  "group": "discord-session"
+ },
+ {
+  "line": 1011,
+  "start": "- ZN-886: give the fake Discord a 401, a captcha 400, a long",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: session and login safety",
+  "task": null,
+  "group": "discord-session"
+ },
+ {
+  "line": 1013,
+  "start": "- ZN-869: try the QR and password+TOTP logins with a spare r",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1015,
+  "start": "- ZN-875: send screen audio with Go Live (ScreenCaptureKit S",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1016,
+  "start": "- ZN-875: adapt the Go Live and camera bitrate to RTCP recei",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1017,
+  "start": "- ZN-875: watch several Go Live streams at once (one at a ti",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1018,
+  "start": "- ZN-875: show the stream preview (GET /streams/{key}/previe",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1020,
+  "start": "- ZN-890: Cmd+Q through the menu's quit role does not go thr",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: session and login safety",
+  "task": null,
+  "group": "discord-session"
+ },
+ {
+  "line": 1021,
+  "start": "- ZN-890: pace the voice gateway of plugins/discord-voice th",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1023,
+  "start": "- ZN-891: check on a real Discord call that the UDP voice se",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1024,
+  "start": "- ZN-891: a lossy phase in the fake Discord (loss on the voi",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1026,
+  "start": "- ZN-903: load newer pages when a history left after a jump ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 1027,
+  "start": "- ZN-903: a composer in the thread pane (today the arrow ope",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 1028,
+  "start": "- ZN-903: my roles changed during the session (GUILD_MEMBER_",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 1029,
+  "start": "- ZN-907: show my own status on my avatar in the user bar (t",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1030,
+  "start": "- ZN-907: guild channels whose permissions differ share one ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1032,
+  "start": "- ZN-909: playout-delay extension ID 5 vs 6 (docs.discord.fo",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1033,
+  "start": "- ZN-909: read RTX (PT 102, OSN) and answer NACK with RTX in",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1035,
+  "start": "- ZN-910: keep failed logins across launches in zinc:storage",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: session and login safety",
+  "task": null,
+  "group": "discord-session"
+ },
+ {
+  "line": 1036,
+  "start": "- ZN-910: \"shares a server\" knows only people seen this sess",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1037,
+  "start": "- ZN-910: show the Account safety page at the first login to",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: session and login safety",
+  "task": null,
+  "group": "discord-session"
+ },
+ {
+  "line": 1039,
+  "start": "- ZN-904: animated WebP/APNG off macOS (vendor libwebp demux",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1040,
+  "start": "- ZN-905: switching themes live was proven only through the ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1041,
+  "start": "- ZN-906: reopen the transfer window when Discord refuses a ",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "unconfirmed limit",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1042,
+  "start": "- ZN-911: an icon name written inside an expression (`<Icon ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ui, JSX and web API gaps found by demos",
+  "task": null,
+  "group": "ui-gaps"
+ },
+ {
+  "line": 1043,
+  "start": "- ZN-911: the share dialog could update its thumbnails in pl",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 1044,
+  "start": "- ZN-911: the safe mode shield of the user bar is icon-only;",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 1045,
+  "start": "- ZN-912: discord-voice: map received RTX (PT 102 on a strea",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1046,
+  "start": "- ZN-912: discord-voice: header-extension IDs experiment (`D",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1047,
+  "start": "- ZN-912: discord-voice: handle op 24 with epoch > 1 and ech",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1048,
+  "start": "- ZN-912: discord-voice: a DAVE test with real libdave vecto",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1049,
+  "start": "- ZN-912: examples/discord: check the main gateway's fresh I",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1050,
+  "start": "- ZN-913: examples/discord passes no `devices`, so Go Live h",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1051,
+  "start": "- ZN-913: the share dialog's Settings button is a text label",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 1052,
+  "start": "- ZN-913: run the real macOS listing once with `zinc run exa",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "by-hand run",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1053,
+  "start": "- ZN-920: Go Live ignores op 15 `pixelCounts`, so it cannot ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1054,
+  "start": "- ZN-920: show the ultra low data state plainly in the call ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1055,
+  "start": "- ZN-914: zinc:editor tokenizes only TS/JS, JSON, Markdown a",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1056,
+  "start": "- ZN-915: the real minimum window size (`zinc.json` `minWidt",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 1057,
+  "start": "- ZN-916: Slack theme lacks square avatars, the Lato font an",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1058,
+  "start": "- ZN-?: Discord at 320 px: the composer should fold some but",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Discord client: layout and message polish at real window sizes",
+  "task": null,
+  "group": "discord-ui"
+ },
+ {
+  "line": 1059,
+  "start": "- ZN-?: Discord voice AEC: replace the `isHeadphones` name g",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1062,
+  "start": "- Mapper, copy during a show on a Pi: a 1080p film plus an 8",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": {
+   "title": "Raspberry Pi verification pass",
+   "description": "Checks of the Mac work that need a Pi rig.",
+   "ac": [
+    "Mapper copy under a 1080p film, VA-API on a NUC, GLES2 stencil and antialias variant, pinball vertical mode, Pi sleep wake on DSI and HDMI",
+    "Shell suspend, dmabuf buffers, trimHeap and worker RSS on a Pi 3B+",
+    "Player app start, dev bar touch, zinc device profile/bench and dev --device on a Pi; prebuilt plugins of the armhf, armv7, x86_64 and i686 packages",
+    "ipod daemon and Genius on a Pi; HEVC on Pi 4 and 5; publish to a Pi from the hub"
+   ],
+   "labels": [
+    "pi",
+    "cross",
+    "size-M"
+   ],
+   "milestone": "m-25",
+   "size": "M",
+   "lane": "cross"
+  },
+  "group": "cross-pi"
+ },
+ {
+  "line": 1063,
+  "start": "- Mapper on a NUC: `zinc:video` VA-API with dmabufs and `zgl",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1064,
+  "start": "- Mapper on Android: `zgl_program` now writes `#extension GL",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android, webOS and TV box device checks",
+  "task": {
+   "title": "Android, webOS and TV box device checks",
+   "description": "Device checks for the mapper, music and sonos paths.",
+   "ac": [
+    "Mapper external-texture shader on the Toumei C800; announce, pair and thumbnails on Toumei, Xiaomi box, Chromecast",
+    "zinc:video seek and the mapper follower on Android, iOS and webOS",
+    "music-tree setup page and scrobbler on a TouchPad; zinc:qrcode on Android; parallel Sonos reads on the TouchPad"
+   ],
+   "labels": [
+    "cross",
+    "android",
+    "webos",
+    "size-M"
+   ],
+   "milestone": "m-26",
+   "size": "M",
+   "lane": "cross"
+  },
+  "group": "cross-android-webos"
+ },
+ {
+  "line": 1065,
+  "start": "- A mapper follows its master on Android: the compositor's `",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android, webOS and TV box device checks",
+  "task": null,
+  "group": "cross-android-webos"
+ },
+ {
+  "line": 1066,
+  "start": "- gl: the paint_populate stencil's GL_STENCIL_INDEX8 path wa",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1067,
+  "start": "- pinball: try the vertical mode, the flippers and a real ga",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1068,
+  "start": "- mapper: zinc:link has no Windows target, so a Windows mapp",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": {
+   "title": "Windows pass: locks, capture, secure store, doc server, link",
+   "description": "Everything the Mac work left as a Windows check or backend (after ZN-714 gives a Windows build).",
+   "ac": [
+    "FileLock and the app update trial use LockFileEx; zinc:secure-store uses Credential Manager; the Inspector discovery folder uses USERPROFILE",
+    "zinc:link announces and browses through Winsock dnssd; zinc doc --serve, zinc:net server, WebSocket and ACME run on Windows",
+    "Screen capture through Windows.Graphics.Capture; zn_webp_dec links in AOT and export builds; the C offscreen host/linker runs",
+    "Each result recorded; failures become fixes in the same task"
+   ],
+   "labels": [
+    "windows",
+    "cross",
+    "size-M"
+   ],
+   "milestone": "m-12",
+   "size": "M",
+   "lane": "cross"
+  },
+  "group": "windows-pass"
+ },
+ {
+  "line": 1069,
+  "start": "- mapper: announce, pair by code and video thumbnails on the",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android, webOS and TV box device checks",
+  "task": null,
+  "group": "cross-android-webos"
+ },
+ {
+  "line": 1070,
+  "start": "- Pi sleep (image/player, display-fbdev `backlight`): on the",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1071,
+  "start": "- music-airplay: music-tree's setup page and scrobbler on a ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android, webOS and TV box device checks",
+  "task": null,
+  "group": "cross-android-webos"
+ },
+ {
+  "line": 1072,
+  "start": "- async-hot-paths: the parallel Sonos reads (7 SOAP calls at",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android, webOS and TV box device checks",
+  "task": null,
+  "group": "cross-android-webos"
+ },
+ {
+  "line": 1073,
+  "start": "- zinc:webview on Linux: on-screen on a real X session (GPU ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": {
+   "title": "Linux pass: backends, decoders, tests",
+   "description": "Linux gaps listed while working on the Mac.",
+   "ac": [
+    "MPRIS media session, libsecret store, PipeWire screen capture, V4L2 or vendored H.264, and gamepads are built or refused with a clear message",
+    "discord-voice plugin builds on Linux (ALSA, no-asm TLS); SpeexDSP defines checked",
+    "webview slot reuse, ipod_smart, ipod_jukebox, worker_churn, imageio (WebP, EXIF) run on Linux; hal_win_ctl exists",
+    "Window unseen-throttle for X11 and Wayland; profiler samples every worker thread",
+    "Info card and Inspector read /proc on Linux; heap trim verified"
+   ],
+   "labels": [
+    "linux",
+    "cross",
+    "size-M"
+   ],
+   "milestone": "m-25",
+   "size": "M",
+   "lane": "cross"
+  },
+  "group": "cross-linux"
+ },
+ {
+  "line": 1074,
+  "start": "- ZN-764: validate lazy raster/HTTP scratch, display-gl spla",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "ZN-764 validation on non-Mac targets; stays a cross-pass line",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1075,
+  "start": "- ZN-918: check that `zn_webp_dec` links in the AOT and expo",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": null,
+  "group": "windows-pass"
+ },
+ {
+  "line": 1076,
+  "start": "- ZN-871: SpeexDSP and the `played` tap on Linux, the Pi and",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1077,
+  "start": "- ZN-892/893: zinc:net server, WebSocket and ACME on Linux a",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": null,
+  "group": "windows-pass"
+ },
+ {
+  "line": 1078,
+  "start": "- ZN-894: check that the -include impair.h hook builds on li",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1079,
+  "start": "- ZN-875: zinc:screen-capture/picker and app icons on the Li",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": null,
+  "group": "windows-pass"
+ },
+ {
+  "line": 1080,
+  "start": "- ZN-873: H.264 decode and encode on Linux (V4L2 M2M or a ve",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1081,
+  "start": "- ZN-874: screen capture on Linux (PipeWire portal) and Wind",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": null,
+  "group": "windows-pass"
+ },
+ {
+  "line": 1082,
+  "start": "- ZN-884: run the shell's suspend on a Pi 3 (KMS closed and ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1083,
+  "start": "- ZN-884: display_shell's stand-in on the Pi (rpi1 and arm64",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1084,
+  "start": "- ZN-885: the Linux trimHeap of src/host/loop.cpp (glibc mal",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1085,
+  "start": "- ZN-872: the discord-voice plugin on Linux (ALSA/PulseAudio",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1086,
+  "start": "- ZN-864: `hal_win_ctl` on Linux (SDL3 HAL) and the n3ds HAL",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1087,
+  "start": "- Threads profiler: check on Linux that `zinc profile` puts ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1088,
+  "start": "- Workers: worker.cpp is in the esp32, console and wasm sour",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: ESP32: ESP-IDF drivers and workers",
+  "task": {
+   "title": "ESP32: ESP-IDF drivers and workers",
+   "description": "ESP-IDF checks.",
+   "ac": [
+    "hw.h drivers built with ESP-IDF on a board with the same frames",
+    "ESP-IDF image per board booted in QEMU with its module list",
+    "worker.cpp builds on esp32, console and wasm sources; loader stage runs on the device core"
+   ],
+   "labels": [
+    "esp32",
+    "cross",
+    "size-S"
+   ],
+   "milestone": "m-11",
+   "size": "S",
+   "lane": "cross"
+  },
+  "group": "cross-esp32"
+ },
+ {
+  "line": 1089,
+  "start": "- threads (D181): RSS per idle worker and the Genius build t",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1091,
+  "start": "- ZN-862: build plugins/imageio on Linux, Windows and iOS; c",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1092,
+  "start": "- Run ipod_jukebox and ipod_satellite on Linux (afconvert is",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1093,
+  "start": "- zinc:system/media: a Linux backend (MPRIS over D-Bus) and ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1094,
+  "start": "- iPod AudioMuse over the LAN from the Pi daemon, with the s",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1095,
+  "start": "- iPod: run ipod_smart on Linux.",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1096,
+  "start": "- iPod Genius timings on the Pi 3B+ and 4, and a Linux AAC/A",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1097,
+  "start": "- iPod history import and its timings on the Pi daemon.",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1098,
+  "start": "- zinc:ui scrollKey on the web target (DOM render): the brow",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1099,
+  "start": "- zinc:sonos events on webOS, the Pi and Android: the firewa",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1100,
+  "start": "- D178: the Mac app's remote iPod against an ipod-web daemon",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1101,
+  "start": "- D178: the iPod daemon (examples/ipod-web) on a Raspberry P",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1103,
+  "start": "- ZN-857: iPod audio fingerprints on Linux need a decoder (m",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1104,
+  "start": "- ZN-856: `zinc doc --serve` on Windows (the Winsock path is",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": null,
+  "group": "windows-pass"
+ },
+ {
+  "line": 1105,
+  "start": "- ZN-853: `ipod.mount('')` finds iPod partitions by media na",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1106,
+  "start": "- zinc:video on a Pi 4 and a Pi 5: HEVC goes through the sta",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1107,
+  "start": "- ZN-851: zinc:ipod on Linux and the Pi (apt packages of doc",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1108,
+  "start": "- ZN-850: records over the phone glue (Android JNI, iOS) and",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android and iOS lifecycle checks",
+  "task": {
+   "title": "Android and iOS lifecycle checks",
+   "description": "Live resize and record passes on phones.",
+   "ac": [
+    "Rotating a phone sends one resize frame, not drawn from the UI thread",
+    "Records over the phone glue and rec.h on 32-bit ARM",
+    "Shared UI image cache and Clear storage fix verified on mobile; resource diagnostics hooks"
+   ],
+   "labels": [
+    "mobile",
+    "cross",
+    "size-S"
+   ],
+   "milestone": "m-26",
+   "size": "S",
+   "lane": "cross"
+  },
+  "group": "cross-mobile"
+ },
+ {
+  "line": 1110,
+  "start": "- ZN-846: launch the delivered CLI and signed Atelier on the",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1112,
+  "start": "- ZN-845: launch the legacy Intel runtime on real macOS 10.1",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1114,
+  "start": "- ZN-844: run app/web on the reMarkable Paper Pro and the Mo",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: reMarkable Paper Pro: app and ink checks",
+  "task": {
+   "title": "reMarkable Paper Pro: app and ink checks",
+   "description": "Tablet checks for app/web, Zinc Read and ink.",
+   "ac": [
+    "app/web runs on Paper Pro and Move: pinch, pen, links, refresh, the dashboard period",
+    "PDFium archives pinned for x86_64, Windows and armv7; the aarch64 package loads and draws a page",
+    "Zinc Read swipes, pen, task ticks and Notion sync; rmpp_lease and export icon",
+    "ink native on wasm, rpi1 and rmpp; Murdoku through the real driver; recognise timed on the A55 and A53"
+   ],
+   "labels": [
+    "remarkable",
+    "cross",
+    "size-M"
+   ],
+   "milestone": "m-29",
+   "size": "M",
+   "lane": "cross"
+  },
+  "group": "cross-remarkable"
+ },
+ {
+  "line": 1115,
+  "start": "- ZN-844: try the web dashboard on the tablet: a 5-minute pe",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: reMarkable Paper Pro: app and ink checks",
+  "task": null,
+  "group": "cross-remarkable"
+ },
+ {
+  "line": 1116,
+  "start": "- ZN-844: check that `tools/package --linux-arch aarch64` bu",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: reMarkable Paper Pro: app and ink checks",
+  "task": null,
+  "group": "cross-remarkable"
+ },
+ {
+  "line": 1117,
+  "start": "- ZN-844: add the x86_64, Windows and armv7 archives of PDFi",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: reMarkable Paper Pro: app and ink checks",
+  "task": null,
+  "group": "cross-remarkable"
+ },
+ {
+  "line": 1118,
+  "start": "- ZN-844: Zinc Read on the tablet: swipes, the pen, task tic",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: reMarkable Paper Pro: app and ink checks",
+  "task": null,
+  "group": "cross-remarkable"
+ },
+ {
+  "line": 1119,
+  "start": "- ZN-844: run `rmpp_lease` (zig cross build) and check that ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: reMarkable Paper Pro: app and ink checks",
+  "task": null,
+  "group": "cross-remarkable"
+ },
+ {
+  "line": 1120,
+  "start": "- ZN-844: compiler: in JSX, `{f()}` where `f: () => i32` is ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ui, JSX and web API gaps found by demos",
+  "task": null,
+  "group": "ui-gaps"
+ },
+ {
+  "line": 1121,
+  "start": "- ZN-844: the hub app installed web 0.1.1 packed by zinc 0.9",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1122,
+  "start": "- ZN-844: during a pinch or drag in Zinc Web or PDF, draw th",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1123,
+  "start": "- ZN-844: Zinc Web: lighter pictures from the relay (a PNG s",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1124,
+  "start": "- ZN-649.12: run web_physics2d after rebuilding browser WASM",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1126,
+  "start": "- ZN-825/ZN-826: verify the C offscreen host/linker on Windo",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": null,
+  "group": "windows-pass"
+ },
+ {
+  "line": 1127,
+  "start": "- ZN-827/ZN-828/ZN-832: build and exercise the pinned Godot ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1128,
+  "start": "- ZN-830/ZN-831: verify the animation plugin, deformation ba",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1130,
+  "start": "- ZN-649.12: rebuild graphics console cores with Physics2D, ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": {
+   "title": "Real PSP, Vita and 3DS measurements",
+   "description": "Measurements and checks that emulators cannot prove.",
+   "ac": [
+    "3D orbit, cubes and gl-check on the owner Vita, PSP and 3DS with timings in zinc-next-perf.md",
+    "Tokyo and zinc:3d World on real consoles: GE time, heap, SD reads, stereo, ETC1 facades",
+    "n3ds demos, Paint Arena and the device player on real hardware; --aot on real consoles",
+    "Box2D pinball on a physical 3DS"
+   ],
+   "labels": [
+    "psp",
+    "vita",
+    "3ds",
+    "cross",
+    "size-M"
+   ],
+   "milestone": "m-23",
+   "size": "M",
+   "lane": "cross"
+  },
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1132,
+  "start": "- ZN-477: run examples/3d/orbit, cubes and gl-check on the o",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1133,
+  "start": "- ZN-476/ZN-478: run examples/3d/orbit on a real PSP (Adrena",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1134,
+  "start": "- ZN-102: sqlite, wasm, process and ffi conformance in the L",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1135,
+  "start": "- ZN-126: the hw.h drivers built with ESP-IDF on a board, sa",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: ESP32: ESP-IDF drivers and workers",
+  "task": null,
+  "group": "cross-esp32"
+ },
+ {
+  "line": 1136,
+  "start": "- ZN-136: ESP-IDF images per board booted in QEMU, their mod",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: ESP32: ESP-IDF drivers and workers",
+  "task": null,
+  "group": "cross-esp32"
+ },
+ {
+  "line": 1137,
+  "start": "- ZN-631: rn-showcase in Zinc Go on the Nexus 7 crashes when",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android and iOS lifecycle checks",
+  "task": null,
+  "group": "cross-mobile"
+ },
+ {
+  "line": 1139,
+  "start": "- ZN-774.02: run `install.sh`, `install.ps1` and the Homebre",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1141,
+  "start": "- Live resize (owner, 2026-10-16): Android and iOS send no l",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android and iOS lifecycle checks",
+  "task": null,
+  "group": "cross-mobile"
+ },
+ {
+  "line": 1143,
+  "start": "- ZN-722: optional resource diagnostic hooks and CDP snapsho",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android and iOS lifecycle checks",
+  "task": null,
+  "group": "cross-mobile"
+ },
+ {
+  "line": 1145,
+  "start": "- ZN-576: tests/golden/webgl/antialias.js expects a multisam",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1146,
+  "start": "- ZN-438: sprite atlas sources build warning-free under `zig",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1147,
+  "start": "- ZN-446: the splash on display plugins (display-fbdev befor",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1148,
+  "start": "- ZN-446: OS splashes from the exports (iOS launch storyboar",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1149,
+  "start": "- ZN-447: run the loader stage in the browser export (the wo",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: ESP32: ESP-IDF drivers and workers",
+  "task": null,
+  "group": "cross-esp32"
+ },
+ {
+  "line": 1150,
+  "start": "- ZN-574: gamepads on Linux and Windows (frameworks and link",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1153,
+  "start": "- Fonts: an engine-level tabular-figures feature (OpenType t",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Text: tabular figures through HarfBuzz",
+  "task": {
+   "title": "Text: tabular figures through HarfBuzz",
+   "description": "Engine-level OpenType tnum so any text can ask for fixed-width digits (clocks, tables).",
+   "ac": [
+    "A text style asks for tabular figures through src/text/layout.cpp; a test of equal digit advances",
+    "Musique draws its clock without the digit-by-digit workaround"
+   ],
+   "labels": [
+    "text",
+    "size-M"
+   ],
+   "milestone": "m-17",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "tnum"
+ },
+ {
+  "line": 1155,
+  "start": "- D119: back ends of the GPU layer for the connected platfor",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1156,
+  "start": "- ZN-718: zinc lint: an opt-in `zinc lint --js` running a pi",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1157,
+  "start": "- ZN-718: zinc lint: a rule for zinc.json dependencies that ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc lint: more rules",
+  "task": {
+   "title": "zinc lint: more rules",
+   "description": "Opt-in checks users would meet in zinc lint.",
+   "ac": [
+    "A rule for zinc.json dependencies nothing imports",
+    "JPEG and WebP sizes in the asset estimate",
+    "boot budget estimate from assets.groups; target rules in the LSP"
+   ],
+   "labels": [
+    "cli",
+    "size-S"
+   ],
+   "milestone": "m-20",
+   "size": "S",
+   "lane": "mac"
+  },
+  "group": "lint-more"
+ },
+ {
+  "line": 1158,
+  "start": "- ZN-718: zinc lint: JPEG and WebP pixel sizes in the asset ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc lint: more rules",
+  "task": null,
+  "group": "lint-more"
+ },
+ {
+  "line": 1159,
+  "start": "- ZN-718: zinc lint: target rules in the LSP (`--json` is th",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc lint: more rules",
+  "task": null,
+  "group": "lint-more"
+ },
+ {
+  "line": 1160,
+  "start": "- ZN-701: webgl_conformance on a GPU that does not zero new ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1161,
+  "start": "- ZN-718: `zinc device update` (the agent's engine update on",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc doctor, zinc update and plugin install polish",
+  "task": null,
+  "group": "install-update"
+ },
+ {
+  "line": 1162,
+  "start": "- ZN-718: zinc:socket speaks ws:// only: no public wss echo ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1164,
+  "start": "- Mobile feel: a canvas (`onDraw`, `<Icon>`) draws at full a",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Mobile feel: canvas alpha and the RN Modal host",
+  "task": {
+   "title": "Mobile feel: canvas alpha and the RN Modal host",
+   "description": "Two UI bugs of the mobile-style components.",
+   "ac": [
+    "A canvas (onDraw, Icon) inside a fading or scaled view honours the alpha; navigation no longer needs Navigation.alphaOf",
+    "RN Modal host with object style position absolute gets its size in the classic layout and dismisses only on outside press"
+   ],
+   "labels": [
+    "ui",
+    "size-S"
+   ],
+   "milestone": "m-5",
+   "size": "S",
+   "lane": "mac"
+  },
+  "group": "mobile-feel"
+ },
+ {
+  "line": 1165,
+  "start": "- Mobile feel: React Native's `Modal` positions its host wit",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Mobile feel: canvas alpha and the RN Modal host",
+  "task": null,
+  "group": "mobile-feel"
+ },
+ {
+  "line": 1167,
+  "start": "- ZN-?: rerun `examples/perf-compare` on a quiet machine (Fl",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "measure at a milestone",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1168,
+  "start": "- ZN-?: add a 100000-row virtualised list to the perf screen",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "measure for a table, not a defect",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1170,
+  "start": "- ZN-?: `three` from npm in a web project resolves to the zi",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web target: dev server and DOM-mode gaps",
+  "task": {
+   "title": "Web target: dev server and DOM-mode gaps",
+   "description": "Small defects of the web export.",
+   "ac": [
+    "zinc dev reloads on an edit of a workspace package",
+    "A DOM-mode program that draws with gfx alone mounts a canvas; vendored UMD/addon libraries load in zinc dev --target web",
+    "zinc:map raises no W0603 on the web; npm three on the web target resolves by a documented rule"
+   ],
+   "labels": [
+    "web",
+    "size-S"
+   ],
+   "milestone": "m-14",
+   "size": "S",
+   "lane": "mac"
+  },
+  "group": "web-gaps"
+ },
+ {
+  "line": 1171,
+  "start": "- ZN-?: Rspack and webpack recipe (a loader calling `zinc de",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "a documented recipe nobody asked to run",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1172,
+  "start": "- ZN-?: the dev pre-bundle does not watch workspace packages",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web target: dev server and DOM-mode gaps",
+  "task": null,
+  "group": "web-gaps"
+ },
+ {
+  "line": 1173,
+  "start": "- ZN-?: publish @zinc/vite to npm (owner step; the package i",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "owner step (npm publish)",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1174,
+  "start": "- ZN-?: semantic DOM on Firefox and Safari (macOS, iOS), pho",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "a list of ideas too wide to finish",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1176,
+  "start": "- ZN-?: web `zinc dev --target web` for vendored UMD/addon l",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web target: dev server and DOM-mode gaps",
+  "task": null,
+  "group": "web-gaps"
+ },
+ {
+  "line": 1177,
+  "start": "- ZN-?: an OSC relay shipped with Zinc (WebSocket to UDP) fo",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "an idea with no user",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1178,
+  "start": "- ZN-?: real-device pass for web serial, MIDI and gphoto2 (A",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1179,
+  "start": "- ZN-?: libgphoto2 through `web-gphoto2` for live view and v",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "large idea with no user",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1180,
+  "start": "- ZN-?: web `zinc:3d` and `zinc:physics3d`, or a documented ",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "large idea; a documented use-three answer is enough",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1181,
+  "start": "- ZN-?: OffscreenCanvas worker renderer for three.js on the ",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "large idea; WebGPU not now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1182,
+  "start": "- ZN-?: silence W0603 for `zinc:map` on the web (lazy networ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web target: dev server and DOM-mode gaps",
+  "task": null,
+  "group": "web-gaps"
+ },
+ {
+  "line": 1183,
+  "start": "- ZN-?: a DOM-mode program that draws with gfx alone and has",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Web target: dev server and DOM-mode gaps",
+  "task": null,
+  "group": "web-gaps"
+ },
+ {
+  "line": 1185,
+  "start": "- ZN-?: web-real-test: per-demo scripted interactions (rn-sh",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1186,
+  "start": "- ZN-773.04: `zinc export --dmg`, `--key` signatures and the",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hermes and V8 projects: export, pack, bytecode",
+  "task": {
+   "title": "Hermes and V8 projects: export, pack, bytecode",
+   "description": "Alternative JS engine projects cannot yet be exported or packed like the default.",
+   "ac": [
+    "zinc export (--dmg, --key, SBOM) and zinc pack/fuse accept jsc, v8 and hermes projects",
+    "zinc build --engine hermes precompiles .hbc",
+    "Export prefers the downloaded pack to the source-built module; Hermes handle scope growth checked on a long program",
+    "Hermes DevTools reports hit breakpoints"
+   ],
+   "labels": [
+    "engine",
+    "size-M"
+   ],
+   "milestone": "m-20",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "hermes-v8"
+ },
+ {
+  "line": 1187,
+  "start": "- ZN-773.04: `zinc pack` and `zinc fuse` of jsc/v8 projects:",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hermes and V8 projects: export, pack, bytecode",
+  "task": null,
+  "group": "hermes-v8"
+ },
+ {
+  "line": 1188,
+  "start": "- ZN-773.04: notarize an exported engine app signed with a D",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "needs the owner Developer ID",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1189,
+  "start": "- ZN-773.04: run tests/t1/package_app.sh once index/root.jso",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1190,
+  "start": "- ZN-773.07: Hermes's CDP inspector (API/hermes/cdp) behind ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hermes and V8 projects: export, pack, bytecode",
+  "task": null,
+  "group": "hermes-v8"
+ },
+ {
+  "line": 1191,
+  "start": "- ZN-773.07: precompile .hbc at zinc build --engine hermes t",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hermes and V8 projects: export, pack, bytecode",
+  "task": null,
+  "group": "hermes-v8"
+ },
+ {
+  "line": 1192,
+  "start": "- ZN-773.07: the Hermes adapter keeps one handle scope open ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hermes and V8 projects: export, pack, bytecode",
+  "task": null,
+  "group": "hermes-v8"
+ },
+ {
+  "line": 1193,
+  "start": "- ZN-773.08: measure hero CPU on Hermes built with and witho",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hermes and V8 projects: export, pack, bytecode",
+  "task": null,
+  "group": "hermes-v8"
+ },
+ {
+  "line": 1194,
+  "start": "- ZN-773.08: Hermes's DevTools agent does not report which b",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hermes and V8 projects: export, pack, bytecode",
+  "task": null,
+  "group": "hermes-v8"
+ },
+ {
+  "line": 1195,
+  "start": "- ZN-773.08: zinc export of a Hermes or V8 project should pr",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hermes and V8 projects: export, pack, bytecode",
+  "task": null,
+  "group": "hermes-v8"
+ },
+ {
+  "line": 1196,
+  "start": "- ZN-773.06: WASI preview1 on the wasm pack, so wasm program",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "WASI niche",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1197,
+  "start": "- ZN-773.06: share an imported Memory, Table and mutable Glo",
+  "verdict": "drop",
+  "evidence": "",
+  "into": "",
+  "reason": "niche, no user",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1199,
+  "start": "- ZN-785: evaluate a separately flashed A/B Pi OS image with",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1200,
+  "start": "- ZN-790: play n3ds-pinball, n3ds-platformer and n3ds-starfa",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1201,
+  "start": "- ZN-792: the device player on a real PSP, Vita, 3DS and the",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android, webOS and TV box device checks",
+  "task": null,
+  "group": "cross-android-webos"
+ },
+ {
+  "line": 1202,
+  "start": "- ZN-791: Paint Arena on a real PSP, Vita and 3DS on real Wi",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1203,
+  "start": "- ZN-792: the phone player on a real iPhone (signing, the lo",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android, webOS and TV box device checks",
+  "task": null,
+  "group": "cross-android-webos"
+ },
+ {
+  "line": 1204,
+  "start": "- ZN-820: on a Pi, tap an app in the player and check zinc-s",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1205,
+  "start": "- ZN-822: on the Pi's touch screen, check the dev bar takes ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1206,
+  "start": "- ZN-821: run `zinc device <pi> profile/bench` and `zinc dev",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1207,
+  "start": "- ZN-823: prebuilt plugins of the armhf, armv7, x86_64 and i",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1208,
+  "start": "- tokyo: a Pi profile (a Pi 3/4 on Linux takes the desktop s",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1209,
+  "start": "- ZN-480: --aot on a real PSP, Vita and 3DS (orbit's frame r",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1210,
+  "start": "- tokyo: measure the native World on the real PSP, 3DS and V",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1211,
+  "start": "- tokyo PSP: measure on a real PSP-2000 the GE time of 38,90",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1212,
+  "start": "- tokyo 3DS: time the frame on the real Old 3DS XL (Azahar d",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1213,
+  "start": "- tokyo 3DS: if ETC1 blocks show on the windows on hardware,",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1214,
+  "start": "- zinc:3d: run `zinc3d_world_build`'s world with `--profile ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1215,
+  "start": "- tokyo: stereo on the 3DS is unproven (Azahar runs with the",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1216,
+  "start": "- tokyo: run the PSP and Vita overlay panel with `ZINC_TOKYO",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1217,
+  "start": "- tokyo PSP: time the GE with CLUT8 swizzled pictures and sh",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1218,
+  "start": "- tokyo 3DS: measure the SD read time and the memory peak of",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1219,
+  "start": "- zinc:3d: re-measure select-bench on a quiet Mac and on a r",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1220,
+  "start": "- tokyo PSP-1000: the 17,000 KB heap fit in PPSSPP only (pea",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1221,
+  "start": "- tokyo 3DS: linked-pack read-ahead costs 36-47 ms an entry ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1222,
+  "start": "- tokyo Vita: Vita3K follows the Mac's load (p95 12-23 ms); ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1223,
+  "start": "- tokyo 3DS: on the real Old 3DS XL read the `n3ds:` and `sd",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1224,
+  "start": "- tokyo 3DS: confirm on the real Old 3DS that the white grou",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Real PSP, Vita and 3DS measurements",
+  "task": null,
+  "group": "cross-consoles-hw"
+ },
+ {
+  "line": 1225,
+  "start": "- Inspector Info card on Linux (/proc/self/statm, /proc/cpui",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1226,
+  "start": "- Info view: the refresh-rate key of Linux and Windows `hal_",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1227,
+  "start": "- Inspector Info: check by hand that moving the window to a ",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1228,
+  "start": "- Inspector discovery folder on Windows: uses `HOME`; needs ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": null,
+  "group": "windows-pass"
+ },
+ {
+  "line": 1229,
+  "start": "- ZN-876: zinc:secure-store backends for Linux (libsecret) a",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": null,
+  "group": "windows-pass"
+ },
+ {
+  "line": 1230,
+  "start": "- ZN-884: display-shell renders into a staging copy, then co",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:shell: touch routing, lazy listen, ABI check",
+  "task": {
+   "title": "zinc:shell: touch routing, lazy listen, ABI check",
+   "description": "Defects of the Pi shell found while building ZN-884 and ZN-888 that can be fixed and tested on the Mac sim.",
+   "ac": [
+    "Each touch id is routed by where it started; the shell listens on first use, not at module load",
+    "A display driver ABI version is checked before reading suspend; dyn_update_rect reaches diff_rects_sig",
+    "The shell answers the GL file lease itself; shell.start accepts a .zapp or a directory; boot app named from ZINC_APP",
+    "A T1 test with the real player in shell mode under ZINC_FBDEV_SIM and zinc device run/stop"
+   ],
+   "labels": [
+    "shell",
+    "size-M"
+   ],
+   "milestone": "m-25",
+   "size": "M",
+   "lane": "mac"
+  },
+  "group": "shell-fixes"
+ },
+ {
+  "line": 1231,
+  "start": "- ZN-884: zinc:shell routes touches by position each frame; ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:shell: touch routing, lazy listen, ABI check",
+  "task": null,
+  "group": "shell-fixes"
+ },
+ {
+  "line": 1232,
+  "start": "- ZN-884: a dyn_update_rect change should also reach the dev",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:shell: touch routing, lazy listen, ABI check",
+  "task": null,
+  "group": "shell-fixes"
+ },
+ {
+  "line": 1233,
+  "start": "- ZN-884: zinc:shell listens as soon as the module loads, al",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:shell: touch routing, lazy listen, ABI check",
+  "task": null,
+  "group": "shell-fixes"
+ },
+ {
+  "line": 1234,
+  "start": "- ZN-884: a display driver built against the old hal.h has a",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:shell: touch routing, lazy listen, ABI check",
+  "task": null,
+  "group": "shell-fixes"
+ },
+ {
+  "line": 1235,
+  "start": "- ZN-888: the shell answers the GL file lease itself (suspen",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:shell: touch routing, lazy listen, ABI check",
+  "task": null,
+  "group": "shell-fixes"
+ },
+ {
+  "line": 1236,
+  "start": "- ZN-888: the boot app under the shell is named `app`; use a",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:shell: touch routing, lazy listen, ABI check",
+  "task": null,
+  "group": "shell-fixes"
+ },
+ {
+  "line": 1237,
+  "start": "- ZN-888: shell.start should accept a .zapp file or a projec",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:shell: touch routing, lazy listen, ABI check",
+  "task": null,
+  "group": "shell-fixes"
+ },
+ {
+  "line": 1238,
+  "start": "- ZN-888: a T1 test with the real player in shell mode (ZINC",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:shell: touch routing, lazy listen, ABI check",
+  "task": null,
+  "group": "shell-fixes"
+ },
+ {
+  "line": 1239,
+  "start": "- ZN-889: `zinc publish --target rpi --export` from the Mac,",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Raspberry Pi verification pass",
+  "task": null,
+  "group": "cross-pi"
+ },
+ {
+  "line": 1240,
+  "start": "- D195 Pi A/B image: build an \"ab\": true image and its bundl",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1242,
+  "start": "- ZN-462: cache stable Canvas/subtree contents in bounded GP",
+  "verdict": "keep",
+  "evidence": "",
+  "into": "",
+  "reason": "Follow-up of an open or finished task; valid, small, not worth a task of its own now",
+  "task": null,
+  "group": ""
+ },
+ {
+  "line": 1244,
+  "start": "- Owner memory pass 2026-10-31: verify shared UI image-cache",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android and iOS lifecycle checks",
+  "task": null,
+  "group": "cross-mobile"
+ },
+ {
+  "line": 1245,
+  "start": "- Clear shared storage fix: verify temporary-file replacemen",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Android and iOS lifecycle checks",
+  "task": null,
+  "group": "cross-mobile"
+ },
+ {
+  "line": 1246,
+  "start": "- ZN-?: Discord voice AEC: verify the `plugin.json` SpeexDSP",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1247,
+  "start": "- ZN-?: check `plugins/ink` native (ink.abi.cpp) on wasm, rp",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: reMarkable Paper Pro: app and ink checks",
+  "task": null,
+  "group": "cross-remarkable"
+ },
+ {
+  "line": 1248,
+  "start": "- ZN-?: run the Murdoku frames and `murdoku_pen` through the",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: reMarkable Paper Pro: app and ink checks",
+  "task": null,
+  "group": "cross-remarkable"
+ },
+ {
+  "line": 1249,
+  "start": "- ZN-?: measure `recognise` (the int8 net, 0.38 ms on the M1",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: reMarkable Paper Pro: app and ink checks",
+  "task": null,
+  "group": "cross-remarkable"
+ },
+ {
+  "line": 1250,
+  "start": "- ZN-hamlet-rects: tight per-kind sprite rects for the idle ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hamlet follow-ups: atlas test and sprite rects",
+  "task": {
+   "title": "Hamlet follow-ups: atlas test and sprite rects",
+   "description": "A failing test on develop and a measured optimisation.",
+   "ac": [
+    "hamlet_atlas deer stamps match live deer",
+    "Tight per-kind sprite rects with a coverage test; numbers on AOT and interpreter at 24/64/96"
+   ],
+   "labels": [
+    "hamlet",
+    "size-S"
+   ],
+   "milestone": "m-30",
+   "size": "S",
+   "lane": "mac"
+  },
+  "group": "hamlet"
+ },
+ {
+  "line": 1251,
+  "start": "- ZN-hamlet-quiet: Hamlet windowed Metal and QuickJS fluidit",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hamlet follow-ups: atlas test and sprite rects",
+  "task": null,
+  "group": "hamlet"
+ },
+ {
+  "line": 1252,
+  "start": "- ZN-hamlet-atlas-deer: `hamlet_atlas` deer stamps differ fr",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Hamlet follow-ups: atlas test and sprite rects",
+  "task": null,
+  "group": "hamlet"
+ },
+ {
+  "line": 1253,
+  "start": "- Lumen: a box's `shadow-*` is painted under its whole box, ",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: zinc:ui, JSX and web API gaps found by demos",
+  "task": null,
+  "group": "ui-gaps"
+ },
+ {
+  "line": 1254,
+  "start": "- Mapper: a value of type `any` is refused as a ternary's co",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: TypeScript and runtime library gaps found by demos",
+  "task": null,
+  "group": "ts-lib-gaps"
+ },
+ {
+  "line": 1255,
+  "start": "- ZN-995: build and run the webview slot-reuse scenario of `",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1256,
+  "start": "- ZN-996: lock the app update trial on Windows (LockFileEx);",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": null,
+  "group": "windows-pass"
+ },
+ {
+  "line": 1257,
+  "start": "- ZN-998: FileLock has no Windows implementation (LockFileEx",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Windows pass: locks, capture, secure store, doc server, link",
+  "task": null,
+  "group": "windows-pass"
+ },
+ {
+  "line": 1258,
+  "start": "- ZN-1000: give Linux (X11 VisibilityNotify, Wayland frame c",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ },
+ {
+  "line": 1259,
+  "start": "- ZN-1001: run worker_churn on Linux (open files via /proc/P",
+  "verdict": "promote",
+  "evidence": "",
+  "into": "",
+  "reason": "Grouped into task: Linux pass: backends, decoders, tests",
+  "task": null,
+  "group": "cross-linux"
+ }
+]

@@ -6,7 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-12 09:45'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - perf
   - quickjs
@@ -15,7 +15,7 @@ labels:
 milestone: m-21
 dependencies:
   - ZN-599
-ordinal: 12600
+ordinal: 16100
 ---
 
 ## Description

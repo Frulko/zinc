@@ -9,7 +9,7 @@ labels:
   - assets
   - size-S
 dependencies: []
-ordinal: 5700
+ordinal: 10000
 updated_date: '2026-11-07 18:30'
 ---
 

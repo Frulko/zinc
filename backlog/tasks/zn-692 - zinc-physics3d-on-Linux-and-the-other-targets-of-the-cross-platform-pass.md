@@ -8,7 +8,7 @@ labels:
   - physics
   - size-S
 dependencies: []
-ordinal: 97900
+ordinal: 57600
 updated_date: '2026-11-07 18:30'
 ---
 

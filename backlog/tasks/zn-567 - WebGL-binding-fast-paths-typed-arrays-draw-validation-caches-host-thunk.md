@@ -12,7 +12,7 @@ labels:
 milestone: m-22
 dependencies:
   - ZN-565
-ordinal: 5300
+ordinal: 8400
 ---
 
 ## Description

@@ -10,9 +10,10 @@ labels:
   - lint
   - targets
   - size-S
-milestone: m-11
+milestone: m-10
 dependencies: []
-ordinal: 1009000
+ordinal: 7900
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description

@@ -11,8 +11,8 @@ labels:
   - gfx
   - size-M
 dependencies: []
-ordinal: 12200
-updated_date: '2026-10-25 01:53'
+ordinal: 53500
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description

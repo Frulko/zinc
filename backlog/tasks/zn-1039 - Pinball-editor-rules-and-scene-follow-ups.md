@@ -10,7 +10,8 @@ labels:
   - size-M
 milestone: m-27
 dependencies: []
-ordinal: 1031000
+ordinal: 17500
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description

@@ -4,7 +4,7 @@ title: 'ff_replay: desktop CPU reference backend, T1 against the raster, counter
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:37'
-updated_date: '2026-10-25 01:53'
+updated_date: '2026-11-07 18:30'
 labels:
   - gpu
   - handheld
@@ -13,7 +13,7 @@ labels:
 milestone: m-23
 dependencies:
   - ZN-453
-ordinal: 51900
+ordinal: 55300
 ---
 
 ## Description
