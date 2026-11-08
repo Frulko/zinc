@@ -446,6 +446,7 @@
     {"paths": ["src/qjs/qjs.cpp", "src/vm/vm.cpp"], "tests": ["console_live"]},
     {"paths": ["src/rt/rtcalls.cpp", "src/qjs/qjs.cpp", "src/host/loop.cpp", "plugins/process/"], "tests": ["output_before_block"]},
     {"paths": ["src/rt/rtcalls.cpp", "src/rt/rt.h", "tests/golden/str_index/"], "tests": ["str_index"]},
+    {"paths": ["targets/null/hal_null.cpp", "src/host/gfx_host.cpp"], "tests": ["headless_realtime"]},
     {"paths": ["src/qjs/qjs.cpp"], "tests": ["qjs_robust", "qjs"]},
     {"paths": ["src/qjs/qjs.cpp", "tests/t0/qjs_symlinks.sh"], "tests": ["qjs_symlinks"]},
     {"paths": ["src/frontend/resolve.cpp", "src/frontend/resolve.h", "src/frontend/modules.cpp", "src/qjs/qjs.cpp", "src/cli_mqjs.cpp", "tests/t0/module_resolution.sh", "tests/data/resolve/"], "tests": ["module_resolution"]},

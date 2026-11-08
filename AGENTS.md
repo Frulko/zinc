@@ -39,7 +39,7 @@ tests/run --only <name>                             # one test; tests/run --chan
 ```
 
 Main `zinc` commands (table in `src/cli_core.cpp`): `run`, `build` (`--target` cross builds with the pinned zig), `check`, `test`, `new`/`init`, `dev` (watch + DevTools inspector), `export`, `deploy`, `pack`/`fuse` (.zapp), `publish`/`update-app`, `add`/`remove`/`install`/`plugins`/`trust` (signed plugin index), `capture`, `bench`, `toolchain`, `explain`, `lsp`, `flash`, `agent` (the daemon that makes a Linux or macOS machine a device) and `device` (its client: what adb does, over the network; `docs/reports/zinc-next-agent.md`).
-Useful environment: `ZINC_HEADLESS=1`, `ZINC_DETERMINISTIC=1`, `ZINC_FRAMES=n`, `ZINC_SHOT=file.png`, `ZINC_SCALE=1..4`, `ZINC_HOME` (toolchains and caches, default `~/.zinc`), `ZN_TRAP_TRACE=1`, `ZN_DUMP_JSX=<name>`.
+Useful environment: `ZINC_HEADLESS=1`, `ZINC_DETERMINISTIC=1`, `ZINC_FRAMES=n`, `ZINC_REALTIME=1` (headless frames at 60 a second on the real clock: `ZINC_FRAMES` becomes a duration), `ZINC_DURATION=ms`, `ZINC_SHOT=file.png`, `ZINC_SCALE=1..4`, `ZINC_HOME` (toolchains and caches, default `~/.zinc`), `ZN_TRAP_TRACE=1`, `ZN_DUMP_JSX=<name>`.
 
 ## Development workflow: the backlog
 

@@ -131,6 +131,15 @@ ZINC_SHOT=out.png ZINC_SHOT_FRAMES=1,30,60 zinc run myapp          # out-1.png, 
 ZINC_SHOT=out.png ZINC_SHOT_EVERY=10 ZINC_FRAMES=100 zinc run myapp  # every 10th frame
 ```
 
+A headless run (`ZINC_HEADLESS=1`) draws its frames as fast as it can, so 120 frames can be over before a timer, a thread
+or a network reply comes back. `ZINC_REALTIME=1` paces them at 60 a second on the real clock, so `ZINC_FRAMES` becomes a
+duration (60 frames, about a second), and `ZINC_DURATION=ms` ends the run after that many milliseconds whatever the count:
+
+```sh
+ZINC_HEADLESS=1 ZINC_REALTIME=1 ZINC_FRAMES=300 ZINC_SHOT=net.png zinc run myapp   # five seconds: the reply is on the shot
+ZINC_HEADLESS=1 ZINC_REALTIME=1 ZINC_DURATION=2000 ZINC_SHOT=net.png zinc run myapp
+```
+
 Frames are numbered from 1, like `ZINC_FRAMES` counts them. From code, `gfx.capture('frame.png')` saves the frame on
 screen (false when it cannot be written). Display-driver emulators keep
 their own `ZINC_SHOT` picture of the emulated device (BMP); on ps1 the emulator saves it (`targets/ps1/shot.lua`).

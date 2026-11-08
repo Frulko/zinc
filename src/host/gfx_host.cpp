@@ -334,7 +334,7 @@ void call(int id, const HostArg* a, HostArg* r) {
   switch (static_cast<Rt>(id)) {
     case Rt::HostGfxFrames: {
       const char* f = getenv("ZINC_FRAMES");
-      const int32_t all = f ? atoi(f) : zn_hal_is_live() ? 0x7fffffff : 60;  // a window runs until it is closed
+      const int32_t all = f ? atoi(f) : zn_hal_is_live() || getenv("ZINC_DURATION") ? 0x7fffffff : 60;  // a window runs until it is closed, a ZINC_DURATION run until it is over (the HAL ends it)
       r->i = all > zrt::frame_no ? all - zrt::frame_no : 0;   // the frames left: the loader stage (ZN-447) presents some before the program's loop
       break;
     }

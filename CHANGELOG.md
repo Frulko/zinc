@@ -127,6 +127,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `sys.kill(pid, '0')` of `zinc:sys` says whether a process exists, as Node's `process.kill`, and `sys.kill` returns false when the signal could not be delivered.
 - The network log (the inspector's Network view and `zinc run --har`) masks the fields of a multipart form (a `FormData`) named in `ZINC_NET_SENSITIVE`, as it already did for urlencoded forms, JSON and query strings; files and the other fields are kept.
 - `zinc lsp` completes in more places: the names a module exports inside the braces of an import, JSX component names and their attributes (a component's own props too), and the methods of strings and arrays with their signatures and docs.
+- Headless runs in real time: with `ZINC_HEADLESS=1 ZINC_REALTIME=1` frames come at 60 a second, so `ZINC_FRAMES=300` lasts five seconds and a screenshot (`ZINC_SHOT`) shows what timers and network replies brought in by then; `ZINC_DURATION=ms` ends a run after that long.
 - Auto-import in editors and Zinc Atelier: typing `rr` offers `rrect` from `zinc:gfx` (or an export of the sketch's other files), says where it comes from, and accepting it adds the import line or extends the one already there.
 
 #### Changed
