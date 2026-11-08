@@ -36,6 +36,7 @@
   "cli.cmd.engine": "i pacchetti dei motori JavaScript",
   "cli.cmd.update": "aggiornare Zinc stesso",
   "cli.cmd.plugins": "la tabella dei plugin, l'indice",
+  "cli.cmd.project": "il progetto in JSON, per gli strumenti",
   "cli.cmd.capture": "i fotogrammi di un programma in PNG",
   "cli.cmd.bench": "i tempi dei fotogrammi di un programma",
   "cli.cmd.export": "impacchettare un'app per un computer o una scheda",

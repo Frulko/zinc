@@ -1,22 +1,21 @@
 // The project of the open sketch (ZN-736): what its zinc.json says, for the sidebar and the Settings page, and what that page changes.
-// A sketch without a zinc.json is a plain sketch; the page offers to write one. zinc.json is read as text (model.ts: the engine has
-// no command that prints a parsed project) and an edit replaces one value of that text; `zinc check` then says what the engine
-// thinks of it. The plugins are those `zinc plugins` lists among the modules the code imports.
+// A sketch without a zinc.json is a plain sketch; the page offers to write one. The card reads the project as the engine does
+// (`zinc project --json`, ZN-1021: comments, a byte order mark, the targets' permissions in force, the plugins the program loads);
+// an edit replaces one value of the text of zinc.json, then the card is read again and `zinc check` says what the engine thinks of it.
 import { createSignal, createEffect } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import * as proc from 'zinc:process';
 import { sketchDir, sketchName, mainFile, buffers, edited, save, openFile, say } from './workspace';
-import { check, libraries, loadLibraries, Library, zinc, publish } from './tools';
+import { check, zinc, publish } from './tools';
 import * as dialog from 'zinc:system/dialog';
-import { Project, Target, readProject, jsonGet, jsonSet, jsonList, projectFiles, importsOf, permissionWords } from '../model';
+import { Project, Target, readProject, projectFromJson, jsonGet, jsonSet, jsonList, permissionWords } from '../model';
 import { t, tn } from './text';
 
 export const [projectOpen, setProjectOpen] = createSignal<boolean>(false);
-/** What zinc.json says; null: a plain sketch (no zinc.json, or one that is not a JSON object). */
+/** What zinc.json says; null: a plain sketch (no zinc.json, or one the engine refuses). */
 export const [project, setProject] = createSignal<Project | null>(null);
-/** Read when the card opens: the modules the code imports, and what the assets folder holds. */
-const [imports, setImports] = createSignal<string[]>([]);
+/** Read when the card opens: what the assets folder holds. */
 export const [assetsText, setAssetsText] = createSignal<string>('');
 /** The target of zinc.json that is this machine: its size is the window's. */
 export const HERE: string = sys.platform() === 'macos' ? 'macos' : 'linux';
@@ -24,7 +23,26 @@ const echo: boolean = sys.env('ZINC_ATELIER_ECHO') !== '';   // tests read the c
 
 function file(): string { return sketchDir() + '/zinc.json'; }
 function text(): string { try { return fs.readText(file()); } catch (e) { return ''; } }
-export function loadProject(): void { setProject(sketchDir() === '' ? null : readProject(text())); }
+let loads: i32 = 0, shown: i32 = 0;   // reads asked, the newest read shown
+/** Asks the engine for the project (`zinc project --json`); when the card is open, measures the assets folder and says the card again. */
+export function loadProject(): void {
+  const dir = sketchDir();
+  if (dir === '') { setProject(null); return; }
+  const gen = ++loads;
+  let out = '';
+  try {
+    const p = zinc(['project', '--json', dir], '');
+    p.onData((chunk: string, stderr: boolean) => { if (!stderr) out += chunk; });
+    p.onExit((code: i32) => {
+      if (gen < shown) return;   // a newer read answered first
+      shown = gen;
+      setProject(projectFromJson(out));
+      if (!projectOpen()) return;
+      measureAssets();
+      if (echo) console.log('[project] ' + projectText());
+    });
+  } catch (e) { setProject(null); }
+}
 createEffect(() => { sketchDir(); loadProject(); });
 
 /** The app's name and version as the header writes them: `hero 1.2.0`; the folder's name for a plain sketch. */
@@ -45,8 +63,8 @@ export function sizeHere(): Target | null {
   if (p !== null) for (const t of (p as Project).targets) if (t.name === HERE) return t;
   return null;
 }
-/** The plugins the code imports: the imported modules that `zinc plugins` lists. */
-export function plugins(): string[] { return imports().filter((m: string) => libraries().some((l: Library) => l.name === m)); }
+/** The plugins the program loads, as the engine found them (`zinc project --json`): their modules. */
+export function plugins(): string[] { const p = project(); return p === null ? [] : (p as Project).plugins; }
 /** One line on what a permission of zinc.json allows, in the language of the interface; '' for an id the engine does not know. */
 export function permissionText(id: string): string {
   const w = permissionWords(id);
@@ -62,23 +80,16 @@ function measure(dir: string, depth: i32, sum: number[]): void {
     else if (e.isFile) { sum[0] += fs.stat(dir + '/' + e.name).size; sum[1] += 1; }
   }
 }
-/** Opens the card on what the folder holds now (zinc.json may have been edited in its tab). */
-export function openProject(): void {
-  const dir = sketchDir();
-  if (dir === '') return;
-  loadProject();
-  const mods: string[] = [];
-  for (const f of projectFiles(dir)) {
-    try { for (const m of importsOf(fs.readText(dir + '/' + f))) if (mods.indexOf(m) < 0) mods.push(m); } catch (e) { /* a file that went away */ }
-  }
-  mods.sort((a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0));
-  setImports(mods);
+function measureAssets(): void {
   const p = project(), folder = p !== null && (p as Project).assets !== '' ? (p as Project).assets : 'assets';
   const sum: number[] = [0, 0];
-  try { measure(dir + '/' + folder, 0, sum); setAssetsText(tn('atelier.project.assets', sum[1], ['folder', folder + '/', 'size', bytes(sum[0])])); } catch (e) { setAssetsText(t('atelier.project.no_assets')); }
-  loadLibraries();
+  try { measure(sketchDir() + '/' + folder, 0, sum); setAssetsText(tn('atelier.project.assets', sum[1], ['folder', folder + '/', 'size', bytes(sum[0])])); } catch (e) { setAssetsText(t('atelier.project.no_assets')); }
+}
+/** Opens the card on what the folder holds now (zinc.json may have been edited in its tab); the card fills when the engine answers. */
+export function openProject(): void {
+  if (sketchDir() === '') return;
   setProjectOpen(true);
-  if (echo) console.log('[project] ' + projectText());
+  loadProject();
 }
 /** What the card says, on one line (scripted sessions wait for it). */
 export function projectText(): string {
@@ -102,8 +113,7 @@ function write(path: string[], value: string): boolean {
     edited(b, after); tab = save(b);
   }
   if (!tab) { try { fs.writeText(file(), after); } catch (e) { say(t('atelier.project.cannot_write')); return false; } }
-  loadProject();
-  if (echo) console.log('[project] ' + projectText());
+  loadProject();   // says the card again when the engine answers
   check();
   return true;
 }

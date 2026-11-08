@@ -1,5 +1,5 @@
 import * as fs from 'zinc:fs';
-import { parseDiagnostics, hottest, tracePhases, projectFiles, Phase, parseDevices, parseFigures, sizeText, Figures, stepOf, readProject, jsonSet, jsonGet, jsonList, permissionWords, importsOf, Project, Target } from '../../../app/atelier/model';
+import { parseDiagnostics, hottest, tracePhases, projectFiles, Phase, parseDevices, parseFigures, sizeText, Figures, stepOf, readProject, jsonSet, jsonGet, jsonList, permissionWords, projectFromJson, diagnosticsFromJson, Project, Target } from '../../../app/atelier/model';
 const d = parseDiagnostics("/a/b.ts:1:14: error Z0103: Type is not assignable: 'string' to 'i32'\nnoise\n");
 console.log(d.length, d[0].file, d[0].line, d[0].col, d[0].code, d[0].message);
 const h = hottest("main;a;b 3\nmain;a 1\nmain;c;b 4\n", 5);
@@ -35,4 +35,8 @@ console.log(sized.length - hero.length, jsonGet(sized, ['targets', 'macos', 'wid
 console.log(jsonSet(hero, ['permissions'], jsonList(['menu'])).split('\n')[4], '/', jsonSet(hero, ['app', 'name'], '"Hero"').split('\n')[2]);
 console.log(JSON.stringify(jsonSet('{ "name": "a" }', ['app', 'version'], '"0.2.0"')), JSON.stringify(jsonSet('{}', ['name'], '"a"')), JSON.stringify(jsonSet('{\n  "name": "a"\n}\n', ['permissions'], '[]')));
 console.log(permissionWords('tray').join(' '), '/', permissionWords('fs:read:data').join(' '), '/', permissionWords('net:api.example.com').join(' '), '/', permissionWords('window:state').join(' '), '/', '[' + permissionWords('teleport').join(' ') + ']');
-console.log(importsOf("import * as ui from 'zinc:ui';\nimport { a } from './a';\nimport 'three';\nimport { b } from \"zinc:gfx\";\n").join(','));
+// zinc project --json and zinc check --json (ZN-1021): the card and the diagnostics read from the engine's JSON
+const pj = projectFromJson('{"format":1,"manifest":true,"name":"weather","id":"org.example.weather","version":"1.4.0","icon":"icon.png","entry":"src/main.tsx","assets":"assets","shell":"","publicKey":"","permissionsDeclared":true,"permissions":["menu"],"requires":["display"],"targets":[{"name":"macos","width":900,"height":600,"display":"","resize":"","fullscreen":false,"permissions":["menu","tray"]}],"plugins":[{"name":"audio","module":"zinc:audio"}],"warnings":[]}') as Project;
+console.log(pj.name, pj.id, pj.version, pj.entry, pj.declared, pj.permissions.join('+'), pj.targets[0].name, pj.targets[0].width, pj.plugins.join('+'), projectFromJson('{"format":1,"manifest":false}') === null, projectFromJson('{"format":1,"manifest":true,"error":"zinc.json: invalid JSON"}') === null);
+const dj = diagnosticsFromJson('[{"uri":"a.ts","code":"Z0103","message":"Type is not assignable","file":"a.ts","line":3,"column":7,"fix":"","text":"Le type ne convient pas"}]\n');
+console.log(dj.length, dj[0].file, dj[0].line, dj[0].col, dj[0].code, dj[0].message, diagnosticsFromJson('a.js:1:1: error Q0001: x').length);

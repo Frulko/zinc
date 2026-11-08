@@ -101,6 +101,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `ZINC_RESOURCE_LOG=<file>[:seconds]` appends, every 30 seconds by default, a line with the app's memory and what each part holds (images, GPU textures, fonts, script heap): the way to see which part grows in an app that gets slower over days.
 - Editors now know `zinc:ui`: after `zinc tsconfig`, `PointerEvent`, `KeyEvent` and the rest of the module come with their docs, and the event attributes of `View`, `Button` and the other host tags (`onPointerDown`, `onKeyDown`, `onInput`...) type their argument.
 - Editors now know `dataDir()` of `zinc:sys`, the app's own writable folder (`~/.zinc/apps/<name>/`, made on first call), where an app keeps its files.
+- Tools can read the CLI as JSON: `zinc project --json` prints the project as the engine reads `zinc.json` (targets, the permissions in force on each, the plugins the program loads), `zinc check --json` gives each diagnostic its file, line, column, fix and message in your language, and `zinc plugins --json` lists the plugins. Zinc Atelier now reads these instead of parsing text.
 
 #### Changed
 
@@ -140,6 +141,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Fixed
 
 - The delete icons of the Nuxt UI, Carnet and Discord examples and of the `desktop-app` template draw again: they used `trash-2`, a name Lucide changed to `trash`.
+- Zinc Atelier's Settings page shows a project whose `zinc.json` has comments or a byte order mark, and edits it, instead of calling it a plain sketch.
 
 
 ### Docs and learning

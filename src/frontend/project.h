@@ -69,6 +69,7 @@ struct Project {
   bool player = false;              // "player": true: zinc export makes a player of the phone (Zinc Go, ZN-631): the program is its home screen, in bytecode, with the interpreter and every plugin made for the platform
   bool webgl = false;               // "webgl": true lets zinc:script contexts create WebGL canvases (ZN-205), passed as ZINC_WEBGL
   bool web = false;                 // "web": true (or an object, its keys kept for later): QuickJS programs start with the web environment (ZN-568), as ZINC_WEB=1
+  std::string shell;                // "shell": "window" | "fullscreen" | "kiosk", how a Pi's shell shows the app; "" = not set
   std::string engine;               // "engine": "quickjs" runs the project on QuickJS-ng, "zinc" on the typed engines; "" = QuickJS for a .js or .mjs entry (ZN-719)
   bool perfHud = false;             // "dev": {"perfHud": true}: zinc run shows the performance panel (ZN-375), passed as ZINC_PERF_HUD
   std::string scheme;               // "scheme": "light" | "dark" | "auto": the initial colour scheme of zinc:ui (ZN-271), passed as ZINC_SCHEME

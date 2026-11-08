@@ -441,7 +441,8 @@ std::string androidManifestPermissions(const Project& p) {
 
 bool parseProject(const std::string& text, Project& out, std::string& err) {
   yyjson_read_err re;
-  yyjson_doc* doc = yyjson_read_opts(const_cast<char*>(text.data()), text.size(), YYJSON_READ_ALLOW_COMMENTS | YYJSON_READ_ALLOW_TRAILING_COMMAS, nullptr, &re);
+  const std::size_t bom = text.rfind("\xEF\xBB\xBF", 0) == 0 ? 3 : 0;   // a byte order mark, as Windows editors write one (ZN-1021)
+  yyjson_doc* doc = yyjson_read_opts(const_cast<char*>(text.data()) + bom, text.size() - bom, YYJSON_READ_ALLOW_COMMENTS | YYJSON_READ_ALLOW_TRAILING_COMMAS, nullptr, &re);
   if (!doc) { err = std::string("invalid JSON: ") + re.msg + " at byte " + std::to_string(re.pos); return false; }
   struct Free { yyjson_doc* d; ~Free() { yyjson_doc_free(d); } } guard{doc};
   yyjson_val* root = yyjson_doc_get_root(doc);
@@ -459,6 +460,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
   if (yyjson_val* x = yyjson_obj_get(root, "shell")) {   // how a Pi's shell shows the app (plugins/shell; the device agent copies it to app.json)
     const char* m = yyjson_get_str(x);
     if (!m || (std::strcmp(m, "window") && std::strcmp(m, "fullscreen") && std::strcmp(m, "kiosk"))) { err = "line " + std::to_string(lineOf(text, "shell")) + ": \"shell\" must be \"window\", \"fullscreen\" or \"kiosk\""; out.fatal = true; return false; }
+    out.shell = m;
   }
   if (yyjson_val* x = yyjson_obj_get(root, "web")) out.web = yyjson_is_obj(x) || yyjson_is_true(x);
   if (yyjson_val* x = yyjson_obj_get(root, "engine"); x && yyjson_is_str(x)) out.engine = yyjson_get_str(x);

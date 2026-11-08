@@ -3506,12 +3506,16 @@ int main(int argc, char** argv) {
     std::printf("%s\n", file.c_str());
     return 0;
   }
-  if (argc == 4 && !std::strcmp(argv[1], "check") && !std::strcmp(argv[2], "--json")) {  // zinc check --json <file>: the diagnostics as LSP-shaped JSON on stdout (what the prototype prints), exit 1 when there are errors
-    zn::i18n::use("en");   // what tools read stays English (D159)
+  if (argc == 4 && !std::strcmp(argv[1], "check") && !std::strcmp(argv[2], "--json")) {  // zinc check --json <file|dir>: the diagnostics as JSON on stdout, exit 1 when there are errors
+    // LSP-shaped (uri, range 0-based, code, severity, message: what the prototype printed and zinc lsp compares) plus, for tools such as Atelier (ZN-1021),
+    // file, line and column 1-based, the registry's fix and `text`, the message in the person's language (ZINC_LANG); `message` stays English (D159)
+    const std::string lang = zn::i18n::language();
+    zn::i18n::use("en");
     zn::frontend::Program prog = zn::frontend::loadProgram(argv[3], readFile, gStrict, gRoot + "/lib/std");
     std::vector<zn::frontend::Diag> diags = prog.diags;
     if (diags.empty()) { zn::frontend::Checked checked = zn::frontend::check(prog.ast); diags = checked.diags; }
     auto quote = [](const std::string& t) { std::string q = "\""; for (char c : t) { if (c == '"' || c == '\\') { q += '\\'; q += c; } else if (c == '\n') q += "\\n"; else if (static_cast<unsigned char>(c) < 32) { char b[8]; std::snprintf(b, sizeof b, "\\u%04x", c); q += b; } else q += c; } return q + "\""; };
+    auto messageOf = [](const std::string& line, std::size_t c) { std::size_t m = line.find(": error ", c); return m == std::string::npos ? line.substr(c + 1) : line.substr(line.find(": ", m + 8) + 2); };
     std::string out = "[";
     for (std::size_t k = 0; k < diags.size(); ++k) {
       const zn::frontend::Diag& d = diags[k];
@@ -3519,9 +3523,12 @@ int main(int argc, char** argv) {
       std::size_t a = line.find(':'), b = line.find(':', a + 1), c = line.find(':', b + 1);
       std::string file = line.substr(0, a);
       int ln = std::atoi(line.c_str() + a + 1), col = std::atoi(line.c_str() + b + 1);
-      std::size_t m = line.find(": error ", c);
-      std::string message = m == std::string::npos ? line.substr(c + 1) : line.substr(line.find(": ", m + 8) + 2);
-      out += std::string(k ? ",\n" : "\n") + "  {\"uri\": " + quote(file) + ", \"range\": {\"start\": {\"line\": " + std::to_string(ln - 1) + ", \"character\": " + std::to_string(col - 1) + "}}, \"code\": " + quote(d.code) + ", \"severity\": 1, \"message\": " + quote(message) + "}";
+      const std::string message = messageOf(line, c);
+      std::string text = message;
+      if (lang != "en") { zn::i18n::use(lang); text = messageOf(zn::frontend::formatDiag(prog, d), c); zn::i18n::use("en"); }   // the place is the same text in every language
+      const zn::DiagInfo* info = zn::findDiag(d.code);
+      out += std::string(k ? ",\n" : "\n") + "  {\"uri\": " + quote(file) + ", \"range\": {\"start\": {\"line\": " + std::to_string(ln - 1) + ", \"character\": " + std::to_string(col - 1) + "}}, \"code\": " + quote(d.code) + ", \"severity\": 1, \"message\": " + quote(message)
+           + ", \"file\": " + quote(file) + ", \"line\": " + std::to_string(ln) + ", \"column\": " + std::to_string(col) + ", \"fix\": " + quote(info ? info->fix : "") + ", \"text\": " + quote(text) + "}";
     }
     out += diags.empty() ? "]\n" : "\n]\n";
     std::fputs(out.c_str(), stdout);
@@ -3711,12 +3718,112 @@ int main(int argc, char** argv) {
   if (argc >= 2 && !std::strcmp(argv[1], "engine")) return zn::tc::engines::command(std::vector<std::string>(argv + 2, argv + argc), gRoot, ZN_ENGINE_ABI);   // engine packs (ZN-773.04)
   if (argc >= 2 && !std::strcmp(argv[1], "update")) return zn::tc::updateCommand(std::vector<std::string>(argv + 2, argv + argc));   // zinc updates itself (src/tc/selfupdate.cpp)
   if (argc >= 3 && !std::strcmp(argv[1], "plugins") && !std::strcmp(argv[2], "search")) return zn::cli::indexSearch(std::vector<std::string>(argv, argv + argc), gRoot);   // ZN-336.03
-  if (argc >= 2 && !std::strcmp(argv[1], "plugins")) {  // zinc plugins [project-dir] [--defines <plugin> [target]]: the toolbox table (the engine's plugins/, the project's, its pluginDirs), or the C++ defines one plugin gets
+  // --json of zinc project and zinc plugins (ZN-1021): one JSON document on stdout with "format": 1, what Atelier and other tools read instead of text
+  auto pluginJson = [](yyjson_mut_doc* d, yyjson_mut_val* arr, const zn::frontend::FoundPlugin& f) {
+    yyjson_mut_val* o = yyjson_mut_arr_add_obj(d, arr);
+    yyjson_mut_obj_add_strcpy(d, o, "name", f.manifest.name.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "module", f.manifest.module.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "kind", f.manifest.kind.c_str());
+    yyjson_mut_val* ts = yyjson_mut_obj_add_arr(d, o, "targets");
+    for (const std::string& t : f.manifest.targets) yyjson_mut_arr_add_strcpy(d, ts, t.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "description", f.manifest.description.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "dir", f.dir.c_str());
+  };
+  auto printJson = [](yyjson_mut_doc* d) {
+    if (char* s = yyjson_mut_write(d, YYJSON_WRITE_PRETTY_TWO_SPACES | YYJSON_WRITE_NEWLINE_AT_END, nullptr)) { std::fputs(s, stdout); std::free(s); }
+    yyjson_mut_doc_free(d);
+  };
+  if (argc >= 3 && argc <= 4 && !std::strcmp(argv[1], "project") && !std::strcmp(argv[2], "--json")) {   // zinc project --json [dir]: the project as the engine reads zinc.json
+    namespace fs = std::filesystem;
+    const std::string dir = fs::absolute(argc == 4 ? argv[3] : ".").lexically_normal().string();
+    std::string text, err;
+    const bool manifest = readFile(dir + "/zinc.json", text);
+    zn::frontend::Project p;
+    const bool ok = manifest && zn::frontend::parseProject(text, p, err);
+    yyjson_mut_doc* d = yyjson_mut_doc_new(nullptr);
+    yyjson_mut_val* o = yyjson_mut_obj(d);
+    yyjson_mut_doc_set_root(d, o);
+    yyjson_mut_obj_add_int(d, o, "format", 1);
+    yyjson_mut_obj_add_strcpy(d, o, "dir", dir.c_str());
+    yyjson_mut_obj_add_bool(d, o, "manifest", manifest);
+    if (manifest && !ok) {   // the reason, as zinc run says it; exit 1
+      yyjson_mut_obj_add_strcpy(d, o, "error", ("zinc.json: " + err).c_str());
+      printJson(d);
+      return 1;
+    }
+    auto list = [&](yyjson_mut_val* to, const char* key, const std::vector<std::string>& v) { yyjson_mut_val* a = yyjson_mut_obj_add_arr(d, to, key); for (const std::string& s : v) yyjson_mut_arr_add_strcpy(d, a, s.c_str()); };
+    yyjson_mut_obj_add_strcpy(d, o, "name", (!p.app.name.empty() ? p.app.name : !p.name.empty() ? p.name : fs::path(dir).filename().string()).c_str());   // app.name wins, as on the bundle
+    yyjson_mut_obj_add_strcpy(d, o, "id", p.app.id.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "version", p.app.version.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "icon", p.app.icon.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "entry", p.entry.c_str());   // as written ("" when zinc.json names none)
+    const std::string main = zn::frontend::entryOf(dir, manifest ? &p : nullptr);
+    yyjson_mut_obj_add_strcpy(d, o, "main", main.empty() ? "" : fs::path(main).lexically_relative(dir).generic_string().c_str());   // the file zinc run starts
+    yyjson_mut_obj_add_strcpy(d, o, "engine", p.engine.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "profile", p.profile.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "assets", p.assets.dir.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "shell", p.shell.c_str());
+    yyjson_mut_obj_add_strcpy(d, o, "publicKey", p.updateKey.c_str());
+    yyjson_mut_obj_add_bool(d, o, "permissionsDeclared", p.permissionsDeclared);
+    list(o, "permissions", p.permissions);
+    list(o, "requires", p.requires_);
+    yyjson_mut_val* ts = yyjson_mut_obj_add_arr(d, o, "targets");
+    std::vector<std::string> order;   // the targets in the order zinc.json writes them (Project keeps a sorted map)
+    const std::size_t bom = text.rfind("\xEF\xBB\xBF", 0) == 0 ? 3 : 0;
+    if (yyjson_doc* raw = yyjson_read_opts(text.data() + bom, text.size() - bom, YYJSON_READ_ALLOW_COMMENTS | YYJSON_READ_ALLOW_TRAILING_COMMAS, nullptr, nullptr)) {
+      yyjson_obj_iter it = yyjson_obj_iter_with(yyjson_obj_get(yyjson_doc_get_root(raw), "targets"));
+      while (yyjson_val* k = yyjson_obj_iter_next(&it)) if (p.targets.count(yyjson_get_str(k))) order.push_back(yyjson_get_str(k));
+      yyjson_doc_free(raw);
+    }
+    for (const std::string& name : order) {
+      const zn::frontend::TargetOptions& t = p.targets.at(name);
+      yyjson_mut_val* x = yyjson_mut_arr_add_obj(d, ts);
+      yyjson_mut_obj_add_strcpy(d, x, "name", name.c_str());
+      yyjson_mut_obj_add_int(d, x, "width", t.width);
+      yyjson_mut_obj_add_int(d, x, "height", t.height);
+      yyjson_mut_obj_add_strcpy(d, x, "display", t.display.c_str());
+      yyjson_mut_obj_add_strcpy(d, x, "resize", t.resize.c_str());
+      yyjson_mut_obj_add_bool(d, x, "fullscreen", t.fullscreen);
+      list(x, "permissions", zn::frontend::permissionsFor(p, name));   // in force on that target: the base list, its additions, minus its -id entries
+    }
+    // the plugins the program uses: those whose files the entry's module graph loads (parsed only: no native build, no type check)
+    yyjson_mut_val* used = yyjson_mut_obj_add_arr(d, o, "plugins");
+    if (!main.empty()) {
+      const auto provider = zn::frontend::gNativeProvider;
+      zn::frontend::gNativeProvider = nullptr;
+      const zn::frontend::Program prog = zn::frontend::loadProgram(main, readFile, gStrict, gRoot + "/lib/std");
+      zn::frontend::gNativeProvider = provider;
+      std::vector<std::string> problems;
+      for (const auto& f : zn::frontend::discoverPlugins(gRoot, dir, problems)) {
+        std::error_code ec;
+        const std::string pd = fs::weakly_canonical(f.dir, ec).string() + "/";
+        for (const auto& sf : prog.files) if (fs::weakly_canonical(sf.path, ec).string().rfind(pd, 0) == 0) { pluginJson(d, used, f); break; }
+      }
+    }
+    list(o, "warnings", p.warnings);
+    printJson(d);
+    return 0;
+  }
+  if (argc >= 2 && !std::strcmp(argv[1], "plugins")) {  // zinc plugins [project-dir] [--defines <plugin> [target]] [--json]: the toolbox table (the engine's plugins/, the project's, its pluginDirs), or the C++ defines one plugin gets
+    bool json = false;
+    for (int k = 2; k < argc; ++k) if (!std::strcmp(argv[k], "--json")) { json = true; for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1]; --argc; break; }
     std::vector<std::string> problems;
     std::string project = argc >= 3 && std::strncmp(argv[2], "--", 2) ? argv[2] : ".";
     std::string root = gRoot;
     auto found = zn::frontend::discoverPlugins(root, project, problems);
     int rc = problems.empty() ? 0 : 1;
+    if (json) {   // {"format": 1, "plugins": [{name, module, kind, targets, description, dir}], "problems": [...]}
+      yyjson_mut_doc* d = yyjson_mut_doc_new(nullptr);
+      yyjson_mut_val* o = yyjson_mut_obj(d);
+      yyjson_mut_doc_set_root(d, o);
+      yyjson_mut_obj_add_int(d, o, "format", 1);
+      yyjson_mut_val* arr = yyjson_mut_obj_add_arr(d, o, "plugins");
+      for (const auto& f : found) pluginJson(d, arr, f);
+      yyjson_mut_val* pr = yyjson_mut_obj_add_arr(d, o, "problems");
+      for (const std::string& p : problems) yyjson_mut_arr_add_strcpy(d, pr, p.c_str());
+      printJson(d);
+      return rc;
+    }
     if (argc >= 5 && !std::strcmp(argv[argc - (argc >= 6 ? 3 : 2)], "--defines")) {
       std::string name = argv[argc - (argc >= 6 ? 2 : 1)], target = argc >= 6 ? argv[argc - 1] : "macos";
       bool hit = false;

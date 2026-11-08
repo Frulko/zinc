@@ -18,4 +18,5 @@ true true true false
   "permissions": ["menu"], /   "app": { "id": "dev.zinc.hero", "version": "1.2.0", "icon": "icon.png", "name": "Hero" },
 "{ \"name\": \"a\", \"app\": { \"version\": \"0.2.0\" } }" "{ \"name\": \"a\" }" "{\n  \"name\": \"a\",\n  \"permissions\": []\n}\n"
 atelier.permission.tray / atelier.permission.fs_read_under path data / atelier.permission.net_host host api.example.com / atelier.permission.only id atelier.permission.window detail state / []
-zinc:ui,zinc:gfx,three
+weather org.example.weather 1.4.0 src/main.tsx true menu macos 900 zinc:audio true true
+1 a.ts 3 7 Z0103 Le type ne convient pas 0

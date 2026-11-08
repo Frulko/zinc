@@ -36,6 +36,7 @@
   "cli.cmd.engine": "the JavaScript engine packs",
   "cli.cmd.update": "update Zinc itself",
   "cli.cmd.plugins": "the plugin table, the index",
+  "cli.cmd.project": "the project as JSON, for tools",
   "cli.cmd.capture": "a program's frames as PNG",
   "cli.cmd.bench": "frame timings of a program",
   "cli.cmd.export": "package an app for a computer or a board",

@@ -146,10 +146,20 @@ export function stepOf(text: string): string[] {
 }
 
 // ---------------------------------------------------------------- zinc.json: what a project says, and the smallest edit of its text
-// The engine has no command that prints a parsed project, so the card reads the text here; `zinc check` is what validates it.
+// The card reads the project from `zinc project --json` (projectFromJson); the text is read here only to edit it, and `zinc check` validates it.
 // One scanner serves reading and writing: it finds where a value is in the text, so an edit replaces that value and nothing else
 // (the other keys, their order and the layout stay byte for byte).
-function ws(s: string, i: i32): i32 { while (i < s.length && (s.charCodeAt(i) === 32 || s.charCodeAt(i) === 9 || s.charCodeAt(i) === 10 || s.charCodeAt(i) === 13)) i++; return i; }
+/** Past the blanks, and what the engine allows in zinc.json between values: a byte order mark, line and block comments (ZN-1021). */
+function ws(s: string, i: i32): i32 {
+  while (i < s.length) {
+    const c = s.charCodeAt(i);
+    if (c === 32 || c === 9 || c === 10 || c === 13 || c === 0xfeff) i++;
+    else if (c === 47 && s.charCodeAt(i + 1) === 47) { const e = s.indexOf('\n', i); i = e < 0 ? s.length : e + 1; }
+    else if (c === 47 && s.charCodeAt(i + 1) === 42) { const e = s.indexOf('*/', i + 2); i = e < 0 ? s.length : e + 2; }
+    else break;
+  }
+  return i;
+}
 /** The end of the JSON value that starts at i: a string, an object, an array, a number or a word. */
 function valueEnd(s: string, i: i32): i32 {
   const c = s.charCodeAt(i);
@@ -239,6 +249,7 @@ export class Project {
   name: string = ''; id: string = ''; version: string = ''; icon: string = ''; entry: string = ''; assets: string = '';
   targets: Target[] = []; permissions: string[] = []; declared: boolean = false; requires: string[] = [];
   shell: string = ''; publicKey: string = '';   // how a Pi's shell shows it ("window", "fullscreen", "kiosk"); update.publicKey, the key its releases are signed with
+  plugins: string[] = [];                         // the modules of the plugins the program loads (zinc project --json only)
 }
 function jsonText(raw: string): string {
   if (!raw.startsWith('"')) return '';
@@ -292,18 +303,27 @@ export function permissionWords(id: string): string[] {
   const own = k + (f === 'notifications' ? 'notification' : f);
   return rest === '' ? [own] : [k + 'only', 'id', own, 'detail', rest];
 }
-/** The modules a source text imports that are not its own files: `zinc:ui`, `three`. */
-export function importsOf(source: string): string[] {
-  const out: string[] = [];
-  for (const q of ["from '", 'from "', "import '", 'import "']) {
-    let k = source.indexOf(q);
-    while (k >= 0) {
-      const a = k + q.length, b = source.indexOf(q.charAt(q.length - 1), a);
-      if (b < 0) break;
-      const spec = source.slice(a, b);
-      if (spec !== '' && !spec.startsWith('.') && !spec.startsWith('/') && spec.indexOf('\n') < 0 && out.indexOf(spec) < 0) out.push(spec);
-      k = source.indexOf(q, b);
-    }
-  }
-  return out;
+/** What `zinc project --json` printed (ZN-1021): the project as the engine reads zinc.json, comments and all; null for a folder without
+ *  zinc.json, one the engine refuses, or no answer. `plugins` are the modules of the plugins the program loads. */
+export function projectFromJson(out: string): Project | null {
+  try {
+    const d = JSON.parse(out);
+    if (d.manifest !== true || d.error !== undefined) return null;
+    const p = new Project();
+    p.name = d.name; p.id = d.id; p.version = d.version; p.icon = d.icon; p.entry = d.entry; p.assets = d.assets;
+    p.declared = d.permissionsDeclared; p.shell = d.shell; p.publicKey = d.publicKey;
+    for (const x of d.permissions) { const s: string = x; p.permissions.push(s); }
+    for (const x of d.requires) { const s: string = x; p.requires.push(s); }
+    for (const x of d.targets) p.targets.push({ name: x.name, width: x.width, height: x.height, display: x.display, resize: x.resize, fullscreen: x.fullscreen });
+    for (const x of d.plugins) { const s: string = x.module !== '' ? x.module : x.name; p.plugins.push(s); }
+    return p;
+  } catch (e) { return null; }
+}
+/** The diagnostics of `zinc check --json` (ZN-1021), each message in the language the engine was asked for (`text`). */
+export function diagnosticsFromJson(out: string): Diag[] {
+  const list: Diag[] = [];
+  try {
+    for (const x of JSON.parse(out)) list.push({ file: x.file, line: x.line, col: x.column, severity: 'error', code: x.code, message: x.text });
+  } catch (e) { /* not the JSON of zinc check: no diagnostics */ }
+  return list;
 }

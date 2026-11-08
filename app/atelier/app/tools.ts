@@ -10,7 +10,7 @@ import * as proc from 'zinc:process';
 import { setClipboardText } from 'zinc:gfx';
 import { Spring } from './motion';
 import { Buffer, Diagnostic, buffers, saveAll, sketchDir, sketchName, mainFile, openFile, openSketch, sketchbook, say, APP_HOME } from './workspace';
-import { parseDiagnostics, Diag, stepOf } from '../model';
+import { parseDiagnostics, diagnosticsFromJson, Diag, stepOf } from '../model';
 import { t, tn, lang } from './text';
 
 export const ZINC: string = sys.env('ZINC_BIN') !== '' ? sys.env('ZINC_BIN') : 'zinc';
@@ -407,15 +407,17 @@ export function check(): void {
   if (dir === '' || main === '' || child !== null) return;
   const gen = ++checkGen;
   checks++;
-  let out = '';
+  let out = '', said = '';
   try {
-    const p = zinc(['check', main], dir);
-    p.onData((chunk: string, stderr: boolean) => { out += chunk; });
+    // the diagnostics as JSON, each in the interface's language (ZN-1021); a JavaScript sketch's QuickJS check prints text
+    const p = zinc(['check', '--json', main], dir);
+    p.onData((chunk: string, stderr: boolean) => { if (stderr) said += chunk; else out += chunk; });
     p.onExit((code: i32) => {
       checks--;
       if (gen !== checkGen) return;   // a newer check is running
       if (code === 126 || code === 127) { if (phase() === IDLE) setStatus('atelier.run.no_zinc', 2, ['path', ZINC]); return; }   // no zinc to start
-      const all: Diag[] = parseDiagnostics(out);
+      const all: Diag[] = out.startsWith('[') ? diagnosticsFromJson(out) : parseDiagnostics(out + said);
+      out += said;
       for (const b of buffers()) {
         const mine: Diagnostic[] = [];
         for (const d of all) if ((d.file.startsWith('/') ? d.file : dir + '/' + d.file) === b.path) mine.push(new Diagnostic(d.line - 1, d.col - 1, 1, d.message));
@@ -557,27 +559,20 @@ export class Library {
   constructor(name: string, text: string) { this.name = name; this.text = text; }
 }
 export const [libraries, setLibraries] = createSignal<Library[]>([]);
-/** Reads the plugins the CLI lists for the sketch (`zinc plugins <dir>`): the ones a program imports (`zinc:name`, `three`). */
+/** Reads the plugins the CLI lists for the sketch (`zinc plugins <dir> --json`): the modules a program imports (`zinc:name`, `three`). */
 export function loadLibraries(): void {
   if (libraries().length > 0) return;
   let out = '';
   try {
-    const p = zinc(['plugins', sketchDir() === '' ? '.' : sketchDir()], '');
+    const p = zinc(['plugins', sketchDir() === '' ? '.' : sketchDir(), '--json'], '');
     checks++;
-    p.onData((chunk: string, stderr: boolean) => { out += chunk; });
+    p.onData((chunk: string, stderr: boolean) => { if (!stderr) out += chunk; });
     p.onExit((code: i32) => {
       checks--;
       const list: Library[] = [];
-      let table = false;
-      for (const l of out.split('\n')) {
-        if (l.startsWith('plugin (')) { table = true; continue; }   // the header of the table
-        if (!table || !l.startsWith('  ') || l.startsWith('  display:')) continue;
-        const t = l.trim(), sp = t.indexOf(' ');
-        if (sp < 0) continue;
-        // name, targets, description: columns separated by runs of spaces
-        const rest = t.slice(sp).trim(), sp2 = rest.indexOf(' ');
-        list.push(new Library(t.slice(0, sp), sp2 < 0 ? '' : rest.slice(sp2).trim()));
-      }
+      try {
+        for (const x of JSON.parse(out).plugins) if (x.module !== '') list.push(new Library(x.module, x.description));   // a display driver imports nothing
+      } catch (e) { say(t('atelier.library.cannot_list')); }
       setLibraries(list);
     });
   } catch (e) { say(t('atelier.library.cannot_list')); }

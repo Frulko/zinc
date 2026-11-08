@@ -43,4 +43,12 @@ echo '{ "name": "app", "entry": "src/main.ts", "crash": "restart" }' > "$tmp/app
 out=$(run "$tmp/app" "$tmp/other")
 case "$out" in *'"crash" is gone'*J0001*) ;; *) echo "zinc.json crash is not refused with J0001: $out"; fail=1 ;; esac
 "$ZINC" explain J0001 | grep -q '^J0001: ' || { echo "zinc explain J0001 prints nothing"; fail=1; }
+# zinc project --json (ZN-1021): the project as the engine reads it, from a zinc.json with a byte order mark, a comment and a trailing comma;
+# the targets in file order with the permissions in force there, and the plugins the program loads
+printf "import * as audio from 'zinc:audio';\nconsole.log('x');\n" > "$tmp/app/src/main.ts"
+printf '\357\273\277{\n  // a comment\n  "name": "app", "entry": "src/main.ts", "permissions": ["menu"],\n  "targets": { "macos": { "width": 9, "permissions": ["tray"] }, "linux": { "width": 8 }, },\n}\n' > "$tmp/app/zinc.json"
+out=$("$ZINC" project --json "$tmp/app" | tr -d ' \n')
+case "$out" in *'"format":1,'*'"manifest":true,"name":"app",'*'"main":"src/main.ts",'*'"targets":[{"name":"macos","width":9,'*'"permissions":["menu","tray"]},{"name":"linux",'*'"plugins":[{"name":"audio","module":"zinc:audio",'*) ;;
+  *) echo "zinc project --json does not print the project: $out"; fail=1 ;; esac
+"$ZINC" project --json "$tmp/other" | tr -d ' \n' | grep -q '"manifest":false' || { echo "zinc project --json of a folder without zinc.json"; fail=1; }
 exit $fail

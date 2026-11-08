@@ -385,6 +385,20 @@ zinc tsconfig            # or: zinc tsconfig path/to/project
 
 Then use the workspace's TypeScript as usual; `zinc check` remains the reference (Z codes, targets).
 
+### Output for tools
+
+An editor, a script or Zinc Atelier reads the CLI's answers as JSON on stdout instead of parsing text (messages, steps and refusals stay on stderr):
+
+```sh
+zinc check --json [entry|dir]      # [ { code, file, line, column, message, text, fix, uri, range, severity } ], exit 1 when there are errors
+zinc project --json [dir]          # { format: 1, manifest, name, id, version, icon, entry, main, targets, permissions, plugins, ... }
+zinc plugins [dir] --json          # { format: 1, plugins: [ { name, module, kind, targets, description, dir } ], problems }
+```
+
+- `zinc check --json`: `line` and `column` count from 1, `message` is English (the stable text to match), `text` the same message in your language (`ZINC_LANG`) and `fix` what the registry advises (`zinc explain <code>` says more). `uri` and `range` (0-based) are the language server's fields. A JavaScript program is checked by QuickJS, whose diagnostics stay text.
+- `zinc project --json`: the project as the engine reads `zinc.json` (comments, trailing commas and a byte order mark allowed). `entry` is as written, `main` the file `zinc run` starts, each target carries the `permissions` in force there, and `plugins` lists the plugins the program loads. A folder without `zinc.json` gives `"manifest": false`; a `zinc.json` the engine refuses gives `"error"` and exit 1.
+- The documents with a `format` number keep their keys for that number; a key may be added, never renamed.
+
 `zinc:ui` is declared for the editor in `lib/ui.d.ts`, generated from `lib/std/ui.ts` by `tools/ui-dts`: `PointerEvent`, `KeyEvent` and the
 rest of the module show with their docs, and the event attributes of the host tags (`onPointerDown`, `onKeyDown`...) type their argument.
 
