@@ -986,11 +986,16 @@ int exportTo(const std::string& root, const Program& p, const fs::path& out) {
   fs::copy_file(image, out / "firmware.bin", fs::copy_options::overwrite_existing, ec);
   if (!ec) fs::copy_file(p.img, out / "app.img", fs::copy_options::overwrite_existing, ec);
   if (ec) { std::fprintf(stderr, "zinc export: cannot write %s: %s\n", out.string().c_str(), ec.message().c_str()); return 1; }
-  writeText(out / "flash.sh", "#!/bin/sh\n# Flashes " + p.name + " onto an ESP32-2432S022: the mquickjs firmware at 0x0, the program at " + kJsOffset +
+  // the merged image around the NVS, as flashFirmware writes it (ZN-797): an update keeps the board's touch map, Wi-Fi networks and zinc:storage;
+  // dd cuts it in 4 KB blocks (both ends are sector boundaries)
+  static_assert(kNvsOffset % 4096 == 0 && kNvsEnd % 4096 == 0);
+  writeText(out / "flash.sh", "#!/bin/sh\n# Flashes " + p.name + " onto an ESP32-2432S022: the mquickjs firmware from 0x0, around the NVS (0x9000-0x10000: the board keeps its settings), the program at " + kJsOffset +
                                   ". Usage: ./flash.sh [port] (ESPTOOL overrides the esptool).\n"
                                   "cd \"$(dirname \"$0\")\" || exit 1\nESPTOOL=${ESPTOOL:-$(zinc toolchain esptool 2>/dev/null || command -v esptool || command -v esptool.py)}\n"
                                   "[ -n \"$ESPTOOL\" ] || { echo \"flash.sh: no esptool (zinc toolchain esptool fetches the pinned one, or pip install esptool)\"; exit 1; }\n"
-                                  "exec \"$ESPTOOL\" --chip esp32 ${1:+-p \"$1\"} -b 460800 write-flash 0x0 firmware.bin " + kJsOffset + " app.img\n");
+                                  "t=$(mktemp -d) || exit 1\ntrap 'rm -rf \"$t\"' EXIT\n"
+                                  "dd if=firmware.bin of=\"$t/head.bin\" bs=4096 count=" + std::to_string(kNvsOffset / 4096) + " 2>/dev/null && dd if=firmware.bin of=\"$t/tail.bin\" bs=4096 skip=" + std::to_string(kNvsEnd / 4096) + " 2>/dev/null || exit 1\n"
+                                  "\"$ESPTOOL\" --chip esp32 ${1:+-p \"$1\"} -b 460800 write-flash 0x0 \"$t/head.bin\" " + std::to_string(kNvsEnd) + " \"$t/tail.bin\" " + kJsOffset + " app.img\n");
   fs::permissions(out / "flash.sh", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
   writeText(out / "README.txt", p.name + " (esp32, mquickjs) built with Zinc.\nFlash: ./flash.sh /dev/ttyUSB0. The program starts when the board boots; "
                                 "its print and console.log arrive on the UART at 115200 baud.\nAnother program later: zinc run <app> --target esp32 --engine mquickjs writes only the program.\n");

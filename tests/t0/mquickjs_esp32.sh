@@ -56,6 +56,12 @@ chmod +x "$T/esptool"
 ZINC_STEPS=1 ZINC_ESPTOOL="$T/esptool" "$ZINC" flash --target esp32 --engine mquickjs --port /dev/null >"$T/log" 2>&1 || { echo "zinc flash failed with the stand-in esptool"; cat "$T/log"; fail=1; }
 grep -q "write-flash 0x0 .*firmware-head.bin 65536 .*firmware-tail.bin" "$T/fake.args" || { echo "the firmware is not written around the NVS: $(cat "$T/fake.args")"; fail=1; }
 grep -q "firmware   54 %" "$T/log" && grep -q "firmware   100 %" "$T/log" || { echo "the firmware write does not say how far it is"; cat "$T/log"; fail=1; }
+# the export's flash.sh writes the same way (ZN-797): the image before 0x9000 and from 0x10000, the NVS between them left alone
+printf '#!/bin/sh\necho "$*" > "%s/sh.args"\ncp "$9" "%s/h.bin"; cp "${11}" "%s/t.bin"\n' "$T" "$T" "$T" > "$T/esptool-sh"
+chmod +x "$T/esptool-sh"
+ESPTOOL="$T/esptool-sh" sh "$T/bo/flash.sh" /dev/null >/dev/null 2>&1 || { echo "flash.sh failed with the stand-in esptool"; fail=1; }
+grep -q "write-flash 0x0 .*head.bin 65536 .*tail.bin 0x320000 app.img" "$T/sh.args" 2>/dev/null || { echo "flash.sh does not write around the NVS: $(cat "$T/sh.args" 2>/dev/null)"; fail=1; }
+[ "$(wc -c < "$T/h.bin" 2>/dev/null | tr -d ' ')" = 36864 ] && tail -c +65537 "$T/bo/firmware.bin" | cmp -s - "$T/t.bin" || { echo "flash.sh cuts the image at the wrong place"; fail=1; }
 mkdir -p "$T/pull"
 printf "import { setup } from 'zinc:gpio';\nsetup(35, 'in', 'up');\n" > "$T/pull/main.ts"
 "$ZINC" export "$T/pull/main.ts" --target esp32 --engine mquickjs -o "$T/pull/out" >"$T/log" 2>&1 && { echo "a pull-up on GPIO 35 was accepted"; fail=1; }

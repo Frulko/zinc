@@ -1684,7 +1684,9 @@ static std::uint64_t elfLoadAlign(const fs::path& f, bool& is64) {
 
 // The 16 KB check of the native libraries of an AAB or an APK: the LOAD segments of each lib/<abi>/*.so (read here) and, in an APK, their place
 // in the zip (zipalign -c -P 16: stored at 16 KB boundaries, so the system maps them from the package)
-static bool checkPages(const fs::path& dir, const fs::path& pkg, bool apk, bool dry) {
+static bool checkPages(const fs::path& outDir, const fs::path& outPkg, bool apk, bool dry) {
+  // absolute: step() runs each command inside dir, where a relative `-o` path no longer names the package (ZN-755)
+  const fs::path dir = fs::absolute(outDir).lexically_normal(), pkg = fs::absolute(outPkg).lexically_normal();
   const fs::path libs = dir / "build-pages";
   std::error_code ec;
   fs::remove_all(libs, ec);

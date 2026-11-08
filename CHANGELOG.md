@@ -152,6 +152,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A compile error after a save in `zinc dev` ends with the same line as in `zinc run` (what to do, `zinc explain <code>`) and names the file from the project; importing an npm package in typed code says that npm packages are not loaded and how to run one, and `zinc explain Z0119` covers engine modules, `tsconfig.json` paths and npm.
 - Zinc Inspector polish: the Screen view names the hovered node in a tooltip on the picture, the Elements badges sit right after the tag, ArrowUp and ArrowDown reach the parent while picking in a `zinc:stage` scene, "+ add a declaration" no longer shows with no node selected, an edit is applied when you click from it into the palette's hex field, and programs killed without cleaning up no longer linger in the program list.
 
+- Export and build fixes: `zinc build <dir> --bundle` works with `--bundle` after the folder, `zinc export --apk` with a relative `-o` passes its 16 KB check, an export run with `ZINC_DETERMINISTIC=1` ships a plugin's native code instead of its test stand-in, and the `flash.sh` of an ESP32 export (`--engine mquickjs`) no longer erases the board's saved settings (touch calibration, Wi-Fi networks, `zinc:storage`).
+
 ### Apps and examples
 
 #### New

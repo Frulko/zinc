@@ -47,6 +47,12 @@ want "$out" "^+ ./gradlew assembleDebug -Pzinc.abis='arm64-v8a'$" "--apk"
 want "$out" "^+ 'zipalign' -c -P 16 4 '$tmp/a5/app/build/outputs/apk/debug/app-debug.apk'$" "--apk"
 want "$out" "'lib/\*.so'" "--apk"
 want "$out" 'every LOAD segment of a 64-bit library must be aligned to 16 KB' "--apk"
+# a relative -o (ZN-755): the 16 KB check runs inside the output folder, so it names the APK by its absolute path
+root=$(pwd)
+rt=$(cd "$tmp" && pwd -P)   # the folder's real path, as the export sees its working directory
+out=$(cd "$tmp" && run "$root/examples/hello" --target android -o rel/a8 --apk --abis arm64-v8a --dry-run)
+want "$out" "^+ 'zipalign' -c -P 16 4 '$rt/rel/a8/app/build/outputs/apk/debug/app-debug.apk'$" "--apk -o relative"
+want "$out" "^+ unzip -qq -o '$rt/rel/a8/app/build/outputs/apk/debug/app-debug.apk' 'lib/\*.so' -d '$rt/rel/a8/build-pages'$" "--apk -o relative"
 # --apk --release: assembleRelease, the release APK; without an upload key the debug keystore signs it (adb installs it)
 out=$(run examples/hello --target android -o "$tmp/a6" --apk --release --abis armeabi-v7a --dry-run)
 want "$out" "^+ ./gradlew assembleRelease -Pzinc.abis='armeabi-v7a'$" "--apk --release"

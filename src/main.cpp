@@ -252,17 +252,22 @@ static void installNativeProvider(const char* entry) {
     gPluginDirs.push_back(p->dir);
     return true;
   };
-  zn::frontend::gNativeLive = [](const std::string& module) {
+  // a deterministic run (ZINC_DETERMINISTIC, the goldens) takes the plugins' stand-ins; zinc export and zinc pack (ZINC_NATIVE_REQUIRED) ship the
+  // native code whatever the environment says (ZN-751: an export from tests/run shipped video.next.ts, the fake player)
+  static const auto standIns = [] {
     const char* det = std::getenv("ZINC_DETERMINISTIC");
-    if (det && *det && std::strcmp(det, "0")) return false;
+    const char* req = std::getenv("ZINC_NATIVE_REQUIRED");
+    return det && *det && std::strcmp(det, "0") && !(req && *req && std::strcmp(req, "0"));
+  };
+  zn::frontend::gNativeLive = [](const std::string& module) {
+    if (standIns()) return false;
     std::vector<std::string> problems;
     auto found = zn::frontend::discoverPlugins(gRoot, gProjectDir, problems);
     const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
     return p && p->manifest.live;
   };
   zn::frontend::gNativePreferred = [](const std::string& module) {
-    const char* det = std::getenv("ZINC_DETERMINISTIC");
-    if (!det || !*det || !std::strcmp(det, "0")) return true;
+    if (!standIns()) return true;
     std::vector<std::string> problems;
     auto found = zn::frontend::discoverPlugins(gRoot, gProjectDir, problems);
     const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
@@ -2314,7 +2319,7 @@ int main(int argc, char** argv) {
     --argc; --k;
     gDebug = gDebugNative = true;
   }
-  for (int k = 1; k + 1 < argc && argc > 1 && !std::strcmp(argv[1], "build"); ++k) {   // zinc build --bundle <file> -o <out>.app: the program inside a macOS bundle
+  for (int k = 1; k < argc && argc > 1 && !std::strcmp(argv[1], "build"); ++k) {   // zinc build --bundle <file> -o <out>.app: the program inside a macOS bundle
     if (std::strcmp(argv[k], "--bundle")) continue;
     for (int j = k; j + 1 < argc; ++j) argv[j] = argv[j + 1];
     --argc; --k;

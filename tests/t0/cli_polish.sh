@@ -26,6 +26,13 @@ mkdir -p spaced && printf '{ "name": "My Game", "app": { "id": "dev.example.myga
 printf 'console.log("g");\n' > spaced/main.ts
 out=$("$Z" export spaced --target web 2>&1) && [ -f spaced/dist/mygame-web/index.html ] || { echo "export of \"My Game\": $out"; fail=1; }
 grep -q '<title>My Game' spaced/dist/mygame-web/index.html 2>/dev/null || { echo "the page lost its title My Game"; fail=1; }
+# zinc build <dir> --bundle: the option last as well as first (ZN-797); a project without app.id stops before any compiler, with the reason
+if [ "$(uname)" = Darwin ]; then
+  mkdir -p noid && printf '{ "name": "noid" }\n' > noid/zinc.json && printf 'console.log("n");\n' > noid/main.ts
+  for order in "--bundle noid" "noid --bundle"; do
+    out=$("$Z" build $order 2>&1); case "$out" in *'--bundle needs "app"'*) ;; *) echo "zinc build $order: $out"; fail=1 ;; esac
+  done
+fi
 # a bare npm specifier in typed code says npm packages are not loaded, and how to run one (ZN-802)
 printf 'import confetti from "confetti";\nconfetti();\n' > npm.ts
 out=$("$Z" check npm.ts 2>&1); case "$out" in *"do not load npm packages"*"zinc add npm:confetti"*) ;; *) echo "bare npm import: $out"; fail=1 ;; esac

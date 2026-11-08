@@ -8,7 +8,7 @@ Z=$(cd "$(dirname "${ZINC:-build/zinc}")" && pwd)/$(basename "${ZINC:-build/zinc
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
 p=tests/data/mobile-video
-unset ZINC_DETERMINISTIC   # tests/run sets it, and a deterministic build takes the plugin's fake player (video.next.ts) instead of its native code
+export ZINC_DETERMINISTIC=1   # as tests/run sets it: an export still ships the native code, never the fake player video.next.ts (ZN-797)
 # Android
 "$Z" export $p --target android -o "$tmp/a" >/dev/null 2>"$tmp/err" || { echo "export --target android failed: $(tail -2 "$tmp/err")"; exit 1; }
 cm="$tmp/a/app/jni/src/CMakeLists.txt"
