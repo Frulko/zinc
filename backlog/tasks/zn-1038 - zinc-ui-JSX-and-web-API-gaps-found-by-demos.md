@@ -2,7 +2,8 @@
 id: ZN-1038
 title: 'zinc:ui, JSX and web API gaps found by demos'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:38'
 labels:
   - ui

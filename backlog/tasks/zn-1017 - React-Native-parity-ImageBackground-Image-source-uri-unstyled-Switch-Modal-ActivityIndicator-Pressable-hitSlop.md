@@ -4,7 +4,8 @@ title: >-
   React Native parity: ImageBackground, Image source uri, unstyled
   Switch/Modal/ActivityIndicator, Pressable hitSlop
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:35'
 labels:
   - react-native

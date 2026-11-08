@@ -2,7 +2,8 @@
 id: ZN-1023
 title: 'Pointer and keyboard edge cases in zinc:ui'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:36'
 labels:
   - ui
