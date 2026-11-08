@@ -106,6 +106,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Clearer first steps on the command line: `zinc run --engine quickjs app.tsx` works like `zinc run app.tsx --engine quickjs`, `zinc run breakout` points to `example:breakout` when there is an example of that name, a wrong pairing code says "wrong code" instead of a TLS alert, and `zinc dev --device` no longer prints a port error before it picks another port than 9229.
 - `zinc export` of a project whose `zinc.json` name is not a file name ("Zinc Atelier") names its files after `app.id` instead of stopping, and a folder with no `zinc.json` of its own no longer takes the settings of the project around it.
+- A compile error after a save in `zinc dev` ends with the same line as in `zinc run` (what to do, `zinc explain <code>`) and names the file from the project; importing an npm package in typed code says that npm packages are not loaded and how to run one, and `zinc explain Z0119` covers engine modules, `tsconfig.json` paths and npm.
 
 ### Apps and examples
 

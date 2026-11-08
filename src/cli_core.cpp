@@ -3382,6 +3382,21 @@ std::string appIconPng(const std::string& dir, const std::string& icon) {
   return std::string(png.begin(), png.end());
 }
 
+// After zinc dev's "compile error" line, the closing line zinc run prints (ZN-802): how many errors, what to do, `zinc explain <code>`; read
+// from the diagnostic lines of the check ("<file>:<line>:<col>: error Z0103: ...")
+static void devHint(const std::vector<std::string>& lines) {
+  std::vector<std::string> codes;
+  for (const std::string& l : lines)
+    if (const std::size_t at = l.find(": error "); at != std::string::npos) codes.push_back(l.substr(at + 8, l.find(':', at + 8) - at - 8));
+  if (codes.empty()) return;
+  std::vector<zn::frontend::Diag> diags;
+  for (const std::string& c : codes) {
+    const zn::DiagInfo* info = zn::findDiag(c);
+    diags.push_back({info ? info->code : "", 0, ""});
+  }
+  std::fprintf(stderr, "%s\n", zn::frontend::hint(diags).c_str());
+}
+
 std::string inspectEntry(const std::string& dir, const std::string& entry) {
   if (!projectHasFrameLoop(dir)) return entry;
   const fs::path devDir = fs::path(dir) / "build" / ".zinc-dev";
@@ -3829,6 +3844,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
           while (hotLine(hotFd, hotBuf, line, 2000) && line != "end")
             if (!line.empty() && line.rfind("  ", 0) != 0) lines.push_back(line.rfind(here, 0) == 0 ? line.substr(here.size()) : line);   // not the steps zinc run prints (indented)
           std::fprintf(stderr, "zinc dev: compile error: %s\n", firstDiagnostic(lines, "the build failed"));
+          devHint(lines);
           startProgram(msSince(t0), true, lines);
           continue;
         } else why = "the program answered " + line;
@@ -3846,8 +3862,13 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
       std::vector<std::string> lines;
       std::istringstream is(readAll(out));
       std::string line;
-      while (std::getline(is, line)) if (!line.empty() && line.rfind("  ", 0) != 0) lines.push_back(line);   // not the indented steps of zinc check
+      std::error_code hec;
+      const std::string here = fs::weakly_canonical(p.dir, hec).string() + "/", near = fs::absolute(p.dir, hec).lexically_normal().string() + "/";   // the files in the project's words
+      while (std::getline(is, line))
+        if (!line.empty() && line.rfind("  ", 0) != 0)   // not the indented steps of zinc check
+          lines.push_back(line.rfind(here, 0) == 0 ? line.substr(here.size()) : line.rfind(near, 0) == 0 ? line.substr(near.size()) : line);
       std::fprintf(stderr, "zinc dev: compile error: %s\n", firstDiagnostic(lines, "check failed"));
+      devHint(lines);
       startProgram(msSince(t0), true, lines);
     } else startProgram(msSince(t0), false, {});
   }

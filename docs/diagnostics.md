@@ -696,7 +696,7 @@ class B extends A {
 
 ## Z0119: Cannot find module
 
-An import must name a file relative to the importing file ('./x' or '../x'); `.ts`, `.tsx` and `/index.ts` are tried.
+An import names a file relative to the importing file ('./x' or '../x'; `.ts`, `.tsx` and `/index.ts` are tried), a module of the engine ('zinc:gfx') or a path that tsconfig.json maps. The typed engines do not load npm packages: they run with `--engine quickjs` after `zinc add npm:<package>`.
 
 Fix: Fix the path or create the file.
 

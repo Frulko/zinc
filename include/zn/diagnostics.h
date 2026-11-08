@@ -94,8 +94,10 @@
     "Call super(...) at the top level of the constructor, before any use of this.",                                   \
     "class A { }\nclass B extends A {\n  x: i32 = 1;\n  constructor() { this.x = 2; }\n}")                       \
   X(ModuleNotFound, "Z0119", "Cannot find module",                                                                     \
-    "An import must name a file relative to the importing file ('./x' or '../x'); `.ts`, `.tsx` and `/index.ts` are "  \
-    "tried.", "Fix the path or create the file.", "import { x } from './missing';")                                      \
+    "An import names a file relative to the importing file ('./x' or '../x'; `.ts`, `.tsx` and `/index.ts` are "     \
+    "tried), a module of the engine ('zinc:gfx') or a path that tsconfig.json maps. The typed engines do not load npm " \
+    "packages: they run with `--engine quickjs` after `zinc add npm:<package>`.",                                        \
+    "Fix the path or create the file.", "import { x } from './missing';")                                               \
   X(VarForbidden, "Z1001", "`var` is not supported",                                                                   \
     "`var` hoists and has function scope, which a typed engine cannot give a static meaning to.",                       \
     "Use `let` (reassigned) or `const`.", "var x = 1;\nconsole.log(x);")                                               \

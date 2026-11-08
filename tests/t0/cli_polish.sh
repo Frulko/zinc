@@ -1,7 +1,7 @@
 #!/bin/sh
 # First-run messages of the CLI (ZN-1007): options before or after the entry, a bare word that names an example, an export of a project whose
 # zinc.json name is no file name, and a folder named as the project looking no higher for a zinc.json. (A wrong pairing code: tests/t0/agent.sh;
-# the inspector on port 0: tests/t1/dev_mode.sh.)
+# the inspector on port 0: tests/t1/dev_mode.sh.) And the bare npm import of ZN-802.
 cd "$(dirname "$0")/../.." || exit 2
 Z="$ZINC"; case "$Z" in /*) ;; *) Z="$PWD/$Z" ;; esac
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
@@ -26,5 +26,8 @@ mkdir -p spaced && printf '{ "name": "My Game", "app": { "id": "dev.example.myga
 printf 'console.log("g");\n' > spaced/main.ts
 out=$("$Z" export spaced --target web 2>&1) && [ -f spaced/dist/mygame-web/index.html ] || { echo "export of \"My Game\": $out"; fail=1; }
 grep -q '<title>My Game' spaced/dist/mygame-web/index.html 2>/dev/null || { echo "the page lost its title My Game"; fail=1; }
+# a bare npm specifier in typed code says npm packages are not loaded, and how to run one (ZN-802)
+printf 'import confetti from "confetti";\nconfetti();\n' > npm.ts
+out=$("$Z" check npm.ts 2>&1); case "$out" in *"do not load npm packages"*"zinc add npm:confetti"*) ;; *) echo "bare npm import: $out"; fail=1 ;; esac
 [ $fail -eq 0 ] && echo "cli_polish: ok"
 exit $fail
