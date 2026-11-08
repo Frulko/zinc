@@ -492,6 +492,14 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1007: `zinc run <dir>` of a folder without a `zinc.json` still climbs to a parent's (window size, permissions); setting `ZINC_PROJECT_ROOT` in `discoverEntry` for a directory entry would match `zinc export`.
 - ZN-733: old links stay in `~/.zinc/cache/run/names` (one symlink per app name) and nothing prunes them.
 - ZN-802: `number | undefined` prints as `null | number` in Z0103 (undefined and null are one type); print the spelling the declaration used.
+- ZN-963: an exported desktop app could keep its `dataDir()` where the OS expects it (~/Library/Application Support/<app.id>, %APPDATA%, $XDG_DATA_HOME), as Electron and Tauri do, so backups and uninstallers find it; today it is ~/.zinc/apps/<name>.
+- ZN-795: zinc:telemetry has no `udp://` sink in this engine, so `zinc monitor --udp` only receives from other senders; docs/prototype.md still shows `ZINC_TELEMETRY=udp://`.
+- ZN-1003: a function value with default parameters that is not a named declaration (`const g = note; g()`) gets null for the parameters left out and traps: defaults are filled only at direct call sites; the callee or the closure's call entry should fill them.
+- ZN-1003: QuickJS drops the trailing space of `console.log('x ')` while Node and the other engines keep it.
+- ZN-1003: a Map or Set of a class passed where one of its interface is expected is a copy (writes not seen by the original), as arrays already are; TypeScript shares the collection.
+- ZN-774.22: site search does not work in `astro dev` (the index exists only after a build); check the dark theme's search focus colour.
+- ZN-774.27: translate `zinc help`'s own lines; an Atelier session test of how the help box ranks fuzzy matches.
+- ZN-774.24: the What's New card shows the changelog in English only; the docs/i18n translations of guide/01-getting-started are stale; docs/start/styles.md translations lag one sentence.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

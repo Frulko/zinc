@@ -217,7 +217,7 @@ How it reads (owner, 2026-10-31): well-written Markdown that a person reads with
 
 ## The development machine
 
-An Apple M1 Pro Mac (arm64, 10 cores: 8 performance and 2 efficiency, 16 GB, macOS 15; until 2026-10 it was an Intel i7-9750H, and the build times and heat figures of older reports were measured there): builds through `tools/build`; ccache is `~/.local/bin/ccache`; Homebrew lives in `/opt/homebrew`; Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. 16 GB is the limit when several trees build: keep to the two building trees and the one heavy process of "Spare the machine". Known machine-specific test failures are listed in `RESUME.md`.
+An Apple M1 Pro Mac (arm64, 10 cores: 8 performance and 2 efficiency, 16 GB, macOS 15; until 2026-10 it was an Intel i7-9750H, and the build times and heat figures of older reports were measured there): builds through `tools/build`; ccache is `/opt/homebrew/bin/ccache` (Homebrew, reinstalled 2026-11-08); Homebrew lives in `/opt/homebrew`; Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. 16 GB is the limit when several trees build: keep to the two building trees and the one heavy process of "Spare the machine". Known machine-specific test failures are listed in `RESUME.md`.
 
 ## The test machines (owner, 2026-11-07)
 
