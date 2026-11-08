@@ -1,0 +1,1 @@
+{ "name": "rn-parity", "entry": "main.tsx", "ui": { "preset": "react-native" } }

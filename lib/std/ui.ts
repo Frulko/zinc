@@ -155,6 +155,8 @@ export class Handlers {
   tabIndex: i32 = 0;            // > 0 first in the Tab order, < 0 out of it (still focusable by click)
   noPress: boolean = false;     // pressFeedback={0}: no default dim while it is pressed (it shows its pressed state itself)
   disabled: boolean = false;    // no events, no focus, for the node and its subtree
+  slop: number[] | null = null; // hitSlop then pressRetentionOffset, each top right bottom left in px (React Native's Pressable, ZN-1017)
+  longMs: number = -1;          // delayLongPress: the hold before onLongPress (-1: LONG_MS)
   keyCtx: string = '';          // keyContext
   acts: string[] = [];          // onAction(h, action, f)
   actFns: (() => void)[] = [];
@@ -5684,16 +5686,39 @@ function hitIn(h: i32, px: number, py: number, ox: number, oy: number, k: number
   let x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + sd) * k + oy, kk = k * n.k;
   if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; untransform(n, px, py, x + n.lw * kk / 2, y + n.lh * kk / 2); px = tpx; py = tpy; }
   const inside = px >= x && py >= y && px < x + n.lw * kk && py < y + n.lh * kk;
-  if (n.overflow && n.tag !== FRAGMENT && !inside) return -1;
+  if (n.overflow && n.tag !== FRAGMENT && !inside) return n.hs !== null && inRect(n, px, py, x, y, kk, 0) && wants(n, mode) ? h : -1;
   const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
   const zs = zSorted(n);
   for (let i = n.children.length - 1; i >= 0; i--) {
     const r = hitIn(zs !== null ? zs[i] : n.children[i], px, py, cx, cy, kk, mode);
     if (r >= 0) return r;
   }
-  if (n.tag !== FRAGMENT && inside && wants(n, mode)) return h;
+  if (n.tag !== FRAGMENT && (inside || (n.hs !== null && inRect(n, px, py, x, y, kk, 0))) && wants(n, mode)) return h;
   return -1;
 }
+/** Whether (px, py) is in node n's box at (x, y) scaled by kk, grown by its hitSlop (at 0) or by its hitSlop and press retention (at 4). */
+function inRect(n: UiNode, px: number, py: number, x: number, y: number, kk: number, upTo: i32): boolean {
+  const sl = (n.hs as Handlers).slop;
+  if (sl === null) return false;
+  let t: number = sl[0], r: number = sl[1], b: number = sl[2], l: number = sl[3];
+  if (upTo === 4) { t += sl[4]; r += sl[5]; b += sl[6]; l += sl[7]; }
+  return px >= x - l * kk && py >= y - t * kk && px < x + (n.lw + r) * kk && py < y + (n.lh + b) * kk;
+}
+/** The press on h holds at (px, py): the pointer is over h, or within its hitSlop and press retention (React Native's pressRetentionOffset). */
+function holdsPress(h: i32, px: number, py: number): boolean {
+  if (hit(px, py, HIT_CLICK) === h) return true;
+  const n = nodes[h];
+  if (n.hs === null || (n.hs as Handlers).slop === null) return false;
+  boxOf(h);
+  return inRect(n, px, py, boxX, boxY, boxK, 4);
+}
+/** React Native's hitSlop: the press reaches h this far outside its box (px, top right bottom left). */
+export function setHitSlop(h: i32, top: number, right: number, bottom: number, left: number): void { const s = slopOf(h); s[0] = top; s[1] = right; s[2] = bottom; s[3] = left; }
+/** React Native's pressRetentionOffset: a press on h moved this far past its box (and hitSlop) still holds and clicks on release. */
+export function setPressRetention(h: i32, top: number, right: number, bottom: number, left: number): void { const s = slopOf(h); s[4] = top; s[5] = right; s[6] = bottom; s[7] = left; }
+function slopOf(h: i32): number[] { const hs = hsOf(node(h)); if (hs.slop === null) hs.slop = [0, 0, 0, 0, 0, 0, 0, 0]; return hs.slop as number[]; }
+/** React Native's delayLongPress: how long h is held before its onLongPress (ms; 500 by default). */
+export function setLongPressDelay(h: i32, ms: number): void { hsOf(node(h)).longMs = ms; }
 function hitExact(px: number, py: number, mode: i32): i32 {
   if (layers.length > 0) { const l = layerHit(px, py, mode, 0); if (l !== -2) return l; }
   return root < 0 ? -1 : hitIn(root, px, py, 0, 0, 1, mode);
@@ -5868,7 +5893,7 @@ function pointerMove(px: number, py: number): void {
   if (px === ptrX && py === ptrY) return;
   ptrX = px; ptrY = py;
   hoverDirty = true;
-  if (pressed >= 0 && pressed === dimNode) { const over = hit(px, py, HIT_CLICK) === pressed; if (over !== pressOver) { pressOver = over; paintDirty = true; } }   // dragged off: the dim lifts
+  if (pressed >= 0 && pressed === dimNode) { const over = holdsPress(pressed, px, py); if (over !== pressOver) { pressOver = over; paintDirty = true; } }   // dragged off: the dim lifts
   if (handleDrag !== 0) { touchSelDrag(px, py); return; }
   if (selecting >= 0) selectDrag(px, py);
   if (tsDrag && tsNode >= 0 && (held & 1) !== 0) tsDragTo(px, py);
@@ -6211,7 +6236,7 @@ function releaseAt(px: number, py: number, button: i32): void {
   if (pressed >= 0) {
     const h = pressed;
     pressed = -1;
-    if (!dragging && hit(px, py, HIT_CLICK) === h) activate(h);
+    if (!dragging && holdsPress(h, px, py)) activate(h);
     paintDirty = true;
   }
   if (dragging && dragScroller >= 0) releaseScroll(dragScroller);   // inertia and bounce from the release velocity
@@ -7196,7 +7221,9 @@ function gestureEnd(px: number, py: number): void {
 }
 /** Long press: held LONG_MS without a grab taken; the click and the tap are dropped. */
 function stepGestures(): void {
-  if ((held & 1) === 0 || longFired || longNode < 0 || !nodes[longNode].alive || clock - pressMs < LONG_MS) return;
+  if ((held & 1) === 0 || longFired || longNode < 0 || !nodes[longNode].alive) return;
+  const hs = nodes[longNode].hs, wait = hs !== null && (hs as Handlers).longMs >= 0 ? (hs as Handlers).longMs : LONG_MS;
+  if (clock - pressMs < wait) return;
   longFired = true;
   if (pressed >= 0) { pressed = -1; paintDirty = true; }
   fireGesture(longNode, PLONG, ptrX, ptrY, 0);

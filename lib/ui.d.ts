@@ -95,6 +95,8 @@ declare module 'zinc:ui' {
       tabIndex: i32;
       noPress: boolean;
       disabled: boolean;
+      slop: number[] | null;
+      longMs: number;
       keyCtx: string;
       acts: string[];
       actFns: (() => void)[];
@@ -936,6 +938,12 @@ declare module 'zinc:ui' {
   export function scrollStretch(h: i32): number;
   /** Scrolls the enclosing containers so the focused node is visible (again): call it after the layout changed, e.g. an on-screen keyboard took room. */
   export function revealFocused(): void;
+  /** React Native's hitSlop: the press reaches h this far outside its box (px, top right bottom left). */
+  export function setHitSlop(h: i32, top: number, right: number, bottom: number, left: number): void;
+  /** React Native's pressRetentionOffset: a press on h moved this far past its box (and hitSlop) still holds and clicks on release. */
+  export function setPressRetention(h: i32, top: number, right: number, bottom: number, left: number): void;
+  /** React Native's delayLongPress: how long h is held before its onLongPress (ms; 500 by default). */
+  export function setLongPressDelay(h: i32, ms: number): void;
   /** Converts a surface point to node-local coordinates (its own units). */
   export function toLocal(h: i32, gx: number, gy: number): number[];
   /** Node box on the surface [x, y, w, h], through scroll offsets and style transforms (popups, tests). */

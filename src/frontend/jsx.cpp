@@ -1230,6 +1230,10 @@ struct Lowering {
         push(react ? "_styles(" + v + ", " + layers + ");" : "_dynStyles(" + v + ", () => " + layers + ");");
       }
       else if (name == "src") push(lit ? "_img(" + v + ", " + quote(a.lit) + ");" : react ? "_img(" + v + ", " + expr + ");" : "_dynImg(" + v + ", () => (" + expr + "));");
+      else if (name == "source" && tag == "Image" && a.kind == 2) {   // React Native's <Image source={{ uri }}> (ZN-1017): the uri is the src
+        const std::string uri = "(" + expr + ").uri";
+        push(react ? "_img(" + v + ", " + uri + ");" : "_dynImg(" + v + ", () => (" + uri + "));");
+      }
       else if (name == "image") push(react ? "_imgH(" + v + ", " + expr + ");" : "_dynImgH(" + v + ", () => (" + expr + "));");   // a runtime image (imageFromBytes, a plugin): what src is for the assets
       else if (name == "ref") push("_ref(" + v + ", " + expr + ");");
       else if (name == "focusable") push("_focusable(" + v + ");");
@@ -1462,6 +1466,10 @@ struct Lowering {
           continue;
         }
         std::string val = rn && p.second->kind == 2 && styleProp(p.first) ? "_flat(" + styleLayers(p.second->eb, p.second->ee) + ")" : valueOf(*p.second);
+        // React Native's hitSlop={10} and pressRetentionOffset={20}: the same on every side, as the Insets the props declare (a number | object
+        // union has no type in the engine yet: ZN-1017)
+        if (rn && (p.first == "hitSlop" || p.first == "pressRetentionOffset") && p.second->kind == 2 && p.second->ee == p.second->eb + 1 && t[p.second->eb].kind == Tok::Number)
+          val = "{ top: " + val + ", right: " + val + ", bottom: " + val + ", left: " + val + " }";
         // `aria-label`, `data-id`: a quoted key, as tsc and Babel write it; one the props do not declare is dropped by the checker, as TypeScript allows it
         const std::string key = p.first.find('-') != std::string::npos ? quote(p.first) : p.first;
         if (!react && p.second->kind == 2 && readsAtEval(p.second->eb, p.second->ee)) { dyn.push_back(key + ": " + val); lastDyn = p.second; }

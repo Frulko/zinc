@@ -36,12 +36,18 @@ export function processColor(c: string): i32 {
 // ---------------------------------------------------------------- Pressable and the Touchable family
 /** What Pressable's `style` and `children` functions receive. */
 export type PressableStateCallbackType = { pressed: boolean };
+/** hitSlop and pressRetentionOffset as sides (px). `hitSlop={10}` written as a number is the same on every side: the JSX lowering makes it these
+ *  insets (a union of a number and an object has no type in the engine yet). */
+export type Insets = { top?: number; left?: number; bottom?: number; right?: number };
+/** android_ripple: accepted so ported screens compile; ponytail: no ripple is drawn yet (the press dims or shows its pressed style). */
+export type PressableAndroidRippleConfig = { color?: string; borderless?: boolean; radius?: number; foreground?: boolean };
 export type PressableProps = {
   onPress?: () => void; onLongPress?: () => void; onPressIn?: () => void; onPressOut?: () => void;
   disabled?: boolean; style?: ui.Style; testID?: string; accessibilityLabel?: string; children?: () => i32;
   // `style={({ pressed }) => ...}` and a function child `{({ pressed }) => <...>}`: the JSX lowering passes an inline arrow as these two
   styleFn?: (s: PressableStateCallbackType) => ui.Style; childrenFn?: (s: PressableStateCallbackType) => i32;
   activeOpacity?: number; underlayColor?: string;   // TouchableOpacity, TouchableHighlight (one props type: no intersection types here)
+  hitSlop?: Insets; pressRetentionOffset?: Insets; delayLongPress?: number; android_ripple?: PressableAndroidRippleConfig;
 };
 /** The press machinery the Touchables share: pressed while the pointer is down on it, onPress on a click, onLongPress after 500 ms (no onPress then).
  *  With `feedback` and no pressed style of its own it dims while pressed (zinc:ui's default pressed feedback, Button's); a pressed style replaces it. */
@@ -60,14 +66,21 @@ function Press(p: PressableProps, pressedStyle: ui.Style | null, feedback: boole
   const keyDown = (e: ui.KeyEvent): void => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) down(new ui.PointerEvent()); };
   const keyUp = (e: ui.KeyEvent): void => { if (e.key === 'Enter' || e.key === ' ') up(new ui.PointerEvent()); };
   const sf = p.styleFn, st: PressableStateCallbackType = { pressed: pressed };
-  return <View style={[sf !== undefined ? sf(st) : p.style ?? NONE, pressedStyle !== null || !feedback ? NO_FEEDBACK : FEEDBACK, off ? DISABLED : ENABLED, pressed && pressedStyle !== null && (pressedStyle as ui.Style)]} onPress={press} onLongPress={long} onPointerDown={down}
+  const h = <View style={[sf !== undefined ? sf(st) : p.style ?? NONE, pressedStyle !== null || !feedback ? NO_FEEDBACK : FEEDBACK, off ? DISABLED : ENABLED, pressed && pressedStyle !== null && (pressedStyle as ui.Style)]} onPress={press} onLongPress={long} onPointerDown={down}
     onPointerUp={up} onPointerCancel={up} onKeyDown={keyDown} onKeyUp={keyUp} aria-label={p.accessibilityLabel ?? ''}>{renderPressable(p, st)}</View>;
+  const hs = p.hitSlop, pr = p.pressRetentionOffset, dl = p.delayLongPress;
+  if (hs !== undefined) ui.setHitSlop(h, hs.top ?? 0, hs.right ?? 0, hs.bottom ?? 0, hs.left ?? 0);
+  if (pr !== undefined) ui.setPressRetention(h, pr.top ?? 0, pr.right ?? 0, pr.bottom ?? 0, pr.left ?? 0);
+  if (dl !== undefined) ui.setLongPressDelay(h, dl);
+  return h;
 }
 function renderPressable(p: PressableProps, st: PressableStateCallbackType): i32 { const cf = p.childrenFn; return cf !== undefined ? cf(st) : renderChildren(p.children); }
 /** No feedback of its own, as React Native's: a program shows the pressed state through `style` or `children` given as functions of `{ pressed }`. */
 export function Pressable(p: PressableProps): i32 { return Press(p, null, false); }
-/** Button's pressable: zinc:ui's dim while pressed. */
-function Dimmed(p: PressableProps): i32 { return Press(p, null); }
+/** Button's pressable: as React Native's Button.js, TouchableOpacity's 0.2 on iOS (and the neutral and macOS looks); Android's ripple is not drawn
+ *  yet, so it keeps zinc:ui's dim. */
+const BUTTON_DOWN = new ui.Style(['opacity'], [0.2]);
+function Dimmed(p: PressableProps): i32 { return Press(p, P.look().name === 'android' ? null : BUTTON_DOWN); }
 /** React Native's Button, as its Button.js draws it per platform (zinc:ui/platform's look): iOS a tinted title (18 px; `color` tints it), Android a
  *  raised filled rectangle with an upper-case white title (`color` fills it, #2196f3 by default), macOS a push button (a white bezel, 13 px). It dims
  *  while pressed; disabled greys it. The neutral look keeps iOS's. */
@@ -97,6 +110,22 @@ export function TouchableOpacity(p: PressableProps): i32 { return Press(p, new u
 export function TouchableHighlight(p: PressableProps): i32 {
   const c = processColor(p.underlayColor ?? 'black');
   return Press(p, new ui.Style(['backgroundColor', 'backgroundAlpha'], [c < 0 ? 0 : c, c < 0 ? 0 : 255]));
+}
+
+// ---------------------------------------------------------------- ImageBackground
+/** What `source` takes: `{ uri }`, a path of the assets or a URL, as <Image src>. */
+export type ImageSourcePropType = { uri: string };
+export type ImageBackgroundProps = { source?: ImageSourcePropType; style?: ui.Style; imageStyle?: ui.Style; resizeMode?: string; children?: () => i32;
+  testID?: string; accessibilityLabel?: string };
+const RESIZE: string[] = ['stretch', 'contain', 'cover', '', 'center', 'repeat'];   // objectFit numbers of the resizeMode names
+/** React Native's ImageBackground: a View sized by `style` with its image laid under the children, filling the box (`resizeMode`, cover by default). */
+export function ImageBackground(p: ImageBackgroundProps): i32 {
+  const m = RESIZE.indexOf(p.resizeMode ?? 'cover'), src = p.source;
+  const under = new ui.Style(['position', 'left', 'top', 'right', 'bottom', 'objectFit'], [1, 0, 0, 0, 0, m < 0 ? 2 : m]);
+  return <View style={p.style ?? NONE} aria-label={p.accessibilityLabel ?? ''}>
+    <Image src={src !== undefined ? src.uri : ''} style={[under, p.imageStyle ?? NONE]} />
+    {renderChildren(p.children)}
+  </View>;
 }
 
 // ---------------------------------------------------------------- Switch

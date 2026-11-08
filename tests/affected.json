@@ -35,6 +35,7 @@
     {"paths": ["runtime/gfx.cpp", "include/zn/ease.h", "include/zn/frame_trace.h", "lib/std/kit/spinner.tsx", "tests/golden/compositor/", "tests/t1/compositor.sh"], "tests": ["compositor"]},
     {"paths": ["plugins/trieur/", "third_party/trieur/", "examples/trieur/", "tests/golden/trieur/", "tests/t1/trieur.sh"], "tests": ["trieur"]},
     {"paths": ["tests/data/ui-keyup/", "tests/t0/ui_keyup.sh", "src/host/hal_dispatch.cpp"], "tests": ["ui_keyup"]},
+    {"paths": ["lib/std/react-native.tsx", "lib/std/ui.ts", "src/frontend/jsx.cpp", "tests/golden/rn-parity/", "tests/t1/rn_parity.sh"], "tests": ["rn_parity"]},
     {"paths": ["src/frontend/jsx.cpp", "src/qjs/qjs.cpp", "plugins/camera/", "tests/data/demo-gaps/", "tests/t0/demo_gaps.sh"], "tests": ["demo_gaps"]},
     {"paths": ["lib/std/ui.ts", "lib/std/react-native.tsx", "tests/data/ui-input-edges/", "tests/t0/ui_input_edges.sh"], "tests": ["ui_input_edges"]},
     {"paths": ["plugins/carplay/", "tests/golden/carplay/", "tests/t0/carplay.sh"], "tests": ["carplay", "carplay_demo"]},
