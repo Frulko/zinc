@@ -3,6 +3,7 @@
 // API changes, and the rules that check a program before a compile, on its own and per target (targets/capabilities.json, zinc.json, plugin.json).
 // Both work on the engine's own lexer and loader: no Node, no download, the same reading of the source as the compiler's.
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -30,8 +31,12 @@ std::vector<ClassUse> classNames(std::string_view src);
 
 /** `zinc migrate [--list] [--dry-run|--apply] [<codemod>...] [paths]` (args[0] is "zinc", args[1] "migrate"). */
 int migrate(const std::vector<std::string>& args);
+/** The QuickJS loader's check of a JavaScript program (ZN-793), given by the caller (zn_lint does not link the QuickJS engine): true with its warnings
+ *  ("file:line:col: warning Q0001: ..."), false with the loader's error. With it, a program on a JavaScript engine (a .js or .mjs entry, zinc.json
+ *  "engine": "quickjs", "jsc", "v8" or "hermes") gets this check instead of the typed loader's. */
+using JsCheck = std::function<bool(const std::string& entry, std::vector<std::string>& warnings, std::string& err)>;
 /** `zinc lint [--target <profile>|--all-targets] [--json] [--rules] [path]`. Exit 1 when a rule of severity error fires on the source or on a
  *  target in force (--target, else the targets zinc.json names, else this machine). */
-int lint(const std::vector<std::string>& args, const std::string& engineRoot);
+int lint(const std::vector<std::string>& args, const std::string& engineRoot, const JsCheck& jsCheck);
 
 }  // namespace zn::lint

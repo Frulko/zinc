@@ -51,6 +51,10 @@ struct BundleOptions {
 };
 // zinc bundle: the exit code (0, 1 when the program has errors, 2 for a usage or tool problem).
 int bundle(const BundleOptions& o);
+// The QuickJS loader's check of a program, for zinc lint (ZN-793): its module graph walked as `zinc run --engine quickjs` loads it (node_modules
+// resolved, every module parsed) and quickjsLint on the project's own modules ("file:line:col: warning Q0001: ..." lines). False with `err` (the
+// loader's message: a syntax error, an import that does not resolve) when a module does not load. Uses o.entry, o.stdRoot, o.cacheDir, o.modules.
+bool lintProgram(const BundleOptions& o, std::vector<std::string>& warnings, std::string& err);
 // The QuickJS-specific lint of one transformed module (Q0001: a global or API QuickJS-ng 0.17 does not have): "file:line:col: warning ..." lines.
 std::vector<std::string> quickjsLint(const std::string& js, const std::string& file);
 // QuickJS bytecode of a bundle (a single module that imports only zinc:native): what `zinc run app.qbc` loads without parsing. `name` is the module name

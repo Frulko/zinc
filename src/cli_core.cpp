@@ -105,7 +105,7 @@ const Command kCommands[] = {
    "  --bytecode       also <out>.qbc, QuickJS bytecode: zinc run app.qbc starts without parsing (same QuickJS build only)\n"
    "  --check          only the diagnostics: the transform errors and what QuickJS-ng lacks (Q0001: Temporal, Intl formats, WebAssembly); exit 1 when there are any\n"
    "  --watch          bundle again on each save"},
-  {"check", "zinc check [entry|dir]", "cli.cmd.check", "Parses and checks the entry and what it imports; prints the diagnostics (zinc explain <code> describes one). Exit 1 on errors."},
+  {"check", "zinc check [entry|dir]", "cli.cmd.check", "Parses and checks the entry and what it imports; prints the diagnostics (zinc explain <code> describes one). A program on a JavaScript engine (a .js entry, zinc.json \"engine\": \"quickjs\") is checked by the QuickJS loader: its imports and node_modules packages resolved as at run time, the syntax, and what QuickJS-ng lacks. Exit 1 on errors."},
   {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|jsc|v8|hermes|esp32-qemu|devicesim] [dir]", "cli.cmd.test", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
   {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new [<dir>] --from example:<name> | zinc new | zinc new --pick | zinc new --list", "cli.cmd.new", "With no argument it asks nothing: a game in my-game (my-game-2... when that folder is taken). --pick at a terminal asks what to make (the arrows and Enter, or a number), how to write it when that kind has several styles (a game: Drawing, Scene or Canvas; an app with windows: Interface or Scene), and the name of the new folder; in a script, a pipe or CI --pick prints this usage and writes nothing. Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README: its README.<lang>.md in the language in force when it has one) into a new or empty directory, writes tsconfig.json for this machine, and says what to do next. zinc new <dir> makes a game; --list prints the templates by what they make. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
   {"examples", "zinc examples [drawing|scene|canvas|interface]", "cli.cmd.examples", "Lists the graded examples of learn/catalog.txt by style, then by stars (one: the first hour; four: a whole program to read), each with its name and one line. They ship with zinc: zinc run example:<name> runs one where it is (zinc dev and zinc check take the name too), zinc new <folder> --from example:<name> copies it into a new folder to change. A name the catalogue does not have gets the closest one. Zinc Atelier shows the same examples on its start view."},
@@ -423,10 +423,29 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
     if (cmd != "run" || named || engine == "zinc" || (!js && ext != ".js" && ext != ".mjs" && ext != ".qbc" && ext != ".hbc")) return;   // .qbc: a bundle's bytecode (zinc bundle --bytecode)
     args.insert(args.begin() + static_cast<std::ptrdiff_t>(at) + 1, {"--engine", js ? engine : ext == ".hbc" ? "hermes" : "quickjs"});   // .hbc: Hermes's (zinc build)
   };
+  // zinc check of a program on a JavaScript engine (ZN-793): a .js or .mjs entry, or zinc.json "engine": "quickjs", "jsc", "v8" or "hermes", is checked by the
+  // QuickJS loader (`zinc check --engine quickjs`: its module graph with node_modules resolved as at run time, the syntax, and what QuickJS-ng lacks), not
+  // by the typed checker, which neither resolves packages nor knows the web globals; --engine zinc keeps the typed check, another option (--json) too
+  std::string namedEngine;
+  bool otherOption = false;
+  for (std::size_t k = 2; k < args.size() && args[k] != "--"; ++k) {
+    if (args[k] == "--engine" && k + 1 < args.size()) namedEngine = args[++k];
+    else otherOption = otherOption || args[k].rfind("-", 0) == 0;
+  }
+  auto jsCheck = [&](const std::string& file, const std::string& engine, const std::string& target) {
+    const std::string ext = fs::path(file).extension().string();
+    const std::string want = namedEngine.empty() ? engine : namedEngine;
+    const bool js = want == "quickjs" || want == "jsc" || want == "v8" || want == "hermes" || (want.empty() && (ext == ".js" || ext == ".mjs"));
+    if (cmd != "check" || otherOption || !js) return false;
+    args.erase(args.begin() + 2, args.end());
+    args.insert(args.end(), {"--engine", "quickjs", target});
+    return true;
+  };
   if (cmd == "run") if (const std::string port = devtoolsPort(entry); !port.empty()) setenv("ZINC_DEVTOOLS_PORT", port.c_str(), 1);
   std::error_code ec;
   std::string dirArg = entry;
   if (hasEntry && !fs::is_directory(entry, ec)) {
+    if (jsCheck(entry, "", entry)) return true;
     if (cmd == "build") {   // a file: `-o` is optional too
       bool hasOut = false;
       for (const std::string& a : args) hasOut = hasOut || a == "-o";
@@ -452,7 +471,7 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
     bool hasOut = false;
     for (const std::string& a : args) hasOut = hasOut || a == "-o";
     if (!hasOut) { fs::create_directories(fs::path(projDir) / "build", ec); args.insert(args.begin() + at + 1, {"-o", (fs::path(projDir) / "build" / name).string()}); }
-  } else {   // check
+  } else if (!jsCheck(e, have ? project.engine : "", projDir)) {   // check
     if (hasEntry) args[at] = e; else args.insert(args.begin() + at, e);
     args.insert(args.begin() + 2, "--check");
   }
@@ -3266,6 +3285,13 @@ std::string savedFiles(const std::string& dir, const Stamps& was, const Stamps& 
   return names;
 }
 
+// The line `zinc dev: compile error:` names (ZN-793): the first diagnostic ("file:line:col: error Z0103: ..." or a QuickJS SyntaxError), not the first
+// line of the output, which may be a step a plugin printed ("plugin svg: cached native library")
+const char* firstDiagnostic(const std::vector<std::string>& lines, const char* none) {
+  for (const std::string& l : lines) if (l.find(": error ") != std::string::npos || l.find("Error: ") != std::string::npos) return l.c_str();
+  return lines.empty() ? none : lines[0].c_str();
+}
+
 std::string redBoxSource(const std::vector<std::string>& lines) {
   std::string arr = "[";
   for (std::size_t i = 0; i < lines.size() && i < 16; ++i) arr += (i ? "," : "") + jsonString(lines[i].substr(0, 90));
@@ -3445,7 +3471,7 @@ int devLan(const ProjectInfo& p, const fs::path& devDir, int port) {
       if (!ok) {
         std::string text;
         for (const std::string& e : errors) text += e + "\n";
-        std::fprintf(stderr, "zinc dev: compile error: %s\n", errors[0].c_str());
+        std::fprintf(stderr, "zinc dev: compile error: %s\n", firstDiagnostic(errors, "the build failed"));
         if (!sendAll(pl.fd, "error " + std::to_string(text.size()) + "\n" + text)) drop(pl, "is gone");
         return;
       }
@@ -3682,7 +3708,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     std::istringstream is(out);
     const std::string here = fs::absolute(p.dir, ec).lexically_normal().string() + "/";   // the pack names files in full: the box is 90 characters wide
     for (std::string line; std::getline(is, line);) if (!line.empty()) lines.push_back(line.rfind(here, 0) == 0 ? line.substr(here.size()) : line);
-    std::fprintf(stderr, "zinc dev: compile error: %s\n", lines.empty() ? "the build failed" : lines[0].c_str());
+    std::fprintf(stderr, "zinc dev: compile error: %s\n", firstDiagnostic(lines, "the build failed"));
     writeFile(devDir / "redbox" / "src" / "main.ts", redBoxSource(lines));
     boxed = remote->start((devDir / "redbox").string(), {}, true, out);
     if (boxed) std::fprintf(stderr, "zinc dev: red box on the device (%ld ms after the save)\n", msSince(t0));
@@ -3757,7 +3783,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
           const std::string here = fs::weakly_canonical(p.dir, hec).string() + "/";   // it compiles the absolute path from its real directory: the box is 90 characters wide
           while (hotLine(hotFd, hotBuf, line, 2000) && line != "end")
             if (!line.empty() && line.rfind("  ", 0) != 0) lines.push_back(line.rfind(here, 0) == 0 ? line.substr(here.size()) : line);   // not the steps zinc run prints (indented)
-          std::fprintf(stderr, "zinc dev: compile error: %s\n", lines.empty() ? "the build failed" : lines[0].c_str());
+          std::fprintf(stderr, "zinc dev: compile error: %s\n", firstDiagnostic(lines, "the build failed"));
           startProgram(msSince(t0), true, lines);
           continue;
         } else why = "the program answered " + line;
@@ -3765,7 +3791,9 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     }
     if (!why.empty() && child > 0) std::fprintf(stderr, "zinc dev: restart: %s\n", why.c_str());
     const fs::path out = devDir / "check.txt";
-    const std::string cmd = q(exe) + " check --check " + q(p.entry) + " > " + q(out.string()) + " 2>&1";
+    const std::string ext = fs::path(p.entry).extension().string();   // a program on a JavaScript engine: the QuickJS loader's check (ZN-793)
+    const bool jsProgram = p.engine == "quickjs" || p.engine == "jsc" || p.engine == "v8" || p.engine == "hermes" || (p.engine.empty() && (ext == ".js" || ext == ".mjs"));
+    const std::string cmd = q(exe) + (jsProgram ? " check --engine quickjs " + q(p.dir) : " check --check " + q(p.entry)) + " > " + q(out.string()) + " 2>&1";
     const auto checkAt = Clock::now();
     const int rc = status(std::system(cmd.c_str()));
     zn::log::step("check", rc == 0 ? "types and imports, no errors" : "errors", msSince(checkAt));
@@ -3774,7 +3802,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
       std::istringstream is(readAll(out));
       std::string line;
       while (std::getline(is, line)) if (!line.empty() && line.rfind("  ", 0) != 0) lines.push_back(line);   // not the indented steps of zinc check
-      std::fprintf(stderr, "zinc dev: compile error: %s\n", lines.empty() ? "check failed" : lines[0].c_str());
+      std::fprintf(stderr, "zinc dev: compile error: %s\n", firstDiagnostic(lines, "check failed"));
       startProgram(msSince(t0), true, lines);
     } else startProgram(msSince(t0), false, {});
   }

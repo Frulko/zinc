@@ -334,6 +334,9 @@ int stageForBrowser(const BundleOptions& o, const std::vector<Collected>& mods) 
   return 0;
 }
 
+// The project's own modules: not the engine's lib/std, not a zinc: module, not a package (they are not the user's to fix)
+bool ownModule(const Collected& c, const std::string& libRoot) { return !c.bare && !c.host && c.name.rfind("zinc:", 0) != 0 && c.name.rfind(libRoot + "/", 0) != 0; }
+
 int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   const auto t0 = std::chrono::steady_clock::now();
   std::vector<Collected> mods;
@@ -362,7 +365,7 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
   bool hasPackages = false;
   for (const Collected& c : mods) {
     hasPackages = hasPackages || (c.bare && !c.host);
-    if (script || c.bare || c.host || c.name.rfind("zinc:", 0) == 0 || c.name.rfind(libRoot + "/", 0) == 0) continue;
+    if (script || !ownModule(c, libRoot)) continue;
     for (const std::string& w : quickjsLint(c.js, c.name)) { std::fprintf(stderr, "%s\n", w.c_str()); warnings++; ownWhat.insert(w.substr(w.find("warning Q0001: "))); }
   }
   if (o.check) {
@@ -522,6 +525,15 @@ int bundle(const BundleOptions& o) {
       last = stamps();
     }
   }
+}
+
+bool lintProgram(const BundleOptions& o, std::vector<std::string>& warnings, std::string& err) {
+  std::vector<Collected> mods;
+  if (!collect(o.entry, o.stdRoot, o.cacheDir, mods, err, "", o.modules)) return false;
+  const std::string libRoot = fs::path(o.stdRoot).parent_path().lexically_normal().string();
+  for (const Collected& c : mods)
+    if (ownModule(c, libRoot)) for (std::string& w : quickjsLint(c.js, c.name)) warnings.push_back(std::move(w));
+  return true;
 }
 
 }  // namespace zn::qjs

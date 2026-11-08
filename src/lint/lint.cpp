@@ -37,6 +37,7 @@ const Rule kRules[] = {
     {"project-requires", "error", "target", "zinc.json \"requires\" does not hold on the target", "another target, or fewer requirements"},
     {"ui-layout", "error", "target", "zinc.json \"ui\".\"layout\" asks for an engine the target cannot build", "\"layout\": \"auto\""},
     {"assets-flash", "error", "target", "the asset files do not fit the target's flash budget", "smaller or fewer assets for that target (zinc.json targets.<id>.assets)"},
+    {"quickjs", "warning", "source", "a global or API QuickJS-ng does not have (Q0001), in a program on a JavaScript engine", "a typeof guard, a polyfill, or a zinc: module"},
     {"plugin-targets", "warning", "target", "an imported plugin does not name the target in plugin.json \"targets\"", "a platform file (x.<target>.tsx) without the import"},
     {"module-requires", "warning", "target", "an imported module's `@requires` comment does not hold on the target", "a platform file, or a lighter module"},
     {"ui-tier", "warning", "target", "a style the target's UI tier draws in a simpler form (what lib/std/ui.ts tierWarn logs at run time)", "a two-stop linear gradient along an axis, or an image"},
@@ -157,6 +158,7 @@ struct Linter {
   fe::Project project;
   bool haveProject = false;
   std::vector<Finding> found;
+  bool js = false;   // a program on a JavaScript engine: the QuickJS loader checks it (jsRules), not the typed loader
   std::map<std::string, std::vector<ClassUse>> classCache;
   std::vector<fe::FoundPlugin> plugins;
   mutable std::map<std::string, std::string> canonical;   // a few hundred files x every target: one realpath each
@@ -194,6 +196,36 @@ struct Linter {
     }
   }
 
+  // A program on a JavaScript engine (ZN-793): the QuickJS loader's check, once (it does not depend on the target): a module that does not load is an
+  // error at the place the loader names, what QuickJS-ng lacks a warning
+  void jsRules(const JsCheck& check) {
+    std::vector<std::string> warnings;
+    std::string err;
+    auto place = [](const std::string& s, std::size_t end, std::string& file, int& line, int& col) {   // "file:line:col" ending at `end`
+      std::size_t b = s.rfind(':', end - 1), a = b == std::string::npos || b == 0 ? std::string::npos : s.rfind(':', b - 1);
+      if (a == std::string::npos) return false;
+      file = s.substr(0, a); line = std::atoi(s.c_str() + a + 1); col = std::atoi(s.c_str() + b + 1);
+      return line > 0;
+    };
+    if (!check(entry, warnings, err)) {
+      std::string file = shown(entry), first = err.substr(0, err.find('\n'));
+      int line = 0, col = 0;
+      if (std::size_t at = err.find("\n    at "); at != std::string::npos) {
+        std::string where = err.substr(at + 8);
+        where = where.substr(0, where.find('\n'));
+        if (std::string f; place(where, where.size(), f, line, col)) file = shown(f);
+      }
+      add(file, line, col, "compile", first, "");
+    }
+    for (const std::string& w : warnings) {
+      const std::size_t m = w.find(": warning ");
+      std::string file;
+      int line = 0, col = 0;
+      if (m == std::string::npos || !place(w, m, file, line, col)) { add(shown(entry), 0, 0, "quickjs", w, ""); continue; }
+      add(shown(file), line, col, "quickjs", w.substr(m + 10), "");
+    }
+  }
+
   // The project's own files among those the program loaded: not the standard library, not a plugin.
   bool userFile(const std::string& path) const {
     const std::string c = cn(path);
@@ -227,7 +259,7 @@ struct Linter {
     }
     std::string layout = "classic", lerr;
     if (!fe::resolveUiLayout(project, caps, t, layout, lerr)) { add(zj, 0, 0, "ui-layout", lerr, t); layout = "classic"; }
-    if (entry.empty()) return;
+    if (entry.empty() || js) return;
     static std::vector<std::string> granted;
     granted = fe::permissionsFor(project, t);
     fe::setSystemPermissions(&granted);
@@ -319,7 +351,7 @@ std::string place(const Finding& f) { return f.file + (f.line > 0 ? ":" + std::t
 
 }  // namespace
 
-int lint(const std::vector<std::string>& args, const std::string& engineRoot) {
+int lint(const std::vector<std::string>& args, const std::string& engineRoot, const JsCheck& jsCheck) {
   const char* usage = "usage: zinc lint [--target <profile> | --all-targets] [--json] [--rules] [path]\n";
   std::string path = ".", only;
   bool all = false, json = false;
@@ -350,6 +382,10 @@ int lint(const std::vector<std::string>& args, const std::string& engineRoot) {
   L.projectDir = !L.projectFile.empty() ? fs::path(L.projectFile).parent_path().string() : isDir ? path : fs::path(path).parent_path().string();
   if (L.projectDir.empty()) L.projectDir = ".";
   L.entry = isDir ? fe::entryOf(path, L.haveProject ? &L.project : nullptr) : path;
+  {
+    const std::string& e = L.project.engine;
+    L.js = jsCheck && !L.entry.empty() && (e == "quickjs" || e == "jsc" || e == "v8" || e == "hermes" || (e.empty() && (ends(L.entry, ".js") || ends(L.entry, ".mjs"))));
+  }
   std::vector<std::string> problems;
   L.plugins = fe::discoverPlugins(engineRoot, L.projectDir, problems);   // the checkout (or package) root holds plugins/
 
@@ -385,6 +421,7 @@ int lint(const std::vector<std::string>& args, const std::string& engineRoot) {
 
   L.sourceRules(path);
   for (const std::string& t : run) L.targetRules(t);
+  if (L.js) L.jsRules(jsCheck);
   L.assetRules(run);
 
   std::stable_sort(L.found.begin(), L.found.end(), [](const Finding& a, const Finding& b) { return a.targets.empty() > b.targets.empty(); });

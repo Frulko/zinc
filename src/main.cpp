@@ -2193,7 +2193,13 @@ int main(int argc, char** argv) {
     if (argc >= 3 && !std::strcmp(argv[1], "plugins") && !std::strcmp(argv[2], "update")) return zn::cli::updatePlugins(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "tsconfig")) return zn::cli::tsconfig(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);
-    if (argc >= 2 && !std::strcmp(argv[1], "lint")) { zn::i18n::use("en"); return zn::lint::lint(cl, gRoot); }   // its rules and --json are English (D160)
+    if (argc >= 2 && !std::strcmp(argv[1], "lint")) { zn::i18n::use("en"); return zn::lint::lint(cl, gRoot, [](const std::string& entry, std::vector<std::string>& warnings, std::string& err) {
+      zn::qjs::BundleOptions bo;   // a JavaScript program: the QuickJS loader's check, as zinc check --engine quickjs (ZN-793)
+      bo.entry = std::filesystem::absolute(entry).lexically_normal().string();
+      bo.stdRoot = std::filesystem::path(gRoot + "/lib/std").lexically_normal().string();
+      bo.cacheDir = qjsCacheDir();
+      return zn::qjs::lintProgram(bo, warnings, err);
+    }); }   // its rules and --json are English (D160)
     if (argc >= 2 && !std::strcmp(argv[1], "migrate")) return zn::lint::migrate(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "doc")) return zn::doc::run(cl, gRoot);
     // the commands a person types get the closing line; `check --check|--types|--json <file>` and the stage commands keep one line per diagnostic for the tools that read them

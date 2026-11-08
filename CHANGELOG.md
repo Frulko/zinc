@@ -101,6 +101,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Two `zinc` commands that download the same tool at once (the zig, esptool, the console SDKs, basisu) no longer break each other's install: the second waits and uses the first one's.
 - The language server tags its diagnostics with the document version, so an editor no longer shows the errors of an older edit, and it ignores changes to files that were never opened.
 - A macOS app names its executable after itself, in a `zinc build --bundle` and in the dev bundle of `zinc run`: login items, Activity Monitor and the process list show the app's name instead of `zinc`, and a start-at-login item belongs to its app.
+- `zinc check` and `zinc lint` of a program on a JavaScript engine (a `.js` entry, or `"engine": "quickjs"` in `zinc.json`) use the QuickJS loader: `node_modules` packages resolve as they do when the program runs, and browser globals no longer raise type errors. `zinc lint` warns about what QuickJS lacks, such as `Temporal`.
+- After a failed save, `zinc dev` prints the first error after `compile error:`, not the first line of the output, which could be a plugin's progress note.
 
 ### Apps and examples
 
