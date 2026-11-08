@@ -2237,6 +2237,7 @@ static void notarizeHint(const ProjectInfo& p, const fs::path& out, const std::v
 
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot) {
   const auto tExport = std::chrono::steady_clock::now();
+  setenv("ZINC_NATIVE_REQUIRED", "1", 0);   // the builds below stop on a plugin that does not build instead of shipping its stand-in (ZN-1027)
   Opts o = parseOpts(args, {"--target", "-o", "--key", "--abis", "--render", "--browsers"}, {"--deb", "--dmg", "--no-embed", "--inspect", "--print", "--aab", "--apk", "--release", "--ipa", "--simulator", "--dry-run", "--werror", "--no-pwa", "--sourcemap", "--check", "--prerender"});
   if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|web|esp32|android|ios] [-o dir] [--print] [--deb] [--dmg] [--inspect] [--key <seed-hex>] [--aab | --apk [--release] [--abis list]] [--ipa [--simulator]] [--dry-run]\n", o.badArg.c_str()); return 2; }
   Pack pack{has(o, "--aab"), has(o, "--apk"), has(o, "--ipa"), has(o, "--simulator"), has(o, "--dry-run"), o.v.count("--abis") ? o.v["--abis"] : "", has(o, "--release")};

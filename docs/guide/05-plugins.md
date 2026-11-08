@@ -64,6 +64,10 @@ and real plugins like `plugins/gphoto2` / `plugins/lottie`. Files (relative to t
 | `<name>.sim.ts` | the same behaviour in Zinc: the stand-in used where the native part does not run, and in deterministic runs (`ZINC_NATIVE=real\|sim\|auto` picks) |
 | `<name>.abi.c` / `.abi.cpp` | instead of `.host.cpp`: C (or C++, for an Arduino library) on the native ABI (`include/zn/native.h`, `zinc native-gen --c` writes its table), no runtime types; the same file runs on the computer and in the ESP32's mquickjs firmware ([native code on the ESP32](../plugins/native-esp32.md)) |
 
+When the native part does not compile, `zinc run` says so in one line (the plugin, the first compiler error) and runs the `.sim.ts` stand-in, while
+`zinc pack` and `zinc export` stop with the whole compiler error: an app never ships a stand-in by accident. `ZINC_NATIVE=sim` runs or packs the
+stand-in on purpose, without building; `ZINC_NATIVE_REQUIRED=1` makes any other command stop too, `ZINC_NATIVE_REQUIRED=0` lets a pack go on.
+
 ```ts
 // native/sensor.spec.ts
 import { NativeModule, requireNative } from 'zinc:native';

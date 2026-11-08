@@ -37,6 +37,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 ### Plugins
 
+#### Changed
+
+- A plugin whose native code does not compile now stops `zinc pack` and `zinc export` with the compiler's error instead of shipping its stand-in, and `zinc run` says it in one clear line naming the plugin; `ZINC_NATIVE=sim` uses the stand-in on purpose.
+
 #### Fixed
 
 - A disposed `Script` or a closed `WebView` stays dead: it can no longer run code in, settle a call of, or send its late messages to the script or web view created after it.

@@ -275,6 +275,15 @@ static void installNativeProvider(const char* entry) {
 // ZINC_LOG_FORMAT=json. A cached program keeps the names beside it (file `plugins`).
 static std::vector<std::string> gUsedPlugins;
 static std::vector<zn::frontend::NativeFallback> gNativeFallbacks;
+// A stand-in chosen because the plugin's native code was tried and did not build (a compiler error, a missing compiler): not a plugin with no
+// native source for this target, whose stand-in is the program (tc/plugin_build.cpp's noSource), nor ZINC_NATIVE=sim or a deterministic run
+static bool nativeBuildFailed(const zn::frontend::NativeFallback& n) { return !n.reason.empty() && n.reason.find("has no native source") == std::string::npos; }
+static std::string pluginOfModule(const std::string& module) {
+  std::vector<std::string> problems;
+  const auto found = zn::frontend::discoverPlugins(gRoot, gProjectDir, problems);
+  const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
+  return p ? p->manifest.name : module;
+}
 static std::string gDisplayPlugin;
 // What the inspector's Info view says of the program (Zinc.getProgramInfo): its files, the functions compiled, the zinc: modules its own files
 // import and its plugins, native or not. Kept beside a cached program as `plugins.info` (one JSON line), as the plugin names are.
@@ -379,7 +388,14 @@ static void printPlugins() {
   printed = true;
   for (const auto& n : gNativeFallbacks) {
     const std::string detail = n.module + ": using " + n.backend;
-    if (!n.reason.empty()) zn::log::warning("plugin", detail + "; native implementation unavailable: " + n.reason);
+    if (nativeBuildFailed(n)) {   // ZN-1027: one line that names the plugin, its first error and how to go on; the whole error is zinc pack's
+      std::istringstream lines(n.reason);
+      std::string first, l;
+      while (first.empty() && std::getline(lines, l)) if (l.find("error") != std::string::npos && l.find(" failed:") == std::string::npos) first = l;
+      if (first.empty()) first = n.reason.substr(0, n.reason.find('\n'));
+      if (std::size_t slash = first.rfind('/', first.find(": ")); slash != std::string::npos) first = first.substr(slash + 1);   // probe.host.cpp:1:1: error: ...
+      zn::log::warning("plugin", "plugin " + pluginOfModule(n.module) + " did not build, so it runs its " + n.backend + " (" + first + "); fix it, or set ZINC_NATIVE=sim to run the " + n.backend + " without building");
+    } else if (!n.reason.empty()) zn::log::warning("plugin", detail + "; native implementation unavailable: " + n.reason);
     else zn::log::step("plugin", detail);
   }
   std::string names;
@@ -618,6 +634,14 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
   installNativeProvider(path);
   { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/lib/std", hotMode()); }
   gNativeFallbacks = prog.nativeFallbacks;
+  // zinc pack and zinc export (ZN-1027) set ZINC_NATIVE_REQUIRED=1: a plugin whose native code does not build stops them with the compiler's
+  // error, instead of shipping its stand-in with a warning nobody reads; ZINC_NATIVE=sim ships the stand-in on purpose
+  if (const char* req = std::getenv("ZINC_NATIVE_REQUIRED"); req && *req && std::strcmp(req, "0"))
+    for (const auto& n : gNativeFallbacks)
+      if (nativeBuildFailed(n)) {
+        std::fprintf(stderr, "zinc: plugin %s did not build: %s\nzinc: fix the plugin, or set ZINC_NATIVE=sim to ship its %s instead\n", pluginOfModule(n.module).c_str(), n.reason.c_str(), n.backend.c_str());
+        return false;
+      }
   if (zn::log::on("build", zn::log::Info)) zn::log::write("build", zn::log::Info, std::to_string(prog.files.size()) + " files; target " + (gBuildTarget.empty() ? zn::tc::pluginTarget() : gBuildTarget) + ", profile " + (gProfile ? gProfile->name : std::string("host")) + ", layout " + (zn::frontend::uiLayout().empty() ? std::string("classic") : zn::frontend::uiLayout()));
   auto diags = prog.diags;
   if (diags.empty()) {
@@ -1417,7 +1441,7 @@ static bool load(const std::string& entry, zn::zbc::Module& zm, bool compiledRun
   // compiled with a stand-in because a plugin's native code did not build then: compile again, so the native code is tried again (a cached
   // stand-in outlived the failure that chose it: zinc:3d ran its simulation after its library built again)
   // a plugin with no native source for this target has nothing to try again: its stand-in is the program (tc/plugin_build.cpp's noSource)
-  for (const auto& n : gNativeFallbacks) if (!n.reason.empty() && n.reason.find("has no native source") == std::string::npos) { zn::log::step("cache", n.module + " was compiled with its stand-in; compiling"); return false; }
+  for (const auto& n : gNativeFallbacks) if (nativeBuildFailed(n)) { zn::log::step("cache", n.module + " was compiled with its stand-in; compiling"); return false; }
   if (hot) *hot = std::move(unit);
   std::error_code ec;
   fs::last_write_time(dir, fs::file_time_type::clock::now(), ec);   // recently run: kept when the cache is trimmed
@@ -2515,6 +2539,7 @@ int main(int argc, char** argv) {
   }
   if (argc >= 2 && !std::strcmp(argv[1], "pack")) {   // zinc pack [dir] [-o app.zapp]: the program, its baked resources, assets and zinc.json in one file (ZN-318)
     namespace fs = std::filesystem;
+    setenv("ZINC_NATIVE_REQUIRED", "1", 0);   // a plugin that does not build stops the pack (ZN-1027, loadChecked)
     std::string dir = ".", outPath, packTarget;
     bool inspect = false;   // the program with the inspector in front, as zinc dev runs it (zinc device deploy --inspect)
     AssetOptimizer optimizer;
