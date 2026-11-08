@@ -37,6 +37,17 @@ echo '{ "name": "meta", "entry": "main.ts", "permissions": [] }' > "$d/app/zinc.
 out=$(cd "$d/app" && ZINC_PERMISSIONS=enforce "$Z" run . 2>&1)
 echo "$out" | grep -qx 'exists: false' && echo "$out" | grep -q '^mkdtemp: EACCES.*fs:write' && echo "$out" | grep -q '^realpath: EACCES.*fs:read' || { echo "unchecked fs calls: $out"; fail=1; }
 [ -z "$(ls "$d/other")" ] || { echo "mkdtemp made a directory outside the permissions"; fail=1; }
+w="$tmp/watch"; mkdir -p "$w/app" "$w/other" && echo x > "$w/other/f.txt"   # ZN-795: fs.watch of a file needs fs:read, on QuickJS too (it checked no permission)
+cat > "$w/app/main.ts" <<EOF
+import * as fs from 'zinc:fs';
+try { fs.watch('$w/other/f.txt', (ev: string, name: string) => {}); console.log('watching'); } catch (e) { console.log((e as Error).message); }
+try { console.log(fs.readText('$w/other/f.txt')); } catch (e) { console.log((e as Error).message); }
+EOF
+echo '{ "name": "watch", "entry": "main.ts", "permissions": [] }' > "$w/app/zinc.json"
+for e in --interp "--engine quickjs"; do
+  out=$(cd "$w/app" && ZINC_PERMISSIONS=enforce ZINC_FRAMES=1 timeout 20 "$Z" run -q $e . 2>&1)
+  [ "$(echo "$out" | grep -c '^EACCES.*fs:read')" = 2 ] || { echo "fs.watch and readText outside the permissions ($e): $out"; fail=1; }
+done
 t="$tmp/target"; mkdir -p "$t"   # "targets.<name>.permissions" of the target that runs: the profile's, else this OS's (not "windows" off macOS)
 echo "import * as fs from 'zinc:fs'; try { fs.writeText('$t/out.txt', 'x'); console.log('written'); } catch (e) { console.log((e as Error).message); }" > "$t/main.ts"
 echo '{ "name": "target", "entry": "main.ts", "permissions": [], "targets": { "rmpp": { "permissions": ["fs:write"] } } }' > "$t/zinc.json"

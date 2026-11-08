@@ -4,6 +4,7 @@
 #include "agent/wire.h"
 #include "i18n/i18n.h"
 
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -149,7 +150,7 @@ const Command kCommands[] = {
   {"migrate", "zinc migrate [--list] [--dry-run | --apply] [<codemod>...] [paths]", "cli.cmd.migrate", "Runs the codemods (all, or those named; --list prints them with the engine change that needs them) over the .tsx, .jsx and .md files (their ts/tsx/js/jsx fences) of the paths (default: the current directory). --dry-run (the default) prints the diff, --apply writes the files. A codemod rewrites code tokens only: strings, comments and JSX text are left as they are; a second run changes nothing. A diagnostic that has a codemod names it (zinc explain Z0006)."},
   {"infer", "zinc infer <entry|dir>", "cli.cmd.infer", "Lists the Z0109 sites (a parameter or variable whose type is unknown) with file and line."},
   {"dev", "zinc dev [entry|dir] [--target web [--render canvas|dom] [--port n]] [--device name [--perf] [--live] [--force]] [--lan [--port n]] [--no-devtools] [-- args]", "cli.cmd.dev", "Runs the program on the interpreter and watches the project. A saved module is swapped into the running program (Fast Refresh): same process and window, the modules you did not touch keep their state, and the components of the edited files render again (zinc:ui/solid; their own local state starts over). When it cannot, the program restarts from its entry and zinc dev says why in one line: a top-level effect without import.meta.hot.dispose (a module that exports values, not only functions and classes, runs again with its importers), zinc.json or a plugin changed, a program on QuickJS (.js entries, --engine quickjs), a program without a frame loop. A compile error puts a red box with the diagnostics on the screen until the next good save. Programs with a frame loop (zinc:ui, zinc:stage, onFrame) get the Chrome DevTools inspector (chrome://inspect, localhost:9229; another port: zinc.json plugins.devtools.port or ZINC_DEVTOOLS_PORT); a project with \"engine\": \"v8\" or \"hermes\" gets its engine's own inspector there instead (Sources, breakpoints, Console on its JavaScript). A save under the assets directory of a project that packs them (zinc.json assets.rules or assets.groups) rebuilds those assets and swaps them into the running program instead (zinc:assets onReload): the program keeps its state. --device <name> runs the program on a paired device instead (zinc device pair): each save sends it what changed and restarts it there, its output comes back here, a compile error is a red box on its screen and assets are swapped in the same way; its inspector there is forwarded to localhost:9229 of this machine for the session (chrome://inspect; another free port, said, when 9229 is taken; --no-devtools leaves it out). The device's zinc may be another release of the same series (0.6.x), with a note; another series is refused with the way out (zinc device <name> update), and --force tries anyway (the program may crash). --perf shows the performance panel over the program (on the device with --device), --live opens the device's screen in a window here for the session (zinc device <name> screen --live). --lan serves the project to Zinc Go on phones and tablets instead of opening a window (as `expo start` serves Expo Go): it prints a QR code and a zinc://host:port/code link (port 8090 or the next free one; the code keeps other people on the network out), compiles the project for each phone's profile and sends it, swaps each save into the running program in the same way, and prints the program's console here. Open the link on the Android emulator with adb shell am start -a android.intent.action.VIEW -d zinc://10.0.2.2:<port>/<code>, on the iOS simulator with xcrun simctl launch booted dev.zinc.go zinc://127.0.0.1:<port>/<code>."},
-  {"monitor", "zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]", "cli.cmd.monitor", "Prints zinc:telemetry JSON lines (hello, metric, event, state_snapshot) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through."},
+  {"monitor", "zinc monitor [file | --port /dev/tty... [--baud n] | --udp port [--host address]]", "cli.cmd.monitor", "Prints zinc:telemetry JSON lines (hello, metric, event, state_snapshot) from stdin, a file, a serial port or UDP, one readable line each; other lines pass through. --udp listens on this machine only (127.0.0.1); --host 0.0.0.0 receives from devices on the network. What arrives over UDP is shown with its control characters escaped (\\u001b), so a datagram cannot drive the terminal."},
   {"lsp", "zinc lsp", "cli.cmd.lsp", "Speaks LSP over stdio for an editor: diagnostics (the Z codes of zinc check --json), hover with types, completion (members, names in scope, module specifiers), go to definition, document symbols."},
   {"mem", "zinc mem <file.ts|file.zbc> [--json] [--check-leaks]", "cli.cmd.mem", "Runs a program in the interpreter and reports memory use and live objects at exit. --json writes the report as JSON; --check-leaks exits 4 when objects remain live."},
   {"version", "zinc version", "cli.cmd.version", "Prints the version of this zinc (also zinc --version)."},
@@ -3880,11 +3881,45 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
 // ---- zinc monitor
 namespace {
 
+bool gUntrustedLines = false;   // --udp: what arrives is anyone's text on the network
+
+// printf for the monitor's lines. Text from the network may hold escape sequences that drive the terminal (move the cursor, set its title,
+// write the clipboard with OSC 52): under --udp the control characters (C0 but the line's last newline, DEL, C1) print as \u001b, as the
+// prototype showed them. A serial port or a file is the user's own device and keeps its colours.
+#if defined(__GNUC__)
+__attribute__((format(printf, 1, 2)))
+#endif
+void say(const char* fmt, ...) {
+  va_list ap, again;
+  va_start(ap, fmt);
+  va_copy(again, ap);
+  const int n = std::vsnprintf(nullptr, 0, fmt, ap);
+  va_end(ap);
+  std::string s(n > 0 ? static_cast<std::size_t>(n) : 0, '\0');
+  if (n > 0) std::vsnprintf(s.data(), s.size() + 1, fmt, again);
+  va_end(again);
+  if (gUntrustedLines) {
+    std::string e;
+    for (std::size_t i = 0; i < s.size(); ++i) {
+      const unsigned char c = static_cast<unsigned char>(s[i]);
+      unsigned cp = 0x100;   // none
+      if ((c < 0x20 && !(c == '\n' && i + 1 == s.size())) || c == 0x7f) cp = c;
+      else if (c == 0xC2 && i + 1 < s.size() && static_cast<unsigned char>(s[i + 1]) >= 0x80 && static_cast<unsigned char>(s[i + 1]) <= 0x9f) cp = static_cast<unsigned char>(s[++i]);   // C1, as UTF-8
+      if (cp == 0x100) { e += static_cast<char>(c); continue; }
+      char b[8];
+      std::snprintf(b, sizeof b, "\\u%04x", cp);
+      e += b;
+    }
+    s.swap(e);
+  }
+  std::fputs(s.c_str(), stdout);
+}
+
 void printTelemetry(const std::string& line) {
   yyjson_doc* doc = yyjson_read(line.c_str(), line.size(), 0);
   yyjson_val* root = doc ? yyjson_doc_get_root(doc) : nullptr;
   yyjson_val* type = root && yyjson_is_obj(root) ? yyjson_obj_get(root, "type") : nullptr;
-  if (!type || !yyjson_is_str(type)) { std::printf("%s\n", line.c_str()); if (doc) yyjson_doc_free(doc); return; }
+  if (!type || !yyjson_is_str(type)) { say("%s\n", line.c_str()); if (doc) yyjson_doc_free(doc); return; }
   const std::string t = yyjson_get_str(type);
   yyjson_val* pl = yyjson_obj_get(root, "payload");
   yyjson_val* ts = yyjson_obj_get(root, "ts");
@@ -3892,16 +3927,16 @@ void printTelemetry(const std::string& line) {
   std::snprintf(head, sizeof head, "%9.3f s  ", ts && yyjson_is_num(ts) ? yyjson_get_num(ts) / 1000.0 : 0.0);
   auto str = [&](yyjson_val* v, const char* k) { yyjson_val* x = v ? yyjson_obj_get(v, k) : nullptr; return x && yyjson_is_str(x) ? std::string(yyjson_get_str(x)) : std::string(); };
   auto num = [&](yyjson_val* v, const char* k) { yyjson_val* x = v ? yyjson_obj_get(v, k) : nullptr; char b[40]; if (!x) return std::string(); if (yyjson_is_int(x)) std::snprintf(b, sizeof b, "%lld", static_cast<long long>(yyjson_get_sint(x))); else if (yyjson_is_num(x)) std::snprintf(b, sizeof b, "%g", yyjson_get_num(x)); else return std::string("null"); return std::string(b); };
-  if (t == "hello") std::printf("%shello  platform %s\n", head, str(pl, "platform").c_str());
-  else if (t == "metric") std::printf("%s%-7s %s = %s\n", head, str(pl, "kind").c_str(), str(pl, "name").c_str(), num(pl, "value").c_str());
-  else if (t == "event") std::printf("%sevent   %s  %s\n", head, str(pl, "name").c_str(), str(pl, "data").c_str());
+  if (t == "hello") say("%shello  platform %s\n", head, str(pl, "platform").c_str());
+  else if (t == "metric") say("%s%-7s %s = %s\n", head, str(pl, "kind").c_str(), str(pl, "name").c_str(), num(pl, "value").c_str());
+  else if (t == "event") say("%sevent   %s  %s\n", head, str(pl, "name").c_str(), str(pl, "data").c_str());
   else if (t == "state_snapshot") {
     std::string vars;
     yyjson_val* v = pl ? yyjson_obj_get(pl, "vars") : nullptr;
     size_t i, n; yyjson_val *k, *x;
     if (v && yyjson_is_obj(v)) yyjson_obj_foreach(v, i, n, k, x) vars += std::string(vars.empty() ? "" : "  ") + yyjson_get_str(k) + "=" + (yyjson_is_num(x) ? num(v, yyjson_get_str(k)) : "?");
-    std::printf("%sstate   %s\n", head, vars.c_str());
-  } else std::printf("%s%s\n", head, line.c_str());
+    say("%sstate   %s\n", head, vars.c_str());
+  } else say("%s%s\n", head, line.c_str());
   yyjson_doc_free(doc);
 }
 
@@ -3909,12 +3944,15 @@ void printTelemetry(const std::string& line) {
 
 int monitor(const std::vector<std::string>& args) {
   std::string file, port, udp, baud = "115200";
+  const char* hostEnv = std::getenv("ZINC_MONITOR_HOST");   // the prototype's spelling
+  std::string host = hostEnv && *hostEnv ? hostEnv : "127.0.0.1";   // this machine only, unless --host opens it (0.0.0.0: devices on the network)
   for (std::size_t i = 2; i < args.size(); ++i) {
     if (args[i] == "--port" && i + 1 < args.size()) port = args[++i];
     else if (args[i] == "--baud" && i + 1 < args.size()) baud = args[++i];
     else if (args[i] == "--udp" && i + 1 < args.size()) udp = args[++i];
+    else if (args[i] == "--host" && i + 1 < args.size()) host = args[++i];
     else if (args[i].rfind("-", 0) != 0) file = args[i];
-    else { std::fprintf(stderr, "zinc monitor: unknown option %s\nusage: zinc monitor [file | --port /dev/tty... [--baud n] | --udp port]\n", args[i].c_str()); return 2; }
+    else { std::fprintf(stderr, "zinc monitor: unknown option %s\nusage: zinc monitor [file | --port /dev/tty... [--baud n] | --udp port [--host address]]\n", args[i].c_str()); return 2; }
   }
   std::signal(SIGINT, onSignal);
   int fd = 0;
@@ -3928,8 +3966,11 @@ int monitor(const std::vector<std::string>& args) {
   if (!udp.empty()) {
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     sockaddr_in a{};
-    a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_ANY); a.sin_port = htons(static_cast<uint16_t>(std::atoi(udp.c_str())));
-    if (fd < 0 || bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof a) != 0) { std::fprintf(stderr, "zinc monitor: cannot listen on UDP %s\n", udp.c_str()); return 1; }
+    a.sin_family = AF_INET; a.sin_port = htons(static_cast<uint16_t>(std::atoi(udp.c_str())));
+    if (inet_pton(AF_INET, host.c_str(), &a.sin_addr) != 1) { std::fprintf(stderr, "zinc monitor: --host %s is not an IPv4 address (127.0.0.1, 0.0.0.0, 192.168.1.20...)\n", host.c_str()); return 2; }
+    if (fd < 0 || bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof a) != 0) { std::fprintf(stderr, "zinc monitor: cannot listen on UDP %s:%s\n", host.c_str(), udp.c_str()); return 1; }
+    gUntrustedLines = true;
+    std::fprintf(stderr, "zinc monitor: listening on udp://%s:%s%s\n", host.c_str(), udp.c_str(), host == "127.0.0.1" ? " (this machine only; --host 0.0.0.0 receives from devices on the network)" : "");
   } else if (!port.empty() || !file.empty()) {
     const std::string path = port.empty() ? file : port;
     fd = open(path.c_str(), O_RDONLY | O_NOCTTY | O_NONBLOCK);

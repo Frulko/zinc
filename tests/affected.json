@@ -482,7 +482,7 @@
     {"paths": ["src/gl/"], "tests": ["webgl_conformance"]},
     {"paths": ["tools/webgl-conformance", "tests/golden/webgl/"], "tests": ["webgl_conformance"]},
     {"paths": ["src/res/"], "tests": ["webp", "res_aot"]},
-    {"paths": ["src/cli_core", "src/main.cpp"], "tests": ["cli_core", "doctor_friendly", "run_js_engine", "cli_tools", "verbose_log", "plugin_add", "plugin_sign", "templates_remote", "install_offline", "plugin_tiers", "plugin_community", "plugin_lock", "revocation", "trust_policy", "policy", "plugin_cli", "templates_index"]},
+    {"paths": ["src/cli_core", "src/main.cpp"], "tests": ["cli_core", "doctor_friendly", "run_js_engine", "monitor_udp", "permissions", "cli_tools", "verbose_log", "plugin_add", "plugin_sign", "templates_remote", "install_offline", "plugin_tiers", "plugin_community", "plugin_lock", "revocation", "trust_policy", "policy", "plugin_cli", "templates_index"]},
     {"paths": ["tools/plugin-split"], "tests": ["plugin_split"]},
     {"paths": ["include/zn/log.h", "src/host/ui_log.cpp"], "tests": ["verbose_log"]},
     {"paths": ["docs/guide/07-distribution.md", "docs/guide/08-security.md", "tests/t1/guide_store.sh", "templates/game-2d/"], "tests": ["guide_store"]},

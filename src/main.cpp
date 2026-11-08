@@ -540,6 +540,12 @@ static std::string gBuildTarget;   // the machine a `run --target` / `build --ta
 static bool gStrict = false;  // --strict (a file-local switch of the command line, set once in main)
 static bool gHint = false;    // after the diagnostics, the line that says what to do next (ZN-711): zinc run, build and check as a person types them
 
+// zinc.json "permissions" at run time (ZN-322), for every engine: warned while developing, refused when enforced (exported apps, ZINC_PERMISSIONS=enforce)
+static void runPermissions(const zn::frontend::Project* p, const std::string& projectDir) {
+  const char* mode = std::getenv("ZINC_PERMISSIONS");
+  zn::host::perm::configure(p ? zn::frontend::permissionsFor(*p, runTarget()) : std::vector<std::string>{}, p && p->permissionsDeclared, mode && !std::strcmp(mode, "enforce"), projectDir.empty() ? "." : projectDir);
+}
+
 // The system permissions of the zinc.json that governs `path`, for the compile (an import of zinc:system/<feature> needs its id); a manifest rule that fails stops the command.
 static bool loadManifestPermissions(const char* path) {
   static std::vector<std::string> granted;
@@ -2374,6 +2380,14 @@ int main(int argc, char** argv) {
     qo.cacheDir = qjsCacheDir();
     qo.profileHz = qjsProfileHz;
     if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
+    {   // and the run-time permissions (ZN-795: QuickJS checked none, so fs.watch, readText... of any file worked in an enforced app)
+      const std::string pf = zn::frontend::findProjectFile(argv[2]);
+      zn::frontend::Project rp;
+      std::string text, perr;
+      { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
+      const bool have = !pf.empty() && zn::frontend::parseProject(text, rp, perr);
+      runPermissions(have ? &rp : nullptr, pf.empty() ? std::string() : std::filesystem::path(pf).parent_path().string());
+    }
     installDisplayDrivers("", argv[2]);   // zinc.json "display" (display-gl for zinc:mapping), before the window opens, as for the typed engines
 #ifdef ZN_HOST_GFX
     if (const std::string pf = zn::frontend::findProjectFile(argv[2]); !pf.empty()) {   // the splash (ZN-446), before the parse, the bake and the plugins
@@ -2792,11 +2806,7 @@ int main(int argc, char** argv) {
         if (e.empty()) { std::fprintf(stderr, "zinc: %s: no entry (zinc.json \"entry\", src/main.ts, src/main.tsx, main.ts, main.tsx, src/main.js or main.js)\n", path.c_str()); return 2; }
         path = e;
       }
-      {   // zinc.json "permissions" at run time (ZN-322): warned while developing, refused when enforced (exported apps, ZINC_PERMISSIONS=enforce)
-        const std::vector<std::string> granted = have ? zn::frontend::permissionsFor(project, runTarget()) : std::vector<std::string>{};
-        const char* mode = std::getenv("ZINC_PERMISSIONS");
-        zn::host::perm::configure(granted, have && project.permissionsDeclared, mode && !std::strcmp(mode, "enforce"), projectDir.empty() ? "." : projectDir);
-      }
+      runPermissions(have ? &project : nullptr, projectDir);
       if (have) gUpdProject = project;   // zinc:system/update (ZN-324.03)
       if (have) {
         shapedText = project.text == "shaped";

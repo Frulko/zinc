@@ -20,7 +20,7 @@ program reads and the services it opens. Per deployment:
 | **Kiosk** (Pi with a screen) | people on the LAN, people at the device | the network services the app opens; the touch screen | the systemd unit runs it unprivileged; remote display on loopback, token when exposed |
 | **Headless service** (Pi, server) | anyone who can reach its ports | HTTP requests, MQTT packets from the broker, OSC datagrams | size, connection and time limits on `net.serve`; bounded MQTT/OSC parsing; `ZINC_BIND` to restrict listeners; unprivileged hardened unit |
 | **ESP32 device** | the network (WiFi), whoever holds the device | fetch responses, MQTT, OSC; the flash chip | the same bounded parsers with smaller limits (JSON depth 32, 16 KiB stack); no MMU, no ASLR: a bug is worse here |
-| **Dev mode** (`zinc dev`, `--devtools`) | web pages open in the developer's browser, the LAN | the inspector port, the `serve.py` of a wasm export, `zinc monitor --udp` | the inspector and `serve.py` bind loopback; the inspector rejects foreign `Host` (DNS rebinding) and `Origin` (other web pages) headers; `zinc monitor --udp` listens on every interface (below) |
+| **Dev mode** (`zinc dev`, `--devtools`) | web pages open in the developer's browser, the LAN | the inspector port, the `serve.py` of a wasm export, `zinc monitor --udp` | the inspector and `serve.py` bind loopback; the inspector rejects foreign `Host` (DNS rebinding) and `Origin` (other web pages) headers; `zinc monitor --udp` binds loopback unless `--host` opens it, and escapes control characters (below) |
 
 Out of scope: a local user with the same OS account (they can read the process's memory), physical access to an
 unencrypted device, and the build machine and toolchain (trusted, see supply chain).
@@ -158,7 +158,7 @@ added (below, "Plugin distribution"). A plugin's native code is checked only whe
 | display-remote (`display: "remote"`) | `127.0.0.1:7700` | token (`ZINC_REMOTE_TOKEN`) when exposed; a warning without | 64-byte viewer messages; PONG stops when a viewer does not read |
 | zinc:remote viewer (ZincStudio devices) | outbound; beacons on UDP 7701 (unauthenticated) | sends the token | messages bounded by the screen size |
 | `serve.py` of a wasm export | `127.0.0.1:8000` (its argument is the port) | – | serves its own folder only |
-| `zinc monitor --udp <port>` | all interfaces | none: any host that reaches the port writes lines | lines are printed as received, control characters included: use it on a trusted network only |
+| `zinc monitor --udp <port>` | `127.0.0.1` (`--host 0.0.0.0` for devices on the network) | none: any host that reaches the port writes lines | control characters print escaped (`\u001b`), so a line cannot drive the terminal; open it on a trusted network only |
 | mapping web companion | `127.0.0.1:8080` (`--host`) | per-run token in the editor URL (header `x-zinc-token`) | 1 MiB requests |
 
 There is no built-in TLS anywhere: across an untrusted network use a tunnel (`ssh -L`, WireGuard) or a reverse proxy.
