@@ -38,6 +38,9 @@ declare module 'zinc:sys' {
   /** A device feature, the backend of the web APIs of zinc:web (navigator.getBattery, wakeLock, onLine, visibility, sensors): a JSON or
    *  plain answer, '' when this machine has none. Queries: docs/guide/09-web-apis.md "Device". */
   export function device(query: string, arg?: string): string;
+  /** The app's own writable folder for its files, made on first call: <zinc home>/apps/<zinc.json name>/ (ZINC_APP_DATA replaces it; <zinc home>
+   *  for a program with no name). Its zinc:storage lives there too, and resetting the app (the reMarkable Hub's Reset data) erases it whole. */
+  export function dataDir(): string;
   export function chdir(dir: string): boolean;
   export function setEnv(name: string, value: string): void;
   export function unsetEnv(name: string): void;

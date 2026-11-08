@@ -14,7 +14,7 @@
     {"paths": ["tools/zinc-go-iphone", "tests/t0/zinc_go_iphone_progress.sh"], "tests": ["zinc_go_iphone_progress"]},
     {"paths": ["examples/clear/", "lib/std/ui.ts", "tests/data/clear/", "tests/golden/clear/", "tests/t1/clear.sh", "tests/demo/clear.sh"], "tests": ["clear"]},
     {"paths": ["lib/std/solid.ts", "lib/std/kit/host.ts", "src/frontend/jsx.cpp", "tests/data/solid_index.tsx", "tests/t0/solid_index.sh"], "tests": ["solid_index", "jsx"]},
-    {"paths": ["src/host/sys_host.cpp", "src/frontend/modules.cpp", "tests/data/storage_errors.ts", "tests/t0/storage_errors.sh"], "tests": ["storage_errors", "app_storage", "async_storage"]},
+    {"paths": ["src/host/sys_host.cpp", "src/frontend/modules.cpp", "tests/data/storage_errors.ts", "tests/t0/storage_errors.sh"], "tests": ["storage_errors", "app_storage", "async_storage", "app_data_dir"]},
     {"paths": ["tests/data/photo_files/", "tests/t1/photo_files.sh", "src/host/gfx_host.cpp", "src/main.cpp"], "tests": ["photo_files"]},
     {"paths": ["examples/murdoku/", "tests/data/murdoku/", "tests/demo/murdoku.sh", "tests/t1/murdoku_ui.sh"], "tests": ["murdoku", "murdoku_ui"]},
     {"paths": ["examples/murdoku/src/ticket.ts", "examples/murdoku/src/sheet.ts", "examples/murdoku/src/paper.ts", "examples/murdoku/src/components/plan.ts", "examples/murdoku/authoring/print_ticket.py", "examples/murdoku/authoring/print_sheet.py", "tests/demo/murdoku_ticket.sh"], "tests": ["murdoku_ticket"]},

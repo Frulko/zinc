@@ -158,6 +158,7 @@ Every function of the engine's modules on one page: its signature and what it do
 - `execPath(): string` The program's own executable (Node's process.execPath), to start the app again as a second process; '' where there is none (the web, a console).
 - `locale(): string` The system's preferred language as a BCP 47 tag ("fr-FR"): LC_ALL, LC_MESSAGES or LANG when set, else the system's setting.
 - `device(query: string, arg?: string): string` A device feature, the backend of the web APIs of zinc:web (navigator.getBattery, wakeLock, onLine, visibility, sensors): a JSON or plain answer, '' when this machine has none.
+- `dataDir(): string` The app's own writable folder for its files, made on first call: <zinc home>/apps/<zinc.json name>/ (ZINC_APP_DATA replaces it; <zinc home> for a program with no name).
 - `chdir(dir: string): boolean`
 - `setEnv(name: string, value: string): void`
 - `unsetEnv(name: string): void`
@@ -330,6 +331,7 @@ Every function of the engine's modules on one page: its signature and what it do
 - `Math.sin(x: number): number`
 - `Math.cos(x: number): number`
 - `Math.tan(x: number): number`
+- `Math.atan(x: number): number`
 - `Math.atan2(y: number, x: number): number`
 - `Math.exp(x: number): number`
 - `Math.log(x: number): number`
@@ -344,6 +346,9 @@ Every function of the engine's modules on one page: its signature and what it do
 - `Math.sinh(x: number): number`
 - `Math.cosh(x: number): number`
 - `Math.tanh(x: number): number`
+- `Math.asinh(x: number): number`
+- `Math.acosh(x: number): number`
+- `Math.atanh(x: number): number`
 - `Math.fround(x: number): f32`
 - `Math.imul(a: i32, b: i32): i32`
 - `Math.clz32(x: i32): i32`

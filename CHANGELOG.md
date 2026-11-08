@@ -89,6 +89,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - `ZINC_RESOURCE_LOG=<file>[:seconds]` appends, every 30 seconds by default, a line with the app's memory and what each part holds (images, GPU textures, fonts, script heap): the way to see which part grows in an app that gets slower over days.
 - Editors now know `zinc:ui`: after `zinc tsconfig`, `PointerEvent`, `KeyEvent` and the rest of the module come with their docs, and the event attributes of `View`, `Button` and the other host tags (`onPointerDown`, `onKeyDown`, `onInput`...) type their argument.
+- Editors now know `dataDir()` of `zinc:sys`, the app's own writable folder (`~/.zinc/apps/<name>/`, made on first call), where an app keeps its files.
 
 #### Changed
 
