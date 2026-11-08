@@ -28,3 +28,4 @@ Each iteration (a wake-up or an agent's notification):
 ## Test machines (owner, 2026-11-07)
 
 - Cross lane open: the Pi 3B+ player spark@192.168.2.31 and the Mojave Intel Mac mowmow@192.168.2.215 (AGENTS.md "The test machines"). One worker lane may take cross tasks these machines can prove; cross builds count as a building tree.
+- Worker: export chain ZN-797, ZN-816, ZN-817 (claimed d4630aa0c), running beside the devtools chain.
