@@ -534,6 +534,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-816: index signature types (`{ [k: string]: V }`) are refused by the typed checker (Z0005); plugins and users must use Map. A language task.
 - ZN-816: the first scoped `sw.js` on an origin deletes the old unscoped `zinc-*` caches, so a sibling app on an old `sw.js` loses its offline copy once.
 - ZN-817: check that the Hermes and JSC engine packs pin their sources as the V8 pack does.
+- ZN-643: `zinc:process` has no `stdio: 'inherit'` option (Node's spawn has one), so a child meant to print to the terminal needs its output copied line by line.
+- ZN-1015: a string literal with a lone surrogate escape (`'\ud83d'`) becomes U+FFFD on the typed engines, unlike Node and QuickJS.
+- ZN-1015: `codePointAt` returns `i32` (-1) in typed code, so `s.codePointAt(i) ?? -1` is refused (Z0107) where TypeScript accepts it.
+- ZN-1005: `ZINC_DURATION` does not end a timer-only program with no frame loop (it never polls the HAL).
+- ZN-1063: `zinc lsp` lints synchronously on save; background or debounce it if large projects stall the editor.
+- ZN-774.25: a bare `astro build` does not copy `docs/learn/img` (only the `assets` script does); make `site_examples.sh` and `learn_web.sh` run it, or have astro copy the images.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

@@ -29,4 +29,4 @@ Each iteration (a wake-up or an agent's notification):
 
 - Cross lane open: the Pi 3B+ player spark@192.168.2.31 and the Mojave Intel Mac mowmow@192.168.2.215 (AGENTS.md "The test machines"). One worker lane may take cross tasks these machines can prove; cross builds count as a building tree.
 - Integrated: devtools chain ZN-1031, ZN-640, ZN-1020 (D211) and export chain ZN-797, ZN-816, ZN-817 (D212), smoke tests pass in a clean worktree with ZINC_ROOT.
-- Workers: runtime chain ZN-643, ZN-1015, ZN-1005 and tools chain ZN-1063, ZN-774.25, ZN-774.18 (claimed 98ecb991f).
+- Integrated: runtime chain ZN-643, ZN-1015 (Review), ZN-1005 (D213) and tools chain ZN-1063, ZN-774.25, ZN-774.18 (D214). AOT smoke tests run from the main tree (not with ZINC_ROOT: rt.h WIP mismatch).
