@@ -470,8 +470,36 @@ function __dynIter(d: Dyn): any[] {
   if (d instanceof DynStr) { const r: any[] = []; for (let i: i32 = 0; i < d.v.length; i++) r.push(new DynStr(d.v.charAt(i))); return r; }
   throw new TypeError(__dynTypeName(d) + ' is not iterable');
 }
-function __dynMap<U>(d: Dyn, f: (v: any, i: i32) => U): U[] { const a = __dynIter(d); const r: U[] = []; for (let i: i32 = 0; i < a.length; i++) r.push(f(a[i], i)); return r; }
-function __dynFilter(d: Dyn, f: (v: any, i: i32) => boolean): any[] { const a = __dynIter(d); const r: any[] = []; for (let i: i32 = 0; i < a.length; i++) if (f(a[i], i)) r.push(a[i]); return r; }
+// d.m(...) on an any value (ZN-1035): the method of the real array or string it holds, so push, splice and sort change the array the any holds
+function __dynItems(d: Dyn, m: string): any[] {
+  if (d instanceof DynArr) return d.items;
+  throw new TypeError(__dynTypeName(d) + ' has no method ' + m + '()');
+}
+function __dynStrOf(d: Dyn, m: string): string {
+  if (d instanceof DynStr) return d.v;
+  throw new TypeError(__dynTypeName(d) + ' has no method ' + m + '()');
+}
+// sort() with no comparator, as JavaScript sorts: by the text of each element, undefined last
+function __dynSortCmp(p: any, q: any): number {
+  const a: Dyn = p;
+  const b: Dyn = q;
+  if (a.kind() === 0 || b.kind() === 0) return (a.kind() === 0 ? 1 : 0) - (b.kind() === 0 ? 1 : 0);
+  const x: string = a.toString();
+  const y: string = b.toString();
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+function __dynIncludes(d: Dyn, x: any, from: f64 = 0): boolean {
+  if (d instanceof DynStr) return d.v.indexOf(__dynString(x), from) >= 0;
+  return __dynItems(d, 'includes').includes(x, from);
+}
+function __dynIndexOf(d: Dyn, x: any, from: f64 = 0): f64 {
+  if (d instanceof DynStr) return d.v.indexOf(__dynString(x), from);
+  return __dynItems(d, 'indexOf').indexOf(x, from);
+}
+function __dynSlice(d: Dyn, s: f64 = 0, e: f64 = 2147483647): any {
+  if (d instanceof DynStr) { const r: any = d.v.slice(s, e); return r; }
+  return new DynArr(__dynItems(d, 'slice').slice(s, e));
+}
 // for...in over a Dyn: the keys JavaScript lists, array indices first in ascending order, then the other keys in insertion order
 function __dynKeys(d: Dyn): string[] {
   const r: string[] = [];

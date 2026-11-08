@@ -212,7 +212,7 @@
   X("Z0105", "learn/02-colours-and-movement", \
     "// A value is used without parentheses\nlet a = 1;\nconsole.log(a);", \
     "// Or make it a function\nconst a = (): i32 => 1;\na();", \
-    "") \
+    "// On an any value the array and string methods run as in TypeScript, on the value itself\nconst d: any = JSON.parse('{\"items\": [3, 1]}');\nd.items.push(2);\nd.items.sort();\nconsole.log(d.items.join(','));") \
   X("Z0106", "learn/02-colours-and-movement", \
     "// Use a member the type has (the cheat sheet lists them)\nlet a = 1;\nconsole.log(a.toFixed(2));", \
     "// Or make an object that has the property\nconst a = { foo: 1 };\nconsole.log(a.foo);", \

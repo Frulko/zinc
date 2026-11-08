@@ -361,6 +361,16 @@ const a = (): i32 => 1;
 a();
 ```
 
+Fixed:
+
+```ts
+// On an any value the array and string methods run as in TypeScript, on the value itself
+const d: any = JSON.parse('{"items": [3, 1]}');
+d.items.push(2);
+d.items.sort();
+console.log(d.items.join(','));
+```
+
 Lesson: [learn/02-colours-and-movement](learn/02-colours-and-movement.md)
 
 ## Z0106: Property does not exist

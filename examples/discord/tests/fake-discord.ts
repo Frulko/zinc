@@ -532,8 +532,7 @@ function voiceGateway(ws: WebSocket, req: UpgradeRequest): void {
     else if (kind !== 'voice' && p.op !== 3) console.log(`voice ${kind} op ${p.op}`);
     else if (p.op === 1) {
       voiceMode = d.data.mode;
-      const codecs: string[] = [];
-      for (const c of d.codecs) codecs.push(`${c.name}/${c.payload_type}`);
+      const codecs: string[] = d.codecs.map((c: any): string => `${c.name}/${c.payload_type}`);
       console.log(`voice select protocol=${d.protocol} address=${d.data.address} port=${d.data.port > 0} mode=${voiceMode} codecs=${codecs.join(',')}`);
       send(4, { mode: voiceMode, secret_key: VOICE_KEY, dave_protocol_version: voiceChannel === '400' ? 1 : 0 });   // DAVE in the DM call
       send(11, { user_ids: ['101'] });

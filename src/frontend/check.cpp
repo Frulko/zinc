@@ -1421,8 +1421,13 @@ struct Checker {
     return (k == TK::Array || k == TK::Map || k == TK::Set || k == TK::Object || k == TK::Union || k == TK::Func || t == tDyn) && !hasParam(t) && inspectable(out, t);
   }
 
-  static bool dynArrayMethod(std::string_view m) {
-    return m == "map" || m == "filter" || m == "forEach" || m == "some" || m == "every" || m == "find" || m == "findIndex" || m == "join" || m == "includes" || m == "indexOf" || m == "slice";
+  // d.m(...) on an any value (ZN-1035), as TypeScript allows: 1 an array method, 2 a string method, 3 both (dispatched on what d holds at run time)
+  static int dynMethodKind(std::string_view m) {
+    for (std::string_view a : {"map", "filter", "forEach", "some", "every", "find", "findIndex", "findLast", "findLastIndex", "reduce", "reduceRight", "join",
+                               "push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill"}) if (m == a) return 1;
+    for (std::string_view t : {"toUpperCase", "toLowerCase", "trim", "trimStart", "trimEnd", "split", "charAt", "charCodeAt", "codePointAt", "startsWith",
+                               "endsWith", "padStart", "padEnd", "replace", "replaceAll", "substring", "substr", "repeat", "localeCompare"}) if (m == t) return 2;
+    return m == "includes" || m == "indexOf" || m == "slice" ? 3 : 0;
   }
   // the receiver of a method call is a variable-like expression of type any (not `Math` or a class)
   bool dynReceiver(std::uint32_t r) {
@@ -2595,18 +2600,20 @@ struct Checker {
         return mapForEach(i);
       } else if (cn.kind == N::Member && isHofName(cn.text) && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Array && !(cn.text == "join" && ty(ty(out.nodeType[cn.kids[0]]).elem).k == TK::Str)) {  // string arrays join through the runtime
         return arrayHof(i, cn.text);
-      } else if (cn.kind == N::Member && !rawDyn() && !(cn.flags & kFlagOptional) && dynArrayMethod(cn.text) && dynReceiver(cn.kids[0])) {
-        // `d.codecs.map(f)` on an any value: the array method of the elements it holds (the Dyn array of a copy), as TypeScript allows on any
+      } else if (int dk = cn.kind == N::Member && !rawDyn() && !(cn.flags & kFlagOptional) ? dynMethodKind(cn.text) : 0; dk && dynReceiver(cn.kids[0])) {
+        // `d.codecs.map(f)`, `d.items.push(x)`, `d.name.trim()` on an any value: the method of the array or string it holds, in place
         const std::string m(cn.text);
-        std::string call = m == "map" || m == "filter" ? "__dyn" + std::string(m == "map" ? "Map" : "Filter") + "(__H0, " : "__dynIter(__H0)." + m + "(";
+        std::string call = dk == 1 ? "__dynItems(__H0, '" + m + "')." + m + "(" : dk == 2 ? "__dynStrOf(__H0, '" + m + "')." + m + "("
+                         : "__dyn" + std::string(1, char(m[0] - 32)) + m.substr(1) + "(__H0" + (x.kids.size() > 1 ? ", " : "");
         std::vector<std::vector<std::uint32_t>> holes{{cn.kids[0]}};
         for (std::size_t k = 1; k < x.kids.size(); ++k) { call += (k > 1 ? ", " : "") + std::string("__H") + std::to_string(k); holes.push_back({x.kids[k]}); }
+        if (m == "sort" && x.kids.size() == 1) call += "__dynSortCmp";
         call += ")";
         return replaceWith(i, call, holes) ? expr0(i, kNoType) : tError;
       } else { calleeNode = callee; ct = expr(callee); calleeNode = kNone; }
       if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) if (!preEvaluated) expr(x.kids[k]); return tError; }
       if (ty(ct).k != TK::Func) {
-        diag(kZNotCallable, callee, "'" + name(ct) + "'");
+        diag(kZNotCallable, callee, "'" + name(ct) + "'" + (isDyn(ct) ? " (on an any value only the array and string methods run: narrow it first)" : ""));
         for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]);
         return tError;
       }

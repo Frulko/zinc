@@ -134,7 +134,9 @@ those). This is the rule of Zinc: a typed value is exactly its type, as its layo
 which runs the program as plain JavaScript, keeps the extra properties today (as TypeScript does at run time), so code that guards
 what it passes on (a server that takes a patch from a client) still sets or clears the fields it must never take from outside.
 
-Calling a function through a `Dyn` is rejected (Z0105, "Expression is not callable: 'any'"): narrow first. Typed arrays other
+Calling a function through a `Dyn` is rejected (Z0105, "Expression is not callable: 'any'"): narrow first. The array and
+string methods are the exception, as in TypeScript: `d.items.map(f)`, `.filter`, `.join`, `.push(x)`, `.splice`, `.sort()` and
+`d.name.trim()` run on the array or string the `Dyn` holds, so a mutation is seen through the `Dyn`. Typed arrays other
 than `any[]`, functions, maps and sets can't become `Dyn`, because a checked copy would break aliasing.
 
 ### `zinc infer`

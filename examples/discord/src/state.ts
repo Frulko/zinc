@@ -334,7 +334,7 @@ export class Store implements GatewayHandler {
     out.id = str(c.id); out.guildId = guildId; out.type = c.type; out.position = c.position ?? 0;
     out.parentId = str(c.parent_id); out.lastMessageId = str(c.last_message_id); out.name = str(c.name); out.topic = str(c.topic);
     out.messageCount = c.message_count ?? 0;
-    if (Array.isArray(c.applied_tags)) for (const t of c.applied_tags) out.tags.push(str(t));
+    if (Array.isArray(c.applied_tags)) out.tags = c.applied_tags.map(str);
     if (Array.isArray(c.available_tags)) for (const t of c.available_tags) out.tagNames.set(str(t.id), str(t.name));
     if (out.name === '' && (out.type === CH_DM || out.type === CH_GROUP_DM)) {
       const names: string[] = [];

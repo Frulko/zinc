@@ -103,6 +103,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `await` at the top level of a program or test file works on every engine; an `async` arrow function or object method no longer needs its `Promise<T>` written out (`const load = async () => 1`), and a generic function's return type is inferred from its arguments (`function id<T>(x: T) { return x; }`).
 - Plain JavaScript programs have the browser's `URL`, `URLSearchParams` and `WebSocket` globals, so `new URL('./worker.js', import.meta.url)` and libraries that open a `WebSocket` work without an adapter.
 - `n.toLocaleString()` formats numbers with thousands separators on every engine, with the `minimumFractionDigits`, `maximumFractionDigits` and `useGrouping` options (in the US English format for now), and `JSON.stringify(value, replacer)` takes a replacer function, with or without an indent.
+- On an `any` value the array and string methods work as in TypeScript: `d.items.push(x)`, `.splice`, `.sort()`, `.reduce`, `d.name.trim().toUpperCase()`, `.split`, `.replace`... and a change made through `d` is seen in the data it holds, not in a copy.
 
 #### Fixed
 
