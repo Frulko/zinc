@@ -13,6 +13,9 @@ declare module 'zinc:gfx' {
   export function closeWindow(id: i32): void;
   /** Whether window `id` is open (0: the main one). */
   export function windowOpen(id: i32): boolean;
+  /** Calls `cb(id)` at the next frame after window `id` closed (by the user or closeWindow), once per window; 0 is the main window, hidden
+   *  while others are open. The last window ends the program and calls nothing. */
+  export function onWindowClosed(cb: (id: i32) => void): void;
   /** The raw call behind zinc:system/window on window `id` (0: the main one): op 0 move to a,b; 1 resize to a x b; 2 focus; 3 title s;
    *  4..7 its x, y, w, h; 8 the last id opened; 9 the window being drawn. 0 when the window or the HAL cannot. */
   export function windowCtl(id: i32, op: i32, s: string, a: i32, b: i32): i32;

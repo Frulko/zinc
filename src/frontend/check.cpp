@@ -995,6 +995,19 @@ struct Checker {
       TypeId lt = expr(le);
       const Node& rn = n(re);
       std::uint32_t rs = rn.kind == N::Ident ? lookup(rn.text) : kNone;
+      if (rs != kNone && out.syms[rs].kind == SymKind::GenericClass && !isDyn(lt)) {   // `v instanceof Promise` on a `T | Promise<T>`: the instance of that class the value can hold (ZN-1032)
+        TypeId inst = kNoType;
+        for (TypeId m : unionMembers(lt))
+          if (!bad(m) && ty(m).k == TK::Object && out.objs[ty(m).obj].genericSym == rs) { if (inst != kNoType) { inst = tError; break; } inst = m; }
+        if (inst == kNoType || inst == tError) {
+          diag(kZBadOperand, re, inst == kNoType ? "'" + name(lt) + "' holds no '" + std::string(rn.text) + "'" : "'" + name(lt) + "' holds several kinds of '" + std::string(rn.text) + "': test a value of one");
+          return tBool;
+        }
+        out.nodeSym[re] = rs;
+        out.nodeType[re] = inst;
+        for (TypeId m : unionMembers(lt)) if (!bad(m) && m != tNull && ty(m).k != TK::Object && ty(m).k != TK::Param) { diag(kZBadOperand, le, "'instanceof' on '" + name(lt) + "'"); break; }   // a type parameter: its instances are checked
+        return tBool;
+      }
       if (rs == kNone || out.syms[rs].kind != SymKind::Class || out.objs[ty(out.syms[rs].type).obj].isInterface || (out.objs[ty(out.syms[rs].type).obj].isRecord && !inspectMode)) {
         diag(kZBadOperand, re, "the right-hand side of 'instanceof' must be a class");
         return tBool;
@@ -4259,7 +4272,8 @@ struct Checker {
     if (n(subject).kind == N::Call && n(subject).kids.size() == 2 && n(n(subject).kids[1]).kind == N::Ident) subject = n(subject).kids[1];
     if (c.text == "instanceof" && n(subject).kind == N::Ident && out.nodeSym[subject] != kNone && trackable(out.nodeSym[subject]) && out.nodeSym[c.kids[1]] != kNone) {
       std::uint32_t sy = out.nodeSym[subject];
-      TypeId nt = narrowByInstanceOf(currentType(sy, &fs), out.syms[out.nodeSym[c.kids[1]]].type, truthy);
+      const TypeId ct = out.nodeType[c.kids[1]] != kNoType ? out.nodeType[c.kids[1]] : out.syms[out.nodeSym[c.kids[1]]].type;   // the class, or the instance of a generic class the test found
+      TypeId nt = narrowByInstanceOf(currentType(sy, &fs), ct, truthy);
       if (nt != kNoType) fs.push_back({sy, nt});
     }
   }

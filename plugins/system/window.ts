@@ -2,7 +2,7 @@
 // time, keeps the close-to-tray handler, and saves and restores its position and size (the state file is plain JSON, the clamp to the displays is a pure function).
 import { call, on, preventClose, supports } from 'zinc:system';
 import * as fs from 'zinc:fs';
-import { openWindow, closeWindow, windowOpen, windowCtl, clear, rect, rrect, line, text } from 'zinc:gfx';
+import { openWindow, closeWindow, windowOpen, windowCtl, onWindowClosed, keep, width, height, clear, rect, rrect, line, text } from 'zinc:gfx';
 
 export class Rect {
   x: number; y: number; w: number; h: number;
@@ -130,7 +130,8 @@ export function save(dir: string): void { fs.mkdir(dir, true); saveState(stateFi
 export interface Shape { kind: string; x: number; y: number; w: number; h: number; r: number; color: u32; text: string }
 /** What a window draws when its scene comes from elsewhere (a worker computes it, the window draws the last one): plain data, so it crosses a thread. */
 export interface Scene { background: u32; shapes: Shape[] }
-export interface WindowOptions { title: string; width: i32; height: i32 }
+/** `x` and `y` place it on the screen (points), both or neither, as Electron's BrowserWindow; without them the system places it. */
+export interface WindowOptions { title: string; width: i32; height: i32; x?: i32; y?: i32 }
 
 export function drawScene(s: Scene): void {
   clear(s.background);
@@ -146,6 +147,9 @@ export class AppWindow {
   id: i32;
   /** The scene a window opened without a draw callback shows (setScene). */
   scene: Scene | null = null;
+  /** setScene calls, so the window draws a scene once and keeps its pixels until the next one (or a resize). */
+  sceneGen: i32 = 0;
+  private closedFns: (() => void)[] = [];
   constructor(id: i32) { this.id = id; }
   isOpen(): boolean { return windowOpen(this.id); }
   /** Closes it; closing the last window ends the program. */
@@ -158,10 +162,21 @@ export class AppWindow {
   /** Its frame on the screen, in points (headless: what was asked). */
   bounds(): Rect { return new Rect(windowCtl(this.id, 4, '', 0, 0), windowCtl(this.id, 5, '', 0, 0), windowCtl(this.id, 6, '', 0, 0), windowCtl(this.id, 7, '', 0, 0)); }
   /** What it draws from the next frame, when it was opened without a draw callback. */
-  setScene(s: Scene): void { this.scene = s; }
+  setScene(s: Scene): void { this.scene = s; this.sceneGen++; }
+  /** `cb` runs once at the next frame after the window closed (the user or close()). On the main window, `onClosed(quit)` ends the program
+   *  with it, as Electron's `mainWindow.on('closed', () => app.quit())`: by default the others stay open (the last one ends the program). */
+  onClosed(cb: () => void): void { this.closedFns.push(cb); }
+  /** zinc:gfx reported it closed. */
+  closed(): void { const fs = this.closedFns; this.closedFns = []; for (const f of fs) f(); }
 }
 
 const known: Map<i32, AppWindow> = new Map<i32, AppWindow>();
+onWindowClosed((id: i32) => {   // ids are never reused: a closed window's handle answers false and 0 from then on
+  const w = known.get(id);
+  if (w === undefined) return;
+  if (id !== 0) known.delete(id);
+  w.closed();
+});
 
 /** The window `id` (0: the main one), for a window opened elsewhere (zinc:gfx openWindow, zinc:ui mountWindow). */
 export function get(id: i32): AppWindow {
@@ -175,10 +190,18 @@ export function get(id: i32): AppWindow {
  *  Throws when no window can open (a target without more windows). */
 export function open(o: WindowOptions, draw: ((dt: number) => void) | null = null): AppWindow {
   const w = new AppWindow(-1);
-  const f: (dt: number) => void = draw !== null ? draw : (dt: number) => { const s = w.scene; if (s !== null) drawScene(s); else clear(0); };
+  let drawnGen: i32 = -1, drawnW: i32 = -1, drawnH: i32 = -1;
+  const f: (dt: number) => void = draw !== null ? draw : (dt: number) => {   // an unchanged scene keeps the window's pixels: no drawScene
+    if (w.sceneGen === drawnGen && width() === drawnW && height() === drawnH) { keep(); return; }
+    drawnGen = w.sceneGen; drawnW = width(); drawnH = height();
+    const s = w.scene;
+    if (s !== null) drawScene(s); else clear(0);
+  };
   w.id = openWindow(o.title, o.width, o.height, f);
   if (w.id < 0) throw new Error('zinc:system/window: no window can open here');
   known.set(w.id, w);
+  const x = o.x, y = o.y;
+  if (x !== undefined && y !== undefined) w.setPosition(x, y);
   return w;
 }
 /** The open windows, the main one first. */

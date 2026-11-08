@@ -25,8 +25,7 @@ export function previewOpen(): boolean { const w = previewWindow; return w !== n
 export function openPreview(x: i32, y: i32): void {
   if (previewOpen()) return;
   if (port === null) startWorker();
-  const w = win.open({ title: 'Live preview', width: PREVIEW_W, height: PREVIEW_H });
-  w.setPosition(x, y);
+  const w = win.open({ title: 'Live preview', width: PREVIEW_W, height: PREVIEW_H, x: x, y: y });
   const s = lastScene;
   w.setScene(s !== null ? s : { background: COLOR_PREVIEW_BG, shapes: [] });
   previewWindow = w;

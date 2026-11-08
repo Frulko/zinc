@@ -115,7 +115,7 @@ export interface Envelope<T> { kind: i32; id: i32; data: T }   // kind 0 a messa
 export class MessagePort<Out, In> {
   /** Called with each message the other side posts. */
   onmessage: ((e: MessageEvent<In>) => void) | null = null;
-  private answer: ((m: In) => Out) | null = null;
+  private answer: ((m: In) => Out | Promise<Out>) | null = null;
   private waiting: Map<i32, (v: In) => void> = new Map<i32, (v: In) => void>();
   private next: i32 = 1;
   private send: (e: Envelope<Out>) => void;
@@ -129,8 +129,9 @@ export class MessagePort<Out, In> {
       this.send({ kind: 1, id: id, data: message });
     });
   }
-  /** Answers the other side's requests: what `f` returns is the reply. */
-  handle(f: (m: In) => Out): void { this.answer = f; }
+  /** Answers the other side's requests: what `f` returns is the reply; a Promise (an async handler) replies when it settles, as Electron's
+   *  ipcMain.handle. A handler that throws or rejects leaves the request unanswered and the error unhandled. */
+  handle(f: (m: In) => Out | Promise<Out>): void { this.answer = f; }
   /** One envelope from the other side (the channel or the worker's pump calls it). */
   deliver(e: Envelope<In>): void {
     if (e.kind === 2) {
@@ -139,7 +140,9 @@ export class MessagePort<Out, In> {
     } else if (e.kind === 1) {
       const f = this.answer;
       if (f === null) throw new Error('MessagePort: a request came and no handle() answers it');
-      this.send({ kind: 2, id: e.id, data: f(e.data) });
+      const r = f(e.data);
+      if (r instanceof Promise) r.then((v: Out) => { this.send({ kind: 2, id: e.id, data: v }); });
+      else this.send({ kind: 2, id: e.id, data: r });
     } else {
       const g = this.onmessage;
       if (g !== null) g(new MessageEvent<In>(e.data));

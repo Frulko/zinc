@@ -203,13 +203,17 @@ std::string gfxSource() {
   return "let __frameCb = null;\n"
          "const __resizeFns = []; let __lastW = 0, __lastH = 0;\n"   // onResize (ZN-608): the frame callback reports a new size first
          "const __winIds = [], __winFns = [];\n"   // the windows beside the main one (ZN-663, ZN-685) and their frame callbacks
+         "const __closedFns = []; let __mainShown = true;\n"   // onWindowClosed (ZN-1032), as the typed engine's gfx module
+         "function __windowClosed(id) { for (const f of __closedFns) f(id); }\n"
          "function __frameStep(dt) {\n"   // what the typed engine's __gfxLoop does between begin and end
          "  if (__resizeFns.length > 0 && (__host_gfxWidth() !== __lastW || __host_gfxHeight() !== __lastH)) {\n"
          "    __lastW = __host_gfxWidth(); __lastH = __host_gfxHeight(); for (const f of __resizeFns) f(__lastW, __lastH); }\n"
-         "  if (__frameCb !== null && (__winIds.length === 0 || __host_gfxWindowOpen(0) !== 0)) __frameCb(dt);\n"   // a closed main window is hidden while others are open
+         "  const mainOpen = __winIds.length === 0 || __host_gfxWindowOpen(0) !== 0;\n"   // a closed main window is hidden while others are open
+         "  if (mainOpen !== __mainShown) { __mainShown = mainOpen; if (!mainOpen) __windowClosed(0); }\n"
+         "  if (__frameCb !== null && mainOpen) __frameCb(dt);\n"
          "  for (let i = 0; i < __winIds.length; i++) {\n"
          "    const id = __winIds[i];\n"
-         "    if (__host_gfxWindowOpen(id) === 0) { __winIds.splice(i, 1); __winFns.splice(i, 1); i--; continue; }\n"
+         "    if (__host_gfxWindowOpen(id) === 0) { __winIds.splice(i, 1); __winFns.splice(i, 1); i--; __windowClosed(id); continue; }\n"
          "    __host_gfxBeginWindow(id); __winFns[i](dt); __host_gfxEndWindow(); }\n"
          "  if (__overFn !== null && !__overFn(dt)) __overFn = null; }\n"   // overlay (ZN-447): over the program's drawing
          "let __overFn = null;\n"
@@ -228,6 +232,7 @@ std::string gfxSource() {
          "  if (id > 0) { __winIds.push(id); __winFns.push(cb); globalThis.__zincFrameCb = __frameStep; }\n"
          "  return id; }\n"
          "export function closeWindow(id) { __host_gfxCloseWindow(id); }\n"
+         "export function onWindowClosed(cb) { __closedFns.push(cb); }\n"
          "export function windowOpen(id) { return __host_gfxWindowOpen(id) !== 0; }\n" + api;
 }
 

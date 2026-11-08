@@ -4,6 +4,7 @@
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as win from 'zinc:system/window';
+import { quit } from 'zinc:gfx';
 import { MessageChannel, MessageEvent } from 'zinc:worker';
 import { CanvasPage } from './pages/canvas/CanvasPage';
 import { openTools } from './windows/tools';
@@ -72,6 +73,7 @@ function sendChanges(dt: number): void {
 
 render(() => <CanvasPage save={save} load={load} showTools={showTools} showPreview={showPreview} />, COLOR_BACKGROUND, sendChanges);
 placeCanvas();
+win.get(0).onClosed(quit);   // the canvas owns the sprite: closing it ends the app, tools and preview with it
 showTools();
 showPreview();
 console.log(`windows: ${win.list().map((w: win.AppWindow) => { const b = w.bounds(); return `${w.id}@${b.x},${b.y} ${b.w}x${b.h}`; }).join(' ')}`);

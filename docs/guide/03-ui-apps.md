@@ -306,7 +306,8 @@ const preview = openWindow('Preview', 640, 360, (dt) => {
   the window's id, or -1 when no window can open. The surface follows the window when the user resizes it.
 - **Closing.** The user's close button, or `closeWindow(id)`, closes one window; the others go on. Closing the main window
   (id 0) hides it while other windows are open, and its `onFrame` stops. Closing the last window ends the program.
-  `windowOpen(id)` tells whether a window is still open.
+  `windowOpen(id)` tells whether a window is still open, and `onWindowClosed((id) => ...)` runs at the next frame after one
+  closes. A window id is never given twice, so a closed window's id stays closed.
 - **zinc:ui.** `mountWindow(title, w, h, root, background)` (or `renderWindow(title, w, h, App, background)` from
   `zinc:ui/solid`) shows a tree in a window of its own. Each window has its own layout, focus, hover, overlays and gestures,
   over the same nodes, signals and styles. A change one window makes to the other's tree redraws the other one.
@@ -327,14 +328,15 @@ import * as win from 'zinc:system/window';
 import { MessageChannel } from 'zinc:worker';
 
 interface Note { text: string; n: i32 }
-const tools = win.open({ title: 'Tools', width: 260, height: 400 }, (dt) => { /* draws the window */ });
+const tools = win.open({ title: 'Tools', width: 260, height: 400, x: 40, y: 60 }, (dt) => { /* draws the window */ });
 const preview = win.get(ui.mountWindow('Preview', 320, 240, previewRoot, 0xffffff));   // a zinc:ui tree
-tools.setPosition(40, 60); tools.setSize(300, 420); tools.focus();
+tools.setSize(300, 420); tools.focus();
+win.get(0).onClosed(quit);   // closing the main window ends the app (quit from zinc:gfx), as Electron's mainWindow.on('closed')
 for (const w of win.list()) console.log(w.id, w.bounds().w);   // the open windows, the main one (id 0) first
 
 const ch = new MessageChannel<Note, Note>();                   // port1 posts the first type, port2 the second
 ch.port2.onmessage = (e) => console.log(e.data.text);
-ch.port2.handle((m) => ({ text: `${m.n} items`, n: m.n }));   // answers requests
+ch.port2.handle(async (m) => ({ text: `${m.n} items`, n: await count(m.n) }));   // answers requests, here once a Promise settles
 ch.port1.postMessage({ text: 'hello', n: 1 });
 const reply = await ch.port1.request({ text: 'count', n: 3 });
 ```
@@ -342,12 +344,16 @@ const reply = await ch.port1.request({ text: 'count', n: 3 });
 - **Windows.** `open(options, draw?)` returns an `AppWindow` (`id`, `close()`, `isOpen()`, `focus()`, `setTitle()`,
   `setPosition()`, `setSize()`, `setBounds()`, `bounds()`); `get(id)` wraps a window opened another way (0 is the main
   window); `list()` gives the open ones and `current()` the one being drawn. In headless runs the bounds are what was asked.
-  `focus()` does nothing in a program started in the background (`ZINC_BACKGROUND=1`).
+  `focus()` does nothing in a program started in the background (`ZINC_BACKGROUND=1`). `x` and `y` in the options place the
+  window (both or neither). `onClosed(cb)` runs once after a window closes; by default closing the main window keeps the
+  others open, and `win.get(0).onClosed(quit)` ends the program with it instead.
 - **Messages.** A port posts one type and receives the other; messages are delivered as microtasks, never inside `postMessage`.
-  `request(m)` resolves with what the other side's `handle` returns, so a reply has the type the other side posts.
+  `request(m)` resolves with what the other side's `handle` returns, so a reply has the type the other side posts. The
+  handler may be `async`: the reply leaves when its Promise settles. Requests go both ways, a worker can ask the program too.
 - **A window run by a worker.** A worker cannot draw, but it can compute a window's scene: a `Scene` (a background and a list
   of `Shape`s: `rect`, `rrect`, `text`, `line`) is plain data. Open the window without a draw callback and give it each
-  scene that arrives; a busy worker then leaves the other windows drawing at full rate, and its window keeps its last scene.
+  scene that arrives; a busy worker then leaves the other windows drawing at full rate, and its window keeps its last scene
+  (it draws a scene once and keeps those pixels until the next one).
 
 ```ts
 import { Worker, Envelope, workerPort } from 'zinc:worker';        // the program

@@ -1023,6 +1023,8 @@ declare module 'zinc:ui' {
   /** Mounts root node `h` in a window of its own (ZN-663), `w` x `h` logical pixels, drawn after the main window every frame: its own layout,
    *  focus, hover, overlays and gestures over the node pool the main tree shares. Returns the window's id (zinc:gfx), -1 when it cannot open. */
   export function mountWindow(title: string, w: i32, hgt: i32, h: i32, background: i32): i32;
+  /** The windows (zinc:gfx ids) that show a tree of mountWindow; a closed one leaves the list at the next frame. */
+  export function mountedWindows(): i32[];
   /** Deterministic dump of the laid-out tree (golden tests, TST-07). */
   export function dump(): string;
   export function lastFrameCommands(): i32;

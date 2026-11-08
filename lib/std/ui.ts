@@ -11,7 +11,7 @@ import {
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId, ease, layerBegin, layerEnd, layerAnim, compClock,
 } from 'zinc:gfx';
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
-import { openWindow, windowOpen, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
+import { openWindow, windowOpen, onWindowClosed, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
 import { overlaid } from 'zinc:gfx';   // the loader's fade draws over the first frames (ZN-447): a kept frame would hold it
 import { refreshIntent } from 'zinc:gfx';   // an e-ink panel's waveform: interactive while a pinch moves, settle when it ends
 import { platform, env, device } from 'zinc:sys';
@@ -6987,7 +6987,12 @@ function othersDirty(relayout: boolean): void {
 }
 /** Mounts root node `h` in a window of its own (ZN-663), `w` x `h` logical pixels, drawn after the main window every frame: its own layout,
  *  focus, hover, overlays and gestures over the node pool the main tree shares. Returns the window's id (zinc:gfx), -1 when it cannot open. */
+let watchingClose = false;
 export function mountWindow(title: string, w: i32, hgt: i32, h: i32, background: i32): i32 {
+  if (!watchingClose) {   // a closed window's Surface goes with it: a window reopened on the same root leaves no stale one (ZN-1032)
+    watchingClose = true;
+    onWindowClosed((id: i32) => { for (let i: i32 = 0; i < surfaces.length; i++) if (surfaces[i].win === id) { surfaces.splice(i, 1); return; } });
+  }
   const s = new Surface();
   s.root = h;
   surfaces.push(s);
@@ -6999,6 +7004,8 @@ export function mountWindow(title: string, w: i32, hgt: i32, h: i32, background:
   if (id < 0) surfaces.pop(); else s.win = id;
   return id;
 }
+/** The windows (zinc:gfx ids) that show a tree of mountWindow; a closed one leaves the list at the next frame. */
+export function mountedWindows(): i32[] { const r: i32[] = []; for (const s of surfaces) r.push(s.win); return r; }
 /** Deterministic dump of the laid-out tree (golden tests, TST-07). */
 export function dump(): string {
   if (layoutDirty) layout();

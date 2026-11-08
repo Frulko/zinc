@@ -44,6 +44,9 @@ const __resizeFns: ((w: i32, h: i32) => void)[] = [];
 let __lastW: i32 = 0, __lastH: i32 = 0;
 const __winIds: i32[] = [];                       // the windows beside the main one (ZN-663) and their frame callbacks
 const __winFns: ((dt: number) => void)[] = [];
+const __closedFns: ((id: i32) => void)[] = [];   // onWindowClosed (ZN-1032)
+let __mainShown = true;                            // the main window was open at the last frame (it hides while others are open)
+function __windowClosed(id: i32): void { for (let i: i32 = 0; i < __closedFns.length; i++) __closedFns[i](id); }
 // One frame (ZN-620): __gfxLoop runs them in a loop on a desktop, an app shell runs one per tick (__gfxAppStep). False when the program quits.
 function __gfxStep(): boolean {
   const dt = __host_gfxPoll();
@@ -81,10 +84,12 @@ function __gfxDraw(dt: number): void {
     for (let i: i32 = 0; i < __resizeFns.length; i++) __resizeFns[i](__lastW, __lastH);
   }
   const cb = __frameCb;
-  if (cb !== null && (__winIds.length === 0 || __host_gfxWindowOpen(0) !== 0)) cb(dt);   // a closed main window is hidden while others are open
+  const mainOpen = __winIds.length === 0 || __host_gfxWindowOpen(0) !== 0;   // a closed main window is hidden while others are open
+  if (mainOpen !== __mainShown) { __mainShown = mainOpen; if (!mainOpen) __windowClosed(0); }
+  if (cb !== null && mainOpen) cb(dt);
   for (let i: i32 = 0; i < __winIds.length; i++) {
     const id = __winIds[i];
-    if (__host_gfxWindowOpen(id) === 0) { __winIds.splice(i, 1); __winFns.splice(i, 1); i--; continue; }
+    if (__host_gfxWindowOpen(id) === 0) { __winIds.splice(i, 1); __winFns.splice(i, 1); i--; __windowClosed(id); continue; }
     __host_gfxBeginWindow(id);
     __winFns[i](dt);
     __host_gfxEndWindow();
@@ -133,6 +138,9 @@ export function openWindow(title: string, w: i32, h: i32, cb: (dt: number) => vo
 }
 /** Closes window `id` (0: the main one). */
 export function closeWindow(id: i32): void { __host_gfxCloseWindow(id); }
+/** Calls `cb(id)` at the next frame after window `id` closed (by the user or closeWindow), once per window; 0 is the main window, hidden
+ *  while others are open. The last window ends the program and calls nothing. */
+export function onWindowClosed(cb: (id: i32) => void): void { __closedFns.push(cb); }
 /** Whether window `id` is open (0: the main one). */
 export function windowOpen(id: i32): boolean { return __host_gfxWindowOpen(id) !== 0; }
 // ---- api: everything below is shared with the QuickJS engine (src/qjs), which brings its own frame loop

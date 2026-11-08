@@ -63,6 +63,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - React Native screens get `ImageBackground`, `<Image source={{ uri }}>`, and Pressable's `hitSlop`, `pressRetentionOffset` and `delayLongPress`; React Native's `Button` fades to 0.2 when pressed on iOS and macOS, as its TouchableOpacity does.
 - A React Native `SectionList` section takes an optional `title` and a `key`, as in React Native, and sections declared first (`const DATA = [{ title, data }]`) pass to it as they are.
 
+- Several windows: `win.open({ x, y, ... })` places a window as it opens, `onClosed(cb)` runs once after a window closes (`win.get(0).onClosed(quit)` ends the app with its main window), `onWindowClosed` of `zinc:gfx` reports any window, and a `port.handle` answer may be `async`: the reply leaves when its Promise settles, from the program or from a worker.
+
 #### Fixed
 
 - One error no longer freezes a reactive app: a throw inside `batch`, `untrack` or an effect used to hold every later signal update back, and a render caught by its parent (an error boundary) stopped reordered children from moving.
@@ -74,6 +76,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The on-screen keyboard's backspace stops repeating when its press is lost, and the image viewer ignores zoom and drags while it closes.
 - Scrolling up a `VirtualList` with `estimatedItemHeight` (a chat history) with the trackpad or the wheel no longer makes the messages jump as older ones come into view.
 - `ui.focusNode` no longer gives the focus to a `disabled` field, as a click never did.
+- A `zinc:ui` window closed and opened again no longer leaves its old state behind, and a window that shows a worker's scene draws it once instead of every frame.
 - Japanese, Chinese, Persian and Arabic text, arrows and triangles such as `▸ ▾`, and emoji with skin tones or joined into one draw with the system's fonts instead of `?`, without adding `"text": "shaped"` to `zinc.json`; Latin text keeps exactly its pixels, and `"text": "simple"` keeps the old behaviour (and a smaller built program).
 
 - JSX accepts more of what React code writes: `<Bar />` when every prop is optional, `aria-*` and `data-*` attributes on your own components, `{list.map(row)}` with a function imported from another file, `{cond ? list.map(...) : <View />}` in the Solid model, and `{props.children?.()}`, which printed a number in place of the children.
@@ -103,6 +106,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - JavaScript projects: `importmap.json` maps a whole folder with a key ending in `/`, as a browser does (`"three/addons/": "../three/examples/jsm/"`), and a folder with a `main.js` runs with `zinc run` even when its `zinc.json` only sets `app.window`.
 - `await` at the top level of a program or test file works on every engine; an `async` arrow function or object method no longer needs its `Promise<T>` written out (`const load = async () => 1`), and a generic function's return type is inferred from its arguments (`function id<T>(x: T) { return x; }`).
 - Plain JavaScript programs have the browser's `URL`, `URLSearchParams` and `WebSocket` globals, so `new URL('./worker.js', import.meta.url)` and libraries that open a `WebSocket` work without an adapter.
+- `value instanceof Promise` (or any generic class) narrows a `T | Promise<T>`, as TypeScript does.
 - `n.toLocaleString()` formats numbers with thousands separators on every engine, with the `minimumFractionDigits`, `maximumFractionDigits` and `useGrouping` options (in the US English format for now), and `JSON.stringify(value, replacer)` takes a replacer function, with or without an indent.
 - On an `any` value the array and string methods work as in TypeScript: `d.items.push(x)`, `.splice`, `.sort()`, `.reduce`, `d.name.trim().toUpperCase()`, `.split`, `.replace`... and a change made through `d` is seen in the data it holds, not in a copy.
 
