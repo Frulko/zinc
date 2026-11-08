@@ -329,8 +329,9 @@ void keep_played(const float* out, ma_uint32 frames) {
 }
 // While the inspector pauses the program (zinc dev, src/host/gfx_host.cpp) the device gets silence and the mix stands still, so it goes on where it stopped.
 extern "C" int zn_dev_paused(void) __attribute__((weak));
+int held;   // suspend(): read on the device's thread
 void pull(ma_device*, void* out, const void*, ma_uint32 frames) {
-  if (zn_dev_paused && zn_dev_paused()) { memset(out, 0, (size_t)frames * 2 * sizeof(float)); return; }
+  if ((zn_dev_paused && zn_dev_paused()) || __atomic_load_n(&held, __ATOMIC_RELAXED)) { memset(out, 0, (size_t)frames * 2 * sizeof(float)); return; }
   render(out, frames);
   if (tapOn) keep_played((const float*)out, frames);
 }
@@ -543,6 +544,15 @@ struct HostAudio : NativeAudio {
     ma_sound_set_pan(&v->sound, pan_of(pan));
   }
   bool voicePlaying(int32_t id) override { Voice* v = voice_at(id); return v && live(*v); }
+  void voiceLoop(int32_t id, double from, double to) override {
+    Voice* v = voice_at(id);
+    Clip* c = v && !v->useProg ? clip_at(v->clip) : nullptr;
+    if (!c) return;
+    const auto at = [c](double s) { const ma_uint64 f = s > 0 ? (ma_uint64)(s * c->rate) : 0; return f < c->frames ? f : c->frames; };
+    const ma_uint64 b = at(from), e = at(to);
+    ma_data_source_set_loop_point_in_pcm_frames(&v->src, e > b ? b : 0, e > b ? e : ~(ma_uint64)0);   // ~0: to the end
+  }
+  void suspend(bool on) override { __atomic_store_n(&held, on ? 1 : 0, __ATOMIC_RELAXED); }
   int32_t pcm(zrt::Array<double> samples, int32_t channels, int32_t rate) override {
     const int64_t frames = samples.a && channels > 0 ? samples.a->len / channels : 0;
     if (channels < 1 || channels > 2 || rate < 8000 || rate > 192000 || frames < 1) return fail("samples of 1 or 2 channels, at 8000 to 192000 frames per second");
@@ -710,7 +720,8 @@ struct HostAudio : NativeAudio {
     if (frames > 480000) frames = 480000;   // 10 s a call
     float* buf = (float*)ma_malloc((size_t)frames * 2 * sizeof(float), nullptr);
     if (!buf) return zrt::Array<double>::with_cap(0);
-    render(buf, (ma_uint32)frames);   // it fills what no voice reaches with silence
+    if (__atomic_load_n(&held, __ATOMIC_RELAXED)) memset(buf, 0, (size_t)frames * 2 * sizeof(float));   // suspended: silence, the time stands still
+    else render(buf, (ma_uint32)frames);   // it fills what no voice reaches with silence
     zrt::Array<double> r = zrt::Array<double>::with_cap(frames * 2);
     for (int32_t i = 0; i < frames * 2; i++) r.a->data[i] = buf[i];
     r.a->len = frames * 2;

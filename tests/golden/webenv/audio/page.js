@@ -29,8 +29,20 @@ const steps = [
   [2.0, () => { const s = play(tone, 1, 'fade', (s, g) => g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.1)); s.start(); }],   // silent after 0.1 s
   [2.4, () => play(blip, 1, 'file', s => { s.playbackRate.value = 2; }).start()],   // a decoded file, twice as fast
   [2.6, () => { master.gain.value = 0; play(tone, 1, 'muted').start(); }],        // the gain further down the way
-  [2.9, () => { master.gain.value = 1; ctx.suspend().then(() => { say('state', ctx.state); play(tone, 1, 'suspended').start(); }); }],
-  [3.2, () => { ctx.resume(); const a = new Audio('../../audio/assets/blip.flac'); a.volume = 0.5; a.onended = () => { say('element ended', a.ended, a.paused); done = true; }; a.play().then(() => say('element plays', a.duration.toFixed(3))); }],
+  // suspended (ZN-1043): the clock stands still for the 0.3 s it lasts, and a source started meanwhile plays once the context resumes
+  [2.9, () => { master.gain.value = 1; ctx.suspend().then(() => { const t = ctx.currentTime; say('state', ctx.state); play(tone, 1, 'suspended').start(); setTimeout(() => { say('held', ctx.currentTime === t); ctx.resume(); }, 300); }); }],
+  [3.3, () => { const a = new Audio('../../audio/assets/blip.flac'); a.volume = 0.5; a.onended = () => say('element ended', a.ended, a.paused); a.play().then(() => say('element plays', a.duration.toFixed(3))); }],
+  // an oscillator (a square wave at 0.25 peaks at 0.25), a sound panned right (the left channel silent), and a loop of loopStart to loopEnd
+  // (the first 0.1 s at 0.2 again and again: the 0.8 after it is never heard)
+  [3.6, () => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.value = 440; g.gain.value = 0.25; o.connect(g); g.connect(master); o.onended = () => say('oscillator ended'); o.start(); o.stop(ctx.currentTime + 0.2); }],
+  [4.0, () => play(tone, 1, 'right', (s, g) => { const p = ctx.createStereoPanner(); p.pan.value = 1; g.disconnect(); g.connect(p); p.connect(master); }).start()],
+  [4.4, () => {
+    const b = ctx.createBuffer(1, 9600, 48000);
+    b.getChannelData(0).set(Float32Array.from({ length: 9600 }, (_, i) => (i < 4800 ? 0.2 : 0.8) * Math.sin(i * 2 * Math.PI * 440 / 48000)));
+    const s = play(b, 1, 'loop part', s => { s.loop = true; s.loopStart = 0; s.loopEnd = 0.1; });
+    s.onended = () => { say('loop part ended'); done = true; };
+    s.start(); s.stop(ctx.currentTime + 0.35);
+  }],
 ];
 let done = false;
 function frame() {

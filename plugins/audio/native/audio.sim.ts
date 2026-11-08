@@ -6,6 +6,7 @@ const active: boolean[] = [];
 let err: string = '';
 const ends: f64[] = [];        // per voice started by start(), at index voice - 1: the time it ends at (mix() moves the time)
 let clock: f64 = 0;
+let held: boolean = false;   // suspend(): the clock and the musics stand still
 const buffered: i32[] = [], rates: i32[] = [], chans: i32[] = [];   // per stream: frames buffered, frames per second, channels
 const mPos: f64[] = [], mOn: boolean[] = [];   // per music: the position (it moves with mix()), whether it plays; nothing is read: it lasts 180 s
 const known = (s: i32): boolean => s >= 0 && s < lengths.length && lengths[s] >= 0;
@@ -50,6 +51,8 @@ export default {
     ends.push(loop && left > 0 ? Infinity : clock + Math.max(0, delay) + left);
     return ends.length;
   },
+  voiceLoop(voice: i32, from: f64, to: f64): void {},
+  suspend(on: boolean): void { held = on; },
   voiceStop(voice: i32, delay: f64): void { if (voice > 0 && voice <= ends.length) ends[voice - 1] = Math.min(ends[voice - 1], clock + Math.max(0, delay)); },
   voiceSet(voice: i32, volume: f64, rate: f64, pan: f64): void {},
   voicePlaying(voice: i32): boolean { return voice > 0 && voice <= ends.length && clock < ends[voice - 1]; },
@@ -90,8 +93,8 @@ export default {
   musicClose(music: i32): void { if (music >= 0 && music < mOn.length) mOn[music] = false; },
   mix(frames: i32): f64[] {
     const r: f64[] = [];
-    if (frames > 0) clock += frames / 48000;
-    for (let i = 0; i < mPos.length; i++) if (mOn[i]) mPos[i] = Math.min(180, mPos[i] + frames / 48000);
+    if (frames > 0 && !held) clock += frames / 48000;
+    if (!held) for (let i = 0; i < mPos.length; i++) if (mOn[i]) mPos[i] = Math.min(180, mPos[i] + frames / 48000);
     for (let i = 0; i < frames * 2; i++) r.push(0);
     return r;
   },

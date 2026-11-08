@@ -5,8 +5,9 @@
 # (`audio out`). ZINC_NATIVE=real: the plugin's native code decodes and mixes, and the test fails if it cannot be built
 # (the QuickJS engine has no stand-in for a native module: without the plugin the environment says so once and stays silent).
 # - tests/golden/webenv/audio/page.js: a buffer the program makes and a decoded Ogg file, through gains, looped, stopped, started at a given
-#   time, faded, muted further down the graph, a suspended context, an audio element; the output is page.out (a gain of 0.5 on a wave of
-#   0.8 peaks at 0.40; the sound asked for 1.5 starts at 1.500).
+#   time, faded, muted further down the graph, a suspended context (its clock holds, ZN-1043), an audio element, an oscillator, a pan to
+#   the right and a loop of loopStart to loopEnd; the output is page.out (a gain of 0.5 on a wave of 0.8 peaks at 0.40 on each channel;
+#   the sound asked for 1.5 starts at 1.500).
 # - examples/js-phaser (ZN-712), the scripted game of tests/t1/example_js_phaser.sh: Phaser's WebAudioSoundManager decodes the two WAV
 #   files, each of the three stars caught plays the first and the crash plays the second, and the mix holds sound after each.
 # To write page.out again after an intended change: tests/t1/webenv_audio.sh --update (with ZINC set).

@@ -19,6 +19,8 @@ export class Voice {
   stop(delay: number = 0): void { if (this.v > 0) A.voiceStop(this.v, delay); }
   /** Volume, rate (only for an instance started at another rate than 1) and stereo position of this instance. */
   set(volume: number, rate: number, pan: number): void { if (this.v > 0) A.voiceSet(this.v, level(volume), rate, pan); }
+  /** For a looping instance: repeat `from` to `to` seconds into the sound instead of the whole of it (`to` not after `from`: the whole). */
+  loopPart(from: number, to: number): void { if (this.v > 0) A.voiceLoop(this.v, from, to); }
 }
 
 export class Sound {
@@ -168,6 +170,9 @@ export function stopAll(): void { A.stopAll(); }
  *  deterministic run, ZINC_AUDIO=null, a machine without a playback device). The output opens in the background while
  *  the program starts; this call waits for it (up to half a second), play() never does. */
 export function backend(): string { return A.backend(); }
+/** True holds the whole mix where it is, as a suspended Web Audio context does: no sound, time() stands still and every delay waits;
+ *  false goes on from there. */
+export function suspend(on: boolean): void { A.suspend(on); }
 /** Seconds of mix rendered so far: the clock `delay` counts on. A device moves it; on the 'null' backend, mix() does. */
 export function time(): number { return A.time(); }
 /** Frames per second of the mix, whatever the device runs at. */

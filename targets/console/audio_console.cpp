@@ -312,6 +312,7 @@ const ZnExport kExports[] = {
   {"setMasterVolume", "d>n", fSetMasterVolume, 0}, {"mix", "i>D", fMix, 0}, {"played", ">D", fPlayed, 0},
   {"musicOpen", "s>i", fMusicOpen, 0}, {"musicPlay", "ib>n", fMusicNop, 0}, {"musicSeek", "id>n", fMusicNop, 0}, {"musicInfo", "i>D", fMusicInfo, 0},
   {"musicError", "i>s", fMusicError, 0}, {"musicSetVolume", "id>n", fMusicNop, 0}, {"musicClose", "i>n", fMusicNop, 0},
+  {"voiceLoop", "idd>n", fMusicNop, 0}, {"suspend", "b>n", fMusicNop, 0},   // ponytail: a loop repeats the whole sound and nothing holds the mix on a console core
 };
 }  // namespace
 

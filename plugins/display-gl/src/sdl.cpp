@@ -77,6 +77,8 @@ void zgl_backend_size(int32_t* w, int32_t* h) { int a, b; SDL_GetWindowSizeInPix
 void zgl_backend_native(int32_t*, int32_t*) {}   // a window: the size the program names, else the default one
 void zgl_backend_swap() { SDL_GL_SwapWindow(win); }
 
+extern "C" __attribute__((weak)) void zn_sdl_gamepads_poll(HalInput* in);   // targets/macos/hal_sdl.cpp, in the window host zinc loaded
+
 void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
   static const bool scripted = getenv("ZINC_INPUT") && *getenv("ZINC_INPUT");
   int ww, wh;
@@ -100,6 +102,7 @@ void zgl_backend_poll(HalInput* in, int32_t W, int32_t H) {
       for (int32_t k = 0; k < in->ntouch; k++) if (in->touch[k].id == (int32_t)e.tfinger.fingerID) { in->touch[k] = in->touch[--in->ntouch]; break; }
     }
   }
+  if (zn_sdl_gamepads_poll) zn_sdl_gamepads_poll(in);   // the window host's gamepads (SDL's, in the W3C order): its loop does not run here
   static const bool det = getenv("ZINC_DETERMINISTIC") && strcmp(getenv("ZINC_DETERMINISTIC"), "0") != 0;
   if (det || scripted) { in->quit |= quit; return; }   // controlled runs keep the host's input, including a scripted quit
   const bool* k = SDL_GetKeyboardState(nullptr);

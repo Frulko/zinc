@@ -43,6 +43,11 @@ export interface Spec extends NativeModule {
   /** Volume, rate (only for a voice started at another rate than 1) and stereo position of one voice. */
   voiceSet(voice: i32, volume: f64, rate: f64, pan: f64): void;
   voicePlaying(voice: i32): boolean;
+  /** The part of its sound a looping voice repeats, `from` to `to` seconds into it (Web Audio's loopStart and loopEnd); `to` not after
+   *  `from` repeats the whole sound. Nothing for a sound still being decoded. */
+  voiceLoop(voice: i32, from: f64, to: f64): void;
+  /** True holds the whole mix where it is (the device gets silence, time() stands still, delays and stop times wait); false goes on. */
+  suspend(on: boolean): void;
   /** A sound from samples (1 = full scale; two channels interleaved: left, right, left...) at `rate` frames per second,
    *  8000 to 192000. A sound handle, or -1 (see error()). */
   pcm(samples: f64[], channels: i32, rate: i32): i32;

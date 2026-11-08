@@ -1,13 +1,17 @@
 // midi: the keys A S D F G H J K play the notes C D E F G A B C, as MIDI. The notes leave through a virtual port named 'Zinc keys': open
 // GarageBand, Ableton Live, a synthesizer app or any MIDI monitor and it is there among the inputs, no cable. MIDI_OUT="name of a port" sends to
 // an instrument instead (the names are printed when the program starts). A MIDI keyboard plugged in lights the same keys on the screen.
+// Each note is heard here too, as a tone of zinc:audio, so a first run makes sound with no instrument open; MIDI_TONE=0 leaves the sound to it.
 import { onFrame, clear, rect, text, width, height, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import { inputs, outputs, openInput, openOutput, createOutput, MidiInput, MidiOutput } from 'zinc:midi';
+import { tone, Sound } from 'zinc:audio';
 
 const KEYS = 'asdfghjk';
 const NOTES: i32[] = [60, 62, 64, 65, 67, 69, 71, 72];   // C4 to C5, the white keys
 const held: boolean[] = NOTES.map((n: i32) => false);
+// the pitch of a MIDI note: A4 (69) is 440 Hz, a semitone is a twelfth of an octave
+const TONES: Sound[] = env('MIDI_TONE') === '0' ? [] : NOTES.map((n: i32) => tone(440 * Math.pow(2, (n - 69) / 12), 1.5, 'triangle'));
 let status = '';
 
 console.log('midi: outputs', JSON.stringify(outputs().filter((n: string) => n !== 'Zinc keys')));
@@ -33,6 +37,7 @@ if (others.length > 0) {
 function play(i: i32, down: boolean): void {
   if (held[i] === down) return;
   held[i] = down;
+  if (i < TONES.length) { if (down) TONES[i].play(); else TONES[i].stop(); }
   const o = out;
   if (o === null) return;
   if (down) o.noteOn(NOTES[i]); else o.noteOff(NOTES[i]);

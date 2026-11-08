@@ -44,6 +44,11 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 ### Plugins
 
+#### New
+
+- JavaScript games hear more of Web Audio: `OscillatorNode` makes sound (its four waves and `setPeriodicWave`), `loopStart` and `loopEnd` set the part a looping sound repeats, and `suspend()` pauses everything until `resume()`, `currentTime` included; `zinc:audio` has the same as `voice.loopPart()` and `suspend()`.
+- Gamepads that SDL does not know by itself work, from the community mappings of SDL_GameControllerDB, and a program on the `gl` display driver reads gamepads too.
+
 #### Changed
 
 - A plugin whose native code does not compile now stops `zinc pack` and `zinc export` with the compiler's error instead of shipping its stand-in, and `zinc run` says it in one clear line naming the plugin; `ZINC_NATIVE=sim` uses the stand-in on purpose.
@@ -61,6 +66,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - `navigator.mediaDevices.getUserMedia` asks for the camera or the microphone first, as a browser does, instead of failing with `NotAllowedError` on a Mac where access was never asked.
 - With `ZINC_NATIVE=sim`, `--engine quickjs` runs a plugin's simulated stand-in like the other engines, instead of its native library (the iPod demo no longer looks for a real iPod).
+- A JavaScript program that makes sound on a machine where the audio plugin cannot be built goes on in silence after one line that says why, instead of stopping with an error.
 
 ### UI
 
@@ -199,6 +205,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - In Musique (arbre), ticking a room to group it with the speakers shows the tick at once, faded until the Sonos confirms, instead of nothing for one to three seconds.
 - `examples/js-phaser` opens at three times its 320x240 game size on a desktop, instead of a small window.
+- `examples/midi` plays each note as a tone too, so its first run is heard with no instrument open (`MIDI_TONE=0` leaves the sound to the instrument).
 
 #### Fixed
 

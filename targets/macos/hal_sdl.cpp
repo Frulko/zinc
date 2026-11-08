@@ -920,11 +920,13 @@ static void sec_event(Sec& s, const SDL_Event& e) {
   }
 }
 
-// Gamepads (ZN-574): SDL's gamepad layer (its mapping database gives every known pad the same layout; more mappings: the file named by
-// SDL_GAMECONTROLLERCONFIG_FILE) into the slots of HalInput, in the W3C "standard" order. Polled, not event driven: whichever loop pumps the
+// Gamepads (ZN-574): SDL's gamepad layer (its mapping database gives every known pad the same layout, with the lines of SDL_GameControllerDB
+// for this system added at start, ZN-1043; more mappings: the file named by SDL_GAMECONTROLLERCONFIG_FILE) into the slots of HalInput, in the
+// W3C "standard" order. zn_sdl_gamepads_poll is the same for a display driver that runs its own SDL loop (display-gl's sdl.cpp). Polled, not event driven: whichever loop pumps the
 // events, the state is read here. Started at the second poll, so the first frame does not wait for the HID manager.
 // ZINC_VIRTUAL_GAMEPAD=xbox|ps5 plugs an SDL virtual gamepad that holds one button after the other (SDL's order, two polls each), then pushes
 // each axis: what the tests read, with no hardware.
+extern "C" __attribute__((weak)) const char zn_gamepad_db[];   // CMakeLists.txt's gamepad_db.cpp: SDL_GameControllerDB's lines for this system
 static SDL_Gamepad* pads[HAL_MAX_GAMEPADS];
 static int pads_on = 0;   // 0 not started, 1 running, -1 SDL has no gamepad support here
 static long pads_poll = 0;
@@ -932,8 +934,13 @@ static SDL_Joystick* virtual_pad;
 static void gamepads_poll(HalInput* in) {
   if (pads_on < 0 || pads_poll++ == 0) return;
   if (pads_on == 0) {
+    if (const char* v = getenv("ZINC_VIRTUAL_GAMEPAD"); v && *v) SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");   // a test's window is not the focused one
     pads_on = SDL_InitSubSystem(SDL_INIT_GAMEPAD) ? 1 : -1;
     if (pads_on < 0) return;
+    if (zn_gamepad_db) {   // before the first pad is opened
+      const int added = SDL_AddGamepadMappingsFromIO(SDL_IOFromConstMem(zn_gamepad_db, SDL_strlen(zn_gamepad_db)), true);
+      if (getenv("ZINC_WINDOW_LOG")) fprintf(stderr, "zinc: gamepad mappings: %d from SDL_GameControllerDB\n", added);
+    }
     if (const char* v = getenv("ZINC_VIRTUAL_GAMEPAD"); v && *v) {
       SDL_VirtualJoystickDesc d;
       SDL_INIT_INTERFACE(&d);
@@ -987,6 +994,7 @@ static void gamepads_poll(HalInput* in) {
     for (int a = 0; a < 4; a++) p.axes[a] = SDL_max(SDL_GetGamepadAxis(g, sticks[a]) / 32767.f, -1.f);
   }
 }
+extern "C" void zn_sdl_gamepads_poll(HalInput* in) { gamepads_poll(in); }
 
 // The simulated device's turn (its panel's state) and whether the program turns with it (what it asked, <state>.app), read five times a
 // second: the window takes the device's shape, the surface follows it or the picture is turned.

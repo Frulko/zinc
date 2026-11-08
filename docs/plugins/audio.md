@@ -51,6 +51,7 @@ setVolume(0.8);                       // the whole mix
 | `sound.duration`, `sound.ok`, `sound.error` | Length in seconds; whether it loaded; why not. |
 | `sound.voice(volume, rate, pan, loop, offset = 0, delay = 0): Voice` | `play()` with its own volume, rate, pan and loop instead of the sound's, from `offset` seconds into the sound, heard after `delay` seconds of mix (to the sample: `delay` is how one sound follows another without a gap). It gives the instance back. |
 | `voice.stop(delay = 0)`, `voice.set(volume, rate, pan)`, `voice.playing` | Stops that instance alone, now or after `delay` seconds of mix; changes it alone (the rate only if it started at another rate than 1); true until it ends, is stopped, or gives way as the oldest of 32. |
+| `voice.loopPart(from, to)` | A looping instance repeats `from` to `to` seconds into its sound instead of the whole of it (`to` not after `from`: the whole). |
 | `openMusic(path): Music` | A file on disk played as it is read, a few seconds ahead, never decoded whole: a song, an audiobook, a podcast of an hour. AAC, ALAC, MP3, WAV and AIFF on macOS and iOS (AudioToolbox), WAV, FLAC, MP3 and Ogg Vorbis elsewhere. The file opens in the background (a sleeping disk takes a second): `ready` says when; `play()` asked before plays once it is open. Four are open at most. |
 | `music.play()`, `pause()`, `seek(seconds)`, `close()` | Play from where it is (from the start once it ended), pause, move, stop and close the file. When the reader falls behind (a disk waking up) the music is silent for a moment instead of stopping the mix. |
 | `music.position`, `duration`, `playing`, `ended`, `ready`, `error`, `volume` | Seconds played (the frames the mixer took: up to 10 ms ahead of what is heard) and the file's length; whether it plays, reached its end, is open; why it is silent (`''` while all is well). `tests/t1/audio_music.sh`. |
@@ -59,6 +60,7 @@ setVolume(0.8);                       // the whole mix
 | `sound.unload()` | Stops the sound and frees its samples. |
 | `setVolume(v)`, `volume()` | Volume of the whole mix, 1 by default. |
 | `stopAll()` | Stops every sound. |
+| `suspend(on)` | `true` holds the whole mix where it is: no sound, `time()` stands still, every `delay` and stop time waits; `false` goes on from there. |
 | `backend()` | `'Core Audio'`, `'ALSA'`, `'PulseAudio'`... or `'null'`. Waits until the output is open (see below). |
 | `time()` | Seconds of mix rendered so far, the clock `delay` counts on: a device moves it; on the `null` backend, `mix()` does. Never waits. |
 | `SAMPLE_RATE` | Frames per second of the mix: 48000. |
@@ -76,8 +78,11 @@ play through it. `decodeAudioData` is `decode()`, a started `AudioBufferSourceNo
 `stop(when)` are exact, on `time()`, which is the context's `currentTime`), `createBuffer` is `fromSamples()`.
 The graph is not rendered: once a frame each voice takes the product of the gains and the sum of the stereo pans on its
 way to the destination, so a ramp moves in steps of a frame; filters, delays, 3D panners and analysers let the sound
-through unchanged, an oscillator is silent, `loopStart` and `loopEnd` are not read, and `suspend()` mutes. In a headless
-run `ZINC_AUDIO_LOG=1` prints each sound started and ended and when the mix held sound.
+through unchanged. An `OscillatorNode` (sine, square, sawtooth, triangle or a `PeriodicWave`) is one period of its wave looped,
+which follows its `frequency` and `detune` within six octaves; `loopStart` and `loopEnd` set the part a loop repeats;
+`suspend()` holds the whole mix (`currentTime` stands still) until `resume()`. In a headless run `ZINC_AUDIO_LOG=1` prints
+each sound started and ended and when the mix held sound, with the peak of each channel. At the first run the plugin is
+built (a line says so while it compiles); when it cannot be, one line says why and the program goes on in silence.
 
 ## Notes
 

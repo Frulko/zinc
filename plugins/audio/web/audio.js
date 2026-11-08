@@ -90,6 +90,8 @@ Z.registerNative('Audio', {
     if (!delay) { o.playing = false; o.sound.ids.delete(id); }
   },
   voiceSet(id, vol, rate, pan) { const o = voices.get(id); if (!o || !o.src) return; o.gain.gain.value = vol; if (o.rate0 !== 1) o.src.playbackRate.value = rate; if (o.pn) o.pn.pan.value = pan; },
+  voiceLoop(id, from, to) { const o = voices.get(id); if (o && o.src) { o.src.loopStart = from; o.src.loopEnd = to; } },
+  suspend(on) { if (on) context().suspend(); else context().resume(); },
   voicePlaying(id) { const o = voices.get(id); return !!(o && o.playing); },
   channels(h) { const s = sounds.get(h); return s && s.buffer ? s.buffer.numberOfChannels : 0; },
   rate(h) { const s = sounds.get(h); return s && s.buffer ? s.buffer.sampleRate : 0; },

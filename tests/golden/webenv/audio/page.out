@@ -6,39 +6,57 @@ audio start #1: 0.200 s at 0.117, gain 0.50 rate 1.00 pan 0.00
 audio out: sound from 0.117
 audio end #1 at 0.317
 0.317 half ended true
-audio out: silence from 0.317, the sound peaked at 0.40
+audio out: silence from 0.317, the sound peaked at 0.40 left, 0.40 right
 audio start #2: 0.200 s at 0.533, gain 1.00 rate 1.00 pan 0.00 loop
 audio out: sound from 0.533
-audio out: silence from 1.017, the sound peaked at 0.80
+audio out: silence from 1.017, the sound peaked at 0.80 left, 0.80 right
 audio end #2 at 1.033
 1.033 loop ended true
 audio start #3: 0.200 s at 1.500, gain 1.00 rate 1.00 pan 0.00
 audio out: sound from 1.500
-audio out: silence from 1.700, the sound peaked at 0.80
+audio out: silence from 1.700, the sound peaked at 0.80 left, 0.80 right
 audio end #3 at 1.717
 1.717 late ended true
 audio end #4 at 1.917
 1.917 never ended true
 audio start #5: 0.200 s at 2.017, gain 0.83 rate 1.00 pan 0.00
 audio out: sound from 2.017
-audio out: silence from 2.100, the sound peaked at 0.67
+audio out: silence from 2.100, the sound peaked at 0.67 left, 0.67 right
 audio end #5 at 2.233
 2.233 fade ended true
 audio start #6: 0.100 s at 2.433, gain 1.00 rate 2.00 pan 0.00
 audio out: sound from 2.433
-audio out: silence from 2.483, the sound peaked at 0.09
+audio out: silence from 2.483, the sound peaked at 0.09 left, 0.09 right
 audio end #6 at 2.500
 2.500 file ended true
 audio start #7: 0.200 s at 2.633, gain 0.00 rate 1.00 pan 0.00
 audio end #7 at 2.850
 2.850 muted ended true
-2.933 state suspended
-audio start #8: 0.200 s at 2.933, gain 0.00 rate 1.00 pan 0.00
-audio end #8 at 3.150
-3.150 suspended ended true
-audio element ../../audio/assets/blip.flac: 0.100 s from 0.000 at 3.233, gain 0.50
-3.233 element plays 0.100
-audio out: sound from 3.233
-audio out: silence from 3.333, the sound peaked at 0.06
-audio element ../../audio/assets/blip.flac ended at 3.350
-3.350 element ended true true
+2.917 state suspended
+audio start #8: 0.200 s at 2.917, gain 0.00 rate 1.00 pan 0.00
+2.917 held true
+audio out: sound from 2.933
+audio end #8 at 3.133
+3.133 suspended ended true
+audio out: silence from 3.133, the sound peaked at 0.80 left, 0.80 right
+audio element ../../audio/assets/blip.flac: 0.100 s from 0.000 at 3.333, gain 0.50
+3.333 element plays 0.100
+audio out: sound from 3.333
+audio out: silence from 3.433, the sound peaked at 0.06 left, 0.06 right
+audio element ../../audio/assets/blip.flac ended at 3.450
+3.450 element ended true true
+audio start #9: 0.002 s at 3.633, gain 0.25 rate 1.01 pan 0.00 loop
+audio out: sound from 3.633
+audio end #9 at 3.817
+3.817 oscillator ended
+audio out: silence from 3.817, the sound peaked at 0.25 left, 0.25 right
+audio start #10: 0.200 s at 4.033, gain 1.00 rate 1.00 pan 1.00
+audio out: sound from 4.033
+audio out: silence from 4.233, the sound peaked at 0.00 left, 0.80 right
+audio end #10 at 4.250
+4.250 right ended true
+audio start #11: 0.200 s at 4.433, gain 1.00 rate 1.00 pan 0.00 loop
+audio out: sound from 4.433
+audio end #11 at 4.767
+4.767 loop part ended
+audio out: silence from 4.767, the sound peaked at 0.20 left, 0.20 right
