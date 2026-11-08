@@ -23,7 +23,7 @@ function PageRow(props: { p: Page }): i32 {
     <Text className={`grow text-[14px] ${on() ? 'font-medium text-[#37352f]' : 'text-[#5f5e5b]'}`} numberOfLines={1}>{p.title() === '' ? 'Untitled' : p.title()}</Text>
     <View className="w-[24] h-[24] rounded-[4] items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-[#e3e3e1]"
       onPointerDown={(e: ui.PointerEvent) => deletePage(p)}>
-      <Icon name="trash-2" size={14} color={() => COLOR_TEXT_SECONDARY} strokeWidth={2} />
+      <Icon name="trash" size={14} color={() => COLOR_TEXT_SECONDARY} strokeWidth={2} />
     </View>
   </View>;
 }

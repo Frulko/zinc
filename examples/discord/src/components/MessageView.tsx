@@ -129,7 +129,7 @@ function Row(p: { m: Message; head: boolean; last: boolean }) {
       {m.failed ? null : <Action icon="corner-up-left" label={tr('discord.message.reply')} danger={false} onPress={() => store.reply(m)} />}
       {!m.failed && store.canPin(m.channelId) ? <Action icon="pin" label={m.pinned ? tr('discord.pane.unpin') : tr('discord.message.pin')} danger={false} onPress={() => { store.pin(m); }} /> : null}
       {mine && !m.failed ? <Action icon="pencil" label={tr('discord.message.edit')} danger={false} onPress={() => store.edit(m)} /> : null}
-      {mine ? <Action icon="trash-2" label={confirm ? tr('discord.message.delete_again') : tr('discord.message.delete')} danger={confirm}
+      {mine ? <Action icon="trash" label={confirm ? tr('discord.message.delete_again') : tr('discord.message.delete')} danger={confirm}
         onPress={() => { if (confirm) store.remove(m); else setConfirm(true); }} /> : null}
     </View>}
   </View>;

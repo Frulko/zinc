@@ -100,7 +100,7 @@ function Customers(): i32 {
     <View className="flex-row items-center gap-2">
       <Input modelValue={query} onUpdate={setQuery} placeholder="Filter emails..." icon="search" className="w-[280px]" />
       <View className="grow" />
-      <Show when={selectedCustomers().length > 0}><Button label={`Delete (${selectedCustomers().length})`} color="error" variant="subtle" icon="trash-2" onClick={() => setSelectedCustomers([])} /></Show>
+      <Show when={selectedCustomers().length > 0}><Button label={`Delete (${selectedCustomers().length})`} color="error" variant="subtle" icon="trash" onClick={() => setSelectedCustomers([])} /></Show>
       <Button label="New customer" icon="plus" onClick={() => setCreating(true)} />
     </View>
     <Card>

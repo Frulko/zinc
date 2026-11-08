@@ -128,6 +128,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - In Musique (arbre), ticking a room to group it with the speakers shows the tick at once, faded until the Sonos confirms, instead of nothing for one to three seconds.
 - `examples/js-phaser` opens at three times its 320x240 game size on a desktop, instead of a small window.
 
+#### Fixed
+
+- The delete icons of the Nuxt UI, Carnet and Discord examples and of the `desktop-app` template draw again: they used `trash-2`, a name Lucide changed to `trash`.
+
 
 ### Docs and learning
 

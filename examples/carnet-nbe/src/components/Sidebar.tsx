@@ -86,7 +86,7 @@ function NoteRow(props: { e: Entry }): i32 {
     <Text className={`grow text-[14px] ${on() ? 'font-medium text-[#37352f]' : 'text-[#5f5e5b]'}`} numberOfLines={1}>{titleOf(p)}</Text>
     <View className="w-[22] h-[22] rounded-[4] items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-[#e3e3e1]"
       onPointerDown={(x: ui.PointerEvent) => deletePage(p)}>
-      <Icon name="trash-2" size={13} color={() => COLOR_TEXT_SECONDARY} strokeWidth={2} />
+      <Icon name="trash" size={13} color={() => COLOR_TEXT_SECONDARY} strokeWidth={2} />
     </View>
   </View>;
   onCleanup(dnd.draggable(row.node, { data: `note:${p.id}` }));

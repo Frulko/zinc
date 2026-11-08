@@ -18,7 +18,7 @@ export function Overlays(): i32 {
       <View ref={menuRef} className="flex-col"><DropdownMenu label="Actions" items={[
         [{ label: 'My account', type: 'label' }, { label: 'Edit', icon: 'pencil', kbds: ['E'], onSelect: () => setChosen('edit') }, { label: 'Duplicate', icon: 'copy', onSelect: () => setChosen('duplicate') }],
         [{ label: 'Compact', type: 'checkbox', checked: compact, onSelect: () => setCompact(!compact()) }],
-        [{ label: 'Delete', icon: 'trash-2', color: 'error', onSelect: () => setChosen('delete') }]]} /></View>
+        [{ label: 'Delete', icon: 'trash', color: 'error', onSelect: () => setChosen('delete') }]]} /></View>
       <View ref={tipRef} className="flex-col"><Tooltip text="Copy to clipboard" kbds={['⌘', 'C']}><Button icon="copy" color="neutral" variant="ghost" /></Tooltip></View>
       <Button label="Toast" color="success" variant="soft" icon="circle-check" onClick={() => addToast({ title: 'Saved', description: 'Your changes are stored.', icon: 'circle-check', color: 'success', actions: ['Undo'] })} />
     </View>

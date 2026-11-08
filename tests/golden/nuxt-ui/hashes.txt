@@ -2,7 +2,7 @@ gallery light - gallery - 3852df1c7053d41b
 gallery dark - gallery - 5de61595fc35483d
 modal light modal gallery - 82fc5f29947bc69b
 slideover light slideover gallery - a36cb538ec26cc83
-menu light menu gallery - ea5ae4ba0023e75a
+menu light menu gallery - 44f876e927c21cfe
 toast light toast gallery - 6a7658405c155a61
 modal dark modal gallery - 2ade492246ab8abf
 navigation light - navigation - c37a38c7dba2c8ae

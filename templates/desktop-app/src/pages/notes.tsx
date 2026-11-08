@@ -15,7 +15,7 @@ export function Notes(): i32 {
         <Text className={`text-sm text-${hex(theme().textMuted)} ${notes().length === 0 ? '' : 'hidden'}`}>No notes yet.</Text>
         <For each={notes()}>{(n: string, i: i32) => <View className="flex-row items-center gap-2">
           <Text className={`grow text-${hex(theme().text)}`}>{n}</Text>
-          <Button icon="trash-2" color="neutral" variant="ghost" size="sm" onClick={() => removeNote(i)} />
+          <Button icon="trash" color="neutral" variant="ghost" size="sm" onClick={() => removeNote(i)} />
         </View>}</For>
       </View>
     </Card>
