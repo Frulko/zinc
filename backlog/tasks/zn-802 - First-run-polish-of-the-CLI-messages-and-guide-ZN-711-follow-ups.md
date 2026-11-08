@@ -2,13 +2,15 @@
 id: ZN-802
 title: First-run polish of the CLI messages and guide (ZN-711 follow-ups)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:55'
 labels:
   - size-M
 milestone: m-6
 dependencies: []
-ordinal: 3900
+ordinal: 2100
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description

@@ -4,7 +4,8 @@ title: >-
   CLI polish: argument order, example suggestions, port 0, clear pairing and
   export messages
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:34'
 labels:
   - cli
@@ -12,7 +13,8 @@ labels:
   - size-S
 milestone: m-10
 dependencies: []
-ordinal: 1000000
+ordinal: 2000
+updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
