@@ -82,6 +82,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - JSX accepts more of what React code writes: `<Bar />` when every prop is optional, `aria-*` and `data-*` attributes on your own components, `{list.map(row)}` with a function imported from another file, `{cond ? list.map(...) : <View />}` in the Solid model, and `{props.children?.()}`, which printed a number in place of the children.
 - A JSX child that is a call making a node is mounted instead of printed as a number, whatever the helper is called: `{box(p.children)}`, `{wrap(() => <Text />)}`, `{ui.createNode(...)}` and a component kept in a class field, `{this.view()}`.
 - `a?.b !== undefined` now tells the checker that `a` and `a.b` are set, as TypeScript does, inside JSX too.
+- A canvas drawn with `onDraw`, and an `<Icon>`, now fade with the view they are in (an `opacity-50` card, a screen leaving a navigation stack) instead of staying fully opaque; `zinc:gfx` has `setGlobalAlpha` and `globalAlpha` for the same effect in your own drawing.
 
 ### The web
 

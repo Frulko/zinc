@@ -141,6 +141,11 @@ declare module 'zinc:gfx' {
    *  in steps a quarter of an octave apart), so an enlarged text is sharp: draw it in the font of its designed size, not in a larger one. */
   export function setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
   export function resetTransform(): void;
+  /** An alpha (0..255) every command that follows is multiplied by, primitive by primitive, until it is set back to 255: the UI sets it
+   *  around a Canvas's onDraw to the opacity of its views (a fading screen fades its icons). `text` is not affected. */
+  export function setGlobalAlpha(alpha: i32): void;
+  /** The alpha setGlobalAlpha set (255: none). */
+  export function globalAlpha(): i32;
   /** Stroked polyline [x0, y0, x1, y1, ...] with round joins and caps. */
   export function stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void;
   /** Runtime image usable with drawImage, and as a render target. Video/camera plugins create their own. Black and opaque, or with `alpha`

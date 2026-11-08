@@ -7,7 +7,7 @@ import {
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
-  escapeByApp, escapeDefault, stroke as g_stroke, polygon as g_polygon, loadFont,
+  escapeByApp, escapeDefault, stroke as g_stroke, polygon as g_polygon, loadFont, setGlobalAlpha, globalAlpha,
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId, ease, layerBegin, layerEnd, layerAnim, compClock,
 } from 'zinc:gfx';
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
@@ -4686,7 +4686,11 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       const ix = Math.round(x), iy = Math.round(y);
       // Preserve integer callback coordinates while moving its pixels with the Canvas's fractional origin.
       if (x !== ix || y !== iy) setTf(1, 0, 0, 1, x - ix, y - iy);
-      drawing = h; d(ix, iy, Math.round(w), Math.round(hh)); drawing = -1;
+      // the views' opacity reaches its drawing through the global alpha (ZN-1064); a throw in the callback leaves neither behind
+      // ponytail: a UI painted from inside onDraw (a nested scene) multiplies its own alpha again; save the ui alpha there if one fades
+      const ga = globalAlpha();
+      drawing = h; setGlobalAlpha(ai);
+      try { d(ix, iy, Math.round(w), Math.round(hh)); } finally { drawing = -1; setGlobalAlpha(ga); }
       if (x !== ix || y !== iy) unsetTf();
     }
     if (n.overflow) {

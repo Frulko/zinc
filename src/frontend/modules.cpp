@@ -178,30 +178,35 @@ export function dockWindow(): boolean { return __host_sysDevice('window.dock', '
 /** 'full', 'docked', 'widget' or 'hidden' (minimized); 'full' on a host without window states. */
 export function windowState(): string { const s = __host_sysDevice('window.state', ''); return s === 'widget' || s === 'hidden' || s === 'docked' ? s : 'full'; }
 export function clear(color: u32): void { __host_gfxClear(color); }
-export function rect(x: number, y: number, w: number, h: number, color: u32): void { __host_gfxRect(x, y, w, h, color); }
-export function line(x1: number, y1: number, x2: number, y2: number, color: u32): void { __host_gfxLine(x1, y1, x2, y2, color); }
+// The alpha a Canvas's onDraw inherits from its views' opacity (ZN-1064): every command that follows is scaled by it, primitive by
+// primitive (overlapping strokes show through each other, as Android's views that say they have no overlapping rendering).
+let __ga: i32 = 255;
+export function setGlobalAlpha(alpha: i32): void { __ga = alpha < 0 ? 0 : alpha > 255 ? 255 : alpha; }
+export function globalAlpha(): i32 { return __ga; }
+export function rect(x: number, y: number, w: number, h: number, color: u32): void { if (__ga === 255) __host_gfxRect(x, y, w, h, color); else __host_gfxRRect(x, y, w, h, 0, color, __ga); }
+export function line(x1: number, y1: number, x2: number, y2: number, color: u32): void { if (__ga === 255) __host_gfxLine(x1, y1, x2, y2, color); else __host_gfxStroke([x1, y1, x2, y2], 1, color, __ga, false); }
 export function text(x: number, y: number, s: string, color: u32, scale: i32): void { __host_gfxText(x, y, s, color, scale); }
-export function rrect(x: number, y: number, w: number, h: number, r: number, color: u32, alpha: i32): void { __host_gfxRRect(x, y, w, h, r, color, alpha); }
-export function gradient(x: number, y: number, w: number, h: number, r: number, c1: u32, c2: u32, vertical: boolean, alpha: i32): void { __host_gfxGradient(x, y, w, h, r, c1, c2, vertical, alpha); }
-export function gradientPaint(x: number, y: number, w: number, h: number, r: number, paint: number[], alpha: i32): void { __host_gfxGradientPaint(x, y, w, h, r, paint, alpha); }
-export function border(x: number, y: number, w: number, h: number, r: number, bw: number, color: u32, alpha: i32): void { __host_gfxBorder(x, y, w, h, r, bw, color, alpha); }
-export function shadow(x: number, y: number, w: number, h: number, r: number, blur: number, color: u32, alpha: i32): void { __host_gfxShadow(x, y, w, h, r, blur, color, alpha); }
-export function polygon(points: number[], color: u32, alpha: i32): void { __host_gfxPolygon(points, color, alpha); }
-export function path(contours: number[], color: u32, alpha: i32): void { __host_gfxPath(contours, color, alpha); }
-export function stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void { __host_gfxStroke(points, width, color, alpha, closed); }
+export function rrect(x: number, y: number, w: number, h: number, r: number, color: u32, alpha: i32): void { __host_gfxRRect(x, y, w, h, r, color, __ga === 255 ? alpha : Math.round(alpha * __ga / 255)); }
+export function gradient(x: number, y: number, w: number, h: number, r: number, c1: u32, c2: u32, vertical: boolean, alpha: i32): void { __host_gfxGradient(x, y, w, h, r, c1, c2, vertical, __ga === 255 ? alpha : Math.round(alpha * __ga / 255)); }
+export function gradientPaint(x: number, y: number, w: number, h: number, r: number, paint: number[], alpha: i32): void { __host_gfxGradientPaint(x, y, w, h, r, paint, __ga === 255 ? alpha : Math.round(alpha * __ga / 255)); }
+export function border(x: number, y: number, w: number, h: number, r: number, bw: number, color: u32, alpha: i32): void { __host_gfxBorder(x, y, w, h, r, bw, color, __ga === 255 ? alpha : Math.round(alpha * __ga / 255)); }
+export function shadow(x: number, y: number, w: number, h: number, r: number, blur: number, color: u32, alpha: i32): void { __host_gfxShadow(x, y, w, h, r, blur, color, __ga === 255 ? alpha : Math.round(alpha * __ga / 255)); }
+export function polygon(points: number[], color: u32, alpha: i32): void { __host_gfxPolygon(points, color, __ga === 255 ? alpha : Math.round(alpha * __ga / 255)); }
+export function path(contours: number[], color: u32, alpha: i32): void { __host_gfxPath(contours, color, __ga === 255 ? alpha : Math.round(alpha * __ga / 255)); }
+export function stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void { __host_gfxStroke(points, width, color, __ga === 255 ? alpha : Math.round(alpha * __ga / 255), closed); }
 export function font(family: string, px: i32): i32 { return __host_gfxFont(family, px); }
 export function loadFont(file: string, px: number): i32 { return __host_gfxLoadFont(file, px); }
 export function fontAscent(f: i32): i32 { return __host_gfxFontAscent(f); }
 export function lineHeight(f: i32): i32 { return __host_gfxLineHeight(f); }
 export function textWidth(f: i32, s: string, tracking: number): number { return __host_gfxTextWidth(f, s, tracking); }
-export function drawText(font: i32, x: number, y: number, s: string, color: u32, alpha: i32, tracking: number): void { __host_gfxDrawText(font, x, y, s, color, alpha, tracking); }
+export function drawText(font: i32, x: number, y: number, s: string, color: u32, alpha: i32, tracking: number): void { __host_gfxDrawText(font, x, y, s, color, __ga === 255 ? alpha : Math.round(alpha * __ga / 255), tracking); }
 export function image(name: string): i32 { return __host_gfxImage(name); }
 export function imageWidth(img: i32): i32 { return __host_gfxImageWidth(img); }
 export function imageHeight(img: i32): i32 { return __host_gfxImageHeight(img); }
-export function drawImage(img: i32, x: number, y: number, w: number, h: number, alpha: i32, radius: number): void { __host_gfxDrawImage(img, x, y, w, h, alpha, radius); }
+export function drawImage(img: i32, x: number, y: number, w: number, h: number, alpha: i32, radius: number): void { __host_gfxDrawImage(img, x, y, w, h, __ga === 255 ? alpha : Math.round(alpha * __ga / 255), radius); }
 export enum ImageFlag { FlipX = 1, FlipY = 2, Nearest = 4, Smooth = 8 }
 export enum Blend { Normal = 0, Add = 1, Multiply = 2, Screen = 3 }
-export function drawImageRect(img: i32, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number, alpha: i32 = 255, flags: i32 = 0, rotation: number = 0, tint: u32 = 0xFFFFFF, blend: i32 = 0): void { __host_gfxDrawImageRect(img, sx, sy, sw, sh, dx, dy, dw, dh, alpha, flags, rotation, tint, blend); }
+export function drawImageRect(img: i32, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number, alpha: i32 = 255, flags: i32 = 0, rotation: number = 0, tint: u32 = 0xFFFFFF, blend: i32 = 0): void { __host_gfxDrawImageRect(img, sx, sy, sw, sh, dx, dy, dw, dh, __ga === 255 ? alpha : Math.round(alpha * __ga / 255), flags, rotation, tint, blend); }
 export function imageFromBytes(bytes: u8[]): i32 { return __host_gfxImageFromBytes(bytes); }
 export function startImageDecode(bytes: u8[], maxSide: i32 = 0): i32 { return __host_gfxDecodeStart(bytes, maxSide); }
 export function pollImageDecode(handle: i32): i32 { return __host_gfxDecodePoll(handle); }

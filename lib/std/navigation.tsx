@@ -35,7 +35,6 @@ export class Navigation {
   dragAt: number[] = []; dragX: number[] = [];   // swipe samples (ms, dx) for the release velocity
   nodes: Map<i32, i32> = new Map<i32, i32>();    // route key -> its screen's node
   dims: Map<i32, i32> = new Map<i32, i32>();     // route key -> the dimming node under it (iOS)
-  alphas: Map<i32, number> = new Map<i32, number>();   // route key -> its screen's opacity now
   rerender: () => void = (): void => {};
   stepping: boolean = false;
   stepper: () => void = (): void => {};
@@ -127,14 +126,11 @@ export class Navigation {
           if (isTop) x = (1 - t) * w; else x = -0.3 * w * t;
         }
       }
-      this.alphas.set(stack[i].key, hide ? 0 : op);
       ui.setStyles(h, [this.style === 'android' ? ANDROID_BG : IOS_BG, new ui.Style(['translateX', 'opacity', 'scaleX', 'scaleY', 'hidden'], [x, op, s, s, hide ? 1 : 0])]);   // the JSX's base, then the motion
       const d = this.dims.get(stack[i].key);   // iOS: the screen below is dimmed by up to 10 % as the top one covers it
       if (d !== undefined) ui.setStyles(d, [DIM, new ui.Style(['opacity', 'hidden'], [0.1 * t, isTop && moving && this.style !== 'android' && !reduced ? 0 : 1])]);
     }
   }
-  /** The opacity the motion gives a route's screen now (a canvas in it draws with it). */
-  alphaOf(key: i32): number { const a = this.alphas.get(key); return a === undefined ? 1 : a; }
   // ---- the iOS edge swipe: the top screen follows the finger, the release velocity decides
   swipe(e: ui.PointerEvent): void {
     if (this.stackDepth() < 2 || this.kind === 2) return;   // a pop under way finishes: the screen the finger took is going
@@ -173,15 +169,14 @@ export type StackProps = {
 
 const INK: i32 = 0x0f172a;
 /** The back button of a header: iOS's chevron and the previous title in the tint, Android's arrow. */
-function BackButton(q: { nav: Navigation; routeKey: i32; android: boolean; prev: string; tint: i32 }): i32 {
+function BackButton(q: { nav: Navigation; android: boolean; prev: string; tint: i32 }): i32 {
   const android = q.android;
   return <View style={{ flexDirection: 'row', alignItems: 'center', height: 44, paddingLeft: android ? 16 : 8, paddingRight: 8 }} onPress={() => { q.nav.pop(); }} role="button" aria-label="Back">
     <Canvas style={{ width: android ? 24 : 14, height: 24, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
-      // in the canvas's box as laid out (a scaled screen scales it); the screen's fade is applied here: a canvas draws at full alpha otherwise
-      const c = (android ? INK : q.tint) as u32, k = w / (android ? 24 : 14), al: i32 = Math.round(255 * q.nav.alphaOf(q.routeKey));
-      if (al <= 0) return;
-      if (android) { stroke([x + 20 * k, y + 12 * k, x + 4 * k, y + 12 * k], 2 * k, c, al, false); stroke([x + 11 * k, y + 5 * k, x + 4 * k, y + 12 * k, x + 11 * k, y + 19 * k], 2 * k, c, al, false); }
-      else stroke([x + 11 * k, y + 3 * k, x + 2 * k, y + 12 * k, x + 11 * k, y + 21 * k], 3 * k, c, al, false);
+      // in the canvas's box as laid out (a scaled screen scales it; its fade reaches the strokes through the canvas's alpha)
+      const c = (android ? INK : q.tint) as u32, k = w / (android ? 24 : 14);
+      if (android) { stroke([x + 20 * k, y + 12 * k, x + 4 * k, y + 12 * k], 2 * k, c, 255, false); stroke([x + 11 * k, y + 5 * k, x + 4 * k, y + 12 * k, x + 11 * k, y + 19 * k], 2 * k, c, 255, false); }
+      else stroke([x + 11 * k, y + 3 * k, x + 2 * k, y + 12 * k, x + 11 * k, y + 21 * k], 3 * k, c, 255, false);
     }} />
     {!android && q.prev !== '' && <Text style={[TEXT17, new ui.Style(['color'], [q.tint])]}>{q.prev}</Text>}
   </View>;
@@ -192,11 +187,11 @@ function Header(q: { nav: Navigation; route: Route; index: i32; prev: string; la
   const android = q.nav.style === 'android', back = q.index > 0 || q.route.modal;
   const ink = INK;
   if (android) return <View className="pt-[env(safe-area-inset-top)]" style={{ backgroundColor: 0xffffff }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', height: 64 }}>{back ? <BackButton nav={q.nav} routeKey={q.route.key} android={true} prev="" tint={q.tint} /> : <View style={{ width: 16 }} />}<Text style={{ fontSize: 22, color: ink, marginLeft: back ? 16 : 0 }}>{q.route.title}</Text></View>
+    <View style={{ flexDirection: 'row', alignItems: 'center', height: 64 }}>{back ? <BackButton nav={q.nav} android={true} prev="" tint={q.tint} /> : <View style={{ width: 16 }} />}<Text style={{ fontSize: 22, color: ink, marginLeft: back ? 16 : 0 }}>{q.route.title}</Text></View>
   </View>;
   return <View className="pt-[env(safe-area-inset-top)]" style={{ backgroundColor: 0xf9f9f9, borderBottomWidth: q.large ? 0 : 0.5, borderColor: 0xc8c7cc }}>
     <View style={{ height: 44, flexDirection: 'row', alignItems: 'center' }}>
-      {back ? <BackButton nav={q.nav} routeKey={q.route.key} android={false} prev={q.prev} tint={q.tint} /> : <View style={{ width: 8 }} />}
+      {back ? <BackButton nav={q.nav} android={false} prev={q.prev} tint={q.tint} /> : <View style={{ width: 8 }} />}
       <View className="absolute inset-y-0 left-[90px] right-[90px] items-center justify-center">
         <Text style={{ fontSize: 17, fontWeight: 600, color: ink }}>{q.large ? '' : q.route.title}</Text>
       </View>
