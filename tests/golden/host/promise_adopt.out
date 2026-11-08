@@ -1,0 +1,12 @@
+void then 2
+plain finally
+no error ok
+literal catch 7
+then:1
+p2 done
+caught:boom
+void catch adopted
+finally kept
+finally rejects fin
+after plain y
+fetched hello /text

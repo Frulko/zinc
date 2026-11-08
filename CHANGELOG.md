@@ -77,6 +77,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Fixed
 
 - `Math.atan`, `Math.asinh`, `Math.acosh` and `Math.atanh` were refused by the checker; they now work on every engine.
+- A `catch` callback that returns a promise is adopted, as `then` already did, and `finally` waits for the promise its callback returns before passing the value on (or takes its rejection), in the order Node runs them.
 
 ### Developer tools
 

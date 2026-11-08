@@ -3535,6 +3535,20 @@ function __catchV(p: Promise<void>, f: (e: Error) => void): Promise<void> {
   p.subscribe(new CatchJobV(p, f, r));
   return r;
 }
+// catch(f) whose callback returns a promise: the new promise adopts it, as then does (ZN-794)
+class CatchJobP<T> extends Job {
+  constructor(public p: Promise<T>, public f: (e: Error) => Promise<T>, public r: Promise<T>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err === null) { this.r.resolveWith(this.p.value); return; }
+    try { __adopt(this.r, this.f(err)); } catch (e) { this.r.rejectWith(e); }
+  }
+}
+function __catchP<T>(p: Promise<T>, f: (e: Error) => Promise<T>): Promise<T> {
+  const r = __newPromise<T>();
+  p.subscribe(new CatchJobP<T>(p, f, r));
+  return r;
+}
 
 // finally: the callback runs on either outcome, then the result (or the error) passes through unchanged
 class FinallyJob<T> extends Job {
@@ -3552,6 +3566,27 @@ class FinallyJob<T> extends Job {
 function __finally<T>(p: Promise<T>, f: () => void): Promise<T> {
   const r = __newPromise<T>();
   p.subscribe(new FinallyJob<T>(p, f, r));
+  return r;
+}
+// finally(f) whose callback returns a promise: the result waits for it, then passes the original outcome through, unless that promise rejects (ZN-794)
+class FinallyJobP<T, U> extends Job {
+  q: Promise<U> | null = null;
+  constructor(public p: Promise<T>, public f: () => Promise<U>, public r: Promise<T>) { super(); }
+  run(): void {
+    const q = this.q;
+    if (q === null) {
+      try { const w = this.f(); this.q = w; w.subscribe(this); } catch (e) { this.r.rejectWith(e); }
+      return;
+    }
+    const qe = q.error, pe = this.p.error;
+    if (qe !== null) this.r.rejectWith(qe);
+    else if (pe !== null) this.r.rejectWith(pe);
+    else this.r.resolveWith(this.p.value);
+  }
+}
+function __finallyP<T, U>(p: Promise<T>, f: () => Promise<U>): Promise<T> {
+  const r = __newPromise<T>();
+  p.subscribe(new FinallyJobP<T, U>(p, f, r));
   return r;
 }
 

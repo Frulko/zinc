@@ -1751,6 +1751,34 @@ struct Checker {
     std::string nm = name(t);
     return nm == "Promise<__Void>" ? 2 : nm.rfind("Promise<", 0) == 0 ? 1 : 0;
   }
+  // Does the callback of catch (takesError) or finally return a promise (ZN-794)? A function expression is typed with an open result only when every
+  // value it returns has a type of its own (a call, new, a name, a member, await): a literal keeps taking its type from the promise, as before.
+  bool callbackReturnsPromise(std::uint32_t cb, bool takesError) {
+    TypeId t = kNoType;
+    if (n(cb).kind == N::Ident) t = expr(cb);
+    else if (n(cb).kind == N::FuncExpr && out.nodeType[cb] == kNoType) {
+      bool any = n(cb).kids[0] != kNone, intrinsic = true;   // an annotated result is its own type
+      std::function<void(std::uint32_t)> walk = [&](std::uint32_t k) {
+        if (k == kNone) return;
+        const Node& s = n(k);
+        if (s.kind == N::FuncExpr || s.kind == N::Function || s.kind == N::Class || s.kind == N::Method) return;
+        if (s.kind == N::Return) {
+          const std::uint32_t v = s.kids.empty() ? kNone : s.kids[0];
+          const N vk = v == kNone ? N::Empty : n(v).kind;
+          any = true;
+          intrinsic = intrinsic && (vk == N::Call || vk == N::New || vk == N::Ident || vk == N::Member || vk == N::Await);
+          return;
+        }
+        for (std::uint32_t c : s.kids) walk(c);
+      };
+      if (!any) walk(n(cb).kids[1]);
+      if (!any || !intrinsic) return false;
+      std::vector<TypeId> ps;
+      if (takesError) { const std::uint32_t eo = errorObj(); if (eo == kNoObj) return false; ps.push_back(objType(eo)); }
+      t = expr(cb, func(ps, kNoType, static_cast<std::uint32_t>(ps.size())));
+    }
+    return !bad(t) && t != kNoType && ty(t).k == TK::Func && promiseKind(ty(t).elem) != 0;
+  }
 
   // Replaces node `i` by the expression `text`, parsed with `holes` spliced in; false if it does not parse.
   // An unknown name: `arguments`, `eval` and `globalThis` have codes of their own (what the prototype forbids), anything else is just not declared.
@@ -2221,8 +2249,10 @@ struct Checker {
       if (pk != 0) {
         bool then = n(x.kids[0]).text == "then";
         bool fin = n(x.kids[0]).text == "finally";
-        // then(f, g) takes a rejection handler; a Promise<void>'s catch takes a callback that returns nothing
-        a.nodes[i].kids[0] = newNode(N::Ident, fin ? "__finally" : then ? (x.kids.size() == 3 ? "__then2" : "__then") : (pk == 2 ? "__catchV" : "__catch"), {}, x.kids[0]);
+        // then(f, g) takes a rejection handler; a Promise<void>'s catch takes a callback that returns nothing; a catch or finally callback that returns
+        // a promise is adopted (catch) or waited for (finally), as in JavaScript (ZN-794): then's helpers tell it from their inferred result type
+        const bool adopts = !then && x.kids.size() == 2 && callbackReturnsPromise(x.kids[1], !fin);
+        a.nodes[i].kids[0] = newNode(N::Ident, fin ? (adopts ? "__finallyP" : "__finally") : then ? (x.kids.size() == 3 ? "__then2" : "__then") : adopts ? "__catchP" : (pk == 2 ? "__catchV" : "__catch"), {}, x.kids[0]);
         a.nodes[i].kids.insert(a.nodes[i].kids.begin() + 1, obj);
       }
     }

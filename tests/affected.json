@@ -181,6 +181,7 @@
     {"paths": ["src/frontend/check.cpp", "tests/data/callback_fewer_params/", "tests/t0/callback_fewer_params.sh"], "tests": ["callback_fewer_params"]},
     {"paths": ["src/frontend/check.cpp", "src/ir/lower.cpp", "tests/data/method_fewer_params/", "tests/t0/method_fewer_params.sh"], "tests": ["method_fewer_params"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/desugar.cpp", "src/frontend/modules.cpp", "tests/data/async_gaps/", "tests/t0/async_gaps.sh"], "tests": ["async_gaps"]},
+    {"paths": ["src/frontend/check.cpp", "src/frontend/modules.cpp", "tests/golden/host/promise_adopt.ts", "tests/t0/promise_adopt.sh"], "tests": ["promise_adopt"]},
     {"paths": ["src/rt/worker.cpp", "lib/std/worker.ts", "tests/data/busy_worker/", "tests/t1/busy_worker.sh"], "tests": ["busy_worker"]},
     {"paths": ["src/rt/worker.cpp", "src/host/loop.cpp", "src/qjs/worker_js.cpp", "tests/data/worker_churn/", "tests/t1/worker_churn.sh"], "tests": ["worker_churn"]},
     {"paths": ["src/aot/aot.cpp", "src/rt/worker.cpp", "src/qjs/prelude.cpp", "src/qjs/worker_js.cpp", "src/qjs/strip.cpp", "include/zn/worker_bridge.h", "lib/std/worker.ts", "tests/data/worker_basic/", "tests/data/worker_wire/", "tests/t1/worker_engines.sh"], "tests": ["worker_engines"]},
