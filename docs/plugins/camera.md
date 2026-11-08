@@ -29,7 +29,7 @@ cam.close();
 | `image` | the runtime image with the newest frame (-1 once closed) |
 | `onFrame(cb)` / `frameIndex` | each new frame, with its index (0, 1, 2...), once the image shows it |
 | `setOption(name, value)` | `mirror` (0 or 1), `brightness` (-1..1, 0), `contrast` (0..2, 1), in software on the image and the snapshots |
-| `snapshot()` | the newest frame as RGBA bytes (`u8[]`: Zinc has no typed arrays; a real `Uint8Array` on the QuickJS engine) |
+| `snapshot()` | the newest frame as RGBA bytes (`u8[]`: Zinc has no typed arrays; on the QuickJS engine a real `Uint8Array` above 64 Ki elements, an array below) |
 | `still()` | a copy of the frame on screen as a new runtime image (about a millisecond): a photo's thumbnail without a PNG round trip. Free it with `gfx.destroyImage` |
 | `encodePng(): Promise<u8[]>` | the frame on screen as a PNG, encoded on a thread of its own (100 ms or more for a 1280x720 picture from a real camera): `cam.encodePng().then((png) => fs.writeBytes(path, png))`; `[]` on the sim stand-in |
 | `toPng()` | the same bytes at once, on the program's thread (it waits for the encoder) |

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Discord voice calls (zinc:discord-voice, examples/discord): first the RTP framing and both transport encryption modes against vectors
-# recorded with Node's crypto and the audio devices a call can choose (tests/golden/host/discord_voice_rtp.ts, on AOT and the interpreter;
-# the devices on QuickJS too); then the client against the fake Discord on 127.0.0.1
+# recorded with Node's crypto and the audio devices a call can choose (tests/golden/host/discord_voice_rtp.ts, on AOT, the interpreter and
+# QuickJS); then the client against the fake Discord on 127.0.0.1
 # (examples/discord/tests/fake-discord.ts) with the fake microphone, no device: Lounge joined with op 4, the voice gateway v8 (Identify,
 # Ready, IP discovery over UDP, Select Protocol, Session Description), our tone encrypted, sent, opened by the fake and sent back as Grace
 # (her speaking ring), our fake camera encoded (H.264), sent and sent back as Grace's (op 12), decoded at her tile's size (op 15), not
@@ -24,9 +24,10 @@ fail=0
 timeout 120 "$ZINC" run tests/golden/host/discord_voice_rtp.ts > "$tmp/rtp" 2>&1
 timeout 120 "$ZINC" run tests/golden/host/discord_voice_rtp.ts --interp > "$tmp/rtp2" 2>&1
 cmp -s "$tmp/rtp" "$tmp/rtp2" || { echo "discord_voice: the interpreter differs from AOT"; diff "$tmp/rtp" "$tmp/rtp2" | head -6; fail=1; }
-# QuickJS: the device lists only (its u8[] and u32 arguments of the RTP vectors do not cross to the native side yet)
-timeout 120 "$ZINC" run tests/golden/host/discord_voice_rtp.ts --engine quickjs 2>&1 | grep -E '^(inputs|outputs) ' > "$tmp/rtp3"
-grep -E '^(inputs|outputs) ' "$tmp/rtp" | cmp -s - "$tmp/rtp3" || { echo "discord_voice: QuickJS lists other devices"; cat "$tmp/rtp3"; fail=1; }
+# QuickJS: the same vectors and devices (a module's u8[] is a typed array there, whose map gives an array as the program's does, ZN-1008)
+keep=' ok$| FAIL |^modes |^(inputs|outputs) '
+timeout 120 "$ZINC" run tests/golden/host/discord_voice_rtp.ts --engine quickjs 2>&1 | grep -E "$keep" > "$tmp/rtp3"
+grep -E "$keep" "$tmp/rtp" | cmp -s - "$tmp/rtp3" || { echo "discord_voice: QuickJS differs"; grep -E "$keep" "$tmp/rtp" | diff - "$tmp/rtp3" | head -6; fail=1; }
 mkdir -p "$tmp/shots"
 FAKE_ASSETS=$PWD/examples/discord/tests/assets FAKE_PORTS_FILE=$tmp/ports timeout 360 "$ZINC" run --interp examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>&1 &
 fake=$!

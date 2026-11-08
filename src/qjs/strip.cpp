@@ -380,7 +380,14 @@ bool stripTypes(std::string_view src, const std::string& file, std::string& out,
 bool toJavaScript(std::string_view src, const std::string& file, std::string& out, std::string& err) {
   auto ends = [&](std::string_view x) { return file.size() >= x.size() && file.compare(file.size() - x.size(), x.size(), x) == 0; };
   const bool tsx = ends(".tsx"), ts = tsx || ends(".ts") || file.rfind("zinc:", 0) == 0;
-  if (!ts) { out.assign(src); return true; }
+  if (!ts) {   // plain JavaScript: as written, with URL and the browser's WebSocket when it reads them as globals (ZN-1008)
+    out.assign(src);
+    const zn::frontend::Profile* cur = zn::frontend::currentProfile();
+    if ((cur && std::string_view(cur->name) == "web") || (src.find("URL") == std::string_view::npos && src.find("WebSocket") == std::string_view::npos)) return true;
+    ParseResult pr = parse(src);
+    if (pr.diags.empty() && pr.ast.root != kNone) out += jsImportsOf(pr.ast);
+    return true;
+  }
   std::string text(src), original;
   std::vector<Diag> diags;
   std::vector<SrcPiece> map;

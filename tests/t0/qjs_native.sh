@@ -18,8 +18,8 @@ cat > "$tmp/typed.ts" <<'TS'
 import { NativeModule, requireNative } from 'zinc:native';
 interface Spec extends NativeModule { sum(b: u8[]): i32; reverse(b: u8[]): u8[]; nope(): void }
 const n = requireNative<Spec>('Fixture');
-const r = n.reverse(new Uint8Array([9, 8, 7]));   // a typed array of the element type goes in as it is; an array result is one
-console.log(n.sum(new Uint8Array([1, 2, 3])), r instanceof Uint8Array, r[0], r[2], typeof n.nope);
+const r = n.reverse(new Uint8Array([9, 8, 7]));   // a typed array of the element type goes in as it is; a small array result is an array (ZN-1008)
+console.log(n.sum(new Uint8Array([1, 2, 3])), Array.isArray(r), r[0], r[2], typeof n.nope);
 TS
 [ "$("$ZINC" run "$tmp/typed.ts" --engine quickjs 2>&1)" = "6 true 7 9 undefined" ] || { echo "qjs_native: typed arrays do not cross as bytes, or a missing export is not undefined"; fail=1; }
 printf "import { requireNative } from 'zinc:native';\nrequireNative('NoSuchModule').f();\n" > "$tmp/none.js"

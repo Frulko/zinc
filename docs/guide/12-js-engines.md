@@ -26,6 +26,11 @@ environment, WebGL, the native modules of plugins with their callbacks and promi
 Node-API and a few lines that start it (about a hundred lines of C++ per engine). Calls stay cheap: 50 to 115 ns from JavaScript into
 Zinc, depending on the engine (table below).
 
+A plain JavaScript file (`.js`, `.mjs`) that reads `URL`, `URLSearchParams` or `WebSocket` as a global gets them as a browser has them:
+`new URL('./w.js', import.meta.url)` resolves, and `WebSocket` is the browser's class over `zinc:socket` (binary messages as
+`ArrayBuffer`s with `binaryType = 'arraybuffer'`). A plugin's `u8[]` reaches the program as an array, and above 64 Ki elements (a
+camera frame) as a `Uint8Array` whose `map`, `concat` and `JSON.stringify` act as an array's.
+
 QuickJS is linked into zinc. The other engines are modules zinc loads when a program asks for them: JavaScriptCore's ships with zinc
 (the engine itself is the system's), V8's and Hermes's come as **engine packs** from Zinc's signed index.
 

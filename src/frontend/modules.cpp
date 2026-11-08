@@ -1841,7 +1841,12 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
   return classes + out;
 }
 
-std::string webGlobalImports(const Ast& A) {
+// What a plain JavaScript module (.js, .mjs) on QuickJS gets the same way (ZN-1008): only URL and the browser's WebSocket, the globals libraries
+// expect from any runtime; the rest of the web's (document, navigator...) stays the web environment's, so a library's `typeof document` check
+// does not take the program for a page.
+const std::pair<const char*, const char*> kJsGlobals[] = {{"URL", "zinc:web"}, {"URLSearchParams", "zinc:web"}, {"WebSocket", "zinc:web/websocket"}};
+template <std::size_t N>
+std::string webGlobalImports(const Ast& A, const std::pair<const char*, const char*> (&table)[N]) {
   std::set<std::string_view> declared;
   for (std::uint32_t st : A.nodes[A.root].kids) {
     const Node* x = &A.nodes[st];
@@ -1861,7 +1866,7 @@ std::string webGlobalImports(const Ast& A) {
   std::map<std::string, std::set<std::string>> used;   // module -> names
   for (const Node& n : A.nodes) {
     if (n.kind != N::Ident && n.kind != N::TypeRef) continue;
-    for (const auto& [name, mod] : kWebGlobals) if (n.text == name && !declared.count(n.text)) used[mod].insert(name);
+    for (const auto& [name, mod] : table) if (n.text == name && !declared.count(n.text)) used[mod].insert(name);
   }
   std::string out;
   for (const auto& [mod, names] : used) {
@@ -1943,7 +1948,7 @@ std::uint32_t hotMeta(Ast& A, std::uint32_t from, std::uint32_t file, const std:
 struct StdModule { std::string_view spec, file, browser; };
 constexpr StdModule kStdModules[] = {
     {"zinc:ui", "ui.ts", {}}, {"zinc:ui/image-cache", "image-cache.ts", {}}, {"zinc:gl", "gl.ts", {}}, {"zinc:web", "web.ts", "web.browser.ts"}, {"zinc:web/fetch", "fetch.ts", "fetch.browser.ts"},
-    {"zinc:subtle", "subtle.ts", "subtle.browser.ts"}, {"zinc:ui/dom", "ui-dom.ts", "ui-dom.browser.ts"}, {"zinc:ui/solid", "solid.ts", {}},
+    {"zinc:web/websocket", "websocket.ts", {}}, {"zinc:subtle", "subtle.ts", "subtle.browser.ts"}, {"zinc:ui/dom", "ui-dom.ts", "ui-dom.browser.ts"}, {"zinc:ui/solid", "solid.ts", {}},
     {"zinc:ui/react", "react.ts", {}}, {"zinc:ui/kit", "kit/index.ts", {}}, {"zinc:ui/kit/host", "kit/host.ts", {}}, {"zinc:icons", "icons.tsx", {}}, {"zinc:ui/animated", "animated.ts", {}},
     {"zinc:ui/dnd", "dnd.ts", {}}, {"zinc:react-native", "react-native.tsx", {}}, {"zinc:react-native/linking", "react-native-linking.ts", {}},
     {"zinc:ui/nuxt", "nuxt/index.ts", {}}, {"zinc:ui/platform", "platform/index.ts", {}}, {"zinc:ui/navigation", "navigation.tsx", {}}, {"zinc:ui/history", "history.ts", {}},
@@ -2363,7 +2368,7 @@ struct Loader {
     visiting[path] = true;
     ParseResult pr = parse(prog.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty() && !isWebFile(path) && !typesMode) {
-      std::string add = webGlobalImports(pr.ast);
+      std::string add = webGlobalImports(pr.ast, kWebGlobals);
       if (!add.empty()) { prog.files[fi].text += add; pr = parse(prog.files[fi].text); }
     }
     for (Diag& d : pr.diags) { d.file = fi; prog.diags.push_back(d); }
@@ -4107,7 +4112,8 @@ std::string excerpt(const Program& p, const Diag& d) {
 
 const char* builtinModuleSource(std::string_view spec) { return hostModuleSource(spec); }
 
-std::string webImportsOf(const Ast& A) { return webGlobalImports(A); }
+std::string webImportsOf(const Ast& A) { return webGlobalImports(A, kWebGlobals); }
+std::string jsImportsOf(const Ast& A) { return webGlobalImports(A, kJsGlobals); }
 
 // Components written as classes (Inferno, React classes): declared in this file, or in a file this one imports with a relative path (ZN-163)
 std::set<std::string> jsxClassTags(const std::string& path, const std::string& text, const ReadFile& read, std::set<std::string>* jsxFns) {

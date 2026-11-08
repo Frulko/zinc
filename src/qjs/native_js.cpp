@@ -120,14 +120,59 @@ bool pack(napi_env env, napi_value v, char l, std::vector<std::uint8_t>& out) {
   return true;
 }
 
-// An array result, or an array the module changed: a typed array of its element type (one copy).
+// A u8[] (i32[], u32[], f64[]) of a module, as the program sees it (ZN-1008). Up to kPlainMax elements a JS array, as the language's u8[] is
+// and as the host rows give one: push, concat, map to strings, JSON.stringify and Array.isArray agree with the typed engines (a socket's
+// chunks, an RTP packet, a sqlite blob). Above, a typed array, as before: building a JS array costs ~16 ms per million elements here and
+// passing it back ~13 ms, where a camera or screen frame of megabytes crosses in one copy; its prototype makes map return an array, adds
+// concat and writes a list in JSON.stringify. ponytail: push still fails on such a big result (a typed array has a fixed length); a QuickJS
+// fast path for plain arrays (JS_NewArrayFrom, a fast-array read in pack) would lift the threshold if one shows in a profile.
+constexpr std::uint32_t kPlainMax = 65536;
+const char* kArrayProtos =
+    "(() => {\n"
+    "  const mk = (T) => {\n"
+    "    class A extends T {\n"
+    "      map(f, self) { const r = new Array(this.length); for (let i = 0; i < this.length; i++) r[i] = f.call(self, this[i], i, this); return r; }\n"
+    "      concat(...xs) { return Array.prototype.concat.apply(Array.from(this), xs.map((x) => ArrayBuffer.isView(x) ? Array.from(x) : x)); }\n"
+    "      toJSON() { return Array.from(this); }\n"
+    "    }\n"
+    "    return A.prototype;\n"
+    "  };\n"
+    "  return [mk(Uint8Array), mk(Int32Array), mk(Uint32Array), mk(Float64Array), Object.setPrototypeOf];\n"
+    "})()";
+struct ArrayProtos { napi_ref list = nullptr; };
+// per environment (a context's); ponytail: an entry outlives its context (one reference, never read again unless the address comes back,
+// and installNative then replaces it)
+std::unordered_map<napi_env, ArrayProtos>& arrayProtos() { static thread_local std::unordered_map<napi_env, ArrayProtos> m; return m; }
+
+// An array result, or an array the module changed: a JS array of its numbers, or above kPlainMax a typed array of its element type (one copy).
 napi_value typed(napi_env env, char l, const ZnView& v) {
   const std::size_t bytes = static_cast<std::size_t>(v.n) * width(l);
   void* data = nullptr;
   napi_value buf, arr;
+  if (v.n <= kPlainMax) {
+    if (napi_create_array_with_length(env, v.n, &arr) != napi_ok) return nullptr;
+    for (std::uint32_t i = 0; i < v.n; ++i) {
+      const auto* at = static_cast<const std::uint8_t*>(v.p) + static_cast<std::size_t>(i) * width(l);
+      napi_value e;
+      if (l == 'B') napi_create_uint32(env, *at, &e);
+      else if (l == 'D') { double d; std::memcpy(&d, at, 8); napi_create_double(env, d, &e); }
+      else if (l == 'U') { std::uint32_t x; std::memcpy(&x, at, 4); napi_create_uint32(env, x, &e); }
+      else { std::int32_t x; std::memcpy(&x, at, 4); napi_create_int32(env, x, &e); }
+      napi_set_element(env, arr, i, e);
+    }
+    return arr;
+  }
   if (napi_create_arraybuffer(env, bytes, &data, &buf) != napi_ok) return nullptr;
   if (bytes) std::memcpy(data, v.p, bytes);
-  return napi_create_typedarray(env, typedKind(l), v.n, buf, 0, &arr) == napi_ok ? arr : nullptr;
+  if (napi_create_typedarray(env, typedKind(l), v.n, buf, 0, &arr) != napi_ok) return nullptr;
+  auto it = arrayProtos().find(env);
+  napi_value list, proto, set, args[2], r;
+  if (it != arrayProtos().end() && napi_get_reference_value(env, it->second.list, &list) == napi_ok &&
+      napi_get_element(env, list, l == 'B' ? 0 : l == 'I' ? 1 : l == 'U' ? 2 : 3, &proto) == napi_ok && napi_get_element(env, list, 4, &set) == napi_ok) {
+    args[0] = arr; args[1] = proto;
+    napi_call_function(env, list, set, 2, args, &r);
+  }
+  return arr;
 }
 
 // An out parameter: the program's array takes the module's new contents (a typed array is filled in place, as far as it reaches).
@@ -380,7 +425,7 @@ struct RecJs {
   napi_value num(double d) { napi_value r; napi_create_double(env, d, &r); return r; }
   napi_value str(const void* p, std::size_t n) { napi_value r; napi_create_string_utf8(env, static_cast<const char*>(p), n, &r); return r; }
   napi_value list(rec::Reader* r, const rec::Schema& e, std::uint32_t n, const std::uint8_t* bytes) {
-    if (bytes) return typed(env, 'B', ZnView{bytes, n});   // u8[]: a Uint8Array, as a B result is
+    if (bytes) return typed(env, 'B', ZnView{bytes, n});   // u8[]: as a B result is
     napi_value arr;
     napi_create_array_with_length(env, n, &arr);
     for (std::uint32_t i = 0; i < n; ++i) { napi_value v = r ? value(*r, e) : nullptr; if (!v) return nullptr; napi_set_element(env, arr, i, v); }
@@ -492,6 +537,10 @@ void installNative(napi_env env) {
   napi_set_named_property(env, g, "__recDecode", fn);
   napi_create_function(env, "__recEncode", NAPI_AUTO_LENGTH, recCall, reinterpret_cast<void*>(1), &fn);
   napi_set_named_property(env, g, "__recEncode", fn);
+  napi_value code, list;
+  if (napi_create_string_utf8(env, kArrayProtos, NAPI_AUTO_LENGTH, &code) == napi_ok && napi_run_script(env, code, "<native arrays>", &list) == napi_ok) {
+    napi_create_reference(env, list, 1, &arrayProtos()[env].list);
+  }
   ZnSink sink{nullptr, sinkResolve, sinkReject, sinkCall, sinkRelease, sinkError, sinkHold};
   zn_native_set_sink(&sink);
 }

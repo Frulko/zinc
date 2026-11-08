@@ -9,7 +9,7 @@ import { createImage, destroyImage } from 'zinc:gfx';
 
 const RS = '\u001e', FS = '\u001f';
 
-/** Bytes of a snapshot. Zinc has no typed arrays: a u8[] (a real Uint8Array on the QuickJS engine). */
+/** Bytes of a snapshot. Zinc has no typed arrays: a u8[] (on the QuickJS engine a real Uint8Array, as any module result over 64 Ki elements). */
 export type Uint8Array = u8[];
 export type CameraPosition = 'front' | 'back' | 'external' | 'unknown';
 export type PermissionStatus = 'granted' | 'denied' | 'undetermined';

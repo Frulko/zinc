@@ -96,6 +96,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - JavaScript projects: `importmap.json` maps a whole folder with a key ending in `/`, as a browser does (`"three/addons/": "../three/examples/jsm/"`), and a folder with a `main.js` runs with `zinc run` even when its `zinc.json` only sets `app.window`.
 - `await` at the top level of a program or test file works on every engine; an `async` arrow function or object method no longer needs its `Promise<T>` written out (`const load = async () => 1`), and a generic function's return type is inferred from its arguments (`function id<T>(x: T) { return x; }`).
+- Plain JavaScript programs have the browser's `URL`, `URLSearchParams` and `WebSocket` globals, so `new URL('./worker.js', import.meta.url)` and libraries that open a `WebSocket` work without an adapter.
 - `n.toLocaleString()` formats numbers with thousands separators on every engine, with the `minimumFractionDigits`, `maximumFractionDigits` and `useGrouping` options (in the US English format for now), and `JSON.stringify(value, replacer)` takes a replacer function, with or without an indent.
 
 #### Fixed
@@ -107,6 +108,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `JSON.stringify` of a parsed object writes number-like keys first, in ascending order, as JavaScript does; a value of type `any` is accepted as the condition of `if` or `? :`; and `c ? v * 10 : v` with `v` of type `any` stays an `any` instead of failing on an object.
 - `clock()` of `zinc:sys` measures below the millisecond on every engine, so a short loop no longer reads 0 ms.
 - `const p: Point = JSON.parse(text)` and `JSON.parse(text) as Point` behave the same on `--engine quickjs` as on the Zinc engines: only the declared fields are kept, and a missing or wrongly typed field throws a `TypeError`.
+- On `--engine quickjs`, bytes from a plugin behave as an array (`push`, `concat`, `map` to strings, `JSON.stringify`), so Discord voice encryption works and `zinc:socket` WebSocket messages of 60 KB and more arrive.
 
 ### Developer tools
 
