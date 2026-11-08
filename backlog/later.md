@@ -484,6 +484,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-863.02: a removed project file comes back in the web page (nothing hides the read-only layer); a folder index for apps that write thousands of files; `readTextAsync`/`writeTextAsync` in the page.
 - ZN-863.05: the web demo bar is English only (`zinc:i18n` exists); a plugin-level replay of recorded native answers would give samples without app code.
 - ZN-863.07: pin the resolved address in `serve.py`'s proxy (DNS rebinding); list the hosts of `examples/music` and `maps/explorer` in their zinc.json.
+- ZN-794: a `catch` callback that returns both a literal and a promise is still refused (TypeScript gives `Promise<T | U>`); typing its result as `T | Promise<T>` covers it. Also `Promise<i32>.catch(e => someCall())` returning a plain number is now typed open and can stop matching `i32`.
+- ZN-794: adopting a promise returned by `then` takes one extra microtask where the spec takes two; ordering tests (test262) could tell.
+- ZN-699: `Math.f16round` and `Math.sumPrecise` (ES2025+) are missing; add them when TypeScript's lib has them.
+- ZN-793: `zinc lint` of a JavaScript program skips the `@requires` and plugin target rules; give the QuickJS check the plugin list.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

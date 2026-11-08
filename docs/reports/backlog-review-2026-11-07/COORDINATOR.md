@@ -19,7 +19,7 @@ Each iteration (a wake-up or an agent's notification):
 
 - Review: all 8 results in (shards A-F, later-engine 31 tasks, later-demos-cross 34 tasks). Applied (946f68ef2, b464c3f25, be5ee42a3).
 - ZN-863.02/.05/.07 integrated (07eae3e87, a2df0d896, 8217555a5). Worker 3: ZN-774.21/.23/.22/.27/.24 (docs, onboarding). Worker 4: ZN-1007, ZN-802 (CLI polish). Network outage 2026-11-07 evening: agents resumed.
-- ZN-799 integrated (a8a1f93f1). Worker 2: ZN-699, ZN-794, ZN-793 (checker / Promise / QuickJS diagnostics).
+- ZN-799 integrated (a8a1f93f1). ZN-699/794/793 integrated (eeb918684, 15fc4e76c, e86dcb379). Worker 5: ZN-1003, ZN-158 (checker assignability, typed arrays).
 
 ## Pending writes
 

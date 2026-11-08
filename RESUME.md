@@ -4,12 +4,13 @@
 
 - Owner rules of 2026-11-07: tests at milestones the owner picks, demos get proposed tests, spare the 16 GB (swap ok, no runaway), a web search before each task, cross work on the Pi 3B+ player (`spark@192.168.2.31`) and the Mojave Mac (`mowmow@192.168.2.215`). All in AGENTS.md.
 - Backlog review 2026-11-07 applied (`docs/reports/backlog-review-2026-11-07.md`): 438 open (199 Mac, 77 cross, 126 parked), later.md 1128 -> 529 lines, 70 tasks created. 13 Review tasks done in code still carry stale `@parallel` claims (ZN-792, 823, 839, 869, 872, 875, 886, 889, 899, 909, 912, 917, 921): release and close after checking no session works them.
-- Done and integrated: ZN-799 (kit Input, generated ui.d.ts, app.id optional), ZN-863.02/.05/.07 (web fs, demo bar, fetch proxy; D205, D206). Coordinator state: `docs/reports/backlog-review-2026-11-07/COORDINATOR.md`.
+- Done and integrated: ZN-799 (kit Input, generated ui.d.ts, app.id optional), ZN-863.02/.05/.07 (web fs, demo bar, fetch proxy; D205, D206), ZN-699 (Math inverse functions, 3 ZBC ops appended without a version bump), ZN-794 (catch/finally adopt promises), ZN-793 (JavaScript programs checked and linted by the QuickJS loader). Coordinator state: `docs/reports/backlog-review-2026-11-07/COORDINATOR.md`.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
 - ZN-799: `tests/t1/cli_tools.sh`, `tests/t1/system_manifest.sh`, `platform_look`, `ui_kit_sections`, an AOT run of `kit_input`.
+- ZN-699/794/793: full T1 for the checker and prelude changes, `tools/diff-matrix`, `zinc dev` on `examples/carnet-nbe` with an error saved (windowed, by hand).
 - ZN-863: `web_real --matrix` (carnet, kanban, zed-editor, ipod, museum-table, music), `web_export`, `web_bridge`, `web_video`, music and maps/explorer exported with their hosts listed.
 
 ## Implicit state machines hardened, the tree committed — 2026-11-06
