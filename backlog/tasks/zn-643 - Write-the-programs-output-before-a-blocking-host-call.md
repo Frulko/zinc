@@ -2,7 +2,8 @@
 id: ZN-643
 title: Write the program's output before a blocking host call
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 17:11'
 labels:
   - runtime

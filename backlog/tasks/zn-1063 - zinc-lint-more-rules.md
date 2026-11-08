@@ -2,7 +2,8 @@
 id: ZN-1063
 title: 'zinc lint: more rules'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:42'
 labels:
   - cli

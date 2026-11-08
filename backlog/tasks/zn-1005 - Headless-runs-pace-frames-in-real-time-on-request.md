@@ -2,7 +2,8 @@
 id: ZN-1005
 title: 'Headless runs: pace frames in real time on request'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:33'
 labels:
   - headless

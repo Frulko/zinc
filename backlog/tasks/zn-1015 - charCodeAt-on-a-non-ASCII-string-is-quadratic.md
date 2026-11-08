@@ -2,7 +2,8 @@
 id: ZN-1015
 title: charCodeAt on a non-ASCII string is quadratic
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:35'
 labels:
   - perf
