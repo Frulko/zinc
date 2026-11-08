@@ -32,13 +32,19 @@ esp32    T0   refuses  project-requires: requires heap>=8M (esp32 has heap 160K)
 What it checks:
 
 - **The source** (every `.tsx` / `.jsx` file): `class` in JSX (`jsx-classname`) and lowercase tags (`jsx-capitalised-tag`), the
-  spellings the engine refuses (Z0006, Z0007), with the codemod that fixes them.
+  spellings the engine refuses (Z0006, Z0007), with the codemod that fixes them; and a plugin of `zinc.json` `dependencies` that no
+  file of the project imports (`unused-dependency`: `zinc remove <plugin>` drops it).
 - **Each target**, with the program loaded the way `zinc run` loads it there (its `x.<target>.tsx` files included): files that do not
   load (`compile`), plugins whose `plugin.json` `requires` do not hold (`plugin-requires`) or whose `targets` leave the target out
   (`plugin-targets`), `zinc.json` `requires` (`project-requires`) and `ui.layout` (`ui-layout`), modules with a `@requires` comment
   (`module-requires`), styles the target's UI tier draws more simply (`ui-tier`: conic gradients below T3, gradients beyond two stops
   along an axis and repeated images on T0 and T1), fixed sizes wider or taller than a fixed screen (`screen-size`), and the assets against
-  the target's budgets (`assets-flash`, `assets-memory`, `texture-size`; estimates, `zinc assets build` measures).
+  the target's budgets (`assets-flash`, `assets-memory`, `texture-size`; PNG, JPEG and WebP sizes read from their headers; estimates,
+  `zinc assets build` measures). `assets-boot` adds up what loads before the first frame (the groups of `loading.groups`, else the
+  `boot` group of `assets.groups`) against the target's `boot` budget.
+
+The language server (`zinc lsp`) shows the target rules in the editor too, for a project whose `zinc.json` names its targets: it runs
+`zinc lint --json` when a file is opened and each time one is saved.
 - **A program on a JavaScript engine** (a `.js` or `.mjs` entry, or `zinc.json` `"engine": "quickjs"`, `"jsc"`, `"v8"` or `"hermes"`): the
   QuickJS loader reads it instead of the typed loader, as `zinc check` does. A module that does not load (a syntax error, an import that
   does not resolve, `node_modules` resolved as at run time) is a `compile` error, and a global or API QuickJS-ng lacks (`Temporal`,

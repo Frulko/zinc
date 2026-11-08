@@ -334,6 +334,18 @@ std::string importerFor(const std::string& name, const std::vector<Rule>& rules)
   return id;
 }
 
+std::string groupOf(const std::string& name, const std::vector<Group>& groups) {
+  auto any = [&](const std::vector<std::string>& globs) {
+    for (const std::string& g : globs) {
+      try { if (std::regex_match(name, globRegex(g))) return true; }
+      catch (const std::regex_error&) {}   // build() names the bad glob
+    }
+    return false;
+  };
+  for (const Group& g : groups) if (any(g.include) && !any(g.exclude)) return g.name;
+  return "default";
+}
+
 // ---------------------------------------------------------------- the build
 bool build(const Options& opt, Report& report, std::string& err) {
   const auto t0 = Clock::now();

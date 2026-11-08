@@ -3,6 +3,7 @@
   "entry": "src/main.tsx",
   "requires": ["heap>=1M"],
   "ui": { "layout": "rn" },
-  "assets": { "budgets": { "esp32": { "flash": "1KB" } } },
+  "dependencies": { "sqlite": "sqlite", "lottie": "lottie" },
+  "assets": { "budgets": { "esp32": { "flash": "1KB" } }, "groups": { "boot": { "include": ["big.png"] } } },
   "targets": { "esp32": {} }
 }

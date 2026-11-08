@@ -85,12 +85,16 @@ hygiene rules (pin oxlint behind `--js`).
   read without running it (literals, `?:` as the intersection of its branches, `+` and whole-class template interpolations as the union,
   the file's `const` strings), and one it cannot read is named for a person.
   A dry run (the default) prints a unified diff; a second run changes nothing. The two errors name their codemod in their fix line.
-- `zinc lint [--target <profile>|--all-targets] [--json] [--rules] [path]`: 13 rules (`zinc lint --rules`), source rules on every
+- `zinc lint [--target <profile>|--all-targets] [--json] [--rules] [path]`: 16 rules (`zinc lint --rules`), source rules on every
   .tsx/.jsx file of the path and target rules on the program loaded with each profile: `compile`, `plugin-requires` (Z5005),
   `project-requires`, `ui-layout`, `assets-flash` (errors); `plugin-targets`, `module-requires`, `ui-tier` (the static view of the three
   `tierWarn` cases of `lib/std/ui.ts`: conic below T3, gradients beyond two stops along an axis and repeated images at T0/T1),
-  `screen-size` (fixed widths and heights against a fixed screen), `assets-memory`, `texture-size` (warnings, PNG sizes read from IHDR,
-  texture bytes in the target's first format). `--all-targets` prints the matrix target x status. Exit 1 only for an error on the
+  `screen-size` (fixed widths and heights against a fixed screen), `assets-memory`, `texture-size` (warnings, PNG, JPEG and WebP sizes
+  read from their headers by stb_image and libwebp, texture bytes in the target's first format), `assets-boot` (the files of
+  `loading.groups`, else of the `boot` group, matched as `zinc assets build` matches them, against the `boot` budget), and the source rule
+  `unused-dependency` (a `zinc.json` dependency whose module no .ts/.tsx/.js/.jsx/.mjs of the project names, quoted or as a subpath; display
+  plugins and plugins not installed are skipped). `zinc lsp` runs `zinc lint --json` on open and on save and adds the target rules
+  (not `compile`) to each file's diagnostics, `[targets]` before the message. `--all-targets` prints the matrix target x status. Exit 1 only for an error on the
   source or a target in force.
 - Tests: `tests/t0/migrate.sh` (fixtures before/after, idempotent, dry run, the error fixtures compile once migrated),
   `tests/t0/lint.sh` (every rule on `tests/golden/lint/rules`, the matrices of `examples/hero` and `tests/golden/lint/esp32-app`).
@@ -98,10 +102,11 @@ hygiene rules (pin oxlint behind `--js`).
 ## Not done, and why
 
 - Shadows and blur have no tier rule: the renderer draws them on every tier today, so there is nothing to warn about yet.
-- `boot` and `download` budgets are not estimated: which assets load before the first frame depends on `assets.groups` and the loader stage.
-- JPEG and WebP count their file size, not their pixels (PNG only reads its header); `zinc assets build` gives the measure.
+- The `download` budget is not estimated (it depends on the pack codec); `assets-boot` counts images in the target's first texture format
+  and other files as they are, before compression.
+- `unused-dependency` is a text search: a module named only in a comment counts as used (no false warning, a missed one at worst).
 - Compile errors are reported for the project's own files only: lint builds no plugin, so a plugin's native part is absent and the
   loader would read the old simulator's stand-ins. `zinc check` remains the whole compile.
-- The language server shows Z0006 and Z0007 already (they come from the loader); the target rules are not in the editor yet
-  (`zinc lint --json` is the interface for that).
+- The language server lints on open and save only (the rules read the files on disk), synchronously; a finding of another file
+  shows when that file is published again.
 - Comments are never rewritten by `zinc migrate` (jsx-migrate rewrote them by pattern), nor `inline code` in Markdown prose, nor .ts files.

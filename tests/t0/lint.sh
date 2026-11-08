@@ -1,5 +1,5 @@
 #!/bin/sh
-# zinc lint (src/lint/lint.cpp): tests/golden/lint/rules fires every rule once on esp32 (rules.expect, exit 1 for its errors, valid --json),
+# zinc lint (src/lint/lint.cpp): tests/golden/lint/rules fires every rule once on esp32 (a PNG, a JPEG and a WebP read for their sizes, a boot group, an unused dependency) (rules.expect, exit 1 for its errors, valid --json),
 # the --all-targets matrix of examples/hero and of a small ESP32 program (hero.matrix, esp32-app.matrix: ok, warns, refuses and why),
 # --rules lists the registry, and the source rules are gone once zinc migrate has run. UPDATE=1 rewrites the goldens.
 cd "$(dirname "$0")/../.." || exit 2
@@ -14,13 +14,13 @@ check() {   # name, file with the output
 (cd $g/rules && "$ZINC" lint >"$tmp/rules.out" 2>"$tmp/rules.err"; echo $? >"$tmp/rules.code")
 [ "$(cat "$tmp/rules.code")" = 1 ] || { echo "rules: exit $(cat "$tmp/rules.code"), not 1: $(cat "$tmp/rules.err")"; fail=1; }
 check rules.expect "$tmp/rules.out"
-grep -q "^zinc lint: 7 errors, 8 warnings (esp32)" "$tmp/rules.err" || { echo "rules summary: $(cat "$tmp/rules.err")"; fail=1; }
+grep -q "^zinc lint: 7 errors, 12 warnings (esp32)" "$tmp/rules.err" || { echo "rules summary: $(cat "$tmp/rules.err")"; fail=1; }
 for r in $("$ZINC" lint --rules | cut -d' ' -f1); do
   [ "$r" = quickjs ] && continue   # a JavaScript program's rule: tests/t0/check_js.sh
   grep -q " $r[ :]" "$tmp/rules.out" || { echo "rule $r has no finding in the fixture"; fail=1; }
 done
-[ "$("$ZINC" lint --rules | wc -l | tr -d ' ')" = 14 ] || { echo "--rules does not list 14 rules"; fail=1; }
-(cd $g/rules && "$ZINC" lint --json 2>/dev/null) | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['targets']==['esp32'] and len(d['diagnostics'])==15, d" || { echo "--json is not the expected JSON"; fail=1; }
+[ "$("$ZINC" lint --rules | wc -l | tr -d ' ')" = 16 ] || { echo "--rules does not list 16 rules"; fail=1; }
+(cd $g/rules && "$ZINC" lint --json 2>/dev/null) | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['targets']==['esp32'] and len(d['diagnostics'])==19, d" || { echo "--json is not the expected JSON"; fail=1; }
 "$ZINC" lint --all-targets examples/hero >"$tmp/hero.out" 2>/dev/null || { echo "hero: errors on its own targets"; fail=1; }
 sed -n '/^target /,$p' "$tmp/hero.out" >"$tmp/hero.matrix"
 check hero.matrix "$tmp/hero.matrix"

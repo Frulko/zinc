@@ -129,6 +129,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc lsp` completes in more places: the names a module exports inside the braces of an import, JSX component names and their attributes (a component's own props too), and the methods of strings and arrays with their signatures and docs.
 - Headless runs in real time: with `ZINC_HEADLESS=1 ZINC_REALTIME=1` frames come at 60 a second, so `ZINC_FRAMES=300` lasts five seconds and a screenshot (`ZINC_SHOT`) shows what timers and network replies brought in by then; `ZINC_DURATION=ms` ends a run after that long.
 - Auto-import in editors and Zinc Atelier: typing `rr` offers `rrect` from `zinc:gfx` (or an export of the sketch's other files), says where it comes from, and accepting it adds the import line or extends the one already there.
+- `zinc lint` warns about a plugin in `zinc.json` `dependencies` that nothing imports (`zinc remove <plugin>` drops it), about the assets loaded at start (the `boot` group, or `loading.groups`) against the target's `boot` budget, and now reads the pixel size of JPEG and WebP images as well as PNG for its memory and texture-size estimates.
+- Editors show `zinc lint`'s per-target warnings for a project whose `zinc.json` names its targets (a size wider than the ESP32's screen, a style its UI tier simplifies, a plugin not made for it): `zinc lsp` checks again each time a file is saved.
 
 #### Changed
 

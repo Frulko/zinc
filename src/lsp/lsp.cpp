@@ -13,6 +13,8 @@
 
 #include "frontend/check.h"
 #include "frontend/modules.h"
+#include "frontend/project.h"
+#include "platform/platform.h"
 #include "yyjson.h"
 
 namespace fs = std::filesystem;
@@ -260,6 +262,43 @@ class Server {
     return "{\"start\":{\"line\":" + std::to_string(l1) + ",\"character\":" + std::to_string(c1) + "},\"end\":{\"line\":" + std::to_string(l2) + ",\"character\":" + std::to_string(c2) + "}}";
   }
 
+  // zinc lint's target rules (ZN-1063): `zinc lint --json` on the project of a document when it is first opened and when it is saved (the rules read
+  // the files on disk), kept per file and added to its diagnostics. Only for a project whose zinc.json names targets, and only the target rules: the
+  // source rules and the compile errors are the checker's diagnostics already. ponytail: synchronous, a second or so per save of a large program.
+  std::map<std::string, std::string> lint_;   // canonical path -> its findings as LSP diagnostics (JSON items)
+  std::set<std::string> linted_;              // project directories linted once
+  static std::string canonical(const std::string& p) { std::error_code ec; fs::path c = fs::weakly_canonical(p, ec); return ec ? p : c.string(); }
+  void lintProject(const std::string& path, bool again) {
+    const std::string zj = findProjectFile(path);
+    if (zj.empty()) return;
+    const std::string dir = canonical(fs::path(zj).parent_path().string());
+    if (!again && linted_.count(dir)) return;
+    linted_.insert(dir);
+    std::string text, err, out;
+    Project p;
+    if (!read(zj, text) || (!parseProject(text, p, err) && p.fatal) || p.targets.empty()) return;
+    const std::string self = zn::tc::executablePath();
+    if (self.empty() || zn::plat::capture({self, "lint", "--json", dir}, out) < 0) return;   // exit 1 for an error: the JSON is there either way
+    yyjson_doc* doc = yyjson_read(out.data(), out.size(), 0);
+    if (!doc) return;
+    for (auto it = lint_.begin(); it != lint_.end();) it = it->first.rfind(dir + "/", 0) == 0 ? lint_.erase(it) : std::next(it);
+    yyjson_val* arr = yyjson_obj_get(yyjson_doc_get_root(doc), "diagnostics");
+    for (std::size_t i = 0, n = yyjson_arr_size(arr); i < n; ++i) {
+      yyjson_val* f = yyjson_arr_get(arr, i);
+      auto s = [&](const char* k) { yyjson_val* v = yyjson_obj_get(f, k); return v && yyjson_is_str(v) ? std::string(yyjson_get_str(v)) : std::string(); };
+      yyjson_val* ts = yyjson_obj_get(f, "targets");
+      if (!yyjson_arr_size(ts) || s("rule") == "compile") continue;
+      std::string targets;
+      for (std::size_t k = 0; k < yyjson_arr_size(ts); ++k) targets += (k ? ", " : "") + std::string(yyjson_get_str(yyjson_arr_get(ts, k)));
+      const int ln = std::max(0, static_cast<int>(yyjson_get_sint(yyjson_obj_get(f, "line"))) - 1), col = std::max(0, static_cast<int>(yyjson_get_sint(yyjson_obj_get(f, "col"))) - 1);
+      std::string& items = lint_[canonical(fs::absolute(s("file")).string())];   // lint names files from our working directory, which it shares
+      items += std::string(items.empty() ? "" : ",") + "{\"range\":{\"start\":{\"line\":" + std::to_string(ln) + ",\"character\":" + std::to_string(col) + "},\"end\":{\"line\":" + std::to_string(ln) +
+               ",\"character\":" + std::to_string(col + 1) + "}},\"severity\":" + (s("severity") == "error" ? "1" : "2") + ",\"code\":" + quote(s("rule")) + ",\"source\":\"zinc lint\",\"message\":" +
+               quote("[" + targets + "] " + s("message") + " (fix: " + s("fix") + ")") + "}";
+    }
+    yyjson_doc_free(doc);
+  }
+
   void publish(const std::string& uri, Doc& d) {
     const std::string path = uriToPath(uri);
     const std::shared_ptr<Analysis> now = analyze(path);
@@ -275,6 +314,7 @@ class Server {
       std::string message = m == std::string::npos ? line.substr(c + 1) : line.substr(line.find(": ", m + 8) + 2);
       items += std::string(n++ ? "," : "") + "{\"range\":{\"start\":{\"line\":" + std::to_string(ln) + ",\"character\":" + std::to_string(col) + "},\"end\":{\"line\":" + std::to_string(ln) + ",\"character\":" + std::to_string(col + 1) + "}},\"severity\":1,\"code\":" + quote(dg.code) + ",\"source\":\"zinc\",\"message\":" + quote(message) + "}";
     }
+    if (auto it = lint_.find(canonical(path)); it != lint_.end() && !it->second.empty()) items += (items.empty() ? "" : ",") + it->second;
     notify("textDocument/publishDiagnostics", "{\"uri\":" + quote(uri) + ",\"version\":" + std::to_string(d.version) + ",\"diagnostics\":[" + items + "]}");
   }
   // A document changed: the open documents that import it are checked again too (an export renamed breaks them, a fix clears them), as tsserver does.
@@ -968,7 +1008,7 @@ int Server::run() {
     }
     if (method == "initialize") {
       initialized_ = true;
-      reply(id, "{\"capabilities\":{\"textDocumentSync\":1,\"hoverProvider\":true,\"definitionProvider\":true,\"documentSymbolProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\",\"'\",\"\\\"\",\"/\",\"<\"]},\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":{\"name\":\"zinc\",\"version\":\"" + std::string(zn::tc::version()) + "\"}}");
+      reply(id, "{\"capabilities\":{\"textDocumentSync\":{\"openClose\":true,\"change\":1,\"save\":true},\"hoverProvider\":true,\"definitionProvider\":true,\"documentSymbolProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\",\"'\",\"\\\"\",\"/\",\"<\"]},\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":{\"name\":\"zinc\",\"version\":\"" + std::string(zn::tc::version()) + "\"}}");
     } else if (method == "shutdown") { shutdown_ = true; reply(id, "null"); }
     else if (method == "exit") { yyjson_doc_free(doc); return shutdown_ ? 0 : 1; }
     else if (method == "textDocument/didOpen") {
@@ -976,8 +1016,16 @@ int Server::run() {
       Doc& d = docs_[uri];
       d.text = v && yyjson_is_str(v) ? yyjson_get_str(v) : "";
       d.version = td ? static_cast<int>(yyjson_get_sint(yyjson_obj_get(td, "version"))) : 0;
+      lintProject(uriToPath(uri), false);
       publish(uri, d);
       publishImporters(uri);
+    } else if (method == "textDocument/didSave") {   // the files on disk changed: the target rules again, for every open document of the project
+      if (docs_.count(uri)) {
+        const std::string zj = findProjectFile(uriToPath(uri));
+        lintProject(uriToPath(uri), true);
+        for (auto& [other, od] : docs_)
+          if (!zj.empty() && findProjectFile(uriToPath(other)) == zj) publish(other, od);
+      }
     } else if (method == "textDocument/didChange") {
       yyjson_val* changes = params ? yyjson_obj_get(params, "contentChanges") : nullptr;
       auto it = docs_.find(uri);   // a change to a document that is not open is the client's mistake: ignored

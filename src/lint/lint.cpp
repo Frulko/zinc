@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -20,6 +21,8 @@
 #include "frontend/plugin_manifest.h"
 #include "frontend/profile.h"
 #include "frontend/project.h"
+#include "assets/assets.h"
+#include "res/codec.h"
 #include "yyjson.h"
 
 namespace fs = std::filesystem;
@@ -38,11 +41,13 @@ const Rule kRules[] = {
     {"ui-layout", "error", "target", "zinc.json \"ui\".\"layout\" asks for an engine the target cannot build", "\"layout\": \"auto\""},
     {"assets-flash", "error", "target", "the asset files do not fit the target's flash budget", "smaller or fewer assets for that target (zinc.json targets.<id>.assets)"},
     {"quickjs", "warning", "source", "a global or API QuickJS-ng does not have (Q0001), in a program on a JavaScript engine", "a typeof guard, a polyfill, or a zinc: module"},
+    {"unused-dependency", "warning", "source", "a plugin of zinc.json \"dependencies\" that no file of the project imports", "zinc remove <plugin>"},
     {"plugin-targets", "warning", "target", "an imported plugin does not name the target in plugin.json \"targets\"", "a platform file (x.<target>.tsx) without the import"},
     {"module-requires", "warning", "target", "an imported module's `@requires` comment does not hold on the target", "a platform file, or a lighter module"},
     {"ui-tier", "warning", "target", "a style the target's UI tier draws in a simpler form (what lib/std/ui.ts tierWarn logs at run time)", "a two-stop linear gradient along an axis, or an image"},
     {"screen-size", "warning", "target", "a fixed size larger than the target's screen", "a relative size (w-full, flex-1) or a responsive variant"},
     {"assets-memory", "warning", "target", "the assets, decoded in the target's texture format, against its ram and gpu budgets (an estimate)", "zinc assets build --target <target> for the measure"},
+    {"assets-boot", "warning", "target", "the asset groups loaded at start (zinc.json loading.groups, else the boot group) against the target's boot budget (an estimate)", "fewer or smaller assets in those groups, the rest loaded later"},
     {"texture-size", "warning", "target", "an image larger than the target's maxSize", "a smaller image for that target"},
 };
 const Rule& rule(const std::string& id) { for (const Rule& r : kRules) if (id == r.id) return r; return kRules[2]; }
@@ -105,24 +110,33 @@ int fixedSize(const std::string& c, char axis) {
 }
 
 // ---- the assets of a project, estimated without building them
-struct Image { std::string file; int w, h; };
-struct AssetEstimate { std::uint64_t files = 0, other = 0, pixels = 0; std::vector<Image> images; };
+// file: relative to the assets directory, '/' separated, as zn::assets names it; w, h: an image's size from its header (PNG, JPEG, WebP), else 0
+struct AssetFile { std::string file; std::uint64_t bytes; int w, h; };
+struct AssetEstimate { std::uint64_t files = 0, other = 0, pixels = 0; std::vector<AssetFile> all; };
 AssetEstimate estimateAssets(const fs::path& dir) {
   AssetEstimate e;
   std::error_code ec;
   for (auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    const std::string rel = it->path().lexically_relative(dir).generic_string();
+    if (rel.empty() || rel[0] == '.' || rel.find("/.") != std::string::npos) { if (it->is_directory(ec)) it.disable_recursion_pending(); continue; }   // as zinc assets build: .DS_Store stays out
     if (!it->is_regular_file(ec)) continue;
     const std::uint64_t size = it->file_size(ec);
     e.files += size;
+    AssetFile f{rel, size, 0, 0};
     std::ifstream in(it->path(), std::ios::binary);
-    unsigned char h[24] = {};
+    unsigned char h[12] = {};
     in.read(reinterpret_cast<char*>(h), sizeof h);
-    if (in.gcount() == 24 && h[0] == 0x89 && h[1] == 'P' && h[2] == 'N' && h[3] == 'G') {   // the size from the IHDR chunk
-      const int w = (h[16] << 24) | (h[17] << 16) | (h[18] << 8) | h[19], hh = (h[20] << 24) | (h[21] << 16) | (h[22] << 8) | h[23];
-      e.images.push_back({it->path().string(), w, hh});
-      e.pixels += static_cast<std::uint64_t>(w) * static_cast<std::uint64_t>(hh);
-    } else e.other += size;   // ponytail: PNG only; a JPEG or WebP counts its file size until a rule needs its pixels
+    const bool png = h[0] == 0x89 && h[1] == 'P' && h[2] == 'N' && h[3] == 'G', jpeg = h[0] == 0xff && h[1] == 0xd8 && h[2] == 0xff,
+               webp = !std::memcmp(h, "RIFF", 4) && !std::memcmp(h + 8, "WEBP", 4);
+    if ((png || jpeg || webp) && size <= (64u << 20)) {   // the size from the header (stb_image, libwebp): nothing decoded
+      const std::string bytes = readAll(it->path());
+      if (!zn::res::imageSize(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size(), f.w, f.h)) f.w = f.h = 0;
+    }
+    if (f.w > 0 && f.h > 0) e.pixels += static_cast<std::uint64_t>(f.w) * static_cast<std::uint64_t>(f.h);
+    else e.other += size;
+    e.all.push_back(f);
   }
+  std::sort(e.all.begin(), e.all.end(), [](const AssetFile& a, const AssetFile& b) { return a.file < b.file; });   // the directory's order is the file system's
   return e;
 }
 double bytesPerPixel(const std::string& textures) {   // the first format the target's GPU takes
@@ -223,6 +237,41 @@ struct Linter {
       int line = 0, col = 0;
       if (m == std::string::npos || !place(w, m, file, line, col)) { add(shown(entry), 0, 0, "quickjs", w, ""); continue; }
       add(shown(file), line, col, "quickjs", w.substr(m + 10), "");
+    }
+  }
+
+  // zinc.json "dependencies" (zinc add) that no source of the project imports (knip's idea): a text search for the plugin's module, quoted, or a
+  // subpath of it, over every .ts/.tsx/.js/.jsx/.mjs of the project but its plugins/ (the dependencies themselves), so a platform file, a test or a
+  // dynamic import() counts as a use. Display plugins are chosen by zinc.json "display", not imported. A dependency not installed is skipped (zinc check says it).
+  void dependencyRules() {
+    if (projectFile.empty()) return;
+    const std::string text = readAll(projectFile);
+    yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+    yyjson_val* deps = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "dependencies") : nullptr;
+    std::vector<std::pair<std::string, std::string>> specs;   // name, module
+    yyjson_obj_iter it = yyjson_obj_iter_with(deps);
+    while (yyjson_val* k = yyjson_obj_iter_next(&it))
+      for (const auto& p : plugins)
+        if (p.manifest.name == yyjson_get_str(k) && p.manifest.kind != "display") { specs.push_back({p.manifest.name, p.manifest.module.empty() ? p.manifest.name : p.manifest.module}); break; }
+    yyjson_doc_free(doc);
+    if (specs.empty()) return;
+    std::error_code ec;
+    const fs::path root = projectDir, own = root / "plugins";
+    static const std::set<std::string> skip = {"node_modules", "build", "dist", ".git", "third_party", "vendor", ".zinc"};
+    for (auto f = fs::recursive_directory_iterator(root, fs::directory_options::skip_permission_denied, ec); !ec && f != fs::recursive_directory_iterator() && !specs.empty(); f.increment(ec)) {
+      if (f->is_directory(ec)) { if (skip.count(f->path().filename().string()) || f->path() == own || f->is_symlink(ec)) f.disable_recursion_pending(); continue; }
+      const std::string ext = f->path().extension().string();
+      if (ext != ".ts" && ext != ".tsx" && ext != ".js" && ext != ".jsx" && ext != ".mjs") continue;
+      const std::string src = readAll(f->path());
+      specs.erase(std::remove_if(specs.begin(), specs.end(), [&](const auto& s) {
+        for (const char* qch : {"'", "\"", "`"})
+          if (src.find(qch + s.second + qch) != std::string::npos || src.find(qch + s.second + "/") != std::string::npos) return true;
+        return false;
+      }), specs.end());
+    }
+    for (const auto& [name, module] : specs) {   // at its key in zinc.json
+      const std::size_t at = text.find("\"" + name + "\"", text.find("\"dependencies\""));
+      addAt(projectFile, text, static_cast<std::uint32_t>(at == std::string::npos ? 0 : at), "unused-dependency", "plugin " + name + " (" + module + ") is a dependency that nothing imports", "");
     }
   }
 
@@ -330,6 +379,19 @@ struct Linter {
     if (!fe::assetProfiles(project, capsText, rows, err)) { add(shown(projectFile), 0, 0, "compile", err, ""); return; }
     const AssetEstimate e = estimateAssets(dir);
     const std::string where = shown(dir.string());
+    // what is read before the program's first frame: zinc.json loading.groups, else the group named boot (the pack the host maps first)
+    std::vector<std::string> boot = project.loading.groups;
+    std::vector<zn::assets::Group> groups;
+    for (const fe::AssetGroup& g : project.assets.groups) {
+      groups.push_back({g.name, g.include, g.exclude});
+      if (project.loading.groups.empty() && g.name == "boot") boot.push_back("boot");
+    }
+    std::string bootNames = boot.size() == 1 ? "group " : "groups ";
+    for (std::size_t i = 0; i < boot.size(); ++i) bootNames += (i ? ", " : "") + boot[i];
+    std::vector<const AssetFile*> bootFiles;
+    if (!boot.empty())
+      for (const AssetFile& f : e.all)
+        if (std::find(boot.begin(), boot.end(), zn::assets::groupOf(f.file, groups)) != boot.end()) bootFiles.push_back(&f);
     for (const fe::TargetAssets& row : rows) {
       if (std::find(targets.begin(), targets.end(), row.target) == targets.end()) continue;
       const std::string& t = row.target;
@@ -340,9 +402,15 @@ struct Linter {
       if (std::uint64_t b = budget("ram"); b && textures + e.other > b)
         add(where, 0, 0, "assets-memory", "the assets decode to about " + human(textures + e.other) + " (images as " + key("texture").substr(0, key("texture").find('|')) + "), over the " + human(b) + " ram budget", t);
       if (std::uint64_t b = budget("gpu"); b && textures > b) add(where, 0, 0, "assets-memory", "the images take about " + human(textures) + " as textures, over the " + human(b) + " gpu budget", t);
+      if (std::uint64_t b = budget("boot"); b && !bootFiles.empty()) {   // images as the target's textures, the rest as they are
+        std::uint64_t bytes = 0;
+        for (const AssetFile* f : bootFiles)
+          bytes += f->w > 0 ? static_cast<std::uint64_t>(static_cast<double>(f->w) * f->h * bytesPerPixel(key("texture"))) : f->bytes;
+        if (bytes > b) add(where, 0, 0, "assets-boot", "the assets loaded at start (" + std::to_string(bootFiles.size()) + " file" + (bootFiles.size() == 1 ? "" : "s") + " in " + bootNames + ") take about " + human(bytes) + ", over the " + human(b) + " boot budget", t);
+      }
       const int maxSize = std::atoi(key("maxSize").c_str());
-      for (const Image& im : e.images)
-        if (maxSize > 0 && std::max(im.w, im.h) > maxSize) add(shown(im.file), 0, 0, "texture-size", std::to_string(im.w) + "x" + std::to_string(im.h) + " is larger than the " + std::to_string(maxSize) + " px maxSize", t);
+      for (const AssetFile& im : e.all)
+        if (maxSize > 0 && std::max(im.w, im.h) > maxSize) add(shown((dir / im.file).string()), 0, 0, "texture-size", std::to_string(im.w) + "x" + std::to_string(im.h) + " is larger than the " + std::to_string(maxSize) + " px maxSize", t);
     }
   }
 };
@@ -420,6 +488,7 @@ int lint(const std::vector<std::string>& args, const std::string& engineRoot, co
   }
 
   L.sourceRules(path);
+  L.dependencyRules();
   for (const std::string& t : run) L.targetRules(t);
   if (L.js) L.jsRules(jsCheck);
   L.assetRules(run);

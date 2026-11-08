@@ -66,6 +66,8 @@ std::string reportJson(const Options& opt, const Report& report);
 
 /** The importer the rules (after the built-in ones) give the asset `name` (relative to the assets directory, '/' separated), as build() picks it. */
 std::string importerFor(const std::string& name, const std::vector<Rule>& rules);
+/** The pack the asset `name` goes to, as build() picks it: the first group whose include globs match and exclude globs do not, else "default". */
+std::string groupOf(const std::string& name, const std::vector<Group>& groups);
 
 /** A cache key: XXH3-128 over parts, each hashed on its own so that their boundaries count. */
 class Key {

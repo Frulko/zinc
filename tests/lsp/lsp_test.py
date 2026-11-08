@@ -246,6 +246,22 @@ change(lib, "export function star(n: number): number { return n; }\n", 3)
 diagnostics(lib)
 check(diagnostics(uiu) == [], "and again when it comes back")
 
+# 12b. zinc lint's target rules in a project that names its targets (ZN-1063): on open, and again on save
+check(caps.get("textDocumentSync", {}).get("save") is True, "save notifications asked for: %r" % caps.get("textDocumentSync"))
+lp = os.path.join(tmp, "linted")
+os.makedirs(os.path.join(lp, "src"))
+open(os.path.join(lp, "zinc.json"), "w").write('{ "name": "p", "entry": "src/main.tsx", "targets": { "esp32": {} } }\n')
+lt = "import { render } from 'zinc:ui/solid';\nfunction App(): i32 {\n  return <View className=\"w-[480px]\" />;\n}\nrender(App, 0xffffff, null);\n"
+lpath = os.path.join(lp, "src", "main.tsx")
+open(lpath, "w").write(lt)
+luri = "file://" + lpath
+notify("textDocument/didOpen", {"textDocument": {"uri": luri, "languageId": "typescriptreact", "version": 1, "text": lt}})
+ld = diagnostics(luri)
+check([(d["code"], d["severity"], d["range"]["start"]["line"]) for d in ld] == [("screen-size", 2, 2)] and ld[0]["message"].startswith("[esp32] w-[480px]"), "lint on open: %r" % ld)
+open(lpath, "w").write(lt.replace("w-[480px]", "w-full"))
+notify("textDocument/didSave", {"textDocument": {"uri": luri}})
+check(diagnostics(luri) == [], "lint again on save")
+
 request("shutdown", None)
 notify("exit", None)
 check(proc.wait(timeout=5) == 0, "exit code")
