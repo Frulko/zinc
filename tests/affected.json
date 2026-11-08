@@ -237,6 +237,7 @@
     {"paths": ["i18n/", "src/i18n/", "tools/i18n-check", "tests/unit/i18n_test.cpp", "tests/t0/i18n.sh", "app/atelier/"], "tests": ["i18n"]},
     {"paths": ["docs/i18n/", "tools/i18n-docs-check", "tests/t0/i18n_docs.sh", "site/src/i18n/"], "tests": ["i18n_docs"]},
     {"paths": ["site/search-check.mjs", "site/search.json", "site/src/layouts/Base.astro", "site/src/components/DocPage.astro", "site/package.json", "tests/t1/site_search.sh"], "tests": ["site_search"]},
+    {"paths": ["src/doc/help.cpp", "tests/t0/help_names.sh", "lib/gfx.d.ts", "lib/modules.d.ts", "lib/zinc.d.ts"], "tests": ["help_names"]},
     {"paths": ["site/llms.mjs", "site/docs-map.mjs", "tests/t0/site_llms.sh"], "tests": ["site_llms"]},
     {"paths": ["include/zn/diagnostics.h", "src/frontend/diagnostics", "i18n/en/diag.json", "i18n/fr/diag.json", "i18n/es/diag.json", "i18n/it/diag.json", "i18n/de/diag.json", "docs/diagnostics.md", "tests/t0/diagnostics.sh"], "tests": ["diagnostics", "i18n"]},
     {"paths": ["include/zn/diagnostics.h", "src/frontend/diagnostics.cpp", "docs/diagnostics.md", "tests/t0/explain_fixes.sh"], "tests": ["explain_fixes", "diagnostics"]},

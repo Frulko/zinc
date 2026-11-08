@@ -135,6 +135,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The docs speak to AI assistants: the site publishes `llms.txt`, `llms-full.txt` and a Markdown copy of every docs page (`index.md` beside it), in each of the five languages.
 - Zinc Atelier's start view opens with **Your first sketch**: a circle that follows the mouse, whose comments, in your language, are the lesson and mark with ✎ the places to change.
 - The website has a search box in each of its five languages: press `/` anywhere on the site, then type a function, a module or an error code such as `Z0103`.
+- `zinc help <name>` explains a function or class of the standard library (`zinc help rrect`, `zinc help Stage.addChild`): its comment, its signature and an example from the docs.
+- The docs work offline: `zinc help --search <words>` looks through the lessons, the guides, the error codes, the API and the commands, and `zinc help --docs` builds the docs of your version once, on your machine.
+- In Zinc Atelier, F1 shows the help of the name under the caret, ⌘⇧H opens one search box over the lessons, the docs, the error codes and the commands, and the Help menu opens the docs from your machine.
 
 ## [0.11.5] - 2026-11-05
 

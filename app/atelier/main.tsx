@@ -25,7 +25,7 @@ import * as proc from 'zinc:process';
 import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile, newSketch, sketchDir, saveAll, buffers, active, say } from './app/workspace';
 import { findOpen, closeFind } from './app/search';
 import { COMMANDS, MENUS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer, shareOpen, setShareOpen } from './app/commands';
-import { check, stepTools, setJump, stopAll, consoleText, status, newProject, spawnZinc, problems } from './app/tools';
+import { check, stepTools, setJump, stopAll, consoleText, status, newProject, spawnZinc, problems, helpName } from './app/tools';
 import { devicesOpen, closeDevices, setWho, setCode, pair, choose, panelText, refresh } from './app/devices';
 import { stepCursors, stepMenuKeys, jumpTo, setMenuKeys, menuKey, noteKey } from 'zinc:editor';
 import { stepLsp, stopLsp, useLsp, LspConfig } from 'zinc:editor-lsp';
@@ -213,6 +213,7 @@ function stepScript(): void {
     else if (id.startsWith('lang:')) setLanguage(id.slice(5));   // Tools > Language
     else if (id.startsWith('new:')) { setStartOpen(false); newSketch(id.slice(4)); }   // a card of New sketch
     else if (id === 'first') openFirst();   // the card Your first sketch
+    else if (id.startsWith('help:')) helpName(id.slice(5));   // F1 on a name
     else if (id.startsWith('template:')) { const w = id.slice(9).split(' '); newProject(w[0], w.length > 1 ? w[1] : w[0]); }   // a template of the palette, named
     else if (id === 'explain') explainFirst();   // a click on the first error code of the console
     else if (id.startsWith('lesson:')) openLesson(id.slice(7));   // Help > Lessons > a lesson

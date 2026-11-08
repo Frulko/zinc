@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace zn::frontend { struct Project; struct LoaderStage; }
@@ -21,6 +22,10 @@ std::size_t entryIndex(const std::vector<std::string>& args);
 
 /** `zinc help [command]`, `zinc --help`, `zinc <command> --help`: the text on stdout, exit code 0; an unknown command: stderr, 2. */
 int help(const std::vector<std::string>& args);
+/** True when `zinc <name>` is a command (zinc help <name> then describes it; any other name is looked up in the docs, zn::doc::help). */
+bool isCommand(const std::string& name);
+/** Every command and its one line in the language in force, for the docs' search (zinc help --search, Atelier's help box). */
+std::vector<std::pair<std::string, std::string>> commandLines();
 /** The first bare `zinc` of a person at a terminal (stdin and stdout, no CI): a greeting, the choice of the five languages, saved in
  *  config.json with the version that welcomed, then the three steps to start. False, with nothing printed, in every other case. */
 bool welcome(const std::string& version);

@@ -464,6 +464,47 @@ export function explain(code: string): void {
   } catch (e) { setStatus('atelier.run.no_zinc', 2, ['path', ZINC]); }
 }
 
+// ---------------------------------------------------------------- help, offline (ZN-774.27)
+/** A name of the standard library under the caret (F1): `zinc help <name>` in the console, its comment, signature and an example. */
+export function helpName(name: string): void {
+  add(new Line('$ zinc help ' + name, K_CMD));
+  showConsole(true);
+  try {
+    const p = zinc(['help', name], '');
+    checks++;
+    p.onStdout((l: string) => add(new Line(l, K_OUT)));
+    p.onStderr((l: string) => add(new Line(l, K_ERR)));
+    p.onExit((c: i32) => { checks--; });
+  } catch (e) { setStatus('atelier.run.no_zinc', 2, ['path', ZINC]); }
+}
+/** One entry of the help box: a lesson or a page, a heading (an error code is one), a name of the API, or a command. */
+export class HelpEntry {
+  kind: string; title: string; section: string; path: string;
+  constructor(kind: string, title: string, section: string, path: string) { this.kind = kind; this.title = title; this.section = section; this.path = path; }
+}
+export const [helpIndex, setHelpIndex] = createSignal<HelpEntry[]>([]);
+/** The help box's list, once: `zinc help --index` (the engine's docs built offline the first time, the commands). The plugins' API stays
+ *  out (thousands of names: `zinc help --search` has them); the standard library's is in. */
+export function loadHelp(): void {
+  if (helpIndex().length > 0) return;
+  let out = '';
+  try {
+    const p = zinc(['help', '--index'], '');
+    checks++;
+    p.onData((chunk: string, stderr: boolean) => { if (!stderr) out += chunk; });
+    p.onExit((code: i32) => {
+      checks--;
+      const list: HelpEntry[] = [];
+      for (const l of out.split('\n')) {
+        const f = l.split('\t');
+        if (f.length < 4 || (f[0] === 'api' && !f[2].startsWith('zinc:') && f[2] !== 'Globals')) continue;
+        list.push(new HelpEntry(f[0], f[1], f[2], f[3]));
+      }
+      setHelpIndex(list);
+    });
+  } catch (e) { setStatus('atelier.run.no_zinc', 2, ['path', ZINC]); }
+}
+
 export class Template {
   name: string; text: string;
   constructor(name: string, text: string) { this.name = name; this.text = text; }

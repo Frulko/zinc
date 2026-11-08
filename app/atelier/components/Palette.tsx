@@ -1,11 +1,11 @@
 // The palette (⌘⇧P, zinc:command-palette): every command of the menu, the libraries (the plugins `zinc plugins` lists; Enter adds
-// the import line to the sketch), the templates of `zinc new`, and the sketch's files (⌘P, the + of the tabs). Items are
+// the import line to the sketch), the templates of `zinc new`, the sketch's files (⌘P, the + of the tabs) and the help (⌘⇧H). Items are
 // fuzzy-matched; the panel fades and grows in (paletteT).
 import { Palette as PaletteView, PaletteItem, fuzzy, Fuzzy, ranked } from 'zinc:command-palette';
 import { noteKey } from 'zinc:editor';
-import { COMMANDS, command, paletteMode, paletteT, closePalette, PAL_LIBRARIES, PAL_FILES, PAL_TEMPLATES, keysText, addLibrary, fromTemplate } from '../app/commands';
+import { COMMANDS, command, paletteMode, paletteT, closePalette, PAL_LIBRARIES, PAL_FILES, PAL_TEMPLATES, PAL_HELP, keysText, addLibrary, fromTemplate, openLocal } from '../app/commands';
 import { focusLater, sketchDir, sketchFiles, buffers, openFile } from '../app/workspace';
-import { libraries, templates, Library, Template } from '../app/tools';
+import { libraries, templates, Library, Template, helpIndex, HelpEntry, helpName } from '../app/tools';
 import { t as tr } from '../app/text';
 import { Kbd } from './Controls';
 
@@ -31,6 +31,15 @@ function items(q: string): PaletteItem[] {
       const it = new PaletteItem(name, l[1].length > 84 ? l[1].slice(0, 82) + '…' : l[1], '', '', () => { if (mode === PAL_LIBRARIES) addLibrary(name); else fromTemplate(name); });
       if (matched(it, q, 0)) out.push(it);
     }
+  } else if (mode === PAL_HELP) {
+    // the help box (⌘⇧H): the lessons and pages, their headings (the error codes are), the standard library's names and the commands;
+    // a page opens offline, a name or a command prints its help in the console
+    for (const h of helpIndex()) {
+      const e = h;
+      if (q === '' && (e.kind !== 'page' || e.section !== 'Learn')) continue;   // before a word: the lessons
+      const it = new PaletteItem(e.title, e.section, '', '', () => { if (e.kind === 'command' || e.kind === 'api') helpName(e.title); else openLocal(e.path); });
+      if (matched(it, q, 0)) { if (e.kind === 'page') it.score += 30; else if (e.kind === 'heading' || e.kind === 'command') it.score += 15; out.push(it); }
+    }
   } else if (mode === PAL_FILES) {
     // every source file of the sketch, in its folders too: the way to the files that have no tab yet
     const dir = sketchDir();
@@ -53,6 +62,6 @@ function items(q: string): PaletteItem[] {
 export function Palette(): i32 {
   return <PaletteView mode={() => paletteMode()} progress={() => paletteT.get()} items={items} onClose={() => closePalette()}
     focus={(h: i32) => focusLater(h)} onKey={noteKey} kbd={(keys: string) => <Kbd keys={keys} />}
-    placeholder={() => tr(paletteMode() === PAL_LIBRARIES ? 'atelier.palette.libraries' : paletteMode() === PAL_FILES ? 'atelier.palette.files' : paletteMode() === PAL_TEMPLATES ? 'atelier.palette.templates' : 'atelier.palette.commands')}
+    placeholder={() => tr(paletteMode() === PAL_LIBRARIES ? 'atelier.palette.libraries' : paletteMode() === PAL_FILES ? 'atelier.palette.files' : paletteMode() === PAL_TEMPLATES ? 'atelier.palette.templates' : paletteMode() === PAL_HELP ? 'atelier.palette.help' : 'atelier.palette.commands')}
     empty={() => tr('atelier.palette.no_matches')} />;
 }

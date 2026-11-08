@@ -2173,6 +2173,8 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "device")) return zn::agent::device({cl.begin() + 2, cl.end()}, zn::tc::executablePath());
 #endif
     if (argc >= 2 && !std::strcmp(argv[1], "publish") && std::any_of(cl.begin(), cl.end(), [](const std::string& a) { return a == "--itch" || a == "--site"; })) return zn::cli::publishStore(cl);
+    if (argc >= 3 && !std::strcmp(argv[1], "help") && std::strcmp(argv[2], "--all") && !zn::cli::isCommand(argv[2]))   // a name, --search, --docs (ZN-774.27)
+      return zn::doc::help(cl, gRoot, zn::cli::commandLines(), kVersionText);
     if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl[1] = "help"; return zn::cli::help(cl); }
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
     if (argc >= 2 && (!std::strcmp(argv[1], "init") || !std::strcmp(argv[1], "new"))) return zn::cli::init(cl, gRoot);

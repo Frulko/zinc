@@ -11,7 +11,8 @@ import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, 
 import { openFind } from './search';
 import { toggleTheme } from 'zinc:editor';
 import { openProject, projectOpen, setProjectOpen, publishApp } from './project';
-import { pack, run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady, reference } from './tools';
+import * as fs from 'zinc:fs';
+import { spawnZinc, pack, run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, loadHelp, helpName, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady, reference } from './tools';
 import { openDevices, closeDevices, devicesOpen } from './devices';
 import { startTour } from './tour';
 import { editCommand, setText, menuKey, goDefinition } from 'zinc:editor';
@@ -87,13 +88,14 @@ export function answer(ok: boolean): void {
 }
 
 // ---------------------------------------------------------------- palette: commands, examples, libraries
-export const PAL_CLOSED: i32 = -1, PAL_COMMANDS: i32 = 0, PAL_LIBRARIES: i32 = 1, PAL_FILES: i32 = 2, PAL_TEMPLATES: i32 = 3;
+export const PAL_CLOSED: i32 = -1, PAL_COMMANDS: i32 = 0, PAL_LIBRARIES: i32 = 1, PAL_FILES: i32 = 2, PAL_TEMPLATES: i32 = 3, PAL_HELP: i32 = 4;
 export const [paletteMode, setPaletteMode] = createSignal<i32>(PAL_CLOSED);
 /** 0 closed → 1 open: fade and scale. */
 export const paletteT = new Tween(0);
 export function openPalette(mode: i32): void {
   if (mode === PAL_LIBRARIES) loadLibraries();
   if (mode === PAL_TEMPLATES) loadTemplates();
+  if (mode === PAL_HELP) loadHelp();
   setPaletteMode(mode);
   paletteT.to(1, 0.16, easeOut);
 }
@@ -205,12 +207,46 @@ add('tools', 'prev-tab', 'CmdOrCtrl+Shift+BracketLeft', () => cycle(-1));
 
 // the documentation on the web site, opened in the browser (zinc.json allows these pages only: scopes.opener)
 export const DOCS = 'https://frulko.github.io/zinc/';
-export function openDocs(page: string): void { const url = DOCS + page; say(t('atelier.help.opening', ['url', url])); opener.openUrl(url); }
+/** A page of the docs: the copy built on this machine for this version (`zinc help --docs`, no network) when the page is part of it, else
+ *  the site. `page` is the site's route: docs/learn/, docs/guide/01-getting-started/, docs/diagnostics/#z0103-... */
+export function openDocs(page: string): void {
+  const web = (): void => { const url = DOCS + page; say(t('atelier.help.opening', ['url', url])); opener.openUrl(url); };
+  if (!page.startsWith('docs/')) { web(); return; }
+  const hash = page.indexOf('#') >= 0 ? page.slice(page.indexOf('#')) : '';
+  let p = page.slice(5, page.length - hash.length);
+  if (p.endsWith('/')) p = p.slice(0, p.length - 1);
+  const top = p.indexOf('/') < 0;
+  const local = (p === 'learn' ? 'learn/index' : top ? 'topics/' + p : p) + '.html';
+  let out = '';
+  try {
+    const pr = spawnZinc(['help', '--docs', local], '');
+    pr.onData((chunk: string, stderr: boolean) => { if (!stderr) out += chunk; });
+    pr.onExit((code: i32) => { const f = out.trim(); if (code === 0 && f !== '' && fs.exists(f)) openLocal(f + hash); else web(); });
+  } catch (e) { web(); }
+}
+/** The name under the caret of the active editor ('' when none): F1 shows its help. `gfx.rrect` and `Stage.addChild` keep their dot. */
+export function wordAtCaret(): string {
+  const b = active();
+  if (b === null || (b as Buffer).node() < 0) return '';
+  const s = (b as Buffer).text(), c = ui.caretOf((b as Buffer).node());
+  const id = (ch: string): boolean => (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch === '_' || ch === '$' || ch === '.';
+  let a = c, e = c;
+  while (a > 0 && id(s.charAt(a - 1))) a--;
+  while (e < s.length && id(s.charAt(e))) e++;
+  let w = s.slice(a, e);
+  while (w.startsWith('.')) w = w.slice(1);
+  while (w.endsWith('.')) w = w.slice(0, w.length - 1);
+  return w;
+}
+/** Opens a page of the engine's docs built on this machine (no network): a path `zinc help --index` gave. */
+export function openLocal(path: string): void { say(t('atelier.help.opening', ['url', path])); opener.openUrl('file://' + path); }
 /** The page of the error code explained last, with its fixes (the console's Reference button). */
 export function openReference(): void { if (reference() !== '') openDocs(reference().slice(DOCS.length)); }
 const PAGES: string[] = ['help-learn', 'docs/learn/', 'help-start', 'docs/guide/01-getting-started/', 'help-kinds', 'docs/start/choose/',
   'help-syntax', 'docs/reference/syntax/', 'help-examples', 'demos/', 'help-errors', 'docs/diagnostics/'];
 for (let i = 0; i < PAGES.length; i += 2) { const page = PAGES[i + 1]; add('help', PAGES[i], '', () => openDocs(page), i === 10); }
+add('help', 'help-search', 'CmdOrCtrl+Shift+H', () => openPalette(PAL_HELP), true);   // one box over the lessons, the docs' headings, the error codes, the API and the commands
+add('help', 'help-name', 'F1', () => { const w = wordAtCaret(); if (w !== '') helpName(w); else openPalette(PAL_HELP); });
 add('help', 'help-tour', '', () => startTour(false));
 add('help', 'help-keys', '', () => openPalette(PAL_COMMANDS), true);
 add('help', 'help-about', '', () => say(t('atelier.about', ['path', ZINC])));

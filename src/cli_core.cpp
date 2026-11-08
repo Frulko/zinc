@@ -154,7 +154,7 @@ const Command kCommands[] = {
   {"lsp", "zinc lsp", "cli.cmd.lsp", "Speaks LSP over stdio for an editor: diagnostics (the Z codes of zinc check --json), hover with types, completion (members, names in scope, module specifiers), go to definition, document symbols."},
   {"mem", "zinc mem <file.ts|file.zbc> [--json] [--check-leaks]", "cli.cmd.mem", "Runs a program in the interpreter and reports memory use and live objects at exit. --json writes the report as JSON; --check-leaks exits 4 when objects remain live."},
   {"version", "zinc version", "cli.cmd.version", "Prints the version of this zinc (also zinc --version)."},
-  {"help", "zinc help [command]", "cli.cmd.help", "zinc help lists the commands; zinc help <command> describes one."},
+  {"help", "zinc help [command|name] | zinc help --search <words> | zinc help --docs [page]", "cli.cmd.help", "zinc help lists the commands; zinc help <command> describes one. zinc help <name> prints a name of the standard library (rrect, gfx.onFrame, Stage...): its comment, its signature and one example. --search looks for words in the lessons, the guides, the error codes, the API and the commands; --docs builds the engine's docs once into $ZINC_HOME/docs/<version> (offline, no network) and prints the page's path; --index prints the whole list, one tab-separated line each."},
 };
 
 const Command* findCommand(const std::string& n) { for (const Command& c : kCommands) if (n == c.name) return &c; return nullptr; }
@@ -554,6 +554,13 @@ int help(const std::vector<std::string>& args) {
   }
   std::printf("%s%s\n", examples ? "\n" : "", c->detail);
   return 0;
+}
+
+bool isCommand(const std::string& name) { return findCommand(name) != nullptr; }
+std::vector<std::pair<std::string, std::string>> commandLines() {
+  std::vector<std::pair<std::string, std::string>> out;
+  for (const Command& c : kCommands) out.emplace_back(c.name, zn::i18n::tr(c.summary));
+  return out;
 }
 
 namespace {

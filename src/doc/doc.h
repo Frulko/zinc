@@ -4,6 +4,7 @@
 // and MDX pages (a project's docs/, a plugin's docs/), with search, light and dark themes and a theme.css a project overrides. Offline: md4c,
 // the frontend's lexer and a theme compiled into zinc; nothing is fetched. --serve serves it on a local port and rebuilds it on change.
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace zn::doc {
@@ -11,5 +12,10 @@ namespace zn::doc {
 /** `zinc doc [dir] [--std] [--out dir] [--serve [--port n]]`: args[0] is "zinc", args[1] "doc". `engineRoot`: the engine's files (lib/std,
  *  plugins, docs). Returns the exit code. */
 int run(const std::vector<std::string>& args, const std::string& engineRoot);
+
+/** `zinc help <name>` (a standard-library name: its doc comment, signature and one example), `--search <words>`, `--index` (tab-separated
+ *  kind, title, section, path) and `--docs [page]` (the engine's docs built once into $ZINC_HOME/docs/<version>/): src/doc/help.cpp.
+ *  `commands`: the CLI's commands and their one line, which join the docs' search index. Returns the exit code. */
+int help(const std::vector<std::string>& args, const std::string& engineRoot, const std::vector<std::pair<std::string, std::string>>& commands, const std::string& version);
 
 }  // namespace zn::doc
