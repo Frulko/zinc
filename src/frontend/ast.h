@@ -163,6 +163,9 @@ struct Ast {
   std::uint32_t root = kNone;
   // Type parameters of a generic Function, Class or Interface, and the explicit type arguments of a Call or New.
   std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> tparams, targs;
+  // An async function expression written without a return type: the desugar gives it `Promise<__AsyncTn>` and keeps here, under that name, a
+  // copy of its body taken before the rewrite, with every `await e` read as `e.value`; the checker infers T from that copy's returns.
+  std::unordered_map<std::string, std::uint32_t> asyncShape;
 };
 
 // Where a byte of a lowered .tsx text comes from (ZN-371.03): from `out` on, a copy of the source from `src` (byte for byte), or code generated

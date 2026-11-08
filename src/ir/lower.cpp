@@ -1790,6 +1790,7 @@ struct Lowering::FnLower {
           if (th == L.thunkOfSym.end()) { unsupported(i, "this function used as a value"); return constBool(false); }
           return coerce(emit(IrOp::New, m.refT(th->second.first), {}, 0, 0, th->second.first), natural(i));   // typed as the function type, so two functions meet at a join
         }
+        if (c.types[c.syms[s].type].k == frontend::TK::Void) return constNum(m.numT(NumK::i32), 0);   // a variable of type void holds nothing: what reads it drops the value
         ValueId v = readSym(s);
         if (c.nodeType[i] != frontend::kNoType && c.types[c.nodeType[i]].k == frontend::TK::Object) return coerce(v, natural(i));  // a variable narrowed by instanceof
         if (c.nodeType[i] != frontend::kNoType && (c.types[c.nodeType[i]].k == frontend::TK::Num || c.types[c.nodeType[i]].k == frontend::TK::Bool) && ty(tv(v)).k == Type::K::Ref) return coerce(v, natural(i));  // a `number | null` narrowed to the number
@@ -2614,6 +2615,7 @@ struct Lowering::FnLower {
       return;
     }
     std::uint32_t s = c.nodeSym[d];
+    if (c.types[c.syms[s].type].k == frontend::TK::Void) { expr(x.kids[1]); return; }   // `const r = untrack(() => {...})`: T = void, nothing to store
     TypeId t = L.irType(c.syms[s].type, d);
     if (L.isCell(s) && (n(x.kids[1]).kind == N::FuncExpr || mentions(x.kids[1], s))) {  // the cell exists before the initializer runs: a closure made in it (`const f = () => f()`, `const sub = on(() => sub.remove())`) captures the cell
       declSym(s, emit(IrOp::Const, t, {}, ty(t).builtinRef() ? ir::kNullConst : 0));

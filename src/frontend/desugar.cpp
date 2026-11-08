@@ -2,6 +2,7 @@
 
 #include <deque>
 #include <functional>
+#include <set>
 #include <string>
 
 #include "frontend/snippet.h"
@@ -86,20 +87,19 @@ struct Desugar {
         std::string t;
         Holes h;
         if (!c.fins.empty()) {  // inside try...finally: the value is computed, the finally blocks run, then the function ends
-          std::string done = gen ? "__g.done = true;" : vp ? "__p.resolveVoid();" : x.kids[0] == kNone ? "__p.resolveWith();" : "__p.resolveWith(__rv);";
+          std::string done = gen ? "__g.done = true;" : x.kids[0] != kNone ? "__p.resolveWith(__rv);" : vp ? "__p.resolveVoid();" : "__p.resolveWith();";
           std::string chain = done;
           for (const std::string& f : c.fins) chain = f + "((): void => { " + chain + " });";  // outermost wraps last, so the innermost runs first
           if (gen && x.kids[0] != kNone) unsupported(s, "'return' with a value in a generator");
           bool value = x.kids[0] != kNone && !gen;
-          Ids r = sn(std::string("{ ") + (value ? (vp ? "__H0; " : "const __rv = __H0; ") : "") + chain + " return; }", value ? Holes{{vp ? exprStmt(x.kids[0]) : x.kids[0]}} : Holes{});
+          Ids r = sn(std::string("{ ") + (value ? "const __rv = __H0; " : "") + chain + " return; }", value ? Holes{{x.kids[0]}} : Holes{});
           return r.empty() ? s : r[0];
         }
         if (gen) {
           if (x.kids[0] != kNone) unsupported(s, "'return' with a value in a generator");
           t = "{ __g.done = true; return; }";
         } else if (x.kids[0] == kNone) t = "{ " + std::string(vp ? "__p.resolveVoid(); " : "") + "return; }";
-        else if (vp) { h = {{x.kids[0]}}; t = "{ __H0; __p.resolveVoid(); return; }"; h[0] = {exprStmt(x.kids[0])}; }
-        else { h = {{x.kids[0]}}; t = "{ __p.resolveWith(__H0); return; }"; }
+        else { h = {{x.kids[0]}}; t = "{ __p.resolveWith(__H0); return; }"; }   // in a Promise<void> too: the checker adopts a promise (`return save()`) and drops another value
         Ids r = sn(t, h);
         return r.empty() ? s : r[0];
       }
@@ -437,11 +437,15 @@ struct Desugar {
         return;
       }
       case N::ForOf: {
-        const Node& d = n(x.kids[0]);
-        if (d.text.empty() || (d.kids.size() > 2 && d.kids[2] != kNone)) { unsupported(s, "destructuring in 'for...of' around await or yield"); return; }
         std::string arr = fresh("__a"), idx = fresh("__i");
         add(sn("const " + arr + " = __H0; let " + idx + ": i32 = 0;", {{x.kids[1]}}));
-        Ids body = sn(std::string(x.text) + " " + std::string(d.text) + " = " + arr + "[" + idx + "]; " + idx + "++;");
+        // the loop variable (a name or a pattern, `const [k, v]`) is declared from the element, then the index moves on
+        n(x.kids[0]).kids.resize(3, kNone);
+        n(x.kids[0]).kids[1] = expr(arr + "[" + idx + "]");
+        a.nodes.push_back({N::VarDecl, x.start, x.end, x.text, {x.kids[0]}, 0, x.file});
+        Ids body{static_cast<Id>(a.nodes.size() - 1)};
+        Ids step = sn(idx + "++;");
+        body.insert(body.end(), step.begin(), step.end());
         Ids rest2 = list(x.kids[2]);
         body.insert(body.end(), rest2.begin(), rest2.end());
         loop(out, c, kt, expr(idx + " < " + arr + ".length"), body, kNone);
@@ -475,6 +479,20 @@ struct Desugar {
     }
   }
 
+  // A deep copy of the subtree with every `await e` of this function read as `e.value`: the body as the checker types it, never compiled.
+  Id copyShape(Id i, bool nested = false) {
+    if (i == kNone) return kNone;
+    Node c = n(i);
+    if (!nested && c.kind == N::Await) { c.kind = N::Member; c.text = "value"; }
+    bool inFn = nested || c.kind == N::FuncExpr || c.kind == N::Function || c.kind == N::Class;
+    for (Id& k : c.kids) k = copyShape(k, inFn);
+    a.nodes.push_back(std::move(c));
+    Id r = static_cast<Id>(a.nodes.size() - 1);
+    if (auto t = a.targs.find(i); t != a.targs.end()) { Ids v = t->second; a.targs[r] = std::move(v); }
+    if (auto t = a.tparams.find(i); t != a.tparams.end()) { Ids v = t->second; a.tparams[r] = std::move(v); }
+    return r;
+  }
+
   void function(Id f) {
     Node& x = n(f);
     bool async = x.flags & kFlagAsync, g = x.flags & kFlagGenerator;
@@ -486,7 +504,17 @@ struct Desugar {
     gen = g;
     vp = false;
     Id t = kNone;
-    if (ret == kNone || n(ret).kind != N::TypeRef) { unsupported(f, async ? "an async function without a Promise<T> return type" : "a generator without a Generator<T> return type"); return; }
+    bool inferred = false;
+    if (async && ret == kNone && x.kind == N::FuncExpr) {   // `async () => 1`: Promise<__AsyncTn>, T found by the checker from a copy of the body (Ast::asyncShape)
+      Id shape = copyShape(x.kids[1]);
+      Id ph = mkIdent(fresh("__AsyncT"), f);
+      n(ph).kind = N::TypeRef;
+      a.asyncShape[std::string(n(ph).text)] = shape;
+      a.nodes.push_back({N::TypeRef, x.start, x.start, "Promise", {ph}, 0, x.file});
+      ret = x.kids[0] = static_cast<Id>(a.nodes.size() - 1);
+      inferred = true;
+    }
+    if (ret == kNone || n(ret).kind != N::TypeRef) { unsupported(f, async ? "an async function declaration without a Promise<T> return type" : "a generator without a Generator<T> return type"); return; }
     if (n(ret).text == (async ? "Promise" : "Generator") && n(ret).kids.size() == 1) t = n(ret).kids[0];
     else { unsupported(ret, async ? "return type of an async function other than Promise<T>" : "return type of a generator other than Generator<T>"); return; }
     if (async && t != kNone && n(t).kind == N::TypeRef && n(t).text == "void") vp = true;   // Promise<void>: settled with no value
@@ -494,7 +522,7 @@ struct Desugar {
     if (async) {
       Ctx c;
       c.rej = "__rej";
-      Ids code = S(body, c, vp ? "__p.resolveVoid();" : "");
+      Ids code = S(body, c, vp || inferred ? "__p.resolveVoid();" : "");   // an inferred T may be void: falling off the end settles it
       nb = sn(std::string("const __p = __newPromise<__H0>();\n") +
               "const __rej = (__e: Error): void => { __p.rejectWith(__e); };\n" +
               "const __start = (): void => { try { __H1; } catch (__e0) { __rej(__e0); } };\n__start();\nreturn __p;",
@@ -506,7 +534,54 @@ struct Desugar {
     n(x.kids[1]).kids = nb;
   }
 
-  void run() {
+  bool moduleAwait(Id i) {   // an await of the module's own code (outside every function)
+    if (i == kNone) return false;
+    const Node& x = n(i);
+    if (x.kind == N::Await && (x.flags & kFlagModuleLevel)) return true;
+    if (x.kind == N::FuncExpr || x.kind == N::Function || x.kind == N::Class) return false;
+    for (Id k : x.kids) if (moduleAwait(k)) return true;
+    return false;
+  }
+  // Top-level await: the module's statements from the first one that awaits run in `(async (): Promise<void> => { ... })();`, so its
+  // variables become variables of that function; declarations (functions, classes, types, imports) stay where they are.
+  void topLevelAwait(Ids& stmts, Ids* root) {
+    std::size_t first = 0;
+    while (first < stmts.size() && !moduleAwait(stmts[first])) ++first;
+    if (first == stmts.size()) return;
+    Ids keep(stmts.begin(), stmts.begin() + static_cast<std::ptrdiff_t>(first)), body;
+    for (std::size_t k = first; k < stmts.size(); ++k) {
+      Id s = stmts[k];
+      N kind = n(s).kind;
+      if (kind == N::Export && !n(s).kids.empty() && n(s).kids[0] != kNone && n(n(s).kids[0]).kind == N::VarDecl) { unsupported(s, "an exported variable after a top-level await (export a function that returns it)"); return; }
+      if (kind == N::Function || kind == N::Class || kind == N::Interface || kind == N::TypeAlias || kind == N::Enum || kind == N::Import || kind == N::Export || kind == N::Empty) keep.push_back(s);
+      else body.push_back(s);
+    }
+    std::function<void(Id)> clear = [&](Id i) {
+      if (i == kNone || n(i).kind == N::FuncExpr || n(i).kind == N::Function || n(i).kind == N::Class) return;
+      n(i).flags &= ~kFlagModuleLevel;
+      for (Id k : n(i).kids) clear(k);
+    };
+    for (Id s : body) clear(s);
+    anchor = body.empty() ? stmts[first] : body[0];
+    Ids w = sn("(async (): Promise<void> => { __H0; })();", {body});
+    if (w.empty()) return;
+    keep.push_back(w[0]);
+    if (root) {   // the program's flat list holds the same statements: the wrapped ones leave it, the call takes the place of the first
+      std::set<Id> gone(body.begin(), body.end());
+      Ids nr;
+      bool placed = false;
+      for (Id s : *root) {
+        if (!gone.count(s)) { nr.push_back(s); continue; }
+        if (!placed) { nr.push_back(w[0]); placed = true; }
+      }
+      *root = std::move(nr);
+    }
+    stmts = std::move(keep);
+  }
+
+  void run(Ids* flat) {
+    if (a.modules.empty()) { if (a.root != kNone) topLevelAwait(n(a.root).kids, nullptr); }
+    else for (ModuleInfo& m : a.modules) if (!m.typesOnly) topLevelAwait(m.stmts, flat);
     auto count = static_cast<Id>(a.nodes.size());
     for (Id i = 0; i < count; ++i) {  // the types and static calls first
       Node& x = n(i);
@@ -534,6 +609,6 @@ struct Desugar {
 
 }  // namespace
 
-void desugarAsync(Ast& a, std::vector<Diag>& diags) { Desugar{a, diags}.run(); }
+void desugarAsync(Ast& a, std::vector<Diag>& diags, std::vector<std::uint32_t>* flat) { Desugar{a, diags}.run(flat); }
 
 }  // namespace zn::frontend

@@ -182,6 +182,7 @@
     {"paths": ["src/frontend/check.cpp", "tests/data/callback_fewer_params/", "tests/t0/callback_fewer_params.sh"], "tests": ["callback_fewer_params"]},
     {"paths": ["src/frontend/check.cpp", "src/ir/lower.cpp", "tests/data/method_fewer_params/", "tests/t0/method_fewer_params.sh"], "tests": ["method_fewer_params"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/desugar.cpp", "src/frontend/modules.cpp", "tests/data/async_gaps/", "tests/t0/async_gaps.sh"], "tests": ["async_gaps"]},
+    {"paths": ["src/frontend/check.cpp", "src/frontend/desugar.cpp", "src/frontend/modules.cpp", "src/ir/lower.cpp", "tests/data/async_infer/", "tests/t0/async_infer.sh"], "tests": ["async_infer"]},
     {"paths": ["src/cli_core.cpp", "src/lint/", "src/qjs/bundle.cpp", "tests/t0/check_js.sh"], "tests": ["check_js"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/modules.cpp", "tests/golden/host/promise_adopt.ts", "tests/t0/promise_adopt.sh"], "tests": ["promise_adopt"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/parser.cpp", "src/ir/lower.cpp", "tests/golden/assign/", "tests/t0/ts_assignability.sh"], "tests": ["ts_assignability"]},

@@ -13,6 +13,6 @@
 
 namespace zn::frontend {
 
-void desugarAsync(Ast& a, std::vector<Diag>& diags);
+void desugarAsync(Ast& a, std::vector<Diag>& diags, std::vector<std::uint32_t>* flat = nullptr);   // flat: the program's statement list, kept in step with the modules' (top-level await)
 
 }  // namespace zn::frontend

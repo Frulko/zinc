@@ -621,6 +621,7 @@ struct Checker {
           diag(kZCannotFindName, t, "'" + std::string(x.text) + "' (typeof needs a variable)");
           return tError;
         }
+        if (x.kids.empty() && x.text.rfind("__AsyncT", 0) == 0) if (auto it = asyncT.find(std::string(x.text)); it != asyncT.end()) { out.nodeType[t] = it->second; return it->second; }   // the inferred T of an async function expression
         Num m;
         if (x.kids.empty() && numFromName(x.text, m)) r = num(false && m == gNumber && x.text == "number" && builtinModuleNode(t) ? Num::f64 : m);   // the library (Date, JSON, the Error classes) keeps `number` = f64 under any profile
         else if (x.kids.empty() && x.text == "boolean") r = tBool;
@@ -1792,6 +1793,12 @@ struct Checker {
     return t;
   }
 
+  std::unordered_map<std::string, TypeId> asyncT;   // the T of each `Promise<__AsyncTn>` the desugar gave an async function expression without a return type
+  TypeId promiseValue(TypeId t) {   // the T of a Promise<T>
+    if (promiseKind(t) == 2) return tVoid;
+    for (const Member& m : out.objs[ty(t).obj].members) if (m.name == "value" && !m.method) return m.type;
+    return tError;
+  }
   // 0: not a promise, 1: Promise<T>, 2: Promise<void> (made with T = void, see instantiateClass)
   int promiseKind(TypeId t) {
     if (bad(t) || ty(t).k != TK::Object) return 0;
@@ -2235,6 +2242,10 @@ struct Checker {
       const TypeId pt = expr(self), at = expr(arg);
       const bool same = at == pt || (!bad(at) && promiseKind(at) == 1 && promiseKind(pt) == 1 && require(at, pt, arg));   // a Promise<R> where Promise<R | null> is returned: converted first
       if (!bad(at) && promiseKind(at) == 1 && same && replaceWith(i, "__adopt(__H0, __H1)", {{self}, {arg}})) return expr0(i, kNoType);
+      if (!bad(at) && promiseKind(pt) == 2) {   // a Promise<void> function: `return save()` settles when save's promise does; any other value is evaluated and dropped
+        if (promiseKind(at) == 2 && replaceWith(i, "__adopt(__H0, __H1)", {{self}, {arg}})) return expr0(i, kNoType);
+        if (promiseKind(at) == 0 && replaceWith(i, "((): void => { __H1; __H0.resolveVoid(); })()", {{self}, {newNode(N::ExprStmt, {}, {arg}, arg)}})) return expr0(i, kNoType);
+      }
     }
     if (isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Ident && n(x.kids[0]).text == "Date" && lookup("Date") != kNone && out.syms[lookup("Date")].kind == SymKind::Class) {   // new Date(string) and new Date(date)
       TypeId at = expr(x.kids[1]);
@@ -3543,7 +3554,7 @@ struct Checker {
       t = expr(init);
       std::vector<std::pair<std::uint32_t, TypeId>> waiting = std::move(selfDeferred);
       selfName = savedName; selfDepth = savedDepth; selfDeferred = std::move(savedDeferred);
-      if (t == tNull || t == tVoid) { diag(kZCannotInfer, d, "'" + std::string(x.text) + "'"); t = tError; }
+      if (t == tNull || (t == tVoid && !isConst)) { diag(kZCannotInfer, d, "'" + std::string(x.text) + "'"); t = tError; }   // a const of type void (a generic call with T = void) holds nothing, as in TypeScript
       out.nodeType[d] = t;
       bindVar(t);
       if (!waiting.empty()) {
@@ -4273,6 +4284,30 @@ struct Checker {
     }
     return lambdaMin;
   }
+  // An async function expression without a return type (`async () => 1`): T of its Promise<T> is the T of the promise the context expects, else
+  // the type its body returns, found by checking the desugar's copy of the body (await e read as e.value) as a plain function; that check says nothing.
+  const std::vector<TypeId>* shapeParams = nullptr;   // the parameter types of the function whose body copy inferAsync checks
+  void inferAsync(std::uint32_t i, const Type* et, const std::vector<TypeId>& ps) {
+    const std::string ph(n(n(n(i).kids[0]).kids[0]).text);
+    TypeId t = et && et->elem < out.types.size() && promiseKind(et->elem) ? promiseValue(et->elem) : kNoType;   // elem may be a marker (a generic result still to infer)
+    if (t == kNoType) {
+      auto sh = a.asyncShape.find(ph);
+      if (sh == a.asyncShape.end()) return;
+      std::vector<std::uint32_t> kids{kNone, sh->second};
+      kids.insert(kids.end(), n(i).kids.begin() + 2, n(i).kids.end());
+      const std::uint32_t fx = newNode(N::FuncExpr, {}, std::move(kids), i);
+      a.nodes[fx].flags = kFlagArrow;
+      const std::size_t d0 = out.diags.size();
+      shapeParams = &ps;
+      const TypeId ft = funcExpr(fx, kNoType);
+      out.diags.resize(d0);
+      t = bad(ft) || ty(ft).k != TK::Func ? tError : ty(ft).elem;
+      if (!bad(t) && promiseKind(t)) t = promiseValue(t);   // `return p` with p a Promise<X>: a Promise<X>, as in JavaScript
+      else if (!bad(t) && name(t) == "__Void") t = tVoid;   // `return await f()` with f a Promise<void>
+      if (bad(t)) diag(kZCannotInfer, i, "the result of this async function (write its return type, Promise<T>)");
+    }
+    asyncT[ph] = t;
+  }
   std::uint32_t iifeLambda = kNone;  // the arrow function of `(() => ...)()` being checked (callExpr sets it, funcExpr reads it)
   bool padCallbacks = true;  // a function with fewer parameters than the function type it is given to gets unused ones; off for the arguments of the library's array methods, which keep their arity
   TypeId funcExpr(std::uint32_t i, TypeId expected) {
@@ -4311,13 +4346,16 @@ struct Checker {
       if (pn.kids[1] != kNone) diag(kZUnsupported, p, "default values for lambda parameters");
       else if (pn.kids[0] != kNone) t = annotation(pn.kids[0]);
       else if (haveExpected && k < et.params.size()) t = et.params[k];
+      else if (shapeParams && k < shapeParams->size()) t = (*shapeParams)[k];
       else diag(kZCannotInfer, p, "diag.detail.fnExprParam", {{"name", std::string(pn.text)}});
       out.nodeType[p] = t;
       ps.push_back(t);
     }
+    shapeParams = nullptr;
     const bool restF = np > 0 && (n(x.kids[1 + np]).flags & kFlagRest);  // `(...xs: T[]) => ...`
     if (restF && !bad(ps.back()) && ty(ps.back()).k != TK::Array) { diag(kZNotAssignable, x.kids[1 + np], "a rest parameter must be an array, not '" + name(ps.back()) + "'"); ps.back() = tError; }
     for (std::size_t k = 0; k + 1 < np; ++k) if (n(x.kids[2 + k]).flags & kFlagRest) diag(kZNotAllowedHere, x.kids[2 + k], "a rest parameter that is not the last one");
+    if (x.kids[0] != kNone && n(x.kids[0]).kids.size() == 1 && n(n(x.kids[0]).kids[0]).text.rfind("__AsyncT", 0) == 0) inferAsync(i, haveExpected ? &et : nullptr, ps);
     TypeId ret = x.kids[0] != kNone ? annotation(x.kids[0]) : haveExpected ? et.elem : kNoType;
     if (ret == tVoid && x.kids[0] != kNone && haveExpected && mayFallOff(et.elem)) ret = et.elem;   // `(): void => {...}` where `F | undefined` is expected (React's effect): it ends with undefined
     if (haveExpected && et.params.size() != np && x.kids[0] == kNone) { /* the arity is checked by the caller's assignability */ }
@@ -4929,7 +4967,11 @@ struct Checker {
       std::uint32_t clone = cloneNode(g.node, true);
       a.nodes[clone].kind = N::Function;  // a static method instantiates as a plain function
       std::vector<std::uint32_t> ps;
+      const bool savedInfer = inferReturns, savedNeeds = sigNeedsInfer;
+      inferReturns = true; sigNeedsInfer = false;
       TypeId sig = signature(clone, 2, false, ps);
+      const bool needInfer = sigNeedsInfer;
+      inferReturns = savedInfer; sigNeedsInfer = savedNeeds;
       out.nodeType[clone] = sig;
       out.syms.push_back({SymKind::Func, n(g.node).text, sig, clone, true});
       symId = static_cast<std::uint32_t>(out.syms.size() - 1);
@@ -4937,6 +4979,21 @@ struct Checker {
       g.inst[args] = symId;
       if (!anyParam(args)) { out.instances.push_back(clone); out.nodeNames[clone] = std::string(n(g.node).text) + argsText(args); }
       auto snap = scopes;  // includes the alias scope
+      if (needInfer) {   // `function id<T>(x: T) { return x; }`: the call being checked needs the return type, so the body is checked now, with T bound
+        Ctx sv = saveCtx();
+        curClass = kNoObj; curCtor = kNoObj; curStatic = false; fnStack.clear(); narrowing.clear(); loops = 0;   // a top-level function, as when its check is deferred
+        const TypeId savedRet = inferredRet;
+        inferredRet = kNoType;
+        checkBody(clone, sig, ps, false, true);
+        TypeId ret = inferredRet != kNoType ? inferredRet : tVoid;
+        inferredRet = savedRet;
+        restoreCtx(sv);
+        if (ret == tNull) ret = tError;
+        sig = func(ty(sig).params, ret, ty(sig).minArgs, false, ty(sig).rest);
+        out.syms[symId].type = sig;
+        out.nodeType[clone] = sig;
+        return;
+      }
       defer->push_back([this, clone, sig, ps, snap]() {
         Ctx sv = saveCtx();
         scopes = snap; curClass = kNoObj; curCtor = kNoObj; curStatic = false;

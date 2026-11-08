@@ -3,10 +3,11 @@ id: ZN-1010
 title: >-
   Async and generic inference gaps: async arrows, ternary await, top-level
   await, void generics
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:34'
+updated_date: '2026-11-08 20:08'
 labels:
   - checker
   - async
@@ -14,7 +15,6 @@ labels:
 milestone: m-13
 dependencies: []
 ordinal: 3400
-updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -42,10 +42,34 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `const f = async () => 1` and an unannotated async object-literal method check and run (inferred Promise<i32>)
-- [ ] #2 `c ? await a() : d ? await a() : []` and `for (const [k, v] of xs) { await ... }` run on the three engines
-- [ ] #3 `const r = untrack(() => {...})` and `const x = id(args)` infer T without Z0109
-- [ ] #4 top-level await works in an entry file of a script or test (or states the supported spelling) and `finally` runs after `return await`
-- [ ] #5 a throwing Promise executor rejects the promise
-- [ ] #6 a test per case in tests/run, one engine for the long proof and two for a smoke run
+- [x] #1 `const f = async () => 1` and an unannotated async object-literal method check and run (inferred Promise<i32>)
+- [x] #2 `c ? await a() : d ? await a() : []` and `for (const [k, v] of xs) { await ... }` run on the three engines
+- [x] #3 `const r = untrack(() => {...})` and `const x = id(args)` infer T without Z0109
+- [x] #4 top-level await works in an entry file of a script or test (or states the supported spelling) and `finally` runs after `return await`
+- [x] #5 a throwing Promise executor rejects the promise
+- [x] #6 a test per case in tests/run, one engine for the long proof and two for a smoke run
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done 2026-11-08 (worker branch). Test: tests/t0/async_infer.sh (tests/data/async_infer, expected.out = Node 24's output; tsc oracle accepts the file) passes on the interpreter, AOT and QuickJS; checker, async_gaps, promise_adopt, dyn_generic, ts_assignability pass; atelier, inspector, hero, zed-editor, nuxt-ui, rn-showcase check clean.
+
+Research (TypeScript handbook, type inference https://www.typescriptlang.org/docs/handbook/type-inference.html; ECMA-262 27.2.3.1 Promise(executor) https://tc39.es/ecma262/#sec-promise-executor; tsconfig module https://www.typescriptlang.org/tsconfig/#module): an unannotated async function returns Promise<awaited union of its returns> (a returned Promise<X> is not nested); `untrack(() => {})` binds T = void; top-level await needs a module (export {} or an import); an executor that throws rejects unless already resolved.
+
+How:
+- Unannotated async function expressions (arrows, object-literal methods): desugar.cpp gives them `Promise<__AsyncTn>` and keeps in Ast::asyncShape a copy of the body taken before the rewrite, with `await e` read as `e.value`. check.cpp inferAsync: T is the promise the context expects (a callback typed `() => Promise<X>`), else the copy is checked as a plain lambda (its diagnostics dropped) and T is its return type (a returned Promise<X> gives X). Falling off the end settles with resolveVoid.
+- `for (const [k, v] of xs)` around await: the loop variable's declarator (name or pattern) is declared from `arr[i]`.
+- Generic T = void: `const r = f()` of type void is accepted for a const (the IR stores nothing and reads it as a dropped 0); a let still asks for a type.
+- Generic function without a return type (`function id<T>(x: T) { return x; }`): each instance checks its body when instantiated, in inference mode, and takes the inferred return type.
+- Top-level await: the module's statements from the first one that awaits run in `(async (): Promise<void> => {...})()`; declarations (functions, classes, types, imports, exports) stay at module level; an exported variable after the await is refused with a message. Its variables are locals of that function: a function declared above cannot use them.
+- `return p` in an async Promise<void> function adopts p (was resolved at once, D178 line); any other value is evaluated and dropped.
+- The Promise constructor (and new Promise<void>) catches an executor's throw and rejects.
+- `finally` after `return await` already ran (ZN-844 shape `try { return await p } finally {}` prints in Node's order on all engines, in the test).
+- Fixture tests/golden/checker/errors/async_arrow.ts moved to ok/; errors/async_declaration.ts keeps the refusal of an unannotated async function declaration.
+
+Left (for backlog/later.md):
+- Unannotated async function declarations and class methods still need Promise<T> (Z0005): the signature is needed before bodies are checked; use the pending-inference path (resolvePending) with the asyncShape copy.
+- `c ? await a() : b` still costs the plain branch one microtask (order differs from Node when two async functions interleave); `c ? await a() : null` is still Z0005 (needs branch types in the desugar).
+- `.then` callbacks returning T | Promise<T> not flattened (ZN-794 lines), the Promise/PromiseV merge (ZN-852) not done.
+<!-- SECTION:NOTES:END -->

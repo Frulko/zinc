@@ -3411,7 +3411,9 @@ class Promise<T> extends PromiseBase {
   value!: T;   // set when it fulfils (state 1); a Promise<void> holds null, so no promise allocates more than itself
   constructor(executor: ((resolve: (value: T) => void, reject: (e: Error) => void) => void) | null) {   // null: the prelude's own promises (__newPromise), settled by its helpers, make no closures
     super();
-    if (executor !== null) executor((v: T) => { this.resolveWith(v); }, (e: Error) => { this.rejectWith(e); });
+    if (executor !== null) {   // an executor that throws rejects the promise (once settled, the rejection is ignored)
+      try { executor((v: T) => { this.resolveWith(v); }, (e: Error) => { this.rejectWith(e); }); } catch (e) { this.rejectWith(e); }
+    }
   }
   resolveWith(v: T): void {
     if (this.state !== 0) return;
@@ -3493,7 +3495,7 @@ function __newPromise<T>(): Promise<T> { return new Promise<T>(null); }
 // new Promise<void>(executor): its resolve is a () => void, as the TypeScript programs that pass it on expect (setTimeout(resolve, ms), done: () => void)
 function __promiseVoid(executor: (resolve: () => void, reject: (e: Error) => void) => void): Promise<void> {
   const p = new Promise<void>(null);
-  executor(() => { p.resolveVoid(); }, (e: Error) => { p.rejectWith(e); });
+  try { executor(() => { p.resolveVoid(); }, (e: Error) => { p.rejectWith(e); }); } catch (e) { p.rejectWith(e); }
   return p;
 }
 
@@ -4039,7 +4041,7 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   bool regexp = p.diags.empty() && needsRegExp(p.ast);
   if (async) {
     const std::size_t before = p.diags.size();
-    desugarAsync(p.ast, p.diags);
+    desugarAsync(p.ast, p.diags, &L.flat);
     // the code of a module read for its types is not in the program: what the desugaring says of it does not count
     p.diags.erase(std::remove_if(p.diags.begin() + static_cast<std::ptrdiff_t>(before), p.diags.end(), [&](const Diag& d) { return d.file < p.files.size() && p.files[d.file].typesOnly; }), p.diags.end());
   }

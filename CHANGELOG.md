@@ -79,12 +79,14 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### New
 
 - JavaScript projects: `importmap.json` maps a whole folder with a key ending in `/`, as a browser does (`"three/addons/": "../three/examples/jsm/"`), and a folder with a `main.js` runs with `zinc run` even when its `zinc.json` only sets `app.window`.
+- `await` at the top level of a program or test file works on every engine; an `async` arrow function or object method no longer needs its `Promise<T>` written out (`const load = async () => 1`), and a generic function's return type is inferred from its arguments (`function id<T>(x: T) { return x; }`).
 
 #### Fixed
 
 - `Math.atan`, `Math.asinh`, `Math.acosh` and `Math.atanh` were refused by the checker; they now work on every engine.
 - A `catch` callback that returns a promise is adopted, as `then` already did, and `finally` waits for the promise its callback returns before passing the value on (or takes its rejection), in the order Node runs them.
 - More valid TypeScript is accepted: a function with default parameters where one taking fewer is expected, `list.find(...)?.[1]`, `resolve(undefined)` on a `Promise<void>`, an `(e: any) => ...` callback where an `Error` is passed, a `Map` or `Set` of a class where one of its interface is expected, and a `catch` callback that returns nothing (also on `Promise.reject(e)`).
+- Async fixes: `for (const [k, v] of list)` with an `await` in its body runs, `const r = untrack(() => { ... })` is accepted when the callback returns nothing, `return save()` in an async `Promise<void>` function now waits for `save`, and a `new Promise` whose executor throws rejects instead of stopping the program.
 
 ### Developer tools
 
