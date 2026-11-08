@@ -5,6 +5,7 @@
 # and a summary; the exit code is non-zero if any cell differs. Usage: tools/diff-matrix [-j N] [name ...]   (env ZINC, default build/zinc)
 cd "$(dirname "$0")/.." || exit 2
 ZINC=${ZINC:-$PWD/build/zinc}; export ZINC
+export ZINC_STEPS=0   # no step lines on stderr: they are not program output
 jobs=4
 if [ "$1" = "-j" ]; then jobs=$2; shift 2; fi
 tmp=$(mktemp -d); export tmp; trap 'rm -rf "$tmp"' EXIT

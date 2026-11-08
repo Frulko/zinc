@@ -5,6 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:35'
+updated_date: '2026-11-08 19:34'
 labels:
   - tests
   - hardening
@@ -12,7 +13,6 @@ labels:
 milestone: m-12
 dependencies: []
 ordinal: 2900
-updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -45,7 +45,13 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 each named test passes on develop with `tests/run --only <name>` (or is moved to tests/ci/off.txt with a reason when it is machine-bound)
-- [ ] #2 `tools/build zinc` builds `zbc_test` and `i18n_test`
-- [ ] #3 `i18n/de/diag.json` has Z5012 and Z5013
+- [x] #2 `tools/build zinc` builds `zbc_test` and `i18n_test`
+- [x] #3 `i18n/de/diag.json` has Z5012 and Z5013
 - [ ] #4 a short note lists which goldens were re-recorded and what moved
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-11-08 worker: against main's binary (ZINC=<main>/build/zinc) these PASS on develop already: plugin_manifest, i18n, zbc, ir, run (promise_statics), modules, nuxt_ui, rn_showcase, platform_look, ui_class_parser, fuzz_regress, promise_all_mixed, webrtc_call, webcam_demo. i18n/de/diag.json has Z5012/Z5013. Fixed: tools/diff-matrix captured the step lines of 'zinc run' on stderr (interp=DIFF on every conf program; ZINC_STEPS=0 now); webrtc_chat scripted session quit before the channels' close events (setTimeout 0 after pc.close), so 'chat closed' lines vanished: the script waits 300 ms like roomScript (the stack overflow no longer occurs); zbc_test and i18n_test are now dependencies of zinc (tools/build zinc builds them). No golden re-recorded. Open: lint (rules.expect passes from the main tree but fails in a nested worktree: relative path depth ../../../../ and plugin-targets findings differ; hero.matrix and esp32-app.matrix differ in the main tree too: svg/audio/device plugin-targets lines and (+N) counts, needs a build of develop to tell stale golden from regression), dev_mode (load-bound), macos_window (flake), AC1 for lint, AC4 note above.
+<!-- SECTION:NOTES:END -->

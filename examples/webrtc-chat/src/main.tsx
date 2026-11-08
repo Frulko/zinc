@@ -261,8 +261,7 @@ async function script(): Promise<void> {
   await until(() => a.rtt() >= 0);
   log(`rtt measured ${a.rtt() >= 0}, mic level ${level() > 0 ? 'moving' : 'still'}`);
   hangUp();
-  log('done');
-  quit();
+  setTimeout(() => { log('done'); quit(); }, 300);   // a moment for the channels' close events, as roomScript does
 }
 
 // the room: join, say hello once connected, quit once the other peer's hello came

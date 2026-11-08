@@ -706,6 +706,7 @@ target_include_directories(ops_test PRIVATE include)
 
 add_executable(zbc_test tests/unit/zbc_test.cpp)
 target_link_libraries(zbc_test PRIVATE zn_zbc)
+add_dependencies(zinc zbc_test i18n_test)   # built with zinc: tests/t0/zbc.sh and i18n.sh skip silently without them
 
 # A test with a module written in C99
 # The text-shaping tier (ZN-114, D11): HarfBuzz + SheenBidi + libunibreak behind src/text/layout.h. Nothing links it by default: only programs that ask for it.
