@@ -551,6 +551,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-812: `import { Canvas } from 'zinc:canvas'` with `<Canvas onDraw>` gives a type error; the message should say the name is the host Canvas and name the alias to use.
 - ZN-812: `app/inspector/layoutcheck.ts` and the scene dump still name nodes with the lowercase `TAG_NAMES` (`view`, `scroll`).
 - ZN-1064: overlapping primitives of one canvas show through each other while it fades; a UI painted from inside `onDraw` multiplies its alpha twice.
+- ZN-182: plots inside an atlas page (as Skia does) instead of evicting whole pages, and RGBA pages for colour glyphs (emoji).
+- ZN-183: a startup check that draws a few known commands through the GL replay and compares them with the software raster, so `no-replay` turns on by itself on a driver that draws wrong (needs a device with a broken driver).
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -735,3 +737,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-462: cache stable Canvas/subtree contents in bounded GPU textures during transform animations, with correct transparency and invalidation; iPhone 4 Motion still costs about 43 ms GPU at 320×480 after the measured shader/occlusion improvements (iphone4-ios7-bringup.md).
 - ZN-1031: check `sys.kill(pid, '0')` on Windows (an OpenProcess query) for an exited process whose handles are still open.
 - ZN-797: the core esp32 `zinc flash` (`src/main.cpp`) still writes the merged image from 0x0; harmless while the core firmware uses no NVS.
+- ZN-182/183: Pi 3B+ runs of `gl_atlas_churn` with `ZINC_DISPLAY=gl` (the GLES 2 atlas path) and with `ZINC_GL_QUIRK=no-replay` (fallback under KMS); the Vita target build.
