@@ -528,6 +528,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1008: a QuickJS fast path for plain arrays from natives (`JS_NewArrayFrom`, a fast-array read in pack) would let `u8[]` results above 64 Ki be arrays too; today `push` on a camera frame fails.
 - ZN-1008: `examples/carnet-nbe/src/services/sync.ts`'s BrowserWebSocket adapter could go now that `zinc:web/websocket` exists (it needs the global for `.ts` on QuickJS or an import).
 - ZN-1008: plain `.js` workers on QuickJS: `Worker` is not a global and the worker side has no `self`, so `new Worker(new URL(...))` in a `.js` program fails.
+- ZN-1020: several signatures for overloads, and signature help inside an object literal argument.
+- ZN-1020: auto-import from the plugins a project adds.
+- ZN-1020: Atelier can drop `zinc check` after a save, now that importers are re-published.
+- ZN-816: index signature types (`{ [k: string]: V }`) are refused by the typed checker (Z0005); plugins and users must use Map. A language task.
+- ZN-816: the first scoped `sw.js` on an origin deletes the old unscoped `zinc-*` caches, so a sibling app on an old `sw.js` loses its offline copy once.
+- ZN-817: check that the Hermes and JSC engine packs pin their sources as the V8 pack does.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -710,4 +716,5 @@ The next backlog review turns lines into tasks or deletes them.
 - D195 Pi A/B image: build an "ab": true image and its bundle (tools/pi-image keys, build, bundle); on a Pi 3B+ and a Pi 4/5 run zinc-system-update install: tryboot into B, mark-good commits config.txt, a failing session, pulled plug or watchdog in B returns to A; users, Wi-Fi, SSH keys, apps and pairing survive; verity bundles work on the Pi kernel.
 
 - ZN-462: cache stable Canvas/subtree contents in bounded GPU textures during transform animations, with correct transparency and invalidation; iPhone 4 Motion still costs about 43 ms GPU at 320×480 after the measured shader/occlusion improvements (iphone4-ios7-bringup.md).
-
+- ZN-1031: check `sys.kill(pid, '0')` on Windows (an OpenProcess query) for an exited process whose handles are still open.
+- ZN-797: the core esp32 `zinc flash` (`src/main.cpp`) still writes the merged image from 0x0; harmless while the core firmware uses no NVS.
