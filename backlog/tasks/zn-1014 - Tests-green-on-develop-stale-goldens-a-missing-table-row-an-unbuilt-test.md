@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:35'
-updated_date: '2026-11-08 19:35'
+updated_date: '2026-11-08 22:25'
 labels:
   - tests
   - hardening
@@ -56,4 +56,6 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 2026-11-08 worker: against main's binary (ZINC=<main>/build/zinc) these PASS on develop already: plugin_manifest, i18n, zbc, ir, run (promise_statics), modules, nuxt_ui, rn_showcase, platform_look, ui_class_parser, fuzz_regress, promise_all_mixed, webrtc_call, webcam_demo. i18n/de/diag.json has Z5012/Z5013. Fixed: tools/diff-matrix captured the step lines of 'zinc run' on stderr (interp=DIFF on every conf program; ZINC_STEPS=0 now); webrtc_chat scripted session quit before the channels' close events (setTimeout 0 after pc.close), so 'chat closed' lines vanished: the script waits 300 ms like roomScript (the stack overflow no longer occurs); zbc_test and i18n_test are now dependencies of zinc (tools/build zinc builds them). No golden re-recorded. Open: lint (rules.expect passes from the main tree but fails in a nested worktree: relative path depth ../../../../ and plugin-targets findings differ; hero.matrix and esp32-app.matrix differ in the main tree too: svg/audio/device plugin-targets lines and (+N) counts, needs a build of develop to tell stale golden from regression), dev_mode (load-bound), macos_window (flake), AC1 for lint, AC4 note above.
 
 Coordinator 2026-11-08, fresh build of develop (3c063b453): the CMake line builds zbc_test and i18n_test. lint still fails on hero.matrix: the first plugin-targets finding names citymap where the golden names svg (rmpp, psp, vita, n3ds, ios-legacy), and the web row gets a citymap warning the golden lacks. The examples' plugin set changed (citymap, targets macos/linux/rpi1/wasm), so this looks like a stale golden plus an order question (which plugin is named first), not a regression; decide the order rule, then re-record.
+
+2026-11-08 coordinator: re-recorded tests/golden/lint/hero.matrix (UPDATE=1 tests/t0/lint.sh, only that file kept). What moved: the web row now follows sim (capabilities.json order) and the first reason shown on rmpp, web, psp, vita, n3ds, ios-legacy and ios-sim is the svg plugin instead of citymap; counts unchanged. lint passes twice in a row.
 <!-- SECTION:NOTES:END -->
