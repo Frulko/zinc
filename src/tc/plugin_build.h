@@ -2,6 +2,7 @@
 // The native code of plugins (ZN-101, decision D2): a plugin's native sources are compiled on first use into ~/.zinc/cache/<target>/plugins/<name>-<hash>/ and
 // found there again while nothing they depend on changes. Vendored C libraries (`.c` files of the manifest) go into a separate static archive that an edit of the
 // plugin's own sources does not rebuild. The desktop interpreter dlopens the shared library; an AOT program links the static archives.
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -30,6 +31,19 @@ const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPl
 // Builds (or finds in the cache, or in the plugin's prebuilt/<target>/ when its key matches) the native code of `p` for `target` ("macos" or "linux": this machine). False with `err` when it cannot: the target is not in its
 // manifest, a compiler or a system library is missing (the message names the package to install), or the compiler fails.
 bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err);
+// The library of `p` its stamp names, when none of what it was built from changed since (a few stats, no compiler): true with `out` filled.
+bool pluginUpToDate(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out);
+struct FileLock;   // tc.h
+// Builds of several plugins at once in this process (ZN-1026): while one lives, it holds the cache's build lock (one build at a time per
+// ZINC_HOME, across processes) for its buildPlugin calls on any thread, which then take no lock of their own.
+struct BuildLockHeld {
+  BuildLockHeld();
+  ~BuildLockHeld();
+  BuildLockHeld(const BuildLockHeld&) = delete;
+  BuildLockHeld& operator=(const BuildLockHeld&) = delete;
+private:
+  std::unique_ptr<FileLock> lock;
+};
 
 // What prebuilt/<target>/key of `p` must hold for this engine to use those libraries with the project's options: the ABI headers and the defines.
 // `target` must be in the manifest.

@@ -1,6 +1,9 @@
 #include "frontend/parser.h"
 
+#include <atomic>
 #include <cstring>
+#include <deque>
+#include <mutex>
 
 #include "frontend/lexer.h"
 
@@ -8,6 +11,15 @@ namespace zn::frontend {
 namespace {
 
 struct Stop {};  // thrown after recording the first diagnostic
+
+// A name the parser makes up lives as long as the process: the nodes of merged modules view it. Plugin builds parse their specs on their
+// own threads beside the loader (ZN-1026), hence the lock.
+std::string_view keep(std::string s) {
+  static std::mutex mu;
+  static std::deque<std::string> kept;  // a deque never moves what it holds
+  std::lock_guard<std::mutex> hold(mu);
+  return kept.emplace_back(std::move(s));
+}
 
 struct Parser {
   std::string_view s;
@@ -729,12 +741,10 @@ struct Parser {
     const std::vector<std::uint32_t> parts = r.ast.nodes[tpl].kids;
     const Node& tg = r.ast.nodes[tag];
     if (tg.kind == N::Member && tg.text == "raw" && r.ast.nodes[tg.kids[0]].kind == N::Ident && r.ast.nodes[tg.kids[0]].text == "String") {
-      static std::deque<std::string> rawTexts;  // process-wide like setterNames: the nodes of merged modules view them
       for (std::size_t k = 0; k < parts.size(); k += 2) {
         std::string raw;
         for (char c : r.ast.nodes[parts[k]].text) { raw += c; if (c == '\\') raw += c; }
-        rawTexts.push_back(std::move(raw));
-        r.ast.nodes[parts[k]].text = rawTexts.back();
+        r.ast.nodes[parts[k]].text = keep(std::move(raw));
       }
       r.ast.nodes[tpl].start = startOf(tag);  // the template takes the place of the whole tagged expression
       return tpl;
@@ -1103,8 +1113,8 @@ struct Parser {
       skipDecorators();
       std::uint32_t ms = cur().start;
       if (isId("static") && isP("{", 1)) {  // `static { ... }`: a static field whose initializer runs the block once, at class definition
-        static std::deque<std::string> blockNames;  // see setterNames below
-        blockNames.push_back("__static_block_" + std::to_string(blockNames.size()));
+        static std::atomic<unsigned> blocks{0};
+        const std::string_view blockName = keep("__static_block_" + std::to_string(blocks++));
         i += 1;
         std::uint32_t body = block();
         std::uint32_t zero = mk(N::Number, ms, prevEnd(), "0");
@@ -1112,7 +1122,7 @@ struct Parser {
         r.ast.nodes[body].kids.push_back(ret);
         std::uint32_t fn = funcExpr(ms, {}, kNone, body, true);
         std::uint32_t call = mk(N::Call, ms, prevEnd(), {}, {fn});
-        std::uint32_t id = mk(N::Field, ms, prevEnd(), blockNames.back(), {kNone, call});
+        std::uint32_t id = mk(N::Field, ms, prevEnd(), blockName, {kNone, call});
         r.ast.nodes[id].flags = kFlagStatic | kFlagSynthetic;
         members.push_back(id);
         continue;
@@ -1128,9 +1138,7 @@ struct Parser {
       if (isId("get") && !(isP(":", 1) || isP("=", 1) || isP("(", 1) || isP(";", 1))) { ++i; fl |= kFlagGetter; }
       if (isId("set") && at(1).kind == Tok::Ident && isP("(", 2)) {  // `set name(v: T) { ... }`: a method called __set_name; `obj.name = v` calls it
         ++i;
-        static std::deque<std::string> setterNames;  // process-wide: nodes of merged modules view these names, so they must outlive this parse
-        setterNames.push_back("__set_" + std::string(txt()));
-        mname = setterNames.back();
+        mname = keep("__set_" + std::string(txt()));
         ++i;
       } else memberName(mname);
       }

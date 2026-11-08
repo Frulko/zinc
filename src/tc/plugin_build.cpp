@@ -24,7 +24,9 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <atomic>
 #include <memory>
+#include <mutex>
 #include <sstream>
 
 #include "frontend/native_gen.h"
@@ -100,7 +102,9 @@ bool capture(const std::string& cmd, std::string& out) {
 }
 
 bool haveCommand(const std::string& c) {   // asked again at every compile: one shell per command and process (ZN-614)
+  static std::mutex mu;   // plugins build on several threads (ZN-1026)
   static std::map<std::string, bool> known;
+  std::lock_guard<std::mutex> g(mu);
   auto it = known.find(c);
   if (it != known.end()) return it->second;
   std::string o;
@@ -120,7 +124,7 @@ std::string crossArch() { const Target* t = findTarget(gCross.name); return t ? 
 // The compilers of a plugin (ZN-332): the pinned zig by default, so the cache key names the compiler by its version, not by where it is, and two machines building the same
 // plugin for the same target compute the same key (a prebuilt binary can match). ZINC_PLUGIN_CC=system, or zinc.json "pluginCompiler": "system", uses $CXX / $CC or the
 // system c++ / cc instead; their key then carries the compiler's --version line. `id` is what the key hashes.
-std::string gAr = "ar", gKeyTarget;
+thread_local std::string gAr = "ar", gKeyTarget;   // per thread: plugins build on several at once (ZN-1026), each sets them in compilers()
 // zig compiles libc++, libc++abi and libunwind from its own lib/ into Linux plugins and writes their paths (assert and __PRETTY_FUNCTION__ strings): it sees that
 // directory through a fixed link, /tmp/zinc-zig-<version>-lib, so the bytes do not depend on where ZINC_HOME is (ZN-333). An unusable link: the real path.
 std::string zigEnv(const std::string& zig) {
@@ -557,7 +561,11 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   if (!noSource.empty()) { err = noSource; return false; }
   const bool system = systemCompiler(projectDir);
   std::string cxx, cc, ccId;
-  if (!compilers(system, cxx, cc, ccId, err)) return false;
+  {
+    static std::mutex mu;   // one thread at a time fetches the pinned zig and asks the compiler its version
+    std::lock_guard<std::mutex> g(mu);
+    if (!compilers(system, cxx, cc, ccId, err)) return false;
+  }
   // cache keys: by content and by what the compiler is, never by where the plugin, the engine or the compiler sits on this machine
   std::string keyFlags = "-std=c++17 -O2 -fPIC -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -w";
   for (const std::string& f : ts.flags) keyFlags += " " + f;   // as written in plugin.json (`flags` resolves ./ paths against this machine's plugin directory)
@@ -904,26 +912,37 @@ bool pluginSource(const frontend::FoundPlugin& p, const std::string& engineRoot,
 }
 
 
-bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err) {
-  const auto t0 = std::chrono::steady_clock::now();
-  const frontend::PluginManifest& m = p.manifest;
+namespace { std::atomic<int> gLockHeld{0}; }   // BuildLockHeld objects alive in this process
+BuildLockHeld::BuildLockHeld() : lock(std::make_unique<FileLock>(home() + "/cache/.build-lock")) { ++gLockHeld; }
+BuildLockHeld::~BuildLockHeld() { --gLockHeld; }
+
+static std::string stampOf(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
   bool known = false;
-  for (const std::string& t : m.targets) known = known || t == target;
-  std::string stamp;
-  if (known && !std::getenv("ZINC_PLUGIN_NO_STAMP")) {
-    stamp = stampPath(p, engineRoot, projectDir, target);
-    out = PluginLib{};
-    out.plugin = m.name;
-    if (readStamp(stamp, out)) {
-      out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-      log::write("plugin", log::Info, m.name + ": unchanged since its last build (" + stamp + ")", out.seconds * 1000);
-      log::step("plugin", m.name + ": cached native library");
-      return true;
-    }
-  }
+  for (const std::string& t : p.manifest.targets) known = known || t == target;
+  return known && !std::getenv("ZINC_PLUGIN_NO_STAMP") ? stampPath(p, engineRoot, projectDir, target) : std::string();
+}
+
+bool pluginUpToDate(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out) {
+  const auto t0 = std::chrono::steady_clock::now();
+  const std::string stamp = stampOf(p, engineRoot, projectDir, target);
+  if (stamp.empty()) return false;
+  out = PluginLib{};
+  out.plugin = p.manifest.name;
+  if (!readStamp(stamp, out)) return false;
+  out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+  log::write("plugin", log::Info, p.manifest.name + ": unchanged since its last build (" + stamp + ")", out.seconds * 1000);
+  log::step("plugin", p.manifest.name + ": cached native library");
+  return true;
+}
+
+bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err) {
+  if (pluginUpToDate(p, engineRoot, projectDir, target, out)) return true;
+  const std::string stamp = stampOf(p, engineRoot, projectDir, target);
   // one build at a time per ZINC_HOME: two programs started together (the examples run in parallel, a test beside an app) would compile
-  // and link the same cache entry over each other, and macOS on arm64 refuses a library rewritten under a process that mapped it
-  FileLock lock(home() + "/cache/.build-lock");
+  // and link the same cache entry over each other, and macOS on arm64 refuses a library rewritten under a process that mapped it; a
+  // BuildLockHeld of this process holds it for the plugins it builds at once
+  std::unique_ptr<FileLock> lock;
+  if (gLockHeld.load() == 0) lock = std::make_unique<FileLock>(home() + "/cache/.build-lock");
   if (!stamp.empty() && readStamp(stamp, out)) return true;   // built by the program that held the lock
   if (!buildPluginSlow(p, engineRoot, projectDir, target, out, err)) return false;
   if (!stamp.empty()) writeStamp(stamp, out, stampInputs(p, engineRoot, target));

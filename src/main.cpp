@@ -84,6 +84,9 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include <fcntl.h>
 #ifndef _WIN32
 #include <sys/file.h>   // flock: the app update trial
+#include <sys/resource.h>   // setpriority: the native build of a run in the background
+#include <sys/wait.h>
+extern char** environ;
 #endif
 #include "host/permissions.h"
 namespace zn::text { void installSegmenter(); void installShapedGfx(); }
@@ -220,6 +223,63 @@ static bool packedPlugin(const std::string& module) {
   return false;
 }
 
+// The plugins of one load build at once (ZN-1026): while a PluginBatch is installed (loadChecked's loadProgram), a plugin whose library is not
+// up to date starts building on a thread of its own and the loader goes on as if it were there. join() waits for them all (their compiler
+// processes share tc::runCommands' budget: the cores, the load average), loads them and checks their exports against the Specs the program
+// used. A plugin that did not build is remembered: the next load takes its stand-in, as a build that failed in place would have.
+struct PluginBatch {
+  struct Build {
+    zn::frontend::FoundPlugin plugin;
+    std::vector<std::string> modules;   // the native modules of the program this plugin provides
+    zn::tc::PluginLib lib;
+    std::string err;
+    bool ok = false;
+    std::thread th;
+  };
+  std::vector<std::unique_ptr<Build>> builds;
+  std::unique_ptr<zn::tc::BuildLockHeld> lock;   // the cache's build lock, for all of them
+  std::map<std::string, std::string> failed;     // module -> why it did not build, for the next load
+  ~PluginBatch() { for (auto& b : builds) if (b->th.joinable()) b->th.join(); }
+  void start(const std::string& module, const zn::frontend::FoundPlugin& p) {
+    for (auto& b : builds) if (b->plugin.dir == p.dir) { b->modules.push_back(module); return; }
+    if (!lock) lock = std::make_unique<zn::tc::BuildLockHeld>();
+    auto b = std::make_unique<Build>();
+    b->plugin = p;
+    b->modules.push_back(module);
+    Build* raw = b.get();
+    const std::string root = gRoot, project = gProjectDir, target = zn::tc::pluginTarget();
+    raw->th = std::thread([raw, root, project, target] { raw->ok = zn::tc::buildPlugin(raw->plugin, root, project, target, raw->lib, raw->err); });
+    builds.push_back(std::move(b));
+  }
+  // Waits for the builds and loads what they built: false when one failed (load the program again: it takes the stand-in), or when a module
+  // does not have what the program's Spec says (`specError`, a compile error).
+  bool join(const zn::frontend::Program& prog, std::string& specError) {
+    for (auto& b : builds) b->th.join();
+    lock.reset();
+    bool all = true;
+    for (auto& b : builds) {
+      for (std::size_t k = 0; k < b->modules.size(); ++k) {
+        const std::string& module = b->modules[k];
+        std::string err = b->err;
+        zn::tc::PluginLib lib = b->lib;
+        // a second module of the same plugin: its own library entry, from the cache the first build filled
+        const bool ok = b->ok && (k == 0 || zn::tc::buildPlugin(b->plugin, gRoot, gProjectDir, zn::tc::pluginTarget(), lib, err)) && registerPlugin(lib, err);
+        if (!ok) { failed[module] = err; all = false; continue; }
+        gPluginDirs.push_back(b->plugin.dir);
+        for (const zn::frontend::NativeDecl& n : prog.ast.natives) {   // the check the loader makes of a module it found loaded
+          if (n.module != module || !zn_native_has_module(module.c_str())) continue;
+          const ZnExport* e = zn_native_find(module.c_str(), n.name.c_str());
+          if (!e) specError += "'" + module + "' has no export '" + n.name + "'\n";
+          else if (n.sig != e->sig) specError += "'" + module + "." + n.name + "': the Spec says '" + n.sig + "', the module has '" + e->sig + "'\n";
+        }
+      }
+    }
+    builds.clear();
+    return all && specError.empty();
+  }
+};
+static PluginBatch* gBatch = nullptr;
+
 // A native module that is not registered: find its plugin (the engine's, the project's, pluginDirs), build it into the cache and load it (ZN-101).
 static void installNativeProvider(const char* entry) {
   namespace fs = std::filesystem;
@@ -247,7 +307,10 @@ static void installNativeProvider(const char* entry) {
       gPluginDirs.push_back(p->dir);
       return true;
     }
-    if (!zn::tc::buildPlugin(*p, gRoot, gProjectDir, zn::tc::pluginTarget(), lib, err)) return false;
+    if (gBatch) {   // a compile: a plugin to build builds beside the others and the frontend (ZN-1026)
+      if (auto f = gBatch->failed.find(module); f != gBatch->failed.end()) { err = f->second; return false; }
+      if (!zn::tc::pluginUpToDate(*p, gRoot, gProjectDir, zn::tc::pluginTarget(), lib)) { gBatch->start(module, *p); return true; }
+    } else if (!zn::tc::buildPlugin(*p, gRoot, gProjectDir, zn::tc::pluginTarget(), lib, err)) return false;
     if (!registerPlugin(lib, err)) return false;
     gPluginDirs.push_back(p->dir);
     return true;
@@ -637,7 +700,18 @@ static bool hotMode() { const char* h = std::getenv("ZINC_HOT"); return h && std
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
   if (!loadManifestPermissions(path)) return false;
   installNativeProvider(path);
-  { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/lib/std", hotMode()); }
+  {   // the plugins to build build at once while the loader goes on; one that failed: loaded again with its stand-in (ZN-1026)
+    PluginBatch batch;
+    struct Installed { explicit Installed(PluginBatch* b) { gBatch = b; } ~Installed() { gBatch = nullptr; } } installed(&batch);
+    for (;;) {
+      { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/lib/std", hotMode()); }
+      if (batch.builds.empty()) break;
+      std::string specError;
+      const bool built = batch.join(prog, specError);
+      if (!specError.empty()) { std::fprintf(stderr, "%s: error: %s", path, specError.c_str()); return false; }
+      if (built) break;
+    }
+  }
   gNativeFallbacks = prog.nativeFallbacks;
   // zinc pack and zinc export (ZN-1027) set ZINC_NATIVE_REQUIRED=1: a plugin whose native code does not build stops them with the compiler's
   // error, instead of shipping its stand-in with a warning nobody reads; ZINC_NATIVE=sim ships the stand-in on purpose
@@ -1515,6 +1589,110 @@ static bool wanted() {
   if (!(mode && !std::strcmp(mode, "native"))) if (const char* w = std::getenv("ZINC_WEBGL"); w && *w && *w != '0') return false;
   return !gProfile;
 }
+
+// The native build in the background (ZN-1026, D43 revised by the owner): a run whose executable is missing or stale interprets the program at
+// once and starts `zinc run` again, detached and niced, to build it (ZINC_RUN_BUILD_ONLY=1): the next run starts native. --native builds in
+// the foreground and runs the result, as before. An entry of the run cache is in one of four states, each its own file: none; building
+// (build.lock, flocked by the builder: the kernel lets go when it ends, however it ends); ready (app and a fresh inputs); failed (failed: the
+// compiler it failed with and why), which the next runs take as is, interpreting at once from the cached bytecode, until that compiler or the
+// engine changes (a Mac without the Command Line Tools tried the C++ build at every run).
+static bool buildOnly() { const char* b = std::getenv("ZINC_RUN_BUILD_ONLY"); return b && !std::strcmp(b, "1"); }
+static bool forcedNative() { const char* m = std::getenv("ZINC_RUN"); return m && !std::strcmp(m, "native"); }
+static bool buildsHere() {   // this process builds the executable it needs (no background build on Windows yet)
+#ifdef _WIN32
+  return true;
+#else
+  return forcedNative();
+#endif
+}
+// The compiler a build ran with: $CXX, the c++ of PATH and, on macOS, the developer directory xcode-select chose and its clang++; the engine.
+static std::string toolchainKey() {
+  const char* cxx = std::getenv("CXX");
+  std::string k = std::string("CXX=") + (cxx ? cxx : "") + " zinc " + inputs::stampOf(zn::tc::executablePath());
+  const std::string name = cxx && *cxx && !std::strchr(cxx, ' ') ? cxx : "c++";
+  const char* path = std::getenv("PATH");
+  for (std::string rest = path ? path : ""; !rest.empty();) {
+    const std::size_t c = rest.find(':');
+    const fs::path f = fs::path(rest.substr(0, c)) / name;
+    rest = c == std::string::npos ? "" : rest.substr(c + 1);
+    std::error_code ec;
+    if (fs::exists(f, ec)) { k += " " + f.string() + " " + inputs::stampOf(fs::weakly_canonical(f, ec)); break; }
+  }
+#ifdef __APPLE__
+  char link[1024];
+  const ssize_t n = ::readlink("/var/db/xcode_select_link", link, sizeof link - 1);
+  k += " dev " + (n > 0 ? std::string(link, static_cast<std::size_t>(n)) : std::string("-"));
+  k += " clt " + inputs::stampOf("/Library/Developer/CommandLineTools/usr/bin/clang++");
+#endif
+  return k;
+}
+static bool knownFailed(const fs::path& dir, std::string& why) {
+  std::ifstream f(dir / "failed");
+  std::string key;
+  if (!f || !std::getline(f, key)) return false;
+  if (key != toolchainKey()) { f.close(); std::error_code ec; fs::remove(dir / "failed", ec); return false; }   // another compiler: try again
+  std::getline(f, why);
+  return true;
+}
+static void markFailed(const fs::path& dir, const std::string& why) {
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  { std::ofstream o(dir / "failed.part"); o << toolchainKey() << "\n" << why << "\n"; }
+  fs::rename(dir / "failed.part", dir / "failed", ec);
+}
+#ifndef _WIN32
+static int lockFd(const fs::path& dir) { std::error_code ec; fs::create_directories(dir, ec); return ::open((dir / "build.lock").c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644); }
+static bool building(const fs::path& dir) {   // a builder holds the entry's lock
+  const int fd = lockFd(dir);
+  if (fd < 0) return false;
+  const bool busy = ::flock(fd, LOCK_EX | LOCK_NB) != 0;
+  ::close(fd);   // closing lets go of a lock this probe took
+  return busy;
+}
+static bool holdBuildLock(const fs::path& dir) {   // the builder: the lock until it exits; false when another builder has it
+  const int fd = lockFd(dir);
+  if (fd >= 0 && ::flock(fd, LOCK_EX | LOCK_NB) == 0) return true;   // ponytail: the fd stays open for the process's life, which is the lock's
+  if (fd >= 0) ::close(fd);
+  return false;
+}
+// Starts the builder of `entry` (`zinc run <entry> -- <args>` again), detached: its own session, no terminal, its output in build.log, at a
+// lower priority than the program the user runs. Everything it needs is prepared before the fork, so the child only calls exec-safe functions.
+static void startBackground(const std::string& entry, const std::vector<std::string>& progArgs) {
+  const fs::path dir = dirOf(entry), log = dir / "build.log";
+  if (building(dir)) { zn::log::step("native", "being built in the background; interpreting now"); return; }
+  std::vector<std::string> args = {zn::tc::executablePath(), "run", entry};
+  if (!progArgs.empty()) { args.push_back("--"); args.insert(args.end(), progArgs.begin(), progArgs.end()); }
+  std::vector<std::string> env;
+  for (char** e = environ; *e; ++e) {
+    const std::string kv = *e;
+    if (kv.rfind("ZINC_RUN=", 0) && kv.rfind("ZINC_RUN_BUILD_ONLY=", 0) && kv.rfind("ZINC_HEADLESS=", 0) && kv.rfind("ZINC_STEPS=", 0)) env.push_back(kv);
+  }
+  for (const char* kv : {"ZINC_RUN=native", "ZINC_RUN_BUILD_ONLY=1", "ZINC_HEADLESS=1", "ZINC_STEPS=1"}) env.push_back(kv);
+  std::vector<char*> av, ev;
+  for (std::string& a : args) av.push_back(a.data());
+  for (std::string& e : env) ev.push_back(e.data());
+  av.push_back(nullptr);
+  ev.push_back(nullptr);
+  const std::string logPath = log.string();
+  const long maxFd = std::min(::sysconf(_SC_OPEN_MAX), 4096L);
+  std::fflush(nullptr);
+  const pid_t pid = ::fork();
+  if (pid == 0) {
+    if (::fork() != 0) ::_exit(0);   // the builder is the grandchild: init reaps it, the program never waits for it
+    ::setsid();
+    const int out = ::open(logPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644), in = ::open("/dev/null", O_RDONLY);
+    if (in >= 0) ::dup2(in, 0);
+    if (out >= 0) { ::dup2(out, 1); ::dup2(out, 2); }
+    for (int fd = 3; fd < maxFd; ++fd) ::close(fd);   // the program's sockets and files are not the builder's
+    ::setpriority(PRIO_PROCESS, 0, 10);
+    ::alarm(1800);   // a build that hangs ends; its next run starts another
+    ::execve(av[0], av.data(), ev.data());
+    ::_exit(127);
+  }
+  if (pid > 0) { int st; ::waitpid(pid, &st, 0); }
+  zn::log::step("native", pid > 0 ? "built for the next run in the background (" + zn::log::shortPath(logPath) + "); interpreting now" : "cannot start the background build; interpreting");
+}
+#endif
 static int exec(const fs::path& app, bool built, const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
   zn::log::write("run", zn::log::Info, "engine AOT (" + app.string() + ")");
   setenv("ZINC_PROGRAM_INFO", programInfo(entry).c_str(), 1);   // the inspector's Info view: the program reads it at start, then drops it
@@ -1545,7 +1723,11 @@ static int runCached(const std::string& entry, const std::string& projectDir, co
   namespace fs = std::filesystem;
   if (!runcache::wanted()) return -1;
   const fs::path dir = runcache::dirOf(entry);
-  if (!fs::exists(dir / "app") || !inputs::fresh(dir / "inputs", runcache::signature(entry))) return -1;
+  const bool fresh = fs::exists(dir / "app") && inputs::fresh(dir / "inputs", runcache::signature(entry));
+#ifndef _WIN32
+  if (runcache::buildOnly()) return !runcache::holdBuildLock(dir) || fresh ? 0 : -1;   // the background builder: another builds it, or it is built already
+#endif
+  if (!fresh) return -1;
   loadPlugins(dir / "plugins");
   return runcache::exec(dir / "app", false, entry, projectDir, progArgs);
 }
@@ -1559,12 +1741,26 @@ static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std:
   if (!canBuildNative()) { if (forced) std::fprintf(stderr, "zinc: --native: no C++ compiler on this machine; interpreting\n"); return -1; }
   const std::string exe = zn::tc::executablePath();
   const fs::path dir = runcache::dirOf(entry), app = dir / "app", keyFile = dir / "key";
+  if (std::string why; !forced && runcache::knownFailed(dir, why)) {
+    zn::log::step("native", "the native build failed (" + why + "); interpreting until the compiler changes (--native tries again)");
+    return -1;
+  }
+  if (!runcache::buildsHere()) {   // interpreted now, native at the next run (ZN-1026)
+#ifndef _WIN32
+    runcache::startBackground(entry, progArgs);
+#endif
+    return -1;
+  }
   std::error_code ec;
   fs::create_directories(dir, ec);
   fs::remove(dir / "inputs", ec);   // stale until this build is done
   RunBuild rb;
   if (fs::exists(app)) { std::ifstream k(keyFile); std::getline(k, rb.have); }
-  if (buildNative(exe.c_str(), entry.c_str(), std::string((dir / "app.new").string()).c_str(), zm, std::chrono::steady_clock::now(), &rb) != 0) { std::fprintf(stderr, "zinc: the compiled run failed to build; interpreting\n"); return -1; }
+  if (buildNative(exe.c_str(), entry.c_str(), std::string((dir / "app.new").string()).c_str(), zm, std::chrono::steady_clock::now(), &rb) != 0) {
+    runcache::markFailed(dir, runcache::buildOnly() ? "its output: " + zn::log::shortPath((dir / "build.log").string()) : std::string("the C++ compiler failed"));
+    std::fprintf(stderr, "zinc: the compiled run failed to build; interpreting\n");
+    return -1;
+  }
   if (!rb.reused) {
     fs::rename(dir / "app.new", app, ec);
     if (ec) return -1;
@@ -1572,6 +1768,7 @@ static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std:
   }
   savePlugins(dir / "plugins");
   inputs::write(dir / "inputs", runcache::signature(entry), entry);
+  if (runcache::buildOnly()) { zn::log::step("native", "built for the next run"); return 0; }   // the background builder: nothing to run
   return runcache::exec(app, !rb.reused, entry, projectDir, progArgs);
 }
 #endif
@@ -2929,9 +3126,9 @@ int main(int argc, char** argv) {
       }
     } else {
       const std::string entry = std::filesystem::absolute(path).string();
-      bool compiledRun = false;   // a program that runs compiled (runCompiled) needs this compile's sources and inputs: no cached ZBC for it
+      bool compiledRun = false;   // a program this process builds (runCompiled) needs this compile's sources and inputs: no cached ZBC for it
 #ifdef ZN_HOST_GFX
-      compiledRun = runcache::wanted();
+      compiledRun = runcache::wanted() && runcache::buildsHere();   // built in the background: interpreted now, from the cached ZBC when it can (ZN-1026)
 #endif
       if (!gDebug && zbccache::load(entry, zm, compiledRun, hotUnit.get())) fromCache = true;
       else {
@@ -2955,7 +3152,8 @@ int main(int argc, char** argv) {
       std::vector<std::string> progArgs;
       for (int k = 4; k < argc; ++k) progArgs.push_back(argv[k]);
       if (int rc = runCompiled(zm, absPath, projectDir, progArgs); rc >= 0) return rc;
-      zn::host::showSplash();   // interpreted after all (a program that does not draw, no C++ compiler)
+      if (runcache::buildOnly()) return 1;   // the background builder could not build: it runs nothing
+      zn::host::showSplash();   // interpreted after all (a program that does not draw, no C++ compiler, a build in the background)
     }
 #endif
     std::vector<std::uint8_t> blob;   // the baked fonts and images of a program that draws

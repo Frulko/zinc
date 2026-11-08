@@ -360,7 +360,9 @@ zinc help [command]
 ```
 
 `zinc run` compiles a program that draws to native code and keeps the executable (`~/.zinc/cache/run`): the first run of a
-version compiles, the next ones start at once; `--interp` interprets instead and starts at once. `zinc dev` swaps every save into the
+version opens at once on the interpreter while the native build goes on in the background, and the next runs start the native program;
+`--native` waits for the build and runs it, `--interp` always interprets. A native build that fails (a Mac without the Command Line
+Tools) is not tried again until the compiler changes: the runs interpret meanwhile. `zinc dev` swaps every save into the
 running program (or restarts it, and says why), with a red box on a compile error and, for UI programs, a Chrome DevTools inspector on port 9229
 (see [dev mode](../dev-mode.md)). Pass program arguments after `--`; read them with `sys.args()`. `zinc dev --lan` serves the project to
 Zinc Go, the player app for Android and iOS (`examples/zinc-go`): scan the QR code it prints and each save updates the phone, as Expo Go does

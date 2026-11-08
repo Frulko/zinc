@@ -47,6 +47,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - A plugin whose native code does not compile now stops `zinc pack` and `zinc export` with the compiler's error instead of shipping its stand-in, and `zinc run` says it in one clear line naming the plugin; `ZINC_NATIVE=sim` uses the stand-in on purpose.
 
+#### Faster
+
+- The first run of a project that uses several native plugins builds them at the same time instead of one after the other (the iPod example's five plugins: 34 s down to 18 s), sharing the cores and backing off when the machine is busy.
+
 #### Fixed
 
 - A disposed `Script` or a closed `WebView` stays dead: it can no longer run code in, settle a call of, or send its late messages to the script or web view created after it.
@@ -153,6 +157,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - The `"crash"` key of `zinc.json` is gone: it was never acted on, and a panic always ends the program. A project that still has it is refused with a message (`zinc explain J0001`); delete the line, and let systemd restart a service.
 - `zinc.json` no longer needs `app.id` to give the window a size or limits in `app.window`: a first project can leave the id out until it packages the app (`zinc build --bundle` and `--dmg` ask for it).
+- `zinc run` opens a program at once: when its native build is missing or out of date, the program runs on the interpreter while the build goes on in the background, and the next run is native (`--native` waits for the build as before). A native build that fails, as on a Mac without the Command Line Tools, is no longer tried at every run, only again once the compiler changes.
 - In `zinc dev`, a save that does not compile draws the red box over your program, which keeps running with its state: the fix swaps in without starting over. The program also keeps drawing while a save compiles, and editing a module imported for its effects (`import './setup'`) runs its importer again.
 - The Changes of Zinc Inspector write `className=` and fold an edited `padding: 12px` into `p-[12px]` (or `px-`/`py-`, margins alike) instead of four classes.
 - The Elements panel of Chrome DevTools shows the nodes as JSX writes them, `<View className="...">`, `<Text>`, `<ScrollView>`, instead of `<view class="...">`, and a class is edited through the `className` attribute.

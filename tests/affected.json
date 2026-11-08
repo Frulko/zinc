@@ -442,6 +442,7 @@
     {"paths": ["third_party/qrcodegen/", "plugins/camera/vendor/quirc/", "plugins/camera/native/camera.host.cpp", "tests/native/qr_test.cpp", "tests/t0/qr_code.sh"], "tests": ["qr_code"]},
     {"paths": ["src/zbc/"], "tests": ["zbc", "irformat", "aot"]},
     {"paths": ["src/main.cpp", "tests/t1/zbc_cache.sh"], "tests": ["zbc_cache", "run_cache"]},
+    {"paths": ["src/main.cpp", "tests/t1/run_background.sh"], "tests": ["run_background"]},
     {"paths": ["src/main.cpp", "tests/t0/plugins_line.sh", "tests/data/plugins_line/"], "tests": ["plugins_line"]},
     {"paths": ["src/tc/bundle.cpp", "src/tc/bundle.h", "src/frontend/project.cpp", "tests/t1/codesign.sh"], "tests": ["codesign"]},
     {"paths": ["src/cli_core.cpp", "src/tc/tc.cpp", "tests/t0/publish_store.sh"], "tests": ["publish_store"]},
