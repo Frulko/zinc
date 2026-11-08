@@ -911,7 +911,7 @@ EmitResult emit(const ir::Module& m) {
   EmitResult r;
   r.module.strings = m.strings;
   for (const ir::Native& n : m.natives) r.module.natives.push_back({n.module, n.name, n.sig});
-  TypeTable tt{m, r.module, {}};
+  TypeTable tt{m, r.module, ir::kNoClass, {}};
   for (const ir::Class& c : m.classes) {  // the IR's classes first: their indices are the IR's
     ClassInfo info;
     info.name = c.name;
