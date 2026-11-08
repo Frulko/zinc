@@ -185,7 +185,7 @@ int findNatives(const std::string& root, const std::string& entry, const std::st
       return 1;
     }
     if (ts == fp->manifest.targetSettings.end()) { std::fprintf(stderr, "zinc: plugin '%s' does not list the esp32 target in its plugin.json\n", fp->manifest.name.c_str()); return 1; }
-    Native n{name, fp->dir, impl, gen.cHeader, {}, ts->second.defines, ts->second.idf, ts->second.sdkconfig, ts->second.idfComponents};
+    Native n{name, fp->dir, impl, gen.cHeader, {}, ts->second.defines, ts->second.idf, ts->second.sdkconfig, ts->second.idfComponents, {}};
     for (const std::string& src : ts->second.sources) n.sources.push_back((fs::path(fp->dir) / src).lexically_normal().string());
     for (const std::string& src : ts->second.iram) {   // ldgen names an object by its file name without the extension
       if (std::find(ts->second.sources.begin(), ts->second.sources.end(), src) == ts->second.sources.end()) { std::fprintf(stderr, "zinc: plugin '%s': \"iram\" names %s, which is not one of its esp32 sources\n", fp->manifest.name.c_str(), src.c_str()); return 1; }
