@@ -518,6 +518,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1027: `zinc doctor` could list the plugins whose native build fails (ZN-774.14).
 - ZN-1044: `zinc device update` could reuse `updateCommand` of src/tc/selfupdate.cpp to install and roll back (it still only downloads and verifies).
 - ZN-1044: plugin options passed at load time instead of compile-time defines would remove the rebuild a project's options cause.
+- ZN-1017: `typeof` does not narrow unions (`number | string`, `number | Insets` give Z0103); a union of primitives has no IR type. It blocks React Native's `hitSlop: number | Rect`, handled now only for literal numbers.
+- ZN-1023: the checker refuses callback refs on host elements, `ref={(h) => ...}` (Z0103); React accepts them.
+- ZN-1023: still open from ZN-917: dragging a text selection from Text into an input, Cmd+A on static text, Text in overlay layers or virtual rows not yet built.
+- ZN-1023: a Pressable inside an ancestor that has its own `onKeyDown` now takes the keys after it (the walk stops at the first handler).
+- ZN-1017: the Solid model still has no unstyled Switch, Modal or ActivityIndicator; SafeAreaView still pads through `env()` classes (move it to style keys from the safe-area signal); `android_ripple` is not drawn.
+- ZN-1038: Lumen: a box's `shadow-*` is painted under its whole box and shows through a translucent background; clip it to the outside of the box (same as the ZN-799 kit field line).
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
