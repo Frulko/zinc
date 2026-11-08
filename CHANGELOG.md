@@ -106,6 +106,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Async fixes: `for (const [k, v] of list)` with an `await` in its body runs, `const r = untrack(() => { ... })` is accepted when the callback returns nothing, `return save()` in an async `Promise<void>` function now waits for `save`, and a `new Promise` whose executor throws rejects instead of stopping the program.
 - `JSON.stringify` of a parsed object writes number-like keys first, in ascending order, as JavaScript does; a value of type `any` is accepted as the condition of `if` or `? :`; and `c ? v * 10 : v` with `v` of type `any` stays an `any` instead of failing on an object.
 - `clock()` of `zinc:sys` measures below the millisecond on every engine, so a short loop no longer reads 0 ms.
+- `const p: Point = JSON.parse(text)` and `JSON.parse(text) as Point` behave the same on `--engine quickjs` as on the Zinc engines: only the declared fields are kept, and a missing or wrongly typed field throws a `TypeError`.
 
 ### Developer tools
 

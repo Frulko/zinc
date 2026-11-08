@@ -161,6 +161,7 @@
     {"paths": ["examples/notify-relay/", "plugins/link/", "plugins/sqlite/", "tests/data/notify-relay/", "tests/t1/notify_relay.sh", "tests/t0/notify_relay_unit.sh", "tests/t0/notify_capture.sh"], "tests": ["notify_relay", "notify_relay_unit", "notify_capture"]},
     {"paths": ["src/frontend/modules.cpp", "tests/data/late_frame.ts", "tests/t0/late_frame.sh"], "tests": ["late_frame"]},
     {"paths": ["src/frontend/modules.cpp", "src/qjs/prelude.cpp", "tests/data/timer-yield/", "tests/t0/timer_yield.sh"], "tests": ["timer_yield"]},
+    {"paths": ["src/qjs/strip.cpp", "src/qjs/prelude.cpp", "src/frontend/native_gen.cpp", "tests/t0/qjs_agree.sh", "tests/t0/json_typed_shape.sh"], "tests": ["qjs_agree", "json_typed_shape"]},
     {"paths": ["src/qjs/qjs.cpp", "src/qjs/prelude.cpp", "runtime/zrt.cpp", "tests/t0/timers_wall_clock.sh"], "tests": ["timers_wall_clock"]},
     {"paths": ["runtime/zrt.cpp", "runtime/zrt_jobs.h", "tests/native/zrt_restart.cpp", "tests/t0/zrt_restart.sh"], "tests": ["zrt_restart"]},
     {"paths": ["runtime/gfx.cpp"], "tests": ["video_layers"]},

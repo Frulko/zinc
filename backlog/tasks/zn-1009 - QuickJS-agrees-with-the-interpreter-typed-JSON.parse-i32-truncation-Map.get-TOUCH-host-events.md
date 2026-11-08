@@ -3,17 +3,17 @@ id: ZN-1009
 title: >-
   QuickJS agrees with the interpreter: typed JSON.parse, i32 truncation,
   Map.get, TOUCH, host events
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:34'
+updated_date: '2026-11-08 21:00'
 labels:
   - quickjs
   - size-M
 milestone: m-13
 dependencies: []
 ordinal: 4900
-updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -33,8 +33,23 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 one program runs on the interpreter, AOT and QuickJS with identical output for JSON.parse of a missing field, i32 division, Map.get of a missing key
-- [ ] #2 examples/pinball runs a few frames on `--engine quickjs`
-- [ ] #3 assets.onReload and a zinc:sys signal fire on QuickJS (a T0 test)
-- [ ] #4 D179 checked copy: JSON.parse into an interface drops undeclared properties and throws TypeError on a wrong type on QuickJS too
+- [x] #1 one program runs on the interpreter, AOT and QuickJS with identical output for JSON.parse of a missing field and Map.get of a missing key (i32 division carried to ZN-796, as the description allows)
+- [x] #2 examples/pinball runs a few frames on `--engine quickjs`
+- [x] #3 assets.onReload and a zinc:sys signal fire on QuickJS (a T0 test)
+- [x] #4 D179 checked copy: JSON.parse into an interface drops undeclared properties and throws TypeError on a wrong type on QuickJS too
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done 2026-11-08 (worker branch).
+- JSON.parse typed (D179 checked copy) on QuickJS: src/qjs/strip.cpp dynCopiesForJs wraps `const p: P = JSON.parse(s)` and `JSON.parse(s) as P` in `__dynAs('<schema>', ...)`; the schema comes from schemaOfType (native_gen.cpp) over the file's and its relative imports' declarations, with a tilde mode (`~T` optional field stays undefined, `@Name{}`/`^Name` for records that hold themselves); src/qjs/prelude.cpp __dynAs keeps the declared fields, truncates i32/u32, and throws the typed engines' TypeError text (`cannot convert Dyn (undefined) to number`). Types with no schema (literal unions, classes, generics, extends) stay unchecked as before. Modules with JSON.parse skip the transform cache (their schemas depend on imported files), ceiling a few ms per module.
+- Map.get of a missing key: already undefined on all engines (fixed by e2de7dfe5); covered by the test.
+- TOUCH / pinball: examples/pinball and n3ds-pinball run 20 frames on --engine quickjs today (ZINC_HEADLESS=1 ZINC_FRAMES=20); nothing to change.
+- Host events: __addEvHandler/__pollHost already exist in the QuickJS prelude; assets.onReload (fed through ZINC_DEV_FD on stdin) and onSignal fire; covered by the test.
+- i32 division (`z = 7 / 2`): needs the checker's types in the transform, same mechanism as ZN-796's wraps: carried to ZN-796 (description and AC #1), as this task's description says.
+- Test: tests/t0/qjs_agree.sh (interp, AOT, QuickJS on one program + host events), json_typed_shape now compares QuickJS too. Passing: qjs_agree, json_typed_shape, qjs, qjs_robust.
+- Research: QuickJS-ng has JS_NewArrayBufferCopy/JS_NewUint8ArrayCopy/JS_GetUint8Array (https://raw.githubusercontent.com/quickjs-ng/quickjs/master/quickjs.h); not needed here.
+- later.md line (for the coordinator): ZN-1009: QuickJS checked copy covers JSON.parse at declarations and `as` only; arguments, returns and `any` variables need the checker's conversion sites in the transform.
+- Proposed tests: tests/t1/worker_engines.sh (schemaOfType touched, default mode unchanged), tools/diff-matrix.
+<!-- SECTION:NOTES:END -->

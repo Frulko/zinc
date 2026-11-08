@@ -333,8 +333,10 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   // layout of zinc.json; the directory is per build of the engine)
   std::string cached;
   // ponytail: a module that uses zinc:worker is transformed at each run: its message schemas come from the types of the files it imports
-  // (workerTypesForJs), which the content hash does not cover
-  if (!e.cacheDir.empty() && src.find("zinc:worker") == std::string::npos) {
+  // (workerTypesForJs), which the content hash does not cover; the same for a TypeScript module with JSON.parse (the checked copies' schemas,
+  // dynCopiesForJs). Ceiling: a few ms per such module and run; hash the imported declarations if it shows in a start-up profile
+  const bool typedParse = src.find("JSON.parse") != std::string::npos && (endsWith(path, ".ts") || endsWith(path, ".tsx"));
+  if (!e.cacheDir.empty() && src.find("zinc:worker") == std::string::npos && !typedParse) {
     std::uint64_t h = 1469598103934665603ull;
     for (const std::string& part : {src, file, zn::frontend::uiPreset(), zn::frontend::uiLayout(), std::string(std::getenv("ZINC_WEB_HOT") ? "hot" : ""), std::string(zn::frontend::currentProfile() ? zn::frontend::currentProfile()->name : "")})
       for (unsigned char c : part + '\0') { h ^= c; h *= 1099511628211ull; }

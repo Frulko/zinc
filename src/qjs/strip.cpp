@@ -306,6 +306,43 @@ std::string workerTypesForJs(const std::string& text, const std::string& file) {
   return out;
 }
 
+// ---- the checked copy out of `any` (D179): `const p: P = JSON.parse(s)` and `JSON.parse(s) as P` become `__dynAs('<schema of P>', JSON.parse(s))`
+// (src/qjs/prelude.cpp), which keeps the declared fields and throws the typed engines' TypeError on a missing or wrong one. The types are looked up
+// syntactically as for zinc:worker above; a type with no schema (a union of literals, a class, a generic) is left unchecked, as before.
+// ponytail: only JSON.parse at a declaration or an `as` is a site; the checker's other conversion sites (arguments, returns, `any` variables) wait
+// for types in this transform.
+std::string dynCopiesForJs(const std::string& text, const std::string& file) {
+  ParseResult pr = parse(text);
+  if (pr.ast.root == kNone || !pr.diags.empty()) return text;
+  const Ast& a = pr.ast;
+  auto isParse = [&](std::uint32_t e) {
+    if (e == kNone || a.nodes[e].kind != N::Call || a.nodes[e].kids.empty()) return false;
+    const Node& c = a.nodes[a.nodes[e].kids[0]];
+    return c.kind == N::Member && c.text == "parse" && !c.kids.empty() && a.nodes[c.kids[0]].kind == N::Ident && a.nodes[c.kids[0]].text == "JSON";
+  };
+  std::string decls;
+  bool any = false;
+  std::set<std::string> seen{file};
+  std::vector<std::pair<std::uint32_t, std::string>> ins;
+  auto site = [&](std::uint32_t ty, std::uint32_t call) {
+    if (!any) { declarations(text, file, seen, decls); any = true; }
+    const std::string schema = schemaOfType(decls, text.substr(a.nodes[ty].start, a.nodes[ty].end - a.nodes[ty].start), true);
+    if (schema.empty()) return;
+    ins.push_back({a.nodes[call].start, "__dynAs('" + schema + "', "});
+    ins.push_back({a.nodes[call].end, ")"});
+  };
+  for (const Node& x : a.nodes) {
+    if (x.flags & kFlagSynthetic) continue;
+    if (x.kind == N::Declarator && x.kids.size() >= 2 && x.kids[0] != kNone && isParse(x.kids[1])) site(x.kids[0], x.kids[1]);
+    else if (x.kind == N::As && x.text != "satisfies" && x.kids.size() == 2 && isParse(x.kids[0])) site(x.kids[1], x.kids[0]);
+  }
+  if (ins.empty()) return text;
+  std::stable_sort(ins.begin(), ins.end(), [](const auto& p, const auto& q) { return p.first > q.first; });
+  std::string out = text;
+  for (const auto& [at, t] : ins) out.insert(at, t);
+  return out;
+}
+
 }  // namespace
 
 bool stripTypes(std::string_view src, const std::string& file, std::string& out, std::string& err) {
@@ -350,6 +387,7 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
   if (uiPreset() == "react-native") text = rewriteReactNativeImports(text, tsx);   // as the typed loader does (ZN-367.05)
   if (text.find("requireNative<") != std::string::npos) text = recordSchemasForJs(text);
   if (text.find("zinc:worker") != std::string::npos) text = workerTypesForJs(text, file);   // the message schemas of zinc:worker (ZN-587), before the types are erased   // the record schemas of a native spec (ZN-850), before the types are erased
+  if (text.find("JSON.parse") != std::string::npos) text = dynCopiesForJs(text, file);   // D179's checked copy, before the types are erased
   if (text.find("StyleSheet") != std::string::npos) text = lowerStyleSheets(text, diags, 0, tsx);
   if (tsx && diags.empty()) {
     original = text;

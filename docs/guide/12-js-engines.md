@@ -96,8 +96,10 @@ its engine pack.
 
 - V8 and Hermes packs are built for Apple silicon Macs. Intel Macs, Linux, Windows and the boards get them in Zinc's cross-platform
   pass; until then `--engine v8` there says the engine is not installed and could not be downloaded.
-- A value converted out of `any` into an interface (`const p: Patch = JSON.parse(text)`) keeps on these engines the properties its
-  type does not declare, as TypeScript does at run time; the Zinc engines keep only the declared fields ([02-language.md](02-language.md), "Dyn").
+- `const p: Patch = JSON.parse(text)` and `JSON.parse(text) as Patch` are a checked copy on these engines too, as on the Zinc engines
+  ([02-language.md](02-language.md), "Dyn"): only the declared fields are kept and a missing or wrong one throws a `TypeError`. Other
+  conversions out of `any` (an argument, a return, an `any` variable), and a type with fields beyond numbers, strings, booleans, arrays,
+  `T | null` and interfaces, still keep the value as it is, as TypeScript does at run time.
 - Hermes has no WebAssembly and no `import()` of a module at run time.
 - Static Hermes (`shermes`, Hermes compiled ahead of time to native code) runs under Zinc as a developer tool (`tools/hermes-unit`), not a
   `zinc` option: [reports/hermes-engine.md](../reports/hermes-engine.md).

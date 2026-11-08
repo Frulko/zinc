@@ -20,6 +20,9 @@ struct Records {
   std::map<std::string, std::uint32_t> ifaces, aliases;
   std::string err;
   std::vector<std::string> order;   // the records reached, nested ones first (the order of the generated C++ structs)
+  bool tilde = false;               // the checked copy's schema (QuickJS, D179), never the wire: an optional field (`name?: T`) is `~T` (absent is undefined, not
+                                    // null), a record is `@Name{...}` and a record that holds itself refers back to it with `^Name`
+  std::vector<std::string> reading; // with tilde: the records being read, outermost first
   Records(const Ast& ast, const std::string& t) : a(ast), text(t) {
     if (a.root == kNone) return;
     for (std::uint32_t st : a.nodes[a.root].kids) {
@@ -71,16 +74,20 @@ struct Records {
     if (!x.kids.empty() || !ifaces.count(nm)) return fail(t, "has no record form (number, i32, u32, boolean, string, u8[], arrays, T | null and interfaces of the spec file)");
     const Node& in = a.nodes[ifaces.at(nm)];
     if (!in.kids.empty() && in.kids[0] != kNone) return fail(t, "extends another interface: a record lists all its fields");
-    std::string s = "{";
+    if (tilde && std::find(reading.begin(), reading.end(), nm) != reading.end()) return "^" + nm;   // a record that holds itself: a reference to the one being read
+    if (tilde) reading.push_back(nm);
+    std::string s = tilde ? "@" + nm + "{" : "{";
     for (std::size_t k = 1; k < in.kids.size(); ++k) {
       const Node& f = a.nodes[in.kids[k]];
       if (f.kind != N::Field || f.kids.empty() || f.kids[0] == kNone) return fail(t, "has a member '" + std::string(f.text) + "' that is not a typed field (a record holds data only)");
       std::string ft = type(f.kids[0], depth + 1);
-      if (ft.empty()) return "";
+      if (ft.empty()) { if (tilde) reading.pop_back(); return ""; }
       if ((f.flags & kFlagOptional) && ft[0] != '?') ft = "?" + ft;
+      if ((f.flags & kFlagOptional) && tilde) ft[0] = '~';
       s += (k > 1 ? "," : "") + std::string(f.text) + ":" + ft;
     }
     if (std::find(order.begin(), order.end(), nm) == order.end()) order.push_back(nm);
+    if (tilde) reading.pop_back();
     return s + "}";
   }
   // The C++ type of a field of a generated record struct (include/zn/rec.h put and get); the type was checked by type().
@@ -392,11 +399,12 @@ std::string recordSchemasForJs(const std::string& text) {
   return table.empty() ? text : text.substr(0, qb + 1) + ", { " + table + " }" + text.substr(qb + 1);
 }
 
-std::string schemaOfType(const std::string& decls, const std::string& type) {
+std::string schemaOfType(const std::string& decls, const std::string& type, bool optionalTilde) {
   const std::string text = decls + "\ntype __ZnMessage = " + type + ";\n";
   ParseResult pr = parse(text);
   if (pr.ast.root == kNone || !pr.diags.empty()) return "";
   Records r(pr.ast, text);
+  r.tilde = optionalTilde;
   auto it = r.aliases.find("__ZnMessage");
   if (it == r.aliases.end()) return "";
   std::string s = r.type(it->second);

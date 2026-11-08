@@ -202,6 +202,48 @@ const char* kPrelude = R"JS(
       for (const f of evHandlers) f(parseInt(e.slice(0, i1)), parseInt(e.slice(i1 + 1, i2)), e.slice(i2 + 1));
     }
   };
+  // D179's checked copy out of `any` (src/qjs/strip.cpp dynCopiesForJs): the value as the schema's type, the typed engines' TypeError otherwise.
+  // Schema: d i u b s B, *T, ?T (null when absent), ~T (an optional field: undefined when absent), @Name{name:T,...} (only these fields are
+  // kept), ^Name (the record Name that holds it)
+  const dynKind = v => v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v;
+  const dynFail = (v, to) => { throw new TypeError('cannot convert Dyn (' + dynKind(v) + ') to ' + to); };
+  const dynConv = new Map();
+  function dynCompile(s) {
+    let i = 0;
+    const named = {};
+    const one = () => {
+      const c = s[i++];
+      if (c === 'd') return v => typeof v === 'number' ? v : dynFail(v, 'number');
+      if (c === 'i') return v => typeof v === 'number' ? v | 0 : dynFail(v, 'number');
+      if (c === 'u') return v => typeof v === 'number' ? v >>> 0 : dynFail(v, 'number');
+      if (c === 'b') return v => typeof v === 'boolean' ? v : dynFail(v, 'boolean');
+      if (c === 's') return v => typeof v === 'string' ? v : dynFail(v, 'string');
+      if (c === 'B') return v => Array.isArray(v) ? v.map(x => typeof x === 'number' ? x & 255 : dynFail(x, 'number')) : dynFail(v, 'array');
+      if (c === '*') { const e = one(); return v => Array.isArray(v) ? v.map(x => e(x)) : dynFail(v, 'array'); }
+      if (c === '?') { const e = one(); return v => v == null ? null : e(v); }
+      if (c === '~') { const e = one(); return v => v == null ? undefined : e(v); }
+      if (c === '^') { const at = i; while (/\w|\$/.test(s[i] || '')) i++; const ref = named[s.slice(at, i)]; return v => ref.f(v); }
+      if (c === '@') {
+        const at = s.indexOf('{', i), ref = named[s.slice(i, at)] = { f: null };
+        i = at;
+        return ref.f = one();
+      }
+      if (c === '{') {
+        const fields = [];
+        while (s[i] !== '}') { const at = s.indexOf(':', i); const name = s.slice(i, at); i = at + 1; fields.push([name, one()]); if (s[i] === ',') i++; }
+        i++;
+        return v => {
+          if (v === null || typeof v !== 'object' || Array.isArray(v)) dynFail(v, 'Object');
+          const o = {};
+          for (const [k, f] of fields) { const x = f(v[k]); if (x !== undefined) o[k] = x; }
+          return o;
+        };
+      }
+      throw new Error('__dynAs: bad schema ' + s);
+    };
+    return one();
+  }
+  g.__dynAs = (schema, v) => { let f = dynConv.get(schema); if (!f) { f = dynCompile(schema); dynConv.set(schema, f); } return f(v); };
   g.process = { argv: ['zinc', 'main'], env: {}, exit: c => g.__host_sysExit(c | 0), platform: 'zinc', stdout: { write: s => write(String(s)) }, stderr: { write: s => writeErr(String(s)) } };
 })(globalThis);
 )JS";
