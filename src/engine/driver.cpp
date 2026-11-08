@@ -424,6 +424,7 @@ int run(const zn_engine_args* a) {
     return 2;
   }
   takeZinc(a);
+  zn::qjs::deterministicZone();   // before the engine reads the zone
   napi_env env = open();
   if (!env) { std::fprintf(stderr, "zinc: the %s engine did not start\n", kName); return 101; }
   static ZnResourceStatsRegistration heap("js.heap", [](void* e) { return heapStats(static_cast<napi_env>(e)); }, env);   // the inspector's Info view

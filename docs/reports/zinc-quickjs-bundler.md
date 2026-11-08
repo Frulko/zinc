@@ -72,8 +72,8 @@ runs them without linking.
   The web globals a file reads are imported from zinc:web as the typed loader does. `__ZINC_ENGINE__`, `__ZINC_TARGET__`,
   `__ZINC_PROFILE__`, `__ZINC_CAPS__` are globals.
 - `zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]` (`--target quickjs` accepted): default
-  output `dist/<entry>.js` beside zinc.json. esbuild flags: `--bundle --format=esm --platform=neutral --target=es2023
-  --main-fields=module,main --external:zinc:native`, the defines above plus `process.env.NODE_ENV`, `--minify --keep-names`,
+  output `dist/<entry>.js` beside zinc.json. esbuild flags: `--bundle --format=esm --platform=browser --target=es2023
+  --define:global=globalThis --external:zinc:native` (a browser's resolution since ZN-815: the `browser` condition and field), the defines above plus `process.env.NODE_ENV`, `--minify --keep-names`,
   `--sourcemap --sources-content=false`, `NODE_PATH` for packages. Staged modules point at each other by absolute path; packages are read
   where they are. The map's sources are rewritten to the user's files; the first line names the entry (`zinc run` bakes the fonts from it).
   A content hash of the staged modules and the command skips esbuild when nothing changed. `--bytecode`: `JS_WriteObject` with

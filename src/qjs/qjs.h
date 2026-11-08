@@ -87,6 +87,7 @@ extern const char* kWorkerSelfJs;
 bool runWorker(const std::string& entry, std::string& error);
 
 extern const char* kPrelude;
+void deterministicZone();   // src/qjs/prelude.cpp: TZ=UTC in a deterministic run that names no zone, before an engine starts
 extern const char* kWebShims;   // TextEncoder, TextDecoder, AbortController: evaluated in every context (the main program and zinc:script)
 
 #ifdef ZN_QJS_PROFILE

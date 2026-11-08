@@ -260,9 +260,75 @@ bool isCommonJs(const std::string& path, const std::string& src) {
   return bare("module.exports") || bare("exports.");
 }
 
-// A CommonJS module run as an ES module whose default export is its module.exports, as Node imports one. The files it requires with a string
-// (`require('./distance.js')`, a CommonJS package) are found before it runs and wrapped beside it, as a bundler does; any other require throws.
-// ponytail: no named exports (Node finds some with cjs-module-lexer); `import { x } from 'cjs-package'` fails to link, `import p from` works
+// zinc:web/globals: the Web classes a package reads as globals with no import (uuid's crypto, a client's fetch), installed where the engine has
+// none. The project's own files get an import per name they use (webImportsOf); a package is not transformed, so each package module, and a
+// bundle that links packages, imports this first. The list is WinterTC's common API that Node, Deno and Bun all have as globals: never
+// document or window, which tell a library it runs in a page.
+const char* kWebGlobalsJs =
+    "import { URL, URLSearchParams, TextEncoder, TextDecoder, atob, btoa, Event, EventTarget, CustomEvent, AbortController, AbortSignal, DOMException,\n"
+    "  crypto, structuredClone, Blob, File, FormData, MessageChannel, MessagePort } from 'zinc:web';\n"
+    "import { fetch, Request, Response, Headers } from 'zinc:web/fetch';\n"
+    "const all = { URL, URLSearchParams, TextEncoder, TextDecoder, atob, btoa, Event, EventTarget, CustomEvent, AbortController, AbortSignal, DOMException,\n"
+    "  crypto, structuredClone, Blob, File, FormData, MessageChannel, MessagePort, fetch, Request, Response, Headers };\n"
+    "for (const k in all) if (typeof globalThis[k] === 'undefined') globalThis[k] = all[k];\n";
+
+// The names a CommonJS module exports, read from its text as Node's cjs-module-lexer finds them: `exports.x =`, `module.exports.x =`,
+// `Object.defineProperty(exports, 'x'` and the keys of `module.exports = { a, b: c }`. A name in a comment or a string only adds an
+// export that reads undefined.
+// ponytail: no reexports (`module.exports = require('./x')`); Node follows them, then esbuild (zinc bundle) is the way
+std::set<std::string> commonJsNames(const std::string& s) {
+  std::set<std::string> out;
+  auto idc = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '$'; };
+  auto skip = [&](std::size_t i) { while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) i++; return i; };
+  auto name = [&](std::size_t& i) {   // an identifier, or a quoted key made of identifier characters
+    const char q = i < s.size() && (s[i] == '\'' || s[i] == '"') ? s[i] : 0;
+    const std::size_t b = q ? ++i : i;
+    while (i < s.size() && idc(s[i])) i++;
+    std::string n = s.substr(b, i - b);
+    if (q) { if (i < s.size() && s[i] == q) i++; else n.clear(); }
+    return n.empty() || std::isdigit(static_cast<unsigned char>(n[0])) ? std::string() : n;
+  };
+  auto assign = [&](std::size_t i) { i = skip(i); return i + 1 < s.size() && s[i] == '=' && s[i + 1] != '=' ? skip(i + 1) : std::string::npos; };
+  for (std::size_t at = 0; (at = s.find("exports", at)) != std::string::npos;) {
+    const std::size_t start = at;
+    std::size_t i = at += 7;
+    if (i < s.size() && idc(s[i])) continue;
+    const bool viaModule = start >= 7 && s.compare(start - 7, 7, "module.") == 0;
+    if (start > 0 && !viaModule && (idc(s[start - 1]) || s[start - 1] == '.')) continue;   // not `instance.exports`
+    if (viaModule && start > 7 && (idc(s[start - 8]) || s[start - 8] == '.')) continue;
+    i = skip(i);
+    if (i < s.size() && s[i] == '.') {   // exports.x = / module.exports.x =
+      i = skip(i + 1);
+      const std::string n = name(i);
+      if (!n.empty() && assign(i) != std::string::npos) out.insert(n);
+    } else if (viaModule && (i = assign(i)) != std::string::npos && i < s.size() && s[i] == '{') {   // module.exports = { a, b: c, 'd': e }
+      for (i = skip(i + 1); i < s.size() && s[i] != '}';) {
+        const std::string n = name(i);
+        if (n.empty()) break;   // a spread or a computed key: the rest is not read
+        i = skip(i);
+        if (i < s.size() && (s[i] == ',' || s[i] == '}')) out.insert(n);   // shorthand
+        else if (i < s.size() && s[i] == ':') {   // the value, to the comma at its depth
+          out.insert(n);
+          int depth = 0;
+          for (++i; i < s.size() && (depth > 0 || (s[i] != ',' && s[i] != '}')); ++i) depth += (s[i] == '(' || s[i] == '[' || s[i] == '{') - (s[i] == ')' || s[i] == ']' || s[i] == '}');
+        } else if (i < s.size() && s[i] == '(') break;   // a method: its body is not read
+        else break;
+        if (i < s.size() && s[i] == ',') i = skip(i + 1);
+      }
+    }
+  }
+  for (std::size_t at = 0; (at = s.find("defineProperty(exports,", at)) != std::string::npos;) {   // Object.defineProperty(exports, 'x', ...)
+    std::size_t i = skip(at += 23);
+    if (const std::string n = name(i); !n.empty()) out.insert(n);
+  }
+  out.erase("default");
+  out.erase("__esModule");
+  return out;
+}
+
+// A CommonJS module run as an ES module whose default export is its module.exports, as Node imports one, with the names commonJsNames finds as
+// named exports (their values when it has run). The files it requires with a string (`require('./distance.js')`, a CommonJS package) are found
+// before it runs and wrapped beside it, as a bundler does; any other require throws.
 void commonJsModule(zn::frontend::ModuleResolver& res, const std::string& path, const std::string& src, std::string& js) {
   std::map<std::string, int> index;
   std::vector<std::string> parts;
@@ -280,11 +346,16 @@ void commonJsModule(zn::frontend::ModuleResolver& res, const std::string& path, 
       const std::size_t close = text.find(text[q], q + 1);
       if (close == std::string::npos) break;
       const std::string spec = text.substr(q + 1, close - q - 1);
-      std::string found = spec.rfind("./", 0) == 0 || spec.rfind("../", 0) == 0 ? res.file(normalize(dirOf(file) + "/" + spec), file) : res.package(dirOf(file), spec);
+      // the package's "browser" map first: a file or a Node built-in it maps to false is an empty module, as the bundlers make it
+      const bool rel = spec.rfind("./", 0) == 0 || spec.rfind("../", 0) == 0;
+      bool none = false;
+      std::string found = rel ? res.browserMapped(file, res.file(normalize(dirOf(file) + "/" + spec), file), none) : res.browserMapped(file, spec, none);
+      if (!rel && !none && found == spec) found = res.package(dirOf(file), spec);
       std::string dep;
-      if (found.empty() || !readFile(found, dep)) continue;
       int d = -1;
-      if (endsWith(found, ".json")) { d = static_cast<int>(parts.size()); index[found] = d; parts.push_back("__cjs[" + std::to_string(d) + "] = [function (module) { module.exports = " + dep + "; }, {}];\n"); }
+      if (none) { d = static_cast<int>(parts.size()); parts.push_back("__cjs[" + std::to_string(d) + "] = [function () {}, {}];\n"); }
+      else if (found.empty() || !readFile(found, dep)) continue;
+      else if (endsWith(found, ".json")) { d = static_cast<int>(parts.size()); index[found] = d; parts.push_back("__cjs[" + std::to_string(d) + "] = [function (module) { module.exports = " + dep + "; }, {}];\n"); }
       else if (isCommonJs(found, dep)) d = add(found, dep);
       if (d >= 0) deps += (deps.empty() ? "" : ", ") + std::string("\"") + spec + "\": " + std::to_string(d);
     }
@@ -300,12 +371,20 @@ void commonJsModule(zn::frontend::ModuleResolver& res, const std::string& path, 
         "  __cjsCache[i] = m;\n"
         "  const deps = __cjs[i][1];\n"
         "  __cjs[i][0].call(m.exports, m, m.exports, (id) => {\n"
-        "    if (!(id in deps)) throw new Error(\"Cannot find module '\" + id + \"': a CommonJS module run by zinc can require its own files and CommonJS packages\");\n"
+        "    if (!(id in deps)) throw new Error(\"Cannot find module '\" + id + \"': a CommonJS module run as it is can require its own files and CommonJS packages; zinc bundle links the others\");\n"
         "    return __cjsLoad(deps[id]);\n"
         "  });\n"
         "  return m.exports;\n"
         "}\n"
-        "export default __cjsLoad(0);\n";
+        "const __cjsMain = __cjsLoad(0);\n"
+        "export default __cjsMain;\n";
+  std::string names;
+  int k = 0;
+  for (const std::string& n : commonJsNames(src)) {
+    js += "const __cjsX" + std::to_string(k) + " = __cjsMain == null ? undefined : __cjsMain." + n + ";\n";
+    names += (names.empty() ? "" : ", ") + std::string("__cjsX") + std::to_string(k++) + " as " + n;
+  }
+  if (!names.empty()) js += "export { " + names + " };\n";
 }
 
 bool moduleText(Engine& e, const std::string& name, std::string& js, std::string& err) {
@@ -313,7 +392,8 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   if (name == "zinc:native") { js = kNativeModule; return true; }   // plain JavaScript: nothing to strip
   if (const zn::frontend::LoaderStage& st = zn::frontend::loaderStage(); !st.source.empty() && name == st.path) return stripTypes(st.source, name, js, err);   // ZN-447
   if (name.rfind("zinc:", 0) == 0) {
-    if (name == "zinc:gfx") src = gfxSource();
+    if (name == "zinc:web/globals") src = kWebGlobalsJs;
+    else if (name == "zinc:gfx") src = gfxSource();
     else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
     else if (name == "zinc:icons/lucide") src = zn::frontend::lucideModule(e.entry, e.stdRoot + "/../../third_party/lucide/icon-nodes.json");
     else if (const char* b = zn::frontend::builtinModuleSource(name)) {
@@ -451,11 +531,23 @@ void setMeta(JSContext* ctx, JSModuleDef* m, const std::string& name) {
   JS_FreeValue(ctx, meta);
 }
 
+// A module of a package (CommonJS too), by its resolved name: the linker reads it as it is
+bool packageModule(const Engine& e, const std::string& n) {
+  return (n.rfind("zinc:", 0) != 0 && n[0] != '/' && n[0] != '.') || n.find("/node_modules/") != std::string::npos || e.packageFiles.count(n);
+}
+// what a package module imports first (zinc:web/globals), at its end so its lines hold; none on the web profile (the browser has them) nor on a
+// board (--engine mquickjs: its own modules)
+std::string packagePrelude(const Engine& e) {
+  const zn::frontend::Profile* cur = zn::frontend::currentProfile();
+  return (cur && std::string_view(cur->name) == "web") || !e.modules.empty() ? "" : "\nimport 'zinc:web/globals';\n";
+}
+
 JSModuleDef* loadModule(JSContext* ctx, const char* name, void* opaque) {
   auto* e = static_cast<Engine*>(opaque);
   std::string js, err;
   if (!moduleText(*e, name, js, err)) { JS_ThrowReferenceError(ctx, "%s", err.c_str()); return nullptr; }
   if (std::strcmp(name, "zinc:worker") == 0) js += kWorkerSelfJs;
+  if (packageModule(*e, name)) js += packagePrelude(*e);
   JSValue v = JS_Eval(ctx, js.data(), js.size(), name, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
   if (JS_IsException(v)) return nullptr;
   auto* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(v));
@@ -504,6 +596,11 @@ void report(JSContext* ctx, JSValue ex, const char* what = "Uncaught") {
     for (std::size_t at = 0; (at = trace.find("(" + gTraceName + ":", at)) != std::string::npos; at += gMapFile.size()) trace.replace(at + 1, gTraceName.size(), gMapFile);
   if (!gMapJson.empty()) trace = mapStack(trace, gMapFile, gMapJson);
   std::fprintf(stderr, "%s %s\n%s", what, s ? s : "exception", trace.c_str());
+  const char* in = s && std::strstr(s, "Could not find export") ? std::strstr(s, "in module '") : nullptr;
+  std::string mod = in ? std::string(in + 11) : "", text;
+  if (!mod.empty()) mod.pop_back();
+  if (!mod.empty() && readFile(mod, text) && isCommonJs(mod, text))   // a name the CommonJS reading missed (commonJsNames)
+    std::fprintf(stderr,"  the package is CommonJS: import its default (`import pkg from ...`), or link the program with `zinc bundle`, which finds more of its exports\n");
   if (stack) JS_FreeCString(ctx, stack);
   JS_FreeValue(ctx, st);
   if (s) JS_FreeCString(ctx, s);
@@ -722,9 +819,9 @@ JSModuleDef* walkLoad(JSContext* ctx, const char* name, void* opaque) {
   Collected c;
   c.name = name;
   c.host = c.name == "zinc:native";
-  c.bare = (c.name.rfind("zinc:", 0) != 0 && c.name[0] != '/' && c.name[0] != '.') || c.name.find("/node_modules/") != std::string::npos || w->e.packageFiles.count(c.name);   // a package (CommonJS too): the linker reads it
+  c.bare = packageModule(w->e, c.name);   // a package (CommonJS too): the linker reads it
   std::string err;
-  if (c.bare) c.js = "export {};";
+  if (c.bare) c.js = "export {};" + packagePrelude(w->e);   // the walk goes on to zinc:web/globals, which the link imports first
   else if (!moduleText(w->e, c.name, c.js, err)) { if (w->err.empty()) w->err = err; JS_ThrowReferenceError(ctx, "%s", err.c_str()); return nullptr; }
   w->at[c.name] = w->mods.size();
   w->mods.push_back(c);
@@ -815,6 +912,7 @@ namespace {
 
 // A context on e.rt with the host calls, zinc:worker's globals, the native modules (not in a worker), the prelude, the web shims and the defines.
 bool context(Engine& e, const std::string& mainDir) {
+  deterministicZone();
   e.ctx = JS_NewContext(e.rt);
   JS_SetMemoryLimit(e.rt, 0);
   if (const std::size_t n = stackBudget()) JS_SetMaxStackSize(e.rt, n);

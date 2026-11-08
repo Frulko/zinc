@@ -53,6 +53,9 @@ struct ModuleResolver {
   const std::pair<std::string, std::vector<std::string>>* needs(const std::string& entry) const;
   // A package of node_modules above `dir` (its real path), as Node and the bundlers find it; "" when none.
   std::string package(const std::string& dir, const std::string& spec);
+  // The object form of the package.json "browser" field of the package that holds `from`: what one of its files (an absolute `target`) or a
+  // bare specifier it requires becomes. `empty`: mapped to false (an empty module). The target itself when the package does not remap it.
+  std::string browserMapped(const std::string& from, const std::string& target, bool& empty);
   // The platform's suffixes for the files of `dir`: platformSuffixes(), or under zinc lsp the moduleSuffixes of its tsconfig.json.
   std::vector<std::string> suffixes(const std::string& dir);
 

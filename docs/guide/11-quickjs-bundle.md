@@ -16,8 +16,11 @@ Every module goes through the same source passes as on the typed engines: the JS
 Z0006 and Z0007 refuse the old spellings), `StyleSheet.create` and the React Native imports are rewritten, then the types are stripped
 in place, so the lines of a stack trace are the lines you wrote. The result of each module is cached by its content in
 `~/.zinc/cache/qjs`: the second run starts as fast as a bundle. Imports resolve as on the typed engines: relative files, the `zinc:`
-modules, plugins (and the specifiers their `modules` answer), `tsconfig.json` `paths`, `importmap.json`, and packages of `node_modules`
-written as ES modules.
+modules, plugins (and the specifiers their `modules` answer), `tsconfig.json` `paths`, `importmap.json`, and packages of `node_modules`.
+A package is resolved as a browser build, as esbuild and Vite do: the `browser` condition of `exports`, then the `browser` field (its
+object form remaps files, `false` makes a Node-only file an empty module), `module`, `main`. A CommonJS or UMD package (dayjs, qs) runs
+as Node imports one: its `module.exports` is the default import and the names it assigns are named imports. Packages see the Web classes
+Node, Deno and Bun have as globals (`crypto`, `fetch`, `URL`, `TextEncoder`, `AbortController`, `Blob`...) without importing them.
 
 ## One file: zinc bundle
 
@@ -30,7 +33,7 @@ zinc bundle --watch                   # again at each save
 
 `zinc bundle` walks the program as `--engine quickjs` loads it, transforms each module, and links them into one ES module with
 [esbuild](https://esbuild.github.io): unused code is dropped (the parts of `zinc:ui` the app does not use too), CommonJS packages of
-`node_modules` are linked (esbuild resolves package names: `exports`, sub-paths, `module`, `main`; a Node built-in or a CommonJS-only need stops the link and names the package), and these names are folded in so per-target branches disappear:
+`node_modules` are linked (esbuild resolves package names as for a browser: `exports`, sub-paths, `browser`, `module`, `main`; a Node built-in or a CommonJS-only need stops the link and names the package), and these names are folded in so per-target branches disappear:
 
 | Name | Value |
 |---|---|

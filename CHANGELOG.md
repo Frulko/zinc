@@ -109,6 +109,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `value instanceof Promise` (or any generic class) narrows a `T | Promise<T>`, as TypeScript does.
 - `n.toLocaleString()` formats numbers with thousands separators on every engine, with the `minimumFractionDigits`, `maximumFractionDigits` and `useGrouping` options (in the US English format for now), and `JSON.stringify(value, replacer)` takes a replacer function, with or without an indent.
 - On an `any` value the array and string methods work as in TypeScript: `d.items.push(x)`, `.splice`, `.sort()`, `.reduce`, `d.name.trim().toUpperCase()`, `.split`, `.replace`... and a change made through `d` is seen in the data it holds, not in a copy.
+- More npm packages run on `--engine quickjs` and in `zinc bundle`: the browser build of a package is picked (nanoid, qs), CommonJS and UMD packages such as dayjs load with named imports too, and packages find `crypto`, `fetch`, `URL`, `TextEncoder` and the other Web globals Node and Deno have (uuid).
 
 #### Fixed
 
@@ -121,6 +122,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `const p: Point = JSON.parse(text)` and `JSON.parse(text) as Point` behave the same on `--engine quickjs` as on the Zinc engines: only the declared fields are kept, and a missing or wrongly typed field throws a `TypeError`.
 - On `--engine quickjs`, bytes from a plugin behave as an array (`push`, `concat`, `map` to strings, `JSON.stringify`), so Discord voice encryption works and `zinc:socket` WebSocket messages of 60 KB and more arrive.
 - An app's first run on this version also brings over the AsyncStorage keys (`@async/…`) older engines kept in the shared `~/.zinc/storage.kv`, so apps that ran on `--engine quickjs` find their saved data again in their own store.
+- On `--engine quickjs`, `getHours()`, `getDate()` and the other local getters of a `Date` use the machine's time zone, as its constructor does, so date-fns, dayjs and moment are no longer off by the zone's offset; `catch (e: any)` is accepted there too.
 
 ### Developer tools
 

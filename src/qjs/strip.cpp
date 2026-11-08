@@ -188,6 +188,15 @@ struct Stripper {
           annotation(x.kids[0]);
           break;
         case N::Function: case N::FuncExpr: annotation(x.kids[0]); break;
+        case N::Try:   // `catch (e: any)`: the parser reads the type and keeps no node of it, so the colon up to the clause's `)` goes
+          if (x.kids[1] != kNone) {
+            std::uint32_t from = n(x.kids[1]).end, to = from;
+            while (space(to)) to++;
+            if (to >= s.size() || s[to] != ':') break;
+            for (int depth = 0; to < s.size() && (depth > 0 || s[to] != ')'); ++to) depth += (s[to] == '(' || s[to] == '[' || s[to] == '{') - (s[to] == ')' || s[to] == ']' || s[to] == '}');
+            blank(from, to);
+          }
+          break;
         case N::Method:
           if ((x.flags & kFlagAbstract) && x.kids[1] == kNone) { blank(x.start, x.end); break; }
           annotation(x.kids[0]);

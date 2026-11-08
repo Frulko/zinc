@@ -177,8 +177,26 @@ const std::pair<std::string, std::vector<std::string>>* ModuleResolver::needs(co
   return it == needs_.end() ? nullptr : &it->second;
 }
 
-// `pkg/sub/path` as a file, else package.json "exports" (".": a string or the "import" / "module" / "default" condition), "module", "main",
-// index.js. A CommonJS package is found but only the linker (zinc bundle) runs it.
+namespace {
+// The first condition of an "exports" entry the JavaScript engines meet, in the package's own key order as Node and esbuild read it. They are
+// a browser's (no Node built-ins), so "browser" beside "import", "module" and "default"; "node" and "require" are skipped.
+yyjson_val* exportsTarget(yyjson_val* v) {
+  for (int depth = 0; depth < 4 && yyjson_is_obj(v); ++depth) {   // nested conditions: {"import": {"default": "./x.mjs"}}
+    yyjson_val* c = nullptr;
+    size_t i, n; yyjson_val *k, *x;
+    yyjson_obj_foreach(v, i, n, k, x) {
+      const std::string_view key = yyjson_get_str(k);
+      if (key == "browser" || key == "import" || key == "module" || key == "default") { c = x; break; }
+    }
+    v = c;
+  }
+  return v;
+}
+}  // namespace
+
+// `pkg/sub/path` as a file, else package.json "exports" (".": a string or the first of the "browser" / "import" / "module" / "default"
+// conditions), the "browser" field (a string, or its object form remapping the file), "module", "main", index.js: a browser's build, as
+// esbuild picks it for --platform=browser. A CommonJS package is found too.
 std::string ModuleResolver::package(const std::string& dir, const std::string& spec) {
   if (spec.empty()) return "";
   const std::size_t cut = spec[0] == '@' ? spec.find('/', spec.find('/') + 1) : spec.find('/');
@@ -205,25 +223,19 @@ std::string ModuleResolver::package(const std::string& dir, const std::string& s
         rep = want.substr(star, want.size() - (key.size() - 1));
         break;
       }
-      for (int depth = 0; depth < 4 && yyjson_is_obj(hit); ++depth) {
-        yyjson_val* c = nullptr;
-        for (const char* kk : {"import", "module", "default"}) if ((c = yyjson_obj_get(hit, kk))) break;
-        hit = c;
-      }
+      hit = exportsTarget(hit);
       std::string target = yyjson_is_str(hit) ? yyjson_get_str(hit) : "";
       for (std::size_t at; !rep.empty() && (at = target.find('*')) != std::string::npos;) target.replace(at, 1, rep);
       if (!target.empty()) f = file(normalize(root + "/" + target), "");
       if (f.empty()) f = file(root + "/" + sub, "");
     } else {
       if (yyjson_is_obj(ex) && yyjson_obj_get(ex, ".")) ex = yyjson_obj_get(ex, ".");
-      for (int depth = 0; depth < 3 && yyjson_is_obj(ex); ++depth) {   // nested conditions: {"import": {"default": "./x.mjs"}}
-        yyjson_val* c = nullptr;
-        for (const char* k : {"import", "module", "default"}) if ((c = yyjson_obj_get(ex, k))) break;
-        ex = c;
-      }
+      ex = exportsTarget(ex);
       std::string main = yyjson_is_str(ex) ? yyjson_get_str(ex) : "";
-      for (const char* k : {"module", "main"}) if (main.empty() && j && yyjson_is_str(yyjson_obj_get(j, k))) main = yyjson_get_str(yyjson_obj_get(j, k));
+      for (const char* k : {"browser", "module", "main"}) if (main.empty() && j && yyjson_is_str(yyjson_obj_get(j, k))) main = yyjson_get_str(yyjson_obj_get(j, k));
       f = file(normalize(root + "/" + (main.empty() ? "index.js" : main)), "");
+      bool none = false;   // {"browser": {"./index.js": "./index.browser.js"}}
+      if (!f.empty() && j && yyjson_is_obj(yyjson_obj_get(j, "browser"))) if (std::string b = browserMapped(f, f, none); !none && !b.empty()) f = b;
     }
     yyjson_doc_free(doc);
     if (f.empty()) return "";   // the nearest node_modules that has the package decides, as in Node
@@ -231,6 +243,33 @@ std::string ModuleResolver::package(const std::string& dir, const std::string& s
   std::error_code ec;   // its real path: a package a pnpm workspace links in two places is one module, as in Node
   if (!f.empty()) if (std::filesystem::path real = std::filesystem::canonical(f, ec); !ec) f = real.string();
   return f;
+}
+
+std::string ModuleResolver::browserMapped(const std::string& from, const std::string& target, bool& empty) {
+  empty = false;
+  std::string root, text;
+  for (std::string d = dirOf(from); !d.empty() && root.empty(); d = dirOf(d)) {   // the nearest package.json holds the map
+    if (read(d + "/package.json", text)) root = d;
+    if (d == dirOf(d)) break;
+  }
+  yyjson_doc* doc = root.empty() ? nullptr : yyjson_read(text.data(), text.size(), 0);
+  yyjson_val* map = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "browser") : nullptr;
+  std::string r = target;
+  const bool isPath = target.find('/') != std::string::npos && (target[0] == '/' || target[0] == '.' || (target.size() > 1 && target[1] == ':'));
+  size_t i, n; yyjson_val *k, *v;
+  if (yyjson_is_obj(map)) yyjson_obj_foreach(map, i, n, k, v) {
+    const std::string key = yyjson_get_str(k);
+    const bool rel = key.rfind("./", 0) == 0 || key.rfind("../", 0) == 0;
+    if (rel != isPath || (rel ? file(normalize(root + "/" + key), "") != target : key != target)) continue;
+    if (yyjson_is_false(v)) empty = true;
+    else if (yyjson_is_str(v)) {
+      const std::string to = yyjson_get_str(v);
+      r = to.rfind("./", 0) == 0 || to.rfind("../", 0) == 0 ? file(normalize(root + "/" + to), "") : package(root, to);
+    }
+    break;
+  }
+  yyjson_doc_free(doc);
+  return r;
 }
 
 }  // namespace zn::frontend

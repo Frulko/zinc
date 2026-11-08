@@ -397,14 +397,17 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
     hashInput += c.name + '\n' + text + '\n';
   }
   std::string linkEntry = stagedPath(stage, mods[0]);
-  if (script) {   // the entry of the link imports the registry first, then the program; it exports nothing, so the output is a plain script
-    const std::string first = registry.empty() ? "" : "import " + jsonString(stagedPath(stage, mods[at[registry]])) + ";\n";
+  // what runs before the program: the Web globals the packages read (zinc:web/globals, walked when there are packages), a script's registry
+  std::string first;
+  if (auto g = at.find("zinc:web/globals"); g != at.end()) first += "import " + jsonString(stagedPath(stage, mods[g->second])) + ";\n";
+  if (!registry.empty()) first += "import " + jsonString(stagedPath(stage, mods[at[registry]])) + ";\n";
+  if (script || !first.empty()) {   // the entry of the link imports those first, then the program; it exports nothing, so a script's output is a plain script
     linkEntry = stage + "/zinc-entry.js";
-    if (!writeText(stage + "/zinc-native.js", kNativeModule) || !writeText(linkEntry, first + "import " + jsonString(stagedPath(stage, mods[0])) + ";\n")) {
+    if ((script && !writeText(stage + "/zinc-native.js", kNativeModule)) || !writeText(linkEntry, first + "import " + jsonString(stagedPath(stage, mods[0])) + ";\n")) {
       std::fprintf(stderr, "zinc bundle: cannot write %s\n", linkEntry.c_str());
       return 2;
     }
-    hashInput += kNativeModule + std::string("\n") + first;
+    hashInput += (script ? kNativeModule : "") + std::string("\n") + first;
   }
   // link
   const std::string caps = capsJson(o.capsFile);
@@ -420,7 +423,7 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
     if (d == d.root_path()) break;
   }
   std::string cmd = (nodePath.empty() ? "" : "NODE_PATH=" + quote(nodePath) + " ") + quote(o.esbuild) + " " + quote(linkEntry) +
-      " --bundle --format=esm" + (web ? webResolveFlags(o.minify) : std::string(" --platform=neutral --target=es2023 --main-fields=module,main") + " --define:process.env.NODE_ENV=" + quote(o.minify ? "\"production\"" : "\"development\"")) + " --charset=utf8 --legal-comments=none --log-level=warning --color=false"
+      " --bundle --format=esm" + (web ? webResolveFlags(o.minify) : std::string(" --platform=browser --target=es2023 --define:global=globalThis") + " --define:process.env.NODE_ENV=" + quote(o.minify ? "\"production\"" : "\"development\"")) + " --charset=utf8 --legal-comments=none --log-level=warning --color=false"
       " --external:zinc:native --outfile=" + quote(o.out) +
       " --banner:js=" + quote("// zinc-bundle-entry: " + fs::path(o.entry).lexically_relative(fs::path(o.out).parent_path()).generic_string()) +   // zinc run bakes the fonts from its files
       " --define:__ZINC_ENGINE__=" + quote("\"" + o.engine + "\"") + " --define:__ZINC_TARGET__=" + quote("\"" + capsField(caps, "TARGET") + "\"") +

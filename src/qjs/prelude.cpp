@@ -1,5 +1,8 @@
 #include "qjs/qjs.h"
 
+#include <cstdlib>
+#include <ctime>
+
 namespace zn::qjs {
 
 // The JavaScript every program starts with: console, timers on the virtual clock (as the typed engine's async prelude: the clock starts at 0 and
@@ -162,7 +165,6 @@ const char* kPrelude = R"JS(
   g.__clockMs = () => g.__zincWallBase + nowReal();   // zinc:sys clock(): Date.now's clock, not rounded to the millisecond
   Date.now = () => g.__zincWallBase + Math.floor(nowReal());   // the wall clock at start (0 in deterministic mode, set by the host) moved by the virtual one, as the typed engine's now_ms
   g.performance = { now: () => { if (g.__zincClockTick > 0) clock += g.__zincClockTick; return nowReal(); }, get timeOrigin() { return g.__zincWallBase; }, mark() {}, measure() {}, getEntriesByName: () => [] };   // the timers' clock, as the typed engine's (QuickJS-ng's own now is read-only, on the wall clock): it stops while the inspector pauses the program
-  for (const f of ['FullYear', 'Month', 'Date', 'Day', 'Hours', 'Minutes', 'Seconds', 'Milliseconds']) Date.prototype['get' + f] = Date.prototype['getUTC' + f];  // no time zones, like the typed engine
   g.setTimeout = (f, ms, ...a) => { const id = nextId++; timers.push({ at: clock + Math.max(0, +ms || 0), ord: clock + Math.max(1, +ms || 0), seq: seq++, id, every: 0, f: () => f(...a) }); return id; };
   g.setInterval = (f, ms, ...a) => { const id = nextId++; ms = Math.max(1, +ms || 0); timers.push({ at: clock + ms, ord: clock + ms, seq: seq++, id, every: ms, f: () => f(...a) }); return id; };
   g.clearTimeout = g.clearInterval = id => { timers = timers.filter(t => t.id !== id); };
@@ -247,6 +249,21 @@ const char* kPrelude = R"JS(
   g.process = { argv: ['zinc', 'main'], env: {}, exit: c => g.__host_sysExit(c | 0), platform: 'zinc', stdout: { write: s => write(String(s)) }, stderr: { write: s => writeErr(String(s)) } };
 })(globalThis);
 )JS";
+
+// A deterministic run is in UTC unless TZ names a zone, the rule of the typed engine's Date (tzOffsetMinutes in src/host/sys_host.cpp): the
+// JavaScript engines read the zone from the C library, so TZ is set for them before they start. The local getters, the constructor and
+// getTimezoneOffset then agree on one zone, the machine's in any other run.
+void deterministicZone() {
+  const char* det = std::getenv("ZINC_DETERMINISTIC");
+  if (!det || std::getenv("TZ")) return;   // set at all, as tzOffsetMinutes reads it
+#ifdef _WIN32
+  _putenv_s("TZ", "UTC");
+  _tzset();
+#else
+  setenv("TZ", "UTC", 1);
+  tzset();
+#endif
+}
 
 // kWebShims (the web classes loaders expect) is in src/qjs/web_shims.cpp: zinc:script programs built with AOT link it without the rest of the engine.
 
