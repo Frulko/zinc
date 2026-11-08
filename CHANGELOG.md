@@ -65,6 +65,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### New
 
 - An exported page has a real `zinc:fs`: what the program writes is kept across reloads in the browser's storage, and the project files listed in `zinc.json` `targets.web.files` ship with the page, read only, so apps that require `fs` (Carnet, Kanban) export without `--force` and `examples/hero` plays its video in the page.
+- `targets.web.proxy` lists sites that send no CORS headers (map tiles, radio logos): the exported page fetches them through a small proxy, `serve.py` on your machine or the `proxy.mjs` the export writes for Cloudflare Workers or Deno, which only forwards GET and HEAD to those hosts.
 - An exported page that uses parts no browser can run (a device plugin, processes, network servers) opens with a bar that names them and says they need the desktop app, with your download link from `targets.web.demo.link`; `targets.web.demo.samples` ships sample data for such a part and `sampleData()` of `zinc:browser` finds it.
 
 #### Fixed

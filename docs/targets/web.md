@@ -52,6 +52,7 @@ dist/hero-web/
     "width": 960, "height": 600,                         "comment": "a fixed surface; without them the app fills the window and follows its size",
     "files": ["data", "media"],                          "comment3": "project files and folders the program reads by their path, shipped read-only (see Files)",
     "demo": { "link": "https://example.org/download", "note": "", "samples": { "Spotify": "demo/spotify" } },   "comment4": "see Demo pages",
+    "proxy": ["tile.openstreetmap.org", "*.radio-browser.info"], "proxyUrl": "",   "comment5": "see Fetch proxy",
     "strict": false } } }
 ```
 
@@ -297,6 +298,22 @@ The person can close it. `zinc dev` never shows it (its bridge runs those parts 
 - `sys.onSignal` is accepted in a page and never fires (a tab is never sent SIGINT), so a program that installs a handler at start runs.
 
 `tests/t1/web_demo.sh` exports `examples/museum-table` and `examples/ipod` and checks the bar and that nothing threw.
+
+### Fetch proxy: sites that send no CORS headers
+
+A browser refuses to give a page the answer of another site unless that site allows it (CORS): map tiles, a radio's logo or a public API that does not send the headers work
+under `zinc run` and fail in a page. `targets.web.proxy` lists the hosts whose GET and HEAD requests the page sends through a small proxy instead: `"tiles.example.org"`
+(any port), `"*.example.org"` (its subdomains), `"192.168.1.20:1400"` (one port). Every other request stays the browser's own, CORS and all.
+
+- **On this machine**, the export's `serve.py` is the proxy, at `/__proxy?url=<address>`.
+- **Hosted**, the export writes `proxy.mjs`, the same proxy for Cloudflare Workers (`wrangler deploy proxy.mjs`) or Deno (`deno serve proxy.mjs`). Set `targets.web.proxyUrl`
+  to its address and export again: the page then sends those requests there.
+- **What it never does**: forward a request to a host the list does not name (403), follow a redirect to one, take anything but GET and HEAD (405), forward cookies or
+  credentials, or answer more than 32 MB. `serve.py` also refuses a host name that resolves to a private address (list the address itself to reach a device on your
+  network). It keeps no state, and it never gives a page processes, files or devices.
+- `zinc dev --target web` needs none: its bridge makes the program's cross-origin requests from your machine.
+
+`tests/t1/web_proxy.sh` runs the page in headless Chrome against a site with no CORS headers, and `proxy.mjs` on Node.
 
 ### Support matrix
 

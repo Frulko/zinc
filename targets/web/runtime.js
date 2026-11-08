@@ -1034,6 +1034,20 @@ if (Z.bridge) {
   };
 }
 
+// an export: the program's GET to a host of zinc.json targets.web.proxy (a tile server, a radio's logo, sites that send no CORS headers) goes through the fetch
+// proxy (serve.py's /__proxy, or a deployed proxy.mjs at targets.web.proxyUrl); any other request is the browser's own, CORS and all
+if (!Z.bridge && CFG.proxy && CFG.proxy.hosts.length) {
+  const hosts = CFG.proxy.hosts, via = new URL(CFG.proxy.url, location.href).href;
+  const listed = (u) => hosts.some((e) => e === u.host || e === u.hostname || (e.startsWith('*.') && u.hostname.endsWith(e.slice(1))));
+  G.fetch = (input, init = {}) => {
+    const req = input instanceof Request ? input : null;
+    const u = new URL(req ? req.url : String(input), location.href), method = String(init.method || (req ? req.method : 'GET')).toUpperCase();
+    if (u.origin === location.origin || !/^https?:$/.test(u.protocol) || (method !== 'GET' && method !== 'HEAD') || !listed(u)) return pageFetch(input, init);
+    return pageFetch(via + '?url=' + encodeURIComponent(u.href), { method, headers: init.headers || (req ? req.headers : undefined), signal: init.signal || (req ? req.signal : undefined), credentials: 'omit' })
+      .then((r) => { Object.defineProperty(r, 'url', { value: u.href }); return r; });
+  };
+}
+
 // ---------------------------------------------------------------- WebAssembly for the plugins that need native code
 // A plugin whose native side is C or C++ (sqlite, box2d...) is compiled to wasm by `zinc export` (plugin.json "web": { "wasm": ... }); the page compiles it
 // before the app starts, and the plugin's browser backend makes an instance synchronously, so its native calls stay synchronous as on a desktop.

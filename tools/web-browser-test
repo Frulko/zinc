@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """A web export in headless Chrome (docs/targets/web.md; tests/t1/web_export.sh): serves a folder over HTTP, opens it, waits for frames, prints one JSON line.
-usage: web-browser-test <dir> [--wait SECONDS] [--shot out.png] [--eval EXPR] [--size WxH] [--path /index.html] [--click X,Y] [--expect-text TEXT] [--init JS] [--reload SECONDS]
+usage: web-browser-test <dir|http://address> [--wait SECONDS] [--shot out.png] [--eval EXPR] [--size WxH] [--path /index.html] [--click X,Y] [--expect-text TEXT] [--init JS] [--reload SECONDS]
 --init: a script that runs in the page before any of its own (Page.addScriptToEvaluateOnNewDocument).
 --reload: reloads the page once after the first wait (and the clicks) and waits that long again; the console holds both loads (what a page keeps across a visit).
 --click-text and --expect-text poll for their text up to 10 s x ZN_WAIT_SCALE (a slow runner boots the page later), so --wait and --after are minimums, not deadlines.
@@ -30,9 +30,12 @@ class Quiet(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store"); super().end_headers()
 class Srv(http.server.ThreadingHTTPServer):
     def handle_error(self, *a): pass   # a page that closes a connection mid-file is not news
-srv = Srv(("127.0.0.1", 0), functools.partial(Quiet, directory=root))
-threading.Thread(target=srv.serve_forever, daemon=True).start()
-url = "http://127.0.0.1:%d%s" % (srv.server_address[1], opt["--path"])
+if root.startswith("http"):   # a page some other server serves (an export's serve.py and its fetch proxy)
+    srv, url = None, root
+else:
+    srv = Srv(("127.0.0.1", 0), functools.partial(Quiet, directory=root))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = "http://127.0.0.1:%d%s" % (srv.server_address[1], opt["--path"])
 w, h = (int(v) for v in opt["--size"].split("x"))
 out = {}
 with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required", "--allow-file-access-from-files", "--enable-unsafe-swiftshader"]) as c:
@@ -89,7 +92,7 @@ with Chrome(["--window-size=%d,%d" % (w, h), "--use-fake-ui-for-media-stream", "
         if m not in seen: seen.append(m)
     out["console"] = [m for m in seen if not m.startswith("EXCEPTION")][:15]
     out["errors"] = [m for m in seen if m.startswith("EXCEPTION") or m.startswith("error ")][:10]
-srv.shutdown()
+if srv: srv.shutdown()
 print(json.dumps(out))
 if opt["--expect-text"] and opt["--expect-text"] not in out["text"]:
     sys.exit("text not found: " + opt["--expect-text"])

@@ -91,6 +91,8 @@ struct Cfg {
   std::vector<std::string> files;   // web.files: the project's files and folders the program reads, shipped read-only next to the page (media streamed)
   std::string demoLink, demoNote;   // web.demo: where the desktop app is, and the text of the page's demo bar instead of the default one
   std::vector<std::pair<std::string, std::string>> demoSamples;   // web.demo.samples: a native side or plugin -> the folder of sample data the app ships for the page
+  std::vector<std::string> proxy;   // web.proxy: the hosts ("tiles.example.org", "*.example.org", "192.168.1.20:1400") whose GETs the page sends through the fetch proxy
+  std::string proxyUrl;             // web.proxyUrl: where that proxy is (a deployed proxy.mjs); default ./__proxy, the one of serve.py
 };
 std::string kBaseline = "chrome >= 111, edge >= 111, firefox >= 115, safari >= 16.4";
 Cfg readCfg(const WebArgs& a) {
@@ -118,6 +120,8 @@ Cfg readCfg(const WebArgs& a) {
       size_t i, n;
       yyjson_val* v;
       if (yyjson_val* fl = yyjson_obj_get(w, "files"); yyjson_is_arr(fl)) yyjson_arr_foreach(fl, i, n, v) if (yyjson_is_str(v)) c.files.push_back(yyjson_get_str(v));
+      if (yyjson_val* pr = yyjson_obj_get(w, "proxy"); yyjson_is_arr(pr)) yyjson_arr_foreach(pr, i, n, v) if (yyjson_is_str(v)) c.proxy.push_back(lower(yyjson_get_str(v)));
+      c.proxyUrl = str(w, "proxyUrl");
       if (yyjson_val* d = yyjson_obj_get(w, "demo"); yyjson_is_obj(d)) {
         c.demoLink = str(d, "link");
         c.demoNote = str(d, "note");
@@ -713,6 +717,11 @@ std::string configJson(const WebArgs& a, const Cfg& c, const Common& cm, const s
     }
   }
   if (!cm.rowJs.empty()) j += ",\"rows\":true";
+  if (!dev && !c.proxy.empty()) {   // the page's fetch to these hosts goes through the proxy (runtime.js), whatever CORS they send
+    j += ",\"proxy\":{\"url\":" + jstr(c.proxyUrl.empty() ? "./__proxy" : c.proxyUrl) + ",\"hosts\":[";
+    for (std::size_t i = 0; i < c.proxy.size(); ++i) j += (i ? "," : "") + jstr(c.proxy[i]);
+    j += "]}";
+  }
   if (!dev && (!cm.missing.empty() || !c.demoNote.empty() || !c.demoSamples.empty())) {   // an export that lacks parts of the app says so in a bar (runtime.js demoBar)
     j += ",\"demo\":{\"link\":" + jstr(c.demoLink) + ",\"note\":" + jstr(c.demoNote) + ",\"missing\":[";
     for (std::size_t i = 0; i < cm.missing.size(); ++i) j += (i ? "," : "") + jstr(cm.missing[i]);
@@ -925,10 +934,62 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
   out["serve.py"] = R"PY(#!/usr/bin/env python3
 # Serves this folder on http://127.0.0.1:8000, preferring the precompressed .br and .gz files and answering Range requests (a <video> needs them to seek).
 # Any static host works the same; this is only for a look.
-import http.server, os, sys
+# /__proxy?url=<address>: the fetch proxy of the page (zinc.json targets.web.proxy, kept in proxy.json): GET and HEAD to the listed hosts only, without cookies or
+# credentials, redirects followed only to listed hosts, a host name that resolves to a private address refused (list the address itself to reach a device). Stateless.
+import http.server, ipaddress, json, os, socket, sys, urllib.error, urllib.parse, urllib.request
+here = os.path.dirname(os.path.abspath(__file__))
+try: HOSTS = [h.lower() for h in json.load(open(os.path.join(here, 'proxy.json')))['hosts']]
+except OSError: HOSTS = []
+KEEP = ('Accept', 'Accept-Language', 'Range', 'If-None-Match', 'If-Modified-Since')
+MAX = 32 << 20
+def literal(h):
+    try: ipaddress.ip_address(h); return True
+    except ValueError: return h == 'localhost'
+def allowed(u):
+    h = (u.hostname or '').lower()
+    hp = h + (':%d' % u.port if u.port else '')
+    hit = next((e for e in HOSTS if e == hp or e == h or (e.startswith('*.') and h.endswith(e[1:]))), None)
+    if hit is None or u.scheme not in ('http', 'https') or u.username or u.password: return False
+    if literal(h): return True   # an address listed as such (a speaker on the network)
+    try: return all(ipaddress.ip_address(a[4][0].split('%')[0]).is_global for a in socket.getaddrinfo(h, None))   # ponytail: checked before the request, not pinned (a rebinding between the two is not caught)
+    except (OSError, ValueError): return False
+class Hop(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not allowed(urllib.parse.urlsplit(newurl)): raise urllib.error.HTTPError(newurl, 403, 'redirect to a host not listed', headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+opener = urllib.request.build_opener(Hop)
 class H(http.server.SimpleHTTPRequestHandler):
     extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{'.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.webm': 'video/webm', '.mp4': 'video/mp4'})
     left = None
+    def do_GET(self):
+        if self.path.startswith('/__proxy'): return self.proxy()
+        super().do_GET()
+    def do_HEAD(self):
+        if self.path.startswith('/__proxy'): return self.proxy()
+        super().do_HEAD()
+    def do_POST(self):
+        self.send_error(405 if self.path.startswith('/__proxy') else 501)
+    do_PUT = do_DELETE = do_PATCH = do_POST
+    def proxy(self):
+        url = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('url', [''])[0]
+        if not allowed(urllib.parse.urlsplit(url)): return self.send_error(403, 'not a host of zinc.json targets.web.proxy')
+        req = urllib.request.Request(url, method=self.command, headers={k: self.headers[k] for k in KEEP if self.headers.get(k)})
+        req.add_header('User-Agent', 'zinc-proxy')
+        try: r = opener.open(req, timeout=20)
+        except urllib.error.HTTPError as e: r = e
+        except (urllib.error.URLError, OSError) as e: return self.send_error(502, str(e))
+        with r:
+            if int(r.headers.get('Content-Length') or 0) > MAX: return self.send_error(413)
+            self.send_response(r.status if hasattr(r, 'status') else r.code)
+            for k in ('Content-Type', 'Content-Length', 'Content-Range', 'Cache-Control', 'ETag', 'Last-Modified', 'Content-Encoding'):
+                if r.headers.get(k): self.send_header(k, r.headers[k])
+            self.end_headers()
+            if self.command == 'HEAD': return
+            sent = 0
+            while sent <= MAX:
+                b = r.read(65536)
+                if not b: break
+                self.wfile.write(b); sent += len(b)
     def send_head(self):
         p = self.translate_path(self.path)
         enc = self.headers.get('Accept-Encoding', '')
@@ -955,7 +1016,7 @@ class H(http.server.SimpleHTTPRequestHandler):
     def copyfile(self, src, out):
         if self.left is None: return super().copyfile(src, out)
         out.write(src.read(self.left))
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+os.chdir(here)
 port = int(sys.argv[1]) if len(sys.argv) > 1 else 0
 for p in ([port] if port else range(8000, 8100)):   # 8000, or the next free port (zinc dev may hold 8000)
     try: srv = http.server.ThreadingHTTPServer(('127.0.0.1', p), H); break
@@ -965,6 +1026,42 @@ print('serving %s on http://127.0.0.1:%d/ (Ctrl-C stops)' % (os.getcwd(), srv.se
 try: srv.serve_forever()
 except KeyboardInterrupt: pass
 )PY";
+  if (!cm.cfg.proxy.empty()) {   // (after sw.js: server files, not files of the page)
+    std::string hosts = "[";
+    for (std::size_t i = 0; i < cm.cfg.proxy.size(); ++i) hosts += (i ? ", " : "") + jstr(cm.cfg.proxy[i]);
+    hosts += "]";
+    out["proxy.json"] = "{\"hosts\": " + hosts + "}\n";
+    out["proxy.mjs"] = "// The fetch proxy of this page (zinc.json targets.web.proxy; docs/targets/web.md, \"Fetch proxy\"): GET and HEAD to the hosts below, nothing else, without cookies or\n"
+                       "// credentials, redirects followed only to listed hosts. Deploy it on Cloudflare Workers (wrangler deploy proxy.mjs) or Deno (deno serve proxy.mjs), set\n"
+                       "// targets.web.proxyUrl to its address and export again. serve.py does the same at /__proxy for a look on this machine.\n"
+                       "const HOSTS = " + hosts + ";\n" + R"JS(const KEEP = ['accept', 'accept-language', 'range', 'if-none-match', 'if-modified-since'];
+const MAX = 32 << 20;
+const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, HEAD', 'access-control-allow-headers': KEEP.join(', '), 'access-control-expose-headers': 'content-length, content-range, etag, last-modified' };
+const listed = (u) => /^https?:$/.test(u.protocol) && !u.username && !u.password && HOSTS.some((e) => e === u.host || e === u.hostname || (e.startsWith('*.') && u.hostname.endsWith(e.slice(1))));
+const say = (status, text) => new Response(text, { status, headers: CORS });
+export default {
+  async fetch(req) {
+    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+    if (req.method !== 'GET' && req.method !== 'HEAD') return say(405, 'GET and HEAD only');
+    let u;
+    try { u = new URL(new URL(req.url).searchParams.get('url') || ''); } catch { return say(400, 'add ?url=<an http or https address>'); }
+    const headers = new Headers();
+    for (const k of KEEP) { const v = req.headers.get(k); if (v) headers.set(k, v); }
+    for (let hop = 0; hop < 5; hop++) {
+      if (!listed(u)) return say(403, 'not a host of zinc.json targets.web.proxy: ' + u.host);
+      const r = await fetch(u, { method: req.method, headers, redirect: 'manual' });
+      const to = r.status >= 300 && r.status < 400 && r.headers.get('location');
+      if (to) { u = new URL(to, u); continue; }
+      if (Number(r.headers.get('content-length') || 0) > MAX) return say(413, 'larger than 32 MB');
+      const out = new Headers(CORS);
+      for (const k of ['content-type', 'content-range', 'cache-control', 'etag', 'last-modified']) { const v = r.headers.get(k); if (v) out.set(k, v); }
+      return new Response(r.body, { status: r.status, headers: out });
+    }
+    return say(508, 'too many redirects');
+  },
+};
+)JS";
+  }
   // 6. write, then the precompressed copies
   fs::path outDir = a.out.empty() ? fs::path(a.dir) / "dist" / (a.name + "-web") : fs::path(a.out);
   fs::remove_all(outDir, ec);
