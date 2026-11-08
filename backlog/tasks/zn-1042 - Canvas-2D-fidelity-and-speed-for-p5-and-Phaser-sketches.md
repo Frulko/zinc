@@ -2,7 +2,8 @@
 id: ZN-1042
 title: Canvas 2D fidelity and speed for p5 and Phaser sketches
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:38'
 labels:
   - canvas

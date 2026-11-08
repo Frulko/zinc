@@ -2,7 +2,8 @@
 id: ZN-1043
 title: Web audio and gamepad gaps for the JS games
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:39'
 labels:
   - audio
