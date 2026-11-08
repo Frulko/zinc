@@ -6,6 +6,7 @@
 // the record is tested on fake strings (tests/native/gl_caps.cpp) and needs nothing of the runtime.
 #pragma once
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 
 namespace glcaps {
@@ -33,6 +34,28 @@ struct Caps {
   // the tuning table (tune below): what the strings do not say
   bool tiler;                 // draws in tiles: a clear is free and saves loading the old pixels; reading the framebuffer mid-frame flushes
   bool lean;                  // the lean programs for plain quads (gl_replay_shaders.h): their fill rate is the limit
+  uint32_t quirks;            // the quirks table's (Quirk bits, below), then ZINC_GL_QUIRK's
+};
+
+/** The quirks table (ZN-183): what a driver gets wrong or slow, keyed on the GPU family and a part of the renderer string, the way Chromium's
+ *  gpu_driver_bug_list.json and ANGLE's feature overrides key theirs. ZINC_GL_QUIRK=name,-name turns a quirk on or off on any GPU: a test
+ *  forces `no-replay` to see the fallback, a user with a broken driver turns the GPU replay off. */
+enum Quirk : uint32_t {
+  NO_REPLAY = 1,     // the GPU replay is not used: the frames are drawn by the software raster (the host prints one line)
+  NO_GPU_POLY = 2,   // POLY on the CPU's coverage tiles instead of the stencil fill
+  MASK_CLIP = 4,     // a rounded clip as a sampled mask texture instead of the shader's distance
+  CLIP_DEPTH = 8,    // the occlusion pass also runs inside rectangular clips
+};
+static const int QUIRKS = 4;
+static const char* const quirk_names[QUIRKS] = {"no-replay", "no-gpu-poly", "mask-clip", "clip-depth"};
+struct QuirkRow { Family family; const char* renderer; uint32_t quirks; };   // renderer: a part of GL_RENDERER, null for the whole family
+/** Why each row:
+ *  - PowerVR SGX 535 (iPhone 4, iPad 1): its stencil fill shades the same translucent polygon box again and again (a coverage texture is
+ *    reused instead), a rounded clip's distance costs more than a mask, and occlusion inside clips pays;
+ *  - Intel HD: occlusion inside clips, 40 stacked gradients 29 -> 118 fps with the lean programs (Atom x5-Z8350, 2026-11-03). */
+static const QuirkRow quirk_rows[] = {
+  {POWERVR, "SGX 535", NO_GPU_POLY | MASK_CLIP | CLIP_DEPTH}, {POWERVR, "SGX535", NO_GPU_POLY | MASK_CLIP | CLIP_DEPTH},
+  {INTEL, nullptr, CLIP_DEPTH},
 };
 
 static inline bool has(const char* list, const char* name) {
@@ -108,6 +131,25 @@ static inline void fill(Caps& c, const Info& in) {
   c.swap_damage = has(in.egl_extensions, "EGL_KHR_swap_buffers_with_damage") || has(in.egl_extensions, "EGL_EXT_swap_buffers_with_damage");
   for (const Tune& t : tune) if (t.family == c.family) { c.tiler = t.tiler; c.lean = t.lean; }
   if (c.family == POWERVR && (contains(in.renderer, "SGX 535") || contains(in.renderer, "SGX535"))) c.lean = true;
+  for (const QuirkRow& q : quirk_rows) if (q.family == c.family && (!q.renderer || contains(in.renderer, q.renderer))) c.quirks |= q.quirks;
+}
+
+/** ZINC_GL_QUIRK: a comma-separated list of quirk names, each turned on, or off with a leading '-'. False when a name is not a quirk: its
+ *  text goes to `bad` (the rest is still applied). */
+static inline bool override_quirks(Caps& c, const char* spec, char* bad, size_t cap) {
+  bool ok = true;
+  if (bad && cap) bad[0] = 0;
+  for (const char* p = spec ? spec : ""; *p;) {
+    const char* e = p + strcspn(p, ",");
+    const bool off = *p == '-';
+    const char* n = off ? p + 1 : p;
+    int k = 0;
+    while (k < QUIRKS && !(strlen(quirk_names[k]) == (size_t)(e - n) && !strncmp(quirk_names[k], n, (size_t)(e - n)))) k++;
+    if (k < QUIRKS) { if (off) c.quirks &= ~(1u << k); else c.quirks |= 1u << k; }
+    else if (e > p) { ok = false; if (bad && cap) snprintf(bad, cap, "%.*s", (int)(e - p), p); }
+    p = *e ? e + 1 : e;
+  }
+  return ok;
 }
 
 /** The record as `gl-info:` lines (ZINC_GL_INFO), into out; the length written. */
@@ -117,10 +159,12 @@ static inline int print(const Caps& c, char* out, size_t cap) {
     "gl-info: fragment highp %s, mediump %d bits; surface depth %d stencil %d; max texture %d\n"
     "gl-info: npot %d vao %d instancing %d uint-index %d fb-fetch %d derivatives %d depth24 %d packed-depth-stencil %d\n"
     "gl-info: etc1 %d s3tc %d astc %d half-float %d; egl buffer-age %d partial-update %d swap-damage %d\n"
-    "gl-info: tuning: tiler %d, lean programs %d\n",
+    "gl-info: tuning: tiler %d, lean programs %d; quirks%s%s%s%s%s\n",
     c.es ? "OpenGL ES" : "OpenGL", c.major, c.minor, c.renderer, family_names[c.family], c.frag_highp ? "yes" : "no", c.mediump_bits, c.depth_bits,
     c.stencil_bits, c.max_texture, c.npot, c.vao, c.instancing, c.uint_index, c.fb_fetch, c.derivatives, c.depth24, c.packed_ds, c.etc1, c.s3tc, c.astc,
-    c.half_float, c.buffer_age, c.partial_update, c.swap_damage, c.tiler, c.lean);
+    c.half_float, c.buffer_age, c.partial_update, c.swap_damage, c.tiler, c.lean, c.quirks ? "" : " none",
+    c.quirks & NO_REPLAY ? " no-replay" : "", c.quirks & NO_GPU_POLY ? " no-gpu-poly" : "", c.quirks & MASK_CLIP ? " mask-clip" : "",
+    c.quirks & CLIP_DEPTH ? " clip-depth" : "");
 }
 
 }  // namespace glcaps

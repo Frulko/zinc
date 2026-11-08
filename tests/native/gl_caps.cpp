@@ -91,6 +91,26 @@ int main() {
     CHECK(c.family == glcaps::INTEL); CHECK(!c.tiler); CHECK(c.lean);
   }
   {
+    const char* name = "quirks";   // the quirks table and ZINC_GL_QUIRK (ZN-183)
+    glcaps::Info in{"Imagination Technologies", "PowerVR SGX 535", "OpenGL ES 2.0", nullptr, nullptr, 2048, 23, 10, 24, 8};
+    glcaps::Caps c;
+    glcaps::fill(c, in);
+    CHECK(c.quirks == (glcaps::NO_GPU_POLY | glcaps::MASK_CLIP | glcaps::CLIP_DEPTH));
+    in.renderer = "SGX543MP4+";
+    glcaps::fill(c, in);
+    CHECK(c.quirks == 0);
+    in.vendor = "Intel"; in.renderer = "Intel(R) HD Graphics 400"; in.version = "OpenGL ES 3.2 Mesa 23.2.1";
+    glcaps::fill(c, in);
+    CHECK(c.quirks == glcaps::CLIP_DEPTH);
+    char bad[32];
+    CHECK(glcaps::override_quirks(c, "no-replay,-clip-depth", bad, sizeof bad)); CHECK(c.quirks == glcaps::NO_REPLAY);
+    CHECK(!glcaps::override_quirks(c, "-no-replay,nope,mask-clip", bad, sizeof bad)); CHECK(!strcmp(bad, "nope"));
+    CHECK(c.quirks == glcaps::MASK_CLIP);   // the names around a wrong one still apply
+    CHECK(glcaps::override_quirks(c, nullptr, bad, sizeof bad) && glcaps::override_quirks(c, "", bad, sizeof bad) && c.quirks == glcaps::MASK_CLIP);
+    char b[1024];
+    CHECK(glcaps::print(c, b, sizeof b) > 0 && strstr(b, "quirks mask-clip\n"));
+  }
+  {
     const char* name = "whole words";
     CHECK(glcaps::has("GL_OES_depth24_stencil8 GL_X", "GL_X")); CHECK(!glcaps::has("GL_OES_depth24_stencil8", "GL_OES_depth24"));
     CHECK(!glcaps::has(nullptr, "GL_X"));

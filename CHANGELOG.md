@@ -23,6 +23,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 ### Rendering and performance
 
+#### New
+
+- `ZINC_GL_QUIRK=no-replay` turns the GPU renderer off on a machine whose graphics driver draws wrong: the app is drawn on the CPU and one line says so.
+
 #### Faster
 
 - On macOS a window that nobody sees (covered by other windows, minimized or hidden) stops drawing and slows its loop to 10 frames a second, about a tenth of the CPU it used, and is back at full speed the moment it shows again; `ZINC_UNSEEN=draw` keeps it drawing.

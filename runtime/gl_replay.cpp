@@ -277,6 +277,8 @@ extern "C" { extern void (*zrt_gl_info_reset_hook)(); }   // runtime/gfx.cpp: a 
 static void gl_info_reset() { st.frames = st.idle = st.occl_frames = st.draws = st.quads = 0; st.us = 0; gpu_us = 0; gpu_n = 0; gpu_lost = 0; }
 static glcaps::Caps caps;
 static const char* egl_extensions;
+/** Why init() refused to run the replay (a quirk), empty when it did not: the host prints it in its one line about drawing on the CPU. */
+static char refused[160];
 static void probe() {
   static bool probed;
   if (probed) return;
@@ -300,6 +302,11 @@ static void probe() {
   glGetIntegerv(GL_DEPTH_BITS, &in.depth_bits); glGetIntegerv(GL_STENCIL_BITS, &in.stencil_bits);
 #endif
   glcaps::fill(caps, in);
+  const uint32_t table = caps.quirks;
+  char bad[32];
+  if (!glcaps::override_quirks(caps, getenv("ZINC_GL_QUIRK"), bad, sizeof bad)) fprintf(stderr, "zinc: ZINC_GL_QUIRK: no quirk named '%s'\n", bad);
+  if (caps.quirks & glcaps::NO_REPLAY)
+    snprintf(refused, sizeof refused, "the quirk no-replay %s %s", table & glcaps::NO_REPLAY ? "of" : "(ZINC_GL_QUIRK) on", caps.renderer);
   zrt_gl_info_hook = gl_info_hook; zrt_gl_info_reset_hook = gl_info_reset;
   if (zrt_prof_info) {   // ZINC_PROFILE=json prints what the GPU is with the numbers (weak: absent where the profiler is not linked)
     zrt_prof_info("gl_vendor", in.vendor ? in.vendor : "?"); zrt_prof_info("gl_renderer", in.renderer ? in.renderer : "?"); zrt_prof_info("gl_version", in.version ? in.version : "?");
@@ -455,7 +462,8 @@ static bool init(int32_t w, int32_t h) {
   W = w; H = h;
   if (const char* e = getenv("ZINC_GL_ONLY")) only = atoi(e) % MODES;
   probe();
-  mask_clip_on = getenv("ZINC_GL_MASK_CLIP") ? atoi(getenv("ZINC_GL_MASK_CLIP")) != 0 : caps.family == glcaps::POWERVR && caps.lean;
+  if (caps.quirks & glcaps::NO_REPLAY) return false;   // the host draws on the CPU and says why (refused)
+  mask_clip_on = getenv("ZINC_GL_MASK_CLIP") ? atoi(getenv("ZINC_GL_MASK_CLIP")) != 0 : (caps.quirks & glcaps::MASK_CLIP) != 0;
   rclip_on = getenv("ZINC_GL_RCLIP") ? atoi(getenv("ZINC_GL_RCLIP")) != 0 : caps.tiler;
   lean_on = !GLR_CORE && (getenv("ZINC_GL_LEAN") ? atoi(getenv("ZINC_GL_LEAN")) != 0 : caps.lean);   // the tuning table's choice unless asked
   set_groups(getenv("ZINC_GL_GROUPS"));
@@ -1792,7 +1800,7 @@ static void solid_and_bands(const Cmd& c, const Rect& b, const Rect& in, int mod
 // depth of command i of n in NDC: the first is farthest, the last nearest
 static inline float depth_of(uint32_t i, uint32_t n) { return 1.0f - 2.0f * (float)(i + 1) / (float)(n + 1); }
 static bool clipped_depth() {
-  static const bool enabled = getenv("ZINC_GL_CLIP_DEPTH") ? atoi(getenv("ZINC_GL_CLIP_DEPTH")) != 0 : (caps.family == glcaps::POWERVR && caps.lean) || caps.family == glcaps::INTEL;   // Intel HD: 40 stacked gradients 29 -> 118 fps, with the lean programs
+  static const bool enabled = getenv("ZINC_GL_CLIP_DEPTH") ? atoi(getenv("ZINC_GL_CLIP_DEPTH")) != 0 : (caps.quirks & glcaps::CLIP_DEPTH) != 0;   // the quirks table (gl_caps.h)
   return enabled;
 }
 // The occlusion pass: the opaque square RECTs and CLEARs outside any clip, from the last to the first with depth writes, so a pixel under
@@ -2537,8 +2545,8 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
     glGetIntegerv(GL_STENCIL_BITS, &sbits);
 #endif
   }
-  // SGX535's stencil fill shades the same translucent polygon box repeatedly; reuse a coverage texture instead.
-  static const bool gpu_poly = getenv("ZINC_GL_POLY") ? atoi(getenv("ZINC_GL_POLY")) != 0 : !(caps.family == glcaps::POWERVR && caps.lean);
+  // the quirks table (gl_caps.h): SGX535's stencil fill shades the same translucent polygon box repeatedly; a coverage texture is reused instead
+  static const bool gpu_poly = getenv("ZINC_GL_POLY") ? atoi(getenv("ZINC_GL_POLY")) != 0 : !(caps.quirks & glcaps::NO_GPU_POLY);
   stencil_ok = gpu_poly && sbits >= 8;
   const uint32_t first_n = n > 0 ? lists[0]->count : 0;
   // and only over most of the surface: for a small rectangle (a scroll's strip) the pass costs more than the overdraw it saves

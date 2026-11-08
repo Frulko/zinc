@@ -185,7 +185,10 @@ GLuint zgl_program(const char* defines, const char* vs, const char* fs) {   // G
 #endif
 #include "gl_replay.cpp"
 static SDL_GLContext glctx;
-static bool gl_on, glr_ok, glr_made, glr_stale, gl_tex_ok;   // the window presents with GL; the replay works; it was set up; its size is stale; its texture holds the last frame
+static bool gl_on, glr_ok, glr_stale, gl_tex_ok;   // the window presents with GL; the replay works; its size is stale; its texture holds the last frame
+// the replay's set-up: not yet, made (resized from then on), or refused by init (a quirk, programs that do not build): the raster draws for good
+enum class GlrPhase : uint8_t { Unmade, Made, Refused };
+static GlrPhase glr_phase = GlrPhase::Unmade;
 static GLuint gl_prog, gl_quad, gl_upload, gl_vao;
 static GLint gl_u_tex, gl_u_bgr, gl_u_rot, gl_u_alpha, gl_u_src;
 // the present pass: a texture of the surface over the window (rows top first); u_bgr for the software rows (bytes B, G, R)
@@ -608,8 +611,9 @@ void hal_init(const HalConfig* cfg) {
 #endif
     if (want_gl && !(wcfg_set && wcfg.transparent) && !hal_display) gl_on = gl_window(cfg->title, ww, wh);
     if (zrt_prof_info) zrt_prof_info("renderer", gl_on ? "gl" : "cpu");   // ZINC_PROFILE=json says which renderer drew the frames
-    zrt::gfx::gpu_strokes = gl_on;   // the replay draws strokes on the GPU (ZN-590.01)
-    zrt::gfx::shaders_drawn = gl_on; glr::shader_source = zrt::gfx::shaderSource;   // and the programs' shaders (ZN-746)
+    const bool replay = gl_on && !(glr::caps.quirks & glcaps::NO_REPLAY);   // a quirk (ZINC_GL_QUIRK=no-replay): the raster draws everything
+    zrt::gfx::gpu_strokes = replay;   // the replay draws strokes on the GPU (ZN-590.01)
+    zrt::gfx::shaders_drawn = replay; glr::shader_source = zrt::gfx::shaderSource;   // and the programs' shaders (ZN-746)
   }
   if (!gl_on) {
     if (getenv("ZINC_GL_STATS")) fprintf(stderr, "zinc: window renderer cpu\n");
@@ -1872,9 +1876,16 @@ static void gl_present(const HalFrame* f) {
   if (layers_on) { int dw = PW, dh = PH; SDL_GetWindowSizeInPixels(win, &dw, &dh); layers_present(f, dw, dh); return; }
 #endif
   if (glr_stale && f->frames) {   // not for a frame of rows alone (the splash, ZN-446): the replay sizes its tables by the fonts and images installed
-    if (!glr_made && getenv("ZINC_GL_STATS")) atexit([] { if (glr_ok) glr::report(); });   // at exit: the Next host never calls hal_shutdown
-    glr_ok = glr_made ? glr::resize(PW, PH) : glr::init(PW, PH);
-    glr_made = true; glr_stale = false;
+    if (glr_phase == GlrPhase::Unmade) {
+      if (getenv("ZINC_GL_STATS")) atexit([] { if (glr_ok) glr::report(); });   // at exit: the Next host never calls hal_shutdown
+      glr_ok = glr::init(PW, PH);
+      glr_phase = glr_ok ? GlrPhase::Made : GlrPhase::Refused;
+      if (!glr_ok) {
+        fprintf(stderr, "zinc: window renderer gl: %s, drawing with the software raster\n", glr::refused[0] ? glr::refused : "GL setup failed");
+        zrt::gfx::gpu_strokes = zrt::gfx::shaders_drawn = false;   // the raster draws strokes and shaders from the next frame on
+      }
+    } else if (glr_phase == GlrPhase::Made) glr_ok = glr::resize(PW, PH);   // a refused replay is never resized: it was never made
+    glr_stale = false;
   }
   int dw = PW, dh = PH;
   SDL_GetWindowSizeInPixels(win, &dw, &dh);

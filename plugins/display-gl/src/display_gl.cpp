@@ -128,7 +128,7 @@ static void choose_renderer(const HalFrame* f) {
   int32_t rw = 0, rh = 0;
   zgl_backend_reserve(&rw, &rh);
   glr::reserve(rw, rh);
-  if (!glr::init(f->w, f->h)) { if (ZP_DISPLAY_GL_REQUIRE_GPU) hal_panic("GLES replay setup failed", __FILE__, __LINE__); fprintf(stderr, "display-gl: renderer %s: GL setup failed, using cpu\n", r); return; }
+  if (!glr::init(f->w, f->h)) { if (ZP_DISPLAY_GL_REQUIRE_GPU) hal_panic("GLES replay setup failed", __FILE__, __LINE__); fprintf(stderr, "display-gl: renderer %s: %s, using cpu\n", r, glr::refused[0] ? glr::refused : "GL setup failed"); return; }
   glr_tex = glr::texture();
   if (ZP_DISPLAY_GL_KEY < 0 && !opaque_prog) {
     opaque_prog = zgl_program("", OVL_VS, OPAQUE_FS);

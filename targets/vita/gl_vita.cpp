@@ -95,7 +95,12 @@ bool zn_gxm_init(int32_t w, int32_t h) {
     zn_vita_log("vita gl: no shader compiler (extract ur0:data/libshacccg.suprx with ShaRKBR33D), software raster\n");
     return false;   // vitaGL has no shutdown: its GXM stays up unused, the HAL shows its own buffer
   }
-  if (!glr::init(w, h)) { zn_vita_log("vita gl: the replay's programs do not build, software raster\n"); return false; }
+  if (!glr::init(w, h)) {
+    char m[200];
+    snprintf(m, sizeof m, "vita gl: %s, software raster\n", glr::refused[0] ? glr::refused : "the replay's programs do not build");
+    zn_vita_log(m);
+    return false;
+  }
   zrt::gfx::gpu_strokes = true;   // strokes recorded as polylines, drawn by the replay (as display-gl does)
   zrt::gfx::shaders_drawn = true; glr::shader_source = zrt::gfx::shaderSource;
   if (scaled) {
