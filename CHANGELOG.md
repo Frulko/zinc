@@ -82,6 +82,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - `Math.atan`, `Math.asinh`, `Math.acosh` and `Math.atanh` were refused by the checker; they now work on every engine.
 - A `catch` callback that returns a promise is adopted, as `then` already did, and `finally` waits for the promise its callback returns before passing the value on (or takes its rejection), in the order Node runs them.
+- More valid TypeScript is accepted: a function with default parameters where one taking fewer is expected, `list.find(...)?.[1]`, `resolve(undefined)` on a `Promise<void>`, an `(e: any) => ...` callback where an `Error` is passed, a `Map` or `Set` of a class where one of its interface is expected, and a `catch` callback that returns nothing (also on `Promise.reject(e)`).
 
 ### Developer tools
 

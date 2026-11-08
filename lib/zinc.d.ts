@@ -283,6 +283,7 @@ interface Promise<T> {
   then<U>(f: (v: T) => U, onRejected: (reason: Error) => U): Promise<U>;
   catch(f: (reason: Error) => Promise<T>): Promise<T>;
   catch(f: (reason: Error) => T): Promise<T>;
+  catch(f: (reason: Error) => void): Promise<T | undefined>;
   finally(f: () => Promise<void>): Promise<T>;
   finally(f: () => void): Promise<T>;
 }

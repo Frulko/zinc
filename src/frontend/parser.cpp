@@ -662,7 +662,7 @@ struct Parser {
         bool opt = isP("?.");
         if (opt && (isP("[", 1) || isP("(", 1))) {
           ++i;
-          if (isP("[")) { ++i; std::uint32_t ix = expression(); expectP("]"); e = mk(N::Index, startOf(e), prevEnd(), {}, {e, ix}); }
+          if (isP("[")) { ++i; std::uint32_t ix = expression(); expectP("]"); e = mk(N::Index, startOf(e), prevEnd(), {}, {e, ix}); r.ast.nodes[e].flags |= kFlagOptional; }  // `a?.[i]`
           else { auto as = arguments(); as.insert(as.begin(), e); e = mk(N::Call, startOf(e), prevEnd(), {}, std::move(as)); r.ast.nodes[e].flags |= kFlagOptional; }  // `f?.(x)`
           continue;
         }

@@ -42,7 +42,7 @@ loadVolume();
 resumeShow();
 openScenes();
 startHistory();
-onLayerChange(() => { noteChange(); });
+onLayerChange(noteChange);
 
 startFleet(parseInt(option('fleet-port', DEFAULT_FLEET_PORT)), option('viewport', ''));
 

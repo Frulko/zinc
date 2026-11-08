@@ -1716,7 +1716,7 @@ struct Lowering::FnLower {
   std::vector<std::uint32_t> exprAt;  // the expressions being lowered, innermost last: where emit() reports a void value used as a value
   std::unordered_set<std::uint32_t> optBusy;
   ValueId optionalAccess(std::uint32_t i, const Node& x) {
-    std::uint32_t recvNode = x.kind == N::Member ? x.kids[0] : n(x.kids[0]).kids[0];
+    std::uint32_t recvNode = x.kind == N::Member || x.kind == N::Index ? x.kids[0] : n(x.kids[0]).kids[0];
     TypeId rt = c.nodeType[i] == frontend::kNoType ? m.voidT() : natural(i);
     bool hasValue = ty(rt).k != Type::K::Void;
     ValueId v = expr(recvNode);
@@ -1745,7 +1745,7 @@ struct Lowering::FnLower {
     struct Pop { std::vector<std::uint32_t>& v; ~Pop() { v.pop_back(); } } pop{exprAt};
     const Node& x = n(i);
     if (auto ov = overrides.find(i); ov != overrides.end()) return ov->second;
-    if (((x.kind == N::Member && (x.flags & frontend::kFlagOptional)) || (x.kind == N::Call && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).flags & frontend::kFlagOptional))) && !optBusy.count(i)) return optionalAccess(i, x);
+    if ((((x.kind == N::Member || x.kind == N::Index) && (x.flags & frontend::kFlagOptional)) || (x.kind == N::Call && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).flags & frontend::kFlagOptional))) && !optBusy.count(i)) return optionalAccess(i, x);
     switch (x.kind) {
       case N::Number: {
         bool isInt;
@@ -1999,14 +1999,15 @@ struct Lowering::FnLower {
         return c.nodeType[i] == 5u ? fv : coerce(fv, natural(i));  // (known to be null: the stored reference itself)
       }
       case N::Index: {
+        const bool opt = (x.flags & frontend::kFlagOptional) != 0;   // a?.[i]: the node's type adds undefined; the access reads the element's own type
         if (isTupleObj(c.nodeType[x.kids[0]])) {  // t[k] with a constant k: a field
           ValueId obj = expr(x.kids[0]);
           auto k = static_cast<std::uint32_t>(std::strtoull(std::string(n(x.kids[1]).text).c_str(), nullptr, 10));
-          return emit(IrOp::GetField, natural(i), {obj}, 0, 0, k);
+          return emit(IrOp::GetField, opt ? L.irType(c.objs[c.types[c.nodeType[x.kids[0]]].obj].members[k].type, i) : natural(i), {obj}, 0, 0, k);
         }
         ValueId arr = expr(x.kids[0]);
         ValueId idx = exprTo(x.kids[1], m.numT(NumK::i32));
-        return emit(IrOp::ArrGet, natural(i), {arr, idx});
+        return emit(IrOp::ArrGet, opt ? L.irType(c.types[c.nodeType[x.kids[0]]].elem, i) : natural(i), {arr, idx});
       }
       default: unsupported(i, "this expression"); return constBool(false);
     }

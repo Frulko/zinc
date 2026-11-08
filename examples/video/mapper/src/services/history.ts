@@ -10,7 +10,7 @@ interface Entry { label: string; mapping: string; show: string }
 const MAX_ENTRIES: i32 = 50;
 const QUIET_MS = 800;   // long enough for the page to save what a scene it just loaded changes in the show
 const PLAYING_KEYS: string[] = ['source', 'image', 'media', 'fit', 'frame', 'picture', 'loop', 'color'];
-const WORDS: string[][] = [['edgedir', 'edge direction'], ['edgeoffset', 'edge offset'], ['inputRect', 'input'], ['maskimage', 'mask image']];
+const WORDS: [string, string][] = [['edgedir', 'edge direction'], ['edgeoffset', 'edge offset'], ['inputRect', 'input'], ['maskimage', 'mask image']];
 const SAME = 1e-4;   // the file's precision
 
 const entries: Entry[] = [];
@@ -40,8 +40,7 @@ function movedWhole(before: any, after: any): boolean {
 
 function wordsOf(keys: string[]): string {
   return keys.slice(0, 2).map((key: string): string => {
-    const known = WORDS.find((pair: string[]) => pair[0] === key);
-    return known === undefined ? key.replace('maskcurve/', 'mask curve ').replace('mask/', 'mask ') : (known as string[])[1];
+    return WORDS.find((pair) => pair[0] === key)?.[1] ?? key.replace('maskcurve/', 'mask curve ').replace('mask/', 'mask ');
   }).join(', ');
 }
 

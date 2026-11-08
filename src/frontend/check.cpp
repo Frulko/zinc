@@ -299,14 +299,21 @@ struct Checker {
   }
   // `(i32, string) => void` where `(f64, string) => void` is expected: TypeScript has one number type, so a callback may take any machine
   // number kind. The value is wrapped in a function that converts the arguments (and the result) between the kinds.
-  bool thunkable(TypeId from, TypeId to) const {
+  bool thunkable(TypeId from, TypeId to) {
     if (bad(from) || bad(to) || ty(from).k != TK::Func || ty(to).k != TK::Func || hasParam(from) || hasParam(to)) return false;
     const Type &f = ty(from), &t = ty(to);
     if (f.params.size() != t.params.size() || f.variadic != t.variadic || f.rest != t.rest) return false;
     bool differs = false;
-    auto kinds = [&](TypeId x, TypeId y) { if (x == y) return true; if (ty(x).k == TK::Num && ty(y).k == TK::Num && ty(x).obj == 0 && ty(y).obj == 0) { differs = true; return true; } return false; };
-    for (std::size_t k = 0; k < f.params.size(); ++k) if (!kinds(t.params[k], f.params[k])) return false;
-    if (!(f.elem == t.elem || kinds(f.elem, t.elem))) {
+    auto kinds = [&](TypeId x, TypeId y, bool param) {
+      if (x == y) return true;
+      if (ty(x).k == TK::Num && ty(y).k == TK::Num && ty(x).obj == 0 && ty(y).obj == 0) { differs = true; return true; }
+      // as TypeScript, a parameter that takes more: `(e: any) => void` or `(e: Base) => void` where `(e: Error) => void` is expected (ZN-1003);
+      // the thunk's call boxes the argument into the `any` or shares the object
+      if ((param && isDyn(y) && !isDyn(x) && dynConvertible(out, x)) || (ty(x).k == TK::Object && ty(y).k == TK::Object && objAssignable(ty(x).obj, ty(y).obj))) { differs = true; return true; }
+      return false;
+    };
+    for (std::size_t k = 0; k < f.params.size(); ++k) if (!kinds(t.params[k], f.params[k], true)) return false;
+    if (!(f.elem == t.elem || kinds(f.elem, t.elem, false))) {
       // as TypeScript: a function returning T where one returning a union with T is expected (a component `() => i32` where `() => i32 | null`
       // is), and one returning something (an async handler's Promise) where one returning void is (the result is dropped)
       const Type& r = ty(t.elem);
@@ -412,7 +419,9 @@ struct Checker {
       std::vector<TypeId> aliases{from, to};
       for (std::size_t k = 0; k < t.params.size(); ++k) {
         ps += (k ? ", p" : "p") + std::to_string(k) + ": " + inspectAliasName(t.params[k]);
-        call += (k ? ", p" : "p") + std::to_string(k) + (t.params[k] == f.params[k] ? "" : " as " + inspectAliasName(f.params[k]));
+        const std::string pk = "p" + std::to_string(k);
+        // into an `any` parameter: boxed by its converter (generated code takes `any` as the Dyn class, unconverted)
+        call += (k ? ", " : "") + (t.params[k] == f.params[k] ? pk : isDyn(f.params[k]) ? std::string(out.syms[dynSym(t.params[k], true, node)].name) + "(" + pk + ")" : pk + " as " + inspectAliasName(f.params[k]));
         aliases.push_back(t.params[k]); aliases.push_back(f.params[k]);
       }
       std::string R = inspectAliasName(t.elem);
@@ -444,6 +453,22 @@ struct Checker {
       const std::string A = inspectAliasName(from), B = inspectAliasName(to);
       std::uint32_t sym = helper("arrwiden," + std::to_string(from) + "," + std::to_string(to),
           "function $F(a: " + A + "): " + B + " {\n  const r: " + B + " = [];\n  for (let i: i32 = 0; i < a.length; i++) r.push(a[i]);\n  return r;\n}\n", {from, to, fe, te}, node);
+      wrapNode(node, sym);
+      return true;
+    }
+    if (node != kNone && !bad(from) && !bad(to) && ty(from).k == ty(to).k && (ty(from).k == TK::Map || ty(from).k == TK::Set) && ty(from).params == ty(to).params &&
+        !bad(ty(from).elem) && !bad(ty(to).elem) && ty(ty(from).elem).k == TK::Object && ty(ty(to).elem).k == TK::Object &&
+        (recordWidenable(ty(from).elem, ty(to).elem) || objAssignable(ty(ty(from).elem).obj, ty(ty(to).elem).obj) || classToRecord(ty(ty(from).elem).obj, ty(ty(to).elem).obj))) {
+      // a Map or Set is covariant in its values, as arrays are (`Map<string, Item>` as `Map<string, Named>`, as TypeScript measures Map's V, ZN-1003):
+      // a new collection of the values, each converted as one value is; writes to it are not seen by the first one
+      const TypeId fe = ty(from).elem, te = ty(to).elem;
+      if (out.objs[ty(fe).obj].isTemplate || out.objs[ty(te).obj].isTemplate) return true;
+      const bool isMap = ty(from).k == TK::Map;
+      const std::string A = inspectAliasName(from), B = inspectAliasName(to), K = isMap ? inspectAliasName(ty(from).params[0]) : "", V = inspectAliasName(te);
+      std::uint32_t sym = helper("collwiden," + std::to_string(from) + "," + std::to_string(to),
+          "function $F(a: " + A + "): " + B + " {\n  const r = new " + (isMap ? "Map<" + K + ", " + V + ">" : "Set<" + V + ">") + "();\n  " +
+          (isMap ? "a.forEach((v, k) => { r.set(k, v); });" : "a.forEach((v) => { r.add(v); });") + "\n  return r;\n}\n",
+          isMap ? std::vector<TypeId>{from, to, ty(from).params[0], fe, te} : std::vector<TypeId>{from, to, fe, te}, node);
       wrapNode(node, sym);
       return true;
     }
@@ -847,14 +872,36 @@ struct Checker {
     if (!bad(to) && hasNull(to) && withoutNull(to) != kNoType) to = withoutNull(to);   // `done: (() => void) | null = resolve`
     if (bad(from) || bad(to) || ty(from).k != TK::Func || ty(to).k != TK::Func || hasParam(from) || hasParam(to)) return false;
     const Type f = ty(from), t = ty(to);
-    if (f.variadic || t.variadic || f.rest || t.rest || f.params.size() == t.params.size() || f.elem != t.elem) return false;
+    // as TypeScript: the result of a function where one returning void is expected is dropped (ZN-1003)
+    if (f.variadic || t.variadic || f.rest || t.rest || f.params.size() == t.params.size() || (f.elem != t.elem && t.elem != tVoid)) return false;
+    // the parameters past the expected ones are void (filled with null) or optional, a default parameter (left out: the callee fills its default)
     for (std::size_t k = 0; k < f.params.size(); ++k)
-      if (k < t.params.size() ? f.params[k] != t.params[k] : !isVoidClass(f.params[k])) return false;
+      if (k < t.params.size() ? f.params[k] != t.params[k] : !(isVoidClass(f.params[k]) || k >= f.minArgs)) return false;
     std::string ps, call;
     std::vector<TypeId> aliases{from, to, t.elem};
     for (std::size_t k = 0; k < t.params.size(); ++k) { ps += (k ? ", p" : "p") + std::to_string(k) + ": " + inspectAliasName(t.params[k]); aliases.push_back(t.params[k]); }
-    for (std::size_t k = 0; k < f.params.size(); ++k) call += (k ? ", " : "") + (k < t.params.size() ? "p" + std::to_string(k) : std::string("null"));
-    std::uint32_t sym = helper("arityThunk," + std::to_string(from) + "," + std::to_string(to), "function $F(f: " + inspectAliasName(from) + "): " + inspectAliasName(to) + " {\n  return (" + ps + "): " + inspectAliasName(t.elem) + " => f(" + call + ");\n}\n", aliases, node);
+    for (std::size_t k = 0; k < f.params.size(); ++k) {
+      if (k >= t.params.size() && !isVoidClass(f.params[k])) break;
+      call += (k ? ", " : "") + (k < t.params.size() ? "p" + std::to_string(k) : std::string("null"));
+    }
+    const std::string body = f.elem == t.elem ? "f(" + call + ")" : "{ f(" + call + "); }";
+    // a function declaration named here with defaults past the expected parameters: an arrow that calls it by name, so the call evaluates the
+    // defaults (a call through a function value passes null for what it leaves out)
+    const std::uint32_t fs = n(node).kind == N::Ident ? out.nodeSym[node] : kNone;
+    if (fs != kNone && out.syms[fs].kind == SymKind::Func && f.params.size() > t.params.size() && !isVoidClass(f.params[t.params.size()])) {
+      a.nodes.push_back(a.nodes[node]);
+      out.nodeType.push_back(out.nodeType[node]);
+      out.nodeSym.push_back(fs);
+      const auto copy = static_cast<std::uint32_t>(a.nodes.size() - 1);
+      std::string as, inner;
+      for (std::size_t k = 0; k < t.params.size(); ++k) as += (k ? ", __a" : "__a") + std::to_string(k);
+      inner = as;
+      if (!replaceWith(node, "(" + as + ") => " + (f.elem == t.elem ? "__H0(" + inner + ")" : "{ __H0(" + inner + "); }"), {{copy}})) return false;
+      out.nodeType[node] = kNoType;
+      expr(node, to);
+      return true;
+    }
+    std::uint32_t sym = helper("arityThunk," + std::to_string(from) + "," + std::to_string(to), "function $F(f: " + inspectAliasName(from) + "): " + inspectAliasName(to) + " {\n  return (" + ps + "): " + inspectAliasName(t.elem) + " => " + body + ";\n}\n", aliases, node);
     wrapNode(node, sym);
     return true;
   }
@@ -1780,6 +1827,25 @@ struct Checker {
     return !bad(t) && t != kNoType && ty(t).k == TK::Func && promiseKind(ty(t).elem) != 0;
   }
 
+  // Does a catch callback return nothing: annotated `: void`, typed already with a void result (an expression body, by callbackReturnsPromise), or a
+  // block body whose own returns carry no value (ZN-1003).
+  bool callbackReturnsVoid(std::uint32_t cb) {
+    if (n(cb).kind != N::FuncExpr) return false;
+    if (n(cb).kids[0] != kNone) return annotation(n(cb).kids[0]) == tVoid;
+    const TypeId t = out.nodeType[cb];
+    if (t != kNoType) return !bad(t) && ty(t).k == TK::Func && ty(t).elem == tVoid;
+    std::function<bool(std::uint32_t)> valued = [&](std::uint32_t k) {
+      if (k == kNone) return false;
+      const Node& s = n(k);
+      if (s.kind == N::FuncExpr || s.kind == N::Function || s.kind == N::Class || s.kind == N::Method) return false;
+      if (s.kind == N::Return) return !s.kids.empty() && s.kids[0] != kNone;
+      for (std::uint32_t c : s.kids) if (valued(c)) return true;
+      return false;
+    };
+    const std::uint32_t body = n(cb).kids[1];
+    const bool exprBody = n(body).kind == N::Block && n(body).kids.size() == 1 && n(n(body).kids[0]).kind == N::Return && n(n(body).kids[0]).start == n(body).start;
+    return !exprBody && !valued(body);
+  }
   // Replaces node `i` by the expression `text`, parsed with `holes` spliced in; false if it does not parse.
   // An unknown name: `arguments`, `eval` and `globalThis` have codes of their own (what the prototype forbids), anything else is just not declared.
   void unknownName(std::uint32_t at, std::string_view name) {
@@ -2245,13 +2311,32 @@ struct Checker {
     if (!isNew && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).text == "then" || n(x.kids[0]).text == "catch" || n(x.kids[0]).text == "finally") && n(n(x.kids[0]).kids[0]).kind != N::Super) {
       // promise.then(f) and promise.catch(f) are calls of the prelude's helpers with the promise as first argument
       std::uint32_t obj = n(x.kids[0]).kids[0];
-      int pk = promiseKind(expr(obj));
+      const TypeId objT = expr(obj);
+      int pk = promiseKind(objT);
+      if (pk == 0 && n(x.kids[0]).text == "catch" && x.kids.size() == 2 && !bad(objT) && name(objT) == "NeverPromise") {   // Promise.reject(e).catch(f): what f returns
+        (void)callbackReturnsPromise(x.kids[1], true);   // types an expression body, so a void one is known
+        a.nodes[i].kids[0] = newNode(N::Ident, callbackReturnsVoid(x.kids[1]) ? "__catchNV" : "__catchN", {}, x.kids[0]);
+        a.nodes[i].kids.insert(a.nodes[i].kids.begin() + 1, obj);
+      }
       if (pk != 0) {
         bool then = n(x.kids[0]).text == "then";
         bool fin = n(x.kids[0]).text == "finally";
         // then(f, g) takes a rejection handler; a Promise<void>'s catch takes a callback that returns nothing; a catch or finally callback that returns
         // a promise is adopted (catch) or waited for (finally), as in JavaScript (ZN-794): then's helpers tell it from their inferred result type
         const bool adopts = !then && x.kids.size() == 2 && callbackReturnsPromise(x.kids[1], !fin);
+        // a Promise<T>'s catch whose callback returns nothing gives a Promise<T | undefined>, as TypeScript's Promise<T | void> (ZN-1003)
+        const std::uint32_t eo = errorObj();
+        if (!then && !fin && !adopts && pk == 1 && x.kids.size() == 2 && eo != kNoObj && out.objs[ty(objT).obj].typeArgs.size() == 1 && callbackReturnsVoid(x.kids[1])) {
+          const std::uint32_t cb = x.kids[1];
+          const TypeId T = out.objs[ty(objT).obj].typeArgs[0], cbT = func({objType(eo)}, tVoid, 1);
+          if (!require(expr(cb, cbT), cbT, cb)) return tError;
+          const std::string P = inspectAliasName(objT), V = inspectAliasName(T), U = V + " | undefined";
+          const std::uint32_t sym = helper("catchU," + std::to_string(objT), "function $F(p: " + P + ", f: (e: Error) => void): Promise<" + U + "> {\n  return __then2(p, (v: " + V + "): " + U +
+              " => v, (e: Error): " + U + " => { f(e); return null; });\n}\n", {objT, T}, i);
+          const std::uint32_t call = callGenerated(sym, {obj, cb}, i);
+          a.nodes[i] = a.nodes[call];
+          return out.nodeType[i] = out.nodeType[call];
+        }
         a.nodes[i].kids[0] = newNode(N::Ident, fin ? (adopts ? "__finallyP" : "__finally") : then ? (x.kids.size() == 3 ? "__then2" : "__then") : adopts ? "__catchP" : (pk == 2 ? "__catchV" : "__catch"), {}, x.kids[0]);
         a.nodes[i].kids.insert(a.nodes[i].kids.begin() + 1, obj);
       }
@@ -2462,6 +2547,9 @@ struct Checker {
     const Type f = ty(ft);  // copy: expr() below may grow `types`
     if (f.rest && !packed) packRest(i, f.params.size() - 1, 1);
     std::size_t argc = x.kids.size() - 1;
+    // `resolve(undefined)` of a Promise<void>, whose resolve is a () => void here (TypeScript's takes a void): an extra undefined is dropped (ZN-1003)
+    auto undefinedLit = [&](std::uint32_t k) { return (n(k).kind == N::Literal && (n(k).flags & kFlagUndefined)) || (n(k).kind == N::Ident && n(k).text == "undefined"); };
+    while (!f.variadic && !f.rest && argc > f.params.size() && f.elem == tVoid && undefinedLit(n(i).kids.back())) { a.nodes[i].kids.pop_back(); --argc; }
     if (argc < f.params.size() && !f.rest) {   // parameters that take a void may be left out at the end, as in TypeScript: resolve() of a Promise<void>
       std::size_t k = argc;
       while (k < f.params.size() && isVoidClass(f.params[k])) ++k;
@@ -3081,24 +3169,38 @@ struct Checker {
           const char* fn = it == tStr ? "__dynGet" : isNum(it) ? "__dynGetN" : "__dynGetD";
           if (replaceWith(i, std::string(fn) + "(__H0, __H1)", {{x.kids[0]}, {x.kids[1]}})) return expr0(i, expected);
         }
+        bool optIdx = false;   // a?.[i]: undefined when a is null (ZN-1003); the lowering tests the receiver, as for a?.b
+        if ((x.flags & kFlagOptional) && !bad(ot)) {
+          if (!hasNull(ot)) a.nodes[i].flags &= ~kFlagOptional;   // on a value that cannot be null `?.[` is `[`
+          else {
+            ot = withoutNull(ot);
+            if (ot == kNoType || ty(ot).k == TK::Union) { diag(kZUnsupported, i, "'?.[' on a value that is not a single array, tuple or string"); return tError; }
+            out.nodeType[x.kids[0]] = ot;   // the receiver as the access sees it: not null
+            optIdx = true;
+          }
+        }
         ot = appOrDiag(ot, x.kids[0]); it = appOrDiag(it, x.kids[1]);
         if (bad(ot) || bad(it)) return tError;
-        if (isTupleType(ot)) {  // t[0]: the index must be a constant inside the tuple
-          const Node& ix = n(x.kids[1]);
-          const ObjInfo& to = out.objs[ty(ot).obj];
-          if (ix.kind != N::Number || !isIntLit(a, x.kids[1])) { diag(kZNotIndexable, x.kids[1], "a tuple is indexed with a constant"); return tError; }
-          std::size_t k = static_cast<std::size_t>(std::strtoull(std::string(ix.text).c_str(), nullptr, 10));
-          if (k >= to.members.size()) { diag(kZNotAssignable, x.kids[1], "index " + std::to_string(k) + " of '" + to.name + "'"); return tError; }
-          return to.members[k].type;
-        }
-        if (ot == tStr && isNum(it) && replaceWith(i, "__H0.charAt(__H1)", {{x.kids[0]}, {x.kids[1]}})) return expr0(i, expected);   // 'abc'[1]: a one-character string ('' past the end) (ZN-155)
-        if (ty(ot).k != TK::Array) { diag(kZNotIndexable, i, "'" + name(ot) + "'"); return tError; }
-        if (!isNum(it)) { diag(kZNotAssignable, x.kids[1], "diag.detail.assign", {{"from", name(it)}, {"to", "number"}}); return tError; }
-        if (ty(ty(ot).elem).k == TK::Union && !pendingExempt) {
-          std::uint32_t ps = pathSymFor2(i, ty(ot).elem);
-          if (ps != kNone) return currentType(ps);  // `a[i]` tested a moment ago
-        }
-        return ty(ot).elem;
+        if (optIdx && ot == tStr && isNum(it) && replaceWith(i, "__H0?.charAt(__H1)", {{x.kids[0]}, {x.kids[1]}})) return expr0(i, expected);
+        const TypeId r = [&]() -> TypeId {
+          if (isTupleType(ot)) {  // t[0]: the index must be a constant inside the tuple
+            const Node& ix = n(x.kids[1]);
+            const ObjInfo& to = out.objs[ty(ot).obj];
+            if (ix.kind != N::Number || !isIntLit(a, x.kids[1])) { diag(kZNotIndexable, x.kids[1], "a tuple is indexed with a constant"); return tError; }
+            std::size_t k = static_cast<std::size_t>(std::strtoull(std::string(ix.text).c_str(), nullptr, 10));
+            if (k >= to.members.size()) { diag(kZNotAssignable, x.kids[1], "index " + std::to_string(k) + " of '" + to.name + "'"); return tError; }
+            return to.members[k].type;
+          }
+          if (ot == tStr && isNum(it) && replaceWith(i, "__H0.charAt(__H1)", {{x.kids[0]}, {x.kids[1]}})) return expr0(i, expected);   // 'abc'[1]: a one-character string ('' past the end) (ZN-155)
+          if (ty(ot).k != TK::Array) { diag(kZNotIndexable, i, "'" + name(ot) + "'"); return tError; }
+          if (!isNum(it)) { diag(kZNotAssignable, x.kids[1], "diag.detail.assign", {{"from", name(it)}, {"to", "number"}}); return tError; }
+          if (ty(ty(ot).elem).k == TK::Union && !pendingExempt) {
+            std::uint32_t ps = pathSymFor2(i, ty(ot).elem);
+            if (ps != kNone) return currentType(ps);  // `a[i]` tested a moment ago
+          }
+          return ty(ot).elem;
+        }();
+        return optIdx && !bad(r) ? unionOf({r, tNull}, true) : r;
       }
       default: diag(kZUnsupported, i, "this expression (node kind " + std::to_string(static_cast<int>(x.kind)) + ")"); return tError;
     }

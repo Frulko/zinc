@@ -3767,6 +3767,33 @@ function __rejectedN(e: Error): NeverPromise {
   p.rejectWith(e);
   return p;
 }
+// Promise.reject(e).catch(f): the promise only rejects, so the result is what f returns (nothing: a Promise<void>)
+class CatchJobN<U> extends Job {
+  constructor(public p: NeverPromise, public f: (e: Error) => U, public r: Promise<U>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err === null) return;
+    try { this.r.resolveWith(this.f(err)); } catch (e) { this.r.rejectWith(e); }
+  }
+}
+function __catchN<U>(p: NeverPromise, f: (e: Error) => U): Promise<U> {
+  const r = __newPromise<U>();
+  p.subscribe(new CatchJobN<U>(p, f, r));
+  return r;
+}
+class CatchJobNV extends Job {
+  constructor(public p: NeverPromise, public f: (e: Error) => void, public r: Promise<void>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err === null) return;
+    try { this.f(err); this.r.resolveWith(); } catch (e) { this.r.rejectWith(e); }
+  }
+}
+function __catchNV(p: NeverPromise, f: (e: Error) => void): Promise<void> {
+  const r = __newPromise<void>();
+  p.subscribe(new CatchJobNV(p, f, r));
+  return r;
+}
 function __withResolvers<T = never>(): Resolvers<T> { return new Resolvers<T>(__newPromise<T>()); }
 )ZN";
 
