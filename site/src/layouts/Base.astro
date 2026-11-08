@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { getCollection } from 'astro:content';
 import { strings, route, names, langs, others } from '../i18n';
+import search from '../../search.json';
 const { title, description, lang = 'en' } = Astro.props;
 const s = strings(lang);
 const b = import.meta.env.BASE_URL;
@@ -27,6 +28,8 @@ const links = [['philosophy', 'philosophy/'], ['uses', 'uses/'], ['start', 'get-
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={full} /><meta name="twitter:description" content={desc} /><meta name="twitter:image" content={og} />
   <slot name="head" />
+  <link rel="stylesheet" href={`${b}pagefind/pagefind-component-ui.css`} />
+  <script type="module" src={`${b}pagefind/pagefind-component-ui.js`}></script>
   <link rel="icon" href={`${b}favicon.svg`} type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -41,15 +44,22 @@ const links = [['philosophy', 'philosophy/'], ['uses', 'uses/'], ['start', 'get-
     <nav aria-label={s['nav.main']}>
       {links.map(([n, h]) => <a href={route(b, lang, h)} class={rest.startsWith(h.split('/')[0] + '/') ? 'on' : ''}>{s['nav.' + n]}</a>)}
       <span class="langs" aria-label={s['nav.language']}>{langs.map((l) => <a href={route(b, l, rest)} hreflang={l} lang={l} class={l === lang ? 'on' : ''} title={names[l]}>{l.toUpperCase()}</a>)}</span>
+      <pagefind-modal-trigger shortcut="/"></pagefind-modal-trigger>
       <button class="theme" id="theme" aria-label={s['nav.theme']} type="button">◐</button>
       <a class="btn primary" href="https://github.com/Frulko/zinc">GitHub ↗</a>
     </nav>
   </div></header>
-  <main><slot /></main>
+  <main data-pagefind-body><slot /></main>
+  <pagefind-config bundle-path={`${b}pagefind/`}></pagefind-config><pagefind-modal></pagefind-modal>
   <footer><div class="wrap">
     <div><b>zinc.</b> {s['footer.tagline']} <a href={`${b}about/`}>{s['footer.about']}</a></div>
     <div><a href="https://github.com/Frulko/zinc">GitHub</a><a href={route(b, lang, 'docs/licenses/')}>{s['footer.licenses']}</a><a href="https://github.com/Frulko/zinc/blob/main/docs/prototype.md">{s['footer.prototype']}</a></div>
   </div></footer>
+  <!-- Pagefind (built by `pnpm build`, one index per language from <html lang>): the box opens with /, ranked as search-check.mjs checks it. -->
+  <script type="module" is:inline define:vars={{ ranking: search.ranking }}>
+    var pf = window.PagefindComponents;
+    if (pf) pf.getInstanceManager().getInstance('default').pagefindOptions.ranking = ranking;
+  </script>
   <script is:inline define:vars={{ copy: s.copy, copied: s.copied }}>
     document.getElementById('theme').onclick = function () {
       var n = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';

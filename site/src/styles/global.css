@@ -111,3 +111,9 @@ footer { border-top: 1px solid var(--line); padding: 40px 0; color: var(--muted)
 footer .wrap { display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; }
 footer a { color: var(--muted); margin-right: 16px; }
 .page-head { padding: 64px 0 8px; } .page-head h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); margin: 8px 0 12px; letter-spacing: -.04em; }
+
+/* The search box (Pagefind's component UI) in the site's colours, both themes. */
+body pagefind-modal, body pagefind-modal-trigger {
+  --pf-text: var(--ink); --pf-text-secondary: var(--muted); --pf-text-muted: var(--muted); --pf-background: var(--surface);
+  --pf-border: var(--line); --pf-border-focus: var(--accent); --pf-hover: var(--surface-2); --pf-font: var(--sans); --pf-mark: var(--accent-text);
+}

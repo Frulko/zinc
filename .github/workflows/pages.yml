@@ -34,6 +34,9 @@ jobs:
         working-directory: site
       - run: pnpm build
         working-directory: site
+      - name: Search finds the known pages (Pagefind, five languages)
+        run: node search-check.mjs
+        working-directory: site
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - name: Index (plugins, templates, engine packs)

@@ -47,14 +47,14 @@ const enHref = `${b}docs/${slug(d.id)}/`;
   <link slot="head" rel="alternate" type="text/markdown" href={`${route(b, lang, `docs/${slug(d.id)}/`)}index.md`} />
   <link slot="head" rel="describedby" type="text/markdown" href={`${b}${lang === 'en' ? '' : `${lang}/`}llms.txt`} />
   <div class="wrap docs">
-    <aside class="side">
+    <aside class="side" data-pagefind-ignore>
       {groups.map(([g, list]) => <><h4>{s['docs.group.' + g]}</h4>{list.map((id) => <a href={route(b, lang, `docs/${slug(id)}/`)} class={id === d.id ? 'on' : ''}>{nice(id)}</a>)}</>)}
     </aside>
-    <article class="prose">
-      {lang !== 'en' && !tr && <p class="notice" role="note">{s['docs.untranslated']}</p>}
-      {stale && <p class="notice" role="note">{s['docs.stale']} <a href={enHref} hreflang="en">{s['docs.stale.link']}</a></p>}
+    <article class="prose" data-pagefind-weight={d.id.startsWith("reference/") ? "3" : undefined}>
+      {lang !== 'en' && !tr && <p class="notice" role="note" data-pagefind-ignore>{s['docs.untranslated']}</p>}
+      {stale && <p class="notice" role="note" data-pagefind-ignore>{s['docs.stale']} <a href={enHref} hreflang="en">{s['docs.stale.link']}</a></p>}
       <Content />
-      <p style="margin-top:56px;font-size:.9rem"><a href={`https://github.com/Frulko/zinc/edit/main/docs/${shown.filePath?.replace(/^.*docs\//, '')}`}>{s['docs.edit']}</a></p>
+      <p style="margin-top:56px;font-size:.9rem" data-pagefind-ignore><a href={`https://github.com/Frulko/zinc/edit/main/docs/${shown.filePath?.replace(/^.*docs\//, '')}`}>{s['docs.edit']}</a></p>
     </article>
   </div>
 </Base>
