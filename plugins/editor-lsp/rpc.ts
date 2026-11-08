@@ -2,7 +2,7 @@
 // framing of JSON-RPC over a pipe (`Content-Length: <bytes of UTF-8>`, a blank line, the body), file URIs, and the
 // answers read into small classes: completion items and their filtering, a signature, a hover, diagnostics, a place.
 import { fuzzy, Fuzzy } from 'zinc:command-palette';
-import { isIdent, wordStart } from 'zinc:editor';
+import { isIdent, wordStart, SideEdit } from 'zinc:editor';
 
 /** Bytes of `s` in UTF-8 (strings are UTF-16 here; the protocol counts bytes). */
 export function utf8Length(s: string): i32 {
@@ -115,6 +115,7 @@ export function kindMark(kind: i32): string {
 export class Item {
   label: string; kind: i32; detail: string; doc: string;
   score: number = 0; hits: i32[] = [];   // of the last filter: the matched characters of the label
+  edit: SideEdit | null = null;          // its additionalTextEdits[0]: the import of a name not imported yet
   constructor(label: string, kind: i32, detail: string, doc: string) { this.label = label; this.kind = kind; this.detail = detail; this.doc = doc; }
 }
 function str(v: any): string { return typeof v === 'string' ? (v as string) : ''; }
@@ -128,7 +129,17 @@ export function itemsOf(result: any): Item[] {
   const list = Array.isArray(result) ? result : result.items;
   if (!Array.isArray(list)) return out;
   const n: i32 = list.length;
-  for (let i = 0; i < n; i++) { const it = list[i]; out.push(new Item(str(it.label), int(it.kind), str(it.detail), docOf(it.documentation))); }
+  for (let i = 0; i < n; i++) {
+    const it = list[i], from = it.labelDetails !== undefined && it.labelDetails !== null ? str(it.labelDetails.description) : '';
+    const x = new Item(str(it.label), int(it.kind), from.length > 0 ? str(it.detail) + '  · ' + from : str(it.detail), docOf(it.documentation));   // where an auto-import comes from
+    const edits = it.additionalTextEdits;
+    if (Array.isArray(edits) && edits.length > 0) {
+      const e = edits[0], s = new SideEdit();
+      s.line = int(e.range.start.line); s.ch = int(e.range.start.character); s.endLine = int(e.range.end.line); s.endCh = int(e.range.end.character); s.text = str(e.newText);
+      x.edit = s;
+    }
+    out.push(x);
+  }
   return out;
 }
 /** The items that match what is typed, best first: a label that starts with it (names before keywords), then the fuzzy score, then the name. Nothing typed: all, in the server's order. */
@@ -139,6 +150,7 @@ export function filterItems(all: Item[], typed: string, max: i32): Item[] {
     const m = fuzzy(typed, it.label, 0);
     if (m === null) continue;
     const row = new Item(it.label, it.kind, it.detail, it.doc);   // a row of its own: the list is drawn again when its rows are new
+    row.edit = it.edit;
     row.hits = (m as Fuzzy).hits;
     row.score = (m as Fuzzy).score + (it.label.startsWith(typed) ? 100 : it.label.toLowerCase().startsWith(typed.toLowerCase()) ? 60 : 0) - (it.kind === 14 ? 30 : 0);   // the program's names before the keywords
     out.push(row);

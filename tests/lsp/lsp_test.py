@@ -189,9 +189,84 @@ check(diagnostics(uri3) == [], "platform files: diagnostics")
 d = request("textDocument/definition", {"textDocument": {"uri": uri3}, "position": pos_of(main, "screen()", 0, 1)})
 check(d and d["uri"].endswith("/plat/Screen.android.tsx"), "definition through moduleSuffixes: %r" % d)
 
+# 10. (ZN-1020) completion in four more places: the braces of an import, JSX element names, JSX attribute names, string and array members
+sk = os.path.join(tmp, "sketch")
+os.mkdir(sk)
+def open_doc(name, t):
+    u = "file://" + os.path.join(sk, name)
+    open(os.path.join(sk, name), "w").write(t)
+    notify("textDocument/didOpen", {"textDocument": {"uri": u, "languageId": "typescriptreact", "version": 1, "text": t}})
+    return u, diagnostics(u)
+def change(u, t, v):
+    notify("textDocument/didChange", {"textDocument": {"uri": u, "version": v}, "contentChanges": [{"text": t}]})
+def complete(u, line, ch):
+    return request("textDocument/completion", {"textDocument": {"uri": u}, "position": {"line": line, "character": ch}})
+ui = ("/** A card with a title. */\nfunction Card(p: { title: string; count: number }): i32 { return <View className=\"p-2\"><Text>{p.title}</Text></View>; }\n"
+      "render(() => <Card title=\"a\" count={1} />, 0xffffff, (dt: number) => {});\n")
+uiu, dg = open_doc("app.tsx", "import { render } from 'zinc:ui/solid';\n" + ui)
+check(dg == [], "app.tsx has diagnostics: %r" % dg)
+t = "import { r } from 'zinc:gfx';\n" + ui; change(uiu, t, 2); diagnostics(uiu)
+it = {i["label"]: i for i in complete(uiu, 0, 10)["items"]}
+check(it.get("rrect", {}).get("detail", "").startswith("rrect(x: number") and "Rounded rectangle" in it["rrect"].get("documentation", "") and "onFrame" in it, "the exports in the braces of an import: %r" % sorted(it)[:8])
+t = "import { render } from 'zinc:ui/solid';\n" + ui + "const x = <Ca\n"; change(uiu, t, 3); diagnostics(uiu)
+it = {i["label"]: i for i in complete(uiu, 4, 13)["items"]}
+check("Card" in it and "View" in it and "ScrollView" in it and it["Card"].get("documentation") == "A card with a title." and "render" not in it, "JSX element names: %r" % sorted(it))
+t = "import { render } from 'zinc:ui/solid';\n" + ui + "const y = <Card ti\nconst z = <View cl\n"; change(uiu, t, 4); diagnostics(uiu)
+it = {i["label"]: i for i in complete(uiu, 4, 18)["items"]}
+check(set(it) == {"title", "count"} and it["title"]["detail"] == "string", "a component's attributes are its props: %r" % it)
+it = {i["label"]: i for i in complete(uiu, 5, 18)["items"]}
+check("className" in it and "onPointerDown" in it and "style" in it, "a host tag's attributes: %r" % sorted(it))
+t = "const s = 'abc';\nconst a = [1, 2];\ns.\n"; change(uiu, t, 5); diagnostics(uiu)
+it = {i["label"]: i for i in complete(uiu, 2, 2)["items"]}
+check(it.get("padStart", {}).get("detail") == "padStart(n: i32, fill?: string): string" and "white space" in it.get("trim", {}).get("documentation", "") and it.get("length", {}).get("kind") == 5, "string members with signatures: %r" % it.get("padStart"))
+t = "const s = 'abc';\nconst a = [1, 2];\na.\n"; change(uiu, t, 51); diagnostics(uiu)
+it = {i["label"]: i for i in complete(uiu, 2, 2)["items"]}
+check(it.get("push", {}).get("detail", "").startswith("push(") and "map" in it and "length" in it, "array members with signatures: %r" % it.get("push"))
+
+# 11. auto-import: a name not imported is proposed with where it comes from, and accepting it adds the import (a new line, or into the braces)
+t = "const k = 1;\nrr\n"; change(uiu, t, 6); diagnostics(uiu)
+c = complete(uiu, 1, 2); it = {i["label"]: i for i in c["items"]}
+r = it.get("rrect", {})
+check(c["isIncomplete"] and r.get("labelDetails", {}).get("description") == "zinc:gfx" and r.get("additionalTextEdits") == [{"range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 0}}, "newText": "import { rrect } from 'zinc:gfx';\n"}], "auto-import of rrect: %r" % r)
+t = "import { rect } from 'zinc:gfx';\nrr\n"; change(uiu, t, 7); diagnostics(uiu)
+r = {i["label"]: i for i in complete(uiu, 1, 2)["items"]}.get("rrect", {})
+check(r.get("additionalTextEdits") == [{"range": {"start": {"line": 0, "character": 13}, "end": {"line": 0, "character": 13}}, "newText": ", rrect"}], "auto-import into the braces: %r" % r.get("additionalTextEdits"))
+lib, _ = open_doc("shapes.ts", "/** A star. */\nexport function star(n: number): number { return n; }\n")
+t = "st\n"; change(uiu, t, 8); diagnostics(uiu)
+r = {i["label"]: i for i in complete(uiu, 0, 2)["items"]}.get("star", {})
+check(r.get("labelDetails", {}).get("description") == "./shapes" and r.get("documentation") == "A star." and "import { star } from './shapes';" in json.dumps(r.get("additionalTextEdits")), "auto-import from the sketch's files: %r" % r)
+
+# 12. editing a module publishes the diagnostics of the open documents that import it
+change(uiu, "import { star } from './shapes';\nconsole.log(star(2));\n", 9)
+check(diagnostics(uiu) == [], "the importer is clean")
+change(lib, "export function starry(n: number): number { return n; }\n", 2)
+diagnostics(lib)
+check(len(diagnostics(uiu)) > 0, "the importer is published again when its import goes away")
+change(lib, "export function star(n: number): number { return n; }\n", 3)
+diagnostics(lib)
+check(diagnostics(uiu) == [], "and again when it comes back")
+
 request("shutdown", None)
 notify("exit", None)
 check(proc.wait(timeout=5) == 0, "exit code")
+
+# 13. the order of the protocol: a request before initialize gets ServerNotInitialized, after shutdown InvalidRequest
+proc = subprocess.Popen([Z, "lsp"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+def raw(method, params, i):
+    send({"jsonrpc": "2.0", "id": i, "method": method, "params": params})
+    while True:
+        m = read()
+        if m.get("id") == i: return m
+notify("textDocument/didOpen", {"textDocument": {"uri": uri, "languageId": "typescript", "version": 1, "text": text}})
+early = raw("textDocument/hover", {"textDocument": {"uri": uri}, "position": {"line": 0, "character": 0}}, 1)
+check(early.get("error", {}).get("code") == -32002 and "result" not in early, "a request before initialize: %r" % early)
+check("result" in raw("initialize", {"processId": None, "rootUri": None, "capabilities": {}}, 2), "initialize after the refused request")
+check(raw("textDocument/hover", {"textDocument": {"uri": uri}, "position": {"line": 0, "character": 0}}, 3).get("result") is None, "the didOpen sent before initialize was dropped")
+raw("shutdown", None, 4)
+late = raw("textDocument/hover", {"textDocument": {"uri": uri}, "position": {"line": 0, "character": 0}}, 5)
+check(late.get("error", {}).get("code") == -32600, "a request after shutdown: %r" % late)
+notify("exit", None)
+check(proc.wait(timeout=5) == 0, "exit code after shutdown")
 if failures:
     print("\n".join("FAIL " + f for f in failures)); sys.exit(1)
 print("lsp_test: ok")

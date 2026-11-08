@@ -144,6 +144,7 @@ struct ModuleInfo {
   std::vector<std::uint32_t> stmts;
   std::vector<ModuleImport> imports;
   std::vector<ModuleExport> exports;
+  std::vector<std::pair<std::string, std::uint32_t>> namespaces;   // `import * as ns`: the alias and the module it names (tools: zinc lsp)
   bool typesOnly = false;   // reached by type-only imports alone: its interfaces and type aliases, no run-time code (Loader::finishTypes)
 };
 

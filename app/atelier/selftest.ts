@@ -4,7 +4,7 @@
 //   zinc run app/atelier/selftest.ts
 import * as sys from 'zinc:sys';
 import { Ed, norm, typeText, paste, copyText, erase, newline, indent, outdent, toggleComment, deleteLines, duplicateLines, moveLines,
-  single, addSel, selectNext, addCursorV, move, eraseTo, complete, occurrences, History, M_LEFT, M_RIGHT, M_WORD_LEFT, M_WORD_RIGHT, M_HOME, M_END, M_UP, M_DOWN, wordStart } from 'zinc:editor';
+  single, addSel, selectNext, addCursorV, move, eraseTo, complete, replaceAt, occurrences, History, M_LEFT, M_RIGHT, M_WORD_LEFT, M_WORD_RIGHT, M_HOME, M_END, M_UP, M_DOWN, wordStart } from 'zinc:editor';
 import { utf8Length, frame, Reader, uriOf, pathOf, specStart, callStart, Item, itemsOf, filterItems, Sig, sigOf, hoverOf, Problem, problemsOf, placeOf } from 'zinc:editor-lsp';
 
 let failures: i32 = 0;
@@ -137,6 +137,8 @@ check(move(ed('abcd|\nab\nabcdef'), M_DOWN, false), 'abcd\nab|\nabcdef', 'withou
 check(complete(ed('b.st|;\nc.st|;'), 'step', false), 'b.step|;\nc.step|;', 'accepting a completion replaces the typed prefix at every cursor');
 check(complete(ed('x = |'), 'width', false), 'x = width|', 'a completion with nothing typed is inserted');
 check(complete(ed("import a from 'zinc:g|'"), 'zinc:gfx', true), "import a from 'zinc:gfx|'", 'a module name replaces what is in the quotes');
+check(replaceAt(complete(ed('const k = 1;\nrr|'), 'rrect', false), 0, 0, 0, 0, "import { rrect } from 'zinc:gfx';\n"), "import { rrect } from 'zinc:gfx';\nconst k = 1;\nrrect|", 'an auto-import adds its line above, the caret moves along');
+check(replaceAt(complete(ed("import { rect } from 'zinc:gfx';\nrr|"), 'rrect', false), 0, 13, 0, 13, ', rrect'), "import { rect, rrect } from 'zinc:gfx';\nrrect|", 'or extends the import line');
 same(occurrences('ball = ball + balls; a.ball', 0, 4, 0, 100).join(','), '7,23', 'the other whole-word occurrences of the selection');
 same(occurrences('ball + b', 0, 3, 0, 100).join(','), '', 'no occurrences for a part of a word');
 
@@ -155,6 +157,9 @@ same(`${callStart('foo(1, bar(2), ', 15)},${callStart('foo(1); ', 8)},${callStar
 const items: Item[] = itemsOf(JSON.parse('{"isIncomplete":false,"items":[{"label":"x","kind":5,"detail":"number"},{"label":"stop","kind":2,"detail":"stop(): void"},{"label":"strokeWidth","kind":5,"detail":"number"},{"label":"step","kind":2,"detail":"step(dt: number): void","documentation":"Moves the ball."}]}'));
 same(items.map((it: Item) => it.label).join(','), 'x,stop,strokeWidth,step', 'the items of a completion answer');
 same(items[3].detail + ' / ' + items[3].doc, 'step(dt: number): void / Moves the ball.', 'an item has its signature and its description');
+const auto: Item = itemsOf(JSON.parse('{"isIncomplete":true,"items":[{"label":"rrect","kind":3,"detail":"rrect(x: number): void","labelDetails":{"description":"zinc:gfx"},"additionalTextEdits":[{"range":{"start":{"line":0,"character":13},"end":{"line":0,"character":13}},"newText":", rrect"}]}]}'))[0];
+const ae = filterItems([auto], 'rr', 10)[0].edit;
+same(`${auto.detail} / ${ae !== null ? `${ae.line}:${ae.ch}-${ae.endLine}:${ae.endCh} ${ae.text}` : 'none'}`, 'rrect(x: number): void  · zinc:gfx / 0:13-0:13 , rrect', 'an auto-import says where it comes from and keeps its import through the filter');
 same(filterItems(items, '', 10).map((it: Item) => it.label).join(','), 'x,stop,strokeWidth,step', 'nothing typed: every item, in the order of the server');
 same(filterItems(items, 'st', 10).map((it: Item) => it.label).join(','), 'step,stop,strokeWidth', 'typing filters, the labels that start with it first');
 same(filterItems(items, 'sw', 10).map((it: Item) => `${it.label}:${it.hits.join('+')}`).join(','), 'strokeWidth:0+6', 'the filter is fuzzy and gives the matched characters');

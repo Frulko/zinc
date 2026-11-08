@@ -212,9 +212,20 @@ class Server {
  private:
   std::string stdRoot_;
   std::map<std::string, Doc> docs_;   // uri -> text
-  std::string dts_;                   // lib/gfx.d.ts and lib/modules.d.ts, read when a built-in module's doc is asked
-  bool dtsRead_ = false;
+  std::string dts_;                   // lib/gfx.d.ts, modules.d.ts, ui.d.ts and zinc.d.ts, read when first asked (again after a failed read)
+  bool initialized_ = false;
   bool shutdown_ = false;
+
+  const std::string& dts() {
+    if (!dts_.empty()) return dts_;
+    std::string all;
+    for (const char* f : {"/../gfx.d.ts", "/../modules.d.ts", "/../ui.d.ts", "/../zinc.d.ts"}) {
+      std::ifstream in(stdRoot_ + f, std::ios::binary);
+      if (!in) return dts_;   // stays empty: read again at the next question
+      std::stringstream ss; ss << in.rdbuf(); all += ss.str() + "\n";
+    }
+    return dts_ = all;
+  }
 
   bool read(const std::string& path, std::string& out) {
     auto it = docs_.find(pathToUri(path));
@@ -238,6 +249,7 @@ class Server {
 
   static void send(const std::string& json) { std::printf("Content-Length: %zu\r\n\r\n%s", json.size(), json.c_str()); std::fflush(stdout); }
   static void reply(const std::string& id, const std::string& result) { send("{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":" + result + "}"); }
+  static void replyError(const std::string& id, int code, const std::string& message) { send("{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"error\":{\"code\":" + std::to_string(code) + ",\"message\":" + quote(message) + "}}"); }
   static void notify(const std::string& method, const std::string& params) { send("{\"jsonrpc\":\"2.0\",\"method\":" + quote(method) + ",\"params\":" + params + "}"); }
 
   std::string range(const std::string& text, std::size_t a, std::size_t b) {
@@ -264,6 +276,15 @@ class Server {
       items += std::string(n++ ? "," : "") + "{\"range\":{\"start\":{\"line\":" + std::to_string(ln) + ",\"character\":" + std::to_string(col) + "},\"end\":{\"line\":" + std::to_string(ln) + ",\"character\":" + std::to_string(col + 1) + "}},\"severity\":1,\"code\":" + quote(dg.code) + ",\"source\":\"zinc\",\"message\":" + quote(message) + "}";
     }
     notify("textDocument/publishDiagnostics", "{\"uri\":" + quote(uri) + ",\"version\":" + std::to_string(d.version) + ",\"diagnostics\":[" + items + "]}");
+  }
+  // A document changed: the open documents that import it are checked again too (an export renamed breaks them, a fix clears them), as tsserver does.
+  void publishImporters(const std::string& uri) {
+    const std::string path = uriToPath(uri);
+    for (auto& [other, od] : docs_) {
+      if (other == uri || !od.last) continue;
+      for (std::size_t i = 1; i < od.last->prog.files.size(); ++i)
+        if (od.last->prog.files[i].path == path) { publish(other, od); break; }
+    }
   }
 
   // the innermost node of file 0 around `off` that satisfies `pred`
@@ -324,17 +345,14 @@ class Server {
   }
   // The docs of the built-in modules ('zinc:gfx', 'zinc:sys'...): they are compiled from sources without comments, their declarations are in lib/*.d.ts.
   std::string builtinDoc(const std::string& spec, std::string_view name) {
-    if (!dtsRead_) {
-      dtsRead_ = true;
-      for (const char* f : {"/../gfx.d.ts", "/../modules.d.ts"}) { std::ifstream in(stdRoot_ + f, std::ios::binary); std::stringstream ss; ss << in.rdbuf(); dts_ += ss.str() + "\n"; }
-    }
-    const std::size_t m = dts_.find("declare module '" + spec + "'");
+    const std::string& t = dts();
+    const std::size_t m = t.find("declare module '" + spec + "'");
     if (m == std::string::npos) return "";
-    const std::size_t end = std::min(dts_.find("\ndeclare module", m + 1), dts_.size());
+    const std::size_t end = std::min(t.find("\ndeclare module", m + 1), t.size());
     for (const char* kw : {"function ", "const ", "class ", "interface ", "let "}) {
       const std::string key = kw + std::string(name);
-      for (std::size_t at = dts_.find(key, m); at != std::string::npos && at < end; at = dts_.find(key, at + 1))
-        if (at + key.size() < dts_.size() && !identChar(dts_[at + key.size()])) return commentAbove(dts_, at);
+      for (std::size_t at = t.find(key, m); at != std::string::npos && at < end; at = t.find(key, at + 1))
+        if (at + key.size() < t.size() && !identChar(t[at + key.size()])) return commentAbove(t, at);
     }
     return "";
   }
@@ -360,10 +378,14 @@ class Server {
     return out + "): " + typeName(c, c.types[t].elem);
   }
 
-  // ---- `import * as ns from '...'`: the loader turns each `ns.name` into a named import, so the module behind `ns` is found from the text
-  // ponytail: by the module's path; a list of the aliases in ModuleInfo would end the guess
-  const ModuleInfo* namespaceOf(const Doc& d, const std::string& text, const std::string& alias) {
+  // ---- `import * as ns from '...'`: the loader keeps the alias (ModuleInfo::namespaces); an import the last analysis does not have yet is found
+  // from the text, by the module's path
+  const ModuleInfo* namespaceOf(const Doc& d, const std::string& path, const std::string& text, const std::string& alias) {
     if (alias.empty() || !d.last) return nullptr;
+    const Ast& ast = d.last->prog.ast;
+    const std::size_t self = fileIndex(*d.last, path);
+    for (const ModuleInfo& m : ast.modules)
+      if (m.file == self) for (const auto& [ns, from] : m.namespaces) if (ns == alias && from < ast.modules.size()) return &ast.modules[from];
     const std::size_t at = text.find("* as " + alias + " from");
     const std::size_t q = at == std::string::npos ? at : text.find_first_of("'\"", at);
     const std::size_t e = q == std::string::npos ? q : text.find(text[q], q + 1);
@@ -479,16 +501,142 @@ class Server {
     return "[" + out + "]";
   }
 
+  // ---- what completion offers beyond the document: the exports of the built-in modules (their lib/*.d.ts) and of the sketch's other files, and
+  // the members of the built-in String and Array (lib/zinc.d.ts), each with its signature and doc
+  struct Export { std::string name, spec, code, doc; int kind = 6; };
+  // The `export function name(...)`, `export const name`... lines of t[from, to): one entry per name, the first of its overloads.
+  static void scanExports(const std::string& t, std::size_t from, std::size_t to, const std::string& spec, std::vector<Export>& out) {
+    std::set<std::string> names;
+    for (std::size_t ls = from; ls < to;) {
+      const std::size_t le = std::min(t.find('\n', ls), to);
+      std::string rest = trim(t.substr(ls, le - ls));
+      if (startsWith(rest, "export ")) {
+        rest = rest.substr(7);
+        if (startsWith(rest, "declare ")) rest = rest.substr(8);
+        int kind = 0;
+        for (const auto& [kw, k] : std::initializer_list<std::pair<const char*, int>>{{"async function ", 3}, {"function ", 3}, {"const enum ", 13}, {"enum ", 13}, {"const ", 6}, {"let ", 6},
+                                                                                     {"abstract class ", 7}, {"class ", 7}, {"interface ", 8}, {"type ", 8}})
+          if (startsWith(rest, kw)) { kind = k; rest = rest.substr(std::strlen(kw)); break; }
+        std::size_t e = 0;
+        while (e < rest.size() && identChar(rest[e])) ++e;
+        if (kind != 0 && e > 0 && names.insert(rest.substr(0, e)).second) {
+          Export x;
+          x.name = rest.substr(0, e); x.spec = spec; x.kind = kind; x.doc = trim(commentAbove(t, ls));
+          if (kind == 3) {   // up to the body: the first `{` or `;` outside the parameters and type arguments
+            int depth = 0;
+            std::size_t k = 0;
+            for (; k < rest.size(); ++k) {
+              const char c = rest[k];
+              if (c == '(' || c == '[' || c == '<') ++depth;
+              else if (c == ')' || c == ']' || (c == '>' && k > 0 && rest[k - 1] != '=')) depth = std::max(0, depth - 1);
+              else if (depth == 0 && (c == '{' || c == ';')) break;
+            }
+            x.code = trim(rest.substr(0, k));
+          }
+          else if (kind == 7 || kind == 8 || kind == 13) x.code = (kind == 7 ? "class " : kind == 8 ? "interface " : "enum ") + x.name;
+          else x.code = trim(rest.substr(0, rest.find(" =")), " \t;");
+          out.push_back(std::move(x));
+        }
+      }
+      ls = le + 1;
+    }
+  }
+  std::vector<Export> builtins_;   // read once from lib/*.d.ts
+  const std::vector<Export>& builtinExports() {
+    if (!builtins_.empty()) return builtins_;
+    const std::string& t = dts();
+    for (std::size_t m = t.find("declare module '"); m != std::string::npos;) {
+      const std::size_t q = m + 16, e = t.find('\'', q), next = t.find("\ndeclare module '", m + 1);
+      if (e != std::string::npos) scanExports(t, m, std::min(next, t.size()), t.substr(q, e - q), builtins_);
+      m = next == std::string::npos ? next : next + 1;
+    }
+    return builtins_;
+  }
+  // The exports of the sketch's other files (beside the document), imported as './name'.
+  std::vector<Export> siblingExports(const std::string& path) {
+    std::vector<Export> out;
+    std::error_code ec;
+    for (const auto& e : fs::directory_iterator(fs::path(path).parent_path(), ec)) {
+      const std::string f = e.path().string(), ext = e.path().extension().string();
+      if ((ext != ".ts" && ext != ".tsx") || endsWith(f, ".d.ts") || f == path) continue;
+      std::string text;
+      if (read(f, text)) scanExports(text, 0, text.size(), "./" + e.path().stem().string(), out);
+    }
+    return out;
+  }
+  // The members of a built-in interface of lib/zinc.d.ts (String, Array): name, signature, doc; an overloaded method once, with the count of the others.
+  std::vector<Export> interfaceMembers(const std::string& name) {
+    std::vector<Export> out;
+    const std::string& t = dts();
+    const std::size_t at = t.find("\ninterface " + name);
+    if (at == std::string::npos) return out;
+    std::map<std::string, int> more;
+    for (std::size_t ls = t.find('\n', at + 1) + 1; ls != 0 && ls < t.size();) {
+      const std::size_t le = std::min(t.find('\n', ls), t.size());
+      const std::string raw = t.substr(ls, le - ls), line = trim(raw);
+      if (startsWith(raw, "}")) break;
+      std::string rest = startsWith(line, "readonly ") ? line.substr(9) : line;
+      std::size_t e = 0;
+      while (e < rest.size() && identChar(rest[e])) ++e;
+      const char after = e < rest.size() ? rest[e] : 0;
+      if (e > 0 && !startsWith(line, "*") && !startsWith(line, "/") && (after == '(' || after == '<' || after == ':' || after == '?')) {
+        const std::string n = rest.substr(0, e);
+        if (more.count(n)) ++more[n];
+        else {
+          more[n] = 0;
+          Export x;
+          x.name = n; x.kind = after == ':' || after == '?' ? 5 : 2; x.code = trim(rest, " \t;"); x.doc = commentAbove(t, ls);
+          out.push_back(std::move(x));
+        }
+      }
+      ls = le + 1;
+    }
+    for (Export& x : out) if (more[x.name] > 0) x.code += " (+" + std::to_string(more[x.name]) + (more[x.name] == 1 ? " overload)" : " overloads)");
+    return out;
+  }
+  // The edit that imports `name` from `spec`: into the braces of an `import { ... } from 'spec'` line, else a line of its own after the imports.
+  std::string importEdit(const std::string& text, const std::string& name, const std::string& spec) {
+    std::size_t after = 0;
+    for (std::size_t ls = 0; ls < text.size();) {
+      const std::size_t le = std::min(text.find('\n', ls), text.size());
+      const std::string line = text.substr(ls, le - ls);
+      if (startsWith(trim(line), "import ")) {
+        after = le + 1;
+        const std::size_t open = line.find('{'), close = line.find('}');
+        if (open != std::string::npos && close != std::string::npos && open < close &&
+            (line.find("'" + spec + "'", close) != std::string::npos || line.find("\"" + spec + "\"", close) != std::string::npos)) {
+          std::size_t end = close;
+          while (end > open + 1 && line[end - 1] == ' ') --end;
+          return end == open + 1 ? "{\"range\":" + range(text, ls + open + 1, ls + close) + ",\"newText\":" + quote(" " + name + " ") + "}"
+                                 : "{\"range\":" + range(text, ls + end, ls + end) + ",\"newText\":" + quote(", " + name) + "}";
+        }
+      }
+      ls = le + 1;
+    }
+    after = std::min(after, text.size());
+    return "{\"range\":" + range(text, after, after) + ",\"newText\":" + quote("import { " + name + " } from '" + spec + "';\n") + "}";
+  }
+  // The host components of zinc:ui's JSX and the attributes they take (src/frontend/jsx.cpp).
+  static const std::vector<const char*>& hostTags() { static const std::vector<const char*> v = {"View", "Text", "Button", "Image", "ScrollView", "Canvas", "Input", "TextArea"}; return v; }
+  static const std::vector<const char*>& hostAttrs() {
+    static const std::vector<const char*> v = {"className", "style", "key", "ref", "onClick", "onPress", "onPointerDown", "onPointerMove", "onPointerUp", "onPointerEnter",
+      "onPointerLeave", "onPointerCancel", "onDoubleClick", "onContextMenu", "onWheel", "onTap", "onLongPress", "onDrag", "onPinch", "onKeyDown", "onKeyUp", "onInput",
+      "onChange", "onSubmit", "onScroll", "onDraw", "value", "placeholder", "src", "source", "disabled", "hidden", "password", "readOnly", "focusable", "accessibilityLabel",
+      "accessibilityRole", "role", "numberOfLines", "inputMode", "resizeMode", "objectFit"};
+    return v;
+  }
+
   std::string completion(const std::string& uri, Doc& d, int line, int ch) {
     const std::string path = uriToPath(uri);
     const std::string& text = d.text;
     const std::size_t off = Lines(text).offset(text, line, ch);
     std::string items;
     int n = 0;
-    auto add = [&](const std::string& label, int kind, const std::string& detail, const std::string& doc = "") {
-      items += std::string(n++ ? "," : "") + "{\"label\":" + quote(label) + ",\"kind\":" + std::to_string(kind) + ",\"detail\":" + quote(detail) + (doc.empty() ? "" : ",\"documentation\":" + quote(doc)) + "}";
+    auto add = [&](const std::string& label, int kind, const std::string& detail, const std::string& doc = "", const std::string& extra = "") {
+      items += std::string(n++ ? "," : "") + "{\"label\":" + quote(label) + ",\"kind\":" + std::to_string(kind) + ",\"detail\":" + quote(detail) + (doc.empty() ? "" : ",\"documentation\":" + quote(doc)) + extra + "}";
     };
-    // module specifier: inside the quotes of `from '...'` / `import '...'`
+    auto done = [&](bool incomplete = false) { return std::string("{\"isIncomplete\":") + (incomplete ? "true" : "false") + ",\"items\":[" + items + "]}"; };
+    // module specifier: inside the quotes of `from '...'` / `import '...'`: the built-in modules and the sketch's other files
     {
       std::size_t ls = text.rfind('\n', off == 0 ? 0 : off - 1);
       ls = ls == std::string::npos ? 0 : ls + 1;
@@ -497,20 +645,109 @@ class Server {
       const std::size_t q = q1 == std::string::npos ? q2 : q2 == std::string::npos ? q1 : std::max(q1, q2);
       if (q != std::string::npos && (head.find("import") != std::string::npos || head.find("from") != std::string::npos) && std::count(head.begin(), head.end(), head[q]) % 2 == 1) {
         const std::string prefix = head.substr(q + 1);
-        std::set<std::string> specs = {"zinc:gfx", "zinc:sys", "zinc:fs", "zinc:storage", "zinc:assets", "zinc:os", "zinc:events", "zinc:gpio", "zinc:wifi", "zinc:espnow", "zinc:osc", "zinc:net", "zinc:telemetry", "zinc:platform", "zinc:process", "zinc:script", "zinc:web", "zinc:ui", "zinc:ui/solid", "zinc:ui/react", "zinc:ui/kit", "zinc:ui/history", "zinc:system", "zinc:devtools", "zinc:assert"};
+        std::set<std::string> specs = {"zinc:ui/solid", "zinc:ui/react", "zinc:ui/kit", "zinc:ui/history", "zinc:system", "zinc:devtools", "zinc:assert"};
+        for (const Export& x : builtinExports()) specs.insert(x.spec);
         std::error_code ec;
         for (const auto& e : fs::directory_iterator(stdRoot_, ec)) if (e.path().extension() == ".ts") specs.insert("zinc:" + e.path().stem().string());
+        for (const auto& e : fs::directory_iterator(fs::path(path).parent_path(), ec)) {
+          const std::string ext = e.path().extension().string();
+          if ((ext == ".ts" || ext == ".tsx") && !endsWith(e.path().string(), ".d.ts") && e.path().string() != path) specs.insert("./" + e.path().stem().string());
+        }
         for (const std::string& s : specs) if (s.rfind(prefix, 0) == 0) add(s, 9, "module");
-        return "{\"isIncomplete\":false,\"items\":[" + items + "]}";
+        return done();
+      }
+    }
+    std::size_t b = off;
+    while (b > 0 && identChar(text[b - 1])) --b;
+    // inside the braces of `import { a, | } from 'spec'`: what the module exports (read by loading `export * from 'spec'` beside the document)
+    {
+      std::size_t open = std::string::npos;
+      for (std::size_t i = b; i-- > 0;) {
+        const char c = text[i];
+        if (c == '{') { open = i; break; }
+        if (!identChar(c) && c != ',' && c != ' ' && c != '\t' && c != '\n' && c != '\r') break;   // `a as b` has only names and spaces
+      }
+      std::size_t k = open;
+      while (k != std::string::npos && k > 0 && std::isspace(static_cast<unsigned char>(text[k - 1]))) --k;
+      const std::string before = k == std::string::npos ? "" : text.substr(k >= 12 ? k - 12 : 0, k >= 12 ? 12 : k);
+      const std::size_t close = open == std::string::npos ? std::string::npos : text.find('}', off);
+      const std::size_t from = close == std::string::npos ? close : text.find_first_not_of(" \t\r\n", close + 1);
+      if ((endsWith(before, "import") || endsWith(before, "import type")) && from != std::string::npos && text.compare(from, 4, "from") == 0) {
+        const std::size_t q = text.find_first_of("'\"", from + 4), e = q == std::string::npos ? q : text.find(text[q], q + 1);
+        if (e != std::string::npos) {
+          const std::string spec = text.substr(q + 1, e - q - 1), probe = (fs::path(path).parent_path() / "__zn_complete__.ts").string(), src = "export * from '" + spec + "';\n";
+          auto a = analyze(probe, &src);
+          for (const ModuleInfo& m : a->prog.ast.modules) {
+            if (m.file != 0) continue;
+            std::map<std::string, std::uint32_t> ex;
+            exportsOf(a->prog.ast, m, ex);
+            for (const auto& [name, id] : ex) {
+              const About ab = about(*a, id);
+              const TypeId t = a->checkedOk && id < a->checked.nodeType.size() ? a->checked.nodeType[id] : kNoType;
+              add(name, kindOf(a->prog.ast.nodes[id]), !ab.code.empty() ? ab.code : t != kNoType ? typeName(a->checked, t) : "", ab.doc);
+            }
+          }
+          return done();
+        }
+      }
+    }
+    // JSX in a .tsx file: `<Na|` lists the components (host ones, then the capitalised functions and classes in scope); `<Tag attr|` the
+    // attributes (a host tag's, or the fields of the props a component takes)
+    if (endsWith(path, ".tsx")) {
+      if (b > 0 && text[b - 1] == '<' && (b < 2 || !identChar(text[b - 2]))) {
+        for (const char* t : hostTags()) add(t, 7, "zinc:ui component");
+        if (d.last && d.last->checkedOk) {
+          const Ast& ast = d.last->prog.ast;
+          const std::uint32_t file = static_cast<std::uint32_t>(fileIndex(*d.last, path));
+          std::set<std::string_view> imported;
+          for (const ModuleInfo& m : ast.modules) if (m.file == file) for (const ModuleImport& im : m.imports) imported.insert(im.local);
+          for (const Symbol& s : d.last->checked.syms) {
+            const std::string name(s.name);
+            if (name.empty() || !std::isupper(static_cast<unsigned char>(name[0])) || name.find('$') != std::string::npos) continue;
+            if (s.decl != kNone && s.decl < ast.nodes.size() && ast.nodes[s.decl].file != file && !imported.count(s.name)) continue;   // another module's own
+            if (s.kind != SymKind::Func && s.kind != SymKind::GenericFunc && s.kind != SymKind::Class && s.kind != SymKind::GenericClass) continue;
+            if (std::find(hostTags().begin(), hostTags().end(), name) != hostTags().end()) continue;
+            add(name, 7, typeSignature(d.last->checked, name, s.type), about(*d.last, s.decl).doc);
+          }
+        }
+        return done();
+      }
+      // an attribute: a space before the name, and the nearest `<Tag` before it is not closed by a `>` outside braces
+      if (b > 0 && std::isspace(static_cast<unsigned char>(text[b - 1]))) {
+        int depth = 0;
+        std::size_t lt = std::string::npos;
+        for (std::size_t i = b; i-- > 0 && b - i < 2000;) {
+          const char c = text[i];
+          if (c == '}') ++depth;
+          else if (c == '{') { if (depth == 0) break; --depth; }
+          else if (depth == 0 && c == '>' && (i == 0 || text[i - 1] != '=')) break;
+          else if (depth == 0 && c == '<') { lt = i; break; }
+        }
+        if (lt != std::string::npos && lt + 1 < text.size() && std::isupper(static_cast<unsigned char>(text[lt + 1]))) {
+          std::size_t te = lt + 1;
+          while (te < text.size() && (identChar(text[te]) || text[te] == '.')) ++te;
+          const std::string tag = text.substr(lt + 1, te - lt - 1);
+          if (te < b) {
+            if (std::find(hostTags().begin(), hostTags().end(), tag) != hostTags().end()) { for (const char* a : hostAttrs()) add(a, 10, tag + " attribute"); return done(); }
+            if (d.last && d.last->checkedOk) {
+              const Checked& c = d.last->checked;
+              for (const Symbol& s : c.syms) {
+                if (s.name != tag || s.type >= c.types.size() || c.types[s.type].k != TK::Func || c.types[s.type].params.empty()) continue;
+                const TypeId pt = c.types[s.type].params[0];
+                if (pt >= c.types.size() || c.types[pt].k != TK::Object || c.types[pt].obj >= c.objs.size()) continue;
+                for (const Member& m : c.objs[c.types[pt].obj].members) add(m.name, 10, typeName(c, m.type), "");
+                return done();
+              }
+            }
+          }
+        }
       }
     }
     // member access: the name being typed after the dot gives way to a placeholder, the text is analysed and the members of the object's type are listed
-    std::size_t b = off;
-    while (b > 0 && identChar(text[b - 1])) --b;
     if (b > 0 && text[b - 1] == '.') {
       std::size_t ob = b - 1;
       while (ob > 0 && identChar(text[ob - 1])) --ob;
-      if (const ModuleInfo* m = namespaceOf(d, text, text.substr(ob, b - 1 - ob))) {   // ns. : what the module exports
+      if (const ModuleInfo* m = namespaceOf(d, path, text, text.substr(ob, b - 1 - ob))) {   // ns. : what the module exports
         std::map<std::string, std::uint32_t> ex;
         exportsOf(d.last->prog.ast, *m, ex);
         for (const auto& [name, id] : ex) {
@@ -518,7 +755,7 @@ class Server {
           const TypeId t = id < d.last->checked.nodeType.size() ? d.last->checked.nodeType[id] : kNoType;
           add(name, kindOf(d.last->prog.ast.nodes[id]), !ab.code.empty() ? ab.code : t != kNoType && d.last->checkedOk ? typeName(d.last->checked, t) : "", ab.doc);
         }
-        return "{\"isIncomplete\":false,\"items\":[" + items + "]}";
+        return done();
       }
       std::string patched = text;
       patched.replace(b, off - b, "__zn_complete__");
@@ -539,11 +776,12 @@ class Server {
                 const About ab = about(*a, memberNode(*a, t, m.name));
                 add(m.name, m.method ? 2 : 5, m.method && !ab.code.empty() ? ab.code : m.method ? typeSignature(a->checked, m.name, m.type) : typeName(a->checked, m.type), ab.doc);
               }
-          } else if (ty.k == TK::Str) { for (const char* s : {"length", "charAt", "charCodeAt", "indexOf", "slice", "split", "toUpperCase", "toLowerCase", "trim", "startsWith", "endsWith", "includes", "replace", "padStart", "padEnd", "at"}) add(s, 6, "string"); }
-          else if (ty.k == TK::Array) { for (const char* s : {"length", "push", "pop", "shift", "unshift", "slice", "splice", "indexOf", "includes", "map", "filter", "reduce", "forEach", "join", "sort", "reverse", "find", "some", "every", "at"}) add(s, 6, "array"); }
+          } else if (ty.k == TK::Str || ty.k == TK::Array) {   // the built-in members, with their signatures and docs (lib/zinc.d.ts)
+            for (const Export& x : interfaceMembers(ty.k == TK::Str ? "String {" : "Array<T> {")) add(x.name, x.kind, x.code, x.doc);
+          }
         }
       }
-      return "{\"isIncomplete\":false,\"items\":[" + items + "]}";
+      return done();
     }
     // names in scope: this file's and the imported ones, the globals, the locals of the functions around the position; then the keywords.
     // Everything is sent whatever is typed: the editor filters (and can match `sw` to strokeWidth).
@@ -573,7 +811,20 @@ class Server {
     }
     for (const char* kw : {"const", "let", "function", "class", "interface", "type", "enum", "return", "if", "else", "for", "while", "switch", "import", "export", "new", "this", "true", "false", "null", "async", "await", "try", "catch", "finally", "throw", "break", "continue", "case", "default", "do", "of", "in", "extends", "implements", "static", "readonly", "private", "public", "typeof", "instanceof", "as", "from", "void", "undefined"})
       if (seen.insert(kw).second) add(kw, 14, "keyword");
-    return "{\"isIncomplete\":false,\"items\":[" + items + "]}";
+    // auto-import: the exports of the built-in modules and of the sketch's other files that start as the name typed, with where each comes from
+    // and the edit that imports it (tsserver's includeCompletionsForModuleExports); asked again as the name grows (isIncomplete)
+    const std::string typed = text.substr(b, off - b);
+    if (typed.empty()) return done();
+    auto low = [](std::string s) { for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return s; };
+    const std::string want = low(typed);
+    auto offer = [&](const Export& x) {
+      if (seen.count(x.name) || low(x.name).rfind(want, 0) != 0) return;
+      seen.insert(x.name);
+      add(x.name, x.kind, x.code, x.doc, ",\"labelDetails\":{\"description\":" + quote(x.spec) + "},\"additionalTextEdits\":[" + importEdit(text, x.name, x.spec) + "]");
+    };
+    for (const Export& x : builtinExports()) offer(x);
+    for (const Export& x : siblingExports(path)) offer(x);
+    return done(true);
   }
 
   // The call the position is in: the signature of what is called, its parameters, the one being typed (the commas before the position), the docs.
@@ -611,7 +862,7 @@ class Server {
     if (b > 0 && text[b - 1] == '.') {
       std::size_t ob = b - 1;
       while (ob > 0 && identChar(text[ob - 1])) --ob;
-      if (const ModuleInfo* m = namespaceOf(d, text, text.substr(ob, b - 1 - ob))) {   // ns.name(
+      if (const ModuleInfo* m = namespaceOf(d, path, text, text.substr(ob, b - 1 - ob))) {   // ns.name(
         std::map<std::string, std::uint32_t> ex;
         exportsOf(d.last->prog.ast, *m, ex);
         if (ex.count(name)) ab = about(*d.last, ex[name]);
@@ -707,8 +958,17 @@ int Server::run() {
     const int line = pos ? static_cast<int>(yyjson_get_sint(yyjson_obj_get(pos, "line"))) : 0;
     const int ch = pos ? static_cast<int>(yyjson_get_sint(yyjson_obj_get(pos, "character"))) : 0;
 
+    // the order of the protocol: before initialize a request gets ServerNotInitialized and a notification is dropped, after shutdown a request gets
+    // InvalidRequest; exit is always heard (LSP 3.17, "Initialize Request" and "Shutdown Request")
+    if (method != "exit" && (method == "initialize" ? initialized_ || shutdown_ : !initialized_ || shutdown_)) {
+      if (!id.empty()) replyError(id, shutdown_ ? -32600 : method == "initialize" ? -32600 : -32002,
+                                  shutdown_ ? "the server is shut down" : method == "initialize" ? "the server is already initialized" : "the server is not initialized");
+      yyjson_doc_free(doc);
+      continue;
+    }
     if (method == "initialize") {
-      reply(id, "{\"capabilities\":{\"textDocumentSync\":1,\"hoverProvider\":true,\"definitionProvider\":true,\"documentSymbolProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\",\"'\",\"\\\"\",\"/\"]},\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":{\"name\":\"zinc\",\"version\":\"" + std::string(zn::tc::version()) + "\"}}");
+      initialized_ = true;
+      reply(id, "{\"capabilities\":{\"textDocumentSync\":1,\"hoverProvider\":true,\"definitionProvider\":true,\"documentSymbolProvider\":true,\"completionProvider\":{\"triggerCharacters\":[\".\",\"'\",\"\\\"\",\"/\",\"<\"]},\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":{\"name\":\"zinc\",\"version\":\"" + std::string(zn::tc::version()) + "\"}}");
     } else if (method == "shutdown") { shutdown_ = true; reply(id, "null"); }
     else if (method == "exit") { yyjson_doc_free(doc); return shutdown_ ? 0 : 1; }
     else if (method == "textDocument/didOpen") {
@@ -717,6 +977,7 @@ int Server::run() {
       d.text = v && yyjson_is_str(v) ? yyjson_get_str(v) : "";
       d.version = td ? static_cast<int>(yyjson_get_sint(yyjson_obj_get(td, "version"))) : 0;
       publish(uri, d);
+      publishImporters(uri);
     } else if (method == "textDocument/didChange") {
       yyjson_val* changes = params ? yyjson_obj_get(params, "contentChanges") : nullptr;
       auto it = docs_.find(uri);   // a change to a document that is not open is the client's mistake: ignored
@@ -727,10 +988,12 @@ int Server::run() {
         d.text = v && yyjson_is_str(v) ? yyjson_get_str(v) : d.text;
         if (yyjson_val* ver = yyjson_obj_get(td, "version"); ver && yyjson_is_int(ver)) d.version = static_cast<int>(yyjson_get_sint(ver));
         publish(uri, d);
+        publishImporters(uri);
       }
     } else if (method == "textDocument/didClose") {
       docs_.erase(uri);
       notify("textDocument/publishDiagnostics", "{\"uri\":" + quote(uri) + ",\"diagnostics\":[]}");
+      publishImporters(uri);   // they read the file on disk again
     } else if (!id.empty() && docs_.count(uri)) {
       Doc& d = docs_[uri];
       if (method == "textDocument/hover") reply(id, hover(uri, d, line, ch));

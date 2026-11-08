@@ -10,7 +10,7 @@ import { createSignal } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
-import { EditorState as Buffer, Diagnostic, T_COMMENT, T_STRING, Assist, setAssist } from 'zinc:editor';
+import { EditorState as Buffer, Diagnostic, T_COMMENT, T_STRING, Assist, setAssist, SideEdit } from 'zinc:editor';
 import { isIdent, wordStart } from 'zinc:editor';
 import { Reader, frame, uriOf, Item, itemsOf, filterItems, Sig, sigOf, hoverOf, problemsOf, Problem, placeOf, specStart, callStart } from './rpc';
 
@@ -46,7 +46,7 @@ function isCode(path: string): boolean { return cfg.isCode(path); }
 export function useLsp(c: LspConfig): void {
   cfg = c; sync = c.sync; echo = c.echo;
   const a = new Assist();
-  a.typed = typed; a.suggest = suggest; a.popupKey = popupKey; a.accepted = accepted; a.popupSpec = popupSpec;
+  a.typed = typed; a.suggest = suggest; a.popupKey = popupKey; a.accepted = accepted; a.acceptedEdit = acceptedEdit; a.popupSpec = popupSpec;
   a.closePopup = closePopup; a.hideHover = hideHover; a.definition = definition; a.pointerOver = pointerOver;
   setAssist(a);
 }
@@ -262,6 +262,8 @@ export function popupKey(key: string, plain: boolean): i32 {
   return 0;
 }
 export function accepted(): string { const rows = popup(); return rows.length > 0 ? rows[Math.min(popupRow(), rows.length - 1)].label : ''; }
+/** The import the selected row brings (auto-import), null for none. */
+export function acceptedEdit(): SideEdit | null { const rows = popup(); return rows.length > 0 ? rows[Math.min(popupRow(), rows.length - 1)].edit : null; }
 export function popupSpec(): boolean { return popSpec; }
 /** The editor the popup completes in. */
 export function popupEditor(): Buffer | null { return popOpen ? popBuf : null; }

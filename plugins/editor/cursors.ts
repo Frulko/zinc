@@ -9,9 +9,11 @@ import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import { clipboardText, setClipboardText } from 'zinc:gfx';
 import { EditorState as Buffer, edited } from './state';
-import { Ed, one, typeText, paste, copyText, erase, eraseTo, complete, newline, indent, outdent, toggleComment, deleteLines, duplicateLines, moveLines,
+import { Ed, one, typeText, paste, copyText, erase, eraseTo, complete, replaceAt, newline, indent, outdent, toggleComment, deleteLines, duplicateLines, moveLines,
   single, addSel, setMain, selectNext, addCursorV, move, M_LEFT, M_RIGHT, M_WORD_LEFT, M_WORD_RIGHT, M_HOME, M_END, M_UP, M_DOWN, M_TOP, M_BOTTOM } from './edit';
 
+/** An edit that comes with a completion, elsewhere in the file (the import of the name accepted): its range by line and UTF-16 column. */
+export class SideEdit { line: i32 = 0; ch: i32 = 0; endLine: i32 = 0; endCh: i32 = 0; text: string = ''; }
 /** What the editor asks of an assistant (completion, signature, hover, definition). The default does nothing. */
 export class Assist {
   /** One character (or a paste) was typed in `b`. */
@@ -22,6 +24,8 @@ export class Assist {
   popupKey: (key: string, plain: boolean) => i32 = (key: string, plain: boolean): i32 => 0;
   /** The label of the selected row ('' for none) and whether it completes an import's module name. */
   accepted: () => string = (): string => '';
+  /** The edit the selected row brings beside its name (null: none). */
+  acceptedEdit: () => SideEdit | null = (): SideEdit | null => null;
   popupSpec: () => boolean = (): boolean => false;
   closePopup: () => void = () => {};
   hideHover: () => void = () => {};
@@ -135,12 +139,14 @@ export function editCommand(b: Buffer | null, id: string): boolean {
   return true;
 }
 
-/** The selected row of the completion popup replaces the name being typed, at every cursor. */
+/** The selected row of the completion popup replaces the name being typed, at every cursor; the import it brings is added once. */
 export function acceptCompletion(b: Buffer): void {
-  const label = assist.accepted();
+  const label = assist.accepted(), side = assist.acceptedEdit();
   if (label === '') return;
   const st = state(b);
-  show(b, complete(st, label, assist.popupSpec()), st, false);
+  let r = complete(st, label, assist.popupSpec());
+  if (side !== null) { const s = side as SideEdit; r = replaceAt(r, s.line, s.ch, s.endLine, s.endCh, s.text); }
+  show(b, r, st, false);
 }
 
 /** The shortcut of an editing command that the menu also lists ('' for another key). */

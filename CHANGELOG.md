@@ -121,6 +121,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Tools can read the CLI as JSON: `zinc project --json` prints the project as the engine reads `zinc.json` (targets, the permissions in force on each, the plugins the program loads), `zinc check --json` gives each diagnostic its file, line, column, fix and message in your language, and `zinc plugins --json` lists the plugins. Zinc Atelier now reads these instead of parsing text.
 - `sys.kill(pid, '0')` of `zinc:sys` says whether a process exists, as Node's `process.kill`, and `sys.kill` returns false when the signal could not be delivered.
 - The network log (the inspector's Network view and `zinc run --har`) masks the fields of a multipart form (a `FormData`) named in `ZINC_NET_SENSITIVE`, as it already did for urlencoded forms, JSON and query strings; files and the other fields are kept.
+- `zinc lsp` completes in more places: the names a module exports inside the braces of an import, JSX component names and their attributes (a component's own props too), and the methods of strings and arrays with their signatures and docs.
+- Auto-import in editors and Zinc Atelier: typing `rr` offers `rrect` from `zinc:gfx` (or an export of the sketch's other files), says where it comes from, and accepting it adds the import line or extends the one already there.
 
 #### Changed
 
@@ -137,6 +139,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A closing JSX tag with no opening tag (`</View>`) is now an error that names it, instead of confusing errors further down the file.
 - Two `zinc` commands that download the same tool at once (the zig, esptool, the console SDKs, basisu) no longer break each other's install: the second waits and uses the first one's.
 - The language server tags its diagnostics with the document version, so an editor no longer shows the errors of an older edit, and it ignores changes to files that were never opened.
+- The language server checks again the open files that import a file you edit, so a renamed export shows its errors where it is used without a save; it answers requests sent before `initialize` or after `shutdown` with the protocol's errors, and a failed read of the standard library's declarations no longer leaves hover and completion without docs for the rest of the session.
 - A macOS app names its executable after itself, in a `zinc build --bundle` and in the dev bundle of `zinc run`: login items, Activity Monitor and the process list show the app's name instead of `zinc`, and a start-at-login item belongs to its app.
 - `zinc check` and `zinc lint` of a program on a JavaScript engine (a `.js` entry, or `"engine": "quickjs"` in `zinc.json`) use the QuickJS loader: `node_modules` packages resolve as they do when the program runs, and browser globals no longer raise type errors. `zinc lint` warns about what QuickJS lacks, such as `Temporal`.
 - `zinc monitor --udp` listens on this machine only (`--host 0.0.0.0` receives from devices on the network) and shows the control characters of what arrives escaped, so a datagram can no longer clear or retitle your terminal.

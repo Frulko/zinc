@@ -405,6 +405,20 @@ export function complete(e: Ed, label: string, spec: boolean): Ed {
   return splice(e, a, b, s, c, c);
 }
 
+/** Replaces [line:ch, endLine:endCh) of the text (columns in UTF-16 units, as the language server gives them: an import a completion adds), the
+ *  selections after it moved along. */
+export function replaceAt(e: Ed, line: i32, ch: i32, endLine: i32, endCh: i32, s: string): Ed {
+  const t = e.text;
+  const off = (l: i32, c: i32): i32 => {
+    let p: i32 = 0;
+    for (let k: i32 = 0; k < l && p < t.length; k++) { const n = t.indexOf('\n', p); p = n < 0 ? t.length : n + 1; }
+    return imin(p + c, t.length);
+  };
+  const a = off(line, ch), b = off(endLine, endCh), d = s.length - (b - a), sels: i32[] = [];
+  for (const x of e.sels) sels.push(x >= b ? x + d : x);
+  return new Ed(t.slice(0, a) + s + t.slice(b), sels, e.main);
+}
+
 /** The other places where the selected word stands as a whole word, between `from` and `to`: [start...]. Empty unless [a, b) is one whole word. */
 export function occurrences(t: string, a: i32, b: i32, from: i32, to: i32): i32[] {
   const out: i32[] = [];

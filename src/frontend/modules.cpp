@@ -2455,6 +2455,7 @@ struct Loader {
       }
       // `import * as ns`: every `ns.name` of this file becomes the named import `ns$name`
       for (const auto& [alias, from, later] : namespaces) {
+        if (from != kNone) mod.namespaces.push_back({alias, from});
         std::set<std::string> added;
         for (std::size_t k = off; k < A.nodes.size(); ++k) {
           Node& nd = A.nodes[k];
