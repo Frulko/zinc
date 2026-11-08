@@ -6,7 +6,8 @@ import { createNodeRef, For } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, bg, fg, bd, CodeEditor, drawCursors, stepEditor as decorate, noteKey } from 'zinc:editor';
 import { Popup, Signature, Hover, stepAssist } from 'zinc:editor-lsp';
-import { active, buffers, Buffer, cycle } from '../app/workspace';
+import { active, buffers, Buffer, cycle, sketchDir } from '../app/workspace';
+import { command } from '../app/commands';
 import { findOpen, findT, findRef, query, setQuery, matches, current, next, closeFind, findFromCaret } from '../app/search';
 import { revealActiveTab } from './Header';
 import { Glyph, Kbd } from './Controls';
@@ -72,10 +73,17 @@ function Hint(props: { label: string; keys: string }): i32 {
     <Kbd keys={props.keys} />
   </View>;
 }
+// Empty, the pane says in one sentence what to do and offers one button (ZN-774.24): no sketch, the start view; a sketch without an open
+// file, a new file. The shortcuts stay below, for later.
 function EmptyPane(): i32 {
+  const none = (): boolean => sketchDir() === '';
   return <View className={`absolute inset-0 items-center justify-center ${bg(theme().bg)}`} style={{ hidden: buffers().length === 0 ? 0 : 1 }}>
     <View className="flex-col items-center gap-0.5">
-      <Text className={`text-[15px] font-semibold pb-3 ${fg(theme().text)}`}>{tr('atelier.editor.no_file')}</Text>
+      <Text className={`text-[15px] font-semibold ${fg(theme().text)}`}>{tr(none() ? 'atelier.editor.no_sketch' : 'atelier.editor.no_file')}</Text>
+      <Text className={`text-[13px] pt-1 pb-3 ${fg(theme().muted)}`}>{tr(none() ? 'atelier.editor.no_sketch.text' : 'atelier.editor.no_file.text')}</Text>
+      <Button className={`h-[32] px-4 mb-4 rounded-full items-center justify-center cursor-pointer ${bg(theme().accent)}`} onClick={() => command(none() ? 'examples' : 'add-file')}>
+        <Text className={`text-[13px] font-semibold ${fg(theme().onAccent)}`}>{tr(none() ? 'atelier.editor.no_sketch.button' : 'atelier.editor.add_file')}</Text>
+      </Button>
       <Hint label={tr('atelier.editor.add_file')} keys="⌘T" />
       <Hint label={tr('atelier.editor.examples')} keys="⌘⇧O" />
       <Hint label={tr('atelier.editor.everything')} keys="⌘⇧P" />

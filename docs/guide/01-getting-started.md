@@ -94,6 +94,34 @@ the `zinc` directory. Each plugin is then compiled the first time a program impo
 build for a board, and the plugins. Nothing in that list has to be installed by hand. `zinc` alone, or `zinc help`, lists the
 commands; `zinc help run` describes one; a misspelt command names the closest one (`zinc rnu`: "did you mean 'zinc run'?").
 
+### When `zinc doctor` reports a problem
+
+Each line of `zinc doctor` that is not ready ends with a link to the part of this page that fixes it on your system.
+
+#### The engine's files are missing
+
+`zinc` found no standard library beside it: it was moved out of its folder, or the folder was deleted. Install it again with the
+command of "Install" above (or `brew reinstall zinc`); a `zinc` built from the sources needs its checkout where it was built.
+
+#### A newer zinc on macOS
+
+Run `zinc update` (installed with `install.sh`) or `brew update && brew upgrade zinc` (installed with Homebrew); `zinc update --rollback`
+goes back. Zinc Atelier: download its new zip, or run `install.sh --atelier` again.
+
+#### A newer zinc on Linux
+
+Run `zinc update` (installed with `install.sh`) or `brew update && brew upgrade zinc` (Homebrew on Linux); `zinc update --rollback` goes back.
+On a Raspberry Pi with the Zinc image, the hub updates the engine.
+
+#### A newer zinc on Windows
+
+Run `irm https://github.com/Frulko/zinc/releases/latest/download/install.ps1 | iex` in PowerShell again: it replaces the CLI in place.
+
+#### Xcode command line tools on macOS
+
+Only `zinc build` and the plugins that compile against your system (`zinc:video`, `zinc:gphoto2`) need them. Run
+`xcode-select --install` and accept the dialog; `zinc doctor` then shows them ready.
+
 ## Create a project and run it
 
 ```sh

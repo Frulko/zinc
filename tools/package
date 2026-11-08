@@ -73,6 +73,7 @@ def payload(share):
             copy_tree(os.path.join(REPO, fields[3]), os.path.join(share, fields[3]), lambda r: not r.startswith(("build/", "dist/", ".")))
     copy_tree(os.path.join(REPO, "lib", "std"), os.path.join(share, "lib", "std"))
     copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
+    shutil.copy2(os.path.join(REPO, "CHANGELOG.md"), os.path.join(share, "CHANGELOG.md"))   # zinc changelog, Atelier's What's new (ZN-774.24)
     for d in ("gfx.d.ts", "modules.d.ts", "zinc.d.ts", "ui.d.ts"):   # zinc help <name> and zinc doc --std read the declarations (ZN-774.27)
         shutil.copy2(os.path.join(REPO, "lib", d), os.path.join(share, "lib", d))
     # the docs zinc help --docs builds offline into $ZINC_HOME/docs/<version> (ZN-774.27): the published part (site/docs-map.mjs), with its images

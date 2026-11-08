@@ -6,9 +6,9 @@
 import { createNodeRef, createEffect, untrack } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, bg, fg, bd } from 'zinc:editor';
-import { active, Buffer, notice, focusLater } from '../app/workspace';
+import { active, Buffer, notice, focusLater, sketchDir } from '../app/workspace';
 import { lines, Line, K_OUT, K_ERR, jump, explain, consoleH, consoleOpen, showConsole, takeFollow, copyConsole, status, statusKind, phase, IDLE, BUILDING, inspectorPort, openInspector, reference } from '../app/tools';
-import { promptLabel, promptValue, setPromptValue, answer, openReference } from '../app/commands';
+import { promptLabel, promptValue, setPromptValue, answer, openReference, command } from '../app/commands';
 import { jumpTo } from 'zinc:editor';
 import { caretInfo } from 'zinc:editor';
 import { Glyph, IconButton, Kbd } from './Controls';
@@ -158,6 +158,11 @@ export function ConsoleCard(): i32 {
     <StatusLine />
     <View className={`overflow-hidden border-t ${bd(theme().borderSoft)}`} style={{ height: consoleH.get(), hidden: consoleH.get() < 1 ? 1 : 0 }}>
       <Log />
+      {/* empty: the sentence of the placeholder, and its one button (ZN-774.24) */}
+      <Button className={`absolute right-[14] top-[8] h-[26] px-3 rounded-full items-center justify-center cursor-pointer ${bg(theme().accent)}`}
+        style={{ hidden: lines().length === 0 && sketchDir() !== '' ? 0 : 1 }} onClick={() => command('run')}>
+        <Text className={`text-[12px] font-semibold ${fg(theme().onAccent)}`}>{tr('atelier.header.run')}</Text>
+      </Button>
     </View>
   </View>;
 }

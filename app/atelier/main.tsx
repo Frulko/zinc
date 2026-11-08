@@ -42,6 +42,7 @@ import { StartView, EXAMPLES, Example, openExample, openFirst } from './componen
 import { Palette } from './components/Palette';
 import { Tour, stepTour, tourLine, fixCode } from './components/Tour';
 import { tourOn, tourWanted, startTour, nextStep, backStep, endTour } from './app/tour';
+import { WhatsNew, checkWhatsNew } from './components/WhatsNew';
 import { DevicesPanel } from './components/Devices';
 
 import { projectOpen, setProjectOpen, projectText, togglePermission, setName, setVersion, setId, setShell, setResize, setFullscreen, setSize, setHub, hub, makeKey, PUBLISH_TARGETS, setPublishTarget, setPublishChannel } from './app/project';
@@ -70,6 +71,7 @@ function App(): i32 {
     <EngineMenu />
     <Palette />
     <Tour />
+    <WhatsNew />
   </View>;
 }
 
@@ -175,6 +177,7 @@ if (args.length > 0 && args[0] !== '') opened = openSketch(args[0].startsWith('/
 if (!opened) { const last = lastSketch(); if (last !== '') opened = openSketch(last); }
 if (opened) check(); else setStartOpen(true);
 if (!opened && tourWanted()) startTour(true);   // a first launch: the language, then the tour
+checkWhatsNew();   // after an update: this version's lines of the changelog, once
 refresh('', '0');   // the paired devices, for the menu of the run control: read from a file, no network
 
 // ---- scripted sessions

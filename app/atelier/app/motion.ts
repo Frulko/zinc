@@ -32,7 +32,7 @@ export class Tween {
   /** Animates from the current value to `target` in `seconds`; `then` runs on arrival. */
   to(target: number, seconds: number, ease: Ease = easeOut, then: (() => void) | null = null): void {
     this.from = this.get(); this.target = target;
-    this.t = 0; this.dur = seconds; this.ease = ease; this.then = then;
+    this.t = 0; this.dur = ui.prefersReducedMotion() ? 0.001 : seconds; this.ease = ease; this.then = then;   // reduced motion: there at the next frame
     if (!this.running) { this.running = true; tweens.push(this); }
   }
   snap(value: number): void { this.from = value; this.target = value; this.t = 1; this.then = null; this.set(value); }
@@ -68,7 +68,10 @@ export class Spring {
     this.x = value; this.target = value;
     this.stiffness = stiffness; this.damping = damping;
   }
-  to(target: number): void { this.target = target; if (!this.running) { this.running = true; springs.push(this); } }
+  to(target: number): void {
+    if (ui.prefersReducedMotion()) { this.snap(target); return; }   // reduced motion: no swing
+    this.target = target; if (!this.running) { this.running = true; springs.push(this); }
+  }
   snap(value: number): void { this.x = value; this.target = value; this.v = 0; this.set(value); }
   step(dt: number): boolean {
     // semi-implicit Euler in small substeps: stable for stiff springs at any frame rate

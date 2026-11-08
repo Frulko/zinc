@@ -15,6 +15,7 @@ import * as fs from 'zinc:fs';
 import { spawnZinc, pack, run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, loadHelp, helpName, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady, reference } from './tools';
 import { openDevices, closeDevices, devicesOpen } from './devices';
 import { startTour } from './tour';
+import { showWhatsNew } from '../components/WhatsNew';
 import { editCommand, setText, menuKey, goDefinition } from 'zinc:editor';
 import { suggest } from 'zinc:editor-lsp';
 import { t } from './text';
@@ -248,6 +249,7 @@ for (let i = 0; i < PAGES.length; i += 2) { const page = PAGES[i + 1]; add('help
 add('help', 'help-search', 'CmdOrCtrl+Shift+H', () => openPalette(PAL_HELP), true);   // one box over the lessons, the docs' headings, the error codes, the API and the commands
 add('help', 'help-name', 'F1', () => { const w = wordAtCaret(); if (w !== '') helpName(w); else openPalette(PAL_HELP); });
 add('help', 'help-tour', '', () => startTour(false));
+add('help', 'whats-new', '', () => showWhatsNew());
 add('help', 'help-keys', '', () => openPalette(PAL_COMMANDS), true);
 add('help', 'help-about', '', () => say(t('atelier.about', ['path', ZINC])));
 add('help', 'update-check', '', () => updates(false), true);

@@ -2178,6 +2178,7 @@ int main(int argc, char** argv) {
     if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl[1] = "help"; return zn::cli::help(cl); }
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
     if (argc >= 2 && (!std::strcmp(argv[1], "init") || !std::strcmp(argv[1], "new"))) return zn::cli::init(cl, gRoot);
+    if (argc >= 2 && !std::strcmp(argv[1], "changelog")) return zn::cli::changelog(cl, gRoot, kVersionText);
     if (argc >= 2 && !std::strcmp(argv[1], "config")) return zn::cli::config(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "tour")) return zn::cli::tour(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "learn")) return zn::cli::learn(cl, gRoot);

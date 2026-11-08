@@ -6,7 +6,7 @@ import { createSignal, createEffect, createNodeRef, untrack } from 'zinc:ui/soli
 import * as ui from 'zinc:ui';
 import { theme, bg, fg, bd } from 'zinc:editor';
 import { STEPS, tourStep, stepId, nextStep, backStep, endTour } from '../app/tour';
-import { active, Buffer, sketchDir, saveAll } from '../app/workspace';
+import { active, activate, Buffer, sketchDir, saveAll, focusLater } from '../app/workspace';
 import { check, runCount } from '../app/tools';
 import { setStartOpen, openDocs } from '../app/commands';
 import { setText } from 'zinc:editor';
@@ -107,13 +107,26 @@ function Shade(props: { at: () => number[] }): i32 {
   return <View className={`absolute ${bg(0x000000)}`} onPointerDown={() => {}}
     style={{ left: props.at()[0], top: props.at()[1], width: Math.max(0, props.at()[2]), height: Math.max(0, props.at()[3]), opacity: 0.38 }} />;
 }
+// The buttons are Buttons: Tab moves between them, Enter or Space presses one (a screen reader names them); the main one takes the focus
+// at each step (focusMain), and Escape skips the tour (main.tsx). The focus goes back to the editor when the tour ends.
+const mainRef = createNodeRef(), noRef = createNodeRef();
 function Btn(props: { label: () => string; onPress: () => void; accent?: boolean }): i32 {
   const accent = props.accent ?? false;
-  return <View className={`h-[30] px-3.5 rounded-full items-center justify-center cursor-pointer ${accent ? bg(theme().accent) : `hover:${bg(theme().hover)}`}`}
-    onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) props.onPress(); }}>
+  return <Button ref={accent ? mainRef : noRef} className={`h-[30] px-3.5 rounded-full items-center justify-center cursor-pointer ${accent ? bg(theme().accent) : `hover:${bg(theme().hover)}`}`}
+    onClick={() => props.onPress()}>
     <Text className={`text-[13px] font-semibold ${fg(accent ? theme().onAccent : theme().text)}`}>{props.label()}</Text>
-  </View>;
+  </Button>;
 }
+let wasOn = false;
+createEffect(() => {
+  const on = tourStep() >= 0;
+  untrack<i32>(() => {
+    if (on) focusLater(mainRef.node);
+    else if (wasOn) { const b = active(); if (b !== null) activate(b as Buffer); }
+    wasOn = on;
+    return 0;
+  });
+});
 function Languages(): i32 {
   return <View className="flex-col gap-0.5 py-1">
     {LANGUAGES.map((code: string) => <View className={`flex-row items-center h-[32] px-3 rounded-lg cursor-pointer ${lang() === code ? bg(theme().selected) : `hover:${bg(theme().hover)}`}`}
@@ -140,7 +153,7 @@ function Card(): i32 {
     style={{ left: cardAt(id())[0], top: cardAt(id())[1] }} onPointerDown={() => {}}>
     <View className="flex-row items-center">
       <Text className={`grow text-[12px] ${fg(theme().faint)}`}>{id() === 'language' ? '' : t('atelier.tour.progress', ['step', `${tourStep()}`, 'count', `${STEPS.length - 1}`])}</Text>
-      <Text className={`text-[12px] font-medium cursor-pointer ${fg(theme().muted)}`} onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) endTour(true); }}>{t('atelier.tour.skip')}</Text>
+      <Button className="cursor-pointer" onClick={() => endTour(true)}><Text className={`text-[12px] font-medium ${fg(theme().muted)}`}>{t('atelier.tour.skip')}</Text></Button>
     </View>
     <Text className={`text-[16px] font-semibold ${fg(theme().text)}`}>{t(`atelier.tour.${id()}.title`)}</Text>
     <Text className={`text-[13px] leading-[19] ${fg(theme().text)}`}>{t(`atelier.tour.${id()}.text`)}</Text>

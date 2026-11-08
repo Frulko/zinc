@@ -154,6 +154,7 @@ const Command kCommands[] = {
   {"lsp", "zinc lsp", "cli.cmd.lsp", "Speaks LSP over stdio for an editor: diagnostics (the Z codes of zinc check --json), hover with types, completion (members, names in scope, module specifiers), go to definition, document symbols."},
   {"mem", "zinc mem <file.ts|file.zbc> [--json] [--check-leaks]", "cli.cmd.mem", "Runs a program in the interpreter and reports memory use and live objects at exit. --json writes the report as JSON; --check-leaks exits 4 when objects remain live."},
   {"version", "zinc version", "cli.cmd.version", "Prints the version of this zinc (also zinc --version)."},
+  {"changelog", "zinc changelog [version]", "cli.cmd.changelog", "Prints what changed in this version of zinc (or the one named), from its CHANGELOG.md: the lines Zinc Atelier shows once after an update. A build from the sources prints what changed since the last release."},
   {"help", "zinc help [command|name] | zinc help --search <words> | zinc help --docs [page]", "cli.cmd.help", "zinc help lists the commands; zinc help <command> describes one. zinc help <name> prints a name of the standard library (rrect, gfx.onFrame, Stage...): its comment, its signature and one example. --search looks for words in the lessons, the guides, the error codes, the API and the commands; --docs builds the engine's docs once into $ZINC_HOME/docs/<version> (offline, no network) and prints the page's path; --index prints the whole list, one tab-separated line each."},
 };
 
@@ -1008,20 +1009,30 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
   using zn::i18n::tr;
   using zn::i18n::trn;
   const Paint P;
-  struct Row { std::string mark, what, note; };
+  struct Row { std::string mark, what, note, fix; };
   std::vector<Row> rows;                // printed under the verdict, which needs them all first (ZN-774.03)
   std::vector<std::string> todo;        // what the person can do, in the order of the rows
-  auto line = [&](const char* mark, const std::string& what, const std::string& note) { rows.push_back({mark, what, note}); };
+  auto line = [&](const char* mark, const std::string& what, const std::string& note) { rows.push_back({mark, what, note, ""}); };
+  // A row that is not ready links to its fix for this system in the docs (ZN-774.24): docs/guide/01-getting-started.md, "When zinc doctor
+  // reports a problem"; tests/t0/doctor_links.sh checks that every anchor named here is a heading of that page.
+#if defined(__APPLE__)
+  const std::string os = "macos";
+#elif defined(_WIN32)
+  const std::string os = "windows";
+#else
+  const std::string os = "linux";
+#endif
+  auto fix = [&](const std::string& anchor) { rows.back().fix = docs("guide/01-getting-started/") + "#" + anchor; };
   std::string profile = tr("cli.doctor.this_machine"), tier, gpu, renderer;
   { std::istringstream is(rendererLines); std::string l; while (std::getline(is, l)) {
       if (l.rfind("profile ", 0) == 0) profile = l.substr(8); else if (l.rfind("tier ", 0) == 0) tier = l.substr(5);
       else if (l.rfind("gpu ", 0) == 0) gpu = l.substr(4); else if (l.rfind("renderer ", 0) == 0) renderer = l.substr(9); } }
   std::error_code ec;
   if (fs::exists(fs::path(engineRoot) / "lib" / "std", ec)) line("ok", "Zinc " + version, engineRoot);
-  else line("bad", "Zinc " + version, tr("cli.doctor.engine_missing", {{"dir", engineRoot}}));   // nothing runs without the standard library
+  else { line("bad", "Zinc " + version, tr("cli.doctor.engine_missing", {{"dir", engineRoot}})); fix("the-engines-files-are-missing"); }   // nothing runs without the standard library
   if (const std::string up = zn::tc::updateStatus(); up == "up to date") line("ok", tr("cli.doctor.up_to_date"), "");
   else if (!up.empty() && up[0] == '?') line("info", tr("cli.doctor.updates"), up.substr(1));
-  else if (!up.empty()) { line("warn", tr("cli.doctor.update", {{"version", up}}), tr("cli.doctor.update_this", {{"version", version}})); const std::string how = zn::tc::updateHow();
+  else if (!up.empty()) { line("warn", tr("cli.doctor.update", {{"version", up}}), tr("cli.doctor.update_this", {{"version", version}})); fix("a-newer-zinc-on-" + os); const std::string how = zn::tc::updateHow();
     todo.push_back(how == "run zinc update" ? tr("cli.doctor.todo.update", {{"command", P.cmd("zinc update")}, {"rollback", P.cmd("zinc update --rollback")}}) : tr("cli.doctor.todo.update_how", {{"how", how}})); }
   line("ok", tr("cli.doctor.window"), tr("cli.doctor.window.note") + (gpu.empty() ? std::string() : "; GPU " + gpu) + (tier.empty() ? std::string() : ", tier " + tier) + (renderer.empty() ? std::string() : ", renderer " + renderer));
   for (const zn::tc::PinnedTool& t : zn::tc::pinnedTools()) {
@@ -1034,7 +1045,7 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
   }
 #if defined(__APPLE__)
   if (zn::tc::xcodeToolsInstalled()) line("ok", tr("cli.doctor.xcode"), tr("cli.doctor.xcode.ok"));
-  else { line("warn", tr("cli.doctor.xcode"), tr("cli.doctor.xcode.missing")); todo.push_back(tr("cli.doctor.todo.xcode", {{"command", P.cmd("xcode-select --install")}})); }
+  else { line("warn", tr("cli.doctor.xcode"), tr("cli.doctor.xcode.missing")); fix("xcode-command-line-tools-on-macos"); todo.push_back(tr("cli.doctor.todo.xcode", {{"command", P.cmd("xcode-select --install")}})); }
 #endif
   {   // npm packages (zinc add npm:..., the web target's node_modules): the managers this machine has, Node being only what they run on
     std::string have, none;
@@ -1070,6 +1081,7 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
   for (const Row& r : rows) {
     const std::string m = r.mark == "ok" ? P.ok("[\xE2\x9C\x93]") : r.mark == "warn" ? P.warn("[!]") : r.mark == "bad" ? P.bad("[\xE2\x9C\x97]") : P.dim("[\xE2\x80\xA2]");
     std::printf(" %s %s%s\n", m.c_str(), P.bold(r.what).c_str(), r.note.empty() ? "" : ("  " + P.dim(r.note)).c_str());
+    if (!r.fix.empty()) std::printf("     %s %s\n", P.dim(tr("cli.doctor.fix")).c_str(), r.fix.c_str());
   }
   std::printf("\n");
   if (!todo.empty()) {
@@ -1080,6 +1092,29 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
   if (!bad) std::printf("  %s  %s\n\n", P.dim(tr("cli.doctor.start")).c_str(), P.cmd("zinc new game hello && cd hello && zinc dev").c_str());
   std::printf("  %s\n\n", P.dim(tr("cli.doctor.more", {{"command", "zinc doctor --details"}})).c_str());
   return bad ? 1 : 0;
+}
+
+/** `zinc changelog [version]` (ZN-774.24): the section of CHANGELOG.md for that version, this one by default ("0.12.1+24.g..." is a build
+ *  after 0.12.1: its changes are the Unreleased section). Exit 1 when the file or the section is not there. */
+int changelog(const std::vector<std::string>& args, const std::string& engineRoot, const std::string& version) {
+  std::ifstream f(fs::path(engineRoot) / "CHANGELOG.md");
+  if (!f) { std::fprintf(stderr, "zinc changelog: no CHANGELOG.md in %s\n", engineRoot.c_str()); return 1; }
+  std::string want = args.size() > 2 ? args[2] : version;
+  if (args.size() <= 2 && want.find('+') != std::string::npos) want = "Unreleased";
+  if (!want.empty() && want[0] == 'v') want.erase(0, 1);
+  std::string out, l;
+  bool in = false;
+  while (std::getline(f, l)) {
+    if (l.rfind("## ", 0) == 0) {
+      if (in) break;
+      in = l.rfind("## [" + want + "]", 0) == 0;
+    }
+    if (in) out += l + "\n";
+  }
+  while (!out.empty() && (out.back() == '\n' || out.back() == ' ')) out.pop_back();
+  if (out.empty()) { std::fprintf(stderr, "zinc changelog: CHANGELOG.md has no section for %s\n", want.c_str()); return 1; }
+  std::printf("%s\n", out.c_str());
+  return 0;
 }
 
 // ---- commands that run the engine itself (ZN-140)

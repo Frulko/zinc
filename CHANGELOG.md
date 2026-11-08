@@ -138,6 +138,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc help <name>` explains a function or class of the standard library (`zinc help rrect`, `zinc help Stage.addChild`): its comment, its signature and an example from the docs.
 - The docs work offline: `zinc help --search <words>` looks through the lessons, the guides, the error codes, the API and the commands, and `zinc help --docs` builds the docs of your version once, on your machine.
 - In Zinc Atelier, F1 shows the help of the name under the caret, ⌘⇧H opens one search box over the lessons, the docs, the error codes and the commands, and the Help menu opens the docs from your machine.
+- After an update, Zinc Atelier shows once a small card with what changed (Help > What's New any time, "Don't show again" turns it off), and `zinc changelog` prints the same notes.
+- Each line of `zinc doctor` that is not ready links to the fix for your system in the docs.
+- Zinc Atelier's empty editor and console say what to do and offer one button, its tour works from the keyboard (Tab, Enter, Escape) and its animations follow the system's reduced motion setting.
 
 ## [0.11.5] - 2026-11-05
 

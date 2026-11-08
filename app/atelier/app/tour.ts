@@ -17,7 +17,8 @@ function markerFile(): string {
   const book = sys.env('ZINC_ATELIER_HOME'), home = sys.env('ZINC_HOME') !== '' ? sys.env('ZINC_HOME') : sys.env('HOME') + '/.zinc';
   return book !== '' ? book + '/.atelier.json' : home + '/atelier.json';
 }
-function marker(): any {
+/** Atelier's marker file as an object (the tour, What's new). */
+export function marker(): any {
   try { const d: any = JSON.parse(fs.readText(markerFile())); if (d !== null && typeof d === 'object') return d; } catch (e) { }
   return JSON.parse('{}');
 }
@@ -26,10 +27,13 @@ export function tourWanted(): boolean {
   if (sys.env('ZINC_ATELIER_HOME') !== '' && sys.env('ZINC_ATELIER_TOUR') !== '1') return false;
   return marker().tour !== 'done';
 }
+export function saveMarker(d: any): void {
+  try { const f = markerFile(); fs.mkdir(f.slice(0, f.lastIndexOf('/')), true); fs.writeText(f, JSON.stringify(d) + '\n'); } catch (e) { }
+}
 function remember(skipped: boolean): void {
   const d = marker();
   d.tour = 'done'; d.tourVersion = 1; d.skipped = skipped;
-  try { const f = markerFile(); fs.mkdir(f.slice(0, f.lastIndexOf('/')), true); fs.writeText(f, JSON.stringify(d) + '\n'); } catch (e) { }
+  saveMarker(d);
 }
 
 /** Starts the tour: at the language on a first launch, at the welcome when Help > Tour replays it. */
