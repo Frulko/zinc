@@ -4,7 +4,8 @@ title: >-
   Methods and mutation on an `any` value (map, filter, join, push, sort, string
   methods)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:37'
 labels:
   - checker

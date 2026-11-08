@@ -4,7 +4,8 @@ title: >-
   Multi-window and worker follow-ups (ZN-864): async handler, window-all-closed,
   x/y, stale surfaces
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:37'
 labels:
   - workers

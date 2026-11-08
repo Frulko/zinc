@@ -4,7 +4,8 @@ title: >-
   Checker: an array of records converts to an array of a wider record (optional
   members)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-08 22:45'
 labels:
   - compiler
