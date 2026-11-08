@@ -2,7 +2,8 @@
 id: ZN-797
 title: Four zinc export and build defects
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:55'
 labels:
   - size-M

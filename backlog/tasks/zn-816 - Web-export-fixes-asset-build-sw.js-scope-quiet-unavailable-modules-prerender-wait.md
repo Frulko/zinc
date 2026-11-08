@@ -4,7 +4,8 @@ title: >-
   Web export fixes: asset build, sw.js scope, quiet unavailable modules,
   prerender wait
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:56'
 labels:
   - size-M

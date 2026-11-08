@@ -4,7 +4,8 @@ title: >-
   Release hygiene for the engine packs (Hermes licences, pinned V8, .qbc version
   stamp, source-map paths)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:56'
 labels:
   - size-S
