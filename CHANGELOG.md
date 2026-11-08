@@ -48,6 +48,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - On macOS 13 and later, `autostart.enable()` in an exported app adds the app itself to Login Items under its own name and icon, instead of a background item named after its id; an app that started at login before moves over by itself.
 - An installed zinc builds a plugin whose options a project sets in `zinc.json` (`zinc:3d`, `zinc:video`, the display drivers...): the release ships those plugins' sources beside their prebuilt library, and an install that lacks them says so instead of "no native source".
 
+- `navigator.mediaDevices.getUserMedia` asks for the camera or the microphone first, as a browser does, instead of failing with `NotAllowedError` on a Mac where access was never asked.
+- With `ZINC_NATIVE=sim`, `--engine quickjs` runs a plugin's simulated stand-in like the other engines, instead of its native library (the iPod demo no longer looks for a real iPod).
+
 ### UI
 
 #### New
@@ -71,6 +74,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Japanese, Chinese, Persian and Arabic text, arrows and triangles such as `▸ ▾`, and emoji with skin tones or joined into one draw with the system's fonts instead of `?`, without adding `"text": "shaped"` to `zinc.json`; Latin text keeps exactly its pixels, and `"text": "simple"` keeps the old behaviour (and a smaller built program).
 
 - JSX accepts more of what React code writes: `<Bar />` when every prop is optional, `aria-*` and `data-*` attributes on your own components, `{list.map(row)}` with a function imported from another file, `{cond ? list.map(...) : <View />}` in the Solid model, and `{props.children?.()}`, which printed a number in place of the children.
+- A JSX child that is a call making a node is mounted instead of printed as a number, whatever the helper is called: `{box(p.children)}`, `{wrap(() => <Text />)}`, `{ui.createNode(...)}` and a component kept in a class field, `{this.view()}`.
 - `a?.b !== undefined` now tells the checker that `a` and `a.b` are set, as TypeScript does, inside JSX too.
 
 ### The web

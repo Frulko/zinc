@@ -149,6 +149,7 @@ class Bridge {
     return out;
   }
   async open(id: string, width: i32, height: i32, fps: i32): Promise<MediaStreamTrack> {
+    if (permissionStatus() === 'undetermined') await requestPermission();   // as a browser, getUserMedia asks first (macOS shows its question once)
     const cam = await Camera.open(id, { width: width, height: height, fps: fps });
     const name = (await devices()).find((d: CameraDevice) => d.id === cam.id);
     const s = new MediaTrackSettings();

@@ -175,7 +175,8 @@ export class Session {
   /** The photos of earlier runs, one per frame from the newest: decoding twelve PNGs at once would hold the first frames. */
   private loadPhotos(k: number): void {
     if (!fs.exists(this.dir)) return;
-    const names = fs.list(this.dir).filter((f: string) => f.startsWith('photo-') && f.endsWith('.png')).reverse().slice(0, KEEP);
+    // newest first, by name without the extension: photo-<time>-2 (a second photo in the same second) comes after photo-<time>, as it was taken
+    const names = fs.list(this.dir).filter((f: string) => f.startsWith('photo-') && f.endsWith('.png')).map((f: string) => f.slice(0, f.length - 4)).sort().reverse().map((f: string) => f + '.png').slice(0, KEEP);
     if (k >= names.length || this.photos.length >= KEEP) return;
     const f = names[k], name = f.slice(0, f.length - 4);
     if (!this.photos.some((p: Photo) => p.name === name))

@@ -77,7 +77,7 @@ using zn::frontend::normalize;
 static bool pathAbs(const std::string& p) {
   if (p.empty()) return false;
   if (p[0] == '/') return true;
-  if (p.size() > 1 && (p[0] >= 'a' && p[0] <= 'z' || p[0] >= 'A' && p[0] <= 'Z') && p[1] == ':') return true;
+  if (p.size() > 1 && ((p[0] >= 'a' && p[0] <= 'z') || (p[0] >= 'A' && p[0] <= 'Z')) && p[1] == ':') return true;
   return false;
 }
 // ---- the host calls, generated from the runtime table: one JS function per `host.*` row, its arguments decoded by the row's letters
@@ -400,6 +400,14 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
   else if (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0) {
     r = normalize(dirOf(from) + "/" + n);
     if (std::string f = e.res.file(r, from); !f.empty()) r = f;
+    // ZINC_NATIVE=sim (D21): a plugin's native spec is its Zinc stand-in, x.next.ts or else x.sim.ts, as on the typed engines (ZN-1038: QuickJS
+    // loaded the native library, so the iPod demo looked for a real iPod); the stand-in's own `import type` of the spec is erased
+    if (const char* mode = std::getenv("ZINC_NATIVE"); mode && std::string(mode) == "sim" && endsWith(r, ".spec.ts")) {
+      const std::string stem = r.substr(0, r.size() - 8);
+      std::error_code ec;
+      for (const char* suffix : {".next.ts", ".sim.ts"})
+        if (stem + suffix != from && std::filesystem::exists(stem + suffix, ec)) { r = stem + suffix; break; }
+    }
   } else if (n.rfind("zinc:", 0) == 0) {   // a plugin wins over lib/std, as in the typed loader (zinc:system/*); never over a host module
     std::error_code ec;
     if (!e.modules.empty() && std::filesystem::exists(e.modules + "/" + n.substr(5) + ".js", ec)) r = e.modules + "/" + n.substr(5) + ".js";

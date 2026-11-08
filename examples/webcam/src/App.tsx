@@ -11,7 +11,7 @@ import { session, Photo, SIZES, RATES } from './session';
 const ink = (): i32 => currentScheme() === 'dark' ? 0xE4E4E7 : 0x27272A;
 const white = (): i32 => 0xFFFFFF;
 const HUD = font('sans', 13);
-function renderKids(c: (() => i32) | undefined): i32 { return c !== undefined ? c() : <View />; }
+function kids(c: (() => i32) | undefined): i32 { return c !== undefined ? c() : <View />; }
 
 // ---------------------------------------------------------------- the preview canvas (a lazy canvas: drawn when a camera frame arrives)
 function drawPreview(x: i32, y: i32, w: i32, h: i32): void {
@@ -93,7 +93,7 @@ function Step(p: { label: string; icon: string; value: number; min: number; max:
 function Section(p: { title: string; children?: () => i32 }) {
   return <View className="gap-2.5">
     <Text className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{p.title}</Text>
-    <View className="gap-2.5">{renderKids(p.children)}</View>
+    <View className="gap-2.5">{kids(p.children)}</View>
   </View>;
 }
 
@@ -101,11 +101,11 @@ function Section(p: { title: string; children?: () => i32 }) {
 /** A centred card: the permission and error screens. */
 function Notice(p: { icon: string; title: string; body: string; children?: () => i32 }) {
   return <View className="flex-1 items-center justify-center p-8 bg-zinc-100 dark:bg-zinc-950">
-    <View className="w-[440px] max-w-full items-center gap-4 p-8 rounded-3xl bg-white dark:bg-zinc-900 shadow-lg">
+    <View className="w-full max-w-[440px] items-center gap-4 p-8 rounded-3xl bg-white dark:bg-zinc-900 shadow-lg">
       <View className="w-16 h-16 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-950"><Icon name={p.icon} size={30} color={() => 0xEA580C} /></View>
       <Text className="text-xl font-bold text-center text-zinc-900 dark:text-white">{p.title}</Text>
       <Text className="text-sm text-center text-zinc-600 dark:text-zinc-300">{p.body}</Text>
-      {renderKids(p.children)}
+      {kids(p.children)}
     </View>
   </View>;
 }

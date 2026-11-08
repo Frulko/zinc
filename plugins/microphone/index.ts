@@ -125,6 +125,7 @@ class Bridge {
     return out;
   }
   async open(id: string, rate: i32, channels: i32): Promise<MediaStreamTrack> {
+    if (permissionStatus() === 'undetermined') await requestPermission();   // as a browser, getUserMedia asks first (macOS shows its question once)
     const mic = await Microphone.open(id, { sampleRate: rate, channels: channels });
     const name = (await devices()).find((d: MicrophoneDevice) => d.id === mic.id);
     const s = new MediaTrackSettings();

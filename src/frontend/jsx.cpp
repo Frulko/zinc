@@ -744,7 +744,46 @@ struct Lowering {
   // [a, b) is a call of a function that makes a node: `Card(x)`, `props.renderItem(x)`, a function of this file that returns JSX
   bool nodeCallAt(std::size_t a, std::size_t b) {
     const std::size_t open = callParen(a, b);
-    return open && dotted(a, open) && nodeCall(calleeText(a, open));
+    if (!open || !dotted(a, open)) return false;
+    const std::string callee = calleeText(a, open);
+    if (nodeCall(callee) || passesChildren(callee, open, b - 1) || passesRender(callee, open, b - 1)) return true;
+    if (callee == "createNode" || (callee.size() > 11 && callee.compare(callee.size() - 11, 11, ".createNode") == 0)) return true;   // zinc:ui's ui.createNode(...)
+    return fnParamB && open == a + 1 && paramMakesNode(tx(a));
+  }
+  // `helper(p.children)`: a call handed the children renders them (ZN-1038: the call was printed as a number and the children vanished)
+  bool passesChildren(const std::string& callee, std::size_t open, std::size_t close) const {
+    if (callee.find("Children.") != std::string::npos) return false;   // React.Children.count(children) and the like count them
+    for (std::size_t k = open + 1; k < close; ++k)
+      if (t[k].kind == Tok::Ident && tx(k) == "children" && !isP(k + 1, "(") && !isP(k + 1, "?.") && !isP(k + 1, ".")) return true;
+    return false;
+  }
+  // `wrap(() => <Text/>)`: a call handed a function that returns JSX gives the node it makes (not a list: `.map` is listAt's)
+  bool passesRender(const std::string& callee, std::size_t open, std::size_t close) {
+    if (callee.size() > 4 && callee.compare(callee.size() - 4, 4, ".map") == 0) return false;
+    bool one = true;
+    scan(open + 1, close, [&](std::size_t, const std::string& x) { if (x == ",") one = false; });
+    return one && arrowAt(open + 1, close) && returnsJsx(open + 1, close);
+  }
+  // In the body of a function of this file: a parameter that makes a node (`c: () => i32`, `c?: () => i32`, `(() => i32) | undefined`), whose
+  // call returned is the function's node (`function box(c: () => i32) { return c(); }`)
+  std::size_t fnParamA = 0, fnParamB = 0;
+  bool paramMakesNode(const std::string& name) const {
+    for (std::size_t k = fnParamA + 1; k < fnParamB; ++k) {
+      if (t[k].kind != Tok::Ident || tx(k) != name || !(isP(k - 1, "(") || isP(k - 1, ","))) continue;
+      std::size_t q = k + 1;
+      if (isP(q, "?")) ++q;
+      if (!isP(q, ":")) return false;
+      std::string ty;
+      int d = 0;
+      for (++q; q < fnParamB; ++q) {
+        const std::string x = tx(q);
+        if (d == 0 && (x == "," || x == "=")) break;
+        if (x == "(" || x == "[" || x == "{") ++d; else if (x == ")" || x == "]" || x == "}") --d;
+        ty += x;
+      }
+      return ty == "()=>i32" || ty == "(()=>i32)|undefined" || ty == "(()=>i32)|null";
+    }
+    return false;
   }
   bool dotted(std::size_t a, std::size_t b) const {   // `a.b.c` and nothing else over [a, b)
     for (std::size_t k = a; k < b; ++k) if (!(t[k].kind == Tok::Ident || (isP(k, ".") && k > a))) return false;
@@ -761,6 +800,7 @@ struct Lowering {
   // a call of one as a child is a node to mount, not a number to print (ZN-689).
   std::set<std::string> jsxFns;
   std::set<std::string> jsxVars;   // the variables of this file that hold an element (filled with jsxFns)
+  std::set<std::string> jsxFields;   // the class fields of this file that hold a function returning JSX: `{obj.f()}` mounts it
   bool jsxFnsRead = false;
   bool bodyReturnsJsx(std::size_t open, std::size_t close) {
     for (std::size_t k = open + 1; k < close; ++k) {
@@ -768,6 +808,7 @@ struct Lowering {
       std::size_t r0 = k + 1;
       while (isP(r0, "(")) ++r0;
       if (jsxStart(r0)) return true;
+      if (t[r0].kind == Tok::Ident && (isP(r0 + 1, ";") || isP(r0 + 1, "}")) && jsxVars.count(tx(r0))) return true;   // `return v;` of a node made above
       std::size_t r1 = 0;   // `return ready ? <A/> : <B/>;`
       scan(k + 1, close, [&](std::size_t i, const std::string& x) { if (!r1 && (x == ";" || x == "}")) r1 = i; });
       if (r1 && jsxValue(k + 1, r1)) return true;
@@ -779,6 +820,8 @@ struct Lowering {
     if (jsxFnsRead) return jsxFns;
     jsxFnsRead = true;
     jsxFns = importedFns;
+    // twice: a helper that returns another helper's node, or a variable made further down its body, is seen once the first pass knows them
+    for (int pass = 0; pass < 2; ++pass)
     for (std::size_t i = 0; i + 3 < t.size(); ++i) {
       if (isK(i, "function") && t[i + 1].kind == Tok::Ident) {
         std::size_t p = i + 2;
@@ -786,7 +829,9 @@ struct Lowering {
         if (!isP(p, "(")) continue;
         std::size_t q = match(p) + 1;
         while (q < t.size() && !isP(q, "{") && !isP(q, ";") && !isP(q, "=>")) ++q;   // past the return type
+        fnParamA = p; fnParamB = match(p);
         if (isP(q, "{") && bodyReturnsJsx(q, match(q))) jsxFns.insert(tx(i + 1));
+        fnParamA = fnParamB = 0;
       } else if ((isK(i, "const") || isK(i, "let")) && t[i + 1].kind == Tok::Ident) {
         for (std::size_t d = i + 1; d < t.size() && t[d].kind == Tok::Ident;) {   // every declarator: `const a = 1, body = <View/>;`
           std::size_t q = d + 1;
@@ -800,6 +845,14 @@ struct Lowering {
           if (!isP(end, ",")) break;
           d = end + 1;
         }
+      } else if (t[i].kind == Tok::Ident && isP(i + 1, ":") && i > 0 && (isP(i - 1, "{") || isP(i - 1, ";") || isP(i - 1, "}"))) {
+        // a class field that holds a component, `f: () => i32 = () => <Text/>;`: `{obj.f()}` mounts what it makes (ZN-844)
+        std::size_t q = i + 2;
+        while (q < t.size() && !isP(q, "=") && !isP(q, ";") && !isP(q, "}")) { if (isP(q, "(") || isP(q, "[") || isP(q, "{")) q = match(q); ++q; }
+        if (!isP(q, "=")) continue;
+        std::size_t end = q + 1;
+        while (end < t.size() && !isP(end, ";") && !isP(end, "}")) { if (isP(end, "(") || isP(end, "[") || isP(end, "{")) end = match(end); else if (jsxStart(end)) end = parseElem(end)->end - 1; ++end; }
+        if (returnsJsx(q + 1, end)) jsxFields.insert(tx(i));
       } else if (t[i].kind == Tok::Ident && isP(i + 1, "=") && !isP(i + 2, "{") && !(i > 0 && (isP(i - 1, ".") || isP(i - 1, "?.")))) {
         // an element assigned later, `let form; if (a) form = <View/>; else form = <Text/>;`: `{form}` mounts it too (a JSX attribute,
         // `title={<Text/>}`, is not an assignment: its value starts with a brace)
@@ -817,6 +870,7 @@ struct Lowering {
   // names them; the global constructors that make strings and numbers, String(x) and the like, are not).
   bool nodeCall(const std::string& callee) {
     if (childrenCall(callee)) return true;
+    if (const std::size_t dot = callee.rfind('.'); dot != std::string::npos && callee.find('<') == std::string::npos && (jsxFunctions(), jsxFields.count(callee.substr(dot + 1)))) return true;
     if (callee.empty() || callee.find('.') != std::string::npos || callee.find('<') != std::string::npos) return false;
     if (jsxFunctions().count(callee)) return true;
     static const std::set<std::string> builtins{"String", "Number", "Boolean", "BigInt", "Symbol", "Date", "Array", "Object", "Error", "RegExp", "Map", "Set", "Promise", "JSON", "Math", "Intl"};
