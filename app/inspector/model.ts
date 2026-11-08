@@ -4,7 +4,7 @@
 import { WebSocket, MessageEvent } from 'zinc:socket';
 import { fetch } from 'zinc:net';
 import { list as listDir, readText, remove } from 'zinc:fs';
-import { env } from 'zinc:sys';
+import { env, kill } from 'zinc:sys';
 
 export class Target {
   port: i32 = 0; title: string = ''; type: string = ''; ws: string = '';
@@ -35,7 +35,7 @@ function runDir(): string { return (env('ZINC_HOME').length > 0 ? env('ZINC_HOME
 
 /** The programs that answer /json/list on these ports of this machine (an inspector of zinc:devtools: 9229; zinc debug --cdp: 9222) and,
  *  `announced`, on the ports the programs announce in runDir, whatever they are (ZINC_DEVTOOLS_PORT=0, zinc dev); the file of a program that no longer
- *  answers, or whose port another program took, is removed. */
+ *  answers, whose process is gone, or whose port another program took, is removed. */
 export async function discover(ports: i32[], announced: boolean): Promise<Target[]> {
   const all: i32[] = ports.slice(0), pids: i32[] = [], files: string[] = [];
   for (const p of ports) { pids.push(0); files.push(''); }
@@ -46,6 +46,7 @@ export async function discover(ports: i32[], announced: boolean): Promise<Target
       try {
         const a = JSON.parse(readText(path));
         const port: i32 = a.port, pid: i32 = a.pid;
+        if (pid > 0 && !kill(pid, '0')) { remove(path); continue; }   // the program is gone (killed: no transport removes its file then)
         const at = all.indexOf(port);
         if (at >= 0) { pids[at] = pid; files[at] = path; continue; }
         all.push(port); pids.push(pid); files.push(path);

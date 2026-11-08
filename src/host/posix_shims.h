@@ -36,10 +36,10 @@ inline passwd* getpwuid(unsigned) {
 }
 inline unsigned getuid(void) { return 0; }
 inline unsigned getgid(void) { return 0; }
-inline int kill(pid_t pid, int) {   // Windows knows no signals between processes: a stop is a TerminateProcess
-  HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+inline int kill(pid_t pid, int sig) {   // Windows knows no signals between processes: a stop is a TerminateProcess; 0 only opens it (it exists)
+  HANDLE h = OpenProcess(sig == 0 ? PROCESS_QUERY_LIMITED_INFORMATION : PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
   if (!h) return -1;
-  const int ok = TerminateProcess(h, 9) != 0;
+  const int ok = sig == 0 || TerminateProcess(h, 9) != 0;
   CloseHandle(h);
   return ok ? 0 : -1;
 }

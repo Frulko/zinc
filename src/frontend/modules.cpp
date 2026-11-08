@@ -337,9 +337,11 @@ export function onSignal(signal: string, cb: () => void): void {
   __sigNames.push(signal);
   __sigCbs.push(cb);
 }
+/** Sends \`signal\` to process \`pid\`; false when it was not delivered (no such process, not allowed). '0' sends nothing: whether the process exists. */
 export function kill(pid: i32, signal: string): boolean {
-  if (__host_sigSend(pid, signal) === 0) throw new Error('sys.kill: unknown signal ' + signal);
-  return true;
+  const r = __host_sigSend(pid, signal);
+  if (r === 0) throw new Error('sys.kill: unknown signal ' + signal);
+  return r === 2;
 }
 export function pid(): i32 { return __host_sysPid(); }
 export function cwd(): string { return __host_sysCwd(); }

@@ -9,7 +9,7 @@
 import { createSignal, render } from 'zinc:ui/solid';
 import { PointerEvent } from 'zinc:ui';
 import * as sys from 'zinc:sys';
-import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect, rrect, border } from 'zinc:gfx';
+import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect, rrect, border, font, textWidth, drawText, fontAscent } from 'zinc:gfx';
 import { base64Decode } from 'zinc:web';
 import { spawn, Process } from 'zinc:process';
 import { Target, Cdp, discover, TraceFrame, PhaseTotal, traceFrames, phaseTotals, msText, Track, traceTracks } from './model';
@@ -286,12 +286,27 @@ function TargetRow(p: { t: Target }): i32 {   // the program card: its name, the
 // The frame fitted into the view with its proportions: its place in the Canvas (left, top, width, height), set by each draw.
 const fit: number[] = [0, 0, 1, 1];
 function quadBox(q: number[], i: i32): number[] { return [q[i], q[i + 1], q[i + 2] - q[i], q[i + 5] - q[i + 1]]; }
-/** The Screen view's tooltip line: the node highlighted, its size; while picking, how to reach its parent. */
+/** The tooltip drawn on the screen by the highlighted node, as Chrome's device view: its name and size. */
 function screenTip(): string {
   const id = picking() && hover() > 0 ? hover() : target(), n = nodeOf(id), q = shown();
-  if (n === null || q.length < 24) return picking() ? 'Pick: click a node of the screen (Escape cancels)' : '';
+  if (n === null || q.length < 24) return '';
   const b = quadBox(q, 8);
-  return label(n as TNode) + '  ' + Math.round(b[2]) + ' × ' + Math.round(b[3]) + (picking() ? '   ↑ parent · ↓ back · Esc cancel' : '');
+  return label(n as TNode) + '  ' + Math.round(b[2]) + ' × ' + Math.round(b[3]);
+}
+/** The line under the screen while picking: how to pick, and how to reach the parent. */
+function pickHint(): string { return !picking() ? '' : hover() > 0 ? '↑ parent · ↓ back · Esc cancel' : 'Pick: click a node of the screen (Escape cancels)'; }
+let tipFont: i32 = -1;
+/** The tooltip under the node's border box `b` (window points scaled by s from ox, oy), above it when it would leave the view, kept inside it. */
+function drawTip(t: string, b: number[], s: number, ox: number, oy: number, x: i32, y: i32, w: i32, h: i32): void {
+  if (t.length === 0) return;
+  if (tipFont < 0) tipFont = font('mono', 12);
+  const tw = textWidth(tipFont, t, 0) + 12, th = 20;
+  let tx = ox + b[0] * s, ty = oy + (b[1] + b[3]) * s + 4;
+  if (ty + th > y + h) ty = oy + b[1] * s - th - 4;
+  tx = Math.max(x + 2, Math.min(tx, x + w - tw - 2)); ty = Math.max(y + 2, ty);
+  rrect(tx, ty, tw, th, 3, 0xffffff, 245);
+  border(tx, ty, tw, th, 3, 1, 0x94a3b8, 255);
+  drawText(tipFont, tx + 6, ty + (th - fontAscent(tipFont)) / 2, t, 0x0f172a, 255, 0);
 }
 function ScreenView(): i32 {   // the last frame, and over it the highlighted node's margin (orange), padding (green) and content (blue)
   const point = (e: PointerEvent): number[] => [(e.x - fit[0]) * devW / fit[2], (e.y - fit[1]) * devH / fit[3]];
@@ -313,8 +328,9 @@ function ScreenView(): i32 {   // the last frame, and over it the highlighted no
     for (let i = 0; i < 3; i++) { const b = quadBox(q, i * 8); rrect(ox + b[0] * s, oy + b[1] * s, b[2] * s, b[3] * s, 0, colors[i], 110); }
     const b = quadBox(q, 8);
     border(ox + b[0] * s, oy + b[1] * s, b[2] * s, b[3] * s, 0, 1, 0x1d4ed8, 255);
+    drawTip(screenTip(), b, s, ox, oy, x, y, w, h);
   }} />
-  <Text className="px-2 py-1 text-xs font-mono text-slate-700 border-t">{screenTip()}</Text>
+  {picking() ? <Text className="px-2 py-1 text-xs text-slate-700 border-t">{pickHint()}</Text> : <View />}
   </View>;
 }
 

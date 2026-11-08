@@ -208,9 +208,14 @@ function onPick(x: number, y: number, pressed: boolean): void {
 }
 function startPick(win: i32): void {
   picked = 0; pickBase = 0; pickUp = 0; pickWin = win;
-  inspectPick(onPick, () => { here = pickWin; stagePick(null); light(0); sendWin(pickWin, '{"method":"Overlay.inspectModeCanceled","params":{}}'); },
-    (k: string) => { if (k === 'ArrowUp' && above(pickBase, pickUp + 1) !== above(pickBase, pickUp)) pickUp++; else if (k === 'ArrowDown' && pickUp > 0) pickUp--; });
-  if (inspectRoot() < 0 && win === 0) stagePick((o: DisplayObject, pressed: boolean) => { onPicked(stageId(o), pressed); });
+  const end = (): void => { here = pickWin; inspectPick(null); stagePick(null); light(0); sendWin(pickWin, '{"method":"Overlay.inspectModeCanceled","params":{}}'); };
+  const level = (k: string): void => { if (k === 'ArrowUp' && above(pickBase, pickUp + 1) !== above(pickBase, pickUp)) pickUp++; else if (k === 'ArrowDown' && pickUp > 0) pickUp--; };
+  inspectPick(onPick, end, level);
+  if (inspectRoot() < 0 && win === 0) stagePick((o: DisplayObject, pressed: boolean) => {   // a scene drawn alone: its own pick, the same keys
+    const at = stageId(o);
+    if (at !== pickBase) { pickBase = at; pickUp = 0; }
+    onPicked(above(at, pickUp), pressed);
+  }, (k: string) => { if (k === 'Escape') end(); else level(k); });
 }
 onKey((e: KeyEvent) => { if (DEV && e.primary && e.shift && e.key.toLowerCase() === 'c' && Cdp.clients() > 0) { startPick(windowCtl(0, 9, '', 0, 0)); e.preventDefault(); } });   // in the window it is pressed in
 
@@ -689,8 +694,25 @@ function patchOf(h: i32, e: Edited): string {
     for (let i = 0; covered && i < d.length; i += 2) covered = set.includes(d[i]);
     if (!covered) kept.push(t);
   }
-  for (const t of toks) kept.push(t);
-  return `class="${kept.join(' ')}"`;
+  for (const t of foldSides(toks)) kept.push(t);
+  return `className="${kept.join(' ')}"`;
+}
+/** pt-[v] pr-[v] pb-[v] pl-[v] as p-[v], or px-[v] / py-[v] for a pair (padding: 12px is four longhands); margins the same. */
+function foldSides(toks: string[]): string[] {
+  const out = toks.slice(0);
+  for (const f of ['p', 'm']) {
+    const v = (side: string): string => { const t = out.find((x: string) => x.startsWith(f + side + '-[')); return t !== undefined ? t.slice(f.length + 2) : ''; };
+    const t = v('t'), r = v('r'), b = v('b'), l = v('l');
+    const drop = (sides: string, as: string): void => {
+      const at = out.findIndex((x: string) => x.startsWith(f + sides.charAt(0) + '-['));
+      out.splice(at, 0, as);
+      for (const c of sides.split('')) out.splice(out.findIndex((x: string) => x.startsWith(f + c + '-[')), 1);
+    };
+    if (t.length > 0 && t === r && t === b && t === l) { drop('trbl', `${f}-${t}`); continue; }
+    if (t.length > 0 && t === b) drop('tb', `${f}y-${t}`);
+    if (l.length > 0 && l === r) drop('rl', `${f}x-${l}`);
+  }
+  return out;
 }
 /** The class string a node had before the session's first class edit of it, kept with the node (handles are reused). */
 class Was { node: UiNode; cls: string; constructor(node: UiNode, cls: string) { this.node = node; this.cls = cls; } }
@@ -704,8 +726,8 @@ function changes(): string[][] {
   for (const h of editOrder) {
     const n = inspectNode(h), e = edited(h), w = wasOf(h);
     if (n === null || (e === null && w === null)) continue;
-    const before = `class="${w !== null ? w.cls : cls(n)}"`;
-    const after = e !== null ? patchOf(h, e) : `class="${cls(n)}"`;
+    const before = `className="${w !== null ? w.cls : cls(n)}"`;
+    const after = e !== null ? patchOf(h, e) : `className="${cls(n)}"`;
     if (after !== before) out.push([label(h, n), e !== null && after.startsWith('style') ? 'style' : before, after]);
   }
   return out;

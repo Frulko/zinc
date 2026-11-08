@@ -126,7 +126,7 @@ function InlineEdit(p: { id: string; width: string }): i32 {
   const ref = createNodeRef();
   onMount(() => { ui.focusNode(ref.node); });
   return <Input ref={ref} className={'h-5 px-1 text-xs font-mono text-slate-900 bg-white border border-sky-500 rounded-sm min-w-0 ' + p.width} value={draft()}
-    onInput={(v: string) => { setDraft(v); suggest(p.id, v); }} onChange={(v: string) => { setTimeout(() => { if (ui.focusedField() < 0) commit(p.id, v, 0); }, 0); }}
+    onInput={(v: string) => { setDraft(v); suggest(p.id, v); }} onChange={(v: string) => { setTimeout(() => { if (ui.focusedField() !== ref.node) commit(p.id, v, 0); }, 0); }}
     onKeyDown={(e: ui.KeyEvent) => { fieldKey(p.id, e); }} />;
 }
 function Dropdown(p: { id: string }): i32 {
@@ -217,7 +217,7 @@ function PropRow(p: { r: PRow }): i32 {
     {palette() === r.name ? <Palette name={r.name} /> : <View />}
   </View>;
 }
-/** The line under element.style: a click starts a new declaration there (Chrome's empty area). */
+/** The line under element.style: a click starts a new declaration there (Chrome's empty area); it says so in a dev run with a node selected. */
 function NewDecl(): i32 {
   return <View className="flex-col">
     {editing() === 'nn' || editing() === 'nv' ?
@@ -226,8 +226,8 @@ function NewDecl(): i32 {
         <Text className="text-xs font-mono text-slate-500">:</Text>
         {editing() === 'nv' ? <InlineEdit id="nv" width="flex-1" /> : <View />}
       </View> :
-      <View className="h-5 flex-row items-center pl-5" onPointerDown={(e: ui.PointerEvent) => { start('nn', ''); }}>
-        <Text className="text-xs text-slate-400">{devRun() ? '+ add a declaration' : ''}</Text>
+      <View className="h-5 flex-row items-center pl-5" onPointerDown={(e: ui.PointerEvent) => { if (target() >= 0) start('nn', ''); }}>
+        <Text className="text-xs text-slate-400">{devRun() && target() >= 0 ? '+ add a declaration' : ''}</Text>
       </View>}
     <DropdownFor id="nn" />
     <DropdownFor id="nv" />

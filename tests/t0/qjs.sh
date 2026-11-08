@@ -21,6 +21,10 @@ printf "console.log('before');\nthrow new Error('boom');\n" > "$tmp/boom.js"
 # zinc:sys signals: onSignal hears a kill sent to itself
 printf "import * as sys from 'zinc:sys';\nsys.onSignal('SIGUSR1', () => { console.log('got SIGUSR1'); sys.exit(0); });\nsetTimeout(() => { sys.kill(sys.pid(), 'SIGUSR1'); }, 10);\n" > "$tmp/sig.ts"
 "$ZINC" run "$tmp/sig.ts" --engine quickjs 2>&1 | grep -q '^got SIGUSR1$' || { echo "sys.onSignal does not work on quickjs"; fail=1; }
+# kill(pid, '0'): whether the process exists, and the program still ends (the host call fell through into the next one)
+printf "import * as sys from 'zinc:sys';\nconsole.log(sys.kill(sys.pid(), '0'), sys.kill(999999, '0'));\n" > "$tmp/alive.ts"
+[ "$(timeout 20 "$ZINC" run "$tmp/alive.ts" --engine quickjs 2>/dev/null)" = "true false" ] || { echo "sys.kill(pid, '0') does not say whether the process exists on quickjs"; fail=1; }
+[ "$(timeout 20 "$ZINC" run "$tmp/alive.ts" 2>/dev/null)" = "true false" ] || { echo "sys.kill(pid, '0') does not say whether the process exists"; fail=1; }
 printf "const x: number = 1;\ninterface;\n" > "$tmp/bad.ts"
 "$ZINC" run "$tmp/bad.ts" --engine quickjs 2>&1 | grep -q "bad.ts:2" || { echo "a type error position is not reported on quickjs"; fail=1; }
 # a project's zinc.json window size reaches the QuickJS run as it reaches the typed engines (game-2d opened at 320x240)

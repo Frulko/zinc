@@ -49,7 +49,7 @@ bool eventReady();   // pumps the loop; true when nextEvent would return one (th
 bool active();
 // Signals and standard input of the program itself (zinc:sys): events of kind 10, 11 and 12.
 bool watchSignal(const std::string& name);              // false for an unknown or uncatchable name
-bool sendSignal(int pid, const std::string& name);      // false for an unknown name
+int sendSignal(int pid, const std::string& name);       // -1 an unknown name, 0 not delivered (no such process), 1 sent; "0" sends nothing
 void readStdin();
 // zinc:mqtt (src/host/mqtt.cpp): events of kind 30 (connected, data "" or the error), 31 (message: topic \x1e payload) and 32 (connection lost, data = why).
 // zinc:osc over UDP (src/host/osc.cpp): packed messages (see osc.h) arrive as events of kind 20; a listening socket keeps the loop alive.

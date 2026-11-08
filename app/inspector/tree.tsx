@@ -54,7 +54,7 @@ function TreeRow(p: { r: Row }): i32 {
       <Text className="text-[8px] text-slate-500">{fold ? (isOpen(n) ? '▼' : '▶') : ''}</Text>
     </View>
     {t !== null && editing() === (t as TNode).id ? <TextEdit id={(t as TNode).id} /> :
-      <Text ref={ref} className="flex-1 w-0 text-xs font-mono break-words">{l.text}</Text>}
+      <Text ref={ref} className="shrink min-w-0 text-xs font-mono break-words">{l.text}</Text>}
     {badge.length > 0 ? <View className="ml-1 px-1 h-4 flex-row items-center rounded-sm border border-slate-300 bg-slate-50"><Text className="text-[10px] text-slate-600">{badge}</Text></View> : <View />}
     {selected() === n.id && !r.close ? <Text className="ml-1 text-xs text-slate-400">== $0</Text> : <View />}
   </View>;

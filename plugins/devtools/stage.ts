@@ -10,7 +10,7 @@
 // of TEXT_FIELDS: a TextField, a Label, a Button's caption) as the element's text child, as Chrome shows a <p>'s text, edited in place in dev runs;
 // its image as the attribute src (a string field `src`, else the string `name` of its `texture`, as Starling's and PixiJS's textures carry).
 import { stages, Stage, DisplayObject, uiState, setAfterRender, setTreeWatch } from 'zinc:stage';
-import { polygon, line, resetTransform, pointerX, pointerY, pointerDown, buttonEventCount, buttonEventDown } from 'zinc:gfx';
+import { polygon, line, resetTransform, pointerX, pointerY, pointerDown, buttonEventCount, buttonEventDown, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';
 import { drawingNode, repaint, setAfterPaint, inspectTip } from 'zinc:ui';
 
 /** Node ids of the display tree, apart from the zinc:ui handles and text ids of index.ts; a node's text child is its id + STAGE_TEXT. */
@@ -317,15 +317,21 @@ export function stageHighlight(o: DisplayObject | null): void {
 }
 
 // Pick mode on a stage drawn alone (zinc:ui runs it for a stage in a Canvas): at each drawing, the node under the pointer is highlighted and
-// given to `pick`, pressed on a click. The scene keeps drawing meanwhile, so the highlight follows the pointer.
+// given to `pick`, pressed on a click, and the keys pressed to `key` (Escape, ArrowUp to the parent). The scene keeps drawing meanwhile, so the
+// highlight follows the pointer.
 // ponytail: the program still gets the pointer when it routes it itself (fatty, music-tree); Stage.update's own routing could skip it
 let pick: ((o: DisplayObject, pressed: boolean) => void) | null = null, pickDown = false;
-export function stagePick(f: ((o: DisplayObject, pressed: boolean) => void) | null): void {
-  pick = f; pickDown = pointerDown();
+let pickKey: ((key: string) => void) | null = null;
+export function stagePick(f: ((o: DisplayObject, pressed: boolean) => void) | null, key: ((key: string) => void) | null = null): void {
+  pick = f; pickKey = key; pickDown = pointerDown();
   uiState.dirty = true;
   if (f === null) stageHighlight(null);
 }
 function pickInput(s: Stage): void {
+  for (let i = 0; i < keyCount(); i++) if (keyKind(i) === KeyKind.Down && pickKey !== null) {
+    (pickKey as (key: string) => void)(keyName(i));
+    if (pick === null) return;   // Escape ended the pick
+  }
   let pressed = false;
   for (let i = 0; i < buttonEventCount(); i++) if (buttonEventDown(i)) pressed = true;
   const down = pointerDown();

@@ -25,7 +25,7 @@ declare module 'zinc:sys' {
    *  'SIGWINCH', ...); the default action (terminate) no longer happens. Does not keep the program alive.
    *  POSIX hosts only (no-op elsewhere). @throws on an unknown or uncatchable signal */
   export function onSignal(signal: string, cb: () => void): void;
-  /** Sends a signal to a process ('SIGTERM', 'SIGKILL', ...); false when it failed. @throws on an unknown signal */
+  /** Sends a signal to a process ('SIGTERM', 'SIGKILL', ...); false when it failed (no such process). '0' sends nothing and says whether the process exists, as Node's process.kill. @throws on an unknown signal */
   export function kill(pid: i32, signal: string): boolean;
   export function pid(): i32;
   export function cwd(): string;

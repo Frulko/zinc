@@ -12,6 +12,7 @@
 #ifdef __APPLE__
 #include <malloc/malloc.h>
 #endif
+#include <cerrno>
 #include <cstdlib>
 #include <deque>
 #include <cstring>
@@ -261,7 +262,7 @@ void onSignalCb(uv_signal_t* h, int) { gEvents.push_back({0, 10, static_cast<Sig
 struct SigName { const char* name; int num; bool catchable; };
 const SigName kSignals[] = {{"SIGHUP", SIGHUP, true}, {"SIGINT", SIGINT, true}, {"SIGQUIT", SIGQUIT, true}, {"SIGTERM", SIGTERM, true}, {"SIGUSR1", SIGUSR1, true}, {"SIGUSR2", SIGUSR2, true},
                             {"SIGALRM", SIGALRM, true}, {"SIGCHLD", SIGCHLD, true}, {"SIGCONT", SIGCONT, true}, {"SIGPIPE", SIGPIPE, true}, {"SIGWINCH", SIGWINCH, true},
-                            {"SIGKILL", SIGKILL, false}, {"SIGSTOP", SIGSTOP, false}};
+                            {"SIGKILL", SIGKILL, false}, {"SIGSTOP", SIGSTOP, false}, {"0", 0, false}};   // "0": only whether the process exists, as Node
 const SigName* sigByName(const std::string& n) { for (const SigName& s : kSignals) if (n == s.name) return &s; return nullptr; }
 
 uv_pipe_t gStdinPipe;
@@ -447,11 +448,10 @@ bool watchSignal(const std::string& name) {
   gSigs.push_back(std::move(w));
   return true;
 }
-bool sendSignal(int pid, const std::string& name) {
+int sendSignal(int pid, const std::string& name) {
   const SigName* s = sigByName(name);
-  if (!s) return false;
-  ::kill(pid, s->num);
-  return true;
+  if (!s) return -1;
+  return ::kill(pid, s->num) == 0 || (s->num == 0 && errno == EPERM) ? 1 : 0;   // "0": a process of another user exists too
 }
 // A wake-up of this thread's loop that any thread may send (workers, D181): an unreferenced async handle, so it keeps no loop alive by itself.
 void* wakeNew() {

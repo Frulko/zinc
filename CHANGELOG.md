@@ -119,11 +119,13 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Editors now know `zinc:ui`: after `zinc tsconfig`, `PointerEvent`, `KeyEvent` and the rest of the module come with their docs, and the event attributes of `View`, `Button` and the other host tags (`onPointerDown`, `onKeyDown`, `onInput`...) type their argument.
 - Editors now know `dataDir()` of `zinc:sys`, the app's own writable folder (`~/.zinc/apps/<name>/`, made on first call), where an app keeps its files.
 - Tools can read the CLI as JSON: `zinc project --json` prints the project as the engine reads `zinc.json` (targets, the permissions in force on each, the plugins the program loads), `zinc check --json` gives each diagnostic its file, line, column, fix and message in your language, and `zinc plugins --json` lists the plugins. Zinc Atelier now reads these instead of parsing text.
+- `sys.kill(pid, '0')` of `zinc:sys` says whether a process exists, as Node's `process.kill`, and `sys.kill` returns false when the signal could not be delivered.
 
 #### Changed
 
 - The `"crash"` key of `zinc.json` is gone: it was never acted on, and a panic always ends the program. A project that still has it is refused with a message (`zinc explain J0001`); delete the line, and let systemd restart a service.
 - `zinc.json` no longer needs `app.id` to give the window a size or limits in `app.window`: a first project can leave the id out until it packages the app (`zinc build --bundle` and `--dmg` ask for it).
+- The Changes of Zinc Inspector write `className=` and fold an edited `padding: 12px` into `p-[12px]` (or `px-`/`py-`, margins alike) instead of four classes.
 
 #### Fixed
 
@@ -144,6 +146,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Clearer first steps on the command line: `zinc run --engine quickjs app.tsx` works like `zinc run app.tsx --engine quickjs`, `zinc run breakout` points to `example:breakout` when there is an example of that name, a wrong pairing code says "wrong code" instead of a TLS alert, and `zinc dev --device` no longer prints a port error before it picks another port than 9229.
 - `zinc export` of a project whose `zinc.json` name is not a file name ("Zinc Atelier") names its files after `app.id` instead of stopping, and a folder with no `zinc.json` of its own no longer takes the settings of the project around it.
 - A compile error after a save in `zinc dev` ends with the same line as in `zinc run` (what to do, `zinc explain <code>`) and names the file from the project; importing an npm package in typed code says that npm packages are not loaded and how to run one, and `zinc explain Z0119` covers engine modules, `tsconfig.json` paths and npm.
+- Zinc Inspector polish: the Screen view names the hovered node in a tooltip on the picture, the Elements badges sit right after the tag, ArrowUp and ArrowDown reach the parent while picking in a `zinc:stage` scene, "+ add a declaration" no longer shows with no node selected, an edit is applied when you click from it into the palette's hex field, and programs killed without cleaning up no longer linger in the program list.
 
 ### Apps and examples
 

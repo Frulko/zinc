@@ -72,7 +72,7 @@ want "class preview: #0284c7 -> bg-emerald-50 #ecfdf5 -> Escape #0284c7 | w-4 h-
 want "two classes: w-4 h-4 bg-sky-600 rounded p-1"
 want "undo: w-4 h-4 bg-sky-600 rounded p-1 | redo: w-4 h-4 bg-sky-600 rounded-full"
 want "change: <Squares> tests/data/inspector/src/main.tsx:$(grep -n '<Squares' tests/data/inspector/src/main.tsx | cut -d: -f1) view #"
-want '| class="w-4 h-4 bg-sky-600" | class="h-4 bg-sky-600 rounded-full pt-[12px] pr-[12px] pb-[12px] pl-[12px] flex-row mt-[3px] opacity-[0.5] w-[51%] text-[176px]"'
+want '| className="w-4 h-4 bg-sky-600" | className="h-4 bg-sky-600 rounded-full p-[12px] flex-row mt-[3px] opacity-[0.5] w-[51%] text-[176px]"'
 want 'class edit: width 16px -> 32px, off 16px, on 32px | <View className="w-4 h-4 bg-rose-600 w-8">'
 want "completion bg-ros: bg-rose-50 bg-rose-100 bg-rose-200"
 want "style edit: width 50px, off 32px, on 50px, deleted 32px | element.style "
@@ -83,7 +83,7 @@ want ".flex-col.gap-2.p-4 {"   # ZN-373.02: the classes as a rule, element.style
 want "element.style: padding-left: 40px;"
 want "frame changed: true"
 want "screen: 320 x 240"
-want 'class="flex-col gap-2 p-4 pl-[40px]"'
+want 'className="flex-col gap-2 p-4 pl-[40px]"'
 want "POST 200 /echo N ms 28 B"   # ZN-373.03: the request made before the attach, its status, time and size, and its details
 want 'body: {"echo":{"ask":"inspector"}}'
 want 'payload: {"ask":"inspector"}'

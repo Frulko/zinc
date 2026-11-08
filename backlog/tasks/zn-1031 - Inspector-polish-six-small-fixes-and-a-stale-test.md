@@ -1,10 +1,11 @@
 ---
 id: ZN-1031
 title: 'Inspector polish: six small fixes and a stale test'
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:37'
+updated_date: '2026-11-08 21:33'
 labels:
   - inspector
   - devtools
@@ -12,7 +13,6 @@ labels:
 milestone: m-20
 dependencies: []
 ordinal: 4000
-updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -34,7 +34,21 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 agent_inspect.sh passes with `<View`
-- [ ] #2 `<zinc home>/run/devtools/<pid>.json` is removed at exit (or ignored when the pid is dead)
-- [ ] #3 the five UI items behave as described, checked in an inspector screenshot
+- [x] #1 agent_inspect.sh passes with `<View`
+- [x] #2 `<zinc home>/run/devtools/<pid>.json` is removed at exit (or ignored when the pid is dead)
+- [x] #3 the five UI items behave as described, checked in an inspector screenshot
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done 2026-11-08.
+- #1 agent_inspect.sh already expected `<View ` (b4aea5683); it passes (tests/run --only agent_inspect).
+- #2 the Inspector skips and removes <zinc home>/run/devtools/<pid>.json when the pid is dead: sys.kill(pid, '0') now says whether a process exists (Node's process.kill semantics, EPERM counts as alive); sys.kill returns false when not delivered. Found on the way: the HostSigSend case had no break once rewritten; QuickJS hung (fixed before commit). Windows shim: kill(pid, 0) only opens the process (it used to TerminateProcess for any signal). No exit hook in zinc:sys added: the dead-pid prune covers SIGTERM too, which an exit hook would not.
+- #3 Changes patch folds pt/pr/pb/pl (and margins) into p-[v] / px / py and writes className= (the JSX rule; it wrote class=). '+ add a declaration' only with a node selected in a dev run. A blur from an inline edit into another field (the palette's hex) applies the edit (it checked 'no field focused'). Screen view: name and size drawn as a tooltip under (or above) the node on the canvas, the line under the picture only says how to pick. Elements badges right after the row's text (Text shrink instead of flex-1). zinc:stage scene drawn alone: its pick mode reads keys (Escape ends it, ArrowUp/Down the parent), as zinc:ui's.
+- Screenshots looked at (headless capture during the inspector_screen dump): tooltip on the canvas, badge after the tag, no add-declaration line with no selection.
+- Tests run: qjs (T0, new kill '0' case), inspector, inspector_screen, inspector_discovery, inspector_layout, inspector_stage, agent_inspect: all pass.
+- Research: Chrome Elements badges sit after the tag (developer.chrome.com/docs/devtools/elements/badges); Overlay.setInspectMode highlightConfig.showInfo draws the tooltip in the page (chromedevtools.github.io/devtools-protocol/tot/Overlay); Chrome's DevToolsActivePort can go stale after a crash, clients probe it (chromedriver chrome_launcher.cc).
+Proposed tests: a scripted pick in a stage-only scene with ArrowUp (needs a CDP client sending Overlay.setInspectMode then ZINC_INPUT keys); a dump step blurring a value edit into the hex field.
+Later: Cross-platform pass: sys.kill(pid, '0') on Windows (OpenProcess query) - check an exited process with live handles.
+<!-- SECTION:NOTES:END -->

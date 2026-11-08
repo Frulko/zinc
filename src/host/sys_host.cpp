@@ -1340,7 +1340,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostEvPayloadByte: { const size_t i = static_cast<size_t>(n(0)); r->i = i < gPayload.size() ? static_cast<unsigned char>(gPayload[i]) : -1; break; }
     case Rt::HostEvActive: r->i = zn::loop::active() ? 1 : 0; break;
     case Rt::HostSigWatch: r->i = zn::loop::watchSignal(s(0)) ? 1 : 0; break;
-    case Rt::HostSigSend: r->i = zn::loop::sendSignal(n(0), s(1)) ? 1 : 0; break;
+    case Rt::HostSigSend: r->i = zn::loop::sendSignal(n(0), s(1)) + 1; break;   // 0 unknown signal, 1 not delivered, 2 sent
     case Rt::HostStdinRead: zn::loop::readStdin(); break;
     case Rt::HostOscListen: r->i = refused("net", "*") ? -1 : zn::loop::oscListen(n(0)) ? 1 : 0; break;
     case Rt::HostOscClose: zn::loop::oscClose(); break;
