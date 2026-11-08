@@ -540,6 +540,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1005: `ZINC_DURATION` does not end a timer-only program with no frame loop (it never polls the HAL).
 - ZN-1063: `zinc lsp` lints synchronously on save; background or debounce it if large projects stall the editor.
 - ZN-774.25: a bare `astro build` does not copy `docs/learn/img` (only the `assets` script does); make `site_examples.sh` and `learn_web.sh` run it, or have astro copy the images.
+- ZN-1035: a typed array stored in an `any` (`const e: any = { list: ns }`) is copied, so `e.list.push(1)` does not change `ns` as TypeScript would; needs a Dyn view over the typed array.
+- ZN-1035: `xs.slice(1, Infinity)` gives a wrong length on the interpreter: a number passed to a runtime call taking an i32 index should clamp.
+- ZN-1032: reject a port request when the other side's handler throws or rejects, as Electron does (an error envelope on the D173 wire).
+- ZN-1032: an app-level window-all-closed listener that keeps a program with no windows running (tray apps): `close_window` in hal_sdl.cpp and `nullClose` would ask the program first.
+- ZN-1032: the checker refuses `await` of a `T | Promise<T>` value (Z0109); TypeScript accepts it.
+- ZN-1032: `ui.mountWindow` takes no x/y, so sprite-studio still calls `setPosition` on its tools window.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
