@@ -164,6 +164,17 @@ const char* kPrelude = R"JS(
   const nowReal = () => g.__zincReal ? g.__host_loopNow() : clock;
   g.__clockMs = () => g.__zincWallBase + nowReal();   // zinc:sys clock(): Date.now's clock, not rounded to the millisecond
   Date.now = () => g.__zincWallBase + Math.floor(nowReal());   // the wall clock at start (0 in deterministic mode, set by the host) moved by the virtual one, as the typed engine's now_ms
+  {  // new Date() and Date() read Date.now, as the typed engine's constructor does: the engine's own read the machine's clock, so a deterministic run saw today's date
+    const NativeDate = Date;
+    const D = function Date(...a) {
+      if (!new.target) return new NativeDate(NativeDate.now()).toString();
+      return Reflect.construct(NativeDate, a.length ? a : [NativeDate.now()], new.target);
+    };
+    Object.setPrototypeOf(D, NativeDate);   // Date.now, Date.UTC, Date.parse
+    D.prototype = NativeDate.prototype;
+    Object.defineProperty(NativeDate.prototype, 'constructor', { value: D, writable: true, configurable: true });
+    g.Date = D;
+  }
   g.performance = { now: () => { if (g.__zincClockTick > 0) clock += g.__zincClockTick; return nowReal(); }, get timeOrigin() { return g.__zincWallBase; }, mark() {}, measure() {}, getEntriesByName: () => [] };   // the timers' clock, as the typed engine's (QuickJS-ng's own now is read-only, on the wall clock): it stops while the inspector pauses the program
   g.setTimeout = (f, ms, ...a) => { const id = nextId++; timers.push({ at: clock + Math.max(0, +ms || 0), ord: clock + Math.max(1, +ms || 0), seq: seq++, id, every: 0, f: () => f(...a) }); return id; };
   g.setInterval = (f, ms, ...a) => { const id = nextId++; ms = Math.max(1, +ms || 0); timers.push({ at: clock + ms, ord: clock + ms, seq: seq++, id, every: ms, f: () => f(...a) }); return id; };

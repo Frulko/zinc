@@ -32,9 +32,21 @@ out=$(env -u ZINC_DETERMINISTIC TMPDIR="$tmp" "$ZINC" run "$tmp/w.ts" 2>&1)
 [ "$out" = near ] || { echo "Date.now is not the real time: $out"; exit 1; }
 out=$(env -u ZINC_DETERMINISTIC TMPDIR="$tmp" "$ZINC" run "$tmp/w.ts" --engine quickjs 2>/dev/null)
 [ "$out" = near ] || { echo "QuickJS Date.now is not the real time: $out"; exit 1; }
-# QuickJS: Date.now is the epoch by default too (it was the virtual clock from 0 whatever the mode), and 0-based under ZINC_DETERMINISTIC
-echo 'console.log(Date.now() > 1.6e12, Math.abs(Date.now() - new Date().getTime()) < 5000)' > "$tmp/q.ts"
+# QuickJS: Date.now is the epoch by default too (it was the virtual clock from 0 whatever the mode), and 0-based under ZINC_DETERMINISTIC;
+# new Date() and Date() read Date.now on every engine (ZN-708): today's date in a real run, the same fixed date (the epoch) in a
+# deterministic one, at every run
+echo 'console.log(Date.now() > 1.6e12, Math.abs(Date.now() - new Date().getTime()) < 5000, new Date(0).constructor === Date)' > "$tmp/q.ts"
 out=$(env -u ZINC_DETERMINISTIC "$ZINC" run "$tmp/q.ts" --engine quickjs 2>/dev/null)
-[ "$out" = "true true" ] || { echo "QuickJS real clock: $out"; exit 1; }
+[ "$out" = "true true true" ] || { echo "QuickJS real clock: $out"; exit 1; }
 out=$(ZINC_DETERMINISTIC=1 "$ZINC" run "$tmp/q.ts" --engine quickjs 2>/dev/null)
-[ "$out" = "false false" ] || { echo "QuickJS virtual clock: $out"; exit 1; }
+[ "$out" = "false true true" ] || { echo "QuickJS virtual clock: $out"; exit 1; }
+echo 'const d = new Date(); console.log(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), d instanceof Date)' > "$tmp/today.ts"
+today=$(python3 -c 'import datetime; t = datetime.datetime.now(datetime.timezone.utc); print(t.year, t.month, t.day)')
+for e in "" "--engine quickjs"; do
+  out=$(env -u ZINC_DETERMINISTIC "$ZINC" run "$tmp/today.ts" $e 2>/dev/null)
+  [ "$out" = "$today true" ] || { echo "new Date() $e in a real run is not today ($today): $out"; exit 1; }
+  for run in 1 2; do
+    out=$(ZINC_DETERMINISTIC=1 "$ZINC" run "$tmp/today.ts" $e 2>/dev/null)
+    [ "$out" = "1970 1 1 true" ] || { echo "new Date() $e in deterministic run $run: $out"; exit 1; }
+  done
+done
