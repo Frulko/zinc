@@ -34,7 +34,7 @@ dist/hero-web/
 ```
 
 - **Hashed names**: every file but `index.html` and `sw.js` can be cached for a year (`_headers` says so); a new build has new names.
-- **Offline**: `sw.js` caches the files on the first visit and the app starts without a network after it. The page itself is fetched fresh when there is one. It registers only on https and on localhost.
+- **Offline**: `sw.js` caches the files on the first visit and the app starts without a network after it. The page itself is fetched fresh when there is one. It registers only on https and on localhost. Its cache is named by its scope and the app, and it reads only that cache, so exports served in turn from one address (`serve.py` on port 8000) or side by side in folders never answer with each other's files.
 - **No COOP/COEP**: a page needs them only for `SharedArrayBuffer` and WebAssembly threads. No part of the web target needs them today. A plugin that does declares `"crossOriginIsolated"` in its
   `web.needs`; the export then writes the headers into `_headers` and `sw.js` adds them where the host cannot (GitHub Pages).
 - **The browser's JavaScript, not Zinc's**: `URL`, `fetch`, `Event`, `TextEncoder`, `crypto`, `MediaStream`, `navigator` are the browser's own. `import { URL } from 'zinc:web'` gives the same object
@@ -163,7 +163,7 @@ document, which is what an icon is, becomes an inline `<svg>` instead (no canvas
 
 **Prerendering.** `zinc export --target web --render dom --prerender` runs the app once in headless Chrome (Chrome must be installed; `CHROME=...` names it), takes the elements and the style sheet of its first
 screen (at 1280 x 800) and writes them into `index.html`: the page is readable by a crawler, a reader and a slow phone, and painted before any script runs. When the script starts it **adopts** those elements
-(each carries the number of its node) instead of building them again, and drops the prerendered style sheet once its own is in place. An app whose first screen waits for data prerenders its loading state. A
+(each carries the number of its node) instead of building them again, and drops the prerendered style sheet once its own is in place. The page is taken as soon as its first frame is drawn (up to a minute). An app whose first screen waits for data prerenders its loading state. A
 screen laid out differently at another width (breakpoints: `md:`) is restyled by the first commit, which may show as a jump.
 
 **Addresses.** A real link is `<Text as="a" href="/orders">` (or `role="link"`). A `Stack` of `zinc:ui/navigation` with a `path` prop (`path={(r) => '/' + r.name}`) keeps the address bar and the history in step with its

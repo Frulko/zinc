@@ -21,7 +21,7 @@ export function browserInfo(): BrowserInfo { return { name: 'none', version: 0, 
 /** Every feature the web target knows and whether this browser has it: canvas2d, webgl2, webgpu, getUserMedia, audio, audioWorklet, webrtc, websocket, webusb,
  *  webserial, webbluetooth, webhid, fileSystemAccess, clipboard, notifications, gamepad, vibrate, wakeLock, share, serviceWorker, indexedDB, wasm,
  *  sharedArrayBuffer, speechRecognition, speechSynthesis, screenCapture... (the keys of targets/web/browsers.json). */
-export function browserFeatures(): { [feature: string]: boolean } { return {}; }
+export function browserFeatures(): Map<string, boolean> { return new Map<string, boolean>(); }
 /** Whether the browser has one feature. */
 export function supports(feature: string): boolean { return false; }
 /** Throws ZnUnsupported naming the feature (and the browsers that have it) when it is missing. */

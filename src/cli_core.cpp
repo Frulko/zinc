@@ -1169,6 +1169,7 @@ bool resolveProject(const std::string& arg, ProjectInfo& p, std::string& err) {
   zn::frontend::Project proj;
   std::string perr;
   const bool have = !text.empty() && zn::frontend::parseProject(text, proj, perr);
+  if (!have && proj.fatal) { err = (fs::path(dir) / "zinc.json").string() + ": " + perr; return false; }   // before anything is written (a raw template, ZN-816)
   if (fs::is_directory(a, ec)) {
     p.entry = zn::frontend::entryOf(dir, have ? &proj : nullptr);
     if (p.entry.empty()) { err = "no project in " + dir + " (zinc init creates one)"; return false; }

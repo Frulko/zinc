@@ -769,25 +769,71 @@ std::size_t divEnd(const std::string& h, std::size_t open) {
 }
 // Opens the exported folder in headless Chrome, takes the elements and the style sheet the app made for its first screen (the page runs in capture mode: ?zn-capture, which marks the
 // elements with the number of their node and writes the rules into the <style>), and puts them into index.html. The runtime adopts those elements instead of building them again.
+// The page is read as soon as its first frame has marked elements (ZN-816): Chrome is driven over --remote-debugging-pipe (the DevTools protocol, JSON
+// messages ended by a NUL on fds 3 and 4, as tools/cdp.py does), polled every 100 ms for up to a minute of real time. A fixed --virtual-time-budget
+// of six seconds flaked on a loaded machine: the bytecode and the assets load in real time, and the budget ran out before the first frame.
+static const char* const kPrerenderDriver = R"PY(import json, os, select, socket, subprocess, sys, time
+chrome, port, prof, out = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+deadline = time.time() + 60
+while True:   # serve.py listens
+    try: socket.create_connection(('127.0.0.1', port), 0.2).close(); break
+    except OSError:
+        if time.time() > deadline: sys.exit('serve.py did not start')
+        time.sleep(0.05)
+spare = [os.dup(0) for _ in range(6)]   # so the pipes do not land on fds 3 and 4
+r_in, w_in = os.pipe(); r_out, w_out = os.pipe()
+def child(): os.dup2(r_in, 3); os.dup2(w_out, 4); os.set_inheritable(3, True); os.set_inheritable(4, True)
+proc = subprocess.Popen([chrome, '--headless=new', '--disable-gpu', '--no-first-run', '--disable-extensions', '--user-data-dir=' + prof, '--window-size=1280,800', '--remote-debugging-pipe', 'about:blank'],
+                        preexec_fn=child, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=False)
+os.close(r_in); os.close(w_out)
+for f in spare: os.close(f)
+buf, n = b'', 0
+def call(method, params, session=None):
+    global buf, n
+    n += 1
+    m = {'id': n, 'method': method, 'params': params}
+    if session: m['sessionId'] = session
+    os.write(w_in, json.dumps(m).encode() + b'\0')
+    while True:
+        while b'\0' not in buf:
+            if not select.select([r_out], [], [], max(0.1, deadline - time.time()))[0]: sys.exit('Chrome did not answer')
+            chunk = os.read(r_out, 1 << 20)
+            if not chunk: sys.exit('Chrome ended')
+            buf += chunk
+        msg, _, buf = buf.partition(b'\0')
+        r = json.loads(msg)
+        if r.get('id') == n: return r.get('result', {})
+try:
+    t = call('Target.createTarget', {'url': 'http://127.0.0.1:%d/?zn-capture' % port})['targetId']
+    s = call('Target.attachToTarget', {'targetId': t, 'flatten': True})['sessionId']
+    while time.time() < deadline:
+        v = call('Runtime.evaluate', {'expression': "document.querySelector('#zinc-root [data-z]') ? document.documentElement.outerHTML : ''", 'returnByValue': True}, s).get('result', {}).get('value')
+        if v:
+            with open(out, 'w') as f: f.write(v)
+            break
+        time.sleep(0.1)
+finally:
+    proc.kill(); proc.wait()
+)PY";
 bool prerenderSite(const fs::path& outDir, std::string& err) {
   const std::string chrome = findChromeBinary();
   if (chrome.empty()) { err = "no Chrome or Chromium found (set CHROME to its path): the page is exported without a prerendered first screen"; return false; }
   const int port = 20000 + static_cast<int>(std::chrono::steady_clock::now().time_since_epoch().count() % 20000);
-  const fs::path prof = outDir.parent_path() / ".zinc-prerender", dump = prof / "dump.html";
+  const fs::path prof = outDir.parent_path() / ".zinc-prerender", dump = prof / "dump.html", driver = prof / "driver.py";
   std::error_code ec;
   fs::remove_all(prof, ec);
   fs::create_directories(prof, ec);
-  const std::string url = "http://127.0.0.1:" + std::to_string(port) + "/?zn-capture";
-  run("cd " + q(outDir.string()) + " && { python3 serve.py " + std::to_string(port) + " >/dev/null 2>&1 & srv=$!; sleep 1; " + q(chrome) + " --headless=new --disable-gpu --no-first-run --disable-extensions --user-data-dir=" + q((prof / "profile").string()) +
-      " --window-size=1280,800 --virtual-time-budget=6000 --dump-dom " + q(url) + " > " + q(dump.string()) + " 2>/dev/null; kill $srv 2>/dev/null; }");
+  writeAll(driver, kPrerenderDriver);
+  run("cd " + q(outDir.string()) + " && { python3 serve.py " + std::to_string(port) + " >/dev/null 2>&1 & srv=$!; python3 -I " + q(driver.string()) + " " + q(chrome) + " " + std::to_string(port) + " " +
+      q((prof / "profile").string()) + " " + q(dump.string()) + " 2>/dev/null; kill $srv 2>/dev/null; }");
   const std::string d = readAll(dump);
   fs::remove_all(prof, ec);
   const std::size_t r0 = d.find("<div id=\"zinc-root\"");
-  if (r0 == std::string::npos) { err = "Chrome did not return the page"; return false; }
+  if (r0 == std::string::npos) { err = "the app drew nothing in a minute (or Chrome did not open the page): nothing to prerender"; return false; }
   const std::size_t r1 = divEnd(d, r0);
   if (r1 == std::string::npos) { err = "the page's elements could not be read"; return false; }
   std::string root = d.substr(r0, r1 - r0);
-  if (root.find("data-z=") == std::string::npos) { err = "the app drew nothing in six seconds: nothing to prerender"; return false; }
+  if (root.find("data-z=") == std::string::npos) { err = "the app drew nothing in a minute: nothing to prerender"; return false; }
   root.insert(std::string("<div id=\"zinc-root\"").size(), " data-prerendered");
   std::string css;
   const std::size_t s0 = d.find("<style id=\"zinc-css\">");
@@ -914,16 +960,19 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
     std::string files = "[\"./\"";
     for (const auto& [n, b] : out) if (!endsWith(n, ".map") && !streamUrls.count(n)) files += "," + jstr(n);
     files += "]";
+    // the cache is named by the worker's scope and the app (ZN-816): the caches of an origin are shared by every app served from it (each export on
+    // 127.0.0.1:8000 in turn, or apps side by side in folders), so a worker reads only its own cache and drops only the older caches of its scope
     std::string sw = "// Generated by zinc export --target web: the app works offline after the first visit. Hashed files are cached for good; the page is fetched fresh when online.\n"
-                     "const V = " + jstr("zinc-" + hash10(files)) + ", FILES = " + files + ", ISOLATE = " + (isolate ? "true" : "false") + ";\n"
+                     "const P = 'zinc:' + self.registration.scope + ':', V = P + " + jstr(a.name + "-" + hash10(files)) + ", FILES = " + files + ", ISOLATE = " + (isolate ? "true" : "false") + ";\n"
+                     "const own = (req) => caches.open(V).then((c) => c.match(req));\n"
                      "self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });\n"
-                     "self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });\n"
+                     "self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => (k.startsWith(P) || k.startsWith('zinc-')) && k !== V).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });\n"
                      "const iso = (r) => { if (!ISOLATE || !r || r.status === 0) return r; const h = new Headers(r.headers); h.set('Cross-Origin-Opener-Policy', 'same-origin'); h.set('Cross-Origin-Embedder-Policy', 'require-corp'); return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h }); };\n"
                      "self.addEventListener('fetch', (e) => {\n"
                      "  const req = e.request;\n"
                      "  if (req.method !== 'GET' || !req.url.startsWith(self.location.origin)) return;\n"
-                     "  if (req.mode === 'navigate') { e.respondWith(fetch(req).then(iso).catch(() => caches.match('./').then(iso))); return; }\n"
-                     "  e.respondWith(caches.match(req).then((r) => r || fetch(req)).then(iso));\n"
+                     "  if (req.mode === 'navigate') { e.respondWith(fetch(req).then(iso).catch(() => own('./').then(iso))); return; }\n"
+                     "  e.respondWith(own(req).then((r) => r || fetch(req)).then(iso));\n"
                      "});\n";
     out["sw.js"] = sw;
   }

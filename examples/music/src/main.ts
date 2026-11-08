@@ -4,6 +4,7 @@
 import { onFrame, width, height, keep, clear, rect, rrect, gradient, setTransform, resetTransform, createImage, destroyImage, beginImage, endImage, drawText, textWidth, fontAscent, pointerX, pointerY, pointerDown, wheel, wheelX, scrollDX, scrollDY, startTextInput, stopTextInput, keyCount, keyKind, keyName, KeyKind } from 'zinc:gfx';
 import { exists, readText, writeText, appendText, stat } from 'zinc:fs';
 import { udp } from 'zinc:socket';
+import { ZnUnsupported } from 'zinc:browser';
 import { utf8Decode, device, platform } from 'zinc:sys';
 import { discover, eachGroup, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify, queueSpotify } from 'zinc:sonos';
 import { Spotify, Item, Playback, Login, sharedLoginFile } from 'zinc:spotify';
@@ -562,7 +563,7 @@ async function listenRemote(): Promise<void> {
       else if (c === 'wake') { screen.touched(); }
       ui.dirty = true;
     });
-  } catch (e) { console.error(`music: UDP 7777: ${e.message}`); }
+  } catch (e) { if (!(e instanceof ZnUnsupported)) console.error(`music: UDP 7777: ${e.message}`); }   // a web page has no UDP: no remote control
 }
 
 // ---------------------------------------------------------------- touch

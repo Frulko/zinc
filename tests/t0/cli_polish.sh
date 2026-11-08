@@ -7,6 +7,7 @@ Z="$ZINC"; case "$Z" in /*) ;; *) Z="$PWD/$Z" ;; esac
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 export ZINC_LANG=en ZINC_HEADLESS=1
 fail=0
+root=$PWD
 cd "$t" || exit 2
 printf 'console.log("sum " + (1 + 2));\n' > a.tsx
 for order in "--engine quickjs a.tsx" "a.tsx --engine quickjs"; do
@@ -26,6 +27,10 @@ mkdir -p spaced && printf '{ "name": "My Game", "app": { "id": "dev.example.myga
 printf 'console.log("g");\n' > spaced/main.ts
 out=$("$Z" export spaced --target web 2>&1) && [ -f spaced/dist/mygame-web/index.html ] || { echo "export of \"My Game\": $out"; fail=1; }
 grep -q '<title>My Game' spaced/dist/mygame-web/index.html 2>/dev/null || { echo "the page lost its title My Game"; fail=1; }
+# the offline cache is the app's own (ZN-816): named by the worker's scope and the app, read only from that cache (another export served from the same address keeps its own)
+grep -q "const P = 'zinc:' + self.registration.scope + ':', V = P + \"mygame-" spaced/dist/mygame-web/sw.js 2>/dev/null && ! grep -q 'caches.match' spaced/dist/mygame-web/sw.js || { echo "sw.js does not scope its cache: $(sed -n 2,3p spaced/dist/mygame-web/sw.js | cut -c1-160)"; fail=1; }
+# a folder of templates/ itself is no project yet (ZN-816): zinc new first, not the reverse-DNS error of its {{id}}
+out=$("$Z" export "$root/templates/canvas" --target web -o "$t/tpl" 2>&1); case "$out" in *"this is a project template"*"zinc new <template> <dir>"*) ;; *) echo "export of a raw template: $out"; fail=1 ;; esac
 # zinc build <dir> --bundle: the option last as well as first (ZN-797); a project without app.id stops before any compiler, with the reason
 if [ "$(uname)" = Darwin ]; then
   mkdir -p noid && printf '{ "name": "noid" }\n' > noid/zinc.json && printf 'console.log("n");\n' > noid/main.ts

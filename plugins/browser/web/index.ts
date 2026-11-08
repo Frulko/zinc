@@ -17,7 +17,7 @@ export function browserInfo(): BrowserInfo {
   return { name: iOS && name !== 'safari' ? 'safari' : name, version, engine: name === 'firefox' ? 'gecko' : name === 'safari' || iOS ? 'webkit' : name === 'other' ? 'unknown' : 'blink',
     mobile: /Mobi|Android|iPhone|iPad/.test(ua), secureContext: !!g.isSecureContext, crossOriginIsolated: !!g.crossOriginIsolated };
 }
-export function browserFeatures(): any { return Object.assign({}, Z.features); }
+export function browserFeatures(): Map<string, boolean> { return new Map(Object.entries(Z.features).map(([k, v]) => [k, !!v])); }
 export function supports(feature: string): boolean { return !!Z.features[feature]; }
 export function requireFeature(feature: string): void { if (!Z.features[feature]) throw new ZnUnsupported(feature, 'this browser does not have it' + (shippedBy(feature) ? ' (shipped by ' + shippedBy(feature) + ')' : '')); }
 export function shippedBy(feature: string): string {

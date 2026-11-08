@@ -447,6 +447,13 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
   struct Free { yyjson_doc* d; ~Free() { yyjson_doc_free(d); } } guard{doc};
   yyjson_val* root = yyjson_doc_get_root(doc);
   if (!yyjson_is_obj(root)) { err = "the manifest must be a JSON object"; return false; }
+  for (const char* ph : {"{{name}}", "{{id}}", "{{ident}}"})   // a folder of templates/ itself (ZN-816): its placeholders are filled by zinc new, not run or exported
+    if (text.find(ph) != std::string::npos) {
+      out.fatal = true;
+      err = "line " + std::to_string(lineOf(text, ph)) + ": this is a project template (" + ph +
+            " is filled in by zinc new): make a project from it first, zinc new <template> <dir>, and run or export that";
+      return false;
+    }
   std::string main;
   if (!strKey(root, "name", out.name, err) || !strKey(root, "entry", out.entry, err) || !strKey(root, "main", main, err)) return false;
   if (out.entry.empty()) out.entry = main;

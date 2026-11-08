@@ -10,6 +10,7 @@ import { exists, readText, writeText, readBytes, writeBytes, mkdir } from 'zinc:
 import { env } from 'zinc:sys';
 import { base64Decode } from 'zinc:web';
 import * as link from 'zinc:link';
+import { ZnUnsupported } from 'zinc:browser';
 import gsap, { Timeline } from 'gsap';
 import { ui, F, TEXT, TEXT2, TEXT3, ACCENT, GREEN, CARD, FILL, Scroll, picture, onTap, onDrag, beginScroll, endScroll, label, centered, wrap, glyph, pill, spinner, separator, cardShadow } from './ui';
 
@@ -222,7 +223,7 @@ export function startRelay(shown: (n: Notif) => void, standby: () => boolean): v
   try {
     link.init({ name: 'Musique' });
     port = link.advertise({ service: 'notify', name: 'Musique' });
-  } catch (e) { console.error(`music: zinc:link: ${e.message}`); return; }
+  } catch (e) { if (!(e instanceof ZnUnsupported)) console.error(`music: zinc:link: ${e.message}`); return; }   // a web page has no zinc:link
   link.onPairing((s: string) => {
     if (s.startsWith('try ')) wrongTries = parseInt(s.slice(4)) as i32;
     else if (s === 'closed') { code = ''; expired = true; }
@@ -418,7 +419,7 @@ let dragId = '', dragDx = 0, dragAxis = '', dragX0 = 0, dragY0 = 0, scroll0 = 0;
 
 function newCode(): void {
   expired = false; wrongTries = 0;
-  try { code = link.openPairing(); } catch (e) { code = ''; console.error(`music: ${e.message}`); }
+  try { code = link.openPairing(); } catch (e) { code = ''; if (!(e instanceof ZnUnsupported)) console.error(`music: ${e.message}`); }
 }
 /** The carousel's notification slide (full width, under the status bar). */
 export function notifSlide(W: number, H: number): void {

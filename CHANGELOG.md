@@ -89,6 +89,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Fixed
 
 - An exported page whose program read a file's bytes (`readBytes` of `zinc:fs` or `zinc:assets`, as the hero demo's map does) no longer stops at start with `__qjs_bytes is not defined`, an app that makes transparent images no longer gets a W0603 warning for it, and a program that installs a signal handler at start (`sys.onSignal`) runs in a page.
+- Exported pages served one after the other from the same address no longer answer with each other's offline files: each app's `sw.js` keeps and reads its own cache.
+- `--prerender` takes the page as soon as its first frame is drawn instead of after a fixed six seconds, so it no longer fails with "the app drew nothing" on a busy machine, and is faster.
+- In a page, `zinc:link` throws `ZnUnsupported` like `zinc:socket` does, so an app can skip it quietly (`e instanceof ZnUnsupported`); `zinc:browser` can now be imported by typed programs on every target, and its `browserFeatures()` returns a `Map`.
+- `zinc export` (and `run`) of a folder of `templates/` itself says to make a project from it with `zinc new` first, instead of an error about its `{{id}}`.
 
 ### Language
 
