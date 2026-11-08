@@ -3,9 +3,11 @@
 // "icons": ["a", "b"] or ["*"]). A name decided at run time must be listed in zinc.json.
 import { Svg } from 'zinc:svg';
 import { EINK, einkSnap } from 'zinc:ui';
-import { lucide, NAMES } from 'zinc:icons/lucide';
+import { lucide, NAMES, UNKNOWN } from 'zinc:icons/lucide';
 
 const cache = new Map<string, Svg>();
+const missing = new Set<string>();   // the names already warned about (the compiler warned about UNKNOWN): once each, not once a frame
+for (const n of UNKNOWN) missing.add(n);
 
 /** The parsed icon for this colour and stroke width (cached); null when the name was not compiled in. */
 export function icon(name: string, color: i32 = 0x000000, strokeWidth: number = 2): Svg | null {
@@ -13,7 +15,10 @@ export function icon(name: string, color: i32 = 0x000000, strokeWidth: number = 
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   let text = lucide(name);
-  if (text === '') return null;
+  if (text === '') {
+    if (!missing.has(name)) { missing.add(name); console.error(`zinc: warning U0001: icon '${name}' is not in this program: list it in zinc.json "icons", or check its Lucide name (zinc explain U0001)`); }
+    return null;
+  }
   const digits = '0123456789abcdef';
   let hex = '';
   for (let k = 20; k >= 0; k -= 4) hex += digits.charAt((color >> k) & 15);

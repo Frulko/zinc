@@ -1,3 +1,4 @@
+zinc: warning U0001: no Lucide icon 'not-an-icon': it draws nothing (zinc explain U0001)
 compiled icons: heart, search, settings
 heart parses: true, items 1
 unknown icon: true

@@ -193,6 +193,19 @@ export class Edit {
   constructor(multi: boolean) { this.multi = multi; }
 }
 
+// A string where a style takes a number: a JavaScript program (QuickJS) gets there with a value decided at run time (`width: w` with
+// w = `${n}%`, `backgroundColor: someString`, ui.setNumber(h, 'color', '#fff')), and the property was ignored without a word. Says what to
+// write instead, once per property (U0002, U0003). A typed program is stopped earlier by the checker (Z0103).
+const stringWarned = new Set<string>();
+function styleString(key: string, v: number): void {
+  if (stringWarned.has(key)) return;
+  stringWarned.add(key);
+  const s = '' + v;
+  const colour = key === 'color' || key.endsWith('Color');
+  if (colour) console.error(`zinc: warning U0003: style ${key} got the string '${s}', a colour decided at run time is a number: write 0x${s.startsWith('#') ? s.slice(1) : 'rrggbb'} (zinc explain U0003)`);
+  else if (s.endsWith('%')) console.error(`zinc: warning U0002: style ${key} got the string '${s}', a percent decided at run time is pct(): write ${key}: pct(${s.slice(0, s.length - 1)}) (zinc explain U0002)`);
+  else console.error(`zinc: warning U0002: style ${key} got the string '${s}', a value decided at run time is a number (zinc explain U0002)`);
+}
 /** A percentage for a style size decided at run time: `style={{ width: pct(done() * 100) }}` (the compiler lowers it to the percent of the container). */
 export function pct(n: number): number { return n / 100; }
 /** Compiler-normalized immutable style. Keep shared styles outside render functions. */
@@ -201,7 +214,7 @@ export class Style {
   constructor(keys: string[], values: number[]) {
     this.keys = keys; this.values = values;
     const ids: i32[] = [];
-    for (let i = 0; i < keys.length; i++) ids.push(propId(keys[i]));
+    for (let i = 0; i < keys.length; i++) { ids.push(propId(keys[i])); if (typeof values[i] === 'string') styleString(keys[i], values[i]); }
     this.ids = ids;
   }
 }
@@ -1113,6 +1126,7 @@ function clampI(v: i32, a: i32, b: i32): i32 { return v < a ? a : v > b ? b : v;
 
 /** Numeric style properties (style={{ ... }}, animate, dynamic attributes). */
 export function setNumber(h: i32, key: string, v: number): void {
+  if (typeof v === 'string') styleString(key, v);
   const n = node(h);
   if (n.styleKeys === NO_LINES) { n.styleKeys = []; n.styleVals = []; n.styleIds = []; }
   const i = n.styleKeys.indexOf(key);

@@ -1315,6 +1315,7 @@ static void write(const fs::path& file, const std::string& signature, const std:
   tree(fs::path(gRoot + "/lib/compat"));
   in.insert(gRoot + "/targets/capabilities.json");   // zinc:platform
   in.insert(gRoot + "/third_party/lucide/icon-nodes.json");   // zinc:icons/lucide
+  in.insert(gRoot + "/third_party/lucide/aliases.json");
   for (const std::string& d : gPluginDirs) tree(d);
   const fs::path tmp = file.string() + ".part";
   { std::ofstream o(tmp);
@@ -3814,6 +3815,7 @@ int main(int argc, char** argv) {
                                                           : zn::frontend::explain(code);
     if (out.empty()) out = zn::cli::webExplain(code);   // W0601 to W0604: the web export's warnings
     if (out.empty()) out = zn::frontend::projectExplain(code);   // J0001: a zinc.json key that is gone
+    if (out.empty()) out = zn::frontend::uiExplain(code);        // U0001 to U0004: zinc:ui's warnings
     if (out.empty()) out = zn::cli::pmExplain(code);    // P0001, P0002: the package manager of npm packages
     if (out.empty()) { std::fprintf(stderr, "%s\n", zn::i18n::tr("diag.unknownCode", {{"code", argv[2]}}).c_str()); return 1; }
     std::fputs(out.c_str(), stdout);

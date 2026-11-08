@@ -1348,7 +1348,7 @@ export function expose(name: string, get: () => number): void {
 // `icon('x')`) and zinc.json "icons" (["*"] for all); the data is third_party/lucide/icon-nodes.json. Only those icons are compiled into the program.
 std::string lucideModuleSource(const std::string& entry, const std::string& nodesFile) {
   namespace fs = std::filesystem;
-  std::set<std::string> names;
+  std::set<std::string> names, named;   // named: written as a literal name (zinc.json, name="x", icon('x')), so an unknown one is a mistake worth a warning
   bool all = false;
   std::string project = findProjectFile(entry);
   fs::path root = project.empty() ? fs::path(entry).parent_path() : fs::path(project).parent_path();
@@ -1359,7 +1359,7 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     if (yyjson_doc* d = yyjson_read(text.c_str(), text.size(), 0)) {
       yyjson_val* ic = yyjson_obj_get(yyjson_doc_get_root(d), "icons");
       size_t i, n; yyjson_val* v;
-      if (yyjson_is_arr(ic)) yyjson_arr_foreach(ic, i, n, v) if (yyjson_is_str(v)) { std::string k = yyjson_get_str(v); if (k == "*") all = true; else names.insert(k); }
+      if (yyjson_is_arr(ic)) yyjson_arr_foreach(ic, i, n, v) if (yyjson_is_str(v)) { std::string k = yyjson_get_str(v); if (k == "*") all = true; else { names.insert(k); named.insert(k); } }
       yyjson_doc_free(d);
     }
   }
@@ -1375,7 +1375,7 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     std::stringstream ss; ss << in.rdbuf();
     const std::string text = ss.str();
     for (const std::regex* r : {&tag, &call})
-      for (std::sregex_iterator m(text.begin(), text.end(), *r), e; m != e; ++m) names.insert((*m)[1].str());
+      for (std::sregex_iterator m(text.begin(), text.end(), *r), e; m != e; ++m) { names.insert((*m)[1].str()); named.insert((*m)[1].str()); }
     for (std::sregex_iterator m(text.begin(), text.end(), dyn), e; m != e; ++m) {
       const std::string ex = (*m)[1].str();
       for (std::sregex_iterator l(ex.begin(), ex.end(), lit); l != e; ++l) names.insert((*l)[1].str());
@@ -1385,14 +1385,40 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
   std::stringstream ss; ss << in.rdbuf();
   const std::string data = ss.str();
   if (data.empty() && (all || !names.empty())) std::fprintf(stderr, "zinc: warning: no Lucide icons: %s is missing (reinstall zinc)\n", nodesFile.c_str());
-  std::string body, list;
+  std::string body, list, unknown;
   int count = 0;
   if (yyjson_doc* d = yyjson_read(data.c_str(), data.size(), 0)) {
     yyjson_val* rootv = yyjson_doc_get_root(d);
+    // A name the set does not have: an old name Lucide renamed draws the new icon (as lucide-react's Trash2 still does) with a warning
+    // that says what to write; an unknown literal name warns with the closest name (U0001). Lucide's renames: aliases.json, from the
+    // pinned lucide-static's exports, keyed by the name in lower case without its dashes.
+    std::map<std::string, std::vector<std::string>> asked;   // icon of the set -> the names the program writes for it
+    std::string aliasText;
+    { std::ifstream ai(fs::path(nodesFile).parent_path() / "aliases.json"); std::stringstream as; as << ai.rdbuf(); aliasText = as.str(); }
+    yyjson_doc* ad = yyjson_read(aliasText.c_str(), aliasText.size(), 0);
+    std::vector<std::string> known;
+    { size_t i, n; yyjson_val *k, *v; yyjson_obj_foreach(rootv, i, n, k, v) known.push_back(yyjson_get_str(k)); }
+    static std::set<std::string> warned;   // once per name, though a program can load the module more than once
+    for (const std::string& w : names) {
+      if (yyjson_obj_get(rootv, w.c_str())) { asked[w].push_back(w); continue; }
+      std::string key;
+      for (char c : w) if (c != '-') key += c;
+      const char* to = ad ? yyjson_get_str(yyjson_obj_get(yyjson_doc_get_root(ad), key.c_str())) : nullptr;
+      if (to && yyjson_obj_get(rootv, to)) {
+        asked[to].push_back(w);
+        if (warned.insert(w).second) std::fprintf(stderr, "zinc: warning U0001: icon '%s' is an old Lucide name: write '%s' (zinc explain U0001)\n", w.c_str(), to);
+      } else if (named.count(w)) {
+        unknown += (unknown.empty() ? "'" : ", '") + w + "'";   // icons.tsx does not warn a second time at run time
+        if (!warned.insert(w).second) continue;
+        const std::string near = nearest(w, known);
+        std::fprintf(stderr, "zinc: warning U0001: no Lucide icon '%s'%s: it draws nothing (zinc explain U0001)\n", w.c_str(), near.empty() ? "" : (" (did you mean '" + near + "'?)").c_str());
+      }
+    }
+    if (ad) yyjson_doc_free(ad);
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(rootv, i, n, k, v) {
       const std::string name = yyjson_get_str(k);
-      if (!all && !names.count(name)) continue;
+      if (!all && !asked.count(name)) continue;
       std::string svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">";
       size_t j, m; yyjson_val* el;
       yyjson_arr_foreach(v, j, m, el) {
@@ -1409,14 +1435,50 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
       svg += "</svg>";
       std::string q;
       for (char c : svg) { if (c == '\\' || c == '\'') q += '\\'; q += c; }
-      body += "  if (name === '" + name + "') return '" + q + "';\n";
+      std::string test = "name === '" + name + "'";
+      if (auto a = asked.find(name); a != asked.end()) for (const std::string& w : a->second) if (w != name) test += " || name === '" + w + "'";
+      body += "  if (" + test + ") return '" + q + "';\n";
       list += (count ? ", '" : "'") + name + "'";
       ++count;
     }
     yyjson_doc_free(d);
   }
   return "// Generated by zinc for this program (ZN-374): the Lucide icons it names (third_party/lucide, ISC).\nexport const COUNT: i32 = " + std::to_string(count) +
-         ";\nexport const NAMES: string[] = [" + list + "];\nexport function lucide(name: string): string {\n" + body + "  return '';\n}\n";
+         ";\nexport const NAMES: string[] = [" + list + "];\nexport const UNKNOWN: string[] = [" + unknown + "];\nexport function lucide(name: string): string {\n" + body + "  return '';\n}\n";
+}
+
+// The warnings of zinc:ui that say what to write instead of drawing nothing (ZN-1004): `zinc explain U0001`..U0004
+std::string uiExplainText(const std::string& code) {
+  struct E { const char *code, *title, *why, *fix, *example; };
+  static const E table[] = {
+    {"U0001", "An icon name the Lucide set does not have",
+     "<Icon name=\"x\">, icon('x') and zinc.json \"icons\" name icons of the pinned Lucide set (third_party/lucide); only those are compiled in. A name Lucide renamed "
+     "(trash-2 is now trash, home is house) still draws the new icon, with a warning; a name the set never had draws nothing. A name decided at run time "
+     "that is not listed in zinc.json \"icons\" draws nothing too, and says so once.",
+     "Write the name the warning gives (https://lucide.dev/icons lists them), and list the names decided at run time in zinc.json \"icons\".",
+     "<Icon name=\"trash-2\" />   // U0001: icon 'trash-2' is an old Lucide name: write 'trash'"},
+    {"U0002", "A style size given as a string at run time",
+     "A style value decided at run time is a number: pixels, or pct(n) for a percent of the container. A string such as `${n}%` written in the style "
+     "itself is read at build time, but one built elsewhere and passed in (const w = `${n}%`; style={{ width: w }}) reaches the style as text, which "
+     "a typed program refuses (Z0103) and a JavaScript program ignored without a word.",
+     "Pass pct(n) for a percent (import { pct } from 'zinc:ui') or a number of pixels.",
+     "const w = `${n}%`;\n<View style={{ width: w }} />      // U0002: write width: pct(n)\n<View style={{ width: pct(n) }} />"},
+    {"U0003", "A colour given as a string at run time",
+     "A colour written in the style ('#ff0000', 'red', 'rgb(255 0 0)') is read at build time; a colour decided at run time is a number 0xRRGGBB. "
+     "A string passed in from elsewhere (backgroundColor: someString, ui.setNumber(h, 'color', '#fff')) is refused by the checker of a typed program "
+     "(Z0103) and was ignored without a word by a JavaScript program.",
+     "Keep the colour as a number (0xff0000), or choose between literals in the style itself (on ? '#ff0000' : '#00ff00').",
+     "const c = '#ff0000';\n<View style={{ backgroundColor: c }} />   // U0003: write 0xff0000"},
+    {"U0004", "Your component has the name of a zinc:ui component",
+     "A component declared in a file with the name of a host component of zinc:ui (function Button, Text, Image...) is used everywhere else in the "
+     "file, but inside its own body <Button> is zinc:ui's Button: that is how a wrapper is written (the kits' Button wraps the host one). "
+     "An attribute your component takes and the host one does not (icon, variant) is then reported on the host one.",
+     "Give your component another name (AppButton) when it should not wrap zinc:ui's, or pass the host Button only the attributes it takes.",
+     "function Button(p: { icon: string }): i32 {\n  return <Button icon={p.icon} />;   // U0004: the host Button has no 'icon'\n}"},
+  };
+  for (const E& e : table)
+    if (code == e.code) return std::string(e.code) + ": " + e.title + "\n\nWhy: " + e.why + "\nFix: " + e.fix + "\n\nExample:\n" + e.example + "\n";
+  return "";
 }
 
 // zinc:platform: the capabilities of the profile this engine runs as, constants like compiler/src/capabilities.ts platformModule (targets/capabilities.json).
@@ -4135,5 +4197,6 @@ std::function<bool(const std::string&)> gNativeLive;
 std::string platformModule(const std::string& capsFile) { return platformModuleSource(capsFile); }
 
 std::string lucideModule(const std::string& entry, const std::string& nodesFile) { return lucideModuleSource(entry, nodesFile); }
+std::string uiExplain(const std::string& code) { return uiExplainText(code); }
 
 }  // namespace zn::frontend

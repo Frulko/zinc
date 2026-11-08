@@ -62,6 +62,8 @@ const char* builtinModuleSource(std::string_view spec);
 std::string platformModule(const std::string& capsFile);
 // The source of zinc:icons/lucide: the Lucide icons the project of `entry` names (ZN-374), from `nodesFile` (third_party/lucide/icon-nodes.json).
 std::string lucideModule(const std::string& entry, const std::string& nodesFile);
+// `zinc explain U0001`..U0004: the warnings of zinc:ui that say what to write (an icon name, a string style value, a shadowed host component); "" for another code.
+std::string uiExplain(const std::string& code);
 // The file under lib/std of a standard module written in Zinc ('zinc:ui' is "ui.ts"); empty for any other spec.
 std::string_view stdModuleFile(std::string_view spec);
 // Every standard module written in Zinc ('zinc:ui', 'zinc:path'...), in the table's order (zinc doc lists their API).

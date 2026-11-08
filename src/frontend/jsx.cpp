@@ -1199,6 +1199,9 @@ struct Lowering {
         else if (react || plain) push("_num(" + v + ", '" + name + "', " + expr + ");");
         else push("_dynNum(" + v + ", '" + name + "', () => (" + expr + "));");
       } else if (name == "key") {}
+      else if (auto own = imported.find(tag); own != imported.end() && own->second.empty())   // inside the file's own `function Button`: the host one (U0004)
+        fail(a.tok, "unknown attribute '" + name + "' on <" + tag + ">: inside your own function " + tag + ", <" + tag + "> is zinc:ui's " + tag +
+                    ", which yours wraps; to use another " + tag + " here, give your component another name (App" + tag + ") (zinc explain U0004)");
       else fail(a.tok, "unknown attribute '" + name + "' on <" + tag + ">");
     }
     bool hasKids = false;
