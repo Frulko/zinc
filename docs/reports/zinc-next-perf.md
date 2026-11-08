@@ -1537,3 +1537,8 @@ Window 1200x760 @2x in the background, `ps` CPU over 10 s after 10 s, `footprint
 Fixed the same day: scrolling up with the trackpad or the wheel through rows not yet measured made what was shown jump (the offset followed the measured rows, the running gesture did not; `tests/t0/virtual_settle.sh`). Measured frame by frame on a `ZINC_INPUT` gesture of 14 px a frame: before, moves of 14 14 14 10 with outliers of 30, 19 and 0; after, 14 on every frame.
 
 Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` and the typed arrays as globals (`Uint8Array` is only in `zinc:gl`); one array per row instead of three in a variable list; the GL renderer's idle cost; the raster's cost per scrolled frame.
+
+## 2026-11-08 — runtime and tools chains (indicative: measured while another tree built)
+
+- ZN-1015 (develop 820b9444d): a 1 MB accented `charCodeAt` loop takes 36 ms on the interpreter and 16 ms on AOT with the per-string UTF-16 cursor; the binary before printed nothing in 120 s. ASCII paths untouched; `tools/bench-gate` on the string kernels is still to run (owner's call).
+- ZN-774.18 (develop 218cbebd5, M1 Pro, best of 5, load 3.2-5.8): style-only program without vs with one className: 64,521 vs 71,318 ZBC instructions (-9.5%), start 0.24 vs 0.25 s, cold `zinc build` 3.73 vs 4.13 s (-10%), executable 6,170,912 vs 6,319,600 B (-145 KB). prims-rn: 71,915 instructions, 0.30 s, 4.40 s, 6,915,104 B. Lesson 12: 73,510, 0.26 s, 4.12 s, 6,781,952 B. The start gain is at the edge of the noise.
