@@ -513,6 +513,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1025: a dashed key on a record that does not declare it is dropped silently; a diagnostic would help.
 - ZN-1050: the zip/inflate API named in the task description is not done.
 - ZN-1050: `toLocaleString` formats every locale as US English (digits from `toFixed`: 1.005 to 2 digits gives 1.00 where V8 gives 1.01; `style` and `currency` ignored); real locales need ICU data.
+- ZN-1021: `--json` (JSON lines) for the build steps (`zn::log::step`), so Atelier's console stops classifying text; the QuickJS check (`zinc check` of a .js program) has no `--json` form yet.
+- ZN-1021: the `fix` of `check --json` is the English registry text; a translated fix could sit beside `text`.
+- ZN-1027: `zinc doctor` could list the plugins whose native build fails (ZN-774.14).
+- ZN-1044: `zinc device update` could reuse `updateCommand` of src/tc/selfupdate.cpp to install and roll back (it still only downloads and verifies).
+- ZN-1044: plugin options passed at load time instead of compile-time defines would remove the rebuild a project's options cause.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -643,6 +648,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-700: a shared kit for the editors written in Zinc (the pinball and museum editors repeat panels, lists and inspectors); worth it when a third editor appears.
 
 ## Cross-platform pass
+
+- ZN-1027: an export with a broken plugin to a Linux target fails as on the Mac.
 
 - ZN-1006: bundle an OFL Noto subset (Symbols 2, Arabic) for machines without system fonts (Pi OS Lite, ESP32), and prove the new Linux Noto paths on the Pi (spark@192.168.2.31).
 - ZN-764: validate lazy raster/HTTP scratch, display-gl splash-buffer release and encoded-input lifetime on Windows, iOS/Android, KMS/webOS, consoles and actual WASM; measure pixels, CPU and RAM. Audit 3DS/Vita software-only rows/framebuffer allocation against GPU fallback and diagnostic frames (see engine-memory-hal-2026-10-31.md).
