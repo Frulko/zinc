@@ -8,6 +8,8 @@ import { fetch, serve, Headers } from 'zinc:net';
 import { MqttClient } from 'zinc:mqtt';
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
+import { fetch as webFetch } from 'zinc:web/fetch';
+import { FormData, File } from 'zinc:web';
 
 function App(): i32 {
   return <View className="p-3"><Text>network</Text></View>;
@@ -30,6 +32,12 @@ async function main(): Promise<void> {
   console.log('login', login.status, await login.text());
   const form = await fetch(`http://127.0.0.1:${http}/form`, { method: 'POST', body: 'user=zinc&pin=form-secret&keep=1', contentType: 'application/x-www-form-urlencoded' });
   console.log('form', form.status, await form.text());
+  const fd = new FormData();   // ZN-640: a multipart form, its listed field masked, the others and the file kept
+  fd.append('user', 'zinc');
+  fd.append('pin', 'multipart-secret');
+  fd.append('avatar', new File(['file body'], 'a.txt', { type: 'text/plain' }));
+  const multipart = await webFetch(`http://127.0.0.1:${http}/multipart`, { method: 'POST', body: fd });
+  console.log('multipart', multipart.status);
   if (https > 0) {
     const c = new Headers();
     c.set('Cookie', 'sid=cookie-secret');

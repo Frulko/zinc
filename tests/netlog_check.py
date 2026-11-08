@@ -9,10 +9,12 @@ loader = importlib.machinery.SourceFileLoader("cdp_probe", os.path.join(here, ".
 probe = importlib.util.module_from_spec(importlib.util.spec_from_loader("cdp_probe", loader)); loader.exec_module(probe)
 quit_port, har_path, tls, inspector = int(sys.argv[1]), sys.argv[2], sys.argv[3] == "1", int(sys.argv[4])
 SECRETS = ["s3cret-token", "cookie-secret", "server-secret",
-           "query-secret", "json-secret", "form-secret", "redirect-secret", "ws-secret", "ws-query-secret"]   # under the names of ZINC_NET_SENSITIVE=pin,API_KEY (ZN-635)
+           "query-secret", "json-secret", "form-secret", "redirect-secret", "ws-secret", "ws-query-secret", "multipart-secret"]   # under the names of ZINC_NET_SENSITIVE=pin,API_KEY (ZN-635)
 SAY = '{"say":"hello ws","pin":"***"}'                                                          # the WebSocket message, its `pin` masked
 LOGIN = '{"user":"z\\"inc","pin":"***","deep":[{"PIN":"***","keep":true}],"api_key":"***","token":"shown"}'   # the JSON body: a string, a number and an object under listed names, at any depth; nothing else changes
 FORM = "user=zinc&pin=***&keep=1"
+def multipart_ok(body):   # a FormData (ZN-640): the listed field ***, the other field and the file part as sent, the boundaries kept
+    return body is not None and 'name="pin"\r\n\r\n***\r\n--' in body and 'name="user"\r\n\r\nzinc\r\n--' in body and 'filename="a.txt"\r\nContent-Type: text/plain\r\n\r\nfile body\r\n--' in body and body.rstrip().endswith("--")
 
 def fail(msg):
     print("netlog:", msg); sys.exit(1)
@@ -51,6 +53,8 @@ login, form = request("/login"), request("/form")
 need(login["request"]["url"].endswith("/login?api_key=***&plain=1") and request("/new")["request"]["url"].endswith("/new?api_key=***"), "query parameters: %s" % login["request"]["url"])
 need({k.lower(): v for k, v in response(request("/old")["requestId"])["headers"].items()}.get("location") == "/new?api_key=***", "the Location header is not masked")
 need(login["request"].get("postData") == LOGIN and form["request"].get("postData") == FORM, "masked request bodies: %s / %s" % (login["request"].get("postData"), form["request"].get("postData")))
+mp = request("/multipart")
+need(multipart_ok(mp["request"].get("postData")), "masked multipart body: %r" % mp["request"].get("postData"))
 
 sockets = {p["url"]: p["requestId"] for p in of("webSocketCreated")}
 wsid = next((i for u, i in sockets.items() if u.startswith("ws://127.0.0.1:") and u.endswith("/chat?api_key=***&room=1")), None)
@@ -76,8 +80,10 @@ need(bodies[-1]["result"]["postData"] == '{"ask":"zinc"}', "getRequestPostData: 
 if tls: need(bodies[1]["result"]["body"] == "here /secure", "TLS body: %s" % bodies[1])
 masked = probe.ws(inspector, "/zinc", [{"id": 30, "method": "Network.getResponseBody", "params": {"requestId": login["requestId"]}},
                                        {"id": 31, "method": "Network.getRequestPostData", "params": {"requestId": login["requestId"]}},
-                                       {"id": 32, "method": "Network.getResponseBody", "params": {"requestId": form["requestId"]}}])
+                                       {"id": 32, "method": "Network.getResponseBody", "params": {"requestId": form["requestId"]}},
+                                       {"id": 33, "method": "Network.getResponseBody", "params": {"requestId": mp["requestId"]}}])
 need([masked[0]["result"]["body"], masked[1]["result"]["postData"], masked[2]["result"]["body"]] == ['{"echo":%s}' % LOGIN, LOGIN, FORM], "masked bodies: %s" % masked)
+need(multipart_ok(masked[3]["result"]["body"]), "masked multipart response: %r" % masked[3])
 for s in SECRETS: need(s not in json.dumps(net) and s not in json.dumps(bodies + masked), "the events expose %s" % s)
 cdp_urls = sorted([p["request"]["url"] for p in of("requestWillBeSent")] + list(sockets))
 print("AC1 ok: %d requests in the Network domain (fetch with bodies, redirect, failure, WebSocket and MQTT frames)" % len(cdp_urls))
@@ -113,10 +119,11 @@ by = {e["request"]["url"].split("/", 3)[-1] if e["request"]["url"].startswith("h
 need(by["echo?user:pw@x"]["request"]["postData"]["text"] == '{"ask":"zinc"}' and by["echo?user:pw@x"]["response"]["content"]["text"] == '{"echo":{"ask":"zinc"}}', "HAR bodies")
 need(by["old"]["response"]["redirectURL"] == "/new?api_key=***" and by["refused"]["response"]["status"] == 0, "HAR redirect / failure")
 need([m["data"] for m in by["ws"]["_webSocketMessages"] if m["opcode"] == 1] == [SAY, "echo " + SAY] and by["ws"]["_resourceType"] == "websocket", "HAR WebSocket messages")
-hl, hf = by["login?api_key=***&plain=1"], by["form"]
+hl, hf, hm = by["login?api_key=***&plain=1"], by["form"], by["multipart"]
+need(multipart_ok(hm["request"]["postData"]["text"]) and multipart_ok(hm["response"]["content"]["text"]), "HAR masked multipart: %r" % hm["request"]["postData"])
 need([hl["request"]["postData"]["text"], hl["response"]["content"]["text"], hf["request"]["postData"]["text"], hf["response"]["content"]["text"]] == [LOGIN, '{"echo":%s}' % LOGIN, FORM, FORM], "HAR masked bodies")
 need(pub in [m["data"] for m in by["mqtt"]["_webSocketMessages"]], "HAR MQTT messages")
 if tls: need(by["secure"]["timings"]["ssl"] > 0 and by["secure"]["timings"]["connect"] >= by["secure"]["timings"]["ssl"], "HAR TLS timings: %s" % by["secure"]["timings"])
 for s in SECRETS: need(s not in text, "the HAR exposes %s" % s)
 print("AC2 ok: HAR 1.2 with the same %d requests, bodies, messages and timings" % len(har_urls))
-print("masking ok: the names of ZINC_NET_SENSITIVE are *** as query parameters, JSON fields and form fields, in the events and in the HAR (%d secrets absent)" % len(SECRETS))
+print("masking ok: the names of ZINC_NET_SENSITIVE are *** as query parameters, JSON fields, urlencoded and multipart form fields, in the events and in the HAR (%d secrets absent)" % len(SECRETS))

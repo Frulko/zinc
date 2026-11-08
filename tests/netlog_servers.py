@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The HTTP and HTTPS servers of tests/t0/netlog.sh (ZN-370): usage netlog_servers.py port [tlsport cert.pem key.pem].
-A POST answers the body back with a Set-Cookie (a urlencoded form as it is, anything else inside a JSON object), GET /old redirects to /new with a query
+A POST answers the body back with a Set-Cookie (a urlencoded or multipart form as it is, anything else inside a JSON object), GET /old redirects to /new with a query
 parameter, anything else answers its path."""
 import base64, hashlib, http.server, ssl, struct, sys, threading
 
@@ -38,7 +38,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(bytes([0x81, len(out)]) + out); self.wfile.flush()   # ponytail: answers under 126 bytes
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
-        form = "urlencoded" in self.headers.get("Content-Type", "")
+        form = "urlencoded" in self.headers.get("Content-Type", "") or "multipart" in self.headers.get("Content-Type", "")
         self.answer(200, body if form else b'{"echo":' + body + b'}', [("Content-Type", self.headers["Content-Type"] if form else "application/json"), ("Set-Cookie", "sid=server-secret; HttpOnly")])
 
 def serve(port, cert=None, key=None):

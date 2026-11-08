@@ -120,6 +120,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Editors now know `dataDir()` of `zinc:sys`, the app's own writable folder (`~/.zinc/apps/<name>/`, made on first call), where an app keeps its files.
 - Tools can read the CLI as JSON: `zinc project --json` prints the project as the engine reads `zinc.json` (targets, the permissions in force on each, the plugins the program loads), `zinc check --json` gives each diagnostic its file, line, column, fix and message in your language, and `zinc plugins --json` lists the plugins. Zinc Atelier now reads these instead of parsing text.
 - `sys.kill(pid, '0')` of `zinc:sys` says whether a process exists, as Node's `process.kill`, and `sys.kill` returns false when the signal could not be delivered.
+- The network log (the inspector's Network view and `zinc run --har`) masks the fields of a multipart form (a `FormData`) named in `ZINC_NET_SENSITIVE`, as it already did for urlencoded forms, JSON and query strings; files and the other fields are kept.
 
 #### Changed
 

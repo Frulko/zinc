@@ -175,10 +175,46 @@ std::string maskJson(const std::string& s) {
   }
   return out;
 }
-// A request or response body as it is recorded: a urlencoded form by its fields, any other text as JSON; bytes that are not text are left alone.
+// The field name of a part's headers: name="..." of its Content-Disposition (not the filename="..." beside it).
+std::string partName(const std::string& headers) {
+  for (size_t at = headers.find("name=\""); at != std::string::npos; at = headers.find("name=\"", at + 1))
+    if (at > 0 && (headers[at - 1] == ' ' || headers[at - 1] == ';')) {
+      const size_t from = at + 6, to = headers.find('"', from);
+      return headers.substr(from, to == std::string::npos ? std::string::npos : to - from);
+    }
+  return "";
+}
+// A multipart/form-data body (RFC 7578, a FormData): the content of each part whose name is listed becomes ***; the boundaries, the part headers and
+// the other parts (files too, whatever their bytes) are kept as they are. A body cut short keeps its unfinished part.
+std::string maskMultipart(const std::string& body, const std::string& contentType) {
+  const size_t at = lower(contentType).find("boundary=");
+  if (at == std::string::npos) return body;
+  std::string bd = contentType.substr(at + 9);
+  bd = bd.substr(0, bd.find(';'));
+  while (!bd.empty() && (bd.back() == ' ' || bd.back() == '"')) bd.pop_back();
+  if (!bd.empty() && bd[0] == '"') bd.erase(0, 1);
+  if (bd.empty()) return body;
+  const std::string delim = "--" + bd, next = "\r\n" + delim;
+  std::string out;
+  size_t i = 0;
+  for (size_t d = body.find(delim); d != std::string::npos;) {
+    const size_t head = d + delim.size(), sep = body.find("\r\n\r\n", head), end = body.find(next, head);
+    if (sep == std::string::npos || end == std::string::npos || sep > end) break;   // the closing delimiter, or a part cut short
+    out.append(body, i, sep + 4 - i);
+    if (listed(partName(body.substr(head, sep - head)))) out += "***"; else out.append(body, sep + 4, end - sep - 4);
+    i = end;
+    d = end + 2;
+  }
+  out.append(body, i, std::string::npos);
+  return out;
+}
+// A request or response body as it is recorded: a urlencoded or multipart form by its fields, any other text as JSON; other bytes are left alone.
 std::string maskBody(const std::string& body, const std::string& contentType) {
-  if (st().sensitive.empty() || !isText(body)) return body;
-  return lower(contentType).find("x-www-form-urlencoded") != std::string::npos ? maskPairs(body) : maskJson(body);
+  if (st().sensitive.empty()) return body;
+  const std::string type = lower(contentType);
+  if (type.find("multipart/form-data") != std::string::npos) return maskMultipart(body, contentType);
+  if (!isText(body)) return body;
+  return type.find("x-www-form-urlencoded") != std::string::npos ? maskPairs(body) : maskJson(body);
 }
 
 // ---------------------------------------------------------------- headers
