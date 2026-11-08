@@ -500,6 +500,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.22: site search does not work in `astro dev` (the index exists only after a build); check the dark theme's search focus colour.
 - ZN-774.27: translate `zinc help`'s own lines; an Atelier session test of how the help box ranks fuzzy matches.
 - ZN-774.24: the What's New card shows the changelog in English only; the docs/i18n translations of guide/01-getting-started are stale; docs/start/styles.md translations lag one sentence.
+- ZN-1004: a style object imported from another file fails on QuickJS with "cannot read property 'length'"; say "a style must be a style object or StyleSheet entry".
+- ZN-1004: Pressable `style={fn}` fails with an error naming `styleFn`, a name the user never wrote; give the prop a union type or a clear error.
+- ZN-1004: typed engines report a string style value as a bare Z0103; the message could name `pct(n)` or `0xrrggbb`.
+- ZN-1004: `nearest()` breaks ties poorly ('bel' suggests 'bed' rather than 'bell'); prefer insertions.
+- ZN-1006: choose the fallback font by language (Hiragino for ja, PingFang for zh) instead of Arial Unicode's Han forms.
+- ZN-1006: CBDT/COLR colour emoji (Noto Color Emoji on Linux) are still not drawn.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -630,6 +636,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-700: a shared kit for the editors written in Zinc (the pinball and museum editors repeat panels, lists and inspectors); worth it when a third editor appears.
 
 ## Cross-platform pass
+
+- ZN-1006: bundle an OFL Noto subset (Symbols 2, Arabic) for machines without system fonts (Pi OS Lite, ESP32), and prove the new Linux Noto paths on the Pi (spark@192.168.2.31).
 - ZN-764: validate lazy raster/HTTP scratch, display-gl splash-buffer release and encoded-input lifetime on Windows, iOS/Android, KMS/webOS, consoles and actual WASM; measure pixels, CPU and RAM. Audit 3DS/Vita software-only rows/framebuffer allocation against GPU fallback and diagnostic frames (see engine-memory-hal-2026-10-31.md).
 
 - iPod AudioMuse over the LAN from the Pi daemon, with the same client.
