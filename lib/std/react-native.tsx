@@ -568,10 +568,9 @@ export function FlatList<T>(p: FlatListProps<T>): i32 {
   return list;
 }
 
-/** A section is exactly { title, data } here: a literal passed in the call is typed against this record (ZN-383), but the common form declares the
- *  sections first (`const DATA = [{ title, data }]`), whose record is the literal's own shape, and an array of records does not convert to a wider
- *  record (ZN-389). */
-export type SectionBase<T> = { title: string; data: T[] };
+/** A section: its rows and an optional title and key. Sections declared first (`const DATA = [{ title, data }]`) convert to this wider record,
+ *  the members they lack undefined (ZN-389). */
+export type SectionBase<T> = { title?: string; key?: string; data: T[] };
 export type SectionListRenderItemInfo<T> = { item: T; index: number; section: SectionBase<T> };
 export type SectionHeaderInfo<T> = { section: SectionBase<T> };
 export type SectionListProps<T> = {

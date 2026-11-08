@@ -23,3 +23,14 @@ type Sec<T> = { title: string; data: T[] };
 type SecProps<T> = { sections: Sec<T>[]; render: (item: T, s: Sec<T>) => string };
 function walk<T>(p: SecProps<T>): string { let s = ''; for (const sec of p.sections) for (const d of sec.data) s += p.render(d, sec); return s; }
 console.log(walk({ sections: [{ title: 'A', data: [1, 2] }, { title: 'B', data: [3] }], render: (n: number, s: Sec<number>): string => s.title + n }));
+// sections declared first, each the literal's own record, passed where a wider section is expected (title? and key?, React Native's SectionBase): the
+// array converts, the members a section lacks undefined (ZN-389)
+type Wide<T> = { title?: string; key?: string; data: T[] };
+function wide<T>(p: { sections: Wide<T>[]; render: (item: T) => string }): string {
+  let s = '';
+  for (const sec of p.sections) { s += (sec.title ?? '-') + '/' + (sec.key ?? '-') + ':'; for (const d of sec.data) s += p.render(d); s += ' '; }
+  return s;
+}
+const DATA = [{ title: 'A', data: [1, 2] }, { title: 'B', data: [3] }];
+const KEYED = [{ key: 'k', data: ['x'] }];
+console.log(wide({ sections: DATA, render: (n: number): string => `${n}` }) + wide({ sections: KEYED, render: (x: string): string => x }));

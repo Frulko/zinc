@@ -61,6 +61,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The keyboard scrolls: a focused `ScrollView` takes the arrows, Page Up and Page Down, Space and Home and End as in a browser, and Page Up, Page Down, Home and End also scroll the area the focus is in, or the one under the pointer.
 - `ui.prependRows(list, n)` keeps the row on screen in place when older rows are loaded above a `VirtualList`, as a chat history does; JSX takes `onKeyUp` next to `onKeyDown`.
 - React Native screens get `ImageBackground`, `<Image source={{ uri }}>`, and Pressable's `hitSlop`, `pressRetentionOffset` and `delayLongPress`; React Native's `Button` fades to 0.2 when pressed on iOS and macOS, as its TouchableOpacity does.
+- A React Native `SectionList` section takes an optional `title` and a `key`, as in React Native, and sections declared first (`const DATA = [{ title, data }]`) pass to it as they are.
 
 #### Fixed
 
