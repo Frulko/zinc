@@ -524,6 +524,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1023: a Pressable inside an ancestor that has its own `onKeyDown` now takes the keys after it (the walk stops at the first handler).
 - ZN-1017: the Solid model still has no unstyled Switch, Modal or ActivityIndicator; SafeAreaView still pads through `env()` classes (move it to style keys from the safe-area signal); `android_ripple` is not drawn.
 - ZN-1038: Lumen: a box's `shadow-*` is painted under its whole box and shows through a translucent background; clip it to the outside of the box (same as the ZN-799 kit field line).
+- ZN-1009: the QuickJS checked copy covers `JSON.parse` at declarations and `as` only; arguments, returns and `any` variables need the checker's conversion sites in the transform.
+- ZN-1008: a QuickJS fast path for plain arrays from natives (`JS_NewArrayFrom`, a fast-array read in pack) would let `u8[]` results above 64 Ki be arrays too; today `push` on a camera frame fails.
+- ZN-1008: `examples/carnet-nbe/src/services/sync.ts`'s BrowserWebSocket adapter could go now that `zinc:web/websocket` exists (it needs the global for `.ts` on QuickJS or an import).
+- ZN-1008: plain `.js` workers on QuickJS: `Worker` is not a global and the worker side has no `self`, so `new Worker(new URL(...))` in a `.js` program fails.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
