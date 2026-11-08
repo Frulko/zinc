@@ -103,6 +103,7 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
     if (!sys || zn::isLayoutRow(id)) return JS_ThrowTypeError(ctx, "this module draws or lays out: it is not available in a worker (do the drawing on the main side and post the result)");
     if (zn::host::workerBridge.stopping()) return JS_ThrowInternalError(ctx, "terminated");
   }
+  if (zn::flushesOutBefore(id)) std::fflush(stdout);   // a prompt before a stdin read, the program's lines before a child's (ZN-643)
   if (id == zn::Rt::HostEvReady) zn::host::workerBridge.deliver();   // the messages of zinc:worker become events of this loop
   else if (id == zn::Rt::HostLoopWait) zn::host::workerBridge.idleWait();
   zn::host::HostCall call = zn::isLayoutRow(static_cast<zn::Rt>(id)) ? zn::host::hostLayout : sys ? zn::host::hostSys : zn::host::hostGfx;

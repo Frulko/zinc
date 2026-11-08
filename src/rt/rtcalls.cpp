@@ -841,8 +841,10 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
     if (!sys || isLayoutRow(id) || isGlRow(id)) return "this module draws or lays out: it is not available in a worker (do the drawing on the main side and post the result)";
   }
   // a turn of the event loop begins (the timer loop and the frame loop of the prelude both ask for the host's events first) or the program waits:
-  // what it printed goes out now, so the lines of a running program reach the terminal, the file or the pipe before it exits (ZN-638)
-  if ((id == Rt::HostEvReady || id == Rt::HostLoopWait) && m.outLive && !m.out->empty()) m.flushOut();
+  // what it printed goes out now, so the lines of a running program reach the terminal, the file or the pipe before it exits (ZN-638);
+  // and before a call that starts a child or waits on the outside (stdin, a child's stdin), so a prompt shows before the read and the
+  // program's lines come before what the child writes to the same terminal or file (ZN-643)
+  if (flushesOutBefore(id) && m.outLive && !m.out->empty()) m.flushOut();
   if (id == Rt::HostEvReady) worker::deliver();     // the messages of zinc:worker become events of this loop
   else if (id == Rt::HostLoopWait) worker::idleWait();
   if (!call && gDeviceProfile) {

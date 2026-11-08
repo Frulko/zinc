@@ -461,11 +461,16 @@ inline constexpr bool isGfxTailRow(Rt r) {
 inline constexpr bool isSysTailRow(Rt r) {
   return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysExecPath || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat) ||
          (r >= Rt::HostOscListen && r <= Rt::HostOscSend) || r == Rt::HostSockError || r == Rt::HostEvReady || r == Rt::HostEvNext ||
-         r == Rt::HostSigWatch || r == Rt::HostSigSend ||   // sys.onSignal, sys.kill
+         r == Rt::HostSigWatch || r == Rt::HostSigSend || r == Rt::HostStdinRead ||   // sys.onSignal, sys.kill, sys.onStdin
          (r >= Rt::HostFsSymlink && r <= Rt::HostOsNetField) ||   // zinc:fs symlink, readlink, chmod and zinc:os uid, gid, shell, cpus, networkInterfaces
          r == Rt::HostCrypto || r == Rt::HostCryptoError ||   // zinc:subtle
          (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostSysBytesToString || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes || (r >= Rt::HostHttpOption && r <= Rt::HostHttpSetCert) || r == Rt::HostHttpFetchFile || r == Rt::HostHttpSaveTo ||   // zinc:net, its server too
          r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes || r == Rt::HostResourceStats || (r >= Rt::HostEvPayloadBytes && r <= Rt::HostHttpBodyBytes);
+}
+// The host calls before which every engine writes what the program printed (ZN-638, ZN-643): a turn of the event loop begins or the loop waits,
+// a child starts (it may write to the same terminal or file), or the program waits on the outside (stdin, a blocking write to a child's stdin).
+inline constexpr bool flushesOutBefore(Rt r) {
+  return r == Rt::HostEvReady || r == Rt::HostLoopWait || r == Rt::HostStdinRead || r == Rt::HostProcSpawn || r == Rt::HostProcSpawnEx || r == Rt::HostProcWrite;
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
 inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::ArrCopyWithin || r == Rt::ArrSet || r == Rt::ArrFillRange || r == Rt::RecDecode || r == Rt::RecEncode; }

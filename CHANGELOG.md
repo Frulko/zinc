@@ -158,6 +158,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - A QuickJS app's bytecode (`.qbc`) records the zinc that compiled it: after an update the app runs its `.js` instead of bytecode another zinc wrote, and a lone `.qbc` says to build it again. Its source map carries the sources, so a moved or exported build still shows them, and its stack traces name the project's file (`src/util.js:2`).
 - Export and build fixes: `zinc build <dir> --bundle` works with `--bundle` after the folder, `zinc export --apk` with a relative `-o` passes its 16 KB check, an export run with `ZINC_DETERMINISTIC=1` ships a plugin's native code instead of its test stand-in, and the `flash.sh` of an ESP32 export (`--engine mquickjs`) no longer erases the board's saved settings (touch calibration, Wi-Fi networks, `zinc:storage`).
+- What a program printed is written before it starts a child process or reads its input, so a prompt shows before `onStdin` waits and the program's lines come before what the child writes to the same terminal or file; `onStdin` of `zinc:sys` now also works on `--engine quickjs`.
 
 ### Apps and examples
 

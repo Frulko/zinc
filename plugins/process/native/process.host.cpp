@@ -58,6 +58,7 @@ struct HostProcess : NativeProcess, zrt::Poller {
     int h = -1;
     for (int k = 0; k < MAXP && h < 0; k++) if (!procs[(next + k) % MAXP].used) h = (next + k) % MAXP;
     if (h < 0) { strcpy(err_msg, "too many processes"); return -1; }
+    fflush(stdout);   // what the program printed comes before anything the child writes to the same terminal or file (ZN-643)
     next = (h + 1) % MAXP;
     char *c = cstr(cmd), *a = cstr(args), *d = cstr(cwd), *e = cstr(env);
     char** argv = split(a, 1);
@@ -127,6 +128,7 @@ struct HostProcess : NativeProcess, zrt::Poller {
   bool write(int32_t h, zrt::String data) override {
     Proc* p = at(h);
     if (!p || p->in < 0) return false;
+    fflush(stdout);   // the write may block until the child reads: the program's output first, as before a spawn
     const char* s = data.ptr(); size_t n = data.bytes();
     while (n) {
       ssize_t w = ::write(p->in, s, n);
