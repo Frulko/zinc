@@ -88,7 +88,7 @@ function StyleCard(props: { style: string }): i32 {
   </View>;
 }
 /** Your first sketch (ZN-774.23): the Drawing style's first result, a circle that follows the pointer, made as a new copy in the
- *  sketchbook; its comments, in the interface's language, are the lesson, with the places to change marked ✎. */
+ *  sketchbook; its comments, in the interface's language, are the lesson, with the places to change marked ». */
 export function openFirst(): void { setStartOpen(false); newSketch('drawing', 'first-sketch'); }
 function FirstCard(): i32 {
   return <View ref={firstRef} className={`flex-col max-w-[520] mt-4 px-4 py-3.5 gap-1 rounded-[14] border-2 cursor-pointer ${bg(theme().bg)} ${bd(theme().accent)}`}

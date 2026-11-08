@@ -18,7 +18,7 @@ all four.
 Where to choose: `zinc new` alone asks what you want to make, then, for a game or a drawing (Drawing, Scene, Canvas) and for an
 app with windows (Interface, Scene), how you want to write it. In Zinc Atelier, **New sketch** at the top of the start view offers
 the four styles, each starting from the first result of its style (the row above), and the examples below are grouped by style.
-**Your first sketch**, above them, is the Drawing one with comments that teach it: the lines marked ✎ say what to change.
+**Your first sketch**, above them, is the Drawing one with comments that teach it: the lines marked » say what to change.
 
 ## The same program, four times
 
