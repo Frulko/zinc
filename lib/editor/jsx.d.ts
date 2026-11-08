@@ -7,7 +7,7 @@ type ZincPointerHandler = (e: import('zinc:ui').PointerEvent) => void;
 type ZincHostProps = {
   [attr: string]: any; class?: never; className?: string; key?: any;
   onClick?: () => void; onPress?: () => void; onSubmit?: () => void;
-  onInput?: (value: string) => void; onChange?: (value: string) => void; onKeyDown?: (e: import('zinc:ui').KeyEvent) => void;
+  onInput?: (value: string) => void; onChange?: (value: string) => void; onKeyDown?: (e: import('zinc:ui').KeyEvent) => void; onKeyUp?: (e: import('zinc:ui').KeyEvent) => void;
   onPointerDown?: ZincPointerHandler; onPointerMove?: ZincPointerHandler; onPointerUp?: ZincPointerHandler; onPointerCancel?: ZincPointerHandler;
   onPointerEnter?: ZincPointerHandler; onPointerLeave?: ZincPointerHandler; onDoubleClick?: ZincPointerHandler; onContextMenu?: ZincPointerHandler;
   onWheel?: ZincPointerHandler; onTap?: ZincPointerHandler; onLongPress?: ZincPointerHandler; onDrag?: ZincPointerHandler; onPinch?: ZincPointerHandler;

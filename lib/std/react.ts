@@ -179,6 +179,7 @@ export function _spread(n: i32, p: ui.PanHandlers): void { p.attach(n); }   // {
 export function _scroll(n: i32, f: ui.ResponderHandler): void { ui.onScroll(n, f); }
 export function _flat(styles: ui.Style[]): ui.Style { return ui.StyleSheet.flatten(styles); }   // style props of zinc:react-native components
 export function _key(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onKeyDown(n, f); }
+export function _keyUp(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onNodeKeyUp(n, f); }
 export function _ctx(n: i32, c: string): void { ui.keyContext(n, c); }
 export function _submit(n: i32, f: () => void): void { ui.onSubmit(n, f); }   // <Form onSubmit>
 export function _onText(n: i32, change: boolean, f: (v: string) => void): void { ui.onText(n, change, f); }

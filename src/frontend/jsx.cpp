@@ -1201,6 +1201,7 @@ struct Lowering {
       }
       else if (kPointerAttrs.count(name)) push("_ptr(" + v + ", " + num(kPointerAttrs.at(name)) + ", " + expr + ");");
       else if (name == "onKeyDown") push("_key(" + v + ", " + expr + ");");
+      else if (name == "onKeyUp") push("_keyUp(" + v + ", " + expr + ");");
       else if (name == "dragAxis" && lit && kDragAxes.count(a.lit)) push("_num(" + v + ", 'dragAxis', " + num(kDragAxes.at(a.lit)) + ");");
       else if (name == "grab" && lit && (a.lit == "keep" || a.lit == "keep-x" || a.lit == "auto")) push("_num(" + v + ", 'grab', " + num(a.lit == "keep" ? 1 : a.lit == "keep-x" ? 2 : 0) + ");");
       else if (name == "keyContext") push("_ctx(" + v + ", " + (lit ? quote(a.lit) : expr) + ");");
@@ -1832,6 +1833,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     if (out.find("_imgH(") != std::string::npos) helpers += ", _imgH";
     if (out.find("_dynImgH(") != std::string::npos) helpers += ", _dynImgH";
     if (out.find("_submit(") != std::string::npos) helpers += ", _submit";
+    if (out.find("_keyUp(") != std::string::npos) helpers += ", _keyUp";
     if (out.find("_flat(") != std::string::npos) helpers += ", _flat";
     if (out.find("_props(") != std::string::npos) helpers += ", _props";
     if (out.find("_comp(") != std::string::npos) helpers += ", _comp, _u";

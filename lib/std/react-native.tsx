@@ -56,9 +56,12 @@ function Press(p: PressableProps, pressedStyle: ui.Style | null, feedback: boole
   const long = (e: ui.PointerEvent): void => { const f = p.onLongPress; if (!off && f !== undefined) f(); };
   const down = (e: ui.PointerEvent): void => { if (off) return; held.current = true; setPressed(true); const f = p.onPressIn; if (f !== undefined) f(); };
   const up = (e: ui.PointerEvent): void => { if (!held.current) return; held.current = false; setPressed(false); const f = p.onPressOut; if (f !== undefined) f(); };
+  // the keyboard presses it too, as React Native Web's: Enter or Space down is the press in (the engine fires onPress), their release the press out
+  const keyDown = (e: ui.KeyEvent): void => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) down(new ui.PointerEvent()); };
+  const keyUp = (e: ui.KeyEvent): void => { if (e.key === 'Enter' || e.key === ' ') up(new ui.PointerEvent()); };
   const sf = p.styleFn, st: PressableStateCallbackType = { pressed: pressed };
   return <View style={[sf !== undefined ? sf(st) : p.style ?? NONE, pressedStyle !== null || !feedback ? NO_FEEDBACK : FEEDBACK, off ? DISABLED : ENABLED, pressed && pressedStyle !== null && (pressedStyle as ui.Style)]} onPress={press} onLongPress={long} onPointerDown={down}
-    onPointerUp={up} onPointerCancel={up} aria-label={p.accessibilityLabel ?? ''}>{renderPressable(p, st)}</View>;
+    onPointerUp={up} onPointerCancel={up} onKeyDown={keyDown} onKeyUp={keyUp} aria-label={p.accessibilityLabel ?? ''}>{renderPressable(p, st)}</View>;
 }
 function renderPressable(p: PressableProps, st: PressableStateCallbackType): i32 { const cf = p.childrenFn; return cf !== undefined ? cf(st) : renderChildren(p.children); }
 /** No feedback of its own, as React Native's: a program shows the pressed state through `style` or `children` given as functions of `{ pressed }`. */

@@ -423,6 +423,14 @@ consumed (`preventDefault()`, e.g. ⌥Z as a shortcut) does not also type its ch
 with nothing focused it does the platform default (`gfx.escapeDefault()`: leave fullscreen, else quit; nothing in
 kiosk mode). Plain `zinc:gfx` programs keep the HAL behaviour unless they call `gfx.escapeByApp(true)`.
 
+Space and Enter press the focused node until their key is released: its `active:` style and a `Pressable`'s `pressed` show while the key is held,
+as a browser's `:active` and React Native Web's Pressable do. `onKeyUp` on a node hears the release of a key while it (or a descendant) has the focus,
+before the global `ui.onKeyUp` handlers.
+
+Keys that nothing handled scroll, as in a browser (Chromium's amounts): a scroll area with the focus (`tabIndex={0}`) takes the arrows (40 px),
+Page Up / Page Down and Space / Shift+Space (the view less 40 px, at least 87.5 % of it) and Home / End; Page Up, Page Down, Home and End also scroll
+the area the focus is in, or with nothing focused the one under the pointer. A horizontal-only area takes them sideways (`tests/t0/ui_input_edges.sh`).
+
 ## Zoom and pan
 
 `style={{ scale, translateX, translateY }}` on a view transforms the view and its subtree: scale around the view's
@@ -486,6 +494,10 @@ come back as estimates. A view whose key changes while it is mounted keeps the o
 new key has none). Use a key per place a person can come back to: `zinc:ui/history`'s `scrollKey(name)` gives one per entry, so back
 returns to where the list was and a new entry starts at the top. The last 1,000 keys are kept. `tests/t1/ui_scroll_key.sh`
 (`tests/golden/ui-scroll-key`) checks it on the interpreter and QuickJS.
+
+`ui.prependRows(list, n)`: `n` rows were added above row 0 (older messages loaded above a chat's history): the rows shown keep their place on screen,
+as CSS scroll anchoring and FlatList's `maintainVisibleContentPosition` keep them, with their measured heights. Rows are by index, so the list cannot
+tell rows inserted above from rows added below: call it when the data changes, before the list renders with its new count.
 
 `ui.scrollToRow(list, i)` brings row `i` of a virtual list into view with the least scroll (to the top when it is above the view, to the bottom when below), as a tree keeps its selected row shown when the arrow keys move it; a row not measured yet counts at its estimate (`tests/golden/ui-virtual`).
 

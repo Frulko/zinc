@@ -52,6 +52,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### New
 
+- The keyboard scrolls: a focused `ScrollView` takes the arrows, Page Up and Page Down, Space and Home and End as in a browser, and Page Up, Page Down, Home and End also scroll the area the focus is in, or the one under the pointer.
+- `ui.prependRows(list, n)` keeps the row on screen in place when older rows are loaded above a `VirtualList`, as a chat history does; JSX takes `onKeyUp` next to `onKeyDown`.
 - `zinc:ui/kit` has `Input` and `Textarea` in the shape of shadcn/ui's: a bordered, rounded field that follows the page, with a muted placeholder, a stronger border while focused and a dimmed `disabled` state.
 - Mistakes that used to draw nothing now say what to write: an icon name Lucide renamed (`trash-2`, `home`) draws the new icon and names it, an unknown icon name suggests the closest one, a width or a colour passed as a string at run time says `pct(n)` or `0xrrggbb`, and `<Button icon>` inside your own `function Button` says to rename it (`zinc explain U0001` to `U0004`).
 
@@ -62,6 +64,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Touch gestures recover cleanly: lifting one finger of a pinch lets the other scroll again, a press held while the app goes to the background is cancelled instead of clicking on return, and a long press in a text field still sends `onPointerUp`.
 - The navigation stack no longer keeps a screen when a swipe or Android's back gesture starts during a pop, and dragging a sheet down while pressing back closes only the sheet.
 - `Pressable` sends `onPressOut` for a very quick tap, and an `Alert` button pressed twice runs once.
+- Space and Enter keep a focused `Pressable` pressed until the key is released, so keyboard users see its pressed style; a right press held during a left click no longer loses either release; lifting the first finger of a pinch before the second no longer blocks the next pinch; a text selection dragged past the edge of a field keeps scrolling while the pointer rests there.
 - The on-screen keyboard's backspace stops repeating when its press is lost, and the image viewer ignores zoom and drags while it closes.
 - Scrolling up a `VirtualList` with `estimatedItemHeight` (a chat history) with the trackpad or the wheel no longer makes the messages jump as older ones come into view.
 - `ui.focusNode` no longer gives the focus to a `disabled` field, as a click never did.

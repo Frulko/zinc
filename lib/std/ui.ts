@@ -139,6 +139,7 @@ export class Handlers {
   enter: ((e: PointerEvent) => void) | null = null;
   leave: ((e: PointerEvent) => void) | null = null;
   key: ((e: KeyEvent) => void) | null = null;
+  keyUp: ((e: KeyEvent) => void) | null = null;
   // gesture handlers and their arbitration (see "interaction" below)
   submit: (() => void) | null = null;   // onSubmit: Enter in a single-line field below this node, or the browser's submit event of its <form>
   tap: ((e: PointerEvent) => void) | null = null;
@@ -733,8 +734,10 @@ function release(h: i32): void {
   n.ed = null;
   if (focus === h) focus = -1;
   if (pressed === h) pressed = -1;
+  if (keyHeld === h) keyHeld = -1;
   if (dimNode === h) dimNode = -1;
   if (capture === h) capture = -1;
+  for (let b = 0; b < 3; b++) if (btnCap[b] === h) btnCap[b] = -1;
   if (selecting === h) selecting = -1;
   if (tsNode === h || tsEnd === h) tsNode = -1;
   // the gesture under way lets go of it too: handles are recycled, and a drag begun on this node scrolled the next node made
@@ -865,6 +868,27 @@ export function virtualize(h: i32, count: i32, itemH: number, render: (i: i32) =
   vv.rows = new Map<i32, i32>();
   vv.first = 0; vv.last = -1;
   layoutDirty = true;
+}
+/** k rows were added above row 0 of virtual list h (older messages loaded above a chat's history): the rows shown keep their place on screen, as
+ *  FlatList's maintainVisibleContentPosition and CSS scroll anchoring keep them, and the heights measured so far stay with their rows. Call it when
+ *  the data changes, before the list renders with its new count (rows are by index: the list cannot tell an insertion above from rows added below). */
+export function prependRows(h: i32, k: i32): void {
+  const n = node(h), v = n.virt;
+  if (v === null || k <= 0) return;
+  const vv = v as Virtual;
+  if (vv.variable) {
+    const hs: number[] = [], known: boolean[] = [];
+    for (let i = 0; i < k; i++) { hs.push(vv.itemH); known.push(false); }
+    for (let i = 0; i < vv.count; i++) { hs.push(i < vv.hs.length ? vv.hs[i] : vv.itemH); known.push(i < vv.known.length && vv.known[i]); }
+    vv.hs = hs; vv.known = known; vv.count += k;
+    fwBuild(vv, vv.itemH, true);
+  } else vv.count += k;
+  const rows = new Map<i32, i32>();
+  vv.rows.forEach((row: i32, i: i32) => { rows.set(i + k, row); placeVirtRow(n, vv, rowNode(row), i + k); });
+  vv.rows = rows; vv.first += k; vv.last += k;
+  const d: number = k * vv.itemH;   // the new rows at their estimate; settleVirtuals moves the offset again as they are measured above the view
+  n.sy += d; shiftAxis(n.ay, d);
+  layoutDirty = true; paintDirty = true;
 }
 /** Brings row i of virtual list h into view with the least scroll (above the view: to its top; below it: to its bottom), as a tree or a list
  *  keeps its selected row shown when the keyboard moves it. A row of a variable list not measured yet counts at its estimate. */
@@ -1092,6 +1116,8 @@ const keyUpHandlers: ((e: KeyEvent) => void)[] = [];
 /** A key was released, anywhere in the app (DOM keyup): the key's name as onKey gives it, and 'Shift', 'Control', 'Alt' or 'Meta' when a
  *  modifier is let go, which onKey also hears when it goes down (a modifier held alone: Shift held for a multiple selection). */
 export function onKeyUp(f: (e: KeyEvent) => void): void { keyUpHandlers.push(f); }
+/** Key release handler of a node (JSX onKeyUp), called while it (or a descendant) has the focus, before the global onKeyUp handlers. */
+export function onNodeKeyUp(h: i32, f: (e: KeyEvent) => void): void { handlers(h).keyUp = f; }
 function editOf(h: i32): Edit {
   const e = node(h).ed;
   if (e === null) throw new Error('not a text field (<Input> or <TextArea>)');
@@ -5708,6 +5734,9 @@ export function toLocal(h: i32, gx: number, gy: number): number[] { boxOf(h); re
 /** Node box on the surface [x, y, w, h], through scroll offsets and style transforms (popups, tests). */
 export function screenBox(h: i32): number[] { if (layoutDirty) layout(); boxOf(h); const n = nodes[h]; return [boxX, boxY, n.lw * boxK, n.lh * boxK]; }
 let capture: i32 = -1, captureBtn: i32 = 0;  // node getting moves and the release after its onPointerDown
+// the captures of the other buttons pressed while `capture` holds (by button): each gets its own onPointerUp, and the first left takes the moves
+// when `capture` lets go (Pointer Events give one capture per pointer; a right press during a left drag must not lose its release)
+let btnCap: i32[] = [-1, -1, -1];
 let selecting: i32 = -1;                      // text field being drag-selected
 let ptrX: number = -1, ptrY: number = -1;
 let held: i32 = 0;                            // buttons held, DOM `buttons` bits: 1 left, 2 right, 4 middle
@@ -5808,6 +5837,25 @@ function focusStep(back: boolean): void {
   const e = nodes[focus].ed;
   if (e !== null && !e.multi) { e.anchor = 0; moveTo(e as Edit, e.value.length, true); }  // like browsers: Tab into a field selects it
 }
+/** A drag selecting in a text field: the caret follows the pointer; past the top or bottom edge the text scrolls one line per move. */
+function selectDrag(px: number, py: number): void {
+  const n = nodes[selecting], e = n.ed as Edit, lh = lineHeightOf(n);
+  boxOf(selecting);
+  const ly = Math.max(inT(n) - lh / 2, Math.min(n.lh - inB(n) + lh / 2, (py - boxY) / boxK));
+  moveTo(e, offAt(n, e, (px - boxX) / boxK, ly), true);
+}
+// The pointer rests past the edge of the field it selects in: the selection goes on growing, a line every SEL_SCROLL_MS, as browsers keep
+// scrolling on a timer (ZN-917: it used to move only when the pointer did).
+const SEL_SCROLL_MS: number = 50;
+let selScrollAt: number = 0;
+function stepSelectScroll(): void {
+  if (!nodes[selecting].alive || nodes[selecting].ed === null || clock - selScrollAt < SEL_SCROLL_MS) return;
+  selScrollAt = clock;
+  boxOf(selecting);
+  const ly = (ptrY - boxY) / boxK, n = nodes[selecting];
+  if (ly < inT(n) || ly > n.lh - inB(n)) { selectDrag(ptrX, ptrY); paintDirty = true; }
+  animating = true;   // frames go on while the button is held past the edge
+}
 function pointerMove(px: number, py: number): void {
   // drag to scroll: past a few pixels the press becomes a scroll gesture
   if ((held & 1) !== 0 && grabber === -1 && (dragScroller >= 0 || dragCands.length > 0)) arbitrate(px, py);
@@ -5822,13 +5870,7 @@ function pointerMove(px: number, py: number): void {
   hoverDirty = true;
   if (pressed >= 0 && pressed === dimNode) { const over = hit(px, py, HIT_CLICK) === pressed; if (over !== pressOver) { pressOver = over; paintDirty = true; } }   // dragged off: the dim lifts
   if (handleDrag !== 0) { touchSelDrag(px, py); return; }
-  if (selecting >= 0) {
-    const n = nodes[selecting], e = n.ed as Edit, lh = lineHeightOf(n);
-    boxOf(selecting);
-    // past the edges the text scrolls one line per move
-    const ly = Math.max(inT(n) - lh / 2, Math.min(n.lh - inB(n) + lh / 2, (py - boxY) / boxK));
-    moveTo(e, offAt(n, e, (px - boxX) / boxK, ly), true);
-  }
+  if (selecting >= 0) selectDrag(px, py);
   if (tsDrag && tsNode >= 0 && (held & 1) !== 0) tsDragTo(px, py);
   if (capture >= 0) { fire(capture, PMOVE, px, py, -1); return; }
   if (grabKind !== 0) return;   // a gesture took this press: raw handlers got onPointerCancel
@@ -6091,6 +6133,7 @@ function pressAt(px: number, py: number, button: i32): void {
   fingerField = byFinger && button === 0 && t >= 0 && nodes[t].ed !== null ? t : -1; longDone = false;
   const d = bubble(t, PDOWN, true);
   if (d >= 0 && capture < 0) { capture = d; captureBtn = button; }
+  else if (d >= 0 && button !== captureBtn) btnCap[button] = d;
   if (d >= 0) fire(d, PDOWN, px, py, button);
   if (button === 2) { const c = bubble(t, PCONTEXT, false); if (c >= 0) fire(c, PCONTEXT, px, py, button); }
   if (clicks === 2 && button === 0) { const c = bubble(t, PDBL, true); if (c >= 0) fire(c, PDBL, px, py, button); }
@@ -6142,7 +6185,12 @@ function pressAt(px: number, py: number, button: i32): void {
 function releaseAt(px: number, py: number, button: i32): void {
   held = held & ~bitOf(button);
   if (handleDrag !== 0 && button === 0) { handleDrag = 0; menuOpen = true; paintDirty = true; return; }   // a handle let go: the menu again
-  if (capture >= 0 && button === captureBtn) { const c = capture; capture = -1; fire(c, PUP, px, py, button); }
+  if (capture >= 0 && button === captureBtn) {
+    const c = capture;
+    capture = -1;
+    for (let b = 0; b < 3; b++) if (btnCap[b] >= 0) { capture = btnCap[b]; captureBtn = b; btnCap[b] = -1; break; }   // a button still held keeps its capture
+    fire(c, PUP, px, py, button);
+  } else if (btnCap[button] >= 0) { const c = btnCap[button]; btnCap[button] = -1; fire(c, PUP, px, py, button); }
   else if (capture < 0 && grabKind === 0) { const u = bubble(hit(px, py, HIT_ANY), PUP, false); if (u >= 0) fire(u, PUP, px, py, button); }
   hoverDirty = true;
   if (button !== 0) return;
@@ -6175,6 +6223,7 @@ function releaseAt(px: number, py: number, button: i32): void {
 function cancelPress(): void {
   if (held === 0) return;
   if (capture >= 0) { const c = capture; capture = -1; if (handlerOf(nodes[c], PCANCEL) !== null) fire(c, PCANCEL, ptrX, ptrY, captureBtn); }
+  for (let b = 0; b < 3; b++) if (btnCap[b] >= 0) { const c = btnCap[b]; btnCap[b] = -1; if (nodes[c].alive && handlerOf(nodes[c], PCANCEL) !== null) fire(c, PCANCEL, ptrX, ptrY, b); }
   if (grabKind === 2 && nodes[grabber].alive) fireGesture(grabber, PDRAG, ptrX, ptrY, 3);
   else if (grabKind === 3 && pinching) pinchEnd(ptrX, ptrY);
   grabber = -1; grabKind = 0; tapNode = -1; longNode = -1; dragCands = []; pinching = false; spreadD = 0;
@@ -6405,6 +6454,7 @@ function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
   if (!before && ev.handled) byApp = true;
   // a printable key the program used (⌥Z as a shortcut) does not also type its character, like DOM preventDefault
   if (byApp && key.length === 1 && (mods & (CTRL | META)) === 0) dropText = true;
+  if (!ev.handled && !(focus >= 0 && nodes[focus].ed !== null) && (mods & (CTRL | META | ALT)) === 0 && keyScroll(key, ev.shift)) ev.handled = true;
   // Escape nobody used: drop the focus, else the platform's default (leave fullscreen / quit)
   if (!ev.handled && key === 'Escape') { if (focus >= 0) setFocusTo(-1); else escapeDefault(); ev.handled = true; }
   if (!ev.handled) {
@@ -6414,17 +6464,51 @@ function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
   paintDirty = true;
   return ev;
 }
+// ---- keyboard scrolling (ZN-737), as browsers do: a scroll area with the focus takes the arrows (40 px, Chromium's line step), Page Up / Page Down
+// (the view less 40 px, at least 87.5 % of it), Space / Shift+Space (a page) and Home / End; Page Up / Down, Home and End also move the scroll area
+// the focus is in (or, nothing focused, the one under the pointer), since the arrows walk the focus there. A horizontal area takes them sideways.
+const SCROLL_KEYS: string[] = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' '];
+const LINE_PX: number = 40;
+function keyScroll(key: string, shift: boolean): boolean {
+  const k = SCROLL_KEYS.indexOf(key);
+  if (k < 0) return false;
+  let sc: i32 = -1;
+  if (focus >= 0 && nodes[focus].scroll !== 0) sc = focus;
+  else if (k >= 4 && k <= 7) {
+    for (let p = focus; p >= 0 && sc < 0; p = nodes[p].parent) if (nodes[p].scroll !== 0) sc = p;
+    if (sc < 0 && focus < 0) sc = scrollerTop(ptrX, ptrY, 3);
+  }
+  if (sc < 0) return false;
+  const n = nodes[sc], side = k === 2 || k === 3 || (n.scroll & 1) === 0;
+  if ((n.scroll & (side ? 2 : 1)) === 0) return false;
+  const a = side ? axisX(n) : axisY(n), base = a.mode === WHEEL ? a.target : side ? n.sx : n.sy;
+  const view = side ? n.lw : n.lh, max = side ? maxScrollX(n) : maxScrollY(n), page = Math.max(view - LINE_PX, view * 0.875);
+  let to: number = base;
+  if (k <= 3) to = base + (k === 0 || k === 2 ? -LINE_PX : LINE_PX);
+  else if (k === 4 || (k === 8 && shift)) to = base - page;
+  else if (k === 5 || k === 8) to = base + page;
+  else to = k === 6 ? 0 : max;
+  to = Math.max(0, Math.min(max, to));
+  if (side) scrollTo(sc, to, n.sy, true); else scrollTo(sc, n.sx, to, true);
+  return true;
+}
 // Unhandled navigation keys also drive the gamepad-style focus navigation: a quick tap can come and go between two
 // polls of the held state, the key event is not lost.
 const NAV_KEYS: string[] = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Tab', 'Enter'];
 const NAV_BTN: i32[] = [Btn.Up, Btn.Down, Btn.Left, Btn.Right, Btn.A, Btn.Select, Btn.Start];
 let navKeys: i32 = 0, navBack = false;
+let keyHeld: i32 = -1;   // the node Space or Enter pressed, until the key's release
 let dropText = false;   // the text event of a key down that a handler consumed is skipped
 function navPressed(b: i32): boolean { return wasPressed(b) || (navKeys & (1 << b)) !== 0; }
 const MOD_KEYS: string[] = ['Shift', 'Control', 'Alt', 'Meta'];   // the bits SHIFT, CTRL, ALT, META, in order
 let keyMods0: i32 = 0;   // the modifiers held at the previous frame: a change is a key down or up of that modifier
 function dispatchKeyUp(key: string, mods: i32): void {
   const ev = new KeyEvent(key, mods, false);
+  if (keyHeld >= 0 && (key === ' ' || key === 'Enter')) { if (pressed === keyHeld) pressed = -1; keyHeld = -1; paintDirty = true; }   // the keyboard press ends
+  for (let p = focus; p >= 0; p = nodes[p].parent) {
+    const s = nodes[p].hs;
+    if (s !== null && (s as Handlers).keyUp !== null) { const f = (s as Handlers).keyUp; if (f !== null) f(ev); break; }
+  }
   for (const f of keyUpHandlers) { if (ev.handled) break; f(ev); }
 }
 function inputFrame(): void {
@@ -6455,7 +6539,7 @@ function inputFrame(): void {
     const kind = keyKind(i);
     if (kind === KeyKind.Text) { if (dropText) dropText = false; else typeInto(focus, keyName(i)); }
     else if (kind === KeyKind.Down || kind === KeyKind.Repeat) dispatchKey(keyName(i), keyMods(i), kind === KeyKind.Repeat);
-    else if (kind === KeyKind.Up && keyUpHandlers.length > 0) dispatchKeyUp(keyName(i), keyMods(i));
+    else if (kind === KeyKind.Up) dispatchKeyUp(keyName(i), keyMods(i));
   }
 }
 
@@ -6531,10 +6615,12 @@ export function frame(dt: number, background: i32): void {
   if (first) stepEdits(dt);
   if (!typing && (navPressed(Btn.Down) || navPressed(Btn.Right) || navPressed(Btn.Up) || navPressed(Btn.Left) || navPressed(Btn.Select))) focusStep(navPressed(Btn.Up) || navPressed(Btn.Left) || navBack);
   if (focus >= 0 && focus !== focusShown) { focusShown = focus; revealFocus(focus); }
-  if (!typing && (navPressed(Btn.A) || navPressed(Btn.Start)) && focus >= 0) { pressed = focus; pressOn(focus, PRESS_KEY_MS); activate(focus); }
-  else if (pressed >= 0 && (held & 1) === 0) { pressed = -1; paintDirty = true; }
+  // Space and Enter press the focused node until their key is let go (its active: style and pressed state show, as a browser's :active)
+  if (!typing && (navPressed(Btn.A) || navPressed(Btn.Start)) && focus >= 0) { pressed = focus; keyHeld = (navKeys & ((1 << Btn.A) | (1 << Btn.Start))) !== 0 ? focus : -1; pressOn(focus, PRESS_KEY_MS); activate(focus); }
+  else if (pressed >= 0 && (held & 1) === 0 && pressed !== keyHeld) { pressed = -1; paintDirty = true; }
   navKeys = 0; navBack = false;
   if (grabber === -1 && longNode >= 0) stepGestures();
+  if (selecting >= 0 && (held & 1) !== 0) stepSelectScroll();
   if (fingerField >= 0) touchSelStep();
   if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
   // text input (IME, on-screen keyboard) follows the focused field; the caret blinks
@@ -6753,9 +6839,9 @@ let extLayout = false, extPaint = false;
 let steppedAt: i32 = -1;
 class Surface {
   root: i32 = -1; layoutDirty = true; paintDirty = true; scrollDirty = false; extLayout = false; extPaint = false; surfW: i32 = -1; surfH: i32 = -1;
-  focus: i32 = -1; pressed: i32 = -1; animating = false; focusShown: i32 = -1; keyboardFocus = false; restoreTo: i32 = -1; lastCommands: i32 = 0;
+  focus: i32 = -1; pressed: i32 = -1; keyHeld: i32 = -1; animating = false; focusShown: i32 = -1; keyboardFocus = false; restoreTo: i32 = -1; lastCommands: i32 = 0;
   dragScroller: i32 = -1; dragging = false; dragX: number = 0; dragY: number = 0; lastX: number = 0; lastY: number = 0;
-  capture: i32 = -1; captureBtn: i32 = 0; selecting: i32 = -1; ptrX: number = -1; ptrY: number = -1; held: i32 = 0; curMods: i32 = 0;
+  capture: i32 = -1; captureBtn: i32 = 0; btnCap: i32[] = [-1, -1, -1]; selecting: i32 = -1; ptrX: number = -1; ptrY: number = -1; held: i32 = 0; curMods: i32 = 0;
   clicks: i32 = 0; lastBtn: i32 = -1; lastDownAt: number = -100000; lastDownX: number = 0; lastDownY: number = 0;
   hoverOnA = true; hoverA: i32[] = []; hoverB: i32[] = []; hoverDirty = true; cursorShown: i32 = -1; textOn: i32 = -1; blinkShown: number = -1;
   tsNode: i32 = -1; tsA: i32 = 0; tsB: i32 = 0; tsDrag = false; tsEnd: i32 = -1; tsIa: i32 = 0; tsIb: i32 = 0; tsList: i32[] = []; padScroller: i32 = -1; padEdit: i32 = -1; padAxis: i32 = 0;
@@ -6784,6 +6870,7 @@ function swapSurface(s: Surface): void {
   i = surfH; surfH = s.surfH; s.surfH = i;
   i = focus; focus = s.focus; s.focus = i;
   i = pressed; pressed = s.pressed; s.pressed = i;
+  i = keyHeld; keyHeld = s.keyHeld; s.keyHeld = i;
   b = animating; animating = s.animating; s.animating = b;
   i = focusShown; focusShown = s.focusShown; s.focusShown = i;
   b = keyboardFocus; keyboardFocus = s.keyboardFocus; s.keyboardFocus = b;
@@ -6797,6 +6884,7 @@ function swapSurface(s: Surface): void {
   d = lastY; lastY = s.lastY; s.lastY = d;
   i = capture; capture = s.capture; s.capture = i;
   i = captureBtn; captureBtn = s.captureBtn; s.captureBtn = i;
+  a = btnCap; btnCap = s.btnCap; s.btnCap = a;
   i = selecting; selecting = s.selecting; s.selecting = i;
   d = ptrX; ptrX = s.ptrX; s.ptrX = d;
   d = ptrY; ptrY = s.ptrY; s.ptrY = d;
@@ -6977,6 +7065,8 @@ export function trackpadAt(x: number, y: number, dx: number, dy: number, phase: 
   if (layoutDirty) layout();
   trackpadInput(x, y, dx, dy, phase);
 }
+/** Key up (a key released) as the keyboard sends it: the focused node's onKeyUp, then the global ones. */
+export function keyUp(key: string, mods: i32 = 0): void { synthetic = true; dispatchKeyUp(key, mods); }
 /** Key down (key names like gfx keyName: 'a', 'Enter', 'ArrowLeft'...) with the focus on h (-1: keep the focus).
  *  Returns whether something handled it. */
 export function keyDown(h: i32, key: string, mods: i32 = 0): boolean {
@@ -7198,13 +7288,17 @@ function touchSecondary(id: i32, x: number, y: number, phase: i32): void {
   } else if (i === 0 && pinching) pinchUpdate(ptrX, ptrY);
   else if (i === 0 && spreadD > 0) spread();
 }
+/** The pointer finger lifted (its release ended the pinch): the fingers still down are forgotten, as Android's ACTION_UP ends the gesture, so
+ *  the next press and second finger start a new pinch. Their later moves and lifts find nothing and are dropped. */
+function dropFingers(): void { fIds = []; fXs = []; fYs = []; spreadD = 0; }
 /** HAL touch screens: the pointer already follows the first finger (mouse emulation); the others come from here. */
 function halTouches(): void {
   const n = touchCount();
   const ids: i32[] = [];
   for (let i = 0; i < n; i++) ids.push(touchId(i));
-  if (halPrimary >= 0 && ids.indexOf(halPrimary) < 0) halPrimary = -1;
-  if (halPrimary < 0 && halFingers.length === 0 && n > 0) halPrimary = ids[0];
+  if (halPrimary >= 0 && ids.indexOf(halPrimary) < 0) { halPrimary = -1; dropFingers(); }
+  // the first finger down while none drives the pointer is the one SDL's mouse emulation follows: stale fingers of a lifted pointer stay ignored
+  if (halPrimary < 0) for (const id of ids) if (halFingers.indexOf(id) < 0) { halPrimary = id; break; }
   for (const id of halFingers.slice()) if (ids.indexOf(id) < 0) {
     const k = fIds.indexOf(id);
     touchSecondary(id, k >= 0 ? fXs[k] : 0, k >= 0 ? fYs[k] : 0, 2);
@@ -7227,6 +7321,7 @@ export function touchAt(id: i32, x: number, y: number, phase: i32): void {
   if (id === primaryId || (primaryId < 0 && phase === 0 && fIds.indexOf(id) < 0)) {
     primaryId = phase === 2 ? -1 : id;
     pointerSample(x, y, 0, phase !== 2);
+    if (phase === 2) dropFingers();
   } else touchSecondary(id, x, y, phase);
   updateHover();
 }

@@ -1,0 +1,5 @@
+touch pinch0,pinch1,pinch2,pinch0,pinch1,pinch2
+capture downa2,downb0,upb0,upa2,downa0,downb2,upa0,upb2
+keys in,press,shows held,out,shows idle,in,press,held,out,down 40,page 128,end 900,home 0
+prepend kept
+select grows

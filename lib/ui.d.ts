@@ -80,6 +80,7 @@ declare module 'zinc:ui' {
       enter: ((e: PointerEvent) => void) | null;
       leave: ((e: PointerEvent) => void) | null;
       key: ((e: KeyEvent) => void) | null;
+      keyUp: ((e: KeyEvent) => void) | null;
       submit: (() => void) | null;
       tap: ((e: PointerEvent) => void) | null;
       long: ((e: PointerEvent) => void) | null;
@@ -614,6 +615,10 @@ declare module 'zinc:ui' {
    * function rebuilds the visible rows.
    */
   export function virtualize(h: i32, count: i32, itemH: number, render: (i: i32) => i32, drop: ((row: i32) => void) | null): void;
+  /** k rows were added above row 0 of virtual list h (older messages loaded above a chat's history): the rows shown keep their place on screen, as
+   *  FlatList's maintainVisibleContentPosition and CSS scroll anchoring keep them, and the heights measured so far stay with their rows. Call it when
+   *  the data changes, before the list renders with its new count (rows are by index: the list cannot tell an insertion above from rows added below). */
+  export function prependRows(h: i32, k: i32): void;
   /** Brings row i of virtual list h into view with the least scroll (above the view: to its top; below it: to its bottom), as a tree or a list
    *  keeps its selected row shown when the keyboard moves it. A row of a variable list not measured yet counts at its estimate. */
   export function scrollToRow(h: i32, i: i32): void;
@@ -707,6 +712,8 @@ declare module 'zinc:ui' {
   /** A key was released, anywhere in the app (DOM keyup): the key's name as onKey gives it, and 'Shift', 'Control', 'Alt' or 'Meta' when a
    *  modifier is let go, which onKey also hears when it goes down (a modifier held alone: Shift held for a multiple selection). */
   export function onKeyUp(f: (e: KeyEvent) => void): void;
+  /** Key release handler of a node (JSX onKeyUp), called while it (or a descendant) has the focus, before the global onKeyUp handlers. */
+  export function onNodeKeyUp(h: i32, f: (e: KeyEvent) => void): void;
   /** Text field value (controlled: setting the current value is a no-op, the caret is kept when possible). */
   export function setValue(h: i32, v: string): void;
   export function getValue(h: i32): string;
@@ -1035,6 +1042,8 @@ declare module 'zinc:ui' {
   /** A trackpad sample, as the HAL reports it: dx / dy pixels (+ = up / left), phase 1 fingers down, 2 lifted, 3 landed,
    *  4 lifted with the OS momentum to follow, 5 a delta of that momentum. */
   export function trackpadAt(x: number, y: number, dx: number, dy: number, phase: i32): void;
+  /** Key up (a key released) as the keyboard sends it: the focused node's onKeyUp, then the global ones. */
+  export function keyUp(key: string, mods?: i32): void;
   /** Key down (key names like gfx keyName: 'a', 'Enter', 'ArrowLeft'...) with the focus on h (-1: keep the focus).
    *  Returns whether something handled it. */
   export function keyDown(h: i32, key: string, mods?: i32): boolean;
