@@ -12,7 +12,7 @@ import { setStartOpen, openDocs } from '../app/commands';
 import { setText } from 'zinc:editor';
 import { t, LANGUAGES, languageName, lang, setLanguage } from '../app/text';
 import { runRef, engineRef, paletteRef } from './Header';
-import { examplesRef, helloRef, stylesRef, templatesRef, openExample } from './Start';
+import { examplesRef, firstRef, stylesRef, templatesRef, openExample } from './Start';
 import { editorRef } from './Editor';
 import { consoleRef } from './Console';
 import { Glyph } from './Controls';
@@ -48,7 +48,7 @@ function enter(id: string): void {
 /** The parts of the window a step is about. */
 function targets(id: string): i32[] {
   if (id === 'welcome') return [examplesRef.node];
-  if (id === 'example') return [helloRef.node];
+  if (id === 'example') return [firstRef.node];
   if (id === 'editor' || id === 'completion') return [editorRef.node];
   if (id === 'run') return [runRef.node];
   if (id === 'console') return [consoleRef.node];

@@ -14,6 +14,7 @@ les quatre.
 | Comme | Processing, p5.js, LÖVE | ActionScript 3 (Flash), Haxe et OpenFL | le `<canvas>` du web | React, Solid, React Native |
 | Vous écrivez | une fonction qui dessine toute l'image, à chaque image | des objets qui se dessinent chacun eux-mêmes, dans un arbre | la même fonction d'image, avec les appels du canvas du web | les éléments de l'écran, une seule fois, en JSX |
 | Idéal pour | les jeux, les animations, l'art, un premier programme | les applications et les jeux sur d'anciennes tablettes, les objets que l'on touche et fait glisser | le code de canvas du web, les dessins vectoriels, les graphiques | les applications, les formulaires, les listes, les réglages, les outils |
+| Premier résultat | un cercle qui suit le pointeur et grossit quand vous appuyez | une balle qui change de couleur quand vous la touchez | un cercle au milieu qui respire | un nombre et un bouton qui lui ajoute un |
 | Pour commencer | `zinc new game` | `zinc new stage` | `zinc new canvas` | `zinc new desktop-app` |
 | Leçons | [1 à 6](../learn/README.md#the-lessons) | [13 à 16](../learn/13-a-stage-and-a-sprite.md) | [17 à 20](../learn/17-paths-and-fills.md) | [7 à 12](../learn/07-components.md) |
 

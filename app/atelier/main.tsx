@@ -38,7 +38,7 @@ import { ConsoleCard, stepConsole, explainFirst } from './components/Console';
 import { LessonPanel } from './components/Lesson';
 import { lesson, lessonList, LessonEntry, loadLessons, openLesson, sketchOpened, checkLesson, solveStep, setHintOpen, hintOpen, lessonText } from './app/lesson';
 import { openReference } from './app/commands';
-import { StartView, EXAMPLES, Example, openExample } from './components/Start';
+import { StartView, EXAMPLES, Example, openExample, openFirst } from './components/Start';
 import { Palette } from './components/Palette';
 import { Tour, stepTour, tourLine, fixCode } from './components/Tour';
 import { tourOn, tourWanted, startTour, nextStep, backStep, endTour } from './app/tour';
@@ -212,6 +212,7 @@ function stepScript(): void {
     else if (id.startsWith('example:')) openExample(id.slice(8));
     else if (id.startsWith('lang:')) setLanguage(id.slice(5));   // Tools > Language
     else if (id.startsWith('new:')) { setStartOpen(false); newSketch(id.slice(4)); }   // a card of New sketch
+    else if (id === 'first') openFirst();   // the card Your first sketch
     else if (id.startsWith('template:')) { const w = id.slice(9).split(' '); newProject(w[0], w.length > 1 ? w[1] : w[0]); }   // a template of the palette, named
     else if (id === 'explain') explainFirst();   // a click on the first error code of the console
     else if (id.startsWith('lesson:')) openLesson(id.slice(7));   // Help > Lessons > a lesson

@@ -133,6 +133,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### New
 
 - The docs speak to AI assistants: the site publishes `llms.txt`, `llms-full.txt` and a Markdown copy of every docs page (`index.md` beside it), in each of the five languages.
+- Zinc Atelier's start view opens with **Your first sketch**: a circle that follows the mouse, whose comments, in your language, are the lesson and mark with ✎ the places to change.
 
 ## [0.11.5] - 2026-11-05
 

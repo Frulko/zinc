@@ -216,11 +216,18 @@ export function freeName(base: string): string {
 /** The four ways to write a sketch (D161, docs/start/styles.md): drawing (zinc:gfx), scene (zinc:stage), Canvas (zinc:canvas), interface (zinc:ui). */
 export const STYLES: string[] = ['drawing', 'scene', 'canvas', 'interface'];
 /** Creates a new sketch in the sketchbook, written in `style`, and opens it: starters/<style>.ts (.tsx for the interface) beside this
- *  app, under a comment in the language of the interface (atelier.sketch.starter.<style>). */
-export function newSketch(style: string = 'drawing'): void {
-  const ext = style === 'interface' ? '.tsx' : '.ts', dir = sketchbook() + '/' + freeName('sketch');
+ *  app, under a comment in the language of the interface (atelier.sketch.starter.<style>). A starter's line `// @t <key>` is the
+ *  text of that key in the interface's language, one comment line per line of it, at the marker's indentation: the comments of the
+ *  first sketch are its lesson (ZN-774.23). */
+export function newSketch(style: string = 'drawing', name: string = 'sketch'): void {
+  const ext = style === 'interface' ? '.tsx' : '.ts', dir = sketchbook() + '/' + freeName(name);
   try {
-    const code = fs.readText(`${APP_HOME}/starters/${style}${ext}`);
+    const code = fs.readText(`${APP_HOME}/starters/${style}${ext}`).split('\n').map((l: string) => {
+      const at = l.indexOf('// @t ');
+      if (at < 0 || l.slice(0, at).trim() !== '') return l;
+      const pad = l.slice(0, at);
+      return t(l.slice(at + 6).trim()).split('\n').map((x: string) => pad + '// ' + x).join('\n');
+    }).join('\n');
     fs.mkdir(dir, true);
     fs.writeText(dir + '/main' + ext, t('atelier.sketch.starter.' + style).split('\n').map((l: string) => '// ' + l).join('\n') + '\n' + code);
   } catch (e) { say(t('atelier.sketch.cannot_create', ['path', sketchbook()])); return; }

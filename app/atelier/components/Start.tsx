@@ -58,12 +58,12 @@ function picture(e: Example): i32 {
 /** A path with the home folder as ~. */
 function tilde(p: string): string { const h = sys.env('HOME'); return h !== '' && p.startsWith(h + '/') ? '~' + p.slice(h.length) : p; }
 const CARD = 'flex-col w-[224] p-2 pb-3 gap-2.5 rounded-[16] border cursor-pointer';
-/** The first examples, the Hello card, the new sketch's styles and the templates (the tour points at them). */
-export const examplesRef = createNodeRef(), helloRef = createNodeRef(), stylesRef = createNodeRef(), templatesRef = createNodeRef();
+/** The first examples, the card Your first sketch, the new sketch's styles and the templates (the tour points at them). */
+export const examplesRef = createNodeRef(), firstRef = createNodeRef(), stylesRef = createNodeRef(), templatesRef = createNodeRef();
 const noRef = createNodeRef();
 function Card(props: { e: Example }): i32 {
   const e = props.e;
-  return <View ref={e.dir === 'hello' ? helloRef : noRef} className={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openExample(e.dir); }}>
+  return <View className={`${CARD} ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`} onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openExample(e.dir); }}>
     <Canvas className="w-full h-[130]" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
       const img = picture(e), r = 10 * w / 208;
       if (img >= 0) drawImage(img, x, y, w, h, 255, r); else rrect(x, y, w, h, r, theme().chrome, 255);
@@ -87,6 +87,19 @@ function StyleCard(props: { style: string }): i32 {
     <Text className={`text-[12px] ${fg(theme().muted)}`}>{t(`atelier.style.${style}.text`)}</Text>
   </View>;
 }
+/** Your first sketch (ZN-774.23): the Drawing style's first result, a circle that follows the pointer, made as a new copy in the
+ *  sketchbook; its comments, in the interface's language, are the lesson, with the places to change marked ✎. */
+export function openFirst(): void { setStartOpen(false); newSketch('drawing', 'first-sketch'); }
+function FirstCard(): i32 {
+  return <View ref={firstRef} className={`flex-col max-w-[520] mt-4 px-4 py-3.5 gap-1 rounded-[14] border-2 cursor-pointer ${bg(theme().bg)} ${bd(theme().accent)}`}
+    onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openFirst(); }}>
+    <View className="flex-row items-center gap-2">
+      <Glyph kind={I_PLUS} size={16} color={() => theme().accent} back={() => theme().bg} />
+      <Text className={`text-[15px] font-semibold ${fg(theme().text)}`}>{t('atelier.start.first')}</Text>
+    </View>
+    <Text className={`text-[13px] ${fg(theme().muted)}`}>{t('atelier.start.first.text')}</Text>
+  </View>;
+}
 function Chip(props: { label: () => string; onPress: () => void }): i32 {
   return <View className={`h-[30] px-3.5 rounded-full border items-center justify-center cursor-pointer ${bg(theme().bg)} ${bd(theme().borderSoft)} hover:${bd(theme().accent)}`}
     onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) props.onPress(); }}>
@@ -99,7 +112,8 @@ export function StartView(): i32 {
     <ScrollView className="grow flex-col px-[44] pt-[28] pb-[40]">
       <Text className={`text-[26px] font-bold ${fg(theme().text)}`}>{t('atelier.start.title')}</Text>
       <Text className={`max-w-[820] text-[14px] leading-[21] pt-2 ${fg(theme().text)}`}>{t('atelier.start.welcome', ['run', t('atelier.header.run')])}</Text>
-      <View className="flex-row flex-wrap items-center gap-1.5 pt-2">
+      <FirstCard />
+      <View className="flex-row flex-wrap items-center gap-1.5 pt-4">
         <Text className={`text-[14px] ${fg(theme().text)}`}>{t('atelier.start.learn')}</Text>
         <Text className={`text-[14px] font-semibold cursor-pointer ${fg(theme().accent)}`}
           onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openDocs('docs/learn/'); }}>{t('atelier.start.learn_link')}</Text>

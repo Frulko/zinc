@@ -43,7 +43,7 @@ check() {
   (cd "$tmp/book/$2" && ZINC_HEADLESS=1 ZINC_FRAMES=3 "$Z" run >"$tmp/run.out" 2>"$tmp/run.err") && [ ! -s "$tmp/run.err" ] \
     || { echo "atelier styles: the $1 sketch does not run: $(head -3 "$tmp/run.err")"; fail=1; }
 }
-check drawing sketch main.ts zinc:gfx '// A new sketch: a circle that breathes. Run it with the button above (⌘R).'
+check drawing sketch main.ts zinc:gfx '// A sketch in the Drawing style: a circle that follows the mouse (or your finger). Run it with the button above (⌘R).'
 check scene sketch_2 main.ts zinc:stage '// A new sketch in the Scene style: the ball is an object that draws itself (zinc:stage). Run it with the button above (⌘R).'
 check canvas sketch_3 main.ts zinc:canvas '// Un nouveau croquis dans le style Canvas : les appels du canvas du web dessinent un cercle qui respire (zinc:canvas). Lancez-le avec le bouton du haut (⌘R).'
 check interface sketch_4 main.tsx zinc:ui/solid '// Un nouveau croquis dans le style Interface : l’écran est décrit une fois, en JSX (zinc:ui). Lancez-le avec le bouton du haut (⌘R).'

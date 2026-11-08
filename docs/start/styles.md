@@ -11,12 +11,14 @@ all four.
 | Like | Processing, p5.js, LÖVE | ActionScript 3 (Flash), Haxe and OpenFL | the web's `<canvas>` | React, Solid, React Native |
 | You write | a function that draws the whole picture, every frame | objects that each draw themselves, in a tree | the same frame function, with the web's canvas calls | the elements of the screen, once, in JSX |
 | Good for | games, animations, art, a first program | apps and games on old tablets, objects you tap and drag | web canvas code, vector drawings, charts | apps, forms, lists, settings, tools |
+| First result | a circle that follows the pointer and grows while you press | a ball that changes colour when you tap it | a circle in the middle that breathes | a number and a button that adds one |
 | Start with | `zinc new game` | `zinc new stage` | `zinc new canvas` | `zinc new desktop-app` |
 | Lessons | [1 to 6](../learn/README.md#the-lessons) | [13 to 16](../learn/13-a-stage-and-a-sprite.md) | [17 to 20](../learn/17-paths-and-fills.md) | [7 to 12](../learn/07-components.md) |
 
 Where to choose: `zinc new` alone asks what you want to make, then, for a game or a drawing (Drawing, Scene, Canvas) and for an
 app with windows (Interface, Scene), how you want to write it. In Zinc Atelier, **New sketch** at the top of the start view offers
-the four styles, each a small program to begin from, and the examples below are grouped by style.
+the four styles, each starting from the first result of its style (the row above), and the examples below are grouped by style.
+**Your first sketch**, above them, is the Drawing one with comments that teach it: the lines marked ✎ say what to change.
 
 ## The same program, four times
 

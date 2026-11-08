@@ -14,6 +14,7 @@ allen vieren gleich.
 | Wie | Processing, p5.js, LÖVE | ActionScript 3 (Flash), Haxe und OpenFL | das `<canvas>` des Webs | React, Solid, React Native |
 | Du schreibst | eine Funktion, die in jedem Frame das ganze Bild zeichnet | Objekte, die sich jeweils selbst zeichnen, in einem Baum | dieselbe Frame-Funktion, mit den Canvas-Aufrufen des Webs | die Elemente des Bildschirms, einmal, in JSX |
 | Gut für | Spiele, Animationen, Kunst, ein erstes Programm | Apps und Spiele auf alten Tablets, Objekte, die du antippst und ziehst | Web-Canvas-Code, Vektorzeichnungen, Diagramme | Apps, Formulare, Listen, Einstellungen, Werkzeuge |
+| Erstes Ergebnis | ein Kreis, der dem Zeiger folgt und wächst, solange du drückst | ein Ball, der beim Antippen die Farbe wechselt | ein Kreis in der Mitte, der atmet | eine Zahl und ein Knopf, der eins dazuzählt |
 | Starte mit | `zinc new game` | `zinc new stage` | `zinc new canvas` | `zinc new desktop-app` |
 | Lektionen | [1 bis 6](../learn/README.md#the-lessons) | [13 bis 16](../learn/13-a-stage-and-a-sprite.md) | [17 bis 20](../learn/17-paths-and-fills.md) | [7 bis 12](../learn/07-components.md) |
 
