@@ -2,7 +2,8 @@
 id: ZN-1006
 title: 'UI font fallback: CJK, Persian, arrows and emoji sequences draw as "?"'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:33'
 labels:
   - text

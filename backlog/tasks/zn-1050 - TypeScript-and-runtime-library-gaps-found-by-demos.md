@@ -2,7 +2,8 @@
 id: ZN-1050
 title: TypeScript and runtime library gaps found by demos
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:39'
 labels:
   - typescript

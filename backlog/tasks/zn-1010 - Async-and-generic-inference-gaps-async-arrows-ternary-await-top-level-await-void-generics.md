@@ -4,7 +4,8 @@ title: >-
   Async and generic inference gaps: async arrows, ternary await, top-level
   await, void generics
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:34'
 labels:
   - checker

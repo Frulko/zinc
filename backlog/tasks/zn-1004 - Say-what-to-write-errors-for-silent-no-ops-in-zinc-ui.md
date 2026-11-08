@@ -2,7 +2,8 @@
 id: ZN-1004
 title: 'Say what to write: errors for silent no-ops in zinc:ui'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:33'
 labels:
   - ux

@@ -4,7 +4,8 @@ title: >-
   JSX gaps: all-optional props, `{list.map(fn)}` with a named or imported
   function, hyphenated attributes
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:36'
 labels:
   - jsx

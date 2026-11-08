@@ -4,7 +4,8 @@ title: >-
   examples/nuxt-ui: the trash-2 icon is silently missing (the pinned Lucide set
   names it trash)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 19:06'
 labels:
   - ui
