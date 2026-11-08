@@ -35,3 +35,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: GL replay chain ZN-182, ZN-183, ZN-666 (Review) (D217). Integrated: dev loop chain ZN-1026, ZN-1024 (Backlog, 1.2 s vs 200 ms) (D218), with the coordinator's background-build guard 3b149c4df.
 - Integrated: JS games chain ZN-1042, ZN-1043 (D219); webenv T0 fixed (page URL global).
 - Worker: ZN-805 lighter idle UI apps (claimed f8f010fc4), beside the JS games chain. ZN-1024 released for a later perf pass.
+- Worker: CLI chain ZN-1016, ZN-644 (claimed 071346de0), beside ZN-805.
