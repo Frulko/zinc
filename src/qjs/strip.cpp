@@ -20,6 +20,7 @@
 #include "frontend/resolve.h"
 
 namespace zn::qjs {
+std::string webMode(const std::string& entry);   // src/qjs/webenv.cpp: "" when the program does not ask for the web environment
 namespace {
 using namespace zn::frontend;
 
@@ -393,6 +394,7 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
     out.assign(src);
     const zn::frontend::Profile* cur = zn::frontend::currentProfile();
     if ((cur && std::string_view(cur->name) == "web") || (src.find("URL") == std::string_view::npos && src.find("WebSocket") == std::string_view::npos)) return true;
+    if (!webMode(file).empty()) return true;   // a page (ZINC_WEB, "web" in zinc.json): webenv.js's own URL and WebSocket are the globals, createObjectURL included
     ParseResult pr = parse(src);
     if (pr.diags.empty() && pr.ast.root != kNone) out += jsImportsOf(pr.ast);
     return true;
