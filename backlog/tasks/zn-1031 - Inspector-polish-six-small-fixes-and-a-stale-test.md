@@ -2,7 +2,8 @@
 id: ZN-1031
 title: 'Inspector polish: six small fixes and a stale test'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:37'
 labels:
   - inspector

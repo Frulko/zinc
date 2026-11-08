@@ -4,7 +4,8 @@ title: >-
   zinc lsp: completion in imports and JSX, auto-import, re-publish dependents,
   request order
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:35'
 labels:
   - lsp

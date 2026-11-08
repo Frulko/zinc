@@ -2,7 +2,8 @@
 id: ZN-640
 title: 'Network log: mask multipart/form-data fields'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 17:01'
 labels:
   - devtools
