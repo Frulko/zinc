@@ -666,6 +666,16 @@ struct Lowering {
         strip(y0, y1);
         if (jsxOnly(x0, x1)) { dst = lower(*parseElem(y0)); return true; }
         if (nodeCallAt(y0, y1)) { dst = rw(y0, y1); return true; }   // `cond ? chip('Skip') : null`: a call that makes a node
+        if (!react && listAt(y0, y1)) {   // `cond ? rows.map(r => <Row/>) : <View/>` (Solid): the rows in a fragment of their own
+          std::vector<std::string> lines;
+          const std::string f = "__n" + std::to_string(counter++);
+          Child k; k.kind = 1; k.eb = y0; k.ee = y1;
+          children(f, {k}, lines);
+          dst = "((): i32 => { const " + f + ": i32 = _el(6); ";
+          for (const std::string& l : lines) dst += l + " ";
+          dst += "return " + f + "; })()";
+          return true;
+        }
         Cond in;   // a nested conditional, c1 ? <A/> : c2 ? <B/> : <C/>: a fragment showing one of its branches
         if (y0 >= y1 || !conditional(y0, y1, in)) return false;
         dst = showNode(in);
@@ -693,6 +703,17 @@ struct Lowering {
     return false;
   }
 
+  // [a, b) is `list.map(f)` with one argument, an arrow or a function (of this file or imported) that returns JSX: rows to mount, not text
+  bool listAt(std::size_t a, std::size_t b) {
+    const std::size_t open = callParen(a, b);
+    if (!open) return false;
+    const std::string callee = calleeText(a, open);
+    if (callee.size() <= 4 || callee.compare(callee.size() - 4, 4, ".map") != 0) return false;
+    if (!returnsJsx(open + 1, b - 1) && !(b == open + 3 && t[open + 1].kind == Tok::Ident && jsxFunctions().count(tx(open + 1)))) return false;
+    bool oneArg = true;
+    scan(open + 1, b - 1, [&](std::size_t, const std::string& x) { if (x == ",") oneArg = false; });
+    return oneArg;
+  }
   // a conditional as an expression: a fragment that shows its branch (react: the branch itself)
   std::string showNode(const Cond& c) {
     std::string cond = rw(c.cb, c.ce);
@@ -753,9 +774,11 @@ struct Lowering {
     }
     return false;
   }
+  std::set<std::string> importedFns;   // functions another .tsx file of the project declares returning JSX, imported here (`{rows.map(importedRow)}`)
   const std::set<std::string>& jsxFunctions() {
     if (jsxFnsRead) return jsxFns;
     jsxFnsRead = true;
+    jsxFns = importedFns;
     for (std::size_t i = 0; i + 3 < t.size(); ++i) {
       if (isK(i, "function") && t[i + 1].kind == Tok::Ident) {
         std::size_t p = i + 2;
@@ -1248,22 +1271,26 @@ struct Lowering {
         if (b == a + 1 && t[a].kind == Tok::Ident && (jsxFunctions(), jsxVars.count(tx(a)))) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
         // `{props.children}` as React and Solid write it: the children a component is given are a function that makes them, called here
         if (b >= a + 3 && tx(b - 1) == "children" && isP(b - 2, ".") && dotted(a, b)) { out.push_back("_append(" + parent + ", " + rw(a, b) + "());"); continue; }
+        // `{props.children?.()}`: the children when there are some (it was printed as text, the node id as a number)
+        if (b >= a + 4 && isP(b - 1, ")") && isP(b - 2, "(") && isP(b - 3, "?.") && dotted(a, b - 3) && nodeCall(calleeText(a, b - 3))) {
+          const std::string f = rw(a, b - 3), cond = f + " !== undefined";
+          Cond cj;
+          cj.yes = f + "()";
+          if (react) out.push_back("_append(" + parent + ", (" + cond + ") ? " + cj.yes + " : _el(6));");
+          else out.push_back("_show(" + parent + ", " + showArgs(cond, cj) + ");");
+          continue;
+        }
         std::size_t q = 0, colon = 0;
         const bool isTernary = ternary(a, b, q, colon);   // `c ? x : xs.map(...)` ends with a call too: not a list
-        if (open && !isTernary && callee.size() > 4 && callee.compare(callee.size() - 4, 4, ".map") == 0
-            && (returnsJsx(open + 1, b - 1) || (b == open + 3 && t[open + 1].kind == Tok::Ident && jsxFunctions().count(tx(open + 1))))) {   // an arrow, or a function of this file that returns JSX by name
-          bool oneArg = true;
-          scan(open + 1, b - 1, [&](std::size_t, const std::string& x) { if (x == ",") oneArg = false; });
-          if (oneArg) {
-            std::string list = rw(a, open - 2), fn = rw(open + 1, b - 1);
-            if (react) out.push_back("for (const __c of " + rw(a, b) + ") _append(" + parent + ", __c);");
-            else {
-              bool indexed = false;
-              if (isP(open + 1, "(")) scan(open + 2, match(open + 1), [&](std::size_t, const std::string& token) { if (token == ",") indexed = true; });
-              out.push_back("_for(" + parent + ", () => (" + list + "), " + fn + ((indexed && (lib == "zinc:ui/solid" || lib == "zinc:ui/kit/host")) ? ", true" : "") + ");");
-            }
-            continue;
+        if (!isTernary && listAt(a, b)) {
+          std::string list = rw(a, open - 2), fn = rw(open + 1, b - 1);
+          if (react) out.push_back("for (const __c of " + rw(a, b) + ") _append(" + parent + ", __c);");
+          else {
+            bool indexed = false;
+            if (isP(open + 1, "(")) scan(open + 2, match(open + 1), [&](std::size_t, const std::string& token) { if (token == ",") indexed = true; });
+            out.push_back("_for(" + parent + ", () => (" + list + "), " + fn + ((indexed && (lib == "zinc:ui/solid" || lib == "zinc:ui/kit/host")) ? ", true" : "") + ");");
           }
+          continue;
         }
         Cond cj;
         const bool isCond = conditional(a, b, cj);
@@ -1380,8 +1407,10 @@ struct Lowering {
           continue;
         }
         std::string val = rn && p.second->kind == 2 && styleProp(p.first) ? "_flat(" + styleLayers(p.second->eb, p.second->ee) + ")" : valueOf(*p.second);
-        if (!react && p.second->kind == 2 && readsAtEval(p.second->eb, p.second->ee)) { dyn.push_back(p.first + ": " + val); lastDyn = p.second; }
-        else props.push_back(p.first + ": " + val);
+        // `aria-label`, `data-id`: a quoted key, as tsc and Babel write it; one the props do not declare is dropped by the checker, as TypeScript allows it
+        const std::string key = p.first.find('-') != std::string::npos ? quote(p.first) : p.first;
+        if (!react && p.second->kind == 2 && readsAtEval(p.second->eb, p.second->ee)) { dyn.push_back(key + ": " + val); lastDyn = p.second; }
+        else props.push_back(key + ": " + val);
       }
       auto nodeValued = [&](const Child* k) {
         if (k->kind != 1 || k->ee <= k->eb) return true;
@@ -1411,7 +1440,7 @@ struct Lowering {
       }
       std::string args;
       for (std::size_t k = 0; k < props.size(); ++k) args += (k ? ", " : "") + props[k];
-      std::string call = tag + "(" + (props.empty() ? "" : "{ " + args + " }") + ")";
+      std::string call = tag + "(" + (props.empty() ? "{}" : "{ " + args + " }") + ")";   // `<Bar />`: props all left out are `{}`, as JSX passes them
       if (react && !props.empty() && !classTags.count(tag)) {   // React: the props are evaluated once, here, where what they read is narrowed
         const std::string pv = "__p" + std::to_string(counter++);
         out.push_back("const " + pv + " = _props(" + tag + ", { " + args + " });");
@@ -1729,7 +1758,15 @@ bool importsReact(std::string_view src) {
   return react;
 }
 
-std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags, std::vector<SrcPiece>* map, bool hot, const std::string& devFile, bool projectReact, bool modelNeutral) {
+std::set<std::string> jsxFunctionNames(std::string_view src) {
+  if (src.find('<') == std::string_view::npos) return {};
+  Lowering L;
+  L.s = src;
+  L.t = lex(src, true);
+  try { L.imported = jsxImports(src, L.t, &L.react); return L.jsxFunctions(); } catch (const std::exception&) { return {}; }
+}
+
+std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags, std::vector<SrcPiece>* map, bool hot, const std::string& devFile, bool projectReact, bool modelNeutral, const std::set<std::string>* importedFns) {
   std::size_t lt = src.find('<');
   bool maybe = false;
   for (; lt != std::string_view::npos && lt + 1 < src.size(); lt = src.find('<', lt + 1))
@@ -1742,6 +1779,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
   L.hot = hot;
   L.devFile = devFile;
   if (classTags) L.classTags = *classTags;
+  if (importedFns) L.importedFns = *importedFns;
   try {
     // imports: names to modules (a kit component's explicit import wins over the host tag of the same name); the model
     L.imported = jsxImports(src, L.t, &L.react);

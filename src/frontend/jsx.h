@@ -24,7 +24,9 @@ namespace zn::frontend {
 // React's automatic JSX runtime lets go without `import React`) is lowered in it too, as tsconfig's jsxImportSource does for tsc.
 // `modelNeutral`: a library without an explicit UI model uses the existing shared kit helpers, preserving React node ownership.
 std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags = nullptr, std::vector<SrcPiece>* map = nullptr,
-                     bool hot = false, const std::string& devFile = "", bool projectReact = false, bool modelNeutral = false);
+                     bool hot = false, const std::string& devFile = "", bool projectReact = false, bool modelNeutral = false, const std::set<std::string>* importedFns = nullptr);
+// The functions of a .tsx source that return JSX (`function row(x) { return <Text/>; }`): `{list.map(row)}` in a file that imports one mounts its nodes (importedFns above).
+std::set<std::string> jsxFunctionNames(std::string_view src);
 // Whether a file's imports choose the React model (zinc:ui/react, react, inferno).
 bool importsReact(std::string_view src);   // classTags: components declared as classes (this file or a relative import), lowered to _cc in the React model
 

@@ -48,10 +48,10 @@ export function pickEmoji(e: string): void {
   store.insert(e);
 }
 
-function EmojiCell(p: { e: string }) {
-  const c = customParts(p.e);
-  return <View className={`w-[${CELL}] h-[${CELL}] items-center justify-center rounded ${BG_HOVER}`} aria-label={c !== null ? `:${c[1]}:` : p.e} onPress={() => pickEmoji(p.e)}>
-    {c !== null ? <Image image={cdnPicture(emojiKey(c[0]))} className="w-[28] h-[28] object-contain" /> : <Text className="text-[26px]">{p.e}</Text>}
+function emojiCell(e: string) {
+  const c = customParts(e);
+  return <View key={e} className={`w-[${CELL}] h-[${CELL}] items-center justify-center rounded ${BG_HOVER}`} aria-label={c !== null ? `:${c[1]}:` : e} onPress={() => pickEmoji(e)}>
+    {c !== null ? <Image image={cdnPicture(emojiKey(c[0]))} className="w-[28] h-[28] object-contain" /> : <Text className="text-[26px]">{e}</Text>}
   </View>;
 }
 
@@ -83,7 +83,7 @@ function Emojis(p: { query: string }) {
   return <VirtualList count={rows.length} estimatedItemHeight={CELL} className="grow">
     {(i: i32) => rows[i].heading !== ''
       ? <Text key={`h${i}`} className={`px-2 pt-2 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>{rows[i].heading}</Text>
-      : <View key={`r${i}`} className="px-1 flex-row">{rows[i].items.map((e: string) => <EmojiCell key={e} e={e} />)}</View>}
+      : <View key={`r${i}`} className="px-1 flex-row">{rows[i].items.map(emojiCell)}</View>}
   </VirtualList>;
 }
 

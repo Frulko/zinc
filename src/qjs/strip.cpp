@@ -353,13 +353,14 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
   if (text.find("StyleSheet") != std::string::npos) text = lowerStyleSheets(text, diags, 0, tsx);
   if (tsx && diags.empty()) {
     original = text;
-    const std::set<std::string> classTags = jsxClassTags(file, text, ModuleResolver().read);   // components written as classes (Inferno, React), read from the files
+    std::set<std::string> importedFns;   // functions of other .tsx files that return JSX: `{rows.map(importedRow)}` mounts them
+    const std::set<std::string> classTags = jsxClassTags(file, text, ModuleResolver().read, &importedFns);   // components written as classes (Inferno, React), read from the files
     // zinc dev --target web (ZINC_WEB_HOT=1): a project component gets its Fast Refresh proxy, as in the typed engine's hot mode
     const char* hotWeb = std::getenv("ZINC_WEB_HOT");
     const bool hot = hotWeb && hotWeb[0] == '1' && file.rfind("zinc:", 0) != 0 && file.find("/lib/std/") == std::string::npos;
     const char* dev = std::getenv("ZINC_DEV");   // a dev run: component names for the inspector, as the typed loader records them (jsx.h devFile)
     const bool devNames = dev && std::string(dev) == "1" && !libraryModule(file);
-    text = lowerJsx(text, diags, 0, &classTags, &map, hot, devNames ? file : std::string(), false, libraryModule(file));
+    text = lowerJsx(text, diags, 0, &classTags, &map, hot, devNames ? file : std::string(), false, libraryModule(file), &importedFns);
   }
   if (!diags.empty()) {   // the lowering's own positions are in the source the user wrote
     err.clear();

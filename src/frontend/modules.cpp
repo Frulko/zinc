@@ -2315,7 +2315,7 @@ struct Loader {
       }
     }
   }
-  std::set<std::string> classTagsOf(const std::string& path, const std::string& text) { return jsxClassTags(path, text, read); }
+  std::set<std::string> classTagsOf(const std::string& path, const std::string& text, std::set<std::string>* jsxFns = nullptr) { return jsxClassTags(path, text, read, jsxFns); }
   // A file reached by two spellings of its path (`lib/std/solid.ts` through a tsconfig `paths` entry, `next/lib/std/solid.ts` through the std root) is one module:
   // two instances would each have their own state (a Solid signal read in one and tracked in the other never updates).
   std::map<std::string, std::uint32_t> byCanonical;
@@ -2345,10 +2345,11 @@ struct Loader {
     if (text.find("StyleSheet") != std::string::npos && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = lowerStyleSheets(text, prog.diags, fi, isTsx);
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
       std::size_t before = prog.diags.size();
-      const std::set<std::string> classTags = classTagsOf(path, text);
+      std::set<std::string> importedFns;
+      const std::set<std::string> classTags = classTagsOf(path, text, &importedFns);
       original = text;
       text = lowerJsx(text, prog.diags, fi, &classTags, &map, hot && !libraryModule(path), dev && !libraryModule(path) ? shownPath(path) : std::string(),
-                      projectReact && !libraryModule(path), libraryModule(path));
+                      projectReact && !libraryModule(path), libraryModule(path), &importedFns);
       if (map.empty()) original.clear();
       else for (std::size_t k = diagsAtStart; k < prog.diags.size(); ++k) if (prog.diags[k].file == fi) prog.diags[k].pos = loweredOffset(map, prog.diags[k].pos);   // in the lowered text, as the parser's
       if (const char* d = std::getenv("ZN_DUMP_JSX")) if (path.find(d) != std::string::npos) std::fprintf(stderr, "=== %s (JSX lowered)\n%s\n", path.c_str(), text.c_str());  // debugging: the plain code a .tsx file became
@@ -4108,7 +4109,7 @@ const char* builtinModuleSource(std::string_view spec) { return hostModuleSource
 std::string webImportsOf(const Ast& A) { return webGlobalImports(A); }
 
 // Components written as classes (Inferno, React classes): declared in this file, or in a file this one imports with a relative path (ZN-163)
-std::set<std::string> jsxClassTags(const std::string& path, const std::string& text, const ReadFile& read) {
+std::set<std::string> jsxClassTags(const std::string& path, const std::string& text, const ReadFile& read, std::set<std::string>* jsxFns) {
   std::set<std::string> tags;
   auto isId = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '$'; };
   auto classes = [&](const std::string& t) {
@@ -4132,8 +4133,10 @@ std::set<std::string> jsxClassTags(const std::string& path, const std::string& t
   for (std::sregex_iterator it(text.begin(), text.end(), imp), end; it != end; ++it) {
     std::string names = (*it)[1], spec = (*it)[2];
     const std::string dir = dirOf(path);
-    if (res.file(normalize(dir + (dir.empty() ? "" : "/") + spec), path).empty()) continue;
+    const std::string file = res.file(normalize(dir + (dir.empty() ? "" : "/") + spec), path);
+    if (file.empty()) continue;
     const std::set<std::string> declared = classes(other);
+    const std::set<std::string> fns = jsxFns && file.size() > 4 && file.compare(file.size() - 4, 4, ".tsx") == 0 ? jsxFunctionNames(other) : std::set<std::string>();
     // `Default, { A, B as C }`: the local name takes the class of the imported name (the default import: any class of the file named like it)
     std::string cleaned;
     for (char c : names) cleaned += (c == '{' || c == '}') ? ',' : c;
@@ -4146,6 +4149,7 @@ std::set<std::string> jsxClassTags(const std::string& path, const std::string& t
       if (a.empty()) continue;
       const std::string imported = a, local = (as == "as" && !b.empty()) ? b : a;
       if (declared.count(imported)) tags.insert(local);
+      if (fns.count(imported)) jsxFns->insert(local);
     }
   }
   return tags;

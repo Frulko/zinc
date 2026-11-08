@@ -75,7 +75,7 @@ std::string_view compatModuleFile(std::string_view spec);
 // `import { navigator } from 'zinc:web'` and the like for the web globals a parsed file reads and does not declare (appended to its text by the loader).
 std::string webImportsOf(const Ast& A);
 // The JSX tags of `path` that are components written as classes (Inferno, React classes): declared in its text or in a file it imports with a relative path (ZN-163).
-std::set<std::string> jsxClassTags(const std::string& path, const std::string& text, const ReadFile& read);
+std::set<std::string> jsxClassTags(const std::string& path, const std::string& text, const ReadFile& read, std::set<std::string>* jsxFns = nullptr);   // jsxFns: the imported names that are functions returning JSX
 
 // `file:line:col: error Zxxxx: title: detail` for a diagnostic of the program.
 std::string formatDiag(const Program& p, const Diag& d);

@@ -2566,6 +2566,10 @@ struct Checker {
       while (k < f.params.size() && isVoidClass(f.params[k])) ++k;
       if (k == f.params.size()) for (; argc < f.params.size(); ++argc) { std::uint32_t nul = newNode(N::Literal, "null", {}, i); a.nodes[i].kids.push_back(nul); }
     }
+    if (argc == 1 && f.params.empty() && !f.variadic && n(x.kids[1]).kind == N::ObjectLit && n(x.kids[1]).kids.empty() && n(x.kids[0]).kind == N::Ident && std::isupper(static_cast<unsigned char>(n(x.kids[0]).text[0]))) {
+      a.nodes[i].kids.pop_back();   // `<App />` lowers to `App({})`, as JSX gives every component its props: a component that takes none drops them
+      argc = 0;
+    }
     if (argc < f.minArgs || (!f.variadic && argc > f.params.size())) {
       diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", std::to_string(f.minArgs) + (f.minArgs == f.params.size() ? "" : "-" + std::to_string(f.params.size()))}, {"got", std::to_string(argc)}});
     }
@@ -4021,7 +4025,7 @@ struct Checker {
   std::unordered_map<std::uint32_t, std::vector<const std::string*>> pathsOf;   // a local -> the keys of the paths that depend on it (its base, its indexes)
   std::uint32_t identSym(std::uint32_t id) const { return out.nodeSym[id] != kNone ? out.nodeSym[id] : lookup(n(id).text); }
   // The key of a path node, or "" when it is not one. `roots` collects the locals the path depends on.
-  std::string pathKey(std::uint32_t node, std::vector<std::uint32_t>* roots = nullptr) const {
+  std::string pathKey(std::uint32_t node, std::vector<std::uint32_t>* roots = nullptr, bool throughOptional = false) const {   // throughOptional: `a?.b` read as `a.b` (a is known not to be null)
     const Node& x = n(node);
     if (x.kind == N::This) return "this@" + std::to_string(curClass);   // per class: `this.owner` of two classes are two paths of two types
     if (x.kind == N::Ident) {
@@ -4030,12 +4034,12 @@ struct Checker {
       if (roots) roots->push_back(sy);
       return "#" + std::to_string(sy);
     }
-    if (x.kind == N::Member && !(x.flags & kFlagOptional)) {
-      std::string b = pathKey(x.kids[0], roots);
+    if (x.kind == N::Member && (throughOptional || !(x.flags & kFlagOptional))) {
+      std::string b = pathKey(x.kids[0], roots, throughOptional);
       return b.empty() ? "" : b + "." + std::string(x.text);
     }
     if (x.kind == N::Index) {
-      std::string b = pathKey(x.kids[0], roots);
+      std::string b = pathKey(x.kids[0], roots, throughOptional);
       if (b.empty()) return "";
       const Node& ix = n(x.kids[1]);
       if (ix.kind == N::Number) return b + "[" + std::string(ix.text) + "]";
@@ -4149,6 +4153,26 @@ struct Checker {
       }
       auto isNullLit = [&](std::uint32_t k) { return n(k).kind == N::Literal && n(k).text == "null"; };
       auto testable = [&](std::uint32_t k) { return n(k).kind == N::Ident || (n(k).kind == N::Member && pathSymOf(k) != kNone); };
+      if (eq != truthy && (isNullLit(c.kids[0]) || isNullLit(c.kids[1]))) {   // `a?.b !== undefined`: a value came out of the chain, so every base before a `?.` is not null, nor `a.b`
+        const std::uint32_t subj = isNullLit(c.kids[1]) ? c.kids[0] : c.kids[1];
+        bool chain = false;
+        for (std::uint32_t m = subj; n(m).kind == N::Member || n(m).kind == N::Index; m = n(m).kids[0]) {
+          if (!(n(m).flags & kFlagOptional)) continue;
+          chain = true;
+          const std::uint32_t b = n(m).kids[0];
+          const std::uint32_t bs = n(b).kind == N::Ident ? out.nodeSym[b] : n(b).kind == N::Member && out.nodeType[b] != kNoType ? pathSymFor2(b, out.nodeType[b]) : kNone;
+          if (bs == kNone || !trackable(bs)) continue;
+          const TypeId cur = currentType(bs, &fs), nn = withoutNull(cur);
+          if (nn != kNoType && nn != cur) fs.push_back({bs, nn});
+        }
+        std::vector<std::uint32_t> roots;
+        const std::string k = chain && out.nodeType[subj] != kNoType ? pathKey(subj, &roots, true) : std::string();
+        if (!k.empty()) {
+          const std::uint32_t ps = pathSymFor(k, roots, out.nodeType[subj]);
+          const TypeId cur = currentType(ps, &fs), nn = withoutNull(cur);
+          if (nn != kNoType && nn != cur) fs.push_back({ps, nn});
+        }
+      }
       std::uint32_t idn = isNullLit(c.kids[1]) && testable(c.kids[0]) ? c.kids[0] : isNullLit(c.kids[0]) && testable(c.kids[1]) ? c.kids[1] : kNone;
       if (idn == kNone) return;
       std::uint32_t sy = n(idn).kind == N::Member ? pathSymOf(idn) : out.nodeSym[idn];
@@ -4694,6 +4718,11 @@ struct Checker {
         const Node& pn = n(p);
         std::size_t k = 0;
         while (k < members.size() && members[k].name != pn.text) ++k;
+        if (k == members.size() && pn.text.find('-') != std::string_view::npos) {   // `aria-label`, `data-id` given to a component that does not declare it: TypeScript allows a dashed JSX attribute, and nothing reads it
+          auto& ks = a.nodes[i].kids;
+          ks.erase(std::find(ks.begin(), ks.end(), p));
+          continue;
+        }
         if (k == members.size()) { diag(kZNoSuchProperty, p, "'" + std::string(pn.text) + "' does not exist in '" + rname + "'"); expr(pn.kids[0]); continue; }
         if (seen[k]) diag(kZDuplicateDeclaration, p, "property '" + std::string(pn.text) + "'");
         seen[k] = 1;

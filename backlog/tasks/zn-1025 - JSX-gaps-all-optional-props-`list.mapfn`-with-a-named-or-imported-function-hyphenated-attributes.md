@@ -3,10 +3,11 @@ id: ZN-1025
 title: >-
   JSX gaps: all-optional props, `{list.map(fn)}` with a named or imported
   function, hyphenated attributes
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:36'
+updated_date: '2026-11-08 20:23'
 labels:
   - jsx
   - ui
@@ -14,7 +15,6 @@ labels:
 milestone: m-13
 dependencies: []
 ordinal: 3800
-updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -37,8 +37,29 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 one JSX program with all nine cases compiles and renders the expected tree on the interpreter, AOT and QuickJS
-- [ ] #2 `zinc check` and the compiler agree on `{cond ? list.map(...) : <View />}`
-- [ ] #3 `aria-*` and `data-*` attributes pass through to components and host nodes
-- [ ] #4 the Discord workaround for `{list.map(fn)}` can be removed (lines marked in the code)
+- [x] #1 one JSX program with all nine cases compiles and renders the expected tree on the interpreter, AOT and QuickJS
+- [x] #2 `zinc check` and the compiler agree on `{cond ? list.map(...) : <View />}`
+- [x] #3 `aria-*` and `data-*` attributes pass through to components and host nodes
+- [x] #4 the Discord workaround for `{list.map(fn)}` can be removed (lines marked in the code)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done 2026-11-08 (worker branch). Test: tests/t0/jsx_gaps.sh (tests/data/jsx_gaps) reads the texts the frame draws (ZINC_SCENE_DUMP + tools/scene-texts) in the React and the Solid model, on the interpreter, AOT and QuickJS: 6 runs pass. jsx, jsx_map_named, jsx_list_branch, jsx_narrow, jsx_null_component, jsx_react_narrow, jsx_style, jsx_banned, jsx_project_model and checker pass; `zinc check` over app/, examples/, templates/ gives the same results as before (notify-relay's Z0103 and the esp32 Z0119 are older).
+
+Research: tsc and Babel write a dashed JSX attribute as a quoted key (`_jsx(Bar, {"aria-label": x})`, https://babeljs.io/docs/babel-plugin-transform-react-jsx); TypeScript's JSX handbook (https://www.typescriptlang.org/docs/handbook/jsx.html#attribute-type-checking): a dashed attribute name not declared by the props is not an error, and only required props make `<Bar />` an error.
+
+How:
+- `<Bar />`: a component with no attribute is called `Bar({})`, as JSX passes props (QuickJS read `p.label` of undefined before); the checker drops an empty `{}` given to a capitalised function that takes no parameter.
+- `aria-*`/`data-*` on a component: a quoted key; a dashed key the props record does not declare is dropped by the checker (TypeScript's JSX rule). Host nodes already map aria-label to the label and data-* to attributes.
+- `{list.map(fn)}` with an imported function: jsxClassTags (modules.cpp, also used by the QuickJS path in qjs/strip.cpp) now also reports the imported names that are functions returning JSX in a relative .tsx file (jsxFunctionNames), merged into the lowering's jsxFunctions.
+- Solid `{cond ? list.map(...) : <View/>}` (check passed, compile failed with Z0005 this type in the IR): conditional() lowers a list branch into a fragment of its own (listAt factors the list detection of children()).
+- `{p.children?.()}` printed the node id as text (the stray "18"/"12"): lowered as the conditional `p.children !== undefined ? p.children() : nothing`.
+- `a?.b !== undefined` narrows `a` (every base before a `?.`) and the path `a.b` (pathKey through the optional chain), in JSX and plain code.
+- Discord: the emoji picker maps `rows[i].items.map(emojiCell)` with a named function again (the inline component is gone); the lowering mounts it as rows (checked in ZN_DUMP_JSX); `zinc check examples/discord` passes.
+
+Decision (no D number allocated in a worktree): a dashed key in an object literal passed where a record is expected is dropped silently when the record does not declare it; plain TypeScript would report it outside JSX. Accepted: only dashed names, which a record field can only have quoted.
+
+Proposed tests: tests/demo of examples/discord (the picker), a T1 run of the Atelier and nuxt-ui sessions (every component call now passes `{}` when it has no attribute).
+<!-- SECTION:NOTES:END -->

@@ -62,6 +62,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `ui.focusNode` no longer gives the focus to a `disabled` field, as a click never did.
 - Japanese, Chinese, Persian and Arabic text, arrows and triangles such as `▸ ▾`, and emoji with skin tones or joined into one draw with the system's fonts instead of `?`, without adding `"text": "shaped"` to `zinc.json`; Latin text keeps exactly its pixels, and `"text": "simple"` keeps the old behaviour (and a smaller built program).
 
+- JSX accepts more of what React code writes: `<Bar />` when every prop is optional, `aria-*` and `data-*` attributes on your own components, `{list.map(row)}` with a function imported from another file, `{cond ? list.map(...) : <View />}` in the Solid model, and `{props.children?.()}`, which printed a number in place of the children.
+- `a?.b !== undefined` now tells the checker that `a` and `a.b` are set, as TypeScript does, inside JSX too.
+
 ### The web
 
 #### New
