@@ -402,10 +402,10 @@ napi_value js_image(napi_env c, napi_callback_info info) {
   k->version++;
   return nullptr;
 }
-// pattern(canvas, stroke, pixels, width, height, repetition): the picture as the fill or the stroke style. repetition: 0 both ways, 1 along x,
-// 2 along y, 3 none
+// pattern(canvas, stroke, pixels, width, height, repetition, a, b, c, d, e, f): the picture as the fill or the stroke style. repetition: 0 both
+// ways, 1 along x, 2 along y, 3 none; a..f, when given, the pattern's own transform (CanvasPattern.setTransform)
 napi_value js_pattern(napi_env c, napi_callback_info info) {
-  Args<6> A(c, info);
+  Args<12> A(c, info);
   const int argc = static_cast<int>(A.argc);
   napi_value* argv = A.argv;
   Canvas* k = argc > 5 ? self(c, argv[0]) : nullptr;
@@ -413,7 +413,13 @@ napi_value js_pattern(napi_env c, napi_callback_info info) {
   const uint8_t* p = k ? zn::napi::bytesOf(c, argv[2], n) : nullptr;
   const int w = argc > 5 ? i32(c, argv[3]) : 0, h = argc > 5 ? i32(c, argv[4]) : 0;
   if (!p || w < 1 || h < 1 || n < static_cast<size_t>(w) * static_cast<size_t>(h) * 4) return nullptr;
-  k->cv->set_pattern(truthy(c, argv[1]) ? ci::stroke_style : ci::fill_style, p, w, h, w * 4, static_cast<ci::repetition_style>(i32(c, argv[5]) & 3));
+  const ci::brush_type which = truthy(c, argv[1]) ? ci::stroke_style : ci::fill_style;
+  k->cv->set_pattern(which, p, w, h, w * 4, static_cast<ci::repetition_style>(i32(c, argv[5]) & 3));
+  if (argc > 11) {
+    float m[6];
+    for (int i = 0; i < 6; i++) { const double d = num(c, argv[6 + i]); if (!std::isfinite(d)) return nullptr; m[i] = static_cast<float>(d); }
+    k->cv->set_pattern_transform(which, m[0], m[1], m[2], m[3], m[4], m[5]);
+  }
   return nullptr;
 }
 // encode(canvas, jpeg, quality, text): the canvas as a PNG file, or as a JPEG one over black (JPEG has no alpha); an ArrayBuffer, or with

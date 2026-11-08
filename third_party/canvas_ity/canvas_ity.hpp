@@ -162,7 +162,8 @@ struct affine_matrix { float a, b, c, d, e, f; };
 struct paint_brush { enum types { color, linear, radial, pattern, conic } type;   // ZINC patch 9: conic
                      std::vector< rgba > colors; std::vector< float > stops;
                      xy start, end; float start_radius, end_radius;
-                     int width, height; repetition_style repetition; };
+                     int width, height; repetition_style repetition;
+                     affine_matrix pattern_inverse; };   // ZINC patch 10: the pattern's own transform, inverted
 struct font_face { std::vector< unsigned char > data;
                    int cmap, glyf, head, hhea, hmtx, loca, maxp, os_2;
                    float scale; };
@@ -604,6 +605,12 @@ public:
         int height,
         int stride,
         repetition_style repetition );
+
+    // ZINC patch 10 (ZN-1042): the transform of the pattern set last as that style (CanvasPattern.setTransform): its pixels are placed by
+    // this matrix, then by the canvas's transform at the time of drawing. A matrix that cannot be inverted makes the pattern paint nothing.
+    void set_pattern_transform(
+        brush_type type,
+        float a, float b, float c, float d, float e, float f );
 
     // ======== BUILDING PATHS ========
 
@@ -1193,6 +1200,7 @@ private:
     std::vector< float > cover;   // ZINC patch 4: the coverage changes of a small shape, a cell for each pixel of its box
     int image_mode;               // ZINC patch 5: how draw_image samples the picture: 0 the bicubic filter, 1 the nearest pixel, 2 bilinear
     std::vector< rgba > image_row;   // ZINC patch 7: a row of the picture draw_image blends, as colours
+    std::vector< rgba > image_rows[ 2 ];   // ZINC patch 10: the two rows of the picture that row is mixed from, kept while they serve
     std::vector< int > image_columns;   // ZINC patch 7: where in that row each column of the canvas reads
     line_path lines;
     line_path scratch;
@@ -2345,6 +2353,16 @@ void canvas::lines_to_runs(
 // known for magnification, but also works well for antialiased minification,
 // since it's actually a Catmull-Rom spline approximation of Lanczos-2.
 //
+// ZINC patch 10: the pixel of a pattern at a whole coordinate, the coordinate already brought near the pattern: wrapped when the pattern
+// repeats that way, else held at the edge
+static int pattern_index( float at, int size, bool wrap )
+{
+    int index = static_cast< int >( at );
+    if ( wrap )
+        return index < 0 ? index + size : index >= size ? index - size : index;
+    return std::min( std::max( index, 0 ), size - 1 );
+}
+
 rgba canvas::paint_pixel(
     xy point,
     paint_brush const &brush )
@@ -2358,11 +2376,35 @@ rgba canvas::paint_pixel(
     {
         float width = static_cast< float >( brush.width );
         float height = static_cast< float >( brush.height );
+        if ( &brush != &image_brush )   // ZINC patch 10
+            point = brush.pattern_inverse * point;
         if ( ( ( brush.repetition & 2 ) &&
                ( point.x < 0.0f || width <= point.x ) ) ||
              ( ( brush.repetition & 1 ) &&
                ( point.y < 0.0f || height <= point.y ) ) )
             return rgba( 0.0f, 0.0f, 0.0f, 0.0f );
+        // ZINC patch 10 (ZN-1042): a pattern is sampled as a browser samples it at the default imageSmoothingQuality ("low"): the nearest
+        // pixel when the canvas does not smooth images, else the four pixels around the point (bilinear) at any scale, wrapped along the
+        // directions it repeats in. The sixteen-pixel filter below is for draw_image made smaller.
+        if ( &brush != &image_brush )
+        {
+            bool wrap_x = !( brush.repetition & 2 ), wrap_y = !( brush.repetition & 1 );
+            if ( wrap_x )
+                point.x -= width * floorf( point.x / width );
+            if ( wrap_y )
+                point.y -= height * floorf( point.y / height );
+            rgba const *colors = &brush.colors[ 0 ];
+            if ( !image_smoothing )
+                return colors[ pattern_index( floorf( point.y ), brush.height, wrap_y ) * brush.width +
+                               pattern_index( floorf( point.x ), brush.width, wrap_x ) ];
+            float at_x = floorf( point.x - 0.5f ), at_y = floorf( point.y - 0.5f );
+            float mix_x = point.x - 0.5f - at_x, mix_y = point.y - 0.5f - at_y;
+            int x_1 = pattern_index( at_x, brush.width, wrap_x ), x_2 = pattern_index( at_x + 1.0f, brush.width, wrap_x );
+            int y_1 = pattern_index( at_y, brush.height, wrap_y ) * brush.width;
+            int y_2 = pattern_index( at_y + 1.0f, brush.height, wrap_y ) * brush.width;
+            return ( 1.0f - mix_y ) * ( ( 1.0f - mix_x ) * colors[ y_1 + x_1 ] + mix_x * colors[ y_1 + x_2 ] ) +
+                   mix_y * ( ( 1.0f - mix_x ) * colors[ y_2 + x_1 ] + mix_x * colors[ y_2 + x_2 ] );
+        }
         // ZINC patch 5 (ZN-572): a picture drawn by draw_image is sampled as a browser samples it. The nearest pixel when the canvas does
         // not smooth images, or when the picture lands pixel on pixel (the sixteen weights of the filter below are then one 1 and
         // fifteen 0); four pixels (bilinear) when it is not made smaller. The filter below is left for a picture made smaller.
@@ -3129,6 +3171,29 @@ void canvas::set_pattern(
     brush.width = width;
     brush.height = height;
     brush.repetition = repetition;
+    affine_matrix identity = { 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f };   // ZINC patch 10
+    brush.pattern_inverse = identity;
+}
+
+// ZINC patch 10
+void canvas::set_pattern_transform(
+    brush_type type,
+    float a, float b, float c, float d, float e, float f )
+{
+    paint_brush &brush = type == fill_style ? fill_brush : stroke_brush;
+    if ( brush.type != paint_brush::pattern )
+        return;
+    float determinant = a * d - b * c;
+    if ( determinant == 0.0f || !std::isfinite( determinant ) )
+    {
+        brush.colors.clear();   // paint_pixel gives transparent black for a brush with no colours
+        return;
+    }
+    float scaling = 1.0f / determinant;
+    affine_matrix inverted = {
+        d * scaling, -b * scaling, -c * scaling, a * scaling,
+        ( c * f - d * e ) * scaling, ( b * e - a * f ) * scaling };
+    brush.pattern_inverse = inverted;
 }
 
 void canvas::begin_path()
@@ -3656,6 +3721,11 @@ void canvas::draw_image(
                 cover[ column ] = nearest ? 0.0f : u - static_cast< float >( whole );
                 cover[ column + 1 ] = std::min( static_cast< float >( at_x + 1 ), right ) - std::max( static_cast< float >( at_x ), left );
             }
+            // ZINC patch 10 (ZN-1042): the rows of the picture are made colours once while they serve, not once for each row of the canvas
+            // (a picture made larger, a pixel-art sprite at 2x or 4x, reads each of its rows several times)
+            int span = s_to - s_from, kept[ 2 ] = { -1, -1 };
+            image_rows[ 0 ].resize( static_cast< size_t >( span ) );
+            image_rows[ 1 ].resize( static_cast< size_t >( span ) );
             for ( int at_y = y_from; at_y < y_to; ++at_y )
             {
                 float cover_y = ( std::min( static_cast< float >( at_y + 1 ), bottom ) -
@@ -3664,16 +3734,33 @@ void canvas::draw_image(
                 float mix_y = nearest ? 0.0f : v - floorf( v );
                 int y_1 = std::min( std::max( static_cast< int >( floorf( v ) ), 0 ), height - 1 );
                 int y_2 = std::min( std::max( static_cast< int >( floorf( v ) ) + 1, 0 ), height - 1 );
-                unsigned char const *row_1 = image + y_1 * stride + s_from * 4;
-                unsigned char const *row_2 = image + y_2 * stride + s_from * 4;
-                for ( int index = 0; index < s_to - s_from; ++index )
+                if ( y_1 == y_2 )
+                    mix_y = 0.0f;
+                if ( kept[ 0 ] != y_1 && kept[ 1 ] == y_1 )
                 {
-                    rgba color = texel( row_1 + index * 4 );
-                    if ( mix_y != 0.0f )
-                        color += mix_y * ( texel( row_2 + index * 4 ) - color );
-                    image_row[ static_cast< size_t >( index ) ] = color;
+                    image_rows[ 0 ].swap( image_rows[ 1 ] );
+                    std::swap( kept[ 0 ], kept[ 1 ] );
                 }
-                rgba const *row = &image_row[ 0 ];
+                for ( int which = 0; which < ( mix_y != 0.0f ? 2 : 1 ); ++which )
+                {
+                    int wanted = which ? y_2 : y_1;
+                    if ( kept[ which ] == wanted )
+                        continue;
+                    unsigned char const *bytes = image + wanted * stride + s_from * 4;
+                    rgba *colors = &image_rows[ which ][ 0 ];
+                    for ( int index = 0; index < span; ++index )
+                        colors[ index ] = texel( bytes + index * 4 );
+                    kept[ which ] = wanted;
+                }
+                rgba const *row = &image_rows[ 0 ][ 0 ];
+                if ( mix_y != 0.0f )
+                {
+                    rgba const *row_1 = &image_rows[ 0 ][ 0 ];
+                    rgba const *row_2 = &image_rows[ 1 ][ 0 ];
+                    for ( int index = 0; index < span; ++index )
+                        image_row[ static_cast< size_t >( index ) ] = row_1[ index ] + mix_y * ( row_2[ index ] - row_1[ index ] );
+                    row = &image_row[ 0 ];
+                }
                 int const *columns = &image_columns[ 0 ];
                 float const *parts = &cover[ 0 ];
                 rgba *back = bitmap + at_y * size_x + x_from;

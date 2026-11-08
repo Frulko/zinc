@@ -26,13 +26,13 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### New
 
 - `ZINC_GL_QUIRK=no-replay` turns the GPU renderer off on a machine whose graphics driver draws wrong: the app is drawn on the CPU and one line says so.
+- On the 2D canvas of a JavaScript program, `CanvasPattern.setTransform` places a pattern, and a pattern drawn larger is smoothed as Chrome smooths it, or kept sharp with `imageSmoothingEnabled = false`.
 
 #### Faster
 
 - On macOS a window that nobody sees (covered by other windows, minimized or hidden) stops drawing and slows its loop to 10 frames a second, about a tenth of the CPU it used, and is back at full speed the moment it shows again; `ZINC_UNSEEN=draw` keeps it drawing.
 - `charCodeAt`, `codePointAt`, `slice`, `charAt`, `indexOf` and `split('')` on text with accents or emoji no longer slow down with the length of the string: a loop over 1 MB of accented text takes tens of milliseconds instead of minutes.
 - The GPU renderer keeps up to four pages of glyphs and lets go of the one used longest ago when they are full, instead of starting over: text in many sizes or scripts no longer re-uploads every glyph each time the page fills.
-
 #### Fixed
 
 - Covering a running window on macOS no longer freezes the program for about a second.
@@ -40,6 +40,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A `zinc device screen` request withdrawn before it was answered no longer keeps a video off its hardware layer for the rest of the run.
 - A program that starts and terminates many `zinc:worker` workers no longer runs out of open files or grows in memory: each ended worker left two open files and about 8 KB behind.
 - An open Zinc window no longer keeps the screen from going to sleep on the desktop: an app that must stay visible asks with `navigator.wakeLock.request('screen')`, and a kiosk (`"kiosk": true`) still keeps it on.
+- A Phaser game with `type: Phaser.CANVAS` draws its MULTIPLY and SCREEN blend modes instead of plain source-over: a script now runs once the pictures the page is loading from `data:` URLs are ready, as in a browser.
 
 ### Plugins
 

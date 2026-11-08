@@ -460,6 +460,7 @@
     {"paths": ["src/frontend/resolve.cpp", "src/frontend/resolve.h"], "tests": ["modules", "platform_files", "tsconfig", "qjs", "qjs_symlinks", "qjs_bundle", "qjs_npm"]},
     {"paths": ["plugins/sqlite/", "tests/data/sqlite/", "tests/t0/sqlite_fts.sh", "tests/t0/sqlite_statements.sh"], "tests": ["sqlite_fts", "sqlite_statements"]},
     {"paths": ["lib/std/webenv.js", "tests/data/webenv-pixelated/", "tests/t0/webenv_pixelated.sh"], "tests": ["webenv_pixelated"]},
+    {"paths": ["lib/std/webenv.js", "src/qjs/canvas2d.cpp", "third_party/canvas_ity/", "tests/data/webenv-canvas-fidelity/", "tests/t0/webenv_canvas_fidelity.sh"], "tests": ["webenv_canvas_fidelity"]},
     {"paths": ["examples/pixel-plays/", "tests/data/pixel-plays/harbor-session.js", "tests/data/pixel-plays/harbor-session.input", "tests/golden/last-boat/", "tests/t1/last_boat_art.sh"], "tests": ["last_boat_art"]},
     {"paths": ["examples/pixel-plays/", "tests/data/pixel-plays/", "tests/golden/pixel-plays/", "tests/t1/pixel_plays.sh"], "tests": ["pixel_plays"]},
     {"paths": ["examples/pixel-plays/src/native/pitstop/", "tests/data/pixel-plays/pitstop-rules.ts", "tests/t0/pitstop_rules.sh"], "tests": ["pitstop_rules"]},

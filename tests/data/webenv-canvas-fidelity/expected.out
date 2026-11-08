@@ -1,0 +1,10 @@
+pattern x4 bilinear: 96 32 32 96 159 223 223 159
+pattern identity: 0 255 0 255 / alpha 255 255 255 255
+pattern moved by 1: 255 0 255 0 / alpha 255 255 255 255
+pattern scaled by 2: 0 0 255 255 / alpha 255 255 255 255
+pattern not invertible: 0 0 0 0 / alpha 0 0 0 0
+drawImage x4 nearest, red: 255 255 255 255 0 0 0 0 | 255 255 255 255 0 0 0 0 | 0 0 0 0 255 255 255 255 | 0 0 0 0 255 255 255 255
+drawImage x4 nearest, blue: 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 255 255 255 255 255 255 255 255 | 255 255 255 255 255 255 255 255
+drawImage x4 bilinear across: 0 0 32 96 159 223 255 255
+drawImage x4 bilinear down: 0 0 32 96 159 223 255 255
+the next script ran after both pictures: true
