@@ -21,7 +21,7 @@ std::string normalize(const std::string& p) {
   std::string plain;
   plain.reserve(p.size());
   for (char c : p) plain += c == '\\' ? '/' : c;
-  const bool winDrive = plain.size() > 1 && (plain[0] >= 'a' && plain[0] <= 'z' || plain[0] >= 'A' && plain[0] <= 'Z') && plain[1] == ':';
+  const bool winDrive = plain.size() > 1 && ((plain[0] >= 'a' && plain[0] <= 'z') || (plain[0] >= 'A' && plain[0] <= 'Z')) && plain[1] == ':';
   std::vector<std::string> parts;
   std::size_t i = winDrive ? 2 : 0;
   bool abs = !plain.empty() && plain[0] == '/';
