@@ -1602,7 +1602,11 @@ static bool buildsHere() {   // this process builds the executable it needs (no 
 #ifdef _WIN32
   return true;
 #else
-  return forcedNative();
+  // A headless or deterministic run (tests, agents, scripts) builds in the foreground as before: nobody is waiting for a window, and a
+  // detached builder per project would pile up compilers on the machine (AGENTS.md "Spare the machine").
+  const char* h = std::getenv("ZINC_HEADLESS");
+  const char* d = std::getenv("ZINC_DETERMINISTIC");
+  return forcedNative() || (h && !std::strcmp(h, "1")) || (d && !std::strcmp(d, "1"));
 #endif
 }
 // The compiler a build ran with: $CXX, the c++ of PATH and, on macOS, the developer directory xcode-select chose and its clang++; the engine.
@@ -1649,10 +1653,15 @@ static bool building(const fs::path& dir) {   // a builder holds the entry's loc
   ::close(fd);   // closing lets go of a lock this probe took
   return busy;
 }
-static bool holdBuildLock(const fs::path& dir) {   // the builder: the lock until it exits; false when another builder has it
+// One background builder on the machine at a time, whatever the project: its lock is cache/run/background/build.lock.
+static fs::path machineDir() { return fs::path(zn::tc::home()) / "cache" / "run"; }
+static bool holdBuildLock(const fs::path& dir) {   // the builder: the locks until it exits; false when another builder has one
+  const int all = lockFd(machineDir() / "background");
+  if (all < 0 || ::flock(all, LOCK_EX | LOCK_NB) != 0) { if (all >= 0) ::close(all); return false; }   // another project is being built
   const int fd = lockFd(dir);
-  if (fd >= 0 && ::flock(fd, LOCK_EX | LOCK_NB) == 0) return true;   // ponytail: the fd stays open for the process's life, which is the lock's
+  if (fd >= 0 && ::flock(fd, LOCK_EX | LOCK_NB) == 0) return true;   // ponytail: both fds stay open for the process's life, which is the locks'
   if (fd >= 0) ::close(fd);
+  ::close(all);
   return false;
 }
 // Starts the builder of `entry` (`zinc run <entry> -- <args>` again), detached: its own session, no terminal, its output in build.log, at a
@@ -1660,6 +1669,7 @@ static bool holdBuildLock(const fs::path& dir) {   // the builder: the lock unti
 static void startBackground(const std::string& entry, const std::vector<std::string>& progArgs) {
   const fs::path dir = dirOf(entry), log = dir / "build.log";
   if (building(dir)) { zn::log::step("native", "being built in the background; interpreting now"); return; }
+  if (building(machineDir() / "background")) { zn::log::step("native", "another program is being built in the background; interpreting now"); return; }
   std::vector<std::string> args = {zn::tc::executablePath(), "run", entry};
   if (!progArgs.empty()) { args.push_back("--"); args.insert(args.end(), progArgs.begin(), progArgs.end()); }
   std::vector<std::string> env;
