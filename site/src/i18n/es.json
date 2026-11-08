@@ -14,6 +14,7 @@
   "docs.group.learn": "Aprender", "docs.group.start": "Empezar", "docs.group.guides": "Guías", "docs.group.targets": "Guías: destinos",
   "docs.group.reference": "Referencia", "docs.group.plugins": "Referencia: plugins", "docs.group.concepts": "Conceptos",
   "copy": "copiar", "copied": "copiado",
+  "learn.run": "Ejecutarlo aquí", "learn.reset": "Reiniciar", "learn.picture": "Volver a la imagen", "learn.hint": "Primero haz clic en el programa: así recibe el teclado, el ratón y el tacto.", "learn.home": "Este solo funciona en tu equipo: su parte {side} aún no tiene versión para el navegador.", "learn.cannot": "Este navegador no puede ejecutar la lección en la página (necesita módulos ES e import maps: Chrome 89, Firefox 108, Safari 16.4 o posterior). Ejecútala en tu equipo:", "learn.running": "El programa está en marcha.", "learn.stopped": "El programa está detenido.",
   "home.eyebrow": "TypeScript de entrada, nativo de salida",
   "home.h1a": "Escríbelo una vez. Ejecútalo de forma nativa ", "home.h1b": "en todas partes.",
   "home.lead": "Aplicaciones de escritorio y móviles como las hace Electron, pero sin llevar un navegador dentro. Interfaz, juegos, 3D, vídeo y hardware, a partir de un subconjunto estricto y tipado de TypeScript y JSX, desde un Mac hasta un ESP32.",

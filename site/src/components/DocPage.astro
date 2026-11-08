@@ -3,7 +3,10 @@
 // shown with a notice). The sidebar lists the English pages in the language's routes, with the translated titles when they exist.
 import { getCollection, render } from 'astro:content';
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import Base from '../layouts/Base.astro';
+import { examples } from '../data/catalog';
 import { slugOf, groupsOf } from '../../docs-map.mjs';
 import { strings, route } from '../i18n';
 
@@ -42,6 +45,15 @@ if (tr && tr.data.source) {
   catch (e: any) { stale = e.status === 1; }
 }
 const enHref = `${b}docs/${slug(d.id)}/`;
+
+// A lesson whose sample the gallery exports (public/play/<name>/, tools/site-examples): a Run button beside its picture runs it in the page.
+// The export is the program as JavaScript on the browser's engine: no wasm and no cross-origin isolation, unless its config lists wasm modules.
+const lessonName = d.id.startsWith('learn/') ? d.id.slice(6) : '';
+const lesson = examples.find((e) => e.name === lessonName && e.path === `docs/learn/samples/${lessonName}`);
+let lessonWasm = false;
+if (lesson) {
+  try { lessonWasm = /"wasm":\[[^\]]/.test(fs.readFileSync(path.resolve('public/play', lesson.name, 'index.html'), 'utf8')); } catch {}
+}
 ---
 <Base title={nice(d.id)} lang={lang}>
   <link slot="head" rel="alternate" type="text/markdown" href={`${route(b, lang, `docs/${slug(d.id)}/`)}index.md`} />
@@ -54,7 +66,70 @@ const enHref = `${b}docs/${slug(d.id)}/`;
       {lang !== 'en' && !tr && <p class="notice" role="note" data-pagefind-ignore>{s['docs.untranslated']}</p>}
       {stale && <p class="notice" role="note" data-pagefind-ignore>{s['docs.stale']} <a href={enHref} hreflang="en">{s['docs.stale.link']}</a></p>}
       <Content />
+      {lesson && (
+        <div id="learn-run" class="learn-run" data-pagefind-ignore data-name={lesson.name} data-src={`${b}play/${lesson.name}/`} data-w={lesson.width} data-h={lesson.height}
+             data-wasm={lessonWasm ? '1' : ''} data-title={lesson.title} hidden>
+          {lesson.missing.length > 0
+            ? <p class="learn-note">{s['learn.home'].replace('{side}', lesson.missing.join(', '))}</p>
+            : <>
+                <p class="learn-note learn-cannot" hidden>{s['learn.cannot']} <code>zinc run {lesson.path}</code></p>
+                <div class="learn-bar" hidden>
+                  <button type="button" class="btn learn-start">{s['learn.run']}</button>
+                  <button type="button" class="btn learn-reset" hidden>{s['learn.reset']}</button>
+                  <button type="button" class="btn learn-stop" hidden>{s['learn.picture']}</button>
+                  <span class="learn-hint" hidden>{s['learn.hint']}</span>
+                </div>
+              </>}
+          <span class="learn-live" aria-live="polite" data-running={s['learn.running']} data-stopped={s['learn.stopped']}></span>
+        </div>
+      )}
       <p style="margin-top:56px;font-size:.9rem" data-pagefind-ignore><a href={`https://github.com/Frulko/zinc/edit/main/docs/${shown.filePath?.replace(/^.*docs\//, '')}`}>{s['docs.edit']}</a></p>
     </article>
   </div>
+  {lesson && <>
+    <style is:global>
+      .learn-run { margin: -8px 0 24px; }
+      .learn-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+      .learn-bar .btn { cursor: pointer; font: inherit; font-size: .92rem; }
+      .learn-run [hidden] { display: none; }   /* .btn sets a display */
+      .learn-hint, .learn-note { color: var(--muted); font-size: .9rem; margin: 0; }
+      .learn-frame { position: relative; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); margin: 0 0 12px; }
+      .learn-frame iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; }
+      .learn-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    </style>
+    <script is:inline>
+      // The lesson's Run button (ZN-774.25): the picture stays until Run, which puts the program's web export in a frame in its place (made on the
+      // click, one per page); Restart makes a new frame, the picture button removes it (its loops, sound and canvas go with it).
+      (function () {
+        var box = document.getElementById('learn-run'); if (!box) return;
+        var img = Array.prototype.find.call(document.querySelectorAll('article.prose img'), function (i) { return i.getAttribute('src').indexOf(box.dataset.name) >= 0; });
+        if (!img) return;
+        var at = img.closest('p') || img;
+        at.after(box); box.hidden = false;
+        var bar = box.querySelector('.learn-bar'); if (!bar) return;   // runs at home only: the note says why
+        var ok = !!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('importmap')) && (!box.dataset.wasm || typeof WebAssembly === 'object');
+        if (!ok) { box.querySelector('.learn-cannot').hidden = false; return; }
+        bar.hidden = false;
+        var w = Number(box.dataset.w), h = Number(box.dataset.h), live = box.querySelector('.learn-live'), frame = null;
+        var start = bar.querySelector('.learn-start'), reset = bar.querySelector('.learn-reset'), stop = bar.querySelector('.learn-stop'), hint = bar.querySelector('.learn-hint');
+        function fit() { if (frame) frame.firstChild.style.transform = 'scale(' + frame.clientWidth / w + ')'; }
+        function run() {
+          if (frame) frame.remove();
+          frame = document.createElement('div'); frame.className = 'learn-frame'; frame.style.aspectRatio = w + '/' + h;
+          var f = document.createElement('iframe');
+          f.src = box.dataset.src; f.title = box.dataset.title; f.width = w; f.height = h; f.tabIndex = 0; f.allow = 'autoplay; fullscreen';
+          f.addEventListener('load', function () { f.focus(); });
+          frame.appendChild(f); at.hidden = true; box.before(frame); fit(); f.focus();
+          start.hidden = true; reset.hidden = stop.hidden = hint.hidden = false; live.textContent = live.dataset.running;
+        }
+        start.addEventListener('click', run);
+        reset.addEventListener('click', run);
+        stop.addEventListener('click', function () {
+          if (frame) frame.remove(); frame = null; at.hidden = false;
+          start.hidden = false; reset.hidden = stop.hidden = hint.hidden = true; live.textContent = live.dataset.stopped; start.focus();
+        });
+        addEventListener('resize', fit);
+      })();
+    </script>
+  </>}
 </Base>
