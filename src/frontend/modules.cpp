@@ -311,7 +311,7 @@ export function args(): string[] { const r: string[] = []; const n = __host_sysA
 export function env(name: string): string { return __host_sysEnv(name); }
 export function exit(code: i32): void { __host_sysExit(code); }
 export function platform(): string { return __host_sysPlatform(); }
-export function clock(): f64 { return Date.now(); }
+export function clock(): f64 { return __clockMs(); }
 export function liveObjects(): i32 { return __host_sysLiveBlocks() as i32; }
 export function allocations(): i32 { return __host_sysAllocations() as i32; }
 export function randomBytes(n: i32): u8[] { const r: u8[] = []; for (let i: i32 = 0; i < n; i++) r.push(__host_sysRandomByte() as u8); return r; }
@@ -2863,6 +2863,7 @@ const __appMode: boolean = (__loopMode & 2) !== 0;
 const __clockTick: f64 = (__loopMode >> 2) / 1000;   // ZINC_CLOCK_TICK (ms): a virtual clock moves by this much at each performance.now() read, so a time-sliced job meets its deadline inside one frame, the same on every run
 const __epoch: f64 = __real ? __host_loopEpoch() - __host_loopNow() : 0;   // the program's time has already run: Date.now = this + its time
 function __now(): f64 { if (__real) __clock = __host_loopNow(); return __clock; }
+function __clockMs(): f64 { return __real ? __epoch + __now() : __clock; }   // zinc:sys clock(): Date.now's clock, not rounded to the millisecond
 function __addTimer(f: () => void, ms: f64, every: f64): i32 {
   __timerSeq++;
   __ids++;

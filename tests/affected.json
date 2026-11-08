@@ -337,6 +337,7 @@
     {"paths": ["lib/std/ui.ts", "lib/std/navigation.tsx", "lib/std/react-native.tsx", "lib/std/kit/keyboard.tsx", "lib/std/kit/imageviewer.ts", "tests/t0/ui_gesture_state.sh"], "tests": ["ui_gesture_state"]},
     {"paths": ["src/frontend/jsx.cpp", "lib/std/solid.ts", "lib/std/kit/host.ts", "lib/std/nuxt/host.ts", "lib/std/nuxt/navigation.tsx", "tests/data/solid_props/", "tests/t1/solid_props.sh", "tests/t0/jsx_narrow.sh", "tests/t0/jsx_list_branch.sh", "tests/t0/jsx_map_named.sh", "tests/t0/jsx_project_model.sh"], "tests": ["solid_props", "solid_cleanup", "jsx_narrow", "jsx_list_branch", "jsx_map_named", "jsx_project_model"]},
     {"paths": ["src/frontend/jsx.cpp", "src/frontend/check.cpp", "src/qjs/strip.cpp", "tests/data/jsx_gaps/", "tests/t0/jsx_gaps.sh"], "tests": ["jsx_gaps"]},
+    {"paths": ["src/frontend/check.cpp", "src/frontend/dyn.cpp", "src/frontend/modules.cpp", "src/rt/rtcalls.cpp", "src/qjs/prelude.cpp", "tests/data/ts_lib_gaps/", "tests/t0/ts_lib_gaps.sh"], "tests": ["ts_lib_gaps"]},
     {"paths": ["src/doc/", "third_party/md4c/", "tests/t0/doc.sh", "tests/data/doc/"], "tests": ["doc"]},
     {"paths": ["src/doc/", "lib/gfx.d.ts", "lib/modules.d.ts", "lib/zinc.d.ts", "docs/cheatsheet.md", "tests/t0/cheatsheet.sh"], "tests": ["cheatsheet"]},
     {"paths": ["src/lint/", "tests/t0/lint.sh", "tests/t0/migrate.sh", "tests/golden/lint/", "tests/golden/migrate/", "targets/capabilities.json", "src/frontend/capabilities.cpp"], "tests": ["lint", "migrate"]},

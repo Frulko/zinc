@@ -14,6 +14,23 @@ const char* kPrelude = R"JS(
     const c = Math.min(to - from, n - off), block = src === this ? src.slice(from, from + c) : src, base = src === this ? 0 : from;
     for (let i = 0; i < c; i++) this[off + i] = block[base + i];
   } });
+  // Number.prototype.toLocaleString without Intl (QuickJS): en-US digits as the typed engine prints them (check.cpp numToLocale); an engine with Intl keeps its own
+  if ((1234.5).toLocaleString() !== '1,234.5') Object.defineProperty(Number.prototype, 'toLocaleString', { writable: true, configurable: true, value: function toLocaleString(locale, o) {
+    const x = Number(this);
+    if (x !== x) return 'NaN';
+    if (x - x !== 0) return x > 0 ? '∞' : '-∞';
+    o = o || {};
+    let lo = o.minimumFractionDigits === undefined ? 0 : Math.floor(o.minimumFractionDigits);
+    const hi = o.maximumFractionDigits === undefined ? Math.max(lo, 3) : Math.floor(o.maximumFractionDigits);
+    if (o.minimumFractionDigits === undefined && hi < lo) lo = hi;
+    let s = x.toFixed(hi);
+    const neg = s[0] === '-';
+    if (neg) s = s.slice(1);
+    let [ip, fp = ''] = s.split('.');
+    while (fp.length > lo && fp.endsWith('0')) fp = fp.slice(0, -1);
+    if (o.useGrouping !== false) ip = ip.replace(/\B(?=(\d{3})+$)/g, ',');
+    return (neg ? '-' : '') + ip + (fp ? '.' + fp : '');
+  } });
   // zinc:worker (D181): QuickJS installs its own (src/qjs/worker_js.cpp); the engines that share this prelude (JavaScriptCore, V8, Hermes) have none yet
   if (!g.__recSchemaOf) g.__recSchemaOf = function () { throw new Error('zinc:worker runs on the Zinc engine and QuickJS; this engine has no workers yet'); };
   function quote(s) {
@@ -142,6 +159,7 @@ const char* kPrelude = R"JS(
   g.__clock = () => clock;
   // a real run reads the time of the host at each call, as the typed engine: the clock itself only moves between turns
   const nowReal = () => g.__zincReal ? g.__host_loopNow() : clock;
+  g.__clockMs = () => g.__zincWallBase + nowReal();   // zinc:sys clock(): Date.now's clock, not rounded to the millisecond
   Date.now = () => g.__zincWallBase + Math.floor(nowReal());   // the wall clock at start (0 in deterministic mode, set by the host) moved by the virtual one, as the typed engine's now_ms
   g.performance = { now: () => { if (g.__zincClockTick > 0) clock += g.__zincClockTick; return nowReal(); }, get timeOrigin() { return g.__zincWallBase; }, mark() {}, measure() {}, getEntriesByName: () => [] };   // the timers' clock, as the typed engine's (QuickJS-ng's own now is read-only, on the wall clock): it stops while the inspector pauses the program
   for (const f of ['FullYear', 'Month', 'Date', 'Day', 'Hours', 'Minutes', 'Seconds', 'Milliseconds']) Date.prototype['get' + f] = Date.prototype['getUTC' + f];  // no time zones, like the typed engine

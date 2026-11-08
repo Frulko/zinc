@@ -538,7 +538,7 @@ function __fmtDyn(d: Dyn, c: i64[], lvl: i32): string {
     const l: i32 = lvl + 1;
     c[1] = l;
     const out: string[] = [];
-    const ks: string[] = d.map.keys();
+    const ks: string[] = __dynKeys(d);
     c[0] += 2;
     for (let i: i32 = 0; i < ks.length; i++) out.push((__isIdentName(ks[i]) ? ks[i] : __q(ks[i])) + ': ' + __fmtDyn(d.map.get(ks[i]) ?? __undef, c, l));
     c[0] -= 2;
@@ -569,7 +569,7 @@ function __dynJsonSlow(d: Dyn): string {
   }
   if (d instanceof DynObj) {
     const out: string[] = [];
-    const ks: string[] = d.map.keys();
+    const ks: string[] = __dynKeys(d);   // array indices first, ascending, as JavaScript orders the keys
     for (let i: i32 = 0; i < ks.length; i++) {
       const v: Dyn = d.map.get(ks[i]) ?? __undef;
       if (v.kind() !== 0) out.push(__jsonQuote(ks[i]) + ':' + __dynJson(v));
@@ -578,6 +578,24 @@ function __dynJsonSlow(d: Dyn): string {
   }
   if (d instanceof DynRef) return d.json();
   return 'null';
+}
+
+// JSON.stringify(v, replacer): the replacer is called with each key and value (the root with ''), from the top down, on the value as JSON reads it
+// (toJSON applied); what it returns is written, its own properties walked in turn, and a property it makes undefined is left out (null in an array)
+function __jsonApply(root: any, f: (k: string, v: any) => any): any { return __jsonApplyAt('', root, f); }
+function __jsonApplyAt(key: string, v: Dyn, f: (k: string, v: any) => any): Dyn {
+  const r: Dyn = f(key, v);
+  if (r instanceof DynArr) {
+    const items: any[] = [];
+    for (let i: i32 = 0; i < r.items.length; i++) { const x: Dyn = __jsonApplyAt('' + i, r.items[i], f); items.push(x.kind() === 0 ? __null : x); }
+    return new DynArr(items);
+  }
+  if (r instanceof DynObj) {
+    const m: Map<string, Dyn> = new Map<string, Dyn>();
+    for (const k of __dynKeys(r)) { const x: Dyn = __jsonApplyAt(k, r.map.get(k) ?? __undef, f); if (x.kind() !== 0) m.set(k, x); }
+    return new DynObj(m);
+  }
+  return r;
 }
 
 function __jsonParse(s: string): any {

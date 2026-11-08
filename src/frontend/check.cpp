@@ -1979,6 +1979,60 @@ struct Checker {
         return tStr;
       }
     }
+    if (cn.kind == N::Member && cn.text == "toLocaleString" && args.size() <= 2 && n(cn.kids[0]).kind != N::Super) {   // n.toLocaleString(locale?, options?): ECMA-402 NumberFormat, en-US
+      std::uint32_t recv = cn.kids[0];
+      TypeId rt = expr(recv);
+      if (!bad(rt) && ty(rt).k == TK::Num) {
+        // ponytail: every locale formats as en-US, the digits are toFixed's (exact binary value, ICU rounds the shortest decimal: 1.005 to 2 digits) and >= 1e21 keeps the exponent; real ICU data if a demo needs another locale
+        std::uint32_t opt[3] = {kNone, kNone, kNone};   // minimumFractionDigits, maximumFractionDigits, useGrouping
+        if (args.size() >= 1) expr(args[0]);
+        if (args.size() == 2 && !(n(args[1]).kind == N::Ident && n(args[1]).text == "undefined") && !(n(args[1]).kind == N::Literal && n(args[1]).text == "null")) {
+          if (n(args[1]).kind != N::ObjectLit) { diag(kZUnsupported, args[1], "toLocaleString options that are not an object literal"); return tError; }
+          for (std::uint32_t p : n(args[1]).kids) {
+            const std::string_view k = n(p).text;
+            const int slot = k == "minimumFractionDigits" ? 0 : k == "maximumFractionDigits" ? 1 : k == "useGrouping" ? 2 : -1;
+            if (n(p).kind != N::Prop || n(p).kids.empty()) { diag(kZUnsupported, p, "this toLocaleString option"); return tError; }
+            if (slot < 0) { expr(n(p).kids[0]); continue; }   // style, currency...: not formatted (the number prints in decimal)
+            TypeId vt = expr(n(p).kids[0]);
+            if (bad(vt) || !require(vt, slot == 2 ? tBool : num(Num::f64), n(p).kids[0])) return tError;
+            opt[slot] = n(p).kids[0];
+          }
+        }
+        for (int s = 0; s < 3; ++s) if (opt[s] == kNone) {   // absent: 101 (above ECMA-402's 100) for the digits, true for the grouping
+          opt[s] = s == 2 ? newNode(N::Literal, "true", {}, i) : newNode(N::Number, "101", {}, i);
+          out.nodeType[opt[s]] = s == 2 ? tBool : num(Num::f64);
+        }
+        std::uint32_t sym = helper("numToLocale", R"ZN(function $F(x: f64, minF: f64, maxF: f64, grp: boolean): string {
+  if (x !== x) return 'NaN';
+  if (x - x !== 0) return x > 0 ? '∞' : '-∞';
+  let lo: i32 = minF > 100 ? 0 : Math.floor(minF) as i32;
+  const hi: i32 = maxF > 100 ? (lo > 3 ? lo : 3) : Math.floor(maxF) as i32;
+  if (minF > 100 && hi < lo) lo = hi;
+  let s = x.toFixed(hi);
+  const neg = s.charAt(0) === '-';
+  if (neg) s = s.slice(1);
+  const dot = s.indexOf('.');
+  let ip = dot < 0 ? s : s.slice(0, dot);
+  let fp = dot < 0 ? '' : s.slice(dot + 1);
+  while (fp.length > lo && fp.charAt(fp.length - 1) === '0') fp = fp.slice(0, fp.length - 1);
+  if (grp) {
+    let g = '';
+    let k: i32 = ip.length;
+    while (k > 3) { g = ',' + ip.slice(k - 3, k) + g; k = k - 3; }
+    ip = ip.slice(0, k) + g;
+  }
+  return (neg ? '-' : '') + ip + (fp.length > 0 ? '.' + fp : '');
+}
+)ZN", {}, i);
+        std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+        out.nodeSym[id] = sym;
+        out.nodeType[id] = out.syms[sym].type;
+        a.nodes[i].kids = {id, recv, opt[0], opt[1], opt[2]};
+        rewritten.insert(i);
+        out.nodeType[i] = tStr;
+        return tStr;
+      }
+    }
     if (cn.kind == N::Ident && (cn.text == "Number" || cn.text == "String" || cn.text == "Boolean") && isBuiltin(kids[0], cn.text)) {
       if (args.size() > 1) { diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", "0-1"}, {"got", std::to_string(args.size())}}); for (std::uint32_t arg : args) expr(arg); return tError; }
       std::string nm(cn.text);
@@ -2142,6 +2196,11 @@ struct Checker {
         rewritten.insert(i);
         out.nodeType[i] = tStr;
         return tStr;
+      }
+      if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "stringify" && (args.size() == 2 || args.size() == 3) && lookup("__jsonApply") != kNone) {
+        // a replacer function: the value read back as a JSON tree, the replacer applied to each key (dyn.cpp __jsonApply), then written (and indented)
+        return rewrite(args.size() == 2 ? "JSON.stringify(__jsonApply(__jsonParse(JSON.stringify(__H0)), __H1))" : "JSON.stringify(__jsonApply(__jsonParse(JSON.stringify(__H0)), __H1), null, __H2)",
+                       args.size() == 2 ? std::vector<std::vector<std::uint32_t>>{{args[0]}, {args[1]}} : std::vector<std::vector<std::uint32_t>>{{args[0]}, {args[1]}, {args[2]}});
       }
       if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "stringify") {
         if (args.size() != 1) { diag(kZUnsupported, i, "JSON.stringify with a replacer (an indent is supported: JSON.stringify(value, null, 2))"); for (std::uint32_t arg : args) expr(arg); return tError; }
@@ -3051,6 +3110,11 @@ struct Checker {
             if (!(isIntLit(a, fk) && litFits(a, fk, pf ? tq.num : tp.num)) && assignable(p, f, x.kids[1]) && assignable(q, f, x.kids[2])) return f;
           }
         }
+        auto undef = [&](std::uint32_t k) { return n(k).kind == N::Ident && (n(k).text == "undefined" || n(k).text == "__undef"); };   // (`c ? m.get(k) : undefined` stays the type of m)
+        if (isDyn(q) != isDyn(p) && !rawDyn() && !undef(x.kids[isDyn(q) ? 2 : 1])) {   // `c ? v * 10 : v` with v an any is an any, as in TypeScript (it was the number, and an object v threw)
+          const bool qd = isDyn(q);
+          if (assignable(qd ? p : q, qd ? q : p, x.kids[qd ? 1 : 2])) { convertDyn(qd ? p : q, qd ? q : p, x.kids[qd ? 1 : 2]); return qd ? q : p; }
+        }
         if (assignable(q, p, x.kids[2])) { convertDyn(q, p, x.kids[2]); return p; }   // (a class in the branch of an `unknown` becomes a Dyn)
         if (assignable(p, q, x.kids[1])) { convertDyn(p, q, x.kids[1]); return q; }
         if (name(p) == "NeverPromise" && promiseKind(q) != 0) { require(p, q, x.kids[1]); return q; }  // a branch that only rejects takes the other branch's promise type
@@ -3341,6 +3405,8 @@ struct Checker {
   // `plain`: a condition (if, ?:, !), where a string or a number that cannot be null tests as JavaScript does too ('' and 0 and NaN are false).
   TypeId truthiness(std::uint32_t e, TypeId t, bool plain = false) {
     if (bad(t) || t == tBool) return t;
+    if (plain && !rawDyn() && isDyn(t))  // `if (v)`, `v ? a : b` on an `any`: JavaScript truthiness
+      return replaceWith(e, "__dynTruthy(__H0)", {{cloneNode(e, false)}}) ? expr(e) : t;
     if (!hasNull(t)) {
       if (!plain || (t != tStr && ty(t).k != TK::Num)) return t;
       if (t == tStr) return replaceWith(e, "(__H0.length > 0)", {{cloneNode(e, false)}}) ? expr(e) : t;

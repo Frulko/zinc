@@ -83,6 +83,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - JavaScript projects: `importmap.json` maps a whole folder with a key ending in `/`, as a browser does (`"three/addons/": "../three/examples/jsm/"`), and a folder with a `main.js` runs with `zinc run` even when its `zinc.json` only sets `app.window`.
 - `await` at the top level of a program or test file works on every engine; an `async` arrow function or object method no longer needs its `Promise<T>` written out (`const load = async () => 1`), and a generic function's return type is inferred from its arguments (`function id<T>(x: T) { return x; }`).
+- `n.toLocaleString()` formats numbers with thousands separators on every engine, with the `minimumFractionDigits`, `maximumFractionDigits` and `useGrouping` options (in the US English format for now), and `JSON.stringify(value, replacer)` takes a replacer function, with or without an indent.
 
 #### Fixed
 
@@ -90,6 +91,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A `catch` callback that returns a promise is adopted, as `then` already did, and `finally` waits for the promise its callback returns before passing the value on (or takes its rejection), in the order Node runs them.
 - More valid TypeScript is accepted: a function with default parameters where one taking fewer is expected, `list.find(...)?.[1]`, `resolve(undefined)` on a `Promise<void>`, an `(e: any) => ...` callback where an `Error` is passed, a `Map` or `Set` of a class where one of its interface is expected, and a `catch` callback that returns nothing (also on `Promise.reject(e)`).
 - Async fixes: `for (const [k, v] of list)` with an `await` in its body runs, `const r = untrack(() => { ... })` is accepted when the callback returns nothing, `return save()` in an async `Promise<void>` function now waits for `save`, and a `new Promise` whose executor throws rejects instead of stopping the program.
+- `JSON.stringify` of a parsed object writes number-like keys first, in ascending order, as JavaScript does; a value of type `any` is accepted as the condition of `if` or `? :`; and `c ? v * 10 : v` with `v` of type `any` stays an `any` instead of failing on an object.
+- `clock()` of `zinc:sys` measures below the millisecond on every engine, so a short loop no longer reads 0 ms.
 
 ### Developer tools
 

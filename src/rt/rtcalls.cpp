@@ -145,8 +145,22 @@ bool jsonOut(Machine& m, Obj* o, JsonText& out, int depth) {
     const auto* mo = reinterpret_cast<const MapObj*>(o->fields()[0]);
     out += '{';
     bool first = true;
+    // the keys in JavaScript's order: array indices ("0".."4294967294", no leading zero) first, ascending, then the others as inserted
+    auto index = [](const StrObj* k, std::uint64_t& v) {
+      if (k->len == 0 || k->len > 10 || (k->len > 1 && k->data()[0] == '0')) return false;
+      v = 0;
+      for (std::size_t j = 0; j < k->len; ++j) { const char ch = k->data()[j]; if (ch < '0' || ch > '9') return false; v = v * 10 + static_cast<std::uint64_t>(ch - '0'); }
+      return v < 4294967295ull;
+    };
+    std::vector<std::pair<std::uint64_t, std::size_t>> order;   // (index, slot) of the index keys; the others get UINT64_MAX and keep their slot order
+    order.reserve(mo->t.keys.size());
     for (std::size_t i = 0; i < mo->t.keys.size(); ++i) {
       if (mo->t.dead[i]) continue;
+      std::uint64_t v;
+      order.push_back({index(reinterpret_cast<const StrObj*>(mo->t.keys[i]), v) ? v : UINT64_MAX, i});
+    }
+    std::stable_sort(order.begin(), order.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+    for (const auto& [ix, i] : order) {
       Obj* v = reinterpret_cast<Obj*>(mo->t.vals[i]);
       if (v->cls == m.dynUndef) continue;
       if (!first) out += ',';
