@@ -4,7 +4,8 @@ title: >-
   console.error and sys.exit leak program output to stdout under profile, mem
   and the device core
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 17:11'
 labels:
   - runtime

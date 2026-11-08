@@ -4,7 +4,8 @@ title: >-
   zinc lint and pack: plugin targets, host modules per profile, honest assets
   error
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:35'
 labels:
   - lint
