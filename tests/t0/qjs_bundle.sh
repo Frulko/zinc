@@ -67,6 +67,17 @@ if ZINC_OFFLINE=1 "$ZINC" toolchain esbuild >/dev/null 2>&1; then
   "$ZINC" bundle "$tmp/p/throw.ts" -o "$tmp/out/throw.js" --minify --sourcemap --bytecode >/dev/null 2>&1
   out=$("$ZINC" run "$tmp/out/throw.js" 2>&1); echo "$out" | grep -q "p/util.ts:4:" || { echo "a minified trace is not mapped to util.ts: $out"; fail=1; }
   out=$("$ZINC" run "$tmp/out/throw.qbc" 2>&1); echo "$out" | grep -q "p/util.ts:4:" || { echo "a bytecode trace is not mapped to util.ts: $out"; fail=1; }
+  # ZN-817: the .qbc names the zinc that wrote it, and another zinc's runs the bundle beside it (alone, it is refused with the reason); the map
+  # carries the sources' text and names them from their folder, so a moved bundle still maps its traces to util.ts, not to a path that leads nowhere
+  [ "$(head -1 "$tmp/out/throw.qbc")" = "zinc-qbc $("$ZINC" --version | sed 's/^zinc-next //')" ] || { echo "the .qbc is not stamped: $(head -c 40 "$tmp/out/throw.qbc")"; fail=1; }
+  grep -q '"sourcesContent":\["export' "$tmp/out/throw.js.map" && grep -q '"sourceRoot":"../p/"' "$tmp/out/throw.js.map" || { echo "the map lacks sourcesContent or sourceRoot: $(head -c 200 "$tmp/out/throw.js.map")"; fail=1; }
+  mkdir "$tmp/moved" && cp "$tmp/out/throw.js" "$tmp/out/throw.js.map" "$tmp/out/throw.qbc" "$tmp/moved/" && mv "$tmp/p" "$tmp/p-gone"
+  out=$("$ZINC" run "$tmp/moved/throw.qbc" 2>&1); echo "$out" | grep -q "(util.ts:4:" || { echo "a moved bundle's trace is not util.ts:4: $out"; fail=1; }
+  mv "$tmp/p-gone" "$tmp/p"
+  cp "$tmp/moved/throw.js" "$tmp/moved/old.js" && cp "$tmp/moved/throw.js.map" "$tmp/moved/old.js.map" && sed "1s/^zinc-qbc .*/zinc-qbc 0.0.1/" "$tmp/moved/throw.qbc" > "$tmp/moved/old.qbc" && touch "$tmp/moved/old.qbc"   # not older than its bundle
+  out=$(ZINC_STEPS=1 "$ZINC" run "$tmp/moved/old.qbc" 2>&1); echo "$out" | grep -q "compiled by zinc 0.0.1, the source instead" || { echo "another zinc's .qbc is read: $out"; fail=1; }
+  rm "$tmp/moved/old.js"; out=$("$ZINC" run "$tmp/moved/old.qbc" 2>&1) && { echo "a lone .qbc of another zinc runs: $out"; fail=1; }
+  echo "$out" | grep -q "build it again" || { echo "a lone .qbc of another zinc does not say why: $out"; fail=1; }
 else
   echo "skip zinc bundle: no esbuild in ZINC_HOME (zinc toolchain esbuild fetches it)"
 fi

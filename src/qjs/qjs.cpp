@@ -773,6 +773,13 @@ bool collect(const std::string& entry, const std::string& stdRoot, const std::st
   return ok;
 }
 
+// The first line of a .qbc (ZN-817): the zinc that wrote it. QuickJS checks only its BC_VERSION byte, which a new QuickJS (or a change of zinc's
+// patches to it) does not always bump: bytecode written by another zinc is never read, the bundle beside it runs instead.
+static std::string qbcStamp() {
+  const char* v = std::getenv("ZINC_ENGINE_VERSION");   // main() sets it first thing
+  return std::string("zinc-qbc ") + (v && *v ? v : "unknown") + "\n";
+}
+
 bool compileBytecode(const std::string& js, const std::string& name, std::string& bytes, std::string& err) {
   JSRuntime* rt = JS_NewRuntime();
   JSContext* ctx = JS_NewContext(rt);
@@ -790,7 +797,7 @@ bool compileBytecode(const std::string& js, const std::string& name, std::string
   else {
     size_t n = 0;
     uint8_t* b = JS_WriteObject(ctx, &n, m, JS_WRITE_OBJ_BYTECODE | JS_WRITE_OBJ_STRIP_SOURCE);   // the lines stay (debug info): the traces keep their positions
-    if (b) { bytes.assign(reinterpret_cast<char*>(b), n); js_free(ctx, b); } else { ok = false; err = exceptionText(ctx); }
+    if (b) { bytes = qbcStamp() + std::string(reinterpret_cast<char*>(b), n); js_free(ctx, b); } else { ok = false; err = exceptionText(ctx); }
   }
   JS_FreeValue(ctx, m);
   JS_FreeContext(ctx);
@@ -919,8 +926,15 @@ int run(const Options& o) {
   JSValue mod = JS_EXCEPTION;
   if (!qbc.empty()) {   // no parse
     const bool alone = endsWith(entry, ".qbc");
+    const std::string stamp = qbcStamp();
+    bool other = false;
     if (!readFile(qbc, js)) { if (alone) { std::fprintf(stderr, "cannot read %s\n", qbc.c_str()); return 101; } }
-    else mod = JS_ReadObject(e.ctx, reinterpret_cast<const uint8_t*>(js.data()), js.size(), JS_READ_OBJ_BYTECODE);
+    else if (js.rfind(stamp, 0) != 0) {   // another zinc's bytecode (or one from before the stamp): never read
+      other = true;
+      const std::string by = js.rfind("zinc-qbc ", 0) == 0 ? "zinc " + js.substr(9, js.find('\n') - 9) : "an older zinc";
+      if (alone) { std::fprintf(stderr, "zinc: %s was compiled by %s, not by this one (%s): build it again (zinc build), or run the .js beside it\n", qbc.c_str(), by.c_str(), stamp.substr(9, stamp.size() - 10).c_str()); return 101; }
+      zn::log::step("bytecode", zn::log::shortPath(qbc) + " was compiled by " + by + ", the source instead");
+    } else mod = JS_ReadObject(e.ctx, reinterpret_cast<const uint8_t*>(js.data()) + stamp.size(), js.size() - stamp.size(), JS_READ_OBJ_BYTECODE);
     if (!JS_IsException(mod) && JS_ResolveModule(e.ctx, mod) < 0) { JS_FreeValue(e.ctx, mod); mod = JS_EXCEPTION; }
     gMapFile = qbc.substr(0, qbc.size() - 4) + ".js";   // that bundle's source map
     if (!JS_IsException(mod)) {
@@ -930,7 +944,7 @@ int run(const Options& o) {
       JS_FreeAtom(e.ctx, atom);
       setMeta(e.ctx, m, gMapFile);
       zn::log::step("bytecode", zn::log::shortPath(qbc) + " instead of the source");
-    } else if (!alone) {   // stale (another QuickJS) or damaged: the source
+    } else if (!alone && !other) {   // stale (another QuickJS) or damaged: the source
       JS_FreeValue(e.ctx, JS_GetException(e.ctx));
       zn::log::step("bytecode", zn::log::shortPath(qbc) + " not readable by this QuickJS, the source instead");
     }

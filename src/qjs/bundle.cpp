@@ -24,6 +24,7 @@
 #include <thread>
 
 #include "frontend/modules.h"
+#include "frontend/project.h"
 #include "yyjson.h"
 #include "zn/log.h"
 
@@ -161,6 +162,7 @@ std::string mapStack(const std::string& stack, const std::string& file, const st
   yyjson_val* v;
   yyjson_arr_foreach(yyjson_obj_get(root, "sources"), i, n, v) sources.push_back(yyjson_is_str(v) ? yyjson_get_str(v) : "?");
   const std::string m = yyjson_is_str(yyjson_obj_get(root, "mappings")) ? yyjson_get_str(yyjson_obj_get(root, "mappings")) : "";
+  const std::string sourceRoot = yyjson_is_str(yyjson_obj_get(root, "sourceRoot")) ? yyjson_get_str(yyjson_obj_get(root, "sourceRoot")) : "";
   yyjson_doc_free(doc);
   struct Seg { int col, src, line, scol; };
   std::vector<std::vector<Seg>> lines(1);
@@ -189,7 +191,10 @@ std::string mapStack(const std::string& stack, const std::string& file, const st
     out += stack.substr(at, f - at);
     if (best && best->src >= 0 && static_cast<std::size_t>(best->src) < sources.size()) {
       const std::string& s = sources[best->src];
-      const std::string path = s.rfind("zinc:", 0) == 0 || s[0] == '/' ? s : (fs::path(dir) / s).lexically_normal().string();
+      // beside the bundle when the file is there; else the project's name for it (a moved build, ZN-817: never a path that leads nowhere)
+      std::error_code ec;
+      const std::string near = (fs::path(dir) / sourceRoot / s).lexically_normal().string();
+      const std::string path = s.rfind("zinc:", 0) == 0 || s[0] == '/' ? s : fs::exists(near, ec) ? near : s;
       out += path + ":" + std::to_string(best->line + 1) + ":" + std::to_string(best->scol + 1);
     } else out += stack.substr(f, p - f);
     at = p;
@@ -453,23 +458,39 @@ int bundleOnce(const BundleOptions& o, std::vector<std::string>& watched) {
       text = text.substr(0, nl + 1) + "(async function () { \"use strict\"; " + text.substr(nl + 1, tail - nl - 1) + "})();\n" + text.substr(tail);   // on line 2: the source map's lines hold
       if (!writeText(o.out, text)) return 2;
     }
-    if (o.sourcemap) {   // the map's sources: the files the user wrote, relative to the bundle (esbuild names the staged copies)
+    // the map's sources: the files the user wrote (esbuild names the staged copies), relative to the project, with sourceRoot the way from the
+    // bundle to the project, and their text in sourcesContent (ZN-817): a build that moves (an exported app, a copied build/) still has its
+    // sources, and a trace names the project's file (src/util.ts) when the path beside the bundle no longer leads to it; no path of this machine
+    if (o.sourcemap) {
       std::string map;
       if (readText(o.out + ".map", map)) {
         yyjson_doc* d = yyjson_read(map.data(), map.size(), 0);
         yyjson_mut_doc* md = d ? yyjson_doc_mut_copy(d, nullptr) : nullptr;
         yyjson_doc_free(d);
-        yyjson_mut_val* srcs = md ? yyjson_mut_obj_get(yyjson_mut_doc_get_root(md), "sources") : nullptr;
+        yyjson_mut_val* mroot = md ? yyjson_mut_doc_get_root(md) : nullptr;
+        yyjson_mut_val* srcs = mroot ? yyjson_mut_obj_get(mroot, "sources") : nullptr;
         const fs::path outDir = fs::absolute(o.out, ec).parent_path();
+        const std::string pf = zn::frontend::findProjectFile(o.entry);
+        const fs::path proj = pf.empty() ? fs::absolute(o.entry, ec).parent_path() : fs::absolute(pf, ec).parent_path();
+        const bool haveContent = mroot && yyjson_mut_obj_get(mroot, "sourcesContent");   // a script's map carries esbuild's: the inspectors show them
+        yyjson_mut_val* contents = haveContent || !mroot ? nullptr : yyjson_mut_arr(md);
         std::deque<std::string> keep;   // the new strings, alive until the map is written
         size_t i, n;
         yyjson_mut_val* v;
         if (srcs) yyjson_mut_arr_foreach(srcs, i, n, v) {
           const std::string staged = (outDir / yyjson_mut_get_str(v)).lexically_normal().string(), orig = originalOf(stage, staged);
-          const std::string rel = orig.rfind("zinc:", 0) == 0 ? orig : fs::path(orig).lexically_relative(outDir).string();
+          const bool host = orig.rfind("zinc:", 0) == 0;
+          std::string rel = host ? orig : fs::path(orig).lexically_relative(proj).string();
+          if (rel.empty()) rel = orig;   // another root (a drive): the path itself
           keep.push_back(rel);
           yyjson_mut_set_strn(v, keep.back().data(), keep.back().size());
+          std::string text;
+          if (contents && !host && readText(orig, text)) { keep.push_back(std::move(text)); yyjson_mut_arr_add_strn(md, contents, keep.back().data(), keep.back().size()); }
+          else if (contents) yyjson_mut_arr_add_null(md, contents);
         }
+        if (contents) yyjson_mut_obj_add_val(md, mroot, "sourcesContent", contents);
+        const std::string up = proj.lexically_relative(outDir).string();
+        if (mroot && !up.empty() && up != ".") { keep.push_back(up + "/"); yyjson_mut_obj_put(mroot, yyjson_mut_str(md, "sourceRoot"), yyjson_mut_strn(md, keep.back().data(), keep.back().size())); }
         size_t len = 0;
         char* text = md ? yyjson_mut_write(md, 0, &len) : nullptr;
         if (text) { writeText(o.out + ".map", std::string(text, len)); std::free(text); }

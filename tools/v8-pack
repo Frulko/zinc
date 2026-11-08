@@ -7,10 +7,21 @@ against the formula's, the libraries renamed to @rpath and signed ad hoc, laid o
     <out>/<version>/lib/*.dylib     libv8 and what it loads, icudtl.dat (Intl)
     <out>/current -> <version>
 
-usage: tools/v8-pack [--out DIR] [--bottle TAG]      (DIR: ~/.zinc/sdk/v8; TAG: the newest macOS bottle this machine runs)
+usage: tools/v8-pack [--out DIR] [--bottle TAG] [--latest]      (DIR: ~/.zinc/sdk/v8; TAG: the newest macOS bottle this machine runs)
 ponytail: macOS arm64 only; the Linux bottles' ELF rpaths, Intel macOS and Windows (no bottle: our own V8 build) are the cross-platform pass.
+
+The version is pinned (PIN below, ZN-817): a release takes the V8 the Node-API layer was built and tested against, never whatever Homebrew
+shipped that morning (it went from 15.6 to 15.8 in two weeks). --latest takes the formula's newest instead and prints the PIN to paste once
+that V8 builds and passes: a bump is a commit of its own.
 """
 import hashlib, io, json, os, platform, shutil, subprocess, sys, tarfile, urllib.request
+
+# homebrew-core 679b40815659 ("v8: update 15.6.75.19 bottle."): the bottles' sha256, which is also their address on ghcr.io
+PIN = {"version": "15.6.75.19", "bottles": {
+    "arm64_golden_gate": "e96eeaf5e42570f58c6515b1eff9e152950fd5f7135fd0a5682fa0fc286b0215",
+    "arm64_tahoe": "5c83819ae3f9bbf6a3ec02516282d581135a2ce8776b2057fb922574191cd5c1",
+    "arm64_sequoia": "a0765114811c95a6b42c51f55e899bf253cc6e112c1f903fedf0751eb4a8a104"}}
+BLOB = "https://ghcr.io/v2/homebrew/core/v8/blobs/sha256:"
 
 def fetch(url, headers=None):
     req = urllib.request.Request(url, headers=headers or {})
@@ -20,20 +31,29 @@ def fetch(url, headers=None):
 def main(argv):
     out = os.path.expanduser("~/.zinc/sdk/v8")   # not ~/.zinc/engines: that is where zinc installs packs
     tag = None
+    latest = False
     i = 0
     while i < len(argv):
         if argv[i] == "--out": out = os.path.abspath(argv[i + 1]); i += 2
         elif argv[i] == "--bottle": tag = argv[i + 1]; i += 2
+        elif argv[i] == "--latest": latest = True; i += 1
         else: print(__doc__); return 2
     if sys.platform != "darwin" or platform.machine() != "arm64":
         print("tools/v8-pack: macOS arm64 only for now (no Homebrew bottle of V8 for Intel macOS; Linux comes with the cross-platform pass)", file=sys.stderr)
         return 2
-    formula = json.loads(fetch("https://formulae.brew.sh/api/formula/v8.json"))
-    version = formula["versions"]["stable"]
-    files = formula["bottle"]["stable"]["files"]
+    if latest:
+        formula = json.loads(fetch("https://formulae.brew.sh/api/formula/v8.json"))
+        version = formula["versions"]["stable"]
+        files = {t: f for t, f in formula["bottle"]["stable"]["files"].items() if t.startswith("arm64_") and t != "arm64_linux"}
+        if version != PIN["version"]:
+            print("tools/v8-pack: V8 %s is not the pinned %s; once it builds and passes, set in tools/v8-pack:" % (version, PIN["version"]))
+            print('PIN = {"version": "%s", "bottles": {%s}}' % (version, ", ".join('"%s": "%s"' % (t, f["sha256"]) for t, f in sorted(files.items()))))
+    else:
+        version = PIN["version"]
+        files = {t: {"url": BLOB + sha, "sha256": sha} for t, sha in PIN["bottles"].items()}
     if tag is None:   # the bottles are per macOS release: the newest one not newer than this machine
         major = int(platform.mac_ver()[0].split(".")[0])
-        names = {26: "arm64_tahoe", 15: "arm64_sequoia", 14: "arm64_sonoma", 13: "arm64_ventura"}
+        names = {27: "arm64_golden_gate", 26: "arm64_tahoe", 15: "arm64_sequoia", 14: "arm64_sonoma", 13: "arm64_ventura"}
         tag = next((names[m] for m in sorted(names, reverse=True) if m <= major and names[m] in files), None)
         if tag is None: print("tools/v8-pack: no V8 bottle for macOS %d (%s)" % (major, ", ".join(files)), file=sys.stderr); return 1
     bottle = files[tag]
