@@ -15,6 +15,9 @@ namespace zn::cli {
 // zinc run --simulate <device>: the definition, the state file and the control panel of a simulated device; false and `err` when it is unknown.
 bool simulate(std::vector<std::string>& args, const std::string& engineRoot, std::string& err);
 bool discoverEntry(std::vector<std::string>& args, std::string& err);
+/** The index of the entry in `zinc <command> [options] <entry> ...`: the first argument after the command that is not an option (`--engine quickjs`
+ *  takes its value); args.size() or the index of `--` when there is none. */
+std::size_t entryIndex(const std::vector<std::string>& args);
 
 /** `zinc help [command]`, `zinc --help`, `zinc <command> --help`: the text on stdout, exit code 0; an unknown command: stderr, 2. */
 int help(const std::vector<std::string>& args);

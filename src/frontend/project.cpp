@@ -652,10 +652,14 @@ std::string findProjectFile(const std::string& path) {
   std::error_code ec;
   fs::path p = fs::absolute(path, ec).lexically_normal();
   if (!fs::is_directory(p, ec)) p = p.parent_path();
+  // a folder named as the project (zinc export <dir>, ZN-1007): the search stops there, the zinc.json of a folder above is another project's
+  // (a sketch of app/atelier/examples took Atelier's window, permissions and requires)
+  const char* root = std::getenv("ZINC_PROJECT_ROOT");
+  const fs::path stop = root && *root ? fs::path(root) : fs::path();
   for (; !p.empty(); p = p.parent_path()) {
     fs::path f = p / "zinc.json";
     if (fs::is_regular_file(f, ec)) return f.string();
-    if (p == p.root_path()) break;
+    if (p == p.root_path() || (!stop.empty() && fs::equivalent(p, stop, ec))) break;   // equivalent: /var and /private/var are one folder on macOS
   }
   return "";
 }

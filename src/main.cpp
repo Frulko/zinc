@@ -2153,6 +2153,15 @@ int main(int argc, char** argv) {
           cl[k] = zn::cli::exampleDir(cl[k], gRoot, err);
           if (cl[k].empty()) { std::fprintf(stderr, "%s\n", err.c_str()); return 2; }
         }
+    if (argc >= 3 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "dev") || !std::strcmp(argv[1], "check") || !std::strcmp(argv[1], "build"))) {
+      // `zinc run hero` (ZN-1007): a bare word that is no file or folder here but names an example says its example:<name> spelling
+      const std::size_t at = zn::cli::entryIndex(cl);
+      const std::string w = at < cl.size() ? cl[at] : "";
+      std::error_code ec;
+      if (!w.empty() && w != "--" && w.find_first_of("/\\.:") == std::string::npos && !std::filesystem::exists(w, ec))
+        for (const zn::cli::CatalogEntry& e : zn::cli::readCatalog(gRoot))
+          if (e.name == w) { std::fprintf(stderr, "%s\n", zn::i18n::tr("cli.examples.bare", {{"name", w}, {"command", argv[1]}}).c_str()); return 2; }
+    }
 #ifdef ZN_AGENT   // the device agent and its client (ZN-729); before --help is read, which belongs to the command a remote shell runs
     if (argc >= 2 && !std::strcmp(argv[1], "agent")) return zn::agent::serve({cl.begin() + 2, cl.end()}, zn::tc::executablePath(), kVersionText);
     if (argc >= 2 && !std::strcmp(argv[1], "device")) return zn::agent::device({cl.begin() + 2, cl.end()}, zn::tc::executablePath());

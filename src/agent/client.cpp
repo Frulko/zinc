@@ -219,7 +219,13 @@ int cmdPair(const std::vector<std::string>& args) {
   if (line != "ZNA1 ok") return fail("pairing is closed on the device: run `zinc agent pair` there for a new code");
   if (!openPake(c, false, code, err)) return fail(err);
   // 60 s: an Old 3DS at 268 MHz takes seconds over each step of EC J-PAKE; the cause is named, a slow device is not a wrong code
-  if (!handshake(c, 60000, err)) return fail("pairing failed: " + err + " (a wrong code closes the pairing after three tries)");
+  if (!handshake(c, 60000, err)) {
+    // EC J-PAKE ends on a TLS failure (an alert, a bad Finished) when the two codes differ: that is a wrong code, said as one (ZN-1007);
+    // a lost connection or a timeout is the network or a slow device, said as it is
+    if (err != "no answer in time" && err != "the connection was lost" && err != "the connection was closed")
+      return fail("wrong code: it is not the one the device shows (three wrong codes close the pairing: run `zinc agent pair` there for a new one)");
+    return fail("pairing failed: " + err);
+  }
   char type = 0;
   std::string answer;
   if (!send(c, kJson, Obj().str("name", hostName()).done()) || !recv(c, type, answer, 15000) || type != kJson) return fail("the device ended the pairing");

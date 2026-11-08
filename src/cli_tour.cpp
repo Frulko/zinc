@@ -189,7 +189,7 @@ Result until(Tour& t, const fs::path& watch, const std::function<void()>& edit, 
   }
 }
 
-// The project made last in `dir` by the zinc new question: the folder whose zinc.json is newer than `since`
+// The project made last in `dir` by zinc new --pick: the folder whose zinc.json is newer than `since`
 fs::path madeSince(const fs::path& dir, fs::file_time_type since) {
   std::error_code ec;
   for (const auto& e : fs::directory_iterator(dir, ec)) {
@@ -199,7 +199,7 @@ fs::path madeSince(const fs::path& dir, fs::file_time_type since) {
   return {};
 }
 
-// 1. make a project: the zinc new question with the game template chosen (it asks the name of the folder); --auto and --dir: that folder
+// 1. make a project: zinc new --pick with the game template chosen (it asks the name of the folder); --auto and --dir: that folder
 Result makeProject(Tour& t, const std::string& dirArg) {
   if (!t.project.empty()) { say(tr("cli.tour.new.have", {{"dir", t.project}})); return Result::Done; }
   say(tr("cli.tour.new.do"));
@@ -324,7 +324,7 @@ Result fastRefresh(Tour& t) {
   return Result::Done;
 }
 
-// 6. a kind of program: the page that helps choose, then the zinc new question beside the tour's project (--auto: a command-line tool)
+// 6. a kind of program: the page that helps choose, then zinc new --pick beside the tour's project (--auto: a command-line tool)
 Result chooseKind(Tour& t) {
   const fs::path parent = fs::path(t.project).parent_path();
   say(tr("cli.tour.kind.do", {{"url", docs("start/choose/")}}));

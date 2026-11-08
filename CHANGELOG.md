@@ -104,6 +104,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc check` and `zinc lint` of a program on a JavaScript engine (a `.js` entry, or `"engine": "quickjs"` in `zinc.json`) use the QuickJS loader: `node_modules` packages resolve as they do when the program runs, and browser globals no longer raise type errors. `zinc lint` warns about what QuickJS lacks, such as `Temporal`.
 - After a failed save, `zinc dev` prints the first error after `compile error:`, not the first line of the output, which could be a plugin's progress note.
 
+- Clearer first steps on the command line: `zinc run --engine quickjs app.tsx` works like `zinc run app.tsx --engine quickjs`, `zinc run breakout` points to `example:breakout` when there is an example of that name, a wrong pairing code says "wrong code" instead of a TLS alert, and `zinc dev --device` no longer prints a port error before it picks another port than 9229.
+- `zinc export` of a project whose `zinc.json` name is not a file name ("Zinc Atelier") names its files after `app.id` instead of stopping, and a folder with no `zinc.json` of its own no longer takes the settings of the project around it.
+
 ### Apps and examples
 
 #### New

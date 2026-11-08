@@ -97,7 +97,7 @@ struct Cfg {
 std::string kBaseline = "chrome >= 111, edge >= 111, firefox >= 115, safari >= 16.4";
 Cfg readCfg(const WebArgs& a) {
   Cfg c;
-  c.title = a.name;
+  c.title = a.title.empty() ? a.name : a.title;
   Json j(readAll(fs::path(a.dir) / "zinc.json"));
   if (j.root) {
     yyjson_val* w = yyjson_obj_get(yyjson_obj_get(j.root, "targets"), "web");   // zinc.json targets.web (the key "web" turns on the QuickJS web environment of ZN-568)

@@ -27,7 +27,7 @@ grep -q "^$name .*pairing open" "$tmp/list" || bad "zinc device list does not sh
 wrong=000000; [ "$code" = 000000 ] && wrong=111111
 for i in 1 2 3; do
   out=$(dev pair "127.0.0.1:$port" $wrong 2>&1) && bad "a wrong code paired"
-  case $out in *"wrong code"*) ;; *) bad "wrong code $i: $out";; esac
+  case $out in *"wrong code: "*) ;; *) bad "wrong code $i: $out";; esac   # said as a wrong code, not as the TLS alert (ZN-1007)
 done
 out=$(dev pair "127.0.0.1:$port" "$code" 2>&1) && bad "the right code paired after three wrong ones"
 case $out in *"pairing is closed"*) ;; *) bad "after three wrong codes: $out";; esac

@@ -63,7 +63,7 @@ timeout 60 python3 tour.py "waits for your save=>!sed -i.bak 's/isDown, Btn/isDw
   "Now fix it=>!sed -i.bak 's/isDwon, Btn/isDown, Btn/' walk/src/main.ts" "for step 5=>q\r" -- "$Z" tour 4 > pty.out 2>&1; rc=$?
 [ $rc -eq 0 ] && grep -q 'error Z0101' pty.out && grep -q 'Step 4 done' pty.out && grep -q 'Stopped at step 5' pty.out && ! grep -q 'Step 5 of 8' pty.out \
   || { echo "zinc tour 4 at a terminal: exit $rc, $(tail -6 pty.out)"; fail=1; }
-# step 1 at a terminal: the zinc new question (the game already chosen) asks the folder's name
+# step 1 at a terminal: zinc new --pick (the game already chosen) asks the folder's name
 mkdir fresh
 ZINC_HOME="$tmp/home2" timeout 60 python3 tour.py "Name of the new folder=>my-walk\r" "for step 2=>q\r" -- /bin/sh -c "cd fresh && exec '$Z' tour" > fresh.out 2>&1; rc=$?
 [ $rc -eq 0 ] && [ -f fresh/my-walk/zinc.json ] && grep -q "\"project\": \"$tmp/fresh/my-walk\"" "$tmp/home2/tour.json" && grep -q 'Stopped at step 2' fresh.out \

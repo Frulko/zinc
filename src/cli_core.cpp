@@ -109,7 +109,7 @@ const Command kCommands[] = {
   {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|jsc|v8|hermes|esp32-qemu|devicesim] [dir]", "cli.cmd.test", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
   {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new [<dir>] --from example:<name> | zinc new | zinc new --pick | zinc new --list", "cli.cmd.new", "With no argument it asks nothing: a game in my-game (my-game-2... when that folder is taken). --pick at a terminal asks what to make (the arrows and Enter, or a number), how to write it when that kind has several styles (a game: Drawing, Scene or Canvas; an app with windows: Interface or Scene), and the name of the new folder; in a script, a pipe or CI --pick prints this usage and writes nothing. Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README: its README.<lang>.md in the language in force when it has one) into a new or empty directory, writes tsconfig.json for this machine, and says what to do next. zinc new <dir> makes a game; --list prints the templates by what they make. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
   {"examples", "zinc examples [drawing|scene|canvas|interface]", "cli.cmd.examples", "Lists the graded examples of learn/catalog.txt by style, then by stars (one: the first hour; four: a whole program to read), each with its name and one line. They ship with zinc: zinc run example:<name> runs one where it is (zinc dev and zinc check take the name too), zinc new <folder> --from example:<name> copies it into a new folder to change. A name the catalogue does not have gets the closest one. Zinc Atelier shows the same examples on its start view."},
-  {"tour", "zinc tour [step] [--list] [--reset] [--auto [--until step] [--dir path]]", "cli.cmd.tour", "A guided first walk in eight steps, in a real project: make it (the zinc new question), run it, change a line, make a mistake and read it with zinc explain, Fast Refresh with zinc dev, choose a kind of program, find the docs, open Zinc Atelier. Each step says what to do and checks by itself that it is done. Progress is kept in $ZINC_HOME/tour.json (~/.zinc/tour.json): zinc tour goes on where you stopped, zinc tour <step> goes to a step, --list shows the steps done, --reset starts again (the project stays). Without a terminal or under CI it asks nothing and prints the steps. --auto does every step itself (the edits too) without a question or a window, up to --until, in --dir (default: zinc-tour in the current directory); exit 1 at the first step that fails."},
+  {"tour", "zinc tour [step] [--list] [--reset] [--auto [--until step] [--dir path]]", "cli.cmd.tour", "A guided first walk in eight steps, in a real project: make it (zinc new --pick asks what to make and the folder's name), run it, change a line, make a mistake and read it with zinc explain, Fast Refresh with zinc dev, choose a kind of program, find the docs, open Zinc Atelier. Each step says what to do and checks by itself that it is done. Progress is kept in $ZINC_HOME/tour.json (~/.zinc/tour.json): zinc tour goes on where you stopped, zinc tour <step> goes to a step, --list shows the steps done, --reset starts again (the project stays). Without a terminal or under CI it asks nothing and prints the steps. --auto does every step itself (the edits too) without a question or a window, up to --until, in --dir (default: zinc-tour in the current directory); exit 1 at the first step that fails."},
   {"learn", "zinc learn [lesson] [--dir path] [--check | --hint | --solve | --unpack] [--json] [--reset]", "cli.cmd.learn", "The lessons of docs/learn as exercises, offline: zinc learn lists them with your progress; zinc learn <number> unpacks one into a folder (./<lesson>, or --dir), prints its step, watches the file and checks the step at each save (zinc check first, then the step's own check), going on to the next step when it passes. While it watches, Enter checks again, h prints a hint, s the solution, q stops. --check, --hint and --solve do it once in the folder (--dir); --json prints the state for Zinc Atelier's lesson panel; --reset starts the lesson over. Progress is kept in $ZINC_HOME/learn.json (~/.zinc/learn.json), shared with Zinc Atelier."},
   {"pack", "zinc pack [dir] [-o app.zapp]","cli.cmd.pack", "Writes build/<name>.zapp: a deterministic ustar with the compiled program, its baked fonts and images, its assets and zinc.json, every file listed with its SHA-256 in manifest.json (and a signature slot). zinc run app.zapp checks and runs it (docs/zapp.md)."},
   {"assets", "zinc assets build|info [dir] [--target T] [--release]", "cli.cmd.assets", "zinc assets info prints the asset profile (texture formats, max size, audio codecs, pack codec) and the budgets in force on each target: targets/capabilities.json, then zinc.json assets.profiles, targets.<id>.assets and assets.budgets. zinc assets build imports every file of the project's assets directory (zinc.json assets.dir; its assets.rules and assets.groups choose importers and packs) (images to premultiplied RGBA, texture rules to the GPU formats of the target's profile through basisu, model rules through gltfpack: a quantised GLB compressed with EXT_meshopt_compression for three or a .zmesh for zinc:3d, world rules a glTF scene to a zinc:3d .zworld with its cells, levels and chunks, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with the target's codec (zstd, lz4 on the Pi) and encodes textures (a dev build makes rgba8). zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
@@ -399,18 +399,45 @@ bool simulate(std::vector<std::string>& args, const std::string& engineRoot, std
   return true;
 }
 
-bool discoverEntry(std::vector<std::string>& args, std::string& err) {
-  if (args.size() < 2 || (args[1] != "run" && args[1] != "build" && args[1] != "check")) return true;
-  const std::string cmd = args[1];
-  // zinc run --har file (ZN-370): the host writes its network log there when the program ends (src/host/netlog.h reads ZINC_HAR; compiled runs inherit it)
-  for (std::size_t k = 2; cmd == "run" && k + 1 < args.size() && args[k] != "--"; ++k)
-    if (args[k] == "--har") { setenv("ZINC_HAR", fs::absolute(args[k + 1]).string().c_str(), 1); args.erase(args.begin() + static_cast<std::ptrdiff_t>(k), args.begin() + static_cast<std::ptrdiff_t>(k) + 2); break; }
-  // the position of the entry: the first argument after the command that is not an option (`--profile esp32` takes its value)
+std::size_t entryIndex(const std::vector<std::string>& args) {
   std::size_t at = 2;
   while (at < args.size() && args[at].rfind("-", 0) == 0 && args[at] != "--") {
     const std::string& a = args[at];
     at += (a == "--profile" || a == "--engine" || a == "--target" || a == "-o" || a == "--port" || a == "--device" || a == "--boot-ms") && at + 1 < args.size() ? 2 : 1;
   }
+  return std::min(at, args.size());
+}
+
+namespace {
+bool discoverEntryIn(std::vector<std::string>& args, std::string& err);
+}
+
+bool discoverEntry(std::vector<std::string>& args, std::string& err) {
+  if (!discoverEntryIn(args, err)) return false;
+  // `zinc run --engine quickjs file.tsx` (ZN-1007): the JavaScript engines read their name right after the entry (main.cpp), so an engine named
+  // anywhere else on the command line moves there; options and their order are otherwise free, as people append them
+  if (args.size() > 2 && args[1] == "run") {
+    const std::size_t at = entryIndex(args);
+    for (std::size_t k = 2; at < args.size() && args[at] != "--" && k + 1 < args.size() && args[k] != "--"; ++k)
+      if (args[k] == "--engine" && k != at + 1) {
+        const std::string engine = args[k + 1];
+        args.erase(args.begin() + static_cast<std::ptrdiff_t>(k), args.begin() + static_cast<std::ptrdiff_t>(k) + 2);
+        const std::size_t e = entryIndex(args);
+        args.insert(args.begin() + static_cast<std::ptrdiff_t>(e) + 1, {"--engine", engine});
+        break;
+      }
+  }
+  return true;
+}
+
+namespace {
+bool discoverEntryIn(std::vector<std::string>& args, std::string& err) {
+  if (args.size() < 2 || (args[1] != "run" && args[1] != "build" && args[1] != "check")) return true;
+  const std::string cmd = args[1];
+  // zinc run --har file (ZN-370): the host writes its network log there when the program ends (src/host/netlog.h reads ZINC_HAR; compiled runs inherit it)
+  for (std::size_t k = 2; cmd == "run" && k + 1 < args.size() && args[k] != "--"; ++k)
+    if (args[k] == "--har") { setenv("ZINC_HAR", fs::absolute(args[k + 1]).string().c_str(), 1); args.erase(args.begin() + static_cast<std::ptrdiff_t>(k), args.begin() + static_cast<std::ptrdiff_t>(k) + 2); break; }
+  std::size_t at = entryIndex(args);
   const bool hasEntry = at < args.size() && args[at] != "--";
   std::string entry = hasEntry ? args[at] : ".";
   // zinc run on plain JavaScript (ZN-719): a .js or .mjs entry, or zinc.json "engine": "quickjs", runs on QuickJS-ng as `--engine quickjs` does;
@@ -477,6 +504,7 @@ bool discoverEntry(std::vector<std::string>& args, std::string& err) {
   }
   return true;
 }
+}  // namespace
 
 int unknownCommand(const std::string& name) {
   using zn::i18n::tr;
@@ -1075,7 +1103,7 @@ Opts parseOpts(const std::vector<std::string>& args, const std::vector<std::stri
 }
 bool has(const Opts& o, const std::string& f) { for (const std::string& x : o.flags) if (x == f) return true; return false; }
 
-struct ProjectInfo { std::string dir, entry, name, version, engine; };
+struct ProjectInfo { std::string dir, entry, name, version, engine, appId; };
 bool resolveProject(const std::string& arg, ProjectInfo& p, std::string& err) {
   std::error_code ec;
   std::string a = arg.empty() ? "." : arg;
@@ -1093,7 +1121,22 @@ bool resolveProject(const std::string& arg, ProjectInfo& p, std::string& err) {
   p.name = have && !proj.name.empty() ? proj.name : fs::path(p.entry).stem().string();
   p.version = have && !proj.app.version.empty() ? proj.app.version : "0.1.0";
   p.engine = have ? proj.engine : "";
+  p.appId = have ? proj.app.id : "";
   return true;
+}
+
+// The file and folder names of an export (ZN-1007): zinc.json name when it is one already, else the last part of app.id ("Zinc Atelier" with
+// dev.zinc.atelier: atelier), else the name as a slug (letters and digits, '-' between words), else the entry's
+std::string fileName(const ProjectInfo& p) {
+  auto safe = [](unsigned char c) { return std::isalnum(c) || c == '.' || c == '_' || c == '-'; };
+  if (!p.name.empty() && std::all_of(p.name.begin(), p.name.end(), safe)) return p.name;
+  if (const std::string last = p.appId.substr(p.appId.rfind('.') + 1); !last.empty() && std::all_of(last.begin(), last.end(), safe)) return last;
+  std::string slug;
+  for (const unsigned char c : p.name)
+    if (std::isalnum(c)) slug += static_cast<char>(std::tolower(c));
+    else if (!slug.empty() && slug.back() != '-') slug += '-';
+  while (!slug.empty() && slug.back() == '-') slug.pop_back();
+  return slug.empty() ? fs::path(p.entry).stem().string() : slug;
 }
 
 std::string zigTargetFor(const std::string& t) {
@@ -2154,12 +2197,14 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   ProjectInfo p; std::string err;
   if (!resolveProject(o.entry, p, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 2; }
   if (has(o, "--inspect")) p.entry = inspectEntry(p.dir, p.entry);   // a debug build for a device (zinc device deploy --inspect)
-  for (char c : p.name) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-')) { std::fprintf(stderr, "zinc export: zinc.json name \"%s\" is not usable in a file name (letters, digits, '.', '_', '-')\n", p.name.c_str()); return 2; }
+  if (std::error_code dc; fs::is_directory(o.entry.empty() ? "." : o.entry, dc)) setenv("ZINC_PROJECT_ROOT", p.dir.c_str(), 1);   // the folder is the project: the builds below look no higher for a zinc.json (ZN-1007)
+  const std::string title = p.name;   // what a person reads (the page's title); p.name becomes the file name below
+  p.name = fileName(p);
   const std::string target = o.v.count("--target") ? o.v["--target"] : zn::plat::osName();
   if (zn::log::steps()) { const std::string d = zn::log::shortPath(fs::absolute(p.dir).lexically_normal().string()); std::fprintf(stderr, "zinc export %s for %s\n", d.empty() || d == "/" ? "." : d.c_str(), target.c_str()); }
   if (target == "web") {   // the program as JavaScript on the browser's own engine (docs/targets/web.md)
     WebArgs w;
-    w.dir = p.dir; w.entry = p.entry; w.name = p.name; w.version = p.version; w.engineRoot = engineRoot;
+    w.dir = p.dir; w.entry = p.entry; w.name = p.name; w.title = title; w.version = p.version; w.engineRoot = engineRoot;
     w.out = o.v.count("-o") ? o.v["-o"] : "";
     w.render = o.v.count("--render") ? o.v["--render"] : "";
     w.browsers = o.v.count("--browsers") ? o.v["--browsers"] : "";

@@ -11,7 +11,9 @@
 #include "wire.h"
 #include "zn/log.h"
 
+#include <arpa/inet.h>
 #include <fcntl.h>
+#include <netinet/in.h>
 #include <poll.h>
 #include <signal.h>
 #include <sys/socket.h>
@@ -36,6 +38,22 @@ namespace zn::agent {
 namespace fs = std::filesystem;
 
 namespace {
+
+// A port of this machine's loopback nobody listens on, probed quietly: zinc dev --device asks for 9229 only when it is free, so a taken one
+// is no "cannot listen" line before the fallback to any port (ZN-1007)
+bool loopbackFree(int port) {
+  const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  if (fd < 0) return false;
+  sockaddr_in a{};
+  a.sin_family = AF_INET;
+  a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  a.sin_port = htons(static_cast<std::uint16_t>(port));
+  int one = 1;
+  ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);   // as the forward binds: a port in TIME_WAIT is free for it too
+  const bool free = ::bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0;
+  ::close(fd);
+  return free;
+}
 
 // ---- on the device ----
 
@@ -413,7 +431,7 @@ struct Session {
     timing = true;
     if (inspect && !inspector && a.num("inspector") > 0) {   // the first start: the program's inspector there, on a port here for the session (ZN-821)
       const int there = static_cast<int>(a.num("inspector"));
-      inspector = startForward(device, there, 9229);   // chrome://inspect looks at localhost:9229 by default
+      inspector = loopbackFree(9229) ? startForward(device, there, 9229) : 0;   // chrome://inspect looks at localhost:9229 by default
       if (!inspector) inspector = startForward(device, there, 0);
       if (inspector) std::fprintf(stderr, "zinc dev: the inspector of the program on %s is on localhost:%d here: chrome://inspect%s, or devtools://devtools/bundled/inspector.html?ws=127.0.0.1:%d/zinc\n",
                                   device.c_str(), inspector, inspector == 9229 ? " lists it" : (" with localhost:" + std::to_string(inspector) + " among its network targets").c_str(), inspector);
