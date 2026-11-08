@@ -921,7 +921,7 @@ int doctorDetails(const std::string& engineRoot, const std::string& rendererLine
     const std::string here = zn::tc::pluginTarget();
     for (const std::string& target : {here, std::string(here == "macos" ? "linux" : "macos")}) {
       int have = 0;
-      std::string without;
+      std::vector<std::pair<std::string, std::string>> without;   // a reason and the plugins it holds for: one line per reason, not per plugin (ZN-1044: 60 lines in a source build)
       for (const zn::frontend::FoundPlugin& p : found) {
         bool native = p.manifest.kind == "display";
         for (const auto& e : fs::directory_iterator(fs::path(p.dir) / "native", ec)) native = native || (e.path().filename().string().ends_with(".spec.ts") && e.path().filename().string()[0] != '.');
@@ -938,10 +938,17 @@ int doctorDetails(const std::string& engineRoot, const std::string& rendererLine
           std::getline(in, key);
           if (key != zn::tc::prebuiltKey(p, engineRoot, ".", target)) why = key.empty() ? "built here on first use" : "its prebuilt is of another engine: built here on first use";
         }
-        if (why.empty()) ++have; else without += "\n    " + p.manifest.name + ": " + why;
+        if (why.empty()) { ++have; continue; }
+        auto w = std::find_if(without.begin(), without.end(), [&](const auto& x) { return x.first == why; });
+        if (w == without.end()) without.push_back({why, p.manifest.name}); else w->second += ", " + p.manifest.name;
+      }
+      std::string lines;
+      for (const auto& [why, names] : without) {   // a long list (every plugin of a source build) as its count
+        const auto n = std::count(names.begin(), names.end(), ',') + 1;
+        lines += "\n    " + why + ": " + (n > 8 ? std::to_string(n) + " plugins (zinc plugins lists them)" : names);
       }
       std::printf("\nplugin libraries for %s%s: %d prebuilt%s%s%s\n", target.c_str(), target == here ? " (this machine)" : " (by the manifests)", have, target == here ? "" : " in a release",
-                  without.empty() ? "" : ", none for:", without.c_str());
+                  without.empty() ? "" : ", none for:", lines.c_str());
     }
     std::string rust;   // plugins with Rust code (zinc:loro): cargo builds it the first time a program uses them; zinc never installs it
     for (const zn::frontend::FoundPlugin& p : found)

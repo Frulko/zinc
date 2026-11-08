@@ -549,6 +549,8 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
         log::write("plugin", log::Info, m.name + ": prebuilt in the plugin (" + pre.string() + ")", out.seconds * 1000);
         return true;
       }
+      // an install without the plugin's C++ (ZN-1044): say why it cannot be built rather than that it has no source (a release ships the sources of the plugins that take options)
+      if (!noSource.empty()) { err = "plugin '" + m.name + "': its prebuilt library was built for other options or another engine, and this install does not have its C++ to build it with the options zinc.json \"plugins\" sets: remove them, or update zinc"; return false; }
       std::fprintf(stderr, "zinc: plugin '%s': its prebuilt libraries for %s were built for other options or another engine; building it here\n", m.name.c_str(), (gCross.on ? gCross.name : target).c_str());
     }
   }

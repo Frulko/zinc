@@ -46,6 +46,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A disposed `Script` or a closed `WebView` stays dead: it can no longer run code in, settle a call of, or send its late messages to the script or web view created after it.
 - Plugins that do their slow work on a worker thread, such as `zinc:ipod`, answer again after the program's frame loop has ended instead of never settling.
 - On macOS 13 and later, `autostart.enable()` in an exported app adds the app itself to Login Items under its own name and icon, instead of a background item named after its id; an app that started at login before moves over by itself.
+- An installed zinc builds a plugin whose options a project sets in `zinc.json` (`zinc:3d`, `zinc:video`, the display drivers...): the release ships those plugins' sources beside their prebuilt library, and an install that lacks them says so instead of "no native source".
 
 ### UI
 
@@ -126,6 +127,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc monitor --udp` listens on this machine only (`--host 0.0.0.0` receives from devices on the network) and shows the control characters of what arrives escaped, so a datagram can no longer clear or retitle your terminal.
 - A program on QuickJS (a `.js` entry or `"engine": "quickjs"`) now follows the `"permissions"` of its `zinc.json` as the typed engines do: an exported app refuses to read, write or watch files it was not granted, and `zinc run` warns about them.
 - After a failed save, `zinc dev` prints the first error after `compile error:`, not the first line of the output, which could be a plugin's progress note.
+- `zinc doctor --details` lists the plugins without a prebuilt library by reason, one line each, instead of one line per plugin (sixty in a build from the sources).
 
 - Clearer first steps on the command line: `zinc run --engine quickjs app.tsx` works like `zinc run app.tsx --engine quickjs`, `zinc run breakout` points to `example:breakout` when there is an example of that name, a wrong pairing code says "wrong code" instead of a TLS alert, and `zinc dev --device` no longer prints a port error before it picks another port than 9229.
 - `zinc export` of a project whose `zinc.json` name is not a file name ("Zinc Atelier") names its files after `app.id` instead of stopping, and a folder with no `zinc.json` of its own no longer takes the settings of the project around it.

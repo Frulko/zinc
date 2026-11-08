@@ -148,6 +148,8 @@ def prebuild_plugins(zinc, share, target, cross=None):
                 shutil.copytree(d, os.path.join(share, "plugins", name), dirs_exist_ok=True, ignore=shutil.ignore_patterns("prebuilt"))
                 continue
             shutil.copytree(pre, os.path.join(share, "plugins", name, "prebuilt", target))
+            if m.get("options"):   # ZN-1044: a project that sets its options misses the prebuilt key (built with the defaults): its sources build it on first use
+                shutil.copytree(d, os.path.join(share, "plugins", name), dirs_exist_ok=True, ignore=shutil.ignore_patterns("prebuilt"))
         # a device's own entry (ZN-841): the engine on a reMarkable loads display-rmpp's "rmpp" driver from prebuilt/rmpp/, not the desktop emulator of "linux"
         for name, device in DEVICE_ENTRIES.get(cross or "", ()):
             r = subprocess.run([zinc, "plugin-build", name, tmp, "--target", "linux-" + cross, "--prebuild"], capture_output=True, text=True,
