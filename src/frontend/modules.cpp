@@ -2421,6 +2421,7 @@ struct Loader {
             }
             std::uint32_t from = resolve(fi, st, x.text);
             if (from == kNone) break;
+            if (A.nodes[st].kids.empty()) mod.effectImports.push_back(from);
             for (std::uint32_t sp : std::vector<std::uint32_t>(x.kids)) {
               if (A.nodes[sp].text == "*") { namespaces.push_back({std::string(A.nodes[A.nodes[sp].kids[0]].text), from, kNoDeferred}); continue; }
               mod.imports.push_back({from, A.nodes[sp].text, A.nodes[A.nodes[sp].kids[0]].text, sp});

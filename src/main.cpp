@@ -895,6 +895,8 @@ static zn::rt::Result runHot(std::unique_ptr<zn::dev::hot::Unit> unit, zn::zbc::
   unit->zbc = std::move(zm);
   zn::dev::hot::finish(*unit);
   unit->resources = blob;
+  // Runs on a thread of its own while the program draws its frames (dev/hot.cpp, ZN-1024): what the program writes on standard error meanwhile
+  // is caught with the diagnostics, and written out again after a compile that succeeded.
   auto compile = [entry](zn::dev::hot::Unit& u, std::string& errors) {
     std::fflush(stderr);   // the diagnostics go to zinc dev, for its red box
     FILE* tf = std::tmpfile();
@@ -910,6 +912,13 @@ static zn::rt::Result runHot(std::unique_ptr<zn::dev::hot::Unit> unit, zn::zbc::
     if (!rc) zn::log::step("compile", "the save", zn::log::since(compileAt));
     if (tf) { std::rewind(tf); char b[4096]; for (std::size_t n; (n = std::fread(b, 1, sizeof b, tf)) > 0;) errors.append(b, n); std::fclose(tf); }
     if (rc) return false;
+    for (std::size_t at = 0; at < errors.size();) {   // the program's lines, not the compile's steps (indented)
+      std::size_t nl = errors.find('\n', at);
+      nl = nl == std::string::npos ? errors.size() : nl + 1;
+      if (errors.compare(at, 2, "  ") != 0) std::fwrite(errors.data() + at, 1, nl - at, stderr);
+      at = nl;
+    }
+    errors.clear();
     zn::dev::hot::finish(u);
 #ifdef ZN_HOST_GFX
     std::string err;

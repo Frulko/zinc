@@ -2,8 +2,10 @@
 # Fast Refresh in zinc dev on the interpreter (ZN-742.02, docs/reports/zinc-next-fast-refresh.md §10), headless:
 # 1. a gfx program: a save of a module that exports values re-runs it and its importers in the same process (same pid, `refreshed`, no new
 #    version), and the module it did not touch keeps its state (the frame counter goes on);
+#    a module imported for its effects alone (`import './fx'`) runs its importer again when it changes (ZN-1024);
 # 2. a top-level effect without import.meta.hot.dispose restarts with a one-line reason, and a file that is not a module restarts too;
-# 3. a compile error keeps the red box (the program is replaced by it) and the fix starts the program again;
+# 3. a compile error draws the red box over the program, which runs on with its state (same pid, the frame counter goes on), and the fix
+#    swaps in without a restart (ZN-1024);
 # 4. a Solid program whose entry runs again mounts its root again, with the state of its store kept, and the first tree is disposed (its
 #    effects stop).
 cd "$(dirname "$0")/../.." || exit 2
@@ -13,6 +15,14 @@ fail=0
 waitfor() { # file pattern seconds
   n=0; while [ $n -lt $(( $3 * 20 )) ]; do grep -q "$2" "$1" 2>/dev/null && return 0; sleep 0.05; n=$((n+1)); done; return 1; }
 last() { grep "$2" "$1" | tail -1 | awk '{print $2}'; }   # the frame count of the last line of the program that starts with $2
+root=$PWD
+pixel() { python3 - "$1" "$2" "$3" "$root" <<'P'
+import sys, importlib.machinery, importlib.util
+l = importlib.machinery.SourceFileLoader("pd", sys.argv[4] + "/tools/pngdiff"); s = importlib.util.spec_from_loader("pd", l); m = importlib.util.module_from_spec(s); l.exec_module(m)
+w, h, b, d = m.dec(sys.argv[1]); x, y = int(sys.argv[2]), int(sys.argv[3]); i = (y * w + x) * b
+print(d[i], d[i+1], d[i+2])
+P
+}
 export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=2000000000
 # ---- 1. gfx
 mkdir -p "$t/g/src" && cd "$t/g" || exit 2
@@ -21,14 +31,19 @@ export let frames: i32 = 0;
 export function tick(): i32 { frames++; return frames; }
 T
 echo "export const label = 'one';" > src/labels.ts
+printf "export const notes: string[] = ['a'];\n" > src/notes.ts
+printf "import { notes } from './notes';\nconst added: i32 = notes.push('n1');\n" > src/fx.ts   # no top-level statement: it can run again
 cat > src/main.ts <<'T'
 import { onFrame, clear } from 'zinc:gfx';
 import { tick, frames } from './state';
 import { label } from './labels';
+import { notes } from './notes';
+import './fx';
 const shown = label + '!';   // computed when this module runs: it changes only if the save re-runs it
-onFrame((dt: number) => { clear(0x101820); if (tick() % 20000 === 0) console.log(shown, frames); });
+const seen = notes.join('');
+onFrame((dt: number) => { clear(0x101820); if (tick() % 20000 === 0) console.log(shown, frames, seen); });
 T
-"$Z" dev --no-devtools > "$t/dev.log" 2>&1 &
+ZINC_SHOT="$t/shot.png" ZINC_SHOT_EVERY=20000 "$Z" dev --no-devtools > "$t/dev.log" 2>&1 &
 dev=$!
 waitfor "$t/dev.log" "v1 started" 10 || { echo "dev did not start: $(cat "$t/dev.log")"; exit 1; }
 waitfor "$t/dev.log" "^one! 40000" 10 || { echo "the program did not run: $(cat "$t/dev.log")"; exit 1; }
@@ -41,6 +56,10 @@ grep -q "v2 started" "$t/dev.log" && { echo "the save restarted the program: $(c
 before=$(last "$t/dev.log" "^one!"); after=$(grep "^two!" "$t/dev.log" | head -1 | awk '{print $2}')
 [ -n "$after" ] && [ "$after" -gt "$before" ] || { echo "state.ts lost its state: one! $before, then two! $after"; fail=1; }
 ms=$(sed -n 's/.*refreshed src\/labels.ts (\([0-9]*\) ms after the save).*/\1/p' "$t/dev.log")
+# 1b. a module imported for its effects alone: its importer runs again (it reads the notes again; notes.ts kept its array)
+printf "import { notes } from './notes';\nconst added: i32 = notes.push('n2');\n" > src/fx.ts
+waitfor "$t/dev.log" "v1 refreshed src/fx.ts" 5 || { echo "no refresh of fx.ts: $(tail -5 "$t/dev.log")"; fail=1; }
+waitfor "$t/dev.log" "^two! [0-9]* an1n2" 5 || { echo "main.ts did not run again after its side-effect import changed: $(tail -5 "$t/dev.log")"; fail=1; }
 # 2. fallbacks: a top-level effect without dispose, then a file that is not a module
 printf "export const label = 'three';\nconsole.log('labels ran');\n" > src/labels.ts
 waitfor "$t/dev.log" "restart: src/labels.ts:2 .*no import.meta.hot.dispose" 5 || { echo "no restart with a reason: $(cat "$t/dev.log")"; fail=1; }
@@ -49,13 +68,23 @@ waitfor "$t/dev.log" "^three! " 10 || { echo "v2 did not run: $(tail -5 "$t/dev.
 echo '{"name":"g"}' > zinc.json
 waitfor "$t/dev.log" "restart: zinc.json changed (not a module)" 5 || { echo "zinc.json did not restart: $(tail -5 "$t/dev.log")"; fail=1; }
 waitfor "$t/dev.log" "v3 started" 5 || { echo "no v3: $(tail -5 "$t/dev.log")"; fail=1; }
-# 3. a compile error: the red box; the fix: the program again
+# 3. a compile error: the red box over the program, which keeps its state; the fix swaps in
 sleep 1
+pid3=$(pgrep -P $dev)
 echo "export const label: i32 = 'four';" > src/labels.ts
 waitfor "$t/dev.log" "compile error: src/labels.ts:1" 5 || { echo "no compile error: $(tail -5 "$t/dev.log")"; fail=1; }
-waitfor "$t/dev.log" "red box on screen" 5 || { echo "no red box: $(tail -5 "$t/dev.log")"; fail=1; }
+waitfor "$t/dev.log" "red box over v3, its state kept" 5 || { echo "no red box: $(tail -5 "$t/dev.log")"; fail=1; }
+sleep 0.5
+shot=$(ls -t "$t"/shot-*.png 2>/dev/null | head -1)   # a frame drawn under the box
+[ -n "$shot" ] && [ "$(pixel "$shot" 100 100)" = "185 28 28" ] || { echo "the red box is not over the frame: ${shot:-no shot} $( [ -n "$shot" ] && pixel "$shot" 100 100)"; fail=1; }
+before=$(last "$t/dev.log" "^three!")
 echo "export const label = 'five';" > src/labels.ts
-waitfor "$t/dev.log" "v4 started" 5 || { echo "the fix did not start v4: $(tail -5 "$t/dev.log")"; fail=1; }
+waitfor "$t/dev.log" "v3 refreshed src/labels.ts" 5 || { echo "the fix did not swap in: $(tail -5 "$t/dev.log")"; fail=1; }
+waitfor "$t/dev.log" "^five! " 5 || { echo "the fixed program does not run: $(tail -5 "$t/dev.log")"; fail=1; }
+grep -q "v4 started" "$t/dev.log" && { echo "the fix restarted the program: $(tail -5 "$t/dev.log")"; fail=1; }
+[ "$(pgrep -P $dev)" = "$pid3" ] || { echo "the compile error or its fix changed the process: $pid3 -> $(pgrep -P $dev)"; fail=1; }
+after=$(grep "^five!" "$t/dev.log" | head -1 | awk '{print $2}')
+[ -n "$after" ] && [ -n "$before" ] && [ "$after" -gt "$before" ] || { echo "the state was lost under the red box: three! $before, then five! $after"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 # ---- 4. Solid: the entry runs again and mounts its root again; the store keeps its count
 mkdir -p "$t/s/src" && cd "$t/s" || exit 2

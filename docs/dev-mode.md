@@ -53,7 +53,12 @@ zinc dev: restart: src/state.ts:13 `setColorMode(...)` runs at the top level, an
 - **The desktop-app template.** Its pages (`src/pages/*.tsx`) refresh in place, with the page you are on and the name you typed kept.
   `src/state.ts`, `src/router.ts` and `src/main.tsx` restart: `state.ts` holds the state a refresh keeps (running it again would reset it
   anyway), and `main.tsx` installs the menus, like the `index.js` of a React Native app, which reloads too.
-- **A compile error** shows the red box and stops the program; the next good save starts it again (state lost).
+- **The save compiles while the program runs.** The running program compiles a save on a thread of its own, so its frames go on until
+  the new code is swapped in (they paused for the whole compile before).
+- **A module imported for its effects** (`import './setup'`) runs its importer again when it changes, as a module it imports by name does.
+- **A compile error** draws the red box over the program, which keeps running underneath with its state; the next save that compiles
+  takes the box away and swaps in as any save does. When the program cannot take saves in place (no frame loop, QuickJS), the red box
+  replaces it and the fix starts it again (state lost).
 - **AOT and QuickJS.** `zinc dev` always interprets, so there is no compiled program to swap; `zinc build` and `zinc run` of a compiled
   program are not affected. A program on QuickJS (a `.js` entry, `zinc.json` `"engine": "quickjs"`) restarts on every save:
   `zinc dev: restart: the program runs on QuickJS, which has no Fast Refresh`. `zinc dev --device` restarts the program on the device.

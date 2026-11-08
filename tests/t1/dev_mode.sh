@@ -1,5 +1,5 @@
 #!/bin/sh
-# zinc dev (ZN-141): edit a file and the running program is replaced within 2 s, a compile error puts the red box on the screen, a fix replaces it; the inspector answers a scripted CDP client; zinc monitor prints telemetry.
+# zinc dev (ZN-141): edit a file and the running program is replaced within 2 s, a compile error puts the red box over the program, a fix replaces it; the inspector answers a scripted CDP client; zinc monitor prints telemetry.
 # ZN-710: the edit adds a plugin import and the fix takes it away: each version's run prints the plugins it imports (`zinc: plugins: ...`).
 cd "$(dirname "$0")/../.." || exit 2
 Z="$ZINC"; case "$Z" in /*) ;; *) Z="$PWD/$Z" ;; esac
@@ -33,14 +33,10 @@ p2=$(pixel "$t/frame-3.png" 1 1)
 [ "$p1" != "$p2" ] || { echo "the frame did not change after the edit ($p1)"; fail=1; }
 echo "$p2" | grep -q "^32 64 16$" || { echo "new background should be 32 64 16, got $p2"; fail=1; }
 echo "reload took $(( $(now_ms) - t0 )) ms (limit 2000 incl. the 0.4 s wait)" >/dev/null
-# 2. a compile error: red box
-rm -f "$t/frame-3.png"
+# 2. a compile error: the red box over the running version, which keeps its state (ZN-1024; its pixels: tests/t1/hot_swap.sh)
 printf 'let x: number = "not a number";\nconsole.log(x);\n' >> src/main.ts
 waitfor "$t/dev.log" "compile error" 2 || { echo "no compile error reported: $(cat "$t/dev.log")"; fail=1; }
-waitfor "$t/dev.log" "red box on screen" 2 || { echo "no red box"; fail=1; }
-sleep 0.6
-rb=$(pixel "$t/frame-3.png" 40 4 2>/dev/null)
-[ "$rb" = "220 38 38" ] || { echo "the red box bar should be 220 38 38, got '$rb'"; fail=1; }
+waitfor "$t/dev.log" "red box over v2" 2 || { echo "no red box: $(tail -5 "$t/dev.log")"; fail=1; }
 # 3. the fix replaces the red box
 cp src/main.ts.bak src/main.ts && sed -i.bak 's/clear(0x101820)/clear(0x204010)/' src/main.ts
 waitfor "$t/dev.log" "v3 started" 2 || { echo "the fix did not restart the program: $(cat "$t/dev.log")"; fail=1; }

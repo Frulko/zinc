@@ -350,18 +350,17 @@ static float ovl_para(Overlay& o, float x, float y, const char* s, uint32_t n, u
 static void banner_expire() {
   if (banner.ncmd && now_ms() > banner_until) { banner.ncmd = banner.ntext = 0; banner_count = 0; ovl_changed = true; }
 }
-/** Shows the red box for `text` ("message\n    at f (file:line)..."); null clears it. False: no screen. */
-bool crash_screen(const char* text, uint32_t n) {
+/** The red box: `title` over `text` ("message\n    at f (file:line)..."), `hint` at the bottom; null clears it. */
+static void red_box(const char* title, const char* hint, const char* text, uint32_t n) {
   zrt_render_idle();
   rbox.ncmd = rbox.ntext = 0;
   ovl_changed = true;
-  if (!text) return true;
+  if (!text) return;
   int32_t k = ovl_k();
   float pad = 6.0f * k, y, top = bar_on() ? 14.0f * k : 0;   // below the dev bar
   ovl_rect(rbox, 0, 0, (float)pw, (float)ph, 0xb91c1c);
   ovl_rect(rbox, 0, top, (float)pw, 14.0f * k, 0x7f1d1d);
-  static const char title[] = "Zinc: uncaught error";
-  ovl_text(rbox, pad, top + 3.0f * k, title, sizeof title - 1, 0xfecaca);
+  ovl_text(rbox, pad, top + 3.0f * k, title, (uint32_t)__builtin_strlen(title), 0xfecaca);
   y = top + 20.0f * k;
   uint32_t i = 0;
   while (i < n && text[i] != '\n') i++;
@@ -372,13 +371,21 @@ bool crash_screen(const char* text, uint32_t n) {
     while (j < i && text[j] == ' ') j++;
     if (y + 24.0f * k < ph) y = ovl_para(rbox, pad, y, text + j, i - j, 0xfde2e2, 2);
   }
+  ovl_para(rbox, pad, (float)ph - 38.0f * k, hint, (uint32_t)__builtin_strlen(hint), 0xfecaca, 2);
+}
+/** Shows the red box of an uncaught error for `text`; null clears it. False: no screen. */
+bool crash_screen(const char* text, uint32_t n) {
 #ifdef ZRT_DEV
-  static const char hint[] = "Save a file to reload. Enter/Space/click: restart";
+  red_box("Zinc: uncaught error", "Save a file to reload. Enter/Space/click: restart", text, n);
 #else
-  static const char hint[] = "Enter/Space/click: restart";
+  red_box("Zinc: uncaught error", "Enter/Space/click: restart", text, n);
 #endif
-  ovl_para(rbox, pad, (float)ph - 38.0f * k, hint, sizeof hint - 1, 0xfecaca, 2);
   return true;
+}
+/** zinc dev's Fast Refresh (ZN-1024): the diagnostics of a save that did not compile, drawn over the program, which keeps running underneath
+    with its state; the next save that compiles clears it (null). */
+void compile_screen(const char* text, uint32_t n) {
+  red_box("Zinc: compile error", "Fix it and save: the program keeps its state", text, n);
 }
 /** The inspector's pause (src/host/gfx_host.cpp devPause): an amber label at the top of the window, as Chrome's "Paused in debugger". */
 void pause_badge(bool on) {

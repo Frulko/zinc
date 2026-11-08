@@ -3897,15 +3897,16 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
           std::fprintf(stderr, "zinc dev: restart: %s\n", line.c_str() + 8);
           startProgram(msSince(t0), false, {});
           continue;
-        } else if (line == "error") {   // the red box, as a check failure gives it
+        } else if (line == "error") {   // it draws the red box over itself and runs on with its state (ZN-1024): the fix swaps in
           std::vector<std::string> lines;
           std::error_code hec;
-          const std::string here = fs::weakly_canonical(p.dir, hec).string() + "/";   // it compiles the absolute path from its real directory: the box is 90 characters wide
+          const std::string here = fs::weakly_canonical(p.dir, hec).string() + "/";   // it compiles the absolute path from its real directory
           while (hotLine(hotFd, hotBuf, line, 2000) && line != "end")
             if (!line.empty() && line.rfind("  ", 0) != 0) lines.push_back(line.rfind(here, 0) == 0 ? line.substr(here.size()) : line);   // not the steps zinc run prints (indented)
           std::fprintf(stderr, "zinc dev: compile error: %s\n", firstDiagnostic(lines, "the build failed"));
           devHint(lines);
-          startProgram(msSince(t0), true, lines);
+          std::fprintf(stderr, "zinc dev: red box over v%d, its state kept until the fix (%ld ms after the save)\n", version, msSince(t0));
+          std::fflush(stderr);
           continue;
         } else why = "the program answered " + line;
       }

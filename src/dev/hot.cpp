@@ -16,6 +16,15 @@
 #include "ir/ir.h"
 #include "zn/host.h"
 
+#ifndef _WIN32
+#include <pthread.h>
+#endif
+#include <atomic>
+
+#ifdef ZN_HOST_GFX
+namespace zrt::gfx { void compile_screen(const char* text, std::uint32_t n); }   // runtime/gfx.cpp: the red box of a compile error
+#endif
+
 namespace zn::dev::hot {
 
 using frontend::N;
@@ -51,6 +60,7 @@ void describe(const frontend::Program& prog, const ir::Module& low, Unit& u) {
     m.hash = std::hash<std::string>{}(f.text);
     m.library = frontend::libraryModule(mi.path);
     for (const frontend::ModuleImport& im : mi.imports) m.imports.push_back(a.modules[im.from].path);
+    for (std::uint32_t from : mi.effectImports) m.imports.push_back(a.modules[from].path);   // `import './x'`: a change to x runs this module again
     // A boundary exports only code and types: functions (components among them), classes, interfaces, type aliases. Importers reach them
     // by symbol and live objects take the new classes by key, so they need not run again; only an exported value (let, var, a const that
     // is not a function) can have been copied into an importer's state at its init, which then has to run again (React Native re-runs
@@ -96,6 +106,77 @@ std::unique_ptr<Unit> gNext;              // compiled and planned: swapped once 
 std::vector<std::string> gReeval, gChanged;
 std::string gReply;                       // sent at the end of the first frame of the new code
 Clock::time_point gAsked;
+bool gBoxed = false;                      // the red box of a save that did not compile is over the program
+
+// The reload of a save (ZN-1024): compiled on a thread of its own while the frames go on, then planned, then swapped once the loop has ended.
+// One field, changed by reloadTo alone.
+enum class Reload { Idle, Compiling, Swapping };
+Reload gReload = Reload::Idle;
+void reloadTo(Reload to) {
+  const bool legal = (gReload == Reload::Idle && to == Reload::Compiling) || (gReload == Reload::Compiling && to != Reload::Compiling) || (gReload == Reload::Swapping && to == Reload::Idle);
+  if (!legal) { std::fprintf(stderr, "zinc dev: internal error: reload %d -> %d\n", static_cast<int>(gReload), static_cast<int>(to)); std::abort(); }
+  gReload = to;
+}
+struct Job {   // written by the compile thread until `done`, read by the main thread after it
+  std::unique_ptr<Unit> unit;
+  std::string errors;
+  bool ok = false;
+  std::atomic<bool> done{false};
+#ifndef _WIN32
+  pthread_t thread{};
+  bool threaded = false;
+#endif
+};
+Job gJob;
+void compileJob() { gJob.ok = gCompile(*gJob.unit, gJob.errors); gJob.done.store(true, std::memory_order_release); }
+#ifndef _WIN32
+void* compileThread(void*) { compileJob(); return nullptr; }
+#endif
+void startCompile() {
+  reloadTo(Reload::Compiling);
+  gJob.unit = std::make_unique<Unit>();
+  gJob.errors.clear();
+  gJob.ok = false;
+  gJob.done.store(false, std::memory_order_relaxed);
+#ifndef _WIN32
+  pthread_attr_t at;
+  pthread_attr_init(&at);
+  pthread_attr_setstacksize(&at, std::size_t(64) << 20);   // the parser and the checker recurse as deep as the program nests: the main thread's room, not 512 KB
+  gJob.threaded = pthread_create(&gJob.thread, &at, compileThread, nullptr) == 0;
+  pthread_attr_destroy(&at);
+  if (gJob.threaded) return;
+#endif
+  compileJob();   // no thread: the frames wait for the compile, as before
+}
+void joinCompile() {
+#ifndef _WIN32
+  if (gJob.threaded) { pthread_join(gJob.thread, nullptr); gJob.threaded = false; }
+#endif
+}
+
+// The diagnostics as the red box shows them: the files relative to the project, without the steps zinc run prints (indented).
+std::string boxText(const std::string& errors) {
+  std::error_code ec;
+  const std::string here = std::filesystem::current_path(ec).string() + "/";
+  std::string text, line;
+  for (std::size_t at = 0; at < errors.size();) {
+    std::size_t nl = errors.find('\n', at);
+    if (nl == std::string::npos) nl = errors.size();
+    line = errors.substr(at, nl - at);
+    at = nl + 1;
+    if (line.empty() || line.rfind("  ", 0) == 0) continue;
+    if (line.rfind(here, 0) == 0) line.erase(0, here.size());
+    text += (text.empty() ? "" : "\n") + line;
+  }
+  return text.empty() ? "the build failed" : text;
+}
+void showBox(const std::string* errors) {
+#ifdef ZN_HOST_GFX
+  if (errors) { const std::string t = boxText(*errors); zrt::gfx::compile_screen(t.data(), static_cast<std::uint32_t>(t.size())); }
+  else zrt::gfx::compile_screen(nullptr, 0);
+#endif
+  gBoxed = errors != nullptr;
+}
 
 void send(const std::string& s) {
   for (std::size_t at = 0; at < s.size();) {
@@ -105,10 +186,33 @@ void send(const std::string& s) {
   }
 }
 
+// The compile ended: a red box over the program that goes on, a restart, or the swap once this frame ends.
+void compiled() {
+  joinCompile();
+  std::unique_ptr<Unit> u = std::move(gJob.unit);
+  if (!gJob.ok) {
+    const std::string& e = gJob.errors;
+    send("error\n" + e + (e.empty() || e.back() == '\n' ? "" : "\n") + "end\n");
+    showBox(&e);   // the program keeps running underneath with its state; the next save that compiles takes the box away
+    reloadTo(Reload::Idle);
+    return;
+  }
+  gReeval.clear();
+  gChanged.clear();
+  const std::string why = plan(*gCur, *u, gReeval, gChanged);
+  if (!why.empty()) { send("restart " + why + "\n"); reloadTo(Reload::Idle); return; }
+  gNext = std::move(u);
+  reloadTo(Reload::Swapping);
+#ifdef ZN_HOST_GFX
+  zn::host::pauseLoop();   // the loop ends after this frame and main returns: the stack is empty for the swap
+#endif
+}
+
 [[maybe_unused]] void frameEnd() {   // unused without the graphics host (ZN_HOST_GFX off: the headless Windows build)
   if (!gReady) { gReady = true; send("hot ready\n"); }
   if (!gReply.empty()) { send(gReply); gReply.clear(); }
-  if (gNext) return;
+  if (gReload == Reload::Swapping) return;
+  if (gReload == Reload::Compiling) { if (gJob.done.load(std::memory_order_acquire)) compiled(); return; }
   char buf[256];
   for (long n; (n = zn::plat::sockReadNow(gFd, buf, sizeof buf)) > 0;) gIn.append(buf, static_cast<std::size_t>(n));
   const std::size_t nl = gIn.find('\n');
@@ -117,17 +221,8 @@ void send(const std::string& s) {
   gIn.erase(0, nl + 1);
   if (line != "reload") return;
   gAsked = Clock::now();
-  auto u = std::make_unique<Unit>();
-  std::string errors;
-  if (!gCompile(*u, errors)) { send("error\n" + errors + (errors.empty() || errors.back() == '\n' ? "" : "\n") + "end\n"); return; }
-  gReeval.clear();
-  gChanged.clear();
-  const std::string why = plan(*gCur, *u, gReeval, gChanged);
-  if (!why.empty()) { send("restart " + why + "\n"); return; }
-  gNext = std::move(u);
-#ifdef ZN_HOST_GFX
-  zn::host::pauseLoop();   // the loop ends after this frame and main returns: the stack is empty for the swap
-#endif
+  startCompile();
+  if (gJob.done.load(std::memory_order_acquire)) compiled();   // compiled without a thread
 }
 
 }  // namespace
@@ -157,6 +252,8 @@ rt::Result run(std::unique_ptr<Unit> first, std::string& out, bool traceFree, Co
     }
     cur = std::move(gNext);
     gCur = cur.get();
+    reloadTo(Reload::Idle);
+    if (gBoxed) showBox(nullptr);
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - gAsked).count();
     gReply = "ok " + std::to_string(ms);
     for (const std::string& p : gReeval) gReply += " " + shown(p);
@@ -165,6 +262,7 @@ rt::Result run(std::unique_ptr<Unit> first, std::string& out, bool traceFree, Co
     if (loop == UINT32_MAX) { send("restart the new code has no event loop\n"); m.flushOut(); std::_Exit(3); }
     ok = m.exec(&m.funcs[loop], m.stack);
   }
+  joinCompile();   // the window closed while a save compiled: the thread ends before the process does
   if (!ok) { res.ok = false; res.error = m.error; rt::nativeEnd(m); }
   else {
     rt::nativeEnd(m);

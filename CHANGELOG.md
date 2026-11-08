@@ -153,6 +153,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - The `"crash"` key of `zinc.json` is gone: it was never acted on, and a panic always ends the program. A project that still has it is refused with a message (`zinc explain J0001`); delete the line, and let systemd restart a service.
 - `zinc.json` no longer needs `app.id` to give the window a size or limits in `app.window`: a first project can leave the id out until it packages the app (`zinc build --bundle` and `--dmg` ask for it).
+- In `zinc dev`, a save that does not compile draws the red box over your program, which keeps running with its state: the fix swaps in without starting over. The program also keeps drawing while a save compiles, and editing a module imported for its effects (`import './setup'`) runs its importer again.
 - The Changes of Zinc Inspector write `className=` and fold an edited `padding: 12px` into `p-[12px]` (or `px-`/`py-`, margins alike) instead of four classes.
 - The Elements panel of Chrome DevTools shows the nodes as JSX writes them, `<View className="...">`, `<Text>`, `<ScrollView>`, instead of `<view class="...">`, and a class is edited through the `className` attribute.
 
