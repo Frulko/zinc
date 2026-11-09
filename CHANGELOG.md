@@ -88,7 +88,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Several windows: `win.open({ x, y, ... })` places a window as it opens, `onClosed(cb)` runs once after a window closes (`win.get(0).onClosed(quit)` ends the app with its main window), `onWindowClosed` of `zinc:gfx` reports any window, and a `port.handle` answer may be `async`: the reply leaves when its Promise settles, from the program or from a worker.
 - A rotated, skewed or scaled view turns around a transform origin: React Native's `transformOrigin` (`'top left'`, `'10px 20%'`) or an `origin-*` class (`origin-top-left`, `origin-[25%_75%]`); touches follow it.
-- A project can ask for native views with `"ui": { "render": "native" }` in `zinc.json` (or `ZINC_RENDER=native` for one run): a plugin that installs a host with `ui.setHost` then shows the tree with the platform's own views, and everywhere else the app is drawn as before. The macOS host comes next.
+- A project can ask for native views with `"ui": { "render": "native" }` in `zinc.json` (or `ZINC_RENDER=native` for one run): a plugin that installs a host with `ui.setHost` then shows the tree with the platform's own views, and everywhere else the app is drawn as before.
+- On macOS, `import 'zinc:appkit'` in a project with `"render": "native"` shows its `View`, `Text`, `Image`, `ScrollView`, `TextInput`, `TextArea` and `Pressable` as real AppKit views, measured by AppKit, in the system's colours and dark mode, with native typing and scrolling; presses reach your handlers as before. `appkit.dump()` prints the native tree for tests.
 
 #### Changed
 

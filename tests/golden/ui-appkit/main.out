@@ -1,0 +1,44 @@
+shown true
+-- mounted
+root 320x240
+  #0 view 0,0 320x240 bg=#f0f0f0
+    #1 label 8,8 304x20 "Hello" size=14 bold fg=label
+    #3 view 8,32 50x30 bg=#ff0000 border=2#0000ff radius=6
+    #4 image 62,32 30x30 "dot.png" loaded
+    #6 label 96,38 80x18 "Press" size=16 fg=#336699
+    #7 field 8,66 304x24 "" placeholder="Name" size=16 fg=text
+    #8 secure 8,94 304x24 "pw" size=16 fg=text
+    #9 area 8,122 304x40 "two\nlines" size=16 fg=text
+    #10 scroll 8,166 304x40 content=304x80
+      #11 label 0,0 304x20 "row 0" size=16 fg=label
+      #12 label 0,20 304x20 "row 1" size=16 fg=label
+      #13 label 0,40 304x20 "row 2" size=16 fg=label
+      #14 label 0,60 304x20 "row 3" size=16 fg=label
+
+hit press -1 hit field true
+pressed
+typed true
+input hi
+focus on field true
+enter true
+change hi
+submit
+scrolled true
+scroll 30
+-- update: a text, a colour, a removal, a new node on the freed handle
+handle reused true
+root 320x240
+  #0 view 0,0 320x240 bg=#f0f0f0
+    #1 label 8,8 304x20 "Hi" size=14 bold fg=label
+    #3 view 8,32 50x30 bg=#00ff00 radius=6
+    #6 label 62,38 80x18 "Press" size=16 fg=#336699
+    #4 label 146,32 34x18 "new" size=16 fg=label
+    #7 field 8,66 304x24 "hi" placeholder="Name" size=16 fg=text
+    #8 secure 8,94 304x24 "pw" size=16 fg=text
+    #9 area 8,122 304x40 "two\nlines" size=16 fg=text
+    #10 scroll 8,166 304x40 content=304x80
+      #11 label 0,0 304x20 "row 0" size=16 fg=label
+      #12 label 0,20 304x20 "row 1" size=16 fg=label
+      #13 label 0,40 304x20 "row 2" size=16 fg=label
+      #14 label 0,60 304x20 "row 3" size=16 fg=label
+

@@ -1,0 +1,14 @@
+{
+  "name": "appkit",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:appkit",
+  "entry": "index.ts",
+  "description": "The zinc:ui tree shown with real AppKit views under \"ui\": {\"render\": \"native\"} (macOS): View, Text, Image, ScrollView, TextInput, TextArea and Pressable as NSViews, measured by AppKit, in the system colours",
+  "native": { "impl": { "macos": "native/appkit.macos.mm" } },
+  "targets": {
+    "macos": { "frameworks": ["AppKit", "Foundation"], "flags": ["-fobjc-arc"] },
+    "linux": {},
+    "windows": {}
+  }
+}

@@ -758,6 +758,15 @@ the record format is at `setHost` in `lib/std/ui.ts`), and the host's events com
 The leaves of the `rn` layout (text, fields) are measured by the host through `zn::host::setNativeMeasure` (`src/host/layout.h`). Where no host
 is installed, `setHost` returns false and the app is drawn as before.
 
+On macOS the host is `zinc:appkit` ([its page](plugins/appkit.md)): `import 'zinc:appkit';` once, and under `render: "native"` the tree shows as
+AppKit views (`View` and `Pressable` as flipped views that draw their background and border, `Text` as labels, `Image`, `ScrollView` as an
+NSScrollView, `TextInput` as NSTextField or NSSecureTextField, `TextArea` as an NSTextView); a View with no background, border, opacity or hiding
+gets no NSView (React Native's view flattening). A native render lays out with Yoga (the `rn` layout) unless `ui.layout` says otherwise. Presses,
+hover and drags go through the views to zinc:ui's own hit testing, so handlers fire as in the drawn UI; fields and scroll views report typing,
+Enter, focus and scrolling. Under a native host zinc:ui starts no text input of its own, and keys pressed in a native field reach only the
+program's key handlers. The buffer also carries a field's value and an image's asset (`t`), the placeholder (`a ID placeholder TEXT`), `secure`
+(a password field) and the focus (`o ID`); `ui.hostMounted(h)` tells a host whether a late event's handle still holds the node it was about.
+
 ## Tests
 
 Test hooks drive the input headlessly; from the first call on, the HAL's pointer and keyboard are ignored, so a
