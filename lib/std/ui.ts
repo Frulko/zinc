@@ -777,6 +777,7 @@ export function destroy(h: i32): void { release(h); }
 function release(h: i32): void {
   const n = node(h);
   if (!n.alive) return;
+  forgetFocusWithin(h);
   if (n.cImg >= 0) { destroyImage(n.cImg); n.cImg = -1; n.cValid = false; }
   if (n.skey !== '') { if (!dropRestore(h)) keepScroll(n); n.skey = ''; }
   if (scrollWatch.indexOf(h) >= 0) forgetScrolls(h);   // its onScroll goes with it: the handle comes back as another node
@@ -6279,17 +6280,28 @@ function setFocusTo(h: i32): void {
   if (h >= 0) { const e = nodes[h].ed; if (e !== null) { e.blinkAt = clock; e.reveal = true; } }
   paintDirty = true;
   for (const f of focusHandlers) f(h);
-  for (let i = withinRoots.length - 1; i >= 0; i--) {
-    const r = withinRoots[i];
-    if (!nodes[r].alive) { withinRoots.splice(i, 1); withinFns.splice(i, 1); withinOn.splice(i, 1); continue; }
-    const inside = h >= 0 && isAncestor(r, h), on = inside && keyboardFocus;
-    if (on !== withinOn[i] || (inside && !on)) { withinOn[i] = on; withinFns[i](on); }   // a press that focuses it calls f(false): a hint goes away when its button is pressed
+  // Callbacks may dispose roots and register replacements: only the original, still registered nodes receive this change.
+  const pending = within.slice();
+  for (let i = pending.length - 1; i >= 0; i--) {
+    const w = pending[i];
+    if (w.state !== FocusWithinState.Registered || !w.root.alive) continue;
+    const inside = focus >= 0 && isAncestor(w.root.id, focus), on = inside && keyboardFocus;
+    if (on !== w.on || (inside && !on)) { w.on = on; w.f(on); }   // a press that focuses it calls f(false): a hint goes away when its button is pressed
   }
 }
 const focusHandlers: ((h: i32) => void)[] = [];
-const withinRoots: i32[] = [], withinFns: ((on: boolean) => void)[] = [], withinOn: boolean[] = [];
+enum FocusWithinState { Registered, Disposed }
+class FocusWithin {
+  state: FocusWithinState = FocusWithinState.Registered;
+  root: UiNode; f: (on: boolean) => void; on: boolean = false;
+  constructor(root: UiNode, f: (on: boolean) => void) { this.root = root; this.f = f; }
+}
+const within: FocusWithin[] = [];
+function forgetFocusWithin(h: i32): void {
+  for (let i = within.length - 1; i >= 0; i--) if (within[i].root.id === h) { within[i].state = FocusWithinState.Disposed; within.splice(i, 1); }
+}
 /** Calls `f(true)` when the keyboard moves the focus into `root` or below it (Tab, arrows), and `f(false)` when it leaves or a press puts it there; dropped with the node. */
-export function onFocusWithin(root: i32, f: (on: boolean) => void): void { withinRoots.push(root); withinFns.push(f); withinOn.push(false); }
+export function onFocusWithin(root: i32, f: (on: boolean) => void): void { const n = node(root); if (n.alive) within.push(new FocusWithin(n, f)); }
 /** Called with the new focused node (-1: none) whenever the focus moves (virtual keyboards show / hide on it). */
 export function onFocusChange(f: (h: i32) => void): void { focusHandlers.push(f); }
 // A subtree rendered again (a component whose props changed) keeps the focus: holdFocus notes the focused node's path under the
