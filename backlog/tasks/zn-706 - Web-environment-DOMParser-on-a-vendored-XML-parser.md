@@ -2,8 +2,7 @@
 id: ZN-706
 title: 'Web environment: DOMParser on a vendored XML parser'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 22:50'
 updated_date: '2026-11-09 06:07'
 labels:

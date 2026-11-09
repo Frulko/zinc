@@ -28,10 +28,13 @@
 - Integrated: ZN-709, ZN-704 (Done, D246): `zinc debug --cdp` works in Chrome's real DevTools (Sources lists files, gutter breakpoints stop, Scope shows locals) and the Styles panel's box-model and `element.style` edits change the app's frame; CDP sessions are one Phase enum with generation ids.
 - Integrated: ZN-1054 (Done, D247): Quit in an app menu runs the close handlers first (`system.requestClose()`); Discord keeps failed logins across launches and shows Account safety at first login.
 - Integrated: ZN-1028 (Review, D248): `fetch` bodyFile streams (500 MB upload in 29 MB instead of 1.6 GB), `Reply.file` uses sendfile (2x faster, 21 MB), 16 MiB default body limit with a readable 413, `ZINC_BIND` honoured. #3 waits for a Pi run (ssh did not answer).
+- Integrated: ZN-706 (Done) DOMParser and XMLSerializer on vendored xmldom, loaded at first use; ZN-705 (Review, D249) window focus/blur/visibility, modifier keys, FormData, storage properties in the web environment; `Script({web:true})` dropped.
+- Known machine gap: `webenv_pixelated` needs Python's PIL, missing on this Mac.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-705/706 (since 5f7364077): `ZINC_WEB=trace` on T1 `webenv_pixi`, `webenv_three`, `webenv_p5` (ZN-705 #2, 1 min each); a T1 loading a Phaser bitmapFont and a Pixi 7 BitmapFont XML; by hand, minimise the Phaser test game (pauses and resumes); `webenv_domparser`, `webenv_page` in the milestone T0 run.
 - ZN-1028 (since bc93abbea): `tests/run --only net_stream` (5 s); the Pi sendfile run (later.md, 2 min); the 500 MB upload and download memory runs by hand (10 s); an https `saveTo` 100 MB peak-RSS check (3 s).
 - ZN-1054 (since 2d4fef26d): T1 `system_sim` (new quit_role_close, 1 min), `discord_safety` (two login launches vs the new `login.out`, re-record with `ZN_UPDATE_GOLDEN=1` if the first launch resumes), `discord_login`.
 - ZN-709/704 (since 6edf6f660): T1 `devtools_frontend_sources` (4 s) and `devtools_frontend_styles` (10 s), one headless Chrome each; rerun `debug_cdp`, `debug_worker`, `devtools_styles` (ids and the session state machine changed).

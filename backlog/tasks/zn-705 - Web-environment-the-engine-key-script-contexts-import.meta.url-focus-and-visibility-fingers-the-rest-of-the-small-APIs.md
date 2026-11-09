@@ -2,10 +2,9 @@
 id: ZN-705
 title: 'Web environment: focus, visibility, fingers and the small APIs'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 22:50'
-updated_date: '2026-11-09 06:17'
+updated_date: '2026-11-09 06:18'
 labels:
   - js
   - qjs
@@ -47,4 +46,6 @@ NOT DONE: new Script({web: true}) (zinc:script). Proposed decision for the coord
 Criterion #2 (the ZINC_WEB=trace of the three booted libraries names nothing of this list) needs the T1 library runs: left for the milestone.
 Research (sonnet sub-agent): Page Visibility https://www.w3.org/TR/page-visibility-2/ ; hasFocus https://developer.mozilla.org/en-US/docs/Web/API/Document/hasFocus ; Pointer Events (touch) https://www.w3.org/TR/pointerevents3/ ; getModifierState https://www.w3.org/TR/uievents/#dom-keyboardevent-getmodifierstate ; FormData https://xhr.spec.whatwg.org/#interface-formdata ; multipart encoding https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#multipart-form-data and https://fetch.spec.whatwg.org/#concept-bodyinit-extract ; Storage named properties https://html.spec.whatwg.org/multipage/webstorage.html#storage-2 . happy-dom answers visibility from defaultView only and synthesises no touch pointers; linkedom has neither.
 Proposed tests: (1) ZINC_WEB=trace on tests/t1/webenv_pixi.sh, webenv_three.sh, webenv_p5.sh: criterion #2 (about 1 min, 300 MB each). (2) A real-window check, by hand: minimise a Phaser page (tests/t1/webenv_phaser.sh's game) and see it pause and resume (2 min, 400 MB).
+
+Coordinator 2026-11-09: `new Script({web:true})` is dropped (D249): a zinc:script context is the plugin's sandboxed QuickJS with no files, network, timers or host rows, which webenv.js needs; a library that needs a browser runs on the QuickJS engine with `"web": true`. Criterion #1 holds without that item; #2 waits for the T1 library traces at the milestone.
 <!-- SECTION:NOTES:END -->

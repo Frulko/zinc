@@ -648,6 +648,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1054: close-to-tray apps (notify-relay, ipod) now hide instead of quitting on Quit in their own menu if their close handler vetoes: a quitting flag (Electron's `before-quit`) so handlers tell Quit from the close button. Decide whether a captcha 400 on `/auth/login` counts toward Discord's three-refusal pause.
 - ZN-1028: after a 413, keep reading and discarding the body briefly before closing (Linux clients still sending may see a reset instead of the 413); listen on IPv6 and IPv4 by default with two sockets (`::` with `UV_TCP_IPV6ONLY` plus `0.0.0.0`).
 - ZN-1028: read `bodyFile` uploads and `Reply.file` on libuv's thread pool if a slow SD card shows in frame times; `fetch`'s 120 s timeout covers the whole request, so a large upload on a slow link fails: measure it from the last progress.
+- ZN-705: a binary request body over http is sent as UTF-8 text (`native.httpFetch` takes a string), so FormData with binary files fails over the network: pass the body to the row as bytes. `matchMedia('(prefers-color-scheme: dark)')` could answer from the theme signal webenv drops.
+- ZN-706: XHR `responseType 'document'` and `responseXML` for XML responses; XML document nodes are xmldom objects, not EventTargets, and cannot be added to the page's document.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
