@@ -439,6 +439,9 @@ extern "C" int zn_window_load(void) { return 1; }   // Zinc Next (src/host/hal_d
 extern "C" void hal_set_resize(int32_t on) {
   if (!gfx_on || resize_fixed || det || hal_display || fill == (on != 0)) return;
   fill = on != 0;
+  // The native constraint must follow the surface policy too; explicit app limits still win.
+  const float aspect = wcfg_set && wcfg.aspect > 0 ? wcfg.aspect : fill ? 0.0f : (float)W / (float)H;
+  SDL_SetWindowAspectRatio(win, aspect, aspect);
   resize_pending = true;
 }
 

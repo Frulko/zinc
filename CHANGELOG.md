@@ -187,6 +187,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Password fields have a centred eye button inside the field that preserves editing focus and works with the pointer, Enter and Space.
 
+||||||| parent of 055fafe30 (fix(host): release native aspect lock when UI follows the window)
+
+- UI windows now resize freely with the default settings after the window opens, instead of keeping the initial proportions and squeezing a portrait view.
 
 ### The web
 

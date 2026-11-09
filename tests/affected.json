@@ -34,6 +34,7 @@
     {"paths": ["app/sonos-lastfm/", "tests/data/sonos-lastfm/", "tests/t1/sonos_lastfm.sh"], "tests": ["sonos_lastfm"]},
     {"paths": ["src/frontend/check.cpp", "tests/golden/host/dyn_string.", "tests/t0/dyn_string.sh"], "tests": ["dyn_string"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/jsx.cpp", "src/ir/lower.cpp", "tests/data/jsx-map-props/", "tests/t0/jsx_map_props.sh"], "tests": ["jsx_map_props"]},
+    {"paths": ["targets/macos/hal_sdl.cpp", "tests/t0/window_resize_policy.sh", "tests/data/window_resize_policy/"], "tests": ["window_resize_policy"]},
     {"paths": ["targets/macos/hal_metal.mm", "targets/macos/hal_sdl.cpp", "tests/native/surface_present.mm", "tests/t1/surface_present.sh"], "tests": ["surface_present", "window_live_resize"]},
     {"paths": ["targets/wasm/web_main.cpp", "targets/wasm/vm_main.cpp", "tests/unit/wasm_buffers_test.cpp", "tests/t0/wasm_buffers.sh"], "tests": ["wasm_buffers"]},
     {"paths": ["targets/wasm/compile_main.cpp", "targets/wasm/nothreads.h", "targets/wasm/stubs.cpp", "tools/build-wasm", "tests/wasm/compile.mjs", "tests/t0/wasm_compiler.sh"], "tests": ["wasm_compiler"]},
