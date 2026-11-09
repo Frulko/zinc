@@ -2,7 +2,8 @@
 id: ZN-706
 title: 'Web environment: DOMParser on a vendored XML parser'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 22:50'
 labels:
   - js

@@ -2,7 +2,8 @@
 id: ZN-705
 title: 'Web environment: focus, visibility, fingers and the small APIs'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 22:50'
 labels:
   - js
