@@ -79,6 +79,12 @@ zinc run app --profile ps1      # Q20.12 fixed point, 320x240, 256 KiB heap, on 
 zinc build app --no-float       # reject floating point (Z4001 on any f32/f64 site)
 ```
 
+A numeric value that may be absent keeps the ordinary conversion rules when stored, passed or returned with another
+numeric type. For example, `function length(m: Map<string, string> | null): number | undefined { return m?.values().length; }`
+converts a present integer length to `number` and preserves an absent result. The nullish flavour follows the declared type
+(the existing shared null representation for typed `null` and `undefined`); the conversion does not remove nullability or
+permit a conversion the checker otherwise rejects.
+
 ## Memory model
 
 Objects are **reference counted** via RAII smart pointers (decision 0001, `docs/decisions/`): a 32-bit count, immortal at saturation, freed

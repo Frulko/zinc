@@ -1350,6 +1350,23 @@ struct Lowering::FnLower {
       emit(IrOp::SetField, m.voidT(), {o, pv}, 0, 0, 0);
       return o;
     }
+    if (ty(tv(v)).k == Type::K::Ref && ty(to).k == Type::K::Ref && L.primOfBox.count(ty(tv(v)).aux) && L.primOfBox.count(ty(to).aux)) {
+      TypeId fromScalar = L.primOfBox[ty(tv(v)).aux], toScalar = L.primOfBox[ty(to).aux];
+      if (ty(fromScalar).k == Type::K::Num && ty(toScalar).k == Type::K::Num) {  // nullable numeric conversion: preserve absence, convert the payload before boxing
+        BlockId present = newBlock(), absent = newBlock(), join = newBlock();
+        ValueId result = newValue(to);
+        f.blocks[join].params.push_back(result);
+        condbr(emit(IrOp::Ne, m.boolT(), {v, nullConst(tv(v))}), present, absent);
+        sealed[present] = sealed[absent] = 1;
+        cur = present;
+        br(join, {coerce(coerce(v, fromScalar), to)});
+        cur = absent;
+        br(join, {nullConst(to)});
+        seal(join);
+        cur = join;
+        return result;
+      }
+    }
     if (toPrim && ty(tv(v)).k == Type::K::Ref && L.primOfBox.count(ty(tv(v)).aux)) return coerce(emit(IrOp::GetField, L.primOfBox[ty(tv(v)).aux], {v}, 0, 0, 0), to);  // narrowed to the value
     if (ty(tv(v)).k == Type::K::Ref && ty(to).k == Type::K::Ref) return emit(IrOp::RefCast, to, {v});  // subtype (or closed-world proven) cast
     return v;

@@ -3,6 +3,7 @@
   "default": ["checker", "lang"],
   "map": [
     {"paths": ["lib/std/kit/host.ts", "tests/data/component_signal/", "tests/t0/component_signal.sh"], "tests": ["component_signal"]},
+    {"paths": ["src/ir/lower.cpp", "tests/data/nullable_numeric/", "tests/t0/nullable_numeric.sh"], "tests": ["nullable_numeric"]},
     {"paths": ["lib/std/ui.ts", "tests/data/text_offset/", "tests/t0/text_offset.sh"], "tests": ["text_offset"]},
     {"paths": ["src/qjs/strip.cpp", "src/qjs/strip.h", "src/qjs/qjs.cpp", "tests/data/collection_results/", "tests/t0/collection_results.sh"], "tests": ["collection_results"]},
     {"paths": ["src/frontend/modules.cpp", "tests/t0/lucide_serialization.sh"], "tests": ["lucide_serialization"]},
