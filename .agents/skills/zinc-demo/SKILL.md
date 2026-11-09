@@ -9,6 +9,10 @@ Use [zinc-app](../zinc-app/SKILL.md) for provider discovery and readable impleme
 
 Start with what the person will do and what that proves. Preserve the requested product; do not add a showcase menu, settings system, abstraction or unrelated feature to make the demo look complete.
 
+
+## Design
+
+A new screen follows "Design" in `AGENTS.md` and `docs/design.md`: the kit's Quiet theme (light and dark), neutral surfaces and one accent, hairline borders, shadows only on floating layers, spring motion with a reduced-motion path, full keyboard use. Take a component from the kit before drawing one; a missing component is kit work (ZN-1078), not a one-off in the app.
 ## Use the existing UI and lifecycle
 
 Choose the model according to `examples/GUIDELINES.md`: modern desktop/Pi 4/recent phone UI, `zinc:stage` for the display-tree/old-device case, or LVGL for the specified microcontroller case. Retain the established model of an existing demo unless the task calls for a change. Check constraints before selecting a renderer; do not copy music-tree's tree or invent layout infrastructure.

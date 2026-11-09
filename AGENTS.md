@@ -145,6 +145,16 @@ A new demo, or a change to one, follows `examples/GUIDELINES.md` (layout of `src
 On old devices (HP TouchPad, Nexus 7) the UI is the AS3-style display tree on `zinc:gfx` of `examples/music-tree`, not `zinc:ui`: it is
 faster there and keeps the code organised.
 
+## Design: quiet, neutral, keyboard first (owner, 2026-11-09)
+
+The look of every new demo, app and template (CUI, github.com/yappologistic/CUI, MIT, is the reference; parent task ZN-1078, details in `docs/design.md` once written):
+- **Neutral surfaces, one accent.** Greys for surfaces and text, one accent colour for the primary action and the selection; status colours (red, amber, green) only for status.
+- **Hairline borders, shadows only on what floats.** Cards and fields get a 1 px border, not a shadow; menus, popovers, dialogs and toasts float and get the shadow.
+- **Motion explains what changed.** Springs for moves and opens, no decoration loops; every animation has a reduced-motion path.
+- **Every control works from the keyboard,** with a visible focus ring.
+- **The Quiet theme of the kit** carries these tokens (light and dark): use it instead of hand-picked colours.
+- **Lean:** a kit component costs only when a program uses it (one module per family, no import-time side effects, icons one by one); the size gate of ZN-1078 keeps it so.
+
 ## Fill the engine's gaps; never work around them (owner, 2026-10-28)
 
 When a program, a plugin, a stand-in, a demo or a test hits something the engine lacks or gets wrong (TypeScript it refuses, a wrong result, a crash, a missing API), the engine is fixed: never rewrite the user's code to get past it, never keep a workaround.

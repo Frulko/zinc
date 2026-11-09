@@ -2,8 +2,7 @@
 id: ZN-1013
 title: 'Translations: restamp guides and fill the doc theme strings'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:34'
 updated_date: '2026-11-09 09:18'
 labels:

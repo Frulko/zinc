@@ -14,6 +14,10 @@ The bar every demo of `examples/` meets, new or changed. The reference is `examp
 - Never another model: no ad-hoc immediate-mode `main.ts` of 1,500 lines, no new layout engine, no copy of the tree: import `zinc:stage`.
   A piece of `core/` that a second demo needs is promoted to a shared module, not copied.
 
+## Design
+
+Follow "Design" in `AGENTS.md` and `docs/design.md`: neutral surfaces and one accent, hairline borders, shadows only on what floats, motion that explains a change with a reduced-motion path, every control from the keyboard, the kit's Quiet theme rather than hand-picked colours.
+
 ## Layout of a project
 
 ```text

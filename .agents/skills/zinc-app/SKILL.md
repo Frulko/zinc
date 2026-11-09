@@ -7,6 +7,10 @@ description: Build, extend or simplify Zinc applications in this repository, wit
 
 Work from the repository root. Read its `AGENTS.md`, binding documents and the target app's instructions once. Preserve the user's requested behavior and scope.
 
+
+## Design
+
+A new screen follows "Design" in `AGENTS.md` and `docs/design.md`: the kit's Quiet theme (light and dark), neutral surfaces and one accent, hairline borders, shadows only on floating layers, spring motion with a reduced-motion path, full keyboard use. Take a component from the kit before drawing one; a missing component is kit work (ZN-1078), not a one-off in the app.
 ## Find the implementation before writing one
 
 Read [the reuse map](references/reuse-map.md) for the capabilities the task needs, then inspect the actual provider and a working consumer. Search `lib/std/`, `lib/modules.d.ts`, `src/frontend/modules.cpp`, `plugins/`, `app/`, and `examples/`. A provider can already exist inside a demo; absence from a plugin list does not mean it is missing.

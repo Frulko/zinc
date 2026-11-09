@@ -680,6 +680,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-569: the first `new URL()` in a web-environment program costs 28-45 ms on a frame (it loads zinc:web): load it at start or make URL native.
 - ZN-569: WebGL texture pages: the conformance shim lacks fetch, `createImageBitmap`, canvas `toDataURL`, video (`canPlayType`) and SVG pictures (about 10 pages); tex-image-with-format-and-type fails 8 premultiply checks with image sources (look at UNPACK_PREMULTIPLY_ALPHA for images); 16-bit PNGs decode to 8 bits (tex-image-10bpc); JPEG EXIF orientation is not applied.
 - ZN-569: one decode thread: a pool of 2-4 would load picture-heavy pages faster (measure on the Pi first).
+- ZN-1013: translate the onboarding docs set into Portuguese (`docs/i18n/pt/`, 26 pages) and add `pt` queries to `site/search-check.mjs`; "On this page" and Previous/Next strings once the docs page has a table of contents or page navigation; ZN-774.28 (the explain-fix comment lines) still open.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

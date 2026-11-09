@@ -40,10 +40,13 @@
 - Integrated: ZN-1077 (Done): the checker no longer writes a JSON view for a class union reached through `any` (exposed by 498f78a79), and errors in generated code point at the program line; ipod-web and ipod pass `zinc check`. ZN-1049 to Review (its T1 runs).
 - Integrated: ZN-1047 (Done, D259): `World.setShadows` is a real state (Tokyo reads its heights once), night glow and TOP batches were already in; the PSP core builds again (strings.h, idleWake). Desktop draws no world shadows, so on/off shots are equal there.
 - Integrated: ZN-569 (Done, D260): web-environment pictures decode on a thread (a 4096² PNG: frame gaps 300 → 20 ms), `createImageBitmap` in zinc:script WebGL, the webgl-studio truck shows its texture; 9 of 24 conformance image pages pass. `tests/golden/webenv/phaser/page.out` lines 5-7 already differ on develop (pointer/key frame shift), not from this task.
+- Integrated: ZN-1013 (Done): 16 stale translated pages restamped (fr, es, it, de), Portuguese site strings, the search string in six languages; `i18n_docs` reports nothing stale. The site was not built to look at it.
+- Owner 2026-11-09: CUI parity, parent ZN-1078 (M32, 29 subtasks: design doc, Quiet theme, size gate, 16 component families, 9 demos, side-by-side measure), first in the order; the Design rules are in AGENTS.md, CLAUDE.md, examples/GUIDELINES.md and both skills.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- Docs site (since 0d21116d4): build the site (`pnpm` in `site/`) and look at the search placeholder and the Portuguese switcher.
 - Web pictures (since 85f870edb): `tests/run --tier t1 --only webgl_studio` (10 s); `webenv_image,webenv_pixi,webenv_phaser,webenv_three` (1 min; phaser page.out lines 5-7 already differ); the 24 conformance image pages by name (9 pass, 2 min); a frame-gap check of a 4096² PNG under `ZINC_REALTIME` (alone, 5 s).
 - 3D (since 839deb131): the PSP shadows probe `D=$(mktemp -d) tests/data/world_shadows_psp/setup.sh && D=... tests/data/world_shadows_psp/psprun.sh` (same D; PSP transitions beside the sweep thread, 3 min, 300 MB); Tokyo on PPSSPP and on Azahar with Settings > Shadows off then on (4-5 min).
 - QuickJS (since e77475dc4), on a quiet machine: `bench/qjs_boundary/run --write-baseline` then `bench/qjs_boundary/run` (ZN-596 #1, 25 s); `ZINC_HEADLESS=1 build/zinc run bench/qjs_boundary/host.js --engine quickjs` (#2); `tests/t1/webgl_conformance.sh` and `webgl_js.sh` (#3); `tests/t1/quickjs.sh`, `tests/run --tier t2 --only compat`.
