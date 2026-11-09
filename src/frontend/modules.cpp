@@ -19,6 +19,10 @@
 #include <tuple>
 #include <unordered_set>
 #include <algorithm>
+#include <atomic>
+#include <functional>
+#include <mutex>
+#include <unordered_map>
 
 #include "frontend/desugar.h"
 #include "frontend/diagnostics.h"
@@ -33,6 +37,29 @@
 
 namespace zn::frontend {
 namespace {
+
+// The parses of the files, kept while the program is loaded again with the same texts (zinc dev's saves, the LSP's edits): what the last two
+// loads used stays, the rest is dropped (ZN-1024). Keyed by the whole text, so never stale; the nodes view the kept copy of the text, and a
+// hit gets them back viewing the caller's.
+std::atomic<unsigned> gLoads{0};   // loadProgram calls: the memo rotates once per load
+ParseResult parseKept(const std::string& text) {
+  static std::mutex mu;
+  static std::unordered_map<std::string, ParseResult> cur, prev;   // the nodes of an entry view its key, whose address a node handle keeps
+  static unsigned load = 0;
+  std::lock_guard<std::mutex> g(mu);
+  if (const unsigned now = gLoads.load(); now != load) { prev = std::move(cur); cur.clear(); load = now; }
+  auto it = cur.find(text);
+  if (it == cur.end()) {
+    if (auto p = prev.find(text); p != prev.end()) it = cur.insert(prev.extract(p)).position;
+    else { it = cur.emplace(text, ParseResult{}).first; it->second = parse(it->first); }
+  }
+  ParseResult r = it->second;
+  const char* from = it->first.data();
+  const std::size_t n = it->first.size();
+  for (Node& nd : r.ast.nodes)
+    if (const auto at = reinterpret_cast<std::uintptr_t>(nd.text.data()) - reinterpret_cast<std::uintptr_t>(from); at <= n) nd.text = std::string_view(text.data() + at, nd.text.size());
+  return r;
+}
 
 // The host's modules ('zinc:gfx'), written in Zinc over the __host_* functions of the runtime table (zn/runtime.h, owner "host").
 // A first subset of lib/gfx.d.ts: frames, clear, rect, rrect, fonts and text. `onFrame` hands the callback to the frame loop,
@@ -2377,10 +2404,10 @@ struct Loader {
     }
     prog.files.push_back({path, std::move(text), std::move(original), std::move(map)});
     visiting[path] = true;
-    ParseResult pr = parse(prog.files[fi].text);
+    ParseResult pr = parseKept(prog.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty() && !isWebFile(path) && !typesMode) {
       std::string add = webGlobalImports(pr.ast, kWebGlobals);
-      if (!add.empty()) { prog.files[fi].text += add; pr = parse(prog.files[fi].text); }
+      if (!add.empty()) { prog.files[fi].text += add; pr = parseKept(prog.files[fi].text); }
     }
     for (Diag& d : pr.diags) { d.file = fi; prog.diags.push_back(d); }
     std::uint32_t result = kNone;
@@ -3999,6 +4026,7 @@ bool libraryModule(const std::string& p) {
 }
 
 Program loadProgram(const std::string& entry, const ReadFile& read, bool strict, const std::string& stdRoot, bool hot) {
+  gLoads.fetch_add(1);
   Program p;
   std::string text;
   if (!read(entry, text)) {   // the file and the closest one beside it (ZN-711)
@@ -4079,7 +4107,7 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
     std::string preludeText = std::string(kErrorPrelude) + (needsTdz(p.ast) ? kTdzPrelude : "") + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (regexp ? kRegExpPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "");
     if (const char* dump = std::getenv("ZN_DUMP_PRELUDE")) { if (FILE* df = std::fopen(dump, "w")) { std::fputs(preludeText.c_str(), df); std::fclose(df); } }   // the text that diagnostics of <prelude> point into
     p.files.push_back({"<prelude>", preludeText, {}, {}});
-    ParseResult pr = parse(p.files[fi].text);
+    ParseResult pr = parseKept(p.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty()) {
       auto off = static_cast<std::uint32_t>(p.ast.nodes.size());
       for (Node& nd : pr.ast.nodes) {
