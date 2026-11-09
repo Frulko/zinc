@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Claimed Inputs/Pickers chain ZN-1078.06-.07, new .worktrees/1078-inputs, no engine build. Actions/App chrome worker owns button, menus, dnd and gallery shared wiring until its report; Inputs worker owns input/picker modules and separate gallery sections, shared docs/exports require coordination. Both use retained clean smoke binary with explicit ZINC_ROOT.
+
 - 2026-11-09: Integrated ZN-1079 (4004c3b7e, Done). Clean smoke rebuilt; jsx_map_local passes Solid/React on interpreter/QuickJS, original Save/Export scene inspected. Worker proved original repro on native AOT; Actions original palette proof passes. Actions isolated kit_size passed; .04 commit then .05 proof ongoing. Next chain: Inputs/Pickers ZN-1078.06-.07.
 
 - 2026-11-09: Claimed ZN-1079 for a fresh frontend/JSX worker in .worktrees/1079-jsx, beside the Actions/App chrome worker. At most one engine worker builds; no other build process observed.
