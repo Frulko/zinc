@@ -2,7 +2,7 @@
   "task": "ZN-1078.12",
   "status": "Backlog",
   "acceptance": {
-    "1": "open: original QuickJS filesystem proof requires ZN-1101",
+    "1": "actual filesystem and all12 public runs pass1101 candidate; full-gallery default discovery1104 remains independently open",
     "2": "complete: eight Zinc-drawn pictures inspected and documented",
     "3": "open: unchanged JS used budget exceeds by 201 total bytes"
   },
@@ -108,5 +108,26 @@
     "No full suite, benchmark, cross-device, physical keyboard, touch or assistive-technology proof."
   ],
   "processes_left": false,
-  "runtime_speed_measured": false
+  "runtime_speed_measured": false,
+  "coordinator_cwd_candidate_proof": {
+    "head": "8f8478bd5",
+    "command": "tests/run --only kit_data",
+    "result": "PASS",
+    "engines": [
+      "interp",
+      "native",
+      "quickjs"
+    ],
+    "fixtures": [
+      "Solid",
+      "React",
+      "Metric",
+      "Surfaces"
+    ],
+    "runs": 12,
+    "engine": "/Users/mowmow/Lab/zinc/.worktrees/1101/build/zinc",
+    "engine_sha256": "4152bbbb43e307e037a671573e37c4e8c690b0b26203026eeced024529a1764a",
+    "final_missing_entry_guard_not_in_this_candidate": true,
+    "processes_left": false
+  }
 }
