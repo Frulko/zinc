@@ -2,7 +2,8 @@
 id: ZN-1079
 title: Keep JSX nodes returned through map callback locals
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-09 10:41'
 labels:
   - ui
@@ -43,3 +44,9 @@ Initial evidence: the Actions worker inspected docs/img/kit-command-palette.png 
 - [ ] #2 A narrow T0 regression covers local-node returns and preserves ordinary numeric-array text children
 - [ ] #3 The original kit-gallery command palette renders its command rows without a local workaround
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Reduced proof (Actions worker, 2026-11-09): original 12-line program ran headless on the clean develop smoke binary with interpreter and QuickJS; both exited 0 but visually drew the exact text `3,5`, not the Save/Export buttons. Shots `/tmp/zn-map-interp.png`, `/tmp/zn-map-qjs.png`; source `/tmp/zn-actions-map-repro/main.tsx` is copied above. Ordinary numeric arrays must continue rendering as text: preserve node provenance, do not treat every i32 array as handles. AOT proof and focused regression remain for the assigned worker.
+<!-- SECTION:NOTES:END -->
