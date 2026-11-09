@@ -32,6 +32,8 @@ console.log(sum, pts.map(p => `${p.x},${p.y}`).join(' '));
 
 `array.flatMap(callback)` creates a new array and flattens returned arrays exactly one level; a scalar result contributes one element, and an empty array contributes none. The callback may take `(value, index, source)`. Iteration captures the initial length: appended elements are not visited, changes to later elements are visible, and elements removed by shrinking the array are skipped. Callback errors propagate with the partial result cleaned up. Arrays retain Zinc's dense-array rules; sparse holes, custom array species and a `thisArg` are outside this typed method's calling convention. Tuple results flatten their known positions once. The existing checker requires a tuple to have its tuple type before it enters a mixed scalar/tuple return union; an inline conditional array literal in that union annotation receives Z0103. An empty tuple alone has no inferable element type; an array return annotation such as `(): number[] => []` supplies it. Mixed scalar/array and `any` results use the existing checked Dyn conversions.
 
+Optional callback fields can be called after an explicit object/field guard or an optional-chain guard, including inside `String`, `Number` and `Boolean` conversions. A conversion evaluates its argument once. A property assignment or method call still invalidates facts about the receiver's fields: guard again before a later call that depends on the old optional value.
+
 ## What is rejected, and why
 
 Forbidden constructs are compile errors with a `Z` code: `zinc check` lists them, `zinc explain Z1001` says why and what to

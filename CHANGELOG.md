@@ -208,6 +208,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - JSX host elements and `VirtualList` accept reactive `id` attributes, so composite controls can name their active descendant without replacing their node refs.
 - Composed JSX `id` values, including helper calls and template strings, work while optional IDs still clear cleanly.
 - Scroll requests made before mounting, while hidden or after content changes keep their requested position until layout is ready; virtual row alignment and animated scrolling follow the same rule.
+- A guarded optional callback can be used inside `String`, `Number` or `Boolean` without a false nullable-call error.
 
 
 ### The web

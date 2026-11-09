@@ -2076,6 +2076,14 @@ struct Checker {
     std::vector<std::uint32_t> args(kids.begin() + 1, kids.end());
     const Node& cn = n(kids[0]);
     auto rewrite = [&](const std::string& text, std::vector<std::vector<std::uint32_t>> holes) -> TypeId {
+      // Rechecking an evaluated call would replay its path invalidation after its guard was already consumed.
+      for (const auto& hole : holes) for (std::uint32_t node : hole)
+        if ((n(node).kind == N::Call || n(node).kind == N::New) && out.nodeType[node] != kNoType && !bad(out.nodeType[node])) rewritten.insert(node);
+      if (text == "__H0" && rewritten.count(holes[0][0])) {
+        const std::uint32_t value = holes[0][0];
+        a.nodes[i] = a.nodes[value]; out.nodeSym[i] = out.nodeSym[value]; out.nodeType[i] = out.nodeType[value];
+        rewritten.insert(i); return out.nodeType[i];
+      }
       if (!replaceWith(i, text, holes)) { diag(kZUnsupported, i, "internal error: library rewrite did not parse"); return tError; }
       return expr0(i, kNoType);
     };
