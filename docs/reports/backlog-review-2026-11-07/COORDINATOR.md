@@ -62,3 +62,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: ZN-971 (Done). Worker: ZN-973 Hamlet chain 3 (farm, mill, bakery), beside ZN-437.
 - Integrated: ZN-437 (Done, D244). Worker: DevTools chain ZN-709, ZN-704, beside ZN-973.
 - Integrated: ZN-973 (Done). Worker: ZN-278 style levels warning (Hamlet ZN-951 and ZN-967 are parked), beside the DevTools chain.
+- Integrated: ZN-709, ZN-704 (Done, D246).

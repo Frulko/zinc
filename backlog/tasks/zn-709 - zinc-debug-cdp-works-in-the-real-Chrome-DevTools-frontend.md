@@ -2,8 +2,7 @@
 id: ZN-709
 title: zinc debug --cdp works in the real Chrome DevTools frontend
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 23:37'
 updated_date: '2026-11-09 05:24'
 labels:

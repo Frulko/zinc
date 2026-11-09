@@ -2,8 +2,7 @@
 id: ZN-704
 title: Styles panel edits work in the real Chrome DevTools frontend
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 22:24'
 updated_date: '2026-11-09 05:37'
 labels:

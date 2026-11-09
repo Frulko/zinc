@@ -642,6 +642,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-437: `zinc assets check --json` for CI annotations and Atelier; an optional `--fail-on-growth <KB|%>` for `report --diff`; copy `report.json` beside the wasm, esp32, android and ios exports too (native only today).
 - ZN-278: when blur, backdrop-blur and the filters land (ST-16), add their tokens and the painter's fallback to `styleTokenTier`; stop alphas (`from-x/50`) and stop positions inside `bg-[linear-gradient(..)]` also collapse at T0-T1 at run time but are not flagged at build time.
 - ZN-278: a forced render tier (`ZINC_TIER` over zinc:platform's `TIER` and the renderer) for per-tier goldens of the B10 feature-matrix scene (ZN-278 #4).
+- ZN-709: `DOM.resolveNode` and the dev-run inspector's `Runtime.evaluate` answer a stub, so `$0` in the DevTools console does nothing; arrays in the Scope pane have no preview (`(3) [1, 2, 3]` in Chrome): add `preview` to `remote()`.
+- ZN-704: `CSS.takeComputedStyleUpdates` answers `{}` (a long-poll with `nodeIds` if the live Computed pane matters). DevTools quirk for scripts: Enter on a new declaration opens the next one's prompt and steals the next Elements click (press Escape first).
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
