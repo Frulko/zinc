@@ -686,6 +686,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-161.01: `Object.freeze` of an `any` array freezes nothing; `Object.keys/entries/values` of typed records are refused (`ownKeysHelper` makes them a few lines); `Partial<C>` of a class is refused (blocks `Object.assign(this, init)`); assign from a string or array source is a diagnostic; `isFrozen`, `isExtensible`, `preventExtensions`, `seal`, `getOwnPropertyDescriptor` missing.
 - ZN-429: the ZN_AOT_CPP_ONLY outputs (iOS, Android, consoles) still embed the blob as a literal; ship program.cpp.res beside the C++ and emit the .incbin there too (NDK clang, Xcode clang and devkitPro GCC all assemble it).
 - ZN-429: bakeResources holds the decoded image, the blob and the PNG at once (218 MB RSS for a 50 MB blob); stream the blob to the file instead.
+- ZN-1078.01: a JSX child that is a variable holding an array of nodes (`{dots}`) renders as text; inline `.map` works.
+- ZN-1078.02: `items-baseline` is refused (Z0005 UI-07).
+- ZN-1078.02: Inter Medium (500) is not baked, so Quiet titles look lighter than intended.
+- ZN-1078.02: zinc.json `platformLook` does not accept `'quiet'` yet.
+- ZN-1078.02: icon names passed through a variable are not compiled in (U0001); the error could name zinc.json `"icons"`.
+- ZN-1078.03: `zinc:ui/platform` runs code at load (`readAccent`, `defineVars`, `applyFont`), so importing the kit applies the platform look; make it lazy.
+- ZN-1078.03: replace the kit_size line scanner with an esbuild check that bundles "import everything, use nothing" and expects an empty output, once the platform module is lazy.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
