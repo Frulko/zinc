@@ -2,7 +2,7 @@
 import { Button } from 'zinc:ui/kit';
 import { Point, footprint, mediaSize } from '../model/geometry';
 import { afterEffectsScript } from '../model/afterEffects';
-import { cavalryScript } from '../model/cavalry';
+import { cavalryScene, CavalryZone } from '../model/cavalryScene';
 import { AuthoringZone, layerSvg, outputSvg } from '../model/templates';
 import { saveText } from '../services/files';
 import { placementOf, setStatus, store, surfaceOf, templateOf, word } from '../state';
@@ -50,6 +50,13 @@ function authoringZones(): AuthoringZone[] {
   });
 }
 
+async function exportCavalry(): Promise<void> {
+  try {
+    const zones = authoringZones().map((zone: AuthoringZone): CavalryZone => ({ name: zone.name, width: zone.width, height: zone.height, masks: zone.masks, media: '' }));
+    await exportText('Mapper.cv', cavalryScene(zones, []));
+  } catch (error) { setStatus(`${error}`); }
+}
+
 function LayerLine(props: { layer: any }): i32 {
   const size = recommended(props.layer);
   const name = word(props.layer, 'name');
@@ -72,9 +79,9 @@ export function AuthoringExports(): i32 {
     <View className="flex-row flex-wrap gap-1 mt-2">
       <Button size="sm" variant="secondary" label={tr('mapper.calibration.stageSvg')} onClick={() => { exportText('stage-template.svg', allTemplates()); }} />
       <Button size="sm" variant="secondary" disabled={store.layers.length === 0} label="After Effects · guides (.jsx)" onClick={() => { exportText('mapper-guides.jsx', afterEffectsScript(authoringZones())); }} />
-      <Button size="sm" variant="secondary" disabled={store.layers.length === 0} label="Cavalry · guides (.js)" onClick={() => { exportText('mapper-cavalry-guides.js', cavalryScript(authoringZones())); }} />
+      <Button size="sm" variant="secondary" disabled={store.layers.length === 0} label="Cavalry · scène (.cv)" onClick={() => { exportCavalry(); }} />
       <Button size="sm" variant="secondary" label="calibration.json" onClick={() => { exportText('calibration.json', calibrationJson()); }} />
     </View>
-    <Text className="text-xs text-zinc-400">{language() === 'fr' ? 'Guides éditables à plat, sans médias, animation, courbes ni déformation. Dans Cavalry, masquez les contours avant le rendu. Le mapping sera appliqué par le lecteur.' : 'Editable flat guides, without media, animation, curves or warp. In Cavalry, hide outlines before rendering. Mapping is applied by the player.'}</Text>
+    <Text className="text-xs text-zinc-400">{language() === 'fr' ? 'Guides éditables à plat, sans médias, animation, courbes ni déformation. Cavalry : scène native sans médias, avec contours non rendus. Le projet avec médias est disponible dans l’éditeur natif. Le mapping sera appliqué par le lecteur.' : 'Editable flat guides, without media, animation, curves or warp. Cavalry: native scene without media, with non-rendering outlines. Export the project with media from the native editor. Mapping is applied by the player.'}</Text>
   </View>;
 }

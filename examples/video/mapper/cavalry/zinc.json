@@ -1,0 +1,5 @@
+{
+  "name": "mapper-cavalry",
+  "entry": "main.ts",
+  "permissions": ["fs"]
+}

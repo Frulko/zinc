@@ -122,10 +122,24 @@ what counts on small hardware.
 | **Template SVG** of a layer | the flat media as it must be drawn, with the deformation grid; import it on top of your composition |
 | **Stage SVG** | the whole output as the projector draws it: every surface where it is, for a piece that crosses several |
 | **After Effects (.jsx)** | a script that creates a flat composition for each zone and editable outline guides; run it in After Effects through **File → Scripts → Run Script File** |
-| **Cavalry (.js)** | run the script in Cavalry's JavaScript Editor to create one composition per zone with editable outline shapes, then save the scene |
+| **Cavalry (.cv)** | a native scene: open it directly in Cavalry; one flat composition per zone and non-rendering editable guides, without media |
 | **calibration.json** | the snapshot of the setting: sizes in pixels, corners, grids, for a script or another tool |
 
-The After Effects script creates ten-second, 30 fps compositions at the recommended zone sizes. Its outline and mask layers are guide layers, so they do not render. The Cavalry script uses the recommended sizes and Cavalry's default timing, preserves the previously active composition and adds ordinary editable shapes: hide those outline layers before rendering. Both scripts connect mask points with straight lines: Bézier handles, feather, edge blending, media and projector warp are not transferred. Animate the flat media and let Mapper apply the warp; this is not a pre-baked projection. SVG remains available for vector import. The Cavalry script uses the documented [composition and editable-path API](https://cavalry.studio/docs/tech-info/scripting/api-module/); generation has been checked against an API fixture, not in the Cavalry application.
+The After Effects script creates ten-second, 30 fps compositions at the recommended zone sizes, with non-rendering guide layers. The Cavalry `.cv` download creates native compositions with non-rendering zone and mask guides. Both exports connect mask points with straight lines; Bézier handles, feather, edge blending and projector warp are not converted. Animate the flat media and let Mapper apply the warp.
+
+### A native Cavalry project with media
+
+In the **native editor**, select a saved local project under **Project and exports**. Stop its mapper, set the output width/height, FPS and duration, then choose **Export Cavalry project with media** and a destination. Open the resulting `Scenes/Mapper.cv` directly in Cavalry—no JavaScript Editor or copy/paste. Keep the entire folder together: `projectDescription.json`, `Scenes/path-to-project`, `Assets`, `Renders` and `Autosave` make media paths portable.
+
+Each zone becomes a flat composition. The saved mapping's media are connected to editable Footage Shapes; the remaining supported images/videos are included in the Assets library. Media start at time zero at native size: adjust their scale/fit in Cavalry. The show column control does not apply to this export. Procedural sources, live inputs, cue sequences, audio, colour correction and projection warp are not converted; mask outlines are guides, not clipping masks. The original mapping is included for reference. Unsupported or missing media fail explicitly and incomplete exports are removed.
+
+The browser's **Cavalry · scène (.cv)** button exports only geometry, without media. To collect assets, use the native editor or the equivalent command:
+
+```sh
+zinc run examples/video/mapper/cavalry -- /absolute/project /absolute/destination /absolute/project/media 1280 720 30 10
+```
+
+The last four values are output width, output height, frames per second and duration in seconds. The generator follows native Cavalry scene format `1.0.72`; loading, composition timing, guide flags and image linking were checked with the official Cavalry Web Player 2.6 runtime. Desktop opening/rendering still needs validation; this session's app-control permissions did not allow controlling Cavalry.
 
 ### Light that spills past an edge
 

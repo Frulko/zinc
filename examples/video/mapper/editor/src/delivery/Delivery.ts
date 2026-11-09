@@ -7,6 +7,7 @@ import { createSignal } from 'zinc:ui/solid';
 import { language } from '../i18n';
 import { inspectProject, localProjectPath } from '../projects/LocalProject';
 
+export enum DeliveryKind { Assemble, Bake, Cavalry }
 export enum DeliveryPhase { Idle, Choosing, Running, Done, Failed, Cancelling, Cancelled }
 const [phase, setPhase] = createSignal<DeliveryPhase>(DeliveryPhase.Idle);
 const [detail, setDetail] = createSignal<string>('');
@@ -34,19 +35,19 @@ async function folder(title: string): Promise<string | null> {
   return paths === null || paths.length === 0 ? null : paths[0];
 }
 
-function validRoot(root: string, bake: boolean): boolean {
+function validRoot(root: string, kind: DeliveryKind): boolean {
   if (root === '') return false;
-  const tool = bake ? 'bake/bake.py' : 'assemble/zinc.json';
+  const tool = kind === DeliveryKind.Bake ? 'bake/bake.py' : (kind === DeliveryKind.Cavalry ? 'cavalry/zinc.json' : 'assemble/zinc.json');
   return fs.exists(`${root}/examples/video/mapper/${tool}`);
 }
 
-async function findRoot(bake: boolean): Promise<string | null> {
-  if (validRoot(toolsRoot, bake)) return toolsRoot;
+async function findRoot(kind: DeliveryKind): Promise<string | null> {
+  if (validRoot(toolsRoot, kind)) return toolsRoot;
   const env = sys.env('ZINC_ROOT');
-  if (validRoot(env, bake)) { toolsRoot = env; return env; }
+  if (validRoot(env, kind)) { toolsRoot = env; return env; }
   const picked = await folder(local('Choisir le dossier Zinc contenant les outils Mapper', 'Select the Zinc checkout containing Mapper tools'));
   if (picked === null) return null;
-  if (!validRoot(picked, bake)) throw new Error(local('Ce dossier ne contient pas l’outil Mapper demandé.', 'This folder does not contain the requested Mapper tool.'));
+  if (!validRoot(picked, kind)) throw new Error(local('Ce dossier ne contient pas l’outil Mapper demandé.', 'This folder does not contain the requested Mapper tool.'));
   toolsRoot = picked;
   return picked;
 }
@@ -85,19 +86,20 @@ function start(cmd: string, args: string[], bake: boolean = false): void {
 }
 
 /** Assembly finishes its copy; a bake owns a cancellable renderer and temporary output. */
-export async function deliver(bake: boolean, width: number, height: number, fps: number, duration: number, animated: boolean = false, column: number = 0): Promise<void> {
+export async function deliver(kind: DeliveryKind, width: number, height: number, fps: number, duration: number, animated: boolean = false, column: number = 0): Promise<void> {
   if (phase() === DeliveryPhase.Choosing || phase() === DeliveryPhase.Running || phase() === DeliveryPhase.Cancelling) return;
   if (sys.platform() === 'web') return;
+  const bake = kind === DeliveryKind.Bake;
   transition(DeliveryPhase.Choosing, local('Choisissez un projet local.', 'Choose a local project.'));
   try {
     if (bake && (width < 2 || width > 4096 || width % 2 !== 0 || height < 2 || height > 4096 || height % 2 !== 0 || fps < 1 || fps > 60 || !Number.isFinite(duration) || duration <= 0 || duration > 3600 || !Number.isInteger(width) || !Number.isInteger(height) || !Number.isInteger(fps))) throw new Error(local('Dimensions paires de 2 à 4096, cadence de 1 à 60 et durée de 0 à 3600 secondes.', 'Use even dimensions from 2 to 4096, 1–60 fps and a duration up to 3600 seconds.'));
     if (bake && (!Number.isInteger(column) || column < 0)) throw new Error(local('La colonne doit être un entier positif, ou 0 pour le mapping enregistré.', 'Column must be a positive integer, or 0 for the saved mapping.'));
     if (bake && animated && (width > 1920 || height > 1080 || Math.ceil(fps * duration) > 120)) throw new Error(local('Export animé : 1920 × 1080 et 120 images maximum. Réduisez la durée ou la cadence.', 'Animated export: at most 1920 × 1080 and 120 frames. Reduce duration or frame rate.'));
-    const root = await findRoot(bake);
+    const root = await findRoot(kind);
     if (root === null) { transition(DeliveryPhase.Idle, local('Annulé.', 'Cancelled.')); return; }
     const project = localProjectPath() !== '' ? localProjectPath() : await folder(local('Choisir le dossier du projet Mapper arrêté', 'Select a stopped Mapper project folder'));
     if (project === null) { transition(DeliveryPhase.Idle, local('Annulé.', 'Cancelled.')); return; }
-    if (!fs.exists(`${project}/mapping.json`) || (!bake && !fs.exists(`${project}/show.json`))) throw new Error(local('Le dossier ne contient pas un projet Mapper enregistré.', 'The selected folder does not contain a saved Mapper project.'));
+    if (!fs.exists(`${project}/mapping.json`) || (kind === DeliveryKind.Assemble && !fs.exists(`${project}/show.json`))) throw new Error(local('Le dossier ne contient pas un projet Mapper enregistré.', 'The selected folder does not contain a saved Mapper project.'));
     inspectProject(project);
     if (bake && column > 0) {
       const show: any = JSON.parse(fs.readText(`${project}/show.json`));
@@ -113,7 +115,11 @@ export async function deliver(bake: boolean, width: number, height: number, fps:
       if (selected === null) { transition(DeliveryPhase.Idle, local('Annulé.', 'Cancelled.')); return; }
       media = selected;
     }
-    if (bake) {
+    if (kind === DeliveryKind.Cavalry) {
+      const destination = await folder(local('Choisir où créer le projet Cavalry', 'Select a destination for the Cavalry project'));
+      if (destination === null) { transition(DeliveryPhase.Idle, local('Annulé.', 'Cancelled.')); return; }
+      start(cli(root), ['run', `${root}/examples/video/mapper/cavalry`, '--', project, destination, media !== '' ? media : `${project}/media`, `${width}`, `${height}`, `${fps}`, `${duration}`]);
+    } else if (bake) {
       const options = new dialog.SaveOptions();
       options.title = animated ? local('Enregistrer la vidéo animée mappée', 'Save animated mapped video') : local('Enregistrer la vidéo statique mappée', 'Save static mapped video');
       options.defaultPath = 'mapping.mp4';
