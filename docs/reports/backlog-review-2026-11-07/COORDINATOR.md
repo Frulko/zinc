@@ -53,3 +53,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: ZN-1075 (Done, D236). Worker: ZN-1074 appkit-tour (with the AOT native-measure check), beside ZN-364.01.
 - Integrated: ZN-364.01 (Backlog, D237). Worker: ZN-798 five frontend defects, beside ZN-1074.
 - Integrated: ZN-1074 (Review, D238). Worker: ZN-682 zinc:3d node bounds, beside ZN-798.
+- Integrated: ZN-798 (Done, D239). Worker: ZN-774.29 compiler-to-wasm spike, beside ZN-682.

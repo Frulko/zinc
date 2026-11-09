@@ -625,6 +625,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1074: the AppKit native first frame takes 120-150 ms against 6 ms drawn, half of it layout: profile AppKit's measure on first use and cache cells per font size.
 - ZN-1074: zinc:appkit's drawn fallbacks hard-code light colours (Table, Outline, Checkbox, PopUpButton, DatePicker, SearchField, overlays): use the kit's scheme variables; kit fields send the theme's text colour, dark text on a dark NSTextField under the host.
 - ZN-1074: the AppKit host flattens a labelled layout-only View and loses its accessibility label; keep a view when it has a label. `appkit.drive(table, 7, rows)` past the row count silently selects nothing.
+- ZN-798: narrowing does not take a member out of a primitive union: after `v === false` and `v === true`, `boolean | Cam` is not narrowed to `Cam` (no boolean literal types), and `typeof` does not narrow unions (ZN-1017 line); unions of primitives now have an IR type (a Dyn, D239).
+- ZN-798: `DisplayMediaStreamOptions` still types `video?: unknown`; type it `boolean | {..., cursor}` like `getUserMedia`.
+- ZN-798: `zinc --emit=zbc-bin tests/golden/host/webrtc_media.ts` fails with "`__js17xx` keeps more than 256 values alive" (already before ZN-798).
+- ZN-798: the UBSan reports of the v0.4.3 fuzz logs (`lower.cpp`, `fuzz_native.cpp:41`) were not reproduced; check them at the next fuzz run.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

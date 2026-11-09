@@ -2,8 +2,7 @@
 id: ZN-798
 title: Fix five frontend defects a user program can hit
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-24 23:55'
 updated_date: '2026-11-09 04:14'
 labels:
