@@ -163,6 +163,8 @@ innermost first, whose threshold the pointer crosses takes the exclusive grab: `
 gets `onPointerCancel`, and no click or tap follows. So a horizontal swipe row in a vertical list keeps horizontal
 moves and gives vertical ones to the list, and a button inside a draggable card clicks unless the card is dragged.
 `grab="keep"` on the capture node stops the stealing (drawing surfaces); `grab="keep-x"` only keeps mostly horizontal gestures, so a vertical swipe still scrolls (the kit's `Slider`).
+`grab={vertical ? 'keep' : 'keep-x'}` and other string expressions update with Solid signals or React renders.
+Dynamic values other than `keep` and `keep-x` use the default `auto` policy; invalid literal keywords are errors.
 
 | handler | fires |
 | --- | --- |

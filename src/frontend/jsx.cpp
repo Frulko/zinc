@@ -1329,6 +1329,10 @@ struct Lowering {
       else if (name == "onKeyUp") push("_keyUp(" + v + ", " + expr + ");");
       else if (name == "dragAxis" && lit && kDragAxes.count(a.lit)) push("_num(" + v + ", 'dragAxis', " + num(kDragAxes.at(a.lit)) + ");");
       else if (name == "grab" && lit && (a.lit == "keep" || a.lit == "keep-x" || a.lit == "auto")) push("_num(" + v + ", 'grab', " + num(a.lit == "keep" ? 1 : a.lit == "keep-x" ? 2 : 0) + ");");
+      else if (name == "grab" && a.kind == 2) {
+        const std::string val = "((__grab: string): i32 => (__grab === 'keep' ? 1 : __grab === 'keep-x' ? 2 : 0))((" + expr + "))";
+        push(react ? "_num(" + v + ", 'grab', " + val + ");" : "_dynNum(" + v + ", 'grab', () => " + val + ");");
+      }
       else if (name == "keyContext") push("_ctx(" + v + ", " + (lit ? quote(a.lit) : expr) + ");");
       else if (name == "onInput" || name == "onChange") push("_onText(" + v + ", " + (name == "onChange" && !react ? "true" : "false") + ", " + expr + ");");
       else if (name == "value" || name == "placeholder") {

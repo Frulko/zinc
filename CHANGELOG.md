@@ -170,6 +170,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Removing a tooltip or another focus-aware control drops its focus callbacks before its node slot is reused, so cancelling a dock drag no longer hides the next dragged panel.
 - Shortcut hints retain minus keys, including `Ctrl+-` and `Mod+Shift+-`.
 - `Input` accepts a dynamic `inputMode={mode}` keyboard hint and updates it when the value changes; unknown values use the text keyboard.
+- `View` accepts a dynamic `grab={vertical ? 'keep' : 'keep-x'}` policy and updates gesture arbitration when it changes.
 
 ### The web
 
