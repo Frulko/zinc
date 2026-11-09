@@ -75,6 +75,14 @@ mkdir -p "$tmp/mine" && echo keep >"$tmp/mine/notes.txt"
 "$ZINC" doc tests/data/doc/starfield --out "$tmp/mine" >/dev/null 2>&1 && no "wrote into a folder zinc doc did not make"
 [ -f "$tmp/mine/notes.txt" ] || no "a file of someone else's folder is gone"
 
+# a link to a source file: the repository of zinc.json when it names one, a warning otherwise
+cp -R tests/data/doc/starfield "$tmp/repo"
+printf '\nSee [the code](../src/main.ts#L3).\n' >>"$tmp/repo/docs/02-notes.md"
+"$ZINC" doc "$tmp/repo" --out "$tmp/repo-out" 2>&1 | grep -q "main.ts#L3' leads nowhere" || no "a source link without a repository gave no warning"
+sed -i.bak 's|^{|{ "repository": "https://example.com/u/r.git",|' "$tmp/repo/zinc.json"
+"$ZINC" doc "$tmp/repo" --out "$tmp/repo-out2" >/dev/null 2>&1
+grep -rq 'href="https://example.com/u/r/blob/main/src/main.ts#L3"' "$tmp/repo-out2" || no "a source link does not go to the repository"
+
 # --serve: a free port, the pages, a rebuild when a source changes
 cp -R tests/data/doc/starfield "$tmp/proj"
 "$ZINC" doc "$tmp/proj" --serve --port 0 --out "$tmp/served" >"$tmp/serve.out" 2>&1 &

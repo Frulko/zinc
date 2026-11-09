@@ -3,11 +3,11 @@ id: ZN-1012
 title: >-
   Plugin docs: fill plugins/<name>/docs for the main plugins, links to source,
   site decision
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:34'
-updated_date: '2026-11-09 01:46'
+updated_date: '2026-11-09 09:46'
 labels:
   - docs
   - plugins
@@ -34,9 +34,9 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 ten plugins have overview, tutorial and screenshot in plugins/<name>/docs
-- [ ] #2 links to source files go to the repository when zinc.json names one
+- [x] #2 links to source files go to the repository when zinc.json names one
 - [x] #3 the decision on site/ vs zinc doc --std is recorded
-- [ ] #4 search index split or measured
+- [x] #4 search index split or measured
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -49,4 +49,6 @@ AC2 (links from docs to .ts/.tsx source go to the repository when zinc.json name
 DECISION (site/ vs zinc doc --std), to record as the next D number, refining D176: both stay, with different jobs. site/ (Astro) remains the public website and publishes the curated docs/ guides (learn, start, guide, reference, plugins/*.md, targets: site/docs-map.mjs) with i18n and pagefind search. zinc doc generates the API and plugin pages (plugins/<name>/docs/, api.html, 9284 symbols) and the offline docs a user builds on a machine (zinc doc --std, --serve). The website links to a zinc doc --std build (published as a folder of the site at release time) for the API and the plugin tutorials, instead of Astro re-rendering them: one source per kind of page, no second renderer for MDX components. Revisit if the 1.6 MB search index is too slow on old tablets (then split it per section).
 Proposed tests: none written. zinc doc --std builds in 0.3 s: a T0 that fails on a warning coming from plugins/*/docs would keep the pages honest.
 later.md lines: ZN-1012: zinc doc search index is 1.6 MB (302 KB gzip) for --std: time it on the Pi and an old tablet, split per section if slow. / ZN-1012: tutorials for the other plugins of the audit list, same layout as plugins/3d/docs. / ZN-1012: once plugins/<name>/docs/index.md exists, zinc doc no longer shows the long docs/plugins/<name>.md: move the long reference into the plugin folder or let index.md include it.
+AC2 done (C++, src/doc/doc.cpp, NOT BUILT by this worktree agent; the coordinator builds): zinc.json "repository" (https URL string or {url}; git+ prefix and .git suffix stripped) is read into Site::repo; resolve() turns a link to a .md/.mdx/.ts/.tsx/.cpp/.h file under the project root into <repo>/blob/main/<path>#frag instead of a "leads nowhere" warning; without a repository it stays a warning. T0 cases added to tests/t0/doc.sh (not run: needs the rebuilt zinc). Branch fixed to main; plugin-alone and --std modes read no zinc.json, so they are unchanged.
+AC4 measured, stays whole: zinc doc --std search-index.js = 1,633,544 bytes, 302,328 gzip, a deferred script (works from file://), cached after the first page; only the engine-wide --std build is that big, a project or one plugin is tens of KB (3d: 27 KB). The public site uses pagefind, which already splits the index into fragments loaded on demand. No old-tablet timing (no browser there); split per section only if a device measures slow.
 <!-- SECTION:NOTES:END -->

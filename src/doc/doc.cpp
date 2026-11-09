@@ -126,6 +126,7 @@ struct Search { std::string t, u, s, x, k, kind; };
 
 struct Site {
   std::string engineRoot, root, out, title, description, theme, mode;
+  std::string repo;   // zinc.json "repository" (https URL): links to source files of the project point at <repo>/blob/main/<path>
   std::vector<std::string> pagesDirs, apiPaths;
   std::vector<std::pair<std::string, std::string>> pageGroups;   // the sidebar groups of pages: title, URL prefix
   std::vector<Page> pages;
@@ -475,7 +476,10 @@ std::string resolve(Site& s, const std::string& from, const std::string& srcDir,
   }
   if (!fs::is_regular_file(abs, ec)) return {};
   const std::string ext = fs::path(abs).extension().string();
-  if (ext == ".md" || ext == ".mdx" || ext == ".ts" || ext == ".tsx" || ext == ".cpp" || ext == ".h") return {};   // outside the site
+  if (ext == ".md" || ext == ".mdx" || ext == ".ts" || ext == ".tsx" || ext == ".cpp" || ext == ".h") {   // outside the site: the repository when zinc.json names one
+    if (s.repo.empty() || abs.rfind(s.root + "/", 0) != 0) return {};
+    return s.repo + "/blob/main/" + abs.substr(s.root.size() + 1) + frag;
+  }
   const std::string out = copyAsset(s, abs);
   if (image) {
     std::string bytes;
@@ -1107,6 +1111,12 @@ int run(const std::vector<std::string>& args, const std::string& engineRoot) {
       };
       base.title = str(r, "name");
       base.description = str(r, "description");
+      yyjson_val* rv = yyjson_obj_get(r, "repository");   // "https://host/user/repo[.git]" or { "url": ... }
+      base.repo = yyjson_is_obj(rv) ? str(rv, "url") : str(r, "repository");
+      if (base.repo.rfind("git+", 0) == 0) base.repo.erase(0, 4);
+      if (base.repo.size() > 4 && base.repo.compare(base.repo.size() - 4, 4, ".git") == 0) base.repo.resize(base.repo.size() - 4);
+      while (!base.repo.empty() && base.repo.back() == '/') base.repo.pop_back();
+      if (base.repo.rfind("http", 0) != 0) base.repo.clear();   // ponytail: https only, no github:user/repo shorthand
       if (yyjson_val* doc = yyjson_obj_get(r, "doc"); yyjson_is_obj(doc)) {
         if (!str(doc, "title").empty()) base.title = str(doc, "title");
         if (!str(doc, "description").empty()) base.description = str(doc, "description");
