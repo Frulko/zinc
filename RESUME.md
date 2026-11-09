@@ -1,47 +1,51 @@
 # Resume — 2026-11-09
 
-## Active coordination
+## Coordination
 
-- Continue zn-coordinate until the main repository `.paused` exists or nothing can start. Never ask the owner a question. One coordinator: this root session; state log is [COORDINATOR.md](docs/reports/backlog-review-2026-11-07/COORDINATOR.md).
-- Active workers: sole core, Pickers and Data; each has its own worktree. Every command runs in its own worktree; source and ownership below. They use zn-start, no suites, no push.
-- This session closed17 tasks: ZN-1078.03/.04/.05/.08/.10 and ZN-1079/1080/1081/1082/1083/1084/1085/1086/1087/1089/1091/1092. Full integration history and older unresolved handovers/tests remain in [the archived resume](docs/reports/session-handover-2026-11-09.md); read only the relevant topic.
+Continue `zn-coordinate` until the main repository `.paused` exists or no work remains. Never ask the owner a question. This root session is the sole backlog coordinator; [COORDINATOR.md](docs/reports/backlog-review-2026-11-07/COORDINATOR.md) records claims and integrations. Other sessions are working on Mapper, documents and runtime/LVGL changes.
 
-| Worker | Branch/worktree | State and next step |
+This session closed 17 tasks: ZN-1078.03/.04/.05/.08/.10, ZN-1079–1087, ZN-1089, ZN-1091 and ZN-1092. Earlier integration details, known failures and proposed tests remain in [the archived handover](docs/reports/session-handover-2026-11-09.md).
+
+| Worker | Branch / worktree | Current work |
 | --- | --- | --- |
-| Core handoff | work/1088-resume, .worktrees/1088-resume | Current private checkpoint e6d744868 parks1088 Backlog, all AC open; complete1093(id),1094(flatMap),1090 source, then validate/fixup each task before integration. Prior Astra tree1088-astra and old1089-core are read-only evidence. No active old writer. |
-| Pickers .07 | work/1078-pickers, .worktrees/1078-pickers | Resume previously reserved task; TS family only, no engine build. Source/reuse research while other session owns heavy queue. |
-| Data .12 | work/1078-data, .worktrees/1078-data | Newly claimed independent TS family, research complete; reuse virtualization and existing primitives, no engine build. |
-| Feedback parked | .worktrees/1078-feedback-astra | b088d2952 source integrated, no active worker. Cleanup patch .logs/feedback-astra-handover.patch +notes, BacklogAC2 only; finish after1088/1090. |
+| Sole core writer | `work/1088-resume`, `.worktrees/1088-resume` | Private checkpoint `e6d744868` parks ZN-1088 with all criteria open. Prepare ZN-1093 (JSX `id`), ZN-1094 (`flatMap`), then ZN-1090 (default icons); validate and fold final task updates into their commits before integration. |
+| Pickers | `work/1078-pickers`, `.worktrees/1078-pickers` | ZN-1078.07: component/gallery source and exact tests written; static checks pass. Runtime proofs, pictures and size gate remain pending. Owns shared kit host helpers. |
+| Data | `work/1078-data`, `.worktrees/1078-data` | ZN-1078.12: components and gallery source written. Confirmed engine blockers are `id` and `flatMap`; reviewing keyboard, loading and selection behavior. No runtime proof yet. |
+| Feedback parked | `.worktrees/1078-feedback-astra` | Source `b088d2952` integrated; no active worker. Cleanup patch and notes under `.logs/feedback-astra-handover.*`. Only AC2 is checked; resume after size/default icons. |
 
-- Owner requested Astra Fast then `on rebascule`: new workers inherit the coordinator/configured previous model. Launchers keep Fast and optional ZN_CODEX_MODEL override; no global model change. Astra work is preserved, not discarded.
-- 1088 private e6d744868 is NOT integrated: effects(kAllocs)-based inline cost, recursive Script retention, native/cross script archive dependencies also repaired; layout exact regression passed all3, new Script linking test still pending. Earlier e020951cc measurements only: stable-ID layout pruning +allocationinlinecost40 +native.systemHost opt-in(defaultfull,auditedsvg lite). Finalrawgate5390968/5423984/6074800B: unused33016passes, used72312>65536 (60,992B total stillneeded). Fullhost mistakenlyretainednetworking added1.13MB; thatcausefixedincheckpoint. NoUI/budgetcuts. Final candidate host/cache/Script regression, current-source size gate and gallery smoke remain unrun/unfinished; no new size claim. Runtimeperformanceunmeasured.
-- Data grid1093 JSX id blocker claimed; sole core handles after1088. 1094 generic Array.flatMap is also confirmed/claimed; neutral conditional hook ownership and pre-layout scrolling await minimal runtime proof. Runtime/build proofs remain queued behind another session’s restarted Mapper; cheap static checks run bounded without app execution.
-- Inputs0a8c0b141 and Navigation3dde12a02 progress integrated, functionalproofsgreen, AC3dependency1088. Oldtrees/artifacts retained for attribution. .07Pickers untouched. Defaultlibraryicons1090 remains unstarted; research references in coordinator messages and task.
-- Owner gallery1087 is DONE: c59fa16fa app/password, b189f5bab aspect,414861c46 nestedwrap,5bd6649c3 fullproof. 360/768/1024/1440 defaultnative resize/bounds/scroll/reveal/edit/focus/keys pass. Rootexacttests green, screenshots persisted under docs/img/design. No app workaround, nooursremaining.
+New workers inherit the configured model after the owner's “on rebascule”. Launchers retain Fast and optional `ZN_CODEX_MODEL`; the global model configuration was not changed. Research agents have finished; disposable review/research worktrees were removed.
 
-## Safe engine and machine
+## Core checkpoints and blockers
 
-- Main tree has OTHER SESSION uncommitted runtime/LVGL/host work, `src/main.cpp` display hunk, ui.ts Virtual/Fenwick near636/967, changelog/affected/perf lines. Preserve it; never use main/build/zinc for these UI proofs. Tasks844/853/884 belong to other sessions.
-- Retained clean tree/binary: `.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc`, rebuilt with integrated c69f4e7a8. Use ZINC_ROOT=$worker_tree, ZINC=$absolute_clean_binary. Reset the retained tree only when clean; tools/build zinc after a C++ change.
-- Heavy commands queue automatically via `/Users/mowmow/Lab/zinc/tools/work-run SECONDS COMMAND ARGS`; git-common-dir flock shared by worktrees, existing timeout kills the command group. No coordinator token waits. The old /tmp/zinc-heavy-run-501.py delegates here.
-- Two building trees at most, one heavy process at a time. Headless or ZINC_BACKGROUND=1, bounded runs, no synthetic load or left-over apps. Source reading/editing remains parallel.
-- tools/codex-live configures five worker slots for NEW CLI sessions (documented max_threads alias); this session's runtime cap remains three workers. Launch argument mock, linked-tree serialization/exit/timeout regression and skill validation passed. No second coordinator started.
+- **Nothing after `e6d744868` is integrated yet.** Its allocation cost uses existing `kAllocs` effects, stable-ID metadata pruning and an audited `native.systemHost` opt-in (default full, SVG lite). The exact layout regression passed on all three engines, including hot/debug retention and numeric/string inlining controls.
+- A new reached-Script regression exposed missing native/cross static archive dependencies. Source repairs include recursive Script retention and required archives; the final build, host/cache/Script regression, current-source size gate and original gallery smoke remain pending. Cross execution and runtime performance are unmeasured.
+- **Earlier candidate `e020951cc` numbers only:** AOT direct/index/ten = 5,390,968 / 5,423,984 / 6,074,800 bytes. Unused-family cost 33,016 passes; used-component average 72,312 exceeds 65,536, needing another 60,992 bytes total. These are not measurements of the latest checkpoint. Preserve `.worktrees/1088-astra/.logs/1088-final` and `.worktrees/1089-core` attribution evidence.
+- ZN-1093: a three-line ordinary JSX `id` example fails Z0005. Support the existing generic attribute pipeline, VirtualList and actual web DOM IDs; do not add a grid-specific registry. Primary WAI/React research is in the task.
+- ZN-1094: a two-line nested-string-array `flatMap` example fails Z0106. Implement through existing typed array HOF generation; TC39 and vendored QuickJS research is in the task. Do not rewrite PathBar to hide it.
+- ZN-1090: reached library defaults must supply icons without application manifests, preserving shaking. Research favors shared typed reachability for valid Zinc and preliminary linking for bundles. Arbitrary JavaScript outside Zinc must not acquire a mandatory checker/esbuild dependency; its existing explicit declarations remain the offline fallback. No production icon fix yet.
+- Inputs `0a8c0b141` and Navigation `3dde12a02` are integrated progress, with functional proofs but open size criteria depending on ZN-1088. Their retained worktrees contain attribution inputs. Never raise budgets or trim valid UI to pass.
+- Pickers now use the full lazy Unicode 17 catalogue (1,914 entries, nine groups, 330 tone sets). Font coverage and actual rendering are unproved. Possible pre-layout scroll and neutral-component React ownership problems await runtime repros; no workaround or speculative new task.
 
-## Latest integrated behavior
+## Machine and integration safety
 
-- c69f4e7a8, ZN-1086: one non-returning TDZ error constructor shared by inlined guards. Same-source Button ReferenceError allocation sites859→1; guards/value evaluation/errors preserved. Unchanged AOT gate62412 B/component <=65536; no source/budget workaround.
-- d78054826 +8fc1bb2d1, ZN-1085: onFocusWithin returns an idempotent registration-specific disposer and snapshots existing focus without an enter callback. Use host.onCleanup(ui.onFocusWithin(...)); Inputs/Overlays migrate their own callers. Exact stale-handle, replacement and keyboard/pointer blur cases pass all3 engines.
-- 53009551b, ZN-1078.08: Selection Done after the size fix; mixed native AppKit checkbox, stable React gestures via host.componentRef, filled icons, labelled keyboard controls and light/dark gallery.
-- 2a0c72f1f, ZN-1078.10: Overlays Done; dialog/sheet/popover/hover/tooltip/confirmation/tour/toasts, owned deadlines and focus subscriptions,11 real images. Exact Solid/React checks, AOT and unchanged size gate pass.
-- e426a7560, ZN-1084/D269: seven UI work scenarios, optional visits and creation/settled/disposal counters, correct-result/provenance gates, memory unavailable=null. Three small artifacts: docs/reports/bench/ui-work-2026-11-09-{qjs64,coarse16,aot16}.json. Four sparse writes64rows:4bindings but528measure/528place/848paint visits; no timing ranking.
+- Main has other sessions' uncommitted runtime/LVGL/host changes, a display hunk in `src/main.cpp`, Virtual/Fenwick hunks in `lib/std/ui.ts`, and changelog/affected/performance edits. Preserve them. The performance file currently has 15 external added lines; stage only coordinator-owned appended blocks. Never use main's binary for these UI proofs.
+- Retained clean binary: `.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc`, rebuilt through the integrated SDL aspect fix. Use it read-only with `ZINC_ROOT=$worker_tree`. Reset that tree to develop only when clean, and rebuild after C++ integration.
+- Heavy commands use `/Users/mowmow/Lab/zinc/tools/work-run SECONDS COMMAND ARGS`, with one queued command per worker. Another session has restarted a bounded one-hour Mapper app and holds the global lock. Preserve it. Cheap bounded static `zinc check` commands can proceed without executing apps; builds, tests and app runs remain queued.
+- At most two building trees globally, one app/test at a time, bounded runs, headless or `ZINC_BACKGROUND=1`, no leftovers. Do not kill another session's jobs. Core canceled only its own queued build before changing inputs.
+- `tools/integrate` preserves overlapping owner work and now handles merge/diff3/zdiff3 bases correctly (`06e670420`). Still inspect restored work, conflict markers and affected JSON after integration. Keep immutable stash identities.
+- Current runtime allows three workers. The five-worker launcher setting applies only to new CLI sessions; do not launch a second coordinator. No push.
 
-## Validation and tests to run (the owner picks)
+## Latest completed behavior and validation
 
-- Owner asked to test the kit: clean kit_quiet/input/actions/chrome/selection/selection_native/overlays, ui_focus_dispose, tdz_outline, bench_harness and unchanged kit_size passed. Gallery check, brief headless captures and bounded background interactive run passed; no process left. Suites/cross/GPU/full benchmarks not run.
-- Next immediate checks are each worker's exact feature/React/native proof, original gallery capture and final unchanged size gate. Inputs is not Done until its own full-source gate passes. Never replace valid user code to hide engine gaps.
-- At a chosen milestone: physical keyboard/VoiceOver/touch and native host behavior for kit families; all7 AOT UI work scenes64rows, then quiet-machine scaling; hot_recompile/fast_refresh for TDZ helper keys. RSS/heap, Yoga/style/DOM internals and native host work remain unmeasured.
-- All older proposed tests and known machine-specific failures are preserved under Tests to run and topic headings in the archived resume. Do not re-investigate those on unrelated work.
+- Owner gallery ZN-1087 is Done: app/password `c59fa16fa`, SDL aspect `b189f5bab`, nested wrap `414861c46`, full default proof `5bd6649c3`. Native 360/768/1024/1440 checks cover bounds, scrolling, reveal/edit/focus and Enter/Space without a resize workaround. Pictures are `docs/img/design/gallery-responsive.png` and `password-reveal.png`.
+- TDZ outlining `c69f4e7a8` preserves guards while sharing the non-returning error constructor; the then-current size gate passed at 62,412 bytes/component. Focus disposer `d78054826` / `8fc1bb2d1` provides exact idempotent cleanup and initial focus snapshots.
+- Selection and Overlays are Done, with Solid/React/native proofs and pictures. Owner-requested kit checks, short gallery captures and bounded background interaction passed; no owner UI process was left by this coordinator.
+- Harness `e426a7560`, D269: seven UI work scenarios with correct-result/provenance gates and nullable unavailable memory. Three small artifacts are under `docs/reports/bench/ui-work-2026-11-09-*`. Four sparse writes over 64 rows cause four bindings but 528 measure / 528 place / 848 paint visits; no timing ranking was claimed.
+
+## Tests to run — the owner picks
+
+Immediate feature proofs remain each worker's exact T0, actual Solid/React/native behavior, Zinc-drawn captures and the unchanged final size gate. No suite, T1/T2/demo test, pixel comparison, fuzzing, full benchmark or cross run is authorized here. Proposed milestone checks include physical keyboard/VoiceOver/touch, all seven AOT work scenarios and quiet-machine scaling; all older commands and known failures are retained in the archived handover.
 
 ## Owner demo
 
-From the retained clean tree: `ZINC_ROOT=$PWD build/zinc run examples/ui/kit-gallery --interp`. GALLERY=actions/chrome/selection/overlays selects a family; Dark toggles the theme. User was given this command and the loop continues.
+From the retained clean tree: `PICTURE=gallery ZINC_SIZE=1280x900 ZINC_ROOT="$PWD" build/zinc run docs/img/design/src --interp`. For the kit: `ZINC_ROOT="$PWD" build/zinc run examples/ui/kit-gallery --interp`; `GALLERY=actions`, `chrome`, `selection` or `overlays` selects a completed family. The coordinator loop continues.
