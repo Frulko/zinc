@@ -2,8 +2,7 @@
 id: ZN-1097
 title: Infer collection constructor types from iterable arguments
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 20:56'
 updated_date: '2026-11-09 21:18'
 labels:

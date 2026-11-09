@@ -1,0 +1,20 @@
+{
+  "base": "9e3f1523709452e958fd04839529f29770975a47",
+  "engine_sha256": "2ea59efd4b80ff70abcbe5bdcba4154dbe61012c24216116ac209378d4112fcf",
+  "files": {
+    "src/rt/rt.h": "fffa4cfec441070564bc64f57a1ed6991f60b4d354bd338ebb3519d7c080176f",
+    "src/rt/rtcalls.cpp": "0085638b5fd1eb219f71c7a068de90feaef942e6af9ec2f756ce66877efbb54c",
+    "tests/data/nullable_keys/main.ts": "dd4c2985a4ffeb250ecabf3bba04902be39813f71a891d197caadd0bf4666ac5",
+    "tests/data/nullable_keys/null_receiver.ts": "44d490b683fd1828f28fc2e464034ef060533ee08cf79aa7d97e7dc3f3bc4aff",
+    "tests/t0/nullable_keys.sh": "f7aeeab62191eea0aa0d7528953c28385feb1a6fdacd0c839eab33ded2516713"
+  },
+  "proofs": [
+    "nullable_keys all3",
+    "nullable_keys interpreter check-leaks",
+    "collection_infer all3",
+    "original repro2/exit0"
+  ],
+  "owned_processes_remaining": false,
+  "external_wip_copied": false,
+  "runtime_speed_measured": false
+}

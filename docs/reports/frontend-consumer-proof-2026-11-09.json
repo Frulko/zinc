@@ -1,0 +1,36 @@
+{
+  "branch": "work/1096",
+  "base": "afceb812d89471613bc440a03f87f8e3cb883826",
+  "head": "b0a62dde24ca2ff2102f4eef21266660dbfe0788",
+  "commits": [
+    "b0a62dde24ca2ff2102f4eef21266660dbfe0788 fix(frontend): keep optional cleanup returns typed",
+    "e08be46435be3b11d3aa37cb4bd4ff9ce2ed8c9f feat(frontend): infer collection types from iterable arguments"
+  ],
+  "engine": "/Users/mowmow/Lab/zinc/.worktrees/1096/build/zinc",
+  "engine_sha256": "99e7a6d7c14559a193fc9cc54047471dd605cb38aef4f90cfd4c463b60d2163a",
+  "checker_sha256": "ad77e4cd9000083856b8ce99cff0b876ce9a61cfad3d3b9490c7dda6f75aaff7",
+  "checks": {
+    "collection_infer": {
+      "log": ".logs/1097/test.log",
+      "sha256": "758cd0dda9f4358e6cc142c41f99011a1ef8a7426eb4519dd4ac28606bcbd1c9",
+      "passed": true
+    },
+    "nullable_cleanup": {
+      "log": ".logs/1099/test.log",
+      "sha256": "070a0814f8c82da589ecb3d0abb2fc36e3e4073e5f2eb4d05572888381018e9d",
+      "passed": true
+    }
+  },
+  "previous_checks": {
+    "jsx_id": "PASS bothmodels/all3",
+    "scroll_request": "PASS classic/Yoga/all3 +headless foreignsurface/idle",
+    "guarded_callback": "PASS all3 +unsafe mutation/secondcall negatives"
+  },
+  "original_picker": "worker reports original publicbarrel gallery check, bothfixtures interpreter/QuickJS/explicitnative, initialWheel/Ruler and hiddenTimePicker all3 PASS; unchanged kit_size PASS",
+  "preexisting_gap": "explicit Set<string|null>([one,null]) baseline traps Set.add; artifact .logs/1097/nullable-string-set.ts and baseline.log, reserved next fresh core1100",
+  "clean": true,
+  "processes_left": false,
+  "broad_suite_run": false,
+  "runtime_performance_measured": false,
+  "source_after_rebase_identical": true
+}

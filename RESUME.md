@@ -4,19 +4,24 @@
 
 Continue `zn-coordinate` until the main repository `.paused` exists or no work remains. Never ask the owner a question. This root session is the sole backlog coordinator; [COORDINATOR.md](docs/reports/backlog-review-2026-11-07/COORDINATOR.md) records claims and integrations. Other sessions are working on Mapper, documents and runtime/LVGL changes.
 
-This session closed 26 tasks: ZN-1078.03/.04/.05/.06/.08/.09/.10, ZN-1079–1087, ZN-1088–1096 and ZN-1098. Earlier integration details, known failures and proposed tests remain in [the archived handover](docs/reports/session-handover-2026-11-09.md).
+This session closed 30 tasks: ZN-1078.03/.04/.05/.06/.07/.08/.09/.10, ZN-1079–1087, ZN-1088–1100. Earlier integration details, known failures and proposed tests remain in [the archived handover](docs/reports/session-handover-2026-11-09.md).
 
 | Worker | Branch / worktree | Current work |
 | --- | --- | --- |
-| Sole core writer | `work/1096`, `.worktrees/1096` | 1093 correction and1096 integrated/proved; now1097 collection inference/1099 Dyn cleanup returns finalizing;1098 integrated/proved. Five-task batch maximum including1093/1096. |
-| Pickers | `work/1078-pickers-proof`, `.worktrees/1078-pickers-proof` | Fresh checkpoint proof; original private source `b1b945b19` retained. AllACopen. Actual source reveals1093 Z0107 and iterable Set inference Z0109; no app workaround. |
+| Sole core writer | `work/1100`, `.worktrees/1100` | 1093 correction and1096 integrated/proved; Fresh1100 nullable string collection keys, then confirmed1101 QuickJS project cwd. Previous five-task batch complete;1096 tree is now a frozen proof binary. Five-task batch maximum including1093/1096. |
+| Pickers complete | `work/1078-pickers-proof` | Integrated9dc934f5f; archive/remove after clean combined validation. |
 | Data | `work/1078-data-proof`, `.worktrees/1078-data-proof` | Fresh checkpoint `f048a55bf` proof; allACopen. Original Data IDs reveal1093 regression; optional callback guarding also fails checker despite tsc strict acceptance. |
-| Feedback parked | `.worktrees/1078-feedback-astra` | Integrated source `b088d2952`; cleanup patch and notes in `.logs/feedback-astra-handover.*`. OnlyAC2 checked. |
+| Feedback proof | `work/1078-feedback-proof`, `.worktrees/1078-feedback-proof` | Fresh worker proving defaults without manifests, actual behavior/captures and unchanged gate, no C++ build. |
 
 
 New workers inherit the configured model after the owner's “on rebascule”. Launchers retain Fast and optional `ZN_CODEX_MODEL`; the global model configuration was not changed. Research agents have finished; disposable review/research worktrees were removed. Code 13 provider research is saved in its unclaimed task for the next family.
 
 ## Integrated core and remaining blockers
+
+- Picker07 integrated9dc934f5f, Done/allAC: exact both models/interpreter/QuickJS and explicit native callers, six inspected light/dark pictures,360px header/controls, full lazy Unicode catalogue. Gate JS235400/237838/274631=4088/component (71 B total headroom), AOT5341832/5391360/5926624=59473. Provenance persists with source SHA4693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7dc1d721a; combined Data source still requires final gate.
+- Nullable string keys1100 integratedbaf4c2d0f, Done/allAC, preserving D18 typed nullish ABI.160 strings exercise rehash; null vs empty, value equality/delete/reinsert/replacement/cleanup and leak checks pass on all3. No protected owner array-storage hunk was changed. Main WIP stillui42/19,rt.h137/1,rtcalls30/17,machine3/2,main12/0,perf15/0. Root clean-source exact nullable_keys PASS again with frozen source-identical1100 binary. A preexisting QuickJS iterator/array mismatch is reserved1102.
+
+-1097 iterable constructor inference `dd71007c2` and1099 typed cleanup returns `9e3f15237` are integrated/Done. Root exact collection_infer and nullable_cleanup PASS again on clean develop std source using frozen source-identical worker binary99e7a6d7c14559a193fc9cc54047471dd605cb38aef4f90cfd4c463b60d2163a. Clean retained afce binary stays frozen for Data attribution; rebuild once after the family source merge. Final frontend provenance is `docs/reports/frontend-consumer-proof-2026-11-09.json`.
 
 - Inputs06 and Navigation09 are nowDone after clean root kit_size, kit_inputs, kit_navigation and original gallery check/three-frame smoke PASS.
 - Integrated five commits:1088 `9b4f5451d`,1093 `e3a20b747`,1094 `e500cf6de`,1095 `0d1228346`,1090 `41c30e3ac`.1088/1090 Done;1093/1094/1095/1098 nowDone after original public Data nine-run/all3 and Picker stateful/all3 proofs; raw provenance persisted. Root checked engine source-tree identity against tested provenance and rebuilt the clean retained tree; unchanged kit_size PASS. Corrective1093 integration0ae64e937 was rebuilt there and expanded exactjsx_id PASS again. Existing asset/nanosvg warnings are not a new warning-free claim.
@@ -28,7 +33,7 @@ New workers inherit the configured model after the owner's “on rebascule”. L
 - Decisions D270–273 record stable metadata/allocation cost, conservative plugin host capability, canonical neutral JSX ownership and reached icon serialization. Contextual mixed scalar/tuple literal inference remains a later line; already-typed tuple flatMap is proven.
 
 - Data pure `zinc:hash` identity helpers replace broad eager web import; unused size passes, usedJS currently209 B over. Worker is measuring ordinary Card default-props simplification without feature cuts; Data stays open until finalgate/captures. Picker actual all3/size pass, final rebased source handoff pending.
-- Next fresh core task1100 is reserved for baseline nullable String Set/Map keys trapping in shared runtime. This is not1097 inference regression. Preserve protected external runtime WIP; inspect hash/equality/delete paths and exact lifetime before a minimal fix. Current core batch remains five tasks, no sixth.
+- Core1100 fixed baseline nullable String Set/Map keys; fresh1101/1102 handle QuickJS cwd and typed collection-result parity. This is not1097 inference regression. Preserve protected external runtime WIP; inspect hash/equality/delete paths and exact lifetime before a minimal fix. Previous five-task batch and1100 are complete. Fresh1101/1102 form the next sole-core batch, at most five tasks.
 - Archived seven completed clean old worker trees/logs/checkpoints under `.logs/archive-completed-workers`; old retained source paths may now be historical. Active proof trees and stable clean demo tree remain.
 
 ## Machine and integration safety

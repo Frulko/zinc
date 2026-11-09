@@ -2,8 +2,7 @@
 id: ZN-1099
 title: Preserve nullable callback returns in Dyn-enabled programs
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 20:57'
 updated_date: '2026-11-09 21:10'
 labels:

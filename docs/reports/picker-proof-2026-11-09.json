@@ -1,0 +1,38 @@
+{
+  "branch": "work/1078-pickers-proof",
+  "head": "4f1f88ac2a482b24c0719dcdb8b5c3d1e060559b",
+  "base": "9e3f1523709452e958fd04839529f29770975a47",
+  "kit_sha256": "4693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7dc1d721a",
+  "kit_files": 37,
+  "engine_sha256": "99e7a6d7c14559a193fc9cc54047471dd605cb38aef4f90cfd4c463b60d2163a",
+  "gate_sha256": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed",
+  "JS": {
+    "direct": 235400,
+    "index": 237838,
+    "ten": 274631,
+    "unused": 2438,
+    "per_component": 4088,
+    "strict_total_headroom": 71
+  },
+  "AOT": {
+    "direct": 5341832,
+    "index": 5391360,
+    "ten": 5926624,
+    "unused": 49528,
+    "per_component": 59473
+  },
+  "proofs": [
+    "gallery and both fixture check",
+    "kit_pickers interpreter/QuickJS both models",
+    "native Solid",
+    "native React",
+    "six actual Zinc light/dark pictures",
+    "360px captured layout",
+    "Unicode generator check",
+    "unchanged kit_size gate"
+  ],
+  "notes": "Final TypeScript supported-prop cleanup is covered by checks, exact T0 and native proofs. No core source change belongs to this commit. Combined Picker/Data gate remains coordinator responsibility.",
+  "suite_run": false,
+  "runtime_speed_measured": false,
+  "processes_left": false
+}

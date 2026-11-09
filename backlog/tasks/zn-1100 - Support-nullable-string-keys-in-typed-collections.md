@@ -2,8 +2,7 @@
 id: ZN-1100
 title: Support nullable string keys in typed collections
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 21:18'
 updated_date: '2026-11-09 21:30'
 labels:
