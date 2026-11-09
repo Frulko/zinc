@@ -98,6 +98,7 @@ export function ToolbarItem(p: ToolbarItemProps): i32 {
   ui.setNativeKind(h, 'toolbaritem');
   ui.setNativeAttr(h, 'label', label);
   ui.setNativeAttr(h, 'symbol', p.symbol ?? '');
+  if (label !== '') ui.setLabel(h, label);   // its accessible name drawn (AppKit names a toolbar item by its label)
   const f = p.onPress;
   if (f !== undefined) ui.listen(h, f);
   if (p.children !== undefined) return slot(h, p.children);
@@ -169,6 +170,7 @@ function refresh(l: List, count: i32): void {
     const r = l.render(i);
     ui.setClass(r, ROW + rowBg(l, i));
     ui.setNativeAttr(r, 'row', '' + i);
+    if (!shown) { ui.setRole(r, 'row'); ui.setLabel(r, l.label(i)); }   // drawn, what a screen reader reads of the row (AppKit's table exposes its own rows)
     l.rows.set(i, r);
     return r;
   }, (row: i32): void => { l.rows.forEach((r: i32, i: i32) => { if (r === row) l.rows.delete(i); }); });
@@ -238,6 +240,7 @@ function listEvent(l: List, kind: i32, text: string, a: number, b: number): void
 function listNode(kind: string, cls: string, rowH: number): List {
   const outer = el(ui.VIEW, `flex-col overflow-hidden ${shown ? '' : 'bg-[#ffffff] border border-[#d0d0d0] '}${cls}`);
   ui.setNativeKind(outer, kind);
+  ui.setRole(outer, kind === 'table' ? 'table' : 'tree');
   ui.setNativeAttr(outer, 'rowHeight', '' + rowH);
   ui.setFocusable(outer, true);
   const l = new List(outer, rowH);
@@ -260,9 +263,11 @@ export interface TableProps {
   rowHeight?: number;                       // 24
   multiple?: boolean;                       // several rows can be selected (shift and cmd clicks); true by default
   onSelect?: (rows: i32[]) => void;
+  selection?: () => i32[];                  // the rows the program selects (its rows moved by a sort or a filter), read in an effect; onSelect is not called back
   onSort?: (column: string, ascending: boolean) => void;   // sort the data; the count's signal shows it
   onOpen?: (row: i32) => void;              // a double click, or Enter drawn
   className?: string;
+  accessibilityLabel?: string;              // what VoiceOver names it (the native view's accessibilityLabel; drawn, the node's label)
 }
 /** `<Table columns={...} count={() => files().length} cell={(r, c) => ...} />`: an NSTableView under the host, its cells recycled by AppKit and
  *  answered from the visible rows zinc:ui pushes with each commit; drawn, a header over zinc:ui's virtual list. Only the rows in view are built. */
@@ -293,7 +298,7 @@ export function Table(p: TableProps): i32 {
     const t = ui.createText(c.title); ui.setClass(t, 'text-[12px] text-[#333333]'); ui.insert(h, t, -1);
     const m = ui.createText(''); ui.setClass(m, 'text-[10px] text-[#666666]'); ui.insert(h, m, -1);
     marks.push(m);
-    if (c.sortable === true) ui.listen(h, () => { sortBy(c.id, sortCol === c.id ? !asc : true); });
+    if (c.sortable === true) { ui.listen(h, () => { sortBy(c.id, sortCol === c.id ? !asc : true); }); ui.setLabel(h, `Sort by ${c.title}`); }
     ui.insert(header, h, -1);
   }
   ui.insert(l.outer, header, -1);
@@ -319,7 +324,19 @@ export function Table(p: TableProps): i32 {
   };
   l.open = (i: i32): void => { const f = p.onOpen; if (f !== undefined) f(i); };
   createEffect(() => { const n = p.count(); untrack(() => { refresh(l, n); return 0; }); });
-  return l.outer;
+  const wanted = p.selection;
+  if (wanted !== undefined) createEffect(() => {
+    const rows = wanted();
+    untrack(() => {
+      if (rows.join(',') === l.sel.join(',')) return 0;   // the person's own selection, come back through onSelect
+      l.sel = rows;
+      if (rows.length > 0) l.anchor = rows[0];
+      restyle(l);
+      ui.setNativeAttr(l.outer, 'selection', rows.join(','));
+      return 0;
+    });
+  });
+  return named(l.outer, p.accessibilityLabel);
 }
 
 export interface OutlineItem { id: string; label: string; children?: OutlineItem[] }
@@ -331,6 +348,7 @@ export interface OutlineProps {
   onToggle?: (id: string, expanded: boolean) => void;
   onOpen?: (id: string) => void;
   className?: string;
+  accessibilityLabel?: string;              // what VoiceOver names it (the native view's accessibilityLabel; drawn, the node's label)
 }
 class Flat { item: OutlineItem; level: i32; constructor(item: OutlineItem, level: i32) { this.item = item; this.level = level; } }
 /** `<Outline items={folders} onSelect={open} />`: a tree with disclosure, a source-list NSOutlineView under the host (it expands and type-selects by
@@ -383,6 +401,7 @@ export function Outline(p: OutlineProps): i32 {
     ui.insert(r, el(ui.VIEW, `w-[${6 + f.level * 14}px]`), -1);
     // ponytail: the disclosure is a glyph of the text font; an icon when zinc:icons comes to the kits' fallbacks
     const d = ui.createText(folder ? (open.get(f.item.id) === true ? '▾' : '▸') : ''); ui.setClass(d, 'w-[14px] text-[11px] text-[#666666]'); ui.insert(r, d, -1);
+    ui.setAriaHidden(d, true);   // the row's label says it all
     if (folder) ui.onPointer(d, ui.PDOWN, (_e: ui.PointerEvent) => { l.expand(f.item.id, open.get(f.item.id) !== true); });
     const t = ui.createText(f.item.label); ui.setClass(t, 'text-[13px] whitespace-nowrap truncate'); ui.insert(r, t, -1);
     ui.onPointer(r, ui.PDOWN, (_e: ui.PointerEvent) => { clickRow(l, i, 0, false); ui.focusNode(l.outer); });
@@ -399,7 +418,7 @@ export function Outline(p: OutlineProps): i32 {
   l.body = el(ui.VIEW, 'flex-1');
   ui.insert(l.outer, l.body, -1);
   reflat();
-  return l.outer;
+  return named(l.outer, p.accessibilityLabel);
 }
 
 // ---------------------------------------------------------------- controls (ZN-1073)
@@ -420,17 +439,21 @@ export function PushButton(p: PushButtonProps): i32 {
   return h;
 }
 
-export interface SwitchProps { value: () => boolean; onValueChange: (on: boolean) => void; label?: string }
+export interface SwitchProps { value: () => boolean; onValueChange: (on: boolean) => void; label?: string; accessibilityLabel?: string }
 /** `<Switch value={shared} onValueChange={setShared} />`: an NSSwitch under the host (a check box before macOS 10.15); drawn, the kit's Switch. */
-export function Switch(p: SwitchProps): i32 { return KitSwitch({ checked: p.value, onChange: p.onValueChange, label: p.label }); }
+export function Switch(p: SwitchProps): i32 { return KitSwitch({ checked: p.value, onChange: p.onValueChange, label: p.label, accessibilityLabel: p.accessibilityLabel }); }
 
-export interface SliderProps { value: () => number; onValueChange: (v: number) => void; min?: number; max?: number; step?: number; className?: string }
+export interface SliderProps { value: () => number; onValueChange: (v: number) => void; min?: number; max?: number; step?: number; className?: string; accessibilityLabel?: string }
 /** `<Slider value={volume} onValueChange={setVolume} max={100} />`: a continuous NSSlider under the host (snapped to `step`); drawn, the kit's Slider. */
-export function Slider(p: SliderProps): i32 { return KitSlider({ value: p.value, onChange: p.onValueChange, min: p.min, max: p.max, step: p.step, className: p.className }); }
+export function Slider(p: SliderProps): i32 {
+  return named(KitSlider({ value: p.value, onChange: p.onValueChange, min: p.min, max: p.max, step: p.step, className: p.className }), p.accessibilityLabel);
+}
 
-export interface SegmentedControlProps { items: string[]; selected: () => i32; onSelect: (i: i32) => void; className?: string }
+export interface SegmentedControlProps { items: string[]; selected: () => i32; onSelect: (i: i32) => void; className?: string; accessibilityLabel?: string }
 /** `<SegmentedControl items={['Icons', 'List']} selected={view} onSelect={setView} />`: an NSSegmentedControl; drawn, the kit's Tabs. */
-export function SegmentedControl(p: SegmentedControlProps): i32 { return Tabs({ items: p.items, selected: p.selected, onSelect: p.onSelect, className: p.className }); }
+export function SegmentedControl(p: SegmentedControlProps): i32 {
+  return named(Tabs({ items: p.items, selected: p.selected, onSelect: p.onSelect, className: p.className }), p.accessibilityLabel);
+}
 
 export interface ProgressProps { value: () => number; className?: string }
 /** `<Progress value={done} />`, 0 to 100 (below 0: indeterminate): an NSProgressIndicator bar; drawn, the kit's Progress. */
@@ -454,7 +477,7 @@ export function Checkbox(p: CheckboxProps): i32 {
   return nativeControl(h, 'checkbox', () => ['title', p.title, 'value', p.value() ? '1' : '0'], (v: string) => { p.onValueChange(v === '1'); });
 }
 
-export interface PopUpButtonProps { items: string[]; value: () => string; onValueChange: (v: string) => void; className?: string }
+export interface PopUpButtonProps { items: string[]; value: () => string; onValueChange: (v: string) => void; className?: string; accessibilityLabel?: string }
 /** `<PopUpButton items={['Name', 'Date', 'Size']} value={sort} onValueChange={setSort} />`: an NSPopUpButton that opens its own menu; drawn, a button
  *  with the value that opens a list under it. */
 export function PopUpButton(p: PopUpButtonProps): i32 {
@@ -470,7 +493,7 @@ export function PopUpButton(p: PopUpButtonProps): i32 {
   ui.onDismiss(menu, () => { ui.setNumber(menu, 'hidden', 1); });
   ui.onOutsidePointer(menu, (_e: ui.PointerEvent) => { ui.setNumber(menu, 'hidden', 1); }, h);
   ui.listen(h, () => { const n = ui.inspectNode(menu); ui.setNumber(menu, 'hidden', n !== null && n.hidden ? 0 : 1); });
-  return nativeControl(h, 'popup', () => ['items', p.items.join('\n'), 'value', p.value()], (v: string) => { p.onValueChange(v); });
+  return named(nativeControl(h, 'popup', () => ['items', p.items.join('\n'), 'value', p.value()], (v: string) => { p.onValueChange(v); }), p.accessibilityLabel);
 }
 function menuRow(menu: i32, it: string, p: PopUpButtonProps): void {
   const r = el(ui.BUTTON, 'flex-row items-center px-[8px] h-[22px] rounded-[4px] hover:bg-[#e8e8e8]');
@@ -479,14 +502,14 @@ function menuRow(menu: i32, it: string, p: PopUpButtonProps): void {
   ui.insert(menu, r, -1);
 }
 
-export interface DatePickerProps { value: () => string; onValueChange: (date: string) => void; className?: string }
+export interface DatePickerProps { value: () => string; onValueChange: (date: string) => void; className?: string; accessibilityLabel?: string }
 /** `<DatePicker value={due} onValueChange={setDue} />`, the date as 'YYYY-MM-DD': an NSDatePicker (field and stepper) under the host; drawn, a field
  *  that takes a typed date. */
 export function DatePicker(p: DatePickerProps): i32 {
   const h = el(ui.INPUT, `w-[110px] h-[22px] px-[6px] rounded-[5px] bg-[#ffffff] border border-[#c8c8c8] text-[13px] ${p.className ?? ''}`);
   createEffect(() => { ui.setValue(h, p.value()); });
   ui.onText(h, true, (v: string) => { if (isDate(v)) p.onValueChange(v); else ui.setValue(h, p.value()); });
-  return nativeControl(h, 'datepicker', () => ['value', p.value()], (v: string) => { p.onValueChange(v); });
+  return named(nativeControl(h, 'datepicker', () => ['value', p.value()], (v: string) => { p.onValueChange(v); }), p.accessibilityLabel);
 }
 function isDate(v: string): boolean {
   if (v.length !== 10 || v.charAt(4) !== '-' || v.charAt(7) !== '-') return false;
@@ -494,7 +517,7 @@ function isDate(v: string): boolean {
   return parseInt(v.substring(0, 4)) > 0 && m >= 1 && m <= 12 && d >= 1 && d <= 31;
 }
 
-export interface SearchFieldProps { onChange: (text: string) => void; onSubmit?: (text: string) => void; placeholder?: string; className?: string }
+export interface SearchFieldProps { onChange: (text: string) => void; onSubmit?: (text: string) => void; placeholder?: string; className?: string; accessibilityLabel?: string }
 /** `<SearchField onChange={filter} />`: an NSSearchField (its magnifier and clear button) under the host, edited as any field; drawn, a rounded field. */
 export function SearchField(p: SearchFieldProps): i32 {
   const h = el(ui.INPUT, `w-[180px] h-[22px] px-[8px] rounded-full bg-[#ffffff] border border-[#c8c8c8] text-[13px] ${p.className ?? ''}`);
@@ -503,7 +526,7 @@ export function SearchField(p: SearchFieldProps): i32 {
   const f = p.onSubmit;
   if (f !== undefined) ui.onSubmit(h, () => { f(ui.getValue(h)); });
   ui.setNativeKind(h, 'search');   // still a field to zinc:ui: its edits come back as any field's
-  return h;
+  return named(h, p.accessibilityLabel);
 }
 
 // ---------------------------------------------------------------- overlays: alert, sheet, popover (ZN-1073)
@@ -535,6 +558,8 @@ function finish(panel: i32, result: string, button: number): void {
 }
 /** Test hook: the panels of the alerts, sheets and popovers open now, oldest first (what drive's action 12 ends). */
 export function overlays(): i32[] { const out: i32[] = []; shownOverlays.forEach((_o: Open, panel: i32) => { out.push(panel); }); return out; }
+/** Gives node h the accessible name `name` when there is one (the native view's accessibilityLabel, the drawn node's label). */
+function named(h: i32, name: string | undefined): i32 { if (name !== undefined && name !== '') ui.setLabel(h, name); return h; }
 function label(parent: i32, s: string, cls: string): void { if (s === '') return; const t = ui.createText(s); ui.setClass(t, cls); ui.insert(parent, t, -1); }
 
 export interface AlertOptions {

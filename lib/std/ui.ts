@@ -8358,7 +8358,7 @@ class Mounted {   // what the host was last told about one node
   n: UiNode;
   seen: i32 = 0;   // the commit that last found it in the tree
   x: number = 0; y: number = 0; w: number = 0; h: number = 0;
-  text: string = ''; kids: string = ''; ph: string = ''; kind: string;
+  text: string = ''; kids: string = ''; ph: string = ''; al: string = ''; kind: string;   // al: the accessible name (setLabel, aria-label)
   attrs: string[] = [];   // the native attributes sent (name, value)
   props: number[];
   constructor(n: UiNode, kind: string) { this.n = n; this.kind = kind; this.props = HOST_DEFAULTS.slice(); }
@@ -8454,6 +8454,7 @@ function hostWalk(h: i32, parent: i32): boolean {
     const ph = n.ed !== null ? (n.ed as Edit).placeholder : '';
     if (ph !== s.ph) { s.ph = ph; hostBody += 'a ' + h + ' placeholder ' + hostEsc(ph) + '\n'; }
   }
+  if (n.label !== s.al) { s.al = n.label; hostBody += 'a ' + h + ' axlabel ' + hostEsc(n.label) + '\n'; }   // what a screen reader names the native view
   for (let i = 0; i < n.nkv.length; i += 2) {
     if (i + 1 < s.attrs.length && s.attrs[i] === n.nkv[i] && s.attrs[i + 1] === n.nkv[i + 1]) continue;
     while (s.attrs.length < i + 2) s.attrs.push('');

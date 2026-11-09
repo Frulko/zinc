@@ -78,12 +78,13 @@ import { Table, Outline } from 'zinc:appkit';
   onSort={(col, ascending) => setFiles(sorted(files(), col, ascending))}
   onSelect={(rows) => setPicked(rows)}
   onOpen={(row) => open(files()[row])}
+  selection={pickedRows}                  // optional: the rows the program selects, so a sort keeps the same files selected
   className="flex-1" />
 ```
 
 | component | AppKit | drawn fallback |
 |---|---|---|
-| `Table` (`columns`: `id`, `title`, `width`, `sortable`, `align`; `count`, `cell`, `rowHeight` 24, `multiple`, `onSelect`, `onSort`, `onOpen`) | an NSTableView: header sorting with its indicator, column resizing, multiple selection, type-select, double-click, alternating rows | a header over zinc:ui's virtual list: a click sorts or selects (shift and cmd extend), arrows, Enter and letters |
+| `Table` (`columns`: `id`, `title`, `width`, `sortable`, `align`; `count`, `cell`, `rowHeight` 24, `multiple`, `selection`, `onSelect`, `onSort`, `onOpen`) | an NSTableView: header sorting with its indicator, column resizing, multiple selection, type-select, double-click, alternating rows | a header over zinc:ui's virtual list: a click sorts or selects (shift and cmd extend), arrows, Enter and letters |
 | `Outline` (`items`: `id`, `label`, `children`; `expanded`, `rowHeight` 22, `onSelect`, `onToggle`, `onOpen`) | a source-list NSOutlineView that expands, collapses and type-selects by itself | the rows of the open items with a disclosure; arrows, Left and Right fold, letters |
 
 Only the rows in view (and a few more) are built, whatever `count` says: the table is zinc:ui's virtual list, and the host answers AppKit's questions
@@ -140,6 +141,15 @@ Under the host an alert is an NSAlert and a sheet a window, both run as a sheet 
 NSPopover pointing at the anchor node. None runs a modal loop (`runModal`), so the frames go on while they are open. Drawn, each is a zinc:ui layer:
 a modal dialog, a panel at the top over a dim, a panel anchored to the node; Escape dismisses it. Inside a native sheet or popover the controls and
 fields take input; presses on drawn-only views there do not reach zinc:ui yet (they have no SDL view under them).
+
+## VoiceOver
+
+AppKit's own views are what VoiceOver reads: a Table is an accessibility table (its row count, sortable column headers, cells), an Outline a
+source list, each control its native role (a switch, a pop-up button, a slider, a date field). The name a screen reader says comes from the
+zinc:ui node's label: `aria-label` or `accessibilityLabel` on a primitive (`<Input aria-label="Name" />`), the kits' `accessibilityLabel`, and
+`accessibilityLabel` on zinc:appkit's `Table`, `Outline`, `Switch`, `Slider`, `SegmentedControl`, `PopUpButton`, `DatePicker` and `SearchField`.
+The host sets it as the view's `accessibilityLabel` (`appkit.dump()` shows it as `ax="..."`). Drawn, the same labels and roles (a table of rows, a
+tree) are the accessibility tree of `ui.inspect()`.
 
 ## Keyboard
 

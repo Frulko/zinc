@@ -60,6 +60,7 @@ struct Node {
   double x = 0, y = 0, w = 0, h = 0;
   double cw = 0, ch = 0;   // a scroll view's content size
   std::string text, placeholder;
+  std::string axLabel; bool hasAx = false;   // the accessible name zinc:ui gives it (setLabel, aria-label, a kit's accessibilityLabel); hasAx once one was sent
   double bg = -1, bgAlpha = 255, fg = -1, opacity = 1, radius = 0, border = 0, borderColor = 0, fontSize = 16, bold = 0, hidden = 0, secure = 0, focusable = 0;
   std::vector<std::pair<std::string, std::string>> attrs;   // a native component's attributes (`a` records)
   std::vector<int> kids;
@@ -754,6 +755,11 @@ void apply(Node& n) {
     for (const auto& a : n.attrs) n.cls->set(n.custom, a.first.c_str(), a.second.c_str());
     if (n.cls->done) n.cls->done(n.custom);
   }
+  if (n.hasAx) {   // VoiceOver's name for it: on the view that takes the input (a field, a text view, a table), else the view; AppKit's own otherwise
+    NSView* t = n.input ?: v;
+    NSString* ax = n.axLabel.empty() ? nil : ns(n.axLabel);
+    if (!(ax ? [ax isEqualToString:t.accessibilityLabel ?: @""] : t.accessibilityLabel == nil)) t.accessibilityLabel = ax;
+  }
   n.dirty = false;
 }
 void setFrame(NSView* v, double x, double y, double w, double h) {
@@ -1209,6 +1215,7 @@ void record(const char* p, const char* end) {
       const std::string name(p, sp ? sp : end);
       const std::string v = sp ? unescape(sp + 1, end) : "";
       if (name == "placeholder") n.placeholder = v;
+      else if (name == "axlabel") { n.axLabel = v; n.hasAx = true; }
       else {
         bool found = false;
         for (auto& a : n.attrs) if (a.first == name) { a.second = v; found = true; }
@@ -1339,6 +1346,7 @@ void dumpView(NSView* v, int depth, std::string& out) {
   out += b;
   if (n->kind == KText || isField(n->kind) || n->kind == KTextArea || n->kind == KImage) out += " " + qstr(n->text);
   if (!n->placeholder.empty()) out += " placeholder=" + qstr(n->placeholder);
+  if (!n->axLabel.empty()) out += " ax=" + qstr(n->axLabel);
   if (n->kind == KText || isField(n->kind) || n->kind == KTextArea) {
     const double fg = fgValue(*n);
     snprintf(b, sizeof b, " size=%g%s fg=", n->fontSize, n->bold ? " bold" : "");
