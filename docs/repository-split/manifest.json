@@ -66,6 +66,15 @@
       "purpose": "Adapters for external tools, devices and editors; no compiler or runtime implementation.",
       "status": "staging",
       "visibility": "private"
+    },
+    {
+      "name": "hardware",
+      "source_paths": [
+        "docs/reports/hardware/"
+      ],
+      "purpose": "Device recipes, provisioning, recovery and support matrix; engine HAL contracts and shared OS ports remain in zinc.",
+      "status": "staging; curated extraction required",
+      "visibility": "private"
     }
   ],
   "precedence": [
@@ -75,5 +84,30 @@
   "plugins": {
     "destination": "madewithzinc/plugin-<name>",
     "mode": "create on extraction after independent-build proof; not bulk-created"
+  },
+  "hardware_policy": {
+    "engine": [
+      "HAL contracts",
+      "shared OS ports",
+      "capability schemas",
+      "cross-compile integration"
+    ],
+    "plugins": [
+      "optional display and system drivers"
+    ],
+    "hardware": [
+      "device recipes",
+      "wiring",
+      "recovery",
+      "device profiles after profile-pack cutover"
+    ],
+    "no_bulk_move": [
+      "targets/",
+      "boards/",
+      "devices/",
+      "firmware/",
+      "tools/webos-*",
+      "tools/pi-*"
+    ]
   }
 }
