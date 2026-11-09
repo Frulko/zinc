@@ -715,7 +715,7 @@
     {"paths": ["examples/hamlet/src/ui/", "examples/hamlet/src/hud.ts", "tests/t1/hamlet_advisors.sh", "tests/data/hamlet/advisors.input"], "tests": ["hamlet_advisors"]},
     {"paths": ["lib/std/kit/app-chrome.tsx", "lib/std/kit/menubar.tsx", "lib/std/kit/separator.tsx", "lib/std/dnd.ts", "tests/golden/kit-chrome/", "tests/t0/kit_chrome.sh"], "tests": ["kit_chrome", "ui_dnd"]},
     {"paths": ["lib/std/kit/actions.tsx", "lib/std/kit/button.tsx", "tests/golden/kit-actions/", "tests/t0/kit_actions.sh"], "tests": ["kit_actions"]},
-    {"paths": ["lib/std/kit/input.tsx", "lib/std/kit/index.ts", "tests/t0/kit_input.sh"], "tests": ["kit_input"]},
+    {"paths": ["lib/std/kit/input.tsx", "lib/std/kit/index.ts", "tests/t0/kit_input.sh", "tests/t0/kit_inputs.sh"], "tests": ["kit_input", "kit_inputs"]},
     {"paths": ["lib/std/ui.ts", "lib/ui.d.ts", "lib/editor/jsx.d.ts", "tools/ui-dts", "tests/t0/ui_dts.sh"], "tests": ["ui_dts"]},
     {"paths": ["lib/std/icons.tsx", "lib/std/kit/host.ts", "lib/std/kit/selection.tsx", "lib/std/kit/slider.tsx", "lib/std/kit/switch.tsx", "tests/golden/kit-selection/", "tests/golden/kit-selection-react/", "tests/t0/kit_selection.sh"], "tests": ["kit_selection"]},
     {"paths": ["plugins/appkit/native/appkit.macos.mm", "tests/golden/kit-selection-native/", "tests/t0/kit_selection_native.sh"], "tests": ["kit_selection_native"]},

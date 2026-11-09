@@ -27,6 +27,7 @@ Controls: click or tap; arrow keys / Tab move the focus, Space or Enter presses;
 | `src/sections/buttons.tsx` | `Button` variants and sizes, a `Kbd` inside a button, a live click counter |
 | `src/sections/settings.tsx` | `Tabs` switching two panels with an inline `{cond ? <A/> : <B/>}`, `Switch`, `Slider`, `Progress` |
 | `src/sections/overlays.tsx` | `Tooltip` with a shortcut hint, `DropdownMenu` bound to actions (`ui.bindKeys`), `Popover`, `Dialog`, `toast()` |
+| `src/sections/inputs.tsx` | text, numeric, token, selection and shortcut fields with caller-owned state |
 | `src/sections/display.tsx` | `Stat` tiles, `Badge`, `Avatar`, `Alert`, `List` / `ListItem` |
 
 Live values are passed as accessors (`value={upload}`, `checked={notifications}`): the kit component subscribes to
@@ -51,3 +52,6 @@ and Delete clears the focused rating. `src/sections/selection.tsx` owns this pag
 `GALLERY=overlays` focuses the overlay family: hints, popovers, hover cards, confirmation, dialogs, edge sheets,
 toasts and a guided tour. `OVERLAY=dialog`, `sheet`, `tour`, `hint`, `popover`, `hover`, `confirm` or `toast` opens a surface for a closer look. Hover crosses into
 the rich card; Tab/Enter provides the same path. Toast hover/focus expands and pauses the stack; drag dismisses.
+
+
+`GALLERY=inputs` shows the text, numeric, token, selection and shortcut fields. Their values belong to the gallery; every example is editable from the keyboard. `GALLERY_DARK=1` selects Quiet dark.

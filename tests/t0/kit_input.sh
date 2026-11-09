@@ -19,9 +19,16 @@ function App(): i32 {
     <Input placeholder="Off" disabled={true} onInput={setName} />
   </View>;
 }
+function findField(h: i32): i32 {
+  const n = ui.inspectNode(h);
+  if (n === null) return -1;
+  if (n.tag === ui.INPUT || n.tag === ui.TEXTAREA) return h;
+  for (const child of n.children) { const found = findField(child); if (found >= 0) return found; }
+  return -1;
+}
 render(App, 0xffffff, (dt: number) => {
   f++;
-  const field = (i: i32): i32 => ui.childAt(ui.childAt(col.node, i), 0);   // each component sits in a boundary node
+  const field = (i: i32): i32 => findField(ui.childAt(col.node, i));
   const a = field(0), b = field(1), c = field(2);
   if (f === 2) { ui.focusNode(a); ui.typeText(-1, 'Ada'); ui.focusNode(b); ui.typeText(-1, 'hi'); ui.focusNode(c); }
   if (f === 4) console.log(`${Math.round(ui.screenBox(a)[3])} ${ui.screenBox(b)[3] > 50 ? 'tall' : 'short'} ${name()} ${note()} ${ui.focused() === c ? 'disabled-focused' : 'kept'}`);

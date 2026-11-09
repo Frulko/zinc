@@ -8,7 +8,7 @@ export { Spring, SPRING_STATE, SPRING_SMOOTH, SPRING_SNAPPY, SPRING_MORPH, sprin
 export { heading, leadText, bodyText, smallText, mutedText, captionText, overline } from './typography';
 export { Button, ButtonProps } from './button';
 export { Form, FormProps } from './form';
-export { Input, InputProps, Textarea, TextareaProps } from './input';
+export { Input, InputProps, Textarea, TextareaProps, PasswordField, SearchField, NumberField, NumberFieldProps, MoneyField, MoneyFieldProps, ScrubField, TagInput, TagInputProps, OneTimeCode, OneTimeCodeProps, Select, SelectProps, SelectOption, Combobox, MultiSelect, MultiSelectProps, ShortcutRecorder } from './input';
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './card';
 export { Badge } from './badge';
 export { Separator, ResizeHandle } from './separator';

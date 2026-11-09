@@ -4,6 +4,7 @@ import { env } from 'zinc:sys';
 import { ActionsSection } from './sections/actions';
 import { ChromeSection } from './sections/chrome';
 import { SelectionSection } from './sections/selection';
+import { InputsSection } from './sections/inputs';
 import { render } from 'zinc:ui/solid';
 import { Switch, heading, leadText, theme, useQuietTheme } from 'zinc:ui/kit';
 import { darkMode, setDarkMode } from './state';
@@ -41,6 +42,7 @@ function App(): i32 {
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'chrome'}><ChromeSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'selection'}><SelectionSection /></Show>
       <Show when={env('GALLERY') === 'overlays'}><Section title="Overlays"><OverlaysCard /></Section></Show>
+      <Show when={env('GALLERY') === '' || env('GALLERY') === 'inputs'}><InputsSection /></Show>
       <Show when={env('GALLERY') === ''}>
       <Section title="Metrics"><StatsRow /></Section>
       <Section title="Controls">

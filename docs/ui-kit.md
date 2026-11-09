@@ -394,3 +394,31 @@ Recreate the picture with `GALLERY=chrome ZINC_HEADLESS=1 ZINC_FRAMES=40 ZINC_SH
 
 Escape cancels an active dock drag and clears its highlight; releasing afterwards cannot apply the cancelled drop.
 The same shared operation is available as `cancelDrag()` from `zinc:ui/dnd`, returning whether it cancelled a drag.
+
+## Inputs
+
+The Inputs family shares the engine's selection, clipboard, undo and IME support. Values are caller-owned accessors;
+`onInput` reports text and `onChange` reports numeric values, arrays or selections. Use `PasswordField` for reveal controls; the legacy `Input type="password"` remains masked. These controls use the Quiet
+roles in both themes. They introduce no ongoing animation, so reduced motion keeps exactly the same feedback.
+
+![Inputs in Quiet light, rendered by Zinc](img/kit-inputs.png)
+![Inputs in Quiet dark, rendered by Zinc](img/kit-inputs-dark.png)
+
+| Component | Options and behavior |
+| --- | --- |
+| `Input` | `value`, `onInput`, `onSubmit`, `type` (`password` masks), `label`, `placeholder`, `hint`, `error`, `icon?: () => i32` (a named Icon render slot), `prefix`, `suffix`, `clearable`, `readOnly`, `disabled`, `autofocus`, `size` (`sm`, default, `lg`), `name`, `className`. Clear uses the editing path, so Undo restores the value. Enter submits. |
+| `PasswordField` | Text-field options; masks the value and supplies a named Show/Hide action. |
+| `SearchField` | A search icon, search keyboard and Clear action; Enter calls `onSubmit`. |
+| `Textarea` | Text-field values, labels, hints, errors, read-only and disabled states; `rows` (3, or 0 to grow), `height` (-1 fills). Enter adds a line; Ctrl/Cmd+Enter submits. |
+| `NumberField` | Numeric `value` / `onChange`, `min`, `max`, `step`, `decimals`, `label`, `suffix`, `disabled`, `className`. Type or press minus/plus; arrows step, Shift steps tenfold, Home/End reach the bounds. |
+| `MoneyField` | Numeric props plus `symbol`, `code`, `hint`; grouped at rest, plain while editing. `decimals` defaults to 2; -1 means whole units. |
+| `ScrubField` | Numeric props; drag horizontally, Shift for tenfold finer changes, click to type, arrows to step. The bottom hairline shows the position in the range. |
+| `TagInput` | String-array `value` / `onChange`, `label`, `placeholder`, `maxTags`, `disabled`; Enter/comma adds a unique tag, Backspace in the empty field removes the last, each tag has a named remove button. |
+| `OneTimeCode` | String `value` / `onChange`, `length` (6), `label`, `disabled`, `onComplete`; accepts typing or paste, retaining only the requested number of digits. |
+| `Select` | `SelectOption[]` (`value`, `label`, optional `icon`, `disabled`), `value` / `onChange`, `label`, `placeholder`, `disabled`, `className`. Arrows open/move, Home/End reach the ends, printable keys find an option, Enter/Space chooses, Escape closes and restores focus. |
+| `Combobox` | Select props, with an editable filter. Arrows leave the filter for the matching options. |
+| `MultiSelect` | String-array values, Select options, `searchable`, `maxChips` (3); named removable chips and an overflow count, Select all/Clear actions. Choosing an option keeps the list open. |
+| `ShortcutRecorder` | String `value` / `onChange`, `label`, `disabled`; click or Enter/Space starts recording, a key combination saves, Backspace clears, Escape/Tab cancels. Recording consumes shortcuts before global keymaps; blur cancels, and recording can start again. |
+
+Run the family alone with `GALLERY=inputs zinc run examples/ui/kit-gallery`. `GALLERY_DARK=1` selects dark.
+The pictures above come from the gallery at 1120 × 900; all controls remain interactive in that same program.
