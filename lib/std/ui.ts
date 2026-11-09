@@ -8,7 +8,7 @@ import {
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
   escapeByApp, escapeDefault, stroke as g_stroke, polygon as g_polygon, loadFont, tabularFont, setGlobalAlpha, globalAlpha,
-  scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId, ease, layerBegin, layerEnd, layerAnim, compClock,
+  scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId, ease, layerBegin, layerEnd, layerAnim, layerSeries, compClock,
 } from 'zinc:gfx';
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
 import { openWindow, windowOpen, onWindowClosed, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
@@ -513,7 +513,8 @@ export class UiNode {
     // the focus: / focus-visible: set
   hovered: boolean = false;
   lazy: boolean = false;               // canvas redrawn only with the rest of the tree (style lazy: 1)
-  ca: boolean = false;                 // its rotate is a declared animation the compositor plays (D182): painted once, in a layer
+  ca: boolean = false;                 // it has a declared animation the compositor plays (D182, ZN-364.01): painted once, in a layer
+  serial: i32 = 0;                     // monotonic (handles are recycled): a holder of a handle checks it still names this node (nodeSerial)
   rn: RnRec | null = null;
   fade: number = 1;                    // LayoutAnimation's create/delete opacity, times the style opacity (ZN-365)
   leaving: boolean = false;            // removed while a LayoutAnimation runs: painted where it was, fading out, then released            // what the rn layout engine was last told about this node (ZN-286)
@@ -645,6 +646,9 @@ let clock: number = 0;   // engine time in ms
 let surfW: i32 = -1, surfH: i32 = -1;
 
 function node(h: i32): UiNode { return nodes[h]; }
+let nodeSerials: i32 = 0;
+/** The serial of the node handle h names now (0: none): a handle kept for later (an Animated binding) is still the same node while it is unchanged. */
+export function nodeSerial(h: i32): i32 { if (h < 0 || h >= nodes.length) return 0; const n = nodes[h]; return n === DEAD || !n.alive ? 0 : n.serial; }
 // What a primitive is before any class or style (docs/ui.md, "What the primitives draw"; D163): it draws nothing it was not asked for, as React
 // Native's. A Button is a focusable box that centres its content; a field shows its text, caret and placeholder in the colour and size it inherits.
 // resetStyle writes the same values back without building a node.
@@ -657,6 +661,7 @@ function defaults(n: UiNode): void {
 export function createNode(tag: i32): i32 {
   layoutDirty = true; if (traceLayout) layoutCause = 'create ' + tag;
   const n = new UiNode(tag);
+  n.serial = ++nodeSerials;
   defaults(n);
   if (tag === INPUT || tag === TEXTAREA) n.ed = new Edit(tag === TEXTAREA);
   if (tag === CANVAS) canvases++;
@@ -795,7 +800,7 @@ function release(h: i32): void {
   if (padEdit === h) padEdit = -1;
   if (momScroller === h) momScroller = -1;
   if (momEdit === h) momEdit = -1;
-  for (const a of anims) if (a.node === h) a.node = -1;
+  for (const a of anims) if (a.node === h) animEnd(a, ANIM_STOPPED);
   nodes[h] = DEAD;
   free.push(h);
 }
@@ -1715,10 +1720,10 @@ function transSpec(n: UiNode): void {
   if (o === DEF_INTERX || n.id < 0) return;
   const mask: i32 = o.transMs <= 0 ? 0 : o.transMask < 0 ? TR_ALL : o.transMask;   // duration-* alone: every property (CSS's initial `all`)
   if (mask === o.trMask) return;
-  if (o.trActive > 0) for (const a of anims) if (a.node === n.id && a.trans) a.node = -1;   // the fields hold the new ends already
+  if (o.trActive > 0) for (const a of anims) if (a.node === n.id && a.trans) animEnd(a, ANIM_STOPPED);   // the fields hold the new ends already
   o.trMask = mask; o.trBorn = looks;
 }
-function transAnim(h: i32, id: i32): Anim | null { for (const a of anims) if (a.node === h && a.id === id && a.trans) return a; return null; }
+function transAnim(h: i32, id: i32): Anim | null { for (const a of anims) if (a.node === h && a.id === id && a.trans && a.st === ANIM_RUN) return a; return null; }
 /** The end of the transition property id shows now (state variants remember their base so); while the classes are applied again, the fields hold ends. */
 function settledN(n: UiNode, id: i32, v: number): number { const a = n.it.trActive > 0 && !inStyle ? transAnim(n.id, id) : null; return a === null ? v : a.to; }
 function settledC(n: UiNode, id: i32, c: i32): i32 { const a = n.it.trActive > 0 && !inStyle ? transAnim(n.id, id) : null; return a === null ? c : a.c1; }
@@ -4235,7 +4240,11 @@ function settleFields(): void {
 }
 
 // ---------------------------------------------------------------- animations (UI-17): engine-driven, no reactive work per frame
-/** One tween: animate()'s (written through setNumber, so it stays in the style record) or a transition's (trans: written outside it). */
+/** One tween: animate()'s (written through setNumber, so it stays in the style record) or a transition's (trans: written outside it), or a
+ *  series of values (Animated's native driver, ZN-364.01). Its lifecycle is `st`, changed only by animEnd: ANIM_RUN, then ANIM_DONE (it reached
+ *  its end) or ANIM_STOPPED (replaced, stopped, its node released); stepAnims drops it at the next frame and calls `done` with finished. */
+const ANIM_RUN: i32 = 0, ANIM_DONE: i32 = 1, ANIM_STOPPED: i32 = 2;
+let animSerials: i32 = 0;
 class Anim {
   node: i32; ref: UiNode; key: string; id: i32; kind: i32;   // kind: kindOf(id)
   from: number = 0; to: number = 0; cur: number = 0; c0: i32 = 0; c1: i32 = 0; cc: i32 = 0;   // numbers, or colours as i32 (c0 to c1, cc shown)
@@ -4245,10 +4254,52 @@ class Anim {
   comp: boolean = false;       // declared to the compositor (layerAnim): the field follows the clock, nothing is painted per frame
   layered: boolean = false;    // painted in a layer at the last paint (else the script paints it, as any tween)
   lid: i32 = -1;               // its layer: the node's handle when declared
-  done: (() => void) | null = null;
+  dk: number = -1;             // the canvas scale its declaration to the compositor was made at (-1: not declared)
+  st: i32 = ANIM_RUN;
+  uid: i32;                    // monotonic: stopSeries and animState find it by this, a stale id finds nothing
+  tbl: number[] | null = null; // a series: one value every `dur` ms from `start` (else the curve from `from` to `to`)
+  done: ((finished: boolean) => void) | null = null;
   constructor(node: i32, ref: UiNode, key: string, id: i32, kind: i32, start: number, dur: number, easing: i32) {
     this.node = node; this.ref = ref; this.key = key; this.id = id; this.kind = kind; this.start = start; this.dur = dur; this.easing = easing;
+    this.uid = ++animSerials;
   }
+}
+/** The one transition of an animation's lifecycle: from ANIM_RUN to its end (done or stopped); any other is refused. The compositor lets go of it
+ *  now; its `done` runs when stepAnims drops it (not here: a node being released must not see a callback write into it). */
+function animEnd(a: Anim, st: i32): void {
+  if (a.st !== ANIM_RUN || (st !== ANIM_DONE && st !== ANIM_STOPPED)) return;
+  a.st = st;
+  compStop(a);
+}
+/** The compositor's prop of property id (runtime/gfx.cpp comp: 0 rotate, 1 translateX, 2 translateY, 3 scaleX, 4 scaleY, 5 opacity), -1: none. */
+function compProp(id: i32): i32 {
+  return id === P_ROTATE ? 0 : id === P_TRANSLATE_X ? 1 : id === P_TRANSLATE_Y ? 2 : id === P_SCALE_X ? 3 : id === P_SCALE_Y ? 4 : id === P_OPACITY ? 5 : -1;
+}
+/** Declares a to the compositor for the layer painted at canvas scale k (translations are canvas pixels there), once per scale. */
+function compDeclare(a: Anim, k: number): void {
+  const p = compProp(a.id);
+  if (a.dk === k || p < 0) return;
+  a.dk = k;
+  const t = a.tbl;
+  if (t === null) { layerAnim(a.lid, p, a.from, a.to, a.start, a.dur, a.easing, a.iter); return; }
+  let v = t as number[];
+  if ((p === 1 || p === 2) && k !== 1) { const s: number[] = []; for (const x of v) s.push(x * k); v = s; }
+  if (!layerSeries(a.lid, p, v, a.start, a.dur)) compStop(a);   // the compositor has no room: the script plays it
+}
+/** The value series a shows `el` ms after its start: include/zn/ease.h series_at, the same operations in the same order. */
+function seriesAt(t: number[], el: number, step: number): number {
+  const n = t.length;
+  if (n === 0) return 0;
+  if (el <= 0 || step <= 0) return t[el <= 0 ? 0 : n - 1];
+  const i = el / step;
+  if (i >= n - 1) return t[n - 1];
+  const k: i32 = Math.floor(i);
+  return t[k] + (t[k + 1] - t[k]) * (i - k);
+}
+/** The field of a compositor prop, written as the compositor shows it (hit tests and getNumber see it; nothing is painted). */
+function showComp(n: UiNode, id: i32, v: number): void {
+  if (id === P_TRANSLATE_X) n.tx = v; else if (id === P_TRANSLATE_Y) n.ty = v; else if (id === P_OPACITY) n.opacity = v;
+  else { if (n.tf === null) n.tf = new TransformX(); const t = n.tf as TransformX; if (id === P_ROTATE) t.rot = v; else if (id === P_SCALE_X) t.sx = v; else if (id === P_SCALE_Y) t.sy = v; }
 }
 const anims: Anim[] = [];
 function easeOf(name: string): i32 {
@@ -4260,7 +4311,8 @@ function easeOf(name: string): i32 {
 function compStop(a: Anim): void {
   if (!a.comp) return;
   a.comp = false; a.layered = false;
-  layerAnim(a.lid, 0, 0, 0, 0, -1, 0, 0);
+  if (a.dk >= 0) layerAnim(a.lid, compProp(a.id), 0, 0, 0, -1, 0, 0);
+  a.dk = -1;
   const n = a.ref;
   if (n.alive) { n.ca = false; for (const b of anims) if (b !== a && b.comp && b.ref === n) n.ca = true; }
   paintDirty = true;
@@ -4268,10 +4320,10 @@ function compStop(a: Anim): void {
 /** Tweens any numeric style property of node `h` (the keys of setNumber: sizes, spacing, opacity, transforms, shadows; colours channel by channel;
  *  keyword values switch half way). Over the profile's tween budget the property takes its end at once. */
 export function animate(h: i32, key: string, to: number, dur: number, easing: string, delay: number, iterations: number = 1): Promise<void> {
-  for (const a of anims) if (a.node === h && a.key === key && !a.trans) { a.node = -1; compStop(a); }
+  for (const a of anims) if (a.node === h && a.key === key && !a.trans) animEnd(a, ANIM_STOPPED);
   const n = node(h), id = propId(key);
   const tw = id > 0 && n.it.trActive > 0 ? transAnim(h, id) : null;
-  if (tw !== null) tw.node = -1;   // an animation takes its property over from a transition (CSS)
+  if (tw !== null) animEnd(tw, ANIM_STOPPED);   // an animation takes its property over from a transition (CSS)
   if (anims.length >= TWEEN_CAP) {
     inTween = true; setNumber(h, key, to); inTween = false;
     return new Promise<void>(resolve => { resolve(); });
@@ -4279,12 +4331,54 @@ export function animate(h: i32, key: string, to: number, dur: number, easing: st
   const a = new Anim(h, n, key, id, kindOf(id), clock + delay, dur, easeOf(easing));
   if (a.kind === 1) { a.c0 = colorProp(n, id); a.c1 = Math.round(to); } else { a.from = currentValue(n, id); a.to = to; }
   a.iter = iterations > 0 ? iterations : 1;
-  if (id === P_ROTATE && compClock(-1)) {   // the compositor turns the node (D182): one paint into a layer, then none per frame
-    a.comp = true; a.lid = h; n.ca = true; paintDirty = true;
-    layerAnim(h, 0, a.from, a.to, a.start, a.dur, a.easing, a.iter);
-  }
+  if (id === P_ROTATE && compClock(-1)) { a.comp = true; a.lid = h; n.ca = true; paintDirty = true; }   // the compositor turns the node (D182): one paint into a layer, then none per frame
   anims.push(a);
-  return new Promise<void>(resolve => { a.done = resolve; });
+  return new Promise<void>(resolve => { a.done = (finished: boolean): void => { resolve(); }; });   // stopped or replaced, it resolves too
+}
+/** Plays node h's numeric style property `key` through `values`, one every `step` ms from now + `delay` (Animated's native driver, ZN-364.01: the
+ *  program samples its timing, spring or decay once). The compositor plays rotate, translateX/Y, scaleX/Y and opacity: the program runs nothing per
+ *  frame and the node keeps moving while it is busy; the engine writes the other properties each frame. onEnd(finished) runs at the frame it ends,
+ *  is replaced, or its node goes (not after stopSeries). Returns its id (monotonic). */
+export function animateSeries(h: i32, key: string, values: number[], step: number, delay: number, onEnd: ((finished: boolean) => void) | null): i32 {
+  for (const a of anims) if (a.node === h && a.key === key && !a.trans) animEnd(a, ANIM_STOPPED);
+  const n = node(h), id = propId(key);
+  const tw = id > 0 && n.it.trActive > 0 ? transAnim(h, id) : null;
+  if (tw !== null) animEnd(tw, ANIM_STOPPED);
+  const a = new Anim(h, n, key, id, 0, clock + delay, step, 0);
+  a.tbl = values; a.from = values.length > 0 ? values[0] : 0; a.to = values.length > 0 ? values[values.length - 1] : 0; a.done = onEnd;
+  if (anims.length >= TWEEN_CAP || values.length < 2 || step <= 0) {   // over the profile's budget, or nothing to play: the end at once
+    inTween = true; setNumber(h, key, a.to); inTween = false;
+    a.st = ANIM_DONE;   // dropped at the next frame, which calls onEnd
+  } else if (compProp(id) >= 0 && compClock(-1)) { a.comp = true; a.lid = h; n.ca = true; paintDirty = true; }
+  anims.push(a);
+  return a.uid;
+}
+function animByUid(uid: i32): Anim | null { for (const a of anims) if (a.uid === uid) return a; return null; }
+/** Stops series uid where it is, without its onEnd (the caller writes the value it wants); false when uid names nothing running (ended, stale). */
+export function stopSeries(uid: i32): boolean {
+  const a = animByUid(uid);
+  if (a === null || a.st !== ANIM_RUN) return false;
+  a.done = null;
+  animEnd(a, ANIM_STOPPED);
+  return true;
+}
+/** Animation uid's state, for tests: -1 none (dropped or never made), else 0 running, 1 done, 2 stopped, plus 4 while the compositor plays it. */
+export function animState(uid: i32): i32 { const a = animByUid(uid); return a === null ? -1 : a.st + (a.layered ? 4 : 0); }
+
+// alarms on the engine clock: Animated's native driver ends its animations on time without a stepper (a stepper keeps every frame painted)
+class Alarm { at: number; f: () => void; id: i32; constructor(at: number, f: () => void, id: i32) { this.at = at; this.f = f; this.id = id; } }
+const alarms: Alarm[] = [];
+let alarmSerials: i32 = 0;
+/** Runs f at the first frame whose engine clock (now()) is at or past `at`; returns its id (monotonic). */
+export function alarm(at: number, f: () => void): i32 { const id = ++alarmSerials; alarms.push(new Alarm(at, f, id)); return id; }
+/** Cancels alarm id; false when it already ran or never was. */
+export function cancelAlarm(id: i32): boolean { for (let i = 0; i < alarms.length; i++) if (alarms[i].id === id) { alarms.splice(i, 1); return true; } return false; }
+function runAlarms(): void {
+  if (alarms.length === 0) return;
+  const due: Alarm[] = [];
+  let i = 0;
+  while (i < alarms.length) { if (clock >= alarms[i].at) { due.push(alarms[i]); alarms.splice(i, 1); } else i++; }
+  for (const a of due) a.f();
 }
 // ---------------------------------------------------------------- LayoutAnimation (ZN-365): React Native's LayoutAnimation on zinc:ui
 // configureNext(config) animates the next layout: every node that moved or resized goes from its old box to its new one (each node interpolates its own
@@ -4425,23 +4519,27 @@ function stepAnims(): void {
   let i: i32 = 0;
   while (i < anims.length) {
     const a = anims[i];
-    if (a.node < 0 || nodes[a.node] !== a.ref) { anims.splice(i, 1); if (a.trans) a.ref.it.trActive--; compStop(a); continue; }   // stopped, or its node is gone
-    if (clock < a.start) { i++; continue; }
-    // the eased progress, as include/zn/ease.h's progress() computes it for the compositor: the same operations in the same order
-    const el = clock - a.start, fin = a.dur <= 0 || el >= a.dur * a.iter;
-    const e = fin ? 1 : ease(a.easing, (el % a.dur) / a.dur);   // the end exactly (the spring curve is not 1 at t = 1)
-    const v = a.kind === 2 ? (e < 0.5 ? a.from : a.to) : a.from + (a.to - a.from) * e;
-    if (a.trans) { a.cur = v; a.cc = mix(a.c0, a.c1, e); showTween(a.ref, a); }
-    else if (a.comp && a.layered && !fin) (a.ref.tf as TransformX).rot = v;   // what the compositor shows now: hit tests see it, nothing is painted
-    else { inTween = true; if (a.kind === 1) setNumber(a.node, a.key, mix(a.c0, a.c1, e)); else setNumber(a.node, a.key, v); inTween = false; }
-    if (fin) {
-      compStop(a);
+    if (a.st === ANIM_RUN && nodes[a.node] !== a.ref) animEnd(a, ANIM_STOPPED);   // its node is gone
+    if (a.st !== ANIM_RUN) {   // ended: dropped, then told
       anims.splice(i, 1);
       if (a.trans) a.ref.it.trActive--;
       const d = a.done;
-      if (d !== null) d();
+      if (d !== null) d(a.st === ANIM_DONE);
       continue;
     }
+    if (clock < a.start) { i++; continue; }
+    const el = clock - a.start, t = a.tbl;
+    let fin = false, e: number = 1, v: number = 0;
+    if (t !== null) { const tt = t as number[]; fin = el >= (tt.length - 1) * a.dur; v = seriesAt(tt, el, a.dur); }
+    else {   // the eased progress, as include/zn/ease.h's progress() computes it for the compositor: the same operations in the same order
+      fin = a.dur <= 0 || el >= a.dur * a.iter;
+      e = fin ? 1 : ease(a.easing, (el % a.dur) / a.dur);   // the end exactly (the spring curve is not 1 at t = 1)
+      v = a.kind === 2 ? (e < 0.5 ? a.from : a.to) : a.from + (a.to - a.from) * e;
+    }
+    if (a.trans) { a.cur = v; a.cc = mix(a.c0, a.c1, e); showTween(a.ref, a); }
+    else if (a.comp && a.layered && !fin) showComp(a.ref, a.id, v);   // what the compositor shows now: hit tests see it, nothing is painted
+    else { inTween = true; if (a.kind === 1) setNumber(a.node, a.key, mix(a.c0, a.c1, e)); else setNumber(a.node, a.key, v); inTween = false; }
+    if (fin) { animEnd(a, ANIM_DONE); continue; }   // dropped at once (below, on this same pass)
     i++;
   }
 }
@@ -4785,20 +4883,47 @@ function paintPattern(kind: i32, x: number, y: number, w: number, hh: number, r:
   } else for (let j = s / 2; j < hh; j += s) g_rrect(x, y + j - lw / 2, w, lw, 0, 0x000000, 255);
   unclip();
 }
+// the node paintCa paints now, and whether into a layer the compositor moves
+let caPass: i32 = -1, caLay = false;
+/** Paints node n, whose animations the compositor plays (D182, ZN-364.01): when it can (no matrix above it, not into a scroll tile, a static
+ *  transform the animated one composes with: T R S in paint's order), the animated props are painted at rest into a layer the compositor moves,
+ *  rotates, scales and fades at each present; else the script paints them each frame as any tween. */
+function paintCa(h: i32, n: UiNode, ox: number, oy: number, k: number, alpha: number): void {
+  let mask: i32 = 0;
+  for (const an of anims) if (an.comp && an.ref === n && an.st === ANIM_RUN) mask |= 1 << compProp(an.id);
+  const t = n.tf, sAnim = (mask & 24) !== 0, rAnim = (mask & 1) !== 0;
+  const lay = mask !== 0 && !mOn && !tileRec && (t === null || (t.skX === 0 && t.skY === 0 && (sAnim || (t.sx === t.sy && t.sx !== 0)) && (!sAnim || rAnim || t.rot === 0)));
+  for (const an of anims) if (an.comp && an.ref === n) an.layered = lay;
+  const pp = caPass, pl = caLay;
+  caPass = h; caLay = lay;
+  if (!lay) { try { paint(h, ox, oy, k, alpha); } finally { caPass = pp; caLay = pl; } return; }
+  for (const an of anims) if (an.comp && an.ref === n && an.st === ANIM_RUN) compDeclare(an, k);
+  const tx = n.tx, ty = n.ty, op = n.opacity, rot = t !== null ? t.rot : 0, sx = t !== null ? t.sx : 1, sy = t !== null ? t.sy : 1;
+  if ((mask & 2) !== 0) n.tx = 0;
+  if ((mask & 4) !== 0) n.ty = 0;
+  if ((mask & 32) !== 0) n.opacity = 1;
+  if (t !== null) { if (rAnim) t.rot = 0; if ((mask & 8) !== 0) t.sx = 1; if ((mask & 16) !== 0) t.sy = 1; }
+  try { paint(h, ox, oy, k, alpha); }
+  finally {
+    n.tx = tx; n.ty = ty; n.opacity = op;
+    if (t !== null) { t.rot = rot; t.sx = sx; t.sy = sy; }
+    caPass = pp; caLay = pl;
+  }
+}
 function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const n = node(h);
   if (n.hidden || n.invisible || (n.layer && h !== layerPass)) return;
+  if (n.ca && caPass !== h) { paintCa(h, n, ox, oy, k, alpha); return; }
   const a = EINK ? (n.opacity > 0.004 && n.fade > 0.004 ? alpha : 0) : alpha * n.opacity * n.fade * (h === dimNode ? 1 - (1 - PRESS_OPACITY) * dimT : 1);   // e-ink: no opacity, a node is there or not
   if (a <= 0.004) return;
   let x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy, kk = k * n.k;
   if (n.tf !== null) { const s = tfK(n); x += tfOX(n) * kk * (1 - s); y += tfOY(n) * kk * (1 - s); kk *= s; }
   const w = n.lw * kk, hh = n.lh * kk;
   const ai: i32 = Math.round(a * 255);
-  // a rotate the compositor plays: the node and its subtree in a layer with no matrix, turned at each present (D182)
-  const tf = n.tf, lay = n.ca && !mOn && !tileRec && tf !== null && tf.skX === 0 && tf.skY === 0 && tf.sx === tf.sy && tf.sx !== 0;
-  if (n.ca) for (const an of anims) if (an.comp && an.ref === n) an.layered = lay;
+  // animations the compositor plays (paintCa): the node and its subtree in a layer, its animated props at rest, moved at each present (D182)
+  const lay = n.ca && caPass === h && caLay;
   if (lay) layerBegin(h, x + tfOX(n) * kk, y + tfOY(n) * kk);
-  const tfSaved = n.tf !== null && !lay ? pushTf(n, x + tfOX(n) * kk, y + tfOY(n) * kk) : null;   // rotate, skew: the node and its subtree through a matrix
+  const tfSaved = n.tf !== null ? pushTf(n, x + tfOX(n) * kk, y + tfOY(n) * kk) : null;   // rotate, skew: the node and its subtree through a matrix
   if (tileRec) {   // recording one tile of a scroll container: what lies outside it is not recorded
     if (n.sticky) tileSticky = true;
     // ponytail: a ring or an outline wider than the margin is cut at a tile's edge; the node's own extent when one shows
@@ -6834,7 +6959,7 @@ export function frame(dt: number, background: i32): void {
   if (first) { clock += dt * 1000; compClock(clock); }   // the compositor samples the declared animations at the same clock
   frameDt = dt;
   looks++;   // from here on, style changes transition on the nodes that had their transition classes before (transitional)
-  if (first) stepAnims();
+  if (first) { stepAnims(); runAlarms(); }
   if (first && (steppers.length > 0 || watchers.length > 0)) runSteppers();
   if (prof) profMark(PROF_ANIM);
   if (width() !== surfW || height() !== surfH) {  // window resized: responsive classes, then a new layout
@@ -7286,7 +7411,7 @@ export function find(text: string): i32 {
   return -1;
 }
 /** Advances the engine clock without the frame loop (tests). */
-export function tick(ms: number): void { clock += ms; looks++; stepAnims(); if (steppers.length > 0 || watchers.length > 0) runSteppers(); if (grabber === -1 && longNode >= 0) stepGestures(); }
+export function tick(ms: number): void { clock += ms; looks++; stepAnims(); runAlarms(); if (steppers.length > 0 || watchers.length > 0) runSteppers(); if (grabber === -1 && longNode >= 0) stepGestures(); }
 
 // ---------------------------------------------------------------- input test hooks: from the first call on, the
 // HAL's pointer and keyboard are ignored, so runs are identical on the sim and on native targets.

@@ -814,7 +814,7 @@ const rows = {
   gfxCommands: () => 0, gfxCommandsFree: () => 1 << 20, gfxShouldQuit: () => quit, gfxQuit: () => { quit = true; }, gfxPoll: () => 1 / 60,
   gfxCapture: () => false,
   // the easing curves of include/zn/ease.h (the browser host has no C++: the same formulas, keep them equal); no compositor here (D182)
-  gfxEase: (e, t) => easeAt(e, t), gfxLayerBegin: () => {}, gfxLayerEnd: () => 0, gfxLayerAnim: () => {}, gfxCompClock: () => 0, gfxIdleDue: () => {},
+  gfxEase: (e, t) => easeAt(e, t), gfxLayerBegin: () => {}, gfxLayerEnd: () => 0, gfxLayerAnim: () => {}, gfxLayerSeries: () => 0, gfxCompClock: () => 0, gfxIdleDue: () => {},
   // drawing
   gfxClear: (c) => B.clear(c), gfxRect: (x, y, w, h, c) => B.rect(x, y, w, h, c), gfxRRect: (x, y, w, h, r, c, a) => B.rrect(x, y, w, h, r, c, a),
   gfxLine: (a, b, c, d, e) => B.line(a, b, c, d, e), gfxText: (x, y, s, c, k) => B.text(x, y, s, c, k),

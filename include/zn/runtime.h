@@ -435,7 +435,10 @@
   /* zinc:hash sha256File (ZN-698): the digest (sha-256, sha-1, sha-384, sha-512, md5) of a file read in 64 KiB blocks, never whole; system row, appended */ \
   X(HostHashFile, "host.hashFile", "ss>B", 2) \
   /* zinc:mqtt connect (ZN-610): host, port, client id, secure, the connect deadline in ms (TCP, TLS and the CONNACK; 0 none); system row, appended */ \
-  X(HostMqttConnect, "host.mqttConnect", "sisii>i", 2)
+  X(HostMqttConnect, "host.mqttConnect", "sisii>i", 2) \
+  /* the compositor (ZN-364.01): layer id's prop follows a series of values, one every `step` ms from `start` (Animated's native driver); */ \
+  /* false when the compositor does not take it (the script plays it); graphics row, appended */ \
+  X(HostGfxLayerSeries, "host.gfxLayerSeries", "iiDdd>i", 2)
 
 namespace zn {
 
@@ -466,7 +469,7 @@ inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::H
 inline constexpr bool isGfxTailRow(Rt r) {
   return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes ||
          (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont || r == Rt::HostGfxGradientPaint || r == Rt::HostGfxImageFromPixels ||
-         r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection) || r == Rt::HostGfxPaused || r == Rt::HostGfxWindowCtl || (r >= Rt::HostGfxUpdatePixels && r <= Rt::HostGfxFrameStat) || (r >= Rt::HostGfxDecodeStart && r <= Rt::HostGfxDecodeCancel) || (r >= Rt::HostGfxEase && r <= Rt::HostGfxCompClock) || r == Rt::HostGfxIdleDue;
+         r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection) || r == Rt::HostGfxPaused || r == Rt::HostGfxWindowCtl || (r >= Rt::HostGfxUpdatePixels && r <= Rt::HostGfxFrameStat) || (r >= Rt::HostGfxDecodeStart && r <= Rt::HostGfxDecodeCancel) || (r >= Rt::HostGfxEase && r <= Rt::HostGfxCompClock) || r == Rt::HostGfxIdleDue || r == Rt::HostGfxLayerSeries;
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too. zinc:osc and the loop's events it arrives by.
 inline constexpr bool isSysTailRow(Rt r) {
@@ -530,7 +533,7 @@ inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
 // retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
 // graphics host (numbers, borrowed strings and arrays, no callbacks).
 inline bool rtMayRelease(Rt id) {
-  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxEase && id <= Rt::HostGfxCompClock) || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint || id == Rt::HostGfxImageFromPixels || id == Rt::HostGfxUpdateImage || (id >= Rt::HostGfxShaderProgram && id <= Rt::HostGfxProfSection) || id == Rt::HostGfxWindowCtl || (id >= Rt::HostGfxUpdatePixels && id <= Rt::HostGfxFrameStat) || (id >= Rt::HostGfxDecodeStart && id <= Rt::HostGfxDecodeCancel) || id == Rt::HostGfxIdleDue) return false;
+  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxEase && id <= Rt::HostGfxCompClock) || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint || id == Rt::HostGfxImageFromPixels || id == Rt::HostGfxUpdateImage || (id >= Rt::HostGfxShaderProgram && id <= Rt::HostGfxProfSection) || id == Rt::HostGfxWindowCtl || (id >= Rt::HostGfxUpdatePixels && id <= Rt::HostGfxFrameStat) || (id >= Rt::HostGfxDecodeStart && id <= Rt::HostGfxDecodeCancel) || id == Rt::HostGfxIdleDue || id == Rt::HostGfxLayerSeries) return false;
   if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
   switch (id) {
     case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:

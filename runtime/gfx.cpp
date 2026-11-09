@@ -36,7 +36,14 @@ bool screen_watched() { return shot_watch || mirror_watching; }
 /** A picture in device memory is shown by a hardware layer now (the display has them, and nobody watches the screen). */
 bool layers_usable() { return display_driver && hal_display->layers && !screen_watched(); }
 bool idle_frame = false;
+// what the screen showed (ZINC_PROFILE=json "screen"): the longest time between two presents of any thread, and the compositor's ticks among them
+static uint64_t screen_last = 0, screen_gap = 0;
+static uint32_t screen_ticks = 0;
 static void present(const HalFrame* f) {
+  {
+    const uint64_t t = hal_time_us(), was = __atomic_exchange_n(&screen_last, t, __ATOMIC_RELAXED);
+    if (was && t - was > __atomic_load_n(&screen_gap, __ATOMIC_RELAXED)) __atomic_store_n(&screen_gap, t - was, __ATOMIC_RELAXED);
+  }
   __atomic_store_n(&idle_frame, !f->move && (f->x1 <= f->x0 || f->y1 <= f->y0), __ATOMIC_RELAXED);   // the render thread presents, the script's loop reads it
   if (display_driver) hal_display->present(f); else hal_present(f);
   if (mirror_present) mirror_present(f);
@@ -132,6 +139,7 @@ static void* loop(void*) {
     HalFrame f;
     const bool drawn = tick ? gfx::comp_tick(&f, t0) : true;
     if (drawn) present(tick ? &f : &job);
+    if (drawn && tick) __atomic_add_fetch(&screen_ticks, 1, __ATOMIC_RELAXED);
     const uint64_t t1 = hal_time_us();
     if (drawn) {
       ZRT_FT(ZN_FT_RENDER, t0, t1, tick ? -1 : slot, 1);
@@ -687,7 +695,9 @@ static void summary_json() {
   sb.cstr(",\"interval_gt_16_7\":"); to_s(sb, over(N + 1, 16667)); sb.cstr(",\"interval_gt_25\":"); to_s(sb, over(N + 1, 25000));
   sb.cstr(",\"interval_gt_33_3\":"); to_s(sb, over(N + 1, 33333)); sb.cstr(",\"interval_gt_50\":"); to_s(sb, over(N + 1, 50000));
   sb.cstr(",\"interval_gt_100\":"); to_s(sb, over(N + 1, 100000));
-  sb.cstr(",\"present_gt_16_7\":"); to_s(sb, over(N + 2, 16667)); sb.cstr(",\"present_gt_100\":"); to_s(sb, over(N + 2, 100000)); sb.cstr("},\"info\":{");
+  sb.cstr(",\"present_gt_16_7\":"); to_s(sb, over(N + 2, 16667)); sb.cstr(",\"present_gt_100\":"); to_s(sb, over(N + 2, 100000));
+  sb.cstr("},\"screen\":{\"gap_max\":"); to_s(sb, (uint32_t)__atomic_load_n(&screen_gap, __ATOMIC_RELAXED));   // any thread's presents, compositor ticks included
+  sb.cstr(",\"ticks\":"); to_s(sb, __atomic_load_n(&screen_ticks, __ATOMIC_RELAXED)); sb.cstr("},\"info\":{");
   if (zrt_gl_info_hook) zrt_gl_info_hook();
   for (uint32_t i = 0; i < g_ninfo; i++) { if (i) sb.ch(','); jstr(sb, g_info[i][0]); sb.ch(':'); jstr(sb, g_info[i][1]); }
   sb.cstr("}}\n");
@@ -1685,18 +1695,30 @@ static bool first_frame() { first = true; return true; }
 // deterministic run, composed at each end_frame, equal those of ZINC_COMPOSITOR=0. Points (POLY, STROKE) and nested matrices are moved in
 // float, to within rounding. While the script is busy, the render thread composes the frame on screen again (comp_tick) at the script's
 // clock moved on by the wall time since its frame: a spinner keeps turning. The script samples the same function at its own clock, so the
-// nodes it hit-tests are where they are shown, a frame late at most: no values travel back. Only rotate (prop 0) for now.
+// nodes it hit-tests are where they are shown, a frame late at most: no values travel back. The props: 0 rotate (degrees around the
+// centre), 1 translateX, 2 translateY (canvas pixels), 3 scaleX, 4 scaleY (around the centre), 5 opacity (times each command's alpha);
+// the layer is recorded with those of its props that are animated at rest, and the matrix is T(tx, ty) R(rotate) S(sx, sy) around the
+// centre, the order zinc:ui paints a node's transform in. An animation is a curve (layerAnim: from, to, easing, iterations) or a series
+// of values one every `step` ms (layerSeries: Animated's timing, spring and decay with the native driver, ZN-364.01).
 #ifdef ZRT_COMPOSITOR
 namespace comp {
 #ifndef ZRT_COMP_LAYERS
 #define ZRT_COMP_LAYERS 32
 #endif
+constexpr int32_t kProps = 6;                 // rotate, translateX, translateY, scaleX, scaleY, opacity
+constexpr double kRest[kProps] = {0, 0, 0, 1, 1, 1};
 struct Layer { int32_t id; uint32_t i0, i1; double cx, cy; float k; };
-struct Anim { int32_t id, prop, easing; double from, to, start, dur, iter; };
+struct Anim { int32_t id, prop, easing; double from, to, start, dur, iter; uint32_t s0, sn; };   // sn > 0: a series of sn values at s0, dur = step
 static Layer layers[2][ZRT_COMP_LAYERS];   // per command buffer
 static int32_t nlayers[2], open_at = -1, depth = 0;   // the layer being recorded; layers refused inside it
-static Anim next[ZRT_COMP_LAYERS], live[ZRT_COMP_LAYERS];   // as the script declares them; as the presents read them (copied at commit)
+#ifndef ZRT_COMP_ANIMS
+#define ZRT_COMP_ANIMS 64
+#endif
+static Anim next[ZRT_COMP_ANIMS], live[ZRT_COMP_ANIMS];   // as the script declares them; as the presents read them (copied at commit)
 static int32_t nnext = 0, nlive = 0;
+static double *snext = nullptr, *slive = nullptr;   // the series' values, as declared and as the presents read them (copied at commit)
+static uint32_t snext_n = 0, snext_cap = 0, slive_cap = 0;
+static constexpr uint32_t kSeriesMax = 1u << 16;     // ponytail: 18 minutes of samples at 60 Hz in all; past it a series is refused (the script plays it)
 static double clk_next = 0, clk = 0;          // the script's clock (ms) at its frame, and when (hal_time_us) it said so
 static uint64_t clk_next_us = 0, clk_us = 0;
 static int32_t mode = -1;                     // ZINC_COMPOSITOR: 0 off (the script tweens), 1 on
@@ -1705,8 +1727,8 @@ static Cmd* cmds = nullptr;                   // the frame on screen with its la
 static float* pts = nullptr;
 static uint32_t ncmd = 0, cap = 0, npts = 0, pcap = 0;
 static bool on = false;
-static raster::Rect was[ZRT_COMP_LAYERS];     // where each animated layer is on screen, and at what value
-static double was_v[ZRT_COMP_LAYERS];
+static raster::Rect was[ZRT_COMP_LAYERS];     // where each animated layer is on screen, and at what values
+static double was_v[ZRT_COMP_LAYERS][kProps];
 static int32_t was_id[ZRT_COMP_LAYERS], nwas = 0;
 static bool enabled() {
   if (mode < 0) {
@@ -1717,24 +1739,41 @@ static bool enabled() {
   }
   return mode == 1;
 }
-static const Anim* anim_of(int32_t id) { for (int32_t i = 0; i < nlive; i++) if (live[i].id == id) return &live[i]; return nullptr; }
 /** a's value at `clock`, as ui.ts stepAnims computes it; *moving: not at its end yet. */
 static double sample(const Anim& a, double clock, bool* moving) {
 #pragma clang fp contract(off)
   const double el = clock - a.start;
+  if (a.sn) { *moving = el < (double)(a.sn - 1) * a.dur; return zn::ease::series_at(slive + a.s0, (int)a.sn, el, a.dur); }
   if (el < 0) { *moving = true; return a.from; }   // its delay: the node keeps the value it had
   const bool fin = zn::ease::finished(el, a.dur, a.iter);
   *moving = !fin;
   const double e = fin ? 1 : zn::ease::at(a.easing, __builtin_fmod(el, a.dur) / a.dur);
   return a.from + (a.to - a.from) * e;
 }
-/** The matrix lib/std/ui.ts pushTf sets for a node turned by `rot` degrees around (cx, cy), with no matrix above it, an even scale and no
- *  skew, operation for operation, then as xform() takes it (translation in physical pixels); false: the identity, drawn plain. */
-static bool rot_matrix(double rot, double cx, double cy, float k, float m[6]) {
+/** Layer `id`'s values at `clock` (its props without an animation at rest); true when one of its animations is declared, *moving when
+ *  one has not reached its end yet. */
+static bool values_of(int32_t id, double clock, double v[kProps], bool* moving) {
+  bool any = false;
+  *moving = false;
+  for (int32_t p = 0; p < kProps; p++) v[p] = kRest[p];
+  for (int32_t i = 0; i < nlive; i++) {
+    const Anim& a = live[i];
+    if (a.id != id || a.prop < 0 || a.prop >= kProps) continue;
+    bool mv;
+    v[a.prop] = sample(a, clock, &mv);
+    any = true;
+    if (mv) *moving = true;
+  }
+  return any;
+}
+/** The matrix lib/std/ui.ts pushTf sets for a node turned by `rot` degrees around (cx, cy), scaled by (sx, sy) around it, with no matrix
+ *  above it and no skew, operation for operation, moved by (tx, ty), then as xform() takes it (translation in physical pixels); false: the
+ *  identity, drawn plain. */
+static bool tf_matrix(double rot, double sx, double sy, double tx, double ty, double cx, double cy, float k, float m[6]) {
 #pragma clang fp contract(off)
-  const double dx = 1, dy = 1, kx = 0, ky = 0, r = rot * 3.141592653589793 / 180, cs = __builtin_cos(r), sn = __builtin_sin(r);
+  const double dx = sx, dy = sy, kx = 0, ky = 0, r = rot * 3.141592653589793 / 180, cs = __builtin_cos(r), sn = __builtin_sin(r);
   const double a = cs * dx - sn * dy * ky, b = sn * dx + cs * dy * ky, c = cs * dx * kx - sn * dy, d = sn * dx * kx + cs * dy;
-  const double e = cx - a * cx - c * cy, f = cy - b * cx - d * cy;
+  const double e = cx - a * cx - c * cy + tx, f = cy - b * cx - d * cy + ty;
   const double mA = 1, mB = 0, mC = 0, mD = 1, mE = 0, mF = 0;
   const double na = mA * a + mC * b, nb = mB * a + mD * b, nc = mA * c + mC * d, nd = mB * c + mD * d, ne = mA * e + mC * f + mE, nf = mB * e + mD * f + mF;
   if (na == 1 && nb == 0 && nc == 0 && nd == 1 && ne == 0 && nf == 0) return false;
@@ -1752,6 +1791,26 @@ static bool movable(const Cmd& c) {
 }  // namespace comp
 static bool xf_plain(Cmd* c, const float* m);
 static void xf_write(Cmd* c, const float* m, float* p, uint32_t off);
+/** Command c of the composed frame moved by (dx, dy) canvas pixels, as box() would have recorded it there: (x / k + dx) * k, the script's
+ *  operations (exact for a scale k that is a power of two), so a moved layer equals the frame the script paints at that offset. */
+static void comp_shift(Cmd& c, double dx, double dy, float k) {
+  auto at = [k](float v, double d) { return (float)((double)(v / k) + d) * k; };
+  if (c.kind == raster::POLY || c.kind == raster::STROKE) {
+    uint32_t at0 = c.off;
+    for (uint32_t ct = 0; ct < (c.kind == raster::POLY ? c.n : 1); ct++) {
+      const uint32_t n = c.kind == raster::POLY ? (uint32_t)comp::pts[at0++] : c.n;
+      for (uint32_t i = 0; i < n; i++) { float* q = comp::pts + at0 + i * 2; q[0] = at(q[0], dx); q[1] = at(q[1], dy); }
+      at0 += n * 2;
+    }
+  } else if (c.kind == raster::XFORM) {
+    float* q = comp::pts + c.off;   // its matrix moves (a record of the composed frame's own: the pools are copies)
+    q[5] = at(q[5], dx); q[6] = at(q[6], dy);
+  } else if (c.kind == raster::IMAGE && (c.pad & raster::kImageBox)) {
+    const raster::Box b = raster::image_box(c);
+    raster::set_image_box(c, raster::Box{at(b.x, dx), at(b.y, dy), b.w, b.h});
+  }
+  if (c.kind != raster::UNCLIP) { c.x = at(c.x, dx); c.y = at(c.y, dy); }
+}
 /** Command c of the composed frame through m. */
 static void comp_move(Cmd& c, const float* m, float k) {
   using comp::pts;
@@ -1813,6 +1872,13 @@ static void comp_move(Cmd& c, const float* m, float k) {
 static void comp_commit() {
   __builtin_memcpy(comp::live, comp::next, sizeof(comp::Anim) * (size_t)comp::nnext);
   comp::nlive = comp::nnext;
+  if (comp::snext_n > comp::slive_cap) {
+    if (comp::slive) hal_free(comp::slive);
+    comp::slive_cap = comp::snext_cap;
+    comp::slive = (double*)hal_alloc((size_t)comp::slive_cap * sizeof(double));
+    if (!comp::slive) { comp::slive_cap = 0; comp::nlive = 0; }   // no memory: the frame shows its layers at rest
+  }
+  if (comp::slive && comp::snext_n) __builtin_memcpy(comp::slive, comp::snext, (size_t)comp::snext_n * sizeof(double));
   comp::clk = comp::clk_next; comp::clk_us = comp::clk_next_us;
 }
 /** Composes buffer bi (on screen) at `clock` and adds the damage: where the animated layers were and where they are now. `changed`: the
@@ -1827,17 +1893,16 @@ static bool compose(const Buf& base, int32_t bi, double clock, bool changed) {
     nwas = 0;
     return any;
   }
-  double v[ZRT_COMP_LAYERS];
-  const Anim* an[ZRT_COMP_LAYERS];
+  double v[ZRT_COMP_LAYERS][kProps];
+  bool an[ZRT_COMP_LAYERS];
   bool moved = changed;
   for (int32_t i = 0; i < nl; i++) {
-    an[i] = anim_of(layers[bi][i].id);
     bool moving;
-    v[i] = an[i] ? sample(*an[i], clock, &moving) : 0;
-    if (!moved) {   // same value as on screen?
+    an[i] = values_of(layers[bi][i].id, clock, v[i], &moving);
+    if (!moved) {   // same values as on screen?
       int32_t j = 0;
       while (j < nwas && was_id[j] != layers[bi][i].id) j++;
-      moved = j == nwas ? an[i] != nullptr : was_v[j] != v[i];
+      moved = j == nwas ? an[i] : __builtin_memcmp(was_v[j], v[i], sizeof(v[i])) != 0;
     }
   }
   if (!moved) return false;
@@ -1855,15 +1920,27 @@ static bool compose(const Buf& base, int32_t bi, double clock, bool changed) {
   for (int32_t i = 0; i < nl; i++) {
     const Layer& L = layers[bi][i];
     if (!an[i]) continue;
-    float fv = (float)v[i];
-    uint32_t bits;
-    __builtin_memcpy(&bits, &fv, 4);
-    ZRT_FT(ZN_FT_ANIM, now, now, L.id, (int64_t)((uint64_t)(uint32_t)an[i]->prop << 32 | bits));
+    const double* lv = v[i];
+    if (zn_frame_trace)
+      for (int32_t p = 0; p < kProps; p++) {
+        if (lv[p] == kRest[p]) continue;
+        float fv = (float)lv[p];
+        uint32_t bits;
+        __builtin_memcpy(&bits, &fv, 4);
+        ZRT_FT(ZN_FT_ANIM, now, now, L.id, (int64_t)((uint64_t)(uint32_t)p << 32 | bits));
+      }
     float m[6];
-    if (v[i] != 0 && rot_matrix(v[i], L.cx, L.cy, L.k, m)) for (uint32_t c = L.i0; c < L.i1 && c < ncmd; c++) comp_move(cmds[c], m, L.k);
+    if (lv[0] == 0 && lv[3] == 1 && lv[4] == 1) {   // moved only
+      if (lv[1] != 0 || lv[2] != 0) for (uint32_t c = L.i0; c < L.i1 && c < ncmd; c++) comp_shift(cmds[c], lv[1], lv[2], L.k);
+    } else if (tf_matrix(lv[0], lv[3], lv[4], lv[1], lv[2], L.cx, L.cy, L.k, m))
+      for (uint32_t c = L.i0; c < L.i1 && c < ncmd; c++) comp_move(cmds[c], m, L.k);
+    if (lv[5] != 1) {   // the layer's opacity: each command's alpha, as paint multiplies a node's alpha into its subtree's
+      const double o = lv[5] < 0 ? 0 : lv[5] > 1 ? 1 : lv[5];
+      for (uint32_t c = L.i0; c < L.i1 && c < ncmd; c++) cmds[c].alpha = (uint8_t)(cmds[c].alpha * o + 0.5);
+    }
     const raster::Rect r = raster::bounds_all(raster::Frame{cmds + L.i0, L.i1 - L.i0, base.text, pts}, pw, ph);
     hud::add_rect(r);
-    was[nwas] = r; was_v[nwas] = v[i]; was_id[nwas] = L.id; nwas++;
+    was[nwas] = r; __builtin_memcpy(was_v[nwas], lv, sizeof(was_v[nwas])); was_id[nwas] = L.id; nwas++;
   }
   on = true;
   __atomic_store_n(&tiles_state, 0, __ATOMIC_RELEASE);
@@ -1876,12 +1953,12 @@ static bool comp_live(uint64_t now) {
   const int32_t bi = (int32_t)(shown - bufs);
   const double clock = comp::clk + (double)(now - comp::clk_us) / 1000.0;
   for (int32_t i = 0; i < comp::nlayers[bi]; i++) {
-    const comp::Anim* a = comp::anim_of(comp::layers[bi][i].id);
-    if (!a) continue;
+    const int32_t id = comp::layers[bi][i].id;
+    double v[comp::kProps];
     bool moving;
-    const double v = comp::sample(*a, clock, &moving);
+    if (!comp::values_of(id, clock, v, &moving)) continue;
     if (moving) return true;
-    for (int32_t j = 0; j < comp::nwas; j++) if (comp::was_id[j] == a->id && comp::was_v[j] != v) return true;   // its end is not shown yet
+    for (int32_t j = 0; j < comp::nwas; j++) if (comp::was_id[j] == id && __builtin_memcmp(comp::was_v[j], v, sizeof(v)) != 0) return true;   // its end is not shown yet
   }
   return false;
 }
@@ -2797,13 +2874,54 @@ bool layerEnd() {
   nlayers[cur]++;
   return true;
 }
+namespace comp {
+/** The slot of (id, prop) in `next`, made when `make`; -1: none (or no room: ponytail, past 64 animations the others keep their start value). */
+static int32_t slot_of(int32_t id, int32_t prop, bool make) {
+  int32_t i = 0;
+  while (i < nnext && (next[i].id != id || next[i].prop != prop)) i++;
+  if (i < nnext) return i;
+  if (!make || nnext == ZRT_COMP_ANIMS) return -1;
+  next[nnext] = Anim{id, prop, 0, 0, 0, 0, 0, 1, 0, 0};
+  return nnext++;
+}
+/** Room for n more series values in `snext`: the values no animation uses any more are dropped first. */
+static bool series_room(uint32_t n) {
+  if (snext_n + n <= snext_cap) return true;
+  uint32_t used = 0;
+  for (int32_t i = 0; i < nnext; i++) used += next[i].sn;
+  if (used + n > kSeriesMax) return false;
+  const uint32_t cap = used + n > snext_cap ? (used + n) * 2 : snext_cap;
+  double* p = (double*)hal_alloc((size_t)cap * sizeof(double));
+  if (!p) return false;
+  uint32_t at = 0;
+  for (int32_t i = 0; i < nnext; i++) {
+    if (!next[i].sn) continue;
+    __builtin_memcpy(p + at, snext + next[i].s0, (size_t)next[i].sn * sizeof(double));
+    next[i].s0 = at; at += next[i].sn;
+  }
+  if (snext) hal_free(snext);
+  snext = p; snext_cap = cap; snext_n = at;
+  return true;
+}
+}  // namespace comp
 void layerAnim(int32_t id, int32_t prop, double from, double to, double start, double dur, int32_t easing, double iterations) {
   using namespace comp;
-  int32_t i = 0;
-  while (i < nnext && next[i].id != id) i++;
-  if (dur < 0) { if (i < nnext) next[i] = next[--nnext]; return; }
-  if (i == nnext) { if (nnext == ZRT_COMP_LAYERS) return; nnext++; }   // ponytail: past 32 animated layers the others keep their start value
-  next[i] = Anim{id, prop, easing, from, to, start, dur, iterations};
+  const int32_t i = slot_of(id, prop, dur >= 0);
+  if (i < 0) return;
+  if (dur < 0) { next[i] = next[--nnext]; return; }
+  next[i] = Anim{id, prop, easing, from, to, start, dur, iterations, 0, 0};
+}
+bool layerSeries(int32_t id, int32_t prop, const double* v, uint32_t n, double start, double step) {
+  using namespace comp;
+  if (!n || step <= 0 || !enabled()) return false;
+  const int32_t i = slot_of(id, prop, true);
+  if (i < 0) return false;
+  next[i].sn = 0;   // its old values are free
+  if (!series_room(n)) { next[i] = next[--nnext]; return false; }
+  __builtin_memcpy(snext + snext_n, v, (size_t)n * sizeof(double));
+  next[i] = Anim{id, prop, 0, v[0], v[n - 1], start, step, 1, snext_n, n};
+  snext_n += n;
+  return true;
 }
 bool compClock(double ms) {
   if (!comp::enabled()) return false;
@@ -2817,6 +2935,7 @@ bool compClock(double ms) {
 void layerBegin(int32_t, double, double) {}
 bool layerEnd() { return false; }
 void layerAnim(int32_t, int32_t, double, double, double, double, int32_t, double) {}
+bool layerSeries(int32_t, int32_t, const double*, uint32_t, double, double) { return false; }
 bool compClock(double) { return false; }
 #endif
 /** ZINC_SHOT: each open window beside the main one as <name>-w<id>.<ext>. */

@@ -833,7 +833,24 @@ A.spring(fade, { toValue: 1, bounciness: 6 }).start();
 ```
 
 Values are signals: a style reads them with `.get()` and the node follows. Animations advance on the engine clock (deterministic in tests, `ui.tick`).
-`useNativeDriver` is accepted; running transform and opacity animations without the program's code each frame is ZN-364.01.
+
+`A.attach(node, key, value)` binds a view's style property to a value or an interpolation, as a style of React Native's `Animated.View` does: the
+view follows the value from then on. With `useNativeDriver: true`, `timing`, `spring` and `decay` are sampled once when they start and the engine plays
+the samples into the bound views: `translateX`, `translateY`, `scale`, `scaleX`, `scaleY`, `rotate` and `opacity` on the compositor, which keeps them
+moving while the program is busy (a long computation, a blocked thread), the other properties React Native's native driver allows (`borderRadius`,
+`shadowOpacity`, `zIndex`...) from the engine's frame. The program runs nothing per frame and the frames equal those it would paint itself.
+
+```tsx
+const slide = new A.Value(0);
+A.attach(card.node, 'translateX', slide);
+A.attach(card.node, 'opacity', slide.interpolate({ inputRange: [0, 200], outputRange: [1, 0.3] }));
+A.spring(slide, { toValue: 200, useNativeDriver: true }).start();
+```
+
+As in React Native, binding a layout property (`width`, `margin`, `top`...) to a value that starts a native-driver animation throws
+`Style property 'width' is not supported by native animated module`; the same animation without the native driver runs from the program. During a
+native-driver animation `value.get()` is computed when read, while its listeners, its signal and `useAnimated` hear only where it ends or stops. A
+colour binding or a `diffClamp` runs the animation from the program.
 In the React model, `useAnimated(value)` of `zinc:react-native` returns the value's number and renders the component again when it moves
 (React Native's Animated.View does this for its style): `const x = useAnimated(pan.x)` then `transform: [{ translateX: x }]` (examples/rn-tester).
 

@@ -1,0 +1,11 @@
+width: Style property 'width' is not supported by native animated module
+frame 12: value 25.583, view 25.583, opacity 0.808
+frame 22: value 74.417, view 74.417, opacity 0.442
+x ended at frame 31: true 100
+spring: stopped at 65.97
+after stop: value 65.97 view 65.97
+series state 0
+slot recycled: true, serial changed: true
+series told: false
+after release: stop false, state -1, new node x 0 y 0
+again: finished at 0, view 0

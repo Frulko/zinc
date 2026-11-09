@@ -53,4 +53,16 @@ inline double progress(int e, double el, double dur, double iter) {
   return finished(el, dur, iter) ? 1 : at(e, __builtin_fmod(el, dur) / dur);
 }
 
+/** A series of values, one every `step` ms (Animated's native driver, ZN-364.01: the program samples its timing, spring or decay once, the
+ *  compositor and ui.ts replay it): the value `el` ms after its start, linear between samples, the last one from (n - 1) * step on. */
+inline double series_at(const double* v, int n, double el, double step) {
+#pragma clang fp contract(off)
+  if (n <= 0) return 0;
+  if (el <= 0 || step <= 0) return v[el <= 0 ? 0 : n - 1];
+  const double i = el / step;
+  if (i >= n - 1) return v[n - 1];
+  const int k = (int)i;
+  return v[k] + (v[k + 1] - v[k]) * (i - k);
+}
+
 }  // namespace zn::ease

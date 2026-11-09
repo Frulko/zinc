@@ -100,6 +100,7 @@ declare module 'zinc:ui' {
       keyCtx: string;
       acts: string[];
       actFns: (() => void)[];
+      nativeValue: ((v: string) => void) | null;
   }
   /** Text field state (<Input>, <TextArea>); offsets are UTF-16 indices into `value`. */
   export class Edit {
@@ -419,6 +420,7 @@ declare module 'zinc:ui' {
       bold: boolean;
       weight: i32;
       italic: boolean;
+      tabular: boolean;
       transform: i32;
       tsX: i32;
       tsY: i32;
@@ -443,6 +445,8 @@ declare module 'zinc:ui' {
       lineW: number[];
       img: i32;
       src: string;
+      nk: string;
+      nkv: string[];
       focusable: boolean;
       styleKeys: string[];
       styleVals: number[];
@@ -470,6 +474,7 @@ declare module 'zinc:ui' {
       hovered: boolean;
       lazy: boolean;
       ca: boolean;
+      serial: i32;
       rn: RnRec | null;
       fade: number;
       leaving: boolean;
@@ -581,6 +586,8 @@ declare module 'zinc:ui' {
   /** Internal React commit: rebuilding an identical child list does not invalidate layout. */
   export function beginChildUpdate(): void;
   export function endChildUpdate(): void;
+  /** The serial of the node handle h names now (0: none): a handle kept for later (an Animated binding) is still the same node while it is unchanged. */
+  export function nodeSerial(h: i32): i32;
   export function createNode(tag: i32): i32;
   export function createText(s: string): i32;
   export function setText(h: i32, s: string): void;
@@ -862,6 +869,19 @@ declare module 'zinc:ui' {
   /** Tweens any numeric style property of node `h` (the keys of setNumber: sizes, spacing, opacity, transforms, shadows; colours channel by channel;
    *  keyword values switch half way). Over the profile's tween budget the property takes its end at once. */
   export function animate(h: i32, key: string, to: number, dur: number, easing: string, delay: number, iterations?: number): Promise<void>;
+  /** Plays node h's numeric style property `key` through `values`, one every `step` ms from now + `delay` (Animated's native driver, ZN-364.01: the
+   *  program samples its timing, spring or decay once). The compositor plays rotate, translateX/Y, scaleX/Y and opacity: the program runs nothing per
+   *  frame and the node keeps moving while it is busy; the engine writes the other properties each frame. onEnd(finished) runs at the frame it ends,
+   *  is replaced, or its node goes (not after stopSeries). Returns its id (monotonic). */
+  export function animateSeries(h: i32, key: string, values: number[], step: number, delay: number, onEnd: ((finished: boolean) => void) | null): i32;
+  /** Stops series uid where it is, without its onEnd (the caller writes the value it wants); false when uid names nothing running (ended, stale). */
+  export function stopSeries(uid: i32): boolean;
+  /** Animation uid's state, for tests: -1 none (dropped or never made), else 0 running, 1 done, 2 stopped, plus 4 while the compositor plays it. */
+  export function animState(uid: i32): i32;
+  /** Runs f at the first frame whose engine clock (now()) is at or past `at`; returns its id (monotonic). */
+  export function alarm(at: number, f: () => void): i32;
+  /** Cancels alarm id; false when it already ran or never was. */
+  export function cancelAlarm(id: i32): boolean;
   export type LayoutAnimationAnim = {
       type?: string;
       property?: string;
@@ -1207,6 +1227,18 @@ declare module 'zinc:ui' {
    * installed, it returns false and the drawn UI stays. null takes the host away and the tree is drawn again.
    */
   export function setHost(commit: ((changes: string) => void) | null): boolean;
+  /**
+   * Makes h a native component of the host (zinc:appkit's Window, Toolbar, SplitView...): the host is told `c ID KIND` with this kind instead of
+   * the tag and builds its own control for it. Drawn, and without a host, the node stays what its tag and classes say (the component's fallback).
+   */
+  export function setNativeKind(h: i32, kind: string): void;
+  /** A string attribute of a native component (a window's title, a toolbar item's symbol), sent to the host as an `a` record when it changes. */
+  export function setNativeAttr(h: i32, name: string, value: string): void;
+  /** A native control's value as the person set it (a switch flipped, a slider moved, an item picked): the host reports it with nativeValue and `f`
+   *  gets it as text. Drawn it never fires; the component's own handlers do the work. */
+  export function onNativeValue(h: i32, f: (v: string) => void): void;
+  /** The host's report of a native control's new value: runs h's onNativeValue; false when it has none or is disabled. */
+  export function nativeValue(h: i32, v: string): boolean;
   /** Whether the program asked for the native render (zinc.json "ui": {"render": "native"}, or ZINC_RENDER=native); whether a host shows it is hostActive(). */
   export function nativeRender(): boolean;
   /** Whether a native host shows the tree (setHost). */
@@ -1215,12 +1247,4 @@ declare module 'zinc:ui' {
   export function hostCommitCount(): i32;
   /** Whether h is still the node the native host was last told about under that handle (alive, not deleted, not recycled since): a host event for h applies only then. */
   export function hostMounted(h: i32): boolean;
-  /** Makes h a native component of the host (zinc:appkit's Window, Toolbar, SplitView...): the host builds its own control for this kind; drawn, the node stays what its tag and classes say. */
-  export function setNativeKind(h: i32, kind: string): void;
-  /** A string attribute of a native component (a window's title, a toolbar item's symbol), sent to the host when it changes. */
-  export function setNativeAttr(h: i32, name: string, value: string): void;
-  /** A native control's value as the person set it (a switch flipped, a slider moved, an item picked), reported by the host as text; drawn it never fires. */
-  export function onNativeValue(h: i32, f: (v: string) => void): void;
-  /** The host's report of a native control's new value: runs h's onNativeValue; false when it has none or is disabled. */
-  export function nativeValue(h: i32, v: string): boolean;
 }

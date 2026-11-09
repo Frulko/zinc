@@ -4,6 +4,10 @@
 import * as A from 'zinc:ui/animated';
 import { Easing } from 'zinc:ui/animated';
 import * as ui from 'zinc:ui';
+import { env } from 'zinc:sys';
+// ANIMATED_NATIVE=1 runs every animation with useNativeDriver: true (ZN-364.01): the engine plays samples taken when it starts, a value read meanwhile
+// is computed when read, and the numbers below stay the same
+const NATIVE = env('ANIMATED_NATIVE') === '1';
 const TS: number[] = [0.1, 0.25, 0.5, 0.75, 0.9];
 const R_ease: number[] = [0.01702660965156294, 0.09346465071882487, 0.31535681257253934, 0.6218618691748903, 0.8394278457624665];
 const R_inOutEase: number[] = [0.03114100006836614, 0.15767840628626967, 0.5, 0.8423215937137303, 0.9688589999316338];
@@ -43,14 +47,14 @@ function springRun(c: A.SpringConfig): number[] {
   v.stopAnimation();
   return out;
 }
-console.log('spring default (tension 40, friction 7) ' + worst(springRun({ toValue: 100 }), R_springDefault));
-console.log('spring bounciness 8 speed 12 ' + worst(springRun({ toValue: 100, bounciness: 8, speed: 12 }), R_springBounciness));
-console.log('spring bounciness 20 speed 5 ' + worst(springRun({ toValue: 100, bounciness: 20, speed: 5 }), R_springBounciness2));
-console.log('spring stiffness 100 damping 10 ' + worst(springRun({ toValue: 100, stiffness: 100, damping: 10 }), R_springStiff));
-console.log('spring critically damped ' + worst(springRun({ toValue: 100, stiffness: 100, damping: 20 }), R_springCritical));
+console.log('spring default (tension 40, friction 7) ' + worst(springRun({ useNativeDriver: NATIVE, toValue: 100 }), R_springDefault));
+console.log('spring bounciness 8 speed 12 ' + worst(springRun({ useNativeDriver: NATIVE, toValue: 100, bounciness: 8, speed: 12 }), R_springBounciness));
+console.log('spring bounciness 20 speed 5 ' + worst(springRun({ useNativeDriver: NATIVE, toValue: 100, bounciness: 20, speed: 5 }), R_springBounciness2));
+console.log('spring stiffness 100 damping 10 ' + worst(springRun({ useNativeDriver: NATIVE, toValue: 100, stiffness: 100, damping: 10 }), R_springStiff));
+console.log('spring critically damped ' + worst(springRun({ useNativeDriver: NATIVE, toValue: 100, stiffness: 100, damping: 20 }), R_springCritical));
 {
   const v = new A.Value(0);
-  A.decay(v, { velocity: 1 }).start();
+  A.decay(v, { useNativeDriver: NATIVE, velocity: 1 }).start();
   const out: number[] = [];
   let at = 0;
   for (const ms of [100, 500, 1000]) { ui.tick(ms - at); at = ms; out.push(v.get()); }
@@ -60,7 +64,7 @@ console.log('spring critically damped ' + worst(springRun({ toValue: 100, stiffn
 {   // timing ends exactly on toValue and calls back with finished = true
   const v = new A.Value(10);
   let ended = 'no';
-  A.timing(v, { toValue: 30, duration: 300 }).start((f: boolean) => { ended = f ? 'finished' : 'stopped'; });
+  A.timing(v, { useNativeDriver: NATIVE, toValue: 30, duration: 300 }).start((f: boolean) => { ended = f ? 'finished' : 'stopped'; });
   ui.tick(150); const mid = v.get(); ui.tick(200);
   console.log(`timing 10 -> 30 in 300 ms: middle ${Math.round(mid * 1000) / 1000}, end ${v.get()}, ${ended}`);
 }
@@ -70,12 +74,12 @@ console.log('spring critically damped ' + worst(springRun({ toValue: 100, stiffn
   a.addListener((x: number) => { if (x === 1 && order.indexOf('a') < 0) order += 'a'; });
   b.addListener((x: number) => { if (x === 1 && order.indexOf('b') < 0) order += 'b'; });
   let done = '';
-  A.sequence([A.timing(a, { toValue: 1, duration: 100 }), A.delay(50), A.timing(b, { toValue: 1, duration: 100 })]).start((f: boolean) => { done = f ? 'done' : 'stopped'; });
+  A.sequence([A.timing(a, { useNativeDriver: NATIVE, toValue: 1, duration: 100 }), A.delay(50), A.timing(b, { useNativeDriver: NATIVE, toValue: 1, duration: 100 })]).start((f: boolean) => { done = f ? 'done' : 'stopped'; });
   for (let i = 0; i < 30; i++) ui.tick(10);
   console.log(`sequence: ${order} ${done}, b at 300 ms ${b.get()}`);
   const c = new A.Value(0), d = new A.Value(0);
   let pdone = '';
-  A.parallel([A.timing(c, { toValue: 1, duration: 100 }), A.timing(d, { toValue: 1, duration: 200 })]).start((f: boolean) => { pdone = f ? 'done' : 'stopped'; });
+  A.parallel([A.timing(c, { useNativeDriver: NATIVE, toValue: 1, duration: 100 }), A.timing(d, { useNativeDriver: NATIVE, toValue: 1, duration: 200 })]).start((f: boolean) => { pdone = f ? 'done' : 'stopped'; });
   ui.tick(120);
   console.log(`parallel at 120 ms: c ${c.get()} d ${Math.round(d.get() * 1000) / 1000} ${pdone === '' ? 'running' : pdone}`);
   ui.tick(100);
@@ -83,7 +87,7 @@ console.log('spring critically damped ' + worst(springRun({ toValue: 100, stiffn
   const e = new A.Value(0);
   let loops = 0;
   e.addListener((x: number) => { if (x === 1) loops++; });
-  A.loop(A.timing(e, { toValue: 1, duration: 50 }), 3).start();
+  A.loop(A.timing(e, { useNativeDriver: NATIVE, toValue: 1, duration: 50 }), 3).start();
   for (let i = 0; i < 20; i++) ui.tick(10);
   console.log(`loop 3 times: reached 1 ${loops} times`);
 }

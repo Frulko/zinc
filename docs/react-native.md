@@ -50,7 +50,7 @@ component (`View as Box`) is not supported: View, Text, Image and ScrollView mus
 | API | Status | Notes |
 |---|---|---|
 | StyleSheet | partial | create (lowered at build time), flatten, compose, hairlineWidth (0.4 rounded to the device pixel, else one device pixel: 0.5 at scale 2, as React Native; a hairline-high box keeps a pixel of layout); absoluteFill / absoluteFillObject missing |
-| Animated | supported | Value, ValueXY, timing, spring, decay, interpolate (numbers and colours), add / subtract / multiply / divide / modulo, diffClamp, sequence, parallel, stagger, delay, loop, event; in the React model `useAnimated(value)` of zinc:react-native re-renders with the value; useNativeDriver accepted (ZN-364.01) |
+| Animated | supported | Value, ValueXY, timing, spring, decay, interpolate (numbers and colours), add / subtract / multiply / divide / modulo, diffClamp, sequence, parallel, stagger, delay, loop, event; in the React model `useAnimated(value)` of zinc:react-native re-renders with the value; `useNativeDriver: true` plays timing, spring and decay in the engine for the views bound with `Animated.attach(node, key, value)` (transform and opacity on the compositor, a layout key throws React Native's error) |
 | Easing | supported | linear, ease, quad, cubic, poly, sin, circle, exp, elastic, back, bounce, bezier, in / out / inOut |
 | LayoutAnimation | supported | configureNext, create, Presets easeInEaseOut / linear / spring |
 | PanResponder | partial | create, panHandlers, gestureState dx dy vx vy moveX moveY x0 y0; the should-set callbacks are asked once, when the drag starts |

@@ -176,8 +176,10 @@ declare module 'zinc:gfx' {
   /** The compositor (D182): the commands drawn until layerEnd() form layer `id`, turned around (cx, cy) by its declared animation. */
   export function layerBegin(id: i32, cx: number, cy: number): void;
   export function layerEnd(): boolean;
-  /** Declares layer `id`'s animation (prop 0: rotate, degrees); dur < 0 removes it. */
+  /** Declares layer `id`'s animation of prop (0 rotate in degrees, 1 translateX, 2 translateY, 3 scaleX, 4 scaleY, 5 opacity); dur < 0 removes it. */
   export function layerAnim(id: i32, prop: i32, from: number, to: number, start: number, dur: number, easing: i32, iterations: number): void;
+  /** Layer `id`'s prop follows `values`, one every `step` ms from `start` (Animated's native driver); false when the compositor does not take it. */
+  export function layerSeries(id: i32, prop: i32, values: number[], start: number, step: number): boolean;
   /** The script's animation clock this frame (ms < 0: no change); true when the compositor plays the declared animations. */
   export function compClock(ms: number): boolean;
   /** Draw commands until endImage() are rasterized into `image` instead of the screen (tile caches, static layers). */

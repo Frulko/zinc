@@ -2,15 +2,25 @@
 // Native 0.76 (Libraries/Animated: TimingAnimation, SpringAnimation, SpringConfig, DecayAnimation, Easing, bezier, AnimatedInterpolation; MIT, Copyright (c)
 // Meta Platforms, Inc. and affiliates), so the same configuration gives the same values. Values are signals: read them in a style with `.get()`
 // (`style={{ opacity: fade.get() }}`), the node updates when the value moves. Animations advance on the engine clock (zinc:ui now(), deterministic in
-// tests). useNativeDriver is accepted; running off the program's code per frame is ZN-364.02.
-import { createSignal } from 'zinc:ui/solid';
-import { now, addStepper, removeStepper, ResponderEvent, GestureState, ResponderHandler } from 'zinc:ui';
+// tests). attach(node, key, value) binds a view's style property to a value, as Animated.View's style does in React Native. With useNativeDriver: true
+// (ZN-364.01) timing, spring and decay are sampled once when they start and the engine plays the samples into the bound views: transform and opacity
+// on the compositor (D182), which keeps moving while the program is busy, the other properties React Native's native driver allows from the engine's
+// frame; the program runs nothing per frame. As in React Native, a value read during such an animation is computed when read (get()), its signal
+// and listeners hear only the end, and binding a layout property (width, margin...) throws React Native's error when the animation starts.
+import { createSignal, createEffect } from 'zinc:ui/solid';
+import { now, addStepper, removeStepper, ResponderEvent, GestureState, ResponderHandler, setNumber, nodeSerial, animateSeries, stopSeries, alarm, cancelAlarm } from 'zinc:ui';
 
 // ---------------------------------------------------------------- nodes
 /** Anything that has a numeric value: a Value, an interpolation, an arithmetic node. */
 export class Node {
   get(): number { return 0; }
   interpolate(c: InterpolationConfig): Interpolation { return new Interpolation(this, c); }
+  /** The value with value v at x (its own base and offset kept), read outside any effect: how the native driver samples a binding. */
+  at(v: Value, x: number): number { return this.get(); }
+  /** Whether the node depends on value v. */
+  uses(v: Value): boolean { return false; }
+  /** Whether at() gives what get() would (false: a node with a state of its own, such as diffClamp, which the native driver leaves to the program). */
+  stateless(): boolean { return true; }
 }
 
 export class Value extends Node {
@@ -26,8 +36,13 @@ export class Value extends Node {
     const [r, w] = createSignal<number>(v);
     this.read = r; this.write = w;
   }
-  /** The current value (base + offset); reactive in a style or an effect. */
-  get(): number { return this.read(); }
+  /** The current value (base + offset); reactive in a style or an effect. While a native-driver animation plays it, computed now from it. */
+  get(): number {
+    const r = this.read(), a = this.animation;
+    return a !== null && (a as Animation).st === A_NATIVE ? (a as Animation).valueAt(now()) + this.offset : r;
+  }
+  at(v: Value, x: number): number { return (this === v ? x : this.base) + this.offset; }
+  uses(v: Value): boolean { return this === v; }
   setValue(v: number): void { this.stopAnimation(); this.update(v); }
   setOffset(o: number): void { this.offset = o; this.write(this.base + this.offset); }
   flattenOffset(): void { this.base += this.offset; this.offset = 0; }
@@ -55,19 +70,22 @@ export class ValueXY {
   stopAnimation(): void { this.x.stopAnimation(); this.y.stopAnimation(); }
 }
 
+function binop(op: i32, x: number, y: number): number {
+  if (op === 0) return x + y;
+  if (op === 1) return x - y;
+  if (op === 2) return x * y;
+  if (op === 3) return y === 0 ? 0 : x / y;
+  return ((x % y) + y) % y;
+}
 class Binary extends Node {
   a: Node; b: Node; op: i32;
   constructor(a: Node, b: Node, op: i32) { super(); this.a = a; this.b = b; this.op = op; }
-  get(): number {
-    const x = this.a.get(), y = this.b.get();
-    if (this.op === 0) return x + y;
-    if (this.op === 1) return x - y;
-    if (this.op === 2) return x * y;
-    if (this.op === 3) return y === 0 ? 0 : x / y;
-    return ((x % y) + y) % y;
-  }
+  get(): number { return binop(this.op, this.a.get(), this.b.get()); }
+  at(v: Value, x: number): number { return binop(this.op, this.a.at(v, x), this.b.at(v, x)); }
+  uses(v: Value): boolean { return this.a.uses(v) || this.b.uses(v); }
+  stateless(): boolean { return this.a.stateless() && this.b.stateless(); }
 }
-class Constant extends Node { v: number; constructor(v: number) { super(); this.v = v; } get(): number { return this.v; } }
+class Constant extends Node { v: number; constructor(v: number) { super(); this.v = v; } get(): number { return this.v; } at(v: Value, x: number): number { return this.v; } }
 export function constant(v: number): Node { return new Constant(v); }
 export function add(a: Node, b: Node): Node { return new Binary(a, b, 0); }
 export function subtract(a: Node, b: Node): Node { return new Binary(a, b, 1); }
@@ -86,6 +104,8 @@ class DiffClamp extends Node {
     this.acc = Math.min(Math.max(this.acc + d, this.min), this.max);
     return this.acc;
   }
+  uses(v: Value): boolean { return this.a.uses(v); }
+  stateless(): boolean { return false; }
 }
 export function diffClamp(a: Node, min: number, max: number): Node { return new DiffClamp(a, min, max); }
 
@@ -102,8 +122,12 @@ export type InterpolationConfig = {
 export class Interpolation extends Node {
   src: Node; c: InterpolationConfig;
   constructor(src: Node, c: InterpolationConfig) { super(); this.src = src; this.c = c; }
-  get(): number {
-    const x = this.src.get(), ins = this.c.inputRange, outs = this.c.outputRange;
+  get(): number { return this.map(this.src.get()); }
+  at(v: Value, x: number): number { return this.map(this.src.at(v, x)); }
+  uses(v: Value): boolean { return this.src.uses(v); }
+  stateless(): boolean { return this.src.stateless(); }
+  map(x: number): number {
+    const ins = this.c.inputRange, outs = this.c.outputRange;
     let i = 1;
     while (i < ins.length - 1 && ins[i] < x) i++;
     if (this.c.colors === true) {
@@ -194,7 +218,7 @@ let stepping = false;
 function step(): void {
   const t = now();
   let i = 0;
-  while (i < running.length) { const a = running[i]; if (a.active) { a.frame(t); i++; } else running.splice(i, 1); }
+  while (i < running.length) { const a = running[i]; if (a.st === A_SCRIPT) { a.frame(t); i++; } else running.splice(i, 1); }
   if (running.length === 0 && stepping) { removeStepper(step); stepping = false; }
 }
 function run(a: Animation): void {
@@ -202,28 +226,118 @@ function run(a: Animation): void {
   if (!stepping) { addStepper(step); stepping = true; }
 }
 
+// ---------------------------------------------------------------- the native driver (ZN-364.01): bindings, React Native's allow list, the samples
+/** A view's style property bound to a node (attach): the handle and the serial of the node it named, since handles are recycled. */
+class Binding {
+  h: i32; serial: i32; key: string; node: Node;
+  constructor(h: i32, serial: i32, key: string, node: Node) { this.h = h; this.serial = serial; this.key = key; this.node = node; }
+}
+const bindings: Binding[] = [];
+function live(b: Binding): boolean { return b.serial !== 0 && nodeSerial(b.h) === b.serial; }
+function write(b: Binding, x: number): void {
+  if (b.key === 'scale') { setNumber(b.h, 'scaleX', x); setNumber(b.h, 'scaleY', x); }   // React Native's transform scale: both axes around the origin
+  else setNumber(b.h, b.key, x);
+}
+/** Node h's style property `key` follows n from now on, as a style of Animated.View does in React Native: opacity, translateX, translateY, scale,
+ *  scaleX, scaleY, rotate (degrees), or any numeric style key (a layout key cannot take a native-driver animation). The binding ends with the node. */
+export function attach(h: i32, key: string, n: Node): void {
+  const b = new Binding(h, nodeSerial(h), key, n);
+  bindings.push(b);
+  createEffect((): void => { const x = n.get(); if (live(b)) write(b, x); });
+}
+// NativeAnimatedAllowlist.js of React Native 0.76: what its native driver animates (the transform keys are flat style keys here)
+const NATIVE_TRANSFORMS: string[] = ['translateX', 'translateY', 'scale', 'scaleX', 'scaleY', 'rotate', 'rotateX', 'rotateY', 'rotateZ', 'perspective', 'skewX', 'skewY', 'matrix'];
+const NATIVE_COLORS: string[] = ['backgroundColor', 'borderBottomColor', 'borderColor', 'borderEndColor', 'borderLeftColor', 'borderRightColor', 'borderStartColor', 'borderTopColor', 'color', 'tintColor'];
+const NATIVE_STYLES: string[] = ['borderBottomEndRadius', 'borderBottomLeftRadius', 'borderBottomRightRadius', 'borderBottomStartRadius', 'borderEndEndRadius', 'borderEndStartRadius',
+  'borderRadius', 'borderTopEndRadius', 'borderTopLeftRadius', 'borderTopRightRadius', 'borderTopStartRadius', 'borderStartEndRadius', 'borderStartStartRadius', 'elevation', 'opacity',
+  'transform', 'zIndex', 'shadowOpacity', 'shadowRadius'];
+/** The live bindings of value v for a native-driver animation; throws React Native's error for a property its native driver does not animate; null
+ *  when a binding needs the program each frame (a colour, a node with a state of its own): the animation then runs from the program. */
+function nativeBindings(v: Value): Binding[] | null {
+  let i = 0;
+  while (i < bindings.length) { if (live(bindings[i])) i++; else bindings.splice(i, 1); }
+  const out: Binding[] = [];
+  let script = false;
+  for (const b of bindings) {
+    if (!b.node.uses(v)) continue;
+    if (NATIVE_TRANSFORMS.indexOf(b.key) < 0 && NATIVE_STYLES.indexOf(b.key) < 0 && NATIVE_COLORS.indexOf(b.key) < 0)
+      throw new Error(`Style property '${b.key}' is not supported by native animated module`);
+    if (NATIVE_COLORS.indexOf(b.key) >= 0 || !b.node.stateless()) script = true;
+    out.push(b);
+  }
+  return script ? null : out;
+}
+const FRAME_MS: number = 1000 / 60;   // the native driver's sample step for springs and decays (React Native's frame)
+const MAX_SAMPLES: i32 = 3600;        // ponytail: a spring or a decay sampled for a minute at most; it ends there
+
+/** An animation's lifecycle (one transition function, transition()): A_IDLE, then A_SCRIPT (the program advances it each frame) or A_NATIVE (the engine plays its
+ *  samples), then A_ENDED (finished or stopped); it may begin again from A_ENDED. */
+const A_IDLE: i32 = 0, A_SCRIPT: i32 = 1, A_NATIVE: i32 = 2, A_ENDED: i32 = 3;
+
 /** One animation of one value; composites are built from these. */
 export class Animation {
-  active: boolean = false;
+  st: i32 = A_IDLE;
+  native: boolean = false;   // useNativeDriver
   value: Value | null = null;
   done: ((finished: boolean) => void) | null = null;
   delayMs: number = 0;
   startAt: number = 0;
+  endAt: number = Infinity;  // native: the time of its last sample
   iterations: i32 = 1;
+  series: i32[] = [];        // native: the engine's animations of its bindings (ui animateSeries ids)
+  ender: i32 = 0;            // native: the alarm at endAt
+  /** The one transition of the lifecycle; false (nothing changed) for an illegal one. */
+  transition(s: i32): boolean {
+    const ok = s === A_ENDED ? this.st === A_SCRIPT || this.st === A_NATIVE : (s === A_SCRIPT || s === A_NATIVE) && (this.st === A_IDLE || this.st === A_ENDED);
+    if (ok) this.st = s;
+    return ok;
+  }
   begin(v: Value, done: ((finished: boolean) => void) | null): void {
+    const bs = this.native ? nativeBindings(v) : null;   // React Native throws from start() too, before anything moves
     v.stopAnimation();
-    this.value = v; this.done = done; this.active = true; this.startAt = now() + this.delayMs;
+    this.value = v; this.done = done; this.startAt = now() + this.delayMs;
     v.animation = this;
     this.started(v.base);
+    if (bs !== null && this.plan()) { this.play(v, bs as Binding[]); return; }
+    this.transition(A_SCRIPT);
     run(this);
   }
+  /** The engine plays the samples: each binding gets the series of its values, an alarm ends the animation at its last sample. */
+  play(v: Value, bs: Binding[]): void {
+    this.transition(A_NATIVE);
+    const step = this.stepMs(), n: i32 = Math.round((this.endAt - this.startAt) / step);
+    const base: number[] = [];
+    for (let i = 0; i <= n; i++) base.push(this.valueAt(i === n ? this.endAt : this.startAt + i * step));
+    this.series = [];
+    for (const b of bs) {
+      const vals: number[] = [];
+      for (const x of base) vals.push(b.node.at(v, x));
+      const delay = this.startAt - now();
+      if (b.key === 'scale') { this.series.push(animateSeries(b.h, 'scaleX', vals, step, delay, null)); this.series.push(animateSeries(b.h, 'scaleY', vals, step, delay, null)); }
+      else this.series.push(animateSeries(b.h, b.key, vals, step, delay, null));
+    }
+    this.ender = alarm(this.endAt, (): void => { this.finish(true); });
+  }
+  /** Native: its sample step (ms). */
+  stepMs(): number { return FRAME_MS; }
+  /** Native: sets endAt; false when it cannot be sampled (the program runs it). */
+  plan(): boolean { return false; }
+  /** Native: the value at time t (the engine clock), as the program-driven frames compute it. */
+  valueAt(t: number): number { return 0; }
   started(from: number): void {}
   frame(t: number): void {}
   finish(finished: boolean): void {
-    if (!this.active) return;
-    this.active = false;
+    const wasNative = this.st === A_NATIVE;
     const v = this.value;
+    const end = wasNative ? this.valueAt(now()) : 0;   // where the engine shows it now
+    if (!this.transition(A_ENDED)) return;
+    if (wasNative) {
+      cancelAlarm(this.ender);
+      for (const id of this.series) stopSeries(id);   // false for those that ended on their own
+      this.series = [];
+    }
     if (v !== null && (v as Value).animation === this) (v as Value).animation = null;
+    if (wasNative && v !== null) (v as Value).update(end);   // the value, its listeners and the bound views hear where it stopped
     const d = this.done;
     if (d !== null) (d as (f: boolean) => void)(finished);
   }
@@ -232,18 +346,21 @@ export class Animation {
 
 export type TimingConfig = { toValue: number; duration?: number; easing?: (t: number) => number; delay?: number; useNativeDriver?: boolean; isInteraction?: boolean };
 class Timing extends Animation {
-  to: number; dur: number; easing: (t: number) => number; from: number = 0;
-  constructor(c: TimingConfig) { super(); this.to = c.toValue; this.dur = c.duration ?? 500; this.easing = c.easing ?? EASE_IN_OUT; this.delayMs = c.delay ?? 0; }
+  toV: number; dur: number; easing: (t: number) => number; from: number = 0;
+  constructor(c: TimingConfig) { super(); this.toV = c.toValue; this.dur = c.duration ?? 500; this.easing = c.easing ?? EASE_IN_OUT; this.delayMs = c.delay ?? 0; this.native = c.useNativeDriver ?? false; }
   started(from: number): void { this.from = from; }
+  plan(): boolean { this.endAt = this.startAt + this.dur; return true; }
+  stepMs(): number { return this.dur <= 0 ? 1 : this.dur / Math.max(1, Math.ceil(this.dur / FRAME_MS)); }   // a whole number of steps, the last one at its end
+  valueAt(t: number): number {
+    if (t < this.startAt) return this.from;
+    if (t >= this.startAt + this.dur) return this.dur === 0 ? this.toV : this.from + this.easing(1) * (this.toV - this.from);
+    return this.from + this.easing((t - this.startAt) / this.dur) * (this.toV - this.from);
+  }
   frame(t: number): void {
     const v = this.value as Value;
     if (t < this.startAt) return;
-    if (t >= this.startAt + this.dur) {
-      v.update(this.dur === 0 ? this.to : this.from + this.easing(1) * (this.to - this.from));
-      this.finish(true);
-      return;
-    }
-    v.update(this.from + this.easing((t - this.startAt) / this.dur) * (this.to - this.from));
+    v.update(this.valueAt(t));
+    if (t >= this.startAt + this.dur) this.finish(true);
   }
 }
 
@@ -260,9 +377,10 @@ function b3Nobounce(t: number): number {
 }
 class Spring extends Animation {
   to: number; k: number = 100; c: number = 10; m: number = 1; v0: number; clampOver: boolean; restD: number; restV: number;
-  from: number = 0; t0: number = -1;
+  from: number = 0; pos: number = 0; vel: number = 0;
   constructor(cfg: SpringConfig) {
     super();
+    this.native = cfg.useNativeDriver ?? false;
     this.to = cfg.toValue; this.v0 = cfg.velocity ?? 0; this.clampOver = cfg.overshootClamping ?? false;
     this.restD = cfg.restDisplacementThreshold ?? 0.001; this.restV = cfg.restSpeedThreshold ?? 0.001; this.delayMs = cfg.delay ?? 0;
     if (cfg.stiffness !== undefined || cfg.damping !== undefined || cfg.mass !== undefined) { this.k = cfg.stiffness ?? 100; this.c = cfg.damping ?? 10; this.m = cfg.mass ?? 1; }
@@ -274,12 +392,10 @@ class Spring extends Animation {
       this.k = stiffnessFromOrigami(tension); this.c = dampingFromOrigami(friction); this.m = 1;
     } else { this.k = stiffnessFromOrigami(cfg.tension ?? 40); this.c = dampingFromOrigami(cfg.friction ?? 7); this.m = 1; }
   }
-  started(from: number): void { this.from = from; this.t0 = -1; }
-  frame(t: number): void {
-    if (t < this.startAt) return;
-    if (this.t0 < 0) this.t0 = this.startAt;
-    const v = this.value as Value;
-    const time = (t - this.t0) / 1000;   // (React Native caps a frame at 64 ms of catch-up; the engine clock never jumps here)
+  started(from: number): void { this.from = from; }
+  /** pos and vel at time t (React Native caps a frame at 64 ms of catch-up; the engine clock never jumps here). */
+  at_(t: number): void {
+    const time = (t - this.startAt) / 1000;
     const c = this.c, m = this.m, k = this.k, v0 = -this.v0;
     const zeta = c / (2 * Math.sqrt(k * m)), w0 = Math.sqrt(k / m), w1 = w0 * Math.sqrt(1 - zeta * zeta), x0 = this.to - this.from;
     let pos = 0, vel = 0;
@@ -292,22 +408,53 @@ class Spring extends Animation {
       pos = this.to - env * (x0 + (v0 + w0 * x0) * time);
       vel = env * (v0 * (time * w0 - 1) + time * x0 * (w0 * w0));
     }
-    v.update(pos);
+    this.pos = pos; this.vel = vel;
+  }
+  /** Whether the spring stops at pos and vel: past its end with overshootClamping, or at rest. */
+  settled(): boolean {
+    const pos = this.pos, k = this.k;
     const over = this.clampOver && k !== 0 && (this.from < this.to ? pos > this.to : pos < this.to);
-    const still = Math.abs(vel) <= this.restV && (k === 0 || Math.abs(this.to - pos) <= this.restD);
-    if (over || still) { if (k !== 0) v.update(this.to); this.finish(true); }
+    return over || (Math.abs(this.vel) <= this.restV && (k === 0 || Math.abs(this.to - pos) <= this.restD));
+  }
+  frame(t: number): void {
+    if (t < this.startAt) return;
+    const v = this.value as Value;
+    this.at_(t);
+    v.update(this.pos);
+    if (this.settled()) { if (this.k !== 0) v.update(this.to); this.finish(true); }
+  }
+  plan(): boolean {   // the first sample at which it settles, as the program's frames would find it
+    let i: i32 = 1;
+    while (i < MAX_SAMPLES) { this.at_(this.startAt + i * FRAME_MS); if (this.settled()) break; i++; }
+    this.endAt = this.startAt + i * FRAME_MS;
+    this.at_(this.endAt);
+    return true;
+  }
+  valueAt(t: number): number {
+    if (t < this.startAt) return this.from;
+    if (t >= this.endAt) { if (this.k !== 0) return this.to; this.at_(this.endAt); return this.pos; }
+    this.at_(t);
+    return this.pos;
   }
 }
 
 export type DecayConfig = { velocity: number; deceleration?: number; delay?: number; useNativeDriver?: boolean };
 class Decay extends Animation {
   vel: number; dec: number; from: number = 0; last: number = 0;
-  constructor(c: DecayConfig) { super(); this.vel = c.velocity; this.dec = c.deceleration ?? 0.998; this.delayMs = c.delay ?? 0; }
+  constructor(c: DecayConfig) { super(); this.vel = c.velocity; this.dec = c.deceleration ?? 0.998; this.delayMs = c.delay ?? 0; this.native = c.useNativeDriver ?? false; }
   started(from: number): void { this.from = from; this.last = from; }
+  x(t: number): number { return this.from + (this.vel / (1 - this.dec)) * (1 - Math.exp(-(1 - this.dec) * (t - this.startAt))); }
+  plan(): boolean {   // the first sample that moves less than 0.1, as the program's frames would find it
+    let last = this.from, i: i32 = 1;
+    while (i < MAX_SAMPLES) { const x = this.x(this.startAt + i * FRAME_MS); if (Math.abs(last - x) < 0.1) break; last = x; i++; }
+    this.endAt = this.startAt + i * FRAME_MS;
+    return true;
+  }
+  valueAt(t: number): number { return t < this.startAt ? this.from : this.x(t < this.endAt ? t : this.endAt); }
   frame(t: number): void {
     if (t < this.startAt) return;
     const v = this.value as Value;
-    const x = this.from + (this.vel / (1 - this.dec)) * (1 - Math.exp(-(1 - this.dec) * (t - this.startAt)));
+    const x = this.x(t);
     v.update(x);
     if (Math.abs(this.last - x) < 0.1 && t > this.startAt) { this.finish(true); return; }
     this.last = x;
@@ -405,7 +552,8 @@ export type NativeMapping = { contentOffset?: OffsetMapping; locationX?: Value; 
 export type EventMapping = { nativeEvent?: NativeMapping; dx?: Value; dy?: Value; vx?: Value; vy?: Value; moveX?: Value; moveY?: Value };
 export type EventConfig = { useNativeDriver?: boolean; listener?: ResponderHandler };
 function put(v: Value | undefined, x: number): void { if (v !== undefined) (v as Value).setValue(x); }
-/** A handler for onScroll or a PanResponder callback that sets the mapped values, then calls config.listener. useNativeDriver is accepted (ZN-364.01). */
+/** A handler for onScroll or a PanResponder callback that sets the mapped values, then calls config.listener. useNativeDriver is accepted; the values are
+ *  set from the program (a scroll-driven value on the compositor is a later step of D182). */
 export function event(mapping: (EventMapping | null)[], config: EventConfig | null = null): ResponderHandler {
   return (e: ResponderEvent, g: GestureState): void => {
     if (mapping.length > 0 && mapping[0] !== null) {

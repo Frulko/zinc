@@ -540,6 +540,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxLayerEnd: r->i = g::layerEnd() ? 1 : 0; break;
     case Rt::HostGfxLayerAnim: g::layerAnim(n(0), n(1), a[2].d, a[3].d, a[4].d, a[5].d, n(6), a[7].d); break;
     case Rt::HostGfxCompClock: r->i = g::compClock(a[0].d) ? 1 : 0; break;
+    case Rt::HostGfxLayerSeries: r->i = g::layerSeries(n(0), n(1), static_cast<const double*>(a[2].p), a[2].n, a[3].d, a[4].d) ? 1 : 0; break;
     case Rt::HostGfxIdleDue: idleDueMs = a[0].d; break;
     case Rt::HostGfxProfMark: if (g::profiling()) g::profMark(n(0)); zn_ui_log_mark(n(0)); break;
     case Rt::HostGfxFinish:
