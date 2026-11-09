@@ -4,8 +4,7 @@ title: >-
   UI style: Border model: dashed/dotted, per-side colour, per-corner radius,
   border in layout (`box-border-layout`)
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-07 12:56'
 updated_date: '2026-11-09 08:10'
 labels:

@@ -2,8 +2,7 @@
 id: ZN-260
 title: 'Box shadow: several layers, inset, spread'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-07 12:57'
 updated_date: '2026-11-09 07:40'
 labels:

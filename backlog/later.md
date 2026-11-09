@@ -650,6 +650,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1028: read `bodyFile` uploads and `Reply.file` on libuv's thread pool if a slow SD card shows in frame times; `fetch`'s 120 s timeout covers the whole request, so a large upload on a slow link fails: measure it from the last progress.
 - ZN-705: a binary request body over http is sent as UTF-8 text (`native.httpFetch` takes a string), so FormData with binary files fails over the network: pass the body to the row as bytes. `matchMedia('(prefers-color-scheme: dark)')` could answer from the theme signal webenv drops.
 - ZN-706: XHR `responseType 'document'` and `responseXML` for XML responses; XML document nodes are xmldom objects, not EventTargets, and cannot be added to the page's document.
+- ZN-260: a Gaussian (erf) falloff for every shadow so `shadow-[..]` blur matches CSS's sigma = blur/2 (changes every preset: an owner-chosen golden refresh); under a rotate or skew matrix the GL replay ignores an inset's hole offset; Metal does not draw inset shadows.
+- ZN-260: `hover:shadow-[..]` and state variants of layers (the JSX checker refuses `hover:shadow-[..]`); the build-time style scan does not see `boxShadow` or `borderStyle: 'dashed'` in style objects.
+- ZN-257: fit the dash count per side (WebRender's half-dash per side) so dashes do not restart at side joins.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

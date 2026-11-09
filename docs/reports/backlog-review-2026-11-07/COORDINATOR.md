@@ -65,4 +65,5 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: ZN-709, ZN-704 (Done, D246). Worker: ZN-1028 zinc:net server limits and streaming bodies, beside ZN-1054.
 - Integrated: ZN-1054 (Done, D247). Worker: UI style chain ZN-260 (box shadow layers), ZN-257 (border model), beside ZN-1028.
 - Integrated: ZN-1028 (Review, D248; Pi unreachable by ssh for #3). Worker: web environment chain ZN-705, ZN-706, beside the UI style chain.
+- Integrated: ZN-260, ZN-257 (Review, D250).
 - Integrated: ZN-706 (Done), ZN-705 (Review, D249). Worker: audio chain ZN-697 (voice fade), ZN-440.02 (streaming music from a ZPK pack), beside the UI style chain.
