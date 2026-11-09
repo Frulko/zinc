@@ -684,6 +684,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-703: `include/zn/ease.h` and `runtime/zrt.h` `math::` (host easing, gfx rotation, the prototype Dyn's pow) still call the platform libm: route them through `zn_js_*`; asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh, cbrt, log2, log10, log1p, expm1, hypot still use it too (`ieee754.cc` has all but hypot); `Number.prototype.toPrecision` is missing on the Zinc engines.
 - ZN-703: three_3d can compare exactly again (D82) once its goldens are re-recorded with the new Math.
 - ZN-161.01: `Object.freeze` of an `any` array freezes nothing; `Object.keys/entries/values` of typed records are refused (`ownKeysHelper` makes them a few lines); `Partial<C>` of a class is refused (blocks `Object.assign(this, init)`); assign from a string or array source is a diagnostic; `isFrozen`, `isExtensible`, `preventExtensions`, `seal`, `getOwnPropertyDescriptor` missing.
+- ZN-429: the ZN_AOT_CPP_ONLY outputs (iOS, Android, consoles) still embed the blob as a literal; ship program.cpp.res beside the C++ and emit the .incbin there too (NDK clang, Xcode clang and devkitPro GCC all assemble it).
+- ZN-429: bakeResources holds the decoded image, the blob and the PNG at once (218 MB RSS for a 50 MB blob); stream the blob to the file instead.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -887,3 +889,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-444: run `shader_assets.sh` on Linux (`libzn_webgl.so`) and a build with `ZN_WEBGL` off; ZN-678: the turned-image GL path on a real GLES 2 device (Pi).
 - ZN-1047: PSP pictures under 8 px are padded and clamped, so repeating uvs read black padding: tile small pictures up to 8 px at upload (`targets/psp/gu_psp.cpp`); run the World shadows switch on the 3DS (Azahar or the New 3DS: Tokyo Settings > Shadows off/on twice).
 - ZN-703: `tests/run --only math_ieee754` on the Intel Mac and the Pi 3B+ (same bits without FMA and on Linux ARM; only proven by x86_64 Node under Rosetta matching the arm64 build).
+- ZN-429: run a `zinc build --target aarch64-linux` drawing program on the Pi for one frame (the .incbin cross builds were linked and their bytes checked, not run).

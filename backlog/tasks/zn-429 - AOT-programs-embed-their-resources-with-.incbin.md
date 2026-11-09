@@ -2,8 +2,7 @@
 id: ZN-429
 title: AOT programs embed their resources with .incbin
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:35'
 updated_date: '2026-11-09 09:57'
 labels:

@@ -45,10 +45,12 @@
 - Integrated: ZN-1040 (Review, D261): museum table fits cards at large text sizes, staff week/month, shared meshes in the attract loop, editor descriptions, group drag, menus, cues; engine: an optional chain short-circuits as a whole (`m?.get(k) ?? d` crashed). #5 is the museum_editor T1, the owner's.
 - Integrated: ZN-703, ZN-161.01 (Done, D262, D263): Math is Node 24's bits on every engine (V8 fdlibm, CORE-MATH pow, QuickJS patch 0005); Object.assign/freeze/fromEntries/getOwnPropertyNames/defineProperty on records and any. Stash-pop conflict in tests/affected.json resolved keeping the other session's lines.
 - Integrated: ZN-1012 (Done, D264): ten plugins documented, `zinc doc` links sources to the zinc.json repository, the --std index measured (1.6 MB, 302 KB gz). Its T0 `doc` runs once a building slot frees (two agents build).
+- Integrated: ZN-429 (Done, D265): AOT programs embed baked fonts and images with `.incbin` beside the generated C++ (50 MB blob: build 10.9 s to 1.6 s, C++ 148 MB to 118 KB, peak 2.9 GB to under 350 MB; numbers indicative). Smoke: `aot_incbin` and `doc` (ZN-1012) on develop.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- AOT .incbin (since 65042b855): `tests/run --only console_aot` and `--only app_library` (the ZN_AOT_CPP_ONLY literal path with `kResourcesSize`, 1-2 min each); `zinc build --target aarch64-linux` of a drawing program run one frame on the Pi (2 min).
 - Math (since 14f12f075): `math_ieee754` on the Intel Mac and the Pi (5 s); three_3d with exact compare (pngdiff without `--tol`, both Macs); `bench/math.ts --native/--interp/--engine quickjs` before and after on a quiet machine.
 - Museum (since 2bae71460): `tests/run --tier demo --only museum_editor` (closes ZN-1040 #5; regenerate table-*.png and sound-112.png for the cues, 1-2 min, 600 MB); `museum_editor_views/_sound/_tools`; `museum_stats` and `museum_access` (regenerate: tabs, card fit); `museum_visit` with the ZN-695 story golden.
 - Docs site (since 0d21116d4): build the site (`pnpm` in `site/`) and look at the search placeholder and the Portuguese switcher.
