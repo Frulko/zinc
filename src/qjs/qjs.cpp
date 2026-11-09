@@ -465,10 +465,26 @@ void commonJsModule(zn::frontend::ModuleResolver& res, const std::string& path, 
   if (!names.empty()) js += "export { " + names + " };\n";
 }
 
+// Keep a script's hashbang first, while evaluating native identity capture before its dependencies.
+void collectionPrelude(std::string& js) {
+  std::size_t at = 0;
+  if (js.rfind("#!", 0) == 0) {
+    const auto newline = js.find('\n');
+    if (newline == std::string::npos) { js += '\n'; at = js.size(); }
+    else at = newline + 1;
+  }
+  js.insert(at, "import 'zinc:internal/collection-results';");
+}
+
 bool moduleText(Engine& e, const std::string& name, std::string& js, std::string& err) {
   std::string src, path = name;
+  if (name == "zinc:internal/collection-results") { js = kCollectionResultsModule; return true; }
   if (name == "zinc:native") { js = kNativeModule; return true; }   // plain JavaScript: nothing to strip
-  if (const zn::frontend::LoaderStage& st = zn::frontend::loaderStage(); !st.source.empty() && name == st.path) return stripTypes(st.source, name, js, err);   // ZN-447
+  if (const zn::frontend::LoaderStage& st = zn::frontend::loaderStage(); !st.source.empty() && name == st.path) {   // ZN-447
+    if (!stripTypes(st.source, name, js, err)) return false;
+    if (e.modules.empty()) collectionPrelude(js);
+    return true;
+  }
   if (name.rfind("zinc:", 0) == 0) {
     if (name == "zinc:web/globals") src = kWebGlobalsJs;
     else if (name == "zinc:gfx") src = gfxSource();
@@ -489,11 +505,16 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
     if (std::getenv("ZN_QJS_DEBUG")) std::fprintf(stderr, "qjs: module failli: name=<%s> path=<%s>\n", name.c_str(), path.c_str());
     err = "cannot load module " + name; return false;
   }
-  if (name.rfind("zinc:", 0) != 0 && isCommonJs(path, src)) { commonJsModule(e.res, path, src, js); return true; }
+  if (name.rfind("zinc:", 0) != 0 && isCommonJs(path, src)) {
+    commonJsModule(e.res, path, src, js);
+    if (name == e.entry && e.modules.empty()) collectionPrelude(js);
+    return true;
+  }
   const std::string file = name.rfind("zinc:", 0) == 0 && !endsWith(path, ".tsx") ? name : path;
   // ponytail: the cache is never pruned (one small file per version of a module); prune by age if ~/.zinc/cache/qjs grows
   // the transform stage of the bundler (.tsx too), cached by content: the source, its name and what the transform reads besides (the UI preset and
   // layout of zinc.json; the directory is per build of the engine)
+  const bool zincCollections = e.modules.empty() && !e.packageFiles.count(path) && path.find("/node_modules/") == std::string::npos;
   std::string cached;
   // ponytail: a module that uses zinc:worker is transformed at each run: its message schemas come from the types of the files it imports
   // (workerTypesForJs), which the content hash does not cover; the same for a TypeScript module with JSON.parse (the checked copies' schemas,
@@ -501,14 +522,16 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   const bool typedParse = src.find("JSON.parse") != std::string::npos && (endsWith(path, ".ts") || endsWith(path, ".tsx"));
   if (!e.cacheDir.empty() && src.find("zinc:worker") == std::string::npos && !typedParse) {
     std::uint64_t h = 1469598103934665603ull;
-    for (const std::string& part : {src, file, zn::frontend::uiPreset(), zn::frontend::uiLayout(), std::string(std::getenv("ZINC_WEB_HOT") ? "hot" : ""), std::string(zn::frontend::currentProfile() ? zn::frontend::currentProfile()->name : "")})
+    for (const std::string& part : {src, file, std::string(zincCollections ? "typed-collections" : "native-collections"), std::string(name == e.entry && e.modules.empty() ? "entry-capture" : "module"), zn::frontend::uiPreset(), zn::frontend::uiLayout(), std::string(std::getenv("ZINC_WEB_HOT") ? "hot" : ""), std::string(zn::frontend::currentProfile() ? zn::frontend::currentProfile()->name : "")})
       for (unsigned char c : part + '\0') { h ^= c; h *= 1099511628211ull; }
     char key[40];
     std::snprintf(key, sizeof key, "/%016llx-%zx.js", static_cast<unsigned long long>(h), src.size());
     cached = e.cacheDir + key;
     if (readFile(cached, js)) return true;
   }
-  if (!toJavaScript(src, file, js, err)) return false;
+  if (!toJavaScript(src, file, js, err, zincCollections)) return false;
+  // Capture native identities before any entry dependency can replace a prototype. No prototype is modified.
+  if (name == e.entry && e.modules.empty()) collectionPrelude(js);
   if (!cached.empty()) {   // written aside then renamed: two programs starting at once never read half a file
     std::error_code ec;
     std::filesystem::create_directories(e.cacheDir, ec);
@@ -576,7 +599,7 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
   } else if (n.rfind("zinc:", 0) == 0) {   // a plugin wins over lib/std, as in the typed loader (zinc:system/*); never over a host module
     std::error_code ec;
     if (!e.modules.empty() && std::filesystem::exists(e.modules + "/" + n.substr(5) + ".js", ec)) r = e.modules + "/" + n.substr(5) + ".js";
-    else if (n != "zinc:native" && !zn::frontend::builtinModuleSource(n) && !e.stdRoot.empty()) {
+    else if (n != "zinc:native" && n != "zinc:internal/collection-results" && !zn::frontend::builtinModuleSource(n) && !e.stdRoot.empty()) {
       e.res.plugins(e.entry);   // the program's project first: a script bundle's registry is not in it
       const std::map<std::string, std::string>& pl = e.res.plugins(from);
       if (auto it = pl.find(n); it != pl.end()) r = it->second;

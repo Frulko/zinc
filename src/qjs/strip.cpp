@@ -5,7 +5,9 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <memory>
+#include <map>
 #include <set>
 #include <sstream>
 #include <unordered_set>
@@ -13,6 +15,7 @@
 
 #include "frontend/diagnostics.h"
 #include "frontend/jsx.h"
+#include "frontend/lexer.h"
 #include "frontend/modules.h"
 #include "frontend/native_gen.h"
 #include "frontend/parser.h"
@@ -21,6 +24,20 @@
 #include "frontend/resolve.h"
 
 namespace zn::qjs {
+const char* const kCollectionResultsModule = R"JS(// Private bridge for Zinc's typed array contract. Capture identities; never mutate globals or prototypes.
+const mk = Map.prototype.keys, mv = Map.prototype.values, me = Map.prototype.entries;
+const sk = Set.prototype.keys, sv = Set.prototype.values, se = Set.prototype.entries;
+const ak = Array.prototype.keys, av = Array.prototype.values, ae = Array.prototype.entries;
+const apply = Reflect.apply, from = Array.from;
+export function collectionResult(receiver, key, direct = false, args = []) {
+  const method = direct ? key : receiver[key];
+  const result = apply(method, receiver, args);
+  if (direct === 2) return result;
+  return method === mk || method === mv || method === me || method === sk || method === sv || method === se ||
+    method === ak || method === av || method === ae ? from(result) : result;
+}
+)JS";
+
 std::string webMode(const std::string& entry);   // src/qjs/webenv.cpp: "" when the program does not ask for the web environment
 namespace {
 using namespace zn::frontend;
@@ -825,6 +842,177 @@ struct NumWraps {
   }
 };
 
+// Zinc's public collection methods return snapshot arrays, whereas ECMAScript returns iterators. Rewrite calls,
+// not prototypes: the private module checks the *called function's* captured native identity, leaving user methods alone.
+struct CollectionCalls {
+  std::string_view s;
+  const Ast& a;
+  NumWraps ranges;
+  std::vector<std::uint32_t> parent, roots;
+  struct Scope { std::string marker; std::vector<std::string> names; };
+  struct Insertion { std::uint32_t at; std::string text; bool used = false; };
+  std::map<std::uint32_t, Scope> temporaries;
+  std::vector<Insertion> insertions;
+  std::string helper;
+  unsigned next = 0;
+  CollectionCalls(std::string_view text, const Ast& ast) : s(text), a(ast), ranges(text, ast), parent(ast.nodes.size(), kNone) {
+    helper = "__znCollectionResult";
+    while (s.find(helper) != std::string_view::npos) helper += '_';
+    for (std::uint32_t i = 0; i < a.nodes.size(); ++i) for (auto kid : a.nodes[i].kids) if (kid != kNone) parent[kid] = i;
+  }
+  const Node& n(std::uint32_t i) const { return a.nodes[i]; }
+  static bool chain(N k) { return k == N::Member || k == N::Index || k == N::Call; }
+  std::string method(std::uint32_t i) const {
+    const Node& x = n(i);
+    if (x.kind != N::Member) return "";
+    const std::string_view name = x.text;
+    return name == "keys" || name == "values" || name == "entries" ? std::string(name) : "";
+  }
+  bool joins(std::uint32_t p, std::uint32_t c) const {
+    // Parentheses end an optional chain: `(m?.values()).length` still throws on an absent m.
+    return chain(n(p).kind) && n(p).kids[0] == c &&
+      (!(n(c).flags & (kFlagOptional | kFlagChain)) || (n(p).flags & (kFlagOptional | kFlagChain)));
+  }
+  bool suspends(std::uint32_t i) const {
+    if (n(i).kind == N::Await || n(i).kind == N::Yield) return true;
+    // A nested function keeps its own await/yield context.
+    if (n(i).kind == N::FuncExpr || n(i).kind == N::Function) return false;
+    for (auto kid : n(i).kids) if (kid != kNone && suspends(kid)) return true;
+    return false;
+  }
+  std::uint32_t scope(std::uint32_t i) const {
+    for (auto p = parent[i]; p != kNone; p = parent[p])
+      if (n(p).kind == N::Function || n(p).kind == N::FuncExpr || n(p).kind == N::Method) return n(p).kids[1];
+    return a.root;
+  }
+  std::string raw(std::uint32_t from, std::uint32_t to, bool end = false) {
+    std::string out;
+    for (auto& ins : insertions) {
+      if (ins.used || ins.at < from || ins.at > to || (ins.at == to && !end)) continue;
+      out += s.substr(from, ins.at - from); from = ins.at;
+      out += ins.text; ins.used = true;
+    }
+    out += s.substr(from, to - from);
+    return out;
+  }
+  std::string range(std::uint32_t from, std::uint32_t to) {
+    std::string out;
+    std::uint32_t at = from;
+    for (auto root : roots) {
+      const auto lo = ranges.lo(root), hi = ranges.hi(root);
+      if (lo < at || hi > to) continue;
+      out += raw(at, lo, true);
+      std::string replacement = expression(root);
+      const auto original = s.substr(lo, hi - lo);
+      const auto missing = std::count(original.begin(), original.end(), '\n') - std::count(replacement.begin(), replacement.end(), '\n');
+      if (missing > 0) replacement = "(" + replacement + std::string(missing, '\n') + ")";
+      out += replacement;
+      at = hi;
+    }
+    out += raw(at, to, true);
+    return out;
+  }
+  std::string expr(std::uint32_t i) { return range(ranges.lo(i), ranges.hi(i)); }
+  std::string expression(std::uint32_t root) {
+    std::vector<std::uint32_t> steps;
+    auto base = root;
+    while (chain(n(base).kind)) {
+      const auto child = n(base).kids[0];
+      steps.push_back(base);
+      if (!joins(base, child)) { base = child; break; }
+      base = child;
+    }
+    std::reverse(steps.begin(), steps.end());
+    const bool locals = suspends(root);
+    auto bind = [&](const std::string& value, const std::function<std::string(const std::string&)>& body) {
+      const std::string tmp = helper + std::to_string(next++);
+      if (locals) {
+        temporaries[scope(root)].names.push_back(tmp);
+        return "(" + tmp + "=(" + value + ")," + body(tmp) + ")";
+      }
+      return "(" + tmp + " => (" + body(tmp) + "))(" + value + ")";
+    };
+    std::function<std::string(std::string, std::size_t, bool)> emit;
+    auto guard = [&](const std::string& value, const std::function<std::string(const std::string&)>& body) {
+      return bind(value, [&](const std::string& tmp) { return tmp + " == null ? undefined : (" + body(tmp) + ")"; });
+    };
+    emit = [&](std::string value, std::size_t at, bool checked) -> std::string {
+      if (at == steps.size()) return value;
+      const Node& x = n(steps[at]);
+      if (!checked && (x.flags & kFlagOptional)) return guard(value, [&](const std::string& tmp) { return emit(tmp, at, true); });
+      if (x.kind == N::Member || x.kind == N::Index) {
+        const std::string access = x.kind == N::Member ? "." + std::string(x.text) : "[" + expr(x.kids[1]) + "]";
+        if (at + 1 < steps.size() && n(steps[at + 1]).kind == N::Call) {
+          const Node& call = n(steps[at + 1]);
+          const std::string key = call.kids.size() == 1 && n(x.kids[0]).kind != N::Super ? method(steps[at]) : "";
+          std::string args;
+          for (std::size_t j = 1; j < call.kids.size(); ++j) { if (j != 1) args += ','; args += expr(call.kids[j]); }
+          if (call.flags & kFlagOptional) {
+            return bind(value, [&](const std::string& obj) { return guard(obj + access, [&](const std::string& fn) {
+              return emit(key.empty() ? helper + "(" + obj + "," + fn + ",2,[" + args + "])" : helper + "(" + obj + "," + fn + ",true)", at + 2, false);
+            }); });
+          }
+          return emit(key.empty() ? value + access + "(" + args + ")" : helper + "(" + value + ",'" + key + "')", at + 2, false);
+        }
+        return emit(value + access, at + 1, false);
+      }
+      std::string args;
+      for (std::size_t j = 1; j < x.kids.size(); ++j) { if (j != 1) args += ','; args += expr(x.kids[j]); }
+      return emit(value + "(" + args + ")", at + 1, false);
+    };
+    return emit(n(base).kind == N::Super ? "super" : "(" + expr(base) + ")", 0, false);
+  }
+  std::string run() {
+    for (std::uint32_t i = 0; i < a.nodes.size(); ++i) {
+      if (n(i).kind != N::Call || n(i).kids.size() != 1 || method(n(i).kids[0]).empty()) continue;
+      if (n(n(i).kids[0]).kind == N::Member && n(n(n(i).kids[0]).kids[0]).kind == N::Super) continue;
+      auto root = i;
+      while (parent[root] != kNone && joins(parent[root], root)) root = parent[root];
+      roots.push_back(root);
+    }
+    if (roots.empty()) return std::string(s);
+    std::sort(roots.begin(), roots.end(), [&](auto x, auto y) { return ranges.lo(x) != ranges.lo(y) ? ranges.lo(x) < ranges.lo(y) : ranges.hi(x) > ranges.hi(y); });
+    roots.erase(std::unique(roots.begin(), roots.end()), roots.end());
+    // A suspension must stay in its original async/generator body: use invocation-local temporaries instead of an arrow guard.
+    for (auto root : roots) if (suspends(root)) temporaries.try_emplace(scope(root));
+    for (auto& [body, vars] : temporaries) {
+      vars.marker = "/*" + helper + "Scope" + std::to_string(body) + "*/";
+      const bool expressionBody = n(body).kind == N::Block && n(body).kids.size() == 1 && n(n(body).kids[0]).kind == N::Return &&
+        n(n(body).kids[0]).start == n(body).start;
+      if (body == a.root) insertions.push_back({0, vars.marker});
+      else if (!expressionBody) insertions.push_back({n(body).start + 1, vars.marker});
+      else {
+        const auto fn = parent[body];
+        auto from = n(body).start;
+        for (const auto& t : lex(s.substr(n(fn).start, n(body).start - n(fn).start), false))
+          if (s.substr(n(fn).start + t.start, t.end - t.start) == "=>") from = n(fn).start + t.end;
+        insertions.push_back({from, "{" + vars.marker + "return ("});
+        insertions.push_back({n(fn).end, ");}"});
+      }
+    }
+    std::stable_sort(insertions.begin(), insertions.end(), [](const auto& x, const auto& y) { return x.at < y.at; });
+    std::string out = range(0, s.size());
+    const auto newline = out.find('\n');
+    const auto prelude = out.rfind("#!", 0) == 0 ? (newline == std::string::npos ? out.size() : newline + 1) : 0;
+    out.insert(prelude, "import { collectionResult as " + helper + " } from 'zinc:internal/collection-results';");
+    for (const auto& [body, vars] : temporaries) {
+      std::string decl;
+      for (const auto& name : vars.names) { if (!decl.empty()) decl += ','; decl += name; }
+      if (!decl.empty()) decl = "let " + decl + ";";
+      const auto at = out.find(vars.marker);
+      if (at != std::string::npos) out.replace(at, vars.marker.size(), decl);
+    }
+    return out;
+  }
+};
+
+std::string collectionCallsForJs(const std::string& text) {
+  if (text.find("keys") == std::string::npos && text.find("values") == std::string::npos && text.find("entries") == std::string::npos) return text;
+  ParseResult pr = parse(text);
+  if (pr.ast.root == kNone || !pr.diags.empty()) return text;
+  return CollectionCalls(text, pr.ast).run();
+}
+
 // Only a file that names a machine number kind runs the pass.
 bool namesNumberKind(std::string_view t) {
   for (std::size_t p = t.find_first_of("iuf"); p != std::string_view::npos; p = t.find_first_of("iuf", p + 1)) {
@@ -880,7 +1068,7 @@ bool stripTypes(std::string_view src, const std::string& file, std::string& out,
   return true;
 }
 
-bool toJavaScript(std::string_view src, const std::string& file, std::string& out, std::string& err) {
+bool toJavaScript(std::string_view src, const std::string& file, std::string& out, std::string& err, bool zincCollections) {
   auto ends = [&](std::string_view x) { return file.size() >= x.size() && file.compare(file.size() - x.size(), x.size(), x) == 0; };
   const bool tsx = ends(".tsx"), ts = tsx || ends(".ts") || file.rfind("zinc:", 0) == 0;
   if (!ts) {   // plain JavaScript: as written, with URL and the browser's WebSocket when it reads them as globals (ZN-1008)
@@ -922,6 +1110,7 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
     const bool onWeb = cur && std::string_view(cur->name) == "web";   // the browser has fetch, URL, TextEncoder...: no import makes them the polyfills
     if (!onWeb && pr.diags.empty() && pr.ast.root != kNone) text += webImportsOf(pr.ast);
   }
+  if (zincCollections) text = collectionCallsForJs(text);
   text = numberKindsForJs(text);   // i32 wraps, f32 rounding and integer stores, while the types are still there (ZN-796)
   return stripTypes(text, file, out, err);
 }

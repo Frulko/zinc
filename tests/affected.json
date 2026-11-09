@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["src/qjs/strip.cpp", "src/qjs/strip.h", "src/qjs/qjs.cpp", "tests/data/collection_results/", "tests/t0/collection_results.sh"], "tests": ["collection_results"]},
     {"paths": ["src/frontend/modules.cpp", "tests/t0/lucide_serialization.sh"], "tests": ["lucide_serialization"]},
     {"paths": ["src/cli_core.cpp", "src/cli_core.h", "src/main.cpp", "tests/t0/project_cwd.sh"], "tests": ["project_cwd"]},
     {"paths": ["src/rt/rt.h", "src/rt/rtcalls.cpp", "tests/data/nullable_keys/", "tests/t0/nullable_keys.sh"], "tests": ["nullable_keys"]},
