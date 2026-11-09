@@ -2994,7 +2994,13 @@ struct Checker {
           auto g = genScope->find(keep(std::string(x.text)));
           if (g != genScope->end()) s = g->second;
         }
-        if (s == kNone && x.text == "undefined" && lookup("__undef") != kNone) { a.nodes[i].text = "__undef"; return expr0(i, expected); }  // the Dyn undefined
+        if (s == kNone && x.text == "undefined" && lookup("__undef") != kNone) {
+          if (expected != kNoType && !bad(expected) && !isDyn(expected) && hasNull(expected)) {
+            a.nodes[i].kind = N::Literal; a.nodes[i].text = "null"; a.nodes[i].flags |= kFlagUndefined;
+            return tNull;   // a typed optional slot keeps its null ABI even when another module enabled Dyn
+          }
+          a.nodes[i].text = "__undef"; return expr0(i, expected);
+        }
         if (s == kNone || (out.syms[s].forward && out.syms[s].ownerFn == (fnStack.empty() ? kNone : fnStack.back()))) { unknownName(i, x.text); return tError; }  // a forward variable is only visible to other functions
         if (!autoVars.empty() && autoVars.count(s)) { diag(kZCannotInfer, i, "'" + std::string(x.text) + "' is read before its first assignment, which gives its type"); return tError; }
         out.nodeSym[i] = s;

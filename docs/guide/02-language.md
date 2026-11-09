@@ -36,6 +36,8 @@ console.log(sum, pts.map(p => `${p.x},${p.y}`).join(' '));
 
 Optional callback fields can be called after an explicit object/field guard or an optional-chain guard, including inside `String`, `Number` and `Boolean` conversions. A conversion evaluates its argument once. A property assignment or method call still invalidates facts about the receiver's fields: guard again before a later call that depends on the old optional value.
 
+A callback with a typed optional cleanup result, `() => (() => void) | undefined`, can return its cleanup, explicit `undefined` or no value. An unrelated import that uses dynamic values does not change that typed nullish representation. Cleanup functions keep their identity and are called through their typed signature; an opaque dynamic value is not converted into an arbitrary typed function.
+
 ## What is rejected, and why
 
 Forbidden constructs are compile errors with a `Z` code: `zinc check` lists them, `zinc explain Z1001` says why and what to

@@ -298,6 +298,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `String.fromCharCode` and `String.fromCodePoint` take several codes, as in JavaScript (`String.fromCharCode(104, 105)` is `'hi'`), instead of refusing more than one.
 - An object passed as `unknown` or `any` whose field or method result is a union of two classes (`A | B | null`) no longer fails `zinc check` with a Z0103 about that union, and an error in code the compiler writes for you now points at the line that asked for it, not at an unrelated place in `lib/std`.
 - An optional chain stops as a whole, as in TypeScript: `a.b?.items.get(k)`, `a.b?.list[0]` and `a.b?.name().length` are accepted and give `undefined` when `a.b` is null, and `m?.get(k) ?? d` gives `d` when there is no Map instead of a null reference error.
+- Optional cleanup callbacks can return `undefined` even when another imported module uses dynamic values.
+
 
 ### Developer tools
 
