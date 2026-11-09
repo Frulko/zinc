@@ -4,7 +4,8 @@ title: >-
   Compiler: a function name used as a value is the same object each time; IR
   error in laStart with a debug accessor
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-08 16:00'
 labels:
   - compiler

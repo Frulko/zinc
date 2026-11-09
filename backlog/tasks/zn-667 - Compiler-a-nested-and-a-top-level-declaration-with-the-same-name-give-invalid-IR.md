@@ -4,7 +4,8 @@ title: >-
   Compiler: a nested and a top-level declaration with the same name give invalid
   IR
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 18:50'
 labels:
   - compiler
