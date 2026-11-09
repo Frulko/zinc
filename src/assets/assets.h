@@ -64,6 +64,16 @@ struct Report { std::vector<Item> items; std::vector<Pack> packs; std::size_t im
 bool build(const Options& opt, Report& report, std::string& err);
 std::string reportJson(const Options& opt, const Report& report);
 
+/** One group of a report.json read back (zinc assets check and report, ZN-437): packBytes, its pack file (what is downloaded or stored);
+ *  outputBytes, its entries as the program holds them (resident once loaded); gpuBytes, its images as textures. */
+struct GroupSize { std::uint64_t packBytes = 0, outputBytes = 0, gpuBytes = 0; std::size_t assets = 0; bool operator==(const GroupSize&) const = default; };
+/** The groups of the report.json at `path`, by name, and its target and profile. False with `err` (in plain words) when it cannot be read. */
+bool readReport(const std::string& path, std::map<std::string, GroupSize>& groups, std::string& target, std::string& profile, std::string& err);
+/** Removes every artifact of the cache at `cacheDir`; `files` and `bytes`: what it held. */
+void cleanCache(const std::string& cacheDir, std::size_t& files, std::uint64_t& bytes);
+/** 1.4 MB, 96 KB, 512 B (KB = 1024 B, as zinc.json budgets): a size a person reads. */
+std::string humanSize(std::uint64_t bytes);
+
 /** The importer the rules (after the built-in ones) give the asset `name` (relative to the assets directory, '/' separated), as build() picks it. */
 std::string importerFor(const std::string& name, const std::vector<Rule>& rules);
 /** The pack the asset `name` goes to, as build() picks it: the first group whose include globs match and exclude globs do not, else "default". */

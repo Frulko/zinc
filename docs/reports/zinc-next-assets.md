@@ -7,7 +7,16 @@ kept in a cache shared by every project. The design is section 4 of `docs/report
 ```sh
 zinc assets build [dir] [--target T] [--release]   # build/assets/<target>/<group>.zpk and report.json (T: this machine by default)
 zinc assets info [dir] [--target T]                # the asset profile and budgets in force on each target
+zinc assets check [dir] [--target T]               # release packs against the budgets: exit 1 naming each group or total over (ZN-437)
+zinc assets report [dir|report.json] [--target T] [--diff old.json]   # sizes per group; with --diff the groups that changed
+zinc assets clean                                  # empty the cache (~/.zinc/cache/assets)
 ```
+
+`check` reads the report.json the build writes (sizes are measured once, by the build): `download` and `flash` hold every pack together,
+`boot` the groups loaded before main (`loading.groups`, else `boot`; a group counts its pack or its decoded entries, whichever is larger),
+`ram` and `gpu` each group alone, since a group is loaded whole and `zinc:assets` refuses one that would cross the ram budget. `report`
+lists, per group, the assets, the pack bytes, the bytes in memory once loaded and the GPU bytes; `--diff` names the groups that changed,
+were added or removed, largest pack change first, and lists the unchanged ones. `zinc export` copies report.json beside `sbom.spdx.json`.
 
 `zinc pack` and `zinc build` run it for their machine or `--target`, `zinc export` with the release profile for its target. A project without
 an assets directory (`assets/`, or `zinc.json` `assets.dir`) has nothing to build.

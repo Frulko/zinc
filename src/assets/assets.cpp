@@ -667,4 +667,48 @@ std::string reportJson(const Options& opt, const Report& r) {
   return s;
 }
 
+bool readReport(const std::string& path, std::map<std::string, GroupSize>& groups, std::string& target, std::string& profile, std::string& err) {
+  std::string text;
+  if (!readFile(path, text)) { err = "no report at " + path; return false; }
+  yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0);
+  struct Free { yyjson_doc* d; ~Free() { yyjson_doc_free(d); } } guard{doc};
+  yyjson_val* root = doc ? yyjson_doc_get_root(doc) : nullptr;
+  yyjson_val* assets = yyjson_obj_get(root, "assets");
+  yyjson_val* packs = yyjson_obj_get(root, "packs");
+  if (!yyjson_is_arr(assets) || !yyjson_is_arr(packs)) { err = path + " is not a report.json of zinc assets build"; return false; }
+  auto str = [](yyjson_val* o, const char* k) { const char* s = yyjson_get_str(yyjson_obj_get(o, k)); return std::string(s ? s : ""); };
+  auto num = [](yyjson_val* o, const char* k) { return yyjson_get_uint(yyjson_obj_get(o, k)); };
+  target = str(root, "target");
+  profile = str(root, "profile");
+  groups.clear();
+  size_t i, n;
+  yyjson_val* v;
+  yyjson_arr_foreach(packs, i, n, v) groups[str(v, "group")].packBytes += num(v, "bytes");
+  yyjson_arr_foreach(assets, i, n, v) {
+    GroupSize& g = groups[str(v, "group")];
+    g.outputBytes += num(v, "outputBytes");
+    g.gpuBytes += num(v, "gpuBytes");
+    ++g.assets;
+  }
+  return true;
+}
+
+void cleanCache(const std::string& cacheDir, std::size_t& files, std::uint64_t& bytes) {
+  files = 0;
+  bytes = 0;
+  std::error_code ec;
+  for (auto it = fs::recursive_directory_iterator(cacheDir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+    if (it->is_regular_file(ec)) { ++files; bytes += it->file_size(ec); }
+  // ponytail: a build running meanwhile finds its artifact gone and imports it again (build() already handles a trimmed artifact)
+  fs::remove_all(cacheDir, ec);
+}
+
+std::string humanSize(std::uint64_t b) {
+  char buf[32];
+  if (b >= (1ull << 20)) std::snprintf(buf, sizeof buf, "%.1f MB", static_cast<double>(b) / (1 << 20));
+  else if (b >= 1024) std::snprintf(buf, sizeof buf, b < 10240 ? "%.1f KB" : "%.0f KB", static_cast<double>(b) / 1024);
+  else std::snprintf(buf, sizeof buf, "%llu B", static_cast<unsigned long long>(b));
+  return buf;
+}
+
 }  // namespace zn::assets

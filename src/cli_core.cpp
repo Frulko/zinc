@@ -115,7 +115,7 @@ const Command kCommands[] = {
   {"tour", "zinc tour [step] [--list] [--reset] [--auto [--until step] [--dir path]]", "cli.cmd.tour", "A guided first walk in eight steps, in a real project: make it (zinc new --pick asks what to make and the folder's name), run it, change a line, make a mistake and read it with zinc explain, Fast Refresh with zinc dev, choose a kind of program, find the docs, open Zinc Atelier. Each step says what to do and checks by itself that it is done. Progress is kept in $ZINC_HOME/tour.json (~/.zinc/tour.json): zinc tour goes on where you stopped, zinc tour <step> goes to a step, --list shows the steps done, --reset starts again (the project stays). Without a terminal or under CI it asks nothing and prints the steps. --auto does every step itself (the edits too) without a question or a window, up to --until, in --dir (default: zinc-tour in the current directory); exit 1 at the first step that fails."},
   {"learn", "zinc learn [lesson] [--dir path] [--check | --hint | --solve | --unpack] [--json] [--reset]", "cli.cmd.learn", "The lessons of docs/learn as exercises, offline: zinc learn lists them with your progress; zinc learn <number> unpacks one into a folder (./<lesson>, or --dir), prints its step, watches the file and checks the step at each save (zinc check first, then the step's own check), going on to the next step when it passes. While it watches, Enter checks again, h prints a hint, s the solution, q stops. --check, --hint and --solve do it once in the folder (--dir); --json prints the state for Zinc Atelier's lesson panel; --reset starts the lesson over. Progress is kept in $ZINC_HOME/learn.json (~/.zinc/learn.json), shared with Zinc Atelier."},
   {"pack", "zinc pack [dir] [-o app.zapp]","cli.cmd.pack", "Writes build/<name>.zapp: a deterministic ustar with the compiled program, its baked fonts and images, its assets and zinc.json, every file listed with its SHA-256 in manifest.json (and a signature slot). zinc run app.zapp checks and runs it (docs/zapp.md)."},
-  {"assets", "zinc assets build|info [dir] [--target T] [--release]", "cli.cmd.assets", "zinc assets info prints the asset profile (texture formats, max size, audio codecs, pack codec) and the budgets in force on each target: targets/capabilities.json, then zinc.json assets.profiles, targets.<id>.assets and assets.budgets. zinc assets build imports every file of the project's assets directory (zinc.json assets.dir; its assets.rules and assets.groups choose importers and packs) (images to premultiplied RGBA, texture rules to the GPU formats of the target's profile through basisu, model rules through gltfpack: a quantised GLB compressed with EXT_meshopt_compression for three or a .zmesh for zinc:3d, world rules a glTF scene to a zinc:3d .zworld with its cells, levels and chunks, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with the target's codec (zstd, lz4 on the Pi) and encodes textures (a dev build makes rgba8). zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
+  {"assets", "zinc assets build|info|check|report|clean [dir] [--target T] [--release] [--diff old.json]", "cli.cmd.assets", "zinc assets check builds the release packs for the target (default: this machine) and exits 1 naming each group or total over the budgets in force there (download and flash: every pack together; boot: the groups loaded at start; ram and gpu: each group alone), with sizes in KB and MB: the gate for CI. zinc assets report prints what each group costs (assets, pack, memory once loaded, GPU) from build/assets/<target>/report.json or a report.json named (zinc export leaves one beside sbom.spdx.json); --diff old.json lists the groups that changed, were added or removed, largest change first. zinc assets clean empties the asset cache (~/.zinc/cache/assets). zinc assets info prints the asset profile (texture formats, max size, audio codecs, pack codec) and the budgets in force on each target: targets/capabilities.json, then zinc.json assets.profiles, targets.<id>.assets and assets.budgets. zinc assets build imports every file of the project's assets directory (zinc.json assets.dir; its assets.rules and assets.groups choose importers and packs) (images to premultiplied RGBA, texture rules to the GPU formats of the target's profile through basisu, model rules through gltfpack: a quantised GLB compressed with EXT_meshopt_compression for three or a .zmesh for zinc:3d, world rules a glTF scene to a zinc:3d .zworld with its cells, levels and chunks, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with the target's codec (zstd, lz4 on the Pi) and encodes textures (a dev build makes rgba8). zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
   {"fuse", "zinc fuse app.zapp [-o app]", "cli.cmd.fuse", "Appends the .zapp to this engine: the result runs the app on a machine without zinc, its arguments going to the app (LOVE's fused mode). This machine's target only for now (ZN-392); zinc export builds with the AOT."},
   {"publish", "zinc publish [dir] --key <seed-hex> [--channel stable|beta] [--notes text] [-o dir] [--target rpi|rpi2|rpi1|<linux target> [--export]] [--hub <url> --token <t>] | [--itch user/game[:suffix]] [--site dir] [--dry-run]", "cli.cmd.publish", "Packs the app (zinc pack) and writes <channel>.manifest beside it, signed with the app's Ed25519 key (zinc update-keygen; its public key is zinc.json update.publicKey). Serve the directory at zinc.json update.url, or send it to a hub (app/hub-server) with --hub and its publisher token. ZINC_UPDATE_SEED and ZINC_HUB_TOKEN stand for --key and --token. --target packs for that machine (zinc pack --target: a Pi's plugins cross-built) and the manifest names it (target=linux-aarch64 for rpi, linux-armv7 for rpi2, linux-armv6 for rpi1); with --export it publishes the export of zinc export --target instead (a .tar of its directory, kind=export): the engine travels with the app. A hub keeps one package per channel and target, and a Pi's player installs the one made for it; without --target the .zapp is for any machine. --itch pushes every export directory of dist/ with itch.io's butler (pinned, fetched and checked once; channels mac, linux-arm64, linux-rpi..., html5, plus -suffix); --dry-run prints the butler commands and uploads nothing. --site writes a static download page: one button per artifact of dist/ (export directories as .tar.gz, .dmg, .deb, .zapp) with its size and SHA-256, and SHA256SUMS."},
   {"update-app", "zinc update-app [dir] [--check] [--channel C] [--url U]", "cli.cmd.update-app", "Fetches the channel manifest of zinc.json update (or of --url), verifies its signature with the app's key, refuses an older version, downloads the .zapp and checks its SHA-256 (into ~/.zinc/apps/<id>/updates). --check exits 10 when an update exists."},
@@ -2382,6 +2382,9 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
       if (!writeSbom(out, p, engineRoot, icons, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
       std::printf("sbom: %s, %s\n", (out / "sbom.spdx.json").string().c_str(), (out / "THIRD-PARTY-LICENSES.txt").string().c_str());
     }
+    // what each asset group costs on the target, beside the SBOM (ZN-437): zinc assets report <dir>/report.json [--diff old.json] reads it
+    if (fs::copy_file(fs::path(p.dir) / "build" / "assets" / target / "report.json", out / "report.json", fs::copy_options::overwrite_existing, ec))
+      std::printf("assets report: %s\n", (out / "report.json").string().c_str());
     if (haveProj) {
       std::string list;
       for (const std::string& e : zn::frontend::permissionsFor(proj, target == "macos" ? "macos" : "linux")) list += (list.empty() ? "" : ", ") + e;
@@ -4302,9 +4305,168 @@ int assetsInfo(const fs::path& project, const std::string& only, const std::stri
   return 0;
 }
 
+namespace {
+using GroupSizes = std::map<std::string, zn::assets::GroupSize>;
+using zn::assets::humanSize;
+
+zn::assets::GroupSize totalOf(const GroupSizes& groups) {
+  zn::assets::GroupSize t;
+  for (const auto& [name, g] : groups) { t.packBytes += g.packBytes; t.outputBytes += g.outputBytes; t.gpuBytes += g.gpuBytes; t.assets += g.assets; }
+  return t;
+}
+std::size_t nameWidth(const GroupSizes& groups) {
+  std::size_t w = 5;   // "total"
+  for (const auto& [name, g] : groups) w = std::max(w, name.size());
+  return w;
+}
+/** One line per group and the total: its assets, its pack (the download), its entries in memory once loaded, its images on the GPU. */
+void printGroups(const GroupSizes& groups) {
+  const int w = static_cast<int>(nameWidth(groups));
+  std::printf("  %-*s  %6s  %9s  %9s  %9s\n", w, "group", "assets", "pack", "memory", "gpu");
+  auto row = [&](const std::string& name, const zn::assets::GroupSize& g) {
+    std::printf("  %-*s  %6zu  %9s  %9s  %9s\n", w, name.c_str(), g.assets, humanSize(g.packBytes).c_str(), humanSize(g.outputBytes).c_str(), humanSize(g.gpuBytes).c_str());
+  };
+  for (const auto& [name, g] : groups) row(name, g);
+  row("total", totalOf(groups));
+}
+std::string change(std::uint64_t was, std::uint64_t now) {   // "64.0 KB -> 80.0 KB (+16.0 KB, +25%)"
+  const std::uint64_t d = now > was ? now - was : was - now;
+  std::string s = humanSize(was) + " -> " + humanSize(now) + " (" + (now >= was ? "+" : "-") + humanSize(d);
+  if (was) s += ", " + std::string(now >= was ? "+" : "-") + std::to_string(static_cast<long long>(static_cast<double>(d) * 100 / static_cast<double>(was) + 0.5)) + "%";
+  return s + ")";
+}
+std::string reportPath(const std::string& entry, const std::string& target) {   // a report.json named, else the project's for the target
+  if (fs::path(entry).extension() == ".json") return entry;
+  return (fs::absolute(entry.empty() ? "." : entry).lexically_normal() / "build" / "assets" / target / "report.json").string();
+}
+}  // namespace
+
+/** zinc assets check (ZN-437): builds the release packs for the target, then holds report.json against the budgets in force there (zinc assets
+ *  info). download and flash: every pack together; boot: the groups loaded before main; ram and gpu: each group alone, since a group is loaded
+ *  whole and zinc:assets refuses one that crosses the ram budget. Exit 1 naming each group or total over its budget. */
+int assetsCheck(const fs::path& project, const std::string& target, const std::string& engineRoot) {
+  zn::frontend::Project proj;
+  std::string err;
+  if (!readProject(project, proj, err)) { std::fprintf(stderr, "zinc assets check: %s\n", err.c_str()); return 2; }
+  std::vector<zn::frontend::TargetAssets> rows;
+  if (!zn::frontend::assetProfiles(proj, readAll(fs::path(engineRoot) / "targets" / "capabilities.json"), rows, err)) { std::fprintf(stderr, "zinc assets check: %s\n", err.c_str()); return 2; }
+  const auto row = std::find_if(rows.begin(), rows.end(), [&](const zn::frontend::TargetAssets& t) { return t.target == target; });
+  if (row == rows.end()) { std::fprintf(stderr, "zinc assets check: no target %s in targets/capabilities.json (zinc assets info lists them)\n", target.c_str()); return 2; }
+  if (row->budgets.empty()) { std::printf("zinc assets check: no budget for %s, nothing to check (zinc.json assets.budgets.%s sets them)\n", target.c_str(), target.c_str()); return 0; }
+  std::error_code ec;
+  if (!fs::is_directory(project / proj.assets.dir, ec) && !splashFor(proj, project.string(), target).on) { std::printf("zinc assets check: %s has no %s directory, nothing to check\n", project.string().c_str(), proj.assets.dir.c_str()); return 0; }
+  if (!buildAssets(project.string(), target, true, err)) { std::fprintf(stderr, "zinc assets check: %s\n", err.c_str()); return 1; }
+  GroupSizes groups;
+  std::string reportTarget, profile;
+  const std::string path = reportPath(project.string(), target);
+  if (!zn::assets::readReport(path, groups, reportTarget, profile, err)) { std::fprintf(stderr, "zinc assets check: %s\n", err.c_str()); return 1; }
+  std::printf("assets for %s (release packs, %s):\n", target.c_str(), path.c_str());
+  printGroups(groups);
+
+  std::vector<std::string> ok, over;
+  auto test = [&](const std::string& key, const std::string& what, std::uint64_t bytes, std::uint64_t limit, const std::string& why) {
+    if (bytes <= limit) ok.push_back(key + ": " + what + " " + humanSize(bytes) + " of " + humanSize(limit));
+    else over.push_back(what + " takes " + humanSize(bytes) + ", over the " + key + " budget of " + humanSize(limit) + " by " + humanSize(bytes - limit) + why);
+  };
+  const zn::assets::GroupSize total = totalOf(groups);
+  for (const auto& [key, limit] : row->budgets) {
+    if (key == "download" || key == "flash") test(key, "every pack together", total.packBytes, limit, "");
+    else if (key == "boot") {   // what loads before main: zinc.json loading.groups, else the boot group (as zinc lint and the loader stage); a pack
+      std::vector<std::string> boot = proj.loading.groups;   // read compressed takes its decoded size, one mapped as it is (the splash) its own
+      if (boot.empty()) boot.push_back("boot");
+      std::uint64_t bytes = 0;
+      std::string names;
+      for (const std::string& g : boot)
+        if (auto it = groups.find(g); it != groups.end()) { bytes += std::max(it->second.packBytes, it->second.outputBytes); names += (names.empty() ? "" : ", ") + g; }
+      if (!names.empty()) test(key, std::string(boot.size() == 1 ? "group " : "groups ") + names + " (loaded at start)", bytes, limit, "");
+    } else if (key == "ram" || key == "gpu") {   // each group alone: the largest is the one that matters
+      std::string largest;
+      std::uint64_t most = 0;
+      for (const auto& [name, g] : groups)
+        if (const std::uint64_t bytes = key == "ram" ? g.outputBytes : g.gpuBytes; largest.empty() || bytes > most) { most = bytes; largest = name; }
+      for (const auto& [name, g] : groups)
+        if (const std::uint64_t bytes = key == "ram" ? g.outputBytes : g.gpuBytes; bytes > limit) test(key, "group " + name, bytes, limit, key == "ram" ? " (a group is loaded whole)" : "");
+      if (!largest.empty() && most <= limit) test(key, "largest group " + largest, most, limit, "");
+    }
+  }
+  for (const std::string& line : ok) std::printf("ok    %s\n", line.c_str());
+  std::fflush(stdout);   // the lines over budget (stderr) after the ones within
+  for (const std::string& line : over) std::fprintf(stderr, "over  %s\n", line.c_str());
+  if (over.empty()) { std::printf("zinc assets check: %s is within its budgets\n", target.c_str()); return 0; }
+  std::fprintf(stderr, "zinc assets check: %zu budget%s exceeded on %s: make those assets smaller, move some to a group loaded later, or raise the limit in zinc.json assets.budgets.%s\n",
+               over.size(), over.size() == 1 ? "" : "s", target.c_str(), target.c_str());
+  return 1;
+}
+
+/** zinc assets report (ZN-437): the groups of a report.json (the project's for the target, or a file named) and, with --diff, what changed since another. */
+int assetsReport(const std::string& entry, const std::string& target, const std::string& diff) {
+  GroupSizes now, was;
+  std::string t, profile, err;
+  const std::string path = reportPath(entry, target);
+  if (!zn::assets::readReport(path, now, t, profile, err)) {
+    std::fprintf(stderr, "zinc assets report: %s (zinc assets build%s writes it)\n", err.c_str(), target == zn::plat::osName() ? "" : (" --target " + target).c_str());
+    return 1;
+  }
+  if (diff.empty()) {
+    std::printf("assets for %s (%s packs, %s):\n", t.c_str(), profile.c_str(), path.c_str());
+    printGroups(now);
+    return 0;
+  }
+  std::string ot, oprofile;
+  if (!zn::assets::readReport(diff, was, ot, oprofile, err)) { std::fprintf(stderr, "zinc assets report: %s\n", err.c_str()); return 1; }
+  std::vector<std::string> names, same;
+  for (const auto& [name, g] : now) if (!was.count(name) || !(was.at(name) == g)) names.push_back(name); else same.push_back(name);
+  for (const auto& [name, g] : was) if (!now.count(name)) names.push_back(name);
+  auto delta = [&](const std::string& n) {   // the largest change of pack first
+    const std::uint64_t a = was.count(n) ? was.at(n).packBytes : 0, b = now.count(n) ? now.at(n).packBytes : 0;
+    return a > b ? a - b : b - a;
+  };
+  std::stable_sort(names.begin(), names.end(), [&](const std::string& a, const std::string& b) { return delta(a) > delta(b); });
+  if (ot != t) std::printf("note: %s is for %s, %s for %s\n", diff.c_str(), ot.empty() ? "?" : ot.c_str(), path.c_str(), t.c_str());
+  if (names.empty()) { std::printf("no group changed since %s (%zu group%s)\n", diff.c_str(), now.size(), now.size() == 1 ? "" : "s"); return 0; }
+  std::printf("%zu group%s changed since %s:\n", names.size(), names.size() == 1 ? "" : "s", diff.c_str());
+  GroupSizes all = now;
+  for (const auto& [name, g] : was) all.emplace(name, g);
+  const int w = static_cast<int>(nameWidth(all));
+  auto sizes = [](const zn::assets::GroupSize& g) {
+    return "pack " + humanSize(g.packBytes) + ", memory " + humanSize(g.outputBytes) + (g.gpuBytes ? ", gpu " + humanSize(g.gpuBytes) : "") + ", " + std::to_string(g.assets) + (g.assets == 1 ? " asset" : " assets");
+  };
+  auto changed = [](const zn::assets::GroupSize& a, const zn::assets::GroupSize& b) {
+    std::string s = "pack " + change(a.packBytes, b.packBytes);
+    if (a.outputBytes != b.outputBytes) s += ", memory " + change(a.outputBytes, b.outputBytes);
+    if (a.gpuBytes != b.gpuBytes) s += ", gpu " + change(a.gpuBytes, b.gpuBytes);
+    if (a.assets != b.assets) s += ", " + std::to_string(a.assets) + " -> " + std::to_string(b.assets) + " assets";
+    return s;
+  };
+  for (const std::string& n : names) {
+    const std::string line = !was.count(n) ? "new: " + sizes(now.at(n)) : !now.count(n) ? "removed: was " + sizes(was.at(n)) : changed(was.at(n), now.at(n));
+    std::printf("  %-*s  %s\n", w, n.c_str(), line.c_str());
+  }
+  std::printf("  %-*s  %s\n", w, "total", changed(totalOf(was), totalOf(now)).c_str());
+  if (!same.empty()) {
+    std::string list;
+    for (const std::string& n : same) list += (list.empty() ? "" : ", ") + n;
+    std::printf("unchanged: %s\n", list.c_str());
+  }
+  return 0;
+}
+
 int assets(const std::vector<std::string>& args, const std::string& engineRoot) {
-  const char* usage = "usage: zinc assets build [dir] [--target T] [--release]\n       zinc assets info [dir] [--target T]\n       zinc assets cook <gltf> [profile] [-o dir]\n       zinc assets view <file.zcook>\n";
-  if (args.size() < 3 || (args[2] != "build" && args[2] != "info" && args[2] != "cook" && args[2] != "view")) { std::fprintf(stderr, "%s", usage); return 2; }
+  const char* usage =
+      "usage: zinc assets build [dir] [--target T] [--release]\n       zinc assets info [dir] [--target T]\n       zinc assets check [dir] [--target T]\n"
+      "       zinc assets report [dir|report.json] [--target T] [--diff old.json]\n       zinc assets clean\n"
+      "       zinc assets cook <gltf> [profile] [-o dir]\n       zinc assets view <file.zcook>\n";
+  static const std::set<std::string> subcommands = {"build", "info", "check", "report", "clean", "cook", "view"};
+  if (args.size() < 3 || !subcommands.count(args[2])) { std::fprintf(stderr, "%s", usage); return 2; }
+  if (args[2] == "clean") {
+    const std::string dir = (fs::path(zn::tc::home()) / "cache" / "assets").string();
+    std::size_t files = 0;
+    std::uint64_t bytes = 0;
+    zn::assets::cleanCache(dir, files, bytes);
+    if (files == 0) std::printf("zinc assets clean: the asset cache is already empty (%s)\n", dir.c_str());
+    else std::printf("zinc assets clean: removed %zu file%s, %s, from %s (the next build imports every asset again)\n", files, files == 1 ? "" : "s", humanSize(bytes).c_str(), dir.c_str());
+    return 0;
+  }
   if (args[2] == "view") {
     zn::assets::CookReceipt rc;
     std::string err;
@@ -4332,11 +4494,13 @@ int assets(const std::vector<std::string>& args, const std::string& engineRoot) 
     return 0;
   }
   std::vector<std::string> rest(args.begin() + 1, args.end());   // parseOpts reads from the third word: the one after the subcommand
-  Opts o = parseOpts(rest, {"--target"}, {"--release"});
+  Opts o = parseOpts(rest, {"--target", "--diff"}, {"--release"});
   if (o.bad) { std::fprintf(stderr, "zinc assets: unknown option %s\n%s", o.badArg.c_str(), usage); return 2; }
   const fs::path project = fs::absolute(o.entry.empty() ? "." : o.entry).lexically_normal();
   if (args[2] == "info") return assetsInfo(project, o.v.count("--target") ? o.v["--target"] : "", engineRoot);
   const std::string target = o.v.count("--target") ? o.v["--target"] : zn::plat::osName();
+  if (args[2] == "check") return assetsCheck(project, target, engineRoot);
+  if (args[2] == "report") return assetsReport(o.entry, target, o.v.count("--diff") ? o.v["--diff"] : "");
   zn::frontend::Project proj;
   std::string err, line;
   if (!readProject(project, proj, err)) { std::fprintf(stderr, "zinc assets: %s\n", err.c_str()); return 2; }

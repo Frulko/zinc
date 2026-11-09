@@ -23,7 +23,7 @@
   "cli.cmd.new": "creare un progetto",
   "cli.cmd.tour": "un primo tour guidato, in otto passi",
   "cli.cmd.pack": "un solo file eseguibile per app",
-  "cli.cmd.assets": "compilare i pacchetti di risorse",
+  "cli.cmd.assets": "compilare i pacchetti di risorse e verificarli rispetto ai budget",
   "cli.cmd.fuse": "un solo eseguibile per app",
   "cli.cmd.publish": "pubblicare un aggiornamento di un'app, su itch.io o su una pagina di download",
   "cli.cmd.update-app": "aggiornare un'app dal suo canale",

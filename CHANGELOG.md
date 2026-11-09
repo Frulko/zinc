@@ -215,6 +215,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc lint` warns about a plugin in `zinc.json` `dependencies` that nothing imports (`zinc remove <plugin>` drops it), about the assets loaded at start (the `boot` group, or `loading.groups`) against the target's `boot` budget, and now reads the pixel size of JPEG and WebP images as well as PNG for its memory and texture-size estimates.
 - Editors show `zinc lint`'s per-target warnings for a project whose `zinc.json` names its targets (a size wider than the ESP32's screen, a style its UI tier simplifies, a plugin not made for it): `zinc lsp` checks again each time a file is saved.
 - `zinc lint` warns when a program imports a module the target's engine does not have (`zinc:gl` on the 3DS, PSP or Vita), and `zinc device deploy` to a console says so before sending it.
+- Asset budgets as a CI gate: `zinc assets check` builds the release packs for a target and fails naming each group or total over the budgets of `zinc.json` `assets.budgets`, with sizes in KB and MB; `zinc assets report --diff old.json` lists the groups that grew, shrank, appeared or went since an earlier `report.json` (`zinc export` now leaves one beside the SBOM), and `zinc assets clean` empties the asset cache.
 
 #### Changed
 

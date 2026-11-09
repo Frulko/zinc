@@ -23,7 +23,7 @@
   "cli.cmd.new": "make a project",
   "cli.cmd.tour": "a guided first walk, in eight steps",
   "cli.cmd.pack": "one runnable file per app",
-  "cli.cmd.assets": "build the asset packs",
+  "cli.cmd.assets": "build the asset packs and check them against the budgets",
   "cli.cmd.fuse": "one executable per app",
   "cli.cmd.publish": "publish an app update, to itch.io or a download page",
   "cli.cmd.update-app": "update an app from its channel",

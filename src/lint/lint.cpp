@@ -148,15 +148,6 @@ double bytesPerPixel(const std::string& textures) {   // the first format the ta
   return 2;   // rgb565, rgba4444, rgba5551
 }
 
-// 1.4 MB, 96 KB, 512 B: a size a person reads (the estimates are not exact anyway)
-std::string human(std::uint64_t b) {
-  char buf[32];
-  if (b >= (1ull << 20)) std::snprintf(buf, sizeof buf, "%.1f MB", static_cast<double>(b) / (1 << 20));
-  else if (b >= 1024) std::snprintf(buf, sizeof buf, b < 10240 ? "%.1f KB" : "%.0f KB", static_cast<double>(b) / 1024);
-  else std::snprintf(buf, sizeof buf, "%llu B", static_cast<unsigned long long>(b));
-  return buf;
-}
-
 std::string q(const std::string& s) {
   std::string o = "\"";
   for (char c : s) {
@@ -424,15 +415,15 @@ struct Linter {
       auto key = [&](const char* k) { auto it = row.keys.find(k); return it == row.keys.end() ? std::string() : it->second; };
       auto budget = [&](const char* k) { auto it = row.budgets.find(k); return it == row.budgets.end() ? std::uint64_t(0) : it->second; };
       const std::uint64_t textures = static_cast<std::uint64_t>(static_cast<double>(e.pixels) * bytesPerPixel(key("texture")));
-      if (std::uint64_t b = budget("flash"); b && e.files > b) add(where, 0, 0, "assets-flash", "the assets take " + human(e.files) + ", over the " + human(b) + " flash budget", t);
+      if (std::uint64_t b = budget("flash"); b && e.files > b) add(where, 0, 0, "assets-flash", "the assets take " + zn::assets::humanSize(e.files) + ", over the " + zn::assets::humanSize(b) + " flash budget", t);
       if (std::uint64_t b = budget("ram"); b && textures + e.other > b)
-        add(where, 0, 0, "assets-memory", "the assets decode to about " + human(textures + e.other) + " (images as " + key("texture").substr(0, key("texture").find('|')) + "), over the " + human(b) + " ram budget", t);
-      if (std::uint64_t b = budget("gpu"); b && textures > b) add(where, 0, 0, "assets-memory", "the images take about " + human(textures) + " as textures, over the " + human(b) + " gpu budget", t);
+        add(where, 0, 0, "assets-memory", "the assets decode to about " + zn::assets::humanSize(textures + e.other) + " (images as " + key("texture").substr(0, key("texture").find('|')) + "), over the " + zn::assets::humanSize(b) + " ram budget", t);
+      if (std::uint64_t b = budget("gpu"); b && textures > b) add(where, 0, 0, "assets-memory", "the images take about " + zn::assets::humanSize(textures) + " as textures, over the " + zn::assets::humanSize(b) + " gpu budget", t);
       if (std::uint64_t b = budget("boot"); b && !bootFiles.empty()) {   // images as the target's textures, the rest as they are
         std::uint64_t bytes = 0;
         for (const AssetFile* f : bootFiles)
           bytes += f->w > 0 ? static_cast<std::uint64_t>(static_cast<double>(f->w) * f->h * bytesPerPixel(key("texture"))) : f->bytes;
-        if (bytes > b) add(where, 0, 0, "assets-boot", "the assets loaded at start (" + std::to_string(bootFiles.size()) + " file" + (bootFiles.size() == 1 ? "" : "s") + " in " + bootNames + ") take about " + human(bytes) + ", over the " + human(b) + " boot budget", t);
+        if (bytes > b) add(where, 0, 0, "assets-boot", "the assets loaded at start (" + std::to_string(bootFiles.size()) + " file" + (bootFiles.size() == 1 ? "" : "s") + " in " + bootNames + ") take about " + zn::assets::humanSize(bytes) + ", over the " + zn::assets::humanSize(b) + " boot budget", t);
       }
       const int maxSize = std::atoi(key("maxSize").c_str());
       for (const AssetFile& im : e.all)

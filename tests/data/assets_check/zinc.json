@@ -1,0 +1,11 @@
+{
+  "name": "assets-check",
+  "entry": "main.ts",
+  "assets": {
+    "groups": {
+      "boot": { "include": ["boot/**"] },
+      "level1": { "include": ["level1/**"] }
+    },
+    "budgets": { "linux": { "download": "100KB", "boot": "8KB", "ram": "48KB" } }
+  }
+}
