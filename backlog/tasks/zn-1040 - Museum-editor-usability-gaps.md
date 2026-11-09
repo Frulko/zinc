@@ -2,8 +2,7 @@
 id: ZN-1040
 title: 'Museum editor: usability gaps'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:38'
 updated_date: '2026-11-09 09:40'
 labels:

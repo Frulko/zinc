@@ -813,6 +813,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-970: Hamlet's Ctrl+Z, storage orders, labour priority and the debug tick still change the village outside the command log; make them commands. A multi-player queue sorts by tick, then player, then arrival (arrival only today).
 - ZN-971: Hamlet's sim reads the dev panel's prefs (walkSpeed, treeMin, treeRegrow, deerMin, deerRespawn): a replay or a server with other prefs desyncs; move them into world state or the log header. The log header should hash the economy.json it ran with; optional checkpoint lines (tick + hash every N ticks, as OpenTTD) would point at the first diverging tick. `recordLog` is not reachable in the app yet (a Debug window button; ZN-972's server is its first user).
 - ZN-973: Hamlet's farm-to-mill ratio (~3:1 at full speed) is above the 2:1 of Anno and Settlers: measure it in a played village (soil bonus included) before retuning the farm's 10 s cycle. `chainReport` lists only buildings as makers (adventure rewards and peddler sales could appear too).
+- ZN-1040 (museum editor): a film has no preview of its own; packaged tables have no default statistics directory; a visit under way when the table is switched off is not counted; storyboard miniatures ignore rotation; `table.visitors` is never read; `lengthOf` keeps a replaced file's length until reopen.
+- ZN-1040 (museum editor): no rubber-band selection on the table and storyboard; pasting a medium into a project in another folder does not copy its file; missing-file problems do not refresh while the project is open; check the native menu's greyed items and drag and drop on a real Mac.
 
 ## Cross-platform pass
 
