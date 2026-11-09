@@ -636,6 +636,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.29: the playground (ZN-774.30) should compile for the web profile, not the `linux` that `zn::builtPlatform()` reports under WASI; define `__wasi__` → `"wasm"` in `include/zn/platform.h`.
 - ZN-774.29: `targets/wasm/glue/worker.mjs` should use a JSPI frame loop so run pages need no COOP/COEP (SharedArrayBuffer kept when the page is already isolated).
 - ZN-774.29: `wasm-opt -Oz` on `zinc-compile.wasm` (-17% raw, -6% gzip) once binaryen is pinned as a toolchain (Homebrew today); zinc:worker programs are refused by the one-thread wasm compiler (revisit with wasm32-wasi-threads).
+- ZN-774.30: plugins in the browser compiler: the plugins' Zinc sides in the in-memory file system and web backends for their native sides (canvas2d on OffscreenCanvas, audio on WebAudio), for lessons 06, 17-20 and the canvas, game-2d and eink templates in /play/.
+- ZN-774.30: draw the missing gfx rows in `targets/wasm/glue/worker.mjs` (SetTransform, ResetTransform, Clip, Unclip, Border, Shadow, Stroke, Path, Gradient) so stage and UI lessons draw as natively; add lucide's icon nodes to std.json once `zinc:svg` works in the page.
+- ZN-774.30: run /play/ in Firefox and Safari without JSPI (an Asyncify vm-web.wasm, +27% gzip, or when they ship JSPI); a dark CodeMirror theme; warn above ~8 KB of link and offer the zip (with ZN-774.31).
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

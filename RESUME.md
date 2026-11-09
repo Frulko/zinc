@@ -20,10 +20,12 @@
 - Integrated: ZN-675 (Done): frame hashes of partial frames repeat (capture buffer cleared); ZN-639 (Done): socket test on port 0; checker accepts fields assigned in both branches, plugins/3d workaround removed (D241).
 - Integrated: ZN-774.29 (Done, D242): the compiler builds to wasm (0.75 MB brotli), compiles lessons in Chrome in 30-300 ms to the same ZBC as `zinc`, no cross-origin isolation; `vm-web.wasm` stripped to 216 KB gzip.
 - Integrated: Hamlet ZN-946 (Done): storage-free snapshot, saves from newer versions refused and kept; ZN-970 (Done): player actions as commands through `submit`/`advance`, same command hash on three engines, Ctrl+Z after razing trees no longer lays a road.
+- Integrated: ZN-774.30 (Done, D243): `/play/` on the site edits and runs Zinc in Chrome without COOP/COEP (program in the link, diagnostics linked, starters per template, lessons editable, export as a project). The Pages workflow now builds the wasm modules: not run yet.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-774.30 (since 4d1868344): `pnpm build` in site/ then `ZINC=build/zinc tools/play-link-test` (one Chrome, 30 s); `tests/t2/wasm_browser.sh` (the SharedArrayBuffer path after the JSPI change); one run of the Pages workflow (`gh workflow run pages`: setup-zig builds both wasm modules on Ubuntu, /play/ on GitHub Pages) — outward-facing, owner's call.
 - Hamlet (since 439e5df0a): `tests/t1/hamlet.sh` as edited (rules on three engines, the static submit check, both mouse sessions, 2 min); proposed T0 `hamlet_save` and `hamlet_commands` (20 s each).
 - ZN-774.29 (since 9419db88d): `tests/run --only wasm_compiler`; `tools/wasm-compile-bench` (one Chrome, 10 s); `tests/t2/wasm.sh` and `tests/t2/wasm_browser.sh` (the stripped vm.wasm and vm-web.wasm still run the M3 set and breakout).
 - ZN-675 (since bdfcef7d5): the T0 frame-hash tests (`assets_groups`, `app_library`, `console_core`, `fuse`), `tools/proto-capture --canary` (no golden relied on uncleared memory); `diagnostics`, `check_js` for the checker change.
