@@ -112,7 +112,7 @@ export const NEUTRAL: Look = {
   card: 'rounded-xl shadow-sm', field: 'rounded-md px-3 text-sm', fieldHeight: 'h-9', panel: 'rounded-md shadow-md', dialog: 'rounded-lg shadow-lg',
 };
 
-/** The Quiet look (docs/design.md, ZN-1078.02): CUI's (github.com/yappologistic/CUI, MIT) sizes, radii and type, the same on every platform.
+/** The Quiet look (docs/design.md, ZN-1078.02): its sizes, radii and type, the same on every platform.
  *  Controls 30 / 36 / 44 px with 10 px corners, panels 14, surfaces 18; Inter at 13 px, medium for labels and headings; cards rest on a hairline
  *  without a shadow, floating layers get a close shadow. The colours are the neutral accent's; zinc:ui/kit's setThemeAccent tints them. */
 export const QUIET: Look = {

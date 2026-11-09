@@ -12,6 +12,6 @@ export const CONTROL = t.primary;         // the solid button, the switch that i
 export const ACCENT_SOFT = t.accentSoft;  // the selected row
 export const SUCCESS = t.success;
 export const DANGER = t.destructive;
-export const FOCUS = '[#1f7dcf]';         // the keyboard focus ring (CUI's, with the neutral accent)
+export const FOCUS = '[#1f7dcf]';         // the keyboard focus ring (with the neutral accent)
 /** The floating shadow of the Quiet look: a short drop pulled in at the sides and a tight contact shadow. */
 export const FLOATING_SHADOW = 'shadow-[0_12px_32px_-4px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.06)]';

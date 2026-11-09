@@ -1,8 +1,7 @@
 # Design principles
 
 The rules every new demo, app and template of Zinc follows (owner, 2026-11-09; "Design" in `AGENTS.md`). They are
-taken from [CUI](https://github.com/yappologistic/CUI)'s `docs/design.md` (MIT, © its authors): its rules and its token
-values, mapped onto `zinc:ui` classes and the kit's theme roles. The kit's Quiet theme carries them, so a screen built
+mapped onto `zinc:ui` classes and the kit's theme roles. The kit's Quiet theme carries them, so a screen built
 from kit components and theme roles follows them without hand-picked values.
 
 The pictures below are drawn by Zinc: `docs/img/design/src` is the program, one picture per run
@@ -76,7 +75,7 @@ In classes: `bg-${theme().card}`, `text-${theme().mutedForeground}`, `border-${t
 - Motion shows cause and effect: what opened, what changed, where it came from. No decoration loops, no pulse on
   what is not changing, no bounce on routine dialogs.
 - Everything is a spring, so everything is interruptible. A spring is a period and a bounce (the damping ratio is
-  1 − bounce), as SwiftUI's and CUI's: smooth (400 ms, 0), snappy (260 ms, 0.12), morph (420 ms, 0.16).
+  1 − bounce), as SwiftUI's: smooth (400 ms, 0), snappy (260 ms, 0.12), morph (420 ms, 0.16).
 - What reports a state lands without overshoot (switch thumbs, progress, panel heights); small feedback has a little
   life (presses scale to 0.97, 0.98 for wide rows and cards). Nothing grows on hover.
 - One duration per job: a row following the pointer 100 ms; hover colour 140 ms; focus ring 140 ms; a check or
@@ -113,3 +112,7 @@ Defaults nobody chose read as generic. Screens built with Zinc stay clear of the
   or down.
 - Words: a button is a verb and an object ("Create project", not "Submit"); example content is specific and plausible.
 - One value per axis on a screen: one radius scale, one accent, one icon set, one spacing scale, one set of springs.
+
+## Credits
+
+Some token values come from [CUI](https://github.com/yappologistic/CUI) (MIT).

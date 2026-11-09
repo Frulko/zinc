@@ -1,4 +1,4 @@
-// The gallery's left column: a form, notification switches, a usage bar (CUI's components screen, github.com/yappologistic/CUI, MIT).
+// The gallery's left column: a form, notification switches, a usage bar.
 import { createSignal } from 'zinc:ui/solid';
 import { Card, CardHeader, CardContent, Tabs, Input, Button, Switch, Progress, heading, theme } from 'zinc:ui/kit';
 import { Label, Muted, AffixField, RoleIcon } from './parts';

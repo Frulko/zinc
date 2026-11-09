@@ -1,4 +1,4 @@
-// The Quiet theme's gallery: the layout of CUI's components screen (github.com/yappologistic/CUI, MIT, docs/images/showcase/components.png),
+// The Quiet theme's gallery: a components screen,
 // 1440 x 980, three columns of cards on the page colour.
 import { theme } from 'zinc:ui/kit';
 import { RunnerCard, NotifyCard, CacheCard } from './left';

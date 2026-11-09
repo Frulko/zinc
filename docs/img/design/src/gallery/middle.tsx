@@ -1,11 +1,11 @@
-// The gallery's middle column: two metrics with sparklines, a date and time picker, a grouped bar chart (CUI's components screen).
+// The gallery's middle column: two metrics with sparklines, a date and time picker, a grouped bar chart.
 import * as ui from 'zinc:ui';
 import { createSignal } from 'zinc:ui/solid';
 import { stroke, rrect } from 'zinc:gfx';
 import { Card, CardHeader, CardContent, Button, theme, themeColor } from 'zinc:ui/kit';
 import { Label, Body, Muted, RoleIcon, Surface } from './parts';
 
-/** CUI's first two chart series (blue, orange), tuned per scheme; the kit's charts (ZN-1078.15) will carry them as theme tokens. */
+/** The first two chart series (blue, orange), tuned per scheme; the kit's charts (ZN-1078.15) will carry them as theme tokens. */
 function series(i: i32): i32 {
   const dark = ui.currentScheme() === 'dark';
   return i === 0 ? (dark ? 0x4892ed : 0x2a78d6) : (dark ? 0xe8672e : 0xeb6834);

@@ -1,6 +1,6 @@
-// zinc:ui/kit — springs, after CUI's motion (docs/design.md "Motion"; github.com/yappologistic/CUI, MIT, src/cui_core.c).
+// zinc:ui/kit — springs (docs/design.md "Motion").
 //
-// A spring is a period and a bounce, as SwiftUI's and CUI's: the stiffness is (2π / duration)² and the damping ratio 1 − bounce, so a bounce
+// A spring is a period and a bounce, as SwiftUI's: the stiffness is (2π / duration)² and the damping ratio 1 − bounce, so a bounce
 // of 0 lands without overshoot (what reports a state) and a small one gives feedback a little life. springTo samples the spring once, in
 // closed form, and the engine plays the samples (ui.animateSeries: the compositor moves transforms and opacity without the program);
 // under reduced motion (ui.prefersReducedMotion) the property takes its end at once.
@@ -16,11 +16,11 @@ export interface Spring {
 
 /** What reports a state (a switch thumb, progress, a panel's height): 180 ms, no overshoot. */
 export const SPRING_STATE: Spring = { duration: 180, bounce: 0 };
-/** Moves and opens (a disclosure, a highlight gliding): CUI's smooth, 400 ms, no overshoot. */
+/** Moves and opens (a disclosure, a highlight gliding): smooth, 400 ms, no overshoot. */
 export const SPRING_SMOOTH: Spring = { duration: 400, bounce: 0 };
-/** Presses and small feedback: CUI's snappy, 260 ms, a little bounce. */
+/** Presses and small feedback: snappy, 260 ms, a little bounce. */
 export const SPRING_SNAPPY: Spring = { duration: 260, bounce: 0.12 };
-/** A shape turning into another: CUI's morph, 420 ms. */
+/** A shape turning into another: morph, 420 ms. */
 export const SPRING_MORPH: Spring = { duration: 420, bounce: 0.16 };
 
 /** Where a spring from 0 to 1 is after t ms (it overshoots 1 when it bounces). */

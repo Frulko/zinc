@@ -148,7 +148,7 @@ faster there and keeps the code organised.
 
 ## Design: quiet, neutral, keyboard first (owner, 2026-11-09)
 
-The look of every new demo, app and template (CUI, github.com/yappologistic/CUI, MIT, is the reference; parent task ZN-1078, details in `docs/design.md` once written):
+The look of every new demo, app and template (parent task ZN-1078, details in `docs/design.md`):
 - **Neutral surfaces, one accent.** Greys for surfaces and text, one accent colour for the primary action and the selection; status colours (red, amber, green) only for status.
 - **Hairline borders, shadows only on what floats.** Cards and fields get a 1 px border, not a shadow; menus, popovers, dialogs and toasts float and get the shadow.
 - **Motion explains what changed.** Springs for moves and opens, no decoration loops; every animation has a reduced-motion path.

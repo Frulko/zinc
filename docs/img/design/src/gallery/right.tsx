@@ -1,4 +1,4 @@
-// The gallery's right column: people with a role menu, a link to copy, a coverage ring with a threshold, toggle chips (CUI's components screen).
+// The gallery's right column: people with a role menu, a link to copy, a coverage ring with a threshold, toggle chips.
 import { createSignal } from 'zinc:ui/solid';
 import { Card, CardHeader, CardContent, Button, Avatar, DropdownMenu, MenuItem, Input, Tabs, ProgressRing, Slider, theme, themeColor } from 'zinc:ui/kit';
 import { Label, Body, Muted, RoleIcon, Chip } from './parts';

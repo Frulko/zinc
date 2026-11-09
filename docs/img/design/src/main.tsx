@@ -1,7 +1,6 @@
 // The do / don't pictures of docs/design.md, drawn by Zinc. One picture per run, chosen by PICTURE:
 //   PICTURE=accent ZINC_HEADLESS=1 ZINC_SCALE=2 ZINC_SIZE=760x300 ZINC_FRAMES=2 ZINC_SHOT=docs/img/design/accent.png zinc run docs/img/design/src
-// PICTURE=gallery draws the Quiet theme's gallery after CUI's components screen (ZINC_SIZE=1440x980), SCHEME=dark and ACCENT=blue... vary it.
-// The rules follow CUI's docs/design.md (github.com/yappologistic/CUI, MIT).
+// PICTURE=gallery draws the Quiet theme's gallery (ZINC_SIZE=1440x980), SCHEME=dark and ACCENT=blue... vary it.
 import { render } from 'zinc:ui/solid';
 import { env } from 'zinc:sys';
 import { useQuietTheme, setTheme, DARK } from 'zinc:ui/kit';
@@ -139,7 +138,7 @@ function TypePicture(): i32 {
 }
 
 // ---- 4. Motion explains a change: a spring that lands without overshoot, and its reduced-motion path
-/** A spring's position at time t (seconds) from 0 to 1: CUI's model, a period `duration` and a bounce (damping ratio 1 - bounce). */
+/** A spring's position at time t (seconds) from 0 to 1: a period `duration` and a bounce (damping ratio 1 - bounce). */
 function springAt(t: number, duration: number, bounce: number): number {
   const w = 2 * Math.PI / duration, z = 1 - bounce;
   if (z >= 1) return 1 - (1 + w * t) * Math.exp(-w * t);

@@ -78,7 +78,7 @@ function colorsOf(t: Theme): i32[] { return valuesOf(t).map((n: string): i32 => 
 /** LIGHT and DARK as variable references: what theme() returns for the two built-in themes. */
 const VARS: Theme = { name: 'vars', background: '[var(--background)]', foreground: '[var(--foreground)]', card: '[var(--card)]', muted: '[var(--muted)]', mutedForeground: '[var(--mutedForeground)]', border: '[var(--border)]', input: '[var(--input)]', primary: '[var(--primary)]', primaryForeground: '[var(--primaryForeground)]', primaryFocus: '[var(--primaryFocus)]', primaryPressed: '[var(--primaryPressed)]', secondary: '[var(--secondary)]', secondaryForeground: '[var(--secondaryForeground)]', secondaryPressed: '[var(--secondaryPressed)]', subtle: '[var(--subtle)]', accent: '[var(--accent)]', accentForeground: '[var(--accentForeground)]', accentSoft: '[var(--accentSoft)]', accentSoftForeground: '[var(--accentSoftForeground)]', destructive: '[var(--destructive)]', destructiveForeground: '[var(--destructiveForeground)]', destructivePressed: '[var(--destructivePressed)]', destructiveSoft: '[var(--destructiveSoft)]', destructiveSoftForeground: '[var(--destructiveSoftForeground)]', success: '[var(--success)]', successSoft: '[var(--successSoft)]', successSoftForeground: '[var(--successSoftForeground)]', warningSoft: '[var(--warningSoft)]', warningSoftForeground: '[var(--warningSoftForeground)]' };
 
-// ---- the Quiet theme (docs/design.md, ZN-1078.02): CUI's colours (github.com/yappologistic/CUI, MIT, src/cui_theme.c; its OKLab greys as sRGB)
+// ---- the Quiet theme (docs/design.md, ZN-1078.02): neutral OKLab greys as sRGB
 // in the kit's roles, light and dark, with the Quiet look of zinc:ui/platform for the shapes. Turned on by useQuietTheme() (or the look
 // 'quiet': ZINC_PLATFORM_LOOK=quiet, <ThemeProvider look="quiet">): the 'light' and 'dark' schemes then carry these values.
 
@@ -115,7 +115,7 @@ const QUIET_ROLES: i32[] = [
   0x9f6202, 0xf2bd68,   // warningSoftForeground (amber tone)
 ];
 
-/** The accents of the Quiet theme, CUI's eight, tuned per scheme so text and controls keep their contrast. */
+/** The accents of the Quiet theme, eight, tuned per scheme so text and controls keep their contrast. */
 export const ACCENTS: string[] = ['neutral', 'violet', 'blue', 'green', 'amber', 'orange', 'coral', 'rose'];
 /** Per accent after neutral: accent, strong, soft alpha, text on it (light); the same (dark); the control colour and its glyph, light then dark. */
 const ACCENT_TABLE: i32[] = [
@@ -184,7 +184,7 @@ export function setTheme(t: Theme): void {
   else setCurrent(t);
 }
 
-/** The Quiet theme (docs/design.md): CUI's look and colours for every kit component, light and dark (setTheme(DARK), ui.setScheme('auto')),
+/** The Quiet theme (docs/design.md): the quiet look and colours for every kit component, light and dark (setTheme(DARK), ui.setScheme('auto')),
  *  with one accent of ACCENTS. Call it before the first render. */
 export function useQuietTheme(accent: string = 'neutral'): void {
   setPlatformLook('quiet');

@@ -1,5 +1,5 @@
 #!/bin/sh
-# zinc:ui/kit's Quiet theme (ZN-1078.02, docs/design.md): CUI's shapes and colours (an 18 px card on white, a 36 px button), the accent switch
+# zinc:ui/kit's Quiet theme (ZN-1078.02, docs/design.md): its shapes and colours (an 18 px card on white, a 36 px button), the accent switch
 # recolours mounted nodes in light and dark, and springs land without overshoot and become a cut under reduced motion.
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/src"
