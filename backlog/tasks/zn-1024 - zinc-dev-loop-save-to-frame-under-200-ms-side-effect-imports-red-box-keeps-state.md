@@ -3,7 +3,7 @@ id: ZN-1024
 title: >-
   zinc dev loop: save-to-frame under 200 ms, side-effect imports, red box keeps
   state
-status: In Progress
+status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:36'
@@ -80,4 +80,22 @@ Step 7 (perf(plugins): look for the plugins once per compile): every native modu
 Step 8 (perf(frontend): keep the JSX and style-sheet lowerings of unchanged files): lowerJsx and lowerStyleSheets are kept by their whole input (the text, the class tags and imported JSX functions, hot, dev file, React model, library, uiLayout and uiPreset they read); a hit gives back the lowered text, its source map and its diagnostics with this load's file index. Read and parse 99-108 -> 61-70 ms, a recompile of hero 495 -> 450 ms (back to back, load ~2.8), same bytes; hot_recompile also compiles the template with ZINC_DEV=1 (the inspector's component names) cold and warm.
 
 Step 9 (perf(ir): verify the functions on several threads): ir::verify after reference counting was 5% of a recompile; each function is verified through parallelFor and the first problem in function order is returned, as before. A recompile of hero 472-492 -> 456-473 ms (back to back both ways, load ~4.7 from another tree building: indicative), same bytes. zbc::verify stays on one thread: zbc.cpp is also built into the ESP32 and console cores, which do not link the IR.
+
+Where it stands (2026-11-09, end of session): zinc dev of hero, three saves of a new comment in Icon.tsx, back to back, load ~5.5 (another tree building): develop 1174-1194 ms -> 643-721 ms after the save. #1 stays open: 200 ms needs the compile itself to stop being whole-program. A dev save now (118 files, 2733 functions, compiled while the frames go on): read and parse 79, check 107, lower 112, optimise 111, reference counting 60, emit 104, bake 3 ms. Next steps, in order of gain:
+1. Incremental check and lowering by module (salsa / tsc -b style): keep the checked declarations and the lowered functions of modules whose text and imports did not change; the library (lib/std, the kits, the plugins) is most of the 2733 functions. ~250 ms, the only step that reaches 200 ms; a design of its own (stable function, class and global indices across compiles, or a relinking pass).
+2. Emit on several threads: TypeTable creates the collection classes on first use, so the class ids depend on the order of the functions; emit each function with a local table, then merge the new classes in function order and patch the ids. ~70 ms.
+3. Lowering per function body on several threads, with the same kind of ordered merge of what FnLower adds to the module (types, strings, lambdas). ~70 ms.
+4. Checker::intern and ir::Module::intern are linear scans (3% and 1.5% of a recompile): a hash index. ~15 ms.
+5. Append the kept parse nodes straight into the program's AST instead of copying then moving (~10 ms); free the previous IR module off the critical path (~4%).
+
+Decision (record as a D-number): `optimise` stays on in hot mode. Skipping it would save ~110 ms a save, but zinc dev then runs other code than zinc run and zinc build (the inspector's profiler and the frame times would mislead, and a Pi runs the dev program slower), while the optimiser could be made cheaper instead (180 -> 75 ms this session). Reopen only if step 1 is not done and 200 ms is required.
+
+Known, not from this task: tests/t0/ir.sh fails on develop before these commits (the --emit=ir of tests/golden/run/closures.ts and closures2.ts differs from tests/golden/ir/; the develop binary differs the same way).
+
+later.md lines (for the coordinator):
+- ZN-1024: Checker::intern and ir::Module::intern are linear scans over every type; a hash index would cut a few percent of every compile.
+- ZN-1024: zbc::emit in parallel needs a deterministic merge of the collection classes TypeTable creates on first use (ids follow the order of the functions).
+- ZN-1024: tests/t0/ir.sh: the IR goldens of closures and closures2 no longer match develop's --emit=ir.
+
+Proposed tests (this session): `tests/run --only hot_recompile` (T0, ~8 s, <500 MB: ran, passes), `tests/run --only ir` (fails on develop already, see above), `tools/diff-matrix` at the next milestone (the optimiser, reference counting and verification now run on several threads: interpreter vs AOT vs frozen output over the corpus, minutes), `tests/run --only hot_swap` / `dev_mode` / `fast_refresh` (T1, as above).
 <!-- SECTION:NOTES:END -->
