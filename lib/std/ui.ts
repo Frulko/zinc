@@ -6763,7 +6763,11 @@ function inputFrame(): void {
   for (let i = 0; i < nk; i++) {
     const kind = keyKind(i);
     if (kind === KeyKind.Text) { if (dropText) dropText = false; else typeInto(focus, keyName(i)); }
-    else if (kind === KeyKind.Down || kind === KeyKind.Repeat) dispatchKey(keyName(i), keyMods(i), kind === KeyKind.Repeat);
+    else if (kind === KeyKind.Down || kind === KeyKind.Repeat) {
+      // a native host's field edits itself (SDL still reports its keys): the program's key handlers only, as the DOM host's keys
+      if (hostCommit !== null && focus >= 0 && nodes[focus].ed !== null) domKey(keyName(i), keyMods(i), kind === KeyKind.Repeat);
+      else dispatchKey(keyName(i), keyMods(i), kind === KeyKind.Repeat);
+    }
     else if (kind === KeyKind.Up) dispatchKeyUp(keyName(i), keyMods(i));
   }
 }
@@ -6850,7 +6854,7 @@ export function frame(dt: number, background: i32): void {
   if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
   // text input (IME, on-screen keyboard) follows the focused field; the caret blinks
   const ed = focus >= 0 ? nodes[focus].ed : null;
-  const want: i32 = ed !== null && !(ed as Edit).readOnly ? focus : -1;
+  const want: i32 = ed !== null && !(ed as Edit).readOnly && hostCommit === null ? focus : -1;   // a native host's fields take the keyboard themselves
   if (want !== textOn) {
     if (want >= 0) { boxOf(want); device('keyboard-traits', keyboardTraits(want)); mirrorIme(nodes[want].ed as Edit); startTextInput(boxX, boxY, nodes[want].lw * boxK, nodes[want].lh * boxK); } else { device('keyboard-traits', ''); stopTextInput(); }   // no traits: no field (iOS's input view resigns)
     textOn = want;
@@ -8196,27 +8200,30 @@ export function domOutside(t: i32, gx: number, gy: number, button: i32): void {
 //   d ID              the node is gone: the host drops its view (its children have their own d, or move under another node with a k record)
 //   c ID KIND         a new node; KIND is its tag (TAG_NAMES: view, text, button, image, scroll, canvas, fragment, input, textarea)
 //   f ID X Y W H      its box, relative to its parent's (a root's: to the window)
-//   t ID TEXT         the text of a text node
+//   t ID TEXT         the text of a text node, the value of a field (input, textarea), the asset name of an image
 //   p ID NAME VALUE   a style property of HOST_PROPS: colours 0xRRGGBB as numbers (-1: none, fg -1: inherited), opacity 0..1, sizes in px, bold and hidden 0 or 1;
 //                     a new node starts with HOST_DEFAULTS and is sent only the properties that differ
+//   a ID NAME TEXT    a string attribute: placeholder (of a field)
 //   k ID CHILD...     its children in order, after an insert, a move or a removal under it: the host makes its subviews this list
 //   r ID...           the roots, bottom first: the tree's root, then the layers shown (dialogs, popovers, menus)
+//   o ID              the node that has the keyboard focus (-1: none), when it changed: the host moves its first responder there
 // In each buffer the deletes come first (a recycled handle is deleted, then created again), then the creates and updates in tree order, then the child
-// lists, then the roots. A host installed later, or again, gets the whole tree.
+// lists, then the roots, then the focus. A host installed later, or again, gets the whole tree. Its events name a node by handle: hostMounted(h) tells whether
+// the node the host was told about under h is still that one, so a late event never drives a node made since on a recycled handle.
 const RENDER: string = env('ZINC_RENDER') !== '' ? env('ZINC_RENDER') : UI_RENDER;
-const HOST_PROPS: string[] = ['bg', 'bgAlpha', 'fg', 'opacity', 'radius', 'border', 'borderColor', 'fontSize', 'bold', 'hidden'];
-const HOST_DEFAULTS: number[] = [-1, 255, -1, 1, 0, 0, 0xe5e7eb, 16, 0, 0];
+const HOST_PROPS: string[] = ['bg', 'bgAlpha', 'fg', 'opacity', 'radius', 'border', 'borderColor', 'fontSize', 'bold', 'hidden', 'secure'];
+const HOST_DEFAULTS: number[] = [-1, 255, -1, 1, 0, 0, BORDER_DEFAULT, DEFAULT_TEXT, 0, 0, 0];
 class Mounted {   // what the host was last told about one node
   n: UiNode;
   seen: i32 = 0;   // the commit that last found it in the tree
   x: number = 0; y: number = 0; w: number = 0; h: number = 0;
-  text: string = ''; kids: string = '';
+  text: string = ''; kids: string = ''; ph: string = '';
   props: number[];
   constructor(n: UiNode) { this.n = n; this.props = HOST_DEFAULTS.slice(); }
 }
 let hostCommit: ((changes: string) => void) | null = null;
 let mounted: (Mounted | null)[] = [], hostIds: i32[] = [], hostNow: i32[] = [], hostGen: i32 = 0, hostCommits: i32 = 0;
-let hostRoots = '', hostDel = '', hostBody = '', hostKids = '';
+let hostRoots = '', hostDel = '', hostBody = '', hostKids = '', hostFocus: i32 = -1;
 const hostVals: number[] = [];
 /**
  * Installs the native host that shows the tree (D210): `commit` gets the changes of each frame that changed something, the first time the whole tree,
@@ -8226,7 +8233,7 @@ const hostVals: number[] = [];
 export function setHost(commit: ((changes: string) => void) | null): boolean {
   if (commit !== null && RENDER !== 'native') return false;
   hostCommit = commit;
-  mounted = []; hostIds = []; hostRoots = '';   // a new host starts from nothing: the next commit mounts the whole tree
+  mounted = []; hostIds = []; hostRoots = ''; hostFocus = -1;   // a new host starts from nothing: the next commit mounts the whole tree
   paintDirty = true;
   return true;
 }
@@ -8236,11 +8243,14 @@ export function nativeRender(): boolean { return RENDER === 'native'; }
 export function hostActive(): boolean { return hostCommit !== null; }
 /** The buffers handed to the native host so far. */
 export function hostCommitCount(): i32 { return hostCommits; }
+/** Whether h is still the node the native host was last told about under that handle (alive, not deleted, not recycled since): a host event for h applies only then. */
+export function hostMounted(h: i32): boolean { return h >= 0 && h < mounted.length && mounted[h] !== null && (mounted[h] as Mounted).n === nodes[h] && nodes[h].alive; }
 function hostEsc(s: string): string { return s.indexOf('\\') < 0 && s.indexOf('\n') < 0 ? s : s.split('\\').join('\\\\').split('\n').join('\\n'); }
 function hostProps(n: UiNode): void {
   hostVals.length = 0;
   hostVals.push(n.bg); hostVals.push(n.bgAlpha); hostVals.push(n.fg); hostVals.push(n.opacity * n.fade); hostVals.push(n.radius);
   hostVals.push(n.borderW); hostVals.push(n.borderColor); hostVals.push(n.size); hostVals.push(n.bold ? 1 : 0); hostVals.push(n.hidden ? 1 : 0);
+  hostVals.push(n.ed !== null && (n.ed as Edit).password ? 1 : 0);
 }
 /** Sends what changed in node h and its subtree since the last commit; true when h is new to the host. */
 function hostWalk(h: i32, parent: i32): boolean {
@@ -8259,6 +8269,12 @@ function hostWalk(h: i32, parent: i32): boolean {
   const x: number = parent >= 0 ? n.x - nodes[parent].x : n.x, y: number = parent >= 0 ? n.y - nodes[parent].y : n.y;
   if (fresh || x !== s.x || y !== s.y || n.lw !== s.w || n.lh !== s.h) { s.x = x; s.y = y; s.w = n.lw; s.h = n.lh; hostBody += 'f ' + h + ' ' + x + ' ' + y + ' ' + n.lw + ' ' + n.lh + '\n'; }
   if (n.tag === TEXT && (fresh || n.text !== s.text)) { s.text = n.text; hostBody += 't ' + h + ' ' + hostEsc(n.text) + '\n'; }
+  else if (n.tag !== TEXT) {   // a field's value, an image's asset; its placeholder
+    const v = n.ed !== null ? (n.ed as Edit).value : n.tag === IMAGE ? n.src : '';
+    if (v !== s.text) { s.text = v; hostBody += 't ' + h + ' ' + hostEsc(v) + '\n'; }
+    const ph = n.ed !== null ? (n.ed as Edit).placeholder : '';
+    if (ph !== s.ph) { s.ph = ph; hostBody += 'a ' + h + ' placeholder ' + hostEsc(ph) + '\n'; }
+  }
   hostProps(n);
   for (let i = 0; i < hostVals.length; i++) if (s.props[i] !== hostVals[i]) { s.props[i] = hostVals[i]; hostBody += 'p ' + h + ' ' + HOST_PROPS[i] + ' ' + hostVals[i] + '\n'; }
   let kids = '', added = false;
@@ -8284,6 +8300,8 @@ function commitHost(): void {
   hostIds = hostNow;
   let out = hostDel + hostBody + hostKids;
   if (added || roots !== hostRoots) { hostRoots = roots; out += 'r' + (roots === '' ? '' : ' ' + roots) + '\n'; }
+  const fo: i32 = hostMounted(focus) ? focus : -1;
+  if (fo !== hostFocus) { hostFocus = fo; out += 'o ' + fo + '\n'; }
   hostDel = ''; hostBody = ''; hostKids = '';
   const f = hostCommit;
   if (out === '' || f === null) return;

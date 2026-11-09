@@ -659,6 +659,7 @@ static bool loadManifestPermissions(const char* path) {
   }
   {  // the layout engine (ZN-285): zinc.json "ui", or ZINC_UI_LAYOUT for a run (ZN-286), against the rules of the machine compiled for
     if (const char* forced = std::getenv("ZINC_UI_LAYOUT"); forced && *forced) p.uiLayout = forced;
+    if (const char* r = std::getenv("ZINC_RENDER"); r && *r) p.uiRender = r;   // the renderer for one run (D225): a native one lays out with Yoga
     const std::string target = !gBuildTarget.empty() ? gBuildTarget : gProfile ? gProfile->name : zn::tc::pluginTarget();
     std::string lerr;
     zn::frontend::Caps caps;
@@ -1413,7 +1414,7 @@ static std::string stampOf(const fs::path& f) {   // one stat (a cached run chec
 static std::string signature(const std::string& entry, const std::vector<fs::path>& extra) {
   std::string s = entry + " " + kVersionText + " " + stampOf(zn::tc::executablePath());
   for (const fs::path& f : extra) s += " " + stampOf(f);
-  for (const char* v : {"CC", "CXX", "ZINC_DISPLAY", "ZINC_HOT", "ZINC_NATIVE", "ZINC_PLATFORM", "ZINC_PLUGIN_CC", "ZINC_SIZE", "ZINC_TEXT", "ZINC_UI_LAYOUT", "ZINC_WEBGL", "ZINC_VERIFY_FIXED",
+  for (const char* v : {"CC", "CXX", "ZINC_DISPLAY", "ZINC_HOT", "ZINC_NATIVE", "ZINC_PLATFORM", "ZINC_PLUGIN_CC", "ZINC_RENDER", "ZINC_SIZE", "ZINC_TEXT", "ZINC_UI_LAYOUT", "ZINC_WEBGL", "ZINC_VERIFY_FIXED",
                         "ZN_AOT_PART_BYTES", "ZN_DEBUG_CLOSURES", "ZN_KEEP_SYMBOLS", "ZN_KEEP_UNREACHABLE", "ZN_NO_BORROW", "ZN_NO_LEND", "ZN_NO_OPT", "ZN_NO_UNROLL"})
     if (const char* e = std::getenv(v)) s += std::string(" ") + v + "=" + e;
   return s;

@@ -279,6 +279,18 @@ class YogaLayout final : public Layout {
 }  // namespace
 
 void setNativeMeasure(const NativeMeasure& m) { gNative = m; }
+namespace {
+using CMeasure = int (*)(void*, std::int32_t, int, const char*, std::size_t, std::int32_t, std::int32_t, std::int32_t, float, std::int32_t, float, int, float, int, float*, float*);
+struct CHook { CMeasure fn = nullptr; void* user = nullptr; } gCHook;
+bool cMeasure(void*, std::int32_t node, int kind, std::string_view text, const WrapStyle& s, float lineHeight, std::int32_t rows, float width, int wm, float height, int hm, float* w, float* h) {
+  return gCHook.fn(gCHook.user, node, kind, text.data(), text.size(), s.size, s.whiteSpace, s.clamp, lineHeight, rows, width, wm, height, hm, w, h) != 0;
+}
+}  // namespace
 std::unique_ptr<Layout> makeYogaLayout(TextMetric metric, bool webDefaults) { return std::make_unique<YogaLayout>(metric, webDefaults); }
 
 }  // namespace zn::host
+
+extern "C" void zn_host_set_native_measure(zn::host::CMeasure measure, void* user) {
+  zn::host::gCHook = {measure, user};
+  zn::host::setNativeMeasure(measure ? zn::host::NativeMeasure{&zn::host::cMeasure, nullptr} : zn::host::NativeMeasure{});
+}

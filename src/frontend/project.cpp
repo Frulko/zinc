@@ -341,7 +341,7 @@ void noteDirectLayoutUse() { gDirectLayout = true; }
 bool directLayoutUse() { return gDirectLayout; }
 bool resolveUiLayout(const Project& p, const std::map<std::string, std::string>& caps, const std::string& target, std::string& layout, std::string& err) {
   auto cap = [&](const char* k) { auto it = caps.find(k); return it == caps.end() ? std::string() : it->second; };
-  layout = p.uiLayout.empty() ? (p.uiPreset == "react-native" ? "rn" : "auto") : p.uiLayout;
+  layout = p.uiLayout.empty() ? (p.uiPreset == "react-native" || p.uiRender == "native" ? "rn" : "auto") : p.uiLayout;   // a native host lays out with Yoga, as React Native does (D210)
   if (layout == "auto") layout = cap("ui.layout").empty() ? "classic" : cap("ui.layout");
   if (layout == "rn" && cap("ui.rn") == "false" && (p.uiLayout.empty() || target == "web")) { layout = "classic"; return true; }   // the preset on a target without Yoga: classic with RN styles (ZN-288); on the web an explicit "rn" does the same (the browser has its own layout: docs/targets/web.md)
   if (layout == "rn" && cap("ui.rn") == "false") {

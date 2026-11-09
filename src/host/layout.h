@@ -2,6 +2,7 @@
 // lib/std/ui.ts (it reads the UI nodes directly, so it never comes through here), and `rn`, Yoga behind this interface (ZN-283). lib/std/ui.ts calls one
 // of them where it computes the layout (`calculate` there); the runtime calls that reach a host engine are added with the Yoga wrapper.
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -71,6 +72,18 @@ struct NativeMeasure {
 };
 /** Installs the native measure (a default NativeMeasure{} removes it). One per process: there is one native host. */
 void setNativeMeasure(const NativeMeasure& m);
+
+}  // namespace zn::host
+
+/** The same hook for a host plugin, which only sees the C symbols zinc exports (zinc's C++ is not exported, tools/zinc-unexported.txt): text leaves give
+ *  `text`/`len` (UTF-8), their font `size` in px, `whiteSpace` (1: no wrap) and `clamp` (lines, 0: none). Returns nonzero with the size in *outW and *outH, or 0 to keep the
+ *  engine's measure. A null `measure` removes it. Programs that never lay out with Yoga do not link it: a plugin imports it weakly. */
+extern "C" void zn_host_set_native_measure(int (*measure)(void* user, std::int32_t node, int kind, const char* text, std::size_t len, std::int32_t size, std::int32_t whiteSpace,
+                                                          std::int32_t clamp, float lineHeight, std::int32_t rows, float width, int widthMode, float height, int heightMode,
+                                                          float* outW, float* outH),
+                                           void* user);
+
+namespace zn::host {
 
 /** Yoga 3.2.1 (src/host/layout_yoga.cpp, ZN-283): the `rn` engine, measuring text with `metric`. `webDefaults`: CSS's defaults (flex-shrink 1, column stretch),
  *  React Native's own otherwise. */

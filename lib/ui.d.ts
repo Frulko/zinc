@@ -1213,4 +1213,6 @@ declare module 'zinc:ui' {
   export function hostActive(): boolean;
   /** The buffers handed to the native host so far. */
   export function hostCommitCount(): i32;
+  /** Whether h is still the node the native host was last told about under that handle (alive, not deleted, not recycled since): a host event for h applies only then. */
+  export function hostMounted(h: i32): boolean;
 }
