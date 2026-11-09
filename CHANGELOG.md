@@ -141,6 +141,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Build Quiet workspaces with keyboard menus, an overflow toolbar, status items, document tabs and resizable docking; layouts can be saved, validated and restored without losing closed or temporarily unavailable panels.
 - `zinc:ui/kit` adds Quiet checkboxes, radio cards, chips, ratings and range sliders, with keyboard control, mixed and disabled states, and vertical or logarithmic sliders.
+- Quiet overlays include scrollable sheets, rich hover cards, anchored confirmations and guided tours; notifications pause while you read them, and modal surfaces restore keyboard focus when closed.
 
 #### Changed
 

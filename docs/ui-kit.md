@@ -107,8 +107,8 @@ toast('Saved', 'All changes are on disk.');
 | `Dialog` | `open: () => boolean`, `onOpenChange`, `title?`, `description?`, `className?`, children, `footer?` | modal, dims the page (the dim fades, the panel fades and grows from 96%, both ways), traps the focus, focuses its first control, gives the focus back |
 | `toast(title, description?, ms?)` | | a stack in the bottom-right corner, 4 s by default; no component to mount |
 
-Tooltip, Popover and DropdownMenu keep their open state in the engine (the panel's `hidden`), so they work the same in
-both models; under React a re-render of their parent closes them. Dialog is controlled, like `Switch`.
+Tooltip, Popover, DropdownMenu and HoverCard retain their local state across parent renders in both UI models.
+Dialog and Sheet are controlled, like `Switch`.
 
 ## Keyboard (on-screen, touch devices)
 
@@ -272,6 +272,41 @@ Each kit file starts with `/** @jsxHelpers ./host */`: the JSX compiler lowers t
 rendering the program: under Solid, dynamic classes and texts become fine-grained effects; under React they are read
 once per render and the nodes come from the reconciler. `tests/conformance/kit_solid.tsx` and `kit_react.tsx` build
 the same screen in both models and must print the same layout (on the sim and on every native target).
+
+## Quiet Overlays
+
+The family lives in `lib/std/kit/overlays.tsx`. Anchors flip and stay inside the viewport. Modal dialogs and sheets
+block the page and trap focus; popovers, hover cards and confirmations allow Tab to leave. Closing a focused panel
+restores its invoker.
+Layer motion honors the operating system's reduced-motion setting.
+
+![Quiet overlay gallery](img/kit-overlays.png)
+
+| Component | Options and behavior |
+| --- | --- |
+| `Popover` | `label`, optional `trigger` slot, `placement`, `width` (288 px), `padding` (16 px), `gap` (4 px), `className`, children. Enter/Space toggles; Escape/outside closes. Custom triggers are keyboard buttons. |
+| `Tooltip` | `label`, optional shortcut `action`, `placement`, `delay` (500 ms), children. Pointer dwell or keyboard focus reveals the hint. Nearby hints skip the second delay. Escape closes without moving trigger focus; its `aria-describedby` names the hint. Long press shows it for three seconds. |
+| `Dialog` | `open`, `onOpenChange`, `title`, `description`, `width` (440 px), children, `footer`, `className`. The Close button, Escape and scrim close it unless `persistent`; its own footer can complete a persistent operation. |
+| `Sheet` | Dialog's props plus `side` (`left`, `right`, `top`, `bottom`) and `size` (400 px). The body scrolls while its header/footer remain available. |
+| `HoverCard` | `label`, `trigger` slot, children, `delay` (450 ms), `grace` (200 ms), `placement`, `width`, `className`. Hover or focus reveals rich content; the grace period lets the pointer cross into the card. Click/Enter opens it too. This is a popover region, not a tooltip. |
+| `ConfirmPopover` | `label`, `title`, `description`, `confirmLabel`, `cancelLabel`, `destructive`, `onConfirm`, `placement`, `width`. Focus enters the confirmation; Enter accepts, Escape/outside cancels. |
+| `toast` | `toast(title, description='', duration=4000, {tone?, action?, onAction?})`. A newest-first stack expands and pauses on hover/focus. Dismiss or drag sideways to close. Negative duration persists; use it for errors or information that must remain available. Toasts never take focus. `clearToasts()` cancels their timers and closes the stack's notices. |
+| `GuidedTour` | Controlled `open`, `step`, `onStepChange`, `onOpenChange`, `steps`, `doneLabel`, `closeLabel`. Each step has `title`, `body`, optional `target: () => node`, `placement`, `width`, spotlight `padding`, `blockTarget`, `nextLabel`, `backLabel`. Targetless steps appear centrally. Left/Right, Enter and Escape navigate/close; Back/Next/Done and a count remain visible. Targets stay interactive unless `blockTarget` is true. |
+
+![Tooltip with shortcut](img/kit-tooltip.png)
+![Popover](img/kit-popover.png)
+![Hover card](img/kit-hover-card.png)
+![Confirmation popover](img/kit-confirm-popover.png)
+![Toast stack](img/kit-toasts.png)
+![Modal dialog](img/kit-dialog.png)
+![Edge sheet](img/kit-sheet.png)
+![Guided tour](img/kit-tour.png)
+![Dark hover card](img/kit-overlays-dark.png)
+![Dark dialog](img/kit-dialog-dark.png)
+
+Run `GALLERY=overlays zinc run examples/ui/kit-gallery`. Add `OVERLAY=dialog`, `sheet`, `tour`, `hint`, `popover`, `hover`, `confirm` or `toast` to open that
+surface immediately; `GALLERY_DARK=1` starts dark. For a picture, add `ZINC_HEADLESS=1 ZINC_FRAMES=25
+ZINC_SHOT=docs/img/kit-overlays.png`.
 
 ## Limits
 

@@ -48,3 +48,6 @@ single gallery storage key only on request, report errors in the status bar and 
 (horizontal, vertical, logarithmic, marked and range), filter chips, a removable chip and a clearable star rating.
 The radio group skips disabled choices with arrows; slider arrows step (Shift steps ten), Home/End reach bounds,
 and Delete clears the focused rating. `src/sections/selection.tsx` owns this page's local state.
+`GALLERY=overlays` focuses the overlay family: hints, popovers, hover cards, confirmation, dialogs, edge sheets,
+toasts and a guided tour. `OVERLAY=dialog`, `sheet`, `tour`, `hint`, `popover`, `hover`, `confirm` or `toast` opens a surface for a closer look. Hover crosses into
+the rich card; Tab/Enter provides the same path. Toast hover/focus expands and pauses the stack; drag dismisses.

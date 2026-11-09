@@ -40,6 +40,7 @@ function App(): i32 {
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'actions' || env('GALLERY') === 'palette'}><ActionsSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'chrome'}><ChromeSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'selection'}><SelectionSection /></Show>
+      <Show when={env('GALLERY') === 'overlays'}><Section title="Overlays"><OverlaysCard /></Section></Show>
       <Show when={env('GALLERY') === ''}>
       <Section title="Metrics"><StatsRow /></Section>
       <Section title="Controls">
