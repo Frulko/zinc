@@ -1,7 +1,7 @@
 ---
 id: ZN-1085
 title: Dispose focus-within subscriptions before node release
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-11-09 13:53'
 updated_date: '2026-11-09 14:06'
@@ -27,8 +27,8 @@ Primary research: Solid onCleanup https://docs.solidjs.com/reference/lifecycle/o
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 onFocusWithin returns an idempotent registration-specific disposer while existing callers ignoring it remain compatible
-- [ ] #2 Exact regression proves replacement on a reused live node, self/other unsubscribe during dispatch, double disposal and stale disposer after node release/slot reuse across interpreter AOT QuickJS
-- [ ] #3 Public declaration/docs agree; kit workers can clean their subscriptions with existing host.onCleanup without local registry workarounds
+- [x] #2 Exact regression proves replacement on a reused live node, self/other unsubscribe during dispatch, double disposal and stale disposer after node release/slot reuse across interpreter AOT QuickJS
+- [x] #3 Public declaration/docs agree; kit workers can clean their subscriptions with existing host.onCleanup without local registry workarounds
 <!-- AC:END -->
 
 ## Implementation Notes
