@@ -1,0 +1,79 @@
+{
+  "organization": "madewithzinc",
+  "source": "Frulko/zinc",
+  "source_commit": "3dde12a0236bf66ca46a18f254a205cfda2c8111",
+  "phase": "preparation-only",
+  "engine_destination": "madewithzinc/zinc",
+  "repositories": [
+    {
+      "name": "ecosystem",
+      "source_paths": [],
+      "purpose": "Repository map, migration coordination and shared contribution guidance.",
+      "status": "staging",
+      "visibility": "private"
+    },
+    {
+      "name": "website",
+      "source_paths": [
+        "site/"
+      ],
+      "purpose": "Website, navigation and documentation publishing; consumes versioned engine docs and playground artifacts.",
+      "status": "staging",
+      "visibility": "private"
+    },
+    {
+      "name": "examples",
+      "source_paths": [
+        "examples/"
+      ],
+      "purpose": "Learning examples and showcases; excludes Mapper, which has its own product lifecycle.",
+      "status": "staging",
+      "visibility": "private"
+    },
+    {
+      "name": "apps",
+      "source_paths": [
+        "app/"
+      ],
+      "purpose": "Applications and their packaging; excludes Atelier. Engine regression fixtures stay with the engine.",
+      "status": "staging",
+      "visibility": "private"
+    },
+    {
+      "name": "atelier",
+      "source_paths": [
+        "app/atelier/"
+      ],
+      "purpose": "Atelier authoring application, starters and its product release lifecycle.",
+      "status": "staging",
+      "visibility": "private"
+    },
+    {
+      "name": "mapper",
+      "source_paths": [
+        "examples/video/mapper/"
+      ],
+      "purpose": "Projection mapping product: editor, player, assembly and baking tools.",
+      "status": "staging",
+      "visibility": "private"
+    },
+    {
+      "name": "integrations",
+      "source_paths": [
+        "integrations/",
+        "packages/vite-plugin-zinc/"
+      ],
+      "purpose": "Adapters for external tools, devices and editors; no compiler or runtime implementation.",
+      "status": "staging",
+      "visibility": "private"
+    }
+  ],
+  "precedence": [
+    "mapper before examples",
+    "atelier before apps"
+  ],
+  "plugins": {
+    "destination": "madewithzinc/plugin-<name>",
+    "mode": "create on extraction after independent-build proof; not bulk-created"
+  }
+}
