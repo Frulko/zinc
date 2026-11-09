@@ -126,6 +126,37 @@ using ImportFn = bool (*)(const Options& opt, const std::string& name, const std
 
 bool importCopy(const Options&, const std::string&, const std::string& in, const Side&, const Opts&, std::string& out, std::string&) { out = in; return true; }
 
+}  // namespace
+}  // namespace zn::assets
+extern "C" const char* zn_assets_encode_qoa(const void* src, std::size_t size, unsigned channels, unsigned rate, unsigned char** out, unsigned* outLen);   // audio_codecs.c
+namespace zn::assets {
+namespace {
+
+/** A sound (WAV, FLAC, MP3, Ogg Vorbis) encoded for the target (ZN-440.01): `codec` qoa (the default; 3.2 bits a sample, decoded a frame at a time
+ *  by zinc:audio), `rate` (Hz, 8000 to 192000) and `channels` (1 mixes down, 2) when set, else the source's. The entry keeps the source's name, so
+ *  the program loads 'sfx/coin.wav' whatever the target stores. */
+bool importAudio(const Options&, const std::string&, const std::string& in, const Side&, const Opts& o, std::string& out, std::string& err) {
+  const std::string codec = o.count("codec") ? o.at("codec") : "qoa";
+  if (codec != "qoa") { err = "codec \"" + codec + "\" is not one the audio importer writes: qoa (copy the file to keep it as it is)"; return false; }
+  auto number = [&](const char* key, unsigned lo, unsigned hi, unsigned& v) {
+    v = 0;
+    if (!o.count(key)) return true;
+    char* end = nullptr;
+    const unsigned long n = std::strtoul(o.at(key).c_str(), &end, 10);
+    if (end && *end == '\0' && n >= lo && n <= hi) { v = static_cast<unsigned>(n); return true; }
+    err = std::string(key) + " must be a whole number from " + std::to_string(lo) + " to " + std::to_string(hi) + ", not " + o.at(key);
+    return false;
+  };
+  unsigned channels = 0, rate = 0;
+  if (!number("channels", 1, 2, channels) || !number("rate", 8000, 192000, rate)) return false;
+  unsigned char* q = nullptr;
+  unsigned n = 0;
+  if (const char* why = zn_assets_encode_qoa(in.data(), in.size(), channels, rate, &q, &n)) { err = why; return false; }
+  out.assign(reinterpret_cast<const char*>(q), n);
+  std::free(q);
+  return true;
+}
+
 void put16(std::string& o, unsigned v) { o += static_cast<char>(v & 0xff); o += static_cast<char>(v >> 8); }
 unsigned scaleTo(unsigned v, unsigned max) { return (v * max + 127) / 255; }
 
@@ -177,6 +208,7 @@ struct Importer { const char* id; int version; Kind kind; ImportFn run; };
 // A tile map's artifact is its table, the entry <map>.tilemap, and the frames of its tiles, which go to their atlas like a sprite's (tilemap.h).
 const Importer kImporters[] = {
   {"copy", 1, Kind::Data, importCopy},
+  {"audio", 1, Kind::Data, importAudio},   // a sound encoded at pack time (QOA): its entry keeps its name and is stored as it is (zpk::readInPlace)
   {"image", 1, Kind::Image, importImage},
   {"sprite", 1, Kind::Image, importSpriteFile},
   {"tilemap", 1, Kind::Data, importTilemapFile},
@@ -326,6 +358,23 @@ bool splash(const Splash& s, const std::string& cacheDir, const std::string& too
   return true;
 }
 
+std::string soundCodec(std::string_view h) {
+  auto at = [&](std::size_t i, const char* tag) { return h.size() >= i + 4 && h.compare(i, 4, tag) == 0; };
+  auto le = [&](std::size_t i, int n) { unsigned v = 0; for (int k = n - 1; k >= 0; --k) v = v << 8 | static_cast<unsigned char>(h[i + k]); return v; };
+  if (at(0, "qoaf")) return "qoa";
+  if (at(0, "fLaC")) return "flac";
+  if (at(0, "OggS")) return h.find("OpusHead") != std::string_view::npos ? "opus" : "vorbis";
+  if (at(4, "ftyp")) return "aac";
+  if (at(0, "ID3") || (h.size() >= 2 && static_cast<unsigned char>(h[0]) == 0xff && (static_cast<unsigned char>(h[1]) & 0xe0) == 0xe0)) return "mp3";
+  if (!at(0, "RIFF") || !at(8, "WAVE")) return "";
+  for (std::size_t i = 12; i + 10 <= h.size(); i += 8 + le(i + 4, 4) + (le(i + 4, 4) & 1)) {   // the chunks, to "fmt "
+    if (!at(i, "fmt ")) continue;
+    const unsigned tag = le(i + 8, 2);
+    return tag == 1 || tag == 0xfffe ? "pcm" : tag == 3 ? "pcm-float" : tag == 0x11 ? "ima-adpcm" : tag == 2 ? "ms-adpcm" : "wav";
+  }
+  return "wav";
+}
+
 std::string importerFor(const std::string& name, const std::vector<Rule>& rules) {
   std::string id;
   for (const auto* list : {&builtinRules(), &rules})
@@ -418,7 +467,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
     if (o.count("skip") && o.at("skip") == "true") continue;   // not on this target
     if (id == "copy" && fs::path(name).extension() == ".json") { std::string json; if (readFile(fs::path(opt.sourceDir)/name,json) && hasSceneWorld(json)) id="scene"; }
     const Importer* imp = findImporter(id);
-    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture, model, world, shader)"; return false; }
+    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture, model, world, shader, audio)"; return false; }
     if (imp->run == importTextureFile || bundles(imp->run)) {   // the target's profile, unless the rule says: part of the key, so each profile has its own artifact
       const std::string pre = bundles(imp->run) ? "texture." : "";   // a model's or a world's textures, as a texture rule's
       auto prof = [&](const char* k) { auto it = opt.targetProfile.find(k); return it == opt.targetProfile.end() ? std::string() : it->second; };
@@ -520,6 +569,16 @@ bool build(const Options& opt, Report& report, std::string& err) {
         head.resize(static_cast<std::size_t>(std::max<std::streamsize>(0, in.gcount())));
       }
       describeImage(head, report.items.back().format, report.items.back().gpuBytes);
+    }
+    if (e.imp->run == importAudio || zpk::readInPlace(e.name)) {   // a sound: its codec, from the artifact's first bytes
+      std::string head = e.data.substr(0, 512);
+      if (!e.loaded) {
+        std::ifstream in(artifactPath(opt.cacheDir, e.key), std::ios::binary);
+        head.resize(512);
+        in.read(head.data(), 512);
+        head.resize(static_cast<std::size_t>(std::max<std::streamsize>(0, in.gcount())));
+      }
+      report.items.back().codec = soundCodec(head);
     }
     if (bundles(e.imp->run)) {   // its entries, and the GPU bytes of its textures, from the bundle's directory (a cached one: read in place)
       auto bytesAt = [&](std::uint64_t off, std::size_t n) {
@@ -657,7 +716,8 @@ std::string reportJson(const Options& opt, const Report& r) {
     s += std::string(i ? "," : "") + "\n    {\"name\": " + jsonString(it.name) + ", \"importer\": " + jsonString(it.importer) + ", \"group\": " + jsonString(it.group) +
          ", \"sourceBytes\": " + std::to_string(it.sourceBytes) + ", \"outputBytes\": " + std::to_string(it.outputBytes) + ", \"ms\": " + ms(it.ms) +
          ", \"cached\": " + (it.cached ? "true" : "false") + ", \"packBytes\": " + std::to_string(it.packBytes) +
-         (it.format.empty() ? std::string() : ", \"format\": " + jsonString(it.format) + ", \"gpuBytes\": " + std::to_string(it.gpuBytes)) + "}";
+         (it.format.empty() ? std::string() : ", \"format\": " + jsonString(it.format) + ", \"gpuBytes\": " + std::to_string(it.gpuBytes)) +
+         (it.codec.empty() ? std::string() : ", \"codec\": " + jsonString(it.codec)) + "}";
   }
   s += std::string(r.items.empty() ? "" : "\n  ") + "],\n  \"packs\": [";
   std::uint64_t packBytes = 0;
@@ -669,7 +729,12 @@ std::string reportJson(const Options& opt, const Report& r) {
   }
   s += std::string(r.packs.empty() ? "" : "\n  ") + "],\n  \"totals\": {\"assets\": " + std::to_string(r.items.size()) + ", \"imported\": " + std::to_string(r.imported) +
        ", \"sourceBytes\": " + std::to_string(src) + ", \"outputBytes\": " + std::to_string(outBytes) + ", \"packBytes\": " + std::to_string(packBytes) + ", \"gpuBytes\": " + std::to_string(gpu) +
-       ", \"ms\": " + ms(r.ms) + "}\n}\n";
+       ", \"ms\": " + ms(r.ms);
+  std::map<std::string, std::uint64_t> codecs;   // what the sounds of each codec take in the packs
+  for (const Item& it : r.items) if (!it.codec.empty()) codecs[it.codec] += it.packBytes;
+  s += ", \"codecs\": {";
+  for (auto c = codecs.begin(); c != codecs.end(); ++c) s += std::string(c == codecs.begin() ? "" : ", ") + jsonString(c->first) + ": " + std::to_string(c->second);
+  s += "}}\n}\n";
   return s;
 }
 

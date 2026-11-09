@@ -56,8 +56,9 @@ struct Options {
   Splash splash;              // on: its entry goes into boot.zpk (a pack of the splash alone when no group is named boot)
 };
 
-/** packBytes: what its entry takes in its pack (compressed); format and gpuBytes, for an image: its layout and what its texels take on the GPU. */
-struct Item { std::string name, importer, group; std::uint64_t sourceBytes = 0, outputBytes = 0; double ms = 0; bool cached = false; std::string format; std::uint64_t gpuBytes = 0, packBytes = 0; };
+/** packBytes: what its entry takes in its pack (compressed); format and gpuBytes, for an image: its layout and what its texels take on the GPU;
+ *  codec, for a sound: how it is stored (qoa, pcm, ima-adpcm, flac, mp3, vorbis, opus...; soundCodec). */
+struct Item { std::string name, importer, group; std::uint64_t sourceBytes = 0, outputBytes = 0; double ms = 0; bool cached = false; std::string format; std::uint64_t gpuBytes = 0, packBytes = 0; std::string codec; };
 struct Pack { std::string file, group; std::size_t entries = 0; std::uint64_t bytes = 0; };
 struct Report { std::vector<Item> items; std::vector<Pack> packs; std::size_t imported = 0; double ms = 0; };
 
@@ -75,6 +76,10 @@ bool readReport(const std::string& path, std::map<std::string, GroupSize>& group
 void cleanCache(const std::string& cacheDir, std::size_t& files, std::uint64_t& bytes);
 /** 1.4 MB, 96 KB, 512 B (KB = 1024 B, as zinc.json budgets): a size a person reads. */
 std::string humanSize(std::uint64_t bytes);
+
+/** The codec of a sound file from its first bytes (512 are enough): qoa, pcm, pcm-float, ima-adpcm, ms-adpcm, wav (another WAV coding), flac,
+ *  vorbis, opus, mp3, aac; "" for anything else. */
+std::string soundCodec(std::string_view head);
 
 /** The importer the rules (after the built-in ones) give the asset `name` (relative to the assets directory, '/' separated), as build() picks it. */
 std::string importerFor(const std::string& name, const std::vector<Rule>& rules);

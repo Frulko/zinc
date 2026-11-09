@@ -7,6 +7,8 @@
 #define STB_VORBIS_HEADER_ONLY
 #include "../vendor/stb_vorbis.c"   // only to size a Vorbis decoder's memory (loadMusic): the code is in miniaudio_impl.c
 #undef STB_VORBIS_HEADER_ONLY
+#define QOA_NO_STDIO
+#include "../vendor/qoa.h"         // declarations: the code is in miniaudio_impl.c
 #ifdef __APPLE__
 #include <AudioToolbox/ExtendedAudioFile.h>
 #endif
@@ -114,6 +116,84 @@ ma_result prog_format(ma_data_source* ds, ma_format* f, ma_uint32* ch, ma_uint32
 ma_result prog_cursor(ma_data_source* ds, ma_uint64* c) { *c = ((Prog*)ds)->cursor; return MA_SUCCESS; }
 ma_result prog_length(ma_data_source* ds, ma_uint64* l) { *l = ((Prog*)ds)->clip->frames; return MA_SUCCESS; }
 ma_data_source_vtable prog_vtable = {prog_read, prog_seek, prog_format, prog_cursor, prog_length, nullptr, 0};
+
+// QOA (ZN-440.01): the sounds the asset build encodes ("as": "audio" rules; "qoaf", vendor/qoa.h) as a decoding backend of miniaudio, so load()
+// and loadMusic() read them as they read a WAV. A file is frames of 5120 samples per channel decoded alone (each carries its
+// predictor's state): a frame is decoded when the cursor enters it, into one frame of 16-bit samples, the only memory it holds; a seek is the
+// frame's offset (every frame but the last is full, so its offset is arithmetic) and a skip into it.
+struct Qoa {
+  ma_data_source_base base;   // first: miniaudio sees it as a data source
+  const unsigned char* data;
+  size_t size;
+  qoa_desc desc;
+  short* frame;               // the decoded frame the cursor is in
+  ma_uint64 cursor, at;       // the next sample to read; the first sample of `frame` (~0: none decoded)
+  unsigned len;               // samples per channel in `frame`
+};
+ma_result qd_read(ma_data_source* ds, void* out, ma_uint64 frames, ma_uint64* read) {
+  Qoa* q = (Qoa*)ds;
+  const unsigned ch = q->desc.channels;
+  ma_uint64 n = 0;
+  while (n < frames && q->cursor < q->desc.samples) {
+    const ma_uint64 f = q->cursor / QOA_FRAME_LEN * QOA_FRAME_LEN;
+    if (q->at != f) {
+      const size_t off = 8 + (size_t)(f / QOA_FRAME_LEN) * QOA_FRAME_SIZE(ch, QOA_SLICES_PER_FRAME);
+      q->len = 0;
+      if (off < q->size) qoa_decode_frame(q->data + off, (unsigned)(q->size - off), &q->desc, q->frame, &q->len);
+      if (!q->len) break;   // a damaged file ends there
+      q->at = f;
+    }
+    const ma_uint64 in = q->cursor - f;
+    if (in >= q->len) break;
+    ma_uint64 k = q->len - in;
+    if (k > frames - n) k = frames - n;
+    memcpy((short*)out + n * ch, q->frame + in * ch, (size_t)k * ch * sizeof(short));
+    n += k;
+    q->cursor += k;
+  }
+  if (read) *read = n;
+  return n == 0 ? MA_AT_END : MA_SUCCESS;
+}
+ma_result qd_seek(ma_data_source* ds, ma_uint64 f) { Qoa* q = (Qoa*)ds; q->cursor = f < q->desc.samples ? f : q->desc.samples; return MA_SUCCESS; }
+ma_result qd_format(ma_data_source* ds, ma_format* f, ma_uint32* ch, ma_uint32* rate, ma_channel* map, size_t cap) {
+  Qoa* q = (Qoa*)ds;
+  if (f) *f = ma_format_s16;
+  if (ch) *ch = q->desc.channels;
+  if (rate) *rate = q->desc.samplerate;
+  if (map) ma_channel_map_init_standard(ma_standard_channel_map_default, map, cap, q->desc.channels);
+  return MA_SUCCESS;
+}
+ma_result qd_cursor(ma_data_source* ds, ma_uint64* c) { *c = ((Qoa*)ds)->cursor; return MA_SUCCESS; }
+ma_result qd_length(ma_data_source* ds, ma_uint64* l) { *l = ((Qoa*)ds)->desc.samples; return MA_SUCCESS; }
+ma_data_source_vtable qd_vtable = {qd_read, qd_seek, qd_format, qd_cursor, qd_length, nullptr, 0};
+ma_result qd_init_stream(void*, ma_read_proc, ma_seek_proc, ma_tell_proc, void*, const ma_decoding_backend_config*, const ma_allocation_callbacks*, ma_data_source**) { return MA_NOT_IMPLEMENTED; }   // bytes in memory only (the clip, the mapped pack)
+ma_result qd_init_memory(void*, const void* data, size_t size, const ma_decoding_backend_config*, const ma_allocation_callbacks* a, ma_data_source** out) {
+  qoa_desc d{};
+  if (size > 0x7fffffff || !qoa_decode_header((const unsigned char*)data, (int)size, &d)) return MA_INVALID_FILE;
+  Qoa* q = (Qoa*)ma_malloc(sizeof(Qoa), a);
+  short* frame = (short*)ma_malloc((size_t)QOA_FRAME_LEN * d.channels * sizeof(short), a);
+  ma_data_source_config c = ma_data_source_config_init();
+  c.vtable = &qd_vtable;
+  if (!q || !frame || ma_data_source_init(&c, &q->base) != MA_SUCCESS) { ma_free(frame, a); ma_free(q, a); return MA_OUT_OF_MEMORY; }
+  q->data = (const unsigned char*)data; q->size = size; q->desc = d; q->frame = frame; q->cursor = 0; q->at = ~(ma_uint64)0; q->len = 0;
+  *out = &q->base;
+  return MA_SUCCESS;
+}
+void qd_uninit(void*, ma_data_source* ds, const ma_allocation_callbacks* a) {
+  Qoa* q = (Qoa*)ds;
+  ma_data_source_uninit(&q->base);
+  ma_free(q->frame, a);
+  ma_free(q, a);
+}
+ma_decoding_backend_vtable qoa_backend = {qd_init_stream, nullptr, nullptr, qd_init_memory, qd_uninit};
+ma_decoding_backend_vtable* backends[] = {&qoa_backend};
+// A decoder's settings: float samples (`channels` and `rate` 0: the file's), and the QOA backend before miniaudio's own.
+ma_decoder_config decoding(ma_uint32 channels, ma_uint32 rate) {
+  ma_decoder_config c = ma_decoder_config_init(ma_format_f32, channels, rate);
+  c.ppCustomBackendVTables = backends;
+  c.customBackendCount = 1;
+  return c;
+}
 // the decoding thread of a long file: chunks of 4096 frames, `filled` published after each; the decoder and the file's copy go when it ends
 void* decode_thread(void* arg) {
   Clip* c = (Clip*)arg;
@@ -321,7 +401,7 @@ bool music_open_file(Music& m) {
   }
   return true;
 #else
-  ma_decoder_config dc = ma_decoder_config_init(ma_format_f32, 2, RATE);
+  ma_decoder_config dc = ma_decoder_config_init(ma_format_f32, 2, RATE);   // ponytail: no QOA from a file on disk (its backend reads memory); a QOA song is an asset (loadMusic)
   if (ma_decoder_init_file(m.path, &dc, &m.dec) != MA_SUCCESS) { snprintf(m.err, sizeof m.err, "%s: not a WAV, FLAC, MP3 or Ogg Vorbis file", m.path); return false; }
   ma_uint64 len = 0;
   ma_decoder_get_length_in_pcm_frames(&m.dec, &len);
@@ -496,7 +576,7 @@ struct HostAudio : NativeAudio {
     // end of a sound in any other format (ma_engine_node_process_pcm_frames__sound marks the sound ended while the last
     // converted frames, up to 512, still wait in its cache), so a 16-bit clip under 11 ms would never be heard.
     // ponytail: 8 bytes per stereo frame in memory, 21 MB per minute at 44.1 kHz (a long file is decoded on a thread, see Clip; openMusic never keeps it)
-    ma_decoder_config dc = ma_decoder_config_init(ma_format_f32, 0, 0);
+    ma_decoder_config dc = decoding(0, 0);
     if (bytes.a->len >= 262144 && memcmp(bytes.a->data, "RIFF", 4)) {   // a long compressed file: its decode (15 s of a 4 MB MP3 on a Pi 3) is not waited for
       void* file = malloc((size_t)bytes.a->len);   // the program's array may go once load() returns
       ma_decoder* d = (ma_decoder*)malloc(sizeof(ma_decoder));
@@ -516,14 +596,14 @@ struct HostAudio : NativeAudio {
       }
       free(file);
       free(d);
-      dc = ma_decoder_config_init(ma_format_f32, 0, 0);   // anything else: decoded whole, as a short file is
+      dc = decoding(0, 0);   // anything else: decoded whole, as a short file is
     }
     ma_uint64 frames = 0;
     void* pcm = nullptr;
     ma_result r = ma_decode_memory(bytes.a->data, (size_t)bytes.a->len, &dc, &frames, &pcm);
     if (r != MA_SUCCESS || !pcm || frames == 0) {
       if (pcm) ma_free(pcm, nullptr);
-      return fail(r == MA_OUT_OF_MEMORY ? "out of memory" : "not a WAV, FLAC, MP3 or Ogg Vorbis file");
+      return fail(r == MA_OUT_OF_MEMORY ? "out of memory" : "not a WAV, FLAC, MP3, Ogg Vorbis or QOA file");
     }
     clips[h] = Clip{pcm, frames, dc.channels, dc.sampleRate};
     return h;
@@ -785,11 +865,11 @@ struct HostAudio : NativeAudio {
     const unsigned char* d = zn_asset_view(name.ptr(), (uint32_t)name.bytes(), &size, &why);
     if (!d) return fail(why);
     m.heap = Heap{};
-    ma_decoder_config dc = ma_decoder_config_init(ma_format_f32, 0, 0);
+    ma_decoder_config dc = decoding(0, 0);
     dc.allocationCallbacks = counted(&m.heap);
     if (ma_decoder_init_memory(d, (size_t)size, &dc, &m.adec) != MA_SUCCESS) {
       zn_asset_unview(d);
-      return fail("not a WAV, FLAC, MP3 or Ogg Vorbis file");
+      return fail("not a WAV, FLAC, MP3, Ogg Vorbis or QOA file");
     }
     const size_t before = __atomic_load_n(&engineHeap.now, __ATOMIC_RELAXED);
     const ma_uint32 flags = MA_SOUND_FLAG_NO_SPATIALIZATION | (m.adec.outputSampleRate == RATE ? MA_SOUND_FLAG_NO_PITCH : 0);   // a resampler only off 48 kHz

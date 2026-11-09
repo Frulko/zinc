@@ -2337,6 +2337,14 @@ struct Checker {
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "random" && args.empty()) return rewrite("__mathRandom()", {});
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "seed" && args.size() == 1) return rewrite("__mathSeed(__H0)", {{args[0]}});
       const bool spread = std::any_of(args.begin(), args.end(), [&](std::uint32_t g) { return n(g).kind == N::Spread; });
+      if (on == "String" && isBuiltin(cn.kids[0], "String") && (m == "fromCharCode" || m == "fromCodePoint") && args.size() != 1 && !spread) {
+        // String.fromCharCode(a, b, c): one string of the codes, as JavaScript's (the runtime makes one code at a time); () is ''
+        if (args.empty()) return rewrite("''", {});
+        std::string text;
+        std::vector<std::vector<std::uint32_t>> holes;
+        for (std::size_t k = 0; k < args.size(); ++k) { text += (k ? " + String." : "String.") + std::string(m) + "(__H" + std::to_string(k) + ")"; holes.push_back({args[k]}); }
+        return rewrite(text, holes);
+      }
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && (m == "min" || m == "max" || m == "hypot") && (args.size() != 2 || spread)) {
         std::string nm(m);
         const std::string initial = nm == "hypot" ? "0" : nm == "max" ? "-Infinity" : "Infinity";

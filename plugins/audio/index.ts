@@ -81,7 +81,7 @@ function made(h: i32, what: string): Sound {
   return new Sound(-1, why);
 }
 
-/** A sound from the bytes of a WAV, FLAC, MP3 or Ogg Vorbis file, decoded now and kept in memory. */
+/** A sound from the bytes of a WAV, FLAC, MP3, Ogg Vorbis or QOA file, decoded now and kept in memory. */
 export function decode(bytes: u8[], name: string = 'sound'): Sound { return made(A.load(bytes), name); }
 
 /** A sound from samples (1 = full scale; two channels interleaved: left, right, left...) at `rate` frames per second. */
@@ -172,7 +172,8 @@ export class Music {
  *  WAV, FLAC, MP3 and Ogg Vorbis elsewhere. It is read a few seconds ahead as it plays; four are open at most. */
 export function openMusic(path: string): Music { return new Music(A.musicOpen(path), path); }
 /** A music of the project's assets, streamed: read in place from its pack (or the assets directory) and decoded as it plays, a few kilobytes
- *  in memory whatever its length (an IMA ADPCM WAV: under 16 KB; Ogg Vorbis about 200 KB). WAV, FLAC, MP3 and Ogg Vorbis. Paused, ready at once. */
+ *  in memory whatever its length (an IMA ADPCM WAV: under 16 KB; a stereo QOA: 24 KB; Ogg Vorbis about 200 KB). WAV, FLAC, MP3, Ogg Vorbis and QOA.
+ *  Paused, ready at once. */
 export function loadMusic(name: string): Music { return new Music(A.musicAsset(name), name); }
 
 let master: number = 1;

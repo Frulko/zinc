@@ -138,9 +138,9 @@ interface String {
 interface StringConstructor {
   /** ToString, like a template literal. */
   (value?: unknown): string;
-  fromCharCode(c: i32): string;
-  /** One code point (more than one argument is not supported yet); a value past U+10FFFF traps with a RangeError. */
-  fromCodePoint(c: i32): string;
+  fromCharCode(...codes: i32[]): string;
+  /** The code points, one after the other; a value past U+10FFFF traps with a RangeError. */
+  fromCodePoint(...codes: i32[]): string;
   /** Only as a tag: String.raw`a\n${x}` is the template with its escapes left as written. */
   raw(template: TemplateStringsArray, ...substitutions: unknown[]): string;
 }

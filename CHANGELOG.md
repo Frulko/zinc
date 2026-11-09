@@ -61,6 +61,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc:audio` fades a sound out for you: `voice.stop(0, 2)` lowers that one voice to silence over two seconds and stops it, smoothly to the sample, with no volume to step each frame (on the web, a Web Audio ramp).
 - `zinc:audio` streams a game's music from its assets with `loadMusic('music/theme.wav')`: read from the pack as it plays, it keeps a few kilobytes in memory whatever its length (under 5 KB for an IMA ADPCM WAV, about 230 KB for Ogg Vorbis, shown by `music.memory`), and `music.loop` repeats it without a gap, for `openMusic` too. Packs keep sound files uncompressed so they can be read in place.
 - `zinc:audio` pauses one sound and picks it up where it was: `voice.pause()` and `voice.resume()`, on the desktop, the consoles and the web; the museum table's guided visit now goes on mid-sentence after a touch pauses it.
+- Sounds can be shrunk at pack time: an `"as": "audio"` rule in `zinc.json` encodes them to QOA, about a fifth of their WAV size, at the `rate` and `channels` you ask (per target with `targets`); `load()` and `loadMusic()` play them under the same names (a streamed QOA track holds 24 KB), and `report.json` gives each sound's codec and the bytes of each codec.
 
 #### Changed
 
@@ -225,6 +226,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc:mqtt` works on `--engine quickjs`: connecting, subscribing, publishing and closing were missing there.
 - Compiler fixes: a local variable no longer stops the narrowing of a top-level one of the same name in other functions (nor does a function written above the top-level declaration), the errors inside a lambda that initialises a class field are reported, a `catch` callback that only rethrows keeps the promise's type, and a union the engine cannot hold yet is an error instead of a crash.
 - A field, `readonly` or not, that the constructor assigns in both branches of an `if`/`else` (or in one branch, the other throwing) counts as initialized, as in TypeScript, instead of failing with Z0111.
+- `String.fromCharCode` and `String.fromCodePoint` take several codes, as in JavaScript (`String.fromCharCode(104, 105)` is `'hi'`), instead of refusing more than one.
 
 ### Developer tools
 

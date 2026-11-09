@@ -32,5 +32,6 @@ const t0 = Date.now();
 let sum = 0;
 for (let i = 0; i < big.length; i++) sum += big.charCodeAt(i);
 const ms = Date.now() - t0;
+console.log(`[${String.fromCharCode(104, 105, 0x20ac)}][${String.fromCharCode()}][${String.fromCodePoint(0x1f600, 33)}]`);
 console.log('big ' + big.length + ' ' + sum);
 console.log(ms < 1000 ? 'linear' : 'slow: ' + ms + ' ms');

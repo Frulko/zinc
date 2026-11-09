@@ -6,8 +6,8 @@
 // The mix is rendered on the program's thread, when the HAL asks at the end of a frame (zn_console_audio_render), never on an audio thread: the
 // program's calls and the mix never race, and the HAL's own thread (if it has one) only copies finished samples. Without an output (the headless
 // core of the T0 tests) nothing pulls the mix but mix(), as on the desktop's null backend.
-// load() takes PCM WAV (8 or 16 bits, mono or stereo) and Ogg Vorbis (stb_vorbis, the decoder plugins/audio vendors); FLAC and MP3 play on a
-// desktop.
+// load() takes PCM WAV (8 or 16 bits, mono or stereo), Ogg Vorbis (stb_vorbis, the decoder plugins/audio vendors) and QOA (qoa.h, what the asset
+// build's audio importer writes); FLAC and MP3 play on a desktop.
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -16,6 +16,8 @@
 
 #include "console_audio.h"
 #include "zn/native.h"
+#define QOA_NO_STDIO
+#include "../../plugins/audio/vendor/qoa.h"   // the code: qoa_console.c
 
 extern "C" int stb_vorbis_decode_memory(const unsigned char* mem, int len, int* channels, int* sample_rate, short** output);   // stb_vorbis.c
 
@@ -177,7 +179,16 @@ int loadWav(const uint8_t* d, size_t n) {
     std::free(pcm);
     return h;
   }
-  if (n < 12 || std::memcmp(d, "RIFF", 4) || std::memcmp(d + 8, "WAVE", 4)) return fail("a console core plays WAV (PCM, 8 or 16 bits) and Ogg Vorbis files; FLAC and MP3 play on a desktop");
+  if (n >= 4 && !std::memcmp(d, "qoaf", 4)) {   // QOA, decoded whole
+    qoa_desc q{};
+    short* pcm = n <= 0x7fffffff ? qoa_decode(d, static_cast<int>(n), &q) : nullptr;
+    if (!pcm || q.channels < 1 || q.channels > 2 || q.samplerate < 8000 || q.samplerate > 192000) { std::free(pcm); return fail("not a QOA file of 1 or 2 channels this decoder reads"); }
+    const int h = newClip(static_cast<int>(q.channels), static_cast<int>(q.samplerate), q.samples);
+    if (h >= 0) for (size_t i = 0; i < static_cast<size_t>(q.samples) * q.channels; i++) clips[h].pcm[i] = pcm[i] / 32768.0f;
+    std::free(pcm);
+    return h;
+  }
+  if (n < 12 || std::memcmp(d, "RIFF", 4) || std::memcmp(d + 8, "WAVE", 4)) return fail("a console core plays WAV (PCM, 8 or 16 bits), Ogg Vorbis and QOA files; FLAC and MP3 play on a desktop");
   int ch = 0, rate = 0, bits = 0, fmt = 0;
   for (size_t at = 12; at + 8 <= n;) {
     const uint32_t len = le(d + at + 4, 4);

@@ -2,5 +2,6 @@ charCodeAt 142575074
 codePointAt 739647337
 slices 18 367350752
 indexOf 417 79 30 true 90
+[hi€][][😀!]
 big 1000000 106640625
 linear

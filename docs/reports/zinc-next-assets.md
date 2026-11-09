@@ -75,6 +75,7 @@ matches a path applies in order, a later one overriding an earlier one's options
 | `tilemap` | a Tiled or LDtk map (below): its table `<map>.tilemap`; the tiles it uses are frames of an atlas |
 | `texture` | a GPU texture (below): resized for the target, mipmapped, premultiplied, in the format the target's profile prefers (a block format through basisu) |
 | `model` | a glTF or GLB model (below) through gltfpack: a quantised GLB compressed with `EXT_meshopt_compression` for three, or a `.zmesh` for zinc:3d; its embedded images become texture entries of their own; `lods` adds simplified copies |
+| `audio` | a sound (WAV, FLAC, MP3, Ogg Vorbis, read by miniaudio's decoders) encoded at pack time (ZN-440.01): `codec` `qoa` (the default and only one yet: 3.2 bits a sample, about a fifth of 16-bit PCM, frames of 5120 samples decoded alone, so `loadMusic` streams it), `rate` (8000 to 192000 Hz) and `channels` (1 mixes down) when set; the entry keeps the source's name and is stored as it is, so `load('sfx/coin.wav')` reads the QOA a target got. Rule: `{ "match": "sfx/**/*.wav", "as": "audio", "rate": 22050, "channels": 1 }`, per target through `targets` |
 
 Image header (little-endian, `include/zn/zim.h`): `ZIM1`, u8 format (1 rgba8, 2 rgb565, 3 rgba4444, 4 rgba5551; the texture importer's block
 formats 8 bc1, 9 bc3, 10 bc7, 11 etc1, 12 etc2 (RGBA8 EAC), 13 astc (4x4), 14 pvrtc and 15 pvrtca (PVRTC1 4 bpp, RGB and RGBA)), u8 scale,
@@ -260,8 +261,8 @@ of `zinc.json` and `targets/capabilities.json` (above) are shown by `zinc assets
 
 `build/assets/<target>/report.json`: the target and profile; one row per asset (name, importer, group, `sourceBytes`, `outputBytes`, `ms`,
 `cached`, `packBytes`: what its entry takes in its pack; for an image, `format` and `gpuBytes`: what its levels take on the GPU, a KTX2 file
-counted as transcoded to 16-byte blocks, 8 for opaque ETC1S); one row per pack (file, group, entries, bytes); totals (assets, imported, bytes,
-`gpuBytes`, `ms`). `zinc assets build` prints one line with the
+counted as transcoded to 16-byte blocks, 8 for opaque ETC1S; for a sound, `codec`: qoa, pcm, ima-adpcm, flac, mp3, vorbis, opus...); one row per
+pack (file, group, entries, bytes); totals (assets, imported, bytes, `gpuBytes`, `ms`, and `codecs`: the pack bytes of the sounds of each codec). `zinc assets build` prints one line with the
 same totals.
 
 ## At run time: `zinc:assets` v2

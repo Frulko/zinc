@@ -7,7 +7,7 @@ export interface Spec extends NativeModule {
    *  (ZINC_HEADLESS, ZINC_DETERMINISTIC, ZINC_AUDIO=null, or no playback device). The output opens in the background
    *  from the first load() or tone(); this call waits until it is known. */
   backend(): string;
-  /** Decodes a whole WAV, FLAC, MP3 or Ogg Vorbis file into memory (float samples). A sound handle, or -1 (see error()). */
+  /** Decodes a whole WAV, FLAC, MP3, Ogg Vorbis or QOA file into memory (float samples). A sound handle, or -1 (see error()). */
   load(bytes: u8[]): i32;
   /** A generated sound: wave 0 sine, 1 square, 2 triangle, 3 sawtooth, 4 white noise; peak 0.5, with a 5 ms fade at
    *  both ends so it does not click. A sound handle, or -1 (see error()). */
@@ -86,7 +86,7 @@ export interface Spec extends NativeModule {
   musicSeek(music: i32, seconds: f64): void;
   /** A music from an asset: the entry `name` of a mounted pack, stored as it is (the asset build keeps sound files so), or a file of the assets
    *  directory, read in place from its mapping and decoded on the mixer's thread as the mix asks for it, never whole: WAV (PCM and IMA ADPCM),
-   *  FLAC, MP3, Ogg Vorbis. Open at once (status 1). A music handle, or -1 (see error()). */
+   *  FLAC, MP3, Ogg Vorbis, QOA. Open at once (status 1). A music handle, or -1 (see error()). */
   musicAsset(name: string): i32;
   /** Whether a music starts again from its beginning at its end, without a gap. */
   musicLoop(music: i32, on: boolean): void;

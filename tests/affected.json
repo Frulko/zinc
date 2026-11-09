@@ -605,6 +605,7 @@
     {"paths": ["plugins/audio/", "tests/golden/audio/"], "tests": ["audio", "webenv_audio", "audio_music"]},
     {"paths": ["plugins/audio/", "targets/console/audio_console.cpp", "tests/t0/audio_fade.sh"], "tests": ["audio_fade"]},
     {"paths": ["plugins/audio/", "src/host/assets_host.cpp", "src/host/sys_host.cpp", "src/zpk/", "include/zn/runtime.h", "tests/t0/audio_stream_pack.sh"], "tests": ["audio_stream_pack"]},
+    {"paths": ["plugins/audio/", "src/assets/assets.cpp", "src/assets/audio_codecs.c", "tests/t0/audio_import.sh"], "tests": ["audio_import"]},
     {"paths": ["tests/data/audio-music/", "tests/golden/audio-music.out", "tests/t1/audio_music.sh"], "tests": ["audio_music"]},
     {"paths": ["plugins/midi/", "examples/midi/", "tests/data/midi/"], "tests": ["midi"]},
     {"paths": ["plugins/photos/", "examples/photos/", "tests/golden/host/photos_session.ts", "tests/t1/photos.sh"], "tests": ["photos"]},
