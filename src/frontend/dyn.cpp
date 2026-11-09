@@ -134,6 +134,25 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
           if (!m->readonly) set += "      case '" + m->name + "': v." + m->name + " = " + fromExpr(m->type, "w") + "; break;\n";
           hasExpr += (hasExpr.empty() ? "" : " || ") + std::string("n === '") + m->name + "'";
         }
+        // the public methods (overrides first): a function bound to the object, its arguments converted from the any values, its result boxed
+        // ponytail: every parameter is passed, so a missing argument of a defaulted number parameter throws; per-arity calls if a program needs them
+        std::set<std::string> seenM;
+        for (std::uint32_t o = x.obj; o != 0xFFFFFFFFu; o = c.objs[o].parent)
+          for (const Member& m : c.objs[o].members) {
+            if (!m.method || m.getter || m.isStatic || m.access != 0 || !isIdentName(m.name) || m.name.rfind("__", 0) == 0 || m.name == "constructor") continue;
+            if (!seenM.insert(m.name).second || c.types[m.type].k != TK::Func) continue;
+            const Type f = c.types[m.type];
+            const bool isVoid = c.types[f.elem].k == TK::Void;
+            bool ok = !f.rest && (isVoid || dynConvertible(c, f.elem));
+            for (TypeId p : f.params) ok = ok && dynConvertible(c, p);
+            if (!ok) continue;
+            std::string call = "v." + m.name + "(";
+            for (std::size_t k = 0; k < f.params.size(); ++k) call += (k ? ", " : "") + fromExpr(f.params[k], "__dynArg(a, " + std::to_string(k) + ")");
+            call += ")";
+            get += "      case '" + m.name + "': return new DynFn('" + m.name + "', __identity(o), (a: unknown[]): unknown => " +
+                   (isVoid ? "{ " + call + "; return __undef; }" : toExpr(f.elem, call)) + ");\n";
+            hasExpr += (hasExpr.empty() ? "" : " || ") + std::string("n === '") + m.name + "'";
+          }
         get += "    }\n    return __undef;\n  }";
         set += "    }\n  }";
         if (!hasExpr.empty()) has = "(n: string): boolean => " + hasExpr;
@@ -216,6 +235,12 @@ class DynObj extends Dyn {
   kind(): i32 { return 6; }
   toString(): string { return '[object Object]'; }
 }
+// A method seen through an any (`(o as any).greet`): bound to its object, called with the arguments as any values
+class DynFn extends Dyn {
+  constructor(public name: string, public self: i64, public f: (a: unknown[]) => unknown) { super(); }
+  kind(): i32 { return 8; }
+  toString(): string { return 'function ' + this.name + '() { [native code] }'; }
+}
 abstract class DynRef extends Dyn {
   constructor(public tags: i32[], public className: string) { super(); }
   kind(): i32 { return 7; }
@@ -279,6 +304,7 @@ function __dynTypeName(d: Dyn): string {
   if (k === 3) return 'number';
   if (k === 4) return 'string';
   if (k === 5) return 'array';
+  if (k === 8) return 'function';
   return 'object';
 }
 function __dynTypeof(d: Dyn): string {
@@ -287,7 +313,13 @@ function __dynTypeof(d: Dyn): string {
   if (k === 2) return 'boolean';
   if (k === 3) return 'number';
   if (k === 4) return 'string';
+  if (k === 8) return 'function';
   return 'object';
+}
+// f(...) or d.m(...) on an any value: the function it holds, called with the arguments as any values (`what` names it in the error)
+function __dynCall(f: Dyn, args: unknown[], what: string): unknown {
+  if (f instanceof DynFn) return f.f(args);
+  throw new TypeError(what + ' is not a function');
 }
 function __dynTruthy(d: Dyn): boolean {
   if (d instanceof DynBool) return d.v;
@@ -370,6 +402,7 @@ function __dynLe(a: Dyn, b: Dyn): boolean {
 function __dynGe(a: Dyn, b: Dyn): boolean { return __dynLe(b, a); }
 function __dynSame(a: Dyn, b: Dyn): boolean {
   if (a instanceof DynRef && b instanceof DynRef) return a.identity() === b.identity();
+  if (a instanceof DynFn && b instanceof DynFn) return a.self === b.self && a.name === b.name;   // one method of one object, read twice
   if (a instanceof DynArr && b instanceof DynArr) return __identity(a.items) === __identity(b.items);   // two views of one any[]
   return __identity(a) === __identity(b);
 }
@@ -573,6 +606,7 @@ function __fmtDyn(d: Dyn, c: i64[], lvl: i32): string {
     return __reduce(c, out, __ref(c, id), '{', '}', l, false, false, false);
   }
   if (d instanceof DynRef) return d.fmt(c, lvl);
+  if (d instanceof DynFn) return '[Function: ' + d.name + ']';
   return d.toString();
 }
 function __logDyn(d: Dyn): string {
@@ -600,7 +634,7 @@ function __dynJsonSlow(d: Dyn): string {
     const ks: string[] = __dynKeys(d);   // array indices first, ascending, as JavaScript orders the keys
     for (let i: i32 = 0; i < ks.length; i++) {
       const v: Dyn = d.map.get(ks[i]) ?? __undef;
-      if (v.kind() !== 0) out.push(__jsonQuote(ks[i]) + ':' + __dynJson(v));
+      if (v.kind() !== 0 && v.kind() !== 8) out.push(__jsonQuote(ks[i]) + ':' + __dynJson(v));
     }
     return '{' + out.join(',') + '}';
   }

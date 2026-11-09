@@ -60,7 +60,7 @@ std::vector<std::uint32_t> openClasses(const Checked& c, std::uint32_t rec) {
 std::vector<std::pair<std::uint32_t, const Member*>> addedFields(const Checked& c, std::uint32_t cls) {
   std::vector<std::pair<std::uint32_t, const Member*>> r;
   const ObjInfo& ci = c.objs[cls];
-  if (!ci.isClass || ci.isRecord || ci.isTuple || ci.isTemplate) return r;
+  if (!ci.isClass || ci.isTuple || ci.isTemplate) return r;   // a record too: its literals are shared as a wider record
   std::vector<std::uint32_t> recs;
   for (const auto& [rec, ks] : c.openRecords)
     for (std::uint32_t k : ks)
@@ -224,7 +224,7 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
         body += "  const sub: string | null = " + jsonSubName(t) + "(v);\n  if (sub !== null) return sub;\n";
         extra = "function " + jsonSubName(t) + "(v: " + inspectAliasName(t) + "): string | null {\n  return null;\n}\n";
       }
-      const auto added = oi.isRecord ? std::vector<std::pair<std::uint32_t, const Member*>>{} : addedFieldsAll(c, x.obj);
+      const auto added = addedFieldsAll(c, x.obj);
       bool anyOmit = !added.empty();
       for (const Member* m : fs) anyOmit = anyOmit || (c.types[m->type].k == TK::Union && c.types[m->type].undef);
       if (!anyOmit) {   // every field is written: one concatenation, no array and join per object (ZN-654: jsonout's work -14%)
@@ -351,12 +351,12 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
         const bool omit = plain && m->optional && c.types[m->type].k == TK::Union;   // left out of the literal: JavaScript has no such key
         body += std::string("  ") + (omit ? "if (v." + m->name + " !== null) " : "") + "out.push('" + m->name + ": ' + " + call(m->type, "v." + m->name, "l") + ");\n";
       }
-      if (!plain)   // the optional fields a write through a record added (addedFields): shown once set, after the class's own
-        for (const auto& [rec, m] : addedFieldsAll(c, x.obj)) {
-          const TypeId rt = typeOfObj(c, rec);
-          deps.push_back(rt);
-          body += "  { const e = (v as " + inspectAliasName(rt) + ")." + m->name + ";\n    if (e !== null) out.push('" + m->name + ": ' + " + call(m->type, "e", "l") + ");\n  }\n";
-        }
+      // the optional fields a write through a record added (addedFields): shown once set, after the object's own
+      for (const auto& [rec, m] : addedFieldsAll(c, x.obj)) {
+        const TypeId rt = typeOfObj(c, rec);
+        deps.push_back(rt);
+        body += "  { const e = (v as " + inspectAliasName(rt) + ")." + m->name + ";\n    if (e !== null) out.push('" + m->name + ": ' + " + call(m->type, "e", "l") + ");\n  }\n";
+      }
       body += "  c[0] -= 2;\n" + reduce("'" + prefix + "{'", "'}'", false, false, "false");
       break;
     }

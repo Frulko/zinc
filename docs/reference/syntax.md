@@ -49,7 +49,7 @@ spread, `?.`, `??`, `for`/`for-of`/`while`, template strings, `try`/`catch`/`fin
 | `globalThis.x` | Z1015 | import it, or keep it in a module |
 | `'a' in o` | Z9026 | `map.has('a')`, or compare the field |
 | `any` in a strict profile | Z1006 | give it a type, or `unknown` and narrow it |
-| calling a value typed `any` | Z0105 | narrow it first (`typeof`, `instanceof`) |
+| calling a value typed `unknown`, or `d?.f()` on an `any` | Z0105 | narrow it first (`typeof`, `instanceof`) |
 | `Math.min()` with no argument, under `--profile ps1` | Z4001 | pass an argument |
 
 `any` is fine in the default (gradual) profile; the strict profile is the line `// zinc-profile: strict` at the top of the

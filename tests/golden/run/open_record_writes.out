@@ -12,3 +12,12 @@ true second
 3
 { name: 'lit', size: 1 } { name: 'l2', note: 'n', size: 2 } {"name":"lit","size":1}
 Sub { name: 'plain', size: 5, extra: 1, note: 'sub' } {"name":"plain","size":5,"extra":1,"note":"sub"}
+function string true [Function: greet] true
+hi g 5
+r hi r
+HI g
+true
+7 x { name: 'h', size: 7, note: 'x' } {"name":"h","size":7,"note":"x"}
+8 Box { name: 'box', size: 8, note: 'b' }
+2
+renamed { name: 'renamed', size: 7, note: 'x' }

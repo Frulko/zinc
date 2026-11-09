@@ -271,11 +271,11 @@ struct Checker {
     }
     return false;
   }
-  // An instance of class `a` (or a value of interface `a`) where record `b` is expected, as TypeScript's structural typing allows: the instance is
-  // shared; the record is remembered so the lowering reads its fields through the object's own class.
+  // An instance of class `a` (or a value of interface or record `a`) where record `b` is expected, as TypeScript's structural typing allows: the
+  // object is shared; the record is remembered so the lowering reads its fields through the object's own class (a record: its literal class).
   bool classToRecord(std::uint32_t a, std::uint32_t b) {
     const ObjInfo &f = out.objs[a], &t = out.objs[b];
-    if (!(f.isClass || f.isInterface) || f.isRecord || f.isTuple || !t.isRecord || t.isTuple || t.members.empty()) return false;
+    if (!(f.isClass || f.isInterface) || f.isTuple || !t.isRecord || t.isTuple || t.members.empty()) return false;
     if (!c2rBusy.insert({a, b}).second) return true;   // a field of the record's own type (`next: Node`): assumed while it is checked
     bool ok = true;
     for (const Member& m : t.members) ok = ok && !m.method && !m.isStatic && suppliesField(a, m);
@@ -1339,6 +1339,16 @@ struct Checker {
   std::map<TypeId, std::uint32_t> dynSubAt;   // class type -> a node where its view was asked
   std::uint32_t typeErrorAt = kNone;   // the first write through an interface's setter (Member::ifaceSetter)
   void finishDynViews() {
+    // a record shared as a record (`const r: Named = hasName`): what is shared as the first can reach the second through it, closed transitively
+    for (bool more = true; more;) {
+      more = false;
+      for (auto& [rec, ks] : out.openRecords)
+        for (std::size_t i = 0; i < ks.size(); ++i) {
+          auto it = ks[i] == rec || !out.objs[ks[i]].isRecord ? out.openRecords.end() : out.openRecords.find(ks[i]);
+          if (it == out.openRecords.end()) continue;
+          for (std::uint32_t x : it->second) if (x != rec && std::find(ks.begin(), ks.end(), x) == ks.end()) { ks.push_back(x); more = true; }
+        }
+    }
     std::vector<std::function<void()>> late;
     auto* sd = defer;
     defer = &late;
@@ -2625,8 +2635,19 @@ struct Checker {
         return replaceWith(i, call, holes) ? expr0(i, kNoType) : tError;
       } else { calleeNode = callee; ct = expr(callee); calleeNode = kNone; }
       if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) if (!preEvaluated) expr(x.kids[k]); return tError; }
+      if (ct == tDyn && !rawDyn() && !(x.flags & kFlagOptional) && !(n(callee).flags & kFlagOptional) && !preEvaluated) {
+        // `d.greet()`, `f(x)` on an any value, as TypeScript allows: the function it holds (a method read through the any is bound), the arguments boxed
+        const Node& c2 = n(callee);
+        std::string what = c2.kind == N::Member ? (n(c2.kids[0]).kind == N::Ident ? std::string(n(c2.kids[0]).text) + "." : std::string()) + std::string(c2.text)
+                         : c2.kind == N::Ident ? std::string(c2.text) : std::string("expression");
+        std::string call = "__dynCall(__H0, [";
+        std::vector<std::vector<std::uint32_t>> holes{{callee}};
+        for (std::size_t k = 1; k < x.kids.size(); ++k) { call += (k > 1 ? ", " : "") + std::string("__H") + std::to_string(k); holes.push_back({x.kids[k]}); }
+        call += "], '" + what + "')";
+        return replaceWith(i, call, holes) ? expr0(i, kNoType) : tError;
+      }
       if (ty(ct).k != TK::Func) {
-        diag(kZNotCallable, callee, "'" + name(ct) + "'" + (isDyn(ct) ? " (on an any value only the array and string methods run: narrow it first)" : ""));
+        diag(kZNotCallable, callee, "'" + name(ct) + "'" + (isDyn(ct) ? " (an unknown value, or an optional call on an any: narrow it first)" : ""));
         for (std::size_t k = 1; k < x.kids.size(); ++k) expr(x.kids[k]);
         return tError;
       }

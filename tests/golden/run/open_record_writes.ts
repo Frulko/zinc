@@ -56,3 +56,35 @@ class Sub extends Plain { extra = 1; }
 const r5: Named = new Sub();
 r5.note = 'sub';
 console.log(r5, JSON.stringify(r5));
+
+// methods seen through an any: a function bound to its object, called with the arguments boxed
+class Greeter { name = 'g'; greet(): string { return 'hi ' + this.name; } add(a: number, b: number): number { return a + b; } reset(): void { this.name = 'r'; } }
+class Loud extends Greeter { greet(): string { return 'HI ' + this.name; } }
+const gr = new Greeter();
+const dg: any = gr;
+console.log(typeof dg.greet, typeof dg.name, 'greet' in dg, dg.greet, dg.greet === dg.greet);
+console.log(dg.greet(), dg.add(2, 3));
+dg.reset();
+console.log(gr.name, dg.greet());
+const dl: any = new Loud();
+console.log(dl.greet());
+try { dg.nope(); } catch (e) { console.log(e instanceof TypeError); }
+
+// a record of an interface shared as a wider record: one object, writes and added fields seen through both
+const hh: HasName = { name: 'h', size: 1 };
+const rh: Named = hh;
+rh.note = 'x';
+rh.size = 7;
+console.log(hh.size, rh.note, hh, JSON.stringify(hh));
+const rb: Named = hn;                       // a class shared as the interface, then as the wider record
+rb.size = 8;
+rb.note = 'b';
+console.log(hn.size, hn);
+const hs: HasName[] = [{ name: 'a', size: 1 }];
+function grow(x: Named): void { x.size++; }
+grow(hs[0]);
+console.log(hs[0].size);
+type JustName = { name: string };
+const jn: JustName = hh;                    // a record with fewer fields
+jn.name = 'renamed';
+console.log(hh.name, jn);

@@ -117,7 +117,7 @@ struct Lowering {
     auto add = [&](std::uint32_t o) {
       if (classOfObj[o] == kNil) return;
       for (auto& [so, cls] : r) if (so == o) return;
-      r.push_back({o, classOfObj[o]});
+      r.push_back({o, newClassOf(o)});   // a record shared as this one: its literal class
     };
     for (std::uint32_t o : c.openRecords.at(obj)) {
       if (!c.objs[o].isInterface) add(o);
@@ -137,7 +137,7 @@ struct Lowering {
     std::vector<std::uint32_t> r;
     for (std::uint32_t o : c.openRecords.at(obj)) {
       std::vector<std::uint32_t> ks = c.objs[o].isInterface ? frontend::implementations(c, o) : std::vector<std::uint32_t>{o};
-      for (std::uint32_t k : ks) if (classOfObj[k] != kNil && std::find(r.begin(), r.end(), classOfObj[k]) == r.end()) r.push_back(classOfObj[k]);
+      for (std::uint32_t k : ks) if (classOfObj[k] != kNil && std::find(r.begin(), r.end(), newClassOf(k)) == r.end()) r.push_back(newClassOf(k));
     }
     return r;
   }
@@ -403,7 +403,8 @@ struct Lowering {
           if (std::find(m.classes[lit->second].implements.begin(), m.classes[lit->second].implements.end(), i) == m.classes[lit->second].implements.end()) m.classes[lit->second].implements.push_back(i);
         m.classes[lit->second].implements.push_back(ri);
         for (std::uint32_t k : openIrClasses(o)) m.classes[k].implements.push_back(ri);
-        for (std::uint32_t k : c.openRecords.at(o)) if (c.objs[k].isInterface && classOfObj[k] != kNil) m.classes[classOfObj[k]].implements.push_back(ri);   // an interface value converts up to it
+        for (std::uint32_t k : c.openRecords.at(o))   // an interface value, or a value of an open record shared as this one, converts up to it
+          if ((c.objs[k].isInterface || litClassOfObj.count(k)) && classOfObj[k] != kNil) m.classes[classOfObj[k]].implements.push_back(ri);
       }
     }
   }
