@@ -1553,3 +1553,8 @@ Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` 
 ## 2026-11-09 — ZN-567, WebGL binding on the M1 Pro (`bench/webgl_binding.js --engine quickjs`, load 3)
 
 - uniform4fv(Float32Array) 140-144 ns (target 200); bufferSubData(Float32Array) 130-131 ns (250); drawArrays 220-227 ns (250); drawElements 60k indices 4.4-5.6 µs waiting for the GPU, 202-279 ns submit only (target 3 µs). The waited figure grows with the index count (232 ns for 3, 499 ns for 6,000): it is the GPU walking the indices, not the binding; the index scan alone was 19 µs before ZN-567.
+
+## 2026-11-09 — ZN-1052, iPod For you at 10k songs (`FORYOU_MODE=bench`, interpreter, 100k listens; indicative: another tree was building)
+
+- SQL step (year counted per month in SQLite, `+skipped` keeps the time index): 69 ms in one block → 7-8 ms. Library read (`library-keys.jsonl` parsed in slices): 36 ms in one block → 16 ms, slices of 8 ms at most. Unchanged: longest slices model 11 ms, daily 14, mixes 14, Genius 100 16 ms. On QuickJS (no worker) the daily mixes and mixes still hold 73-76 ms slices and Genius 100 takes 58 ms.
+- ZN-796 QuickJS numeric wraps, iPod bench: mixes 6440 / 6467 ms and Genius 100 58 / 58 ms with / without the pass (one run).
