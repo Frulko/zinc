@@ -2,7 +2,8 @@
 id: ZN-1033
 title: Web dev bridge hardening and speed
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:37'
 labels:
   - web
