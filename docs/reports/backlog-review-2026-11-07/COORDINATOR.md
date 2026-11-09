@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Created/claimed ZN-1095 after Picker static lowering proves neutral nested JSX bypasses React component ownership. Prepared runtime assertions are unrun; no cleanup/state pass claimed. Sole core batch now 1088 -> 1093 -> 1094 -> 1095 -> 1090 (five tasks). Picker checkpoint2476e9887 and Data checkpoint28095e6ca remain private Backlog, all criteria open, pending engine proofs and captures; no new UI feature chain yet.
+
 - Core parked private1088 checkpoint e6d744868 (allACopen) after layout regressionPASS; nativeScript hostcontract test exposed missing transitive staticarchives, fixedsource unproved behindother-sessionMapperlock. Canceled onlyownqueuedbuild; now1093 then1094 then1090 source in same solewriter. Keep everycommitunintegrated until exactproof/fixups; no fabricatedDone. Pickers fullUnicode17catalog1914entries/9groups/330tones islazy/shakeable, ownruntime stillqueued.
 
 - Created/claimed1094 for confirmed generic Array.flatMap gap blocking unchanged Data PathBar. Two-line nested-string repro failsZ0106; Data-subagent TC39 +vendoredQuickJS research recorded. Core order1088->1093->1094->1090 (four-task batch); one writer, no app workaround. Other potential picker scroll/neutral ownership failures await exactruntime proof before taskcreation.

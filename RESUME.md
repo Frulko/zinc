@@ -8,7 +8,7 @@ This session closed 17 tasks: ZN-1078.03/.04/.05/.08/.10, ZN-1079–1087, ZN-108
 
 | Worker | Branch / worktree | Current work |
 | --- | --- | --- |
-| Sole core writer | `work/1088-resume`, `.worktrees/1088-resume` | Private checkpoint `e6d744868` parks ZN-1088 with all criteria open. Prepare ZN-1093 (JSX `id`), ZN-1094 (`flatMap`), then ZN-1090 (default icons); validate and fold final task updates into their commits before integration. |
+| Sole core writer | `work/1088-resume`, `.worktrees/1088-resume` | Private checkpoint `e6d744868` parks ZN-1088 with all criteria open. Prepare ZN-1093 (JSX `id`), ZN-1094 (`flatMap`), ZN-1095 (neutral component ownership), then ZN-1090 (default icons); validate and fold final task updates into their commits before integration. |
 | Pickers | `work/1078-pickers`, `.worktrees/1078-pickers` | ZN-1078.07: component/gallery source and exact tests written; static checks pass. Runtime proofs, pictures and size gate remain pending. Owns shared kit host helpers. |
 | Data | `work/1078-data`, `.worktrees/1078-data` | ZN-1078.12: components and gallery source written. Confirmed engine blockers are `id` and `flatMap`; reviewing keyboard, loading and selection behavior. No runtime proof yet. |
 | Feedback parked | `.worktrees/1078-feedback-astra` | Source `b088d2952` integrated; no active worker. Cleanup patch and notes under `.logs/feedback-astra-handover.*`. Only AC2 is checked; resume after size/default icons. |
@@ -24,7 +24,8 @@ New workers inherit the configured model after the owner's “on rebascule”. L
 - ZN-1094: a two-line nested-string-array `flatMap` example fails Z0106. Implement through existing typed array HOF generation; TC39 and vendored QuickJS research is in the task. Do not rewrite PathBar to hide it.
 - ZN-1090: reached library defaults must supply icons without application manifests, preserving shaking. Research favors shared typed reachability for valid Zinc and preliminary linking for bundles. Arbitrary JavaScript outside Zinc must not acquire a mandatory checker/esbuild dependency; its existing explicit declarations remain the offline fallback. No production icon fix yet.
 - Inputs `0a8c0b141` and Navigation `3dde12a02` are integrated progress, with functional proofs but open size criteria depending on ZN-1088. Their retained worktrees contain attribution inputs. Never raise budgets or trim valid UI to pass.
-- Pickers now use the full lazy Unicode 17 catalogue (1,914 entries, nine groups, 330 tone sets). Font coverage and actual rendering are unproved. Possible pre-layout scroll and neutral-component React ownership problems await runtime repros; no workaround or speculative new task.
+- ZN-1095: static lowering confirms neutral nested JSX lacks child React ownership; it is claimed for the same core writer. Prepared conditional cleanup/state and virtual row assertions remain unrun. Preserve ordinary JSX and shared Solid behavior; no hidden child workaround.
+- Pickers now use the full lazy Unicode 17 catalogue (1,914 entries, nine groups, 330 tone sets). Font coverage and actual rendering are unproved. Possible pre-layout scrolling still awaits a runtime repro; no workaround or speculative task for it.
 
 ## Machine and integration safety
 
