@@ -1,0 +1,18 @@
+#!/bin/bash
+# tools/codex-live: the backlog loop in an interactive Codex session you watch live, as Claude Code's /loop. Codex is the coordinator
+# (the zn-coordinate skill) and runs each worker as one of its own sub-agents, in its own worktree under .worktrees/; `codex agents`
+# in another terminal browses the workers' sessions. tools/codex-loop is the headless variant. One coordinator at a time.
+# Environment: ZN_CODEX_SANDBOX (default workspace-write; danger-full-access if the sandbox blocks builds, the Pi or the web),
+# ZN_CODEX_MODEL (optional).
+set -u
+cd "$(dirname "$0")/.." || exit 2
+[ -f .paused ] && { echo "codex-live: .paused exists, remove it first (zn-resume)"; exit 1; }
+[ -d .logs/codex-loop/lock ] && { echo "codex-live: tools/codex-loop is running (.logs/codex-loop/lock): stop it first"; exit 1; }
+mkdir -p .worktrees
+model=(); [ -n "${ZN_CODEX_MODEL:-}" ] && model=(-m "$ZN_CODEX_MODEL")
+exec codex -C "$PWD" -s "${ZN_CODEX_SANDBOX:-workspace-write}" -a never --search ${model[@]+"${model[@]}"} \
+  -c sandbox_workspace_write.network_access=true --add-dir "$HOME/.zinc" --add-dir "$HOME/Library/Caches/ccache" \
+  "You are the coordinator of the Zinc backlog team. Follow the zn-coordinate skill and keep going until .paused exists or nothing is left; never ask the owner a question.
+Run each worker as one of your sub-agents: create its worktree with 'git worktree add -b work/<first-id> .worktrees/<first-id> develop', brief it as the skill's section 'Brief' says, and tell it to run every command inside that worktree and to work its tasks with the zn-start skill.
+At most two building workers at once. When a worker returns, integrate its branch (section 'Integrate'), then choose, claim and start the next chain.
+Start now: check 'git worktree list' and that no other coordinator runs, then choose and claim."

@@ -50,4 +50,5 @@ When a worker reports:
 ## The loop
 
 - Claude Code: `/loop` with the prompt "Coordinate the Zinc backlog team: follow the zn-coordinate skill" (dynamic mode); worker reports wake you; fallback wake-up 1800 s.
-- Codex: `tools/codex-loop` (lanes of claim, worker, integrate; one fresh `codex exec` per step).
+- Codex, live: `tools/codex-live` opens an interactive Codex as the coordinator, the workers as its sub-agents in `.worktrees/` (`codex agents` shows them).
+- Codex, headless: `tools/codex-loop` (lanes of claim, worker, integrate; one fresh `codex exec` per step, logs in `.logs/codex-loop/`).
