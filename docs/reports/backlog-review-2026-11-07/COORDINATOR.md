@@ -41,3 +41,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: WebGL and gestures chain ZN-567, ZN-684 (perf line logged).
 - Integrated: compiler chain ZN-376, ZN-667, ZN-1030 (Backlog) and ZN-796 (Review), ZN-1052 (Review) (D224, perf lines logged).
 - Integrated: ZN-1069 (D225). Worker: web chain ZN-1065, ZN-693 (claimed 022db5d94).
+- Worker: ZN-1070 AppKit primitives (claimed 6e23af277), beside the web chain.
