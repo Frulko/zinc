@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Created/claimed ZN-1081 (blocks actual App chrome docking): stale focus-within callbacks survive release and act on reused node slots. Core blocker chain will do1081 then1080 in work/1080-inputmode; one building worker plus two non-building kit workers. Main ui.ts WIP inspected: only Virtual/Fenwick at636/967, isolated release/focus lifecycle changes permitted near777/6282. No event timing or component workaround.
+
 - 2026-11-09: Created/claimed ZN-1080 (blocks Inputs/kit-gallery): literal-only inputMode lowering rejects dynamic JSX. Short primary-source research completed by coordinator research agent; new frontend worker .worktrees/1080-inputmode, beside two non-building kit workers. At most one engine tree builds; main held UI/runtime modules remain excluded.
 
 - 2026-11-09: Claimed Inputs/Pickers chain ZN-1078.06-.07, new .worktrees/1078-inputs, no engine build. Actions/App chrome worker owns button, menus, dnd and gallery shared wiring until its report; Inputs worker owns input/picker modules and separate gallery sections, shared docs/exports require coordination. Both use retained clean smoke binary with explicit ZINC_ROOT.
