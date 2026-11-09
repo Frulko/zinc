@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Corrective1093 integrated0ae64e937, clean tree rebuilt and expanded exactjsx_idPASS. Archived completed1088coreproofs to.logs/archive-core-1088/core-proof; removed completedworktree/branch after checking replacement and notifyingworkers. No extra app/process.
+
 - Created/claimed1099 nullable cleanup callback returns in Dyn-enabled graphs, confirmed by strict tsc and original Picker source. Sole corebatch nowexactlyfive1093 correction/1096/1097/1098/1099; no sixth. Root rebuilt1093 correctiveintegration and exactjsx_id replayinprogress. Fresh UIworkers add originalcallerfocused assertions and fixtheir ownfixturetargeting, no checkerworkaround.
 
 - Created/claimed1097 iterable collection constructor inference and1098 guarded optional callable narrowing, each minimal actual caller blocker/strict tsc evidence and primary research recorded.1093 composed-ID corrective0ae64e937 integrated; new binary unblocks original IDs. Sole coreworker1096 handles corrections serially; UIworkers continue review/proof preparation. Inputs06/Navigation09 nowDone after clean currentgate and exactcaller replay.
