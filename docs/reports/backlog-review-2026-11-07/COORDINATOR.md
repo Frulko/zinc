@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Common engine chain claimed:1089 reset evaluated compositor values,1088 retain only needed standalone type/code metadata,1090 reached-library default icons. Fresh sole core worker replaces returned Navigation worker; works in that order, separate commits. Inputs0a8c0b141 and Navigation3dde12a02 progress integrated, size ACs open. Gallery1087 owner fix and Feedback11 continue independently. No UI source workarounds or budget changes.
+
 - Owner screenshot correction takes priority: ZN-1087 claimed for docs/img/design/src responsive gallery and real aligned password reveal; fresh worker replaces finished Inputs. Inputs progress0a8c0b141 integrated, AC3 remains open on new-source AOT metadata costs. Navigation/Feedback continue; queue common engine metadata/animation blockers when a worker slot returns.
 
 - Recorded/released ZN-1085/1086 and .10; Selection .08 size AC now passes and task Done. Clean rebuilt engine: tdz_outline, ui_focus_dispose, kit_overlays, original gallery check/run and unchanged kit_size all PASS (62412 B/component). RESUME archived losslessly then shortened for fresh-worker context. Active: Inputs, Navigation, Feedback; no process left by root.
