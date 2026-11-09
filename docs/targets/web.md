@@ -39,6 +39,9 @@ dist/hero-web/
   `web.needs`; the export then writes the headers into `_headers` and `sw.js` adds them where the host cannot (GitHub Pages).
 - **The browser's JavaScript, not Zinc's**: `URL`, `fetch`, `Event`, `TextEncoder`, `crypto`, `MediaStream`, `navigator` are the browser's own. `import { URL } from 'zinc:web'` gives the same object
   (`lib/std/web.browser.ts`), and no import is added for the globals, so nothing replaces them with the Zinc polyfills.
+- **`zinc:net`'s `fetch`** runs on the page's `fetch` (`targets/web/rows-net.js`): the same `Response` as on the desktop (`text()`, `bytes()`, `json()`, `headers`, `raw`), `timeoutMs`, `maxBytes`,
+  `saveTo` and `bodyFile` (files of `zinc:fs` in the page), a failure is a `TypeError` "fetch failed: ...". CORS applies, as to any page (the fetch proxy below and `zinc dev` reach sites without it).
+  Upload progress (`onProgress`) is not reported. The servers (`serve`, `serveAsync`) have no rows in a page and keep their W0603; a program that only fetches leaves them out of its bundle.
 
 ### Settings: `zinc.json` `targets.web` and the options
 
@@ -239,7 +242,7 @@ zinc:ui app). A program that draws with `zinc:gfx` alone (or with three.js), wit
   `docs/reports/three-on-zinc.md`); a worker renderer on `OffscreenCanvas` (the copy needs the canvas on the main thread); pixel ratio above 1 is the renderer's drawing buffer scaled into the box.
 - **`zinc:canvas`** is the browser's Canvas2D: a canvas that draws into an image is the image's own 2D context, a screen context draws into a canvas of its box and shows it at `end()`.
 - **`zinc:map`**: MapLibre GL JS (BSD-3, `third_party/maplibre`, 5.24, loaded as a classic script: a minifier breaks its inline worker) behind the plugin's own `MapView`. Tiles come from the app's
-  `assets/tiles/z/x/y.pbf` or from `url` through `fetch` (CORS; gzip is handled); labels use the glyph server `demotiles.maplibre.org` unless the style names one. Not in `zinc dev` (unbundled modules).
+  `assets/tiles/z/x/y.pbf` or from `url` through `fetch` (CORS; gzip is handled); labels use the glyph server `demotiles.maplibre.org` unless the style names one. `zinc dev --target web` loads it too (the dev server publishes the plugin's `scripts`).
   The desktop engine's `stats()` are zeros.
 
 ### Files: `zinc:fs` in the page
@@ -423,7 +426,9 @@ file. CommonJS packages work with default, named and `import * as ns` imports; `
 
 **Dev pre-bundles, as Vite does.** The bare imports of the app are bundled once with the pinned esbuild into ES modules (`/__deps/<id>.js`), kept in `<project>/.zinc/web-deps/<key>/`, where the key is the hash of
 the lockfile (searched upward, so a workspace root counts), the project's `package.json`, the `package.json` of each imported package and the names imported from it. A save of your own code never bundles them
-again (the dev log says `pre-bundled` only when it did); an install (the lockfile or a package changes) or a new import bundles again and reloads the page. `import { a } from 'cjs-package'` works because the
+again (the dev log says `pre-bundled` only when it did); an install (the lockfile or a package changes) or a new import bundles again and reloads the page. A workspace package (its `node_modules` entry is a
+link to a folder outside every `node_modules`: npm, pnpm, yarn and bun workspaces, `npm link`) is watched with the project: a save in its folder (its `dist` included) bundles the packages again and reloads
+the page, as Vite does for linked packages (Vite serves them unbundled; here they are bundled like the others, and the times and sizes of their files join the key). `import { a } from 'cjs-package'` works because the
 pre-bundle exports exactly the names your code imports. The first start takes one esbuild run (tens of milliseconds for a few small packages).
 
 **Package managers.** `zinc add npm:<pkg>[@version]... [-D] [dir]`, `zinc remove npm:<pkg>` and `zinc install [--frozen] [--offline] [dir]` run the manager the project already uses. It is found from the `packageManager`
@@ -435,7 +440,12 @@ package.json first, then the plugins of zinc.json. (Tried here: npm 11, pnpm 10 
 
 What does not apply: a package that needs Node built-ins (`fs`, `net`, `child_process`) fails with `warning W0605` (esbuild's message names the built-in): use its browser build, or fetch and WebSocket. Packages are read
 as written: a workspace package that ships TypeScript or JSX sources is compiled by esbuild's plain loaders, without Zinc's JSX lowering (`className`, `StyleSheet`), so publish built JavaScript. The types of packages are not
-read (the program is not type-checked against `.d.ts` on this path). A bare `three` resolves to Zinc's own three plugin when the plugins folder is present, not to the npm package.
+read (the program is not type-checked against `.d.ts` on this path).
+
+**`three` and the other plugin names.** A bare import resolves in this order, on every target: the project's `tsconfig.json` `paths`, then a plugin that answers the name (its `module` or
+its `modules` aliases: `three`, `three/addons/...`), then `node_modules`. So `import * as THREE from 'three'` is Zinc's three plugin even when npm `three` is installed: on the web its entry is the
+real three.js (r186, `third_party/three`) drawing into the Zinc surface (`window`, the assets, a `zinc:ui` overlay, DOM mode), on the desktop the subset on `zinc:3d`. A program that wants the npm
+package's version maps it: `"paths": { "three": ["./node_modules/three/build/three.module.js"] }` in `tsconfig.json` (the addons likewise); it then manages its own canvas, as on any page.
 
 ## Vite and other bundlers
 
@@ -512,7 +522,7 @@ calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device ru
   project's folder, as under `zinc run`; so `zinc.json` "requires" (fs, process) is not checked under `zinc dev` unless `--lan`. What the page does itself (drawing, layout,
   input, audio, storage) stays the page's.
 - A file the page has itself (an asset, a file the program wrote in the page) is read in the page; any other path is read on the machine.
-- The events of this machine's loop that the page's modules asked for (a `zinc:net` fetch that ends, an OSC message, a signal) come back to the page's handlers.
+- The events of this machine's loop that the page's modules asked for (a request to a `zinc:net` server, an OSC message, a signal) come back to the page's handlers.
 - A plugin whose browser version cannot do what its native one does (`zinc:socket`: TCP, UDP, a server) says `"web": {"dev": "native"}` in plugin.json: under `zinc dev` the
   page gets the native module and its native side runs through the bridge; an export keeps the browser version.
 - The program's `fetch` to another origin is made by this machine, as under `zinc run`: a speaker on the local network or a site that sends no CORS headers answers. A

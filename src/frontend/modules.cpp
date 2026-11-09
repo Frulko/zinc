@@ -841,7 +841,16 @@ function __netHook(): void {
         c.resolve(r);
         return;
       }
-    } else if (kind === 43 || kind === 44 || kind === 46) {   // a chunk of a streamed body, its end, the client gone
+    }
+  });
+}
+// the servers' events, hooked by serve alone: a program that only fetches leaves the server rows out of its bundle (a web page has none of them)
+let __netServeHooked: boolean = false;
+function __netServeHook(): void {
+  if (__netServeHooked) return;
+  __netServeHooked = true;
+  __addEvHandler((h: i32, kind: i32, data: string) => {
+    if (kind === 43 || kind === 44 || kind === 46) {   // a chunk of a streamed body, its end, the client gone
       const b = __netBodies.get(h);
       if (b !== undefined) {
         if (kind === 43) { const c = __host_evPayload(); const f = b.sink; if (f !== null) f(c); else b.chunks.push(c); }
@@ -951,7 +960,7 @@ export interface ServeOptions {
   hostname?: string;
 }
 function __netListen(port: i32, o?: ServeOptions): i32 {
-  __netHook();
+  __netServeHook();
   let bound: i32 = 0;
   if (o !== undefined && o.hostname !== undefined) bound = __host_httpServeAt(port, o.hostname as string, o.cert !== undefined ? o.cert as string : '', o.key !== undefined ? o.key as string : '');
   else if (o !== undefined && o.cert !== undefined) bound = __host_httpServeTls(port, o.cert as string, o.key !== undefined ? o.key as string : '');

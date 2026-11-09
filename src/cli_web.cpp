@@ -319,7 +319,7 @@ std::set<std::string> implementedRows(const std::string& runtime) {
   const std::size_t a = runtime.find("const rows = {"), b = runtime.find("const frameSignals");
   if (a == std::string::npos || b == std::string::npos) return out;
   const std::string t = runtime.substr(a, b - a);
-  static const std::regex name("\\b((?:gfx|sys|fs|assets|storage)[A-Z][A-Za-z0-9]*):");
+  static const std::regex name("\\b((?:gfx|sys|fs|assets|storage|ev|sig)[A-Z][A-Za-z0-9]*):");
   for (auto m = std::sregex_iterator(t.begin(), t.end(), name); m != std::sregex_iterator(); ++m) out.insert((*m)[1]);
   return out;
 }
@@ -1222,6 +1222,7 @@ struct Dev {
   std::string lastError;
   std::string reloadWhy;                          // why the last restage cannot swap modules in place (restage), for the one line of the save
   std::string depsDir, depsKey;                   // the pre-bundled packages of node_modules (cli_web_deps.h), served at /__deps/
+  std::vector<std::string> workspaces;            // the folders of the workspace packages the program imports: watched with the project
   std::mutex bm;                                  // the bridge's process: a page load restarts it (connection), the watch loop checks it (serve)
   int port = 0;                                   // the port the dev server listens on (serve)
   zn::plat::Pid bridge = -1;                      // the dev bridge (startBridge), -1 when the page needs none or it ended
@@ -1278,17 +1279,22 @@ bool refreshableModule(const std::string& text) {
 }
 
 struct Snapshot { std::map<std::string, std::pair<std::int64_t, std::uintmax_t>> f; bool operator==(const Snapshot& o) const { return f == o.f; } };
-Snapshot snapshotOf(const fs::path& dir) {
+// the project's files, and those of the workspace packages it imports (an edit there bundles the packages again and reloads the page, as Vite does for linked packages)
+Snapshot snapshotOf(const fs::path& dir, const std::vector<std::string>& workspaces = {}) {
   Snapshot s;
   std::error_code ec;
   if (const std::string lock = lockfileOf(dir.string()); !lock.empty())   // a workspace keeps its lockfile above the project: an install there reloads the page
     s.f[lock] = {static_cast<std::int64_t>(fs::last_write_time(lock, ec).time_since_epoch().count()), fs::file_size(lock, ec)};
-  for (auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
-    const std::string n = it->path().filename().string();
-    if (it->is_directory() && (n == "build" || n == "dist" || n == "node_modules" || n == ".git" || n[0] == '.')) { it.disable_recursion_pending(); continue; }
-    if (!it->is_regular_file()) continue;
-    s.f[it->path().string()] = {static_cast<std::int64_t>(fs::last_write_time(*it, ec).time_since_epoch().count()), fs::file_size(*it, ec)};
-  }
+  auto walk = [&](const fs::path& root, bool package) {   // a package's dist is what its package.json points at: watched
+    for (auto it = fs::recursive_directory_iterator(root, fs::directory_options::skip_permission_denied, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+      const std::string n = it->path().filename().string();
+      if (it->is_directory(ec) && (n == "node_modules" || n[0] == '.' || (!package && (n == "build" || n == "dist")))) { it.disable_recursion_pending(); continue; }
+      if (!it->is_regular_file(ec)) continue;
+      s.f[it->path().string()] = {static_cast<std::int64_t>(fs::last_write_time(*it, ec).time_since_epoch().count()), fs::file_size(*it, ec)};
+    }
+  };
+  walk(dir, false);
+  for (const std::string& w : workspaces) walk(w, true);
   return s;
 }
 
@@ -1352,6 +1358,7 @@ bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& 
     if (!first && dr.key != d.depsKey) { changed.push_back("(packages)"); refreshable = false; if (d.reloadWhy.empty()) d.reloadWhy = "the packages or the lockfile changed"; }
     d.depsDir = dr.dir;
     d.depsKey = dr.key;
+    d.workspaces = dr.workspaces;
   }
   return true;
 }
@@ -1595,14 +1602,14 @@ int serve(Dev& d, int port, bool lan) {
       std::thread(connection, &d, c).detach();
     }
   }).detach();
-  Snapshot seen = snapshotOf(d.a.dir);
+  Snapshot seen = snapshotOf(d.a.dir, d.workspaces);
   while (!gStop) {
     std::this_thread::sleep_for(std::chrono::milliseconds(120));
     checkBridge(d);
-    Snapshot now = snapshotOf(d.a.dir);
+    Snapshot now = snapshotOf(d.a.dir, d.workspaces);
     if (now == seen) continue;
     std::this_thread::sleep_for(std::chrono::milliseconds(40));   // an editor writes in steps
-    now = snapshotOf(d.a.dir);
+    now = snapshotOf(d.a.dir, d.workspaces);
     std::set<std::string> files;
     for (const auto& [f, st] : now.f) if (!seen.f.count(f) || seen.f[f] != st) files.insert(f);
     for (const auto& [f, st] : seen.f) if (!now.f.count(f)) files.insert(f);
@@ -1615,7 +1622,9 @@ int serve(Dev& d, int port, bool lan) {
     bool refreshable = false;
     std::string saved;   // the files of this save, as the person named them
     for (const std::string& f : files) { if (saved.size() > 60) { saved += ", ..."; break; } saved += (saved.empty() ? "" : ", ") + fs::path(f).lexically_relative(d.a.dir).generic_string(); }
+    const std::vector<std::string> watched = d.workspaces;
     const bool ok = restage(d, log, changed, refreshable, false);
+    if (d.workspaces != watched) seen = snapshotOf(d.a.dir, d.workspaces);   // a new workspace import: its files are watched from now on, not taken for a save
     const long ms = static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count());
     if (!ok) {
       d.lastError = log;

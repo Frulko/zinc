@@ -230,6 +230,7 @@
     {"paths": ["src/rt/rtcalls.cpp", "runtime/zrt.h", "lib/zinc.d.ts", "tests/t0/copy_within.sh", "tests/data/copy_within/"], "tests": ["copy_within"]},
     {"paths": ["src/rt/rtcalls.cpp", "src/qjs/prelude.cpp", "runtime/zrt.h", "lib/zinc.d.ts", "tests/t0/array_set.sh", "tests/data/array_set/"], "tests": ["array_set"]},
     {"paths": ["targets/web/runtime.js", "tests/t0/update_pixels.sh", "tests/data/update_pixels/"], "tests": ["update_pixels"]},
+    {"paths": ["targets/web/rows-net.js", "targets/web/runtime.js", "src/cli_web.cpp", "plugins/map/", "tests/t0/web_net_rows.sh"], "tests": ["web_net_rows"]},
     {"paths": ["src/host/sys_host.cpp", "src/frontend/modules.cpp", "src/qjs/qjs.cpp", "include/zn/runtime.h", "tests/t0/bytes_bulk.sh", "tests/data/bytes_bulk/"], "tests": ["bytes_bulk"]},
     {"paths": ["lib/std/hash.ts", "src/host/crypto.cpp", "src/host/sys_host.cpp", "tests/t0/hash_sha256.sh", "tests/data/hash_sha256/"], "tests": ["hash_sha256"]},
     {"paths": ["runtime/raster.cpp", "tests/t0/rounded_image.sh", "tests/data/rounded_image/"], "tests": ["rounded_image"]},

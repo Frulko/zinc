@@ -1,6 +1,7 @@
 // Dependency pre-bundling for zinc dev --target web (cli_web_deps.h).
 #include "cli_web_deps.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -33,18 +34,38 @@ std::string stubOf(const Pkg& p) {
   return t.empty() ? "import " + js(p.spec) + ";\n" : t;
 }
 
-// package.json of the package a specifier names, found as node resolves it (symlinks followed: a pnpm store or a workspace link)
-std::string packageJsonOf(const fs::path& from, const std::string& spec) {
-  if (spec.empty() || spec[0] == '/' || spec[0] == '.') return "";
+// the node_modules entry of the package a specifier names, found as node resolves it ("" when there is none)
+fs::path packageDirOf(const fs::path& from, const std::string& spec) {
+  if (spec.empty() || spec[0] == '/' || spec[0] == '.') return {};
   const std::size_t cut = spec[0] == '@' ? spec.find('/', spec.find('/') + 1) : spec.find('/');
   const std::string name = spec.substr(0, cut);
   for (fs::path d = from; !d.empty(); d = d.parent_path()) {
     std::error_code ec;
-    const fs::path f = d / "node_modules" / name / "package.json";
-    if (fs::exists(f, ec)) return readAll(f);
+    if (fs::exists(d / "node_modules" / name / "package.json", ec)) return d / "node_modules" / name;
     if (d == d.root_path() || d == d.parent_path()) break;
   }
-  return "";
+  return {};
+}
+// package.json of that package (symlinks followed: a pnpm store or a workspace link)
+std::string packageJsonOf(const fs::path& from, const std::string& spec) { const fs::path d = packageDirOf(from, spec); return d.empty() ? "" : readAll(d / "package.json"); }
+// a workspace package (npm, pnpm, yarn and bun workspaces, npm link): its entry links to a folder outside every node_modules. Vite serves those as source and
+// watches them; here they are pre-bundled like the others, so their files' times and sizes join the key and zinc dev watches the folder ("" for a package of the registry)
+std::string workspaceDirOf(const fs::path& from, const std::string& spec) {
+  const fs::path d = packageDirOf(from, spec);
+  std::error_code ec;
+  if (d.empty() || !fs::is_symlink(d, ec)) return "";
+  const std::string real = fs::canonical(d, ec).generic_string();
+  return ec || real.find("/node_modules/") != std::string::npos ? "" : real;
+}
+std::string stampsOf(const std::string& dir) {
+  std::string t;
+  std::error_code ec;
+  for (auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    const std::string n = it->path().filename().string();
+    if (it->is_directory(ec) && (n == "node_modules" || n[0] == '.')) { it.disable_recursion_pending(); continue; }
+    if (it->is_regular_file(ec)) t += it->path().string() + " " + std::to_string(static_cast<long long>(fs::last_write_time(*it, ec).time_since_epoch().count())) + " " + std::to_string(static_cast<unsigned long long>(fs::file_size(*it, ec))) + "\n";
+  }
+  return t;
 }
 
 }  // namespace
@@ -74,7 +95,10 @@ DepsResult prebundleDeps(const std::string& projectDir, const std::string& stage
   const fs::path project = fs::absolute(projectDir).lexically_normal();
   std::string keyText = zn::tc::esbuildVersion() + "\n" + zn::qjs::webResolveFlags(false) + "\n";
   keyText += readAll(zn::cli::lockfileOf(project.string()).empty() ? fs::path() : fs::path(zn::cli::lockfileOf(project.string()))) + "\n" + readAll(project / "package.json") + "\n";
-  for (const Pkg& p : pkgs) keyText += p.spec + "\n" + stubOf(p) + packageJsonOf(project, p.spec) + "\n";
+  for (const Pkg& p : pkgs) {
+    keyText += p.spec + "\n" + stubOf(p) + packageJsonOf(project, p.spec) + "\n";
+    if (const std::string w = workspaceDirOf(project, p.spec); !w.empty() && std::find(r.workspaces.begin(), r.workspaces.end(), w) == r.workspaces.end()) { r.workspaces.push_back(w); keyText += stampsOf(w); }
+  }
   r.key = zn::tc::sha256Hex(keyText).substr(0, 12);
 
   const fs::path root = project / ".zinc" / "web-deps", out = root / r.key, entries = root / ("entry-" + r.key);

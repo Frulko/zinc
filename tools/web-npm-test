@@ -4,7 +4,7 @@ Lays tests/fixtures/web-npm out as a project (pkgs/ becomes node_modules, esm-pk
   1. `zinc export --target web` is served and its __npmResult read;
   2. `zinc dev --target web` pre-bundles the packages, the page reads the same result (one resolver: only process.env.NODE_ENV differs);
   3. a save of the app's code reloads without bundling the packages again;
-  4. an install (a package changes, its lockfile is written) pre-bundles again and the page shows the new package;
+  4. an install (a package changes, its lockfile is written) pre-bundles again and the page shows the new package; an edit of the linked package (a workspace) does too;
   5. an import of a package that is not installed shows an overlay that names W0605.
 usage: web-npm-test <zinc> <fixture-dir>    Exit 77 (skip) without Chrome. Chrome only: Firefox and Safari are not tested here."""
 import functools, http.server, json, os, shutil, socket, subprocess, sys, tempfile, threading, time
@@ -105,6 +105,11 @@ with Chrome(["--window-size=800,500"]) as c:
     if not wait_for(c, "globalThis.__npmResult && JSON.parse(globalThis.__npmResult).mapped === 'web-2'", 25): fail("an install did not reload the page %s" % log[-4:])
     steps["install"] = "web-2"
     if prebundles() != 2: fail("an install pre-bundled %d times" % prebundles())
+    # 4b. a linked package (a workspace: its folder is outside node_modules) is edited, no install: it is bundled again and the page reloads
+    edit(".store/esm-pkg/index.js", lambda t: t.replace('"esm-pkg"', '"esm-pkg-2"'))
+    if not wait_for(c, "globalThis.__npmResult && JSON.parse(globalThis.__npmResult).name === 'esm-pkg-2'", 25): fail("an edit of a workspace package did not reload the page %s" % log[-4:])
+    steps["workspace"] = "esm-pkg-2"
+    if prebundles() != 3: fail("a workspace edit pre-bundled %d times in all" % prebundles())
     # 5. a package that is not installed
     edit("src/main.ts", lambda t: "import missing from 'not-installed-pkg';\nconsole.log(missing);\n" + t)
     ov = wait_for(c, "(() => { const e = document.querySelector('[role=alert]'); return e ? e.innerText : ''; })()")

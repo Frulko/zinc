@@ -887,6 +887,9 @@ const rows = {
   sysFirst: () => {}, sysArgsCount: () => 0, sysArg: () => '', sysEnv: (n) => (CFG.env && CFG.env[n]) || '', sysExit: (c) => { quit = true; if (c) console.warn('zinc: exit ' + c); throw new ZnExit(c); },   // (stops the program where it stands, as process.exit does)
   sysPlatform: () => 'web', sysPid: () => 1, sysCwd: () => '/', sysChdir: () => true, sysSetEnv: (n, v) => { (CFG.env = CFG.env || {})[n] = v; }, sysUnsetEnv: (n) => { if (CFG.env) delete CFG.env[n]; },
   sigWatch: () => 1,   // (sys.onSignal: a page is never sent SIGINT or SIGTERM; it closes with its tab)
+  // the payload of the host event being delivered (Z.hostEvent below): a string, or bytes
+  evPayload: () => evRaw, evPayloadSize: () => (typeof evRaw === 'string' ? enc.encode(evRaw).length : (evRaw || []).length),
+  evPayloadBytes: () => Array.from(typeof evRaw === 'string' ? enc.encode(evRaw) : evRaw || []),
   sysEnvKeysCount: () => Object.keys(CFG.env || {}).length, sysEnvKey: (i) => Object.keys(CFG.env || {})[i] || '', sysIsatty: () => false,
   sysWrite: (s) => writeLine(false, s), sysWriteErr: (s) => writeLine(true, s),
   sysRandomByte: () => crypto.getRandomValues(new Uint8Array(1))[0], sysUtf8Len: (s) => enc.encode(s).length, sysUtf8Byte: (s, i) => enc.encode(s)[i] || 0,
@@ -985,7 +988,12 @@ const UNSUPPORTED = CFG.unsupported || [];
 const why = (n) => (/^(sock|net|http|tls|mqtt|osc|dns)/i.test(n) ? 'raw sockets and TLS: use fetch or WebSocket (docs/targets/web.md)' : /^(proc|sig|stdin)/i.test(n) ? 'processes and signals' : /^(ev|loop)/i.test(n) ? 'the native event loop' : /^layout/.test(n) ? 'the React Native layout engine (Yoga) is not built for the web target yet; use the classic layout' : /^assets/.test(n) ? 'asset groups and packs' : 'a native service');
 for (const n of UNSUPPORTED) G['__host_' + n] = function () { throw new ZnUnsupported(n, why(n)); };
 for (const [n, f] of Object.entries(rows)) G['__host_' + n] = f;
-G.__addEvHandler = G.__addEvHandler || (() => {});   // the native event loop's handlers (signals, stdin, plugin events): none of those events reach a page
+// the host events of the page (zinc:net's fetch in rows-net.js; under zinc dev, the events of this machine's loop: zinc:net, zinc:osc...) reach the program's handlers
+const evHandlers = [];
+let evRaw = '';
+G.__addEvHandler = (f) => { evHandlers.push(f); };
+Z.hostEvent = (h, kind, data, raw) => { evRaw = raw; for (const f of evHandlers) f(h, kind, data); };
+G.__clockMs = () => performance.timeOrigin + performance.now();   // zinc:sys clock(): Date.now's clock, not rounded to the millisecond
 if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host services the page lacks are this machine's, as under zinc run (the dev bridge)
   const remote = (n) => (...a) => Z.bridge.call('__rows', n, a);
   const local = /^(ev|loop|layout|assets|gfx|sys|storage)/;
@@ -1002,13 +1010,7 @@ if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host s
   G.__host_fsBytes = () => (viaBridge ? Array.from(loaded) : rows.fsBytes());
   for (const n of ['fsStat']) G['__host_' + n] = (p, ...a) => ((viaBridge = !mine(p)) ? Z.bridge.call('__rows', n, [p, ...a]) : rows[n](p, ...a));
   for (const n of ['fsStatD', 'fsStatI']) G['__host_' + n] = (...a) => (viaBridge ? Z.bridge.call('__rows', n, a) : rows[n](...a));
-  // the events of this machine's loop reach the page's handlers (zinc:net, zinc:osc...), with their payload; zinc:net's servers listen on this machine: a request
-  // reaches the page as zinc:net's request event (42), its reply goes back through the bridge
-  const evHandlers = [];
-  let payload = [];
-  G.__addEvHandler = (f) => { evHandlers.push(f); };
-  G.__host_evPayload = () => payload;
-  Z.hostEvent = (h, kind, data, raw) => { payload = raw; for (const f of evHandlers) f(h, kind, data); };
+  // zinc:net's servers listen on this machine: a request reaches the page as zinc:net's request event (42), its reply goes back through the bridge
   const request = (id, data, raw) => Z.hostEvent(id, 42, data, raw);
   G.__host_httpServe = (port) => Z.bridge.call('__net', 'serve', [port, request]);
   G.__host_httpError = () => '';

@@ -1,8 +1,9 @@
 #pragma once
 // zinc dev --target web and the packages of node_modules (docs/targets/web.md, "npm packages"): Vite's dependency pre-bundling model. The bare imports of the
 // program are bundled once with the pinned esbuild into ES modules served at /__deps/<id>.js, kept in <project>/.zinc/web-deps/<key>/ by the hash of the
-// lockfile, the packages' package.json files and the imports, so a save of the app's own code never bundles them again.
+// lockfile, the packages' package.json files, the files of workspace packages and the imports, so a save of the app's own code never bundles them again.
 #include <string>
+#include <vector>
 
 namespace zn::cli {
 
@@ -11,6 +12,7 @@ struct DepsResult {
   std::string key;   // changes when a package, the lockfile or the set of imports changes (the dev server reloads the page)
   bool built = false;   // bundled now (false: the cache had it)
   std::string error;    // esbuild's messages when it failed
+  std::vector<std::string> workspaces;   // the folders of the workspace packages imported (links out of node_modules): their files are in the key, zinc dev watches them
 };
 
 /** Pre-bundles the `packages` of stage.json (written by `zinc bundle --stage`) for the project in `projectDir`. */

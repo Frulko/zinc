@@ -122,6 +122,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - An exported page has a real `zinc:fs`: what the program writes is kept across reloads in the browser's storage, and the project files listed in `zinc.json` `targets.web.files` ship with the page, read only, so apps that require `fs` (Carnet, Kanban) export without `--force` and `examples/hero` plays its video in the page.
 - `targets.web.proxy` lists sites that send no CORS headers (map tiles, radio logos): the exported page fetches them through a small proxy, `serve.py` on your machine or the `proxy.mjs` the export writes for Cloudflare Workers or Deno, which only forwards GET and HEAD to those hosts.
 - An exported page that uses parts no browser can run (a device plugin, processes, network servers) opens with a bar that names them and says they need the desktop app, with your download link from `targets.web.demo.link`; `targets.web.demo.samples` ships sample data for such a part and `sampleData()` of `zinc:browser` finds it.
+- `fetch` of `zinc:net` works in an exported page, over the browser's own `fetch` (timeouts, size limits, `saveTo`), so apps and plugins that download with it, such as `zinc:map`, export without a W0603 warning.
+- `zinc dev --target web` watches the workspace packages your app imports (npm, pnpm, yarn and bun workspaces, `npm link`): a save in one bundles the packages again and reloads the page.
 
 #### Fixed
 
@@ -130,6 +132,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `--prerender` takes the page as soon as its first frame is drawn instead of after a fixed six seconds, so it no longer fails with "the app drew nothing" on a busy machine, and is faster.
 - In a page, `zinc:link` throws `ZnUnsupported` like `zinc:socket` does, so an app can skip it quietly (`e instanceof ZnUnsupported`); `zinc:browser` can now be imported by typed programs on every target, and its `browserFeatures()` returns a `Map`.
 - `zinc export` (and `run`) of a folder of `templates/` itself says to make a project from it with `zinc new` first, instead of an error about its `{{id}}`.
+- A page that reads `clock()` of `zinc:sys` (the three.js glTF viewer does) no longer stops at start with `__clockMs is not defined`, in an export and in `zinc dev`; the viewer's glTF loader on the web also reports its mesh and triangle counts again.
 
 ### Language
 
