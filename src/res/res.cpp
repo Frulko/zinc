@@ -20,6 +20,7 @@
 #include <fstream>
 #include <filesystem>
 #include <map>
+#include <mutex>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -544,55 +545,95 @@ bool subsetTtf(const std::vector<std::uint8_t>& in, const std::set<std::uint32_t
   return ok;
 }
 
-bool bake(const std::vector<std::string>& sources, const Options& opt, std::vector<std::uint8_t>& blob, std::string& err) {
-  const bool embedTtf = opt.hiScale > 0;
-  std::set<int> sizes{16};
+namespace {
+// What one source contributes to the scan (sizes, characters, faces): the same text with the same role gives the same answer (ZN-1024)
+struct FileScan {
+  std::set<int> sizes;
   std::set<std::uint32_t> chars;
-  for (int c = 32; c < 127; ++c) chars.insert(static_cast<std::uint32_t>(c));
-  bool fontMono = false, italicUsed = false, caseUsed = false, ellipsisUsed = false;
+  bool grid = false, typing = false, ellipsis = false, mono = false, cased = false, italic = false;
+};
+FileScan scanFile(const std::string& text, bool lib, bool embedTtf) {
   static const std::regex reText("text-(xs|sm|base|lg|xl|[2-6]xl)\\b"), reTextPx("text-\\[(\\d+)(?:px)?\\]"), reFontSize("font-size\\s*:\\s*(\\d+)px"),
       reFontCall("\\bfont\\(\\s*['\"][\\w-]+['\"]\\s*,\\s*(\\d+)\\s*\\)"),
       reCanvas("['\"`](?:(?:bold|normal|italic|[1-9]00)\\s+)*(\\d+)px\\s+[\\w\\s,\"-]*(?:sans|serif|mono|system-ui|Inter|Arial|Helvetica)"), reMono("\\bfont-mono\\b");
-  bool gridUsed = !embedTtf;   // the legacy gfx.text: every grid size when a program calls it (or when no TrueType file backs the overlays)
   static const std::regex reGfxText("\\btext\\s*\\(");
   // a text field in the program's own files: what the user types is not in the sources, so the embedded files keep every character they have
   // and a glyph the baked sizes lack is rasterized from them (ZN-669)
-  bool typing = false;   // ponytail: substrings, no word boundary (<InputGroup counts too)
+  // ponytail: substrings, no word boundary (<InputGroup counts too)
   auto types = [](const std::string& t) {
     // the JSX is lowered before the scan: <input> is _el(7), <textarea> _el(8), an onInput handler _onText(, a component <TextInput .../> TextInput(
     for (const char* k : {"_el(7)", "_el(8)", "_onText(", "TextInput(", "<input", "<textarea", "startTextInput(", "ui.INPUT", "ui.TEXTAREA"}) if (t.find(k) != std::string::npos) return true;
     return false;
   };
-  for (std::size_t si = 0; si < sources.size(); ++si) {
-    const std::string& text = sources[si];
-    // the library's sizes are real uses (a kit Button is text-sm), but its style tables name every face (italic, font-mono, uppercase) and its comments
-    // say "text (": those faces and the grid come from the program's own files (ZN-428)
-    const bool lib = embedTtf && si < opt.library.size() && opt.library[si];
-    if (!lib && !gridUsed && text.find("zinc:gfx") != std::string::npos && std::regex_search(text, reGfxText)) gridUsed = true;
-    if (!lib && !typing && embedTtf && types(text)) typing = true;
-    // line by line: the patterns do not span lines, and short subjects keep the regex engine fast
-    std::size_t at = 0;
-    while (at < text.size()) {
-      std::size_t nl = text.find('\n', at);
-      std::string line = text.substr(at, nl == std::string::npos ? std::string::npos : nl - at);
-      at = nl == std::string::npos ? text.size() : nl + 1;
-      std::smatch m;
-      if (line.find("text-") != std::string::npos) {
-        for (auto it = std::sregex_iterator(line.begin(), line.end(), reText); it != std::sregex_iterator(); ++it) sizes.insert(textSize((*it)[1].str()));
-        for (auto it = std::sregex_iterator(line.begin(), line.end(), reTextPx); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
-      }
-      if (line.find("font-size") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reFontSize); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
-      if (line.find("font(") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reFontCall); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
-      if (line.find("px") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reCanvas); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
-      if (!ellipsisUsed && (line.find("truncate") != std::string::npos || line.find("text-ellipsis") != std::string::npos || line.find("line-clamp") != std::string::npos || line.find("textOverflow") != std::string::npos)) ellipsisUsed = true;
-      // a library or plugin calling font('mono', n) itself (zinc:editor) uses the face: unlike a style table's font-mono, the call is a use
-      if (!fontMono && (line.find("font('mono'") != std::string::npos || line.find("font(\"mono\"") != std::string::npos)) fontMono = true;
-      if (lib) continue;
-      if (!caseUsed && (line.find("uppercase") != std::string::npos || line.find("lowercase") != std::string::npos || line.find("capitalize") != std::string::npos || line.find("textTransform") != std::string::npos)) caseUsed = true;
-      if (!italicUsed && (line.find("italic") != std::string::npos || line.find("fontStyle") != std::string::npos)) italicUsed = true;   // a style object's fontStyle is a number once lowered
-      if (!fontMono && line.find("font-mono") != std::string::npos && std::regex_search(line, reMono)) fontMono = true;
+  FileScan r;
+  // the library's sizes are real uses (a kit Button is text-sm), but its style tables name every face (italic, font-mono, uppercase) and its comments
+  // say "text (": those faces and the grid come from the program's own files (ZN-428)
+  r.grid = !lib && text.find("zinc:gfx") != std::string::npos && std::regex_search(text, reGfxText);
+  r.typing = !lib && embedTtf && types(text);
+  // line by line: the patterns do not span lines, and short subjects keep the regex engine fast
+  std::size_t at = 0;
+  while (at < text.size()) {
+    std::size_t nl = text.find('\n', at);
+    std::string line = text.substr(at, nl == std::string::npos ? std::string::npos : nl - at);
+    at = nl == std::string::npos ? text.size() : nl + 1;
+    if (line.find("text-") != std::string::npos) {
+      for (auto it = std::sregex_iterator(line.begin(), line.end(), reText); it != std::sregex_iterator(); ++it) r.sizes.insert(textSize((*it)[1].str()));
+      for (auto it = std::sregex_iterator(line.begin(), line.end(), reTextPx); it != std::sregex_iterator(); ++it) r.sizes.insert(std::atoi((*it)[1].str().c_str()));
     }
-    literalChars(text, chars);
+    if (line.find("font-size") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reFontSize); it != std::sregex_iterator(); ++it) r.sizes.insert(std::atoi((*it)[1].str().c_str()));
+    if (line.find("font(") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reFontCall); it != std::sregex_iterator(); ++it) r.sizes.insert(std::atoi((*it)[1].str().c_str()));
+    if (line.find("px") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reCanvas); it != std::sregex_iterator(); ++it) r.sizes.insert(std::atoi((*it)[1].str().c_str()));
+    if (!r.ellipsis && (line.find("truncate") != std::string::npos || line.find("text-ellipsis") != std::string::npos || line.find("line-clamp") != std::string::npos || line.find("textOverflow") != std::string::npos)) r.ellipsis = true;
+    // a library or plugin calling font('mono', n) itself (zinc:editor) uses the face: unlike a style table's font-mono, the call is a use
+    if (!r.mono && (line.find("font('mono'") != std::string::npos || line.find("font(\"mono\"") != std::string::npos)) r.mono = true;
+    if (lib) continue;
+    if (!r.cased && (line.find("uppercase") != std::string::npos || line.find("lowercase") != std::string::npos || line.find("capitalize") != std::string::npos || line.find("textTransform") != std::string::npos)) r.cased = true;
+    if (!r.italic && (line.find("italic") != std::string::npos || line.find("fontStyle") != std::string::npos)) r.italic = true;   // a style object's fontStyle is a number once lowered
+    if (!r.mono && line.find("font-mono") != std::string::npos && std::regex_search(line, reMono)) r.mono = true;
+  }
+  literalChars(text, r.chars);
+  return r;
+}
+}  // namespace
+
+std::string Scan::key() const {
+  std::string k = "sizes";
+  for (int px : sizes) k += ' ' + std::to_string(px);
+  k += " chars";
+  for (std::uint32_t c : chars) k += ' ' + std::to_string(c);
+  k += std::string(" faces ") + (fontMono ? 'm' : '-') + (italicUsed ? 'i' : '-') + (gridUsed ? 'g' : '-') + (typing ? 't' : '-');
+  for (const auto& [name, file] : families) k += '\n' + name + '=' + file;
+  return k;
+}
+
+Scan scan(const std::vector<std::string>& sources, const Options& opt) {
+  const bool embedTtf = opt.hiScale > 0;
+  Scan sc;
+  std::set<int>& sizes = sc.sizes;
+  std::set<std::uint32_t>& chars = sc.chars;
+  sizes.insert(16);
+  for (int c = 32; c < 127; ++c) chars.insert(static_cast<std::uint32_t>(c));
+  bool caseUsed = false, ellipsisUsed = false;
+  sc.gridUsed = !embedTtf;   // the legacy gfx.text: every grid size when a program calls it (or when no TrueType file backs the overlays)
+  {   // each text scanned once while it stays the same (zinc dev's saves): the scans of the last call are kept, the others dropped (ZN-1024)
+    static std::mutex mu;
+    static std::map<std::string, FileScan> memo;   // by role ('l' library, 'p' program; 'e' embedded TrueType) and text
+    std::lock_guard<std::mutex> g(mu);
+    std::map<std::string, FileScan> used;
+    for (std::size_t si = 0; si < sources.size(); ++si) {
+      const bool lib = embedTtf && si < opt.library.size() && opt.library[si];
+      std::string key = std::string(lib ? "l" : "p") + (embedTtf ? "e" : "-") + sources[si];
+      auto it = used.find(key);
+      if (it == used.end()) {
+        auto m = memo.find(key);
+        it = used.emplace(key, m != memo.end() ? std::move(m->second) : scanFile(sources[si], lib, embedTtf)).first;
+      }
+      const FileScan& f = it->second;
+      sizes.insert(f.sizes.begin(), f.sizes.end());
+      chars.insert(f.chars.begin(), f.chars.end());
+      sc.gridUsed |= f.grid; sc.typing |= f.typing; ellipsisUsed |= f.ellipsis; sc.fontMono |= f.mono; caseUsed |= f.cased; sc.italicUsed |= f.italic;
+    }
+    memo = std::move(used);
   }
   if (!opt.assetsDir.empty() && fs::exists(opt.assetsDir))   // the texts a program reads from its assets at run time (a museum's descriptions in French, ZN-650.09)
     for (auto& e : fs::recursive_directory_iterator(opt.assetsDir)) {
@@ -608,11 +649,9 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
         std::u16string one(1, static_cast<char16_t>(cp));
         for (const std::u16string& m : {zn::uni::upper(one), zn::uni::lower(one)}) for (char16_t c : m) chars.insert(c);
       }
-  std::vector<std::uint32_t> cps(chars.begin(), chars.end());
-  struct Family { std::string name, file; };
-  std::vector<Family> families{{"sans", opt.fontDir + "/Inter-Regular.ttf"}, {"sans-bold", opt.fontDir + "/Inter-Bold.ttf"}};
-  std::string monoFile = opt.fontDir + "/JetBrainsMono-Regular.ttf";
-  if (fontMono) families.push_back({"mono", monoFile});
+  std::vector<Scan::Family>& families = sc.families;
+  families = {{"sans", opt.fontDir + "/Inter-Regular.ttf"}, {"sans-bold", opt.fontDir + "/Inter-Bold.ttf"}};
+  if (sc.fontMono) families.push_back({"mono", opt.fontDir + "/JetBrainsMono-Regular.ttf"});
   if (!opt.assetsDir.empty() && fs::exists(opt.assetsDir)) {  // every TrueType file of the assets: font-[FileName]
     std::vector<fs::path> found;
     for (auto& e : fs::recursive_directory_iterator(opt.assetsDir)) if (e.is_regular_file() && (e.path().extension() == ".ttf" || e.path().extension() == ".otf")) found.push_back(e.path());
@@ -628,6 +667,20 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
     };
     for (auto& p : found) if (named(p.stem().string())) families.push_back({p.stem().string(), p.string()});
   }
+  return sc;
+}
+
+bool bake(const std::vector<std::string>& sources, const Options& opt, std::vector<std::uint8_t>& blob, std::string& err) { return bake(scan(sources, opt), opt, blob, err); }
+
+bool bake(const Scan& sc, const Options& opt, std::vector<std::uint8_t>& blob, std::string& err) {
+  const bool embedTtf = opt.hiScale > 0;
+  const bool fontMono = sc.fontMono, italicUsed = sc.italicUsed, gridUsed = sc.gridUsed, typing = sc.typing;
+  const std::vector<std::uint32_t> cps(sc.chars.begin(), sc.chars.end());
+  const std::set<std::uint32_t>& chars = sc.chars;
+  const std::set<int>& sizes = sc.sizes;
+  using Family = Scan::Family;
+  const std::vector<Family>& families = sc.families;
+  const std::string monoFile = opt.fontDir + "/JetBrainsMono-Regular.ttf";
   std::map<std::string, std::vector<std::uint8_t>> fontBytes;
   std::vector<BakedFont> fonts;
   for (int px : sizes)

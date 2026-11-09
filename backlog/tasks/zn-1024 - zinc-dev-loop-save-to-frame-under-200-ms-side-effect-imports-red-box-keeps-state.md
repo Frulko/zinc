@@ -66,4 +66,6 @@ Measure in one process: `ZN_HOT_RECOMPILE=n zinc --emit=hot <entry> <out>` compi
 Step 1 (perf(ir): copy only the inlinable callees): inlineRound copied every function each round; now only the callees it can inline. Optimise 181 -> 155 ms on hero (back to back, load ~3), same bytes.
 
 Step 2 (perf(ir): reference counting on several threads): ir::parallelFor (at most 4 threads, half the cores, halved when the load average is above half the cores; ZN_IR_THREADS=n) runs Rc per function; the two types Rc interns (void, the Error reference) are interned before, so the workers only read the module. Reference counting 121 -> 43 ms on hero (back to back, load ~3), bytes identical to the one-thread compile.
+
+Step 3 (perf(res): key the bake on what it takes from the sources): res::scan returns the sizes, characters, faces and font families bake uses; the asset cache key hashes that scan instead of every source text (key version "font-baker 2"), and each text's scan is memoised while it stays the same (the scans of the last call kept, the rest dropped). zinc dev of hero, three saves of a new comment in Icon.tsx: bake 137 -> 3.5 ms, save-to-frame 1063-1089 -> 925-980 ms (back to back, load ~3.4). Blob identical to the old baker's with ZINC_NO_CACHE=1.
 <!-- SECTION:NOTES:END -->

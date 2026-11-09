@@ -198,6 +198,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The Changes of Zinc Inspector write `className=` and fold an edited `padding: 12px` into `p-[12px]` (or `px-`/`py-`, margins alike) instead of four classes.
 - The Elements panel of Chrome DevTools shows the nodes as JSX writes them, `<View className="...">`, `<Text>`, `<ScrollView>`, instead of `<view class="...">`, and a class is edited through the `className` attribute.
 
+#### Faster
+
+- A save in `zinc dev` reaches the screen sooner: the fonts and images are baked again only when the save changes a text size, a character or a font face, and the compiler does more of its work on several cores.
+
 #### Fixed
 
 - App updates are judged more carefully: an update that exits with an error code is rolled back, opening the app a second time while an update is on trial no longer rolls back a good update, and a device update with no previous version to restore stays on trial instead of losing its way back.

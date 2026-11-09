@@ -265,12 +265,10 @@ bool cached(const std::string& cacheDir, const std::string& key, const std::func
 
 bool bake(const std::vector<std::string>& sources, const res::Options& opt, const std::string& cacheDir, const std::string& tool,
           std::vector<std::uint8_t>& blob, bool& hit, std::string& err) {
+  // keyed by what the baker takes from the sources, not their texts: a save that changes no size, character or face is a hit (ZN-1024)
+  const res::Scan scan = res::scan(sources, opt);
   Key k;
-  k.add("font-baker 1").add(tool).add(std::to_string(opt.hiScale)).add(opt.wholeFonts ? "whole" : "subset");
-  std::string lib;
-  for (bool b : opt.library) lib += b ? '1' : '0';
-  k.add(lib).add(std::to_string(sources.size()));
-  for (const std::string& s : sources) k.add(s);
+  k.add("font-baker 2").add(tool).add(std::to_string(opt.hiScale)).add(opt.wholeFonts ? "whole" : "subset").add(scan.key());
   k.add("leave").add(std::to_string(opt.leave.size()));
   for (const std::string& s : opt.leave) k.add(s);
   for (const std::string& dir : {opt.fontDir, opt.assetsDir}) {   // names and bytes of what the baker may read: fonts, images, texts
@@ -287,7 +285,7 @@ bool bake(const std::vector<std::string>& sources, const res::Options& opt, cons
   std::string out;
   if (!cached(cacheDir, k.hex(), [&](std::string& o, std::string& e) {
         std::vector<std::uint8_t> b;
-        if (!res::bake(sources, opt, b, e)) return false;
+        if (!res::bake(scan, opt, b, e)) return false;
         o.assign(b.begin(), b.end());
         return true;
       }, out, hit, err)) return false;

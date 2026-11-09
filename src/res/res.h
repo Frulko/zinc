@@ -5,6 +5,7 @@
 // program runs (`zinc run`: baked in memory; `zinc build`: embedded in the program).
 // The blob layout is private to res.cpp and src/host/resources.cpp (version 1, little endian).
 #include <cstdint>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,19 @@ struct Options {
 
 // `sources` are the texts of every file of the program (user code and standard modules): they decide the sizes and the characters.
 bool bake(const std::vector<std::string>& sources, const Options& opt, std::vector<std::uint8_t>& blob, std::string& err);
+
+// What bake takes from the sources (and the texts and TrueType files of the assets): the same scan bakes the same blob, so it keys the
+// asset cache and an edit that changes no size, character or face is not baked again (ZN-1024). A text scanned by the last call is not scanned again.
+struct Scan {
+  struct Family { std::string name, file; };
+  std::set<int> sizes;
+  std::set<std::uint32_t> chars;
+  bool fontMono = false, italicUsed = false, gridUsed = false, typing = false;
+  std::vector<Family> families;
+  std::string key() const;
+};
+Scan scan(const std::vector<std::string>& sources, const Options& opt);
+bool bake(const Scan& scan, const Options& opt, std::vector<std::uint8_t>& blob, std::string& err);
 
 // Whether bake reads the files of the assets directory that have this extension (".png"): what the cache key of src/assets covers.
 bool bakerReads(const std::string& ext);
