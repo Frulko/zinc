@@ -55,3 +55,11 @@ Read-only review found that ordinary optional IDs could be stringified as "undef
 ### Warm build and exact proof
 
 Own warm zinc build and exact `tests/t0/jsx_id.sh` PASS for both UI models on interpreter/AOT/QuickJS, including optional undefined/null clearing, VirtualList, unchanged refs, active-descendant relationships and invalid-attribute diagnostics. Retained log `.logs/core-proof/jsx_id.log`. AC1/2 proven. Original Data caller check/short proof AC3 remains pending alongside ZN-1094/1095. Static DOM forwarding is not a browser/assistive-technology validation claim.
+
+### Original caller correction — nonnullable expressions
+
+Fresh Picker/Data checks exposed Z0107 from the generated `(expression) ?? ''` on composed strings, templates, ternaries and helper calls. JSX runs before checking, so source syntax cannot safely predict nullability. Both normal host and VirtualList emit the same once-evaluated `unknown` parameter normalizer: null/undefined become empty, all other values retain existing String conversion. The strict user-language diagnostic is unchanged. No caller workaround.
+
+- `tools/build zinc` completed; jsx.cpp introduces no warning. A fresh tree also reports existing SDK V8, cJSON, GLFW and source warnings outside this edit; do not call the whole build warning-free.
+- Expanded `tests/run --only jsx_id` PASS: both models × all three engines, composed/helper/template/ternary/nonnullable IDs, nullable clearing, numeric String conversion, stable refs/IDREFs, unknown-attribute rejection. Side-effecting ID producers are asserted exactly once per update. Log `.logs/id-normalize/test.log`.
+- AC3 remains open for the original Data proof; constructor-inference and optional-callback narrowing are independent confirmed blockers assigned by the coordinator. Runtime speed unmeasured; broad/browser/accessibility checks remain proposed milestone work.

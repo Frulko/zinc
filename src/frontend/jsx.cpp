@@ -38,6 +38,11 @@ const std::set<std::string> kFlagAttrs = {"password", "readOnly", "lineNumbers",
 const std::map<std::string, int> kInputModes = {{"text", 0}, {"numeric", 1}, {"decimal", 2}, {"tel", 3}, {"email", 4}, {"url", 5}, {"search", 6}};
 const std::map<std::string, int> kDragAxes = {{"x", 1}, {"y", 2}, {"both", 3}};
 
+// Normalize once: JSX lowering runs before types are known, so adding ?? directly can reject a non-null expression.
+std::string semanticId(const std::string& expression) {
+  return "((__id: unknown): string => __id === null || __id === undefined ? '' : String(__id))((" + expression + "))";
+}
+
 struct Elem;
 struct Attr {
   std::string name;
@@ -1321,7 +1326,7 @@ struct Lowering {
       else if (name == "accessibilityLabel") push(lit ? "_str(" + v + ", 'label', " + quote(a.lit) + ");" : react ? "_str(" + v + ", 'label', " + expr + ");" : "_dynStr(" + v + ", 'label', () => (" + expr + "));");
       else if (kWebAttrs.count(name) || (name == "type" && !(lit && (a.lit == "password" || a.lit == "text")))) {   // a hint for the page
         const std::string key = quote("attr:" + (name == "htmlFor" ? std::string("for") : name));
-        const std::string text = "String(" + (name == "id" ? "(" + expr + ") ?? ''" : expr) + ")";
+        const std::string text = name == "id" ? semanticId(expr) : "String(" + expr + ")";
         if (a.kind == 0) push("_str(" + v + ", " + key + ", 'true');");
         else if (lit) push("_str(" + v + ", " + key + ", " + quote(a.lit) + ");");
         else push(react ? "_str(" + v + ", " + key + ", " + text + ");" : "_dynStr(" + v + ", " + key + ", () => " + text + ");");
@@ -1519,7 +1524,7 @@ struct Lowering {
         const std::string key = std::string(nm) == "id" ? "attr:id" : std::string(nm) == "role" ? "role" : "label";
         if (x->kind == 1) out.push_back("_str(" + v + ", '" + key + "', " + quote(x->lit) + ");");
         else {
-          const std::string value = std::string(nm) == "id" ? "String((" + valueOf(*x) + ") ?? '')" : valueOf(*x);
+          const std::string value = std::string(nm) == "id" ? semanticId(valueOf(*x)) : valueOf(*x);
           out.push_back(react ? "_str(" + v + ", '" + key + "', " + value + ");" : "_dynStr(" + v + ", '" + key + "', () => (" + value + "));");
         }
       }
