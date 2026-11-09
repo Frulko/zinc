@@ -1,6 +1,7 @@
 import * as ui from 'zinc:ui';
 import { render, createSignal, createNodeRef } from 'zinc:ui/solid';
 import { Svg } from 'zinc:svg';
+import { iconNames } from 'zinc:icons';
 import { componentEffect } from '../../../lib/std/kit/host';
 import { Alert, Banner, Progress, ProgressRing, Meter, Spinner, Skeleton, Badge, Avatar, EmptyState, Timeline, useQuietTheme } from 'zinc:ui/kit';
 useQuietTheme();
@@ -58,6 +59,7 @@ render(App,0xf2f2f2,(dt:number)=>{
     setShown(false);if(effects!==0||resource===null||(resource as Svg).items()!==0)throw new Error('unmount retained effect/Svg');
     ui.tick(2000);ui.systemSignal('reducemotion 0');ui.tick(1);
     if(stoppedRotation!==0)throw new Error('reduced motion kept spinner moving');
+    console.log('feedback icons: ' + iconNames().join(','));
     console.log('feedback: ok');
   }
 });

@@ -1,6 +1,7 @@
 import * as ui from 'zinc:ui';
 import { render, useState, MutableRef } from 'zinc:ui/react';
 import { Svg } from 'zinc:svg';
+import { iconNames } from 'zinc:icons';
 import { componentEffect } from '../../../lib/std/kit/host';
 import { Alert, Banner, ProgressRing, Spinner, Skeleton, useQuietTheme } from 'zinc:ui/kit';
 useQuietTheme();
@@ -61,6 +62,7 @@ render(App, 0xf2f2f2, (dt: number) => {
   if (frame === 4) {
     if (effects !== 0 || old === null || (old as Svg).items() !== 0) throw new Error('React unmount retained effect/Svg');
     ui.tick(2000); ui.systemSignal('reducemotion 0'); ui.tick(1);
+    console.log('feedback icons: ' + iconNames().join(','));
     console.log('feedback react: ok');
   }
 });

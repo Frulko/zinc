@@ -169,6 +169,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### Fixed
 
+- The Feedback gallery keeps its columns and collaborator row inside narrow windows.
 - Library default icons, including Alert, Spinner, checkboxes and password fields, render without callers listing their internal names in `zinc.json`.
 - Nested kit and Nuxt components keep their own React state and cleanup; editing a virtual row preserves its focused field when the parent updates.
 - One error no longer freezes a reactive app: a throw inside `batch`, `untrack` or an effect used to hold every later signal update back, and a render caught by its parent (an error boundary) stopped reordered children from moving.

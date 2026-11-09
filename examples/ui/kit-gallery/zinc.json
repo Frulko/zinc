@@ -44,11 +44,6 @@
     "settings",
     "chevron-right",
     "circle",
-    "circle-check",
-    "circle-alert",
-    "triangle-alert",
-    "info",
-    "loader-circle",
-    "folder-open"
+    "circle-alert"
   ]
 }

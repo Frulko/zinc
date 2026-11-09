@@ -355,6 +355,7 @@ ZINC_SHOT=docs/img/kit-overlays.png`.
 
 The family is implemented in `lib/std/kit/feedback.tsx`; existing imports from `alert`, `badge`, `avatar`, `progress`
 and `spinner` still work. Quiet uses neutral surfaces and one accent, with colour reserved for status.
+Default icons are selected automatically; only icon names built at run time need declarations in `zinc.json`.
 
 ![Quiet feedback components](img/kit-feedback.png)
 ![Dark feedback components](img/kit-feedback-dark.png)

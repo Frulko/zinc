@@ -1,1 +1,1 @@
-{"name":"kit-feedback-react","entry":"main.tsx","targets":{"macos":{"width":960,"height":800},"sim":{"width":960,"height":800}},"icons":["circle-check","circle-alert","triangle-alert","info","loader-circle","folder-open"]}
+{"name":"kit-feedback-react","entry":"main.tsx","targets":{"macos":{"width":960,"height":800},"sim":{"width":960,"height":800}}}
