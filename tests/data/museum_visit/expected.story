@@ -40,8 +40,8 @@
 1060 subtitle Welcome.
 1134 subtitle In Japan, in the Edo period, pictures printed by the thousand show the pleasures of the city, actors, beauties and landscapes.
 1200 presentation pause
-1200 narration stop
 1233 language fr
+1233 narration stop
 1263 presentation resume
 1263 narration audio/welcome.fr.mp3
 1264 subtitle Bienvenue.

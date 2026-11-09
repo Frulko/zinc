@@ -1,7 +1,7 @@
 // The narration of a sequence: one clip per language, played through zinc:audio, and its subtitles. The subtitles are the timed cues of
 // the medium's WebVTT file, or without one the sentences of its transcript at a reading pace. The cues also say how long the narration
 // lasts, so a run without sound (a test, a table without speakers) shows the same subtitles at the same times.
-import { load, decode, Sound } from 'zinc:audio';
+import { load, decode, Sound, Voice } from 'zinc:audio';
 import { Project, Media } from './project';
 import { files } from './files';
 
@@ -69,6 +69,7 @@ export class Narration {
   /** Seconds it lasts, as its cues say. */
   readonly length: number;
   private sound: Sound | null = null;
+  private clip: Voice | null = null;
 
   constructor(project: Project, medium: Media, lang: string) {
     this.file = medium.file.replaceAll('{lang}', lang);
@@ -83,12 +84,15 @@ export class Narration {
     let s = sounds.get(name) ?? null;
     if (s === null) { s = files.exists(this.file) ? decode(files.bytes(this.file), this.file) : load(this.file); sounds.set(name, s); }   // load: the warning of a missing clip
     s.stop();
-    s.play();
+    this.clip = s.voice(1, 1, 0, false);
     this.sound = s;
   }
+  /** Holds the clip where it is; resume() goes on from there. */
+  pause(): void { this.clip?.pause(); }
+  resume(): void { this.clip?.resume(); }
   stop(): void {
     this.sound?.stop();
-    this.sound = null;
+    this.sound = null; this.clip = null;
   }
 
   /** What is being said `t` seconds into the narration ('' between two sentences and after the last). */

@@ -1,13 +1,14 @@
 #!/bin/sh
 # zinc:audio voices on the null backend (ZN-697): two overlapping plays of one sound at their own volumes mix to both, and voice.stop(delay, fade)
 # fades a voice to silence in the mixer, sample by sample, and stops it on the frame the fade ends (a pitched voice too: the fade counts frames of
-# mix). The interpreter, QuickJS and the compiled program print the same lines.
+# mix). voice.pause() holds a voice where it is and resume() goes on from there, so a clip held for 1 s ends 1 s later (ZN-695); a voice
+# started at an offset plays from it. The interpreter, QuickJS and the compiled program print the same lines.
 cd "$(dirname "$0")/../.." || exit 2
 command -v c++ >/dev/null || { echo "skipped: no C++ compiler for the plugin"; exit 77; }
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 cat > "$tmp/main.ts" <<'EOF'
-import { fromSamples, mix } from 'zinc:audio';
+import { fromSamples, mix, time } from 'zinc:audio';
 const r4 = (v: number): number => Math.round(v * 10000) / 10000;
 const flat: number[] = [];
 for (let i = 0; i < 48000; i++) flat.push(0.5);
@@ -38,6 +39,37 @@ mix(64);
 p.stop(0, 0.01);
 m = mix(480);
 console.log(`pitched ${r4(m[480])} ${r4(m[958])} ${p.playing} ${r4(mix(2)[0])} ${p.playing}`);
+// a ramp of 3 s whose sample is its time / 4: started at 2 s it plays from 2 s
+const ramp: number[] = [];
+for (let i = 0; i < 144000; i++) ramp.push(i / 48000 / 4);
+const r = fromSamples(ramp);
+const at2 = r.voice(1, 1, 0, false, 2);
+console.log(`seek ${r4(mix(1)[0] * 4)}`);
+at2.stop();
+// held after 0.5 s for 1 s: silent and still playing, then on from 0.5 s, and over at 3 + 1 s of mix after its start, not at 3
+const t0 = time(), h = r.voice(1, 1, 0, false);
+m = mix(24000);
+h.pause();
+h.pause();
+const held = mix(48000);
+let loud = 0;
+for (const x of held) loud = Math.max(loud, Math.abs(x));
+console.log(`held ${r4(m[47998] * 4)} ${loud} ${h.playing}`);
+h.resume();
+console.log(`resumed ${r4(mix(1)[0] * 4)} ${h.playing}`);
+mix(119519);
+console.log(`late ${h.playing} ${r4(time() - t0)}`);
+mix(960);
+console.log(`over ${h.playing} ${r4(time() - t0)}`);
+// a held voice stopped ends at once; a voice already fading out is not held
+const s1 = r.voice(1, 1, 0, false);
+s1.pause();
+s1.stop(0, 0.5);
+const s2 = r.voice(1, 1, 0, true);
+s2.stop(0, 0.01);
+s2.pause();
+mix(960);
+console.log(`stops ${s1.playing} ${s2.playing}`);
 EOF
 cat > "$tmp/want" <<'OUT'
 both 0.75
@@ -47,6 +79,12 @@ after 0 0 false
 delayed 0.5 0.5 0.25 0.0021 true
 ended 0 false
 pitched 0.25 0.001 true 0 false
+seek 2
+held 0.5 0 true
+resumed 0.5 true
+late true 3.99
+over false 4.01
+stops false false
 OUT
 ZINC_HEADLESS=1 ZINC_NATIVE=real "$ZINC" run --interp "$tmp/main.ts" 2>"$tmp/err" | diff - "$tmp/want" >"$tmp/d" || { echo "audio_fade: the interpreter differs: $(head -c 400 "$tmp/d") $(tail -c 300 "$tmp/err")"; fail=1; }
 ZINC_HEADLESS=1 ZINC_NATIVE=real "$ZINC" run "$tmp/main.ts" --engine quickjs 2>"$tmp/err" | diff - "$tmp/want" >"$tmp/d" || { echo "audio_fade: QuickJS differs: $(head -c 400 "$tmp/d") $(tail -c 300 "$tmp/err")"; fail=1; }

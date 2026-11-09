@@ -24,14 +24,17 @@ const ma_uint32 RATE = 48000;
 struct Clip { void* pcm; ma_uint64 frames; ma_uint32 channels, rate; ma_uint64 filled; int pending, quit; pthread_t th; ma_decoder* dec; void* file; };
 // a clip as a data source: the frames decoded so far, silence (the cursor waiting) for the ones not yet there
 struct Prog { ma_data_source_base base; Clip* clip; ma_uint64 cursor; };
-// A voice's lifecycle (ZN-697): a free slot, a voice that plays (or waits for its `from`), one whose end is set (a stop time, faded or not:
-// it plays on until that frame of the mix). The end itself is miniaudio's clock reaching the stop time, or the clip's end: live() reads it.
-enum class VState : uint8_t { Free, Playing, Ending };
+// A voice's lifecycle (ZN-697, ZN-695): a free slot, a voice that plays (or waits for its `from`), one whose end is set (a stop time, faded or
+// not: it plays on until that frame of the mix), one held by pause() (out of the mix, its cursor kept, until resume() or a stop). The end
+// itself is miniaudio's clock reaching the stop time, or the clip's end: live() reads it.
+enum class VState : uint8_t { Free, Playing, Ending, Paused };
 struct Voice { ma_audio_buffer_ref src; Prog prog; bool useProg; ma_sound sound; int32_t clip; uint64_t started; ma_uint64 from; VState state; bool pitched; };   // from: the mix frame a delayed voice starts at
-// The one place a voice changes state: Free -> Playing (start), Playing -> Ending (a stop time), any -> Free (release); nothing goes back to
-// Playing but a new start on a free slot, so an ending voice cannot be revived by a late voiceSet.
+// The one place a voice changes state: Free -> Playing (start), Playing -> Ending (a stop time), Playing <-> Paused (pause, resume), any ->
+// Free (release); an ending voice never goes back to Playing (a late voiceSet or resume cannot revive it) and is not paused (it is leaving:
+// its stop time and fade run on miniaudio's clock, which a pause would not hold).
 bool to(Voice& v, VState s) {
-  const bool ok = s == VState::Free || (s == VState::Playing && v.state == VState::Free) || (s == VState::Ending && v.state == VState::Playing);
+  const bool ok = s == VState::Free || (s == VState::Playing && (v.state == VState::Free || v.state == VState::Paused)) ||
+                  ((s == VState::Ending || s == VState::Paused) && v.state == VState::Playing);
   if (ok) v.state = s;
   return ok;
 }
@@ -149,7 +152,7 @@ Voice* voice_at(int32_t id) {
   for (Voice& v : voices) if (v.state != VState::Free && id > 0 && voice_id(v) == id) return &v;
   return nullptr;
 }
-bool live(Voice& v) { return v.state != VState::Free && !ma_sound_at_end(&v.sound) && (ma_sound_is_playing(&v.sound) || ma_engine_get_time_in_pcm_frames(&eng) < v.from); }   // playing, or waiting for its time
+bool live(Voice& v) { return v.state == VState::Paused || (v.state != VState::Free && !ma_sound_at_end(&v.sound) && (ma_sound_is_playing(&v.sound) || ma_engine_get_time_in_pcm_frames(&eng) < v.from)); }   // playing, held, or waiting for its time
 bool env_on(const char* n) { const char* v = getenv(n); return v && *v && *v != '0'; }
 // A playback rate (pitch and speed together) between 1/64 and 64, 1 for NaN; a pan between -1 and 1, 0 for NaN.
 float rate_of(double r) { return r > 0 ? (float)(r < 1.0 / 64 ? 1.0 / 64 : r > 64 ? 64 : r) : 1.0f; }
@@ -570,8 +573,8 @@ struct HostAudio : NativeAudio {
     if (!c || !e) return 0;
     Voice* v = nullptr;
     for (Voice& x : voices) if (!live(x)) { v = &x; break; }
-    if (!v) {   // all busy: the oldest one-shot gives way, a loop (the music) only when there is nothing else
-      auto age = [](Voice& x) { return x.started + (ma_sound_is_looping(&x.sound) ? (uint64_t)1 << 62 : 0); };
+    if (!v) {   // all busy: the oldest one-shot gives way, a loop (the music) or a held voice (a paused narration) only when there is nothing else
+      auto age = [](Voice& x) { return x.started + (ma_sound_is_looping(&x.sound) || x.state == VState::Paused ? (uint64_t)1 << 62 : 0); };
       v = &voices[0];
       for (Voice& x : voices) if (age(x) < age(*v)) v = &x;
     }
@@ -623,9 +626,18 @@ struct HostAudio : NativeAudio {
     Voice* v = voice_at(id);
     if (!v) return;
     const ma_uint64 d = delay > 0 ? (ma_uint64)(delay * RATE + 0.5) : 0, f = fade > 0 ? (ma_uint64)(fade * RATE + 0.5) : 0;
-    if (d + f == 0) { release(*v); return; }
+    if (d + f == 0 || v->state == VState::Paused) { release(*v); return; }   // a held voice is silent: it ends now
     ma_sound_set_stop_time_with_fade_in_pcm_frames(&v->sound, ma_engine_get_time_in_pcm_frames(&eng) + d + f, f);
     to(*v, VState::Ending);   // a second stop moves the end (a running fade goes on when it asks for none)
+  }
+  // pause() takes the voice out of the mix at once, where it is (ma_sound_stop keeps the cursor), and resume() puts it back: the frames of mix
+  // in between do not count, so it ends that much later. ponytail: a hard cut, as alSourcePause or FMOD's setPaused; a few ms of ramp (fade, then
+  // seek back by the ramp on resume) if a click is heard.
+  void voicePause(int32_t id, bool on) override {
+    Voice* v = voice_at(id);
+    if (!v) return;
+    if (on && live(*v) && to(*v, VState::Paused)) ma_sound_stop(&v->sound);
+    else if (!on && v->state == VState::Paused && to(*v, VState::Playing)) ma_sound_start(&v->sound);
   }
   void voiceSet(int32_t id, double volume, double rate, double pan) override {
     Voice* v = voice_at(id);

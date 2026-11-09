@@ -21,23 +21,31 @@ function context() {
 }
 const mk = (buffer) => { sounds.set(nextSound, { buffer, waiting: [], vol: 1, loop: false, rate: 1, pan: 0, ids: new Set() }); return nextSound++; };
 
+// A voice's state, as the native mixer's: 'playing' (or waiting for its delay), 'ending' (a stop is scheduled), 'paused', 'ended'.
+// A source node plays once: resume() gives the voice a new one at the offset where pause() stopped the last (t0 and off0 say where it is).
+function source(v, id, loop, rate, loopStart, loopEnd, at, offset) {
+  const c = context(), src = c.createBufferSource();
+  src.buffer = v.sound.buffer; src.loop = loop; src.playbackRate.value = rate; src.loopStart = loopStart; src.loopEnd = loopEnd;
+  src.connect(v.gain);
+  src.onended = () => { if (v.src !== src || v.state === 'paused') return; v.state = 'ended'; v.sound.ids.delete(id); };
+  v.src = src; v.t0 = at; v.off0 = offset;
+  src.start(at, offset);
+}
 function startVoice(s, id, vol, loop, rate, pan, offset, delay) {
-  const c = context(), src = c.createBufferSource(), gain = c.createGain(), pn = c.createStereoPanner ? c.createStereoPanner() : null;
-  src.buffer = s.buffer; src.loop = loop; src.playbackRate.value = rate; gain.gain.value = vol;
-  src.connect(gain);
+  const c = context(), gain = c.createGain(), pn = c.createStereoPanner ? c.createStereoPanner() : null;
+  gain.gain.value = vol;
   if (pn) { pn.pan.value = pan; gain.connect(pn); pn.connect(master); } else gain.connect(master);
-  const v = { src, gain, pn, sound: s, rate0: rate, playing: true };
-  src.onended = () => { v.playing = false; s.ids.delete(id); };
+  const v = { src: null, gain, pn, sound: s, rate0: rate, state: 'playing', t0: 0, off0: 0 };
   voices.set(id, v); s.ids.add(id);
   // the oldest of 32 gives way, as the native mixer does
-  if (voices.size > 32) { for (const [k, o] of voices) { if (!o.playing) { voices.delete(k); continue; } try { o.src.stop(); } catch {} voices.delete(k); break; } }
-  src.start(c.currentTime + Math.max(0, delay || 0), Math.max(0, offset || 0));
+  if (voices.size > 32) { for (const [k, o] of voices) { if (o.state === 'ended') { voices.delete(k); continue; } try { o.src.stop(); } catch {} voices.delete(k); break; } }
+  source(v, id, loop, rate, 0, 0, c.currentTime + Math.max(0, delay || 0), Math.max(0, offset || 0));
 }
 function begin(s, vol, loop, rate, pan, offset, delay) {
   const id = nextVoice++;
   if (s.buffer) startVoice(s, id, vol, loop, rate, pan, offset, delay);
   else s.waiting.push(() => startVoice(s, id, vol, loop, rate, pan, offset, delay));
-  voices.set(id, voices.get(id) || { playing: true, pending: true, sound: s, rate0: rate });
+  voices.set(id, voices.get(id) || { state: 'playing', pending: true, sound: s, rate0: rate });
   s.ids.add(id);
   return id;
 }
@@ -76,7 +84,7 @@ Z.registerNative('Audio', {
   unload(h) { const s = sounds.get(h); if (!s) return; this.stop(h); sounds.delete(h); },
   play(h, vol, loop, rate, pan) { const s = sounds.get(h); if (!s) return false; begin(s, vol, loop, rate, pan, 0, 0); return true; },
   stop(h) { const s = sounds.get(h); if (!s) return; for (const id of [...s.ids]) this.voiceStop(id, 0); s.waiting.length = 0; },
-  playing(h) { const s = sounds.get(h); if (!s) return false; for (const id of s.ids) if (voices.get(id) && voices.get(id).playing) return true; return false; },
+  playing(h) { const s = sounds.get(h); if (!s) return false; for (const id of s.ids) if (voices.get(id) && voices.get(id).state !== 'ended') return true; return false; },
   setVolume(h, v) { const s = sounds.get(h); if (!s) return; s.vol = v; for (const id of s.ids) { const o = voices.get(id); if (o && o.gain) o.gain.gain.value = v; } },
   setLoop(h, on) { const s = sounds.get(h); if (!s) return; s.loop = on; for (const id of s.ids) { const o = voices.get(id); if (o && o.src) o.src.loop = on; } },
   setRate(h, r) { const s = sounds.get(h); if (!s) return; s.rate = r; for (const id of s.ids) { const o = voices.get(id); if (o && o.src && o.rate0 !== 1) o.src.playbackRate.value = r; } },
@@ -85,19 +93,37 @@ Z.registerNative('Audio', {
   start(h, vol, loop, rate, pan, offset, delay) { const s = sounds.get(h); return s ? begin(s, vol, loop, rate, pan, offset, delay) : 0; },
   voiceStop(id, delay, fade) {
     const o = voices.get(id);
-    if (!o) return;
+    if (!o || o.state === 'ended') return;
+    if (o.state === 'paused') { o.state = 'ended'; o.sound.ids.delete(id); return; }   // a held voice is silent: it ends now
     const at = context().currentTime + Math.max(0, delay || 0), f = Math.max(0, fade || 0);
     if (o.src && f > 0 && o.gain) {   // a linear ramp of the voice's gain to 0, then the stop: sample-accurate in the browser's mixer
       const g = o.gain.gain;
       g.cancelScheduledValues(at); g.setValueAtTime(g.value, at); g.linearRampToValueAtTime(0, at + f);
     }
-    if (o.src) { try { o.src.stop(at + f); } catch {} } else { o.playing = false; o.sound.waiting.length = 0; }
-    if (!delay && !f) { o.playing = false; o.sound.ids.delete(id); }
+    if (o.src) { try { o.src.stop(at + f); } catch {} } else { o.state = 'ended'; o.sound.waiting.length = 0; }
+    if (!delay && !f) { o.state = 'ended'; o.sound.ids.delete(id); } else if (o.state === 'playing') o.state = 'ending';
+  },
+  // pause: the node stops where it is and its offset is kept (in the sound's seconds: the time played times the rate, wrapped in a loop);
+  // resume: a new node from there. A voice still waiting for its sound to decode, or already stopping, is not held.
+  voicePause(id, on) {
+    const o = voices.get(id), c = ctx;
+    if (!o || !o.src || !c) return;
+    if (on && o.state === 'playing') {
+      const d = o.sound.buffer.duration, e = o.src.loopEnd > o.src.loopStart ? o.src.loopEnd : d, b = o.src.loopEnd > o.src.loopStart ? o.src.loopStart : 0;
+      let at = o.off0 + Math.max(0, c.currentTime - o.t0) * o.src.playbackRate.value;   // ponytail: a rate changed while it played is counted from the start
+      if (o.src.loop && at >= e && e > b) at = b + ((at - b) % (e - b));
+      o.state = 'paused'; o.at = Math.min(at, d);
+      try { o.src.stop(); } catch {}
+    } else if (!on && o.state === 'paused') {
+      o.state = 'playing';
+      const p = o.src;
+      source(o, id, p.loop, p.playbackRate.value, p.loopStart, p.loopEnd, c.currentTime, o.at);
+    }
   },
   voiceSet(id, vol, rate, pan) { const o = voices.get(id); if (!o || !o.src) return; o.gain.gain.value = vol; if (o.rate0 !== 1) o.src.playbackRate.value = rate; if (o.pn) o.pn.pan.value = pan; },
   voiceLoop(id, from, to) { const o = voices.get(id); if (o && o.src) { o.src.loopStart = from; o.src.loopEnd = to; } },
   suspend(on) { if (on) context().suspend(); else context().resume(); },
-  voicePlaying(id) { const o = voices.get(id); return !!(o && o.playing); },
+  voicePlaying(id) { const o = voices.get(id); return !!(o && o.state !== 'ended'); },
   channels(h) { const s = sounds.get(h); return s && s.buffer ? s.buffer.numberOfChannels : 0; },
   rate(h) { const s = sounds.get(h); return s && s.buffer ? s.buffer.sampleRate : 0; },
   samples(h, ch) { const s = sounds.get(h); return s && s.buffer && ch < s.buffer.numberOfChannels ? Array.from(s.buffer.getChannelData(ch)) : []; },

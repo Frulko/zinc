@@ -99,6 +99,8 @@ export class Player {
   private step: i32 = 0;
   private played = 0;
   private paused = false;
+  /** The narration a touch held when it paused the presentation (null: none was said): "Resume" lets it go on, if it is still the one. */
+  private held: Narration | null = null;
   /** The narration being said, the seconds since it began, and the subtitle on the table. */
   private voice: Narration | null = null;
   private spoken = 0;
@@ -242,6 +244,7 @@ export class Player {
     this.tell(`language ${lang}`);
     const told = this.described;
     if (told.length > 0) { this.hush(); this.describe(this.project.medium(told)); }
+    else if (this.paused && this.voice !== null && this.voice === this.held) this.hush();   // a held narration: "Resume" says the step in this language
     else if (this.voice !== null && this.stack.length > 0) this.narrate(this.top().sequence);   // and its subtitles with it
   }
 
@@ -556,11 +559,14 @@ export class Player {
     if (b.act === 'language') this.speak(project.languages[(project.languages.indexOf(this.lang) + 1) % project.languages.length]);
     else if (b.act === 'storyboard') this.showBoard(board !== null && !board.open);
     else if (b.act === 'resume') {
-      // ponytail: zinc:audio cannot pause a clip or start it in the middle, so the step is played again from its beginning
-      this.paused = false; this.played = 0;
+      // the step goes on where the touch held it, its narration with it; if what was said changed meanwhile (another language, an audio
+      // description), the step starts again
+      const again = this.voice !== this.held;
+      this.paused = false;
       this.tell('presentation resume');
       this.layOutDock();
-      this.narrate(this.top().sequence);
+      if (again) { this.played = 0; this.narrate(this.top().sequence); } else this.held?.resume();
+      this.held = null;
     } else if (b.act === 'leave') this.endTour('stop');
     else if (b.act === 'close') { this.tell(`close ${this.top().sequence.id} -> ${this.stack[0].sequence.id} fade`); this.go(this.stack[0].sequence.id, 'fade', false); }
     else if (b.act.startsWith('present ')) {
@@ -668,7 +674,7 @@ export class Player {
       if (Math.min(Math.min(f.x, T.width - f.x), Math.min(f.y, T.height - f.y)) <= this.TURN) turn = F.nearest(f.x, f.y);
     }
     const speaking = this.voice;
-    if (speaking !== null) {
+    if (speaking !== null && !(this.paused && speaking === this.held)) {   // held: its subtitles wait with it
       this.spoken += dt;
       const text = speaking.at(this.spoken);
       if (text !== this.cue) { this.cue = text; if (text.length > 0) this.tell(`subtitle ${text}`); }
@@ -689,9 +695,9 @@ export class Player {
       on.update(dt, fingers, this.now);
       this.played += dt;
       if (touched) {
-        this.paused = true;
+        this.paused = true; this.held = this.voice; this.cue = '';
         this.tell('presentation pause');
-        this.hush();
+        this.held?.pause();
         this.layOutDock();
       } else if (this.played >= this.stepLength(on.sequence)) {
         this.step++;

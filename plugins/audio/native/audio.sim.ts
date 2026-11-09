@@ -5,6 +5,9 @@ const lengths: f64[] = [];      // per handle: seconds (0 for a file, which is n
 const active: boolean[] = [];
 let err: string = '';
 const ends: f64[] = [];        // per voice started by start(), at index voice - 1: the time it ends at (mix() moves the time)
+// per voice, as audio.host.cpp's VState: it plays, its end is set by voiceStop, or voicePause holds it (`rest`: the seconds it had to play)
+const PLAYING = 0, ENDING = 1, PAUSED = 2;
+const vstate: i32[] = [], rest: f64[] = [];
 let clock: f64 = 0;
 let held: boolean = false;   // suspend(): the clock and the musics stand still
 const buffered: i32[] = [], rates: i32[] = [], chans: i32[] = [];   // per stream: frames buffered, frames per second, channels
@@ -43,19 +46,32 @@ export default {
   setPan(sound: i32, pan: f64): void {},
   stopAll(): void {
     for (let i = 0; i < active.length; i++) active[i] = false;
-    for (let i = 0; i < ends.length; i++) ends[i] = 0;
+    for (let i = 0; i < ends.length; i++) { ends[i] = 0; vstate[i] = PLAYING; }
   },
   start(sound: i32, volume: f64, loop: boolean, rate: f64, pan: f64, offset: f64, delay: f64): i32 {
     if (!known(sound)) return 0;
     const left: f64 = Math.max(0, lengths[sound] - offset) / (rate > 0 ? rate : 1);
     ends.push(loop && left > 0 ? Infinity : clock + Math.max(0, delay) + left);
+    vstate.push(PLAYING); rest.push(0);
     return ends.length;
   },
   voiceLoop(voice: i32, from: f64, to: f64): void {},
   suspend(on: boolean): void { held = on; },
-  voiceStop(voice: i32, delay: f64, fade: f64): void { if (voice > 0 && voice <= ends.length) ends[voice - 1] = Math.min(ends[voice - 1], clock + Math.max(0, delay) + Math.max(0, fade)); },
+  voiceStop(voice: i32, delay: f64, fade: f64): void {
+    if (voice <= 0 || voice > ends.length) return;
+    const i = voice - 1, at = clock + Math.max(0, delay) + Math.max(0, fade);
+    if (vstate[i] === PAUSED || at === clock) { vstate[i] = PLAYING; ends[i] = Math.min(ends[i], clock); return; }   // a held voice ends at once
+    ends[i] = Math.min(ends[i], at);
+    vstate[i] = ENDING;
+  },
+  voicePause(voice: i32, on: boolean): void {
+    if (voice <= 0 || voice > ends.length) return;
+    const i = voice - 1;
+    if (on && vstate[i] === PLAYING && clock < ends[i]) { vstate[i] = PAUSED; rest[i] = ends[i] - clock; }
+    else if (!on && vstate[i] === PAUSED) { vstate[i] = PLAYING; ends[i] = clock + rest[i]; }
+  },
   voiceSet(voice: i32, volume: f64, rate: f64, pan: f64): void {},
-  voicePlaying(voice: i32): boolean { return voice > 0 && voice <= ends.length && clock < ends[voice - 1]; },
+  voicePlaying(voice: i32): boolean { return voice > 0 && voice <= ends.length && (vstate[voice - 1] === PAUSED || clock < ends[voice - 1]); },
   played(): f64[] { return []; },
   time(): f64 { return clock; },
   pcm(samples: f64[], channels: i32, rate: i32): i32 {

@@ -39,7 +39,7 @@ zinc run examples/museum-table/src/check.ts -- examples/museum-table/assets/proj
 | buttons at the visitor's edge | the links of the sequence; `Plan`: the storyboard, where a touch on a node goes there; the guided visit | click |
 | | `A A A`: the text size; the half disc: high contrast; `FR EN`: the language. Kept for the visit | click |
 | `Audiodescription` | under an object, in a panorama, beside `Refermer` when a print is seen in full: the voice describes it, with subtitles | click |
-| a guided visit | a touch pauses it; then `Reprendre la visite` or `Quitter la visite` | click |
+| a guided visit | a touch pauses it, its narration and subtitles with it; then `Reprendre la visite` goes on where it stopped (the step starts again if the language changed meanwhile), or `Quitter la visite` | click |
 
 Several hands work at the same time: a finger belongs to what it landed on until it lifts. A sequence with a `next` gives way by itself at
 its end; a card or a link comes and goes at the time the project gives it.
@@ -216,8 +216,7 @@ is asked for and when.
 ## Not there yet
 
 A film has no sound (zinc:video decodes its pictures), and needs FFmpeg's libraries on the machine: without them its card keeps the
-poster, with the subtitles and the timeline. A presentation that is paused starts its step again when it resumes, because `zinc:audio`
-cannot pause a clip. At the two larger text sizes the buttons take two or
+poster, with the subtitles and the timeline. At the two larger text sizes the buttons take two or
 three rows at the visitor's edge and lie over the foot of the lowest cards, which the visitor moves; the notice on the back of a card
 shows what fits, as at the designed size (the full view has all of it). The narration and the audio descriptions were checked by their
 durations and their decoding, not by ear, and the table mode by scripted touches, not on a touch table.

@@ -43,6 +43,10 @@ export interface Spec extends NativeModule {
   voiceStop(voice: i32, delay: f64, fade: f64): void;
   /** Volume, rate (only for a voice started at another rate than 1) and stereo position of one voice. */
   voiceSet(voice: i32, volume: f64, rate: f64, pan: f64): void;
+  /** True holds a playing voice where it is (silent, its place in the sound kept, the mix's time it stays held not counted: it ends that much
+   *  later); false lets it go on from there. A voice already stopping (a delay or a fade) is not held; a held voice stopped ends at once. A held
+   *  voice still plays for voicePlaying(), and gives way to a 33rd voice only after the one-shots. */
+  voicePause(voice: i32, on: boolean): void;
   voicePlaying(voice: i32): boolean;
   /** The part of its sound a looping voice repeats, `from` to `to` seconds into it (Web Audio's loopStart and loopEnd); `to` not after
    *  `from` repeats the whole sound. Nothing for a sound still being decoded. */

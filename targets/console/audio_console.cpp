@@ -28,13 +28,25 @@ const int kSounds = 64, kVoices = 32, kStreams = 4;
 const int kRate = ZN_CONSOLE_AUDIO_RATE;
 
 struct Clip { std::vector<float> pcm; int ch = 0, rate = 0; bool used = false; };
+// A voice's lifecycle, as the desktop's (plugins/audio/native/audio.host.cpp): a free slot, a voice that plays (or waits for its `from`), one
+// whose stop time is set (it plays on to stopAt), one held by pause() (skipped by the mix, its position kept).
+enum class VState : uint8_t { Free, Playing, Ending, Paused };
 struct Voice {
   int clip = -1, stream = -1;
   double pos = 0, step = 1;   // in the clip's frames
   float vol = 1, pan = 0;
-  bool loop = false, used = false, pitched = false;
+  bool loop = false, pitched = false;
+  VState state = VState::Free;
   uint64_t started = 0, from = 0, stopAt = 0, fade = 0;   // mixer frames: from = when a delayed voice starts, stopAt = when it ends (0: never), fade = how many frames before stopAt its gain falls linearly to 0
 };
+// The one place a voice changes state: Free -> Playing (start), Playing -> Ending (a stop time), Playing <-> Paused, any -> Free; an ending
+// voice is neither paused nor revived.
+bool to(Voice& v, VState s) {
+  const bool ok = s == VState::Free || (s == VState::Playing && (v.state == VState::Free || v.state == VState::Paused)) ||
+                  ((s == VState::Ending || s == VState::Paused) && v.state == VState::Playing);
+  if (ok) v.state = s;
+  return ok;
+}
 struct Stream { std::vector<float> buf; size_t head = 0, count = 0; int ch = 0, rate = 0; bool used = false, primed = false; double underruns = 0, dropped = 0; float vol = 1; };
 Clip clips[kSounds];
 Voice voices[kVoices];
@@ -50,8 +62,8 @@ int fail(const char* why) { std::strncpy(errMsg, why, sizeof errMsg - 1); return
 Clip* clipAt(int64_t h) { return h >= 0 && h < kSounds && clips[h].used ? &clips[h] : nullptr; }
 int freeSlot() { for (int h = 0; h < kSounds; h++) if (!clips[h].used) return h; return fail("too many sounds loaded (64): unload() the ones no longer used"); }
 int voiceId(const Voice& v) { return static_cast<int>(v.started & 0x7fffffff); }
-Voice* voiceAt(int64_t id) { for (Voice& v : voices) if (v.used && id > 0 && voiceId(v) == id) return &v; return nullptr; }
-bool live(const Voice& v) { return v.used; }
+Voice* voiceAt(int64_t id) { for (Voice& v : voices) if (v.state != VState::Free && id > 0 && voiceId(v) == id) return &v; return nullptr; }
+bool live(const Voice& v) { return v.state != VState::Free; }
 float rateOf(double r) { return r > 0 ? static_cast<float>(r < 1.0 / 64 ? 1.0 / 64 : r > 64 ? 64 : r) : 1.0f; }
 float panOf(double p) { return p == p ? static_cast<float>(p < -1 ? -1 : p > 1 ? 1 : p) : 0.0f; }
 int newClip(int ch, int rate, size_t frames) {
@@ -67,11 +79,11 @@ int newClip(int ch, int rate, size_t frames) {
 void mixInto(int frames) {
   acc.assign(static_cast<size_t>(frames) * 2, 0.0f);
   for (Voice& v : voices) {
-    if (!v.used) continue;
+    if (v.state == VState::Free || v.state == VState::Paused) continue;   // a held voice keeps its position: its stopAt is never set (to())
     for (int i = 0; i < frames; i++) {
       const uint64_t t = now + static_cast<uint64_t>(i);
       if (t < v.from) continue;
-      if (v.stopAt && t >= v.stopAt) { v.used = false; break; }
+      if (v.stopAt && t >= v.stopAt) { to(v, VState::Free); break; }
       float l = 0, r = 0;
       if (v.stream >= 0) {   // a stream: its next frame, or silence while it waits for PRIME
         Stream& s = streams[v.stream];
@@ -84,7 +96,7 @@ void mixInto(int frames) {
       } else {
         Clip& c = clips[v.clip];
         const size_t n = c.pcm.size() / static_cast<size_t>(c.ch);
-        if (v.pos >= static_cast<double>(n)) { if (v.loop && n) v.pos = std::fmod(v.pos, static_cast<double>(n)); else { v.used = false; break; } }
+        if (v.pos >= static_cast<double>(n)) { if (v.loop && n) v.pos = std::fmod(v.pos, static_cast<double>(n)); else { to(v, VState::Free); break; } }
         const size_t k = static_cast<size_t>(v.pos);
         const float f = static_cast<float>(v.pos - static_cast<double>(k));
         const size_t k2 = k + 1 < n ? k + 1 : (v.loop ? 0 : k);
@@ -106,15 +118,16 @@ int startVoice(int64_t h, double volume, bool loop, double rate, double pan, dou
   Clip* c = clipAt(h);
   if (!c) return 0;
   Voice* v = nullptr;
-  for (Voice& x : voices) if (!x.used) { v = &x; break; }
-  if (!v) {   // all busy: the oldest one-shot gives way, a loop (the music) only when there is nothing else
-    auto age = [](const Voice& x) { return x.started + (x.loop ? uint64_t(1) << 62 : 0); };
+  for (Voice& x : voices) if (x.state == VState::Free) { v = &x; break; }
+  if (!v) {   // all busy: the oldest one-shot gives way, a loop (the music) or a held voice only when there is nothing else
+    auto age = [](const Voice& x) { return x.started + (x.loop || x.state == VState::Paused ? uint64_t(1) << 62 : 0); };
     v = &voices[0];
     for (Voice& x : voices) if (age(x) < age(*v)) v = &x;
   }
   const float r = rateOf(rate);
   *v = Voice{};
-  v->used = true; v->clip = static_cast<int>(h); v->loop = loop; v->vol = static_cast<float>(volume > 0 ? volume : 0); v->pan = panOf(pan);
+  to(*v, VState::Playing);
+  v->clip = static_cast<int>(h); v->loop = loop; v->vol = static_cast<float>(volume > 0 ? volume : 0); v->pan = panOf(pan);
   v->pitched = r != 1.0f;
   v->step = static_cast<double>(c->rate) / kRate * r;
   v->pos = offset > 0 ? offset * c->rate : 0;
@@ -195,24 +208,32 @@ FN(fLoad) { r->i = a[0].v.n ? loadWav(static_cast<const uint8_t*>(a[0].v.p), a[0
 FN(fTone) { r->i = tone(a[0].i, a[1].d, a[2].d); return ZN_OK; }
 FN(fError) { (void)a; r->s = zs(errMsg); return ZN_OK; }
 FN(fDuration) { Clip* c = clipAt(a[0].i); r->d = c ? static_cast<double>(c->pcm.size() / static_cast<size_t>(c->ch)) / c->rate : 0; return ZN_OK; }
-FN(fStop) { (void)r; for (Voice& v : voices) if (v.used && v.clip == a[0].i) v.used = false; return ZN_OK; }
+FN(fStop) { (void)r; for (Voice& v : voices) if (v.state != VState::Free && v.clip == a[0].i) to(v, VState::Free); return ZN_OK; }
 FN(fUnload) { if (Clip* c = clipAt(a[0].i)) { fStop(nullptr, nullptr, a, r); *c = Clip{}; } return ZN_OK; }
 FN(fPlay) { r->i = startVoice(a[0].i, a[1].d, a[2].i != 0, a[3].d, a[4].d, 0, 0) != 0; return ZN_OK; }
-FN(fPlaying) { r->i = 0; for (Voice& v : voices) if (v.used && v.clip == a[0].i) r->i = 1; return ZN_OK; }
-FN(fSetVolume) { (void)r; for (Voice& v : voices) if (v.used && v.clip == a[0].i) v.vol = static_cast<float>(a[1].d > 0 ? a[1].d : 0); return ZN_OK; }
-FN(fSetLoop) { (void)r; for (Voice& v : voices) if (v.used && v.clip == a[0].i) v.loop = a[1].i != 0; return ZN_OK; }
-FN(fSetRate) { (void)r; for (Voice& v : voices) if (v.used && v.pitched && v.clip == a[0].i) v.step = static_cast<double>(clips[v.clip].rate) / kRate * rateOf(a[1].d); return ZN_OK; }
-FN(fSetPan) { (void)r; for (Voice& v : voices) if (v.used && v.clip == a[0].i) v.pan = panOf(a[1].d); return ZN_OK; }
-FN(fStopAll) { (void)a; (void)r; for (Voice& v : voices) if (v.stream < 0) v.used = false; return ZN_OK; }
+FN(fPlaying) { r->i = 0; for (Voice& v : voices) if (live(v) && v.clip == a[0].i) r->i = 1; return ZN_OK; }
+FN(fSetVolume) { (void)r; for (Voice& v : voices) if (live(v) && v.clip == a[0].i) v.vol = static_cast<float>(a[1].d > 0 ? a[1].d : 0); return ZN_OK; }
+FN(fSetLoop) { (void)r; for (Voice& v : voices) if (live(v) && v.clip == a[0].i) v.loop = a[1].i != 0; return ZN_OK; }
+FN(fSetRate) { (void)r; for (Voice& v : voices) if (live(v) && v.pitched && v.clip == a[0].i) v.step = static_cast<double>(clips[v.clip].rate) / kRate * rateOf(a[1].d); return ZN_OK; }
+FN(fSetPan) { (void)r; for (Voice& v : voices) if (live(v) && v.clip == a[0].i) v.pan = panOf(a[1].d); return ZN_OK; }
+FN(fStopAll) { (void)a; (void)r; for (Voice& v : voices) if (v.stream < 0) to(v, VState::Free); return ZN_OK; }
 FN(fStart) { r->i = startVoice(a[0].i, a[1].d, a[2].i != 0, a[3].d, a[4].d, a[5].d, a[6].d); return ZN_OK; }
 FN(fVoiceStop) {
   (void)r;
   Voice* v = voiceAt(a[0].i);
   if (!v) return ZN_OK;
   const uint64_t d = a[1].d > 0 ? static_cast<uint64_t>(a[1].d * kRate + 0.5) : 0, f = a[2].d > 0 ? static_cast<uint64_t>(a[2].d * kRate + 0.5) : 0;
-  if (d + f == 0) { v->used = false; return ZN_OK; }
-  v->stopAt = now + d + f;
+  if (d + f == 0 || v->state == VState::Paused) { to(*v, VState::Free); return ZN_OK; }   // a held voice is silent: it ends now
+  v->stopAt = now + d + f;   // a second stop moves the end
   if (f) v->fade = f;
+  to(*v, VState::Ending);
+  return ZN_OK;
+}
+// pause() holds a voice where it is (the mix skips it, its position kept), resume() lets it go on: the frames mixed in between do not count.
+FN(fVoicePause) {
+  (void)r;
+  Voice* v = voiceAt(a[0].i);
+  if (v && v->stream < 0) to(*v, a[1].i ? VState::Paused : VState::Playing);   // to() refuses an ending voice, and a resume of one not held
   return ZN_OK;
 }
 FN(fVoiceSet) {
@@ -251,13 +272,14 @@ FN(fStreamOpen) {
   while (h < kStreams && streams[h].used) h++;
   if (h == kStreams) { r->i = fail("too many streams open (4)"); return ZN_OK; }
   Voice* v = nullptr;
-  for (Voice& x : voices) if (!x.used) { v = &x; break; }
+  for (Voice& x : voices) if (x.state == VState::Free) { v = &x; break; }
   if (!v) { r->i = fail("all 32 voices play"); return ZN_OK; }
   streams[h] = Stream{};
   streams[h].buf.assign(static_cast<size_t>(rate) * static_cast<size_t>(ch), 0.0f);   // one second
   streams[h].ch = ch; streams[h].rate = rate; streams[h].used = true;
   *v = Voice{};
-  v->used = true; v->stream = h; v->started = ++plays;   // ponytail: a stream at another rate than the mixer's plays at the mixer's (no resampler)
+  to(*v, VState::Playing);
+  v->stream = h; v->started = ++plays;   // ponytail: a stream at another rate than the mixer's plays at the mixer's (no resampler)
   started = true;
   r->i = h;
   return ZN_OK;
@@ -284,7 +306,7 @@ FN(fStreamInfo) {
   return ZN_OK;
 }
 FN(fStreamSetVolume) { (void)r; if (Stream* s = streamAt(a[0].i)) s->vol = static_cast<float>(a[1].d > 0 ? a[1].d : 0); return ZN_OK; }
-FN(fStreamClose) { (void)r; if (Stream* s = streamAt(a[0].i)) { for (Voice& v : voices) if (v.used && v.stream == a[0].i) v.used = false; *s = Stream{}; } return ZN_OK; }
+FN(fStreamClose) { (void)r; if (Stream* s = streamAt(a[0].i)) { for (Voice& v : voices) if (v.state != VState::Free && v.stream == a[0].i) to(v, VState::Free); *s = Stream{}; } return ZN_OK; }
 FN(fSetMasterVolume) { (void)r; master = static_cast<float>(a[0].d > 0 ? a[0].d : 0); return ZN_OK; }
 FN(fPlayed) {   // a console keeps no copy of what it played
   outD.clear();
@@ -316,7 +338,7 @@ const ZnExport kExports[] = {
   {"unload", "i>n", fUnload, 0}, {"play", "idbdd>b", fPlay, 0}, {"stop", "i>n", fStop, 0}, {"playing", "i>b", fPlaying, 0},
   {"setVolume", "id>n", fSetVolume, 0}, {"setLoop", "ib>n", fSetLoop, 0}, {"setRate", "id>n", fSetRate, 0}, {"setPan", "id>n", fSetPan, 0},
   {"stopAll", ">n", fStopAll, 0}, {"start", "idbdddd>i", fStart, 0}, {"voiceStop", "idd>n", fVoiceStop, 0}, {"voiceSet", "iddd>n", fVoiceSet, 0},
-  {"voicePlaying", "i>b", fVoicePlaying, 0}, {"pcm", "Dii>i", fPcm, 0}, {"channels", "i>i", fChannels, 0}, {"rate", "i>i", fRate, 0},
+  {"voicePlaying", "i>b", fVoicePlaying, 0}, {"voicePause", "ib>n", fVoicePause, 0}, {"pcm", "Dii>i", fPcm, 0}, {"channels", "i>i", fChannels, 0}, {"rate", "i>i", fRate, 0},
   {"samples", "ii>D", fSamples, 0}, {"time", ">d", fTime, 0}, {"streamOpen", "ii>i", fStreamOpen, 0}, {"streamWrite", "iD>i", fStreamWrite, 0},
   {"streamInfo", "i>D", fStreamInfo, 0}, {"streamSetVolume", "id>n", fStreamSetVolume, 0}, {"streamClose", "i>n", fStreamClose, 0},
   {"setMasterVolume", "d>n", fSetMasterVolume, 0}, {"mix", "i>D", fMix, 0}, {"played", ">D", fPlayed, 0},
