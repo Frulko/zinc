@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Created/claimed1099 nullable cleanup callback returns in Dyn-enabled graphs, confirmed by strict tsc and original Picker source. Sole corebatch nowexactlyfive1093 correction/1096/1097/1098/1099; no sixth. Root rebuilt1093 correctiveintegration and exactjsx_id replayinprogress. Fresh UIworkers add originalcallerfocused assertions and fixtheir ownfixturetargeting, no checkerworkaround.
+
 - Created/claimed1097 iterable collection constructor inference and1098 guarded optional callable narrowing, each minimal actual caller blocker/strict tsc evidence and primary research recorded.1093 composed-ID corrective0ae64e937 integrated; new binary unblocks original IDs. Sole coreworker1096 handles corrections serially; UIworkers continue review/proof preparation. Inputs06/Navigation09 nowDone after clean currentgate and exactcaller replay.
 
 - Integrated1088/1093/1094/1095/1090 through41c30e3ac;1088/1090Done, original consumerAC3 on1093/94/95 remains open. D270–273/provenance recorded. Restored external WIP numstats unchanged (ui42/19,main12/0,perf15/0), index contains only coordinator block. Clean retained engine rebuilt; root unchangedkit_sizePASS. Fresh workers Pickers/Data/core1096 running. Real callers found1093 composed-IDZ0107, constructor iterable inferenceZ0109 and guarded optionalcallbackZ0105; solecore fixes1093 first, no UI workaround. Pi final42/exit0, no remote process. Final JS4068/component (249B total headroom), AOT59472; no speed claim.
