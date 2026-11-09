@@ -23,7 +23,7 @@ onFrame((dt: number) => {
     // top-left screen coordinates of the window, for the screenshot
     console.log('RECT ' + Math.round(s.x) + ' ' + Math.round(main.h - s.y - s.h) + ' ' + Math.round(s.w) + ' ' + Math.round(s.h));
   }
-  if (frame === 60) window.setVibrancy('sidebar');
-  if (frame === 70) { const d = system.call('window.dump', {}) as { text: string }; console.log('DUMP ' + d.text.split('\n').filter((l: string) => l.startsWith('opaque') || l.startsWith('vibrancy')).join(' | ')); }
-  if (frame === 200) system.quit(0);
+  if (frame === 150) window.setVibrancy('sidebar');   // late enough for the test script to capture the backdrop without it
+  if (frame === 160) { const d = system.call('window.dump', {}) as { text: string }; console.log('DUMP ' + d.text.split('\n').filter((l: string) => l.startsWith('opaque') || l.startsWith('vibrancy')).join(' | ')); }
+  if (frame === 300) system.quit(0);
 });
