@@ -78,6 +78,7 @@ struct Project {
   std::string uiLayout;             // "ui": {"layout": "classic" | "rn" | "auto"} (ZN-285); "" = not set; "preset": "react-native" sets "rn"
   std::string uiPreset;             // "ui": {"preset"}: "react-native" or ""
   std::string uiPlatformLook;       // "ui": {"platformLook": "auto" | "ios" | "android" | "macos" | "neutral"}: the kits' look (ZN-748); "" = auto
+  std::string uiRender;             // "ui": {"render": "drawn" | "native"}: who shows the zinc:ui tree (D210, ZN-1069); "" = drawn
   AppInfo app;
   std::vector<std::string> permissions;            // "permissions": `feature` or `feature:operation`; none = no system module usable
   bool permissionsDeclared = false;
@@ -135,6 +136,9 @@ const std::string& uiPreset();
 // zinc.json "ui": {"platformLook"}: the look the kits take (lib/std/platform), exported by zinc:platform as UI_PLATFORM_LOOK ("auto" when unset).
 void setUiPlatformLook(const std::string& look);
 const std::string& uiPlatformLook();
+// zinc.json "ui": {"render"}: "native" lets a native host show the zinc:ui tree where one exists (D210), exported by zinc:platform as UI_RENDER ("drawn" when unset).
+void setUiRender(const std::string& render);
+const std::string& uiRender();
 // Whether a module other than zinc:ui imports zinc:__layout: the AOT then installs and links the engine in classic too (ZN-355).
 void noteDirectLayoutUse();
 bool directLayoutUse();

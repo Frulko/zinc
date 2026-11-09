@@ -745,6 +745,19 @@ ships (`assets/Roboto-Regular.ttf`): the OS's own font files (SF Pro, Android's 
 without them the text stays in Inter. `tests/t1/platform_look.sh` keeps a frame per profile of the kit gallery and of rn-showcase (its
 components, and a finger pulling the page past its top: rubber band or stretch), and checks the switch, the haptics and the long press.
 
+## Native views
+
+```json
+{ "ui": { "render": "native" } }      // "drawn" (the default) | "native"
+```
+
+asks for the platform's own views where a native host exists (AppKit on macOS, decision D210); `ZINC_RENDER=native` does the same for one
+run. The tree, the models and the layout stay zinc:ui's. A host is a plugin that calls `ui.setHost(commit)`: after each frame that changed
+something, `commit` gets one text buffer of the changes since the last one (create, delete, frame, text, style properties, child lists, roots;
+the record format is at `setHost` in `lib/std/ui.ts`), and the host's events come back through the `dom*` functions the web's DOM host uses.
+The leaves of the `rn` layout (text, fields) are measured by the host through `zn::host::setNativeMeasure` (`src/host/layout.h`). Where no host
+is installed, `setHost` returns false and the app is drawn as before.
+
 ## Tests
 
 Test hooks drive the input headlessly; from the first call on, the HAL's pointer and keyboard are ignored, so a

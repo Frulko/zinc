@@ -1,0 +1,42 @@
+native true installed true active true
+commit 1:
+c 0 view
+f 0 0 0 240 160
+c 1 text
+f 1 8 8 224 20
+t 1 Hello
+p 1 fontSize 14
+c 2 view
+f 2 8 32 50 30
+p 2 bg 16711680
+p 2 radius 6
+c 3 text
+f 3 8 66 224 10
+t 3 a\\b\nc
+k 0 1 2 3
+r 0
+
+-- update: a text, a colour, a move
+commit 2:
+f 3 8 8 224 10
+f 1 8 22 224 20
+t 1 Hi
+f 2 8 46 50 30
+p 2 bg 255
+k 0 3 1 2
+
+-- removal, and a new node on the handle it freed
+handle reused true
+commit 3:
+d 2
+c 2 text
+f 2 8 46 224 10
+t 2 new
+k 0 3 1 2
+
+-- removal
+commit 4:
+d 2
+k 0 3 1
+
+done: 4 commits

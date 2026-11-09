@@ -18,7 +18,7 @@ import { platform, env, device } from 'zinc:sys';
 import { signalCount, signalNext } from 'zinc:gfx';   // the system's signals (safe area, theme, back...)
 import { PALETTE, SHADES } from './palette';
 import * as OS from './overscroller';   // Android's fling and stretch overscroll (ANDROID_SCROLL)
-import { UI_LAYOUT, UI_PRESET, HEAP_BYTES, TIER, EINK as EINK_CAP } from 'zinc:platform';
+import { UI_LAYOUT, UI_PRESET, UI_RENDER, HEAP_BYTES, TIER, EINK as EINK_CAP } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
 import { DOM, commit as domCommit } from 'zinc:ui/dom';   // the semantic DOM of the web target (ui-dom.browser.ts); on every other target DOM is false
 // ---- e-ink style mode (ZN-929): on a panel (capabilities eink) or with ZINC_EINK=1 every colour snaps to black, white or a Gallery 3
@@ -6876,6 +6876,7 @@ export function frame(dt: number, background: i32): void {
   if (background >= 0) clear(background);
   if (dimNode >= 0) stepPress();
   if (DOM) domCommit();   // the page's elements are the picture: the DOM host patches them from the tree (targets/web/dom.js)
+  else if (hostCommit !== null) commitHost();   // a native host's views are the picture: it gets the changes of this frame (D210)
   else {
     paint(root, 0, 0, 1, 1);
     if (layers.length > 0) paintLayers();
@@ -8183,4 +8184,109 @@ export function domOutside(t: i32, gx: number, gy: number, button: i32): void {
     f(e);
     paintDirty = true;
   }
+}
+
+// ---------------------------------------------------------------- the native host (D210, docs/reports/appkit-native-ui-research.md §6)
+// With "ui": {"render": "native"} in zinc.json (or ZINC_RENDER=native for one run) a host plugin may show the tree with the platform's own views (AppKit first):
+// zinc:ui keeps its tree, its models and its layout, and after each frame that changed something hands the host one buffer of what changed since the last
+// one, as React Native's Fabric hands its mounting layer a list of mutations. frame() calls it where the DOM host is called and the drawn UI is painted; the
+// host's events come back through the dom* functions above. Without a host the drawn UI runs as always. Leaves of the `rn` layout are measured by the host
+// through zn::host::setNativeMeasure (src/host/layout.h). The buffer is text, one record per line, fields separated by one space; a string is the last field,
+// with backslashes and newlines escaped (\\ and \n):
+//   d ID              the node is gone: the host drops its view (its children have their own d, or move under another node with a k record)
+//   c ID KIND         a new node; KIND is its tag (TAG_NAMES: view, text, button, image, scroll, canvas, fragment, input, textarea)
+//   f ID X Y W H      its box, relative to its parent's (a root's: to the window)
+//   t ID TEXT         the text of a text node
+//   p ID NAME VALUE   a style property of HOST_PROPS: colours 0xRRGGBB as numbers (-1: none, fg -1: inherited), opacity 0..1, sizes in px, bold and hidden 0 or 1;
+//                     a new node starts with HOST_DEFAULTS and is sent only the properties that differ
+//   k ID CHILD...     its children in order, after an insert, a move or a removal under it: the host makes its subviews this list
+//   r ID...           the roots, bottom first: the tree's root, then the layers shown (dialogs, popovers, menus)
+// In each buffer the deletes come first (a recycled handle is deleted, then created again), then the creates and updates in tree order, then the child
+// lists, then the roots. A host installed later, or again, gets the whole tree.
+const RENDER: string = env('ZINC_RENDER') !== '' ? env('ZINC_RENDER') : UI_RENDER;
+const HOST_PROPS: string[] = ['bg', 'bgAlpha', 'fg', 'opacity', 'radius', 'border', 'borderColor', 'fontSize', 'bold', 'hidden'];
+const HOST_DEFAULTS: number[] = [-1, 255, -1, 1, 0, 0, 0xe5e7eb, 16, 0, 0];
+class Mounted {   // what the host was last told about one node
+  n: UiNode;
+  seen: i32 = 0;   // the commit that last found it in the tree
+  x: number = 0; y: number = 0; w: number = 0; h: number = 0;
+  text: string = ''; kids: string = '';
+  props: number[];
+  constructor(n: UiNode) { this.n = n; this.props = HOST_DEFAULTS.slice(); }
+}
+let hostCommit: ((changes: string) => void) | null = null;
+let mounted: (Mounted | null)[] = [], hostIds: i32[] = [], hostNow: i32[] = [], hostGen: i32 = 0, hostCommits: i32 = 0;
+let hostRoots = '', hostDel = '', hostBody = '', hostKids = '';
+const hostVals: number[] = [];
+/**
+ * Installs the native host that shows the tree (D210): `commit` gets the changes of each frame that changed something, the first time the whole tree,
+ * and zinc:ui stops painting. Only where the program asked for it (zinc.json "ui": {"render": "native"}, or ZINC_RENDER=native): elsewhere nothing is
+ * installed, it returns false and the drawn UI stays. null takes the host away and the tree is drawn again.
+ */
+export function setHost(commit: ((changes: string) => void) | null): boolean {
+  if (commit !== null && RENDER !== 'native') return false;
+  hostCommit = commit;
+  mounted = []; hostIds = []; hostRoots = '';   // a new host starts from nothing: the next commit mounts the whole tree
+  paintDirty = true;
+  return true;
+}
+/** Whether the program asked for the native render (zinc.json "ui": {"render": "native"}, or ZINC_RENDER=native); whether a host shows it is hostActive(). */
+export function nativeRender(): boolean { return RENDER === 'native'; }
+/** Whether a native host shows the tree (setHost). */
+export function hostActive(): boolean { return hostCommit !== null; }
+/** The buffers handed to the native host so far. */
+export function hostCommitCount(): i32 { return hostCommits; }
+function hostEsc(s: string): string { return s.indexOf('\\') < 0 && s.indexOf('\n') < 0 ? s : s.split('\\').join('\\\\').split('\n').join('\\n'); }
+function hostProps(n: UiNode): void {
+  hostVals.length = 0;
+  hostVals.push(n.bg); hostVals.push(n.bgAlpha); hostVals.push(n.fg); hostVals.push(n.opacity * n.fade); hostVals.push(n.radius);
+  hostVals.push(n.borderW); hostVals.push(n.borderColor); hostVals.push(n.size); hostVals.push(n.bold ? 1 : 0); hostVals.push(n.hidden ? 1 : 0);
+}
+/** Sends what changed in node h and its subtree since the last commit; true when h is new to the host. */
+function hostWalk(h: i32, parent: i32): boolean {
+  const n = nodes[h];
+  let m: Mounted | null = h < mounted.length ? mounted[h] : null;
+  if (m !== null && (m as Mounted).n !== n) { hostDel += 'd ' + h + '\n'; m = null; }   // the handle was recycled: its old node is gone
+  const fresh = m === null;
+  if (m === null) {
+    m = new Mounted(n);
+    while (mounted.length <= h) mounted.push(null);
+    mounted[h] = m;
+    hostBody += 'c ' + h + ' ' + TAG_NAMES[n.tag] + '\n';
+  }
+  const s = m as Mounted;
+  s.seen = hostGen; hostNow.push(h);
+  const x: number = parent >= 0 ? n.x - nodes[parent].x : n.x, y: number = parent >= 0 ? n.y - nodes[parent].y : n.y;
+  if (fresh || x !== s.x || y !== s.y || n.lw !== s.w || n.lh !== s.h) { s.x = x; s.y = y; s.w = n.lw; s.h = n.lh; hostBody += 'f ' + h + ' ' + x + ' ' + y + ' ' + n.lw + ' ' + n.lh + '\n'; }
+  if (n.tag === TEXT && (fresh || n.text !== s.text)) { s.text = n.text; hostBody += 't ' + h + ' ' + hostEsc(n.text) + '\n'; }
+  hostProps(n);
+  for (let i = 0; i < hostVals.length; i++) if (s.props[i] !== hostVals[i]) { s.props[i] = hostVals[i]; hostBody += 'p ' + h + ' ' + HOST_PROPS[i] + ' ' + hostVals[i] + '\n'; }
+  let kids = '', added = false;
+  for (const c of n.children) {
+    const k = nodes[c];
+    if (!k.alive || k.layer) continue;   // a layer is a root of its own
+    kids += (kids === '' ? '' : ' ') + c;
+    if (hostWalk(c, h)) added = true;
+  }
+  // a new child is placed by its parent's list, even on the handle (and at the place) of the one it replaces
+  if (added || kids !== s.kids) { s.kids = kids; hostKids += 'k ' + h + (kids === '' ? '' : ' ' + kids) + '\n'; }
+  return fresh;
+}
+function commitHost(): void {
+  hostGen++; hostDel = ''; hostBody = ''; hostKids = ''; hostNow = [];
+  let roots = '', added = false;
+  if (root >= 0 && nodes[root].alive) { roots = '' + root; added = hostWalk(root, -1); }
+  for (const l of layers) if (l.node !== root && shownNow(l.node)) { roots += (roots === '' ? '' : ' ') + l.node; if (hostWalk(l.node, -1)) added = true; }
+  for (const h of hostIds) {   // what the tree no longer holds
+    const m = mounted[h];
+    if (m !== null && (m as Mounted).seen !== hostGen) { hostDel += 'd ' + h + '\n'; mounted[h] = null; }
+  }
+  hostIds = hostNow;
+  let out = hostDel + hostBody + hostKids;
+  if (added || roots !== hostRoots) { hostRoots = roots; out += 'r' + (roots === '' ? '' : ' ' + roots) + '\n'; }
+  hostDel = ''; hostBody = ''; hostKids = '';
+  const f = hostCommit;
+  if (out === '' || f === null) return;
+  hostCommits++;
+  f(out);
 }

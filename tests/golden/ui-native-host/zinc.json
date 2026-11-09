@@ -1,0 +1,1 @@
+{ "name": "ui-native-host", "entry": "main.ts", "ui": { "render": "native" } }

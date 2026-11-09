@@ -59,6 +59,19 @@ class Layout {
   virtual std::uint64_t counter(int which) const = 0;
 };
 
+/** How a native host measures the leaves the `rn` engine lays out (D210, ZN-1069): AppKit sizes a text with the system font, a control its fittingSize, as React
+ *  Native's Fabric measures its Text and TextInput through Yoga's measure functions. Asked for text leaves (kind 0, `text` already transformed) and text fields (kind 1,
+ *  `text` empty, `rows` lines). `width`/`height` are the content box Yoga offers (padding and border already taken out); modes as Yoga's: 0 undefined, 1 exactly,
+ *  2 at most. Returns false to keep the engine's own measure for that leaf. A pure query on the engine's thread: it never calls into the program nor changes the
+ *  tree. Install it before the first layout; a leaf whose native size changed later is marked dirty through Layout::markDirty. */
+struct NativeMeasure {
+  bool (*measure)(void* user, std::int32_t node, int kind, std::string_view text, const WrapStyle& style, float lineHeight, std::int32_t rows,
+                  float width, int widthMode, float height, int heightMode, float* outW, float* outH) = nullptr;
+  void* user = nullptr;
+};
+/** Installs the native measure (a default NativeMeasure{} removes it). One per process: there is one native host. */
+void setNativeMeasure(const NativeMeasure& m);
+
 /** Yoga 3.2.1 (src/host/layout_yoga.cpp, ZN-283): the `rn` engine, measuring text with `metric`. `webDefaults`: CSS's defaults (flex-shrink 1, column stretch),
  *  React Native's own otherwise. */
 std::unique_ptr<Layout> makeYogaLayout(TextMetric metric, bool webDefaults = true);

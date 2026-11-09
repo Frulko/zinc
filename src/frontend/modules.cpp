@@ -1516,6 +1516,7 @@ std::string platformModuleSource(const std::string& capsFile) {
   src += "export const SCREEN_W: i32 = " + std::to_string(w) + ";\nexport const SCREEN_H: i32 = " + std::to_string(h) + ";\nexport const FPU: boolean = " + (cp && cp->noFpu ? "false" : "true") + ";\n";
   src += "export const UI_LAYOUT: string = \"" + uiLayout() + "\";\n";
   src += "export const UI_PLATFORM_LOOK: string = \"" + uiPlatformLook() + "\";\n";   // zinc.json ui.platformLook (ZN-748)
+  src += "export const UI_RENDER: string = \"" + uiRender() + "\";\n";   // zinc.json ui.render: "native" lets a native host show the tree (D210)
   src += "export const UI_PRESET: string = \"" + uiPreset() + "\";\n";   // \"react-native\": RN style semantics in either engine (ZN-288)   // the layout engine zinc.json and the target chose (ZN-285)
   std::ifstream in(capsFile);
   std::stringstream ss;

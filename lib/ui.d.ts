@@ -157,7 +157,8 @@ declare module 'zinc:ui' {
   /** A Style with class tokens among its keys ('@font-mono', '@bg-[url(a.png)]'): the compiler emits it for such a style object, and it brings the class
    *  parser in (ZN-774.18). A function, not a subclass: arrays are invariant, so a subclass array would not be a Style[]. */
   export function styleC(keys: string[], values: number[]): Style;
-  /** A transform angle decided at run time, in degrees: a number of degrees, or a string as React Native writes it ('45deg', '-0.5rad', '0.25turn'); anything else is 0. */
+  /** A transform angle decided at run time, in degrees (ZN-812): a number of degrees, or a string as React Native writes it ('45deg', '-0.5rad',
+   *  '0.25turn'); JSX's `transform: [{ rotate: angle }]` goes through it. Anything else is 0. */
   export function angle(v: unknown): number;
   /** create() is lowered by Zinc: CSS literals become numeric style operations at build time. */
   export class StyleSheet {
@@ -285,13 +286,18 @@ declare module 'zinc:ui' {
       rx: i32;
       ry: i32;
   }
-  /** React Native's transform array, composed in one fixed order around the node's centre: rotate, then scale, then skew (degrees). */
+  /** React Native's transform array, composed in one fixed order around the transform origin: rotate, then scale, then skew (degrees). The origin
+   *  is a fraction of the box plus pixels on each axis (CSS's transform-origin, React Native's transformOrigin): the centre by default. */
   class TransformX {
       rot: number;
       skX: number;
       skY: number;
       sx: number;
       sy: number;
+      ofx: number;
+      ofy: number;
+      opx: number;
+      opy: number;
   }
   export class UiNode {
       tag: i32;
@@ -312,6 +318,7 @@ declare module 'zinc:ui' {
       alignContent: i32;
       reverse: boolean;
       wrapRev: boolean;
+      flex1: boolean;
       pt: i32;
       pr: i32;
       pb: i32;
@@ -708,7 +715,7 @@ declare module 'zinc:ui' {
       static create(c: PanResponderConfig): PanResponderInstance;
   }
   /** onScroll: f gets nativeEvent.contentOffset once per frame in which the offset of scroll node h moved. `prop`: the node's onScroll attribute,
-   *  which each render sets again: it replaces the one set before instead of adding a watcher. */
+   *  which each render sets again: it replaces the one set before instead of adding a watcher (ZN-812). */
   export function onScroll(h: i32, f: ResponderHandler, prop?: boolean): void;
   /** Key handler of a node, called while it (or a descendant) has the focus. */
   export function onKeyDown(h: i32, f: (e: KeyEvent) => void): void;
@@ -1023,8 +1030,6 @@ declare module 'zinc:ui' {
   /** Runs f with the tree of window `win` (zinc:gfx id, 0: the main one) as the one this module reads: its root, layout, highlight and pick (the
    *  inspector attached to that window). False, without calling f, when no tree of this module is in that window. Called outside a frame. */
   export function inspectIn(win: i32, f: () => void): boolean;
-  /** Mounts root node `h` in a window of its own (ZN-663), `w` x `h` logical pixels, drawn after the main window every frame: its own layout,
-   *  focus, hover, overlays and gestures over the node pool the main tree shares. Returns the window's id (zinc:gfx), -1 when it cannot open. */
   export function mountWindow(title: string, w: i32, hgt: i32, h: i32, background: i32): i32;
   /** The windows (zinc:gfx ids) that show a tree of mountWindow; a closed one leaves the list at the next frame. */
   export function mountedWindows(): i32[];
@@ -1196,4 +1201,16 @@ declare module 'zinc:ui' {
   export function domDefaultFg(): i32;
   /** A press landed on node t (-1: nothing of the tree): the popovers and dialogs that asked (onOutsidePointer) hear it when it is outside them. */
   export function domOutside(t: i32, gx: number, gy: number, button: i32): void;
+  /**
+   * Installs the native host that shows the tree (D210): `commit` gets the changes of each frame that changed something, the first time the whole tree,
+   * and zinc:ui stops painting. Only where the program asked for it (zinc.json "ui": {"render": "native"}, or ZINC_RENDER=native): elsewhere nothing is
+   * installed, it returns false and the drawn UI stays. null takes the host away and the tree is drawn again.
+   */
+  export function setHost(commit: ((changes: string) => void) | null): boolean;
+  /** Whether the program asked for the native render (zinc.json "ui": {"render": "native"}, or ZINC_RENDER=native); whether a host shows it is hostActive(). */
+  export function nativeRender(): boolean;
+  /** Whether a native host shows the tree (setHost). */
+  export function hostActive(): boolean;
+  /** The buffers handed to the native host so far. */
+  export function hostCommitCount(): i32;
 }

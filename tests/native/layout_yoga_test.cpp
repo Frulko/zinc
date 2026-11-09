@@ -310,8 +310,33 @@ static void imageAndField() {
   CHECK(l->box(1).w == 0 && l->box(1).h == 0);
 }
 
+// A native host measures text and fields itself (D210, ZN-1069): its sizes win, an image keeps its own, and declining a leaf falls back to the engine's measure.
+static int nativeAsked = 0;
+static bool stubMeasure(void*, std::int32_t node, int kind, std::string_view text, const WrapStyle&, float, std::int32_t rows, float, int, float, int, float* w, float* h) {
+  nativeAsked++;
+  if (node == 3) return false;   // declined: wrapText measures it
+  if (kind == 0) { *w = static_cast<float>(text.size()) * 7; *h = 17; } else { *w = 120; *h = 22.f * static_cast<float>(rows); }
+  return true;
+}
+static void nativeMeasure() {
+  auto l = tree(300, 300, 4, -1, -1, false);
+  l->setStyle(0, P::AlignItems, 0);
+  l->setText(1, "hello", WrapStyle{0, 14}, 20);
+  l->setField(2, 2, 20, false);
+  l->setText(3, "aaaa", WrapStyle{0, 14}, 20);
+  l->setImage(4, 40, 20);
+  zn::host::setNativeMeasure({stubMeasure, nullptr});
+  l->calculate(0, 300, 300);
+  zn::host::setNativeMeasure({});
+  CHECK(nativeAsked >= 3);
+  CHECK(l->box(1).w == 35 && l->box(1).h == 17);   // the host's text size
+  CHECK(l->box(2).w == 120 && l->box(2).h == 44);  // the host's control size
+  CHECK(l->box(3).w == 40 && l->box(3).h == 20);   // declined: four 10 px glyphs, one line
+  CHECK(l->box(4).w == 40 && l->box(4).h == 20);   // images are not asked
+}
+
 int main() {
-  wrapping(); textAtFinalWidth(); imageAndField();
+  wrapping(); textAtFinalWidth(); imageAndField(); nativeMeasure();
   rowAndWrap(); justify(); align(); growAndFull(); spacing(); sizes(); flexSide(); insets(); scrollHiddenContents(); roundedRelativeBoxes(); cycles();
   if (failures) return 1;
   std::puts("layout yoga ok");

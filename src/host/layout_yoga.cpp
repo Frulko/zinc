@@ -13,6 +13,7 @@ namespace {
 
 constexpr float kUnsetInset = -100000;   // UNSET of lib/std/ui.ts
 constexpr std::int32_t kPercent = 2000;   // LayoutProp + kPercent: the same property as a percentage (layout.h)
+NativeMeasure gNative;   // the native host's measure of text and field leaves (D210); none by default
 
 class YogaLayout final : public Layout {
  public:
@@ -171,6 +172,7 @@ class YogaLayout final : public Layout {
   struct Leaf {   // a measured node; its address is the YGNode's context, so it lives on the heap (the node table grows)
     enum Kind { Text, Image, Field } kind = Text;
     const YogaLayout* engine = nullptr;
+    std::int32_t node = -1;   // its UI node handle, for the native measure
     std::string text;
     WrapStyle style;
     float lineHeight = 0, imageW = 0, imageH = 0;
@@ -189,6 +191,7 @@ class YogaLayout final : public Layout {
       r->leaf = std::make_unique<Leaf>();
       r->leaf->kind = kind;
       r->leaf->engine = this;
+      r->leaf->node = h;
       YGNodeSetContext(r->node, r->leaf.get());
       YGNodeSetMeasureFunc(r->node, &YogaLayout::measure);
     }
@@ -207,6 +210,12 @@ class YogaLayout final : public Layout {
     Leaf& f = *static_cast<Leaf*>(YGNodeGetContext(node));
     ++f.engine->measures_;
     const bool wExact = wm == YGMeasureModeExactly, hExact = hm == YGMeasureModeExactly;
+    if (gNative.measure && f.kind != Leaf::Image) {   // a native host sizes text and controls itself (D210)
+      float w = 0, h = 0;
+      if (gNative.measure(gNative.user, f.node, f.kind == Leaf::Text ? 0 : 1, f.kind == Leaf::Text ? std::string_view(f.text) : std::string_view(), f.style, f.lineHeight, f.rows,
+                          width, static_cast<int>(wm), height, static_cast<int>(hm), &w, &h))
+        return {wExact ? width : w, hExact ? height : h};
+    }
     if (f.kind == Leaf::Text) {   // as measure() of ui.ts: the widest line, rounded up, and one line height per line
       const double avail = wm == YGMeasureModeUndefined ? INFINITY : width;
       if (f.wrappedAt != avail) f.engine->wrap(f, avail);
@@ -269,6 +278,7 @@ class YogaLayout final : public Layout {
 
 }  // namespace
 
+void setNativeMeasure(const NativeMeasure& m) { gNative = m; }
 std::unique_ptr<Layout> makeYogaLayout(TextMetric metric, bool webDefaults) { return std::make_unique<YogaLayout>(metric, webDefaults); }
 
 }  // namespace zn::host
