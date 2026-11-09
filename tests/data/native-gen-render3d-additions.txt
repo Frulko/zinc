@@ -1,1 +1,2 @@
   virtual bool partBounds(zrt::Array<uint8_t> data, int32_t at, zrt::Array<double> out) = 0;
+  virtual int32_t worldShadowsShow(int32_t world, bool on) = 0;

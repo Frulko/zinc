@@ -3,6 +3,8 @@
 # each with a near chunk (100 triangles), a mid chunk per 4 cells (20 a cell) and one far chunk for all (4 a cell). The eye looks along the
 # row from x = -50: the levels by distance (near 300 m, mid 1300 m), the coarsest level asked for first, a cell whose level is not loaded
 # showing another (coarser first, else finer: no holes), the hysteresis on the way out, the frustum, and the triangle budget kept by the governor.
+# And the shadows' one state (World.setShadows): none until heights are given, shown, hidden and shown again without them, none after
+# clearShadows, one World at a time, and none for a World opened in the slot of a closed one that had them (a stale owner).
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/p/src" "$tmp/p/assets/w"
@@ -29,7 +31,7 @@ for lvl, name in chunks:
 open(d + '/w.zworld', 'wb').write(out)
 PY
 cat > "$tmp/p/src/main.ts" <<'TS'
-import { Camera, World } from 'zinc:3d';
+import { Camera, World, Shadows } from 'zinc:3d';
 const camera = new Camera();
 camera.far = 5000;
 function look(x: number, dx: number): void { camera.setPosition(x, 20, 50).lookAt(x + dx, 20, 50); }
@@ -59,6 +61,20 @@ c.budget = 400;
 let most: i32 = 0;
 for (let n = 0; n < 200; n++) { const t = pick(c, -50); if (n >= 100 && t > most) most = t; }
 console.log(`budget ${most} ${c.reachScale}`);
+const st = (w: World): i32 => w.shadowsState as i32;
+const s = world();
+const none = s.setShadows(true) as i32;
+s.shadows('w/h.bin', 0, 0, 100, 40, 2, 0, 1);
+const shown = st(s), hidden = s.setShadows(false) as i32, again = s.setShadows(true) as i32;
+s.clearShadows();
+const cleared = s.setShadows(true) as i32;
+s.shadows('w/h.bin', 0, 0, 100, 40, 2, 0, 1);
+const u = world();
+u.shadows('w/h.bin', 0, 0, 100, 40, 2, 0, 1);
+const moved = s.setShadows(true) as i32;
+u.dispose();
+const t = world();   // in the slot u had
+console.log(`shadows ${none} ${shown} ${hidden} ${again} ${cleared} ${moved} ${t.setShadows(true) as i32} ${st(u)}`);
 TS
 ZINC_HEADLESS=1 ZINC_FRAMES=1 "$ZINC" run "$tmp/p" >"$tmp/out" 2>&1 || { echo "zinc3d_world: the run failed: $(tail -3 "$tmp/out")"; exit 1; }
 # empty: nothing loaded, nothing drawn; asked first the far chunk (every cell's coarsest), then m0-m3 and n0-n2. far: every cell at its far
@@ -66,6 +82,8 @@ ZINC_HEADLESS=1 ZINC_FRAMES=1 "$ZINC" run "$tmp/p" >"$tmp/out" 2>&1 || { echo "z
 # hysteresis: at -110 cell 2 (310 m) keeps its near and cell 12 (1310 m) its mid (608); at -160 cell 2 (360 m, past 345) goes mid (528).
 # finer: without the far and m0, cells 0-2 show their near (300), 4-12 their mid (180), 13-15 the mid m3 in place of the far (60); cell 3
 # has no level loaded at all and 16-39 only the far that is gone (540). behind: the eye turned away draws nothing.
+# shadows: none without heights (0), shown (2), hidden (1), shown again (2), none after clearShadows (0), none once another World took them
+# (0), none for the World in the closed one's slot (0) and for the closed one (0)
 want='empty 0 first 0 asks 8
 far 160
 all 608 missing 0
@@ -73,8 +91,9 @@ coarser 528
 hysteresis 608 528
 finer 540
 behind 0
-budget'
-got=$(grep -E '^(empty|far|all|coarser|hysteresis|finer|behind|budget)' "$tmp/out")
+budget
+shadows 0 2 1 2 0 0 0 0'
+got=$(grep -E '^(empty|far|all|coarser|hysteresis|finer|behind|budget|shadows)' "$tmp/out")
 fail=0
 [ "$(printf '%s\n' "$got" | sed 's/^budget .*/budget/')" = "$want" ] || { echo "zinc3d_world: got"; printf '%s\n' "$got"; fail=1; }
 # budget: from 608 triangles the reaches come in (scale under 1) and, once settled, no frame passes 400 by more than one cell's step

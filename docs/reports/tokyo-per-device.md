@@ -171,8 +171,9 @@ stick, the .vpk's `app0:`) with one reader, `targets/console/sdpack.cpp`.
     the ground pictures' texels over it where something stands between them and the sun; a ground picture keeps to 128 colours
     (`"colors": 128`) and the upper half of its palette is the lower half under the ambient light only. The shade's darkness is in the
     palettes, so it follows the light every frame without patching texels; by moonlight there is nothing to see and no sweep.
-  - `World.clearShadows()` turns them off (the Shadows button of the panel): the heights are freed, the shaded half of the palettes becomes the
-    lit one. No picture or map is freed while a frame may draw it (the 3DS frees its map after the GPU's frame).
+  - `World.setShadows(false)` hides them (the Shadows button of the panel): the heights stay, the shaded half of the palettes becomes the
+    lit one, and `setShadows(true)` sweeps them again without reading the heights (`clearShadows()` frees them). No picture or map is
+    freed while a frame may draw it (the 3DS frees its map after the GPU's frame, the PSP its mask under the sweep's lock).
 
 ### Raspberry Pi
 

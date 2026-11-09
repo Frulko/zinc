@@ -22,8 +22,6 @@ export class City {
   private hunit = 2;
   /** Chunks read since the start. */
   loads: i32 = 0;
-  /** city.txt's `hmap` line: the pack's height map that zinc:3d's shadows are swept from (empty: none). */
-  private hmap: number[] = [];
 
   constructor(scene: Scene, dev: Defaults3D) {
     const w = new World(CITY_WORLD, dev);
@@ -37,7 +35,7 @@ export class City {
       else if (t[0] === 'tour') this.tour.push([n(1), n(2), n(3), n(4), n(5), n(6)]);
       else if (t[0] === 'heights') {
         this.hx0 = n(1); this.hz0 = n(2); this.hstep = n(3); this.hw = parseInt(t[4], 10); this.hh = parseInt(t[5], 10); this.hy0 = n(6); this.hunit = n(7);
-      } else if (t[0] === 'hmap') { this.hmap = [n(1), n(2), n(3), n(4), n(5), n(6), n(7)]; this.setShadows(true); }   // the pack's heights
+      } else if (t[0] === 'hmap') w.shadows(CITY_HMAP, n(1), n(2), n(3), n(4), n(5), n(6), n(7));   // the pack's heights the shadows are swept from
       else if (t[0] === 'credit') this.credits.push(line.slice(7));
     }
     this.heights = readBytes(CITY_HEIGHTS);
@@ -61,12 +59,8 @@ export class City {
     return read;
   }
 
-  /** The shadows on or off (drawn where the renderer can: the 3DS, the PSP). */
-  setShadows(on: boolean): void {
-    const m = this.hmap;
-    if (!on) this.world.clearShadows();
-    else if (m.length >= 7) this.world.shadows(CITY_HMAP, m[0], m[1], m[2], m[3], m[4], m[5], m[6]);
-  }
+  /** The shadows shown or hidden, their heights kept (drawn where the renderer can: the 3DS, the PSP). */
+  setShadows(on: boolean): void { this.world.setShadows(on); }
 
   /** The heights as a map picture, RGBA, `w` x `h` pixels of `metres` from (x0, z0): the bay in blue, the roofs lighter the higher. */
   mapPixels(x0: number, z0: number, metres: number, w: i32, h: i32): u8[] {

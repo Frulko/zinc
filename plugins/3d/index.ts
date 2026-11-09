@@ -493,6 +493,9 @@ export function defaults3D(profile: string = ''): Defaults3D {
   return d;
 }
 
+/** A World's shadows (World.setShadows): none (no heights given), hidden (the heights kept, nothing drawn from them) or shown. */
+export const enum Shadows { None = 0, Hidden = 1, Shown = 2 }
+
 /** A static world (include/zn/zworld.h: a city, a terrain, a level), as Pocket Tokyo draws its city: cells on the ground with up to three
  *  levels of detail (0 the finest), each level held by a chunk, a file loaded and freed as one, whose batches are a few large meshes with
  *  their indices grouped by cell and by the compass sector a wall faces. select() culls the cells against the camera's frustum, gives each
@@ -505,6 +508,7 @@ export class World extends Node {
   readonly handle: i32;
   readonly chunkCount: i32;
   private disposed=false;
+  private shadowState = Shadows.None;
   /** The machine's defaults (defaults3D(), or the ones given): the fields below start from them. */
   readonly defaults: Defaults3D;
   /** Metres where the near level hands over to the mid level, and the mid to the far, when the budget allows them in full. */
@@ -546,7 +550,7 @@ export class World extends Node {
    *  later frame). */
   load(chunk: i32): i32 { return this.disposed?-1:R.worldLoad(this.handle, chunk); }
   free(chunk: i32): void { if(!this.disposed)R.worldFree(this.handle, chunk); }
-  dispose(): void { if(this.disposed)return;this.disposed=true;R.worldClose(this.handle); }
+  dispose(): void { if(this.disposed)return;this.disposed=true;this.shadowState=Shadows.None;R.worldClose(this.handle); }
   /** After select(): frees the chunks it no longer wants and loads the ones it asked for, coarse levels and nearest first, for up to `ms`
    *  milliseconds (-1: readMs; at least one). Returns the chunks read. */
   serve(ms: number = -1): i32 {
@@ -563,12 +567,24 @@ export class World extends Node {
   /** How far the night has come, 0 (day) to 1: the batches' night pictures and glow from 0.5, or mixed by it where the renderer can. */
   setNight(night: number): void { if(!this.disposed)R.worldNight(this.handle, night); }
   /** The shadows of the scene's first light over a field of heights (the asset: u16 little-endian, rows along +z), the first cell's corner at
-   *  (x0, z0), `step` metres a cell, w x h cells, a height of y0 + v x unit. Drawn where the renderer can (the 3DS, the PSP). */
+   *  (x0, z0), `step` metres a cell, w x h cells, a height of y0 + v x unit, shown at once. Drawn where the renderer can (the 3DS, the PSP);
+   *  one World at a time has them. */
   shadows(heights: string, x0: number, z0: number, step: number, w: i32, h: i32, y0: number, unit: number): void {
-    if(!this.disposed)R.worldShadows(this.handle, heights, [x0, z0, step, w, h, y0, unit]);
+    if (this.disposed) return;
+    R.worldShadows(this.handle, heights, [x0, z0, step, w, h, y0, unit]);
+    this.shadowState = R.worldShadowsShow(this.handle, true) as Shadows;
   }
-  /** The shadows off: the renderer lets go of the heights and of what it made from them (shadows() turns them on again). */
-  clearShadows(): void { R.worldShadows(this.handle, '', []); }
+  /** Shows or hides the shadows shadows() gave, keeping their heights (shown again without reading them): the state after, Shadows.None
+   *  when this World has none. */
+  setShadows(on: boolean): Shadows {
+    if (this.disposed) return Shadows.None;
+    this.shadowState = R.worldShadowsShow(this.handle, on) as Shadows;
+    return this.shadowState;
+  }
+  /** Lets go of the shadows' heights and of what the renderer made from them (shadows() gives them again). */
+  clearShadows(): void { if (!this.disposed) R.worldShadows(this.handle, '', []); this.shadowState = Shadows.None; }
+  /** Whether the shadows are shown, hidden (their heights kept) or none (Shadows), as the last of the calls above left them. */
+  get shadowsState(): Shadows { return this.shadowState; }
 
   /** Chooses what the next render() of `camera` draws, its picture `aspect` wide for one high, and the chunks to load for the eye and for
    *  `ahead` (x, y, z of points it will pass, possibly none). `dt`: seconds since the last call. */

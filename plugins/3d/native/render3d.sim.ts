@@ -35,6 +35,7 @@ class W {
   constructor(public dir: string) {}
 }
 const worlds: (W | null)[] = [];
+let shadowWorld: i32 = -1, shadowState: i32 = 0;
 const NONE = 1e30, LATER = 1e7, ASK: i32 = 64, FREE: i32 = 16, POINTS: i32 = 8;
 
 function u32(d: u8[], o: i32): number { return (d[o] | d[o + 1] << 8 | d[o + 2] << 16) + d[o + 3] * 16777216; }
@@ -145,7 +146,7 @@ export default {
     return worlds.length - 1;
   },
   worldChunkCount(id: i32): i32 { const w = world(id); if (w === null) return 0; return w.chunks.length; },
-  worldClose(id: i32): void { if (world(id) !== null) worlds[id] = null; },
+  worldClose(id: i32): void { if (world(id) !== null) worlds[id] = null; if (id === shadowWorld) { shadowWorld = -1; shadowState = 0; } },
   /** The chunk's batches and spans (its vertices and indices are not kept: the sim draws no pixels). */
   worldLoad(id: i32, k: i32): i32 {
     const w = world(id);
@@ -174,7 +175,16 @@ export default {
     ch.loaded = false; ch.batches.length = 0;
   },
   worldNight(): void {},
-  worldShadows(): void {},
+  // the shadows' state as render3d.host.cpp's shadowsTo keeps it (0 none, 1 hidden, 2 shown), one World at a time; no heights read
+  worldShadows(id: i32, heights: string, prm: number[]): void {
+    const ok = heights !== '' && prm.length >= 7 && world(id) !== null && prm[3] >= 2 && prm[4] >= 2 && prm[3] <= 1024 && prm[4] <= 1024;
+    shadowWorld = ok ? id : -1; shadowState = ok ? 2 : 0;
+  },
+  worldShadowsShow(id: i32, on: boolean): i32 {
+    if (id !== shadowWorld || shadowState === 0) return 0;
+    shadowState = on ? 2 : 1;
+    return shadowState;
+  },
   // ponytail: no sectors (a cell's walls all count) and no slots; render3d.host.cpp's selection otherwise
   worldSelect(id: i32, view: number[], eyes: number[], prm: number[], out: i32[]): void {
     const w = world(id);

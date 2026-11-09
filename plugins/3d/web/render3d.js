@@ -385,6 +385,6 @@ Z.registerNative('Render3D', {
   gpu: () => true,
   end,
   present(id, x, y, w, h) { const t = targets[id]; if (t) Z.paint.element(t.out, x, y, w, h, { fit: 'cover' }); },
-  worldOpen: () => -1, worldChunkCount: () => 0, worldClose() {}, worldLoad: () => -1, worldFree() {}, worldNight() {}, worldShadows() {},
+  worldOpen: () => -1, worldChunkCount: () => 0, worldClose() {}, worldLoad: () => -1, worldFree() {}, worldNight() {}, worldShadows() {}, worldShadowsShow: () => 0,
   worldSelect(world, view, eyes, prm, out) { for (let i = 0; i < out.length; i++) out[i] = 0; }, worldDraw() {},
 }, ['webgl2']);

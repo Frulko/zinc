@@ -428,6 +428,8 @@ struct ShadowSweep {
   uint16_t *prev = nullptr, *cur = nullptr;
   bool on() const { return hm != nullptr; }
   void close() { free(hm); mfree(prev); mfree(cur); *this = ShadowSweep{}; }
+  /** The next frame's light starts a whole sweep (the shadows shown again). */
+  void rearm() { row = -1; dark = -1; whole = true; }
   /** Takes `heights` (malloc'd, freed here) of w x h cells, `step` metres a cell from (x0, z0), `unit` metres a step. */
   bool open(int32_t id, uint16_t* heights, int32_t cw, int32_t ch, float cx0, float cz0, float cstep, float cunit) {
     close();
@@ -920,7 +922,10 @@ struct Engine : NativeRender3D {
     mfree(w->c);mfree(w->k);mfree(w->items);mfree(w);
   }
   int32_t worldChunkCount(int32_t id) override { const World* w=worlds.at(id);return w?w->nk:0; }
-  void worldClose(int32_t id) override { if(World* w=worlds.at(id)){destroyWorld(w);worlds.p[id]=nullptr;} }
+  void worldClose(int32_t id) override {
+    if (sweep.world == id) { ShadeGuard g(this); shadowsTo(ShadowState::None); }   // a World opened later in its slot starts without them
+    if(World* w=worlds.at(id)){destroyWorld(w);worlds.p[id]=nullptr;}
+  }
   Array<N> ident;                     // the world matrix of a world's batches: their positions are the world's
   // The index range of the next draw (worldDraw): every renderer's draw() draws indices rFirst .. rFirst + rCount of its mesh (rCount < 0: all)
   int32_t rFirst = 0, rCount = -1;
@@ -1127,23 +1132,52 @@ struct Engine : NativeRender3D {
     k.b = nullptr; k.spans = nullptr; k.nb = 0; k.loaded = false;
   }
   void worldNight(int32_t id, N night) override { if (World* w = worlds.at(id)) { w->dusk = F(night); w->night = w->dusk >= 0.5f; } }
-  /** A renderer that draws a World's shadows (the 3DS, the PSP) says so; shadowsOn() then follows a new field of heights, shadowsOff() lets go
-   *  of what it made from the last one, once no frame it sent may still read it. */
+  /** A World's shadows, one World at a time (sweep.world): None (no heights), Hidden (the heights held, nothing drawn from them: shown
+   *  again without reading them) or Shown, changed only by shadowsTo(). A renderer that draws them (the 3DS, the PSP: shadowsDrawn) makes
+   *  its map from the heights in shadowsOn() and lets go of it in shadowsOff(), once no frame it sent may still read it; the others hold
+   *  the state and no heights. shadeLock() keeps a renderer's own thread (render3d.psp.cpp) off the sweep while the state changes. */
+  enum class ShadowState : int32_t { None = 0, Hidden = 1, Shown = 2 };
+  ShadowState shadowState = ShadowState::None;
   ShadowSweep sweep;
+  bool shadowsShown() const { return shadowState == ShadowState::Shown; }
   virtual bool shadowsDrawn() const { return false; }
   virtual void shadowsOn() {}
   virtual void shadowsOff() {}
-  /** The heights of a World's shadows (one World at a time), or none (`heights` empty: the shadows off). */
+  virtual void shadeLock(bool) {}
+  struct ShadeGuard { Engine* e; explicit ShadeGuard(Engine* x) : e(x) { e->shadeLock(true); } ~ShadeGuard() { e->shadeLock(false); } };
+  /** The one transition of the shadows (under shadeLock). Out of None only once worldShadows has named the World (sweep.world); to None the
+   *  heights go; to Shown the sweep starts again from the light of the next frame. */
+  void shadowsTo(ShadowState to) {
+    const ShadowState from = shadowState;
+    if (to == from || (from == ShadowState::None && sweep.world < 0)) return;
+    if (from == ShadowState::Shown && shadowsDrawn()) shadowsOff();
+    if (to == ShadowState::None) sweep.close();
+    else if (to == ShadowState::Shown) { sweep.rearm(); if (shadowsDrawn()) shadowsOn(); }
+    shadowState = to;
+  }
+  /** The heights of a World's shadows, shown (`heights` empty: none). Read only by a renderer that draws them. */
   void worldShadows(int32_t id, String name, Array<N> prm) override {
-    if (!shadowsDrawn()) return;
-    if (sweep.on()) { shadowsOff(); sweep.close(); }
+    { ShadeGuard g(this); shadowsTo(ShadowState::None); }
     if (!name.bytes() || prm.length() < 7 || !worlds.at(id)) return;
-    uint32_t n = 0;
-    unsigned char* p = zn_asset_bytes ? zn_asset_bytes(name.ptr(), name.bytes(), &n) : nullptr;
     const int32_t w = (int32_t)F(prm.a->data[3]), h = (int32_t)F(prm.a->data[4]);
-    if (!p || w < 2 || h < 2 || w > 1024 || h > 1024 || n < (uint32_t)(w * h * 2)) { free(p); return; }
-    sweep.open(id, (uint16_t*)p, w, h, F(prm.a->data[0]), F(prm.a->data[1]), F(prm.a->data[2]), F(prm.a->data[6]));
-    shadowsOn();
+    if (w < 2 || h < 2 || w > 1024 || h > 1024) return;
+    uint32_t n = 0;
+    unsigned char* p = nullptr;
+    if (shadowsDrawn()) {
+      p = zn_asset_bytes ? zn_asset_bytes(name.ptr(), name.bytes(), &n) : nullptr;
+      if (!p || n < (uint32_t)(w * h * 2)) { free(p); return; }
+    }
+    ShadeGuard g(this);
+    if (p) sweep.open(id, (uint16_t*)p, w, h, F(prm.a->data[0]), F(prm.a->data[1]), F(prm.a->data[2]), F(prm.a->data[6]));
+    else sweep.world = id;
+    shadowsTo(ShadowState::Shown);
+  }
+  /** Shows or hides the shadows worldShadows gave `id`, without reading the heights again: the state after (ShadowState). */
+  int32_t worldShadowsShow(int32_t id, bool on) override {
+    if (sweep.world != id) return (int32_t)ShadowState::None;
+    ShadeGuard g(this);
+    shadowsTo(on ? ShadowState::Shown : ShadowState::Hidden);
+    return (int32_t)shadowState;
   }
 
   /** One cell's indices of a batch, of which only the sectors in `arc` (all when count >= 16) for a batch ordered by sector. */

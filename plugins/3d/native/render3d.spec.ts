@@ -71,10 +71,13 @@ export interface Spec extends NativeModule {
    *  the two (the 3DS's combiners) goes from one to the other by it. */
   worldNight(world: i32, night: number): void;
   /** The shadows of the scene's first light over a field of heights: the asset `heights` holds u16 heights (little-endian, rows along +z),
-   *  prm: x0, z0 (the first cell's corner), step (metres a cell), w, h (cells), y0 (the height of 0), unit (metres a step); `heights` empty:
-   *  the shadows off. A renderer that draws them (the 3DS, the PSP) darkens the ground and the roofs where something stands between them
-   *  and the light; the others ignore them. */
+   *  prm: x0, z0 (the first cell's corner), step (metres a cell), w, h (cells), y0 (the height of 0), unit (metres a step); shown at
+   *  once (worldShadowsShow); `heights` empty: none, the heights let go. A renderer that draws them (the 3DS, the PSP) darkens the
+   *  ground and the roofs where something stands between them and the light; the others keep the state and read no heights. */
   worldShadows(world: i32, heights: string, prm: number[]): void;
+  /** Shows (`on`) or hides the shadows worldShadows gave `world`, keeping the heights: the state after, 0 none (it has no heights), 1
+   *  hidden, 2 shown. A renderer frees what it drew them with only once no frame it sent may still read it. */
+  worldShadowsShow(world: i32, on: boolean): i32;
   /** Chooses what worldDraw draws: the cells in the frustum of the camera (`view`, its view matrix), each at the level of its distance,
    *  of their walls the sectors that can face the eye. eyes: x y z of the eye, then of points it will pass (for the chunks to load). prm:
    *  vertical field of view (radians), aspect, near, far, near reach, mid reach (metres), budget (triangles), hysteresis, sectors (0/1),

@@ -302,7 +302,7 @@ struct Psp : Engine {
   uint32_t* mask = nullptr;   // sweep.w x sweep.h bits, a row padded to whole words
   SceUID shadeSema = -1, shadeWake = -1, shadeThread = -1;
   volatile bool shadeQuit = false;
-  void shadeLock(bool on) { if (shadeSema >= 0) { if (on) sceKernelWaitSema(shadeSema, 1, nullptr); else sceKernelSignalSema(shadeSema, 1); } }
+  void shadeLock(bool on) override { if (shadeSema >= 0) { if (on) sceKernelWaitSema(shadeSema, 1, nullptr); else sceKernelSignalSema(shadeSema, 1); } }
   int32_t maskWords() const { return (sweep.w + 31) / 32; }
   bool inShade(int32_t cx, int32_t cz) const { return mask && (mask[(size_t)cz * maskWords() + (cx >> 5)] >> (cx & 31) & 1); }
   /** The top bit of the texels of rows j0..j1 of a placed ground picture, from the map. */
@@ -384,15 +384,13 @@ struct Psp : Engine {
     shadeThread = sceKernelCreateThread("zinc shadows", shadeMain, 44, 16 * 1024, PSP_THREAD_ATTR_USER, nullptr);
     if (shadeThread >= 0) sceKernelStartThread(shadeThread, sizeof self, &self);
   }
-  /** The shadows' heights come or go with the thread stopped from patching. */
+  /** The shadows' heights come or go with the thread stopped from patching (Engine::shadowsTo runs under shadeLock). */
   void worldShadows(int32_t id, String name, Array<N> prm) override {
     shadeStart();
-    shadeLock(true);
     Engine::worldShadows(id, name, prm);
-    shadeLock(false);
   }
   bool shadowsDrawn() const override { return true; }
-  // the shadows off: the heights go (Engine::worldShadows), the shaded half of the palettes becomes the lit one (palettes(), the bits stay)
+  // the shadows hidden or gone (Engine::shadowsTo): the shaded half of the palettes becomes the lit one (palettes(), the bits stay)
   void shadowsOn() override {   // the thread sweeps it, row by row; the pictures already placed are patched from the new map
     picKey = -1; sweep.whole = false;
     mfree(mask);
@@ -469,7 +467,7 @@ struct Psp : Engine {
     uint32_t light[WORLD_MIXED + 1];
     sectorLights(light);
     float sun[3], dark = 0;
-    const bool shadowed = sweep.on() && sweep.world == id;
+    const bool shadowed = shadowsShown() && sweep.world == id;
     if (shadowed) {   // a sweep when the light has turned by a degree, on the shadows' thread (shadeMain)
       Spend shading(times.shadows);
       ShadowSweep::light(nl, ld, lc, amb, sun, dark);

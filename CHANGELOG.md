@@ -66,6 +66,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc:audio` streams a game's music from its assets with `loadMusic('music/theme.wav')`: read from the pack as it plays, it keeps a few kilobytes in memory whatever its length (under 5 KB for an IMA ADPCM WAV, about 230 KB for Ogg Vorbis, shown by `music.memory`), and `music.loop` repeats it without a gap, for `openMusic` too. Packs keep sound files uncompressed so they can be read in place.
 - `zinc:audio` pauses one sound and picks it up where it was: `voice.pause()` and `voice.resume()`, on the desktop, the consoles and the web; the museum table's guided visit now goes on mid-sentence after a touch pauses it.
 - Sounds can be shrunk at pack time: an `"as": "audio"` rule in `zinc.json` encodes them to QOA, about a fifth of their WAV size, at the `rate` and `channels` you ask (per target with `targets`); `load()` and `loadMusic()` play them under the same names (a streamed QOA track holds 24 KB), and `report.json` gives each sound's codec and the bytes of each codec.
+- `zinc:3d` worlds switch their shadows off and on with `world.setShadows(false)` and `world.setShadows(true)`, at once and without reading the heights again; Pocket Tokyo's Shadows button on the PSP and the 3DS uses it.
 
 #### Changed
 
