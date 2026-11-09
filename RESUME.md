@@ -3,14 +3,14 @@
 ## Active coordination
 
 - Continue zn-coordinate until the main repository `.paused` exists or nothing can start. Never ask the owner a question. One coordinator: this root session; state log is [COORDINATOR.md](docs/reports/backlog-review-2026-11-07/COORDINATOR.md).
-- Active workers: sole core and Pickers; independent source research is read-only. Every command runs in its own worktree; source and ownership below. They use zn-start, no suites, no push.
+- Active workers: sole core, Pickers and Data; each has its own worktree. Every command runs in its own worktree; source and ownership below. They use zn-start, no suites, no push.
 - This session closed17 tasks: ZN-1078.03/.04/.05/.08/.10 and ZN-1079/1080/1081/1082/1083/1084/1085/1086/1087/1089/1091/1092. Full integration history and older unresolved handovers/tests remain in [the archived resume](docs/reports/session-handover-2026-11-09.md); read only the relevant topic.
 
 | Worker | Branch/worktree | State and next step |
 | --- | --- | --- |
 | Core handoff | work/1088-resume, .worktrees/1088-resume | Restore unintegrated checkpoint e020951cc with cherry-pick -n; complete1088 then1090. Prior Astra tree1088-astra and old1089-core are read-only evidence. No active old writer. |
 | Pickers .07 | work/1078-pickers, .worktrees/1078-pickers | Resume previously reserved task; TS family only, no engine build. Source/reuse research while other session owns heavy queue. |
-| Size review finished | .worktrees/1088-size-review | Actual763-function cost40 attribution supports existing kAllocs-based inline cost; core now implements. No source changes. |
+| Data .12 | work/1078-data, .worktrees/1078-data | Newly claimed independent TS family, research complete; reuse virtualization and existing primitives, no engine build. |
 | Feedback parked | .worktrees/1078-feedback-astra | b088d2952 source integrated, no active worker. Cleanup patch .logs/feedback-astra-handover.patch +notes, BacklogAC2 only; finish after1088/1090. |
 
 - Owner requested Astra Fast then `on rebascule`: new workers inherit the coordinator/configured previous model. Launchers keep Fast and optional ZN_CODEX_MODEL override; no global model change. Astra work is preserved, not discarded.

@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Claimed independent ZN-1078.12 Data after short CUI/APG/provider research. Fresh TS-only worker work/1078-data uses existing virtualization/resize/dialog/breadcrumb controls, no engine build. Pickers and Data own separate family/gallery modules; shared exports/docs integrated serially. Source preparation proceeds while known1088/1090 gates and another session’s long Mapper app hold validation. No workaround or false Done. Read-only review/research trees1088-size-review and1090-research removed after findings were handed off.
+
 - Resume already-reserved ZN-1078.07 Pickers in fresh work/1078-pickers, TypeScript family only, no engine build. The core writer stays sole engine owner on1088/1090; independent picker implementation/reuse research proceeds while the global heavy queue is occupied by another session’s bounded Mapper app. Known size/icon criteria remain open until fixed, no source workaround or budget raise. Future workers inherit configured model.
 
 - Closed/released1087/1089/1091/1092 after full ordinary-default UI proof and clean exact T0s;17 tasks closed this session. Owner then chose Astra Fast and switched back: inherit prior/configured model for new workers, preserve Fast/optionaloverride. Astra1088 checkpoint e020951cc remains unintegrated, finalusedgate72312>65536, unusedpasses; no1090code. Feedbackcleanup patch saved, no oldworkersrunning. Fresh core+read-only size attribution resumes from new worktrees; preserve all artifacts.
