@@ -7,6 +7,7 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "frontend/check.h"
@@ -148,6 +149,10 @@ struct Module {
   std::vector<std::string> dbgNames;  // the names of the locals DbgVar writes
 
   TypeId intern(const Type& t);
+  // intern's index of `types` (ZN-1024: the scan over every type was 1.5% of a compile); types[0, typeIndexed) are in it
+  struct TypeHash { std::size_t operator()(const Type& t) const { return (static_cast<std::size_t>(t.k) << 8 | static_cast<std::size_t>(t.num)) * 1000003u ^ t.aux * 31u ^ t.aux2; } };
+  std::unordered_map<Type, TypeId, TypeHash> typeIndex;
+  std::size_t typeIndexed = 0;
   TypeId voidT() { return intern({Type::K::Void, frontend::Num::f64, 0}); }
   TypeId boolT() { return intern({Type::K::Bool, frontend::Num::f64, 0}); }
   TypeId strT() { return intern({Type::K::Str, frontend::Num::f64, 0}); }

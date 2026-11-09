@@ -192,14 +192,31 @@ struct Checker {
   const Node& n(std::uint32_t i) const { return a.nodes[i]; }
 
   // ---- types
-  TypeId intern(const Type& t) {
-    for (TypeId i = 0; i < out.types.size(); ++i) {
-      const Type& u = out.types[i];
-      if (u.k == t.k && u.num == t.num && u.elem == t.elem && u.params == t.params && u.minArgs == t.minArgs && u.variadic == t.variadic && u.rest == t.rest && u.undef == t.undef && u.obj == t.obj) return i;
+  // The index of each distinct type (the first of equal ones, as a scan finds): the scan over every type was 3% of a compile (ZN-1024).
+  struct TypeHash {
+    std::size_t operator()(const Type& t) const {
+      std::size_t h = static_cast<std::size_t>(t.k) | static_cast<std::size_t>(t.num) << 8 | static_cast<std::size_t>(t.variadic) << 16 | static_cast<std::size_t>(t.rest) << 17 |
+                      static_cast<std::size_t>(t.undef) << 18;
+      for (std::size_t v : {static_cast<std::size_t>(t.elem), static_cast<std::size_t>(t.minArgs), static_cast<std::size_t>(t.obj)}) h = h * 1000003u ^ v;
+      for (TypeId p : t.params) h = h * 1000003u ^ p;
+      return h;
     }
+  };
+  struct TypeEq {
+    bool operator()(const Type& u, const Type& t) const {
+      return u.k == t.k && u.num == t.num && u.elem == t.elem && u.params == t.params && u.minArgs == t.minArgs && u.variadic == t.variadic && u.rest == t.rest && u.undef == t.undef && u.obj == t.obj;
+    }
+  };
+  std::unordered_map<Type, TypeId, TypeHash, TypeEq> typeIndex;
+  TypeId intern(const Type& t) {
+    for (; typeIndexed < out.types.size(); ++typeIndexed) typeIndex.emplace(out.types[typeIndexed], static_cast<TypeId>(typeIndexed));   // the types pushed without intern
+    if (auto it = typeIndex.find(t); it != typeIndex.end()) return it->second;
     out.types.push_back(t);
+    typeIndex.emplace(t, static_cast<TypeId>(out.types.size() - 1));
+    typeIndexed = out.types.size();
     return static_cast<TypeId>(out.types.size() - 1);
   }
+  std::size_t typeIndexed = 0;   // out.types[0, typeIndexed) are in typeIndex
   TypeId num(Num m) { Type t; t.k = TK::Num; t.num = m; return intern(t); }
   TypeId arrayOf(TypeId e) { Type t; t.k = TK::Array; t.elem = e; return intern(t); }
   TypeId mapOf(TypeId k, TypeId v) { Type t; t.k = TK::Map; t.params = {k}; t.elem = v; return intern(t); }

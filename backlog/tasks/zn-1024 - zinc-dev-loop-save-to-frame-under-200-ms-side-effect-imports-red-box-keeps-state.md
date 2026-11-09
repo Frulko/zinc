@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:36'
-updated_date: '2026-11-09 09:59'
+updated_date: '2026-11-09 10:02'
 labels:
   - dev
   - perf
@@ -104,4 +104,6 @@ Session 2026-11-09 (2), criterion #1, worktree agent. Research (sonnet web searc
 Profile of a hero recompile (sample, ~9 recompiles, load ~6): loadChecked 26%, optimise 17%, lower 16%, emit 14%, reference counting 10%, zbc::verify 5% (one thread), freeing the IR module at the end 4%, ir::verify 1.5%; malloc and free are a quarter of all samples, spread over every phase.
 
 Step 10 (perf(zbc): emit and verify on several threads): zbc::emit emits every function at once through ir::parallelFor against a frozen table of the collection classes known before the functions (TypeTable::index, the first of equal classes kept, as its scan finds); a function that needs a class not in it is emitted again afterwards, in order, with the growing table, so the class ids are those of one thread. zbc::verify takes an optional forEach (zbc.cpp has no threads of its own: it builds into the device cores) and returns the first problem in function order. The compile's program, checker tables and IR are freed on a thread of their own (freeLater in main.cpp, one at a time; the future waits at exit). Hero, recompiles back to back, load ~7.7: emit 84 -> 45 ms, a recompile 517-535 -> 461-471 ms. Bytes: hot_recompile passes; --emit=hot and --emit=zbc-bin of hero, ui/kit-gallery, nuxt-ui and breakout are byte for byte those of the binary before this step.
+
+Step 11 (perf(frontend): intern types through a hash index): Checker::intern and ir::Module::intern scanned every type; both keep a hash index of their table (the first of equal types, as the scan found; types pushed without intern are indexed at the next call). Hero, recompiles back to back, load ~8: check 66 -> 49 ms, lower 77 -> 71 ms, a recompile 532-551 -> 432-459 ms (with step 10). Same bytes as before (hot_recompile; --emit=hot and --emit=zbc-bin of hero, ui/kit-gallery, nuxt-ui, breakout).
 <!-- SECTION:NOTES:END -->

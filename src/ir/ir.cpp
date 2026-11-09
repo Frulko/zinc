@@ -90,8 +90,12 @@ void parallelFor(std::size_t n, const std::function<void(std::size_t)>& fn) {
 }
 
 TypeId Module::intern(const Type& t) {
-  for (TypeId i = 0; i < types.size(); ++i) if (types[i] == t) return i;
+  if (typeIndexed > types.size()) { typeIndex.clear(); typeIndexed = 0; }   // the table was replaced
+  for (; typeIndexed < types.size(); ++typeIndexed) typeIndex.emplace(types[typeIndexed], static_cast<TypeId>(typeIndexed));   // the first of equal types, as a scan finds
+  if (auto it = typeIndex.find(t); it != typeIndex.end()) return it->second;
   types.push_back(t);
+  typeIndex.emplace(t, static_cast<TypeId>(types.size() - 1));
+  typeIndexed = types.size();
   return static_cast<TypeId>(types.size() - 1);
 }
 
