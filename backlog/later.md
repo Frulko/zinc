@@ -601,6 +601,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1024: `Checker::intern` and `ir::Module::intern` are linear scans over every type; a hash index cuts a few percent of every compile (~15 ms on hero).
 - ZN-1024: zbc::emit in parallel needs a deterministic merge of the collection classes TypeTable creates on first use (ids follow the order of the functions); ~70 ms a hero save.
 - ZN-1024: tests/t0/ir.sh fails on develop: the IR goldens of closures and closures2 no longer match `--emit=ir` (ir_test passes); re-record or fix.
+- ZN-1071: rn layout `flex-1` still has basis auto (Tailwind and React Native use 0%): two `flex-1` siblings split the room by content, not equally.
+- ZN-1071: AppKit Sidebar collapse (NSSplitView collapsing and a toggle item), toolbar flexible spacers, the sidebar tracking separator; vertical splits and a trailing inspector pane.
+- ZN-1071: macOS 26 draws the sidebar as glass: drop our NSVisualEffectView there (WWDC25 session 310) and recheck `fullSizeContent`, which should also hide the title and give the program the title bar height as an inset.
+- ZN-1071: `Window` drives the main window only (more windows through zinc:system/window under the host); the chrome components read their props once, reactive titles and labels should follow signals.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

@@ -2,7 +2,8 @@
 id: ZN-1072
 title: AppKit Table and Outline with row recycling
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-08 21:43'
 labels:
   - ui

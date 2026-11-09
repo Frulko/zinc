@@ -8,10 +8,12 @@
 - Integrated: ZN-1070 AppKit primitives (Done, D228): `import 'zinc:appkit'` with `"ui": {"render": "native"}` shows View, Text, TextInput, Image, ScrollView as real NSViews.
 - Integrated: ZN-1024 second pass (Backlog, D229): hero save-to-frame 1180 → ~680 ms (caches of unchanged files, threaded IR passes); the rest needs incremental check and lowering per module.
 - Known failure on develop: `tests/t0/ir.sh` (closures, closures2 IR goldens), not investigated yet.
+- Integrated: ZN-1071 AppKit window chrome (Done, D230): Window, Toolbar, SplitView, Sidebar, Tab/Shift-Tab focus; rn-layout `flex-1` now shrinks (watch rn goldens).
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-1071 (since d83b3c78f): `tests/run --only ui_appkit_chrome`; the T1 rn-layout sessions (react-native*, rn-port, rn-showcase) since `flex-1` now shrinks under rn; by hand with `ZINC_BACKGROUND=0`: a real divider drag (cursor, min/max), Tab/Shift-Tab and the focus ring on a Pressable, typing in the toolbar search field.
 - ZN-1024 (since fdd703508): `tests/run --only hot_recompile` (8 s), `hot_swap`, `dev_mode`, `fast_refresh` (T1); `tools/diff-matrix` since optimise, rc and verify are threaded.
 - ZN-1070 (since 6dd52da37): `tests/run --only ui_appkit` (3-engine golden of AppKit-measured widths, re-record with `ZN_UPDATE_GOLDEN=1` after a macOS update), `ui_native_host`, `ui_dts`; by hand: a Japanese input method in a zinc:appkit field, and switching the system appearance while an app runs.
 - ZN-799: `tests/t1/cli_tools.sh`, `tests/t1/system_manifest.sh`, `platform_look`, `ui_kit_sections`, an AOT run of `kit_input`.
