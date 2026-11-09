@@ -2,8 +2,7 @@
 id: ZN-682
 title: 'zinc:3d: the bounds of a Node'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 19:36'
 updated_date: '2026-11-09 04:20'
 labels:

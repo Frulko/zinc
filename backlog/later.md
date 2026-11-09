@@ -629,6 +629,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-798: `DisplayMediaStreamOptions` still types `video?: unknown`; type it `boolean | {..., cursor}` like `getUserMedia`.
 - ZN-798: `zinc --emit=zbc-bin tests/golden/host/webrtc_media.ts` fails with "`__js17xx` keeps more than 256 values alive" (already before ZN-798).
 - ZN-798: the UBSan reports of the v0.4.3 fuzz logs (`lower.cpp`, `fuzz_native.cpp:41`) were not reproduced; check them at the next fuzz run.
+- ZN-682: the three plugin's sim stand-in imports `node:fs`, so a program that imports `zinc:3d/gltf` does not run with `ZINC_NATIVE=sim`.
+- ZN-682: `SkinnedModel` could refresh `mesh.bounds` from its current pose on request (three.js `SkinnedMesh.computeBoundingBox()`); an optional precise mode of `bounds(node)` reading every vertex.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

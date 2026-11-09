@@ -16,10 +16,12 @@
 - Integrated: ZN-364.01 #1-#4 (Backlog, D237): `useNativeDriver: true` and class transitions of opacity/transform play on the compositor while the program is busy; #5's scroll half (D182 step 7) left with a handover.
 - Integrated: ZN-1074 `examples/appkit-tour` (Review, D238): Finder-like app native on three engines and a built binary, and drawn; VoiceOver tree verified by an AX dump, needs a person to listen (#3). AppKit text measure kept in built AOT apps; the Edit menu reaches native fields.
 - Integrated: ZN-798 (Done, D239): `boolean | Interface` unions compile (no crash), a local name no longer breaks narrowing of a module variable, lambda field initialisers keep their errors; workarounds in web.ts, notify.ts and notify-relay removed.
+- Integrated: ZN-682 (Done, D240): zinc:3d `bounds(node)` (box and sphere); the museum viewer frames its object with it, its 75-frame session hash unchanged.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-682 (since d1e19fe82): `tests/demo/museum_viewer.sh` (session and three frame hashes through `bounds()`, 20 s); the viewer on a multi-node GLB (centred at the opening view, 5 s).
 - ZN-798 (since beb619f27): `tests/t1/webcam.sh` (typed getUserMedia constraints), the T0 tier (new goldens, regenerated closures/tuples IR goldens, the dead-zone change), `tools/diff-matrix` over `tests/golden/run`.
 - ZN-1074 (since bf0134323): by hand, listen to appkit-tour with VoiceOver (sidebar, table, form) and Cmd-Z in a native field; proposed `tests/t1/appkit_tour.sh` (scripted session, 40 s), a windowed AX dump golden (15 s, Accessibility permission), a drawn `ui.inspect()` golden (5 s); measures: one typed character's commit, time to show the 10,000-row window, `tools/window-memory` native vs drawn, dropped frames flinging the table at 120 Hz.
 - ZN-364.01 (since the feat(ui) compositor commits after f40a02975): T1 `animated` (both modes), `busy_native` alone on a real clock, `ui_transition`, `compositor`; T0 `animated_native` on AOT (40 s, 1 GB); a windowed run of tests/data/busy_native; rn-showcase and rn-tester sessions; the kit keyboard and toast flows (`animate()` Promises now resolve when replaced).

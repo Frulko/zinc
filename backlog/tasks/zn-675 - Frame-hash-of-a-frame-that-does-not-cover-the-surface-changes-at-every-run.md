@@ -2,7 +2,8 @@
 id: ZN-675
 title: Frame hash of a frame that does not cover the surface changes at every run
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 19:21'
 labels:
   - testing
