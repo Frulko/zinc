@@ -668,6 +668,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1033: `lib/modules.d.ts` declares zinc:net serve/serveAsync with `tls?` only (ServeOptions hostname, limits, webSocket missing); a `beforeunload` cancelled by another handler leaves the dev bridge poll stopped.
 - ZN-1033: zinc dev (desktop and web) reloads on any file the program writes in its folder; watch only the module graph, assets and zinc.json, as Vite does.
 - ZN-863.06: the wasm glue fetches `app.res` for a program without assets (a 404 per load); `--engine wasm` prints the program's output in the page only, not the terminal; the JSPI worker as a fallback for pages that cannot be cross-origin isolated.
+- ZN-674: GIF in `imageFromBytes` runs stb_image's GIF path on downloaded bytes (the agent cites a DoS advisory): fuzz `decodeRgbaAlloc` with GIFs, or move GIF to Wuffs as Skia did.
+- ZN-442: the browser host (canvas 2D) and the console cores draw `ImageFlag.Msdf` as a plain image: add the median-to-alpha path so `zinc:gfx/msdf` works there.
+- ZN-442: with a font rule the baker still embeds the TTF next to the pack's subset (bytes twice): leave it to the pack once `loadFont` and `font-[Name]` read pack entries (`zn_asset_font` reads only the assets folder).
+- ZN-442: kerning (GPOS pairs in `.msdf.json`), MTSDF for outlines and shadows, MSDF text for zinc:3d labels and zoomable maps.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

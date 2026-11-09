@@ -1612,3 +1612,9 @@ A 4 s stereo 44.1 kHz PCM track, 705,644 B, becomes 142,528 B of QOA (4.95x) in 
 | `zinc dev --target web --engine wasm` first start | hero 2.9 s (1.8 MB bytecode), breakout 0.5 s |
 | `--engine wasm` rebuild on save | ~0.4 s |
 | `vm-web.wasm` | 0.6 MB; `tools/build-wasm` in a fresh tree 13 s |
+
+## 2026-11-09: GIF in imageFromBytes, font importer and MSDF (ZN-674, ZN-442, M1 Pro)
+
+- GIF decoding (stb_image `STBI_ONLY_GIF`): +7,186 B of code in a built program (`__text` +7,056; the file grows 16 B, same page).
+- Font importer, Inter ASCII + 12 characters from an i18n JSON: MSDF atlas 512 x 164 (335,872 GPU bytes); first import 88 ms, cached rebuild 0.6 ms; pack output (subset, atlas, table) 351,450 B.
+- A 12 px MSDF label drawn at 96 px: SSIM 0.9962 against Inter rasterized at 96 px (a blurred upscale scores 0.83); GL at density 4 matches the software frame (mean error 0.013, worst 8 levels), one draw call.

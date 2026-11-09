@@ -35,10 +35,12 @@
 - Integrated: ZN-678, ZN-444 (Done, D252, D253): GL turned images match the raster (xform.ts 0.195% → 0.000%), shaders checked at build with file and line, minified in release; one GL run checked the program builds.
 - Integrated: ZN-695, ZN-440.01 (Done, D254): `voice.pause()/resume()` on every backend (museum table resumes its narration), sounds encoded to QOA at pack time (4.95x), `String.fromCharCode(a, b, ...)` accepted. Conflict with ZN-444 in the importer table resolved by keeping both.
 - Integrated: ZN-1033, ZN-863.06 (Done, D255): the zinc dev web bridge on 127.0.0.1 with a token per load, base64 bytes, sqlite native under dev, the bridge events defect fixed; `zinc dev --target web --engine wasm` runs breakout, names hero's missing native modules.
+- Integrated: ZN-674, ZN-442 (Done, D256): GIF in `imageFromBytes` (it could not read GIF), the `font` importer (charsets, hb-subset) with an MSDF atlas option and `zinc:gfx/msdf`.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- Assets (since 1726ef2f6): `webp_bytes` (20 s), `font_assets` (1 s); a GL compare of `tests/data/font_assets` msdf and turned against software (`tools/glcompare`, 10 s, a window); `tests/t1/gl_replay_es2.sh` (the image shader gained MSDF).
 - Web dev (since 324deacf9): `tests/t1/web_bridge.sh` (every bridge step, was failing at events; 40 s, Chrome), `tests/t1/web_dev_wasm.sh` (new; 15 s, Chrome), `web_fs`.
 - Audio (since 961423158): `tests/run --tier t1 --only museum_visit` (the story's narration stop moved, resume; 2 min); `console_audio` with a QOA clip and a pause (builds the console core, 3 min, 1 GB); T0 `str_index`, `assets`, `project_assets` (report fields).
 - GL (since 8fe2485ec): `tests/run --only image_rect_gl` (xform under 0.05%, 20 s, a window), `gfx_transform` (15 s, a window), `tests/t1/gl_replay_es2.sh`; T0 `assets` (20 s).

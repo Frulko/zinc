@@ -2,8 +2,7 @@
 id: ZN-442
 title: 'Font importer: subsets, charsets, MSDF option'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:36'
 updated_date: '2026-11-09 07:32'
 labels:
