@@ -46,4 +46,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: ZN-1070 (Done, D228). Worker: ZN-1071 AppKit window chrome, beside ZN-1024.
 - Integrated: ZN-1024 (Backlog, D229). Worker: ZN-1030 (open records, criterion #1) and the ir.sh goldens, beside ZN-1071.
 - Integrated: ZN-1071 (Done, D230). Worker: ZN-1072 AppKit Table and Outline, beside ZN-1030.
-- Integrated: ZN-1030 (Backlog, D231).
+- Integrated: ZN-1030 (Backlog, D231). Worker: ZN-610 (mqtt TLS 1.3) and the `--native` run cache that misses edits, beside ZN-1072.

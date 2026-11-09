@@ -2,7 +2,8 @@
 id: ZN-610
 title: 'mqtt over TLS 1.3 and the handshake timeout test'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 07:27'
 labels:
   - net
