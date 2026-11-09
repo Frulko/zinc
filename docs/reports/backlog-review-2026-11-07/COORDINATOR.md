@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Owner screenshot correction takes priority: ZN-1087 claimed for docs/img/design/src responsive gallery and real aligned password reveal; fresh worker replaces finished Inputs. Inputs progress0a8c0b141 integrated, AC3 remains open on new-source AOT metadata costs. Navigation/Feedback continue; queue common engine metadata/animation blockers when a worker slot returns.
+
 - Recorded/released ZN-1085/1086 and .10; Selection .08 size AC now passes and task Done. Clean rebuilt engine: tdz_outline, ui_focus_dispose, kit_overlays, original gallery check/run and unchanged kit_size all PASS (62412 B/component). RESUME archived losslessly then shortened for fresh-worker context. Active: Inputs, Navigation, Feedback; no process left by root.
 
 - Core c69f4e7a8 (TDZ shared error construction) and8fc1bb2d1 (focused subscription snapshot) integrated. Core slot now becomes fresh Navigation worker ZN-1078.09, claimed in work/1078-navigation. Inputs and Overlays finish their actual caller proofs; root owns clean engine rebuild/integration checks. Three worker slots stay occupied.
