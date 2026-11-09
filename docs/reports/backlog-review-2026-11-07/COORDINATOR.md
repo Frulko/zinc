@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Integrated ZN-1082 (c1c330cfa, Done); clean retained binary rebuilt, jsx_grab actual arbitration PASS all6 model/engine combinations, solid fixture check PASS. Original Slider horizontal/vertical all3 proof passed. Core worker clean/no processes; remove work/1082-grab. Next1083 Show direct-map/sibling lowering research completed; original RadioCards unchanged. Inputs source frozen at4912B used-component size overage pending retained artifact attribution and Money focus subscription correction.
+
 - 2026-11-09: Created/claimed ZN-1082 (blocks Selection slider): dynamic grab binding rejected by literal-only frontend. Exact existing enum keep/keep-x/auto only. Short primary-source research completed; fourth agent slot reserved for one core worker, no further UI research until released. Inputs has next bounded proof batch; engine worker must avoid final link while it runs.
 
 - 2026-11-09: Inputs exact kit_inputs/kit_input PASS after render-slot, disabled API and engine autofocus corrections; final captures/gate ongoing. Selection .08 worker explicitly owns minimal Actions.groupButtons correction from getNumber(disabled) to ui.isDisabled plus disabled-middle-item focus regression (shared Selection keyboard behavior, no new task); no other worker edits actions.tsx.
