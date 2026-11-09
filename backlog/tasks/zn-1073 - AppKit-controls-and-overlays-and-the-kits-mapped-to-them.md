@@ -2,7 +2,8 @@
 id: ZN-1073
 title: 'AppKit controls and overlays, and the kits mapped to them'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-08 21:44'
 labels:
   - ui

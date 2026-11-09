@@ -9,10 +9,12 @@
 - Integrated: ZN-1024 second pass (Backlog, D229): hero save-to-frame 1180 → ~680 ms (caches of unchanged files, threaded IR passes); the rest needs incremental check and lowering per module.
 - Integrated: ZN-1071 AppKit window chrome (Done, D230): Window, Toolbar, SplitView, Sidebar, Tab/Shift-Tab focus; rn-layout `flex-1` now shrinks (watch rn goldens).
 - Integrated: ZN-1030 cases 1 and 4 (Backlog, D231): methods through `any`, widened records shared; cases 2 (array covariance, design in notes) and 3 left. ir.sh closures goldens re-recorded (correct since D224).
+- Integrated: ZN-1072 AppKit Table and Outline (Done, D232): 10,000 rows with only the visible ones built, sort, selection, type-select, outline expand; drawn fallback.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-1072 (since ed2f9f077): `tests/run --only ui_appkit_table`; by hand: fling the 10,000-row table on the 120 Hz display with `tools/window-memory`; an AXUIElement read of the table (VoiceOver role, 10 s); a 100,000-row case in `ui_appkit_table` (flat commit cost, 20 s).
 - ZN-1030 (since 498f78a79): `tools/diff-matrix` (records, `any`, classes over the corpus, ~10 min), `tests/run --only json_large`, the rn-showcase T1 session (its DOM event-init records are now shared).
 - ZN-1071 (since d83b3c78f): `tests/run --only ui_appkit_chrome`; the T1 rn-layout sessions (react-native*, rn-port, rn-showcase) since `flex-1` now shrinks under rn; by hand with `ZINC_BACKGROUND=0`: a real divider drag (cursor, min/max), Tab/Shift-Tab and the focus ring on a Pressable, typing in the toolbar search field.
 - ZN-1024 (since fdd703508): `tests/run --only hot_recompile` (8 s), `hot_swap`, `dev_mode`, `fast_refresh` (T1); `tools/diff-matrix` since optimise, rc and verify are threaded.

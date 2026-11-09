@@ -606,6 +606,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1071: macOS 26 draws the sidebar as glass: drop our NSVisualEffectView there (WWDC25 session 310) and recheck `fullSizeContent`, which should also hide the title and give the program the title bar height as an inset.
 - ZN-1071: `Window` drives the main window only (more windows through zinc:system/window under the host); the chrome components read their props once, reactive titles and labels should follow signals.
 - ZN-1030: methods read through `any` pass every parameter, so a missing argument of a defaulted number parameter throws; generic methods, rest parameters and getters are not shown through the `any` view of a class.
+- ZN-1072: AppKit Table cells other than text (image, checkbox, a zinc:ui subtree per cell) and rows of different heights (`noteHeightOfRowsWithIndexesChanged` from the measured virtual rows).
+- ZN-1072: an Outline that loads children as it opens, for big trees (today the whole tree is one attribute).
+- ZN-1072: the AppKit header (~28 px) is taller than the drawn one (24 px), covered by overscan; `ui.domViewport` would make it exact. The `lists` map in `plugins/appkit/index.ts` keeps one entry per Table ever made.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
