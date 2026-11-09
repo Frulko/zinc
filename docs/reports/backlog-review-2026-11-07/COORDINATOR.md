@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Selection .08 progress integrated53009551b: feature/React/native proof green, AC1/2 complete, task BacklogAC3 unchanged AOTsize gate66081>65536. .09 unstarted. Fresh Overlays worker resumes checkpointf300498dc in work/1078-overlays-resume; Inputs and harness continue. Owner asked kit testing: quiet/input/actions/chrome T0 PASS, clean gallery check/headless capture PASS, bounded background interactive window60s.
+
 - Integrated/released ZN-1083 (3e0a6bf2a, Done), clean six-case jsx_show and targeted kit_actions/kit_chrome/ui_focus_dispose PASS. Remove completed1083 tree. Three active workers: Inputs, Selection and priority harness1084. Internal host.componentRef addition transferred from Inputs to Selection to avoid duplicate commits; integrate Selection first. All heavy commands self-queue with shared flock.
 
 - Owner priority: apply GPUI/zgui recommendations to harness FIRST, then speed/agent capacity. Created/claimed ZN-1084; fresh harness worker replaces checkpointed Overlays worker. Overlays branch work/1078-overlays clean checkpoint f300498dc, NOT integrated, .10 Backlog/unproven, .11 unstarted; resume later. Runtime/build self-queue now /tmp/zinc-heavy-run-501.py SECONDS COMMAND (fcntl+timeout, self-check PASS), no parent permission handshake. Inputs and Selection continue autonomously, one heavy command at a time.
