@@ -1798,7 +1798,7 @@ struct Lowering::FnLower {
   std::vector<std::uint32_t> exprAt;  // the expressions being lowered, innermost last: where emit() reports a void value used as a value
   std::unordered_set<std::uint32_t> optBusy;
   ValueId optionalAccess(std::uint32_t i, const Node& x) {
-    std::uint32_t recvNode = x.kind == N::Member || x.kind == N::Index ? x.kids[0] : n(x.kids[0]).kids[0];
+    std::uint32_t recvNode = x.flags & frontend::kFlagGuardedReceiver ? x.kids[1] : x.kind == N::Member || x.kind == N::Index ? x.kids[0] : n(x.kids[0]).kids[0];
     TypeId rt = c.nodeType[i] == frontend::kNoType ? m.voidT() : natural(i);
     bool hasValue = ty(rt).k != Type::K::Void;
     ValueId v = expr(recvNode);
@@ -1809,11 +1809,20 @@ struct Lowering::FnLower {
     condbr(cond, hb, eb);
     sealed[hb] = sealed[eb] = 1;
     cur = hb;
+    const auto previous = overrides.find(recvNode);
+    const std::uint32_t callee = x.kind == N::Call && !optBusy.count(x.kids[0]) ? x.kids[0] : kNil;
+    struct ReceiverGuard {
+      FnLower& self; std::uint32_t receiver, node, callee; ValueId previous;
+      ~ReceiverGuard() {
+        if (previous == kNoValue) self.overrides.erase(receiver); else self.overrides[receiver] = previous;
+        self.optBusy.erase(node);
+        if (callee != kNil) self.optBusy.erase(callee);
+      }
+    } guard{*this, recvNode, i, callee, previous == overrides.end() ? kNoValue : previous->second};
     overrides[recvNode] = v;
     optBusy.insert(i);
-    if (x.kind == N::Call) optBusy.insert(x.kids[0]);
+    if (callee != kNil) optBusy.insert(callee);
     ValueId r = expr(i);
-    overrides.erase(recvNode);
     if (hasValue) br(join, {coerce(r, rt)}); else br(join);
     cur = eb;
     if (hasValue) br(join, {nullConst(rt)}); else br(join);
@@ -1827,7 +1836,7 @@ struct Lowering::FnLower {
     struct Pop { std::vector<std::uint32_t>& v; ~Pop() { v.pop_back(); } } pop{exprAt};
     const Node& x = n(i);
     if (auto ov = overrides.find(i); ov != overrides.end()) return ov->second;
-    if ((((x.kind == N::Member || x.kind == N::Index) && (x.flags & frontend::kFlagOptional)) || (x.kind == N::Call && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).flags & frontend::kFlagOptional))) && !optBusy.count(i)) return optionalAccess(i, x);
+    if (((x.flags & frontend::kFlagGuardedReceiver) || ((x.kind == N::Member || x.kind == N::Index) && (x.flags & frontend::kFlagOptional)) || (x.kind == N::Call && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).flags & frontend::kFlagOptional))) && !optBusy.count(i)) return optionalAccess(i, x);
     switch (x.kind) {
       case N::Number: {
         bool isInt;

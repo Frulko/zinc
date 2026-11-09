@@ -285,6 +285,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### Fixed
 
+- Array callbacks and collection methods work after an optional chain, preserving single evaluation and skipping arguments when the receiver is absent.
+
 - Optional integer results can be stored, passed and returned as `number | undefined`; a present value converts normally and an absent value stays absent.
 
 - On `--engine quickjs`, typed `Map`, `Set` and `Array` result methods return snapshot arrays as declared, so their length, indexing and array callbacks work like the other engines; JavaScript packages and embedded scripts keep their native iterators.

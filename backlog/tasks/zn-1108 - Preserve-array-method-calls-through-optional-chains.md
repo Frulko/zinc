@@ -5,6 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-09 23:32'
+updated_date: '2026-11-09 23:52'
 labels:
   - frontend
   - ir
@@ -22,7 +23,17 @@ Blocks original ZN-1078.14 TimelineEditor. Minimal valid TypeScript: interface K
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Original optional object-to-array method chain checks and runs unchanged, with the public result type preserved and existing nonoptional dispatch reused
-- [ ] #2 Focused T0 proves present/absent, single evaluation, argument/callback short-circuit, relevant array HOF returns and invalid nullable-intermediate negatives on interpreter/AOT/QuickJS
+- [x] #1 Original optional object-to-array method chain checks and runs unchanged, with the public result type preserved and existing nonoptional dispatch reused
+- [x] #2 Focused T0 proves present/absent, single evaluation, argument/callback short-circuit, relevant array HOF returns and invalid nullable-intermediate negatives on interpreter/AOT/QuickJS
 - [ ] #3 Original Tool panels Timeline/Curve callers pass without guards or frame/type workarounds; docs/changelog, provenance, limits and proposed tests recorded
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented the existing collection helper dispatch over the nonnullable receiver type, retaining the receiver guard through a compiler-only AST flag when a method becomes a helper call. Lowering reuses optionalAccess: receiver once, later arguments/callbacks only in the present branch, null result otherwise; continuation metadata retains ordinary nullable-intermediate errors. Array HOFs, generated array/Map/Set iterators and Map/Set forEach share this path. Native methods stay native. The touched receiver override/recursion guard now restores through a scoped RAII guard, including nested overrides. No new runtime API, dependency, user-code wrapper or control workaround.
+
+Primary semantics: TypeScript3.7 Optional Chaining https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-7.html and ECMAScript ChainEvaluation https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-optional-chaining. The unchanged five-line original passes strict tsc (standard ES2022 libs; Zinc prelude has an unrelated global value decorator, so its global name collision is excluded from this pure TS oracle). Exact optional_collection passes interpreter/native AOT/QuickJS with original repro, present/absent, once-only receivers, skipped callback factories/arguments, nested map/filter continuation, flatMap/reduce/some/every/forEach, native string-array join, array values/entries, Map/Set generated iterators, callback throws and nullable/grouped-chain negatives. Memory check allocs=frees/leaked0. Build retains existing dependency warnings outside changed sources; changed checker/lowering rebuild emitted none.
+
+Caller checkpoint: panels worker ran unchanged original kit-gallery check with candidate SHA2567316bee69a330eb5fb0a921bc342951b59950b734b84c4f24ab406935c7d2e26 and its own source root:27files checked, no errors; track()?.keys.find and track()?.clips.find remain unchanged. AC3 stays open until original runtime caller proof after separate1109 method-default receiver correction. Next command after1109: run original Tool gallery/model with candidate on all3; coordinator closes AC3 on that evidence. Source/binary fingerprints and raw logs in .logs/1108/provenance.json, final.log, mem.json; caller log panels/.logs/check-1108.log. Proposed tests: long callback/collection churn and device typed-engine replay at owner-selected milestone, minutes/memory unmeasured; no suite/benchmark/pixels/device run started.
+<!-- SECTION:NOTES:END -->

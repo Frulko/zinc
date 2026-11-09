@@ -1600,9 +1600,8 @@ struct Checker {
   // m.forEach((value, key) => ...): a helper written in Zinc over the keys; the callback may take just the value
   // arr.entries(), arr.keys(), arr.values(), map.entries(), set.entries(), set.keys(): the iterator of JavaScript is an array here (for-of, spread and Array.from take arrays).
   // False when the receiver has the method natively (map.keys(), map.values(), set.values()) or is not one of these types.
-  bool iteratorMethod(std::uint32_t i, std::string_view m) {
+  bool iteratorMethod(std::uint32_t i, std::string_view m, TypeId rt) {
     std::uint32_t recvNode = n(n(i).kids[0]).kids[0];
-    TypeId rt = expr(recvNode);
     if (bad(rt) || hasParam(rt)) return false;
     TK k = ty(rt).k;
     if (k != TK::Array && k != TK::Map && k != TK::Set) return false;
@@ -1659,6 +1658,35 @@ struct Checker {
     rewritten.insert(i);
     out.nodeType[i] = tVoid;
     return tVoid;
+  }
+  TypeId collectionCall(std::uint32_t i) {
+    const std::uint32_t callee = n(i).kids[0];
+    if (n(callee).kind != N::Member || n(n(callee).kids[0]).kind == N::Super) return kNoType;
+    const std::string method(n(callee).text);
+    if (!isHofName(method) && method != "entries" && method != "keys" && method != "values") return kNoType;
+    const std::uint32_t receiver = n(callee).kids[0];
+    TypeId rt = expr(receiver);
+    if (bad(rt)) return tError;
+    continueChain(callee, receiver, rt);
+    const bool guarded = (n(callee).flags & kFlagOptional) && hasNull(rt);
+    if (guarded) rt = withoutNull(rt);
+    TypeId result = kNoType;
+    if (n(i).kids.size() == 1 && (method == "entries" || method == "keys" || method == "values") && iteratorMethod(i, method, rt)) {
+      result = out.nodeType[i];
+    } else if (method == "forEach" && (ty(rt).k == TK::Map || ty(rt).k == TK::Set)) {
+      out.nodeType[receiver] = rt;
+      result = mapForEach(i);
+    } else if (isHofName(method) && ty(rt).k == TK::Array && !(method == "join" && ty(ty(rt).elem).k == TK::Str)) {
+      out.nodeType[receiver] = rt;
+      result = arrayHof(i, method);
+    }
+    if (result == kNoType || bad(result)) return result;
+    out.nodeType[receiver] = rt;
+    if (guarded) {
+      a.nodes[i].flags |= kFlagGuardedReceiver;
+      if (result != tVoid) result = chainStop(i, result);
+    }
+    return out.nodeType[i] = result;
   }
   TypeId arrayHof0(std::uint32_t i, std::string_view method) {
     const std::vector<std::uint32_t> kids = n(i).kids;
@@ -2847,12 +2875,8 @@ struct Checker {
         out.nodeSym[callee] = inst;
         ct = out.syms[inst].type;
         out.nodeType[callee] = ct;
-      } else if (cn.kind == N::Member && n(i).kids.size() == 1 && (cn.text == "entries" || cn.text == "keys" || cn.text == "values") && n(cn.kids[0]).kind != N::Super && iteratorMethod(i, cn.text)) {
-        return out.nodeType[i];
-      } else if (cn.kind == N::Member && cn.text == "forEach" && n(cn.kids[0]).kind != N::Super && (ty(expr(cn.kids[0])).k == TK::Map || ty(out.nodeType[cn.kids[0]]).k == TK::Set)) {
-        return mapForEach(i);
-      } else if (cn.kind == N::Member && isHofName(cn.text) && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Array && !(cn.text == "join" && ty(ty(out.nodeType[cn.kids[0]]).elem).k == TK::Str)) {  // string arrays join through the runtime
-        return arrayHof(i, cn.text);
+      } else if (TypeId collection = collectionCall(i); collection != kNoType) {
+        return collection;
       } else if (int dk = cn.kind == N::Member && !rawDyn() && !(cn.flags & kFlagOptional) ? dynMethodKind(cn.text) : 0; dk && dynReceiver(cn.kids[0])) {
         // `d.codecs.map(f)`, `d.items.push(x)`, `d.name.trim()` on an any value: the method of the array or string it holds, in place
         const std::string m(cn.text);

@@ -38,6 +38,8 @@ console.log(sum, pts.map(p => `${p.x},${p.y}`).join(' '));
 
 Optional callback fields can be called after an explicit object/field guard or an optional-chain guard, including inside `String`, `Number` and `Boolean` conversions. A conversion evaluates its argument once. A property assignment or method call still invalidates facts about the receiver's fields: guard again before a later call that depends on the old optional value.
 
+Array and collection methods keep their optional receiver guard when lowered to shared helpers: `track()?.keys.find(predicate())` evaluates `track()` once and skips both `predicate()` and the callback if the chain stops. A further nullable property still requires its own `?.`; parentheses end the chain. Native methods and generated callback helpers use the same short-circuit behavior.
+
 A callback with a typed optional cleanup result, `() => (() => void) | undefined`, can return its cleanup, explicit `undefined` or no value. An unrelated import that uses dynamic values does not change that typed nullish representation. Cleanup functions keep their identity and are called through their typed signature; an opaque dynamic value is not converted into an arbitrary typed function.
 
 ## What is rejected, and why
