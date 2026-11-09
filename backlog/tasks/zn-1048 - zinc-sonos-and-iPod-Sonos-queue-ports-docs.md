@@ -2,8 +2,7 @@
 id: ZN-1048
 title: 'zinc:sonos and iPod Sonos: queue, ports, docs'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:39'
 updated_date: '2026-11-09 08:32'
 labels:

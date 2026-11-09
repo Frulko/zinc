@@ -4,8 +4,7 @@ title: >-
   Typed fast native calls and borrowed buffer accessors for QuickJS (patch +
   upstream PR)
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 09:28'
 updated_date: '2026-11-09 08:31'
 labels:

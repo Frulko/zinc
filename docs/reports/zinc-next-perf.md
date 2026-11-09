@@ -1618,3 +1618,7 @@ A 4 s stereo 44.1 kHz PCM track, 705,644 B, becomes 142,528 B of QOA (4.95x) in 
 - GIF decoding (stb_image `STBI_ONLY_GIF`): +7,186 B of code in a built program (`__text` +7,056; the file grows 16 B, same page).
 - Font importer, Inter ASCII + 12 characters from an i18n JSON: MSDF atlas 512 x 164 (335,872 GPU bytes); first import 88 ms, cached rebuild 0.6 ms; pack output (subset, atlas, table) 351,450 B.
 - A 12 px MSDF label drawn at 96 px: SSIM 0.9962 against Inter rasterized at 96 px (a blurred upscale scores 0.83); GL at density 4 matches the software frame (mean error 0.013, worst 8 levels), one draw call.
+
+## 2026-11-09: QuickJS typed fast calls (ZN-601, ZN-596; M1 Pro at load 4-9 while other trees built: indicative, ~25% above quiet)
+
+ns per call, `bench/qjs_boundary` (generic → fast): vec4 method 49.3 → 40.4, int method 34.0 → 31.0, int + Float32Array 50.5 → 39.7, global with 4 doubles 43.0 → 33.9. Host rows from QuickJS: `gfxWidth` 53 → 26-27, `gfxEase` 64 → 40, `gfxSetTransform` (6 doubles) 72 → 43. WebGL `uniform4fv(Float32Array)` read in place: 147 → 116. Harness at load 4: nop 21.7, throw 1367, object return 163/141, command buffer 303. 367 of 599 host rows are fast functions. `baseline.json` taken at load 5: rewrite it on a quiet machine.

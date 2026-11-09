@@ -672,6 +672,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-442: the browser host (canvas 2D) and the console cores draw `ImageFlag.Msdf` as a plain image: add the median-to-alpha path so `zinc:gfx/msdf` works there.
 - ZN-442: with a font rule the baker still embeds the TTF next to the pack's subset (bytes twice): leave it to the pack once `loadFont` and `font-[Name]` read pack entries (`zn_asset_font` reads only the assets folder).
 - ZN-442: kerning (GPOS pairs in `.msdf.json`), MTSDF for outlines and shadows, MSDF text for zinc:3d labels and zoomable maps.
+- ZN-601: `tools/bench --gate` prints the coefficient of variation and marks a case above 25% unreliable, so a busy-machine run is not read as a regression.
+- ZN-596: libzn_webgl binds through Node-API, so its hot entries (uniform*, bind*, enable, vertexAttribPointer, draw*, viewport) cannot be fast functions: a zinc-only `napi_create_fast_function` would give WebGL the same 15-20%; per-kind specialised paths (4 doubles, 1 int) in js_call_fast if the generic descriptor stays above the targets on a quiet machine.
+- ZN-1048: `AddMultipleURIsToQueue` at a position and a 10,000-song queue on a real Sonos speaker (the stub accepts any position).
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

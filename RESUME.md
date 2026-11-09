@@ -36,10 +36,13 @@
 - Integrated: ZN-695, ZN-440.01 (Done, D254): `voice.pause()/resume()` on every backend (museum table resumes its narration), sounds encoded to QOA at pack time (4.95x), `String.fromCharCode(a, b, ...)` accepted. Conflict with ZN-444 in the importer table resolved by keeping both.
 - Integrated: ZN-1033, ZN-863.06 (Done, D255): the zinc dev web bridge on 127.0.0.1 with a token per load, base64 bytes, sqlite native under dev, the bridge events defect fixed; `zinc dev --target web --engine wasm` runs breakout, names hero's missing native modules.
 - Integrated: ZN-674, ZN-442 (Done, D256): GIF in `imageFromBytes` (it could not read GIF), the `font` importer (charsets, hb-subset) with an MSDF atlas option and `zinc:gfx/msdf`.
+- Integrated: ZN-601 (Done), ZN-596 (Review, D257): QuickJS binding rules and bench gate, typed fast calls for 367 host rows (indicative 2x on gfx rows); quiet-machine numbers, WebGL conformance and the upstream PR are the owner's. ZN-1048 (Done), ZN-1049 (Backlog, D258): Sonos queue paged in, iPod ties by title; blocked by ipod-web failing `zinc check` (Z0103 'El | Failure'), a checker regression of 2026-11-09, made a blocks task.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- QuickJS (since e77475dc4), on a quiet machine: `bench/qjs_boundary/run --write-baseline` then `bench/qjs_boundary/run` (ZN-596 #1, 25 s); `ZINC_HEADLESS=1 build/zinc run bench/qjs_boundary/host.js --engine quickjs` (#2); `tests/t1/webgl_conformance.sh` and `webgl_js.sh` (#3); `tests/t1/quickjs.sh`, `tests/run --tier t2 --only compat`.
+- iPod (since 6aacfc5cf, after the checker fix): `ipod_sonos_queue` (25 s), `ipod_listening` (1 min), `ipod_sonos` (1.5 min), `ipod_demo` (2 min, alone), `ipod_deep` (5 min).
 - Assets (since 1726ef2f6): `webp_bytes` (20 s), `font_assets` (1 s); a GL compare of `tests/data/font_assets` msdf and turned against software (`tools/glcompare`, 10 s, a window); `tests/t1/gl_replay_es2.sh` (the image shader gained MSDF).
 - Web dev (since 324deacf9): `tests/t1/web_bridge.sh` (every bridge step, was failing at events; 40 s, Chrome), `tests/t1/web_dev_wasm.sh` (new; 15 s, Chrome), `web_fs`.
 - Audio (since 961423158): `tests/run --tier t1 --only museum_visit` (the story's narration stop moved, resume; 2 min); `console_audio` with a QOA clip and a pause (builds the console core, 3 min, 1 GB); T0 `str_index`, `assets`, `project_assets` (report fields).
