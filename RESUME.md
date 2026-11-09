@@ -38,10 +38,12 @@
 - Integrated: ZN-674, ZN-442 (Done, D256): GIF in `imageFromBytes` (it could not read GIF), the `font` importer (charsets, hb-subset) with an MSDF atlas option and `zinc:gfx/msdf`.
 - Integrated: ZN-601 (Done), ZN-596 (Review, D257): QuickJS binding rules and bench gate, typed fast calls for 367 host rows (indicative 2x on gfx rows); quiet-machine numbers, WebGL conformance and the upstream PR are the owner's. ZN-1048 (Done), ZN-1049 (Backlog, D258): Sonos queue paged in, iPod ties by title; blocked by ipod-web failing `zinc check` (Z0103 'El | Failure'), a checker regression of 2026-11-09, made a blocks task.
 - Integrated: ZN-1077 (Done): the checker no longer writes a JSON view for a class union reached through `any` (exposed by 498f78a79), and errors in generated code point at the program line; ipod-web and ipod pass `zinc check`. ZN-1049 to Review (its T1 runs).
+- Integrated: ZN-1047 (Done, D259): `World.setShadows` is a real state (Tokyo reads its heights once), night glow and TOP batches were already in; the PSP core builds again (strings.h, idleWake). Desktop draws no world shadows, so on/off shots are equal there.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- 3D (since 839deb131): the PSP shadows probe `D=$(mktemp -d) tests/data/world_shadows_psp/setup.sh && D=... tests/data/world_shadows_psp/psprun.sh` (same D; PSP transitions beside the sweep thread, 3 min, 300 MB); Tokyo on PPSSPP and on Azahar with Settings > Shadows off then on (4-5 min).
 - QuickJS (since e77475dc4), on a quiet machine: `bench/qjs_boundary/run --write-baseline` then `bench/qjs_boundary/run` (ZN-596 #1, 25 s); `ZINC_HEADLESS=1 build/zinc run bench/qjs_boundary/host.js --engine quickjs` (#2); `tests/t1/webgl_conformance.sh` and `webgl_js.sh` (#3); `tests/t1/quickjs.sh`, `tests/run --tier t2 --only compat`.
 - iPod (since 81e7592e3, the checker fix is in): `ipod_sonos_queue` (25 s), `ipod_listening` (1 min), `ipod_sonos` (1.5 min), `ipod_demo` (2 min, alone), `ipod_deep` (5 min).
 - Assets (since 1726ef2f6): `webp_bytes` (20 s), `font_assets` (1 s); a GL compare of `tests/data/font_assets` msdf and turned against software (`tools/glcompare`, 10 s, a window); `tests/t1/gl_replay_es2.sh` (the image shader gained MSDF).

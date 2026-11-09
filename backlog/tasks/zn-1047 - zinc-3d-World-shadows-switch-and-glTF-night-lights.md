@@ -2,8 +2,7 @@
 id: ZN-1047
 title: 'zinc:3d World: shadows switch and glTF night lights'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:39'
 updated_date: '2026-11-09 09:07'
 labels:

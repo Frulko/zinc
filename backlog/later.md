@@ -676,6 +676,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-596: libzn_webgl binds through Node-API, so its hot entries (uniform*, bind*, enable, vertexAttribPointer, draw*, viewport) cannot be fast functions: a zinc-only `napi_create_fast_function` would give WebGL the same 15-20%; per-kind specialised paths (4 doubles, 1 int) in js_call_fast if the generic descriptor stays above the targets on a quiet machine.
 - ZN-1048: `AddMultipleURIsToQueue` at a position and a 10,000-song queue on a real Sonos speaker (the stub accepts any position).
 - ZN-1077: JSON.stringify of a value whose type holds a union of two classes (A | B) writes '{}' through any and is refused when typed: jsonFunction could dispatch with instanceof as inspect does; stack traces of generated code still use the generated text's offsets (only diagnostics were redirected).
+- ZN-1047: render3d World handles reuse the first free slot without a generation (`Pool::add`): the TS `disposed` flag guards it, a native generation is the rule.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -875,3 +876,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-440.02: map assets-directory files on Windows (`MapViewOfFile`); the console cores still refuse music (`musicOpen`, `musicAsset`).
 - ZN-249: show transparent windows on a compositing Linux session (X11 ARGB visual or Wayland) over a known wallpaper; the Pi player has no compositor.
 - ZN-444: run `shader_assets.sh` on Linux (`libzn_webgl.so`) and a build with `ZN_WEBGL` off; ZN-678: the turned-image GL path on a real GLES 2 device (Pi).
+- ZN-1047: PSP pictures under 8 px are padded and clamped, so repeating uvs read black padding: tile small pictures up to 8 px at upload (`targets/psp/gu_psp.cpp`); run the World shadows switch on the 3DS (Azahar or the New 3DS: Tokyo Settings > Shadows off/on twice).
