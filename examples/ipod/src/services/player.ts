@@ -25,7 +25,9 @@ export const [volume, setVolumeShown] = createSignal<i32>(-1);
 const TICK_MS = 250;          // how often the position is read while a track plays (nothing ticks when paused)
 const SONOS_POLL_MS = 1000;   // how often the Sonos group is read while it is the output and no event comes
 const SONOS_RESYNC_S = 15;    // with events: the group is still read this often, for the position (an event carries none)
-const SONOS_QUEUE_MAX = 1000; // entries of the app's queue put on the group, from the one it started on
+const SONOS_QUEUE_MAX = 40000; // entries of the app's queue put on the group (a Sonos queue holds 40,000), around the one it starts on
+const SONOS_FIRST = 16;        // entries put before Play (one AddMultipleURIsToQueue): the others are paged in while the first plays
+const SEEK_TRIES = 8;          // a Seek refused while the group starts (701, TRANSITIONING) is tried again, the group read between
 const RESTART_AFTER = 3;      // seconds: previous() past this restarts the track, as iTunes does
 
 let music: Music | null = null;
@@ -152,28 +154,45 @@ async function runOps(): Promise<void> {
   if (missed && g !== null) { missed = false; poll(); }   // an event came while ours were sent: the group is read now, not at the resync
 }
 
-/** Puts the app's queue on the group from the current entry and plays it from `from` seconds. */
+/** Puts the app's queue on the group, the songs before the current entry too, and plays the current one from `from` seconds: the
+ *  current entry and the next ones first, played at once, then the songs before it put in front (Previous goes back through the whole
+ *  list) and the rest after it, paged in while it plays. sonosFrom and sonosLen are the final ones from the start: an edit queued
+ *  meanwhile is sent after the pages, in order. */
 async function loadOnSonos(from: number): Promise<void> {
   const g = group(), house = system();
   const asked = ++loads;
   const e = queue.current() as queue.Entry;
   batch(() => { showNow(e.track, false); setPosition(from); setLength(e.track.durationMs / 1000); setPlayError(''); });
   ops = [];
-  sonosFrom = queue.position();
-  const list = queue.entries().slice(sonosFrom, sonosFrom + SONOS_QUEUE_MAX);
+  const all = queue.entries(), at = queue.position();
+  sonosFrom = Math.max(0, Math.min(at, all.length - SONOS_QUEUE_MAX)) as i32;
+  const list = all.slice(sonosFrom, sonosFrom + SONOS_QUEUE_MAX);
   const us = urls(list), ms = metas(list);
+  const k = at - sonosFrom, first = Math.min(list.length, k + SONOS_FIRST) as i32;   // the current entry in `list`, the end of the first page
   sonosLen = list.length;
   attached = true;
   send(async (): Promise<void> => {
     await house.clearQueue(g);
-    await house.addMultipleUrisToQueue(g, us.slice(0, 16), ms.slice(0, 16));
+    await house.addMultipleUrisToQueue(g, us.slice(k, first), ms.slice(k, first));
     await house.setPlayMode(g, sonos.playModeOf(false, repeatName(queue.repeat())));
     await house.playFromQueue(g, 0);
-    if (from > 1) await house.seek(g, from);
+    if (from > 1) await seekPlaying(g, from);
     if (asked === loads) showNow(e.track, true);
     startPolling();
-    if (us.length > 16) await house.addMultipleUrisToQueue(g, us.slice(16), ms.slice(16));   // the others while the first plays
+    if (k > 0) await house.addMultipleUrisToQueue(g, us.slice(0, k), ms.slice(0, k), 1);   // the songs before, in front: the one playing becomes k + 1
+    if (first < us.length) await house.addMultipleUrisToQueue(g, us.slice(first), ms.slice(first));   // the rest, after it
   });
+}
+/** Seeks a group just told to play: a speaker still starting (TRANSITIONING) refuses with 701, so it is read and asked again. */
+async function seekPlaying(g: sonos.Group, seconds: number): Promise<void> {
+  for (let i = 1; ; i++) {
+    try { await system().seek(g, seconds); return; }
+    catch (e) {
+      if (!(e instanceof sonos.UpnpError) || (e as sonos.UpnpError).code !== 701 || i >= SEEK_TRIES) throw e;
+      await new Promise<void>((r: () => void) => { setTimeout(r, 250); });
+      await system().update(g);
+    }
+  }
 }
 function repeatName(r: string): string { return r === 'off' ? 'none' : r; }
 
@@ -434,14 +453,24 @@ export function showRestored(lib: PodLibrary, at: number, vol: i32): void {
 }
 /** The group of the saved session: when its queue still holds ours from `from` (the same URLs), the app follows it as it is (playing or
  *  not); otherwise the session stays paused and the speaker untouched. True when attached. */
-export async function attachTo(from: i32): Promise<boolean> {
+export function attachTo(from: i32): Promise<boolean> {
+  attaching = attachNow(from);
+  return attaching;
+}
+let attaching: Promise<boolean> = Promise.resolve(false);
+/** Resolves once the group of a restored session was read (attachTo): Start radio waits for it, so its songs go on the group at the
+ *  places the app knows. */
+export async function groupRead(): Promise<void> { await attaching; }
+async function attachNow(from: i32): Promise<boolean> {
   const g = chosenGroup();
   if (g === null || pod === null) return false;
   const grp = g as sonos.Group, house = system();
+  const asked = loads;   // a list played meanwhile owns the group now, not the saved session
   try {
     await house.update(grp);
-    if (!grp.media.uri.startsWith('x-rincon-queue:')) return false;
+    if (!grp.media.uri.startsWith('x-rincon-queue:') || asked !== loads) return false;
     const q = await house.getQueue(grp, 0, 0);
+    if (asked !== loads) return false;
     const list = queue.entries().slice(from, from + q.items.length);
     if (q.items.length === 0 || list.length !== q.items.length) return false;
     const ours = urls(list);

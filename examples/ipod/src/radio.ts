@@ -7,7 +7,7 @@ import { createSignal } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
 import * as queue from './services/queue';
 import * as rd from './services/radio';
-import { playList, next, current } from './services/player';
+import { playList, next, current, groupRead } from './services/player';
 import { PodLibrary } from './services/ipod';
 import { library } from './state';
 import { modelNow, job, ask, tracksOf } from './drafts';
@@ -44,6 +44,7 @@ export async function startRadio(seed: ipod.Track): Promise<void> {
   const r = rd.newRadio(seed.id);
   const picks = await pick(r, [seed.id], MORE);
   if (picks.length === 0 || library() !== lib) return;   // not a music track
+  await groupRead();   // a restored session's group read first: the radio's songs then go on it at the places the app knows
   playList(lib as PodLibrary, [seed].concat(picks), 0, `Radio · ${seed.title !== '' ? seed.title : 'Untitled'}`);
   radio = r; first = queue.entries()[0];
   setRadioOn(true);

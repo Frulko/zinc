@@ -313,6 +313,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Hamlet refuses a save made by a newer version with a sentence that says so, and keeps that save aside instead of overwriting it with a new village.
 - The Discord example keeps refused logins across launches, so quitting no longer lifts the hour-long pause after three wrong passwords, and it opens Account safety after your first login.
 - The iPod example orders songs that score the same by title, so Genius, For you, the mood mixer and radio make the same lists on every iPod that holds the same songs, and the iPod daemon takes `--port 0` to serve on a free port and says which.
+- On a Sonos speaker, the iPod example puts the whole list on the group, the songs before the one picked too, so Previous goes back through it, and pages in lists of more than 1,000 songs instead of cutting them; switching to another speaker carries the moment of the song over, even while the speaker is still starting.
 
 #### Faster
 

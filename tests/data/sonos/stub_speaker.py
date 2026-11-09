@@ -1,16 +1,21 @@
 # A made-up Sonos speaker for the tests of zinc:sonos (tests/t1/sonos_plugin.sh, ipod_sonos.sh, music_tree_sonos.sh never contacts one):
 # the UPnP SOAP actions the plugin sends, and GENA events (SUBSCRIBE, renew, UNSUBSCRIBE, then NOTIFY to the subscriber's CALLBACK
 # with the state, as a speaker does). The plugin reaches it as 127.0.0.1:<port> (Speaker.port, from the Location of the topology).
-# usage: stub_speaker.py <port> <log> [--house] [--fetch]
+# usage: stub_speaker.py <port> <log> [--house] [--fetch] [--transition]   (port 0: a free one, written to <log>.port)
 #   --house  two rooms: Salon (RINCON_A, with a hidden stereo partner RINCON_A2) and Bureau (RINCON_B, its own group); else Salon alone
 #   --fetch  on Play, fetch the first queued song with a byte range and its cover, as a real speaker does (examples/ipod)
+#   --transition  Play leaves the group TRANSITIONING until it is read (GetTransportInfo): a Seek to a time meanwhile is refused (701)
 # The queue (Q:0) and the Sonos playlists (SQ:n) are kept with their UpdateIDs; a change to the queue sends a ContentDirectory event
 # (ContainerUpdateIDs Q:0,<id>) and keeps the song that plays current (its number follows it), as a speaker does.
 # <log>: every command (not a Get or a Browse) as '<Action> <args...>', the GENA requests as 'SUBSCRIBE <path> <callback> <timeout>',
 # 'RENEW <path> <sid>', 'UNSUBSCRIBE <path> <sid>', and 'NOTIFY <path> <seq> <status>' for each event sent.
 import http.server, html, re, sys, threading, urllib.request
 PORT, LOG = int(sys.argv[1]), sys.argv[2]
-HOUSE, FETCH = '--house' in sys.argv, '--fetch' in sys.argv
+if PORT == 0:   # a free port, written to <log>.port once it is known
+    import socket
+    _s = socket.socket(); _s.bind(('127.0.0.1', 0)); PORT = _s.getsockname()[1]; _s.close()
+    open(LOG + '.port', 'w').write(str(PORT))
+HOUSE, FETCH, TRANSITION = '--house' in sys.argv, '--fetch' in sys.argv, '--transition' in sys.argv
 LOC = 'http://127.0.0.1:%d/xml/device_description.xml' % PORT
 if HOUSE:
     ZGS = ('<ZoneGroupState><ZoneGroups><ZoneGroup Coordinator="RINCON_A" ID="RINCON_A:1">'
@@ -139,6 +144,7 @@ class H(http.server.BaseHTTPRequestHandler):
         arg = lambda name: html.unescape((re.search(r'<%s>(.*?)</%s>' % (name, name), body, re.S) or [None, ''])[1])
         ans, fault = '', 0
         if action == 'GetZoneGroupState': ans = '<ZoneGroupState>%s</ZoneGroupState>' % esc(ZGS)
+        elif action == 'GetTransportInfo' and S['state'] == 'TRANSITIONING': S['state'] = 'PLAYING'; ans = '<CurrentTransportState>TRANSITIONING</CurrentTransportState><CurrentTransportStatus>OK</CurrentTransportStatus><CurrentSpeed>1</CurrentSpeed>'
         elif action == 'GetTransportInfo': ans = '<CurrentTransportState>%s</CurrentTransportState><CurrentTransportStatus>OK</CurrentTransportStatus><CurrentSpeed>1</CurrentSpeed>' % S['state']
         elif action == 'GetPositionInfo':
             uri, meta = current()
@@ -229,7 +235,8 @@ class H(http.server.BaseHTTPRequestHandler):
         elif action == 'SetAVTransportURI' and arg('CurrentURI').startswith('x-rincon:'): pass   # another room joins: one stub plays for all
         elif action == 'SetAVTransportURI': S['uri'], S['meta'] = arg('CurrentURI'), arg('CurrentURIMetaData'); S['track'] = 1 if QUEUE else 0
         elif action == 'Seek':
-            if arg('Unit') == 'TRACK_NR':
+            if arg('Unit') == 'REL_TIME' and S['state'] == 'TRANSITIONING': fault = 701   # still starting, as a speaker right after Play
+            elif arg('Unit') == 'TRACK_NR':
                 n = int(arg('Target') or 0)
                 if not 0 < n <= len(QUEUE): fault = 711
                 else: S['track'] = n
@@ -238,7 +245,7 @@ class H(http.server.BaseHTTPRequestHandler):
             elif S['track'] >= len(QUEUE): fault = 701   # no next track: a speaker refuses, without a description
             else: S['track'] += 1
         elif action == 'Previous': S['track'] = max(1, S['track'] - 1)
-        elif action == 'Play': S['state'] = 'PLAYING'
+        elif action == 'Play': S['state'] = 'TRANSITIONING' if TRANSITION else 'PLAYING'
         elif action == 'Pause': S['state'] = 'PAUSED_PLAYBACK'
         elif action == 'Stop': S['state'] = 'STOPPED'
         elif action == 'SetPlayMode': S['mode'] = arg('NewPlayMode')

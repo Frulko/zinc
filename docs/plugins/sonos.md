@@ -4,8 +4,8 @@ Sonos speakers on the local network, through the UPnP API they serve on port 140
 plays, transport, volume, grouping, favorites, internet radio streams and events (what changed, the moment it changes). No Sonos account and no cloud.
 
 - **No native code.** It is written in Zinc on [`zinc:socket`](socket.md) (SSDP discovery), `fetch` (the SOAP calls) and
-  `zinc:xml` (the element tree of `lib/std/xml.ts`, which reads the answers): `plugins/sonos/index.ts`. It needs the `net` and `process` permissions
-  and adds nothing to a program that does not import it.
+  `zinc:xml` (the element tree of `lib/std/xml.ts`, which reads the answers): `plugins/sonos/index.ts`. It needs the `net` permission only (as its
+  `plugin.json` says: `zinc:os` lists the interfaces without one) and adds nothing to a program that does not import it.
 - **Tests.** `tests/t1/sonos_plugin.sh` (every call below, on the interpreter and QuickJS), `tests/t1/music_tree_sonos.sh` and
   `tests/t1/ipod_sonos.sh`, against made-up speakers (`tests/data/sonos/stub_speaker.py`). **Examples.** `examples/music` (a wall
   remote for Sonos and Spotify), `examples/ipod` (plays an iPod's songs on a Sonos group and follows it through `Events`, its song server taking the NOTIFY requests).
@@ -166,4 +166,5 @@ Data classes:
 - **Spotify.** Spotify's Web API sees many Sonos speakers as restricted devices and takes no playback command for them.
   `playSpotify` starts the content through the speakers' own Spotify service instead, and transport and volume stay on
   Sonos. See [`zinc:spotify`](spotify.md) for the library and login.
-- **Permissions.** `net` and `process` (see `docs/guide/08-security.md`).
+- **Permissions.** `net` only, as `plugin.json` asks (see `docs/guide/08-security.md`): SSDP, the SOAP calls and the events' server are
+  network; finding the interface that reaches a speaker reads `zinc:os`, which needs none.
