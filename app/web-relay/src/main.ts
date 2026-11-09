@@ -251,9 +251,7 @@ async function shot(v: View, x: number, y: number, w: number, h: number, zoom: n
     ',"width":' + (w / d).toString() + ',"height":' + (h / d).toString() + ',"scale":' + zoom.toString() + '}}');
   return base64Decode('' + r.data);
 }
-// A reply body is a string; fs.readText keeps the bytes unchanged where utf8Decode would repair the PNG (as the hub serves a .zapp).
-// ponytail: a file between the two, until Reply takes bytes.
-function png(bytes: u8[]): Reply { fs.writeBytes(data + '/last.png', bytes); return reply(200, fs.readText(data + '/last.png'), 'image/png'); }
+function png(bytes: u8[]): Reply { return { status: 200, body: '', contentType: 'image/png', bytes: bytes }; }
 
 async function render(req: Request): Promise<Reply> { return reply(200, await show(viewOf(req.path)), 'application/json'); }
 

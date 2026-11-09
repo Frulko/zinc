@@ -427,7 +427,11 @@
   X(HostHttpSaveTo, "host.httpSaveTo", "is>n", 2) \
   /* zinc:gfx's frame loop, before each frame ends: the milliseconds until the program's next timer is due (-1: none). A window whose frames */ \
   /* change nothing sleeps until an event or that time (ZN-805, src/host/gfx_host.cpp); graphics row, appended */ \
-  X(HostGfxIdleDue, "host.gfxIdleDue", "d>n", 2)
+  X(HostGfxIdleDue, "host.gfxIdleDue", "d>n", 2) \
+  /* bulk bytes (ZN-1019), each one call: the file or asset loaded last (fsLoad, assetsLoad, an Asset's load), a string's UTF-8 bytes, n random */ \
+  /* bytes; bytes written at an offset of a file (made when missing, never cut); a zinc:net reply whose body is bytes; system rows, appended */ \
+  X(HostFsBytes, "host.fsBytes", ">B", 2) X(HostSysUtf8Bytes, "host.sysUtf8Bytes", "s>B", 2) X(HostSysRandomBytes, "host.sysRandomBytes", "i>B", 2) \
+  X(HostFsWriteAt, "host.fsWriteAt", "sBd>n", 2) X(HostHttpReplyBytes, "host.httpReplyBytes", "iisB>n", 2)
 
 namespace zn {
 
@@ -468,7 +472,8 @@ inline constexpr bool isSysTailRow(Rt r) {
          (r >= Rt::HostFsSymlink && r <= Rt::HostOsNetField) ||   // zinc:fs symlink, readlink, chmod and zinc:os uid, gid, shell, cpus, networkInterfaces
          r == Rt::HostCrypto || r == Rt::HostCryptoError ||   // zinc:subtle
          (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostSysBytesToString || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes || (r >= Rt::HostHttpOption && r <= Rt::HostHttpSetCert) || r == Rt::HostHttpFetchFile || r == Rt::HostHttpSaveTo ||   // zinc:net, its server too
-         r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes || r == Rt::HostResourceStats || (r >= Rt::HostEvPayloadBytes && r <= Rt::HostHttpBodyBytes);
+         r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes || r == Rt::HostResourceStats || (r >= Rt::HostEvPayloadBytes && r <= Rt::HostHttpBodyBytes) ||
+         (r >= Rt::HostFsBytes && r <= Rt::HostHttpReplyBytes);   // bulk bytes (ZN-1019)
 }
 // The host calls before which every engine writes what the program printed (ZN-638, ZN-643): a turn of the event loop begins or the loop waits,
 // a child starts (it may write to the same terminal or file), or the program waits on the outside (stdin, a blocking write to a child's stdin).

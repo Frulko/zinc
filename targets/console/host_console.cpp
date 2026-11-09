@@ -251,6 +251,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysRandomByte: r->i = std::rand() & 0xFF; break;
     case Rt::HostSysUtf8Len: r->i = a[0].n; break;
     case Rt::HostSysUtf8Byte: r->i = static_cast<std::uint32_t>(n(1)) < a[0].n ? static_cast<unsigned char>(static_cast<const char*>(a[0].p)[n(1)]) : 0; break;
+    case Rt::HostSysUtf8Bytes: r->p = a[0].p; r->n = a[0].n; break;
+    case Rt::HostSysRandomBytes: { std::string b(static_cast<std::size_t>(n(0) > 0 ? n(0) : 0), '\0'); for (char& c : b) c = static_cast<char>(std::rand() & 0xFF); ret(r, std::move(b)); break; }
     case Rt::HostSysUtf8Decode: ret(r, utf8Decode(static_cast<const std::uint64_t*>(a[0].p), a[0].n)); break;
     case Rt::HostSysBytesToString: ret(r, bytesOf(a[0])); break;
     case Rt::HostSysAllocations: r->d = static_cast<double>(zn::rt::gAllocs()); break;
@@ -278,6 +280,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostFsExists: { std::FILE* f = std::fopen(at(str(a[0])).c_str(), "rb"); r->i = f != nullptr; if (f) std::fclose(f); break; }
     case Rt::HostFsLoad: r->i = readAll(str(a[0]), gBytes) ? static_cast<std::int64_t>(gBytes.size()) : 0; break;
     case Rt::HostFsByte: r->i = n(0) >= 0 && static_cast<std::size_t>(n(0)) < gBytes.size() ? gBytes[static_cast<std::size_t>(n(0))] : 0; break;
+    case Rt::HostFsBytes: r->p = gBytes.data(); r->n = static_cast<std::uint32_t>(gBytes.size()); break;
     case Rt::HostFsWriteBytes: { const std::string d = bytesOf(a[1]); writeAll(str(a[0]), d.data(), d.size(), false); break; }
     case Rt::HostFsRemove: r->i = std::remove(at(str(a[0])).c_str()) == 0; break;
     case Rt::HostFsRename: if (std::rename(at(str(a[0])).c_str(), at(str(a[1])).c_str()) != 0) fail("rename", str(a[0])); break;

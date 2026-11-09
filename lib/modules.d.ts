@@ -82,6 +82,9 @@ declare module 'zinc:fs' {
   export function writeBytes(path: string, data: u8[]): void;
   /** Adds the bytes at the end of the file, made when missing (a download written slice by slice). @throws when the file cannot be written */
   export function appendBytes(path: string, data: u8[]): void;
+  /** Writes the bytes at `offset` of the file, made when missing and never cut (a download's Range written in place); past the end the gap
+   *  reads as zeros. @throws when the file cannot be written */
+  export function writeBytesAt(path: string, data: u8[], offset: f64): void;
   export interface Stat { size: f64; mtimeMs: f64; atimeMs: f64; ctimeMs: f64; mode: i32; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
   export interface DirEntry { name: string; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
   /** Errors read `CODE: op path` (ENOENT, EACCES, EEXIST, ENOTDIR, ENOTEMPTY...). @throws */
@@ -163,8 +166,9 @@ declare module 'zinc:net' {
    *  address ("127.0.0.1" from this machine). */
   export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string; rawBytes?: u8[]; remoteAddress?: string }
   /** file: the body is that file's bytes, read and sent in blocks (a song, a video, a picture of any size), with Accept-Ranges and one
-   *  byte range when the request has a Range header (206, or 416 when it cannot be met); body is then ignored, a missing file is a 404. */
-  export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string }
+   *  byte range when the request has a Range header (206, or 416 when it cannot be met); body is then ignored, a missing file is a 404.
+   *  bytes: the body is these bytes, sent as they are (a PNG made in memory); body is then ignored. */
+  export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string; bytes?: u8[] }
   /** Minimal HTTP/1.1 server (server mode): the handler runs on the event loop. Returns the port it listens on: port 0 lets the
    *  system pick a free one. Several ports may be served at once, each with its handler; serving a port again replaces it. */
   export function serve(port: i32, handler: (req: Request) => Reply, tls?: { cert: string; key: string }): i32;

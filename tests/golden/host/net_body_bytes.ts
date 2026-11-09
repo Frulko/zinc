@@ -8,6 +8,7 @@ const dir = env('NET_BYTES_DIR');
 if (env('NET_BYTES_SERVE') === '1') {
   serve(18844, (req: Request): Reply => {
     if (req.path === '/down') return { status: 200, body: '', contentType: 'application/octet-stream', file: dir + '/big.bin' };
+    if (req.path === '/bytes') return { status: 200, body: 'ignored', contentType: 'application/octet-stream', bytes: [0, 255, 128, 10, 200] };   // Reply.bytes
     fs.writeText(dir + '/body.bin', req.rawBody as string);
     return { status: 200, body: 'ok', contentType: 'text/plain' };
   });
@@ -45,5 +46,6 @@ async function post(): Promise<void> {
   wrong.set('range', 'bytes=900000-');
   const d = await fetch('http://127.0.0.1:18844/down', { headers: wrong, saveTo: dir + '/no.bin' });
   whole = whole && d.status === 416 && !fs.exists(dir + '/no.bin');
-  console.log(first, f.status, same, steps > 1 && last === all, whole);
+  const rb = await (await fetch('http://127.0.0.1:18844/bytes')).bytes();
+  console.log(first, f.status, same, steps > 1 && last === all, whole, rb.join(','));
 }

@@ -890,6 +890,7 @@ const rows = {
   sysEnvKeysCount: () => Object.keys(CFG.env || {}).length, sysEnvKey: (i) => Object.keys(CFG.env || {})[i] || '', sysIsatty: () => false,
   sysWrite: (s) => writeLine(false, s), sysWriteErr: (s) => writeLine(true, s),
   sysRandomByte: () => crypto.getRandomValues(new Uint8Array(1))[0], sysUtf8Len: (s) => enc.encode(s).length, sysUtf8Byte: (s, i) => enc.encode(s)[i] || 0,
+  sysRandomBytes: (n) => Array.from(crypto.getRandomValues(new Uint8Array(Math.max(0, n)))), sysUtf8Bytes: (s) => Array.from(enc.encode(s)),
   sysUtf8Decode: (b) => dec.decode(Uint8Array.from(b)), sysBytesToString: (b) => String.fromCharCode(...b),
   sysLaunchDir: () => '/', sysLocale: () => navigator.language || 'en-US', sysExecPath: () => '', sysDevice: (q, a) => deviceQuery(q, a),
   sysAllocations: () => 0, sysLiveBlocks: () => 0,
@@ -901,7 +902,8 @@ const rows = {
   fsAppendText: (p, s) => { fsErr = ''; put(p, concat(fileBytes(p), enc.encode(s))); },
   fsExists: (p) => { const n = normName(p); return isFile(n) || isDir(n); },
   fsLoad: (p) => { fsErr = ''; const b = fileBytes(p); if (!b) { fsErr = 'ENOENT: readBytes ' + p; return 0; } lastBytes = b; return b.length; },
-  fsByte: (i) => lastBytes[i] || 0, fsWriteBytes: (p, b) => { fsErr = ''; put(p, Uint8Array.from(b)); },
+  fsByte: (i) => lastBytes[i] || 0, fsBytes: () => Array.from(lastBytes), fsWriteBytes: (p, b) => { fsErr = ''; put(p, Uint8Array.from(b)); },
+  fsWriteAt: (p, b, at) => { fsErr = ''; const old = fileBytes(p) || new Uint8Array(0), r = new Uint8Array(Math.max(old.length, at + b.length)); r.set(old); r.set(b, at); put(p, r); },
   fsAppendBytes: (p, b) => { fsErr = ''; put(p, concat(fileBytes(p), Uint8Array.from(b))); },
   fsRemove: (p, recursive) => removePath(normName(p), recursive), fsMkdir: (p, recursive) => makeDir(normName(p), recursive), fsTmpdir: () => '/tmp',
   fsListCount: (d) => {
@@ -983,8 +985,6 @@ const UNSUPPORTED = CFG.unsupported || [];
 const why = (n) => (/^(sock|net|http|tls|mqtt|osc|dns)/i.test(n) ? 'raw sockets and TLS: use fetch or WebSocket (docs/targets/web.md)' : /^(proc|sig|stdin)/i.test(n) ? 'processes and signals' : /^(ev|loop)/i.test(n) ? 'the native event loop' : /^layout/.test(n) ? 'the React Native layout engine (Yoga) is not built for the web target yet; use the classic layout' : /^assets/.test(n) ? 'asset groups and packs' : 'a native service');
 for (const n of UNSUPPORTED) G['__host_' + n] = function () { throw new ZnUnsupported(n, why(n)); };
 for (const [n, f] of Object.entries(rows)) G['__host_' + n] = f;
-// readBytes of zinc:fs and zinc:assets: the bundle (built by the QuickJS loader) takes the bytes of the last load as one array, as src/qjs/qjs.cpp gives them
-G.__qjs_bytes = (n) => { const r = new Array(n); for (let i = 0; i < n; i++) r[i] = G.__host_fsByte(i); return r; };
 G.__addEvHandler = G.__addEvHandler || (() => {});   // the native event loop's handlers (signals, stdin, plugin events): none of those events reach a page
 if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host services the page lacks are this machine's, as under zinc run (the dev bridge)
   const remote = (n) => (...a) => Z.bridge.call('__rows', n, a);
@@ -997,8 +997,9 @@ if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host s
   G.__host_fsError = () => (viaBridge ? Z.bridge.call('__rows', 'fsError', []) : rows.fsError());
   for (const n of ['fsReadText', 'fsExists']) G['__host_' + n] = (p, ...a) => ((viaBridge = !mine(p)) ? Z.bridge.call('__rows', n, [p, ...a]) : rows[n](p, ...a));
   G.__host_fsLoad = (p) => ((viaBridge = !mine(p)) ? (loaded = Z.bridge.call('__fs', 'load', [p])).length : rows.fsLoad(p));
-  G.__host_assetsLoad = (n) => { viaBridge = false; return rows.assetsLoad(n); };   // (zinc:assets reads the bytes with fsByte)
+  G.__host_assetsLoad = (n) => { viaBridge = false; return rows.assetsLoad(n); };   // (zinc:assets reads the bytes with fsBytes)
   G.__host_fsByte = (i) => (viaBridge ? loaded[i] || 0 : rows.fsByte(i));
+  G.__host_fsBytes = () => (viaBridge ? Array.from(loaded) : rows.fsBytes());
   for (const n of ['fsStat']) G['__host_' + n] = (p, ...a) => ((viaBridge = !mine(p)) ? Z.bridge.call('__rows', n, [p, ...a]) : rows[n](p, ...a));
   for (const n of ['fsStatD', 'fsStatI']) G['__host_' + n] = (...a) => (viaBridge ? Z.bridge.call('__rows', n, a) : rows[n](...a));
   // the events of this machine's loop reach the page's handlers (zinc:net, zinc:osc...), with their payload; zinc:net's servers listen on this machine: a request
@@ -1013,6 +1014,7 @@ if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host s
   G.__host_httpError = () => '';
   G.__host_httpReply = (h, status, lines, body) => Z.bridge.call('__net', 'reply', [h, status, lines, body]);
   G.__host_httpReplyFile = (h, status, lines, file) => Z.bridge.call('__net', 'replyFile', [h, status, lines, file]);
+  G.__host_httpReplyBytes = (h, status, lines, bytes) => Z.bridge.call('__net', 'replyBytes', [h, status, lines, bytes]);
   G.__host_httpStop = (port) => Z.bridge.call('__net', 'stop', [port]);
 }
 

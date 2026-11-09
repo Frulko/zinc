@@ -134,6 +134,11 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `n.toLocaleString()` formats numbers with thousands separators on every engine, with the `minimumFractionDigits`, `maximumFractionDigits` and `useGrouping` options (in the US English format for now), and `JSON.stringify(value, replacer)` takes a replacer function, with or without an indent.
 - On an `any` value the array and string methods work as in TypeScript: `d.items.push(x)`, `.splice`, `.sort()`, `.reduce`, `d.name.trim().toUpperCase()`, `.split`, `.replace`... and a change made through `d` is seen in the data it holds, not in a copy.
 - More npm packages run on `--engine quickjs` and in `zinc bundle`: the browser build of a package is picked (nanoid, qs), CommonJS and UMD packages such as dayjs load with named imports too, and packages find `crypto`, `fetch`, `URL`, `TextEncoder` and the other Web globals Node and Deno have (uuid).
+- `fs.writeBytesAt(path, bytes, offset)` writes bytes in place inside a file (made when missing, never cut), and a `zinc:net` reply can carry its body as bytes with `bytes: u8[]`, so a picture made in memory is served without a temporary file.
+
+#### Faster
+
+- `readBytes` of `zinc:fs` and `zinc:assets`, `utf8Encode` and `randomBytes` copy their bytes at once instead of one by one: reading a 1 MB file drops from about 40 ms to under a millisecond, and `utf8Encode` of a long string on `--engine quickjs` no longer takes minutes.
 
 #### Fixed
 

@@ -328,8 +328,8 @@ export function platform(): string { return __host_sysPlatform(); }
 export function clock(): f64 { return __clockMs(); }
 export function liveObjects(): i32 { return __host_sysLiveBlocks() as i32; }
 export function allocations(): i32 { return __host_sysAllocations() as i32; }
-export function randomBytes(n: i32): u8[] { const r: u8[] = []; for (let i: i32 = 0; i < n; i++) r.push(__host_sysRandomByte() as u8); return r; }
-export function utf8Encode(s: string): u8[] { const r: u8[] = []; const n = __host_sysUtf8Len(s); for (let i: i32 = 0; i < n; i++) r.push(__host_sysUtf8Byte(s, i) as u8); return r; }
+export function randomBytes(n: i32): u8[] { return __host_sysRandomBytes(n); }
+export function utf8Encode(s: string): u8[] { return __host_sysUtf8Bytes(s); }
 export function utf8Decode(bytes: u8[]): string { return __host_sysUtf8Decode(bytes); }
 // Signals of the program itself arrive on the event loop (a handled signal does not terminate it); a watched signal does not keep the loop alive.
 const __sigNames: string[] = [];
@@ -429,15 +429,10 @@ export function list(dir: string): string[] {
 }
 export function remove(path: string, recursive: boolean = false): boolean { return __host_fsRemove(path, recursive); }
 export function mkdir(path: string, recursive: boolean = false): boolean { return __host_fsMkdir(path, recursive); }
-export function readBytes(path: string): u8[] {
-  const n = __host_fsLoad(path);
-  check();
-  const r: u8[] = [];
-  for (let i: i32 = 0; i < n; i++) r.push(__host_fsByte(i) as u8);
-  return r;
-}
+export function readBytes(path: string): u8[] { __host_fsLoad(path); check(); return __host_fsBytes(); }
 export function writeBytes(path: string, data: u8[]): void { __host_fsWriteBytes(path, data); check(); }
 export function appendBytes(path: string, data: u8[]): void { __host_fsAppendBytes(path, data); check(); }
+export function writeBytesAt(path: string, data: u8[], offset: f64): void { __host_fsWriteAt(path, data, offset); check(); }
 export interface Stat { size: f64; mtimeMs: f64; atimeMs: f64; ctimeMs: f64; mode: i32; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
 export interface DirEntry { name: string; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
 function statOf(path: string, link: boolean): Stat {
@@ -511,13 +506,7 @@ export function keys(): string[] { const r: string[] = []; const n = __host_stor
 const char* kAssetsModule = R"ZN(
 function check(): void { if (__host_fsFailed()) throw new Error(__host_fsError()); }
 export function readText(name: string): string { const s = __host_assetsReadText(name); check(); return s; }
-export function readBytes(name: string): u8[] {
-  const n = __host_assetsLoad(name);
-  check();
-  const r: u8[] = [];
-  for (let i: i32 = 0; i < n; i++) r.push(__host_fsByte(i) as u8);
-  return r;
-}
+export function readBytes(name: string): u8[] { __host_assetsLoad(name); check(); return __host_fsBytes(); }
 export function exists(name: string): boolean { return __host_assetsExists(name); }
 export function list(): string[] { const r: string[] = []; const n = __host_assetsCount(); for (let i: i32 = 0; i < n; i++) r.push(__host_assetsName(i)); return r; }
 // ---- version 2 (ZN-436, src/host/assets_host.h): packs mounted in order, groups loaded whole with byte progress, handles, the ram budget
@@ -526,12 +515,7 @@ export interface Stats { resident: f64; peak: f64; budget: f64; groups: i32; pac
 export class Asset {
   constructor(public name: string, private handle: i32) {}
   text(): string { return __host_assetsHandleText(this.handle); }
-  bytes(): u8[] {
-    const n = __host_assetsHandleLoad(this.handle);
-    const r: u8[] = [];
-    for (let i: i32 = 0; i < n; i++) r.push(__host_fsByte(i) as u8);
-    return r;
-  }
+  bytes(): u8[] { __host_assetsHandleLoad(this.handle); return __host_fsBytes(); }
   /** The data stays resident while a handle holds it, even after its group is unloaded. */
   release(): void { if (this.handle !== 0) { __host_assetsRelease(this.handle); this.handle = 0; } }
 }
@@ -736,7 +720,7 @@ export class ReplyWriter {
     if (f !== null) f();
   }
 }
-export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string; stream?: (w: ReplyWriter) => void }
+export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string; bytes?: u8[]; stream?: (w: ReplyWriter) => void }
 const __netWriters = new Map<i32, ReplyWriter>();
 const __netBodies = new Map<i32, BodyStream>();
 /** What a server does with its WebSocket connections (ServeOptions.webSocket). upgrade decides on a request (true accepts, the default;
@@ -824,6 +808,7 @@ function __sendReply(h: i32, r: Reply, range: string): void {
   const ct = r.contentType.length > 0 && !__ctl(r.contentType) ? r.contentType : 'text/plain; charset=utf-8';
   lines += 'Content-Type: ' + ct + '\n';
   if (r.file !== undefined) __host_httpReplyFile(h, r.status, lines, r.file as string, range);   // the file's bytes, in blocks, with the Range asked
+  else if (r.bytes !== undefined) __host_httpReplyBytes(h, r.status, lines, r.bytes as u8[]);
   else if (r.stream !== undefined) {
     if (__host_httpReplyStart(h, r.status, lines) === 0) return;
     const w = new ReplyWriter(h);

@@ -10,11 +10,11 @@ import { serveAsync, stop, Headers } from 'zinc:net';
 import { fetch } from 'zinc:web/fetch';
 import { Blob } from 'zinc:web';
 
-// the engine's host rows (__host_fsReadText...) for the page's zinc:fs and the rows it lacks; `__fs.load` reads a whole file at once (the rows read it byte by byte)
+// the engine's host rows (__host_fsReadText...) for the page's zinc:fs and the rows it lacks; `__fs.load` reads a whole file at once
 mods.__rows = new Proxy({}, { get: (t, k) => globalThis['__host_' + String(k)] });
-mods.__fs = { load(p) { const n = __host_fsLoad(p), b = new Uint8Array(n); for (let i = 0; i < n; i++) b[i] = __host_fsByte(i); return b; } };
+mods.__fs = { load(p) { __host_fsLoad(p); return Uint8Array.from(__host_fsBytes()); } };
 // the page's zinc:net servers: this side listens, each request goes to the page as an event (its id and the fields of zinc:net's request event) and the
-// page's reply comes back by reply / replyFile
+// page's reply comes back by reply / replyFile / replyBytes
 const pending = new Map();
 let requests = 0;
 function answer(id, status, lines, more) {
@@ -44,6 +44,7 @@ mods.__net = {
   })); served.push(bound); return bound; },
   reply: (id, status, lines, body) => answer(id, status, lines, { body }),
   replyFile: (id, status, lines, file) => answer(id, status, lines, { body: '', file }),
+  replyBytes: (id, status, lines, bytes) => answer(id, status, lines, { body: '', bytes: Array.from(bytes) }),
   stop: (port) => { for (const p of port ? [port] : served.splice(0)) stop(p); },   // never 0: that would stop this server too
 };
 const TA = { Uint8Array, Int8Array, Uint16Array, Int16Array, Uint32Array, Int32Array, Float32Array, Float64Array };

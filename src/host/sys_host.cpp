@@ -751,6 +751,23 @@ int writeFile(const std::string& path, const char* p, size_t n, bool append) {
   return e;
 }
 
+// fs.writeBytesAt: the bytes at `at` of the file, made when missing and never cut; a hole left past the end reads as zeros (no O_APPEND, so the offset holds)
+int writeFileAt(const std::string& path, const char* p, size_t n, double at) {
+  if (!(at >= 0) || at > 9007199254740991.0) return EINVAL;
+  std::FILE* f = std::fopen(path.c_str(), "r+b");
+  if (!f && errno == ENOENT) f = std::fopen(path.c_str(), "w+b");
+  if (!f) return errno;
+  int e = fseeko(f, static_cast<off_t>(at), SEEK_SET) == 0 && std::fwrite(p, 1, n, f) == n ? 0 : (errno ? errno : EIO);
+  if (std::fclose(f) != 0 && !e) e = errno ? errno : EIO;
+  return e;
+}
+std::string bytesArg(const HostArg& a) {   // a u8[] argument (one slot per element) as its bytes
+  std::string d(a.n, '\0');
+  const std::uint64_t* p = static_cast<const std::uint64_t*>(a.p);
+  for (std::uint32_t i = 0; i < a.n; ++i) d[i] = static_cast<char>(p[i] & 0xFF);
+  return d;
+}
+
 bool readAll(const std::string& path, std::vector<unsigned char>& out, const char* op) {
   if (denyByPermission("fs:read", path) || denyByScope(op, path)) return false;
   if (int e = readFile(path, out)) { fail(op, path, e); return false; }
@@ -1055,6 +1072,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysIsatty: r->i = isatty(n(0)) != 0; break;
     case Rt::HostSysWriteErr: { std::string t = s(0); std::fwrite(t.data(), 1, t.size(), stderr); break; }
     case Rt::HostSysRandomByte: { static std::random_device rd; r->i = static_cast<int>(rd() & 0xFF); break; }
+    case Rt::HostSysRandomBytes: { static std::random_device rd; std::string b(static_cast<size_t>(std::max<std::int64_t>(0, n(0))), '\0'); for (char& c : b) c = static_cast<char>(rd() & 0xFF); ret(r, b); break; }
+    case Rt::HostSysUtf8Bytes: r->p = a[0].p; r->n = a[0].n; break;   // a string is its UTF-8 bytes: the engine copies them into the array
     case Rt::HostSysUtf8Len: r->i = a[0].n; break;
     case Rt::HostSysUtf8Byte: r->i = static_cast<std::uint32_t>(n(1)) < a[0].n ? static_cast<unsigned char>(static_cast<const char*>(a[0].p)[n(1)]) : 0; break;
     case Rt::HostSysUtf8Decode: ret(r, utf8Decode(static_cast<const std::uint64_t*>(a[0].p), a[0].n)); break;
@@ -1100,15 +1119,14 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostFsMkdir: if (denyByPermission("fs:write", s(0)) || denyByScope("mkdir", s(0))) { r->i = 0; break; } r->i = a[1].i ? mkdirs(s(0)) : mkdir(s(0).c_str(), 0777) == 0; break;
     case Rt::HostFsLoad: { if (readAll(s(0), gBytes, "cannot open")) r->i = static_cast<std::int64_t>(gBytes.size()); else r->i = 0; break; }
-    case Rt::HostFsByte:
-      if (n(0) == -1) { r->p = gBytes.data(); r->n = static_cast<std::uint32_t>(gBytes.size()); break; }   // -1: the whole buffer at once (QuickJS builds its array from it, src/qjs/qjs.cpp)
-      r->i = n(0) >= 0 && static_cast<size_t>(n(0)) < gBytes.size() ? gBytes[static_cast<size_t>(n(0))] : 0; break;
+    case Rt::HostFsByte: r->i = n(0) >= 0 && static_cast<size_t>(n(0)) < gBytes.size() ? gBytes[static_cast<size_t>(n(0))] : 0; break;
+    case Rt::HostFsBytes: r->p = gBytes.data(); r->n = static_cast<std::uint32_t>(gBytes.size()); break;   // the whole buffer in one call (ZN-1019)
     case Rt::HostFsWriteBytes:
-    case Rt::HostFsAppendBytes: {
-      std::string data;
-      const std::uint64_t* p = static_cast<const std::uint64_t*>(a[1].p);
-      for (std::uint32_t i = 0; i < a[1].n; ++i) data += static_cast<char>(p[i] & 0xFF);
-      writeAll(s(0), data.data(), data.size(), static_cast<Rt>(id) == Rt::HostFsAppendBytes, "open");
+    case Rt::HostFsAppendBytes: { const std::string data = bytesArg(a[1]); writeAll(s(0), data.data(), data.size(), static_cast<Rt>(id) == Rt::HostFsAppendBytes, "open"); break; }
+    case Rt::HostFsWriteAt: {
+      const std::string data = bytesArg(a[1]), p = s(0);
+      if (denyByPermission("fs:write", p) || denyByScope("open", p)) break;
+      if (int e = writeFileAt(p, data.data(), data.size(), a[2].d)) fail("open", p, e);
       break;
     }
     case Rt::HostFsStat: {
@@ -1434,6 +1452,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostHttpStop: zn::http::stop(n(0)); break;
     case Rt::HostHttpReply: zn::http::reply(n(0), n(1), s(2), s(3)); break;
     case Rt::HostHttpReplyFile: zn::http::replyFile(n(0), n(1), s(2), s(3), s(4)); break;
+    case Rt::HostHttpReplyBytes: zn::http::reply(n(0), n(1), s(2), bytesArg(a[3])); break;
     case Rt::HostHttpOption: r->i = zn::http::option(n(0), s(1), a[2].d) ? 1 : 0; break;
     case Rt::HostHttpReplyStart: r->i = zn::http::replyStart(n(0), n(1), s(2)) ? 1 : 0; break;
     case Rt::HostHttpWrite: r->i = zn::http::write(n(0), s(1)); break;

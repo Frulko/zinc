@@ -12,6 +12,7 @@ Every function of the engine's modules on one page: its signature and what it do
 - `openWindow(title: string, w: i32, h: i32, cb: (dt: number) => void): i32` Opens a window beside the main one and draws it with `cb` every frame: while it runs, the drawing calls, width(), height() and the input are the window's.
 - `closeWindow(id: i32): void` Closes window `id` (0: the main one, hidden while others are open).
 - `windowOpen(id: i32): boolean` Whether window `id` is open (0: the main one).
+- `onWindowClosed(cb: (id: i32) => void): void` Calls `cb(id)` at the next frame after window `id` closed (by the user or closeWindow), once per window; 0 is the main window, hidden while others are open.
 - `windowCtl(id: i32, op: i32, s: string, a: i32, b: i32): i32` The raw call behind zinc:system/window on window `id` (0: the main one): op 0 move to a,b; 1 resize to a x b; 2 focus; 3 title s; 4..7 its x, y, w, h; 8 the last id opened; 9 the window being drawn.
 - `overlay(draw: (dt: number) => boolean): void` Draws over every frame of the main window, after the program, until `draw` returns false (the loader's fade, zinc.json loading.fadeMs).
 - `overlaid(): boolean` Whether an overlay draws (zinc:ui paints its frame again instead of keeping it).
@@ -62,6 +63,8 @@ Every function of the engine's modules on one page: its signature and what it do
 - `translate(x: number, y: number): void` Offset added to the coordinates of the following commands (reset every frame).
 - `setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void` A 2D matrix for the commands that follow, after translate, in logical pixels: x' = a x + c y + e, y' = b x + d y + f (the canvas setTransform order).
 - `resetTransform(): void`
+- `setGlobalAlpha(alpha: i32): void` An alpha (0..255) every command that follows is multiplied by, primitive by primitive, until it is set back to 255: the UI sets it around a Canvas's onDraw to t…
+- `globalAlpha(): i32` The alpha setGlobalAlpha set (255: none).
 - `stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void` Stroked polyline [x0, y0, x1, y1, ...] with round joins and caps.
 - `createImage(w: i32, h: i32, alpha?: boolean): i32` Runtime image usable with drawImage, and as a render target.
 - `frameStat(which: i32): i32` What the last presented frame cost the GPU side, for a game's own debug overlay: 0 draw calls, 1 quads, 2 bytes uploaded to image textures, 3 image uploads, 4 m…
@@ -151,7 +154,7 @@ Every function of the engine's modules on one page: its signature and what it do
 - `utf8Encode(s: string): u8[]` The UTF-8 bytes of a string.
 - `utf8Decode(bytes: u8[]): string` UTF-8 to string; each invalid sequence becomes U+FFFD, like TextDecoder.
 - `onSignal(signal: string, cb: () => void): void` Runs `cb` on the event loop when the signal arrives ('SIGINT', 'SIGTERM', 'SIGHUP', 'SIGUSR1', 'SIGUSR2', 'SIGWINCH', ...); the default action (terminate) no longer happens.
-- `kill(pid: i32, signal: string): boolean` Sends a signal to a process ('SIGTERM', 'SIGKILL', ...); false when it failed.
+- `kill(pid: i32, signal: string): boolean` Sends a signal to a process ('SIGTERM', 'SIGKILL', ...); false when it failed (no such process).
 - `pid(): i32`
 - `cwd(): string`
 - `launchDir(): string` The directory the user ran the program from (`zinc run <project>` starts the program in the project): resolve relative paths given as arguments against it.
@@ -183,6 +186,7 @@ Every function of the engine's modules on one page: its signature and what it do
 - `readBytes(path: string): u8[]`
 - `writeBytes(path: string, data: u8[]): void`
 - `appendBytes(path: string, data: u8[]): void` Adds the bytes at the end of the file, made when missing (a download written slice by slice).
+- `writeBytesAt(path: string, data: u8[], offset: f64): void` Writes the bytes at `offset` of the file, made when missing and never cut (a download's Range written in place); past the end the gap reads as zeros.
 - `stat(path: string): Stat` Errors read `CODE: op path` (ENOENT, EACCES, EEXIST, ENOTDIR, ENOTEMPTY...).
 - `lstat(path: string): Stat` Like stat, without following a symbolic link.
 - `readDir(dir: string): DirEntry[]` Entries with their types, sorted by name.

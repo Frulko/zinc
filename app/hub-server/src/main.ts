@@ -385,7 +385,7 @@ async function handle(req: Request): Promise<Reply> {
       for (const c of channels(id)) for (const t of targets(id, c)) {   // only a package (or its icon) that a current, unretracted manifest points at
         const v = current(id, c, t);
         if (v.length > 0 && parseManifest(fs.readText(slot(id, c, t) + '/' + v + '.manifest')).get('url') === zapp)
-          return reply(200, fs.readText(apps + '/' + id + '/' + name), name.endsWith('.png') ? 'image/png' : 'application/octet-stream');   // readText is byte for byte
+          return { status: 200, body: '', contentType: name.endsWith('.png') ? 'image/png' : 'application/octet-stream', file: apps + '/' + id + '/' + name };   // sent in blocks, with Range
       }
     }
   }

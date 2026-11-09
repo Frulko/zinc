@@ -229,6 +229,7 @@
     {"paths": ["src/rt/rtcalls.cpp", "runtime/zrt.h", "lib/zinc.d.ts", "tests/t0/copy_within.sh", "tests/data/copy_within/"], "tests": ["copy_within"]},
     {"paths": ["src/rt/rtcalls.cpp", "src/qjs/prelude.cpp", "runtime/zrt.h", "lib/zinc.d.ts", "tests/t0/array_set.sh", "tests/data/array_set/"], "tests": ["array_set"]},
     {"paths": ["targets/web/runtime.js", "tests/t0/update_pixels.sh", "tests/data/update_pixels/"], "tests": ["update_pixels"]},
+    {"paths": ["src/host/sys_host.cpp", "src/frontend/modules.cpp", "src/qjs/qjs.cpp", "include/zn/runtime.h", "tests/t0/bytes_bulk.sh", "tests/data/bytes_bulk/"], "tests": ["bytes_bulk"]},
     {"paths": ["runtime/raster.cpp", "tests/t0/rounded_image.sh", "tests/data/rounded_image/"], "tests": ["rounded_image"]},
     {"paths": ["runtime/gl_replay.cpp", "runtime/gl_replay_shaders.h", "targets/macos/hal_sdl.cpp", "tests/t1/gl_scroll.sh", "tests/data/scroll_header/"], "tests": ["gl_scroll"]},
     {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "runtime/gl_replay.cpp", "src/host/gfx_host.cpp", "src/frontend/modules.cpp", "lib/gfx.d.ts", "tests/t1/image_alpha.sh", "tests/t1/image_part_gl.sh", "targets/macos/hal_metal.mm", "tests/t1/metal_replay.sh", "tests/data/image_alpha/", "tests/data/image_part/"], "tests": ["image_alpha", "image_part_gl", "metal_replay"]},

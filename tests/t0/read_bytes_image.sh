@@ -1,6 +1,6 @@
 #!/bin/sh
 # readBytes of zinc:assets and zinc:fs, then imageFromBytes: the same byte count, the same checksum and the same pixels on the interpreter, on
-# QuickJS (where the bytes cross the host boundary in C++, src/qjs/qjs.cpp __qjs_bytes) and as an AOT program; the PNG and its fast-load form (zinc pack).
+# QuickJS and as an AOT program (each reads the bytes in one host call, host.fsBytes); the PNG and its fast-load form (zinc pack).
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/p/assets"
