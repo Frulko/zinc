@@ -1531,6 +1531,11 @@ static bool load(const std::string& entry, zn::zbc::Module& zm, bool compiledRun
     gResources = std::move(unit.resources);
   } else readAll(dir / "resources.bin", gResources);
   if (drawsOf(zm) && (gResources.empty() || (compiledRun && canBuildNative()))) return false;
+  // the program's own files, as its compile would have listed them: a compiled run built from this program records them as its inputs, or
+  // an edit of the program would keep running the old executable
+  gSourcePaths.clear();
+  std::ifstream srcs(dir / "sources");
+  for (std::string p; std::getline(srcs, p);) if (!p.empty()) gSourcePaths.push_back(p);
   installNativeProvider(entry.c_str());
   std::ifstream mods(dir / "modules");
   for (std::string m; std::getline(mods, m);) if (!m.empty() && !zn::frontend::gNativeProvider(m, err)) return false;
@@ -1563,10 +1568,11 @@ static void store(const std::string& entry, const zn::zbc::Module& zm, const std
   } else bytes = zn::zbc::encode(zm);
   std::ofstream(dir / "program.zbc", std::ios::binary).write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
   { std::ofstream mods(dir / "modules"); for (const zn::tc::PluginLib& lib : gPlugins) if (!lib.module.empty()) mods << lib.module << "\n"; }
+  { std::ofstream srcs(dir / "sources"); for (const std::string& p : gSourcePaths) srcs << p << "\n"; }
   savePlugins(dir / "plugins");
   if (hot) fs::remove(dir / "resources.bin", ec);
   else std::ofstream(dir / "resources.bin", std::ios::binary).write(reinterpret_cast<const char*>(resources.data()), static_cast<std::streamsize>(resources.size()));
-  inputs::write(dir / "inputs", signature(entry), entry, {dir / "program.zbc", dir / "resources.bin", dir / "modules"});
+  inputs::write(dir / "inputs", signature(entry), entry, {dir / "program.zbc", dir / "resources.bin", dir / "modules", dir / "sources"});
   std::vector<std::pair<fs::file_time_type, fs::path>> all;
   for (const auto& e : fs::directory_iterator(dir.parent_path(), ec)) all.push_back({fs::last_write_time(e.path(), ec), e.path()});
   if (all.size() <= kKeep) return;

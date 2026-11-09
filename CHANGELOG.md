@@ -237,6 +237,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc lint --target n3ds` (and psp, vita) no longer warns about the plugins a console has built in (`audio`, `3d`, `physics2d`, `lan`, and the pure-Zinc `sprite` and `tilemap`).
 - `zinc pack` carries the assets folder `zinc.json` names, also when it lies outside the project (`"assets": "../shared/assets"`), instead of only a folder called `assets`; `zinc check`, `zinc run` and `zinc pack` warn when that folder does not exist, and an `"assets"` written as an array says what to write.
 - `zinc mem --json` and `zinc profile` of a program that calls `console.error` or `sys.exit` keep stdout for the report (the program's lines go to stderr, in order, and the exit code is the program's), and a program on an ESP32 sends all its lines back, `console.error` and `sys.exit` included.
+- `zinc run --native` runs your edits: after a plain `zinc run` of the same file, it kept starting the executable it had built before the edit.
 
 ### Apps and examples
 
