@@ -8,14 +8,14 @@
 
 | Worker | Branch/worktree | State and next step |
 | --- | --- | --- |
-| Core handoff | work/1088-resume, .worktrees/1088-resume | Restore unintegrated checkpoint e020951cc with cherry-pick -n; complete1088 then1093(id) then1090. Prior Astra tree1088-astra and old1089-core are read-only evidence. No active old writer. |
+| Core handoff | work/1088-resume, .worktrees/1088-resume | Restore unintegrated checkpoint e020951cc with cherry-pick -n; complete1088 then1093(id) then1094(flatMap) then1090. Prior Astra tree1088-astra and old1089-core are read-only evidence. No active old writer. |
 | Pickers .07 | work/1078-pickers, .worktrees/1078-pickers | Resume previously reserved task; TS family only, no engine build. Source/reuse research while other session owns heavy queue. |
 | Data .12 | work/1078-data, .worktrees/1078-data | Newly claimed independent TS family, research complete; reuse virtualization and existing primitives, no engine build. |
 | Feedback parked | .worktrees/1078-feedback-astra | b088d2952 source integrated, no active worker. Cleanup patch .logs/feedback-astra-handover.patch +notes, BacklogAC2 only; finish after1088/1090. |
 
 - Owner requested Astra Fast then `on rebascule`: new workers inherit the coordinator/configured previous model. Launchers keep Fast and optional ZN_CODEX_MODEL override; no global model change. Astra work is preserved, not discarded.
 - 1088 latest e020951cc is NOT integrated: stable-ID layout pruning +allocationinlinecost40 +native.systemHost opt-in(defaultfull,auditedsvg lite). Finalrawgate5390968/5423984/6074800B: unused33016passes, used72312>65536 (60,992B total stillneeded). Fullhost mistakenlyretainednetworking added1.13MB; thatcausefixedincheckpoint. NoUI/budgetcuts. Finalcandidate regressions/cache assertion/gallerysmoke needrerun. Runtimeperformanceunmeasured.
-- Data grid1093 JSX id blocker claimed; sole core handles after1088. Array.flatMap and neutral conditional hook ownership are being reduced before deciding task scope. Runtime/build proofs remain queued behind another session’s restarted Mapper; cheap static checks run bounded without app execution.
+- Data grid1093 JSX id blocker claimed; sole core handles after1088. 1094 generic Array.flatMap is also confirmed/claimed; neutral conditional hook ownership and pre-layout scrolling await minimal runtime proof. Runtime/build proofs remain queued behind another session’s restarted Mapper; cheap static checks run bounded without app execution.
 - Inputs0a8c0b141 and Navigation3dde12a02 progress integrated, functionalproofsgreen, AC3dependency1088. Oldtrees/artifacts retained for attribution. .07Pickers untouched. Defaultlibraryicons1090 remains unstarted; research references in coordinator messages and task.
 - Owner gallery1087 is DONE: c59fa16fa app/password, b189f5bab aspect,414861c46 nestedwrap,5bd6649c3 fullproof. 360/768/1024/1440 defaultnative resize/bounds/scroll/reveal/edit/focus/keys pass. Rootexacttests green, screenshots persisted under docs/img/design. No app workaround, nooursremaining.
 
