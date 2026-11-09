@@ -63,14 +63,14 @@ Conventions, identical in both UI models:
 | `Button` | `label?`, `variant?` (`default` `secondary` `outline` `ghost` `destructive`), `size?` (`sm` `default` `lg` `icon`), `onClick?`, `className?`, children | children follow the label (an icon glyph, a `Kbd`); `default` is filled with the theme's `primary` (near black on `LIGHT`, near white on `DARK`, as shadcn's), `outline` and `ghost` follow the page; the host `<Button>` without the kit draws nothing, so with no `bg-*` class it shows the page behind it |
 | `Input` | `value?: () => string`, `onInput?`, `placeholder?`, `type?` (`password`), `name?`, `disabled?`, `className?` | shadcn's Input: `h-9`, `rounded-md`, a border in the theme's `input` colour, `px-3`, `text-sm`, no fill (it follows the page), a muted placeholder, a darker border while focused, half opacity when disabled |
 | `Textarea` | the same, and `rows?` (3; `0` grows with the text) | shadcn's Textarea: Input's look with `py-2` and `min-h-16` |
-| `Card` | `className?`, children | rounded-xl surface with a border and `shadow-sm`; spaces its sections |
+| `Card` | `className?`, `selected?`, `muted?`, `disabled?`, `onClick?`, children | a hairline surface; Quiet cards have no shadow. An actionable card keeps keyboard activation and a visible focus ring. |
 | `CardHeader` | `title?`, `description?`, children | |
 | `CardTitle`, `CardDescription` | `text` | when composing a header by hand |
 | `CardContent`, `CardFooter` | `className?`, children | column / row, padded like the header |
 | `Badge` | `label`, `variant?` (`default` `secondary` `outline` `destructive` `success` `warning` `accent`), `className?` | |
 | `Separator` | `vertical?`, `className?` | one-pixel hairline |
 | `ResizeHandle` | `size: () => number`, `onResize`, `vertical?`, `after?`, `min?`, `max?`, `className?` | shadcn's ResizableHandle: a bar between two panes that resizes one when dragged (`vertical`: between columns; `after`: the pane follows the bar); the size is your signal, kept within `[min, max]` |
-| `Stat` | `label`, `value: () => string`, `unit?`, `hint?`, `className?`, children | metric tile; children sit on the label row (a `Badge`) |
+| `Stat`, `Metric` | `label`, `value: () => string`, `unit?`, `hint?`, `delta?`, `deltaLabel?`, `lowerIsBetter?`, `history?`, `className?`, children | compatible names for a metric; changes name their baseline, optional history draws a sparkline, and children sit on the label row. |
 | `CallStats` | `sample: () => CallStatsSample`, `history: () => CallStatsSample[]`, `className?`, children | a call's health: a good / fair / poor badge with its MOS, loss, round trip, bit rates, jitter, and sparklines of the loss, round trip and outgoing bit rate; zinc:webrtc's `CallQuality` fills it (`sample={() => q.last} history={() => q.history}`); `labels?: Map<string,string>` replaces its words (title, measuring, good, fair, poor, loss, roundTrip, out, in, jitter); children go under the numbers |
 | `Tabs` | `items: string[]`, `selected: () => i32`, `onSelect`, `className?` | segmented control; switch the panels yourself: `{tab() === 0 ? <A/> : <B/>}` |
 | `Switch` | `checked: () => boolean`, `onChange`, `label?` | never flips itself: `onChange` decides |
@@ -81,7 +81,7 @@ Conventions, identical in both UI models:
 | `Avatar` | `name`, `size?` (`sm` `default` `lg`) | initials of the first two words |
 | `Alert` | `title`, `description?`, `variant?` (`default` `destructive` `success`), `icon?`, `className?` | |
 | `List` | `className?`, children | bordered panel of rows |
-| `ListItem` | `title`, `description?`, `trailing?`, `selected?: () => boolean`, `onClick?`, `leading?: () => node`, children | rows with `onClick` are focusable and highlight when pressed |
+| `ListItem` | `title`, `description?`, `trailing?`, `selected?: () => boolean`, `onClick?`, `disabled?`, `leading?: () => node`, children | actionable rows use Enter/Space; arrows and Home/End move between enabled rows. |
 | `Kbd` | `label` | key or shortcut hint |
 
 ## Overlays
@@ -528,3 +528,54 @@ chosen content's colors, while surrounding controls follow Quiet's neutral surfa
 Run `GALLERY=pickers zinc run examples/ui/kit-gallery` for the whole family. The three focused views are
 `GALLERY=pickers-dates`, `pickers-colors`, and `pickers-values`; add `GALLERY_DARK=1` for dark mode. The documentation
 pictures use `ZINC_SIZE=1200x780 ZINC_HEADLESS=1 ZINC_FRAMES=4 ZINC_SHOT=...` with those focused views.
+
+## Quiet Data
+
+`GALLERY=data zinc run examples/ui/kit-gallery` shows the data family. Set `GALLERY_DATA=overview`, `grid`,
+`tree` or `files` to show one part. Add `GALLERY_DARK=1` for the dark scheme. Existing `Card` sections,
+`List`/`ListItem` and `Stat` callers keep their contracts; `Metric` adds a descriptive name for `Stat`.
+
+![Cards, metric history, list, editable path, table and accordion drawn by Zinc](img/kit-data-overview.png)
+![The same data surfaces in Quiet dark](img/kit-data-overview-dark.png)
+
+A row has a stable `id` and `cells: string[]`; each `DataColumn` has `id`, `label`, optional `width`, `minWidth`,
+`align` (`left`, `center`, `right`), `sortable`, `hidden`, `fixed` (prevents resizing) and `cell(row)` for custom
+content. Cell positions follow the original column array, including hidden columns. There is no automatic
+priority hiding: an application sets `hidden` when its layout needs fewer columns.
+
+| Component | Contract and useful options |
+|---|---|
+| `Table` | `label`, `columns`, `rows: () => DataRow[]`; optional controlled `sort`/`onSort`, `search`, `filter(row)`, `widths`, `compact`, `striped`, `fixedHeader`, `height`, `emptyLabel`, `className`. Sorting compares whole numeric cells numerically and preserves the order of ties. `fixedHeader` defaults to true; the body scrolls vertically and the complete table scrolls horizontally. |
+| `DataGrid` | Table options plus controlled `selected: () => string[]`/`onSelect`, `rowHeight` (36), `height` (320), `onColumnResize(id,width)`, `onActivate(row)` and `onEdit(rowId,columnId,value)`. Only visible rows are mounted, including in the 2,000-row gallery. `widths` follows the original column array. |
+| `TreeTable` | `label`, `columns`, `items: () => TreeItem[]`, controlled `expanded`/`onExpandedChange` and `selected`/`onSelect`; optional `widths`, `onColumnResize`, `height`, `onActivate`, `onLoadChildren(id): Promise<TreeItem[]>`, `className`. A tree item has `id`, `label`, optional extra `cells`, `children`, `hasChildren`, `disabled`. |
+| `Tree` | The same tree contract with one label column. Duplicate/cyclic visible IDs are refused. Expanding a lazy `hasChildren` branch makes one request; loading suppresses duplicate requests, completed children are cached, and a failed request exposes Retry. Unmounting invalidates outstanding results. |
+| `PathBar` | `path`, `segments: () => PathSegment[]`, `onNavigate(path)`; optional `editable`, `label`, `className`. A segment has `label`, `path`, and optional child locations. Breadcrumbs navigate ancestors; Locations opens child locations. Edit path or ⌘/Ctrl-L edits the complete path, Enter/Go submits, Escape/Cancel discards and returns focus to the path bar. |
+| `Accordion` | `items: AccordionItem[]`, controlled `expanded: () => string[]`/`onChange`, optional `multiple`, `className`. Each item has stable `id`, `title`, `content()` and optional `description`/`disabled`. Heading buttons name their regions; Enter/Space toggles, arrows and Home/End move between enabled headings. Disclosures use the engine's spring layout animation; reduced motion cuts to the resulting state. |
+| `FilterBar` | Controlled `search`/`onSearch`, `filters: () => DataFilter[]`, `onChange(id,value)`, `onRemove(id)`, `onClear`; optional `available: MenuItem[]`, `resultCount`, `className`. A filter has `id`, `label`, `value`, `options: SelectOption[]`; add actions, values and removal remain owned by the application. |
+| `FileBrowser` | Controlled `path`/`onNavigate`, `selected`/`onSelect`; optional `multiple`, `foldersOnly`, `patterns: () => string[]`, `showHidden`, `places`, `height`, `lister`, `onActivate(entry)`, `className`. Back/Forward/Up/Reload, editable breadcrumbs, search, hidden files, sorting and Places share one cached directory listing. Patterns support `*`/`?`, case-insensitively, and always leave folders reachable. |
+| `OpenFileDialog`, `SaveFileDialog` | `open`/`onOpenChange`, `initialFolder`, `onConfirm(paths)`; optional `initialName`, `title`, `multiple`, `foldersOnly`, `filters: {label,patterns}[]`, `places`, `lister`. Each opening starts fresh. Open validates selected existing files/folders. Save validates one name and its parent folder and asks before choosing an existing path. Both confirm paths only; the application performs any subsequent read/write. |
+
+![A filtered, sortable and editable 2,000-row grid with its filter bar, drawn by Zinc](img/kit-data-grid.png)
+![The recording grid in Quiet dark](img/kit-data-grid-dark.png)
+![A tree and tree table sharing selection, drawn by Zinc](img/kit-data-tree.png)
+
+The grid's cell cursor and row selection are independent. Arrow keys move the cursor; Home/End move within a row,
+⌘/Ctrl-Home/End reach the first/last row, and Page Up/Down move by a viewport. Space selects, Shift extends an
+inclusive range in the current filtered/sorted order, ⌘/Ctrl-click toggles, and ⌘/Ctrl-A selects visible enabled
+rows. Filtering and sorting preserve selected IDs. Alt-Up/Down sorts the current column; Alt-Left/Right resizes it
+by 10 px. Enter/F2 or double-click edits a cell when `onEdit` is present; Enter or leaving the editor commits,
+and Escape reverts. Without editing, Enter activates the row. Left/Right in a tree closes/opens a branch and
+moves between a parent and its children. Virtual grids expose total row counts, row/column indices and a single
+active descendant; moving the cursor scrolls its row and column into view.
+
+`FileEntry` has `name`, `path`, `directory`, `size` (bytes) and `modified` (milliseconds). The default
+`readFileEntries(folder)` uses `zinc:fs.readDir` and `stat`, preserving the application's filesystem scope.
+A custom `FileLister` returns `Promise<FileEntry[]>`; synchronous throws and rejected promises both show a failure
+with Retry. Navigation and reload invalidate earlier requests, so a late completion cannot replace a newer folder.
+Search, selection, sorting and file-type filtering reuse the loaded entries. The controls never create directories,
+write files or extend permissions. Custom providers still need paths that the application can validate when a dialog
+confirms them.
+
+![The scoped filesystem browser drawn by Zinc](img/kit-data-files.png)
+![The file opening dialog drawn by Zinc](img/kit-data-open.png)
+![The save-path dialog drawn by Zinc](img/kit-data-save.png)

@@ -12,6 +12,7 @@
     {"paths": ["src/frontend/check.cpp", "lib/zinc.d.ts", "tests/data/array_flatmap/", "tests/t0/array_flatmap.sh"], "tests": ["array_flatmap"]},
     {"paths": ["src/frontend/jsx.cpp", "targets/web/dom.js", "tests/data/jsx_id/", "tests/t0/jsx_id.sh"], "tests": ["jsx_id"]},
     {"paths": ["src/frontend/plugin_manifest", "src/tc/plugin_build", "src/main.cpp", "plugins/svg/plugin.json", "tests/t0/plugin_system_host.sh"], "tests": ["plugin_system_host"]},
+    {"paths": ["lib/std/kit/data.tsx", "lib/std/kit/card.tsx", "lib/std/kit/list.tsx", "lib/std/kit/stat.tsx", "tests/golden/kit-data/", "tests/golden/kit-data-react/", "tests/golden/kit-data-metric/", "tests/golden/kit-data-surfaces/", "tests/t0/kit_data.sh"], "tests": ["kit_data"]},
     {"paths": ["tools/integrate", "tests/t0/integrate_merge.sh"], "tests": ["integrate_merge"]},
     {"paths": ["src/ir/opt.cpp", "tests/data/layout_reachability/", "tests/t0/layout_reachability.sh"], "tests": ["layout_reachability"]},
     {"paths": ["tools/work-run", "tests/t0/work_run.sh"], "tests": ["work_run"]},

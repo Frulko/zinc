@@ -66,3 +66,9 @@ action controls support Tab/Enter/Space; the empty-state action ends the sample 
 loading is stopped, and reduced motion freezes the loading indicators.
 
 The Pickers family is available with `GALLERY=pickers`, or the focused views `pickers-dates`, `pickers-colors` and `pickers-values`. Add `GALLERY_DARK=1` for Quiet dark. Values are interactive; calendar keys, wheel snapping, color channels and fine numeric controls share the public kit components.
+
+`GALLERY=data` shows cards, metrics, lists and tables, a 2,000-row recording grid, shared tree selection,
+disclosures, editable paths, filters and filesystem navigation. `GALLERY_DATA=overview`, `grid`, `tree` or `files`
+selects one part. The grid supports keyboard range/toggle selection, sorting, column resizing and cell editing.
+`GALLERY_DIALOG=open` or `save` opens the corresponding path dialog in the files view. These examples read the
+repository's gallery folder and return chosen paths; they never write a file. `GALLERY_DARK=1` starts in Quiet dark.

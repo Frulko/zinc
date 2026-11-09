@@ -15,6 +15,7 @@ import { ButtonsCard } from './sections/buttons';
 import { SettingsCard } from './sections/settings';
 import { StatsRow, BadgesCard, AlertsColumn, TeamList } from './sections/display';
 import { OverlaysCard } from './sections/overlays';
+import { DataSection } from './sections/data';
 
 useQuietTheme();
 if (env('GALLERY_DARK') === '1') setDarkMode(true);
@@ -49,6 +50,7 @@ function App(): i32 {
       <Show when={env('GALLERY') === '' || env('GALLERY').startsWith('pickers')}><PickersSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'inputs'}><InputsSection /></Show>
       <Show when={env('GALLERY') === 'feedback'}><Section title="Feedback"><FeedbackSection /></Section></Show>
+      <Show when={env('GALLERY') === '' || env('GALLERY') === 'data'}><DataSection /></Show>
       <Show when={env('GALLERY') === ''}>
       <Section title="Metrics"><StatsRow /></Section>
       <Section title="Controls">

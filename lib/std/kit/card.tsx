@@ -10,10 +10,15 @@
 import { theme } from './theme';
 import { renderSlot } from './host';
 import { look } from '../platform/index';
+import * as ui from 'zinc:ui';
 
 export interface CardProps {
   className?: string;         // size and placement ('w-80', 'grow')
   children?: () => i32;
+  selected?: () => boolean;
+  muted?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
 }
 export interface CardHeaderProps {
   title?: string;
@@ -29,10 +34,13 @@ export interface CardSectionProps {
 /** The inner padding of a card and its sections, in Tailwind steps: 20 px, 24 under Quiet. */
 function inset(): i32 { return look().name === 'quiet' ? 6 : 5; }
 
-export function Card(props?: CardProps): i32 {
-  return <View className={`flex-col gap-4 py-${inset()} ${look().card} border border-${theme().border} bg-${theme().card} ${props?.className ?? ''}`}>
-    {renderSlot(props?.children)}
+export function Card(props: CardProps = {}): i32 {
+  const node = <View role={props.onClick !== undefined ? 'button' : 'group'} aria-pressed={props.onClick !== undefined && props.selected !== undefined ? String(props.selected()) : ''} disabled={props.disabled === true}
+    className={`flex-col gap-4 py-${inset()} ${look().card} border border-${props.selected !== undefined && props.selected() ? theme().accent : theme().border} bg-${props.muted === true ? theme().muted : theme().card} focus-visible:ring-2 focus-visible:ring-${theme().accent} focus-visible:ring-offset-2 ${props.disabled === true ? 'opacity-45' : ''} ${props.className ?? ''}`}>
+    {renderSlot(props.children)}
   </View>;
+  if (props.onClick !== undefined) ui.listen(node, () => { if (props.disabled !== true) props.onClick?.(); });
+  return node;
 }
 
 export function CardTitle(props: CardTextProps): i32 {

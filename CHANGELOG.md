@@ -160,6 +160,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Quiet feedback adds dismissible banners, storage meters, skeletons, empty states and timelines; progress indicators, status badges and avatars share the same theme and respect reduced motion.
 - The Quiet kit adds calendars, date and range popovers, time wheels and a dial, color and emoji pickers, ruler and histogram sliders, knobs and faders, with keyboard control and focused gallery views.
 
+- Quiet data controls add sortable tables, virtual grids with row selection and editing, lazy trees, disclosures, path and filter bars, and file browsing with open/save path dialogs.
+
 #### Changed
 
 - The default layout sizes `flex-1`, `w-full` and `h-full` as a browser does: `flex-1` items share a row or a column equally whatever their content, but never get narrower than their content unless they have `min-w-0`, `overflow-hidden` or `truncate`; a `w-full` or `h-full` box along the row or column stays inside its parent instead of growing with its content; and the last width or height class wins (`w-full w-[280px]` is 280 px wide).

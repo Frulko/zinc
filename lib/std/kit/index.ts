@@ -24,7 +24,7 @@ export { Switch } from './switch';
 export { Tabs, TabsProps } from './tabs';
 export { NavigationTabs, TabBar, NavigationItem, NavigationProps, Sidebar, SidebarProps, SidebarGroup, Breadcrumb, BreadcrumbItem, Pagination, Stepper, StepItem, TableOfContents, ContentsItem, Dock, DockItem } from './navigation';
 export { nativeControl } from './host';
-export { Stat } from './stat';
+export { Stat, Metric, StatProps } from './stat';
 export { CallStats, CallStatsProps, CallStatsSample } from './callstats';
 export { List, ListItem } from './list';
 export { Tooltip, TooltipProps, Popover, PopoverProps, DropdownMenu, DropdownMenuProps, MenuItem, Dialog, DialogProps, Sheet, SheetProps, HoverCard, HoverCardProps, ConfirmPopover, ConfirmPopoverProps, GuidedTour, GuidedTourProps, TourStep, ToastOptions, toast, clearToasts, keyLabel } from './overlays';
@@ -39,3 +39,4 @@ export { Checkbox, CheckboxProps, RadioGroup, RadioCards, RadioGroupProps, Choic
 export { Banner, BannerProps, Meter, MeterProps, Skeleton, SkeletonProps, EmptyState, EmptyStateProps, Timeline, TimelineProps, TimelineItem, AlertProps, BadgeProps, AvatarProps, ProgressProps, ProgressRingProps, SpinnerProps } from './feedback';
 
 export { Calendar, CalendarProps, CalendarOptions, RangeCalendar, RangeCalendarProps, DatePicker, DatePickerProps, DateRangePicker, DateRangePickerProps, TimePicker, TimePickerProps, TimeDial, TimeDialProps, WheelPicker, WheelPickerProps, ColorPicker, ColorPickerProps, EmojiPicker, EmojiPickerProps, EmojiEntry, RulerSlider, RulerSliderProps, HistogramSlider, HistogramSliderProps, Knob, KnobProps, Fader, FaderProps } from './pickers';
+export { Table, TableProps, DataGrid, DataGridProps, DataColumn, DataRow, DataSort, DataCursor, dataRows, selectDataRows, TreeTable, TreeTableProps, Tree, TreeProps, TreeItem, flattenTree, PathBar, PathBarProps, PathSegment, Accordion, AccordionProps, AccordionItem, FilterBar, FilterBarProps, DataFilter, FileBrowser, FileBrowserProps, FileEntry, FileLister, readFileEntries, fileMatches, filePathSegments, OpenFileDialog, SaveFileDialog, FileDialogProps } from './data';

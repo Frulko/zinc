@@ -28,6 +28,7 @@ export interface ResizeHandleProps {
   min?: number;
   max?: number;
   className?: string;
+  tabIndex?: i32;
 }
 
 export function ResizeHandle(props: ResizeHandleProps): i32 {
@@ -46,8 +47,8 @@ export function ResizeHandle(props: ResizeHandleProps): i32 {
   };
   const look = `shrink-0 bg-${theme().border} hover:bg-${theme().accent} ${props.className ?? ''}`;
   if (props.vertical ?? false)
-    return <Button onKeyDown={keys} className={`w-1 self-stretch cursor-col-resize ${look}`} role="separator" aria-orientation="vertical" dragAxis="x" dragThreshold={1}
+    return <Button tabIndex={props.tabIndex ?? 0} onKeyDown={keys} className={`w-1 self-stretch cursor-col-resize ${look}`} role="separator" aria-orientation="vertical" dragAxis="x" dragThreshold={1}
       onDrag={(e: ui.PointerEvent) => { drag(e, e.dx); }} />;
-  return <Button onKeyDown={keys} className={`h-1 self-stretch cursor-row-resize ${look}`} role="separator" aria-orientation="horizontal" dragAxis="y" dragThreshold={1}
+  return <Button tabIndex={props.tabIndex ?? 0} onKeyDown={keys} className={`h-1 self-stretch cursor-row-resize ${look}`} role="separator" aria-orientation="horizontal" dragAxis="y" dragThreshold={1}
     onDrag={(e: ui.PointerEvent) => { drag(e, e.dy); }} />;
 }
