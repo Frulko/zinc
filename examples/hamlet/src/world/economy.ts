@@ -409,21 +409,31 @@ export function loadEconomy(text: string, models: string[], roles: string[]): vo
   economy.resources = next.resources; economy.roads = next.roads; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.adventures = next.adventures; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.difficulties = next.difficulties; economy.hall = next.hall; economy.risk = next.risk; economy.sim = next.sim; economy.campaignGoals = next.goals; economy.campaignSim = next.sim; economy.startOverride = []; economy.openAtStart = [];
 }
 
+/** Who makes resource `k` (buildings) and who uses it (inputs, costs, house meals and lights, the peddler's coin, adventure costs). */
+function chainOf(k: number): string[][] {
+  const makers: string[] = [], users: string[] = [];
+  for (const d of economy.buildings) {
+    if (d.outputs[k] > 0) makers.push(d.id);
+    if (d.inputs[k] > 0) users.push(d.id + ' (input)');
+    if (d.cost[k] > 0) users.push(d.id + ' (cost)');
+    if (d.housing !== null && d.housing.eats.indexOf(k) >= 0) users.push(d.id + ' (food)');
+    if (d.housing !== null && d.housing.uses.indexOf(k) >= 0) users.push(d.id + ' (light)');
+  }
+  if (economy.trade.coin === k && economy.trade.table.some((x: TradeEntry): boolean => x.side === 'buy')) users.push('peddler (buy)');
+  for (const a of economy.adventures) if (a.cost[k] > 0) users.push(a.id + ' (adventure)');
+  return [makers, users];
+}
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */
 export function chainReport(): string[] {
   const lines: string[] = [];
-  for (let k = 0; k < economy.resources.length; k++) {
-    const makers: string[] = [], users: string[] = [];
-    for (const d of economy.buildings) {
-      if (d.outputs[k] > 0) makers.push(d.id);
-      if (d.inputs[k] > 0) users.push(d.id + ' (input)');
-      if (d.cost[k] > 0) users.push(d.id + ' (cost)');
-      if (d.housing !== null && d.housing.eats.indexOf(k) >= 0) users.push(d.id + ' (food)');
-      if (d.housing !== null && d.housing.uses.indexOf(k) >= 0) users.push(d.id + ' (light)');
-    }
-    lines.push(economy.resources[k].id + ': made by [' + makers.join(', ') + '] used by [' + users.join(', ') + ']');
-  }
+  for (let k = 0; k < economy.resources.length; k++) { const c = chainOf(k); lines.push(economy.resources[k].id + ': made by [' + c[0].join(', ') + '] used by [' + c[1].join(', ') + ']'); }
   return lines;
+}
+/** The resources no building makes or nothing uses: a chain the data left open. */
+export function orphanResources(): string[] {
+  const out: string[] = [];
+  for (let k = 0; k < economy.resources.length; k++) { const c = chainOf(k); if (c[0].length === 0 || c[1].length === 0) out.push(economy.resources[k].id); }
+  return out;
 }
 
 /** "3 Planches, 2 Bois": what a building costs, or what is still missing (`have` = what the stores hold). */
