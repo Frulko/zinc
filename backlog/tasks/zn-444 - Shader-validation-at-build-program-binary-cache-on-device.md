@@ -2,8 +2,7 @@
 id: ZN-444
 title: 'Shader validation at build, program binary cache on device'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:36'
 updated_date: '2026-11-09 07:02'
 labels:

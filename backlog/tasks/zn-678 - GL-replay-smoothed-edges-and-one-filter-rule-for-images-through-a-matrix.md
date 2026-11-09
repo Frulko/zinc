@@ -2,8 +2,7 @@
 id: ZN-678
 title: 'GL replay: smoothed edges and one filter rule for images through a matrix'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 19:21'
 updated_date: '2026-11-09 06:54'
 labels:

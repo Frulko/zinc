@@ -659,6 +659,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-440.02: an MP3 loop carries the encoder padding (dr_mp3 keeps LAME delay): measure, then trim or document; under `zinc dev` a reloaded entry is not seen by a streaming music (reopen on reload).
 - ZN-249: measure the cost of turning the key colour into alpha on every present for a large transparent window.
 - ZN-243: `deeplink.register()` under `zinc run` writes `Exec=<zinc> %u` without the project; Exec needs the project path or an engine relaunch command (autostart has the same gap).
+- ZN-678: rounded corners of a turned image on the GL replay (the raster draws them); turned text and the scaled group of gfx_transform still differ on GL (0.043%, max 151): glyph sampling under a matrix.
+- ZN-444: program-binary cache (`GL_OES_get_program_binary`, key vendor+renderer+version+format+engine build+source hash, drop on failure); first check VC4 on the Pi 3 reports a format, then measure the second start.
+- ZN-444: no desktop GLSL 3.30 core variant is checked; a WebGL 1 fragment shader without precision passes the build (the prelude gives one) but fails in a browser: a `webgl` rule option checks without the prelude.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -857,3 +860,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1028: run the Linux sendfile path on the Pi (export a server replying with a 100 MB file, `curl -o /dev/null`, `strace -e sendfile`), then tick ZN-1028 #3 (the Pi did not answer ssh on 2026-11-09).
 - ZN-440.02: map assets-directory files on Windows (`MapViewOfFile`); the console cores still refuse music (`musicOpen`, `musicAsset`).
 - ZN-249: show transparent windows on a compositing Linux session (X11 ARGB visual or Wayland) over a known wallpaper; the Pi player has no compositor.
+- ZN-444: run `shader_assets.sh` on Linux (`libzn_webgl.so`) and a build with `ZN_WEBGL` off; ZN-678: the turned-image GL path on a real GLES 2 device (Pi).
