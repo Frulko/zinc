@@ -2,7 +2,8 @@
 id: ZN-946
 title: 'Hamlet save: refuse future versions, storage-free snapshot'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 13:00'
 labels:
   - hamlet

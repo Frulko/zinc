@@ -2,8 +2,7 @@
 id: ZN-675
 title: Frame hash of a frame that does not cover the surface changes at every run
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 19:21'
 updated_date: '2026-11-09 04:28'
 labels:

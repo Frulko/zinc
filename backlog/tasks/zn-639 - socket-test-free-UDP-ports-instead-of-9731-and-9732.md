@@ -2,8 +2,7 @@
 id: ZN-639
 title: 'socket test: free UDP ports instead of 9731 and 9732'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 17:01'
 updated_date: '2026-11-09 04:28'
 labels:

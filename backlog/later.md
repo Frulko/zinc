@@ -631,6 +631,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-798: the UBSan reports of the v0.4.3 fuzz logs (`lower.cpp`, `fuzz_native.cpp:41`) were not reproduced; check them at the next fuzz run.
 - ZN-682: the three plugin's sim stand-in imports `node:fs`, so a program that imports `zinc:3d/gltf` does not run with `ZINC_NATIVE=sim`.
 - ZN-682: `SkinnedModel` could refresh `mesh.bounds` from its current pose on request (three.js `SkinnedMesh.computeBoundingBox()`); an optional precise mode of `bounds(node)` reading every vertex.
+- ZN-639: zinc:socket binds UDP with `UV_UDP_REUSEADDR` (SO_REUSEPORT on macOS and the BSDs): two programs on one fixed port both bind and one silently receives nothing; make reuse opt-in or document it.
+- ZN-675: the field initialisation check still accepts a constructor that returns early before assigning a field (`if (c) return; this.x = 1;`); full definite-assignment flow would cover `switch`, `try` and early returns.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
