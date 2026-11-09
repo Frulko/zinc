@@ -10,6 +10,7 @@
 #include <array>
 #include <chrono>
 #include <functional>
+#include <optional>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -82,6 +83,10 @@ static bool pathAbs(const std::string& p) {
 }
 // ---- the host calls, generated from the runtime table: one JS function per `host.*` row, its arguments decoded by the row's letters
 using zn::host::HostArg;
+struct HostScratch {   // the decoded strings and arrays of one host call, in place until the call returns
+  std::array<std::string, zn::kMaxHostParams> strings;
+  std::array<std::vector<std::uint64_t>, zn::kMaxHostParams> arrays;
+};
 
 JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int magic) {
   const auto id = static_cast<zn::Rt>(magic);
@@ -109,8 +114,7 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
   zn::host::HostCall call = zn::isLayoutRow(static_cast<zn::Rt>(id)) ? zn::host::hostLayout : sys ? zn::host::hostSys : zn::host::hostGfx;
   if (!call) return JS_ThrowInternalError(ctx, "%s is not available in this build", ri.name);
   HostArg args[zn::kMaxHostParams], res;
-  std::array<std::string, zn::kMaxHostParams> strings;   // one per parameter, in place: a call without strings or arrays allocates nothing (ZN-567)
-  std::array<std::vector<std::uint64_t>, zn::kMaxHostParams> arrays;
+  std::optional<HostScratch> scratch;   // built only by a row with strings or arrays: a call of numbers builds and allocates nothing (ZN-567, ZN-601)
   const unsigned np = zn::rtParamCount(ri);
   for (unsigned k = 0; k < np; ++k) {
     JSValueConst v = static_cast<int>(k) < argc ? argv[k] : JS_UNDEFINED;
@@ -121,9 +125,11 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
         size_t n = 0;
         const char* p = JS_ToCStringLen(ctx, &n, v);
         if (!p) return JS_EXCEPTION;
-        strings[k].assign(p, n);
+        if (!scratch) scratch.emplace();
+        std::string& str = scratch->strings[k];
+        str.assign(p, n);
         JS_FreeCString(ctx, p);
-        h.p = strings[k].data(); h.n = static_cast<std::uint32_t>(n);
+        h.p = str.data(); h.n = static_cast<std::uint32_t>(n);
         break;
       }
       case 'D': case 'B': case 'U': {
@@ -131,16 +137,18 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
         int32_t n = 0;
         JS_ToInt32(ctx, &n, len);
         JS_FreeValue(ctx, len);
-        arrays[k].assign(static_cast<size_t>(n < 0 ? 0 : n), 0);
+        if (!scratch) scratch.emplace();
+        auto& arr = scratch->arrays[k];
+        arr.assign(static_cast<size_t>(n < 0 ? 0 : n), 0);
         for (int32_t i = 0; i < n; ++i) {
           JSValue e = JS_GetPropertyUint32(ctx, v, static_cast<uint32_t>(i));
           double d = 0;
           if (JS_VALUE_GET_TAG(e) == JS_TAG_INT) d = JS_VALUE_GET_INT(e);   // the bytes of a file: small integers, no conversion call
           else { JS_ToFloat64(ctx, &d, e); JS_FreeValue(ctx, e); }
-          if (zn::rtParam(ri, k) == 'D') std::memcpy(&arrays[k][static_cast<size_t>(i)], &d, 8);
-          else arrays[k][static_cast<size_t>(i)] = static_cast<std::uint64_t>(static_cast<std::int64_t>(d)) & (zn::rtParam(ri, k) == 'U' ? 0xFFFFFFFFull : 0xFF);
+          if (zn::rtParam(ri, k) == 'D') std::memcpy(&arr[static_cast<size_t>(i)], &d, 8);
+          else arr[static_cast<size_t>(i)] = static_cast<std::uint64_t>(static_cast<std::int64_t>(d)) & (zn::rtParam(ri, k) == 'U' ? 0xFFFFFFFFull : 0xFF);
         }
-        h.p = arrays[k].data(); h.n = static_cast<std::uint32_t>(n);
+        h.p = arr.data(); h.n = static_cast<std::uint32_t>(n);
         break;
       }
       case 'u': { double d = 0; JS_ToFloat64(ctx, &d, v); h.i = static_cast<std::int64_t>(static_cast<std::uint32_t>(static_cast<std::int64_t>(d))); break; }
@@ -156,7 +164,7 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
     case 's': return JS_NewStringLen(ctx, static_cast<const char*>(res.p), res.n);
     case 'B': {   // bytes as an array of numbers, as the program's u8[] is, built in one go
       const auto* b = static_cast<const std::uint8_t*>(res.p);
-      std::vector<JSValue> vals(res.n);
+      std::vector<JSValue> vals(res.n);   // slow path: bytes returned as a new array
       for (std::uint32_t i = 0; i < res.n; ++i) vals[i] = JS_MKVAL(JS_TAG_INT, b[i]);
       return JS_NewArrayFrom(ctx, static_cast<int>(vals.size()), vals.data());
     }

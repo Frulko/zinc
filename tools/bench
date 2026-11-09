@@ -2,28 +2,68 @@
 """Median-of-N wall-clock benchmark of commands, written as a JSON artifact (method: docs in TESTING.md).
 
 usage: tools/bench OUT.json NAME=CMD [NAME=CMD ...]   (env ZN_RUNS, default 11; one warm-up run each, not counted)
+       tools/bench --gate BASELINE.json [--write-baseline] OUT.json NAME=CMD [...]
 Each CMD is run through the shell with stdout discarded. Records every run, the median and the machine, so losses are
 published with the numbers, not rounded.
+--gate: each CMD also prints its own measures, one `BENCH <id> <value>` line each (ns per call: bench/qjs_boundary). The median
+of every id over the runs is compared with BASELINE.json ({"max_regress_pct": 30, "cases": {"NAME/id": value}}): exit 3 when a
+listed case is slower by more than the percentage or missing. --write-baseline writes the medians of the listed cases (all of
+them when the file has none) into BASELINE.json instead. Valid on the machine the baseline was taken on, quiet.
 """
-import json, os, platform, statistics, subprocess, sys, time
+import json, os, platform, re, statistics, subprocess, sys, time
 
+args = sys.argv[1:]
+gate = write = None
+if args and args[0] == "--gate":
+    gate, args = args[1], args[2:]
+    if args and args[0] == "--write-baseline":
+        write, args = True, args[1:]
 runs = int(os.environ.get("ZN_RUNS", "11"))
-out = sys.argv[1]
-results = {}
-for spec in sys.argv[2:]:
+out = args[0]
+results, cases = {}, {}
+for spec in args[1:]:
     name, cmd = spec.split("=", 1)
-    subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)  # warm-up
+    def once(keep=True):
+        r = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE if gate else subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, text=True)
+        for m in re.finditer(r"^BENCH (\S+) +(-?[\d.]+)", r.stdout or "", re.M) if keep else ():
+            cases.setdefault(f"{name}/{m.group(1)}", []).append(float(m.group(2)))
+    once(keep=False)  # warm-up
     times = []
     for _ in range(runs):
         t = time.perf_counter()
-        subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        once()
         times.append(time.perf_counter() - t)
     results[name] = {"cmd": cmd, "median_s": statistics.median(times), "min_s": min(times), "max_s": max(times), "runs_s": times}
 doc = {"runs": runs, "machine": platform.platform(), "processor": platform.processor(), "results": results}
 if "interp" in results and "quickjs" in results:
     doc["speedup_vs_quickjs"] = results["quickjs"]["median_s"] / results["interp"]["median_s"]
+if gate:
+    doc["cases"] = {k: {"median": statistics.median(v), "min": min(v), "max": max(v)} for k, v in cases.items()}
 json.dump(doc, open(out, "w"), indent=2)
 for n, r in results.items():
     print(f"{n:12s} median {r['median_s']*1000:8.1f} ms  (min {r['min_s']*1000:.1f}, max {r['max_s']*1000:.1f})")
 if "speedup_vs_quickjs" in doc:
     print(f"speedup vs quickjs: {doc['speedup_vs_quickjs']:.2f}x")
+if not gate:
+    sys.exit(0)
+base = json.load(open(gate)) if os.path.exists(gate) else {"max_regress_pct": 30, "cases": {}}
+pct = base.get("max_regress_pct", 30)
+if write:
+    keep = base.get("cases") or doc["cases"]
+    base["cases"] = {k: round(doc["cases"][k]["median"], 1) for k in keep if k in doc["cases"]}
+    base.update(machine=doc["machine"], processor=doc["processor"], runs=runs, date=time.strftime("%Y-%m-%d"))
+    json.dump(base, open(gate, "w"), indent=2)
+    print(f"wrote {gate}: {len(base['cases'])} cases")
+    sys.exit(0)
+bad = []
+for k, c in sorted(doc["cases"].items()):
+    ref = base["cases"].get(k)
+    mark = "" if ref is None else f"  baseline {ref:7.1f}  {100 * (c['median'] / ref - 1):+5.0f}%" if ref > 0 else ""
+    print(f"  {k:36s} {c['median']:8.1f}{mark}")
+    if ref and c["median"] > ref * (1 + pct / 100):
+        bad.append(k)
+bad += [k for k in base["cases"] if k not in doc["cases"]]
+if bad:
+    print(f"slower than the baseline by more than {pct}% or missing ({base.get('processor') or base.get('machine', '?')}): " + ", ".join(bad))
+    sys.exit(3)
+print(f"gate: {len(base['cases'])} cases within {pct}% of {gate}")

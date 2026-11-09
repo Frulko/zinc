@@ -1,0 +1,14 @@
+#!/bin/sh
+# The native <-> QuickJS boundary benchmark and its gate (ZN-601): harness.c with boundary.js (the ways of binding a call, on a
+# bare QuickJS) and host.js (the engine's zinc:gfx host rows), through tools/bench --gate against baseline.json: exit 3 when a
+# listed call is more than 30% slower. Run it on a quiet machine, the one of the baseline (an M1 Pro).
+# usage: bench/qjs_boundary/run [--write-baseline]   (ZN_RUNS runs of each, default 5; ZINC the zinc binary, default build/zinc)
+cd "$(dirname "$0")/../.." || exit 2
+zinc=${ZINC:-build/zinc}
+q=third_party/quickjs-ng
+exe=${TMPDIR:-/tmp}/zn_qjs_boundary
+if [ ! -x "$exe" ] || [ -n "$(find bench/qjs_boundary/harness.c "$q" -newer "$exe" -name '*.[ch]' | head -1)" ]; then
+  cc -O2 -w -DQUICKJS_NG_BUILD -I "$q" bench/qjs_boundary/harness.c "$q/quickjs.c" "$q/dtoa.c" "$q/libregexp.c" "$q/libunicode.c" -lm -lpthread -o "$exe" || exit 2
+fi
+ZN_RUNS=${ZN_RUNS:-5} exec timeout 600 tools/bench --gate bench/qjs_boundary/baseline.json "$@" "${TMPDIR:-/tmp}/zn-qjs-boundary.json" \
+  harness="$exe bench/qjs_boundary/boundary.js" host="ZINC_HEADLESS=1 ZINC_BACKGROUND=1 $zinc run bench/qjs_boundary/host.js --engine quickjs"

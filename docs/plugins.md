@@ -312,6 +312,35 @@ script, socket, sqlite, wasm, and gestures, ink, pixelfont. The others also incl
 cover (`hal.h` for the display drivers and system, `zrt_raster.h` for the drawing plugins, `hw.h`, `zgl.h`, SDL3) and stay
 here until those interfaces are frozen too (ZN-396).
 
+## Binding to QuickJS
+
+Native code called from JavaScript on QuickJS (a plugin's methods, `libzn_webgl`, the engine's `__host_*` rows) pays for every
+call: on an M1 Pro an empty method costs about 21 ns, a call with 4 numbers about 40 ns. What a binding does on top can cost
+far more. The rules, with what breaking each one costs (ns per call over an empty loop, measured by `bench/qjs_boundary`, from
+the report [QuickJS: AOT, JIT and the native boundary](reports/quickjs-aot-jit-and-ffi.md)):
+
+| Rule | Cost when broken |
+|---|---|
+| Never use an exception as a type test: ask `JS_IsArrayBuffer`, `JS_GetTypedArrayType` (`napi_is_arraybuffer`, `napi_is_typedarray`) before an accessor that throws | 1,340-1,370 ns for a thrown and discarded `TypeError`, 2,200-2,400 ns twenty JS frames deeper (the backtrace grows ~42 ns per frame), against 34-39 ns with the tests |
+| No heap allocation per call: stack arrays, the bytes of a view read in place, a copy only for a plain JS array | ~110 ns for two `std::vector` reserves in the `__host_*` thunk (before ZN-567), 4x the call |
+| Make atoms once (`JS_NewAtom` at load), never `JS_SetPropertyStr` on a hot path | `{x, y, z}` built with `JS_SetPropertyStr` 160-185 ns, with `JS_NewObjectFrom` and cached atoms 140-160 ns |
+| Return numbers, or write results into a shared typed array the script reads, not a new object per call | a new `{x, y, z}` 140-185 ns; 3 floats written to a shared `Float32Array` and read back 70-87 ns; a number 30 ns |
+| Prefer one coarse call to many fine ones (a whole matrix, a batch of sprites, a native accelerator) | each call costs 20-45 ns before it does anything |
+| No command buffers recorded in JavaScript on QuickJS: build the batch natively | 300-430 ns per recorded command against 45 ns for the direct call (an interpreted typed-array store costs 40-50 ns) |
+| Calling JavaScript from native is cheap: `JS_Call` | ~14 ns plus the callee; reuse event objects instead of building one per event |
+
+Strings cost 32 ns through `JS_ToCStringLen` (37-41 with a `std::string` copy); a pointer into a view is valid until JavaScript
+runs again (a buffer can be detached or resized).
+
+`tests/t0/qjs_binding_rules.sh` checks the first two rules on `libzn_webgl` and `src/qjs`: an accessor that throws on the wrong
+type only after its type test, and no `std::vector` in the call thunks and the hot WebGL methods (`uniform*`, `bind*`,
+`enable`/`disable`, `vertexAttribPointer`, `draw*`, `viewport`) except on a line marked `// slow path`.
+
+`bench/qjs_boundary/run` measures each way of binding a call (a bare QuickJS host, `harness.c` with `boundary.js`) and the
+engine's own `zinc:gfx` host rows (`host.js`), five runs each through `tools/bench --gate`, and exits 3 when a call listed in
+`bench/qjs_boundary/baseline.json` is more than 30% slower than its baseline. The numbers are per machine: run it on a quiet
+M1 Pro, and rewrite the baseline with `--write-baseline` after a change that is meant to move them.
+
 ## Scripting
 
 `zinc:script` ([docs/plugins/script.md](plugins/script.md)) embeds a JavaScript engine (QuickJS-ng) behind a

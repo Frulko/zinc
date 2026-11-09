@@ -9,6 +9,7 @@
 #include <cstring>
 #include <new>
 #include <strings.h>
+#include <type_traits>
 #include <map>
 #include <memory>
 #include <string>
@@ -213,15 +214,39 @@ int viewSlice(napi_env c, WebGL1& gl, int argc, napi_value* argv, int i, std::ui
   n = static_cast<std::size_t>((len ? len : total - off) * static_cast<std::int64_t>(el));
   return 1;
 }
-// a JS array of numbers or a Float32Array
-bool floatsOf(napi_env c, napi_value v, std::vector<float>& out) {
+// The elements of a view read in place (a Float32Array for floats, an Int32Array for ints: what a frame passes), or of a plain JS
+// array copied: the hot uniform calls allocate nothing for a view (docs/plugins.md, "Binding to QuickJS"). The pointer is used
+// before any JS runs again, as the view's bytes may move after.
+template <class T> struct Elems {
+  const T* p = nullptr;
+  std::size_t n = 0;
+  std::vector<T> copy;   // a plain array, or a view whose bytes are not aligned for T
+};
+template <class T> bool elemsOf(napi_env c, napi_value v, Elems<T>& out) {
   std::uint8_t* p = nullptr;
   std::size_t n = 0;
-  if (bytesOf(c, v, p, n)) { out.resize(n / 4); std::memcpy(out.data(), p, out.size() * 4); return true; }
-  if (!isArray(c, v)) return false;
-  std::uint32_t len = lengthOf(c, v);
-  out.resize(len);
-  for (std::uint32_t i = 0; i < len; ++i) out[i] = static_cast<float>(num(c, elem(c, v, i)));
+  if (bytesOf(c, v, p, n)) {
+    if (reinterpret_cast<std::uintptr_t>(p) % alignof(T) == 0) { out.p = reinterpret_cast<const T*>(p); out.n = n / sizeof(T); return true; }
+    out.copy.resize(n / sizeof(T));
+    if (!out.copy.empty()) std::memcpy(out.copy.data(), p, out.copy.size() * sizeof(T));
+  } else if (isArray(c, v)) {
+    const std::uint32_t len = lengthOf(c, v);
+    out.copy.resize(len);
+    for (std::uint32_t i = 0; i < len; ++i) {
+      if constexpr (std::is_same_v<T, float>) out.copy[i] = static_cast<float>(num(c, elem(c, v, i)));
+      else out.copy[i] = static_cast<T>(i32(c, elem(c, v, i)));
+    }
+  } else {
+    return false;
+  }
+  out.p = out.copy.data(); out.n = out.copy.size();
+  return true;
+}
+// a JS array of numbers or a Float32Array, copied (the calls that are not per frame)
+bool floatsOf(napi_env c, napi_value v, std::vector<float>& out) {
+  Elems<float> e;
+  if (!elemsOf(c, v, e)) return false;
+  out.assign(e.p, e.p + e.n);
   return true;
 }
 
@@ -303,9 +328,9 @@ M(uniform4f) { SELF NEED(5); LOC gl.uniform4f(l, F(1), F(2), F(3), F(4)); return
 M(uniform1i) { SELF NEED(2); LOC gl.uniform1i(l, I(1)); return nullptr; }
 M(uniformMatrix4fv) {
   SELF NEED(3); LOC
-  std::vector<float> v;
-  if (!floatsOf(c, argv[2], v)) return typeError(c, "uniformMatrix4fv: value must be a Float32Array or an array");
-  gl.uniformMatrix4fv(l, truthy(c, argv[1]), v.data(), v.size());
+  Elems<float> v;
+  if (!elemsOf(c, argv[2], v)) return typeError(c, "uniformMatrix4fv: value must be a Float32Array or an array");
+  gl.uniformMatrix4fv(l, truthy(c, argv[1]), v.p, v.n);
   return nullptr;
 }
 
@@ -671,21 +696,18 @@ M(uniform4i) { SELF NEED(5); LOC gl.uniform4i(l, I(1), I(2), I(3), I(4)); return
 napi_value uniformFv(napi_env c, Gl* g, int n, int argc, napi_value* argv) {
   if (argc < 2) return typeError(c, "not enough arguments");
   bool ok, fo; UniformLoc l = locOf(c, g, argv[0], ok, fo); if (!ok) return nullptr; if (fo) return nullptr;
-  std::vector<float> v;
-  if (!floatsOf(c, argv[1], v)) return typeError(c, "value must be a Float32Array or an array");
-  g->gl.uniformNfv(l, n, v.data(), v.size());
+  Elems<float> v;
+  if (!elemsOf(c, argv[1], v)) return typeError(c, "value must be a Float32Array or an array");
+  g->gl.uniformNfv(l, n, v.p, v.n);
   return nullptr;
 }
 napi_value uniformIv(napi_env c, Gl* g, int n, int argc, napi_value* argv, bool uns = false) {
   if (argc < 2) return typeError(c, "not enough arguments");
   bool ok, fo; UniformLoc l = locOf(c, g, argv[0], ok, fo); if (!ok) return nullptr; if (fo) return nullptr;
-  std::vector<int> v;
-  std::uint8_t* p = nullptr; std::size_t nb = 0;
-  if (bytesOf(c, argv[1], p, nb)) { v.resize(nb / 4); std::memcpy(v.data(), p, v.size() * 4); }
-  else if (isArray(c, argv[1])) { std::uint32_t len = lengthOf(c, argv[1]); for (std::uint32_t i = 0; i < len; ++i) { napi_value e = elem(c, argv[1], i); v.push_back(i32(c, e)); } }
-  else return typeError(c, "value must be an Int32Array or an array");
-  if (uns) g->gl.uniformNui(l, n, reinterpret_cast<const std::uint32_t*>(v.data()), v.size());
-  else g->gl.uniformNiv(l, n, v.data(), v.size());
+  Elems<int> v;
+  if (!elemsOf(c, argv[1], v)) return typeError(c, "value must be an Int32Array or an array");
+  if (uns) g->gl.uniformNui(l, n, reinterpret_cast<const std::uint32_t*>(v.p), v.n);
+  else g->gl.uniformNiv(l, n, v.p, v.n);
   return nullptr;
 }
 #define UNI_FV(k) M(uniform##k##fv) { SELF return uniformFv(c, g, k, argc, argv); }
@@ -696,9 +718,9 @@ UNI_UIV(1) UNI_UIV(2) UNI_UIV(3) UNI_UIV(4)
 napi_value uniformMat(napi_env c, Gl* g, int n, int argc, napi_value* argv) {
   if (argc < 3) return typeError(c, "not enough arguments");
   bool ok, fo; UniformLoc l = locOf(c, g, argv[0], ok, fo); if (!ok) return nullptr; if (fo) return nullptr;
-  std::vector<float> v;
-  if (!floatsOf(c, argv[2], v)) return typeError(c, "value must be a Float32Array or an array");
-  g->gl.uniformMatrixNfv(l, n, truthy(c, argv[1]), v.data(), v.size());
+  Elems<float> v;
+  if (!elemsOf(c, argv[2], v)) return typeError(c, "value must be a Float32Array or an array");
+  g->gl.uniformMatrixNfv(l, n, truthy(c, argv[1]), v.p, v.n);
   return nullptr;
 }
 M(uniformMatrix2fv) { SELF return uniformMat(c, g, 2, argc, argv); }
@@ -706,7 +728,7 @@ M(uniformMatrix3fv) { SELF return uniformMat(c, g, 3, argc, argv); }
 napi_value attribF(napi_env c, Gl* g, int n, bool vec, int argc, napi_value* argv) {
   if (argc < 1 + (vec ? 1 : n)) return typeError(c, "not enough arguments");
   float v[4] = {0, 0, 0, 1};
-  if (vec) { std::vector<float> a; if (!floatsOf(c, argv[1], a)) return typeError(c, "value must be a Float32Array or an array"); if (static_cast<int>(a.size()) < n) { g->gl.raise(0x0501); return nullptr; } for (int i = 0; i < n; ++i) v[i] = a[i]; }
+  if (vec) { Elems<float> a; if (!elemsOf(c, argv[1], a)) return typeError(c, "value must be a Float32Array or an array"); if (static_cast<int>(a.n) < n) { g->gl.raise(0x0501); return nullptr; } for (int i = 0; i < n; ++i) v[i] = a.p[i]; }
   else for (int i = 0; i < n; ++i) v[i] = static_cast<float>(num(c, argv[1 + i]));
   g->gl.vertexAttribNf(u32(c, argv[0]), n, v);
   return nullptr;
@@ -1063,9 +1085,9 @@ napi_value matRC(napi_env c, Gl* g, int cols, int rows, int argc, napi_value* ar
   if (g->gl.version() != 2) return typeError(c, "not a WebGL 2 context");
   if (argc < 3) return typeError(c, "not enough arguments");
   bool ok, fo; UniformLoc l = locOf(c, g, argv[0], ok, fo); if (!ok) return nullptr; if (fo) return nullptr;
-  std::vector<float> v;
-  if (!floatsOf(c, argv[2], v)) return typeError(c, "value must be a Float32Array or an array");
-  g->gl.uniformMatrixRC(l, cols, rows, truthy(c, argv[1]), v.data(), v.size());
+  Elems<float> v;
+  if (!elemsOf(c, argv[2], v)) return typeError(c, "value must be a Float32Array or an array");
+  g->gl.uniformMatrixRC(l, cols, rows, truthy(c, argv[1]), v.p, v.n);
   return nullptr;
 }
 #define MAT_RC(cols, rows) M(uniformMatrix##cols##x##rows##fv) { SELF return matRC(c, g, cols, rows, argc, argv); }
