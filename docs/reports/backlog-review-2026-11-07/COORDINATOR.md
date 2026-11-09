@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Integrated ZN-1081 (1b8b79f99, Done), ui_focus_dispose PASS on clean develop across all3 engines, original same-frame Dock cancel/repeat drag green. TS-only, no engine rebuild. External Virtual/Fenwick WIP restored. Retain work/1080-inputmode for active worker; clean reset to develop required before1080 so its old1081 commit is not cherry-picked twice. Actions rebases/finalizes .05; Inputs waits Button APIs and1080.
+
 - 2026-11-09: Created/claimed ZN-1081 (blocks actual App chrome docking): stale focus-within callbacks survive release and act on reused node slots. Core blocker chain will do1081 then1080 in work/1080-inputmode; one building worker plus two non-building kit workers. Main ui.ts WIP inspected: only Virtual/Fenwick at636/967, isolated release/focus lifecycle changes permitted near777/6282. No event timing or component workaround.
 
 - 2026-11-09: Created/claimed ZN-1080 (blocks Inputs/kit-gallery): literal-only inputMode lowering rejects dynamic JSX. Short primary-source research completed by coordinator research agent; new frontend worker .worktrees/1080-inputmode, beside two non-building kit workers. At most one engine tree builds; main held UI/runtime modules remain excluded.

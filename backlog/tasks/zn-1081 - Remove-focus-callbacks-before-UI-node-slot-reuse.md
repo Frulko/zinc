@@ -2,8 +2,7 @@
 id: ZN-1081
 title: Remove focus callbacks before UI node slot reuse
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 11:31'
 updated_date: '2026-11-09 11:38'
 labels:
@@ -40,9 +39,10 @@ Main-tree external ui.ts WIP only Virtual/Fenwick logic around636/967; coordinat
 
 Research (coordinator-delegated before implementation): Flutter FocusNode.dispose removes listeners and detaches its attachment (https://api.flutter.dev/flutter/widgets/FocusNode/dispose.html, https://api.flutter.dev/flutter/widgets/FocusAttachment/detach.html); React useEffect pairs setup with cleanup (https://react.dev/reference/react/useEffect). Applied deterministic unregistering plus identity checking, with no dependency.
 
-Evidence: ZINC_ROOT=$PWD ZINC=/Users/mowmow/Lab/zinc/.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc timeout 90 tests/run --only ui_focus_dispose PASS on interpreter, explicit native AOT and QuickJS; zinc check tests/data/ui_focus_dispose/main.ts PASS. The fixture forces the same node index with a different nodeSerial, asserts stale callback absence, verifies retained live callbacks and callback disposal of another pending root and itself followed by reuse. Original Dock cancel/restart proof is pending with the Actions worker using only /tmp/zn-1081-focus.patch temporarily. No engine build or suite run.
+Evidence: ZINC_ROOT=$PWD ZINC=/Users/mowmow/Lab/zinc/.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc timeout 90 tests/run --only ui_focus_dispose PASS on interpreter, explicit native AOT and QuickJS; zinc check tests/data/ui_focus_dispose/main.ts PASS. The fixture forces the same node index with a different nodeSerial, asserts stale callback absence, verifies retained live callbacks and callback disposal of another pending root and itself followed by reuse. Original Dock cancel/restart proof subsequently passed with the Actions worker using only /tmp/zn-1081-focus.patch temporarily (details below). No engine build or suite run.
 
 Proposed tests: existing kit-gallery Dock cancellation and repeated drag on interpreter/native AOT/QuickJS after integration, 3 short frames per interaction plus AOT compilation, RSS unmeasured; physical keyboard/pointer and cross-target UI checks at the owner milestone.
 
-Original feature proof (Actions worker, 2026-11-09): unchanged tests/golden/kit-chrome fixture passes interpreter and QuickJS with only /tmp/zn-1081-focus.patch temporarily applied to its initially-clean ui.ts. Command in .worktrees/1078-actions: ZINC_ROOT=$PWD ZINC=/Users/mowmow/Lab/zinc/.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc PATH=$PWD/tools/compat:$PATH tools/compat/timeout25 tests/run --only kit_chrome: PASS 1/0. Same-frame drag → Escape → release → second drag merges the group without event timing changes. Worker restored its ui.ts mirror immediately and confirmed git diff quiet. No leftover process. Native AOT focus lifecycle is covered by the focused T0; native gallery drag remains a proposed milestone check.
+Original feature proof (Actions worker, 2026-11-09): unchanged tests/golden/kit-chrome fixture passes interpreter and QuickJS with only /tmp/zn-1081-focus.patch temporarily applied to its initially-clean ui.ts. Command in .worktrees/1078-actions: ZINC_ROOT=$PWD ZINC=/Users/mowmow/Lab/zinc/.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc PATH=$PWD/tools/compat:$PATH tools/compat/timeout 25 tests/run --only kit_chrome: PASS 1/0. Same-frame drag → Escape → release → second drag merges the group without event timing changes. Worker restored its ui.ts mirror immediately and confirmed git diff quiet. No leftover process. Native AOT focus lifecycle is covered by the focused T0; native gallery drag remains a proposed milestone check.
+Coordinator integration: 1b8b79f99 on develop; retained clean smoke tree ui_focus_dispose passed all engines. The external Virtual/Fenwick changes in main ui.ts were restored and remain uncommitted.
 <!-- SECTION:NOTES:END -->
