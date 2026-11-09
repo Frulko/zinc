@@ -2,7 +2,8 @@
 id: ZN-1070
 title: 'plugins/appkit: the primitives as AppKit views'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-08 21:43'
 labels:
   - ui
