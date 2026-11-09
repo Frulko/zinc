@@ -6,6 +6,7 @@ import { NavigationSection } from './sections/navigation';
 import { ChromeSection } from './sections/chrome';
 import { FeedbackSection } from './sections/feedback';
 import { SelectionSection } from './sections/selection';
+import { PickersSection } from './sections/pickers';
 import { InputsSection } from './sections/inputs';
 import { render } from 'zinc:ui/solid';
 import { Switch, heading, leadText, theme, useQuietTheme } from 'zinc:ui/kit';
@@ -20,7 +21,7 @@ if (env('GALLERY_DARK') === '1') setDarkMode(true);
 
 function Header(): i32 {
   return <View className="flex-row items-start justify-between gap-4">
-    <View className="flex-col gap-2">
+    <View className="flex-1 min-w-0 flex-col gap-2">
       <Text className={heading(1)}>Zinc UI kit</Text>
       <Text className={leadText()}>Quiet components, compiled to native code.</Text>
     </View>
@@ -38,13 +39,14 @@ function Section(props: { title: string; children: () => i32 }): i32 {
 
 function App(): i32 {
   return <ScrollView className={`h-full bg-${theme().background}`}>
-    <View className="flex-col gap-8 p-8">
+    <View className="flex-col gap-8 p-4 md:p-8">
       <Header />
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'actions' || env('GALLERY') === 'palette'}><ActionsSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'navigation'}><NavigationSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'chrome'}><ChromeSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'selection'}><SelectionSection /></Show>
       <Show when={env('GALLERY') === 'overlays'}><Section title="Overlays"><OverlaysCard /></Section></Show>
+      <Show when={env('GALLERY') === '' || env('GALLERY').startsWith('pickers')}><PickersSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'inputs'}><InputsSection /></Show>
       <Show when={env('GALLERY') === 'feedback'}><Section title="Feedback"><FeedbackSection /></Section></Show>
       <Show when={env('GALLERY') === ''}>

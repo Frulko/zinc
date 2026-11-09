@@ -17,6 +17,7 @@ export interface SliderOptions {
   accessibilityLabel?: string;
   format?: (value: number) => string;
   showValue?: boolean;
+  reset?: number;
   className?: string;
 }
 export interface SliderProps extends SliderOptions { value: () => number; onChange: (value: number) => void }
@@ -63,6 +64,7 @@ function SliderRail(p: SliderOptions, low: () => number, high: (() => number) | 
     return logarithmic && min > 0 ? min * Math.pow(max / min, t) : min + t * (max - min);
   };
   const key = (index: i32, current: number, e: ui.KeyEvent): void => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && p.reset !== undefined) { commit(index, p.reset); e.preventDefault(); return; }
     const direction = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
     if (direction === 0 && e.key !== 'Home' && e.key !== 'End' && e.key !== 'PageUp' && e.key !== 'PageDown') return;
     const increment = (step > 0 ? step : (max - min) / 100) * (e.shift || e.key === 'PageUp' || e.key === 'PageDown' ? 10 : 1);
@@ -112,6 +114,7 @@ function SliderRail(p: SliderOptions, low: () => number, high: (() => number) | 
         <Show when={high !== null}>{renderSlot(() => thumb(1, high === null ? low : high, second))}</Show>
       </View>
     </View>;
+  if (p.reset !== undefined) ui.onPointer(rail.node, ui.PDBL, (e: ui.PointerEvent) => { if (p.reset !== undefined) commit(gesture.active, p.reset); });
   if (high === null && !vertical && !logarithmic) nativeControl(rail.node, 'slider', () => ['axlabel', p.accessibilityLabel ?? 'Value', 'min', String(min), 'max', String(max), 'step', String(step), 'value', String(low()), 'enabled', p.disabled === true ? '0' : '1'], (value: string) => commit(0, parseFloat(value)));
   if (p.showValue === true) return <View className="flex-col gap-2">
     <Text className={`text-[12px] tabular-nums text-${theme().mutedForeground}`}>{text(low()) + (high === null ? '' : ' – ' + text(high()))}</Text>

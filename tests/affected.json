@@ -735,6 +735,7 @@
     {"paths": ["lib/std/icons.tsx", "lib/std/kit/host.ts", "lib/std/kit/selection.tsx", "lib/std/kit/slider.tsx", "lib/std/kit/switch.tsx", "tests/golden/kit-selection/", "tests/golden/kit-selection-react/", "tests/t0/kit_selection.sh"], "tests": ["kit_selection"]},
     {"paths": ["plugins/appkit/native/appkit.macos.mm", "tests/golden/kit-selection-native/", "tests/t0/kit_selection_native.sh"], "tests": ["kit_selection_native"]},
     {"paths": ["lib/std/kit/overlays.tsx", "lib/std/kit/tooltip.ts", "tests/golden/kit-overlays/", "tests/golden/kit-overlays-react/", "tests/t0/kit_overlays.sh"], "tests": ["kit_overlays"]},
+    {"paths": ["lib/std/kit/pickers.tsx", "lib/std/kit/picker-date.ts", "lib/std/kit/picker-emoji.ts", "tools/gen-picker-emoji", "third_party/unicode-emoji-17/", "lib/std/kit/host.ts", "tests/golden/kit-pickers/", "tests/golden/kit-pickers-react/", "tests/t0/kit_pickers.sh"], "tests": ["kit_pickers"]},
     {"paths": ["lib/std/kit/feedback.tsx", "lib/std/kit/host.ts", "lib/std/kit/alert.tsx", "lib/std/kit/badge.tsx", "lib/std/kit/avatar.tsx", "lib/std/kit/progress.tsx", "lib/std/kit/spinner.tsx", "tests/golden/kit-feedback/", "tests/golden/kit-feedback-react/", "tests/t0/kit_feedback.sh"], "tests": ["kit_feedback"]},
     {"paths": ["runtime/gfx.cpp", "tests/t0/framehash_corner.sh", "tests/data/framehash_corner/"], "tests": ["framehash_corner"]}
   ]

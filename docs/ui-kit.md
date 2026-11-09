@@ -491,3 +491,40 @@ roles in both themes. They introduce no ongoing animation, so reduced motion kee
 
 Run the family alone with `GALLERY=inputs zinc run examples/ui/kit-gallery`. `GALLERY_DARK=1` selects dark.
 The pictures above come from the gallery at 1120 × 900; all controls remain interactive in that same program.
+
+## Pickers
+
+Pickers use caller-owned values and the Quiet theme. Import them from `zinc:ui/kit`, or import the family from
+`lib/std/kit/pickers`. The calendars use civil ISO dates (`YYYY-MM-DD`), independent of time zones and daylight
+saving. Time values are whole minutes after midnight (0–1439), including in the 12-hour presentation.
+
+![Date, range, wheel and time pickers rendered by Zinc](img/kit-pickers-dates.png)
+![Date and time pickers in Quiet dark](img/kit-pickers-dates-dark.png)
+![Color and emoji pickers rendered by Zinc](img/kit-pickers-colors.png)
+![Color and emoji pickers in Quiet dark](img/kit-pickers-colors-dark.png)
+![Ruler, histogram, knobs and faders rendered by Zinc](img/kit-pickers-values.png)
+![Value pickers in Quiet dark](img/kit-pickers-values-dark.png)
+
+| Component | Values, options and keyboard behavior |
+| --- | --- |
+| `Calendar` | `value: () => string`, `onChange`, `label`, initial `month`, `today`, `min`, `max`, `disabledDate`, `weekStart` (Monday by default), `disabled`, `className`. One roving day per month; arrows move a day/week, Home/End reach the week ends, Page Up/Down change month, Shift changes year, Enter/Space chooses. Month changes clamp the day, so January 31 reaches February 28 or 29. Unavailable days cannot be selected. |
+| `DatePicker` | Calendar options plus `placeholder`, trigger `width` (180). Opens a calendar in the existing Popover with outside-press/Escape dismissal and focus restoration. An empty value shows the placeholder. |
+| `RangeCalendar` | Calendar options with `value` for the start, `end: () => string` and `onRangeChange(start, end)`; no unused single-date callback. `months` is 1 or 2. The first choice clears the end, the second orders the endpoints; hover previews the range. Escape cancels the pending endpoint. A disabled day inside a range prevents committing it. |
+| `DateRangePicker` | Range-calendar options plus `placeholder`, `presets` (true). Today, Last 7 days and Last 30 days respect the same date restrictions. |
+| `TimePicker` | `value: () => number`, `onChange`, `label`, `twelveHour`, `minuteStep` (1–60), `disabled`, `className`. Hour/minute and optional AM/PM wheels open at the current selection; the stored hour is always 0–23. |
+| `WheelPicker` | `items: string[]`, numeric index `value` / `onChange`, `label`, odd visible `rows` (5), `width` (100), `loop`, `joinLeft` / `joinRight` (shared band/edges), `disabled`, `className`. Native inertial scroll snaps rows into the selection band. Arrows step, Page Up/Down move a visible page, Home/End reach the ends; `loop` wraps both scrolling and keyboard steps. |
+| `TimeDial` | `value`, `onChange`, `label`, `minuteStep`, `disabled`, `className` and `size` (240). The outer ring selects 1–12, the inner ring 13–23 and midnight; releasing switches to minutes. Hours/Minutes buttons, H/M keys switch modes, arrows change the selected unit, Shift steps tenfold, Home/End reach midnight/23:59. |
+| `ColorPicker` | Hex string `value` / `onChange` (`#rrggbb`, or `#rrggbbaa` with `alpha`), `label`, `swatches`, `disabled`, `className`. The saturation/brightness square works by pointer and arrows (Shift for 10%); Home gives white, End black. A hue slider, optional opacity slider and validated hex field expose every channel from the keyboard. |
+| `EmojiPicker` | String `value` / `onChange`, optional `items: EmojiEntry[]`, app-owned `recent` / `onRecentChange`, `tone` / `onToneChange` (0–5), `label`, `placeholder`, `emptyText`, `width` (300), grid `height` (180), `size` (26), `noSearch`, `noPreview`, `noTone`, `disabled`, `className`. Includes Unicode 17.0’s 1,914 base emoji in nine groups and 330 exact tone sets, decoded lazily; supply `items` for a translated or app-specific catalog. Each entry has `emoji`, `name`, `group`, and optional `tone` for a single base emoji supporting skin tones, or five exact `tones` for compound sequences. Search matches word prefixes; Down enters the grid, Enter chooses the first match. The virtual grid keeps only visible rows mounted. Arrows and Home/End move the active cell; Enter/Space chooses. Recent values are supplied by the app; imports never read storage. |
+| `RulerSlider` | Slider values, bounds, step, format, disabled and accessibility label, plus `majorEvery` (10), tick `spacing` (12 px), `unit`, `width` (300). The tape scrolls and snaps below a fixed marker. Arrows step, Shift/Page keys step tenfold, Home/End reach the bounds. At most 4096 ticks; increase `step` for larger ranges. |
+| `HistogramSlider` | Range-slider `low`, `high`, `onChange(low, high)`, bounds, step and format, plus `bins: number[]` and `height` (72). Bars inside the selected range use the accent; both handles retain slider keyboard and pointer behavior. |
+| `Knob` | Slider value/bounds/step/format, `label`, `unit`, `size` (64), `reset` (0), `bipolar`, `logarithmic` (positive ranges), `hideValue`, `disabled`, `className`. Drag vertically over 200 px for the full range; Shift makes the drag tenfold finer. Arrows step, Shift/Page keys step tenfold, Home/End reach bounds, Delete/Backspace or double-click resets. Wheel changes require focus. |
+| `Fader` | `value`, `onChange`, bounds, step, format, logarithmic scale, markers, disabled, accessibility label and classes, plus `label`, `unit`, `length` (180), `horizontal` (false), `reset` (0), `ticks`, `meter: () => number[]` (levels 0–1) and `hideValue`. Reuses the slider gesture and bounds; labelled `ticks` follow the same linear/logarithmic scale. The wheel changes only the focused fader; Delete/Backspace or double-click resets. |
+
+Wheel/ruler inertia and snap use the existing scroll engine. Reduced motion takes the same final selection without
+the spring movement; pointer tracking and keyboard feedback remain immediate. Color swatches and emoji carry the
+chosen content's colors, while surrounding controls follow Quiet's neutral surfaces and accent.
+
+Run `GALLERY=pickers zinc run examples/ui/kit-gallery` for the whole family. The three focused views are
+`GALLERY=pickers-dates`, `pickers-colors`, and `pickers-values`; add `GALLERY_DARK=1` for dark mode. The documentation
+pictures use `ZINC_SIZE=1200x780 ZINC_HEADLESS=1 ZINC_FRAMES=4 ZINC_SHOT=...` with those focused views.

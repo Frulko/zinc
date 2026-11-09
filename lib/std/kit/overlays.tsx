@@ -96,7 +96,7 @@ export function Popover(props: PopoverProps): i32 {
   const t = theme();
   const node = <View className="flex-col">
     <View ref={trig} className="flex-col">{props.trigger !== undefined
-      ? <Button aria-label={props.label} className="cursor-pointer" onClick={() => setOpen(!open.current)}>{renderSlot(Trigger)}</Button>
+      ? <Button aria-label={props.label} className={`cursor-pointer rounded-[10px] focus-visible:ring-2 focus-visible:ring-${t.accent} focus-visible:ring-offset-2`} onClick={() => setOpen(!open.current)}>{renderSlot(Trigger)}</Button>
       : <KitButton label={props.label} variant={props.variant ?? 'outline'} onClick={() => setOpen(!open.current)} />}</View>
     <View ref={panel} hidden={open.current ? 0 : 1} className={`flex-col gap-3 p-[${props.padding ?? 16}px] w-[${props.width ?? 288}px] ${look().panel} border border-${t.border} bg-${t.card} ${props.className ?? ''}`}>
       {props.children()}

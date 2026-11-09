@@ -158,6 +158,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Quiet navigation adds grouped sidebars, breadcrumb overflow, pagination, steppers, scroll-following contents, docks and mobile tab bars; tabs support keyboard selection and horizontal scrolling, with icons and moving indicators available through `NavigationTabs`.
 - Quiet feedback adds dismissible banners, storage meters, skeletons, empty states and timelines; progress indicators, status badges and avatars share the same theme and respect reduced motion.
+- The Quiet kit adds calendars, date and range popovers, time wheels and a dial, color and emoji pickers, ruler and histogram sliders, knobs and faders, with keyboard control and focused gallery views.
 
 #### Changed
 
@@ -209,7 +210,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Composed JSX `id` values, including helper calls and template strings, work while optional IDs still clear cleanly.
 - Scroll requests made before mounting, while hidden or after content changes keep their requested position until layout is ready; virtual row alignment and animated scrolling follow the same rule.
 - A guarded optional callback can be used inside `String`, `Number` or `Boolean` without a false nullable-call error.
-
+- Custom popover triggers use the Quiet accent for their keyboard focus ring.
 
 ### The web
 

@@ -37,3 +37,5 @@ export { Toolbar, ToolbarItem, StatusBar, StatusItem, DocumentTabs, DocumentTabs
 export { Checkbox, CheckboxProps, RadioGroup, RadioCards, RadioGroupProps, ChoiceOption, Chip, ChipProps, Chips, Rating } from './selection';
 
 export { Banner, BannerProps, Meter, MeterProps, Skeleton, SkeletonProps, EmptyState, EmptyStateProps, Timeline, TimelineProps, TimelineItem, AlertProps, BadgeProps, AvatarProps, ProgressProps, ProgressRingProps, SpinnerProps } from './feedback';
+
+export { Calendar, CalendarProps, CalendarOptions, RangeCalendar, RangeCalendarProps, DatePicker, DatePickerProps, DateRangePicker, DateRangePickerProps, TimePicker, TimePickerProps, TimeDial, TimeDialProps, WheelPicker, WheelPickerProps, ColorPicker, ColorPickerProps, EmojiPicker, EmojiPickerProps, EmojiEntry, RulerSlider, RulerSliderProps, HistogramSlider, HistogramSliderProps, Knob, KnobProps, Fader, FaderProps } from './pickers';

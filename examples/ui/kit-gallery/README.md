@@ -64,3 +64,5 @@ Enter/Space reach the same actions. `GALLERY_DARK=1` starts in Quiet dark.
 a ring, storage meter, spinner and skeletons, badges, avatar statuses, empty-state action and timeline. Dismiss and
 action controls support Tab/Enter/Space; the empty-state action ends the sample loading state. Nothing moves after
 loading is stopped, and reduced motion freezes the loading indicators.
+
+The Pickers family is available with `GALLERY=pickers`, or the focused views `pickers-dates`, `pickers-colors` and `pickers-values`. Add `GALLERY_DARK=1` for Quiet dark. Values are interactive; calendar keys, wheel snapping, color channels and fine numeric controls share the public kit components.
