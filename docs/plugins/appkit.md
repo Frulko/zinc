@@ -124,7 +124,7 @@ import { PushButton, Switch, Checkbox, PopUpButton, SegmentedControl, Slider, Da
 | `Progress` | an NSProgressIndicator bar | the kit's `Progress` |
 
 The kits map to the same controls, so a program written with them gets the native ones under `render: "native"` without changing a line: the
-kit's `Button` (when it is only a label), `Switch`, `Slider`, `Tabs` and `Progress`, zinc:ui/nuxt's `Button`, `Switch`, `Checkbox` and `Select`,
+kit's `Button` (when it is only a label), `Checkbox` (including mixed state), `Switch`, `Slider`, `Tabs` and `Progress`, zinc:ui/nuxt's `Button`, `Switch`, `Checkbox` and `Select`,
 and zinc:react-native's `Button` and `Switch`. Each sets a native kind on its node (`nativeControl` of zinc:ui/kit); its classes are the drawn
 fallback. Controls are controlled: the value shown is the program's; the person's change comes back (`onValueChange`, `onChange`...), and a value
 the program does not take goes back to the program's one frame later.

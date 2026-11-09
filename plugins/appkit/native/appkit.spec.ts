@@ -25,7 +25,7 @@ export interface Spec extends NativeModule {
   /** The views' events: kind 0 edit (text, a and b the selection), 1 change (editing ended), 2 submit (Enter), 3 focus, 4 blur, 5 scroll (a, b the offsets), 6 press (a toolbar item), 7 resize (a split pane: a, b its new size);
    *  a Table's and an Outline's: 8 select (text: the rows "3,4", an Outline's item id), 9 sort (text the column, a 1 ascending), 10 type-select (text
    *  the string, a the row to search from), 11 open (a the row), 12 expand (text the item id, a 1 open), 13 rows (b the table's top in view), 14 focus;
-   *  a control's: 15 press (a push button), 16 value (text: '1' or '0', the item, the segment, the number, the date); 17 an overlay ended (a: an alert's button, -1 dismissed);
+   *  a control's: 15 press (a push button), 16 value (text: '1', '0' or checkbox 'mixed', the item, the segment, the number, the date); 17 an overlay ended (a: an alert's button, -1 dismissed);
    *  18 a plugin's view sent an event (ZN-1075, include/zn/native_view.h; text: its name, then its arguments, joined by U+001F). */
   onEvent(cb: (id: i32, kind: i32, text: string, a: f64, b: f64) => void): void;
 }

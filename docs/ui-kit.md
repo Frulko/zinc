@@ -223,6 +223,48 @@ Rules that keep it so, for whoever adds to the kit:
 - **Themes are data**: roles, colours and shapes, never functions stored in a table.
 
 
+## Quiet Selection
+
+Selection state belongs to the application: pass an accessor and an `onChange` callback. All controls use the
+Quiet theme in light and dark. Checks, radio dots, chip selections and rating changes cut directly to their final
+state; they need no decorative motion and behave identically with reduced motion enabled.
+
+![Selection drawn by Zinc](img/kit-selection.png)
+
+![Selection in dark mode drawn by Zinc](img/kit-selection-dark.png)
+
+| Component | Contract and useful options |
+|---|---|
+| `Checkbox` | `label`, `checked`, `onChange`; optional `description`, `indeterminate: () => boolean`, `disabled`, `className`. A mixed checkbox announces `mixed`; activating it selects it. The whole labelled row is clickable. |
+| `Switch` | `checked`, `onChange`, optional `label`, `accessibilityLabel`, `disabled`, `className`. Use it for an immediate setting. The whole label toggles it; its name stays the same in both states. Existing adaptive platform shapes remain available. |
+| `RadioGroup` | `label`, `items: {value,label,description?,icon?,badge?,disabled?}[]`, `value: () => string`, `onChange`; optional `orientation="horizontal"`, `variant="card"`, `disabled`, `className`. One choice per group. |
+| `RadioCards` | The same controlled contract as `RadioGroup`, with bordered cards for choices that need descriptions, icons or badges. `columns` controls card widths. |
+| `Slider` | `value`, `onChange`; optional `min`, `max`, `step`, `accessibilityLabel`, `format`, `showValue`, `markers: number[]`, `disabled`, `className`. Steps start at `min`, with the result clamped to the bounds. `vertical` puts the maximum at the top; `logarithmic` maps a positive range logarithmically. |
+| `RangeSlider` | The Slider options, with `low`, `high` accessors and `onChange(low, high)`. Two named thumbs share a rail. A thumb stops at the other thumb; both stay reachable from Tab. |
+| `Chip` | `label`, `selected: () => boolean`, `onChange`; optional `disabled`, `onRemove`. The remove action is a separate named button. |
+| `Chips` | `label`, `items`, `value: () => string[]`, `onChange`, optional `disabled`. Choices toggle independently and return a new array. |
+| `Rating` | `label`, `value`, `onChange`; optional `max` (5), `readOnly`, `disabled`. Clicking the selected star again clears the rating. Selected stars are filled in the selection accent; `Icon filled` also fills other closed Lucide shapes. |
+
+Space and Enter activate checks, switches and chips. Tab enters a radio group at its selected item (the first
+available item when none is selected); arrows select and focus the next available choice, wrapping at either end.
+Home and End select the first and last choice. Disabled choices never take focus.
+Slider arrows change one step, Shift plus an arrow and Page Up/Down change ten steps, and Home/End reach the
+bounds. Sliders announce their name, current value, bounds, orientation and formatted value. Rating arrows change
+one star, Home/Delete/Backspace clear it, and End selects the maximum. Each keyboard target keeps the engine's
+visible focus ring.
+
+```tsx
+const [low, setLow] = createSignal(20);
+const [high, setHigh] = createSignal(80);
+<RangeSlider accessibilityLabel="Histogram" low={low} high={high}
+  onChange={(lo: number, hi: number) => { setLow(lo); setHigh(hi); }} />
+```
+
+Reproduce the picture with `GALLERY=selection ZINC_HEADLESS=1 ZINC_SIZE=960x1000 ZINC_FRAMES=2
+ZINC_SHOT=docs/img/kit-selection.png zinc run examples/ui/kit-gallery --engine quickjs`.
+Add `GALLERY_DARK=1` to inspect dark mode. The Selection implementations are in `selection.tsx`, with the
+existing switch and slider providers kept in their own modules; importing one family performs no registration.
+
 ## How it works
 
 Each kit file starts with `/** @jsxHelpers ./host */`: the JSX compiler lowers that file against

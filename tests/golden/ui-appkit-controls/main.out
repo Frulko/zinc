@@ -1,14 +1,16 @@
 root 480x300
-  #2 pushbutton 12,12 68x36 "Save" key=return
-  #8 switch 88,20 36x20 off
-  #13 switch 132,20 36x20 off
+  #2 pushbutton 12,12 68x36 ax="Save" "Save" key=return
+  #7 view 88,15 36x30 radius=10 focusable
+    #8 switch 0,5 36x20 off
+  #12 view 132,15 36x30 radius=10 focusable
+    #13 switch 0,5 36x20 off
   #18 checkbox 12,68 97x16 "Hidden files" on
   #22 popup 117,65 76x22 "Name" items=3
   #32 segmented 201,58 216x36 sel=0 items=Icons|List|Columns
-  #41 slider 12,105 140x20 value=20 range=0..100
-  #45 datepicker 160,104 110x22 "2026-11-09"
-  #46 search 278,104 180x22 "" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999
-  #47 progress 12,136 160x8 value=20
+  #41 slider 12,104 140x30 ax="Value" value=20 range=0..100
+  #53 datepicker 160,108 110x22 "2026-11-09"
+  #54 search 278,108 180x22 "" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999
+  #55 progress 12,144 160x8 value=20
 
 click true true true true
 set true true true true true
@@ -23,34 +25,38 @@ date 2026-12-25
 search abc
 -- after the person
 root 480x300
-  #2 pushbutton 12,12 68x36 "Save" key=return
-  #8 switch 88,20 36x20 on
-  #13 switch 132,20 36x20 off
+  #2 pushbutton 12,12 68x36 ax="Save" "Save" key=return
+  #7 view 88,15 36x30 radius=10 focusable
+    #8 switch 0,5 36x20 on
+  #12 view 132,15 36x30 radius=10 focusable
+    #13 switch 0,5 36x20 off
   #18 checkbox 12,68 97x16 "Hidden files" off
   #22 popup 117,65 66x22 "Size" items=3
   #32 segmented 191,58 216x36 sel=2 items=Icons|List|Columns
-  #41 slider 12,105 140x20 value=45 range=0..100
-  #45 datepicker 160,104 110x22 "2026-12-25"
-  #46 search 278,104 180x22 "abc" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999 first
-  #47 progress 12,136 160x8 value=45
+  #41 slider 12,104 140x30 ax="Value" value=45 range=0..100
+  #53 datepicker 160,108 110x22 "2026-12-25"
+  #54 search 278,108 180x22 "abc" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999 first
+  #55 progress 12,144 160x8 value=45
 
 -- overlays
 root 480x300
-  #2 pushbutton 12,12 68x36 "Save" key=return
-  #8 switch 88,20 36x20 on
-  #13 switch 132,20 36x20 off
+  #2 pushbutton 12,12 68x36 ax="Save" "Save" key=return
+  #7 view 88,15 36x30 radius=10 focusable
+    #8 switch 0,5 36x20 on
+  #12 view 132,15 36x30 radius=10 focusable
+    #13 switch 0,5 36x20 off
   #18 checkbox 12,68 97x16 "Hidden files" off
   #22 popup 117,65 66x22 "Size" items=3
   #32 segmented 191,58 216x36 sel=2 items=Icons|List|Columns
-  #41 slider 12,105 140x20 value=45 range=0..100
-  #45 datepicker 160,104 110x22 "2026-12-25"
-  #46 search 278,104 180x22 "abc" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999 first
-  #47 progress 12,136 160x8 value=45
-#49 alert "Delete 3 files?" "This cannot be undone." buttons "Delete" "Cancel" offscreen
-#58 sheet 420x78 offscreen
-  #61 pushbutton 21,21 69x36 "Done"
-#66 popover 89x44 at 12,12 68x36 bottom offscreen
-  #67 checkbox 13,13 63x18 "Pinned" on
+  #41 slider 12,104 140x30 ax="Value" value=45 range=0..100
+  #53 datepicker 160,108 110x22 "2026-12-25"
+  #54 search 278,108 180x22 "abc" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999 first
+  #55 progress 12,144 160x8 value=45
+#57 alert "Delete 3 files?" "This cannot be undone." buttons "Delete" "Cancel" offscreen
+#66 sheet 420x78 offscreen
+  #69 pushbutton 21,21 74x36 ax="Done" "Done"
+#74 popover 99x44 at 12,12 68x36 bottom offscreen
+  #75 checkbox 13,13 73x18 "Pinned" on
 
 end true true true
 alert 1
@@ -58,14 +64,16 @@ sheet 'done'
 popover ''
 -- closed: overlays ''
 root 480x300
-  #2 pushbutton 12,12 68x36 "Save" key=return
-  #8 switch 88,20 36x20 on
-  #13 switch 132,20 36x20 off
+  #2 pushbutton 12,12 68x36 ax="Save" "Save" key=return
+  #7 view 88,15 36x30 radius=10 focusable
+    #8 switch 0,5 36x20 on
+  #12 view 132,15 36x30 radius=10 focusable
+    #13 switch 0,5 36x20 off
   #18 checkbox 12,68 97x16 "Hidden files" off
   #22 popup 117,65 66x22 "Size" items=3
   #32 segmented 191,58 216x36 sel=2 items=Icons|List|Columns
-  #41 slider 12,105 140x20 value=45 range=0..100
-  #45 datepicker 160,104 110x22 "2026-12-25"
-  #46 search 278,104 180x22 "abc" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999 first
-  #47 progress 12,136 160x8 value=45
+  #41 slider 12,104 140x30 ax="Value" value=45 range=0..100
+  #53 datepicker 160,108 110x22 "2026-12-25"
+  #54 search 278,108 180x22 "abc" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999 first
+  #55 progress 12,144 160x8 value=45
 

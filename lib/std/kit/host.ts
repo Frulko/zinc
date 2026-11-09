@@ -105,3 +105,8 @@ export function onCleanup(fn: () => void): void {
   if (fineGrained()) solid.onCleanup(fn);
   else react.useEffect(() => fn, null);
 }
+
+/** Component-owned state persists across React renders; Solid constructs the component once. */
+export function componentRef<T>(initial: T): react.MutableRef<T> {
+  return fineGrained() ? new react.MutableRef<T>(initial) : react.useRef(initial);
+}

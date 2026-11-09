@@ -43,3 +43,8 @@ contains the family composition. Nothing animates at rest.
 document tabs select/close/reorder from the keyboard. Drag panel tabs into groups or to edges, or use “Panel actions”
 to dock by keyboard; Escape cancels a drag. Dividers take pointer drags and arrow keys. Save/Restore layout use a
 single gallery storage key only on request, report errors in the status bar and preserve the current layout on failure.
+
+`GALLERY=selection` shows mixed and disabled checkboxes, whole-label switches, radio lists and cards, sliders
+(horizontal, vertical, logarithmic, marked and range), filter chips, a removable chip and a clearable star rating.
+The radio group skips disabled choices with arrows; slider arrows step (Shift steps ten), Home/End reach bounds,
+and Delete clears the focused rating. `src/sections/selection.tsx` owns this page's local state.

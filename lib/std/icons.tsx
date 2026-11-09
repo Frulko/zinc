@@ -10,8 +10,8 @@ const missing = new Set<string>();   // the names already warned about (the comp
 for (const n of UNKNOWN) missing.add(n);
 
 /** The parsed icon for this colour and stroke width (cached); null when the name was not compiled in. */
-export function icon(name: string, color: i32 = 0x000000, strokeWidth: number = 2): Svg | null {
-  const key = name + '/' + color + '/' + strokeWidth;
+export function icon(name: string, color: i32 = 0x000000, strokeWidth: number = 2, filled: boolean = false): Svg | null {
+  const key = name + '/' + color + '/' + strokeWidth + '/' + filled;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   let text = lucide(name);
@@ -23,6 +23,7 @@ export function icon(name: string, color: i32 = 0x000000, strokeWidth: number = 
   let hex = '';
   for (let k = 20; k >= 0; k -= 4) hex += digits.charAt((color >> k) & 15);
   text = text.replace('stroke="currentColor"', 'stroke="#' + hex + '"').replace('stroke-width="2"', 'stroke-width="' + strokeWidth + '"');
+  if (filled) text = text.replace('fill="none"', 'fill="#' + hex + '"');
   const s = new Svg(text);
   cache.set(key, s);
   return s;
@@ -33,13 +34,14 @@ export function iconNames(): string[] { return NAMES; }
 
 /** A lazy canvas: an icon is drawn when the frame is painted for another reason, so a screen of icons stays idle (no repaint every frame); the
  *  parsed icon of the last colour is kept, so a repaint allocates nothing. */
-export function Icon(p: { name: string; size?: number; color?: () => i32; strokeWidth?: number }): i32 {
+export function Icon(p: { name: string; size?: number; color?: () => i32; strokeWidth?: number; filled?: boolean }): i32 {
   const size = p.size ?? 24;
-  let lastColor: i32 = -1, last: Svg | null = null;
+  let lastColor: i32 = -1, lastFilled = false, last: Svg | null = null;
   return <Canvas style={{ width: size, height: size, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
     let c = p.color !== undefined ? (p.color as () => i32)() : 0x000000;
     if (EINK) c = einkSnap(c as u32) as i32;   // the panel's palette, as every other command of zinc:ui (ZN-929)
-    if (c !== lastColor || last === null) { last = icon(p.name, c, p.strokeWidth ?? 2); lastColor = c; }
+    const filled = p.filled === true;
+    if (c !== lastColor || filled !== lastFilled || last === null) { last = icon(p.name, c, p.strokeWidth ?? 2, filled); lastColor = c; lastFilled = filled; }
     const s = last;
     if (s !== null) (s as Svg).draw(x, y, w, h, 255);
   }} />;

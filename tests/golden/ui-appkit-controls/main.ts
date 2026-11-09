@@ -42,7 +42,7 @@ ui.mount(root, 0xffffff, (_dt: number) => {
   frame++;
   if (!appkit.hostShown()) {   // drawn: the fallbacks, pressed through zinc:ui
     if (frame === 2) {
-      ui.click(save); ui.click(track(sw)); ui.click(check);
+      ui.click(save); ui.click(sw); ui.click(check);
       alert({ message: 'Drawn?', buttons: ['Yes', 'No'] }).then((b: number) => { console.log(`drawn alert ${b}`); });
     }
     if (frame === 3) { console.log(`drawn: overlays ${appkit.overlays().length}`); ui.keyDown(-1, 'Escape'); }

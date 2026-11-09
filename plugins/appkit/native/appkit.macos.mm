@@ -130,18 +130,24 @@ NSDateFormatter* dayFormat() {
   static NSDateFormatter* f = [] { NSDateFormatter* d = [[NSDateFormatter alloc] init]; d.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"]; d.timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0]; d.dateFormat = @"yyyy-MM-dd"; return d; }();
   return f;
 }
-/** On or off: an NSSwitch's, or a check box's (the switch before macOS 10.15). */
+/** An NSSwitch's on/off state, or a checkbox's on/off/mixed state. */
 NSInteger stateOf(NSControl* c) {
   if (@available(macOS 10.15, *)) { if ([c isKindOfClass:NSSwitch.class]) return ((NSSwitch*)c).state; }
   return [c isKindOfClass:NSButton.class] ? ((NSButton*)c).state : NSControlStateValueOff;
 }
-void setState(NSControl* c, bool on) {
-  const NSControlStateValue v = on ? NSControlStateValueOn : NSControlStateValueOff;
+void setState(NSControl* c, NSControlStateValue v) {
   if (@available(macOS 10.15, *)) { if ([c isKindOfClass:NSSwitch.class]) { if (((NSSwitch*)c).state != v) ((NSSwitch*)c).state = v; return; } }
-  if ([c isKindOfClass:NSButton.class] && ((NSButton*)c).state != v) ((NSButton*)c).state = v;
+  if ([c isKindOfClass:NSButton.class]) {
+    NSButton* b = (NSButton*)c;
+    // Mixed advances to on; after the app accepts it, restore the ordinary two-state click cycle.
+    const bool mixed = v == NSControlStateValueMixed;
+    if (b.allowsMixedState != mixed) b.allowsMixedState = mixed;
+    if (b.state != v) b.state = v;
+  }
 }
-/** What a control holds now, as its `value` attribute says it: '1' or '0', the item's title, the segment, the number, the date. */
+/** What a control holds now, as its `value` attribute says it: '1', '0' or 'mixed', an item, segment, number or date. */
 std::string controlValue(const Node& n, NSControl* c) {
+  if (n.kind == KCheckbox && stateOf(c) == NSControlStateValueMixed) return "mixed";
   if (n.kind == KSwitch || n.kind == KCheckbox) return stateOf(c) == NSControlStateValueOn ? "1" : "0";
   if (n.kind == KPopup) return str(((NSPopUpButton*)c).titleOfSelectedItem ?: @"");
   if (n.kind == KSegmented) return std::to_string((long)((NSSegmentedControl*)c).selectedSegment);
@@ -694,7 +700,7 @@ void applyControl(Node& n) {
     const std::string& k = n.attr("keyEquivalent");
     NSString* key = k == "Enter" ? @"\r" : k == "Escape" ? @"\x1b" : ns(k);   // a letter goes with Command
     if (![b.keyEquivalent isEqualToString:key]) { b.keyEquivalent = key; b.keyEquivalentModifierMask = k.size() == 1 ? NSEventModifierFlagCommand : 0; }
-  } else if (n.kind == KSwitch || n.kind == KCheckbox) setState(c, val == "1");
+  } else if (n.kind == KSwitch || n.kind == KCheckbox) setState(c, n.kind == KCheckbox && val == "mixed" ? NSControlStateValueMixed : val == "1" ? NSControlStateValueOn : NSControlStateValueOff);
   else if (n.kind == KPopup) {
     NSPopUpButton* pb = (NSPopUpButton*)c;
     NSArray<NSString*>* items = lines(n.attr("items"));
@@ -1299,7 +1305,7 @@ std::string controlDump(const Node& n, NSView* v) {
     NSString* k = ((NSButton*)c).keyEquivalent;
     s += " key=" + ([k isEqualToString:@"\r"] ? std::string("return") : [k isEqualToString:@"\x1b"] ? std::string("escape") : "cmd-" + str(k));
   }
-  if (n.kind == KSwitch || n.kind == KCheckbox) s += stateOf(c) == NSControlStateValueOn ? " on" : " off";
+  if (n.kind == KSwitch || n.kind == KCheckbox) s += stateOf(c) == NSControlStateValueMixed ? " mixed" : stateOf(c) == NSControlStateValueOn ? " on" : " off";
   if (n.kind == KPopup) s += " " + qstr(controlValue(n, c)) + " items=" + std::to_string((long)((NSPopUpButton*)c).numberOfItems);
   if (n.kind == KSegmented) {
     NSSegmentedControl* sg = (NSSegmentedControl*)c;

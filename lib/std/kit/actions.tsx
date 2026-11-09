@@ -30,7 +30,7 @@ export function SplitButton(p: { label: string; onClick: () => void; items: Menu
 /** Focusable actions in a group, through component boundaries; arrows never escape into a neighbouring group. */
 function groupButtons(root: i32, out: i32[]): void {
   const n = ui.inspectNode(root);
-  if (n === null || n.hidden || ui.getNumber(root, 'disabled') === 1) return;
+  if (n === null || n.hidden || ui.isDisabled(root)) return;
   if (n.tag === ui.BUTTON) { out.push(root); return; }
   for (const child of n.children) groupButtons(child, out);
 }

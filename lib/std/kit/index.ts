@@ -19,7 +19,7 @@ export { Avatar, initials } from './avatar';
 export { Alert } from './alert';
 export { Progress, ProgressRing } from './progress';
 export { Spinner } from './spinner';
-export { Slider } from './slider';
+export { Slider, SliderProps, RangeSlider, RangeSliderProps, SliderOptions } from './slider';
 export { Switch } from './switch';
 export { Tabs } from './tabs';
 export { nativeControl } from './host';
@@ -33,3 +33,4 @@ export { ViewerItem, ViewerOptions, openImageViewer, closeImageViewer, imageView
 
 export { IconButton, ButtonGroup, SplitButton, ToggleGroup, SegmentedControl, CopyButton, HoldToConfirm, CommandPalette, ActionOption, CommandItem } from './actions';
 export { Toolbar, ToolbarItem, StatusBar, StatusItem, DocumentTabs, DocumentTabsProps, DocumentTab, DockLayout, DockLayoutProps, DockLayoutState, DockNode, DockPanel, saveDockLayout, parseDockLayout, moveDockPanel, setDockPanelOpen } from './app-chrome';
+export { Checkbox, CheckboxProps, RadioGroup, RadioCards, RadioGroupProps, ChoiceOption, Chip, ChipProps, Chips, Rating } from './selection';

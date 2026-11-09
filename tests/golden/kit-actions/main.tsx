@@ -12,8 +12,9 @@ function App(): i32 {
   return <View ref={root} className="flex-col p-4 gap-3">
     <Button label="Disabled" disabled={true} onClick={() => invoked++} />
     <Show when={visible()}><HoldToConfirm label="Archive" duration={100} onConfirm={() => confirmed++} /></Show>
-    <SegmentedControl label="View" items={[{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }]} value={segment} onChange={setSegment} />
-    <ToggleGroup label="Mode" items={[{ value: 'a', label: 'Choice A' }]} value={values} onChange={setValues} />
+    <SegmentedControl label="View" items={[{ value: 'a', label: 'A' }, { value: 'b', label: 'B', disabled: true }, { value: 'c', label: 'C' }]} value={segment} onChange={setSegment} />
+    <ToggleGroup label="Mode" items={[{ value: 'a', label: 'Choice A' }, { value: 'b', label: 'Choice B', disabled: true }, { value: 'c', label: 'Choice C' }]} value={values} onChange={setValues} />
+    <ToggleGroup label="Single choice" items={[{ value: 'a', label: 'Only choice' }]} value={values} onChange={setValues} />
     <ContextMenu items={[{ label: 'Context action', onSelect: () => invoked += 100 }]}><Text>Context target</Text></ContextMenu>
     <CommandPalette open={open} onOpenChange={setOpen} items={[{ label: 'Save document', onSelect: () => invoked++ }, { label: 'Export PDF', onSelect: () => invoked += 10 }]} />
   </View>;
@@ -62,8 +63,11 @@ render(App, 0xf2f2f2, (dt: number) => {
     const b = find(root.node, 'Disabled'); ui.focusNode(b);
     if (ui.focused() === b) throw new Error('disabled took focus');
     const a = find(root.node, 'A'); ui.keyDown(a, 'ArrowRight');
+    if (ui.focused() !== find(root.node, 'C')) throw new Error('segment disabled skip/focus');
     const only = find(root.node, 'Choice A'); ui.keyDown(only, 'ArrowRight');
-    if (ui.focused() !== only) throw new Error('toggle arrows escaped group');
+    if (ui.focused() !== find(root.node, 'Choice C')) throw new Error('toggle disabled skip/focus');
+    const single = find(root.node, 'Only choice'); ui.keyDown(single, 'ArrowRight');
+    if (ui.focused() !== single) throw new Error('toggle arrows escaped single group');
     ui.keyDown(only, 'Enter');
   }
   if (frame === 4) {
@@ -72,7 +76,7 @@ render(App, 0xf2f2f2, (dt: number) => {
     if (confirmed !== 1) throw new Error('disposed hold confirmed');
   }
   if (frame === 5) {
-    if (segment() !== 'b' || values().length !== 1 || values()[0] !== 'a' || invoked !== 10 || open()) throw new Error('segment or palette selection failed');
+    if (segment() !== 'c' || values().length !== 1 || values()[0] !== 'a' || invoked !== 10 || open()) throw new Error('segment or palette selection failed');
     ui.keyDown(find(root.node, 'Context target'), 'F10', ui.SHIFT); ui.keyDown(-1, 'Enter');
   }
   if (frame === 7) {

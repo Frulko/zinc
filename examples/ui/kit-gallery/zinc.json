@@ -28,6 +28,11 @@
     "redo",
     "x",
     "save",
-    "rotate-ccw"
+    "rotate-ccw",
+    "check",
+    "minus",
+    "user",
+    "users",
+    "star"
   ]
 }

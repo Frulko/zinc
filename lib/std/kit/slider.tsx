@@ -1,76 +1,123 @@
 /** @jsxHelpers ./host */
-// zinc:ui/kit — Slider: a rail, a filled range and a round thumb. Press anywhere on the rail and drag to set the
-// value (snapped to `step`); when focused, the arrow keys move it by one step. `value` is an accessor, like Progress.
-// It keeps horizontal drags (grab="keep-x"): an enclosing scroll view scrolls when the finger goes mostly up or down.
-// A touch sets the value on release (a tap) or once it moves sideways, never at the press: a swipe over the rail
-// scrolls the page without touching the value.
-//
-//   <Slider value={volume} onChange={setVolume} min={0} max={100} step={5} />
-import { NodeRef, createNodeRef } from 'zinc:ui/solid';
+// Sliders share one rail and gesture lifecycle. Touches commit only on release or an intentional drag.
+import { createNodeRef, NodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme } from './theme';
 import { look } from '../platform/index';
-import { nativeControl } from './host';
+import { nativeControl, renderSlot, componentRef } from './host';
 
-export interface SliderProps {
-  value: () => number;
-  onChange: (value: number) => void;
+export interface SliderOptions {
   min?: number;
   max?: number;
   step?: number;
+  disabled?: boolean;
+  vertical?: boolean;
+  logarithmic?: boolean;
+  markers?: number[];
+  accessibilityLabel?: string;
+  format?: (value: number) => string;
+  showValue?: boolean;
   className?: string;
 }
+export interface SliderProps extends SliderOptions { value: () => number; onChange: (value: number) => void }
+export interface RangeSliderProps extends SliderOptions { low: () => number; high: () => number; onChange: (low: number, high: number) => void }
 
-/** Thumb diameter in px: the platform look's (iOS 28, Material 20, macOS 20, neutral 16 = w-4). */
-function thumbSize(): number { return look().sliderThumb; }
-
-/** Position of `value` in [min, max] as 0..100. */
-function percent(value: number, min: number, max: number): number {
+/** Clamp after snapping relative to min (including a final step that does not divide the range). */
+function sliderValue(value: number, min: number, max: number, step: number): number {
+  if (!Number.isFinite(value)) return min;
+  const snapped = step > 0 ? min + Math.round((value - min) / step) * step : value;
+  return Math.max(min, Math.min(max, snapped));
+}
+function fraction(value: number, min: number, max: number, logarithmic: boolean): number {
   if (max <= min) return 0;
-  return Math.max(0, Math.min(100, (value - min) * 100 / (max - min)));
+  const ratio = logarithmic && min > 0 ? Math.log(Math.max(min, value) / min) / Math.log(max / min) : (value - min) / (max - min);
+  return Math.max(0, Math.min(1, ratio));
 }
+enum SliderGesture { Idle, Pressed, Dragging }
+class SliderSession { state = SliderGesture.Idle; active: i32 = 0; down: number = 0; }
 
-/** Value at x (local to the rail): the thumb centre travels from THUMB/2 to width - THUMB/2. */
-function valueAt(rail: NodeRef, x: number, min: number, max: number, step: number): number {
-  const n = ui.inspectNode(rail.node);
-  const k = thumbSize();
-  if (n === null || n.lw <= k) return min;
-  const t = Math.max(0, Math.min(1, (x - k / 2) / (n.lw - k)));
-  const raw = min + t * (max - min);
-  return step > 0 ? Math.round(raw / step) * step : raw;
-}
-
-export function Slider(props: SliderProps): i32 {
-  const min = props.min ?? 0, max = props.max ?? 100, step = props.step ?? 1;
-  const rail = createNodeRef();
-  let dragging = false;   // sideways movement began: the rail follows the pointer until the release
-  let down = false;       // between the press and the release / cancel (moves without a press are hovers)
-  let downX: number = 0;
-  const setAt = (x: number): void => props.onChange(valueAt(rail, x, min, max, step));
-  const L = look(), t = theme(), k = L.sliderThumb, h = Math.max(20, k), own = L.name === 'neutral' || t.name !== 'vars';
-  const rest = L.name === 'neutral' ? 'h-5 pr-4' : `h-[${h}px] pr-[${k}px]`;
-  const railCls = L.name === 'neutral' ? `absolute left-0 right-0 top-[7px] h-1.5 rounded-full bg-${t.muted}` : `absolute left-0 right-0 top-[${(h - L.sliderTrack) / 2}px] h-[${L.sliderTrack}px] rounded-full bg-${own ? t.muted : '[var(--pfSwitchOff)]'}`;
-  const fill = `${L.name === 'neutral' ? 'h-1.5' : `h-[${L.sliderTrack}px]`} rounded-full bg-${own ? t.primary : '[var(--pfTint)]'}`;
-  const knob = L.name === 'neutral' ? `w-4 h-4 rounded-full border-2 border-${t.primary} bg-${t.card} shadow-sm`
-    : L.sliderThumbTint ? `w-[${k}px] h-[${k}px] rounded-full bg-${own ? t.primary : '[var(--pfTint)]'}`
-    : `w-[${k}px] h-[${k}px] rounded-full bg-white shadow-md${L.name === 'macos' ? ' border border-[var(--pfBorder)]' : ''}`;
-  const node = <View ref={rail} className={`flex-row items-center ${rest} rounded-full cursor-pointer focus:bg-${theme().card} ${props.className ?? ''}`}
-    focusable grab="keep-x" role="slider" aria-valuenow={String(props.value())} aria-valuemin={String(min)} aria-valuemax={String(max)} onKeyDown={(e: ui.KeyEvent) => {
-      // arrows nudge the focused slider by one step (1 % of the range without a step)
-      const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-      if (d === 0) return;
-      const v = props.value() + d * (step > 0 ? step : (max - min) / 100);
-      props.onChange(Math.max(min, Math.min(max, v)));
-      e.preventDefault();
-    }}
-    onPointerDown={(e: ui.PointerEvent) => { down = true; dragging = false; downX = e.x; }}
-    onPointerMove={(e: ui.PointerEvent) => { if (!down) return; if (!dragging && Math.abs(e.x - downX) > 4) dragging = true; if (dragging) setAt(e.x); }}
-    onPointerUp={(e: ui.PointerEvent) => { if (down && !dragging) setAt(e.x); down = false; dragging = false; }}
-    onPointerCancel={(e: ui.PointerEvent) => { down = false; dragging = false; }}>
-    <View className={railCls} />
-    <View className={`${fill} w-${Math.round(percent(props.value(), min, max))}/100`} />
-    <View className={knob} />
+function SliderRail(p: SliderOptions, low: () => number, high: (() => number) | null, change: (index: i32, value: number) => void): i32 {
+  const min = p.min ?? 0, max = Math.max(min, p.max ?? 100), step = p.step ?? 1;
+  const vertical = p.vertical === true, logarithmic = p.logarithmic === true;
+  const rail = createNodeRef(), first = createNodeRef(), second = createNodeRef();
+  const k = look().sliderThumb, track = look().sliderTrack;
+  const gesture = componentRef(new SliderSession()).current;
+  const transition = (next: SliderGesture): void => {
+    if (next === SliderGesture.Pressed && gesture.state !== SliderGesture.Idle) return;
+    if (next === SliderGesture.Dragging && gesture.state !== SliderGesture.Pressed) return;
+    gesture.state = next;
+  };
+  const ratio = (value: number): number => fraction(value, min, max, logarithmic);
+  const text = (value: number): string => p.format !== undefined ? (p.format as (value: number) => string)(value) : String(value);
+  const commit = (index: i32, value: number): void => {
+    if (p.disabled === true) return;
+    let next = sliderValue(value, min, max, step);
+    if (high !== null) next = index === 0 ? Math.min(next, high()) : Math.max(next, low());
+    change(index, next);
+  };
+  const at = (position: number): number => {
+    const node = ui.inspectNode(rail.node);
+    const length = node === null ? 0 : vertical ? node.lh : node.lw;
+    const r = Math.max(0, Math.min(1, (position - k / 2) / Math.max(1, length - k)));
+    const t = vertical ? 1 - r : r;
+    return logarithmic && min > 0 ? min * Math.pow(max / min, t) : min + t * (max - min);
+  };
+  const key = (index: i32, current: number, e: ui.KeyEvent): void => {
+    const direction = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
+    if (direction === 0 && e.key !== 'Home' && e.key !== 'End' && e.key !== 'PageUp' && e.key !== 'PageDown') return;
+    const increment = (step > 0 ? step : (max - min) / 100) * (e.shift || e.key === 'PageUp' || e.key === 'PageDown' ? 10 : 1);
+    const value = e.key === 'Home' ? min : e.key === 'End' ? max : current + increment * (e.key === 'PageUp' ? 1 : e.key === 'PageDown' ? -1 : direction);
+    commit(index, value); e.preventDefault();
+  };
+  const thumb = (index: i32, value: () => number, ref: NodeRef): i32 => <View className={`absolute left-0 top-0 right-0 bottom-0 ${vertical ? 'flex-col' : 'flex-row'} items-center`}>
+    <View className={vertical ? `h-${Math.round((1 - ratio(value())) * 10000)}/10000 shrink-0` : `w-${Math.round(ratio(value()) * 10000)}/10000 shrink-0`} />
+    <Button ref={ref} role="slider" aria-label={(p.accessibilityLabel ?? 'Value') + (high === null ? '' : index === 0 ? ' minimum' : ' maximum')}
+      aria-valuenow={String(value())} aria-valuetext={text(value())} aria-valuemin={String(index === 1 ? low() : min)} aria-valuemax={String(index === 0 && high !== null ? high() : max)} aria-orientation={vertical ? 'vertical' : 'horizontal'}
+      disabled={p.disabled ?? false} onKeyDown={(e: ui.KeyEvent) => key(index, value(), e)}
+      className={`w-[${k}px] h-[${k}px] shrink-0 rounded-full border border-${theme().input} bg-${theme().card}`}
+      style={{ translateX: vertical ? 0 : -k / 2, translateY: vertical ? -k / 2 : 0 }} />
   </View>;
-  nativeControl(rail.node, 'slider', () => ['min', '' + min, 'max', '' + max, 'step', '' + step, 'value', '' + props.value()], (v: string) => { props.onChange(parseFloat(v)); });   // a native host's slider
+  const node = <View ref={rail} disabled={p.disabled ?? false} grab={vertical ? 'keep' : 'keep-x'} className={`${vertical ? 'w-[30px] h-[160px]' : 'h-[30px] w-full'} ${p.disabled === true ? 'opacity-45' : ''} ${p.className ?? ''}`}
+      onPointerDown={(e: ui.PointerEvent) => {
+        if (e.button !== 0) return;
+        gesture.down = vertical ? e.y : e.x;
+        const value = at(gesture.down);
+        gesture.active = high !== null && Math.abs(value - high()) < Math.abs(value - low()) ? 1 : 0;
+        ui.focusNode(gesture.active === 0 ? first.node : second.node);
+        transition(SliderGesture.Pressed);
+      }}
+      onPointerMove={(e: ui.PointerEvent) => {
+        if (gesture.state === SliderGesture.Idle) return;
+        const position = vertical ? e.y : e.x;
+        if (gesture.state === SliderGesture.Pressed && Math.abs(position - gesture.down) > 4) transition(SliderGesture.Dragging);
+        if (gesture.state === SliderGesture.Dragging) commit(gesture.active, at(position));
+      }}
+      onPointerUp={(e: ui.PointerEvent) => {
+        const tapped = gesture.state === SliderGesture.Pressed;
+        transition(SliderGesture.Idle);
+        if (tapped) commit(gesture.active, at(vertical ? e.y : e.x));
+      }} onPointerCancel={(e: ui.PointerEvent) => transition(SliderGesture.Idle)}>
+      <View className={`absolute ${vertical ? 'top-[' + k / 2 + 'px] bottom-[' + k / 2 + 'px] left-[' + (30 - track) / 2 + 'px] w-[' + track + 'px]' : 'left-[' + k / 2 + 'px] right-[' + k / 2 + 'px] top-[' + (30 - track) / 2 + 'px] h-[' + track + 'px]'} rounded-full bg-${theme().muted}`}>
+        <View className={`${vertical ? 'flex-col' : 'flex-row'} w-full h-full`}>
+          <View className={vertical ? `h-${Math.round((high === null ? 1 - ratio(low()) : 1 - ratio(high())) * 10000)}/10000` : `w-${Math.round((high === null ? 0 : ratio(low())) * 10000)}/10000`} />
+          <View className={`rounded-full bg-${theme().accent} ${vertical ? 'w-full h-' : 'h-full w-'}${Math.round((high === null ? ratio(low()) : ratio(high()) - ratio(low())) * 10000)}/10000`} />
+        </View>
+        {(p.markers ?? []).map((mark: number) => <View className={`absolute left-0 right-0 top-0 bottom-0 items-center ${vertical ? 'flex-col' : 'flex-row'}`}>
+          <View className={vertical ? `h-${Math.round((1 - ratio(mark)) * 10000)}/10000 shrink-0` : `w-${Math.round(ratio(mark) * 10000)}/10000 shrink-0`} />
+          <View className={`w-1 h-1 shrink-0 rounded-full bg-${theme().input}`} style={{ translateX: vertical ? 0 : -2, translateY: vertical ? -2 : 0 }} />
+        </View>)}
+      </View>
+      <View className={`absolute ${vertical ? 'top-[' + k / 2 + 'px] bottom-[' + k / 2 + 'px] left-[15px] w-0' : 'left-[' + k / 2 + 'px] right-[' + k / 2 + 'px] top-[15px] h-0'}`}>
+        {renderSlot(() => thumb(0, low, first))}
+        <Show when={high !== null}>{renderSlot(() => thumb(1, high === null ? low : high, second))}</Show>
+      </View>
+    </View>;
+  if (high === null && !vertical && !logarithmic) nativeControl(rail.node, 'slider', () => ['axlabel', p.accessibilityLabel ?? 'Value', 'min', String(min), 'max', String(max), 'step', String(step), 'value', String(low()), 'enabled', p.disabled === true ? '0' : '1'], (value: string) => commit(0, parseFloat(value)));
+  if (p.showValue === true) return <View className="flex-col gap-2">
+    <Text className={`text-[12px] tabular-nums text-${theme().mutedForeground}`}>{text(low()) + (high === null ? '' : ' – ' + text(high()))}</Text>
+    {renderSlot(() => node)}
+  </View>;
   return node;
 }
+export function Slider(p: SliderProps): i32 { return SliderRail(p, p.value, null, (index: i32, value: number) => p.onChange(value)); }
+export function RangeSlider(p: RangeSliderProps): i32 { return SliderRail(p, p.low, p.high, (index: i32, value: number) => p.onChange(index === 0 ? value : p.low(), index === 1 ? value : p.high())); }
