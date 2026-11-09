@@ -2,8 +2,7 @@
 id: ZN-243
 title: 'System: Deep links, file open, opener/reveal'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-07 12:21'
 updated_date: '2026-11-09 06:41'
 labels:

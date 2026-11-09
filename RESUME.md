@@ -31,10 +31,13 @@
 - Integrated: ZN-706 (Done) DOMParser and XMLSerializer on vendored xmldom, loaded at first use; ZN-705 (Review, D249) window focus/blur/visibility, modifier keys, FormData, storage properties in the web environment; `Script({web:true})` dropped.
 - Known machine gap: `webenv_pixelated` needs Python's PIL, missing on this Mac.
 - Integrated: ZN-260, ZN-257 (Review, D250): layered, spread and inset shadows (`shadow-[...]`, `inset-shadow-*`), simpler shadows and borders on small profiles; presets bit-exact; the new GL shader block builds (one background GL run), the GL-vs-software compare is left for the owner.
+- Integrated: ZN-697, ZN-440.02 (Done, D251): `voice.stop(delay, fade)`, `loadMusic` streams from a pack with a few KB (perf log). ZN-394, ZN-243 (Done), ZN-249 (Review): macOS window tests stable, see-through key colour proven, Linux deep links without xdg-utils proven on the Pi; the vibrancy blur check skips here because Reduce Transparency is on.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- Audio (since 3e4ad7f24): `tests/t1/audio_music.sh` (openMusic loops, memory; 10 s); a 10-minute IMA ADPCM `loadMusic` RSS over 60 s headless (1 min); on the Pi `audio_stream_pack` and decode CPU per codec (2 min).
+- System (since 4505b2011): `tests/run --only macos_vibrancy` with Reduce Transparency off (proves the blur, closes ZN-249 #2, 10 s, a window); `tests/t1/linux_deeplink.sh` on Linux through `zinc run` (30 s); `tests/run --only system_instance` (single-instance capacity fix, 30 s).
 - ZN-260/257 (since 6006b9fe4): `UI_STYLE_GL_ONLY='shadow-layers shadow-presets border-ext' tests/t1/ui_style_gl.sh` (closes ZN-260 #2 and ZN-257 #1, 30 s, a window); `tests/t1/gl_replay_es2.sh` (the shader as GLSL ES 1.00); `ui_style`, `style_border`, `style_shadow`; `tools/proto-capture compare`.
 - ZN-705/706 (since 5f7364077): `ZINC_WEB=trace` on T1 `webenv_pixi`, `webenv_three`, `webenv_p5` (ZN-705 #2, 1 min each); a T1 loading a Phaser bitmapFont and a Pixi 7 BitmapFont XML; by hand, minimise the Phaser test game (pauses and resumes); `webenv_domparser`, `webenv_page` in the milestone T0 run.
 - ZN-1028 (since bc93abbea): `tests/run --only net_stream` (5 s); the Pi sendfile run (later.md, 2 min); the 500 MB upload and download memory runs by hand (10 s); an https `saveTo` 100 MB peak-RSS check (3 s).

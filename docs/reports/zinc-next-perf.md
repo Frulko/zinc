@@ -1584,3 +1584,17 @@ Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` 
 ## 2026-11-09 — ZN-1028, zinc:net large bodies (M1 Pro, loopback, sparse 500 MB file)
 
 - `fetch` with `bodyFile`, 500 MB upload: peak RSS 1631 MB → 28.6 MB (sha256 equal). `Reply.file` 500 MB download: 3.6 → 7.4 GB/s, server peak RSS 572 → 21 MB, sys CPU 0.16 → 0.06 s (sendfile). https 500 MB up then down in one process: 57 MB peak.
+
+## 2026-11-09: loadMusic streaming from a pack (ZN-440.02, M1 Pro, null backend)
+
+`music.memory` (decoder + sound node, counting allocator; stb_vorbis setup from a probe open) for a 4 s stereo 44.1 kHz track streamed in place from a mapped pack:
+
+| Codec | Bytes held |
+|---|---|
+| IMA ADPCM WAV | 4672 |
+| PCM WAV | 4672 |
+| FLAC | 17024 |
+| MP3 128 kbit/s | 36656 |
+| Ogg Vorbis (libvorbis file) | 230472 |
+
+stb_vorbis setup memory: 176 to 194 KB on six repository oggs. The 64 KB bound holds for WAV, FLAC and MP3, not Vorbis. `audio_stream_pack`: hash 584403488, same on interpreter, AOT and QuickJS; no step above 0.04 across two loop points.

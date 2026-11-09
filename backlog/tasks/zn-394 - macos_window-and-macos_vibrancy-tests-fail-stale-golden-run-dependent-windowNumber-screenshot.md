@@ -4,8 +4,7 @@ title: >-
   macos_window: do not compare the fullscreen button position (display
   dependent)
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 00:33'
 updated_date: '2026-11-09 06:26'
 labels:

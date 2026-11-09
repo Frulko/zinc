@@ -653,6 +653,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-260: a Gaussian (erf) falloff for every shadow so `shadow-[..]` blur matches CSS's sigma = blur/2 (changes every preset: an owner-chosen golden refresh); under a rotate or skew matrix the GL replay ignores an inset's hole offset; Metal does not draw inset shadows.
 - ZN-260: `hover:shadow-[..]` and state variants of layers (the JSX checker refuses `hover:shadow-[..]`); the build-time style scan does not see `boxShadow` or `borderStyle: 'dashed'` in style objects.
 - ZN-257: fit the dash count per side (WebRender's half-dash per side) so dashes do not restart at side joins.
+- ZN-697: `voice.fade(volume, seconds)` for fade-ins and fades to a level; a sample-accurate ramp in the web environment's Web Audio gain (it steps once per frame).
+- ZN-440.02: vendor `qoa.h` (MIT) as a loadMusic codec (~270 B state, exact seeks and loops); shrink stb_vorbis setup (`STB_VORBIS_FAST_HUFFMAN_SHORT`) after measuring its CPU cost.
+- ZN-440.02: loadMusic decodes on the audio thread, so a page fault on a slow SD stalls the mix: `madvise(WILLNEED)` ahead or a small read-ahead; the first `view()` hashes the whole entry on the program thread (hash in chunks).
+- ZN-440.02: an MP3 loop carries the encoder padding (dr_mp3 keeps LAME delay): measure, then trim or document; under `zinc dev` a reloaded entry is not seen by a streaming music (reopen on reload).
+- ZN-249: measure the cost of turning the key colour into alpha on every present for a large transparent window.
+- ZN-243: `deeplink.register()` under `zinc run` writes `Exec=<zinc> %u` without the project; Exec needs the project path or an engine relaunch command (autostart has the same gap).
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -849,3 +855,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1073: Mojave Mac (`mowmow@192.168.2.215`): AppKit `Switch` falls back to a check box on macOS 10.14; one short run.
 - ZN-278: install ESP-IDF's Python env (`idf5.5_py3.15_env`), then record the `size` of core.bin and app.bin from `zinc export --target esp32` for a zinc:ui app without extended keys (ZN-278 #1; there is no hero-lite example).
 - ZN-1028: run the Linux sendfile path on the Pi (export a server replying with a 100 MB file, `curl -o /dev/null`, `strace -e sendfile`), then tick ZN-1028 #3 (the Pi did not answer ssh on 2026-11-09).
+- ZN-440.02: map assets-directory files on Windows (`MapViewOfFile`); the console cores still refuse music (`musicOpen`, `musicAsset`).
+- ZN-249: show transparent windows on a compositing Linux session (X11 ARGB visual or Wayland) over a known wallpaper; the Pi player has no compositor.

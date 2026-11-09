@@ -2,8 +2,7 @@
 id: ZN-697
 title: 'zinc:audio: fade a voice to silence over a time'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 21:28'
 updated_date: '2026-11-09 06:27'
 labels:
