@@ -1,6 +1,7 @@
 {
   "name": "design-pictures",
   "entry": "main.tsx",
+  "icons": ["eye", "database", "clock", "trending-down", "trending-up", "triangle-alert", "chevron-left", "chevron-right", "user-plus", "copy", "check"],
   "targets": {
     "macos": { "width": 760, "height": 300 },
     "linux": { "width": 760, "height": 300 }

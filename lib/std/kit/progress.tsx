@@ -8,6 +8,7 @@ import * as ui from 'zinc:ui';
 import { Svg } from 'zinc:svg';
 import { theme } from './theme';
 import { nativeControl } from './host';
+import { look } from '../platform/index';
 
 export interface ProgressProps {
   value: () => number;   // 0..100
@@ -22,7 +23,8 @@ function widthClass(value: number): string {
 
 export function Progress(props: ProgressProps): i32 {
   const fill = (): string => (props.accent ?? false) ? theme().accent : theme().primary;
-  const h = <View className={`flex-row h-2 w-full rounded-full overflow-hidden bg-${theme().muted} ${props.className ?? ''}`} role="progressbar" aria-valuenow={String(Math.round(props.value()))} aria-valuemin="0" aria-valuemax="100">
+  const quiet = look().name === 'quiet';   // Quiet: a 6 px bar on the control track
+  const h = <View className={`flex-row ${quiet ? 'h-1.5' : 'h-2'} w-full rounded-full overflow-hidden bg-${quiet ? '[var(--pfSwitchOff)]' : theme().muted} ${props.className ?? ''}`} role="progressbar" aria-valuenow={String(Math.round(props.value()))} aria-valuemin="0" aria-valuemax="100">
     <View className={`rounded-full bg-${fill()} ${widthClass(props.value())}`} />
   </View>;
   return nativeControl(h, 'progress', () => ['value', '' + props.value()]);   // a native host's progress bar

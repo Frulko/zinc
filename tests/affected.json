@@ -320,7 +320,7 @@
     {"paths": ["examples/ipod-web/", "plugins/ipod/", "tests/t1/ipod_web.sh", "tests/t1/ipod_share.sh"], "tests": ["ipod_web", "ipod_remote", "ipod_share"]},
     {"paths": ["src/frontend/jsx.cpp", "lib/std/ui.ts", "src/res/res.cpp", "targets/web/dom.js", "tests/golden/style-keys/", "tests/t1/style_keys.sh"], "tests": ["style_keys"]},
     {"paths": ["examples/rn-showcase/", "tests/golden/rn-showcase/"], "tests": ["rn_showcase"]},
-    {"paths": ["lib/std/platform/", "lib/std/kit/", "lib/std/nuxt/controls.tsx", "lib/std/react-native.ts", "examples/ui/kit-gallery/", "examples/rn-showcase/", "src/frontend/project.cpp", "tests/golden/platform-look/", "tests/t1/platform_look.sh"], "tests": ["platform_look", "ui_kit_sections", "rn_showcase", "kit_menubar", "nuxt_ui", "react_native"]},
+    {"paths": ["lib/std/platform/", "lib/std/kit/", "lib/std/nuxt/controls.tsx", "lib/std/react-native.ts", "examples/ui/kit-gallery/", "examples/rn-showcase/", "src/frontend/project.cpp", "tests/golden/platform-look/", "tests/t1/platform_look.sh"], "tests": ["platform_look", "ui_kit_sections", "rn_showcase", "kit_menubar", "nuxt_ui", "react_native", "kit_quiet"]},
     {"paths": ["examples/webcam/", "tests/golden/webcam-demo/", "plugins/camera/"], "tests": ["webcam_demo"]},
     {"paths": ["lib/std/react-native.ts", "lib/std/icons.tsx", "lib/std/ui.ts", "tests/golden/rn-idle/"], "tests": ["rn_idle"]},
     {"paths": ["examples/rn-port/", "tests/golden/rn-port/"], "tests": ["rn_port"]},

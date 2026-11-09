@@ -1,8 +1,11 @@
 // The do / don't pictures of docs/design.md, drawn by Zinc. One picture per run, chosen by PICTURE:
 //   PICTURE=accent ZINC_HEADLESS=1 ZINC_SCALE=2 ZINC_SIZE=760x300 ZINC_FRAMES=2 ZINC_SHOT=docs/img/design/accent.png zinc run docs/img/design/src
+// PICTURE=gallery draws the Quiet theme's gallery after CUI's components screen (ZINC_SIZE=1440x980), SCHEME=dark and ACCENT=blue... vary it.
 // The rules follow CUI's docs/design.md (github.com/yappologistic/CUI, MIT).
 import { render } from 'zinc:ui/solid';
 import { env } from 'zinc:sys';
+import { useQuietTheme, setTheme, DARK } from 'zinc:ui/kit';
+import { Gallery } from './gallery/gallery';
 import { PAGE, SURFACE, FOREGROUND, SECONDARY, HAIRLINE, EDGE, CONTROL, ACCENT_SOFT, FOCUS, SUCCESS, DANGER, FLOATING_SHADOW } from './tokens';
 
 interface PanelProps { good: boolean; caption: string; children: () => i32 }
@@ -221,4 +224,6 @@ function Picture(): i32 {
   </View>;
 }
 
-render(Picture, 0xf2f2f2, null);
+useQuietTheme(env('ACCENT') === '' ? 'neutral' : env('ACCENT'));
+if (env('SCHEME') === 'dark') setTheme(DARK);
+render(env('PICTURE') === 'gallery' ? Gallery : Picture, env('SCHEME') === 'dark' ? 0x121212 : 0xf2f2f2, null);

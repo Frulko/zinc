@@ -760,6 +760,10 @@ One switch forces one look for every kit:
 runs Android's look and behaviour on the desktop, `platformLook` only its look. A deterministic run (tests, `zinc test`, the pixel goldens) on a
 Mac without `ZINC_PLATFORM` takes the neutral look, so it draws the frames a Linux machine draws.
 
+A fifth look, `quiet`, is the kit's Quiet theme ([design.md](design.md), [ui-kit.md](ui-kit.md#the-quiet-theme)): the same shapes on every
+platform. `useQuietTheme()` of `zinc:ui/kit` turns it on with its colours (`ZINC_PLATFORM_LOOK=quiet` for one run; `zinc.json`'s
+`platformLook` does not take it yet).
+
 The look's colours are scheme variables (`bg-[var(--pfTint)]`, `pfSwitchOn`, `pfFill`, `pfBorder`...): they follow `setScheme` and a new accent
 (`setAccent(0xff2d55)`) without a render; `look()`, `tint()` and `color([light, dark])` give them to code. The fonts are the families the app
 ships (`assets/Roboto-Regular.ttf`): the OS's own font files (SF Pro, Android's Roboto) are variable fonts the rasterizer cannot read yet, so

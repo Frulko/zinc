@@ -8,7 +8,7 @@
 - Le guide : https://frulko.github.io/zinc/fr/docs/guide/01-getting-started/
 - `zinc tour` : une première visite guidée.
 
-Une application de bureau faite avec le modèle `desktop-app`, sur `zinc:ui/nuxt` (des composants au style de Nuxt UI).
+Une application de bureau faite avec le modèle `desktop-app`, sur `zinc:ui/kit` avec son thème Quiet (surfaces neutres, une seule couleur d’accent, clair et sombre).
 
 ```sh
 zinc run      # the app

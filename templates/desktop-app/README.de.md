@@ -8,7 +8,7 @@
 - Der Leitfaden: https://frulko.github.io/zinc/de/docs/guide/01-getting-started/
 - `zinc tour`: ein erster Rundgang mit Anleitung.
 
-Eine Desktop-App aus der Vorlage `desktop-app`, auf `zinc:ui/nuxt` (Komponenten im Look von Nuxt UI).
+Eine Desktop-App aus der Vorlage `desktop-app`, auf `zinc:ui/kit` im Quiet-Theme (neutrale Flächen, eine Akzentfarbe, hell und dunkel).
 
 ```sh
 zinc run      # the app

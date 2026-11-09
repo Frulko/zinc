@@ -37,6 +37,9 @@ export interface Look {
   raised: i32[];              // a raised surface on a fill: the selected segment (iOS, macOS)
   border: i32[];              // outlines: Material's switch and segmented buttons
   label: i32[]; label2: i32[]; separator: i32[];
+  // ---- surfaces (class fragments): a card at rest, a text field (its corners, padding and text; its height), a floating panel (menu,
+  // popover), a dialog or a toast
+  card: string; field: string; fieldHeight: string; panel: string; dialog: string;
 }
 
 export const IOS: Look = {
@@ -53,6 +56,7 @@ export const IOS: Look = {
   switchOn: [0x34c759, 0x30d158], switchOff: [0xe9e9ea, 0x39393d], thumb: [0xffffff, 0xffffff], thumbDim: [0xffffff, 0xffffff],
   fill: [0xeeeeef, 0x1c1c1f], raised: [0xffffff, 0x636366], border: [0xc6c6c8, 0x38383a],
   label: [0x000000, 0xffffff], label2: [0x8a8a8e, 0x98989f], separator: [0xc6c6c8, 0x38383a],
+  card: 'rounded-xl shadow-sm', field: 'rounded-md px-3 text-sm', fieldHeight: 'h-9', panel: 'rounded-md shadow-md', dialog: 'rounded-lg shadow-lg',
 };
 
 export const ANDROID: Look = {
@@ -69,6 +73,7 @@ export const ANDROID: Look = {
   switchOn: [0x6750a4, 0xd0bcff], switchOff: [0xe6e0e9, 0x36343b], thumb: [0xffffff, 0x381e72], thumbDim: [0x79747e, 0x938f99],
   fill: [0xe8def8, 0x4a4458], raised: [0xffffff, 0x2b2930], border: [0x79747e, 0x938f99],
   label: [0x1d1b20, 0xe6e0e9], label2: [0x49454f, 0xcac4d0], separator: [0xcac4d0, 0x49454f],
+  card: 'rounded-xl shadow-sm', field: 'rounded-md px-3 text-sm', fieldHeight: 'h-9', panel: 'rounded-md shadow-md', dialog: 'rounded-lg shadow-lg',
 };
 
 export const MACOS: Look = {
@@ -85,6 +90,7 @@ export const MACOS: Look = {
   switchOn: [0x007aff, 0x0a84ff], switchOff: [0xe3e3e3, 0x3a3a3c], thumb: [0xffffff, 0xdcdcdc], thumbDim: [0xffffff, 0xdcdcdc],
   fill: [0xe4e4e4, 0x2c2c2e], raised: [0xffffff, 0x5a5a5e], border: [0xd1d1d1, 0x4a4a4c],
   label: [0x1d1d1f, 0xe5e5e5], label2: [0x808080, 0x9a9a9a], separator: [0xe5e5e5, 0x3a3a3a],
+  card: 'rounded-xl shadow-sm', field: 'rounded-md px-3 text-sm', fieldHeight: 'h-9', panel: 'rounded-md shadow-md', dialog: 'rounded-lg shadow-lg',
 };
 
 /** The kits' own look (shadcn/ui's sizes and type scale): what they drew before platform looks existed, unchanged. */
@@ -103,4 +109,27 @@ export const NEUTRAL: Look = {
   switchOn: [0x34c759, 0x34c759], switchOff: [0xe9e9ea, 0xe9e9ea], thumb: [0xffffff, 0xffffff], thumbDim: [0xffffff, 0xffffff],
   fill: [0xf4f4f5, 0x27272a], raised: [0xffffff, 0x18181b], border: [0xe4e4e7, 0x27272a],
   label: [0x09090b, 0xfafafa], label2: [0x71717a, 0xa1a1aa], separator: [0xe4e4e7, 0x27272a],
+  card: 'rounded-xl shadow-sm', field: 'rounded-md px-3 text-sm', fieldHeight: 'h-9', panel: 'rounded-md shadow-md', dialog: 'rounded-lg shadow-lg',
+};
+
+/** The Quiet look (docs/design.md, ZN-1078.02): CUI's (github.com/yappologistic/CUI, MIT) sizes, radii and type, the same on every platform.
+ *  Controls 30 / 36 / 44 px with 10 px corners, panels 14, surfaces 18; Inter at 13 px, medium for labels and headings; cards rest on a hairline
+ *  without a shadow, floating layers get a close shadow. The colours are the neutral accent's; zinc:ui/kit's setThemeAccent tints them. */
+export const QUIET: Look = {
+  name: 'quiet',
+  button: ['h-[30px] px-[11px] gap-1.5 rounded-[10px]', 'h-[36px] px-[14px] gap-2 rounded-[10px]', 'h-[44px] px-[18px] gap-2 rounded-[10px]', 'h-[36px] w-[36px] px-0 rounded-[10px]'],
+  buttonText: [tx(12, 'font-medium'), tx(13, 'font-medium')],
+  segTrack: 'p-[3px] gap-0 rounded-[10px] bg-[var(--pfFill)]', segItem: 'h-[30px] px-3 rounded-[8px]', segOn: 'bg-[var(--pfRaised)] shadow-[0_1px_2px_rgba(0,0,0,0.08)]', segLabel: tx(13, ''),
+  headings: [tx(36, 'font-medium tracking-tight'), tx(28, 'font-medium tracking-tight'), tx(22, 'font-medium'), tx(17, 'font-medium')],
+  lead: tx(15, ''), body: tx(13, 'leading-[20px]'), small: tx(13, ''), muted: tx(13, ''), caption: tx(12, ''), overline: tx(11, 'font-medium'),
+  switchW: 36, switchH: 20, thumbOff: 16, thumbOn: 16, outline: 0,
+  sliderTrack: 4, sliderThumb: 18, sliderThumbTint: false,
+  spinner: 'arc', fonts: '',
+  tint: [0x1d1d1d, 0xe8e8e8], onTint: [0xffffff, 0x141414], tintPressed: [0x353535, 0xd1d1d1],
+  switchOn: [0x1d1d1d, 0xe8e8e8], switchOff: [0xdcdcdc, 0x353535], thumb: [0xffffff, 0x141414], thumbDim: [0xffffff, 0xf5f5f5],
+  fill: [0xf1f1f1, 0x252525], raised: [0xffffff, 0x383838], border: [0xe3e3e3, 0x2b2b2b],
+  label: [0x0b0b0b, 0xf2f2f2], label2: [0x585858, 0xb4b4b4], separator: [0xe3e3e3, 0x2b2b2b],
+  card: 'rounded-[18px]', field: 'rounded-[10px] px-3 ' + tx(13, ''), fieldHeight: 'h-[36px]',
+  panel: 'rounded-[14px] shadow-[0_12px_32px_-4px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[0_14px_36px_-4px_rgba(0,0,0,0.4),0_1px_3px_rgba(0,0,0,0.24)]',
+  dialog: 'rounded-[18px] shadow-[0_12px_32px_-4px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.06)] dark:shadow-[0_14px_36px_-4px_rgba(0,0,0,0.4),0_1px_3px_rgba(0,0,0,0.24)]',
 };

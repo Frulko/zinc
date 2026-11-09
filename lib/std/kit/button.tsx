@@ -26,12 +26,13 @@ function sizeClass(size: string): string {
 
 /** Fill, border and the focused / pressed fills of a variant. */
 function surfaceClass(variant: string, t: Theme): string {
+  const rest = look().name === 'quiet' ? '' : ' shadow-sm';   // Quiet (docs/design.md): buttons sit in the page, no drop shadow
   if (variant === 'secondary') return `bg-${t.secondary} focus:bg-${t.secondaryPressed} active:bg-${t.secondaryPressed}`;
-  if (variant === 'outline') return `bg-${t.card} border border-${t.border} shadow-sm focus:bg-${t.subtle} active:bg-${t.subtle}`;
+  if (variant === 'outline') return `bg-${t.card} border border-${t.border}${rest} focus:bg-${t.subtle} active:bg-${t.subtle}`;
   if (variant === 'ghost') return `bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle}`;
-  if (variant === 'destructive') return `bg-${t.destructive} shadow-sm focus:bg-${t.destructivePressed} active:bg-${t.destructivePressed}`;
+  if (variant === 'destructive') return `bg-${t.destructive}${rest} focus:bg-${t.destructivePressed} active:bg-${t.destructivePressed}`;
   if (tinted(t)) return `bg-[var(--pfTint)] focus:bg-[var(--pfTintPressed)] active:bg-[var(--pfTintPressed)]${look().name === 'macos' ? ' shadow-sm' : ''}`;
-  return `bg-${t.primary} shadow-sm focus:bg-${t.primaryFocus} active:bg-${t.primaryPressed}`;
+  return `bg-${t.primary}${rest} focus:bg-${t.primaryFocus} active:bg-${t.primaryPressed}`;
 }
 
 /** The default button is filled with the platform's tint (systemBlue, Material's primary, the Mac's accent) when the app keeps the kit's own theme;

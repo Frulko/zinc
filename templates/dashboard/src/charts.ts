@@ -1,18 +1,13 @@
-// Charts drawn into a <Canvas>: a line with its area, and bars. Values are scaled to [0, top].
-import { rect, rrect, polygon, stroke } from 'zinc:gfx';
-
-/** A theme colour ('#rrggbb') as the 0xRRGGBB the drawing calls take. */
-export function rgb(c: string): u32 { return parseInt(c.slice(1), 16); }
+// Charts drawn into a <Canvas>: a line and the point where it ends, and bars (docs/design.md: no gradient under a line). Values are scaled to [0, top].
+import { rect, rrect, stroke } from 'zinc:gfx';
 
 export function drawLine(values: number[], top: number, x: number, y: number, w: number, h: number, line: u32, grid: u32): void {
   for (let i = 1; i < 4; i++) rect(x, Math.round(y + h * i / 4), w, 1, grid);
   if (values.length < 2) return;
   const pts: number[] = [];
   for (let i = 0; i < values.length; i++) { pts.push(x + i * w / (values.length - 1)); pts.push(y + h - Math.min(1, values[i] / top) * h); }
-  const area = pts.slice();
-  area.push(x + w); area.push(y + h); area.push(x); area.push(y + h);
-  polygon(area, line, 36);
-  stroke(pts, 2, line, 255, false);
+  stroke(pts, 1.75, line, 255, false);
+  rrect(pts[pts.length - 2] - 3, pts[pts.length - 1] - 3, 6, 6, 3, line, 255);
 }
 
 export function drawBars(values: number[], top: number, x: number, y: number, w: number, h: number, bar: u32, grid: u32): void {

@@ -3,7 +3,8 @@
 // Components are plain functions returning nodes, so they work in the Solid model and in the React / Inferno model.
 // Text comes from props (`label`, `title`, `description`); values that change over time are accessors
 // (`value={() => temp()}`, `checked={enabled}`): reactive under Solid, re-read on every render under React.
-export { Theme, LIGHT, DARK, theme, setTheme } from './theme';
+export { Theme, LIGHT, DARK, theme, setTheme, ACCENTS, useQuietTheme, setThemeAccent, themeAccent, themeColor } from './theme';
+export { Spring, SPRING_STATE, SPRING_SMOOTH, SPRING_SNAPPY, SPRING_MORPH, springAt, springValues, springTo } from './motion';
 export { heading, leadText, bodyText, smallText, mutedText, captionText, overline } from './typography';
 export { Button, ButtonProps } from './button';
 export { Form, FormProps } from './form';

@@ -5,6 +5,7 @@
 //   <Input value={() => name()} onInput={setName} placeholder="Your name" />
 //   <Textarea value={() => note()} onInput={setNote} rows={4} />
 import { theme } from './theme';
+import { look } from '../platform/index';
 
 export interface InputProps {
   value?: () => string;
@@ -29,11 +30,11 @@ export interface TextareaProps {
 /** The look both fields share (shadcn's border-input, placeholder:text-muted-foreground, focus-visible:border-ring, disabled:opacity-50). */
 function fieldClass(disabled: boolean): string {
   const t = theme();
-  return `w-full rounded-md border border-${t.input} bg-transparent px-3 text-sm text-${t.foreground} placeholder:text-${t.mutedForeground} focus:border-${t.mutedForeground}${disabled ? ' opacity-50' : ''}`;
+  return `w-full ${look().field} border border-${t.input} bg-transparent text-${t.foreground} placeholder:text-${t.mutedForeground} focus:border-${t.mutedForeground}${disabled ? ' opacity-50' : ''}`;
 }
 
 export function Input(props?: InputProps): i32 {
-  return <Input className={`h-9 py-1 ${fieldClass(props?.disabled ?? false)} ${props?.className ?? ''}`}
+  return <Input className={`${look().fieldHeight} py-1 ${fieldClass(props?.disabled ?? false)} ${props?.className ?? ''}`}
     value={props?.value !== undefined ? (props?.value as () => string)() : ''} placeholder={props?.placeholder ?? ''} name={props?.name ?? ''}
     password={props?.type === 'password'} disabled={props?.disabled ?? false}
     onInput={(v: string) => { const f = props?.onInput; if (f !== undefined) f(v); }} />;

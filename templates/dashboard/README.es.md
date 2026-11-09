@@ -8,7 +8,7 @@
 - La guía: https://frulko.github.io/zinc/es/docs/guide/01-getting-started/
 - `zinc tour`: un primer recorrido guiado.
 
-Un panel en vivo hecho con la plantilla `dashboard`, sobre `zinc:ui/nuxt`.
+Un panel en vivo hecho con la plantilla `dashboard`, sobre `zinc:ui/kit` con su tema Quiet.
 
 ```sh
 zinc run      # the dashboard, fed by the mock source

@@ -1,6 +1,6 @@
 {
   "name": "desktop-app",
-  "description": "A desktop app shell: sidebar navigation with a router, Home / Notes / Settings pages, an app menu, dark mode and saved settings (zinc:ui/nuxt).",
+  "description": "A desktop app shell: sidebar navigation with a router, Home / Notes / Settings pages, an app menu, dark mode and saved settings (zinc:ui/kit, Quiet theme).",
   "tags": ["ui", "desktop"],
   "targets": ["macos", "linux"],
   "entry": "src/main.tsx",

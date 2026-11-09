@@ -8,7 +8,7 @@
 - Le guide : https://frulko.github.io/zinc/fr/docs/guide/01-getting-started/
 - `zinc tour` : une première visite guidée.
 
-Un tableau de bord en direct fait avec le modèle `dashboard`, sur `zinc:ui/nuxt`.
+Un tableau de bord en direct fait avec le modèle `dashboard`, sur `zinc:ui/kit` avec son thème Quiet.
 
 ```sh
 zinc run      # the dashboard, fed by the mock source

@@ -157,6 +157,35 @@ theme applies on the next render. Your own nodes can use the same tokens:
 
 A custom theme is a `Theme` object: copy `LIGHT`, change the colours (e.g. `accent: 'emerald-600'`), `setTheme` it.
 
+### The Quiet theme
+
+The look of every new app and template ([design.md](design.md)), after [CUI](https://github.com/yappologistic/CUI)
+(MIT): neutral greys, one accent, hairline borders, no shadow on cards, a close shadow on menus and dialogs, controls of
+30 / 36 / 44 px with 10 px corners, cards of 18 px, Inter at 13 px. Call it once before the first render:
+
+```tsx
+import { useQuietTheme, setThemeAccent, setTheme, DARK, ACCENTS } from 'zinc:ui/kit';
+useQuietTheme();               // or useQuietTheme('blue')
+setTheme(DARK);                // light and dark as before; ui.setScheme('auto') follows the system
+setThemeAccent('green');       // one of ACCENTS: neutral violet blue green amber orange coral rose; mounted nodes follow at once
+```
+
+It is the kit's own mechanism: the roles of `theme()` take CUI's colours in the `light` and `dark` schemes, and the
+platform look `quiet` (`zinc:ui/platform`, also `ZINC_PLATFORM_LOOK=quiet`) gives the shapes, the same on every platform.
+`themeColor('accent')` returns a role as `0xRRGGBB` for what draws with a colour value (an `Icon`, a `Canvas`).
+
+![The Quiet theme, light](img/design/quiet-gallery.png)
+
+Springs, as CUI's: a period and a bounce. `springTo(node, 'translateX', 0, 16, SPRING_STATE)` plays it on the
+compositor; under reduced motion (`ui.prefersReducedMotion()`) the property takes its end at once.
+
+| Spring | Period, bounce | For |
+|---|---|---|
+| `SPRING_STATE` | 180 ms, 0 | what reports a state: a switch thumb, progress |
+| `SPRING_SMOOTH` | 400 ms, 0 | moves and opens |
+| `SPRING_SNAPPY` | 260 ms, 0.12 | presses, small feedback |
+| `SPRING_MORPH` | 420 ms, 0.16 | a shape turning into another |
+
 ## How it works
 
 Each kit file starts with `/** @jsxHelpers ./host */`: the JSX compiler lowers that file against

@@ -9,6 +9,7 @@
 //   </Card>
 import { theme } from './theme';
 import { renderSlot } from './host';
+import { look } from '../platform/index';
 
 export interface CardProps {
   className?: string;         // size and placement ('w-80', 'grow')
@@ -25,22 +26,26 @@ export interface CardSectionProps {
   children?: () => i32;
 }
 
+/** The inner padding of a card and its sections, in Tailwind steps: 20 px, 24 under Quiet. */
+function inset(): i32 { return look().name === 'quiet' ? 6 : 5; }
+
 export function Card(props?: CardProps): i32 {
-  return <View className={`flex-col gap-4 py-5 rounded-xl border border-${theme().border} bg-${theme().card} shadow-sm ${props?.className ?? ''}`}>
+  return <View className={`flex-col gap-4 py-${inset()} ${look().card} border border-${theme().border} bg-${theme().card} ${props?.className ?? ''}`}>
     {renderSlot(props?.children)}
   </View>;
 }
 
 export function CardTitle(props: CardTextProps): i32 {
-  return <Text as="h3" className={`text-base font-semibold tracking-tight text-${theme().foreground}`}>{props.text}</Text>;
+  const size = look().name === 'quiet' ? look().lead + ' font-medium' : 'text-base font-semibold tracking-tight';   // Quiet: 15 px medium (sizes come from the look, not literals: docs/ui-kit.md, what a component costs)
+  return <Text as="h3" className={`${size} text-${theme().foreground}`}>{props.text}</Text>;
 }
 
 export function CardDescription(props: CardTextProps): i32 {
-  return <Text className={`text-sm text-${theme().mutedForeground}`}>{props.text}</Text>;
+  return <Text className={`${look().name === 'quiet' ? look().small : 'text-sm'} text-${theme().mutedForeground}`}>{props.text}</Text>;
 }
 
 export function CardHeader(props?: CardHeaderProps): i32 {
-  return <View className="flex-col gap-1 px-5">
+  return <View className={`flex-col gap-1 px-${inset()}`}>
     <Show when={props?.title !== undefined}><CardTitle text={props?.title ?? ''} /></Show>
     <Show when={props?.description !== undefined}><CardDescription text={props?.description ?? ''} /></Show>
     {renderSlot(props?.children)}
@@ -48,9 +53,9 @@ export function CardHeader(props?: CardHeaderProps): i32 {
 }
 
 export function CardContent(props?: CardSectionProps): i32 {
-  return <View className={`flex-col gap-3 px-5 ${props?.className ?? ''}`}>{renderSlot(props?.children)}</View>;
+  return <View className={`flex-col gap-3 px-${inset()} ${props?.className ?? ''}`}>{renderSlot(props?.children)}</View>;
 }
 
 export function CardFooter(props?: CardSectionProps): i32 {
-  return <View className={`flex-row items-center gap-2 px-5 ${props?.className ?? ''}`}>{renderSlot(props?.children)}</View>;
+  return <View className={`flex-row items-center gap-2 px-${inset()} ${props?.className ?? ''}`}>{renderSlot(props?.children)}</View>;
 }

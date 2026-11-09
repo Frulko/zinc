@@ -4,6 +4,7 @@
 // the platform the program runs on (zinc:ui platformStyle(), ZINC_PLATFORM) and is not themeable; the *look* (sizes, radii, type scale, font,
 // control colours) is this module's, adaptive by default and forced per app:
 //   zinc.json "ui": {"platformLook": "auto" | "ios" | "android" | "macos" | "neutral"}, ZINC_PLATFORM_LOOK for one run,
+//   ("quiet", the Quiet theme's look: zinc:ui/kit's useQuietTheme, ZINC_PLATFORM_LOOK=quiet),
 //   setPlatformLook() or <ThemeProvider look="ios"> at the root of the app.
 // "auto" is the platform's look: iOS on iOS, Material 3 on Android, macOS on a Mac, neutral (the kits' own) elsewhere. A deterministic run
 // (tests, goldens) on a Mac without ZINC_PLATFORM takes neutral, so its frames are the ones a Linux machine draws.
@@ -12,10 +13,10 @@ import { platform, env, device } from 'zinc:sys';
 import { UI_PLATFORM_LOOK } from 'zinc:platform';
 import { font } from 'zinc:gfx';
 import { Haptics } from '../haptics';
-import { Look, IOS, ANDROID, MACOS, NEUTRAL } from './tokens';
-export { Look, IOS, ANDROID, MACOS, NEUTRAL } from './tokens';
+import { Look, IOS, ANDROID, MACOS, NEUTRAL, QUIET } from './tokens';
+export { Look, IOS, ANDROID, MACOS, NEUTRAL, QUIET } from './tokens';
 
-const LOOKS: Look[] = [IOS, ANDROID, MACOS, NEUTRAL];
+const LOOKS: Look[] = [IOS, ANDROID, MACOS, NEUTRAL, QUIET];
 function byName(name: string): Look { for (const l of LOOKS) if (l.name === name) return l; return NEUTRAL; }
 
 /** The look "auto" stands for on this platform. */
@@ -30,9 +31,11 @@ function resolve(name: string): Look { return byName(name === 'auto' || name ===
 const VARS: string[] = ['pfTint', 'pfOnTint', 'pfTintPressed', 'pfSwitchOn', 'pfSwitchOff', 'pfThumb', 'pfThumbDim', 'pfFill', 'pfRaised', 'pfBorder', 'pfLabel', 'pfLabel2', 'pfSeparator'];
 let current: Look = resolve(env('ZINC_PLATFORM_LOOK') !== '' ? env('ZINC_PLATFORM_LOOK') : UI_PLATFORM_LOOK);
 let accent: i32 = -1;   // the OS's accent (macOS), or setAccent's: replaces the tint of the look
+let accentDark: i32 = -1, accentOn: i32 = -1;   // setAccent's dark-scheme tint and the text on the tint (-1: the light one, the look's)
 function pick(l: Look, k: i32): i32[] {
   const a = accent >= 0 && l.name !== 'neutral';
-  return [a ? accent : l.tint[k], l.onTint[k], a ? shade(accent, k === 0 ? -0.2 : 0.25) : l.tintPressed[k], a && l.switchOn[0] === l.tint[0] ? accent : l.switchOn[k], l.switchOff[k], l.thumb[k],
+  const c = k === 1 && accentDark >= 0 ? accentDark : accent;
+  return [a ? c : l.tint[k], a && accentOn >= 0 ? accentOn : l.onTint[k], a ? shade(c, k === 0 ? -0.2 : 0.25) : l.tintPressed[k], a && l.switchOn[0] === l.tint[0] ? c : l.switchOn[k], l.switchOff[k], l.thumb[k],
           l.thumbDim[k], l.fill[k], l.raised[k], l.border[k], l.label[k], l.label2[k], l.separator[k]];
 }
 /** A colour made darker (k < 0) or lighter (k > 0) by |k|. */
@@ -45,7 +48,7 @@ function defineVars(): void { ui.defineScheme('light', VARS, pick(current, 0)); 
 
 /** The current look's tokens. */
 export function look(): Look { return current; }
-/** 'ios', 'android', 'macos' or 'neutral'. */
+/** 'ios', 'android', 'macos', 'neutral' or 'quiet'. */
 export function lookName(): string { return current.name; }
 /** Forces one look ('auto' gives the platform's back). Components read it when they render: call it before the first render, or use ThemeProvider at the root. */
 export function setPlatformLook(name: string): void {
@@ -57,12 +60,16 @@ export function setPlatformLook(name: string): void {
   applyFont();
   ui.refreshScheme();
 }
-/** The OS's accent colour (0xRRGGBB) in place of the look's tint; -1 gives the look's own back. On a Mac the user's System Settings choice is read at the start. */
-export function setAccent(rgb: i32): void { accent = rgb; defineVars(); ui.refreshScheme(); }
+/** The OS's accent colour (0xRRGGBB) in place of the look's tint; -1 gives the look's own back. On a Mac the user's System Settings choice is read at the start.
+ *  `dark` is the tint in the dark scheme and `onTint` the text on it (-1: the same as the light one, the look's own text colour). */
+export function setAccent(rgb: i32, dark: i32 = -1, onTint: i32 = -1): void { accent = rgb; accentDark = dark; accentOn = onTint; defineVars(); ui.refreshScheme(); }
 /** One of the look's [light, dark] colours in the current scheme; under the neutral look always the light one (what React Native drew before looks). */
 export function color(pair: i32[]): i32 { return pair[ui.currentScheme() === 'dark' && current.name !== 'neutral' ? 1 : 0]; }
 /** The tint in the current scheme, the OS's accent when it gave one. */
-export function tint(): i32 { return accent >= 0 && current.name !== 'neutral' ? accent : color(current.tint); }
+export function tint(): i32 {
+  if (accent < 0 || current.name === 'neutral') return color(current.tint);
+  return ui.currentScheme() === 'dark' && accentDark >= 0 ? accentDark : accent;
+}
 
 /** Sets the look of the app below it: `<ThemeProvider look="ios">...</ThemeProvider>` (React and Solid models), at the root. */
 export function ThemeProvider(p: { look?: string; children?: () => i32 }): i32 {

@@ -18,6 +18,7 @@ import * as ui from 'zinc:ui';
 import { theme } from './theme';
 import { Button as KitButton } from './button';
 import { renderSlot } from './host';
+import { look } from '../platform/index';
 
 /** 'mod-shift-s' -> '⌘⇧S' (hints in menus and tooltips). */
 export function keyLabel(stroke: string): string {
@@ -103,7 +104,7 @@ export function Popover(props: PopoverProps): i32 {
     <View ref={trig} className="flex-col">{props.trigger !== undefined
       ? <View role="button" aria-label={props.label} className="cursor-pointer" onClick={() => show(panel.node, !shown(panel.node))}><Trigger /></View>
       : <KitButton label={props.label} variant={props.variant ?? 'outline'} onClick={() => show(panel.node, !shown(panel.node))} />}</View>
-    <View ref={panel} hidden={1} className={`flex-col gap-3 p-4 w-72 rounded-md border border-${t.border} bg-${t.card} shadow-md ${props.className ?? ''}`}>
+    <View ref={panel} hidden={1} className={`flex-col gap-3 p-4 w-72 ${look().panel} border border-${t.border} bg-${t.card} ${props.className ?? ''}`}>
       {props.children()}
     </View>
   </View>;
@@ -146,7 +147,7 @@ export function DropdownMenu(props: DropdownMenuProps): i32 {
   const t = theme();
   const node = <View className="flex-col">
     <View ref={trig} className="flex-col"><KitButton label={props.label} variant={props.variant ?? 'outline'} onClick={() => show(menu.node, !shown(menu.node))} /></View>
-    <View ref={menu} hidden={1} className={`flex-col p-1 w-56 rounded-md border border-${t.border} bg-${t.card} shadow-md ${props.className ?? ''}`}>
+    <View ref={menu} hidden={1} className={`flex-col p-1 w-56 ${look().panel} border border-${t.border} bg-${t.card} ${props.className ?? ''}`}>
       {props.items.map((it: MenuItem) => <MenuRow item={it} menu={menu.node} />)}
     </View>
   </View>;
@@ -171,7 +172,7 @@ export function Dialog(props: DialogProps): i32 {
   const t = theme();
   const close = (): void => props.onOpenChange(false);
   const node = <View ref={screen} className="absolute inset-0 items-center justify-center" hidden={props.open() ? 0 : 1} role="dialog" aria-label={props.title ?? ''}>
-    <View ref={panel} className={`flex-col gap-4 p-6 w-[420px] rounded-lg border border-${t.border} bg-${t.card} shadow-lg ${props.className ?? ''}`}>
+    <View ref={panel} className={`flex-col gap-4 p-6 w-[420px] ${look().dialog} border border-${t.border} bg-${t.card} ${props.className ?? ''}`}>
       <View className="flex-col gap-1.5">
         <Text as="h2" className={`text-lg font-semibold tracking-tight text-${t.foreground}`} hidden={props.title !== undefined ? 0 : 1}>{props.title ?? ''}</Text>
         <Text className={`text-sm text-${t.mutedForeground}`} hidden={props.description !== undefined ? 0 : 1}>{props.description ?? ''}</Text>
@@ -197,7 +198,7 @@ export function toast(title: string, description: string = '', ms: number = 4000
     ui.openLayer(toaster, { priority: 400 });
   }
   const t = theme();
-  const n = <View className={`flex-col gap-1 p-4 rounded-lg border border-${t.border} bg-${t.card} shadow-lg`}>
+  const n = <View className={`flex-col gap-1 p-4 ${look().dialog} border border-${t.border} bg-${t.card}`}>
     <Text className={`text-sm font-semibold text-${t.foreground}`}>{title}</Text>
     <Text className={`text-sm text-${t.mutedForeground}`} hidden={description.length > 0 ? 0 : 1}>{description}</Text>
   </View>;

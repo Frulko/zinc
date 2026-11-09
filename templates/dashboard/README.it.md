@@ -8,7 +8,7 @@
 - La guida: https://frulko.github.io/zinc/it/docs/guide/01-getting-started/
 - `zinc tour`: un primo tour guidato.
 
-Una dashboard in tempo reale fatta con il modello `dashboard`, su `zinc:ui/nuxt`.
+Una dashboard in tempo reale fatta con il modello `dashboard`, su `zinc:ui/kit` con il suo tema Quiet.
 
 ```sh
 zinc run      # the dashboard, fed by the mock source
