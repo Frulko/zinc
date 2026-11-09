@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Resume already-reserved ZN-1078.07 Pickers in fresh work/1078-pickers, TypeScript family only, no engine build. The core writer stays sole engine owner on1088/1090; independent picker implementation/reuse research proceeds while the global heavy queue is occupied by another session’s bounded Mapper app. Known size/icon criteria remain open until fixed, no source workaround or budget raise. Future workers inherit configured model.
+
 - Closed/released1087/1089/1091/1092 after full ordinary-default UI proof and clean exact T0s;17 tasks closed this session. Owner then chose Astra Fast and switched back: inherit prior/configured model for new workers, preserve Fast/optionaloverride. Astra1088 checkpoint e020951cc remains unintegrated, finalusedgate72312>65536, unusedpasses; no1090code. Feedbackcleanup patch saved, no oldworkersrunning. Fresh core+read-only size attribution resumes from new worktrees; preserve all artifacts.
 
 - Galleryc59fa16fa and nativeaspectb189f5bab integrated. New fresh1087 proof worker will own remaining owner default resize/scroll criteria; core handles1092 before1088/1090. Inputs06/Navigation09 released with dependency1088;1091BacklogAC3 dependency1092 (not human Review). Existing clean kit_inputs/input/navigation PASS. Preserve old source artifacts; no new feature chain while engine blockers remain.
