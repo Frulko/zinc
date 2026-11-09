@@ -244,6 +244,7 @@ ui.focusScope(dialog, { trap: true, restore: true, autoFocus: true });
   `ui.onFocusWithin(h, f)` reports keyboard focus entering (`true`) or leaving (`false`) the subtree;
   a pointer press focusing it also reports `false`. It returns an idempotent unsubscribe function, suitable for
   `host.onCleanup(ui.onFocusWithin(h, f))` in a component. Node destruction also removes the subscription.
+  Registration remembers the current focus without calling `f`, so replacing a handler while focused still reports the next blur.
 - **Dismissal**: `ui.onDismiss(h, f)`: Escape runs the handler of the most recently shown node that has one (after the
   focused node's `onKeyDown`, before a text field's own Escape). `ui.onOutsidePointer(h, f, except)`: a press outside
   h (and outside `except`, the button that toggles it) while h is on screen.

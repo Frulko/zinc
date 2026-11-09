@@ -6314,11 +6314,12 @@ function disposeFocusWithin(w: FocusWithin): void {
 function forgetFocusWithin(h: i32): void {
   for (let i = within.length - 1; i >= 0; i--) if (within[i].root.id === h) disposeFocusWithin(within[i]);
 }
-/** Calls `f(true)` when the keyboard moves the focus into `root` or below it (Tab, arrows), and `f(false)` when it leaves or a press puts it there. Returns an idempotent unsubscribe; also dropped with the node. */
+/** Calls `f(true)` when the keyboard moves the focus into `root` or below it (Tab, arrows), and `f(false)` when it leaves or a press puts it there. Registration reads the current focus without calling `f`. Returns an idempotent unsubscribe; also dropped with the node. */
 export function onFocusWithin(root: i32, f: (on: boolean) => void): () => void {
   const n = node(root);
   if (!n.alive) return () => {};
   const w = new FocusWithin(n, f);
+  w.on = focus >= 0 && isAncestor(root, focus);
   within.push(w);
   return () => { disposeFocusWithin(w); };
 }

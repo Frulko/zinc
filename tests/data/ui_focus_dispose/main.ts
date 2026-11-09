@@ -49,6 +49,17 @@ stopCurrent();
 ui.domFocus(reused, true);
 ui.domFocus(-1, true);
 
+// Replacement while focused remembers the pending blur, without synthesizing an enter.
+for (const keyboard of [true, false]) {
+  ui.domFocus(reused, keyboard);
+  const before = seen.length;
+  const stopFocused = ui.onFocusWithin(reused, (on: boolean) => { seen.push((keyboard ? 'focused-keyboard:' : 'focused-pointer:') + on); });
+  if (seen.length !== before) throw new Error('registration synthesized a focus event');
+  ui.domFocus(-1, keyboard);
+  stopFocused();
+  stopFocused();
+}
+
 // Snapshot dispatch skips an unsubscribed peer and never calls a new registration.
 const dispatchRoot = ui.createNode(ui.VIEW);
 const stopOther = ui.onFocusWithin(dispatchRoot, (on: boolean) => { seen.push('other'); });
