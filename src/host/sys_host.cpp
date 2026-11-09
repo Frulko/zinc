@@ -78,11 +78,16 @@
 #include "zn/hostsys.h"
 #include "zn/loop.h"
 #include <uv.h>
+// ZN_HOST_LITE (ZN-805): this file compiled a second time without the network (fetch, the HTTP and WebSocket server, sockets, TLS, MQTT,
+// zinc:subtle) and without writing packs (the zstd and lz4 compressors): libzn_host_sys_lite, which zinc build links before libzn_host_gfx
+// for a program that calls none of those rows, so Mbed TLS, llhttp and the compressors stay out of it (src/aot/aot.cpp usesNet).
+#ifndef ZN_HOST_LITE
 #include "mqtt.h"
-#include "netlog.h"
 #include "http.h"
 #include "sock.h"
 #include "crypto.h"
+#endif
+#include "netlog.h"
 #include "regexp.h"
 #include "zn/runtime.h"
 
@@ -1187,6 +1192,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostAssetsName: ret(r, n(0) >= 0 && static_cast<size_t>(n(0)) < gNames.size() ? gNames[static_cast<size_t>(n(0))] : ""); break;
     case Rt::HostAssetsMount: { std::string err; r->i = zn::host::assets::mount(s(0), err); if (!r->i) { gFailed = true; gError = err; } break; }
+#ifndef ZN_HOST_LITE
     case Rt::HostAssetsPackAdd: {
       zn::zpk::Input in;
       in.name = s(0);
@@ -1206,6 +1212,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       writeAll(s(0), out.data(), out.size(), false, "open");
       break;
     }
+#endif
     case Rt::HostAssetsUnmount: r->i = zn::host::assets::unmount(s(0)); break;
     case Rt::HostAssetsGroupsCount: zn::host::assets::groups(gNames); r->i = static_cast<std::int64_t>(gNames.size()); break;
     case Rt::HostAssetsLoadGroup: { std::string err; r->i = zn::host::assets::load(s(0), n(1), err); if (!r->i) { gFailed = true; gError = err; } break; }
@@ -1329,7 +1336,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostEvNext: {  // "handle \x1f kind \x1f data", or "" when no event is ready
       zn::loop::Event e;
       if (zn::loop::nextEvent(e)) {
+#ifndef ZN_HOST_LITE
         if (e.kind == 43) zn::http::bodyTaken(e.handle, e.payload.size());   // a chunk of a streamed request body reaches the program
+#endif
         gPayload = std::move(e.payload); ret(r, std::to_string(e.handle) + "\x1f" + std::to_string(e.kind) + "\x1f" + e.data); } else ret(r, std::string());
       break;
     }
@@ -1344,10 +1353,12 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostStdinRead: zn::loop::readStdin(); break;
     case Rt::HostOscListen: r->i = refused("net", "*") ? -1 : zn::loop::oscListen(n(0)) ? 1 : 0; break;
     case Rt::HostOscClose: zn::loop::oscClose(); break;
+#ifndef ZN_HOST_LITE
     case Rt::HostMqttOpen: r->i = refused("net", s(0)) ? -2 : zn::mqtt::open(s(0), n(1), s(2)); break;   // -2: refused by the permissions (sockError says why)
     case Rt::HostMqttOpenTls: r->i = refused("net", s(0)) ? -2 : zn::mqtt::open(s(0), n(1), s(2), n(3) != 0); break;
     case Rt::HostCrypto: { std::string e; std::string o = zn::crypto::run(s(0), rawBytes(a[1]), rawBytes(a[2]), rawBytes(a[3]), rawBytes(a[4]), n(5), n(6), e); gCryptoError = e; static const char* kHex = "0123456789abcdef"; std::string h; h.reserve(o.size() * 2); for (unsigned char c : o) { h += kHex[c >> 4]; h += kHex[c & 15]; } ret(r, h); break; }   // hex: text on every engine (QuickJS strings are UTF-8)
     case Rt::HostCryptoError: ret(r, gCryptoError); break;
+#endif
     case Rt::HostReCompile: r->i = zn::re::compile(s(0), s(1)); break;
     case Rt::HostReError: ret(r, zn::re::error()); break;
     case Rt::HostReExec: r->i = zn::re::exec(n(0), static_cast<const char*>(a[1].p), a[1].n, n(2)); break;
@@ -1359,9 +1370,11 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostTzOffset: r->d = tzOffsetMinutes(a[0].d, nullptr, nullptr); break;
     case Rt::HostTzName: { std::string ab; tzOffsetMinutes(a[0].d, nullptr, &ab); ret(r, ab); break; }
     case Rt::HostTzOffsetIn: r->d = tzOffsetMinutes(a[1].d, s(0).c_str(), nullptr); break;
+#ifndef ZN_HOST_LITE
     case Rt::HostMqttPublish: zn::mqtt::publish(n(0), s(1), s(2), n(3) != 0, n(4)); break;
     case Rt::HostMqttSubscribe: zn::mqtt::subscribe(n(0), s(1)); break;
     case Rt::HostMqttClose: zn::mqtt::close(n(0)); break;
+#endif
     case Rt::HostNetLog: {   // the network log for the inspector (ZN-370)
       const int arg = std::atoi(s(1).c_str());
       if (n(0) == 20) { zn_dev_report(("devtools " + s(1)).c_str()); ret(r, std::string()); break; }   // the port the inspector bound, for zinc dev (assets_host.cpp)
@@ -1384,6 +1397,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       ret(r, n(0) == 1 ? zn::netlog::drain() : n(0) == 2 ? zn::netlog::responseBody(arg) : n(0) == 3 ? zn::netlog::postData(arg) : n(0) == 5 ? zn::netlog::consoleDrain() : n(0) == 6 ? zn::netlog::consoleRecent() : n(0) == 9 ? zn::netlog::har() : n(0) == 10 ? zn::netlog::replay() : std::string());   // 9: the log as HAR (the inspector's export)
       break;
     }
+#ifndef ZN_HOST_LITE
     case Rt::HostHttpFetch: r->i = zn::http::fetchOpen(s(0), s(1), s(2), s(3), n(4), n(5)); break;
     case Rt::HostHttpFetchBytes: {   // the body's bytes as they are (one u64 slot per byte)
       const std::uint64_t* p = static_cast<const std::uint64_t*>(a[3].p);
@@ -1446,6 +1460,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSockRemotePort: r->i = zn::sock::remotePort(n(0)); break;
     case Rt::HostSockLookup: r->i = zn::sock::lookup(s(0)); break;
     case Rt::HostSockError: { std::string why = takeRefusal(); ret(r, why.empty() ? zn::sock::error() : why); break; }
+#endif
     case Rt::HostSysBytesToString: ret(r, rawBytes(a[0])); break;
     case Rt::HostOscSend: r->i = refused("net", s(0)) ? -1 : zn::loop::oscSend(s(0), n(1), s(2)) ? 1 : 0; break;
     case Rt::HostLoopEpoch: { struct timeval tv; gettimeofday(&tv, nullptr); r->d = static_cast<double>(tv.tv_sec) * 1000.0 + static_cast<double>(tv.tv_usec) / 1000.0; break; }

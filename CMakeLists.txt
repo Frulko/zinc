@@ -346,6 +346,14 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
     target_compile_options(${t} PRIVATE -fno-exceptions -fno-rtti -fwrapv -ffp-contract=off -fno-threadsafe-statics -O2 -w)
     target_compile_definitions(${t} PRIVATE ZRT_HEAP_BYTES=536870912u ZRT_PLATFORM="${ZN_PLATFORM_NAME}" ZRT_POINT_POOL=262144 ZRT_GROW_DRAW_CMDS ZRT_RENDER_THREAD)
   endforeach()
+  # ZN-805: the system host again without the network and pack writing (ZN_HOST_LITE, src/host/sys_host.cpp). zinc build links it before
+  # libzn_host_gfx for a program that calls none of those rows (src/aot/aot.cpp usesNet): Mbed TLS, llhttp and the compressors stay out
+  add_library(zn_host_sys_lite STATIC src/host/sys_host.cpp)
+  target_link_libraries(zn_host_sys_lite PRIVATE zn_host_gfx)   # its headers and definitions; nothing links this archive through CMake
+  set_target_properties(zn_host_sys_lite PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+  target_include_directories(zn_host_sys_lite PRIVATE $<TARGET_PROPERTY:zn_host_gfx,INCLUDE_DIRECTORIES>)
+  target_compile_definitions(zn_host_sys_lite PRIVATE $<TARGET_PROPERTY:zn_host_gfx,COMPILE_DEFINITIONS> ZN_HOST_LITE)
+  target_compile_options(zn_host_sys_lite PRIVATE $<TARGET_PROPERTY:zn_host_gfx,COMPILE_OPTIONS>)
 endif()
 
 # libwebp 1.5.0 (BSD-3): decoder and encoder of .webp assets and captures (ZN-226); no demux/mux. The SIMD files compile to nothing unless the compiler targets their instruction set.
@@ -648,6 +656,7 @@ if(TARGET zn_rt_new)
 endif()
 if(TARGET zn_host_gfx)
   target_compile_definitions(zinc PRIVATE ZN_HOST_GFX)
+  add_dependencies(zinc zn_host_sys_lite)   # not linked into zinc: `zinc build` links it into programs without network (ZN-805)
   target_include_directories(zinc PRIVATE ${ZN_RUNTIME_DIR}/include)   # hal_window.h (ZN-233)
   if(ZN_SDL_LIB)
     set(ZN_HOST_LIBS_LINE "'${ZN_SDL_LIB}'")

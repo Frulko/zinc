@@ -1063,6 +1063,7 @@ static void writeComponents(const std::string& file, const std::string& link, co
   std::ofstream cf(file);
   cf << "runtime\n";
   if (link.find("zn_host_gfx") != std::string::npos) cf << "host\n";
+  if (link.find("zn_mbedtls") != std::string::npos) cf << "net\n";   // Mbed TLS and llhttp: not in a program without network (ZN-805)
   if (link.find("zn_yoga") != std::string::npos) cf << "rn\n";
   if (link.find("zn_harfbuzz") != std::string::npos) cf << "shaped\n";
   if (link.find("zn_quickjs") != std::string::npos) cf << "script\n";
@@ -1300,7 +1301,9 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   // unreferenced functions of the libraries (ZN-603); nothing exported: a program loads no plugin, and dyld then has no weak definition
   // to coalesce at launch (ZN-592.06: a console program with a timer 2.1 -> 1.6 MB, 9.2 -> 8.1 ms). A heap budget keeps them: its global
   // operator new (libzn_rt_new) must be exported for libc++'s own allocations to reach it.
-  const std::string deadStrip = zm.heapBytes ? " -Wl,-dead_strip" : " -Wl,-dead_strip -Wl,-no_exported_symbols";
+  // -dead_strip_dylibs (ZN-805): a framework none of whose symbols is used is not loaded at launch (the link names every one SDL3 can use:
+  // a UI app loaded AudioToolbox, AVFoundation, CoreBluetooth and CoreMotion for nothing)
+  const std::string deadStrip = std::string(zm.heapBytes ? " -Wl,-dead_strip" : " -Wl,-dead_strip -Wl,-no_exported_symbols") + " -Wl,-dead_strip_dylibs";
 #else
   const std::string deadStrip;
 #endif
@@ -1326,11 +1329,14 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   // start without them (ZN-592.06: a console program with a timer 14.3 -> ~5 ms). Linked whole: hal_dispatch.cpp has stand-ins otherwise.
   const bool separateWindow = fs::exists(libs / "libzn_host_window.a");
   const bool window = !separateWindow || drawsOf(zm) || zn::aot::usesGl(zm) || !nativeLibs.empty();
+  // no network and no pack writing (ZN-805): the system host without them, linked first, so Mbed TLS, llhttp and the compressors stay out;
+  // a plugin's archive or the QuickJS engine may call into the network code itself, so a program with either keeps the whole host
+  const bool liteHost = !zn::aot::usesNet(zm) && gPlugins.empty() && !usesScript && fs::exists(libs / "libzn_host_sys_lite.a");
   std::string cmd = std::string(cxx ? cxx : "c++") + cflags + ldflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
                     (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                     (!nativeLibs.empty() ? nativeLibs : std::string()) +
                     (zn::aot::usesGl(zm) && fs::exists(libs / "libzn_gl.a") ? " '" + (libs / "libzn_gl.a").string() + "' '" + (libs / "libzn_glad.a").string() + "' '" + (libs / "libzn_glslang.a").string() + "'" : std::string()) +   // zinc:gl (ZN-562): WebGL linked in, no libzn_webgl
-                    (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? " '" + (libs / "libzn_host_gfx.a").string() + "'" + (window && separateWindow ? " -Wl,-force_load,'" + (libs / "libzn_host_window.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_webp_dec.a") ? " '" + (libs / "libzn_webp_dec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + packLibs(libs) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
+                    (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? (liteHost ? " '" + (libs / "libzn_host_sys_lite.a").string() + "'" : std::string()) + " '" + (libs / "libzn_host_gfx.a").string() + "'" + (window && separateWindow ? " -Wl,-force_load,'" + (libs / "libzn_host_window.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_webp_dec.a") ? " '" + (libs / "libzn_webp_dec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (!liteHost && fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (!liteHost && fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + packLibs(libs) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
   if (run) {   // a compiled run: the program's C++ and what it links, hashed; the same as the cached executable's: nothing to compile
     std::string k;
     for (const fs::path& u : units) { std::ifstream in(u); std::stringstream ss; ss << in.rdbuf(); k += ss.str(); }
@@ -3569,7 +3575,9 @@ int main(int argc, char** argv) {
         if (!pl.vendor.empty()) cmd += " '" + pl.vendor + "'";
         for (const std::string& a : pl.linkArgs) cmd += " " + a;
       }
-      for (const char* lib : {"zn_script", "zn_qjs_ext", "zn_napi_qjs", "zn_quickjs", "zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_webp_dec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_zpk", "zn_lz4", "zn_zstd", "zn_sha256", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
+      const bool liteHost = !zn::aot::usesNet(zm) && crossPlugins.empty() && fs::exists(L + "libzn_host_sys_lite.a");   // no network (ZN-805), as buildNative
+      for (const char* lib : {"zn_script", "zn_qjs_ext", "zn_napi_qjs", "zn_quickjs", "zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_sys_lite", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_webp_dec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_zpk", "zn_lz4", "zn_zstd", "zn_sha256", "zn_yyjson"})
+        if (fs::exists(L + "lib" + lib + ".a") && (liteHost ? std::strcmp(lib, "zn_llhttp") && std::strcmp(lib, "zn_mbedtls") : std::strcmp(lib, "zn_host_sys_lite"))) cmd += " '" + L + "lib" + lib + ".a'";
       cmd += " -lpthread -Wl,-S -o '" + std::string(argv[6]) + "'";   // -S: no debug sections (40 of museum-table's 130 MB), the symbols kept for crash traces
       writeComponents(std::string(argv[6]) + ".components", cmd, crossPlugins);   // ZN-323
       zn::log::Phase ph("build", "cross compile and link", "native", "zig c++ for " + std::string(target->name) + ", compile and link");
