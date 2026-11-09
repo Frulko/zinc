@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Recorded/released Selection .08 and unstarted.09; clean integrated kit_selection/kit_selection_native PASS. .08 staysBacklogAC3 size-only failure, no repeated microtrims. Temporary identical artifact sizes across branches are consistent with page/link rounding; no demonstrated cache defect. OldSelection tree removable.
+
 - Selection .08 progress integrated53009551b: feature/React/native proof green, AC1/2 complete, task BacklogAC3 unchanged AOTsize gate66081>65536. .09 unstarted. Fresh Overlays worker resumes checkpointf300498dc in work/1078-overlays-resume; Inputs and harness continue. Owner asked kit testing: quiet/input/actions/chrome T0 PASS, clean gallery check/headless capture PASS, bounded background interactive window60s.
 
 - Integrated/released ZN-1083 (3e0a6bf2a, Done), clean six-case jsx_show and targeted kit_actions/kit_chrome/ui_focus_dispose PASS. Remove completed1083 tree. Three active workers: Inputs, Selection and priority harness1084. Internal host.componentRef addition transferred from Inputs to Selection to avoid duplicate commits; integrate Selection first. All heavy commands self-queue with shared flock.

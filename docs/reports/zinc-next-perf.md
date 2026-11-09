@@ -1680,3 +1680,7 @@ Indicative local M1 Pro artifact sizes, not a timing benchmark; unchanged `tests
 | Ten components | 6,002,016 | 240,810 |
 
 Barrel overhead: 66,040 B AOT across 26 unused families (budget 106,496 B), 395 B JS (budget 6,656 B). Each additional component averages 49,560 B AOT / 1,525 B JS (budgets 65,536 / 4,096 B). Initial AOT barrel overhead was 1,876,744 B: the fix removes unused plugin libraries, library font atlases and dead literals. Maximum observed child RSS below 1 GB; no quiet-machine timing or hardware proof. Commands: `tests/run --only kit_size`, `--only native_reachability`, `--only res_library`.
+
+## 2026-11-09 — Selection size gate (ZN-1078.08)
+
+At53009551b, unchanged kit_size in the Selection tree, clean engine and ZINC_ROOT pointing at that tree: minified bundle direct227388 B, index228260 B (+872, budget7424), ten245375 B (+1901/component). AOT direct5506440 B, index5605520 B (+99080, budget118784), ten6200256 B (+66081/component, budget65536): FAIL only the used-component AOT limit. Size diagnostics, not timing or cross-framework rankings; no budget changed. Structural/interaction/native proofs pass. Inputs retained detailed artifacts separately; matching rounded AOT file sizes do not establish a stale-cache defect.
