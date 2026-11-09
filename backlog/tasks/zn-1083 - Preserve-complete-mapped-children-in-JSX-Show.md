@@ -2,8 +2,7 @@
 id: ZN-1083
 title: Preserve complete mapped children in JSX Show
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 12:34'
 updated_date: '2026-11-09 12:52'
 labels:
