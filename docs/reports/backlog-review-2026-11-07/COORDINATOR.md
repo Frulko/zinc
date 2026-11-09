@@ -19,6 +19,10 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Created/claimed ZN-1082 (blocks Selection slider): dynamic grab binding rejected by literal-only frontend. Exact existing enum keep/keep-x/auto only. Short primary-source research completed; fourth agent slot reserved for one core worker, no further UI research until released. Inputs has next bounded proof batch; engine worker must avoid final link while it runs.
+
+- 2026-11-09: Inputs exact kit_inputs/kit_input PASS after render-slot, disabled API and engine autofocus corrections; final captures/gate ongoing. Selection .08 worker explicitly owns minimal Actions.groupButtons correction from getNumber(disabled) to ui.isDisabled plus disabled-middle-item focus regression (shared Selection keyboard behavior, no new task); no other worker edits actions.tsx.
+
 - 2026-11-09: Claimed Selection/Navigation ZN-1078.08-.09, new work/1078-selection in .worktrees/1078-selection, no engine build. Inputs/Pickers .06-.07 active in its own tree. Separate family modules/gallery sections; Selection docs insert before How it works while Inputs appends after App chrome to avoid shared append conflicts. Both use latest retained clean binary with ZINC_ROOT.
 
 - 2026-11-09: Integrated ZN-1080 (1ccc941a7, Done), only c7d77cdfb after clean branch reset/rebase;1081 was not duplicated. Clean retained tree rebuilt, jsx_input_mode PASS Solid/React×interpreter/nativeAOT/QuickJS, solid fixture check PASS. Original Inputs production source all3 proofs green; .06 authored interaction checks still being corrected. Core worker clean/no processes; remove completed work/1080-inputmode. Next chain Selection/Navigation .08-.09 beside Inputs/Pickers.
