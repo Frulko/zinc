@@ -61,6 +61,21 @@ ParseResult parseKept(const std::string& text) {
   return r;
 }
 
+// The same for the regular-expression scans of a text (the icons it names, its relative imports): values that hold no view of the text.
+template <class V> class TextMemo {
+  std::mutex mu_;
+  std::unordered_map<std::string, V> cur_, prev_;
+  unsigned load_ = 0;
+ public:
+  V get(const std::string& text, const std::function<V()>& make) {
+    std::lock_guard<std::mutex> g(mu_);
+    if (const unsigned now = gLoads.load(); now != load_) { prev_ = std::move(cur_); cur_.clear(); load_ = now; }
+    if (auto it = cur_.find(text); it != cur_.end()) return it->second;
+    if (auto p = prev_.find(text); p != prev_.end()) return cur_.insert(prev_.extract(p)).position->second;
+    return cur_.emplace(text, make()).first->second;
+  }
+};
+
 // The host's modules ('zinc:gfx'), written in Zinc over the __host_* functions of the runtime table (zn/runtime.h, owner "host").
 // A first subset of lib/gfx.d.ts: frames, clear, rect, rrect, fonts and text. `onFrame` hands the callback to the frame loop,
 // which runs in place of the timer loop once the program's own statements are done (see kAsyncPrelude).
@@ -1410,13 +1425,21 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     if (ext != ".ts" && ext != ".tsx") continue;
     std::ifstream in(it->path());
     std::stringstream ss; ss << in.rdbuf();
-    const std::string text = ss.str();
-    for (const std::regex* r : {&tag, &call})
-      for (std::sregex_iterator m(text.begin(), text.end(), *r), e; m != e; ++m) { names.insert((*m)[1].str()); named.insert((*m)[1].str()); }
-    for (std::sregex_iterator m(text.begin(), text.end(), dyn), e; m != e; ++m) {
-      const std::string ex = (*m)[1].str();
-      for (std::sregex_iterator l(ex.begin(), ex.end(), lit); l != e; ++l) names.insert((*l)[1].str());
-    }
+    using Found = std::pair<std::set<std::string>, std::set<std::string>>;   // every name, the literal ones
+    static TextMemo<Found> scans;   // each text scanned once while it stays the same (ZN-1024)
+    const Found found = scans.get(ss.str(), [&] {
+      const std::string text = ss.str();
+      Found f;
+      for (const std::regex* r : {&tag, &call})
+        for (std::sregex_iterator m(text.begin(), text.end(), *r), e; m != e; ++m) { f.first.insert((*m)[1].str()); f.second.insert((*m)[1].str()); }
+      for (std::sregex_iterator m(text.begin(), text.end(), dyn), e; m != e; ++m) {
+        const std::string ex = (*m)[1].str();
+        for (std::sregex_iterator l(ex.begin(), ex.end(), lit); l != e; ++l) f.first.insert((*l)[1].str());
+      }
+      return f;
+    });
+    names.insert(found.first.begin(), found.first.end());
+    named.insert(found.second.begin(), found.second.end());
   }
   std::ifstream in(nodesFile);
   std::stringstream ss; ss << in.rdbuf();
@@ -4182,17 +4205,24 @@ std::set<std::string> jsxClassTags(const std::string& path, const std::string& t
   };
   for (const std::string& c : classes(text)) tags.insert(c);
   static const std::regex imp("import\\s+([^;'\"]*?)\\s+from\\s+['\"](\\.[^'\"]*)['\"]");
+  // the regular expression and the JSX functions of a text, once while it stays the same (ZN-1024)
+  static TextMemo<std::vector<std::pair<std::string, std::string>>> importsOf;
+  static TextMemo<std::set<std::string>> jsxFnsOf;
   std::string other;
   ModuleResolver res;   // the file the import loads, as the engines find it
   res.read = read;
   res.exists = [&](const std::string& c) { return read(c, other); };
-  for (std::sregex_iterator it(text.begin(), text.end(), imp), end; it != end; ++it) {
-    std::string names = (*it)[1], spec = (*it)[2];
+  const auto imports = importsOf.get(text, [&] {
+    std::vector<std::pair<std::string, std::string>> v;
+    for (std::sregex_iterator it(text.begin(), text.end(), imp), end; it != end; ++it) v.push_back({(*it)[1], (*it)[2]});
+    return v;
+  });
+  for (const auto& [names, spec] : imports) {
     const std::string dir = dirOf(path);
     const std::string file = res.file(normalize(dir + (dir.empty() ? "" : "/") + spec), path);
     if (file.empty()) continue;
     const std::set<std::string> declared = classes(other);
-    const std::set<std::string> fns = jsxFns && file.size() > 4 && file.compare(file.size() - 4, 4, ".tsx") == 0 ? jsxFunctionNames(other) : std::set<std::string>();
+    const std::set<std::string> fns = jsxFns && file.size() > 4 && file.compare(file.size() - 4, 4, ".tsx") == 0 ? jsxFnsOf.get(other, [&] { return jsxFunctionNames(other); }) : std::set<std::string>();
     // `Default, { A, B as C }`: the local name takes the class of the imported name (the default import: any class of the file named like it)
     std::string cleaned;
     for (char c : names) cleaned += (c == '{' || c == '}') ? ',' : c;
