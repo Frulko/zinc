@@ -722,6 +722,12 @@ void removeUnusedData(Module& m) {
 
 }  // namespace
 
+std::vector<std::string> reachedStringLiterals(Module& m) {
+  removeUnreachable(m);
+  removeUnusedData(m);
+  return m.strings;
+}
+
 void optimize(Module& m, bool deviceCore) {
   using zn::log::Phase;   // ZINC_LOG=build=debug: the time of each pass
   { Phase p("build", "optimise: constant globals", zn::log::Debug); foldConstGlobals(m); }   // first: inlining, CSE and hoisting then see the constants

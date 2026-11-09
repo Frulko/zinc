@@ -33,6 +33,9 @@ struct Program {
   std::vector<std::pair<std::string, std::string>> styleIgnored;   // ZN-278: the style tokens the profile in force does not draw as written, and where (path:line:col)
 };
 
+// Per-program asset roots; opaque discovery keeps the provider catalog out of reachability inference.
+struct LucideOptions { bool opaque = false; std::set<std::string> reached; };
+
 // `strict` selects the strict profile; so does a line `// zinc-profile: strict` among the first lines of the entry file.
 // `stdRoot` is the directory of the standard modules written in Zinc (lib/std): 'zinc:ui' and the like resolve to files there.
 // Native modules that are not registered yet (ZN-101): the provider builds and loads the plugin that has the module and says whether it is registered now (else `err` says
@@ -47,9 +50,11 @@ extern std::function<bool(const std::string& module)> gNativePreferred;
 // Whether the module's native code wins even over an x.next.ts stand-in in "auto" mode: outside deterministic runs, for a plugin whose manifest says `"live": true` (a real video decoder).
 extern std::function<bool(const std::string& module)> gNativeLive;
 
+// includeLoaderStage: workers omit the main program's immutable loader stage.
+// nativeContractsOnly: read-only discovery trusts validated native Specs without building/registering plugins or changing process profile/layout state.
 // `hot`: zinc dev's hot mode (ZINC_HOT=1, ZN-742): zinc:hot is loaded first and import.meta.hot is each module's record; in any other build
 // the statements that only run with import.meta.hot are removed.
-Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false, const std::string& stdRoot = "", bool hot = false);
+Program loadProgram(const std::string& entry, const ReadFile& read, bool strict = false, const std::string& stdRoot = "", bool hot = false, const LucideOptions* icons = nullptr, bool nativeContractsOnly = false, bool includeLoaderStage = true);
 // The suffixes a module's files take for the platform being built, in the order they are tried ({".android", ".native", ""}): Metro's platform
 // extensions, the moduleSuffixes zinc new and zinc tsconfig write for editors and tsc (docs/react-native.md, "Platform-specific files").
 std::vector<std::string> platformSuffixes();
@@ -62,7 +67,7 @@ const char* builtinModuleSource(std::string_view spec);
 // The source of zinc:platform (the capabilities of this host's profile from `capsFile`, and UI_LAYOUT), generated for each run.
 std::string platformModule(const std::string& capsFile);
 // The source of zinc:icons/lucide: the Lucide icons the project of `entry` names (ZN-374), from `nodesFile` (third_party/lucide/icon-nodes.json).
-std::string lucideModule(const std::string& entry, const std::string& nodesFile);
+std::string lucideModule(const std::string& entry, const std::string& nodesFile, const LucideOptions* icons = nullptr);
 // `zinc explain U0001`..U0005: the warnings of zinc:ui that say what to write (an icon name, a string style value, a shadowed host component, a style the profile draws simpler); "" for another code.
 std::string uiExplain(const std::string& code);
 // The file under lib/std of a standard module written in Zinc ('zinc:ui' is "ui.ts"); empty for any other spec.

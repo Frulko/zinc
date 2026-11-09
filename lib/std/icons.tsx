@@ -1,6 +1,6 @@
 // zinc:icons (ZN-374): the Lucide icon set (third_party/lucide, ISC). `<Icon name="heart" size={24} color={() => 0xff5a36} strokeWidth={2} />` draws an icon
-// with zinc:svg; only the icons the project names are compiled in (zinc:icons/lucide is generated from `<Icon name="...">`, `icon('...')` and zinc.json
-// "icons": ["a", "b"] or ["*"]). A name decided at run time must be listed in zinc.json.
+// with zinc:svg; selected icons come from project literals, reached typed library defaults and zinc.json "icons" (["*"] for all).
+// Names constructed only at run time must be listed in zinc.json.
 import { Svg } from 'zinc:svg';
 import { EINK, einkSnap } from 'zinc:ui';
 import { lucide, NAMES, UNKNOWN } from 'zinc:icons/lucide';

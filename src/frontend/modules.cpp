@@ -1434,7 +1434,8 @@ export function expose(name: string, get: () => number): void {
 
 // zinc:icons/lucide (ZN-374): the Lucide icons a project names, as SVG documents. The names come from the project's sources (`<Icon name="x"`,
 // `icon('x')`) and zinc.json "icons" (["*"] for all); the data is third_party/lucide/icon-nodes.json. Only those icons are compiled into the program.
-std::string lucideModuleSource(const std::string& entry, const std::string& nodesFile) {
+std::string lucideModuleSource(const std::string& entry, const std::string& nodesFile, const LucideOptions* icons) {
+  if (icons && icons->opaque) return "export const COUNT: i32 = 0; export const NAMES: string[] = []; export const UNKNOWN: string[] = []; export function lucide(name: string): string { return name; }";
   namespace fs = std::filesystem;
   std::set<std::string> names, named;   // named: written as a literal name (zinc.json, name="x", icon('x')), so an unknown one is a mistake worth a warning
   bool all = false;
@@ -1474,6 +1475,7 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     names.insert(found.first.begin(), found.first.end());
     named.insert(found.second.begin(), found.second.end());
   }
+  const std::set<std::string> authored = names;   // includes explicit dynamic JSX literals; inferred ordinary strings must not create alias warnings
   const std::string data = slurp(nodesFile);
   if (data.empty() && (all || !names.empty())) std::fprintf(stderr, "zinc: warning: no Lucide icons: %s is missing (reinstall zinc)\n", nodesFile.c_str());
   std::string body, list, unknown;
@@ -1487,9 +1489,16 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     std::string aliasText;
     aliasText = slurp((fs::path(nodesFile).parent_path() / "aliases.json").string());
     yyjson_doc* ad = yyjson_read(aliasText.c_str(), aliasText.size(), 0);
+    if (icons) for (const std::string& literal : icons->reached) {
+      std::string key;
+      for (char c : literal) if (c != '-') key += c;
+      if (yyjson_obj_get(rootv, literal.c_str()) || (ad && yyjson_obj_get(yyjson_doc_get_root(ad), key.c_str()))) names.insert(literal);
+    }
     std::vector<std::string> known;
     { size_t i, n; yyjson_val *k, *v; yyjson_obj_foreach(rootv, i, n, k, v) known.push_back(yyjson_get_str(k)); }
     static std::set<std::string> warned;   // once per name, though a program can load the module more than once
+    static std::mutex warnedLock;
+    auto markWarned = [&](const std::string& name) { std::lock_guard<std::mutex> hold(warnedLock); return warned.insert(name).second; };
     for (const std::string& w : names) {
       if (yyjson_obj_get(rootv, w.c_str())) { asked[w].push_back(w); continue; }
       std::string key;
@@ -1497,10 +1506,10 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
       const char* to = ad ? yyjson_get_str(yyjson_obj_get(yyjson_doc_get_root(ad), key.c_str())) : nullptr;
       if (to && yyjson_obj_get(rootv, to)) {
         asked[to].push_back(w);
-        if (warned.insert(w).second) std::fprintf(stderr, "zinc: warning U0001: icon '%s' is an old Lucide name: write '%s' (zinc explain U0001)\n", w.c_str(), to);
+        if (authored.count(w) && markWarned(w)) std::fprintf(stderr, "zinc: warning U0001: icon '%s' is an old Lucide name: write '%s' (zinc explain U0001)\n", w.c_str(), to);
       } else if (named.count(w)) {
         unknown += (unknown.empty() ? "'" : ", '") + w + "'";   // icons.tsx does not warn a second time at run time
-        if (!warned.insert(w).second) continue;
+        if (!markWarned(w)) continue;
         const std::string near = nearest(w, known);
         std::fprintf(stderr, "zinc: warning U0001: no Lucide icon '%s'%s: it draws nothing (zinc explain U0001)\n", w.c_str(), near.empty() ? "" : (" (did you mean '" + near + "'?)").c_str());
       }
@@ -1510,7 +1519,7 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     yyjson_obj_foreach(rootv, i, n, k, v) {
       const std::string name = yyjson_get_str(k);
       if (!all && !asked.count(name)) continue;
-      std::string svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">";
+      std::string svg;
       size_t j, m; yyjson_val* el;
       yyjson_arr_foreach(v, j, m, el) {
         yyjson_val* tagv = yyjson_arr_get(el, 0);
@@ -1523,7 +1532,6 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
         }
         svg += "/>";
       }
-      svg += "</svg>";
       std::string q;
       for (char c : svg) { if (c == '\\' || c == '\'') q += '\\'; q += c; }
       std::string test = "name === '" + name + "'";
@@ -1535,7 +1543,8 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     yyjson_doc_free(d);
   }
   return "// Generated by zinc for this program (ZN-374): the Lucide icons it names (third_party/lucide, ISC).\nexport const COUNT: i32 = " + std::to_string(count) +
-         ";\nexport const NAMES: string[] = [" + list + "];\nexport const UNKNOWN: string[] = [" + unknown + "];\nexport function lucide(name: string): string {\n" + body + "  return '';\n}\n";
+         ";\nexport const NAMES: string[] = [" + list + "];\nexport const UNKNOWN: string[] = [" + unknown + "];\nfunction lucideBody(name: string): string {\n" + body + "  return '';\n}\n"
+         "export function lucide(name: string): string {\n  const body = lucideBody(name);\n  return body === '' ? '' : '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">' + body + '</svg>';\n}\n";
 }
 
 // The warnings of zinc:ui that say what to write instead of drawing nothing (ZN-1004): `zinc explain U0001`..U0005
@@ -1810,7 +1819,7 @@ std::string lowerWorkerEntries(const std::string& text, const std::string& path,
 // requireNative<Spec>('Name') (zinc:native): the Spec interface of the same file lists the members of a native module. Each member becomes a call of
 // __native_<n> (the checker declares it from Ast::natives, the lowering emits CallNative) inside a generated class that implements the Spec; the call is
 // replaced by `new` of that class. The registry must hold the module (Z5011), and every member must be expressible in the ABI (Z5010).
-std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags, std::uint32_t file, std::vector<NativeDecl>& natives) {
+std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags, std::uint32_t file, std::vector<NativeDecl>& natives, bool contractsOnly) {
   static const std::string kKey = "requireNative<";
   std::string out;
   std::string classes;
@@ -1919,10 +1928,10 @@ std::string lowerRequireNative(const std::string& text, std::vector<Diag>& diags
     if (!listed) { bad(kZNativeTypeNotExpressible, "'" + spec + "' is not an interface of this file"); continue; }
     if (!ok) continue;
     std::string why;
-    if (!nativeProvided(module, why)) { bad(kZNativeNotLinked, "'" + module + "'" + (why.empty() ? "" : ": " + why)); continue; }
+    if (!contractsOnly && !nativeProvided(module, why)) { bad(kZNativeNotLinked, "'" + module + "'" + (why.empty() ? "" : ": " + why)); continue; }
     // provided but not registered: a build for another machine (ZN_AOT_CPP_ONLY), whose plugin is compiled there from this Spec, so the Spec is the contract
     for (const NativeDecl& n : found) {
-      if (!zn_native_has_module(module.c_str())) break;
+      if (contractsOnly || !zn_native_has_module(module.c_str())) break;
       const ZnExport* e = zn_native_find(module.c_str(), n.name.c_str());
       if (!e) { bad(kZNativeNotLinked, "'" + module + "' has no export '" + n.name + "'"); ok = false; break; }
       if (n.sig != e->sig) { bad(kZNativeNotLinked, "'" + module + "." + n.name + "': the Spec says '" + n.sig + "', the module has '" + e->sig + "'"); ok = false; break; }
@@ -2161,6 +2170,9 @@ struct Loader {
   }
   std::map<std::string, std::string> dirSpelling;   // canonical directory -> the first spelling that reached it
   std::string stdRoot;                         // lib/std: where 'zinc:ui' and the other standard modules live
+  const LucideOptions* icons = nullptr;
+  bool nativeContractsOnly = false;
+  bool includeLoaderStage = true;
   bool hot = false;                            // hot mode (zinc dev's Fast Refresh, ZN-742)
   bool dev = false;                            // a dev run (zinc dev, ZINC_DEV=1): component calls record their names for the inspector (jsx.h devFile)
   /** A file's path as the inspector shows it: relative to the working directory when it is below it. */
@@ -2255,7 +2267,7 @@ struct Loader {
   std::uint32_t resolve(std::uint32_t fromFile, std::uint32_t node, std::string_view quoted) {
     std::string spec(quoted.substr(1, quoted.size() - 2));
     if (spec.rfind("zinc:", 0) == 0) {
-      if (spec == "zinc:__layout") {   // a program that drives the engine itself needs it whatever its layout mode (ZN-355); zinc:ui uses it in rn only
+      if (spec == "zinc:__layout" && !nativeContractsOnly) {   // a program that drives the engine itself needs it whatever its layout mode (ZN-355); zinc:ui uses it in rn only
         const std::string& from = prog.files[fromFile].path;
         if (from.size() < 6 || from.compare(from.size() - 6, 6, "/ui.ts") != 0) noteDirectLayoutUse();
       }
@@ -2267,7 +2279,7 @@ struct Loader {
       if (spec == "zinc:icons/lucide") {   // the icons this project names (ZN-374)
         const std::string path = "zinc:icons/lucide";
         if (done.count(path)) return done[path];
-        return load(path, lucideModuleSource(prog.files[0].path, stdRoot + "/../../third_party/lucide/icon-nodes.json"));
+        return load(path, lucideModuleSource(prog.files[0].path, stdRoot + "/../../third_party/lucide/icon-nodes.json", icons));
       }
       const std::string_view stdFile = stdModuleFile(spec);
       if (std::string feature = systemFeatureOf(spec); !feature.empty() && !stdFile.empty() && !typesMode) {   // a system module needs its permission in zinc.json (deny by default)
@@ -2346,11 +2358,11 @@ struct Loader {
         std::string simPath = base.substr(0, base.size() - 5) + suffix;
         bool isSim = std::string(suffix) == ".sim.ts";
         if (haveSpec && mode == "real" && !requireNativeName(specText0).empty()) {
-          if (!nativeProvided(requireNativeName(specText0), whyNot)) { diag(kZNativeNotLinked, fromFile, node, "'" + requireNativeName(specText0) + "'" + (whyNot.empty() ? "" : ": " + whyNot)); return kNone; }
+          if (!nativeContractsOnly && !nativeProvided(requireNativeName(specText0), whyNot)) { diag(kZNativeNotLinked, fromFile, node, "'" + requireNativeName(specText0) + "'" + (whyNot.empty() ? "" : ": " + whyNot)); return kNone; }
           break;
         }
-        if (!isSim && haveSpec && mode == "auto" && gNativeLive && !requireNativeName(specText0).empty() && gNativeLive(requireNativeName(specText0)) && nativeProvided(requireNativeName(specText0), whyNot)) break;   // a live plugin: real code, not its deterministic stand-in
-        if (isSim && haveSpec && mode == "auto" && read(simPath, text) && (!gNativePreferred || gNativePreferred(requireNativeName(specText0))) && !requireNativeName(specText0).empty() && nativeProvided(requireNativeName(specText0), whyNot)) break;
+        if (!isSim && haveSpec && mode == "auto" && gNativeLive && !requireNativeName(specText0).empty() && gNativeLive(requireNativeName(specText0)) && (nativeContractsOnly || nativeProvided(requireNativeName(specText0), whyNot))) break;   // a live plugin: real code, not its deterministic stand-in
+        if (isSim && haveSpec && mode == "auto" && read(simPath, text) && (!gNativePreferred || gNativePreferred(requireNativeName(specText0))) && !requireNativeName(specText0).empty() && (nativeContractsOnly || nativeProvided(requireNativeName(specText0), whyNot))) break;
         // the stand-in imports its own spec (its records), or a module the stand-in imports does while it loads (the plugin's helpers
         // share its records): the spec's declarations, without the native module it binds
         if (prog.files[fromFile].path == simPath || visiting.count(simPath)) {
@@ -2475,7 +2487,7 @@ struct Loader {
     bool isTsx = path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0;
     if (fi == 0) projectReact = importsReact(text);   // the entry's model is the project's (lowerJsx's projectReact)
     if (uiPreset() == "react-native" && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = rewriteReactNativeImports(text, isTsx);   // React Native's own imports (ZN-367.05)
-    if (!typesMode && text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives);
+    if (!typesMode && text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives, nativeContractsOnly);
     if (!typesMode && (text.find("zinc:worker'") != std::string::npos || text.find("zinc:worker\"") != std::string::npos))
       text = lowerWorkerEntries(text, path, std::filesystem::absolute(prog.files.empty() ? path : prog.files[0].path).parent_path().string(), prog.diags, fi, prog.workers);
     if (text.find("StyleSheet") != std::string::npos && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) {
@@ -2529,7 +2541,7 @@ struct Loader {
       const std::uint32_t hotUse = hotMeta(A, off, fi, path, hot && !typesMode);
       const std::unordered_set<std::string_view> values = valueNames(A, off);
       if (fi == 0 && hot) hotModule = resolve(0, kNone, "'zinc:hot'");
-      if (fi == 0 && !loaderStage().source.empty()) load(loaderStage().path, loaderStage().source);   // zinc.json "loading" (ZN-447): before any module of the entry
+      if (fi == 0 && includeLoaderStage && !loaderStage().source.empty()) load(loaderStage().path, loaderStage().source);   // zinc.json "loading" (ZN-447): before any module of the entry
       ModuleInfo mod;
       std::vector<std::tuple<std::string, std::uint32_t, std::size_t>> namespaces;  // `import * as ns` of this module: alias, module, its deferred import (or kNoDeferred)
       mod.path = path;
@@ -4144,7 +4156,7 @@ bool libraryModule(const std::string& p) {
          p.find("/plugins/") != std::string::npos;
 }
 
-Program loadProgram(const std::string& entry, const ReadFile& read, bool strict, const std::string& stdRoot, bool hot) {
+Program loadProgram(const std::string& entry, const ReadFile& read, bool strict, const std::string& stdRoot, bool hot, const LucideOptions* icons, bool nativeContractsOnly, bool includeLoaderStage) {
   gLoads.fetch_add(1);
   Program p;
   std::string text;
@@ -4163,11 +4175,11 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
     if (at != std::string::npos) {
       std::size_t b = at + 14, e = b;
       while (e < text.size() && (std::isalnum(static_cast<unsigned char>(text[e])) || text[e] == '_')) ++e;
-      if (const Profile* pr = findProfile(text.substr(b, e - b))) { applyProfile(*pr); if (pr->strict) p.ast.strict = true; }
+      if (const Profile* pr = findProfile(text.substr(b, e - b))) { if (!nativeContractsOnly) applyProfile(*pr); if (pr->strict) p.ast.strict = true; }
     }
   }
   Loader L(p, read, stdRoot);
-  L.hot = hot;
+  L.hot = hot; L.icons = icons; L.nativeContractsOnly = nativeContractsOnly; L.includeLoaderStage = includeLoaderStage;
   if (const char* d = std::getenv("ZINC_DEV"); hot || (d && std::string(d) == "1")) L.dev = true;
   L.load(entry, std::move(text));
   L.finishTypes();
@@ -4384,7 +4396,7 @@ std::function<bool(const std::string&)> gNativeLive;
 
 std::string platformModule(const std::string& capsFile) { return platformModuleSource(capsFile); }
 
-std::string lucideModule(const std::string& entry, const std::string& nodesFile) { return lucideModuleSource(entry, nodesFile); }
+std::string lucideModule(const std::string& entry, const std::string& nodesFile, const LucideOptions* icons) { return lucideModuleSource(entry, nodesFile, icons); }
 std::string uiExplain(const std::string& code) { return uiExplainText(code); }
 
 }  // namespace zn::frontend

@@ -186,6 +186,8 @@ void parallelFor(std::size_t n, const std::function<void(std::size_t)>& fn);
 // Devirtualises single-target virtual calls and inlines small functions; run before insertRc.
 // `deviceCore`: the module runs on a device core built from an older release, so the rewrites that need a newer runtime row (the number sort) are left out.
 void optimize(Module& m, bool deviceCore = false);
+// Discovery-only module: apply existing RTA/data liveness before inlining and return its retained string literals.
+std::vector<std::string> reachedStringLiterals(Module& m);
 
 // Lowers a checked program. Fails with diagnostics (Z0005) for constructs the IR does not cover yet.
 struct LowerResult {

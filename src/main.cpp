@@ -751,14 +751,14 @@ static void recordStyle(const char* path, const zn::frontend::Program& prog) {
   yyjson_mut_doc_free(doc);
 }
 
-static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
+static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked, const zn::frontend::LucideOptions* icons = nullptr) {
   if (!loadManifestPermissions(path)) return false;
   installNativeProvider(path);
   {   // the plugins to build build at once while the loader goes on; one that failed: loaded again with its stand-in (ZN-1026)
     PluginBatch batch;
     struct Installed { explicit Installed(PluginBatch* b) { gBatch = b; } ~Installed() { gBatch = nullptr; } } installed(&batch);
     for (;;) {
-      { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/lib/std", hotMode()); }
+      { zn::log::Phase ph("build", "read and parse"); prog = zn::frontend::loadProgram(path, readFile, gStrict, gRoot + "/lib/std", hotMode(), icons); }
       if (batch.builds.empty()) break;
       std::string specError;
       const bool built = batch.join(prog, specError);
@@ -937,7 +937,16 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
   zn::log::step("compile", "read, check and lower sources...");
   zn::frontend::Program prog;
   zn::frontend::Checked checked;
-  if (!loadChecked(path, prog, checked)) return 1;
+  zn::frontend::LucideOptions icons;
+  icons.opaque = true;
+  if (!loadChecked(path, prog, checked, &icons)) return 1;
+  if (std::any_of(prog.files.begin(), prog.files.end(), [](const auto& f) { return f.path == "zinc:icons/lucide"; })) {
+    auto probe = zn::ir::lower(prog.ast, checked, prog.files[0].text);
+    if (!probe.diags.empty()) { printDiags(prog, probe.diags); return 1; }
+    const auto literals = zn::ir::reachedStringLiterals(probe.module);
+    icons.reached.insert(literals.begin(), literals.end()); icons.opaque = false;
+    if (!loadChecked(path, prog, checked, &icons)) return 1;
+  }
   scanHostImports(prog);
   notePlugins(prog);
   gSources.clear();

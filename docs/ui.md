@@ -856,9 +856,16 @@ import { Icon, icon } from 'zinc:icons';
 <Icon name="heart" size={20} color={() => theme().accent} strokeWidth={2} />
 ```
 
-Only the icons a project names are compiled in: the compiler collects `<Icon name="...">` and `icon('...')` with literal names from the project's
-sources, plus `zinc.json` `"icons": ["compass", "moon"]` for names decided at run time (`["*"]` compiles the whole set). `icon(name, color, strokeWidth)`
-returns the parsed `Svg` (cached) or null for a name that was not compiled in; `iconNames()` lists them.
+The compiler collects `<Icon name="...">` and `icon('...')` with literal names from the project's sources, plus `zinc.json`
+`"icons": ["compass", "moon"]` for names decided at run time (`["*"]` compiles the whole set). Reached library defaults are collected too:
+using Alert or Spinner does not require declaring their internal icon names. Existing typed reachability keeps strings from called code,
+intersects them with the pinned Lucide names and aliases, and excludes the generated provider catalog. An unrelated retained string that matches
+an icon name can conservatively keep that icon; unused functions do not root their icons.
+
+Valid Zinc programs use the same discovery on interpreter, AOT and QuickJS, including offline direct QuickJS and browser module staging.
+The typed probe is optional for arbitrary JavaScript: unsupported JavaScript still runs, but library defaults in that program require the existing
+caller icon declarations. Bundling does not remove this boundary. Names constructed only at run time still belong in `icons`.
+`icon(name, color, strokeWidth)` returns the parsed `Svg` (cached) or null for a name that was not compiled in; `iconNames()` lists them.
 
 ## Animated (React Native's API)
 

@@ -11,6 +11,7 @@
 #include <chrono>
 #include <functional>
 #include <optional>
+#include <mutex>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -31,6 +32,7 @@ bool qjs_lre_check_stack_overflow(void*, size_t);
 }
 
 #include "frontend/modules.h"
+#include "ir/ir.h"
 #include "frontend/plugin_manifest.h"
 #include "frontend/profile.h"
 #include "frontend/project.h"
@@ -49,6 +51,7 @@ struct Engine {
   JSRuntime* rt = nullptr;
   JSContext* ctx = nullptr;
   std::string stdRoot;
+  zn::frontend::LucideOptions icons;
   std::string entry;   // the program's entry file (zinc:icons/lucide reads its project)
   std::string cacheDir;   // the transformed modules by content hash ("" : none)
   std::map<std::string, std::string> imports;   // bare specifiers -> files, from importmap.json next to the entry (like a browser import map): `import 'three'` (ZN-204)
@@ -68,6 +71,22 @@ bool readFile(const std::string& path, std::string& out) {
   ss << in.rdbuf();
   out = ss.str();
   return true;
+}
+// Only a Lucide module load requests this optional probe; QuickJS deduplicates resolved modules before calling its loader.
+// Worker contexts use their own entry, and probes serialize the checker's shared compilation context.
+zn::frontend::LucideOptions discoverIcons(const std::string& entry, const std::string& stdRoot, bool includeLoaderStage) {
+  static std::mutex probeMutex;
+  std::lock_guard<std::mutex> hold(probeMutex);
+  zn::frontend::LucideOptions result, opaque; opaque.opaque = true;
+  auto program = zn::frontend::loadProgram(entry, readFile, false, stdRoot, false, &opaque, true, includeLoaderStage);
+  if (!program.diags.empty()) return result;
+  auto checked = zn::frontend::check(program.ast);
+  if (!checked.diags.empty()) return result;
+  auto low = zn::ir::lower(program.ast, checked, program.files[0].text);
+  if (!low.diags.empty()) return result;
+  const auto literals = zn::ir::reachedStringLiterals(low.module);
+  result.reached.insert(literals.begin(), literals.end());
+  return result;
 }
 bool endsWith(const std::string& s, const char* suffix) { std::size_t n = std::strlen(suffix); return s.size() >= n && s.compare(s.size() - n, n, suffix) == 0; }
 
@@ -452,7 +471,10 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
     if (name == "zinc:web/globals") src = kWebGlobalsJs;
     else if (name == "zinc:gfx") src = gfxSource();
     else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
-    else if (name == "zinc:icons/lucide") src = zn::frontend::lucideModule(e.entry, e.stdRoot + "/../../third_party/lucide/icon-nodes.json");
+    else if (name == "zinc:icons/lucide") {
+      e.icons = discoverIcons(e.entry, e.stdRoot, !e.worker);
+      src = zn::frontend::lucideModule(e.entry, e.stdRoot + "/../../third_party/lucide/icon-nodes.json", &e.icons);
+    }
     else if (const char* b = zn::frontend::builtinModuleSource(name)) src = b;
     else if (std::string g = zn::frontend::generatedModuleSource(name); !g.empty()) src = std::move(g);
     else {

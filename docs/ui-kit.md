@@ -300,7 +300,7 @@ const scroll = createNodeRef(), install = createNodeRef();
 </View>
 ```
 
-Register the icon names you choose in the project's `zinc.json` `icons` list. The family uses the existing icon
+Register icon names constructed at run time in the project's `zinc.json` `icons` list. Reached typed library defaults are collected automatically. The family uses the existing icon
 provider and loads no icons or handlers at import time. Document tabs and resizable panel docking remain the
 [App chrome](#quiet-app-chrome) controls; the Dock here launches destinations.
 
