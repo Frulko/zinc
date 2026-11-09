@@ -64,16 +64,16 @@ async function unix(): Promise<void> {
 }
 
 async function datagrams(): Promise<void> {
-  const a = await udp(9731, '127.0.0.1');
-  const b = await udp(9732, '127.0.0.1');
+  const a = await udp(0, '127.0.0.1');   // ephemeral ports: two trees run this test at once (ZN-639)
+  const b = await udp(0, '127.0.0.1');
   const got = new Promise<string>(resolve => {
-    b.onMessage((m: Datagram) => { resolve(`${m.text} from ${m.address}:${m.port}`); });
+    b.onMessage((m: Datagram) => { resolve(`${m.text} from ${m.address} ${m.port === a.port}`); });
   });
   a.onMessage((m: Datagram) => { console.log('udp: reply', m.bytes); });
-  a.send('127.0.0.1', 9732, 'ping');
-  console.log('udp:', await got, a.port, b.port);
+  a.send('127.0.0.1', b.port, 'ping');
+  console.log('udp:', await got, a.port > 0, b.port > 0, a.port !== b.port);
   const back = new Promise<boolean>(resolve => { a.onMessage((m: Datagram) => { resolve(true); }); });
-  b.sendBytes('127.0.0.1', 9731, [7, 8, 9]);
+  b.sendBytes('127.0.0.1', a.port, [7, 8, 9]);
   await back;
   a.close();
   b.close();
