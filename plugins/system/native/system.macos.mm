@@ -670,7 +670,6 @@ static void installUrlHandler() {
     [[NSAppleEventManager sharedAppleEventManager] setEventHandler:h andSelector:@selector(handleURL:withReply:) forEventClass:kInternetEventClass andEventID:kAEGetURL];   // before the first event is served: a cold start delivers it right after launch
   });
 }
-static void openFilesIMP(id, SEL, NSApplication*, NSArray<NSString*>* files) { pushEvent(@"open-file", files); }
 static int linkCall(const char* op, NSDictionary* a, char* out, int cap) {
   ensureApp();
   installUrlHandler();

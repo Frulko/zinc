@@ -269,6 +269,7 @@
     {"paths": ["tools/ci-plan", "tests/data/ci_plan.py", "tests/t0/ci_plan.sh", "tests/affected.py", "tests/affected.json"], "tests": ["ci_plan"]},
     {"paths": ["tests/t1/fixed_verify.sh"], "tests": ["fixed_verify"]},
     {"paths": ["tests/t1/macos_deeplink.sh"], "tests": ["macos_deeplink"]},
+    {"paths": ["plugins/system/deeplink.ts", "plugins/system/instance.ts", "plugins/system/native/system.host.cpp", "tests/t1/linux_deeplink.sh"], "tests": ["linux_deeplink"]},
     {"paths": ["tests/t1/macos_window.sh", "tests/golden/macos/window/"], "tests": ["macos_window"]},
     {"paths": ["tests/data/lexer/"], "tests": ["lexer"]},
     {"paths": ["tests/data/native-gen-device-additions.txt"], "tests": ["native_gen"]},

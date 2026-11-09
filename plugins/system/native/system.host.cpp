@@ -355,7 +355,7 @@ struct Sim : NativeSystem, zrt::Poller {
     char msg[4096] = "{\"cwd\":";
     appendJson(msg, sizeof msg, cwd);
     strcat(msg, ",\"argv\":[");
-    for (int i = 0; i < n; i++) { if (i) strcat(msg, ","); appendJson(msg, sizeof argv[i], argv[i]); }
+    for (int i = 0; i < n; i++) { if (i) strcat(msg, ","); appendJson(msg, sizeof msg, argv[i]); }
     strcat(msg, "]}\n");
     for (int attempt = 0; attempt < 20; attempt++) {   // the first may still be binding
       int s = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -396,6 +396,14 @@ struct Sim : NativeSystem, zrt::Poller {
       for (int i = 0; i < n; i++) { strcat(ev, ","); appendJson(ev, sizeof ev, argv[i]); }
       strcat(ev, "]}");
       deliver(ev);
+      for (int i = 0; i < n; i++) {   // a deep link given to the second launch (Linux starts the handler with the URL as an argument) reaches deeplink.onOpen, as macOS delivers it
+        const char* sep = strstr(argv[i], "://");
+        if (!sep || sep == argv[i] || sep - argv[i] >= 20 || strchr(argv[i], ' ')) continue;
+        char url[300] = "{\"type\":\"open-url\",\"args\":[";
+        appendJson(url, sizeof url, argv[i]);
+        strcat(url, "]}");
+        deliver(url);
+      }
     }
     return true;
 #endif
@@ -555,14 +563,51 @@ struct Sim : NativeSystem, zrt::Poller {
     ssize_t l = readlink("/proc/self/exe", exe, sizeof exe - 1);
     exe[l > 0 ? l : 0] = 0;
 #endif
-    FILE* f = fopen(path, "w");
+    char quoted[2200], *q = quoted;   // Exec quoting of the desktop entry spec: the path in double quotes, \" \` \$ \\ escaped (and \ doubled again by the string escaping), % doubled
+    *q++ = '"';
+    for (const char* p = exe; *p && q < quoted + sizeof quoted - 8; p++) {
+      if (*p == '"' || *p == '`' || *p == '$') { *q++ = '\\'; *q++ = '\\'; }
+      else if (*p == '\\') { memcpy(q, "\\\\\\", 3); q += 3; }
+      else if (*p == '%') *q++ = '%';
+      *q++ = *p;
+    }
+    *q++ = '"'; *q = 0;
+    char tmp[500];
+    snprintf(tmp, sizeof tmp, "%s.tmp", path);
+    FILE* f = fopen(tmp, "w");
     if (!f) return reply("{\"ok\":false,\"reason\":\"cannot write the desktop entry\"}");
-    fprintf(f, "[Desktop Entry]\nType=Application\nName=%s\nExec=%s %%u\nMimeType=x-scheme-handler/%s;\nNoDisplay=true\n", title[0] ? title : id, exe, scheme);
-    fclose(f);
-    char cmd[700];
-    snprintf(cmd, sizeof cmd, "xdg-mime default '%s.desktop' 'x-scheme-handler/%s' >/dev/null 2>&1", id, scheme);   // id and scheme come from zinc.json and the program's own call
-    int rc = system(cmd);
-    (void)rc;
+    fprintf(f, "[Desktop Entry]\nType=Application\nName=%s\nExec=%s %%u\nMimeType=x-scheme-handler/%s;\nNoDisplay=true\n", title[0] ? title : id, quoted, scheme);
+    if (fclose(f) != 0 || rename(tmp, path) != 0) return reply("{\"ok\":false,\"reason\":\"cannot write the desktop entry\"}");
+    // the default handler: x-scheme-handler/<scheme>=<id>.desktop; under [Default Applications] of $XDG_CONFIG_HOME/mimeapps.list, what xdg-mime default writes. Written here because
+    // a minimal Debian has no xdg-utils; the other lines of the file are kept.
+    char cfg[400], list[480];
+    const char* xc = getenv("XDG_CONFIG_HOME");
+    if (xc && *xc) snprintf(cfg, sizeof cfg, "%s", xc);
+    else snprintf(cfg, sizeof cfg, "%s/.config", getenv("HOME") ? getenv("HOME") : "/tmp");
+    snprintf(parent, sizeof parent, "%s/", cfg);
+    for (char* r = parent + 1; *r; r++) if (*r == '/') { *r = 0; zn_mkdir(parent); *r = '/'; }
+    snprintf(list, sizeof list, "%s/mimeapps.list", cfg);
+    char key[96], line[200];
+    snprintf(key, sizeof key, "x-scheme-handler/%s=", scheme);
+    snprintf(line, sizeof line, "%s%s.desktop;\n", key, id);
+    static char old[65536], out[65536 + 256];
+    old[0] = out[0] = 0;
+    if (FILE* in = fopen(list, "r")) { size_t got = fread(old, 1, sizeof old - 1, in); old[got] = 0; fclose(in); }
+    size_t n = 0;
+    bool inDefault = false, done = false;
+    for (char* p = old; *p;) {
+      char* end = strchr(p, '\n');
+      size_t len = end ? (size_t)(end - p) + 1 : strlen(p);
+      if (*p == '[') inDefault = !strncmp(p, "[Default Applications]", 22);
+      if (!(inDefault && !strncmp(p, key, strlen(key)))) { memcpy(out + n, p, len); n += len; if (!end) out[n++] = '\n'; }   // an older entry for the scheme goes
+      if (inDefault && *p == '[' && !done) { memcpy(out + n, line, strlen(line)); n += strlen(line); done = true; }
+      p += len;
+    }
+    if (!done) n += (size_t)snprintf(out + n, sizeof out - n, "%s[Default Applications]\n%s", n ? "\n" : "", line);
+    snprintf(tmp, sizeof tmp, "%s.tmp", list);
+    f = fopen(tmp, "w");
+    if (!f || fwrite(out, 1, n, f) != n) { if (f) fclose(f); return reply("{\"ok\":false,\"reason\":\"cannot write mimeapps.list\"}"); }
+    if (fclose(f) != 0 || rename(tmp, list) != 0) return reply("{\"ok\":false,\"reason\":\"cannot write mimeapps.list\"}");
     return reply("{\"ok\":true}");
 #endif
   }

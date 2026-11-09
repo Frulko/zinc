@@ -79,6 +79,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - With `ZINC_NATIVE=sim`, `--engine quickjs` runs a plugin's simulated stand-in like the other engines, instead of its native library (the iPod demo no longer looks for a real iPod).
 - A JavaScript program that makes sound on a machine where the audio plugin cannot be built goes on in silence after one line that says why, instead of stopping with an error.
 - Quit in the app menu (Cmd+Q) runs the program's close handlers first, as the window's close button does, so a program can save its work, ask, or keep its state before it ends.
+- On Linux, `deeplink.register()` makes the app the handler of its scheme even where xdg-utils is not installed, keeping the other entries of `mimeapps.list`, and a link opened while the app runs reaches `deeplink.onOpen` in the running copy instead of only its second-launch arguments.
 
 ### Network
 
