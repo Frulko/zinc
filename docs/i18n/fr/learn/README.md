@@ -1,5 +1,5 @@
 ---
-source: a89b891f8d70d530101975a391dffc953c46bfdf
+source: c41300f31b7838bdfba14fb254b421af2cf51732
 ---
 # Apprendre Zinc : d'une forme à une application
 
@@ -25,14 +25,13 @@ Ou installez **Zinc Atelier**, l'application qui modifie et lance les programmes
 
 ## Comment lancer une leçon
 
-Le code de chaque leçon est un petit projet dans [`docs/learn/samples/`](samples/) : un fichier `zinc.json` et un dossier `src`.
-Téléchargez ce dossier depuis [GitHub](https://github.com/Frulko/zinc/tree/main/docs/learn/samples), ou utilisez votre copie du
-dépôt de Zinc.
+Le code de chaque leçon est un petit projet (un fichier `zinc.json` et un dossier `src`) livré avec Zinc : `zinc examples`
+les liste avec les autres exemples, classés par étoiles, et `zinc new my-lesson --from example:01-window-and-shape` en copie un pour le modifier.
 
-**Dans un terminal**, donnez à `zinc run` le dossier de la leçon :
+**Dans un terminal**, donnez à `zinc run` le nom de la leçon (ou son dossier) :
 
 ```sh
-zinc run docs/learn/samples/01-window-and-shape
+zinc run example:01-window-and-shape
 ```
 
 Une fenêtre s'ouvre. Fermez-la pour arrêter le programme. Ce que le programme affiche avec `console.log` apparaît dans le terminal.
@@ -42,6 +41,20 @@ Une fenêtre s'ouvre. Fermez-la pour arrêter le programme. Ce que le programme 
 
 **Votre propre projet** : créez un dossier avec les deux fichiers de la leçon. `zinc.json` dit où se trouve le code et quelle est la taille de la
 fenêtre ; la leçon 1 l'explique. Ensuite, lancez `zinc run` dans ce dossier.
+
+## Apprendre en faisant : `zinc learn`
+
+Les cinq premières leçons sont aussi des exercices, sans téléchargement et sans réseau : chacune a quelques étapes, chaque étape dit quoi changer,
+vérifie votre code à l'enregistrement, et donne un indice ou la solution quand vous le demandez.
+
+```sh
+zinc learn          # the lessons and how far you went
+zinc learn 1        # lesson 1 in a new folder: edit src/main.ts, save, the step is checked
+```
+
+Pendant qu'il surveille, Entrée vérifie de nouveau, `h` affiche un indice, `s` la solution et `q` arrête ; `zinc learn` reprend là où vous vous étiez arrêté. Dans
+**Zinc Atelier**, *Aide > Leçons* ouvre la même leçon dans un panneau à côté du code, avec les boutons Vérifier, Indice et Solution ; les deux
+gardent la même progression.
 
 ## Les leçons
 

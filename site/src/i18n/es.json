@@ -2,6 +2,7 @@
   "nav.philosophy": "Filosofía", "nav.uses": "Usos", "nav.start": "Empezar", "nav.cli": "CLI", "nav.demos": "Demos",
   "nav.embedded": "Embebido", "nav.plugins": "Plugins", "nav.docs": "Documentación", "nav.about": "Acerca de",
   "nav.main": "Principal", "nav.theme": "Cambiar entre tema claro y oscuro", "nav.language": "Idioma",
+  "search": "Buscar",
   "footer.tagline": "Un solo programa, todas las pantallas.", "footer.about": "Acerca de y nota sobre la IA", "footer.licenses": "Licencias", "footer.prototype": "El prototipo",
   "site.description": "Zinc: escribe TypeScript una vez y ejecútalo de forma nativa, desde un Mac hasta una Raspberry Pi o un ESP32. Una alternativa a Electron sin navegador dentro.",
   "site.title": "Zinc: de TypeScript a aplicaciones nativas, una alternativa a Electron, para escritorio, Raspberry Pi y ESP32",

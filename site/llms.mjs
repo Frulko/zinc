@@ -9,7 +9,7 @@ import { dirs, top, isPublished, slugOf, groupsOf } from './docs-map.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DOCS = path.resolve(HERE, '../docs');
 export const SITE = 'https://frulko.github.io/zinc/';
-export const LANGS = ['en', 'fr', 'es', 'it', 'de'];
+export const LANGS = ['en', 'fr', 'es', 'it', 'de', 'pt'];
 const REPO = 'https://github.com/Frulko/zinc/blob/main/';
 const pre = (lang) => (lang === 'en' ? '' : `${lang}/`);
 /** Where the Markdown copy of a published doc lives, relative to the site root ("fr/docs/guide/02-language/index.md"). */

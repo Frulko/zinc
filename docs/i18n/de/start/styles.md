@@ -1,5 +1,5 @@
 ---
-source: a89b891f8d70d530101975a391dffc953c46bfdf
+source: 4080bca811ef34db60c07992e5d1d8f6ce395f9e
 ---
 # Vier Wege, ein Programm zu schreiben
 
@@ -20,7 +20,9 @@ allen vieren gleich.
 
 Wo du wählst: `zinc new` allein fragt, was du machen willst, und dann, für ein Spiel oder eine Zeichnung (Zeichnen, Szene, Canvas)
 und für eine App mit Fenstern (Oberfläche, Szene), wie du es schreiben willst. In Zinc Atelier bietet **Neuer Sketch** oben in der
-Startansicht die vier Stile an, jeder ein kleines Programm zum Anfangen, und die Beispiele darunter sind nach Stil geordnet.
+Startansicht die vier Stile an, jeder beginnt mit dem ersten Ergebnis seines Stils (die Zeile oben), und die Beispiele darunter sind
+nach Stil geordnet. **Dein erster Sketch** darüber ist der Zeichnen-Sketch mit Kommentaren, die ihn beibringen: Die mit » markierten
+Zeilen sagen, was du ändern sollst.
 
 ## Dasselbe Programm, viermal
 

@@ -12,7 +12,7 @@ Exit 1 on an error. --list LANG prints the files of the onboarding set LANG stil
 commit of the English file (run it after you translated or updated the file, with the English file as committed)."""
 import json, os, re, subprocess, sys
 
-LANGS = ["fr", "es", "it", "de"]
+LANGS = ["fr", "es", "it", "de", "pt"]
 args = sys.argv[1:]
 root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 if args[:1] == ["--repo"]: root, args = os.path.abspath(args[1]), args[2:]

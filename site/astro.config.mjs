@@ -55,7 +55,7 @@ function remarkI18nImages() {
 
 export default defineConfig({
   // Routes: English has no prefix, the others /zinc/fr/... (src/pages/[lang]/, src/i18n/, docs/i18n/README.md).
-  i18n: { defaultLocale: 'en', locales: ['en', 'fr', 'es', 'it', 'de'], routing: { prefixDefaultLocale: false } },
+  i18n: { defaultLocale: 'en', locales: ['en', 'fr', 'es', 'it', 'de', 'pt'], routing: { prefixDefaultLocale: false } },
   site: 'https://frulko.github.io',
   base: BASE,
   trailingSlash: 'always',

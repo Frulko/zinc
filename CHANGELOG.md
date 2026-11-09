@@ -338,7 +338,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - The docs speak to AI assistants: the site publishes `llms.txt`, `llms-full.txt` and a Markdown copy of every docs page (`index.md` beside it), in each of the five languages.
 - Zinc Atelier's start view opens with **Your first sketch**: a circle that follows the mouse, whose comments, in your language, are the lesson and mark with » the places to change.
-- The website has a search box in each of its five languages: press `/` anywhere on the site, then type a function, a module or an error code such as `Z0103`.
+- The website has a search box in each of its languages: press `/` anywhere on the site, then type a function, a module or an error code such as `Z0103`.
 - `zinc help <name>` explains a function or class of the standard library (`zinc help rrect`, `zinc help Stage.addChild`): its comment, its signature and an example from the docs.
 - The docs work offline: `zinc help --search <words>` looks through the lessons, the guides, the error codes, the API and the commands, and `zinc help --docs` builds the docs of your version once, on your machine.
 - In Zinc Atelier, F1 shows the help of the name under the caret, ⌘⇧H opens one search box over the lessons, the docs, the error codes and the commands, and the Help menu opens the docs from your machine.
@@ -346,6 +346,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Each line of `zinc doctor` that is not ready links to the fix for your system in the docs.
 - Every lesson page of the website has a **Run it here** button under its picture: the lesson's program runs in the page, with Restart and a way back to the picture, before anything is installed.
 - Zinc Atelier's empty editor and console say what to do and offer one button, its tour works from the keyboard (Tab, Enter, Escape) and its animations follow the system's reduced motion setting.
+- The website speaks Portuguese too, beside French, Spanish, Italian and German (its menu, home and get-started pages; the docs pages follow), and its search box says "Search" in each language.
 
 ## [0.11.5] - 2026-11-05
 

@@ -1,6 +1,6 @@
 # Translating the docs and the site (D159)
 
-Zinc speaks English, French (`fr`), Spanish (`es`), Italian (`it`) and German (`de`). English is the source: a page that is not
+Zinc speaks English, French (`fr`), Spanish (`es`), Italian (`it`), German (`de`) and Portuguese (`pt`, the site's own words so far, the pages follow). English is the source: a page that is not
 translated yet shows its English version with a notice, so a language can grow page by page.
 
 The words and the register (vous, tú, tu, du) are fixed in `i18n/glossary.md`: read it first.
@@ -67,4 +67,4 @@ An error: the English file does not exist, `source` is missing or is not a commi
 targets differ from the English file's, or a site key is not in `en.json`. A warning: the page is stale. Info: pages or site strings
 not translated yet.
 
-To see the site: `cd site && pnpm install && pnpm dev`, then open `/zinc/fr/` (the language switcher in the menu lists the five).
+To see the site: `cd site && pnpm install && pnpm dev`, then open `/zinc/fr/` (the language switcher in the menu lists the six).

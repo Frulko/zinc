@@ -5,12 +5,13 @@ import fr from './fr.json';
 import es from './es.json';
 import it from './it.json';
 import de from './de.json';
+import pt from './pt.json';
 
-export const langs = ['en', 'fr', 'es', 'it', 'de'] as const;
+export const langs = ['en', 'fr', 'es', 'it', 'de', 'pt'] as const;
 export type Lang = (typeof langs)[number];
 export const others = langs.filter((l) => l !== 'en');
-export const names: Record<Lang, string> = { en: 'English', fr: 'Français', es: 'Español', it: 'Italiano', de: 'Deutsch' };
-const tables: Record<string, Record<string, any>> = { en, fr, es, it, de };
+export const names: Record<Lang, string> = { en: 'English', fr: 'Français', es: 'Español', it: 'Italiano', de: 'Deutsch', pt: 'Português' };
+const tables: Record<string, Record<string, any>> = { en, fr, es, it, de, pt };
 export const strings = (lang: string): Record<string, any> => ({ ...en, ...(tables[lang] ?? {}) });
 /** The pages that exist in every language; the others (philosophy, cli, demos...) stay English, the nav and the switcher link to them. */
 export const hasLang = (rest: string) => rest === '' || rest.startsWith('get-started/') || rest.startsWith('docs/');

@@ -1,5 +1,5 @@
 ---
-source: a89b891f8d70d530101975a391dffc953c46bfdf
+source: c41300f31b7838bdfba14fb254b421af2cf51732
 ---
 # Zinc lernen: von einer Form zu einer App
 
@@ -25,14 +25,13 @@ Oder installiere **Zinc Atelier**, die App, die Programme ohne Terminal bearbeit
 
 ## So führst du eine Lektion aus
 
-Der Code jeder Lektion ist ein kleines Projekt in [`docs/learn/samples/`](samples/): eine Datei `zinc.json` und ein Ordner `src`.
-Lade diesen Ordner von [GitHub](https://github.com/Frulko/zinc/tree/main/docs/learn/samples) herunter oder nutze deine Kopie des
-Zinc-Repositorys.
+Der Code jeder Lektion ist ein kleines Projekt (eine Datei `zinc.json` und ein Ordner `src`), das mit Zinc kommt: `zinc examples`
+listet sie mit den anderen Beispielen auf, nach Sternen geordnet, und `zinc new my-lesson --from example:01-window-and-shape` kopiert eines zum Ändern.
 
-**In einem Terminal** gibst du `zinc run` den Ordner der Lektion:
+**In einem Terminal** gibst du `zinc run` den Namen der Lektion (oder ihren Ordner):
 
 ```sh
-zinc run docs/learn/samples/01-window-and-shape
+zinc run example:01-window-and-shape
 ```
 
 Ein Fenster öffnet sich. Schließe es, um das Programm zu beenden. Was das Programm mit `console.log` ausgibt, erscheint im Terminal.
@@ -42,6 +41,20 @@ Ein Fenster öffnet sich. Schließe es, um das Programm zu beenden. Was das Prog
 
 **Dein eigenes Projekt**: Lege einen Ordner mit den zwei Dateien der Lektion an. `zinc.json` sagt, wo der Code liegt und wie groß das
 Fenster ist; Lektion 1 erklärt es. Danach `zinc run` in diesem Ordner.
+
+## Lernen durch Tun: `zinc learn`
+
+Die ersten fünf Lektionen sind auch Übungen, ohne Download und ohne Netz: Jede hat ein paar Schritte, jeder Schritt sagt, was du ändern sollst,
+prüft deinen Code beim Speichern und gibt einen Tipp oder die Lösung, wenn du danach fragst.
+
+```sh
+zinc learn          # the lessons and how far you went
+zinc learn 1        # lesson 1 in a new folder: edit src/main.ts, save, the step is checked
+```
+
+Solange es zuschaut, prüft die Eingabetaste noch einmal, `h` gibt einen Tipp aus, `s` die Lösung und `q` beendet; `zinc learn` macht dort weiter, wo du aufgehört hast. In
+**Zinc Atelier** öffnet *Hilfe > Lektionen* dieselbe Lektion in einem Fenster neben dem Code, mit den Schaltflächen Prüfen, Tipp und Lösung; beide
+teilen sich denselben Fortschritt.
 
 ## Die Lektionen
 

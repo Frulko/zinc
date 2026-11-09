@@ -1,5 +1,5 @@
 ---
-source: a89b891f8d70d530101975a391dffc953c46bfdf
+source: c41300f31b7838bdfba14fb254b421af2cf51732
 ---
 # Impara Zinc: da una forma a un'app
 
@@ -25,14 +25,13 @@ Oppure installa **Zinc Atelier**, l'app che modifica ed esegue i programmi senza
 
 ## Come eseguire una lezione
 
-Il codice di ogni lezione è un piccolo progetto in [`docs/learn/samples/`](samples/): un file `zinc.json` e una cartella `src`.
-Scarica quella cartella da [GitHub](https://github.com/Frulko/zinc/tree/main/docs/learn/samples), oppure usa la tua copia del
-repository di Zinc.
+Il codice di ogni lezione è un piccolo progetto (un file `zinc.json` e una cartella `src`) che arriva con Zinc: `zinc examples`
+li elenca insieme agli altri esempi, divisi per stelle, e `zinc new my-lesson --from example:01-window-and-shape` ne copia uno da modificare.
 
-**In un terminale**, dai a `zinc run` la cartella della lezione:
+**In un terminale**, dai a `zinc run` il nome della lezione (o la sua cartella):
 
 ```sh
-zinc run docs/learn/samples/01-window-and-shape
+zinc run example:01-window-and-shape
 ```
 
 Si apre una finestra. Chiudila per fermare il programma. Quello che il programma stampa con `console.log` appare nel terminale.
@@ -42,6 +41,20 @@ Si apre una finestra. Chiudila per fermare il programma. Quello che il programma
 
 **Il tuo progetto**: crea una cartella con i due file della lezione. `zinc.json` dice dov'è il codice e quanto è grande la
 finestra; la lezione 1 lo spiega. Poi `zinc run` in quella cartella.
+
+## Imparare facendo: `zinc learn`
+
+Le prime cinque lezioni sono anche esercizi, senza download e senza rete: ognuna ha qualche passo, ogni passo dice cosa cambiare,
+controlla il tuo codice quando salvi e dà un suggerimento o la soluzione quando lo chiedi.
+
+```sh
+zinc learn          # the lessons and how far you went
+zinc learn 1        # lesson 1 in a new folder: edit src/main.ts, save, the step is checked
+```
+
+Mentre osserva, Invio controlla di nuovo, `h` stampa un suggerimento, `s` la soluzione e `q` si ferma; `zinc learn` riprende da dove ti eri fermato. In
+**Zinc Atelier**, *Aiuto > Lezioni* apre la stessa lezione in un pannello accanto al codice, con i pulsanti Controlla, Suggerimento e Soluzione; entrambi
+condividono lo stesso avanzamento.
 
 ## Le lezioni
 

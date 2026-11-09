@@ -1,5 +1,5 @@
 ---
-source: a32dd7d15016c035d18ada96b212252b1f7f07f7
+source: ccad45c1028a2bb10194ddda3498417298d55393
 ---
 # 1. Erste Schritte
 
@@ -96,6 +96,34 @@ das Verzeichnis `zinc`. Jedes Plugin wird dann beim ersten Import durch ein Prog
 `zinc doctor` gibt die Engine aus und wo ihre Dateien liegen, diesen Rechner (Profil, GPU), die Werkzeuge, die es am Tag, an dem du für ein Board
 baust, selbst herunterlädt, und die Plugins. Nichts in dieser Liste musst du von Hand installieren. `zinc` allein oder `zinc help` listet die
 Befehle auf; `zinc help run` beschreibt einen; ein falsch geschriebener Befehl nennt den ähnlichsten (`zinc rnu`: "did you mean 'zinc run'?").
+
+### Wenn `zinc doctor` ein Problem meldet
+
+Jede Zeile von `zinc doctor`, die nicht bereit ist, endet mit einem Link auf den Teil dieser Seite, der sie auf deinem System behebt.
+
+#### Die Dateien der Engine fehlen
+
+`zinc` hat neben sich keine Standardbibliothek gefunden: Es wurde aus seinem Ordner herausgenommen oder der Ordner wurde gelöscht. Installiere es mit dem
+Befehl aus „Installieren“ oben erneut (oder `brew reinstall zinc`); ein aus den Quellen gebautes `zinc` braucht seinen Checkout dort, wo es gebaut wurde.
+
+#### Ein neueres zinc auf macOS
+
+Führe `zinc update` aus (mit `install.sh` installiert) oder `brew update && brew upgrade zinc` (mit Homebrew installiert); `zinc update --rollback`
+geht zurück. Zinc Atelier: Lade sein neues Zip herunter oder führe `install.sh --atelier` erneut aus.
+
+#### Ein neueres zinc auf Linux
+
+Führe `zinc update` aus (mit `install.sh` installiert) oder `brew update && brew upgrade zinc` (Homebrew unter Linux); `zinc update --rollback` geht zurück.
+Auf einem Raspberry Pi mit dem Zinc-Image aktualisiert der Hub die Engine.
+
+#### Ein neueres zinc auf Windows
+
+Führe `irm https://github.com/Frulko/zinc/releases/latest/download/install.ps1 | iex` in PowerShell erneut aus: Es ersetzt die CLI an Ort und Stelle.
+
+#### Die Kommandozeilen-Werkzeuge von Xcode auf macOS
+
+Nur `zinc build` und die Plugins, die gegen dein System kompilieren (`zinc:video`, `zinc:gphoto2`), brauchen sie. Führe
+`xcode-select --install` aus und bestätige den Dialog; danach zeigt `zinc doctor` sie als bereit.
 
 ## Ein Projekt erstellen und ausführen
 
@@ -335,7 +363,7 @@ zinc help [command]
 ```
 
 `zinc run` kompiliert ein Programm, das zeichnet, zu nativem Code und behält die ausführbare Datei (`~/.zinc/cache/run`): Der erste Lauf einer
-Version kompiliert, die nächsten starten sofort; `--interp` interpretiert stattdessen und startet sofort. `zinc dev` tauscht jedes Speichern in das
+Version öffnet sich sofort im Interpreter, während der native Build im Hintergrund weiterläuft, und die nächsten Läufe starten das native Programm; `--native` wartet auf den Build und führt es aus, `--interp` interpretiert immer. Ein nativer Build, der fehlschlägt (ein Mac ohne die Command Line Tools), wird erst wieder versucht, wenn sich der Compiler ändert: Bis dahin interpretieren die Läufe. `zinc dev` tauscht jedes Speichern in das
 laufende Programm ein (oder startet es neu und sagt, warum), mit einer roten Box bei einem Kompilierfehler und, für UI-Programme, einem Chrome-DevTools-Inspektor auf Port 9229
 (siehe [Dev-Modus](../dev-mode.md)). Gib Programmargumente nach `--` an; lies sie mit `sys.args()`. `zinc dev --lan` stellt das Projekt
 Zinc Go bereit, der Player-App für Android und iOS (`examples/zinc-go`): Scanne den QR-Code, den es ausgibt, und jedes Speichern aktualisiert das Handy, so wie Expo Go es
@@ -359,6 +387,23 @@ zinc tsconfig            # or: zinc tsconfig path/to/project
 ```
 
 Nutze dann wie gewohnt das TypeScript des Workspace; `zinc check` bleibt die Referenz (Z-Codes, Ziele).
+
+### Ausgabe für Werkzeuge
+
+Ein Editor, ein Skript oder Zinc Atelier lesen die Antworten der CLI als JSON auf stdout, statt Text zu parsen (Meldungen, Schritte und Ablehnungen bleiben auf stderr):
+
+```sh
+zinc check --json [entry|dir]      # [ { code, file, line, column, message, text, fix, uri, range, severity } ], exit 1 when there are errors
+zinc project --json [dir]          # { format: 1, manifest, name, id, version, icon, entry, main, targets, permissions, plugins, ... }
+zinc plugins [dir] --json          # { format: 1, plugins: [ { name, module, kind, targets, description, dir } ], problems }
+```
+
+- `zinc check --json`: `line` und `column` zählen ab 1, `message` ist englisch (der stabile Text zum Vergleichen), `text` ist dieselbe Meldung in deiner Sprache (`ZINC_LANG`) und `fix` das, was die Registry rät (`zinc explain <code>` sagt mehr). `uri` und `range` (ab 0) sind die Felder des Language Servers. Ein JavaScript-Programm prüft QuickJS, dessen Diagnosen Text bleiben.
+- `zinc project --json`: das Projekt, wie die Engine `zinc.json` liest (Kommentare, nachgestellte Kommas und eine Byte-Order-Mark sind erlaubt). `entry` steht so, wie es geschrieben wurde, `main` ist die Datei, die `zinc run` startet, jedes Ziel trägt die dort geltenden `permissions`, und `plugins` listet die Plugins, die das Programm lädt. Ein Ordner ohne `zinc.json` ergibt `"manifest": false`; eine `zinc.json`, die die Engine ablehnt, ergibt `"error"` und Exit-Code 1.
+- Die Dokumente mit einer `format`-Nummer behalten ihre Schlüssel für diese Nummer: Ein Schlüssel darf hinzukommen, aber nie umbenannt werden.
+
+`zinc:ui` wird für den Editor in `lib/ui.d.ts` deklariert, von `tools/ui-dts` aus `lib/std/ui.ts` erzeugt: `PointerEvent`, `KeyEvent` und der
+Rest des Moduls erscheinen mit ihrer Dokumentation, und die Ereignis-Attribute der Host-Tags (`onPointerDown`, `onKeyDown`...) typisieren ihr Argument.
 
 ## Debuggen
 

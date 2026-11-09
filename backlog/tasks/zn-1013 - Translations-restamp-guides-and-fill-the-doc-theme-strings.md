@@ -1,10 +1,11 @@
 ---
 id: ZN-1013
 title: 'Translations: restamp guides and fill the doc theme strings'
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:34'
+updated_date: '2026-11-09 09:18'
 labels:
   - docs
   - i18n
@@ -12,7 +13,6 @@ labels:
 milestone: m-19
 dependencies: []
 ordinal: 12400
-updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -31,7 +31,13 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 docs site shows the interface in fr, es, it, de and one more language
-- [ ] #2 the translated READMEs carry `example:` names and their code matches the English source commit
-- [ ] #3 a check script reports stale translations
+- [x] #1 docs site shows the interface in fr, es, it, de and one more language
+- [x] #2 the translated READMEs carry `example:` names and their code matches the English source commit
+- [x] #3 a check script reports stale translations
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Restamped the 16 stale pages (guide, learn README with example: names and zinc learn section, syntax, styles) in fr, es, it, de; tools/i18n-docs-check (already there) reports none stale. Added Portuguese (site/src/i18n/pt.json, 'search' key in all six, the search box placeholder). Not done: the explain-fix comment lines (ZN-774.28), pt doc pages, 'On this page' and Previous/Next (the theme has none), pt queries in site/search-check.mjs. The first-mistake sections already matched the English at HEAD (not in the diff since their source).
+<!-- SECTION:NOTES:END -->

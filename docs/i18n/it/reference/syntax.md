@@ -1,5 +1,5 @@
 ---
-source: b953a830f5d768ed61f12d4ed5610d79bdc4240c
+source: 498f78a796c66240cb45d6bab9a5e5364230b351
 ---
 # Promemoria della sintassi
 
@@ -52,7 +52,7 @@ spread, `?.`, `??`, `for`/`for-of`/`while`, template string, `try`/`catch`/`fina
 | `globalThis.x` | Z1015 | importalo, o tienilo in un modulo |
 | `'a' in o` | Z9026 | `map.has('a')`, o confronta il campo |
 | `any` in un profilo strict | Z1006 | dagli un tipo, oppure `unknown` e restringilo |
-| chiamare un valore di tipo `any` | Z0105 | restringilo prima (`typeof`, `instanceof`) |
+| chiamare un valore di tipo `unknown`, o `d?.f()` su un `any` | Z0105 | restringilo prima (`typeof`, `instanceof`) |
 | `Math.min()` senza argomenti, con `--profile ps1` | Z4001 | passa un argomento |
 
 `any` va bene nel profilo predefinito (graduale); il profilo strict è la riga `// zinc-profile: strict` in cima al

@@ -1,5 +1,5 @@
 ---
-source: a89b891f8d70d530101975a391dffc953c46bfdf
+source: 4080bca811ef34db60c07992e5d1d8f6ce395f9e
 ---
 # Quatre façons d'écrire un programme
 
@@ -20,8 +20,9 @@ les quatre.
 
 Où choisir : `zinc new` seul vous demande ce que vous voulez faire, puis, pour un jeu ou un dessin (Dessin, Scène, Canvas) et pour
 une app avec des fenêtres (Interface, Scène), comment vous voulez l'écrire. Dans Zinc Atelier, **Nouveau croquis**, en haut de
-l'écran de départ, propose les quatre styles, chacun un petit programme pour commencer, et les exemples en dessous sont rangés par
-style.
+l'écran de départ, propose les quatre styles, chacun partant du premier résultat de son style (la ligne ci-dessus), et les exemples
+en dessous sont rangés par style. **Votre premier croquis**, au-dessus, est celui du style Dessin, avec des commentaires qui
+l'enseignent : les lignes marquées » disent quoi changer.
 
 ## Le même programme, quatre fois
 

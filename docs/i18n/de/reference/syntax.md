@@ -1,5 +1,5 @@
 ---
-source: b953a830f5d768ed61f12d4ed5610d79bdc4240c
+source: 498f78a796c66240cb45d6bab9a5e5364230b351
 ---
 # Syntax-Spickzettel
 
@@ -52,7 +52,7 @@ Spread, `?.`, `??`, `for`/`for-of`/`while`, Template-Strings, `try`/`catch`/`fin
 | `globalThis.x` | Z1015 | importiere es oder halte es in einem Modul |
 | `'a' in o` | Z9026 | `map.has('a')` oder vergleiche das Feld |
 | `any` in einem strikten Profil | Z1006 | gib einen Typ an, oder nimm `unknown` und grenze ihn ein |
-| ein Aufruf eines Werts vom Typ `any` | Z0105 | grenze ihn zuerst ein (`typeof`, `instanceof`) |
+| ein Aufruf eines Werts vom Typ `unknown` oder `d?.f()` auf einem `any` | Z0105 | grenze ihn zuerst ein (`typeof`, `instanceof`) |
 | `Math.min()` ohne Argument, unter `--profile ps1` | Z4001 | gib ein Argument mit |
 
 `any` ist im Standardprofil (dem graduellen) in Ordnung; das strikte Profil ist die Zeile `// zinc-profile: strict` am Anfang der
