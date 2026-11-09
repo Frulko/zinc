@@ -1,7 +1,7 @@
 #!/bin/sh
 # ZN-278: style levels. A build for a profile names each style token its drawing tier does not draw as written (U0005, file and line): a conic
 # gradient below T3, a gradient beyond two stops along an axis below T2; zinc.json "ui": {"style": "strict"} makes it an error, "off" silences it;
-# box shadows below T2 (an inset, more than two layers, a blur over 8 px, ZN-260); a desktop build says nothing; zinc doctor prints the level and what the last build drew simpler; zinc explain U0005 has the entry.
+# box shadows below T2 (an inset, more than two layers, a blur over 8 px, ZN-260), dashed borders and corner radii on T0 (ZN-257); a desktop build says nothing; zinc doctor prints the level and what the last build drew simpler; zinc explain U0005 has the entry.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -20,6 +20,7 @@ function App(): i32 {
     <View className="w-10 h-10 bg-gradient-to-r from-sky-500 to-indigo-500" />
     <View className="w-10 h-10 inset-shadow-sm shadow-[0_1px_2px_#000,0_2px_4px_#000,0_4px_8px_#000]" />
     <View className="w-10 h-10 shadow-[0_4px_12px_rgba(0,0,0,0.5)] shadow-[0_1px_8px_#000] inset-shadow-rose-500" />
+    <View className="w-10 h-10 border-2 border-dashed rounded-tl-xl rounded-lg" />
   </View>;
 }
 render(App, 0xffffff, null);
@@ -39,6 +40,10 @@ has "$out" "'shadow-[0_4px_12px_rgba(0,0,0,0.5)]' is not drawn as written on esp
 has "$out" "a box shadow blur beyond 8 px is drawn at 8 px" "esp32 shadow blur"
 hasnt "$out" "shadow-[0_1px_8px_#000]" "a blur of 8 px"
 hasnt "$out" "inset-shadow-rose-500" "an inset shadow's colour"
+has "$out" "src/main.tsx:9:" "esp32 border"
+has "$out" "'border-dashed' is not drawn as written on esp32 (tier T0, style level core; T1 draws it): a dashed or dotted border is drawn solid" "esp32 dashed"
+has "$out" "'rounded-tl-xl' is not drawn as written on esp32 (tier T0, style level core; T1 draws it): a radius per corner is drawn as the largest corner" "esp32 corner"
+hasnt "$out" "'rounded-lg'" "one radius"
 
 doc=$(timeout 30 "$ZINC" doctor 2>&1)
 has "$doc" "UI styles" "doctor"

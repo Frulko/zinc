@@ -379,6 +379,10 @@ alpha)` is the command. The blur keeps the presets' falloff (a CSS blur radius, 
 around the box at most, blurs up to 8 px and no inner shadow, with one log line each and a U0005 warning at build. The goldens are
 `tests/golden/ui-style/shadow-presets` and `shadow-layers` (`tests/t0/style_shadow_layers.sh`).
 
+On tier T0 (`--profile esp32`) borders are simpler too: a dashed or dotted border or outline is drawn solid, and a box with a radius per corner
+(`rounded-tl-*`, `borderTopLeftRadius`) takes its largest corner for every corner, with one log line each and a U0005 warning at build for the
+classes (`tests/t0/style_border_esp32.sh`).
+
 ## Images in a box
 
 `<Image src="logo.png" />` shows an image of the assets; `<Image image={img} />` shows a runtime image: one decoded with `imageFromBytes`, built

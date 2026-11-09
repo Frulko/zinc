@@ -24,6 +24,8 @@ const char* const kStops = "a gradient beyond two stops along an axis is drawn f
 const char* const kInset = "an inset shadow is not drawn";   // paintShadows (ZN-260), below T2
 const char* const kLayers = "a box shadow beyond two layers is drawn with its first two";
 const char* const kBlur = "a box shadow blur beyond 8 px is drawn at 8 px";
+const char* const kDashed = "a dashed or dotted border is drawn solid";   // solidOnTier, largestCorner (ZN-257), on T0
+const char* const kCorner = "a radius per corner is drawn as the largest corner";
 
 bool offAxis(double deg) { return std::fmod(std::fabs(deg), 90.0) != 0; }
 
@@ -104,6 +106,9 @@ int styleTokenTier(const std::string& raw, std::string& what) {
   static const std::regex insetShadow(R"(^inset-shadow-(2xs|xs|sm|\[.+\])$)"), shadowArb(R"(^shadow-\[(.+)\]$)");
   if (std::regex_match(t, insetShadow)) { what = kInset; return 2; }
   if (std::regex_match(t, m, shadowArb)) if (const char* w = shadowBeyond(m[1].str())) { what = w; return 2; }
+  static const std::regex dashed(R"(^(border|outline)-(dashed|dotted)$)"), corner(R"(^rounded-(t|r|b|l|tl|tr|br|bl)(-\S+)?$)");
+  if (std::regex_match(t, dashed)) { what = kDashed; return 1; }
+  if (std::regex_match(t, corner)) { what = kCorner; return 1; }
   return 0;
 }
 
@@ -114,7 +119,8 @@ std::vector<StyleUse> styleUses(std::string_view text, int tier) {
     if ((k.kind != Tok::String && k.kind != Tok::TemplateNoSub) || k.end < k.start + 2) continue;
     const std::string_view s = text.substr(k.start + 1, k.end - k.start - 2);
     if (s.find("bg-") == std::string_view::npos && s.find("via-") == std::string_view::npos && s.find("from-") == std::string_view::npos && s.find("to-") == std::string_view::npos &&
-        s.find("shadow-") == std::string_view::npos) continue;
+        s.find("shadow-") == std::string_view::npos && s.find("-dashed") == std::string_view::npos && s.find("-dotted") == std::string_view::npos &&
+        s.find("rounded-") == std::string_view::npos) continue;
     for (std::size_t at = 0; at < s.size();) {
       while (at < s.size() && std::isspace(static_cast<unsigned char>(s[at]))) ++at;
       std::size_t end = at;

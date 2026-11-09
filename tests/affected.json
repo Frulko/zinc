@@ -509,6 +509,7 @@
     {"paths": ["runtime/gfx.cpp", "tests/data/scale_push/"], "tests": ["scale_push"]},
     {"paths": ["runtime/raster.cpp", "tests/data/shadow_mirror/"], "tests": ["shadow_mirror", "style_shadow"]},
     {"paths": ["runtime/raster.cpp", "runtime/gfx.cpp", "lib/std/ui.ts", "src/frontend/jsx.cpp", "tests/golden/ui-style/shadow-presets.tsx", "tests/golden/ui-style/shadow-layers.tsx", "tests/t0/style_shadow_layers.sh"], "tests": ["style_shadow_layers"]},
+    {"paths": ["lib/std/ui.ts", "tests/t0/style_border_esp32.sh"], "tests": ["style_border_esp32"]},
     {"paths": ["lib/std/ui.ts", "runtime/raster.cpp", "runtime/gfx.cpp", "runtime/gl_replay.cpp", "runtime/gl_replay_shaders.h", "src/frontend/jsx.cpp", "tests/golden/style-gradient/", "tests/data/style_gradient/", "tests/t1/style_gradient.sh"], "tests": ["style_gradient"]},
     {"paths": ["lib/std/ui.ts", "runtime/raster.cpp", "runtime/gfx.cpp", "runtime/gl_replay.cpp", "src/frontend/jsx.cpp", "tests/golden/style-image/", "tests/data/style_image/", "tests/t1/style_image.sh"], "tests": ["style_image"]},
     {"paths": ["CMakeLists.txt", "src/main.cpp", "src/rt/alloc.cpp", "src/rt/alloc_new.cpp", "tests/t1/launch_time.sh"], "tests": ["launch_time", "profile", "aot"]},

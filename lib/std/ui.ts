@@ -5043,7 +5043,8 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     if ((n.children.length === 0 || n.overflow) && n.shadowLevel === 0 && n.shOpacity <= 0 && n.shx.layers === null && n.tf === null && (x >= TILE + 16 || y >= TILE + 16 || x + w <= -16 || y + hh <= -16)) return;
   }
   if (n.tag !== FRAGMENT) {
-    const r = Math.min(n.radius * kk, Math.min(w, hh) / 2);
+    const corners = n.bd.crTL >= 0 || n.bd.crTR >= 0 || n.bd.crBR >= 0 || n.bd.crBL >= 0, oneR = corners && TIER <= 0;   // esp32 draws one radius
+    const r = oneR ? largestCorner(n, Math.min(n.radius * kk, Math.min(w, hh) / 2), kk, w, hh) : Math.min(n.radius * kk, Math.min(w, hh) / 2);
     const sx = n.shx;
     if (n.shadowLevel > 0 && sx.layers === null) shadow(x, y + SHADOW_Y[n.shadowLevel] * kk, w, hh, r, SHADOW_BLUR[n.shadowLevel] * kk, 0x000000, Math.round(SHADOW_A[n.shadowLevel] * a));   // shadow-[..] replaces a preset
     if (n.shOpacity > 0) shadow(x + n.shX * kk, y + n.shY * kk, w, hh, r, n.shBlur * kk, n.shColor as u32, Math.round(Math.min(1, n.shOpacity) * n.shAlpha * a));
@@ -5051,7 +5052,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     const gr = n.grad > 0 || n.gx.kind > 0, two = gr && n.gx === DEF_GRADX && n.gradFrom >= 0 && n.gradTo >= 0;   // two: the prototype's two-stop gradient
     if (!two) {
       const bg = !gr || gradOpen(n) ? effectiveBg(h, n) : -1;   // under a gradient only where it lets it through
-      if (bg >= 0) { if (n.bd.crTL >= 0 || n.bd.crTR >= 0 || n.bd.crBR >= 0 || n.bd.crBL >= 0) polygon(roundedPath(x, y, w, hh, cornerR(n.bd.crTL, r, kk, w, hh), cornerR(n.bd.crTR, r, kk, w, hh), cornerR(n.bd.crBR, r, kk, w, hh), cornerR(n.bd.crBL, r, kk, w, hh)), bg, Math.round(n.bgAlpha * a)); else rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a)); }
+      if (bg >= 0) { if (corners && !oneR) polygon(roundedPath(x, y, w, hh, cornerR(n.bd.crTL, r, kk, w, hh), cornerR(n.bd.crTR, r, kk, w, hh), cornerR(n.bd.crBR, r, kk, w, hh), cornerR(n.bd.crBL, r, kk, w, hh)), bg, Math.round(n.bgAlpha * a)); else rrect(x, y, w, hh, r, bg, Math.round(n.bgAlpha * a)); }
     }
     // ponytail: one background image under the gradient (CSS `background-image: <gradient>, url(..)`, the scrim over a photo); the box's one radius r
     if (n.im.bg >= 0) paintBgImage(n, x, y, w, hh, r, kk, ai);
@@ -5069,7 +5070,8 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     const bw = n.borderW < 0 ? 1 : n.borderW;
     const bai: i32 = bc === -1 ? 0 : n.borderAlpha === 255 ? ai : Math.round(ai * n.borderAlpha / 255);   // -1: border-transparent keeps the width and draws nothing
     if (bc === -3) bc = textFg(h);   // border-current
-    if (n.bd.borderStyle !== 0 || n.bd.bcT >= 0 || n.bd.bcR >= 0 || n.bd.bcB >= 0 || n.bd.bcL >= 0 || n.bd.crTL >= 0 || n.bd.crTR >= 0 || n.bd.crBR >= 0 || n.bd.crBL >= 0) paintBorderExt(n, x, y, w, hh, kk, r, bc, bai, bw);
+    const bst = n.bd.borderStyle !== 0 && TIER <= 0 ? solidOnTier(0) : n.bd.borderStyle;   // esp32: dashed and dotted are solid
+    if (bst !== 0 || n.bd.bcT >= 0 || n.bd.bcR >= 0 || n.bd.bcB >= 0 || n.bd.bcL >= 0 || (corners && !oneR)) paintBorderExt(n, x, y, w, hh, kk, r, bc, bai, bw, bst, oneR);
     else if (n.bd.bT >= 0 || n.bd.bR >= 0 || n.bd.bB >= 0 || n.bd.bL >= 0) {
       // ponytail: per-side borders are straight bands (no rounded corners), enough for dividers and underlines
       const t = (n.bd.bT >= 0 ? n.bd.bT : bw) * kk, rr = (n.bd.bR >= 0 ? n.bd.bR : bw) * kk, b = (n.bd.bB >= 0 ? n.bd.bB : bw) * kk, l = (n.bd.bL >= 0 ? n.bd.bL : bw) * kk;
@@ -5085,7 +5087,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     }
     if (ow > 0) {
       const ox = (oo + ow) * kk, os = n.rg.outStyle;
-      if (os === 1 || os === 2) styledFrame(x - ox, y - ox, w + 2 * ox, hh + 2 * ox, r + ox, ow * kk, os, oc >= 0 ? oc : 0x000000, ai);
+      if ((os === 1 || os === 2) && solidOnTier(os) !== 0) styledFrame(x - ox, y - ox, w + 2 * ox, hh + 2 * ox, r + ox, ow * kk, os, oc >= 0 ? oc : 0x000000, ai);
       else border(x - ox, y - ox, w + 2 * ox, hh + 2 * ox, r + ox, ow * kk, oc >= 0 ? oc : 0x000000, ai);
     }
     if (rw > 0) border(x - (ro + rw) * kk, y - (ro + rw) * kk, w + 2 * (ro + rw) * kk, hh + 2 * (ro + rw) * kk, r + (ro + rw) * kk, rw * kk, rc >= 0 ? rc : 0x3b82f6, ai);
@@ -5214,13 +5216,27 @@ function strokeStyled(pts: number[], bw: number, color: i32, alpha: i32, style: 
   }
   if (on && cur.length >= 4) stroke(cur, bw, color, alpha, false);
 }
-function paintBorderExt(n: UiNode, x: number, y: number, w: number, hh: number, kk: number, r: number, bc: i32, bai: i32, bw: number): void {
+// esp32 (tier T0, ST-08): a dashed or dotted border or outline is drawn solid, a radius per corner as the largest corner, one log line each
+// (U0005 says it at build, D245)
+function solidOnTier(style: i32): i32 {
+  if (TIER > 0) return style;
+  tierWarn(64, 'a dashed or dotted border is drawn solid');
+  return 0;
+}
+function largestCorner(n: UiNode, r: number, kk: number, w: number, hh: number): number {
+  tierWarn(128, 'a radius per corner is drawn as the largest corner');
+  const b = n.bd;
+  return Math.max(Math.max(cornerR(b.crTL, r, kk, w, hh), cornerR(b.crTR, r, kk, w, hh)), Math.max(cornerR(b.crBR, r, kk, w, hh), cornerR(b.crBL, r, kk, w, hh)));
+}
+/** The extended border: a colour, width and style per side, a radius per corner (oneR: r for every corner). */
+function paintBorderExt(n: UiNode, x: number, y: number, w: number, hh: number, kk: number, r: number, bc: i32, bai: i32, bw: number, style: i32, oneR: boolean): void {
   const t = (n.bd.bT >= 0 ? n.bd.bT : bw) * kk, rr = (n.bd.bR >= 0 ? n.bd.bR : bw) * kk, b = (n.bd.bB >= 0 ? n.bd.bB : bw) * kk, l = (n.bd.bL >= 0 ? n.bd.bL : bw) * kk;
   if (t <= 0 && rr <= 0 && b <= 0 && l <= 0) return;
-  const sides = frameSides(x, y, w, hh, t, rr, b, l, cornerR(n.bd.crTL, r, kk, w, hh), cornerR(n.bd.crTR, r, kk, w, hh), cornerR(n.bd.crBR, r, kk, w, hh), cornerR(n.bd.crBL, r, kk, w, hh));
+  const sides = oneR ? frameSides(x, y, w, hh, t, rr, b, l, r, r, r, r)
+    : frameSides(x, y, w, hh, t, rr, b, l, cornerR(n.bd.crTL, r, kk, w, hh), cornerR(n.bd.crTR, r, kk, w, hh), cornerR(n.bd.crBR, r, kk, w, hh), cornerR(n.bd.crBL, r, kk, w, hh));
   const cols: i32[] = [n.bd.bcT >= 0 ? n.bd.bcT : bc, n.bd.bcR >= 0 ? n.bd.bcR : bc, n.bd.bcB >= 0 ? n.bd.bcB : bc, n.bd.bcL >= 0 ? n.bd.bcL : bc];
   const wd: number[] = [t, rr, b, l];
-  for (let i = 0; i < 4; i++) strokeStyled(sides[i], wd[i], cols[i], bai, n.bd.borderStyle);
+  for (let i = 0; i < 4; i++) strokeStyled(sides[i], wd[i], cols[i], bai, style);
 }
 /** A dashed (1) or dotted (2) frame of one width and radius, drawn as paintBorderExt draws a border: the outline-dashed / outlineStyle outline. */
 function styledFrame(x: number, y: number, w: number, hh: number, r: number, bw: number, style: i32, c: i32, a: i32): void {

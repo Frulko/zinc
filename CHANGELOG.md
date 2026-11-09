@@ -125,6 +125,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Changed
 
 - The default layout sizes `flex-1`, `w-full` and `h-full` as a browser does: `flex-1` items share a row or a column equally whatever their content, but never get narrower than their content unless they have `min-w-0`, `overflow-hidden` or `truncate`; a `w-full` or `h-full` box along the row or column stays inside its parent instead of growing with its content; and the last width or height class wins (`w-full w-[280px]` is 280 px wide).
+- On the ESP32 (`--profile esp32`) a dashed or dotted border or outline is drawn solid and a box with a radius per corner takes its largest corner, with one log line each and a build warning (`zinc explain U0005`).
 
 #### Fixed
 
