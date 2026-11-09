@@ -2,7 +2,8 @@
 id: ZN-1062
 title: 'Text: tabular figures through HarfBuzz'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:42'
 labels:
   - text

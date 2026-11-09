@@ -609,6 +609,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1072: AppKit Table cells other than text (image, checkbox, a zinc:ui subtree per cell) and rows of different heights (`noteHeightOfRowsWithIndexesChanged` from the measured virtual rows).
 - ZN-1072: an Outline that loads children as it opens, for big trees (today the whole tree is one attribute).
 - ZN-1072: the AppKit header (~28 px) is taller than the drawn one (24 px), covered by overscan; `ui.domViewport` would make it exact. The `lists` map in `plugins/appkit/index.ts` keeps one entry per Table ever made.
+- ZN-610: zinc:socket wss and other raw TLS sockets have no handshake deadline; a server that accepts and stays silent may hang them as MQTT did (`sock.cpp`, same connect deadline).
+- ZN-610: rows `host.mqttOpen` and `host.mqttOpenTls` serve only bytecode of an older zinc; drop them at the next ZBC version bump.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
