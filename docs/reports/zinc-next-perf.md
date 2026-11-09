@@ -1558,3 +1558,8 @@ Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` 
 
 - SQL step (year counted per month in SQLite, `+skipped` keeps the time index): 69 ms in one block → 7-8 ms. Library read (`library-keys.jsonl` parsed in slices): 36 ms in one block → 16 ms, slices of 8 ms at most. Unchanged: longest slices model 11 ms, daily 14, mixes 14, Genius 100 16 ms. On QuickJS (no worker) the daily mixes and mixes still hold 73-76 ms slices and Genius 100 takes 58 ms.
 - ZN-796 QuickJS numeric wraps, iPod bench: mixes 6440 / 6467 ms and Genius 100 58 / 58 ms with / without the pass (one run).
+
+## 2026-11-09 — ZN-1024, `zinc dev` save-to-frame of hero (indicative: load ~5.5, another tree building)
+
+- Save to frame: 1174-1194 ms → 643-721 ms (three saves each, back to back). One recompile (`ZN_HOT_RECOMPILE`): optimise 181 → ~77 ms (inline copies only inlinable callees, per-function passes threaded), reference counting 121 → 43 ms (threaded), bake 137 → 3.5 ms (keyed on each file's scan), read and parse ~205 → 61-70 ms (parses, icon/class scans and JSX lowering kept for unchanged files, plugins found once per compile), `ir::verify` threaded ~15-20 ms.
+- Now per save (118 files, 2733 functions): parse 79, check 107, lower 112, optimise 111, rc 60, emit 104, bake 3 ms. Under 200 ms needs incremental check and lowering per module (~250 ms).

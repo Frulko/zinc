@@ -598,6 +598,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1070: the AppKit host shows no shadows, clipping (overflow-hidden), transforms or pressed dim.
 - ZN-1070: the host walks the whole tree on each commit (views touched only where they differ); make it incremental if ZN-1074's measures ask.
 - ZN-1070: `zinc check` could warn when a render-native project never imports zinc:appkit (it is drawn); plugins/appkit has no web entry, a web export of such a project should skip it.
+- ZN-1024: `Checker::intern` and `ir::Module::intern` are linear scans over every type; a hash index cuts a few percent of every compile (~15 ms on hero).
+- ZN-1024: zbc::emit in parallel needs a deterministic merge of the collection classes TypeTable creates on first use (ids follow the order of the functions); ~70 ms a hero save.
+- ZN-1024: tests/t0/ir.sh fails on develop: the IR goldens of closures and closures2 no longer match `--emit=ir` (ir_test passes); re-record or fix.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
