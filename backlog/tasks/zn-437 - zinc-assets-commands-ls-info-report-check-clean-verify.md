@@ -2,7 +2,8 @@
 id: ZN-437
 title: 'zinc assets check and report --diff'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:36'
 labels:
   - games
