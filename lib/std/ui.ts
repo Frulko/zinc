@@ -6305,11 +6305,23 @@ class FocusWithin {
   constructor(root: UiNode, f: (on: boolean) => void) { this.root = root; this.f = f; }
 }
 const within: FocusWithin[] = [];
-function forgetFocusWithin(h: i32): void {
-  for (let i = within.length - 1; i >= 0; i--) if (within[i].root.id === h) { within[i].state = FocusWithinState.Disposed; within.splice(i, 1); }
+function disposeFocusWithin(w: FocusWithin): void {
+  if (w.state === FocusWithinState.Disposed) return;
+  w.state = FocusWithinState.Disposed;
+  const i = within.indexOf(w);
+  if (i >= 0) within.splice(i, 1);
 }
-/** Calls `f(true)` when the keyboard moves the focus into `root` or below it (Tab, arrows), and `f(false)` when it leaves or a press puts it there; dropped with the node. */
-export function onFocusWithin(root: i32, f: (on: boolean) => void): void { const n = node(root); if (n.alive) within.push(new FocusWithin(n, f)); }
+function forgetFocusWithin(h: i32): void {
+  for (let i = within.length - 1; i >= 0; i--) if (within[i].root.id === h) disposeFocusWithin(within[i]);
+}
+/** Calls `f(true)` when the keyboard moves the focus into `root` or below it (Tab, arrows), and `f(false)` when it leaves or a press puts it there. Returns an idempotent unsubscribe; also dropped with the node. */
+export function onFocusWithin(root: i32, f: (on: boolean) => void): () => void {
+  const n = node(root);
+  if (!n.alive) return () => {};
+  const w = new FocusWithin(n, f);
+  within.push(w);
+  return () => { disposeFocusWithin(w); };
+}
 /** Called with the new focused node (-1: none) whenever the focus moves (virtual keyboards show / hide on it). */
 export function onFocusChange(f: (h: i32) => void): void { focusHandlers.push(f); }
 // A subtree rendered again (a component whose props changed) keeps the focus: holdFocus notes the focused node's path under the

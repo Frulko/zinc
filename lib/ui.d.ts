@@ -1000,8 +1000,8 @@ declare module 'zinc:ui' {
   export function toLocal(h: i32, gx: number, gy: number): number[];
   /** Node box on the surface [x, y, w, h], through scroll offsets and style transforms (popups, tests). */
   export function screenBox(h: i32): number[];
-  /** Calls `f(true)` when the keyboard moves the focus into `root` or below it (Tab, arrows), and `f(false)` when it leaves or a press puts it there; dropped with the node. */
-  export function onFocusWithin(root: i32, f: (on: boolean) => void): void;
+  /** Calls `f(true)` when the keyboard moves the focus into `root` or below it (Tab, arrows), and `f(false)` when it leaves or a press puts it there. Returns an idempotent unsubscribe; also dropped with the node. */
+  export function onFocusWithin(root: i32, f: (on: boolean) => void): () => void;
   /** Called with the new focused node (-1: none) whenever the focus moves (virtual keyboards show / hide on it). */
   export function onFocusChange(f: (h: i32) => void): void;
   /** Notes the focus when it is inside `root`, before `root`'s children are rebuilt; false when it is elsewhere. */

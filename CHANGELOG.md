@@ -175,6 +175,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `View` accepts a dynamic `grab={vertical ? 'keep' : 'keep-x'}` policy and updates gesture arbitration when it changes.
 
 - `<Show>` keeps every child, including mapped rows, and switches between its full body and fallback, including in kit components used with React.
+- `ui.onFocusWithin` returns an unsubscribe function, so a component can replace its focus handler when it renders again while keeping its view.
 
 ### The web
 

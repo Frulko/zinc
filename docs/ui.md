@@ -241,6 +241,9 @@ ui.focusScope(dialog, { trap: true, restore: true, autoFocus: true });
   leaves the screen, to the node that had it when it showed; `autoFocus` focuses its first control when it shows.
 - `focus-within:bg-*` / `text-*` / `border-*` apply while the focus is in the node's subtree
   (`ui.hasFocusWithin(h)`); `ui.onFocusChange(f)` reports every focus move (`-1`: none).
+  `ui.onFocusWithin(h, f)` reports keyboard focus entering (`true`) or leaving (`false`) the subtree;
+  a pointer press focusing it also reports `false`. It returns an idempotent unsubscribe function, suitable for
+  `host.onCleanup(ui.onFocusWithin(h, f))` in a component. Node destruction also removes the subscription.
 - **Dismissal**: `ui.onDismiss(h, f)`: Escape runs the handler of the most recently shown node that has one (after the
   focused node's `onKeyDown`, before a text field's own Escape). `ui.onOutsidePointer(h, f, except)`: a press outside
   h (and outside `except`, the button that toggles it) while h is on screen.

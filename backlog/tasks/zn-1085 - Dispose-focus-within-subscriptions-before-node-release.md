@@ -1,10 +1,11 @@
 ---
 id: ZN-1085
 title: Dispose focus-within subscriptions before node release
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-09 13:53'
+updated_date: '2026-11-09 13:56'
 labels:
   - ui
   - size-S
@@ -26,7 +27,13 @@ Primary research: Solid onCleanup https://docs.solidjs.com/reference/lifecycle/o
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 onFocusWithin returns an idempotent registration-specific disposer while existing callers ignoring it remain compatible
-- [ ] #2 Exact regression proves replacement on a reused live node, self/other unsubscribe during dispatch, double disposal and stale disposer after node release/slot reuse across interpreter AOT QuickJS
-- [ ] #3 Public declaration/docs agree; kit workers can clean their subscriptions with existing host.onCleanup without local registry workarounds
+- [x] #1 onFocusWithin returns an idempotent registration-specific disposer while existing callers ignoring it remain compatible
+- [x] #2 Exact regression proves replacement on a reused live node, self/other unsubscribe during dispatch, double disposal and stale disposer after node release/slot reuse across interpreter AOT QuickJS
+- [x] #3 Public declaration/docs agree; kit workers can clean their subscriptions with existing host.onCleanup without local registry workarounds
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented registration-specific idempotent unsubscribe from ui.onFocusWithin, sharing disposeFocusWithin with node release. Existing Registered/Disposed lifecycle and snapshot dispatch remain intact; no new registry, C++/ABI changes or kit caller migration. Dead-node subscription returns a harmless disposer. tools/ui-dts regenerated lib/ui.d.ts; docs/ui.md shows host.onCleanup ownership. Coordinator research: Solid https://docs.solidjs.com/reference/lifecycle/on-cleanup and React https://react.dev/reference/react/useEffect / https://react.dev/learn/synchronizing-with-effects prescribe cleanup when replacing owned subscriptions; existing host.onCleanup and registration object identity are sufficient, with no dependency. Proof: clean read-only engine /Users/mowmow/Lab/zinc/.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, ZINC_ROOT at this worktree; exclusive /tmp/zinc-heavy-run-501.py 60 tests/run --only ui_focus_dispose passed interpreter, explicit --native AOT and QuickJS. Expanded existing fixture proves repeated live-node subscription replacement, double dispose, old disposer after replacement/release/slot reuse, dead-node registration, self/other unsubscribe during snapshot dispatch and deferred new registration. Exclusive 30-second zinc check tests/data/ui_focus_dispose/main.ts passed; generated declaration comparison and git diff --check passed. No build required. usage: n/a. Proposed tests: integrated kit Tooltip/HoverCard and Input rerender smoke after caller migration, ~10 s and under 1 GB; coordinator chooses exact command. No suites, visual, cross-platform or hardware runs.
+<!-- SECTION:NOTES:END -->
