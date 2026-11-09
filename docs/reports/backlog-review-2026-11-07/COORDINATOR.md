@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Core parked private1088 checkpoint e6d744868 (allACopen) after layout regressionPASS; nativeScript hostcontract test exposed missing transitive staticarchives, fixedsource unproved behindother-sessionMapperlock. Canceled onlyownqueuedbuild; now1093 then1094 then1090 source in same solewriter. Keep everycommitunintegrated until exactproof/fixups; no fabricatedDone. Pickers fullUnicode17catalog1914entries/9groups/330tones islazy/shakeable, ownruntime stillqueued.
+
 - Created/claimed1094 for confirmed generic Array.flatMap gap blocking unchanged Data PathBar. Two-line nested-string repro failsZ0106; Data-subagent TC39 +vendoredQuickJS research recorded. Core order1088->1093->1094->1090 (four-task batch); one writer, no app workaround. Other potential picker scroll/neutral ownership failures await exactruntime proof before taskcreation.
 
 - Created/claimed1093: ordinary JSX id is rejected by host attribute whitelist, blocking Data aria-activedescendant. Minimal3line check reproduced, Data-subagent WAI/React primary research recorded. Sole core order1088 then1093 then1090; no second enginewriter. Pickers string|| rejected by deliberatebooleancondition policy, uses explicit emptyselection; no invented gap/task. DirectReactimport in neutralData UI belongs sharedkit host provider; adjustlayering and record existing inference issue later if needed. Other session relaunches Mapper3600s, so all runtime/build checks queued; bounded cheap static checks may proceed without executing apps.
