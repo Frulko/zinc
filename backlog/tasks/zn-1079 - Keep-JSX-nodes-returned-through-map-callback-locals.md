@@ -2,8 +2,7 @@
 id: ZN-1079
 title: Keep JSX nodes returned through map callback locals
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 10:41'
 updated_date: '2026-11-09 11:12'
 labels:
@@ -65,4 +64,5 @@ Proposed tests (owner milestone; not run):
 - `ZINC=<integrated>/build/zinc timeout 180 tests/run --only jsx_gaps`: broader JSX children/imports/conditionals in both models and all engines; roughly 10–30 s, memory not measured.
 - `ZINC_HEADLESS=1 ZINC_FRAMES=2 timeout 120 <integrated>/build/zinc run --native tests/data/jsx_map_local/main.tsx`: extend all scoped numeric-local assertions to explicit native AOT; roughly 5 s cold, memory not measured.
 
+Coordinator integration: 4004c3b7e on develop; clean retained smoke tree rebuilt, jsx_map_local and original two-frame interpreter screenshot passed. Broader/native shadow checks listed in RESUME.md.
 <!-- SECTION:NOTES:END -->

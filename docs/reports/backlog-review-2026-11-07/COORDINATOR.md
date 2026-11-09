@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Integrated ZN-1079 (4004c3b7e, Done). Clean smoke rebuilt; jsx_map_local passes Solid/React on interpreter/QuickJS, original Save/Export scene inspected. Worker proved original repro on native AOT; Actions original palette proof passes. Actions isolated kit_size passed; .04 commit then .05 proof ongoing. Next chain: Inputs/Pickers ZN-1078.06-.07.
+
 - 2026-11-09: Claimed ZN-1079 for a fresh frontend/JSX worker in .worktrees/1079-jsx, beside the Actions/App chrome worker. At most one engine worker builds; no other build process observed.
 
 - 2026-11-09: Integrated ZN-1078.03 (7273abc75, Done, D268). Clean smoke tree rebuilt; native_reachability, res_library, kit_size pass, Button checked and two frames inspected. AOT barrel +66,040 B / 106,496 B budget; JS +395 B. Original main.cpp cross-display WIP and tests/affected.json WIP restored. ZN-1079 follows next; Actions/App chrome worker remains active pending its JSX fix.
