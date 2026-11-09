@@ -173,6 +173,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Faster
 
 - `zinc export --target wasm` ships an interpreter of 0.6 MB instead of 6.4 MB (about 0.2 MB over the network), so the page starts sooner: it no longer carries its debug information.
+- Under `zinc dev --target web`, files and other bytes reach the page from your machine as base64, in one request and about a third of the size they had.
 
 #### Fixed
 
@@ -182,6 +183,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - In a page, `zinc:link` throws `ZnUnsupported` like `zinc:socket` does, so an app can skip it quietly (`e instanceof ZnUnsupported`); `zinc:browser` can now be imported by typed programs on every target, and its `browserFeatures()` returns a `Map`.
 - `zinc export` (and `run`) of a folder of `templates/` itself says to make a project from it with `zinc new` first, instead of an error about its `{{id}}`.
 - A page that reads `clock()` of `zinc:sys` (the three.js glTF viewer does) no longer stops at start with `__clockMs is not defined`, in an export and in `zinc dev`; the viewer's glTF loader on the web also reports its mesh and triangle counts again.
+- `zinc dev --target web` is safer: its bridge to your machine listens on `127.0.0.1` only and answers its own page only, an older tab of the page is refused instead of reaching the newer one's processes and servers, `.env` and other dotfiles of the project are not served, and a reload no longer logs `ERR_EMPTY_RESPONSE`.
+- Under `zinc dev --target web`, `zinc:sqlite` opens the database file in your project, as `zinc run` does, instead of a copy kept in the browser, and a `zinc:net` fetch made by the page no longer ends with an empty body when the machine fetched something for it at the same time.
 
 ### Language
 

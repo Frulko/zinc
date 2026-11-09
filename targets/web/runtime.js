@@ -88,15 +88,22 @@ const Z = (G.__zincWeb = {
 const pageFetch = G.fetch.bind(G);   // the browser's own fetch: the runtime's requests (assets, wasm, the bridge's poll) never go through the dev bridge
 function devBridge({ url, token, natives }) {
   const fns = new Map(), ids = new WeakMap(), pending = new Map();
-  let polling = false;
+  let polling = false, stale = '';
+  // bytes travel as base64 (bridge-host.mjs); Uint8Array.fromBase64/toBase64 where the browser has them (Chrome 140, Firefox 133, Safari 18.2)
+  const toB64 = (u) => { if (u.toBase64) return u.toBase64(); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+  const fromB64 = (b) => { if (Uint8Array.fromBase64) return Uint8Array.fromBase64(b); const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
   const enc = (v) => typeof v === 'function' ? { $cb: ids.get(v) ?? (ids.set(v, fns.size + 1), fns.set(fns.size + 1, v), fns.size) }
-    : ArrayBuffer.isView(v) ? { $ta: v.constructor.name, d: Array.from(v) } : v;
-  const dec = (v) => v && typeof v === 'object' && v.$ta ? new G[v.$ta](v.d) : v;
+    : ArrayBuffer.isView(v) && G[v.constructor.name] ? { $ta: v.constructor.name, b: toB64(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)) } : v;
+  const dec1 = (v) => { if (!(v && typeof v === 'object' && v.$ta)) return v; const u = fromB64(v.b); return v.$ta === 'Uint8Array' ? u : new G[v.$ta](u.buffer); };
+  const dec = (v) => v && Object.getPrototypeOf(v) === Object.prototype && !v.$ta ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, dec1(x)])) : dec1(v);
+  // a newer load of this page (another tab, a reload that did not unload this one) has a new bridge: this page's calls stop, once said
+  const refused = (x) => { if (x.status !== 403) return false; if (!stale) { stale = 'a newer load of this page has the dev bridge: reload this page'; console.warn('zinc dev: ' + stale); } return true; };
   function request(method, path, body) {
     const x = new XMLHttpRequest();
     x.open(method, url + path, false);
     x.setRequestHeader('x-zinc-token', token);
     x.send(body);
+    if (refused(x)) throw new Error(stale);
     return JSON.parse(x.responseText);
   }
   let queued = [];
@@ -110,26 +117,32 @@ function devBridge({ url, token, natives }) {
     queued = [];
     for (const ev of evs) {
       if (ev.cb !== undefined) { const f = fns.get(ev.cb); if (f) f(...ev.a.map(dec)); continue; }
-      if (ev.ev !== undefined) { Z.hostEvent(...ev.ev); continue; }   // an event of this machine's loop (a fetch done, an OSC message...) for the page's modules
+      if (ev.ev !== undefined) { const raw = dec1(ev.ev[3]); Z.hostEvent(ev.ev[0], ev.ev[1], ev.ev[2], typeof raw === 'string' ? raw : Array.from(raw)); continue; }   // an event of this machine's loop (a fetch done, an OSC message...) for the page's modules
       const p = pending.get(ev.p);
       if (!p) continue;
       pending.delete(ev.p);
       if (ev.e !== undefined) p.reject(new Error(ev.e)); else p.resolve(dec(ev.v));
     }
   }
+  // the long poll ends with the page: a reload makes zinc dev start a new bridge as soon as it serves the new page, before this one unloads, and a
+  // poll still pending then would end without an answer (net::ERR_EMPTY_RESPONSE in the console)
+  // ponytail: a beforeunload that another handler cancels leaves the poll stopped; events then come with the next call's answer
+  const leaving = new AbortController();
+  addEventListener('beforeunload', () => leaving.abort());
   async function poll() {
-    for (;;) {
+    while (!stale && !leaving.signal.aborted) {
       try {
-        await pageFetch(url + '/wait', { headers: { 'x-zinc-token': token } });
+        const w = await pageFetch(url + '/wait', { headers: { 'x-zinc-token': token }, signal: leaving.signal });
+        if (refused(w)) break;
         run(request('GET', '/drain', null).ev);
-      } catch (e) { await new Promise((res) => setTimeout(res, 1000)); }
+      } catch (e) { if (!stale && !leaving.signal.aborted) await new Promise((res) => setTimeout(res, 1000)); }
     }
   }
   return {
     has: (name) => natives.includes(name),
     call(name, k, args) {
       let r;
-      try { r = request('POST', '/call', JSON.stringify({ m: name, k, a: args.map(enc) })); } catch (e) { throw new ZnUnsupported('plugin ' + name + '.' + k, 'the dev bridge does not answer (zinc dev stopped?)'); }
+      try { r = request('POST', '/call', JSON.stringify({ m: name, k, a: args.map(enc) })); } catch (e) { throw new ZnUnsupported('plugin ' + name + '.' + k, stale || 'the dev bridge does not answer (zinc dev stopped?)'); }
       if (r.p !== undefined || fns.size) { if (!polling) { polling = true; poll(); } }
       const settled = r.p === undefined ? null : new Promise((resolve, reject) => pending.set(r.p, { resolve, reject }));
       run(r.ev);
@@ -1007,6 +1020,7 @@ if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host s
   const remote = (n) => (...a) => Z.bridge.call('__rows', n, a);
   const local = /^(ev|loop|layout|assets|gfx|sys|storage)/;
   for (const n of [...UNSUPPORTED.filter((n) => !local.test(n)), ...Object.keys(rows).filter((n) => n.startsWith('fs')), 'sysEnv']) G['__host_' + n] = remote(n);
+  for (const n of ['fsWriteBytes', 'fsAppendBytes', 'fsWriteAt']) G['__host_' + n] = (p, b, ...a) => Z.bridge.call('__rows', n, [p, Uint8Array.from(b), ...a]);   // bytes as base64
   // a file the page has itself (an asset, a file it wrote in memory) is read here; any other path is the machine's
   let viaBridge = false, loaded = new Uint8Array(0);
   const mine = (p) => !!fileBytes(p);
@@ -1025,7 +1039,7 @@ if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host s
   G.__host_httpError = () => '';
   G.__host_httpReply = (h, status, lines, body) => Z.bridge.call('__net', 'reply', [h, status, lines, body]);
   G.__host_httpReplyFile = (h, status, lines, file) => Z.bridge.call('__net', 'replyFile', [h, status, lines, file]);
-  G.__host_httpReplyBytes = (h, status, lines, bytes) => Z.bridge.call('__net', 'replyBytes', [h, status, lines, bytes]);
+  G.__host_httpReplyBytes = (h, status, lines, bytes) => Z.bridge.call('__net', 'replyBytes', [h, status, lines, Uint8Array.from(bytes)]);
   G.__host_httpStop = (port) => Z.bridge.call('__net', 'stop', [port]);
 }
 
@@ -1039,7 +1053,7 @@ if (Z.bridge) {
     if (u.origin === location.origin || !/^https?:$/.test(u.protocol)) return pageFetch(input, init);
     const r = new Request(input, init), headers = [];
     r.headers.forEach((v, k) => headers.push([k, v]));
-    const body = r.method === 'GET' || r.method === 'HEAD' ? null : Array.from(new Uint8Array(await r.arrayBuffer()));
+    const body = r.method === 'GET' || r.method === 'HEAD' ? null : new Uint8Array(await r.arrayBuffer());
     const a = await Z.bridge.call('__fetch', 'fetch', [u.href, r.method, headers, body, init.timeoutMs || 0]);
     const res = new Response(empty.has(a.status) ? null : new Uint8Array(a.body), { status: a.status, statusText: a.statusText, headers: a.headers });
     Object.defineProperty(res, 'url', { value: u.href });

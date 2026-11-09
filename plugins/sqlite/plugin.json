@@ -17,6 +17,7 @@
   },
   "web": {
       "native": "Sqlite",
+      "dev": "native",
       "impl": "web/sqlite.js",
       "needs": [
           "wasm"

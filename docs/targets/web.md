@@ -510,12 +510,15 @@ calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device ru
 
 - A call is a synchronous request to `http://127.0.0.1:<port>/call`, as a native call is synchronous; a promise result settles later. The callbacks and settled promises come
   back in the order the native side made them, each as a task of its own, never inside a call (as on the native event loop).
-- It answers this machine only, and every request carries a token the dev server writes into the page; a request without it gets 403. With `--lan` there is no bridge (the
-  page would serve other machines) and those calls throw ZnUnsupported.
+- It listens on `127.0.0.1` only and answers the dev page's own origin only (a page of another local server gets 403), and every request carries the token of this page
+  load, which the dev server writes into the page it serves; a request without it gets 403. Bytes (a file read, a fetch's body) travel as base64: a 4 MB file is one
+  request. With `--lan` there is no bridge (the page would serve other machines) and those calls throw ZnUnsupported.
 - The dev server and the bridge refuse a request whose `Host` is not `127.0.0.1`, `localhost` or `[::1]` with their port, and the reload socket one whose `Origin` is
   another site's: a page of another domain resolved to 127.0.0.1 (DNS rebinding) cannot read the token or call the bridge.
-- Each page load gets a new bridge: the servers, sockets, children and callbacks the page before left on this machine end with the old one, as a new `zinc run` starts
-  clean. A module swapped in place keeps the bridge. A bridge that ends by itself is said on the terminal (`the dev bridge ended`), and the next page load starts it again.
+- Each page load gets a new bridge and a new token: the servers, sockets, children and callbacks the page before left on this machine end with the old one, as a new
+  `zinc run` starts clean, and a page still open in another tab is refused by the new one (its console says `a newer load of this page has the dev bridge: reload this
+  page`) instead of reaching what the newer page started. A module swapped in place keeps the bridge. A bridge that ends by itself is said on the terminal (`the dev
+  bridge ended`), and the next page load starts it again.
 - It is for development on your own machine. An export never has one: a page hosted online gets no processes, files or devices from a server, so those calls throw
   ZnUnsupported there (the online demos use browser backends instead).
 - The program's file system (`zinc:fs`), its environment (`env()`) and the host services a page lacks (processes, raw sockets, signals...) are this machine's too, from the
@@ -523,14 +526,15 @@ calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device ru
   input, audio, storage) stays the page's.
 - A file the page has itself (an asset, a file the program wrote in the page) is read in the page; any other path is read on the machine.
 - The events of this machine's loop that the page's modules asked for (a request to a `zinc:net` server, an OSC message, a signal) come back to the page's handlers.
-- A plugin whose browser version cannot do what its native one does (`zinc:socket`: TCP, UDP, a server) says `"web": {"dev": "native"}` in plugin.json: under `zinc dev` the
-  page gets the native module and its native side runs through the bridge; an export keeps the browser version.
+- A plugin whose browser version cannot do what its native one does (`zinc:socket`: TCP, UDP, a server; `zinc:sqlite`, whose database is a file of the project) says
+  `"web": {"dev": "native"}` in plugin.json: under `zinc dev` the page gets the native module and its native side runs through the bridge; an export keeps the browser
+  version. A database file the program writes in its folder (`.db`, `.sqlite`) does not reload the page.
 - The program's `fetch` to another origin is made by this machine, as under `zinc run`: a speaker on the local network or a site that sends no CORS headers answers. A
   request to the page's own origin stays the browser's.
 - A `zinc:net` server (`serve`, `serveAsync`) listens on this machine: each request goes to the page's handler and its reply comes back through the bridge, so a phone
   or a `curl` reaches the program on its port as under `zinc run`.
 - The media files of the project outside `assets/` (videos, sounds, such as `examples/hero`'s `media/bbb.mp4`) are served by `zinc dev` at `/__project/<path>` with byte
-  ranges, so `zinc:video`'s `<video>` element plays and seeks them by the path the program gives.
+  ranges, so `zinc:video`'s `<video>` element plays and seeks them by the path the program gives. A dotfile or a dot folder (`.env`, `.git`) is never served.
 - A side that draws (the `zinc:three` subset) is never bridged: it would draw on your machine, not in the page. Its plugin.json says so with `"web": {"bridge": false}`; it keeps its W0602.
 - The set of native sides is read when `zinc dev` starts: a save that adds such a plugin needs `zinc dev` restarted.
 

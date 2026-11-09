@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The dev bridge of zinc dev --target web in headless Chrome (docs/targets/web.md, "The dev bridge"; tests/t1/web_bridge.sh).
 Serves tests/fixtures/web-bridge (zinc:process, which has no browser backend), opens the page and waits for a child's line (a callback) and a
-run() result (a promise) that came through the bridge, a zinc:net server of the page that answers a request from this machine, a zinc:net fetch whose end comes back as an event of the machine's loop, a cross-origin fetch made by the machine, and a UDP datagram of zinc:socket (its native module under zinc dev); then checks that a request without the token, or with another Host or Origin (DNS rebinding), is refused, that a reload gets a new bridge (the old page's server gone), that a bridge killed is said on the terminal and started again by the next load, and that the bridge stops with zinc dev.
+run() result (a promise) that came through the bridge, a zinc:net server of the page that answers a request from this machine, a zinc:net fetch whose end comes back as an event of the machine's loop, a cross-origin fetch made by the machine, and a UDP datagram of zinc:socket (its native module under zinc dev); then checks that a request without the token, or with another Host or Origin (DNS rebinding, another local page), is refused, that the bridge listens on 127.0.0.1 only, that a dotfile of the project is not served, that a 4 MB file of the machine reaches the page in one request, that a reload gets a new bridge (the old page's server gone, its token refused, its long poll ended without a console error), that a bridge killed is said on the terminal and started again by the next load, and that the bridge stops with zinc dev.
 usage: web-bridge-test <zinc> <project-dir>   Prints one JSON line; exit 1 on a failed step, 77 without Chrome."""
 import json, os, re, socket, subprocess, sys, threading, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -11,6 +11,11 @@ zinc, project = sys.argv[1], os.path.abspath(sys.argv[2])
 if not find_chrome():
     print("SKIP no Chrome"); sys.exit(77)
 s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
+# under build/ (zinc dev does not watch it): a dotfile it must not serve, a 4 MB file the page reads through the bridge
+os.makedirs(os.path.join(project, "build"), exist_ok=True)
+open(os.path.join(project, "build", ".env"), "w").write("SECRET=1\n")
+big, bigData = os.path.join(project, "build", "big.bin"), os.urandom(4 << 20)
+open(big, "wb").write(bigData)
 dev = subprocess.Popen([zinc, "dev", project, "--target", "web", "--port", str(port)], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=dict(os.environ, ZINC_BACKGROUND="1"), text=True)
 log, steps = [], {}
 def pump():
@@ -20,6 +25,9 @@ def stop():
     dev.terminate()
     try: dev.wait(10)
     except Exception: dev.kill()
+    for f in (".env", "big.bin"):
+        try: os.remove(os.path.join(project, "build", f))
+        except OSError: pass
 def fail(why, console=()):
     steps["failed"] = why
     print(json.dumps({"steps": steps, "devlog": log[-12:], "console": list(console)[:12]})); stop(); sys.exit(1)
@@ -74,15 +82,41 @@ with Chrome(["--window-size=800,500"]) as c:
            status(url + "/call", {"x-zinc-token": token}, b'{"m":"__rows","k":"sysEnv","a":["HOME"]}')]
     if got != [403, 403, 403, 200]: fail("another Host or Origin was not refused (dev server, its socket, the bridge; then the right one): %r" % got)
     steps["rebinding"] = True
+    # the bridge answers the dev page's origin only (a page of another local server gets 403, token or not) and listens on 127.0.0.1 only
+    st = status(url + "/call", {"x-zinc-token": token, "Origin": "http://127.0.0.1:%d" % (port + 1)}, b'{"m":"__rows","k":"sysEnv","a":["HOME"]}')
+    if st != 403: fail("a request from another origin got %r" % st)
+    steps["origin"] = True
+    lan = None
+    try:
+        u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); u.connect(("192.0.2.1", 9)); lan = u.getsockname()[0]; u.close()   # no packet sent
+    except OSError: pass
+    if lan and not lan.startswith("127."):
+        try: socket.create_connection((lan, bport), 1).close(); fail("the bridge listens on %s, not on 127.0.0.1 only" % lan)
+        except OSError: steps["loopbackOnly"] = True
+    # a dotfile of the project (.env, .git) is not served
+    st = status("http://127.0.0.1:%d/__project/build/.env" % port, {})
+    if st != 403: fail("/__project/build/.env got %r" % st)
+    steps["dotfiles"] = True
+    # a 4 MB file of the machine reaches the page in one request (base64), byte for byte
+    got = c.eval("(() => { let n = 0; const o = XMLHttpRequest.prototype.open; XMLHttpRequest.prototype.open = function (...a) { n++; return o.apply(this, a); };"
+                 " const t = performance.now(), len = __host_fsLoad(%s), ms = performance.now() - t; XMLHttpRequest.prototype.open = o;"
+                 " return [len, n, ms, __host_fsByte(12345), __host_fsByte(len - 1)]; })()" % json.dumps(big))
+    if not got or got[0] != len(bigData) or got[1] != 1 or got[3] != bigData[12345] or got[4] != bigData[-1]: fail("a 4 MB file through the bridge: %r (length, requests, ms, two bytes)" % got)
+    steps["load4MB"] = "%d ms" % got[2]
     # a reload starts a new bridge: the page's server of the load before is gone (no listener left behind), the new page gets its callback again
     old = int(m.group(1))
-    c.console.clear()
+    c.console.clear(); c.problems.clear()
     c.call("Page.reload")
     end = time.monotonic() + 20
     while time.monotonic() < end and not ("stdout: bridge-line" in c.console and any("serving: " in l for l in c.console)): c._recv(-1, 0.2)
     if "stdout: bridge-line" not in c.console: fail("no child line after a reload", c.console)
     try: socket.create_connection(("127.0.0.1", old), 1).close(); fail("the page's server of the load before still listens after a reload")
     except OSError: steps["reload"] = True
+    # the old page's long poll ended with it (no net::ERR_EMPTY_RESPONSE), and its token no longer opens the new bridge (another tab's page)
+    if any("ERR_EMPTY_RESPONSE" in t for _, t in c.problems): fail("the old page's poll ended without an answer", [t for _, t in c.problems])
+    st = status(url + "/call", {"x-zinc-token": token}, b'{"m":"__rows","k":"sysEnv","a":["HOME"]}')
+    if st != 403: fail("the load before's token still opens the bridge: %r" % st)
+    steps["staleToken"] = True
     # a bridge that ends is said on the terminal; the next page load starts it again
     kids = subprocess.run(["pgrep", "-P", str(dev.pid)], capture_output=True, text=True).stdout.split()
     if not kids: fail("no bridge process under zinc dev")
