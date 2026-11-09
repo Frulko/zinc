@@ -22,10 +22,12 @@
 - Integrated: Hamlet ZN-946 (Done): storage-free snapshot, saves from newer versions refused and kept; ZN-970 (Done): player actions as commands through `submit`/`advance`, same command hash on three engines, Ctrl+Z after razing trees no longer lays a road.
 - Integrated: ZN-774.30 (Done, D243): `/play/` on the site edits and runs Zinc in Chrome without COOP/COEP (program in the link, diagnostics linked, starters per template, lessons editable, export as a project). The Pages workflow now builds the wasm modules: not run yet.
 - Integrated: Hamlet ZN-971 (Done): `recordLog`/`replayLog` replay a 2000-frame village to the same hash on three engines, corrupt lines refused at their number; undo, orders, priority, unlimited and progression are commands now.
+- Integrated: ZN-437 (Done, D244): `zinc assets check` (exit 1 naming the budget broken), `zinc assets report [--diff old.json]`, `zinc assets clean`.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-437 (since b677f1c19): `zinc assets check examples/<a game with groups> --target rpi1` (the default budgets on a real project, 10 s).
 - ZN-971 (since 8861f2f06): `tests/t1/hamlet.sh` now also compares `replayhash` and checks orders and priority go through commands; proposed T0 `hamlet_replay` (20 s).
 - ZN-774.30 (since 4d1868344): `pnpm build` in site/ then `ZINC=build/zinc tools/play-link-test` (one Chrome, 30 s); `tests/t2/wasm_browser.sh` (the SharedArrayBuffer path after the JSPI change); one run of the Pages workflow (`gh workflow run pages`: setup-zig builds both wasm modules on Ubuntu, /play/ on GitHub Pages) — outward-facing, owner's call.
 - Hamlet (since 439e5df0a): `tests/t1/hamlet.sh` as edited (rules on three engines, the static submit check, both mouse sessions, 2 min); proposed T0 `hamlet_save` and `hamlet_commands` (20 s each).

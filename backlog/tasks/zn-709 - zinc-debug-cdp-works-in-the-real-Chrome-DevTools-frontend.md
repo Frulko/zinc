@@ -2,7 +2,8 @@
 id: ZN-709
 title: zinc debug --cdp works in the real Chrome DevTools frontend
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 23:37'
 labels:
   - debugger

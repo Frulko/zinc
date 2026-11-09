@@ -639,6 +639,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.30: plugins in the browser compiler: the plugins' Zinc sides in the in-memory file system and web backends for their native sides (canvas2d on OffscreenCanvas, audio on WebAudio), for lessons 06, 17-20 and the canvas, game-2d and eink templates in /play/.
 - ZN-774.30: draw the missing gfx rows in `targets/wasm/glue/worker.mjs` (SetTransform, ResetTransform, Clip, Unclip, Border, Shadow, Stroke, Path, Gradient) so stage and UI lessons draw as natively; add lucide's icon nodes to std.json once `zinc:svg` works in the page.
 - ZN-774.30: run /play/ in Firefox and Safari without JSPI (an Asyncify vm-web.wasm, +27% gzip, or when they ship JSPI); a dark CodeMirror theme; warn above ~8 KB of link and offer the zip (with ZN-774.31).
+- ZN-437: `zinc assets check --json` for CI annotations and Atelier; an optional `--fail-on-growth <KB|%>` for `report --diff`; copy `report.json` beside the wasm, esp32, android and ios exports too (native only today).
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

@@ -2,7 +2,8 @@
 id: ZN-704
 title: Styles panel edits work in the real Chrome DevTools frontend
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 22:24'
 labels:
   - devtools
