@@ -4,6 +4,7 @@ import { env } from 'zinc:sys';
 import { ActionsSection } from './sections/actions';
 import { NavigationSection } from './sections/navigation';
 import { ChromeSection } from './sections/chrome';
+import { FeedbackSection } from './sections/feedback';
 import { SelectionSection } from './sections/selection';
 import { InputsSection } from './sections/inputs';
 import { render } from 'zinc:ui/solid';
@@ -45,6 +46,7 @@ function App(): i32 {
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'selection'}><SelectionSection /></Show>
       <Show when={env('GALLERY') === 'overlays'}><Section title="Overlays"><OverlaysCard /></Section></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'inputs'}><InputsSection /></Show>
+      <Show when={env('GALLERY') === 'feedback'}><Section title="Feedback"><FeedbackSection /></Section></Show>
       <Show when={env('GALLERY') === ''}>
       <Section title="Metrics"><StatsRow /></Section>
       <Section title="Controls">
@@ -54,6 +56,7 @@ function App(): i32 {
         </View>
       </Section>
       <Section title="Overlays"><OverlaysCard /></Section>
+      <Section title="Feedback"><FeedbackSection /></Section>
       <Section title="Feedback and data">
         <View className="flex-row flex-wrap gap-6 items-start">
           <AlertsColumn />

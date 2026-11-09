@@ -351,6 +351,32 @@ Run `GALLERY=overlays zinc run examples/ui/kit-gallery`. Add `OVERLAY=dialog`, `
 surface immediately; `GALLERY_DARK=1` starts dark. For a picture, add `ZINC_HEADLESS=1 ZINC_FRAMES=25
 ZINC_SHOT=docs/img/kit-overlays.png`.
 
+## Quiet Feedback
+
+The family is implemented in `lib/std/kit/feedback.tsx`; existing imports from `alert`, `badge`, `avatar`, `progress`
+and `spinner` still work. Quiet uses neutral surfaces and one accent, with colour reserved for status.
+
+![Quiet feedback components](img/kit-feedback.png)
+![Dark feedback components](img/kit-feedback-dark.png)
+
+| Component | Options and behavior |
+| --- | --- |
+| `Alert` | `title`, `description`, `tone` (`neutral`, `info`, `success`, `warning`, `danger`), optional Lucide `iconName` (legacy `icon` glyph remains supported), `dismissible`, `dismissLabel`, `onDismiss`, `className`. Existing `variant` values remain supported. Dismiss is a normal keyboard button; dismissal survives parent rerenders. |
+| `Banner` | Alert options plus `action`/`onAction`. It fills its container and collapses on dismissal, immediately under reduced motion. |
+| `Progress` | `value: () => number` (0–100, clamped), `label`, `showValue`, `accent`, `indeterminate`, `className`. An indeterminate bar omits a numeric accessible value. Native progress controls remain supported. |
+| `ProgressRing` | `value`, optional `size` (80 px), `label`, `showValue`, `strokeWidth`, `color` and `track` accessors. Large rings show the label inside; a label also enables the percentage unless `showValue` is false. Small rings keep the label accessible. Its one SVG document is replaced/disposed with the effect; idle rings do not repaint. |
+| `Meter` | `label`, `value`, `max`, optional `min`, `unit`, `warning` (0.8), `danger` (0.95), `className`. Thresholds are fractions of the range; the fill clamps to its bounds. |
+| `Spinner` | Optional `size` (20 px), `color`, `active` accessor, accessible `label`, `className`. Inactive indicators hide. |
+| `Skeleton` | Optional `width` (fills its container), `height` (12 px), `circle`, `active` accessor, `shimmer`, `className`. Decorative placeholders are hidden from assistive technology. |
+| `Badge` | `label`, optional `tone`, `dot`, `solid`, `className`; existing `variant` values remain supported. |
+| `Avatar` | `name`, `size` (pixels or existing `sm`/`default`/`lg`), `src` or runtime `image`, `status` (`online`, `away`, `busy`, `offline`), `className`. Initials remain behind the image; neutral background shades are stable for each name. |
+| `EmptyState` | `title`, optional `description`, `icon`, `action`/`onAction`, `className`. The action supports Tab, Enter and Space. |
+| `Timeline` | `items`, optional accessible `label` and `className`. Each item has `title`, `time`, `description`, `icon` and status `tone`; the final connector is omitted. |
+
+Loading motion uses the engine compositor and stops on unmount or when the OS enables reduced motion. No loading
+indicator schedules work when inactive. Run `GALLERY=feedback zinc run examples/ui/kit-gallery`; add
+`GALLERY_DARK=1` for dark mode. `ZINC_HEADLESS=1 ZINC_FRAMES=25 ZINC_SHOT=docs/img/kit-feedback.png` captures it.
+
 ## Limits
 
 - No hover (touch screens and pads have none): pressed and focused states use `active:` and `focus:` fills, and every pressable also dims

@@ -35,3 +35,5 @@ export { ViewerItem, ViewerOptions, openImageViewer, closeImageViewer, imageView
 export { IconButton, ButtonGroup, SplitButton, ToggleGroup, SegmentedControl, CopyButton, HoldToConfirm, CommandPalette, ActionOption, CommandItem } from './actions';
 export { Toolbar, ToolbarItem, StatusBar, StatusItem, DocumentTabs, DocumentTabsProps, DocumentTab, DockLayout, DockLayoutProps, DockLayoutState, DockNode, DockPanel, saveDockLayout, parseDockLayout, moveDockPanel, setDockPanelOpen } from './app-chrome';
 export { Checkbox, CheckboxProps, RadioGroup, RadioCards, RadioGroupProps, ChoiceOption, Chip, ChipProps, Chips, Rating } from './selection';
+
+export { Banner, BannerProps, Meter, MeterProps, Skeleton, SkeletonProps, EmptyState, EmptyStateProps, Timeline, TimelineProps, TimelineItem, AlertProps, BadgeProps, AvatarProps, ProgressProps, ProgressRingProps, SpinnerProps } from './feedback';

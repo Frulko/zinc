@@ -60,3 +60,7 @@ the rich card; Tab/Enter provides the same path. Toast hover/focus expands and p
 pagination, a release stepper, a document with a following contents rail, a named dock and a compact tab bar.
 Collapse the sidebar, open its groups, switch pages, or choose a contents entry; Tab/Shift-Tab, arrows, Home/End and
 Enter/Space reach the same actions. `GALLERY_DARK=1` starts in Quiet dark.
+`GALLERY=feedback` shows the Feedback family: dismissible alerts and a banner, determinate and indeterminate progress,
+a ring, storage meter, spinner and skeletons, badges, avatar statuses, empty-state action and timeline. Dismiss and
+action controls support Tab/Enter/Space; the empty-state action ends the sample loading state. Nothing moves after
+loading is stopped, and reduced motion freezes the loading indicators.

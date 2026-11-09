@@ -145,6 +145,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The Quiet kit has labelled text, password, search, numeric, money and scrub fields, tags, verification codes, searchable selections and a shortcut recorder; every field works from the keyboard.
 
 - Quiet navigation adds grouped sidebars, breadcrumb overflow, pagination, steppers, scroll-following contents, docks and mobile tab bars; tabs support keyboard selection and horizontal scrolling, with icons and moving indicators available through `NavigationTabs`.
+- Quiet feedback adds dismissible banners, storage meters, skeletons, empty states and timelines; progress indicators, status badges and avatars share the same theme and respect reduced motion.
 
 #### Changed
 

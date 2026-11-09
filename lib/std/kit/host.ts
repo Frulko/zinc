@@ -110,3 +110,9 @@ export function onCleanup(fn: () => void): void {
 export function componentRef<T>(initial: T): react.MutableRef<T> {
   return fineGrained() ? new react.MutableRef<T>(initial) : react.useRef(initial);
 }
+
+/** Owns a component effect and its replacement/unmount cleanup in either UI model. */
+export function componentEffect(fn: () => (() => void) | undefined): void {
+  if (fineGrained()) solid.createEffect(() => { const cleanup = fn(); if (cleanup !== undefined) solid.onCleanup(cleanup); });
+  else react.useEffect(fn, null);
+}
