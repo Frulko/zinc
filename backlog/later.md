@@ -572,6 +572,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-805: `tools/package` ships no `libzn_*.a`; check that `libzn_host_sys_lite.a` ships wherever `libzn_host_gfx.a` does.
 - ZN-1019: `u8[]` still takes 8 bytes per element on the interpreter and AOT (a packed bytes type); host writes of a `u8[]` (`writeBytes`, `appendBytes`, `packAdd`) still copy element by element.
 - ZN-698: BLAKE2b in `zinc:hash` when a caller needs it (Monocypher is vendored), and an incremental hasher (update/digest, like Node's `createHash`) to hash a download as it streams.
+- ZN-684: compute scale and turn from all held fingers (centroid and mean spread, as WPF does), not only the first two, so a three-finger grip moves as people expect.
+- ZN-567: a max-tree index cache like Firefox's WebGLElementArrayCache, so a `bufferSubData` on part of an index buffer keeps the rest of the cache (only if meshes update sub-ranges every frame).
+- ZN-684: the museum table's last frame hash (534365c613d00312) differs from `tests/golden/museum-table/frames.txt` (216961b085c60998) on develop before and after ZN-684: check at the milestone run.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
