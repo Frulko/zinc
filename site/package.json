@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "assets": "mkdir -p public/docs-assets/targets public/docs-assets/learn public/docs-assets/start && cp -R ../docs/learn/img public/docs-assets/learn/ && cp -R ../docs/start/img public/docs-assets/start/ && cp -R ../docs/img public/docs-assets/ && cp -R ../docs/targets/img public/docs-assets/targets/",
+    "assets": "mkdir -p public/docs-assets/targets public/docs-assets/learn public/docs-assets/start && cp -R ../docs/learn/img public/docs-assets/learn/ && cp -R ../docs/start/img public/docs-assets/start/ && cp -R ../docs/img public/docs-assets/ && cp -R ../docs/targets/img public/docs-assets/targets/ && node play-engine.mjs",
     "predev": "pnpm assets",
     "prebuild": "pnpm assets",
     "dev": "astro dev",
@@ -12,7 +12,12 @@
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.1",
-    "astro": "^7.3.5"
+    "@codemirror/lang-javascript": "6.2.5",
+    "@codemirror/lint": "6.9.7",
+    "astro": "^7.3.5",
+    "codemirror": "6.0.2",
+    "fflate": "0.8.3",
+    "lz-string": "1.5.0"
   },
   "devDependencies": {
     "pagefind": "1.5.2"

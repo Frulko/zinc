@@ -140,6 +140,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - An exported page that uses parts no browser can run (a device plugin, processes, network servers) opens with a bar that names them and says they need the desktop app, with your download link from `targets.web.demo.link`; `targets.web.demo.samples` ships sample data for such a part and `sampleData()` of `zinc:browser` finds it.
 - `fetch` of `zinc:net` works in an exported page, over the browser's own `fetch` (timeouts, size limits, `saveTo`), so apps and plugins that download with it, such as `zinc:map`, export without a W0603 warning.
 - `zinc dev --target web` watches the workspace packages your app imports (npm, pnpm, yarn and bun workspaces, `npm link`): a save in one bundles the packages again and reloads the page.
+- The site has a playground at `/play/`: edit a Zinc program, see the checker's problems as you type (each code opens its explanation), run it in the page and share it, since the link carries the program. It starts from any `zinc new` template (`/play/new/<template>/`) or lesson (the lesson pages get an Edit and run button), and Export as project downloads a folder that `zinc run` opens. Running needs Chrome or Edge 137 or later; checking works in every browser.
 
 #### Faster
 

@@ -1,0 +1,246 @@
+---
+// The playground (ZN-774.30, D242): CodeMirror 6 on the left, the program on the right. The compiler (zinc-compile.wasm) checks the code in a
+// worker as you type; Run compiles it and starts it on the interpreter (vm-web.wasm) in another worker, through JSPI, so the page needs no
+// cross-origin isolation. The program lives in the address: #files/<lz-string of { path: text }>. Engine files: public/wasm/ (play-engine.mjs).
+import { explain, type Starter } from '../data/play';
+const { starter } = Astro.props as { starter: Starter };
+const b = import.meta.env.BASE_URL;
+const data = JSON.stringify({ starter, explain, base: b });
+---
+<div class="play" id="play">
+  <div class="play-bar">
+    <button type="button" class="btn primary" id="play-run" disabled>▶ Run</button>
+    <button type="button" class="btn" id="play-reset" title="Back to the starter program">Reset</button>
+    <button type="button" class="btn" id="play-export" title="A zip of the project folder: unzip it, then zinc run sketch">Export as project</button>
+    <span class="play-status" id="play-status" aria-live="polite">Loading the compiler…</span>
+  </div>
+  <div class="play-main">
+    <div class="play-edit">
+      <div class="play-tabs" id="play-tabs" role="tablist" aria-label="Files"></div>
+      <div class="play-editor" id="play-editor"></div>
+      <ul class="play-diags" id="play-diags" aria-label="Problems"></ul>
+    </div>
+    <div class="play-run">
+      <div class="play-stage" id="play-stage"><p class="play-idle">Press Run. Then click the program: it takes the keys and the mouse.</p></div>
+      <pre class="play-out" id="play-out" aria-label="Output"></pre>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="play-data" set:html={data.replace(/</g, '\\u003c')}></script>
+<style is:global>
+  html.embed header.nav, html.embed footer, html.embed .play-head { display: none; }
+  html.embed main { padding: 0; }
+  .play { padding-bottom: 48px; }
+  html.embed .play { padding: 8px; }
+  .play-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .play-bar .btn { padding: 8px 16px; font-size: .95rem; }
+  .play-bar .btn:disabled { opacity: .5; cursor: default; }
+  .play-status { color: var(--muted); font-size: .9rem; }
+  .play-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .play-main { grid-template-columns: minmax(0, 1fr); } }
+  .play-editor { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; color: #15180f; }
+  .play-editor .cm-editor { height: min(70vh, 640px); font-size: .86rem; }
+  html.embed .play-editor .cm-editor { height: 420px; }
+  .play-editor .cm-scroller { font-family: var(--mono); }
+  .play-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .play-tabs:empty { display: none; }
+  .play-tabs button { font: 500 .82rem var(--mono); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+  .play-tabs button[aria-selected='true'] { color: var(--ink); border-color: var(--muted); }
+  .play-diags { list-style: none; margin: 8px 0 0; padding: 0; font-size: .86rem; }
+  .play-diags li { padding: 6px 10px; border-left: 3px solid #e5484d; background: var(--surface); margin-bottom: 4px; border-radius: 4px; cursor: pointer; }
+  .play-diags li.warning { border-left-color: var(--accent-2); }
+  .play-diags code { font-size: .8rem; }
+  .play-stage { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); overflow: hidden; min-height: 160px; display: grid; place-items: center; }
+  .play-stage canvas { display: block; width: 100%; height: auto; outline: none; }
+  .play-idle { color: var(--muted); padding: 24px; margin: 0; text-align: center; }
+  .play-out { margin: 10px 0 0; min-height: 3em; max-height: 30vh; font-size: .8rem; white-space: pre-wrap; }
+  .play-out:empty { display: none; }
+  .cm-diag-code { font-family: var(--mono); margin-right: 6px; }
+</style>
+<script>
+  import { EditorView, basicSetup } from 'codemirror';
+  import { javascript } from '@codemirror/lang-javascript';
+  import { lintGutter, setDiagnostics, type Diagnostic } from '@codemirror/lint';
+  import LZString from 'lz-string';
+  import { zipSync, strToU8 } from 'fflate';
+
+  type Files = Record<string, string>;
+  type Diag = { file: string; line: number; col: number; len: number; severity: 'error' | 'warning'; code: string; message: string };
+  const { starter, explain, base } = JSON.parse(document.getElementById('play-data')!.textContent!);
+  const $ = (id: string) => document.getElementById(id)!;
+  const status = (t: string) => { $('play-status').textContent = t; };
+  const q = new URLSearchParams(location.search);
+  if (q.has('embed')) document.documentElement.classList.add('embed');
+  const engine = `${base}wasm/`;
+
+  // The program: from the address when it carries one, else the starter
+  const fromHash = (): Files | null => {
+    const m = location.hash.match(/^#files\/(.+)$/);
+    if (!m) return null;
+    try { const f = JSON.parse(LZString.decompressFromEncodedURIComponent(m[1]) || 'null'); return f && typeof f === 'object' ? f : null; } catch { return null; }
+  };
+  let files: Files = fromHash() ?? { ...starter.files };
+  const sources = () => Object.keys(files).filter((f) => /\.tsx?$/.test(f));
+  let cur = sources()[0];
+  const project = () => { try { return JSON.parse(files['zinc.json'] ?? '{}'); } catch { return {}; } };
+  const entry = () => { const e = project().entry; return typeof e === 'string' && files[e] !== undefined ? e : files['src/main.tsx'] !== undefined ? 'src/main.tsx' : 'src/main.ts'; };
+
+  // The editor
+  const view = new EditorView({
+    doc: files[cur] ?? '',
+    parent: $('play-editor'),
+    extensions: [basicSetup, javascript({ typescript: true, jsx: true }), lintGutter(), EditorView.updateListener.of((u) => { if (u.docChanged) { files[cur] = u.state.doc.toString(); changed(); } })],
+  });
+  const tabs = () => {
+    const list = sources();
+    $('play-tabs').replaceChildren(...(list.length < 2 ? [] : list.map((f) => {
+      const t = document.createElement('button');
+      t.type = 'button'; t.role = 'tab'; t.textContent = f; t.setAttribute('aria-selected', String(f === cur));
+      t.onclick = () => open(f);
+      return t;
+    })));
+  };
+  let switching = false;
+  const open = (f: string) => {
+    cur = f; switching = true;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: files[f] } });
+    switching = false; tabs(); showDiags();
+  };
+  tabs();
+
+  // The checker: the compiler in a worker, run again 400 ms after the last edit
+  const compiler = new Worker(`${engine}compile-worker.mjs`, { type: 'module' });
+  let compilerReady = false, seq = 0, lastId = 0, diags: Diag[] = [], built: { id: number; zbc: Uint8Array | null; ok: boolean } | null = null;
+  const waiting = new Map<number, (r: any) => void>();
+  compiler.onmessage = (e) => {
+    const m = e.data;
+    if (m.ready) { compilerReady = true; status('Ready.'); check(); return; }
+    if (m.error) { status(`The compiler did not load (${m.error}). On a checkout: tools/build-wasm compiler, then build the site again.`); return; }
+    waiting.get(m.id)?.(m); waiting.delete(m.id);
+  };
+  compiler.onerror = () => status('The compiler did not load: the engine files are missing (tools/build-wasm compiler and tools/build-wasm, then build the site again).');
+  compiler.postMessage({ wasm: `${engine}zinc-compile.wasm`, std: `${engine}std.json` });
+
+  // "/p/src/main.ts:3:1: error Z0104: Wrong number of arguments...", then the excerpt (" 3 | rect(1, 2);", "   | ^^^^")
+  const parse = (stderr: string): Diag[] => {
+    const out: Diag[] = [], lines = stderr.split('\n');
+    lines.forEach((l, i) => {
+      const m = l.match(/^\/p\/(.+?):(\d+):(\d+): (error|warning) ([A-Z]\d{4}): (.*)$/);
+      if (!m) return;
+      const caret = (lines[i + 2] ?? '').match(/^\s*\|\s*(\^+)/);
+      out.push({ file: m[1], line: +m[2], col: +m[3], len: caret ? caret[1].length : 1, severity: m[4] as 'error' | 'warning', code: m[5], message: m[6] });
+    });
+    return out;
+  };
+  const compile = (): Promise<any> => {
+    const id = ++seq;
+    return new Promise((res) => { waiting.set(id, res); compiler.postMessage({ id, files, entry: entry() }); }).then((r: any) => ({ ...r, id }));
+  };
+  const check = async () => {
+    if (!compilerReady) return null;
+    const r = await compile();
+    if (r.id < lastId) return r;
+    lastId = r.id;
+    diags = parse(r.stderr);
+    built = { id: r.id, zbc: r.zbc, ok: r.code === 0 };
+    const rest = r.code !== 0 && diags.length === 0 ? r.stderr.trim() : '';
+    if (rest) $('play-out').textContent = rest;
+    status(r.code === 0 ? `No problems (compiled in ${Math.round(r.ms)} ms).` : `${diags.length || 1} problem${diags.length > 1 ? 's' : ''}.`);
+    showDiags();
+    return r;
+  };
+  const explainLink = (code: string) => {
+    const a = document.createElement(explain[code] ? 'a' : 'span');
+    a.className = 'cm-diag-code'; a.textContent = code;
+    if (a instanceof HTMLAnchorElement) { a.href = `${base}docs/diagnostics/#${explain[code]}`; a.target = '_blank'; a.title = `What ${code} means, with a fix`; }
+    return a;
+  };
+  const offset = (text: string, line: number, col: number) => { let p = 0; for (let i = 1; i < line; i++) { const n = text.indexOf('\n', p); if (n < 0) break; p = n + 1; } return Math.min(text.length, p + col - 1); };
+  function showDiags() {
+    const text = files[cur] ?? '';
+    const here: Diagnostic[] = diags.filter((d) => d.file === cur).map((d) => {
+      const from = offset(text, d.line, d.col);
+      return { from, to: Math.min(text.length, from + d.len), severity: d.severity, message: d.message, renderMessage: () => { const s = document.createElement('span'); s.append(explainLink(d.code), d.message); return s; } };
+    });
+    view.dispatch(setDiagnostics(view.state, here));
+    $('play-diags').replaceChildren(...diags.map((d) => {
+      const li = document.createElement('li');
+      li.className = d.severity;
+      li.append(explainLink(d.code), `${d.file}:${d.line}:${d.col} ${d.message}`);
+      li.onclick = (e) => { if ((e.target as Element).tagName === 'A') return; if (d.file !== cur) open(d.file); const at = offset(files[cur], d.line, d.col); view.dispatch({ selection: { anchor: at }, scrollIntoView: true }); view.focus(); };
+      return li;
+    }));
+  }
+  let timer = 0;
+  function changed() {
+    if (switching) return;
+    clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      history.replaceState(null, '', `${location.pathname}${location.search}#files/${LZString.compressToEncodedURIComponent(JSON.stringify(files))}`);
+      check();
+    }, 400);
+  }
+
+  // Run: the interpreter in a worker, drawing on an OffscreenCanvas; JSPI lets its frame loop wait without a SharedArrayBuffer (worker.mjs)
+  const jspi = typeof (WebAssembly as any).Suspending === 'function';
+  let vm: Worker | null = null, vmWasm: Promise<ArrayBuffer> | null = null;
+  const KEYS: Record<string, number> = { ArrowUp: 0, ArrowDown: 1, ArrowLeft: 2, ArrowRight: 3, z: 4, Z: 4, ' ': 4, x: 5, X: 5, a: 6, A: 6, s: 7, S: 7, q: 8, w: 9, Enter: 10, Escape: 11 };
+  if (!jspi) status('This browser can check the code but not run it: running needs WebAssembly JSPI (Chrome or Edge 137 or later). Export as project and run it with zinc run.');
+  else ($('play-run') as HTMLButtonElement).disabled = false;
+  const stop = () => { vm?.terminate(); vm = null; };
+  async function run() {
+    stop();
+    $('play-out').textContent = '';
+    status('Compiling…');
+    clearTimeout(timer);
+    const r = await check();
+    if (!r || r.code !== 0 || !built?.zbc) { status(r ? 'Fix the problems first.' : 'The compiler is not ready yet.'); return; }
+    const win = project().app?.window ?? {}, w = win.width || 640, h = win.height || 400;
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h; canvas.tabIndex = 0; canvas.setAttribute('aria-label', 'The running program');
+    $('play-stage').replaceChildren(canvas);
+    vmWasm ??= fetch(`${engine}vm-web.wasm`).then((x) => { if (!x.ok) throw new Error('no vm-web.wasm (tools/build-wasm)'); return x.arrayBuffer(); });
+    let wasm: ArrayBuffer;
+    try { wasm = await vmWasm; } catch (e) { vmWasm = null; status(String(e)); return; }
+    const worker = vm = new Worker(`${engine}worker.mjs`, { type: 'module' });
+    const input = { x: 0, y: 0, down: 0, bits: 0 };
+    const send = () => worker.postMessage({ input });
+    const key = (down: boolean) => (e: KeyboardEvent) => { const k = KEYS[e.key]; if (k === undefined) return; e.preventDefault(); input.bits = down ? input.bits | (1 << k) : input.bits & ~(1 << k); send(); };
+    const pointer = (down?: number) => (e: PointerEvent) => { const b = canvas.getBoundingClientRect(); input.x = (e.clientX - b.left) * w / b.width; input.y = (e.clientY - b.top) * h / b.height; if (down !== undefined) input.down = down; send(); };
+    canvas.addEventListener('keydown', key(true)); canvas.addEventListener('keyup', key(false));
+    canvas.addEventListener('pointermove', pointer()); canvas.addEventListener('pointerdown', pointer(1)); canvas.addEventListener('pointerup', pointer(0));
+    const missing: string[] = [];
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.out) $('play-out').textContent += m.out;
+      if (m.missing) { missing.push(m.missing.replace(/^host\.gfx/, '')); status(`Running. Not drawn in the browser yet: ${missing.join(', ')}.`); }
+      if (m.started && !missing.length) status('Running.');
+      if (m.error) { $('play-out').textContent += m.error + '\n'; status('The program stopped with an error.'); }
+      if (m.done) status(`The program ended (exit ${m.rc}, ${m.frames} frames).`);
+      if (m.png) (window as any).__znFrame = m.png;   // the last frame, for tools/play-link-test (?frames=n)
+    };
+    const off = canvas.transferControlToOffscreen();
+    worker.postMessage({ wasm, zbc: built.zbc.slice().buffer, res: null, canvas: off, frames: Number(q.get('frames') || 0) }, [off]);
+    canvas.focus();
+  }
+  $('play-run').onclick = run;
+  $('play-reset').onclick = () => {
+    stop();
+    files = { ...starter.files }; cur = sources()[0];
+    history.replaceState(null, '', location.pathname + location.search);
+    open(cur); $('play-out').textContent = '';
+    $('play-stage').innerHTML = '<p class="play-idle">Press Run. Then click the program: it takes the keys and the mouse.</p>';
+    check();
+  };
+  // Export as project: a zip of one folder, sketch/, with its zinc.json; unzip it and `zinc run sketch` opens it
+  $('play-export').onclick = () => {
+    const all: Files = { 'zinc.json': `{\n  "name": "sketch",\n  "entry": "${entry()}"\n}\n`, ...files };
+    const zip = zipSync(Object.fromEntries(Object.entries(all).map(([k, v]) => [`sketch/${k}`, strToU8(v)])));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([zip as BlobPart], { type: 'application/zip' }));
+    a.download = 'sketch.zip'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    status('sketch.zip downloaded: unzip it, then zinc run sketch');
+  };
+  if (q.has('run')) { const go = () => (compilerReady ? run() : setTimeout(go, 100)); go(); }   // ?run: start at once (tools/play-link-test)
+</script>

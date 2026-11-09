@@ -1,6 +1,10 @@
 // The interpreter and the program in a worker (ZN-135): zinc:gfx draws on an OffscreenCanvas, the page's frame ticks and input arrive in a SharedArrayBuffer (Int32Array):
 // [0] frame tick counter, [1] pointer x * 16, [2] pointer y * 16, [3] pointer down, [4] button bit mask (Btn: Up Down Left Right A B X Y L R Start Select), [5] quit.
 // The runtime's frame loop blocks in gfxPoll (Atomics.wait) until the next tick, so no asyncify is needed. Needs cross-origin isolation (COOP/COEP) for the SharedArrayBuffer.
+// Without a SharedArrayBuffer (D242, ZN-774.30) the worker uses JSPI instead: zn.gfx is a WebAssembly.Suspending import that returns a promise for
+// gfxPoll only, which resolves on the worker's next animation frame, and zn_run is called through WebAssembly.promising; the page posts the input
+// ({ input: { x, y, down, bits } }, { quit: true }) as messages, which arrive while the program waits. `frames` stops the program after n frames.
+// No cross-origin isolation then; Chrome and Edge 137+ (WebAssembly.Suspending).
 import { wasiImports } from './wasi.mjs';
 
 const ARG = 24;   // sizeof(HostArg): double d @0, int64 i @8, void* p @16, uint32 n @20
@@ -27,13 +31,23 @@ function bakedImages(buf) {
   return out;
 }
 
-self.onmessage = async (e) => { try { await start(e); } catch (err) { self.postMessage({ error: String(err && err.stack || err) }); } };
+// The input of the JSPI path, written by the page's messages: [0] unused, then the same slots as the SharedArrayBuffer
+const input = new Int32Array(6);
+let started = false;
+self.onmessage = async (e) => {
+  if (started) { const m = e.data; if (m.input) { input[1] = m.input.x * 16; input[2] = m.input.y * 16; input[3] = m.input.down; input[4] = m.input.bits; } if (m.quit) input[5] = 1; return; }
+  started = true;
+  try { await start(e); } catch (err) { self.postMessage({ error: String(err && err.stack || err) }); }
+};
 async function start(e) {
-  const { wasm, zbc, res, canvas, sab } = e.data;
+  const { wasm, zbc, res, canvas, sab, frames: maxFrames = 0 } = e.data;
+  const jspi = !sab;
+  if (jspi && typeof WebAssembly.Suspending !== 'function') throw new Error('this browser has no WebAssembly JSPI (WebAssembly.Suspending) and the page is not cross-origin isolated');
   const images = bakedImages(res);
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
-  const shared = new Int32Array(sab);
+  const shared = jspi ? input : new Int32Array(sab);
+  const nextFrame = () => new Promise((r) => (self.requestAnimationFrame ? self.requestAnimationFrame(() => r()) : setTimeout(r, 16)));
   const module = await WebAssembly.compile(wasm);
   let memory;
   const fonts = [];
@@ -92,11 +106,13 @@ async function start(e) {
       case 'host.gfxHeight': out = H; break;
       case 'host.gfxPixelScale': out = 1; break;
       case 'host.gfxProfiling': out = 0; break;
-      case 'host.gfxPoll': {   // the frame loop: wait for the page's next tick, then the input of this frame
+      case 'host.gfxPoll': {   // the frame loop: wait for the page's next tick (JSPI: the next animation frame), then the input of this frame
+        frames++; if (frames % 10 === 0) self.postMessage({ frames });
+        if (maxFrames && frames >= maxFrames) shared[5] = 1;
+        if (jspi) { v.setFloat64(resPtr, 1 / 60, true); return nextFrame().then(() => { prevBits = this_bits; this_bits = shared[4]; }); }
         Atomics.wait(shared, 0, lastTick, 200);
         lastTick = Atomics.load(shared, 0);
         prevBits = this_bits; this_bits = Atomics.load(shared, 4);
-        frames++; if (frames % 10 === 0) self.postMessage({ frames });
         out = 1 / 60; break;
       }
       case 'host.gfxShouldQuit': out = Atomics.load(shared, 5); break;
@@ -105,8 +121,13 @@ async function start(e) {
       case 'host.gfxPointerX': out = Atomics.load(shared, 1) / 16; break;
       case 'host.gfxPointerY': out = Atomics.load(shared, 2) / 16; break;
       case 'host.gfxPointerDown': out = Atomics.load(shared, 3); break;
+      // queries with nothing to report here (no wheel, touch, key or command queue, never paused) and hints with no effect: 0, silently
+      case 'host.gfxPaused': case 'host.gfxIdleDue': case 'host.gfxKeyCount': case 'host.gfxTouchCount': case 'host.gfxWheel': case 'host.gfxWheelX':
+      case 'host.gfxScrollDX': case 'host.gfxScrollDY': case 'host.gfxScrollPhase': case 'host.gfxPinch': case 'host.gfxButtonEventCount':
+      case 'host.gfxSignalCount': case 'host.gfxModifiers': case 'host.gfxCommands': case 'host.gfxEscapeByApp': case 'host.gfxSetResize': case 'host.gfxCompClock': break;
+      case 'host.gfxPointerButtons': out = Atomics.load(shared, 3); break;
       default:
-        if (!warned.has(name)) { warned.add(name); console.warn('zinc wasm: ' + name + ' is not available in the browser'); }
+        if (!warned.has(name)) { warned.add(name); console.warn('zinc wasm: ' + name + ' is not available in the browser'); self.postMessage({ missing: name }); }
         out = name === 'host.gfxImageFromBytes' ? -1 : 0;   // no decoder here yet: not an image, rather than image 0
     }
     const rv = dv();
@@ -118,7 +139,7 @@ async function start(e) {
 
   const imports = {
     wasi_snapshot_preview1: wasiImports(module, () => memory, (fd, text) => { (fd === 2 ? console.error : console.log)(text.replace(/\n$/, '')); self.postMessage({ out: text }); }),
-    zn: { gfx },
+    zn: { gfx: jspi ? new WebAssembly.Suspending(gfx) : gfx },
   };
   const inst = await WebAssembly.instantiate(module, imports);
   ex = inst.exports; memory = ex.memory;
@@ -127,7 +148,7 @@ async function start(e) {
   new Uint8Array(memory.buffer, p, zbc.byteLength).set(new Uint8Array(zbc));
   self.postMessage({ started: true });
   let rc;
-  try { rc = ex.zn_run(p, zbc.byteLength); } catch (err) { console.error(String(err)); rc = -1; }
+  try { rc = jspi ? await WebAssembly.promising(ex.zn_run)(p, zbc.byteLength) : ex.zn_run(p, zbc.byteLength); } catch (err) { console.error(String(err)); rc = -1; }
   self.postMessage({ done: true, rc, frames });
   if (canvas.convertToBlob) {
     const blob = await canvas.convertToBlob({ type: 'image/png' });

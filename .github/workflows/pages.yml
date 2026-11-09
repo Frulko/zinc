@@ -30,6 +30,11 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: site/pnpm-lock.yaml
+      # the playground's engine (/play/, site/play-engine.mjs): the compiler and the interpreter built to wasm with the zig zinc pins
+      - uses: mlugg/setup-zig@v2
+        with: { version: 0.15.2 }
+      - name: Engine of the playground (wasm)
+        run: ZIG=$(command -v zig) tools/build-wasm compiler && ZIG=$(command -v zig) tools/build-wasm
       - run: pnpm install --frozen-lockfile
         working-directory: site
       - run: pnpm build

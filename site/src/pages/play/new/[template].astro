@@ -1,0 +1,18 @@
+---
+// A starter per template of `zinc new` (ZN-774.30): /play/new/<template>/ opens the template's code in the playground.
+import Base from '../../../layouts/Base.astro';
+import Play from '../../../components/Play.astro';
+import Starters from '../../../components/PlayStarters.astro';
+import { templates } from '../../../data/play';
+export function getStaticPaths() { return templates.map((t) => ({ params: { template: t.name }, props: { t } })); }
+const { t } = Astro.props;
+---
+<Base title={`${t.name} · Playground`} description={`The ${t.name} template of zinc new, in the playground: ${t.line}`}>
+  <div class="wrap page-head play-head">
+    <span class="eyebrow"><a href={`${import.meta.env.BASE_URL}play/`}>Playground</a> · zinc new {t.name}</span>
+    <h1>{t.name}</h1>
+    <p class="lead">{t.line} At home: <code>zinc new {t.name} my-app</code>.</p>
+    {t.plugins.length > 0 && <p class="notice" role="note">It uses {t.plugins.join(', ')}, a plugin the compiler in the page does not have yet: read and edit it here, then Export as project and run it at home.</p>}
+  </div>
+  <div class="wrap"><Play starter={t} /><Starters /></div>
+</Base>

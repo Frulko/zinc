@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""The playground's link, end to end (ZN-774.30): serves the built site (site/dist, `pnpm build` in site/) WITHOUT cross-origin isolation, opens
+/play/?run&frames=8#files/<lz-string of the program> in headless Chrome, lets the page compile it in its worker and run it on vm-web.wasm
+through JSPI, and compares the last frame and the output with `zinc run` of the same project. Export as project downloads sketch.zip, whose
+folder `zinc run` runs to the same output. Then opens a link with a type error and checks the problem list shows its code linked to its explanation.
+Usage: [ZINC=build/zinc] tools/play-link-test [site/dist]. About 10 s, one Chrome."""
+import base64, http.server, importlib.machinery, importlib.util, json, os, socketserver, subprocess, sys, tempfile, threading, time, zipfile
+
+HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+from cdp import Chrome
+loader = importlib.machinery.SourceFileLoader("pngdiff", os.path.join(HERE, "pngdiff")); spec = importlib.util.spec_from_loader("pngdiff", loader)
+pd = importlib.util.module_from_spec(spec); loader.exec_module(pd)
+
+DIST = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "site", "dist"))
+ZINC = os.environ.get("ZINC", os.path.join(ROOT, "build", "zinc"))
+for f in ("play/index.html", "wasm/zinc-compile.wasm", "wasm/vm-web.wasm"):
+    if not os.path.exists(os.path.join(DIST, f)): sys.exit("play-link-test: no %s in %s (tools/build-wasm compiler, tools/build-wasm, then pnpm build in site/)" % (f, DIST))
+
+PROGRAM = {
+    "zinc.json": '{ "name": "sketch", "entry": "src/main.ts", "app": { "window": { "width": 480, "height": 320 } } }\n',
+    "src/main.ts": "import { onFrame, clear, rect, width, height } from 'zinc:gfx';\n\nconsole.log(`play ${width()}x${height()}`);\n"
+                   "onFrame(() => {\n  clear(0x203040);\n  rect(40, 30, 200, 120, 0xffcc00);\n  rect(300, 200, 100, 80, 0x40c080);\n});\n",
+}
+BROKEN = {"src/main.ts": "import { rect } from 'zinc:gfx';\nrect(1, 2);\n"}
+
+def link(files):   # the page's own encoding: lz-string's compressToEncodedURIComponent of the JSON (site/node_modules/lz-string)
+    js = "const L=require(process.argv[1]);process.stdout.write(L.compressToEncodedURIComponent(process.argv[2]))"
+    return subprocess.run(["node", "-e", js, os.path.join(ROOT, "site", "node_modules", "lz-string"), json.dumps(files)], check=True, capture_output=True, text=True).stdout
+
+class H(http.server.SimpleHTTPRequestHandler):   # the site under /zinc/ as GitHub Pages serves it: no COOP, no COEP
+    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".mjs": "text/javascript", ".js": "text/javascript", ".wasm": "application/wasm"})
+    def __init__(self, *a, **k): super().__init__(*a, directory=DIST, **k)
+    def log_message(self, *a): pass
+    def translate_path(self, p): return super().translate_path(p[len("/zinc"):] if p.startswith("/zinc/") else p)
+srv = socketserver.TCPServer(("127.0.0.1", 0), H); port = srv.server_address[1]; threading.Thread(target=srv.serve_forever, daemon=True).start()
+base = "http://127.0.0.1:%d/zinc/play/" % port
+
+with tempfile.TemporaryDirectory() as t:
+    for k, v in PROGRAM.items():
+        os.makedirs(os.path.dirname(os.path.join(t, "p", k)), exist_ok=True); open(os.path.join(t, "p", k), "w").write(v)
+    env = dict(os.environ, ZINC_HEADLESS="1", ZINC_DETERMINISTIC="1", ZINC_FRAMES="8", ZINC_SHOT=os.path.join(t, "native.png"))
+    native = subprocess.run(["timeout", "60", ZINC, "run", os.path.join(t, "p")], env=env, capture_output=True, text=True)
+    if native.returncode != 0: sys.exit("play-link-test: zinc run failed: " + native.stderr[-400:])
+
+    with Chrome(["--window-size=1280,900"]) as c:
+        c.open(base + "?run&frames=8#files/" + link(PROGRAM))
+        png = None; deadline = time.monotonic() + 60
+        while time.monotonic() < deadline and not png:
+            time.sleep(0.5); png = c.eval("window.__znFrame ? btoa(String.fromCharCode(...new Uint8Array(window.__znFrame))) : ''")
+        out = c.eval("document.getElementById('play-out').textContent") or ""
+        state = c.eval("document.getElementById('play-status').textContent + ' | isolated=' + self.crossOriginIsolated")
+        if not png: sys.exit("play-link-test: the page published no frame (%s); console: %s" % (state, " / ".join(c.console)[:800]))
+        c.call("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": t})
+        c.eval("document.getElementById('play-export').click()")
+        zipped = os.path.join(t, "sketch.zip"); deadline = time.monotonic() + 15
+        while time.monotonic() < deadline and not os.path.exists(zipped): time.sleep(0.3)
+        c.open(base + "#files/" + link(BROKEN))
+        diag = ""; deadline = time.monotonic() + 30
+        while time.monotonic() < deadline and not diag:
+            time.sleep(0.5); diag = c.eval("(() => { const a = document.querySelector('#play-diags li a'); return a ? a.textContent + ' ' + a.getAttribute('href') : ''; })()") or ""
+    srv.shutdown()
+
+    open(os.path.join(t, "page.png"), "wb").write(base64.b64decode(png))
+    w1, h1, b1, d1 = pd.dec(os.path.join(t, "native.png")); w2, h2, b2, d2 = pd.dec(os.path.join(t, "page.png"))
+    fail = []
+    if (w1, h1) != (w2, h2): fail.append("the frame is %dx%d in the page, %dx%d at home" % (w2, h2, w1, h1))
+    else:
+        diff = sum(1 for i in range(w1 * h1) if max(abs(d1[i * b1 + k] - d2[i * b2 + k]) for k in range(3)) > 2)
+        if diff: fail.append("%d pixels differ from zinc run's frame" % diff)
+    if native.stdout.strip() not in out: fail.append("the output is %r, zinc run printed %r" % (out.strip(), native.stdout.strip()))
+    if not os.path.exists(zipped): fail.append("Export as project downloaded no sketch.zip")
+    else:
+        time.sleep(0.5); zipfile.ZipFile(zipped).extractall(os.path.join(t, "x"))
+        env["ZINC_SHOT"] = os.path.join(t, "export.png")
+        exported = subprocess.run(["timeout", "60", ZINC, "run", os.path.join(t, "x", "sketch")], env=env, capture_output=True, text=True)
+        if exported.returncode != 0 or exported.stdout != native.stdout: fail.append("zinc run of the exported folder printed %r (exit %d)" % (exported.stdout + exported.stderr[-300:], exported.returncode))
+    if not diag.startswith("Z0104 ") or "/docs/diagnostics/#z0104" not in diag: fail.append("the broken link shows no Z0104 linked to its explanation (%r)" % diag)
+    if fail: sys.exit("play-link-test: " + "; ".join(fail))
+    print("play-link-test: the link ran in the page (%s): %dx%d frame equal to zinc run's, output %r; the exported folder runs with zinc run; the broken one shows %s" % (state, w1, h1, out.strip(), diag))

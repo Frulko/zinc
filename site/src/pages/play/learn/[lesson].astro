@@ -1,0 +1,18 @@
+---
+// A lesson sample in the playground (ZN-774.30): /play/learn/<lesson>/, also embedded in the lesson's page (?embed) by its Edit button.
+import Base from '../../../layouts/Base.astro';
+import Play from '../../../components/Play.astro';
+import Starters from '../../../components/PlayStarters.astro';
+import { lessons } from '../../../data/play';
+export function getStaticPaths() { return lessons.map((l) => ({ params: { lesson: l.name }, props: { l } })); }
+const { l } = Astro.props;
+const b = import.meta.env.BASE_URL;
+---
+<Base title={`${l.title} · Playground`} description={`The sample of the lesson ${l.title}, to edit and run in the browser.`}>
+  <div class="wrap page-head play-head">
+    <span class="eyebrow"><a href={`${b}play/`}>Playground</a> · <a href={`${b}docs/learn/${l.name}/`}>Lesson</a></span>
+    <h1>{l.title}</h1>
+    <p class="lead">{l.line}</p>
+  </div>
+  <div class="wrap"><Play starter={l} /><Starters /></div>
+</Base>

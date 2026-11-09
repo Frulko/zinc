@@ -1,0 +1,14 @@
+---
+// The starters under the playground: the templates of zinc new and the lesson samples (data/play.ts).
+import { templates, lessons } from '../data/play';
+const b = import.meta.env.BASE_URL;
+---
+<nav class="play-starters play-head" aria-label="Starters">
+  <h2>Start from</h2>
+  <p><b>A template of <code>zinc new</code>:</b> {templates.map((t, i) => <>{i > 0 && ' · '}<a href={`${b}play/new/${t.name}/`} title={t.line}>{t.name}</a></>)}</p>
+  <p><b>A lesson:</b> {lessons.map((l, i) => <>{i > 0 && ' · '}<a href={`${b}play/learn/${l.name}/`}>{l.title}</a></>)}</p>
+</nav>
+<style>
+  .play-starters { padding-bottom: 72px; font-size: .95rem; }
+  .play-starters h2 { font-size: 1.1rem; }
+</style>

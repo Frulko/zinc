@@ -59,6 +59,8 @@ export default defineConfig({
   site: 'https://frulko.github.io',
   base: BASE,
   trailingSlash: 'always',
+  // the playground's editor (CodeMirror 6, /play/) is one 520 KB chunk (170 KB gzip), loaded on its pages only
+  vite: { build: { chunkSizeWarningLimit: 600 } },
   // llms.txt, llms-full.txt and a Markdown copy beside every docs page, in each language (llms.mjs).
   integrations: [{ name: 'llms', hooks: { 'astro:build:done': ({ dir }) => { writeLlms(fileURLToPath(dir)); } } }],
   markdown: { remarkPlugins: [remarkI18nImages], rehypePlugins: [rehypeDocLinks], shikiConfig: { themes: { light: 'github-light', dark: 'github-dark' }, defaultColor: false } },

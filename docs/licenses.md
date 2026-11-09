@@ -3,6 +3,7 @@
 | Component | Where | License |
 | --- | --- | --- |
 | TypeScript 6 API (`@typescript/typescript6`) | compiler only, not linked into apps | Apache-2.0 |
+| [CodeMirror 6](https://codemirror.net) (`codemirror` 6.0.2, `@codemirror/lang-javascript` 6.2.5, `@codemirror/lint` 6.9.7), [lz-string](https://github.com/pieroxy/lz-string) 1.5.0, [fflate](https://github.com/101arrowz/fflate) 0.8.3 | the web site's playground (`/play/`, pinned in `site/package.json`), bundled into its page only | MIT |
 | SDL3 | linked by the macos/linux SDL HAL | zlib |
 | Debian packages in `zinc/sdk-linux` (GCC, CMake, Ninja) | build tools only | GPL/BSD, not linked into apps (GCC runtime exception) |
 | Lottie samples from [lottie-ios](https://github.com/airbnb/lottie-ios) `Tests/Samples` (HamburgerArrow, IconTransitions, LottieLogo1, PinJump, Switch, TwitterHeart, Watermelon, 9squares_AlBoardman), © Airbnb and contributors | `examples/ui/lottie-gallery/assets` (test data, embedded only in that example); TwitterHeart also as `examples/hero/assets/heart.json` | Apache-2.0 |

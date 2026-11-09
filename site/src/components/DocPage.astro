@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Base from '../layouts/Base.astro';
 import { examples } from '../data/catalog';
+import { lessons } from '../data/play';
 import { slugOf, groupsOf } from '../../docs-map.mjs';
 import { strings, route } from '../i18n';
 
@@ -50,6 +51,7 @@ const enHref = `${b}docs/${slug(d.id)}/`;
 // The export is the program as JavaScript on the browser's engine: no wasm and no cross-origin isolation, unless its config lists wasm modules.
 const lessonName = d.id.startsWith('learn/') ? d.id.slice(6) : '';
 const lesson = examples.find((e) => e.name === lessonName && e.path === `docs/learn/samples/${lessonName}`);
+const editable = lessons.some((l) => l.name === lessonName);   // its sample opens in the playground (/play/learn/<lesson>/, ZN-774.30)
 let lessonWasm = false;
 if (lesson) {
   try { lessonWasm = /"wasm":\[[^\]]/.test(fs.readFileSync(path.resolve('public/play', lesson.name, 'index.html'), 'utf8')); } catch {}
@@ -68,13 +70,14 @@ if (lesson) {
       <Content />
       {lesson && (
         <div id="learn-run" class="learn-run" data-pagefind-ignore data-name={lesson.name} data-src={`${b}play/${lesson.name}/`} data-w={lesson.width} data-h={lesson.height}
-             data-wasm={lessonWasm ? '1' : ''} data-title={lesson.title} hidden>
+             data-wasm={lessonWasm ? '1' : ''} data-title={lesson.title} data-edit={editable ? `${b}play/learn/${lesson.name}/?embed` : ''} hidden>
           {lesson.missing.length > 0
             ? <p class="learn-note">{s['learn.home'].replace('{side}', lesson.missing.join(', '))}</p>
             : <>
                 <p class="learn-note learn-cannot" hidden>{s['learn.cannot']} <code>zinc run {lesson.path}</code></p>
                 <div class="learn-bar" hidden>
                   <button type="button" class="btn learn-start">{s['learn.run']}</button>
+                  {editable && <button type="button" class="btn learn-edit">{s['learn.edit']}</button>}
                   <button type="button" class="btn learn-reset" hidden>{s['learn.reset']}</button>
                   <button type="button" class="btn learn-stop" hidden>{s['learn.picture']}</button>
                   <span class="learn-hint" hidden>{s['learn.hint']}</span>
@@ -95,6 +98,8 @@ if (lesson) {
       .learn-hint, .learn-note { color: var(--muted); font-size: .9rem; margin: 0; }
       .learn-frame { position: relative; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); margin: 0 0 12px; }
       .learn-frame iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; }
+      .learn-frame.learn-play { aspect-ratio: auto; height: 1000px; }
+      .learn-frame.learn-play iframe { position: static; width: 100%; height: 100%; }
       .learn-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
     </style>
     <script is:inline>
@@ -112,21 +117,25 @@ if (lesson) {
         bar.hidden = false;
         var w = Number(box.dataset.w), h = Number(box.dataset.h), live = box.querySelector('.learn-live'), frame = null;
         var start = bar.querySelector('.learn-start'), reset = bar.querySelector('.learn-reset'), stop = bar.querySelector('.learn-stop'), hint = bar.querySelector('.learn-hint');
-        function fit() { if (frame) frame.firstChild.style.transform = 'scale(' + frame.clientWidth / w + ')'; }
-        function run() {
+        var edit = bar.querySelector('.learn-edit'), editing = false;
+        function fit() { if (frame && !editing) frame.firstChild.style.transform = 'scale(' + frame.clientWidth / w + ')'; }
+        // Edit and run: the playground with the lesson's sample, in a frame in the picture's place (its own Run, Reset and Export)
+        function run(e) {
+          editing = !!(e && e.currentTarget === edit);
           if (frame) frame.remove();
-          frame = document.createElement('div'); frame.className = 'learn-frame'; frame.style.aspectRatio = w + '/' + h;
+          frame = document.createElement('div'); frame.className = 'learn-frame' + (editing ? ' learn-play' : ''); if (!editing) frame.style.aspectRatio = w + '/' + h;
           var f = document.createElement('iframe');
-          f.src = box.dataset.src; f.title = box.dataset.title; f.width = w; f.height = h; f.tabIndex = 0; f.allow = 'autoplay; fullscreen';
+          f.src = editing ? box.dataset.edit : box.dataset.src; f.title = box.dataset.title; if (!editing) { f.width = w; f.height = h; } f.tabIndex = 0; f.allow = 'autoplay; fullscreen';
           f.addEventListener('load', function () { f.focus(); });
           frame.appendChild(f); at.hidden = true; box.before(frame); fit(); f.focus();
-          start.hidden = true; reset.hidden = stop.hidden = hint.hidden = false; live.textContent = live.dataset.running;
+          start.hidden = true; if (edit) edit.hidden = true; reset.hidden = editing; stop.hidden = false; hint.hidden = editing; live.textContent = live.dataset.running;
         }
         start.addEventListener('click', run);
+        if (edit) edit.addEventListener('click', run);
         reset.addEventListener('click', run);
         stop.addEventListener('click', function () {
           if (frame) frame.remove(); frame = null; at.hidden = false;
-          start.hidden = false; reset.hidden = stop.hidden = hint.hidden = true; live.textContent = live.dataset.stopped; start.focus();
+          start.hidden = false; if (edit) edit.hidden = false; reset.hidden = stop.hidden = hint.hidden = true; live.textContent = live.dataset.stopped; start.focus();
         });
         addEventListener('resize', fit);
       })();

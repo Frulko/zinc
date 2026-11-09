@@ -1,7 +1,8 @@
 // The Zinc compiler as a WASI program (ZN-774.29): `zinc-compile.wasm main.ts out.zbc` reads the source and the standard library (lib/std,
 // targets/capabilities.json) from the WASI file system, checks, lowers and optimises it, and writes the ZBC module that vm.wasm runs. The
 // root of the engine files is $ZINC_ROOT (default /zinc): Node and wasmtime preopen the checkout there, a page serves the files from memory.
-// It is the pipeline of compileToZbc in src/main.cpp without plugins, workers, hot mode or debug lines.
+// It is the pipeline of compileToZbc in src/main.cpp without plugins, workers, hot mode or debug lines. The project's zinc.json gives the
+// system permissions, the app and the scopes, as loadManifestPermissions does (target: $ZINC_PLATFORM, default web); not the UI layout.
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -9,6 +10,7 @@
 
 #include "frontend/check.h"
 #include "frontend/modules.h"
+#include "frontend/project.h"
 #include "ir/ir.h"
 #include "zbc/zbc.h"
 
@@ -26,6 +28,19 @@ int main(int argc, char** argv) {
   if (argc < 3) { std::fprintf(stderr, "usage: zinc-compile.wasm main.ts out.zbc\n"); return 2; }
   const char* r = std::getenv("ZINC_ROOT");
   const std::string root = r && *r ? r : "/zinc";
+  static std::vector<std::string> granted;
+  if (std::string pf = zn::frontend::findProjectFile(argv[1]), text; !pf.empty() && readFile(pf, text)) {
+    zn::frontend::Project p;
+    std::string err;
+    if (!zn::frontend::parseProject(text, p, err)) { if (p.fatal) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), err.c_str()); return 1; } }
+    else {
+      const char* t = std::getenv("ZINC_PLATFORM");
+      granted = zn::frontend::permissionsFor(p, t && *t ? t : "web");
+      zn::frontend::setSystemAppJson(p.app.json);
+      zn::frontend::setSystemScopesJson(p.scopes);
+    }
+  }
+  zn::frontend::setSystemPermissions(&granted);
   zn::frontend::Program prog = zn::frontend::loadProgram(argv[1], readFile, false, root + "/lib/std");
   auto diags = prog.diags;
   zn::frontend::Checked checked;

@@ -1,0 +1,16 @@
+---
+// The playground (ZN-774.30): edit a Zinc program and run it in the page; the program travels in the link. Starts from the game template.
+import Base from '../../layouts/Base.astro';
+import Play from '../../components/Play.astro';
+import Starters from '../../components/PlayStarters.astro';
+import { templates } from '../../data/play';
+const starter = templates.find((t) => t.name === 'game') ?? templates[0];
+---
+<Base title="Playground" description="Write a Zinc program in the browser, check it as you type and run it in the page. The program is kept in the link.">
+  <div class="wrap page-head play-head">
+    <span class="eyebrow">Playground</span>
+    <h1>Try Zinc in the browser</h1>
+    <p class="lead">Edit the program, press Run. The checker underlines problems as you type; each code opens its explanation. The address keeps your program: copy it to share it.</p>
+  </div>
+  <div class="wrap"><Play starter={starter} /><Starters /></div>
+</Base>

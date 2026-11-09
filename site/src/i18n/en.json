@@ -14,7 +14,7 @@
   "docs.group.learn": "Learn", "docs.group.start": "Start", "docs.group.guides": "Guides", "docs.group.targets": "Guides: targets",
   "docs.group.reference": "Reference", "docs.group.plugins": "Reference: plugins", "docs.group.concepts": "Concepts",
   "copy": "copy", "copied": "copied",
-  "learn.run": "Run it here", "learn.reset": "Restart", "learn.picture": "Back to the picture", "learn.hint": "Click the program first: it takes the keys, the mouse and touch.", "learn.home": "This one runs at home only: its {side} side has no browser version yet.", "learn.cannot": "This browser cannot run the lesson in the page (it needs ES modules and import maps: Chrome 89, Firefox 108, Safari 16.4 or newer). Run it at home:", "learn.running": "The program is running.", "learn.stopped": "The program is stopped.",
+  "learn.run": "Run it here", "learn.edit": "Edit and run", "learn.reset": "Restart", "learn.picture": "Back to the picture", "learn.hint": "Click the program first: it takes the keys, the mouse and touch.", "learn.home": "This one runs at home only: its {side} side has no browser version yet.", "learn.cannot": "This browser cannot run the lesson in the page (it needs ES modules and import maps: Chrome 89, Firefox 108, Safari 16.4 or newer). Run it at home:", "learn.running": "The program is running.", "learn.stopped": "The program is stopped.",
   "home.eyebrow": "TypeScript in, native out",
   "home.h1a": "Write it once. Run it natively ", "home.h1b": "everywhere.",
   "home.lead": "Desktop and mobile apps the way Electron makes them, without shipping a browser. UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript and JSX, from a Mac to an ESP32.",
