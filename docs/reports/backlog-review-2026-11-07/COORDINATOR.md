@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserved1109 after confirmed original Tool14 Terminal default-this regression: six lines fail RC verification on clean da7ca, source/log archived, ordinary method receiver/default semantics researched from ECMAScript. Fresh sole core chain1108→1109 next free slot; no control workaround. Code13 finishes truthful checkpoint AC1/2, AC3 open for12 strict JS bytes; other size gates and exact all6 pass.
+
 - 2026-11-10: OptiPlex first actual proof PASS via Tailscale: unchanged nullable_numeric compiled x86_64-linux on Mac, remote timeout15/headless, exit0, SHA2567c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a; no process left. Nine completed clean trees archived/removed, active/common tree retained. Created/reserved1108 original Tool14 blocker: optional-chain array.find Z0106, direct call passes. Source/logs and primary semantics recorded; next fresh free slot takes sole core correction, panels continues independent work.
 
 - 2026-11-10: Root clean da7ca0360 rebuild succeeded, SHA25685f6d02a26948c1755090b0c06b3a926cad5cefa6df1799ce01d737a13e28f68. Exact collection_results/nullable_numeric/text_offset/component_signal/Data12/Feedback and unchanged raw kit_size PASS. JS235962/239047/275739B,4076/component,172B strict headroom; AOT5325320/5374848/5926624B,61308/component. Data12/Feedback11 closed/released;39 distinct session tasks Done. D274–276 and tracked provenance recorded, external WIP preserved. Charts15 now active beside Code13/Tool14; no core worker. First bounded OptiPlex fixture cross-build started, target execution not yet claimed.

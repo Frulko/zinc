@@ -26,7 +26,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 ## Current verification and next commands
 
--1108 reserved NEXT fresh core slot: valid `track()?.keys.find(...)` fails Z0106 on Key[] while direct call passes. Blocks original Tool14 Timeline/Curve code; no app guard workaround. Minimal sources/logs .logs/blockers/optional-array-method and panels/.logs. TypeScript3.7/ECMAScript primary references in task. Current three slots are Code/Tool/Charts; assign fresh core when one reports, prioritize this blocker.
+-1108→1109 reserved NEXT fresh core batch (two tasks):1109 method default `this.lines.length` produces non-ref field IR, blocking TerminalBuffer.text; six-line repro .logs/blockers/default-this.1108: valid `track()?.keys.find(...)` fails Z0106 on Key[] while direct call passes. Blocks original Tool14 Timeline/Curve code; no app guard workaround. Minimal sources/logs .logs/blockers/optional-array-method and panels/.logs. TypeScript3.7/ECMAScript primary references in task. Current three slots are Code/Tool/Charts; assign fresh core when one reports, prioritize this blocker.
 
 Root final targeted checks PASS on the rebuilt clean binary: collection_results, nullable_numeric, text_offset, component_signal, kit_data (twelve runs), kit_feedback and raw unchanged kit_size. Combined JS235962/239047/275739B (4076/component;172B strict headroom), AOT5325320/5374848/5926624B (61308/component). Source hashes/raw stdout: docs/reports/bench/kit-integration-2026-11-10.json and .logs/integration-2026-11-10. Data12 and Feedback11 are closed/released on this evidence. Only exact regressions/short feature proofs ran, no suite.
 
