@@ -629,6 +629,7 @@ struct Lowering {
   bool jsxValue(std::size_t a, std::size_t b) {
     strip(a, b);
     if (jsxOnly(a, b)) return true;
+    if (b == a + 1 && t[a].kind == Tok::Ident && (jsxFunctions(), jsxVars.count(variableBinding(a)))) return true;
     if (nodeCallAt(a, b)) return true;   // `cond ? props.render(x) : <View/>`
     std::size_t q = 0, colon = 0;
     int depth = 0;
@@ -812,19 +813,76 @@ struct Lowering {
   // The functions of this file that return JSX (components and helpers, `function f() { return <View .../>; }` or `const f = () => <View/>`):
   // a call of one as a child is a node to mount, not a number to print (ZN-689).
   std::set<std::string> jsxFns;
-  std::set<std::string> jsxVars;   // the variables of this file that hold an element (filled with jsxFns)
+  std::set<std::size_t> jsxVars;   // declaration tokens, so a numeric local cannot inherit another scope's node provenance
   std::set<std::string> jsxFields;   // the class fields of this file that hold a function returning JSX: `{obj.f()}` mounts it
   bool jsxFnsRead = false;
+  // Resolve along the enclosing scopes only; closed callbacks and blocks cannot lend their locals to this reference.
+  std::size_t variableBinding(std::size_t at) {
+    const std::string name = tx(at);
+    std::size_t binding = t.size(), depth = 0;
+    std::vector<std::size_t> scopes;
+    const auto bind = [&](std::size_t token, std::size_t level) {
+      if (tx(token) == name && level >= depth) { binding = token; depth = level; }
+    };
+    const auto arrowContains = [&](std::size_t body) {
+      if (body > at) return false;
+      if (isP(body, "{")) return at < match(body);
+      std::size_t end = scopes.empty() ? t.size() : scopes.back();
+      scan(body, end, [&](std::size_t k, const std::string& x) { if ((x == "," || x == ";") && k < end) end = k; });
+      return at < end;
+    };
+    for (std::size_t i = 0; i < t.size(); ++i) {
+      if (!scopes.empty() && i == scopes.back()) scopes.pop_back();
+      if (jsxStart(i)) {
+        const std::size_t end = parseElem(i)->end;
+        if (!(i < at && at < end)) { i = end - 1; continue; }
+      }
+      if (isK(i, "const") || isK(i, "let") || isK(i, "var")) {
+        std::size_t d = i + 1;
+        while (d < t.size() && t[d].kind == Tok::Ident) {
+          bind(d, scopes.size());
+          std::size_t end = d + 1;
+          while (end < t.size() && !isP(end, ",") && !isP(end, ";")) {
+            if (jsxStart(end)) end = parseElem(end)->end - 1;
+            else if (isP(end, "(") || isP(end, "[") || isP(end, "{")) end = match(end);
+            ++end;
+          }
+          if (!isP(end, ",")) break;
+          d = end + 1;
+        }
+      }
+      if (t[i].kind == Tok::Ident && isP(i + 1, "=>") && arrowContains(i + 2)) bind(i, scopes.size() + 1);
+      if (isP(i, "(") || isP(i, "[") || isP(i, "{")) {
+        const std::size_t close = match(i);
+        if (i < at && at < close) { scopes.push_back(close); continue; }
+        if (isP(i, "(") && close < at) {
+          std::size_t body = close + 1;
+          if (isP(body, ":")) while (body < at && !isP(body, "=>") && !isP(body, "{") && !isP(body, ";")) ++body;
+          const bool arrow = isP(body, "=>");
+          if (arrow) ++body;
+          const bool function = (i > 1 && isK(i - 2, "function")) || (i > 0 && isK(i - 1, "function"));
+          if ((arrow && arrowContains(body)) || (function && isP(body, "{") && match(body) > at)) {
+            for (std::size_t p = i + 1; p < close; ++p)
+              if (t[p].kind == Tok::Ident && (p == i + 1 || isP(p - 1, ","))) bind(p, scopes.size() + 1);
+          }
+        }
+        i = close;
+      }
+    }
+    return binding;
+  }
   bool bodyReturnsJsx(std::size_t open, std::size_t close) {
     for (std::size_t k = open + 1; k < close; ++k) {
+      if (jsxStart(k)) { k = parseElem(k)->end - 1; continue; }
+      if (isK(k, "function") || isP(k, "=>")) {
+        std::size_t body = k + 1;
+        if (isK(k, "function")) while (body < close && !isP(body, "{")) { if (isP(body, "(")) body = match(body); ++body; }
+        if (isP(body, "{")) { k = match(body); continue; }
+      }
       if (!isK(k, "return")) continue;
-      std::size_t r0 = k + 1;
-      while (isP(r0, "(")) ++r0;
-      if (jsxStart(r0)) return true;
-      if (t[r0].kind == Tok::Ident && (isP(r0 + 1, ";") || isP(r0 + 1, "}")) && jsxVars.count(tx(r0))) return true;   // `return v;` of a node made above
-      std::size_t r1 = 0;   // `return ready ? <A/> : <B/>;`
-      scan(k + 1, close, [&](std::size_t i, const std::string& x) { if (!r1 && (x == ";" || x == "}")) r1 = i; });
-      if (r1 && jsxValue(k + 1, r1)) return true;
+      std::size_t end = close;
+      scan(k + 1, close, [&](std::size_t i, const std::string& x) { if (end == close && (x == ";" || x == "}")) end = i; });
+      if (jsxValue(k + 1, end)) return true;
     }
     return false;
   }
@@ -853,7 +911,7 @@ struct Lowering {
           if (isP(q, "=")) {
             while (end < t.size() && !isP(end, ";") && !isP(end, ",")) { if (isP(end, "(") || isP(end, "[") || isP(end, "{")) end = match(end); else if (jsxStart(end)) end = parseElem(end)->end - 1; ++end; }
             if (returnsJsx(q + 1, end)) jsxFns.insert(tx(d));
-            else if (jsxValue(q + 1, end)) jsxVars.insert(tx(d));   // a node held in a variable: `{body}` mounts it
+            else if (jsxValue(q + 1, end)) jsxVars.insert(d);   // a node held in a variable: `{body}` mounts it
           } else end = q;
           if (!isP(end, ",")) break;
           d = end + 1;
@@ -874,7 +932,10 @@ struct Lowering {
           if (isP(end, "(") || isP(end, "[") || isP(end, "{")) end = match(end); else if (jsxStart(end)) end = parseElem(end)->end - 1;
           ++end;
         }
-        if (end > i + 2 && jsxValue(i + 2, end)) jsxVars.insert(tx(i));
+        if (end > i + 2 && jsxValue(i + 2, end)) {
+          const std::size_t binding = variableBinding(i);
+          if (binding < t.size()) jsxVars.insert(binding);
+        }
       }
     }
     return jsxFns;
@@ -927,15 +988,7 @@ struct Lowering {
     scan(a, b, [&](std::size_t i, const std::string& x) { if (x == "=>" && !arrow) arrow = i; });
     if (!arrow) return false;
     std::size_t x0 = arrow + 1, x1 = b;
-    if (isP(x0, "{")) {
-      for (std::size_t k = x0; k < x1; ++k) {
-        if (!isK(k, "return")) continue;
-        std::size_t r1 = 0;
-        scan(k + 1, x1, [&](std::size_t i, const std::string& x) { if (!r1 && (x == ";" || x == "}")) r1 = i; });
-        if (r1 && jsxValue(k + 1, r1)) return true;
-      }
-      return false;
-    }
+    if (isP(x0, "{")) return bodyReturnsJsx(x0, match(x0));
     return jsxValue(x0, x1);
   }
 
@@ -1348,7 +1401,7 @@ struct Lowering {
         std::string callee = open ? calleeText(a, open) : "";
         // a call and nothing else: `{cond && props.children()}` ends with one too, and is a conditional (below)
         if (open && callee.find("&&") == std::string::npos && callee.find("||") == std::string::npos && callee.find('?') == std::string::npos && nodeCall(callee)) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
-        if (b == a + 1 && t[a].kind == Tok::Ident && (jsxFunctions(), jsxVars.count(tx(a)))) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
+        if (b == a + 1 && t[a].kind == Tok::Ident && (jsxFunctions(), jsxVars.count(variableBinding(a)))) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
         // `{props.children}` as React and Solid write it: the children a component is given are a function that makes them, called here
         if (b >= a + 3 && tx(b - 1) == "children" && isP(b - 2, ".") && dotted(a, b)) { out.push_back("_append(" + parent + ", " + rw(a, b) + "());"); continue; }
         // `{props.children?.()}`: the children when there are some (it was printed as text, the node id as a number)

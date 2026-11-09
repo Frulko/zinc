@@ -162,6 +162,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `onScroll` on a `ScrollView` or a `FlatList` runs once per scroll in a component that renders again: each render used to add another call.
 - A row child with `basis-*` lays its content out at its basis, so a wrapping list inside it takes the height it needs and a scroll area around it scrolls to its end.
 - With the `rn` layout, `flex-1` shrinks as in Tailwind and React Native's `flex: 1`: a pane next to a widened sidebar narrows instead of running past the window.
+- A JSX list mounts nodes returned through a local variable in a block-bodied `map` callback, instead of drawing their numeric handles; ordinary number arrays still draw as text.
 
 ### The web
 
