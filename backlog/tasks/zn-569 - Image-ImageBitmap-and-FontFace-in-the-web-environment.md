@@ -2,7 +2,8 @@
 id: ZN-569
 title: 'Web environment: asynchronous image decode and createImageBitmap'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:11'
 updated_date: '2026-11-07 18:30'
 labels:
