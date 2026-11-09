@@ -333,6 +333,7 @@
     {"paths": ["tests/data/busy_native/", "tests/t1/busy_native.sh"], "tests": ["busy_native"]},
     {"paths": ["lib/std/icons.tsx", "third_party/lucide/", "tests/golden/icons/", "tests/golden/icons-all/"], "tests": ["icons", "rn_showcase"]},
     {"paths": ["lib/std/icons.tsx", "third_party/lucide/", "src/frontend/modules.cpp", "src/frontend/jsx.cpp", "lib/std/ui.ts", "tests/t0/ui_say_what.sh"], "tests": ["ui_say_what"]},
+    {"paths": ["src/frontend/style_level.cpp", "src/frontend/style_level.h", "src/frontend/modules.cpp", "src/frontend/project.cpp", "targets/capabilities.json", "lib/std/ui.ts", "tests/t0/style_level.sh"], "tests": ["style_level"]},
     {"paths": ["src/text/", "runtime/raster.cpp", "tests/golden/text-fallback/", "tests/t0/text_fallback.sh"], "tests": ["text_fallback", "emoji_text"]},
     {"paths": ["src/frontend/modules.cpp", "src/frontend/tsconfig.cpp", "include/zn/platform.h", "tests/t0/platform_files.sh", "tests/golden/platform-files/"], "tests": ["platform_files"]},
     {"paths": ["include/zn/platform.h", "src/host/sys_host.cpp", "tests/golden/platform-identity/"], "tests": ["platform_identity"]},

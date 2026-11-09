@@ -52,6 +52,7 @@
 #include "frontend/plugin_manifest.h"
 #include "frontend/profile.h"
 #include "frontend/project.h"
+#include "frontend/style_level.h"
 #include "zn/app.h"
 #include "zn/log.h"
 #include "zn/devproto.h"
@@ -1086,6 +1087,31 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
     if (total == 0) line("ok", tr("cli.doctor.plugins"), tr("cli.doctor.plugins.none"));
     else if (ready == total) line("ok", tr("cli.doctor.plugins"), trn("cli.doctor.plugins.all", total));
     else line("info", tr("cli.doctor.plugins"), ready == 0 ? tr("cli.doctor.plugins.first_use") : trn("cli.doctor.plugins.some", ready));
+  }
+  {   // the style level of the profile and what the last build for a profile drew simpler than written (ZN-278, written by the build to cache/style.json)
+    const int t = tier.size() == 2 && tier[0] == 'T' ? tier[1] - '0' : 4;
+    std::string note = tr("cli.doctor.style.level", {{"level", zn::frontend::styleLevel(t)}, {"profile", profile}, {"tier", tier.empty() ? "T4" : tier}});
+    if (yyjson_doc* d = yyjson_read_file((zn::tc::home() + "/cache/style.json").c_str(), 0, nullptr, nullptr)) {
+      yyjson_val* root = yyjson_doc_get_root(d);
+      const char* p = yyjson_get_str(yyjson_obj_get(root, "profile"));
+      const char* e = yyjson_get_str(yyjson_obj_get(root, "app"));
+      std::string list;
+      std::set<std::string> seen;
+      std::size_t more = 0;
+      std::size_t i, n;
+      yyjson_val* v;
+      yyjson_arr_foreach(yyjson_obj_get(root, "ignored"), i, n, v) {
+        const char* tok = yyjson_get_str(yyjson_obj_get(v, "token"));
+        const char* at = yyjson_get_str(yyjson_obj_get(v, "at"));
+        if (!tok || !seen.insert(tok).second) continue;
+        if (seen.size() > 4) { ++more; continue; }   // a short row: the first four tokens, each where it is first written
+        list += (list.empty() ? "" : ", ") + std::string(tok) + (at ? " (" + std::string(at) + ")" : "");
+      }
+      if (more) list += ", +" + std::to_string(more);
+      if (p && e) note += "; " + (list.empty() ? tr("cli.doctor.style.last_none", {{"profile", p}, {"app", e}}) : tr("cli.doctor.style.last", {{"profile", p}, {"app", e}, {"list", list}}));
+      yyjson_doc_free(d);
+    }
+    line("info", tr("cli.doctor.style"), note);
   }
   bool bad = false;
   for (const Row& r : rows) bad = bad || r.mark == "bad";

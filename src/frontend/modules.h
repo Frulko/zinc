@@ -30,6 +30,7 @@ struct Program {
   std::vector<Diag> diags;       // syntax and module resolution errors; Diag::file indexes `files`
   std::vector<NativeFallback> nativeFallbacks;
   std::vector<std::pair<std::string, std::string>> workers;   // zinc:worker: each worker's key (its path from the entry's directory) and its file, compiled as a program of its own
+  std::vector<std::pair<std::string, std::string>> styleIgnored;   // ZN-278: the style tokens the profile in force does not draw as written, and where (path:line:col)
 };
 
 // `strict` selects the strict profile; so does a line `// zinc-profile: strict` among the first lines of the entry file.
@@ -62,7 +63,7 @@ const char* builtinModuleSource(std::string_view spec);
 std::string platformModule(const std::string& capsFile);
 // The source of zinc:icons/lucide: the Lucide icons the project of `entry` names (ZN-374), from `nodesFile` (third_party/lucide/icon-nodes.json).
 std::string lucideModule(const std::string& entry, const std::string& nodesFile);
-// `zinc explain U0001`..U0004: the warnings of zinc:ui that say what to write (an icon name, a string style value, a shadowed host component); "" for another code.
+// `zinc explain U0001`..U0005: the warnings of zinc:ui that say what to write (an icon name, a string style value, a shadowed host component, a style the profile draws simpler); "" for another code.
 std::string uiExplain(const std::string& code);
 // The file under lib/std of a standard module written in Zinc ('zinc:ui' is "ui.ts"); empty for any other spec.
 std::string_view stdModuleFile(std::string_view spec);

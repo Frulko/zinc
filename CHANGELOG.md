@@ -103,6 +103,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - On macOS the Edit menu's Cut, Copy, Paste, Undo, Redo and Select All act on the native field you are typing in, as in any Mac app.
 
 - Animated's `useNativeDriver: true` works as in React Native: bind a value to a view with `Animated.attach(node, 'translateX', value)` (also `translateY`, `scale`, `rotate`, `opacity`), and its `timing`, `spring` or `decay` is played by the engine, so the view keeps moving smoothly while your code is busy and your code runs nothing per frame; binding a layout property such as `width` throws React Native's own error.
+- A build for a small profile (`--profile esp32`, a console, a Raspberry Pi 1) warns with the file and line about each style it draws in a simpler form, such as a conic gradient or a gradient with more than two stops (`zinc explain U0005`). `"ui": {"style": "strict"}` in `zinc.json` makes these warnings errors and `"off"` turns them off. `zinc doctor` shows the profile's style level and what the last build drew simpler.
 
 #### Changed
 

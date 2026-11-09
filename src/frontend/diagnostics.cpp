@@ -5,6 +5,7 @@
 #include <filesystem>
 
 #include "frontend/lexer.h"
+#include "frontend/modules.h"
 #include "i18n/i18n.h"
 #include "zn/diagnostics.h"
 
@@ -80,11 +81,18 @@ std::string hint(const std::vector<Diag>& diags, std::string_view file) {
   return out;
 }
 
+// The title of a zinc:ui code (U0005 is an error under "ui": {"style": "strict"}, ZN-278): the first line of its `zinc explain` entry.
+static std::string uiTitle(const char* code) {
+  const std::string e = uiExplain(code);
+  const std::size_t a = e.find(": "), b = e.find('\n');
+  return a == std::string::npos || b == std::string::npos || b < a ? "unknown diagnostic" : e.substr(a + 2, b - a - 2);
+}
+
 std::string format(const Diag& d, std::string_view src, std::string_view file) {
   LineCol lc = lineCol(src, d.pos);
   const DiagInfo* info = findDiag(d.code);
   std::string out = std::string(file) + ":" + std::to_string(lc.line) + ":" + std::to_string(lc.col) + ": error " + d.code + ": " +
-                    (info ? text(*info, "title", info->title) : "unknown diagnostic");
+                    (info ? text(*info, "title", info->title) : uiTitle(d.code));
   if (!d.detail.empty()) out += ": " + detail(d);
   return out;
 }

@@ -336,6 +336,9 @@ const std::string& uiPlatformLook() { return gUiPlatformLook; }
 namespace { std::string gUiRender = "drawn"; }
 void setUiRender(const std::string& render) { gUiRender = render.empty() ? "drawn" : render; }
 const std::string& uiRender() { return gUiRender; }
+namespace { std::string gUiStyle = "warn"; }
+void setUiStyle(const std::string& mode) { gUiStyle = mode.empty() ? "warn" : mode; }
+const std::string& uiStyle() { return gUiStyle; }
 namespace { bool gDirectLayout = false; }
 void noteDirectLayoutUse() { gDirectLayout = true; }
 bool directLayoutUse() { return gDirectLayout; }
@@ -501,6 +504,10 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     if (yyjson_val* rd = yyjson_obj_get(u, "render")) {   // D210, ZN-1069
       out.uiRender = yyjson_is_str(rd) ? yyjson_get_str(rd) : "";
       if (out.uiRender != "drawn" && out.uiRender != "native") { err = "\"ui.render\" must be \"drawn\" or \"native\""; out.fatal = true; return false; }
+    }
+    if (yyjson_val* st = yyjson_obj_get(u, "style")) {   // ZN-278
+      out.uiStyle = yyjson_is_str(st) ? yyjson_get_str(st) : "";
+      if (out.uiStyle != "warn" && out.uiStyle != "strict" && out.uiStyle != "off") { err = "\"ui.style\" must be \"warn\", \"strict\" or \"off\""; out.fatal = true; return false; }
     }
   }
   if (yyjson_val* r = yyjson_obj_get(root, "requires")) {

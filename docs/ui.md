@@ -361,7 +361,10 @@ The painter draws a gradient along an axis whose stops share one alpha as chaine
 profile), and everything else as one `gfx.gradientPaint` command: a paint record the software raster evaluates per pixel and the GL replay in its
 shader (eight stops and fewer; more come from a CPU tile). The `bg-gradient-to-*` boxes with `from-*` and `to-*` keep their one command. Profiles
 below tier T2 (`targets/capabilities.json`: ESP32, PS1, PS2) keep two stops along an axis and below T3 draw no conic: a gradient beyond that is drawn
-from its first to its last colour along the nearest axis, a conic as the average of its stops, with one log line each. Per-corner radii
+from its first to its last colour along the nearest axis, a conic as the average of its stops, with one log line each. A build for such a profile
+(`--profile esp32`) names each of them with its file and line (`zinc explain U0005`); `zinc.json` `"ui": {"style": "strict"}` makes them errors,
+`"off"` silences them, and `zinc doctor` shows the profile's style level (core T0, extended T1 and T2, full T3 and up) and what the last build drew
+simpler. Per-corner radii
 (`rounded-tl-*`) are not followed by a gradient: it takes the box's radius. The golden is `tests/golden/style-gradient` (`tests/t1/style_gradient.sh`).
 
 ## Images in a box

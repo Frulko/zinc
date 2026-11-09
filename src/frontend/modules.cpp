@@ -5,6 +5,7 @@
 #include "frontend/jsx.h"
 #include "frontend/native_gen.h"
 #include "frontend/plugin_manifest.h"
+#include "frontend/style_level.h"
 #include "zn/platform.h"
 
 #include <cstdio>
@@ -1529,7 +1530,7 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
          ";\nexport const NAMES: string[] = [" + list + "];\nexport const UNKNOWN: string[] = [" + unknown + "];\nexport function lucide(name: string): string {\n" + body + "  return '';\n}\n";
 }
 
-// The warnings of zinc:ui that say what to write instead of drawing nothing (ZN-1004): `zinc explain U0001`..U0004
+// The warnings of zinc:ui that say what to write instead of drawing nothing (ZN-1004): `zinc explain U0001`..U0005
 std::string uiExplainText(const std::string& code) {
   struct E { const char *code, *title, *why, *fix, *example; };
   static const E table[] = {
@@ -1557,6 +1558,15 @@ std::string uiExplainText(const std::string& code) {
      "An attribute your component takes and the host one does not (icon, variant) is then reported on the host one.",
      "Give your component another name (AppButton) when it should not wrap zinc:ui's, or pass the host Button only the attributes it takes.",
      "function Button(p: { icon: string }): i32 {\n  return <Button icon={p.icon} />;   // U0004: the host Button has no 'icon'\n}"},
+    {"U0005", "A style the profile does not draw as written",
+     "Each profile draws zinc:ui styles at the drawing tier of targets/capabilities.json, its style level: core (T0: an ESP32), extended (T1 and T2: "
+     "the consoles, a Raspberry Pi 1) or full (T3 and up: desktops, phones, the web). Below full, some styles are drawn in a simpler form: a conic "
+     "gradient below T3 as the average of its stops, a gradient with more than two stops, a radial one or one off the axes below T2 from its first "
+     "to its last colour. A build for such a profile (--profile esp32) names each one with its file and line; `zinc doctor --profile <p>` lists "
+     "those of the last build. zinc.json \"ui\": {\"style\": \"strict\"} makes them errors, \"off\" silences them.",
+     "Use a style the level draws (two stops along an axis: bg-gradient-to-r from-sky-500 to-indigo-500), choose it at run time from TIER of "
+     "zinc:platform, or accept the simpler form.",
+     "// zinc build --profile esp32\n<View className=\"bg-conic from-red-500 to-blue-500\" />   // U0005: 'bg-conic' is not drawn as written on esp32"},
   };
   for (const E& e : table)
     if (code == e.code) return std::string(e.code) + ": " + e.title + "\n\nWhy: " + e.why + "\nFix: " + e.fix + "\n\nExample:\n" + e.example + "\n";
@@ -2155,6 +2165,39 @@ struct Loader {
     const std::string r = rel.generic_string();
     return ec || r.empty() || r.rfind("..", 0) == 0 ? path : r;
   }
+  int styleTier = -1;                          // the drawing tier of the profile in force (ZN-278), read once; -1: not read yet
+  // ZN-278: the style tokens of a project file that the profile in force does not draw as written: a warning U0005 (once per place, though a
+  // program can be loaded more than once), an error under zinc.json "ui": {"style": "strict"}, nothing under "off" or without a profile.
+  void styleCheck(std::uint32_t fi) {
+    const Profile* p = currentProfile();
+    if (!p || uiStyle() == "off") return;
+    if (styleTier < 0) styleTier = profileTier(*p, (std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string());
+    SourceFile& f = prog.files[fi];
+    static std::mutex warnedLock;   // programs can load on several threads
+    static std::set<std::string> warned;
+    for (const StyleUse& u : styleUses(f.text, styleTier)) {
+      const std::string_view src = f.map.empty() ? std::string_view(f.text) : std::string_view(f.original);
+      std::size_t at = f.map.empty() ? u.pos : std::min<std::uint32_t>(sourceOffset(f.map, u.pos), static_cast<std::uint32_t>(src.size()));
+      if (!f.map.empty()) {   // the lowered code of an element maps to the element: the token itself is the first one written from there
+        std::size_t hit = src.find(u.token, at);
+        if (hit == std::string_view::npos) hit = src.find(u.token);
+        if (hit != std::string_view::npos) at = hit;
+      }
+      const LineCol lc = lineCol(src, static_cast<std::uint32_t>(at));
+      const std::string lineAndCol = ":" + std::to_string(lc.line) + ":" + std::to_string(lc.col), where = personPath(f.path) + lineAndCol;
+      prog.styleIgnored.push_back({u.token, f.path + lineAndCol});
+      Diag d{"U0005", u.pos, "'" + u.token + "' is not drawn as written on " + p->name + " (tier T" + std::to_string(styleTier) + ", style level " + styleLevel(styleTier) +
+                               "; T" + std::to_string(u.tier) + " draws it): " + u.what, fi};
+      if (uiStyle() == "strict") {
+        d.detail += " (zinc.json \"ui\": {\"style\": \"strict\"}; zinc explain U0005)";
+        // ponytail: the lowered code of an element maps to the element, not to its class; the error points at the token through a piece of the
+        // map of its own, after the text (one space more, in a program that does not build anyway)
+        if (!f.map.empty()) { d.pos = static_cast<std::uint32_t>(f.text.size()); f.text += ' '; f.map.push_back({d.pos, static_cast<std::uint32_t>(at), false}); }
+        prog.diags.push_back(std::move(d));
+      } else if (std::lock_guard<std::mutex> g(warnedLock); warned.insert(where + " " + u.token).second)
+        std::fprintf(stderr, "%s: warning U0005: %s (zinc explain U0005)\n", where.c_str(), d.detail.c_str());
+    }
+  }
   std::uint32_t hotModule = kNone;             // then zinc:hot, loaded before every other module
   ModuleResolver res;                          // the files of imports, as every engine finds them (frontend/resolve.h)
   std::string pending;                         // the text of the last file res.exists read: the file it resolved, loaded with no second read
@@ -2457,6 +2500,7 @@ struct Loader {
       }
     }
     prog.files.push_back({path, std::move(text), std::move(original), std::move(map)});
+    if (!typesMode && !libraryModule(path)) styleCheck(fi);
     visiting[path] = true;
     ParseResult pr = parseKept(prog.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty() && !isWebFile(path) && !typesMode) {

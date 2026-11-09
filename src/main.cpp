@@ -674,6 +674,7 @@ static bool loadManifestPermissions(const char* path) {
   zn::frontend::setUiPreset(p.uiPreset);
   zn::frontend::setUiPlatformLook(p.uiPlatformLook);
   zn::frontend::setUiRender(p.uiRender);
+  zn::frontend::setUiStyle(p.uiStyle);
   zn::frontend::setSystemPermissions(&granted);
   zn::frontend::setSystemAppJson(appJson);
   zn::frontend::setSystemScopesJson(scopesJson);
@@ -700,6 +701,38 @@ static void printDiags(const zn::frontend::Program& prog, const std::vector<zn::
 // zinc dev's hot mode (Fast Refresh, ZN-742): asked for with ZINC_HOT=1, never on by itself in zinc run, build, export or pack.
 static bool hotMode() { const char* h = std::getenv("ZINC_HOT"); return h && std::strcmp(h, "1") == 0; }
 
+// ZN-278: what the last build for a profile (--profile) drew simpler than written, for zinc doctor: $ZINC_HOME/cache/style.json, replaced whole
+// by a rename so that a reader never sees half of it. The app is its project's directory (else the entry's), each place relative to it.
+static void recordStyle(const char* path, const zn::frontend::Program& prog) {
+  if (!gProfile) return;
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path dir = fs::path(zn::tc::home()) / "cache";
+  fs::create_directories(dir, ec);
+  const std::string pf = zn::frontend::findProjectFile(path);
+  const fs::path app = fs::absolute(pf.empty() ? fs::path(path).parent_path() : fs::path(pf).parent_path(), ec).lexically_normal();
+  yyjson_mut_doc* doc = yyjson_mut_doc_new(nullptr);
+  yyjson_mut_val* o = yyjson_mut_obj(doc);
+  yyjson_mut_doc_set_root(doc, o);
+  yyjson_mut_obj_add_strcpy(doc, o, "app", app.string().c_str());
+  yyjson_mut_obj_add_strcpy(doc, o, "profile", gProfile->name);
+  yyjson_mut_val* list = yyjson_mut_obj_add_arr(doc, o, "ignored");
+  for (const auto& [token, at] : prog.styleIgnored) {
+    const std::size_t col = at.rfind(':'), line = col == std::string::npos || col == 0 ? std::string::npos : at.rfind(':', col - 1);
+    std::string where = at;
+    if (line != std::string::npos) {
+      const fs::path rel = fs::absolute(at.substr(0, line), ec).lexically_normal().lexically_proximate(app);
+      if (!rel.empty() && rel.string().rfind("..", 0) != 0) where = rel.generic_string() + at.substr(line);
+    }
+    yyjson_mut_val* e = yyjson_mut_arr_add_obj(doc, list);
+    yyjson_mut_obj_add_strcpy(doc, e, "token", token.c_str());
+    yyjson_mut_obj_add_strcpy(doc, e, "at", where.c_str());
+  }
+  const fs::path tmp = dir / ("style.json.part" + std::to_string(::getpid()));
+  if (yyjson_mut_write_file(tmp.string().c_str(), doc, YYJSON_WRITE_PRETTY_TWO_SPACES | YYJSON_WRITE_NEWLINE_AT_END, nullptr, nullptr)) fs::rename(tmp, dir / "style.json", ec);
+  yyjson_mut_doc_free(doc);
+}
+
 static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::frontend::Checked& checked) {
   if (!loadManifestPermissions(path)) return false;
   installNativeProvider(path);
@@ -716,6 +749,7 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
     }
   }
   gNativeFallbacks = prog.nativeFallbacks;
+  recordStyle(path, prog);
   // zinc pack and zinc export (ZN-1027) set ZINC_NATIVE_REQUIRED=1: a plugin whose native code does not build stops them with the compiler's
   // error, instead of shipping its stand-in with a warning nobody reads; ZINC_NATIVE=sim ships the stand-in on purpose
   if (const char* req = std::getenv("ZINC_NATIVE_REQUIRED"); req && *req && std::strcmp(req, "0"))
@@ -4244,7 +4278,7 @@ int main(int argc, char** argv) {
                                                           : zn::frontend::explain(code);
     if (out.empty()) out = zn::cli::webExplain(code);   // W0601 to W0604: the web export's warnings
     if (out.empty()) out = zn::frontend::projectExplain(code);   // J0001: a zinc.json key that is gone
-    if (out.empty()) out = zn::frontend::uiExplain(code);        // U0001 to U0004: zinc:ui's warnings
+    if (out.empty()) out = zn::frontend::uiExplain(code);        // U0001 to U0005: zinc:ui's warnings
     if (out.empty()) out = zn::cli::pmExplain(code);    // P0001, P0002: the package manager of npm packages
     if (out.empty()) { std::fprintf(stderr, "%s\n", zn::i18n::tr("diag.unknownCode", {{"code", argv[2]}}).c_str()); return 1; }
     std::fputs(out.c_str(), stdout);

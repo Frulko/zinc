@@ -128,7 +128,7 @@ add_library(zn_i18n STATIC src/i18n/i18n.cpp)
 target_include_directories(zn_i18n PUBLIC src PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/gen/i18n)
 target_link_libraries(zn_i18n PRIVATE zn_yyjson ${CMAKE_DL_LIBS})
 
-add_library(zn_frontend STATIC src/frontend/plugin_manifest.cpp src/frontend/tsconfig.cpp src/frontend/resolve.cpp src/frontend/project.cpp src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp src/frontend/native_gen.cpp src/frontend/profile.cpp src/frontend/capabilities.cpp)
+add_library(zn_frontend STATIC src/frontend/plugin_manifest.cpp src/frontend/tsconfig.cpp src/frontend/resolve.cpp src/frontend/project.cpp src/frontend/lexer.cpp src/frontend/parser.cpp src/frontend/diagnostics.cpp src/frontend/check.cpp src/frontend/modules.cpp src/frontend/inspect.cpp src/frontend/snippet.cpp src/frontend/desugar.cpp src/frontend/dyn.cpp src/frontend/jsx.cpp src/frontend/native_gen.cpp src/frontend/profile.cpp src/frontend/capabilities.cpp src/frontend/style_level.cpp)
 target_include_directories(zn_frontend PUBLIC include src)
 target_link_libraries(zn_frontend PUBLIC zn_yyjson zn_native zn_i18n)   # the diagnostics speak the person's language (D159)
 
