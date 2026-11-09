@@ -641,10 +641,19 @@ std::string verifyClasses(const Module& m) {
 }
 }  // namespace
 
+static std::string verifyFunction(const Module& m, const Function& f);
 std::string verify(const Module& m) {
   if (m.functions.empty() || m.functions[0].name != "main") return "module has no @main as function 0";
   if (std::string e = verifyClasses(m); !e.empty()) return e;
-  for (const Function& f : m.functions) {
+  // each function on its own, on a few threads; the first problem in the order of the functions, as one thread finds it (ZN-1024)
+  std::vector<std::string> errs(m.functions.size());
+  parallelFor(m.functions.size(), [&](std::size_t fi) { errs[fi] = verifyFunction(m, m.functions[fi]); });
+  for (std::string& e : errs) if (!e.empty()) return e;
+  return "";
+}
+
+static std::string verifyFunction(const Module& m, const Function& f) {
+  {
     Verifier v(m, f);
     if (!v.run()) return v.err;
     if (m.fixedPoint && !f.library && f.name != "main") {   // @main also holds the library modules' initialisers (they count in f64)   // fixed point: the program's own `number` arithmetic is integer ops. f64 stays where a value comes from outside (a call, a field, an element, a
