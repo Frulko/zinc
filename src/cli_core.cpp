@@ -3317,6 +3317,17 @@ Stamps snapshot(const fs::path& dir) {
   }
   return s;
 }
+// An editor writes a file in several steps: the files once two snapshots 8 ms apart agree (at most 40 ms), not a fixed 30 ms wait, which was
+// in every save's time (ZN-1024). A step still to come after that is one more change: the next poll compiles again.
+Stamps settled(const fs::path& dir, Stamps now) {
+  for (int k = 0; k < 5; ++k) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    Stamps again = snapshot(dir);
+    if (again == now) break;
+    now = std::move(again);
+  }
+  return now;
+}
 // A program with a frame loop (zinc:ui, zinc:stage, or onFrame of zinc:gfx and zinc:3d): the inspector has a tree or a screen to show. A script has
 // none, and the inspector's server would keep it from ending.
 bool projectHasFrameLoop(const fs::path& dir) {
@@ -3705,8 +3716,7 @@ int devLan(const ProjectInfo& p, const fs::path& devDir, int port) {
     Stamps now = snapshot(p.dir);
     if (now == seen) continue;
     saved = Clock::now();
-    std::this_thread::sleep_for(std::chrono::milliseconds(30));   // an editor writes a file in several steps: take the settled state
-    now = snapshot(p.dir);
+    now = settled(p.dir, std::move(now));
     std::string why;
     savedNames = savedFiles(p.dir, seen, now, why);
     seen = now;
@@ -3899,8 +3909,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     Stamps now = snapshot(p.dir);
     if (now == seen) continue;
     const auto t0 = Clock::now();
-    std::this_thread::sleep_for(std::chrono::milliseconds(30));   // an editor writes a file in several steps: take the settled state
-    now = snapshot(p.dir);
+    now = settled(p.dir, std::move(now));
     const Stamps was = seen;
     seen = now;
     if ((remote ? !boxed : child > 0 && devFd >= 0) && reloadAssets(p.dir, was, now, devFd, remote, t0)) continue;

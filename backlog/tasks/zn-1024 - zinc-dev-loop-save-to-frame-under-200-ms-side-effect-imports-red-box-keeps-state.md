@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:36'
-updated_date: '2026-11-09 10:08'
+updated_date: '2026-11-09 10:11'
 labels:
   - dev
   - perf
@@ -110,4 +110,6 @@ Step 11 (perf(frontend): intern types through a hash index): Checker::intern and
 Step 12 (perf(frontend): find an object's type without scanning every type): zinc dev compiles build/.zinc-dev/main.ts, which imports zinc:devtools before the program; with it the check of hero took 510-585 ms (49 without it), 90% in implementations(): for every class it looked up the class's type with a scan of every type (typeOfObj in inspect.cpp and dyn.cpp), and the inspector's printers ask it for every inspectable type. Checked::objTypes (the first Object type of each ObjInfo, kept by the checker's intern) answers in one step. The dev entry, recompiles back to back (load ~9): check 515 -> 70 ms, a recompile ~1000 -> 586-595 ms; zinc dev of hero, saves of a comment in Icon.tsx (load 7-15): 1151-1371 -> 662-720 ms after the save. Same bytes (the dev entry with ZINC_DEV=1, hot_recompile, the four examples).
 
 Step 13 (perf(ir): devirtualise each class and selector once): devirtualize scanned every class (isSubtype each) for every virtual call, four times per compile (once, then after each inline round); the answer depends only on the static class and the selector, so it is kept per pair for the pass. The dev entry of hero (load ~7.5): devirtualise 12 -> 3.3 ms, inline round 1 (which devirtualises after it) 54 -> 37 ms, optimise 164 -> 139 ms. Same bytes (hot_recompile, the four examples, the dev entry).
+
+Step 14 (perf(dev): take a save once two snapshots agree): zinc dev waited a fixed 30 ms after it saw a change before reading the files (an editor writes in steps); it now reads them again every 8 ms until two snapshots agree (at most 40 ms): a save in one write costs 8 ms. zinc dev of hero, four saves of a comment in Icon.tsx, load ~7: 614-626 ms after the save (662-720 before, steps 13-14).
 <!-- SECTION:NOTES:END -->
