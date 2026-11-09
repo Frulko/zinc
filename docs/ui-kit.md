@@ -612,3 +612,49 @@ Diff inputs are cached until they change. Lines are interned with the standard s
 positions and spends at most 131,072 integer probes, then keeps a coarse replacement; there is no quadratic matrix. Changed ranges within paired
 lines are bounded to 2,000 characters. Syntax comes from the existing editor registry (TS/JS/TSX, JSON, Markdown,
 CSS); other language labels render as plain text.
+
+## Quiet Charts
+
+`LineChart`, `AreaChart`, `BarChart`, `DonutChart`, `Sparkline`, `Gauge`, `RadialGauge`, `Heatmap`, `Treemap`, `RadarChart`, `Funnel`, `Sankey`, `Waffle` and `ScatterChart`, plus `CandlestickChart`, share the Quiet theme and work in both UI models. Import from `zinc:ui/kit`, or directly from `zinc:ui/kit/charts`. The gallery has three focused views:
+
+```sh
+GALLERY=charts-overview zinc run examples/ui/kit-gallery
+GALLERY=charts-distributions zinc run examples/ui/kit-gallery
+GALLERY=charts-market zinc run examples/ui/kit-gallery
+```
+
+All charts take a required `label`, optional `width`, `height`, `className`, `format: (number) => string`, `noLegend` and `onSelect: (index, series) => void`. Data comes from accessors. Keep large arrays stable between changes and replace an array when editing its entries; appending candles also follows their new length. Geometry is cached by its inputs and the lazy Canvas has no idle frame callback. Colours are theme roles or ordinary Zinc colour names; the default uses one accent and neutral series. Give a series or item a `color` only when that distinction carries meaning.
+
+| Component | Data and options |
+| --- | --- |
+| `LineChart`, `AreaChart` | `series: () => ChartSeries[]` (`name`, `values`, optional `color`), `labels`, `min`, `max`, `smooth`, `noGrid`; `area` also turns a line into an area. Only the first series fills, with a flat tint. Non-finite values create gaps. |
+| `BarChart` | The same series and axes; `stacked` separates positive and negative totals around zero. |
+| `DonutChart` | `items: () => ChartItem[]` (`label`, `value`, optional `color`), `innerRadius` (fraction). Non-positive amounts do not create slices. |
+| `Sparkline` | `values: () => number[]`, optional `color`; compact line without axes or legend, with the same keyboard inspection. |
+| `Gauge`, `RadialGauge` | `value: () => number`, `min`, `max`, `unit`, `size`; radial adds `sweep` (90–300°), `ticks` (`-1` hides them), `bands: {to, tone}[]`, `target`, `noNeedle`. Value changes use the existing Animated spring and stop immediately under reduced motion. |
+| `Heatmap` | `values` in row-major order, `rows`, `columns`, `rowLabels`, `columnLabels`, `min`, `max`; one accent scale and a value range. Missing/non-finite cells stay empty. |
+| `Treemap` | `items`; squarified rectangles, sized by positive values. Labels that cannot fit are omitted from the drawing while full values remain available to inspection. |
+| `RadarChart` | `series`, `axes: string[]`, optional `max`; at least three axes. |
+| `Funnel` | `items` in stage order; inspection names the share of the first stage and conversion from the preceding stage. |
+| `Sankey` | `nodes: string[]`, `links: () => {from, to, value}[]`, optional `nodeWidth`; node indices belong to the caller. Layout follows the links, keeps a common flow scale, and terminates for cycles. |
+| `Waffle` | `items`, optional `columns` and `rows` (10 each); largest-remainder allocation fills the exact number of cells. |
+| `ScatterChart` | `series: () => ScatterSeries[]` (`name`, `points: {x,y,size?}[]`, optional `color`), `xLabel`, `yLabel`, `xFormat`; bubble area follows optional `size`. |
+| `CandlestickChart` | `candles: () => Candle[]` (`open`, `high`, `low`, `close`, optional `volume`), `labels`, `overlays: () => ChartSeries[]`, `noVolume`, `ohlc`, `up`, `down`; visible-range price fitting, last-close marker and bounded OHLCV aggregation. |
+
+Tab focuses the chart with a visible ring. Arrow keys inspect marks, Shift moves ten, Home/End select the ends, Enter/Space call `onSelect`, and Escape clears inspection. Pointer hit testing uses the same geometry that is painted. The accessible name and a status line report the inspected values; the gauge also names its current value and range. A focused price chart supports `+`/`-` zoom, `0` fit, pointer-centred wheel zoom, Shift-wheel/horizontal wheel pan and dragging. Its cursor retains the original candle index as the viewport changes. An appended candle follows the right edge only when that edge was already in view.
+
+Input limits keep layout and hit testing bounded and reject oversized inputs with a `RangeError`: 16 series with 4,096 values or points each; 128×128 heatmap cells; 128 donut/funnel/waffle items (512 for treemap); 32 radar axes; 256 Sankey nodes and 2,048 links. Waffle dimensions clamp to 1–50 cells per side. Candles read the visible range and aggregate to at most 880 view-box columns; the focused model regression includes 100,000 candles. These are correctness bounds, not a measured throughput or memory claim.
+
+![Line, area, bars, donut, sparkline and gauge](img/kit-charts-overview.png)
+
+![Heatmap, treemap, radar, funnel, waffle and Sankey](img/kit-charts-distributions.png)
+
+![Candlesticks, scatter and radial gauges](img/kit-charts-market.png)
+
+![Charts in the dark Quiet theme](img/kit-charts-market-dark.png)
+
+![Distribution charts in the dark Quiet theme](img/kit-charts-distributions-dark.png)
+
+![Overview charts in the dark Quiet theme](img/kit-charts-overview-dark.png)
+
+![Price, scatter and gauges at 360 px](img/kit-charts-market-narrow.png)

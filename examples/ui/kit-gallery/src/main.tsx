@@ -1,5 +1,6 @@
 // kit-gallery: every zinc:ui/kit component on one scrolling page, in the Solid model.
 // The switch in the header flips the whole page between the light and the dark theme.
+import { ChartsSection } from './sections/charts';
 import { env } from 'zinc:sys';
 import { ActionsSection } from './sections/actions';
 import { NavigationSection } from './sections/navigation';
@@ -53,6 +54,8 @@ function App(): i32 {
       <Show when={env('GALLERY') === 'feedback'}><Section title="Feedback"><FeedbackSection /></Section></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'data'}><DataSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'code'}><CodeSection /></Show>
+
+      <Show when={env('GALLERY') === '' || env('GALLERY').startsWith('charts')}><ChartsSection /></Show>
       <Show when={env('GALLERY') === ''}>
       <Section title="Metrics"><StatsRow /></Section>
       <Section title="Controls">

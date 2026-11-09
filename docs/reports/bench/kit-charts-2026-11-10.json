@@ -1,0 +1,63 @@
+{
+  "base": "4782de13f860e0cf75641043e8a2505f492f8f1f",
+  "engine_sha256": "85f6d02a26948c1755090b0c06b3a926cad5cefa6df1799ce01d737a13e28f68",
+  "files": {
+    "lib/std/kit/chart-model.ts": "f8113b7b8084e78ca270ba89ef9ac8065551494213b8f532b2f348d2a0c22c2e",
+    "lib/std/kit/charts.tsx": "52546e4ea4c309dea102bc1022c3bccb6428586ec1ff793fa72fe3eb94f7f138",
+    "lib/std/kit/index.ts": "bc7e6a84ca7bcd5d751f8355a5828a271d7feba367c579fdc7cdbc8226c390bd",
+    "tests/data/kit_charts/model.ts": "60eb97b6e69905f1dc442d0de9fa58c10764c944364b898ecd831b0e969b8e46",
+    "tests/data/kit_charts/body.tsx": "02132cd66909a6d188d34a5b16fe8eaeef54fb639e59c9e0fdb7e4d675c7ef85",
+    "tests/t0/kit_charts.sh": "e17062d45b1be6892bafaf199eede78a5e5433dd1e1d15a7e721e101b27589dc",
+    "tests/t0/kit_size.sh": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed"
+  },
+  "checks": {
+    "types": {
+      "exit": 0,
+      "log": ".logs/charts-final-types.log"
+    },
+    "kit_charts": {
+      "exit": 0,
+      "log": ".logs/charts-final-kit_charts.log"
+    },
+    "captures": {
+      "exit": 0,
+      "log": ".logs/charts-final-captures.log"
+    },
+    "kit_size": {
+      "exit": 1,
+      "log": ".logs/charts-final-kit_size.log"
+    }
+  },
+  "size_stdout": "bundle: Button 235962 B, through the index 241206 B (+5244 for 35 unused families, budget 8960), ten 278082 B (+4097 per component)\nbundle: one more component costs 4097 bytes, more than 4096\naot: Button 5325320 B, through the index 5440976 B (+115656 for 35 unused families, budget 143360), ten 5992736 B (+61306 per component)\naot, Button through the index links the plugins: editor\n",
+  "captures": {
+    "kit-charts-market-narrow.png": "2b782e0eaef008b1c777f6419484be7a315123c8a6eed4dbfceba62aa602d3ce",
+    "kit-charts-overview.png": "530a051dbbd934bcd1ab0b16873269775659685f1999f38f010a362fd8fc04ef",
+    "kit-charts-market-dark.png": "13b6f22072239e92c4c0cb286ac60c03a6b79d7085bbcfd1bd81075eb9dacd6c",
+    "kit-charts-market.png": "c98ff51377a1c7b595cc0a076a233edbd90eb0e82993cc685c0ef7da895d651d",
+    "kit-charts-distributions.png": "5726607d7fa9cf274e98ae30b7040ccd767be87fc160e7e9f324929b3a6df219",
+    "kit-charts-overview-dark.png": "3c63863bb4b61dbde4005f6bdf82632e5e8f81de1d3f79c3e36f4ff7b45d04a0",
+    "kit-charts-distributions-dark.png": "d2ee6e5fb8b5e057375ab424f8b2b3afc6b18e7b0fc57b75e636e3aa7b802542"
+  },
+  "not_proven": [
+    "physical touch/VoiceOver",
+    "cross-device replay",
+    "quiet-machine timing/memory/energy",
+    "broad suites"
+  ],
+  "owned_processes": "none after completion",
+  "acceptance": {
+    "1": true,
+    "2": true,
+    "3": false
+  },
+  "remaining": "Common used-JavaScript gate exceeds the strict nine-component allowance by12 bytes (36876 versus36864); same outstanding Code13 criterion, no budget or UI change.",
+  "captures_inspected": [
+    "kit-charts-market-narrow.png",
+    "kit-charts-overview.png",
+    "kit-charts-market-dark.png",
+    "kit-charts-market.png",
+    "kit-charts-distributions.png",
+    "kit-charts-overview-dark.png",
+    "kit-charts-distributions-dark.png"
+  ]
+}

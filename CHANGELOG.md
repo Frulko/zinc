@@ -166,6 +166,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `ui.textOffsetAt(handle, x, y)` finds a glyph's original text offset from local pointer coordinates, including wrapped styled text, so inline links can be clicked in their paragraph.
 - Quiet code controls add selectable code blocks, an editor with find and go-to-line, responsive diffs, CommonMark documents with link/task callbacks, and independent JSON trees with counts and visible errors.
 
+- The Quiet kit adds interactive line, area, bar, circular, matrix and flow charts, plus zoomable candlesticks and spring-driven gauges, with keyboard inspection and focused gallery views.
+
 #### Changed
 
 - The default layout sizes `flex-1`, `w-full` and `h-full` as a browser does: `flex-1` items share a row or a column equally whatever their content, but never get narrower than their content unless they have `min-w-0`, `overflow-hidden` or `truncate`; a `w-full` or `h-full` box along the row or column stays inside its parent instead of growing with its content; and the last width or height class wins (`w-full w-[280px]` is 280 px wide).

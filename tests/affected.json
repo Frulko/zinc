@@ -3,6 +3,7 @@
   "default": ["checker", "lang"],
   "map": [
     {"paths": ["src/frontend/ast.h", "src/frontend/check.cpp", "src/ir/lower.cpp", "tests/data/optional_collection/", "tests/t0/optional_collection.sh"], "tests": ["optional_collection"]},
+    {"paths": ["lib/std/kit/charts.tsx", "lib/std/kit/chart-model.ts", "tests/data/kit_charts/", "tests/t0/kit_charts.sh"], "tests": ["kit_charts"]},
     {"paths": ["lib/std/kit/host.ts", "tests/data/component_signal/", "tests/t0/component_signal.sh"], "tests": ["component_signal"]},
     {"paths": ["src/ir/lower.cpp", "tests/data/nullable_numeric/", "tests/t0/nullable_numeric.sh"], "tests": ["nullable_numeric"]},
     {"paths": ["lib/std/ui.ts", "tests/data/text_offset/", "tests/t0/text_offset.sh"], "tests": ["text_offset"]},
