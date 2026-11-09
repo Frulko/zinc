@@ -563,6 +563,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1042: a sprite under a blend mode or a clip takes the general loop; integer premultiplied blending for blits (Skia's low-precision path) is the next speed-up.
 - ZN-1043: a rendered audio graph for p5.sound and Tone.js (filters, param modulation); oscillator sweeps beyond six octaves; suspend per context instead of the whole mixer; streaming audio elements (decoded whole today).
 - ZN-1043: a sound-only script with no frames has no clock (an oscillator's `onended` never fires).
+- ZN-1016: the console core's plugin list is in three places (capabilities.json, `targets/console/stubs.cpp`, `targets/console/player_console.cpp`); `tools/build-console-core` could read capabilities.json.
+- ZN-1016: `zinc pack` of a JavaScript-engine project still ignores an assets folder outside the project.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -749,3 +751,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-797: the core esp32 `zinc flash` (`src/main.cpp`) still writes the merged image from 0x0; harmless while the core firmware uses no NVS.
 - ZN-182/183: Pi 3B+ runs of `gl_atlas_churn` with `ZINC_DISPLAY=gl` (the GLES 2 atlas path) and with `ZINC_GL_QUIRK=no-replay` (fallback under KMS); the Vita target build.
 - ZN-1043: gamepads on display-gl's Pi KMS driver (evdev).
+- ZN-1016: check whether a ps2 core built with graphics also links 3d and physics2d (ps2 lists only audio and lan).
