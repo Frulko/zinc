@@ -518,6 +518,8 @@ On Android (`ui.platformStyle()` 'android', `ZINC_PLATFORM=android` on the deskt
 
 `dragToScroll` on a scroll container lets a mouse drag it too (a carousel; fingers and pens always drag): a drag is never a click, a click without a drag still is. `ui.scrollTo(h, x, y, true)` eases to the offset instead of jumping, as React Native's `scrollTo({ animated: true })`.
 
+`scrollTo` before mount, while hidden or detached, or after content changes keeps the latest raw offset until the next valid layout of that surface. Only then is it clamped; a later zero cancels an earlier request too. Animation intent is kept, with reduced motion evaluated when applied. Destroying the node drops its request, even if its numeric handle is reused. `scrollBy` adds to a pending offset, restoration or row-alignment request; otherwise it preserves a running gesture or animation. `scrollToRow` waits for the viewport dimensions before choosing the least scroll. These requests and `scrollKey` restoration share ordering: the latest imperative request or key change wins. Hidden pending requests do not schedule repeated layouts.
+
 `<ScrollView stickToBottom>` follows its end (a chat, a log): while it shows the end, it keeps showing it as the content grows or the view is resized;
 once the user scrolls up it stays where it is, and it follows again when brought back to the end (`ui.scrollTo(h, 0, 1e9)` from code).
 

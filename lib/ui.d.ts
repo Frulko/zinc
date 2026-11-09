@@ -637,7 +637,7 @@ declare module 'zinc:ui' {
   /** Scroll offset of a scroll container (pixels from the top / left). */
   export function scrollTop(h: i32): number;
   export function scrollLeft(h: i32): number;
-  /** Scrolls a container to an offset (clamped); `animated` eases there with the wheel's spring, as React Native's scrollTo({ animated }). */
+  /** Scrolls to an offset, clamped after current layout; requests before mounting or while hidden wait for bounds. `animated` uses the scroll spring. */
   export function scrollTo(h: i32, x: number, y: number, animated?: boolean): void;
   /** Moves a container's offset by (dx, dy) without stopping a scroll in progress (fingers, momentum, inertia, wheel easing): content inserted
    *  above what is shown keeps its place on screen while the user scrolls through it. At rest it is scrollTo. */

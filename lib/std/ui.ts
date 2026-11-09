@@ -791,7 +791,8 @@ function release(h: i32): void {
   try {
     forgetFocusWithin(h);
     if (n.cImg >= 0) { destroyImage(n.cImg); n.cImg = -1; n.cValid = false; }
-    if (n.skey !== '') { if (!dropRestore(h)) keepScroll(n); n.skey = ''; }
+    const wasRestoring = dropScrollRequest(n);
+    if (n.skey !== '') { if (!wasRestoring) keepScroll(n); n.skey = ''; }
     if (scrollWatch.indexOf(h) >= 0) forgetScrolls(h);   // its onScroll goes with it: the handle comes back as another node
     if (n.virt !== null) {   // a virtual list goes with its rows: what they made is let go as when they scroll out
       const v = n.virt as Virtual, d = v.drop;
@@ -854,9 +855,19 @@ export function draw(h: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void 
 /** Scroll offset of a scroll container (pixels from the top / left). */
 export function scrollTop(h: i32): number { return node(h).sy; }
 export function scrollLeft(h: i32): number { return node(h).sx; }
-/** Scrolls a container to an offset (clamped); `animated` eases there with the wheel's spring, as React Native's scrollTo({ animated }). */
+/** Scrolls to an offset, clamped after current layout; a request before mounting or while hidden waits for its bounds. */
 export function scrollTo(h: i32, x: number, y: number, animated: boolean = false): void {
   const n = node(h);
+  if (!n.alive) return;
+  if (layoutDirty || extLayout || !scrollBoundsReady(n)) {
+    requestScroll(n, animated ? ScrollRequestState.Animated : ScrollRequestState.Offset, x, y);
+    return;
+  }
+  dropScrollRequest(n);
+  applyScroll(n, x, y, animated);
+}
+function applyScroll(n: UiNode, x: number, y: number, animated: boolean): void {
+  const h = n.id;
   if (animated && !reduceMotion) {
     if ((n.scroll & 2) !== 0) { const a = axisX(n); a.target = Math.max(0, Math.min(maxScrollX(n), x)); a.mode = WHEEL; }
     if ((n.scroll & 1) !== 0) { const a = axisY(n); a.target = Math.max(0, Math.min(maxScrollY(n), y)); a.mode = WHEEL; }
@@ -865,6 +876,7 @@ export function scrollTo(h: i32, x: number, y: number, animated: boolean = false
     return;
   }
   n.sx = x; n.sy = y; n.vx = 0; n.vy = 0; n.ax = null; n.ay = null; n.live = false;
+  n.endY = maxScrollY(n);   // an explicit request overrides initial stickToBottom anchoring
   clampScroll(n);
   n.scrolledAt = clock;
   if (n.virt !== null) layoutDirty = true;
@@ -874,9 +886,17 @@ export function scrollTo(h: i32, x: number, y: number, animated: boolean = false
  *  above what is shown keeps its place on screen while the user scrolls through it. At rest it is scrollTo. */
 export function scrollBy(h: i32, dx: number, dy: number): void {
   const n = node(h);
-  if (scrollers.indexOf(h) < 0) { scrollTo(h, n.sx + dx, n.sy + dy); return; }
+  if (!n.alive) return;
+  const pending = pendingScroll(n);
+  if (pending !== null) { pending.x += dx; pending.y += dy; return; }
+  if (!n.live) { scrollTo(h, n.sx + dx, n.sy + dy); return; }
+  if (layoutDirty || extLayout || !scrollBoundsReady(n)) { requestScroll(n, ScrollRequestState.Shift, dx, dy); return; }
+  shiftScroll(n, dx, dy);
+}
+function shiftScroll(n: UiNode, dx: number, dy: number): void {
   shiftAxis(n.ax, dx); shiftAxis(n.ay, dy);
   n.sx += dx; n.sy += dy;
+  clampScroll(n);
   if (n.virt !== null) layoutDirty = true;
   paintDirty = true;
 }
@@ -893,7 +913,41 @@ function shiftAxis(x: ScrollAxis | null, d: number): void {
 const keptScroll = new Map<string, number[]>();   // key -> [sx, sy, top row of a variable list (-1 otherwise), offset into that row]
 const keptOrder: string[] = [];
 const KEPT_MAX: i32 = 1000;   // ponytail: the oldest key is forgotten past this many
-const restoring: i32[] = [];  // containers waiting for a layout to take their kept offset
+enum ScrollRequestState { Offset, Animated, Shift, Row, Restore, Complete, Cancelled }
+class ScrollRequest {
+  node: UiNode; serial: i32; state: ScrollRequestState;
+  x: number = 0; y: number = 0; row: i32 = 0;
+  constructor(n: UiNode, state: ScrollRequestState) { this.node = n; this.serial = n.serial; this.state = state; }
+}
+const scrollRequests: ScrollRequest[] = [];
+function scrollRequestState(q: ScrollRequest, next: ScrollRequestState): void {
+  if (q.state === ScrollRequestState.Complete || q.state === ScrollRequestState.Cancelled) throw new Error('scroll request already closed');
+  q.state = next;
+}
+function pendingScroll(n: UiNode): ScrollRequest | null {
+  for (const q of scrollRequests) if (q.node === n && q.serial === n.serial) return q;
+  return null;
+}
+function requestScroll(n: UiNode, state: ScrollRequestState, x: number = 0, y: number = 0, row: i32 = 0): void {
+  let q = pendingScroll(n);
+  if (q === null) { q = new ScrollRequest(n, state); scrollRequests.push(q); }
+  else scrollRequestState(q, state);
+  q.x = x; q.y = y; q.row = row;
+  layoutDirty = true;
+  if (surfaces.length > 0) othersDirty(true);   // the request can target a window while another (or no main tree) is current
+}
+/** Bounds belong to this surface only; a detached node can still retain its former parent and dimensions. */
+function scrollBoundsReady(n: UiNode): boolean {
+  if (!n.alive || n.lw <= 0 || n.lh <= 0) return false;
+  for (let p = n.id; p >= 0; p = nodes[p].parent) {
+    const at = nodes[p];
+    if (!at.alive || at.hidden) return false;
+    if (p === root) return true;
+    if (at.parent < 0) { for (const layer of layers) if (layer.node === p) return true; return false; }
+    if (nodes[at.parent].children.indexOf(p) < 0) return false;
+  }
+  return false;
+}
 function keepScroll(n: UiNode): void {
   let row: number = -1, into: number = 0;
   const v = n.virt;
@@ -907,35 +961,53 @@ function keepScroll(n: UiNode): void {
   keptScroll.set(n.skey, [n.sx, n.sy, row, into]);
   if (keptOrder.length > KEPT_MAX) keptScroll.delete(keptOrder.shift() as string);
 }
-/** h no longer waits for its offset; false when it did not (its offset is its own, to keep). */
-function dropRestore(h: i32): boolean { const i = restoring.indexOf(h); if (i < 0) return false; restoring.splice(i, 1); return true; }
+/** Cancel any intent; an unapplied restoration must not overwrite its saved key on release. */
+function dropScrollRequest(n: UiNode): boolean {
+  const q = pendingScroll(n);
+  if (q === null) return false;
+  const restoring = q.state === ScrollRequestState.Restore;
+  scrollRequestState(q, ScrollRequestState.Cancelled);
+  scrollRequests.splice(scrollRequests.indexOf(q), 1);
+  return restoring;
+}
 /** The key a scroll container keeps its offset under ('' none): the offset of the last container that had the key comes back after its first
  *  layout; a container whose key changes keeps the old key's offset and takes the new one's (the top when it has none). */
 export function setScrollKey(h: i32, key: string): void {
   const n = node(h);
   if (n.skey === key) return;
   const had = n.skey !== '';
-  if (had && !dropRestore(h)) keepScroll(n);
+  if (had && !dropScrollRequest(n)) keepScroll(n);
   n.skey = key;
-  if (key !== '' && keptScroll.has(key)) { restoring.push(h); layoutDirty = true; }
+  if (key !== '' && keptScroll.has(key)) requestScroll(n, ScrollRequestState.Restore);
   else if (had) scrollTo(h, 0, 0);
 }
 export function scrollKey(h: i32): string { return node(h).skey; }
-function restoreScrolls(): void {
-  for (let i = restoring.length - 1; i >= 0; i--) {
-    const h = restoring[i], n = nodes[h];
-    if (!n.alive) { restoring.splice(i, 1); continue; }
-    if (n.lh <= 0) continue;   // not laid out yet (hidden): the next layout
-    restoring.splice(i, 1);
-    const k = keptScroll.get(n.skey);
-    if (k === undefined) continue;
-    let y: number = k[1];
-    const v = n.virt;
-    if (v !== null && (v as Virtual).variable && k[2] >= 0) {
-      const vv = v as Virtual, r: i32 = Math.round(k[2]);
-      y = n.pt + fwPrefix(vv, imin(r, vv.count)) + k[3];
+function applyScrollRequests(): void {
+  for (let i = scrollRequests.length - 1; i >= 0; i--) {
+    const q = scrollRequests[i], n = q.node;
+    if (nodeSerial(n.id) !== q.serial || nodes[n.id] !== n) {
+      scrollRequestState(q, ScrollRequestState.Cancelled); scrollRequests.splice(i, 1); continue;
     }
-    scrollTo(h, k[0], y);
+    if (!scrollBoundsReady(n)) continue;
+    const state = q.state;
+    scrollRequestState(q, ScrollRequestState.Complete); scrollRequests.splice(i, 1);
+    if (state === ScrollRequestState.Shift) { shiftScroll(n, q.x, q.y); continue; }
+    let x = q.x, y = q.y;
+    if (state === ScrollRequestState.Restore) {
+      const k = keptScroll.get(n.skey);
+      if (k === undefined) continue;
+      x += k[0]; y += k[1];
+      const v = n.virt;
+      if (v !== null && (v as Virtual).variable && k[2] >= 0) {
+        const vv = v as Virtual, r: i32 = Math.round(k[2]);
+        y = n.pt + fwPrefix(vv, imin(r, vv.count)) + k[3] + q.y;
+      }
+    } else if (state === ScrollRequestState.Row) {
+      const v = n.virt;
+      if (v === null || q.row >= (v as Virtual).count) continue;
+      x += n.sx; y += rowScrollOffset(n, v as Virtual, q.row);
+    }
+    applyScroll(n, x, y, state === ScrollRequestState.Animated);
   }
 }
 /**
@@ -996,10 +1068,15 @@ export function prependRows(h: i32, k: i32): void {
 export function scrollToRow(h: i32, i: i32): void {
   const n = node(h), v = n.virt;
   if (v === null || i < 0 || i >= (v as Virtual).count) return;
-  const vv = v as Virtual;
-  const top: number = n.pt + (vv.variable ? fwPrefix(vv, i) : i * vv.itemH), rh: number = vv.variable ? vv.hs[i] : vv.itemH;
-  if (top < n.sy) scrollTo(h, n.sx, top);
-  else if (top + rh > n.sy + n.lh) scrollTo(h, n.sx, top + rh - n.lh);
+  if (layoutDirty || extLayout || !scrollBoundsReady(n)) { requestScroll(n, ScrollRequestState.Row, 0, 0, i); return; }
+  dropScrollRequest(n);
+  applyScroll(n, n.sx, rowScrollOffset(n, v as Virtual, i), false);
+}
+function rowScrollOffset(n: UiNode, v: Virtual, i: i32): number {
+  const top: number = n.pt + (v.variable ? fwPrefix(v, i) : i * v.itemH), rh: number = v.variable ? v.hs[i] : v.itemH;
+  if (top < n.sy) return top;
+  if (top + rh > n.sy + n.lh) return top + rh - n.lh;
+  return n.sy;
 }
 // Fenwick tree over the row heights of a variable list: offset of a row and the row at an offset, both O(log n); 100k rows cost two arrays.
 function fwBuild(v: Virtual, est: number, keep: boolean): void {
@@ -4411,7 +4488,7 @@ export function layout(): void {
   if (own) paintDirty = true; else extPaint = true;
   hoverDirty = true;
   if (cqAny && !inSettle) settleContainers();
-  if (restoring.length > 0) restoreScrolls();
+  if (scrollRequests.length > 0) applyScrollRequests();
   if (virtList.length > 0 && !inVirt) { inVirt = true; settleVirtuals(); if (layoutDirty) layout(); inVirt = false; }
   if (autoFields.length > 0 && !inFields) { inFields = true; settleFields(); if (layoutDirty) layout(); inFields = false; }   // a new width wraps them again
 }
