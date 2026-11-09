@@ -7,6 +7,7 @@
 #include <bit>
 
 #include "zn/fxtab.h"
+#include "zn/jsmath.h"
 #include "zn/value.h"
 
 namespace zn::ops {
@@ -91,8 +92,8 @@ inline Slot fxSlot(std::int32_t v) { return sx32(v); }
   X(MulF64, fromD(asD(x) * asD(y))) \
   X(DivF64, fromD(asD(x) / asD(y))) \
   X(RemF64, fromD(std::fmod(asD(x), asD(y)))) \
-  X(PowF64, fromD(std::pow(asD(x), asD(y)))) \
-  X(Atan2F64, fromD(std::atan2(asD(x), asD(y)))) \
+  X(PowF64, fromD(zn_js_pow(asD(x), asD(y)))) \
+  X(Atan2F64, fromD(zn_js_atan2(asD(x), asD(y)))) \
   X(HypotF64, fromD(std::hypot(asD(x), asD(y)))) \
   X(MinF64, fromD(jsMin(asD(x), asD(y)))) \
   X(MaxF64, fromD(jsMax(asD(x), asD(y)))) \
@@ -150,12 +151,12 @@ inline Slot fxSlot(std::int32_t v) { return sx32(v); }
   X(CeilF64, fromD(std::ceil(asD(x)))) \
   X(RoundF64, fromD(jsRound(asD(x)))) \
   X(TruncF64, fromD(std::trunc(asD(x)))) \
-  X(SinF64, fromD(std::sin(asD(x)))) \
-  X(CosF64, fromD(std::cos(asD(x)))) \
-  X(TanF64, fromD(std::tan(asD(x)))) \
+  X(SinF64, fromD(zn_js_sin(asD(x)))) \
+  X(CosF64, fromD(zn_js_cos(asD(x)))) \
+  X(TanF64, fromD(zn_js_tan(asD(x)))) \
   X(AtanF64, fromD(std::atan(asD(x)))) \
-  X(ExpF64, fromD(std::exp(asD(x)))) \
-  X(LnF64, fromD(std::log(asD(x)))) \
+  X(ExpF64, fromD(zn_js_exp(asD(x)))) \
+  X(LnF64, fromD(zn_js_log(asD(x)))) \
   X(CbrtF64, fromD(std::cbrt(asD(x)))) \
   X(Log2F64, fromD(std::log2(asD(x)))) \
   X(Log10F64, fromD(std::log10(asD(x)))) \

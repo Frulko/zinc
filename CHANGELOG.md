@@ -211,6 +211,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `MqttClient` no longer waits forever on a broker that does not answer: `connect()` rejects after `connectTimeoutMs` (30 s by default, 0 for none) and says whether the connection, the TLS handshake or the broker's CONNACK was missing.
 - A union of a primitive and another type (`video?: boolean | MediaTrackConstraints`, `string | number`) can be stored, passed and compared with `===` on the Zinc engines, and taken apart with `as`; `getUserMedia` now types its `video` and `audio` options this way.
 
+#### Changed
+
+- `Math.sin`, `cos`, `tan`, `exp`, `log`, `atan2` and `Math.pow` (and `**`) give the same result to the last bit on every computer and every engine, the one Node gives, so a scene or a simulation computed on a Mac matches the one on a Raspberry Pi; `1 ** NaN` and `(-1) ** Infinity` are `NaN`, as in JavaScript.
+
 #### Faster
 
 - `readBytes` of `zinc:fs` and `zinc:assets`, `utf8Encode` and `randomBytes` copy their bytes at once instead of one by one: reading a 1 MB file drops from about 40 ms to under a millisecond, and `utf8Encode` of a long string on `--engine quickjs` no longer takes minutes.

@@ -1,6 +1,6 @@
 # QuickJS-ng patch queue
 
-`third_party/quickjs-ng` is the release named in `../PRISTINE` (its files and their SHA-256) with the patches of this directory applied, in the order of their numbers. Today: 0001-profile-hooks (the QuickJS profiler of ZN-598, compiled only with ZN_QJS_PROFILE), 0002-aot-hooks (the qjs2c spike of ZN-599, compiled only with ZN_QJS_AOT_GEN), 0003-android-old-bionic-cond (Android below API 21) and 0004-fast-calls (typed fast native calls and borrowed buffer and array accessors, ZN-596: the `__host_*` rows of numbers use them; prepared for upstream).
+`third_party/quickjs-ng` is the release named in `../PRISTINE` (its files and their SHA-256) with the patches of this directory applied, in the order of their numbers. Today: 0001-profile-hooks (the QuickJS profiler of ZN-598, compiled only with ZN_QJS_PROFILE), 0002-aot-hooks (the qjs2c spike of ZN-599, compiled only with ZN_QJS_AOT_GEN), 0003-android-old-bionic-cond (Android below API 21) and 0004-fast-calls (typed fast native calls and borrowed buffer and array accessors, ZN-596: the `__host_*` rows of numbers use them; prepared for upstream) and 0005-deterministic-math (Math.sin, cos, tan, exp, log, atan2 and pow through zinc's V8 fdlibm port, the bits of the other engines and of Node on every CPU, ZN-703).
 
 `tools/quickjs-patches check` proves it offline (`tests/t0/quickjs_patches.sh`): every patch must reverse, last to first, onto a copy of the tree, and each file must then have the release's hash. A change made in the tree without a patch fails the check.
 

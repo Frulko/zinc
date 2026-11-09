@@ -15061,19 +15061,20 @@ static int js_is_array(JSContext *ctx, JSValueConst val)
     }
 }
 
+/* Zinc: the Math functions whose bits differ between libms come from V8's
+   fdlibm port (zinc include/zn/jsmath.h, src/rt/jsmath.cpp), as in the
+   other two engines. zn_js_pow keeps the ECMAScript edges handled here. */
+double zn_js_sin(double x);
+double zn_js_cos(double x);
+double zn_js_tan(double x);
+double zn_js_exp(double x);
+double zn_js_log(double x);
+double zn_js_atan2(double y, double x);
+double zn_js_pow(double x, double y);
+
 static double js_math_pow(double a, double b)
 {
-    double d;
-
-    if (unlikely(!isfinite(b)) && fabs(a) == 1) {
-        /* not compatible with IEEE 754 */
-        d = NAN;
-    } else {
-        JS_X87_FPCW_SAVE_AND_ADJUST(fpcw);
-        d = pow(a, b);
-        JS_X87_FPCW_RESTORE(fpcw);
-    }
-    return d;
+    return zn_js_pow(a, b);
 }
 
 JSValue JS_NewBigInt64(JSContext *ctx, int64_t v)
@@ -49246,12 +49247,12 @@ static double js_math_sqrt(double d) { return sqrt(d); }
 static double js_math_acos(double d) { return acos(d); }
 static double js_math_asin(double d) { return asin(d); }
 static double js_math_atan(double d) { return atan(d); }
-static double js_math_atan2(double a, double b) { return atan2(a, b); }
-static double js_math_cos(double d) { return cos(d); }
-static double js_math_exp(double d) { return exp(d); }
-static double js_math_log(double d) { return log(d); }
-static double js_math_sin(double d) { return sin(d); }
-static double js_math_tan(double d) { return tan(d); }
+static double js_math_atan2(double a, double b) { return zn_js_atan2(a, b); }
+static double js_math_cos(double d) { return zn_js_cos(d); }
+static double js_math_exp(double d) { return zn_js_exp(d); }
+static double js_math_log(double d) { return zn_js_log(d); }
+static double js_math_sin(double d) { return zn_js_sin(d); }
+static double js_math_tan(double d) { return zn_js_tan(d); }
 static double js_math_trunc(double d) { return trunc(d); }
 static double js_math_cosh(double d) { return cosh(d); }
 static double js_math_sinh(double d) { return sinh(d); }

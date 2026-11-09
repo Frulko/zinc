@@ -136,7 +136,7 @@ add_library(zn_ir STATIC src/ir/ir.cpp src/ir/parse.cpp src/ir/lower.cpp src/ir/
 target_link_libraries(zn_ir PUBLIC zn_frontend)
 
 add_library(zn_zbc STATIC src/zbc/zbc.cpp src/zbc/emit.cpp)
-target_link_libraries(zn_zbc PUBLIC zn_ir)
+target_link_libraries(zn_zbc PUBLIC zn_ir $<LINK_ONLY:zn_regexp>)   # include/zn/ops.h calls the Math of src/rt/jsmath.cpp
 target_include_directories(zn_zbc PUBLIC include src)
 
 # mimalloc (third_party/): the runtime allocates many small objects; it also serves global operator new/delete.
@@ -516,8 +516,10 @@ endif()
 
 # QuickJS-ng (third_party/): the second engine of ZN-051, plain JavaScript and stripped TypeScript behind the same host calls.
 # libregexp and libunicode are their own library (the regular expressions of Zinc programs link only these); QuickJS-ng links the same copy.
-add_library(zn_regexp STATIC third_party/quickjs-ng/libregexp.c third_party/quickjs-ng/libunicode.c src/host/lre_host.c)
+add_library(zn_regexp STATIC third_party/quickjs-ng/libregexp.c third_party/quickjs-ng/libunicode.c src/host/lre_host.c
+  src/rt/jsmath.cpp third_party/ieee754/src/base/ieee754.cc third_party/core-math/pow.c)   # and Math through V8's fdlibm and CORE-MATH's pow (ZN-703): this archive is in every engine's link
 target_include_directories(zn_regexp PUBLIC third_party/quickjs-ng)
+target_include_directories(zn_regexp PRIVATE include third_party/ieee754)
 set_target_properties(zn_regexp PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_regexp PRIVATE -w -O2)
 add_library(zn_quickjs STATIC third_party/quickjs-ng/quickjs.c third_party/quickjs-ng/dtoa.c)
