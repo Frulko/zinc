@@ -8,6 +8,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
+#ifndef _WIN32
+#include <pthread.h>
+#endif
 
 namespace zn::ir {
 
@@ -51,16 +54,33 @@ bool Module::isSubtype(std::uint32_t a, std::uint32_t b) const {
 void parallelFor(std::size_t n, const std::function<void(std::size_t)>& fn) {
   static const unsigned cores = std::max(1u, std::thread::hardware_concurrency());
   unsigned threads = std::clamp(cores / 2, 1u, 4u);
+#ifndef _WIN32
   double load = 0;
   if (getloadavg(&load, 1) == 1 && load > cores / 2.0) threads = std::max(1u, threads / 2);   // ponytail: the load at the call, not a share of the cores
+#endif
   if (const char* e = std::getenv("ZN_IR_THREADS")) threads = static_cast<unsigned>(std::max(1, std::atoi(e)));
   threads = static_cast<unsigned>(std::min<std::size_t>(threads, n / 8 + 1));
   std::atomic<std::size_t> next{0};
-  auto work = [&] { for (std::size_t k; (k = next.fetch_add(1, std::memory_order_relaxed)) < n;) fn(k); };
+  std::function<void()> work = [&] { for (std::size_t k; (k = next.fetch_add(1, std::memory_order_relaxed)) < n;) fn(k); };
+#ifdef _WIN32
   std::vector<std::thread> pool;
   for (unsigned t = 1; t < threads; ++t) pool.emplace_back(work);
   work();
   for (std::thread& t : pool) t.join();
+#else
+  // the passes recurse along the blocks of a function (cse's walk): the stack of zinc dev's compile thread, not a thread's default 512 KB
+  std::vector<pthread_t> pool;
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+  pthread_attr_setstacksize(&attr, 64u << 20);
+  for (unsigned t = 1; t < threads; ++t) {
+    pthread_t th;
+    if (pthread_create(&th, &attr, [](void* w) -> void* { (*static_cast<std::function<void()>*>(w))(); return nullptr; }, &work) == 0) pool.push_back(th);
+  }
+  pthread_attr_destroy(&attr);
+  work();   // a thread that did not start leaves its share to the others
+  for (pthread_t th : pool) pthread_join(th, nullptr);
+#endif
 }
 
 TypeId Module::intern(const Type& t) {

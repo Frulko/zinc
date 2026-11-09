@@ -2,6 +2,7 @@
 // inlining of small functions. The IR is in SSA form with block parameters, so inlining splits the call's block, clones the
 // callee's blocks with fresh values and turns each Ret into a branch to the continuation block.
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -12,6 +13,7 @@
 #include <set>
 
 #include "ir/ir.h"
+#include "zn/log.h"
 #include "zn/limits.h"
 
 namespace zn::ir {
@@ -146,20 +148,20 @@ bool inlineRound(Module& m) {
   // the callees as they were at the start of the round: only those that can be inlined (a copy of every function was a fifth of the optimiser, ZN-1024)
   std::vector<Function> snap(fs.size());
   for (std::size_t g = 1; g < fs.size(); ++g) if (ok[g]) snap[g] = fs[g];
-  bool changed = false;
+  std::atomic<bool> changed{false};
   const TypeId voidT = m.voidT();
-  for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {
+  parallelFor(m.functions.size(), [&](std::size_t fi) {   // each caller on its own: it reads only the snapshot (ZN-1024)
     Function& f = m.functions[fi];
     for (std::size_t bi = 0; bi < f.blocks.size(); ++bi)
       for (std::size_t k = 0; k < f.blocks[bi].insts.size(); ++k) {
         const Inst& i = f.blocks[bi].insts[k];
         if (i.op != IrOp::Call || !i.edges.empty() || i.sym == fi || !ok[i.sym] || size(f) > kCallerMaxInsts) continue;
         inlineAt(f, bi, k, snap[i.sym], voidT);
-        changed = true;
+        changed.store(true, std::memory_order_relaxed);
         break;  // the rest of this block moved to a new block, which the loop reaches later
       }
-  }
-  return changed;
+  });
+  return changed.load();
 }
 
 // Float constants used inside a loop are loaded once in the entry block (one LoadK per iteration saved per use). Only constants of blocks that are in
@@ -249,7 +251,8 @@ void foldConstGlobals(Module& m) {
 }
 
 void hoistConsts(Module& m) {
-  for (Function& f : m.functions) {
+  parallelFor(m.functions.size(), [&](std::size_t fi) {   // per function, reading m.types only (ZN-1024)
+    Function& f = m.functions[fi];
     std::vector<bool> inLoop = loopBlocks(f);
     std::map<std::pair<TypeId, std::uint64_t>, std::size_t> uses;  // distinct float constants in loop blocks and how often they appear
     auto isFloatConst = [&](const Inst& i) {
@@ -260,7 +263,7 @@ void hoistConsts(Module& m) {
     bool any = false;
     for (std::size_t b = 0; b < f.blocks.size(); ++b)
       if (inLoop[b]) for (const Inst& i : f.blocks[b].insts) if (isFloatConst(i)) { ++uses[key(i)]; any = true; }
-    if (!any) continue;
+    if (!any) return;
     std::vector<std::pair<std::size_t, std::pair<TypeId, std::uint64_t>>> ranked;
     for (auto& [k, n] : uses) ranked.push_back({n, k});
     std::stable_sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
@@ -281,7 +284,7 @@ void hoistConsts(Module& m) {
       }
       f.blocks[b].insts = std::move(keep);
     }
-    if (hoisted.empty()) continue;
+    if (hoisted.empty()) return;
     for (Block& b : f.blocks)
       for (Inst& i : b.insts) {
         for (ValueId& a : i.args) if (rename[a] != kNoValue) a = rename[a];
@@ -289,7 +292,7 @@ void hoistConsts(Module& m) {
       }
     auto& entry = f.blocks[0].insts;
     entry.insert(entry.begin(), hoisted.begin(), hoisted.end());
-  }
+  });
 }
 
 // Branches on a block parameter that a predecessor already decides. `a && b` and `a || b` lower to a diamond that joins in a block holding only
@@ -372,11 +375,12 @@ void removeUnreachable(Function& f) {
 }
 
 void threadBranches(Module& m) {
-  for (Function& f : m.functions) {
+  parallelFor(m.functions.size(), [&](std::size_t fi) {   // per function, reading m.types only (ZN-1024)
+    Function& f = m.functions[fi];
     bool any = false;
     for (int round = 0; round < 4 && threadOnce(m, f); ++round) any = true;
     if (any) removeUnreachable(f);
-  }
+  });
 }
 
 // Common subexpressions of pure operations along a chain of blocks where each has one predecessor (so the earlier value dominates the later use):
@@ -434,7 +438,7 @@ void cseFunction(Module& m, Function& f) {
     }
 }
 
-void cse(Module& m) { for (Function& f : m.functions) cseFunction(m, f); }
+void cse(Module& m) { parallelFor(m.functions.size(), [&](std::size_t fi) { cseFunction(m, m.functions[fi]); }); }   // per function, reading m.types only
 
 // A small self-recursive function is inlined into itself once: fib(n) runs the bodies of fib(n - 1) and fib(n - 2) in place, so a call and a return are paid
 // for every second level of the recursion. The copies keep their own recursive calls (they are not unrolled again).
@@ -619,16 +623,21 @@ void removeUnreachable(Module& m) {
 }  // namespace
 
 void optimize(Module& m, bool deviceCore) {
-  foldConstGlobals(m);   // first: inlining, CSE and hoisting then see the constants
-  if (!deviceCore) specializeSort(m);
-  devirtualize(m);
-  for (int round = 0; round < 3 && !m.debug && inlineRound(m); ++round) devirtualize(m);   // a debug build keeps every call a frame of its own
-  if (!std::getenv("ZN_NO_UNROLL") && !m.debug) unrollRecursion(m);
-  divByPowerOfTwo(m);
-  threadBranches(m);  // after inlining: an inlined `a && b` joins like a written one
-  cse(m);
-  hoistConsts(m);     // the constants the inlined bodies brought are loaded once too
-  if (!std::getenv("ZN_KEEP_UNREACHABLE")) removeUnreachable(m);   // last: inlining leaves more functions without callers
+  using zn::log::Phase;   // ZINC_LOG=build=debug: the time of each pass
+  { Phase p("build", "optimise: constant globals", zn::log::Debug); foldConstGlobals(m); }   // first: inlining, CSE and hoisting then see the constants
+  if (!deviceCore) { Phase p("build", "optimise: sort", zn::log::Debug); specializeSort(m); }
+  { Phase p("build", "optimise: devirtualise", zn::log::Debug); devirtualize(m); }
+  for (int round = 0; round < 3 && !m.debug; ++round) {   // a debug build keeps every call a frame of its own
+    Phase p("build", "optimise: inline round " + std::to_string(round + 1), zn::log::Debug);
+    if (!inlineRound(m)) break;
+    devirtualize(m);
+  }
+  if (!std::getenv("ZN_NO_UNROLL") && !m.debug) { Phase p("build", "optimise: unroll", zn::log::Debug); unrollRecursion(m); }
+  { Phase p("build", "optimise: division", zn::log::Debug); divByPowerOfTwo(m); }
+  { Phase p("build", "optimise: thread branches", zn::log::Debug); threadBranches(m); }  // after inlining: an inlined `a && b` joins like a written one
+  { Phase p("build", "optimise: cse", zn::log::Debug); cse(m); }
+  { Phase p("build", "optimise: hoist constants", zn::log::Debug); hoistConsts(m); }     // the constants the inlined bodies brought are loaded once too
+  if (!std::getenv("ZN_KEEP_UNREACHABLE")) { Phase p("build", "optimise: unreachable", zn::log::Debug); removeUnreachable(m); }   // last: inlining leaves more functions without callers
 }
 
 }  // namespace zn::ir
