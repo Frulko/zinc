@@ -62,6 +62,18 @@ ParseResult parseKept(const std::string& text) {
   return r;
 }
 
+// The whole file, "" when it cannot be read: one read, where a stringstream copied it a character at a time (the Lucide set alone is 770 KB,
+// read at every compile; ZN-1024).
+std::string slurp(const std::string& path) {
+  std::string text;
+  if (FILE* f = std::fopen(path.c_str(), "rb")) {
+    char buf[1 << 16];
+    for (std::size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, n);
+    std::fclose(f);
+  }
+  return text;
+}
+
 // The same for the regular-expression scans of a text (the icons it names, its relative imports): values that hold no view of the text.
 template <class V> class TextMemo {
   std::mutex mu_;
@@ -1429,9 +1441,7 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
   std::string project = findProjectFile(entry);
   fs::path root = project.empty() ? fs::path(entry).parent_path() : fs::path(project).parent_path();
   if (!project.empty()) {
-    std::ifstream in(project);
-    std::stringstream ss; ss << in.rdbuf();
-    std::string text = ss.str();
+    std::string text = slurp(project);
     if (yyjson_doc* d = yyjson_read(text.c_str(), text.size(), 0)) {
       yyjson_val* ic = yyjson_obj_get(yyjson_doc_get_root(d), "icons");
       size_t i, n; yyjson_val* v;
@@ -1447,12 +1457,11 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     if (it->is_directory() && (leaf == "node_modules" || leaf == "build" || leaf == "dist" || leaf[0] == '.')) { it.disable_recursion_pending(); continue; }
     const std::string ext = it->path().extension().string();
     if (ext != ".ts" && ext != ".tsx") continue;
-    std::ifstream in(it->path());
-    std::stringstream ss; ss << in.rdbuf();
+    const std::string fileText = slurp(it->path().string());
     using Found = std::pair<std::set<std::string>, std::set<std::string>>;   // every name, the literal ones
     static TextMemo<Found> scans;   // each text scanned once while it stays the same (ZN-1024)
-    const Found found = scans.get(ss.str(), [&] {
-      const std::string text = ss.str();
+    const Found found = scans.get(fileText, [&] {
+      const std::string& text = fileText;
       Found f;
       for (const std::regex* r : {&tag, &call})
         for (std::sregex_iterator m(text.begin(), text.end(), *r), e; m != e; ++m) { f.first.insert((*m)[1].str()); f.second.insert((*m)[1].str()); }
@@ -1465,9 +1474,7 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     names.insert(found.first.begin(), found.first.end());
     named.insert(found.second.begin(), found.second.end());
   }
-  std::ifstream in(nodesFile);
-  std::stringstream ss; ss << in.rdbuf();
-  const std::string data = ss.str();
+  const std::string data = slurp(nodesFile);
   if (data.empty() && (all || !names.empty())) std::fprintf(stderr, "zinc: warning: no Lucide icons: %s is missing (reinstall zinc)\n", nodesFile.c_str());
   std::string body, list, unknown;
   int count = 0;
@@ -1478,7 +1485,7 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     // pinned lucide-static's exports, keyed by the name in lower case without its dashes.
     std::map<std::string, std::vector<std::string>> asked;   // icon of the set -> the names the program writes for it
     std::string aliasText;
-    { std::ifstream ai(fs::path(nodesFile).parent_path() / "aliases.json"); std::stringstream as; as << ai.rdbuf(); aliasText = as.str(); }
+    aliasText = slurp((fs::path(nodesFile).parent_path() / "aliases.json").string());
     yyjson_doc* ad = yyjson_read(aliasText.c_str(), aliasText.size(), 0);
     std::vector<std::string> known;
     { size_t i, n; yyjson_val *k, *v; yyjson_obj_foreach(rootv, i, n, k, v) known.push_back(yyjson_get_str(k)); }
@@ -1610,10 +1617,7 @@ std::string platformModuleSource(const std::string& capsFile) {
   src += "export const UI_PLATFORM_LOOK: string = \"" + uiPlatformLook() + "\";\n";   // zinc.json ui.platformLook (ZN-748)
   src += "export const UI_RENDER: string = \"" + uiRender() + "\";\n";   // zinc.json ui.render: "native" lets a native host show the tree (D210)
   src += "export const UI_PRESET: string = \"" + uiPreset() + "\";\n";   // \"react-native\": RN style semantics in either engine (ZN-288)   // the layout engine zinc.json and the target chose (ZN-285)
-  std::ifstream in(capsFile);
-  std::stringstream ss;
-  ss << in.rdbuf();
-  text = ss.str();
+  text = slurp(capsFile);
   yyjson_doc* doc = yyjson_read_opts(const_cast<char*>(text.data()), text.size(), YYJSON_READ_NOFLAG, nullptr, nullptr);
   if (doc) {
     yyjson_val* t = yyjson_obj_get(yyjson_doc_get_root(doc), profile.c_str());
@@ -2505,7 +2509,8 @@ struct Loader {
     visiting[path] = true;
     ParseResult pr = parseKept(prog.files[fi].text);
     if (pr.ast.root != kNone && pr.diags.empty() && !isWebFile(path) && !typesMode) {
-      std::string add = webGlobalImports(pr.ast, kWebGlobals);
+      static TextMemo<std::string> webAdds;   // what a text gets depends on the text alone: each found once while it stays the same (ZN-1024)
+      std::string add = webAdds.get(prog.files[fi].text, [&] { return webGlobalImports(pr.ast, kWebGlobals); });
       if (!add.empty()) { prog.files[fi].text += add; pr = parseKept(prog.files[fi].text); }
     }
     for (Diag& d : pr.diags) { d.file = fi; prog.diags.push_back(d); }

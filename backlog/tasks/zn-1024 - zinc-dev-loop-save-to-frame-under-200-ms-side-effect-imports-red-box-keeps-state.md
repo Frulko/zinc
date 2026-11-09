@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:36'
-updated_date: '2026-11-09 10:13'
+updated_date: '2026-11-09 10:16'
 labels:
   - dev
   - perf
@@ -114,4 +114,6 @@ Step 13 (perf(ir): devirtualise each class and selector once): devirtualize scan
 Step 14 (perf(dev): take a save once two snapshots agree): zinc dev waited a fixed 30 ms after it saw a change before reading the files (an editor writes in steps); it now reads them again every 8 ms until two snapshots agree (at most 40 ms): a save in one write costs 8 ms. zinc dev of hero, four saves of a comment in Icon.tsx, load ~7: 614-626 ms after the save (662-720 before, steps 13-14).
 
 Step 15 (perf(ir): spread the throw and store facts over a worklist): which functions may throw and which may store a reference were fixed points that scanned every function again until nothing changed (on one thread, before the per-function work); one worklist over the reversed call graph and the vtable slots gives the same least fixed point. Rc::block moves its block's instructions instead of copying them, and a call that may throw looks only at the values the block holds (a bit set), not at every tracked value of the function. The dev entry of hero, load ~6: reference counting 96 -> 78 ms; a recompile of the dev entry 1210-1227 ms with the binary before step 10 -> 547-558 ms now. Same bytes (hot_recompile, the four examples, the dev entry, hero with ZN_NO_BORROW=1); tests/run --only rc_borrow, rc_lend, rc_refcast pass.
+
+Step 16 (perf(frontend): read files in one call, keep web globals by text): the loader read every file through a stringstream (a character at a time: the 770 KB Lucide set, its aliases, every .ts/.tsx of the project for the icon scan, each source, the capabilities), now one fread loop (readFile in main.cpp, the resolver's reader, slurp in modules.cpp); webGlobalImports (each identifier compared with 70 names, strlen each) is kept by text like the other scans. The dev entry of hero, load ~6.5: read and parse 72.6 -> 47.7 ms. Same bytes (hot_recompile, the four examples, the dev entry).
 <!-- SECTION:NOTES:END -->

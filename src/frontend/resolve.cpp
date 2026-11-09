@@ -52,12 +52,15 @@ ModuleResolver::ModuleResolver()
     : read([](const std::string& path, std::string& out) {
         std::error_code ec;
         if (!std::filesystem::is_regular_file(path, ec)) return false;
-        std::ifstream in(path, std::ios::binary);
-        if (!in) return false;
-        std::stringstream ss;
-        ss << in.rdbuf();
-        out = ss.str();
-        return true;
+        FILE* f = std::fopen(path.c_str(), "rb");   // one read: a stringstream copied a character at a time (ZN-1024)
+        if (!f) return false;
+        std::string text;
+        char buf[1 << 16];
+        for (std::size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, n);
+        const bool ok = !std::ferror(f);
+        std::fclose(f);
+        if (ok) out = std::move(text);
+        return ok;
       }),
       exists([](const std::string& path) { std::error_code ec; return std::filesystem::is_regular_file(path, ec); }),
       passOver([](const std::string& candidate, const std::string& from) { return candidate == from; }) {}

@@ -140,12 +140,15 @@ static std::string hostLibs() {   // ZN_HOST_LIBS with @bin@ (the directory of t
 static std::string gRoot = ZN_SOURCE_DIR;  // the engine files: the checkout, or the package around the binary (zn::tc::sourceRoot)
 static bool readFile(const std::string& path, std::string& out) {
   if (!std::filesystem::is_regular_file(path)) return false;
-  std::ifstream in(path, std::ios::binary);
-  if (!in) return false;
-  std::stringstream buf;
-  buf << in.rdbuf();
-  out = buf.str();
-  return true;
+  FILE* f = std::fopen(path.c_str(), "rb");   // one read of the whole file: a stringstream copied it a character at a time (ZN-1024: 2% of a compile)
+  if (!f) return false;
+  std::string text;
+  char buf[1 << 16];
+  for (std::size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) text.append(buf, n);
+  const bool ok = !std::ferror(f);
+  std::fclose(f);
+  if (ok) out = std::move(text);
+  return ok;
 }
 
 // Loads the entry file and the files it imports, checks the program; diagnostics are printed. Returns false on errors.
