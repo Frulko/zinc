@@ -4,8 +4,7 @@ title: >-
   Checker regression: examples/ipod-web fails zinc check with Z0103 'El |
   Failure' to 'Failure'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 08:34'
 updated_date: '2026-11-09 08:48'
 labels:

@@ -1,10 +1,10 @@
 ---
 id: ZN-1049
 title: 'iPod demo tests: deterministic and independent of the machine'
-status: Backlog
+status: Review
 assignee: []
 created_date: '2026-11-07 16:39'
-updated_date: '2026-11-09 08:23'
+updated_date: '2026-11-09 08:50'
 labels:
   - ipod
   - test
@@ -52,4 +52,6 @@ Done:
 Blocker (develop eff1a5a2b, not this task): examples/ipod and examples/ipod-web do not compile: zinc check examples/ipod-web gives Z0103 Type non assignable: 'El | Failure' vers 'Failure', reported at a meaningless place in lib/std/web.ts (4:64, 109:3 or 121:31 depending on the entry). The source is examples/ipod-web/src/services/subsonic.ts (the iPod app imports it): with every function body there replaced by a throw except songEl and authorized, the error stays; a standalone copy of those signatures does not reproduce it. Likely from the checker changes of 2026-11-09 (beb619f27 lambda-in-field-initialiser clones and unTdz narrowing, 0d6e694d8 fields assigned in both branches, 498f78a79 widened records). Every iPod app session (ipod_deep 2 and 3, ipod_demo, ipod_listening, ipod_sonos, ipod_nav, ipod_foryou 2-6...) fails until it is fixed.
 Next: once the app compiles, run tests/run --only ipod_listening, ipod_sonos, ipod_demo (macOS, alone), ipod_deep (about 5 min: over the one-minute bound, for the owner) and tick #1, #3, #4.
 Proposed tests: ipod_listening (new T1, ~1 min, ~300 MB); ipod_sonos with the remote step (~1.5 min); ipod_deep (~5 min); ipod_demo (~2 min, hdiutil).
+
+2026-11-09 coordinator: the blocker ZN-1077 is fixed on develop (81e7592e3): zinc check passes on examples/ipod-web and examples/ipod. The remaining criteria (#1 auto sync, #3, #4) are proven by T1 runs listed in RESUME.md Tests to run (ipod_listening, ipod_sonos, ipod_demo, ipod_deep): the owner's call.
 <!-- SECTION:NOTES:END -->
