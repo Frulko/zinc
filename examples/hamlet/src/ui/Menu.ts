@@ -3,7 +3,7 @@ import { openDebug } from './Debug';
 import { width, height, rrect, createImage, updatePixels, drawImageRect, ImageFlag, KeyKind, startTextInput, stopTextInput } from 'zinc:gfx';
 import { world, tileCount } from '../world/world';
 import { economy } from '../world/economy';
-import { snapshot, restore } from '../world/save';
+import { snapshot, restore } from '../world/snapshot';
 import { parseSeedRequest, randomSeed } from '../world/seed';
 import { population } from '../engine/villagers';
 import { TERRAIN_WATER, TERRAIN_VOID, MIN_SIZE, MAX_SIZE, DEFAULT_SIZE } from '../constants';
@@ -87,7 +87,9 @@ function saveSlot(i: number): void {
 function loadSlot(i: number): void {
   let data = '';
   try { data = storage.get('hamlet:slot:' + i); } catch (error) { data = ''; }
-  if (data === '' || !restore(data)) { act.say('Cet emplacement ne peut pas être chargé.'); return; }
+  if (data === '') { act.say('Cet emplacement ne peut pas être chargé.'); return; }
+  const r = restore(data);
+  if (!r.ok()) { act.say(r.message); return; }
   act.loaded(); ui.window = WIN_NONE; act.say('Hameau chargé : emplacement ' + (i + 1) + '.');
 }
 function drawThumb(s: Slot, x: number, y: number, size: number): void {

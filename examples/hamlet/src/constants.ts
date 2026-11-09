@@ -157,4 +157,5 @@ export const DEER_CHARGE = 8;           // a cornered boar runs at the person, a
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
 export const SAVE_VERSION = 'H22';
+export const SAVE_OLDEST = 'H19';         // the oldest save this build still reads (world/snapshot.ts migrates H19 to H21 on load)
 export const SAVE_DELAY = 2;            // seconds between two writes

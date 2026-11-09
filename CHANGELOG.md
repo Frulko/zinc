@@ -270,6 +270,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - In Musique (arbre), ticking a room to group it with the speakers shows the tick at once, faded until the Sonos confirms, instead of nothing for one to three seconds.
 - `examples/js-phaser` opens at three times its 320x240 game size on a desktop, instead of a small window.
 - `examples/midi` plays each note as a tone too, so its first run is heard with no instrument open (`MIDI_TONE=0` leaves the sound to the instrument).
+- Hamlet refuses a save made by a newer version with a sentence that says so, and keeps that save aside instead of overwriting it with a new village.
 
 #### Faster
 

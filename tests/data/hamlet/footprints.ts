@@ -1,7 +1,7 @@
 // Headless proof of the building footprints (economy.json "size": [w, h]): validator, placement rules, demolition, picking, the door, coverage from the edge, house growth and the save. No window.
 import { world, generate as generateWith, tileIndex, tileI, tileJ, footprint, rectEdge, growSpot } from '../../../examples/hamlet/src/world/world';
 import { applyTool, checkTool, addBuilding, toolOf } from '../../../examples/hamlet/src/rules/build';
-import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
+import { snapshot, restore } from '../../../examples/hamlet/src/world/snapshot';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
 import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
 import { createResident } from '../../../examples/hamlet/src/engine/villagers';
@@ -136,7 +136,7 @@ applyTool(T('storehouse'), at(4, 8)); applyTool(T('farm'), at(8, 6)); applyTool(
 for (let k = 0; k < 40; k++) stepWorld();
 const text = snapshot(), listed = world.buildings.filter((b: Building): boolean => b.alive).map((b: Building): string => b.type + ':' + b.i + ':' + b.j + ':' + b.w + 'x' + b.h).join();
 check('the save lists a bigger building once, by its anchor', text.split(';')[4].split(',').filter((e: string): boolean => e.split('.')[0] === String(type('storehouse'))).length === 2 && text.indexOf('.' + at(4, 8) + '.') > 0);
-const ok = restore(text);
+const ok = restore(text).ok();
 check('it restores: same buildings, same footprints, same grid', ok && world.buildings.filter((b: Building): boolean => b.alive && economy.buildings[b.type].w * economy.buildings[b.type].h > 1).every((b: Building): boolean => footprint(b).every((t: number): boolean => world.build[t] === world.buildings.indexOf(b))));
 check('every building keeps its type, anchor and size', (() => { const now = world.buildings.filter((b: Building): boolean => b.alive).map((b: Building): string => b.type + ':' + b.i + ':' + b.j + ':' + b.w + 'x' + b.h).join(); if (now !== listed) console.log(listed + ' / ' + now); return now === listed; })());
 {
@@ -145,7 +145,7 @@ check('every building keeps its type, anchor and size', (() => { const now = wor
   addBuilding(type('lumberhut'), at(5, 8), 1, 1);                    // an older village: the next tile holds another building
   addBuilding(type('sawmill'), at(4, 8), 1, 1);
   const old = 'H21' + snapshot().slice(3);               // the version before the footprints
-  const good = restore(old);
+  const good = restore(old).ok();
   const saw = world.buildings.filter((b: Building): boolean => b.type === type('sawmill'))[0];
   check('an old save with a building where the footprint would go loads, the sawmill stays 1 x 1 and nothing is lost', good && saw.w === 1 && saw.h === 1 && world.buildings.filter((b: Building): boolean => b.alive && b.type === type('lumberhut')).length === 1 && world.build[at(5, 8)] >= 0 && world.build[at(4, 8)] >= 0 && world.build[at(5, 8)] !== world.build[at(4, 8)]);
 }
@@ -157,7 +157,7 @@ check('every building keeps its type, anchor and size', (() => { const now = wor
   fresh();
   roadRow(10, 2, 14);
   addBuilding(type('sawmill'), spot, 1, 1);                           // the next tile is free: it takes its 2 x 1 on load
-  const good = restore('H21' + snapshot().slice(3));
+  const good = restore('H21' + snapshot().slice(3)).ok();
   const saw = world.buildings.filter((b: Building): boolean => b.type === type('sawmill'))[0];
   check('an old 1 x 1 save with room takes the footprint of today', good && spot >= 0 && saw.w === 2 && saw.h === 1 && world.build[spot + 1] === world.build[spot]);
 }

@@ -9,7 +9,7 @@ import { createResident } from '../../../examples/hamlet/src/engine/villagers';
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
 import { sendRobber } from '../../../examples/hamlet/src/engine/crime';
-import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
+import { snapshot, restore } from '../../../examples/hamlet/src/world/snapshot';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
 import { PRESETS } from '../../../examples/hamlet/src/gen/presets';
 import { copyTerrainParams } from '../../../examples/hamlet/src/gen/terrain';
@@ -98,7 +98,7 @@ for (let t = 0; t < world.size * world.size && voidTile < 0; t++) if (world.terr
 world.tree[voidTile] = 2; world.rock[voidTile] = 1; world.deco[voidTile] = 1;
 const dirty = snapshot();
 generate(1, 24, copyTerrainParams(PRESETS[0].params));
-const loaded = restore(dirty), strays = stray('restored save');
+const loaded = restore(dirty).ok(), strays = stray('restored save');
 function check(name: string, ok: boolean): void { console.log('hamlet bounds: ' + name + (ok ? ' PASS' : ' FAIL')); if (!ok) failures++; }
 check('a save with objects on the void loads clean', loaded && strays === 0);
 check('nothing stands, spawns, regrows or walks on the void or off the grid', bad.length === 0);

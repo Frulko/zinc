@@ -4,7 +4,7 @@ import * as fs from 'zinc:fs';
 import { world, generate } from '../../../examples/hamlet/src/world/world';
 import { economy, loadEconomy } from '../../../examples/hamlet/src/world/economy';
 import { missions, Mission, loadMissions, parseMission, applyMission, currentMission, limitTicks, missionLoss, timeLeftText } from '../../../examples/hamlet/src/world/missions';
-import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
+import { snapshot, restore } from '../../../examples/hamlet/src/world/snapshot';
 import { goalReady, conditionText, isUnlocked, lockText, holdLeft } from '../../../examples/hamlet/src/rules/goals';
 import { applyTool, toolOf } from '../../../examples/hamlet/src/rules/build';
 import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
@@ -95,11 +95,11 @@ run(22);
 check('then the planks goal opens the lodge', world.goals[1] === 1 && isUnlocked(economy.typeOf('lodge')));
 const saved = snapshot(), progressed = world.goals.join('');
 applyMission(''); generate(5, 16);
-check('the save carries the mission: goals, locks and knobs come back', restore(saved) && world.mission === missions[0].id && world.goals.join('') === progressed && economy.goals.length === 7 && snapshot() === saved);
+check('the save carries the mission: goals, locks and knobs come back', restore(saved).ok() && world.mission === missions[0].id && world.goals.join('') === progressed && economy.goals.length === 7 && snapshot() === saved);
 const m3 = missions[2];
 begin(m3); world.tick = 500; const saved3 = snapshot();
 applyMission(''); generate(9, 16);
-check('another mission survives the round trip too (a sandbox village loads as a sandbox)', restore(saved3) && currentMission() === m3 && economy.goals.length === 5 && snapshot() === saved3 && (applyMission(''), generate(9, 16), restore(snapshot()) && world.mission === '' && economy.goals.length === economy.campaignGoals.length));
+check('another mission survives the round trip too (a sandbox village loads as a sandbox)', restore(saved3).ok() && currentMission() === m3 && economy.goals.length === 5 && snapshot() === saved3 && (applyMission(''), generate(9, 16), restore(snapshot()).ok() && world.mission === '' && economy.goals.length === economy.campaignGoals.length));
 
 function crowd(n: number): void { const t = world.gate + 3 * world.size; world.terrain[t] = 0; world.tree[t] = 0; world.rock[t] = 0; world.buildings[addBuilding(HOUSE, t)].residents = n; }
 // ---- the new condition kinds, held stocks, the time limit ----

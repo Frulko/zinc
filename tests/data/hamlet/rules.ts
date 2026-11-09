@@ -6,7 +6,7 @@ import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
 import { updateNature } from '../../../examples/hamlet/src/engine/nature';
 import { population, createResident } from '../../../examples/hamlet/src/engine/villagers';
 import { seedFromText, parseSeedRequest } from '../../../examples/hamlet/src/world/seed';
-import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
+import { snapshot, restore, SaveCheck } from '../../../examples/hamlet/src/world/snapshot';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
 import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK, PLACE_NO_LODE, PLACE_LOCKED, ROLE_PEDDLER, ROCK_DEPOSIT, LODE_REACH } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
@@ -57,7 +57,7 @@ import { dailyMood } from '../../../examples/hamlet/src/engine/mood';
 import { SPECIES, SP_WOLF, SP_RABBIT } from '../../../examples/hamlet/src/rules/species';
 import { Deer, spawnDeer, tileX } from '../../../examples/hamlet/src/world/world';
 import { personTarget, feelFrom, thoughtOf, workPace, arrivalFactor, leavingToday, FEEL_ANGRY, FEEL_HOMELESS, FEEL_HUNGRY, FEEL_TIRED, FEEL_JOBLESS, FEEL_CONTENT } from '../../../examples/hamlet/src/rules/needs';
-import { DEER_GRAZE, DEER_GONE, DEER_DEAD, DEER_ALERT, DEER_FLEE, DEER_REST, DEER_DRINK, DEER_STALK, DEER_CHASE, DEER_EAT, ST_SLEEP, ST_HOME, DAY_TICKS } from '../../../examples/hamlet/src/constants';
+import { DEER_GRAZE, DEER_GONE, DEER_DEAD, DEER_ALERT, DEER_FLEE, DEER_REST, DEER_DRINK, DEER_STALK, DEER_CHASE, DEER_EAT, ST_SLEEP, ST_HOME, DAY_TICKS, ST_IDLE } from '../../../examples/hamlet/src/constants';
 
 // the rules are proven on one-tile buildings (the layouts below are packed): footprints have their own test, tests/data/hamlet/footprints.ts
 const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json').replace(/"size": \[[0-9, ]+\], ?/g, '');   // the test runs from the repository root
@@ -130,7 +130,7 @@ check('normal mode regrows slowly: a tree every 4 s at most', world.tree.filter(
 world.unlimited = true;
 const text = snapshot();
 const roads = world.road.filter((v) => v === 1).length;
-check('the save restores the same village (trees and mode)', restore(text) && world.unlimited && snapshot() === text && world.road.filter((v) => v === 1).length === roads);
+check('the save restores the same village (trees and mode)', restore(text).ok() && world.unlimited && snapshot() === text && world.road.filter((v) => v === 1).length === roads);
 applyTool(TOOL_ERASE, at(3, 5)); applyTool(TOOL_ERASE, at(2, 5)); applyTool(TOOL_ERASE, at(4, 5));
 check('demolishing the houses sends their people away', population() === 0 && world.people.length === 0);
 // ---- the fishing hut: needs a pond, then fishers bring fish ----
@@ -302,7 +302,7 @@ cabin.cover[WATER] = 9999;
 run(240);
 check('after the devolve days the house falls back and the surplus residents leave', cabin.level < 2 && cabin.residents <= capacityOf(cabin) && world.people.filter((p) => p.home === hh).length === cabin.residents);
 const saved = snapshot();
-check('the levels survive a save round trip', restore(saved) && snapshot() === saved);
+check('the levels survive a save round trip', restore(saved).ok() && snapshot() === saved);
 // ---- chain 4: the tannery turns hides into leather; the market stall needs leather; the well waters the houses within its radius ----
 generate(1234, 16); rich(); clearRow(); world.tree[at(12, 12)] = 0; world.rock[at(12, 12)] = 0; world.tree[at(4, 5)] = 0; world.rock[at(4, 5)] = 0; world.tree[at(3, 5)] = 0; world.rock[at(3, 5)] = 0; world.tree[at(6, 9)] = 0; world.rock[at(6, 9)] = 0;
 const LEATHER = economy.resourceOf('leather'), HIDE2 = economy.resourceOf('hide'), WATER2 = economy.serviceOf('water');
@@ -380,7 +380,7 @@ setStock(economy.resourceOf('tools'), 0);   // a tool in the stores would add it
 const rev = world.revision, snap = snapshot();
 run(25);
 check('quarrymen bring stone, one unit per trip, from the deposit', world.stock[STONE_R] + world.buildings[world.build[at(5, 9)]].stock[STONE_R] >= 1 && world.lode[at(7, 9)] <= 1);
-check('the deposit survives a save round trip, partly worked', restore(snapshot()) && world.rock[at(7, 9)] === (world.lode[at(7, 9)] > 0 ? ROCK_DEPOSIT + STONE_K : 0) && snapshot().length > 0);
+check('the deposit survives a save round trip, partly worked', restore(snapshot()).ok() && world.rock[at(7, 9)] === (world.lode[at(7, 9)] > 0 ? ROCK_DEPOSIT + STONE_K : 0) && snapshot().length > 0);
 run(60);
 check('a used-up deposit disappears and the scenery is redone', world.rock[at(7, 9)] === 0 && world.lode[at(7, 9)] === 0 && world.revision > rev && world.stock[STONE_R] + world.buildings[world.build[at(5, 9)]].stock[STONE_R] === 2);
 // ---- bees: flowers speed the hive, winter stops it, honey and wax come out, candles light a house ----
@@ -409,7 +409,7 @@ run(25);
 const w1 = world.stock[HONEY] + hive.stock[HONEY] + stockWithCarried(world.build[at(5, 9)])[HONEY];
 check('no honey is made in winter', w1 === w0);
 check('candles light a house only while lit', litBonus(world.buildings[bh]) === 0 && (world.buildings[bh].fed[CANDLE] = 2, litBonus(world.buildings[bh]) === 1));
-check('the new goods survive a save round trip', restore(snapshot()) && world.buildings.some((b) => b.alive && b.type === APIARY_T));
+check('the new goods survive a save round trip', restore(snapshot()).ok() && world.buildings.some((b) => b.alive && b.type === APIARY_T));
 // ---- goals: locked buildings, conditions checked daily, rewards as commands that replay, progress in the save ----
 world.progression = true;
 generate(1234, 16); clearRow();
@@ -429,7 +429,7 @@ run(22);
 check('wood, planks, then the lodge opens: the tutorial chain', world.goals[goalIx('planks')] === 1 && lockText(LODGE_T) === '' && world.log.length === 2);
 const logged = world.log.slice(), planksNow = world.stock[PLANK];
 const saveText = snapshot();
-check('goal progress and unlocks survive a save round trip', restore(saveText) && world.goals[goalIx('planks')] === 1 && lockText(LODGE_T) === '' && snapshot() === saveText);
+check('goal progress and unlocks survive a save round trip', restore(saveText).ok() && world.goals[goalIx('planks')] === 1 && lockText(LODGE_T) === '' && snapshot() === saveText);
 generate(1234, 16);
 check('a fresh village is locked again', world.goals.every((v) => v === 0) && lockText(LODGE_T) !== '');
 const next = replayAt(logged, 0, 1e9);
@@ -473,7 +473,7 @@ let poor = -1;
 for (let k = 0; k < world.offers.length; k++) if (world.offers[k].side === 'sell' && !world.offers[k].taken) poor = k;
 check('without the coins the village cannot buy', poor < 0 || (!canTrade(poor) && !issue('trade', poor)));
 const tradeSave = snapshot();
-check('the peddler and his offers survive a save round trip', restore(tradeSave) && snapshot() === tradeSave && peddlers() === 1 && world.offers.length === offered.length);
+check('the peddler and his offers survive a save round trip', restore(tradeSave).ok() && snapshot() === tradeSave && peddlers() === 1 && world.offers.length === offered.length);
 check('the offer lines are plain words', offerLines().length === 3 && offerLines()[0].indexOf('Pièces') > 0);
 world.progression = false;
 // ---- adventures: people leave for days, come back with a reward, some may be lost; start and return are commands ----
@@ -511,7 +511,7 @@ world.unlocked.fill(1); setStock(SMOKED3, 5); setStock(HIDE3, 0);
 issue('adventure_start', HUNT);
 run(25);
 const midText = snapshot(), midPeople = world.people.length;
-check('a save in the middle of an adventure round trips: the members stay away', restore(midText) && snapshot() === midText && world.expeditions.length === 1 && world.people.length === midPeople);
+check('a save in the middle of an adventure round trips: the members stay away', restore(midText).ok() && snapshot() === midText && world.expeditions.length === 1 && world.people.length === midPeople);
 run(30);
 check('after the restore the expedition still comes home with its reward', world.expeditions.length === 0 && world.stock[HIDE3] >= 6 && world.people.length >= 3 && world.news.some((n) => n.indexOf('Retour') >= 0 || n.indexOf('pas revenue') >= 0));
 check('an adventure needs its people and cost', !canStart(HUNT) || (setStock(SMOKED3, 0), !canStart(HUNT)));
@@ -665,10 +665,10 @@ const isOpenBlocked = (t: number): boolean => !isOpen(t);
   check('the plain flag gives no wolf on open country', wolvesOf().length === 0);
   withWolves(1, 1, 11);
   const wtext = snapshot(), wfields = wtext.split(';');
-  check('the save keeps the wolves flag', restore(wtext) && world.params.wolves === 1 && wolvesOf().length >= 3);
+  check('the save keeps the wolves flag', restore(wtext).ok() && world.params.wolves === 1 && wolvesOf().length >= 3);
   const pf = wfields[10].split(',');
   wfields[10] = pf.slice(0, 9).join(',');
-  check('a save from before the wolves has none', pf.length === 12 && restore(wfields.join(';')) && world.params.wolves === 0 && wolvesOf().length === 0);
+  check('a save from before the wolves has none', pf.length === 12 && restore(wfields.join(';')).ok() && world.params.wolves === 0 && wolvesOf().length === 0);
   // a wolf holds still to be looked at
   withWolves(1, 1, 11);
   const house1 = addBuilding(HOUSE, at(2, 7)); createResident(house1);
@@ -890,8 +890,8 @@ console.log('hamlet rules: moodhash ' + moodHash + ':' + world.rng);        // c
   for (const h of houses) if (world.buildings[h].alive && world.buildings[h].type === HOUSE) world.buildings[h].residents = world.people.filter((p) => p.home === h).length;   // as many residents as people, as a save has
   world.mood = 70;                                                                    // a loaded village starts at the neutral mood
   const saved = snapshot(), keep = stateHash();
-  check('a save from before the risks is not loaded', !restore('H17' + saved.slice(saved.indexOf(';'))));
-  check('the save round trip keeps counters, burning ruins and the risks flag', restore(saved) && stateHash() === keep && world.risks && world.buildings.some((b) => b.type === RUIN && b.burn === 1) && world.buildings.some((b) => b.fire === 17 && b.damage === 5 && b.crime === 3));
+  check('a save from before the risks is not loaded', !restore('H17' + saved.slice(saved.indexOf(';'))).ok());
+  check('the save round trip keeps counters, burning ruins and the risks flag', restore(saved).ok() && stateHash() === keep && world.risks && world.buildings.some((b) => b.type === RUIN && b.burn === 1) && world.buildings.some((b) => b.fire === 17 && b.damage === 5 && b.crime === 3));
   check('the economy refuses a ruin that can be built and a safety service with no walker', bad('"buildable": false', '"buildable": true').join().indexOf('bad-risk') >= 0 && bad('"service": { "id": "fire", "walker": true, "range": 14 }', '"service": { "id": "fire", "radius": 4 }').join().indexOf('bad-service') >= 0);
   // a whole village with risks, run for forty days: identical on the three engines
   generate(2468, 16); rich(); world.risks = true;
@@ -975,7 +975,15 @@ check('world.tick counts whole ticks', world.tick === 600 && Math.abs(world.time
 const hashed = stateHash();
 console.log('hamlet rules: statehash ' + hashed);
 const rngBefore = world.rng;
-check('the save restores the state hash and the generator', restore(snapshot()) && stateHash() === hashed && world.rng === rngBefore);
+const midJob = world.people.filter((q: Person): boolean => q.job >= 0 && q.state !== ST_IDLE).length, savedStocks = world.buildings.filter((b) => b.alive && b.stock.some((n: number): boolean => n > 0)).length;
+check('the village saved below has stocks, workers in the middle of a job and deer', midJob > 0 && savedStocks > 0 && world.deer.length > 0);
+check('the save restores the state hash and the generator', restore(snapshot()).ok() && stateHash() === hashed && world.rng === rngBefore);
+// ---- save versions: a save of the current format still loads (a village like the one above, seed 1234 on 16 x 16, 600 ticks); a newer version or a stranger text is refused with a sentence, the village untouched ----
+const fixture = fs.readText('tests/data/hamlet/save-h22.txt').trim();
+check('a committed H22 save still loads', restore(fixture).ok() && world.seed === 1234 && world.size === 16 && world.tick === 600 && world.road.filter((v) => v === 1).length === 7 && world.buildings.filter((b) => b.alive).length === 4);
+const keptHash = stateHash(), future = restore('H23' + fixture.slice(fixture.indexOf(';'))), shortFuture = restore('H100;1;2'), stranger = restore('hello');
+check('a save from a newer version is refused with a message, the village untouched', !future.ok() && future.check === SaveCheck.Future && future.message.indexOf('H23') >= 0 && shortFuture.check === SaveCheck.Future && stateHash() === keptHash);
+check('a text that is no save is refused with a message', !stranger.ok() && stranger.check === SaveCheck.NotASave && stranger.message !== '' && restore('H17' + fixture.slice(fixture.indexOf(';'))).check === SaveCheck.TooOld);
 // ---- map presets: deterministic on every engine, a plain default, every required deposit reachable on foot from the gate, params kept by a save ----
 const defaultVillage = new TerrainParams(); defaultVillage.genStyle = GEN_CLUSTERED;   // the presets use the clustered generator
 check('the first preset is the default village', JSON.stringify(PRESETS[0].params) === JSON.stringify(defaultVillage));
@@ -1005,7 +1013,7 @@ for (const pr of PRESETS) for (const size of [24, 40]) {
   }
   check('preset ' + pr.label + ' ' + size + ': required deposits reachable from the gate' + missing, missing === '');
   const before = stateHash(), p = world.params;
-  check('preset ' + pr.label + ' ' + size + ': a save keeps the params', restore(snapshot()) && stateHash() === before && world.params.coast === p.coast && world.params.outcrop === p.outcrop && world.params.river === p.river && world.params.biomes === p.biomes && world.params.waterAmount === p.waterAmount);
+  check('preset ' + pr.label + ' ' + size + ': a save keeps the params', restore(snapshot()).ok() && stateHash() === before && world.params.coast === p.coast && world.params.outcrop === p.outcrop && world.params.river === p.river && world.params.biomes === p.biomes && world.params.waterAmount === p.waterAmount);
 }
 // ---- biomes and seasons: the default village is the biome generator; reeds, trails, fertile plains; biomes.json is checked; flowers sleep in winter ----
 check('the default village is the biome generator, Classique the uniform scatter', new TerrainParams().biomes === 1 && PRESETS[PRESETS.length - 1].label === 'Classique' && PRESETS[PRESETS.length - 1].params.biomes === 0);
@@ -1338,10 +1346,10 @@ check('relief: no bridge between banks of two levels', planRoad(at(2, 6), at(9, 
   setOrder(hall, WOOD, ORDER_REFUSE); vb.turn = 7;
   const kept = snapshot(), hashKept = stateHash();
   world.buildings[hall].orders = []; vb.turn = 0;
-  check('save: orders and turns round-trip', restore(kept) && snapshot() === kept && stateHash() === hashKept && orderOf(world.buildings[hall], WOOD) === ORDER_REFUSE && world.buildings[world.build[at(5, 5)]].turn === 7);
+  check('save: orders and turns round-trip', restore(kept).ok() && snapshot() === kept && stateHash() === hashKept && orderOf(world.buildings[hall], WOOD) === ORDER_REFUSE && world.buildings[world.build[at(5, 5)]].turn === 7);
   const old = kept.split(';'); old[0] = 'H20';
   old[4] = old[4].split(',').map((e) => e.split('.').slice(0, 9).join('.')).join(',');
-  check('save: an H20 save loads with no orders and turn 0', restore(old.join(';')) && world.buildings[world.build[at(5, 5)]].turn === 0 && orderOf(world.buildings[hall], WOOD) === ORDER_ACCEPT);
+  check('save: an H20 save loads with no orders and turn 0', restore(old.join(';')).ok() && world.buildings[world.build[at(5, 5)]].turn === 0 && orderOf(world.buildings[hall], WOOD) === ORDER_ACCEPT);
 }
 // ---- labour pool below 100: the unemployed are the pool's adults without a job, never the whole village; a scarce pool starts every workshop ----
 {
@@ -1367,9 +1375,9 @@ generate(21, 32, MOUNTAINS);
 world.height[at(4, 4)] = 3;
 const withRelief = snapshot(), savedHeights = world.height.slice();
 generate(1, 24, new TerrainParams());
-check('relief: the save round-trips the heights', restore(withRelief) && world.size === 32 && world.height.join('') === savedHeights.join('') && Math.max(...world.height) > 0 && world.height[at(4, 4)] === 3);
+check('relief: the save round-trips the heights', restore(withRelief).ok() && world.size === 32 && world.height.join('') === savedHeights.join('') && Math.max(...world.height) > 0 && world.height[at(4, 4)] === 3);
 const fields = withRelief.split(';');
 fields[0] = 'H19'; fields.pop(); fields[10] = fields[10].split(',').slice(0, 10).join(',');
-check('relief: a save from before the heights loads flat', restore(fields.join(';')) && world.size === 32 && world.height.every((v) => v === 0) && world.params.relief === 0);
+check('relief: a save from before the heights loads flat', restore(fields.join(';')).ok() && world.size === 32 && world.height.every((v) => v === 0) && world.params.relief === 0);
 console.log('hamlet rules: reliefsavehash ' + (stateHash() >>> 0));
 console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');

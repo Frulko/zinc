@@ -139,7 +139,8 @@ export class HamletScene extends Sprite {
     winRegister('info', drawInfo); winRegister('campaign', drawCampaign); winRegister('advisors', drawAdvisors);
     winRegister('overlays', drawOverlayMenu); winRegister('debug', drawDebugWindow); winRegister('panel', (): void => this.drawPanel());
     world.autosave = true;
-    if (loadGame()) ui.window = WIN_MAIN; else generate(randomSeed());
+    const saved = loadGame();
+    if (saved.ok()) ui.window = WIN_MAIN; else { generate(randomSeed()); if (saved.message !== '') this.say(saved.message); }
     this.bake(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size;
     debugHooks.devPanel = (): void => { this.panel.open = !this.panel.open; }; debugHooks.rebake = (): void => { this.baked = -1; };
     act.setTool = (tool: number): void => { this.tool = tool; uiState.dirty = true; };
