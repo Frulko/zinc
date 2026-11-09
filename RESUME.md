@@ -26,11 +26,13 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 ## Current verification and next commands
 
+-1108 reserved NEXT fresh core slot: valid `track()?.keys.find(...)` fails Z0106 on Key[] while direct call passes. Blocks original Tool14 Timeline/Curve code; no app guard workaround. Minimal sources/logs .logs/blockers/optional-array-method and panels/.logs. TypeScript3.7/ECMAScript primary references in task. Current three slots are Code/Tool/Charts; assign fresh core when one reports, prioritize this blocker.
+
 Root final targeted checks PASS on the rebuilt clean binary: collection_results, nullable_numeric, text_offset, component_signal, kit_data (twelve runs), kit_feedback and raw unchanged kit_size. Combined JS235962/239047/275739B (4076/component;172B strict headroom), AOT5325320/5374848/5926624B (61308/component). Source hashes/raw stdout: docs/reports/bench/kit-integration-2026-11-10.json and .logs/integration-2026-11-10. Data12 and Feedback11 are closed/released on this evidence. Only exact regressions/short feature proofs ran, no suite.
 
-First OptiPlex proof: cross-build the unchanged nullable_numeric fixture for x86_64-linux on the Mac, deploy under ~/zn/nullable-numeric-20261110 and run bounded/headless; build is queued/running, no target result claimed yet.
+First OptiPlex proof PASS: unchanged nullable_numeric fixture cross-built on Mac for x86_64-linux, deployed under ~/zn/codex-1106-20261110-da7ca, ran headless with timeout15 via Tailscale, exit0/nullable numeric: pass. SHA2567c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No process left; desktop/GPU and native Linux compiler build remain unproven. Provenance in kit-integration JSON.
 
-Archive completed worker logs/provenance before removing clean trees/branches; retained clean binary users must be notified before replacement/removal. Core work/1101 and work/1105 are finished; old proof/worker trees are still retained pending final shared replay.
+Archived nine clean completed trees (1101,1105,1100,1096,size review,panels research and three family proof trees) under .logs/archive-completed-workers-20261110 before removal. The common retained binary remains; all active workers were told its new hash. Original old family checkpoint trees remain separate from active workers.
 
 ## Machines and clean binaries
 

@@ -47,5 +47,29 @@
     "physical accessibility/touch/device glyph parity",
     "broad suites and long churn"
   ],
-  "owned_processes": "none after each bounded check"
+  "owned_processes": "none after each bounded check",
+  "additional_target_proof": {
+    "machine": "OptiPlex Fedora45 x86_64, i3-7100T,16GB",
+    "ssh_lan": "mowmow@192.168.2.228",
+    "ssh_tailscale": "mowmow@100.66.7.14",
+    "target": "x86_64-linux",
+    "fixture": "tests/data/nullable_numeric/main.ts",
+    "source_commit": "da7ca0360",
+    "binary_sha256": "7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a",
+    "binary_bytes": 4865088,
+    "remote_path": "~/zn/codex-1106-20261110-da7ca/nullable-numeric-linux",
+    "command": "ZINC_HEADLESS=1 timeout 15 ./nullable-numeric-linux",
+    "result": "nullable numeric: pass",
+    "exit": 0,
+    "logs": [
+      ".logs/integration-2026-11-10/linux-build.log",
+      ".logs/integration-2026-11-10/linux-run.log"
+    ],
+    "not_proven": [
+      "desktop/GPU/window path",
+      "native Linux compiler build",
+      "runtime speed/memory measurement"
+    ],
+    "owned_processes": "none after completion"
+  }
 }
