@@ -9,7 +9,7 @@ import { Sequence, Media, Item, Link, Point, View as SavedView, LIGHTS } from '.
 import { project, lang, selected, selectedLink, selectedItem, shownMedia, opened, select, pick, nameIt, done, renameSelected, duplicateSelected, deleteSelection, startHere, setLinkLabel,
   setLinkTransition, setLinkOverlay, advanced, selectionJson, placeSelected, openSequence, retargetSelected, moveItem, resizeItem, rotateItem, timeItem, raiseItem, moveLink, timeLink,
   addLinkFrom, placeMedia, removeMediaCommand, setMediaText, setMediaCredit, setSequenceText, setSequenceDuration, openSettings, pointing, selectedPoint, pickPoint, openPoints, namePoint,
-  setPointText, useView, setLight, retargetPoint, clearPointTarget, deletePoint, movePoint, pointedJson, narrate, chooseNext, clearNext, setMediaFile, setMediaLoop, lengthOf, listen } from './state';
+  setPointText, useView, setLight, retargetPoint, clearPointTarget, deletePoint, movePoint, pointedJson, narrate, chooseNext, clearNext, setMediaFile, setMediaLoop, lengthOf, listen, listenDescription } from './state';
 import { currentView, showView } from './points';
 import { Ico, Action, Segmented, LangField, LangColumns, PlainField, NumberField, Heading, ACCENT, MUTED, WARN, kindIndex } from './widgets';
 import * as L from './strings';
@@ -253,6 +253,8 @@ function MediaPanel(): i32 {
   const pointCount = (): i32 => { const x = m(); project(); return x === null ? 0 : x.points.length; };
   const kind = (): string => { const x = m(); return x === null ? '' : x.kind; };
   const timed = (): boolean => kind() === 'audio' || kind() === 'video';
+  /** It has an audio description in some language: it can be listened to. */
+  const described = (): boolean => { const x = m(); project(); return x !== null && x.audioDescription.size > 0; };
   const named = (field: string): string => {
     const x = m();
     project();
@@ -310,6 +312,7 @@ function MediaPanel(): i32 {
     <Show when={isText()}><MediaText label={t(L.BODY)} field="text" rows={4} /></Show>
     <MediaText label={t(L.DESCRIPTION)} field="description" rows={4} />
     <MediaText label={t(L.AUDIO_DESCRIPTION)} field="audioDescription" rows={3} />
+    <Show when={described()}><View className="flex-row"><Action icon="volume-2" label={t(L.LISTEN_DESCRIPTION)} look="plain" onClick={() => { const x = m(); if (x !== null) listenDescription(x); }} /></View></Show>
     <Show when={timed()}><MediaText label={t(L.TRANSCRIPT)} field="transcript" rows={3} /></Show>
     <View className="flex-col gap-2">
       <Heading label={t(L.CREDIT)} />

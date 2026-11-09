@@ -73,6 +73,16 @@ export function nudge(dx: number, dy: number): void {
   if (table.length > 0) doc().together('Nudge', () => { for (let i = 0; i < items.length; i++) doc().moveItem(table, at[i], items[i].x + dx, items[i].y + dy); });
   else doc().together('Nudge', () => { for (const q of sequences) doc().moveSequence(q.id, q.storyX + dx, q.storyY + dy); });
 }
+/** Moves the selected items, or sequences, together by (dx, dy): a drag of several. One step for Undo. Sequences move by tens, as one
+ *  dragged alone snaps to them, and keep their places among themselves. */
+export function moveChosen(dx: number, dy: number): void {
+  const table = openId(), items = chosenItems(), at = placesOf(items), sequences = chosenSequences();
+  if (table.length > 0) doc().together('Move media', () => { for (let i = 0; i < items.length; i++) doc().moveItem(table, at[i], items[i].x + dx, items[i].y + dy); });
+  else {
+    const sx = Math.round(dx / 10) * 10, sy = Math.round(dy / 10) * 10;
+    doc().together('Move sequence', () => { for (const q of sequences) doc().moveSequence(q.id, q.storyX + sx, q.storyY + sy); });
+  }
+}
 /** Aligns the selection on an edge or an axis of the group, or spreads it with equal gaps (`how`: one of ARRANGE).
  *  ponytail: a turned item counts as its unturned box. */
 export function arrangeChosen(how: string): void {
@@ -190,11 +200,34 @@ export function perform(id: string, fromMenu: boolean = false): boolean {
 
 // ---------------------------------------------------------------- the menu bar and the context menus
 
-function entry(id: string): menu.Item { const c = commandOf(id); return c === null ? menu.separator() : menu.item(id, t(c.label), c.key); }
+/** Whether a command can do something now: its menu item is greyed out when not (the selection, Undo's history, an unsaved change). */
+function can(id: string): boolean {
+  const n = chosenItems().length + chosenSequences().length, editing = settings().length === 0 && pointing() === null, board = opened() === null && editing;
+  if (id === 'save') return doc().dirty;
+  if (id === 'undo') return doc().canUndo;
+  if (id === 'redo') return doc().canRedo;
+  if (id === 'cut' || id === 'copy' || id === 'duplicate') return n > 0;
+  if (id === 'delete') return n > 0 || (editing && selectedLink() !== null);
+  if (id === 'paste' || id === 'selectAll') return editing;
+  if (id === 'forward' || id === 'backward') return opened() !== null && editing && selectedItem() !== null;
+  if (id === 'arrange:across' || id === 'arrange:down') return n >= 3;
+  if (id.startsWith('arrange:')) return n >= 2;
+  if (id === 'zoomIn' || id === 'zoomOut' || id === 'fit' || id === 'newSequence' || id === 'newHere') return board;
+  if (id === 'openTable' || id === 'start') return board && selected() !== null;
+  return true;
+}
+function entry(id: string): menu.Item {
+  const c = commandOf(id);
+  if (c === null) return menu.separator();
+  const it = menu.item(id, t(c.label), c.key);
+  it.enabled = can(id);
+  return it;
+}
 function entries(ids: string[]): menu.Item[] { return ids.map((id: string) => entry(id)); }
 const ARRANGING: string[] = ARRANGE.map((how: string) => `arrange:${how}`);
-let heard = false;
-/** Sets the application's menu bar, in the interface language, with the recent projects of now. */
+let heard = false, shown = '';
+/** Sets the application's menu bar, in the interface language, with the recent projects of now and its items enabled for what is
+ *  selected (main.tsx calls it in an effect: it runs again when any of that changes, and sends the menu only when it is different). */
 export function setMenus(): void {
   if (!heard) {
     heard = true;
@@ -204,6 +237,9 @@ export function setMenus(): void {
   const files = recents();
   const recent = files.length === 0 ? [menu.item('recent:none', t(L.NO_RECENT))] : files.map((file: string, i: i32) => menu.item(`recent:${i}`, file));
   if (files.length === 0) recent[0].enabled = false;
+  const now = `${t(L.M_FILE)}|${files.join('|')}|${COMMANDS.map((c: Command): string => can(c.id) ? '1' : '0').join('')}`;
+  if (now === shown) return;
+  shown = now;
   menu.setApp([menu.role('appMenu'),
     menu.submenu(t(L.M_FILE), [entry('new'), entry('open'), menu.submenu(t(L.OPEN_RECENT), recent), menu.separator(), entry('save'), entry('saveAs'), menu.separator(), entry('settings')]),
     menu.submenu(t(L.M_EDIT), entries(['undo', 'redo', '', 'cut', 'copy', 'paste', 'duplicate', 'delete', '', 'selectAll'])),

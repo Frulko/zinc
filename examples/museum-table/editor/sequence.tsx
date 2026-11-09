@@ -3,16 +3,17 @@
 // to size it; drag a button or a hotspot where visitors will touch it; drag the ends of a bar to time it.
 // The table is drawn at the scale that fits; positions are the project's table units. An item is drawn turned as the table will show it
 // (zinc:gfx setTransform; its box answers to the pointer in its turned shape), and the round handle above the selected one turns it.
-import { createSignal, createNodeRef, createEffect, For, Show, batch } from 'zinc:ui/solid';
+import { createSignal, createNodeRef, createEffect, createMemo, For, Show, batch } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { rrect, border, drawText, lineHeight, setTransform, resetTransform } from 'zinc:gfx';
 import { Sequence, Media, Item, Link } from '../src/project';
 import { sans, wrap, leading } from '../src/type';
+import { Cue, cuesOf } from '../src/narration';
 import { project, lang, opened, selectedItem, selectedLink, shownMedia, pick, placeMedia, moveItem, resizeItem, rotateItem, timeItem, moveLink, timeLink, usesOf, addFileCommand, setAdding,
   openPoints, setStatus, lengthOf } from './state';
 import { Ico, Action, Heading, drawMedia, shapeOf, kindIndex, KIND_ICON, KIND_COLOUR, ACCENT, MUTED } from './widgets';
 import { PreviewTools } from './preview';
-import { isChosenItem, toggleItem, contextMenu } from './tools';
+import { isChosenItem, toggleItem, contextMenu, chosenItems, moveChosen } from './tools';
 import * as L from './strings';
 import { t, f } from './strings';
 
@@ -57,8 +58,13 @@ function hOf(it: Item): number {
   const w = wOf(it);
   return it.height > 0 ? it.height * w / it.width : w * shapeOf(mediaOf(it));
 }
-function xOf(it: Item): number { project(); return it.x + (held() === it && !sizing() ? dx() : 0); }
-function yOf(it: Item): number { project(); return it.y + (held() === it && !sizing() ? dy() : 0); }
+/** Whether the item follows the drag: the one held, and when several are selected and one of them is held, all of them. */
+function moving(it: Item): boolean {
+  const h = held();
+  return h !== null && !sizing() && (h === it || (together() && (selectedItem() === it || isChosenItem(it))));
+}
+function xOf(it: Item): number { project(); return it.x + (moving(it) ? dx() : 0); }
+function yOf(it: Item): number { project(); return it.y + (moving(it) ? dy() : 0); }
 /** The item a hotspot sits on: the first one of the open table that shows its medium. */
 function hostOf(l: Link): Item | null {
   const s = opened();
@@ -81,6 +87,9 @@ function linkY(l: Link): number {
 
 // the thing under the button, where it was pressed, and whether the pointer has moved far enough to be a drag
 let grabbed: Item | null = null, grabbedLink: Link | null = null, gx0: number = 0, gy0: number = 0, dragging = false;
+/** An item of a selection of several was pressed: a drag moves them all; a click without a drag selects it alone (at the release, so
+ *  that the press can still start a drag of the group). */
+const [together, setTogether] = createSignal<boolean>(false);
 function far(e: ui.PointerEvent): boolean {
   const p = tableAt(e);
   if (!dragging && Math.abs(p[0] - gx0) + Math.abs(p[1] - gy0) < 4 / k()) return false;
@@ -92,7 +101,9 @@ function itemDown(it: Item, e: ui.PointerEvent): void {
   if (e.button === 2) { if (selectedItem() !== it && !isChosenItem(it)) pick(it, null, null); contextMenu('item', e.gx, e.gy); return; }
   if (e.button !== 0) return;
   if (e.shift || e.meta || e.ctrl) { toggleItem(it); return; }
-  pick(it, null, null);
+  const several = chosenItems().length > 1 && (selectedItem() === it || isChosenItem(it));
+  if (!several) pick(it, null, null);
+  setTogether(several);
   const p = tableAt(e);
   grabbed = it; gx0 = p[0]; gy0 = p[1]; dragging = false;
 }
@@ -101,10 +112,12 @@ function itemMove(it: Item, e: ui.PointerEvent): void {
 }
 function itemUp(it: Item, e: ui.PointerEvent): void {
   grabbed = null;
-  if (!dragging) return;
+  const group = together();
+  setTogether(false);
+  if (!dragging) { if (group) pick(it, null, null); return; }
   dragging = false;
-  const x = it.x + dx(), y = it.y + dy();
-  batch(() => { setHeld(null); setDX(0); setDY(0); moveItem(it, x, y); });
+  const x = it.x + dx(), y = it.y + dy(), by = [dx(), dy()];
+  batch(() => { setHeld(null); setDX(0); setDY(0); if (group) moveChosen(by[0], by[1]); else moveItem(it, x, y); });
 }
 function gripMove(it: Item, e: ui.PointerEvent): void {
   if (grabbed !== it) return;
@@ -332,7 +345,7 @@ function span(): number {
 /** A row: what it is, and the bar of when it is there. Drag the bar to shift it, its ends to change one time; an end at the right edge
  *  means "to the end". `length` (seconds, 0 for none): how long what plays there lasts, a film: with no end set its bar is that long.
  *  `fixed`: the bar is what a file lasts, a narration, and is not dragged. */
-function Row(p: { icon: string; colour: i32; label: () => string; chosen: () => boolean; at: () => number; until: () => number; length: () => number; fixed: boolean; onPick: () => void; onTimes: (at: number, until: number) => void }): i32 {
+function Row(p: { icon: string; colour: i32; label: () => string; chosen: () => boolean; at: () => number; until: () => number; length: () => number; fixed: boolean; onPick: () => void; onTimes: (at: number, until: number) => void; cues: () => Cue[] }): i32 {
   const [live, setLive] = createSignal<boolean>(false);
   const [a, setA] = createSignal<number>(0);
   const [u, setU] = createSignal<number>(0);
@@ -371,9 +384,19 @@ function Row(p: { icon: string; colour: i32; label: () => string; chosen: () => 
           if (!live()) return;
           const na = a(), nu = u();
           batch(() => { setLive(false); p.onTimes(na, nu); });
-        }} />
+        }}>
+        <For each={p.cues()}>{(c: Cue, i: i32) => <Cue_ cue={c} first={i === 0} chosen={p.chosen} />}</For>
+      </View>
     </View>
     <Text className="w-[70] text-[10px] text-zinc-500">{`${from()} – ${live() ? (u() > 0 ? `${u()}` : '∞') : p.until() > 0 ? `${p.until()}` : '∞'}${p.length() > 0 ? ` · ${f(L.SECONDS, `${p.length()}`)}` : ''}`}</Text>
+  </View>;
+}
+/** A subtitle of the narration on its bar: where it is said, its first words, and a line where it begins; the author times items
+ *  against what is said. */
+function Cue_(p: { cue: Cue; first: boolean; chosen: () => boolean }): i32 {
+  const left = (): number => p.cue.from / span() * trackW(), w = (): number => Math.max(1, (p.cue.to - p.cue.from) / span() * trackW());
+  return <View className={`absolute top-0 bottom-0 justify-center overflow-hidden ${p.first ? '' : 'border-l'} ${p.chosen() ? 'border-amber-700' : 'border-zinc-700'}`} style={{ left: left(), width: w() }}>
+    <Text className={`truncate px-1 text-[9px] ${p.chosen() ? 'text-zinc-900' : 'text-zinc-100'}`} style={{ maxWidth: w() }}>{p.cue.text}</Text>
   </View>;
 }
 function Timeline(): i32 {
@@ -381,6 +404,9 @@ function Timeline(): i32 {
   const links = (): Link[] => { const s = opened(); project(); return s === null ? [] : s.links; };
   const ticks = (): number[] => { const out: number[] = []; for (let v = 0; v <= span(); v += 10) out.push(v); return out; };
   const target = (l: Link): string => { const s = project().sequence(l.to); return s === null ? '' : project().say(s.title, lang()); };
+  /** What the narration says and when, in the language shown: its subtitles, or its transcript at a reading pace. */
+  const said = createMemo<Cue[]>(() => { const m = narrationOf(); return m === null ? [] : cuesOf(project(), m, lang()); }, []);
+  const none = (): Cue[] => [];
   return <View className="h-[214] shrink-0 flex-col gap-1 px-3 py-2 bg-zinc-900 border-t border-zinc-800">
     <View className="flex-row items-center gap-3">
       <Heading label={t(L.TIMELINE)} />
@@ -392,15 +418,15 @@ function Timeline(): i32 {
     <ScrollView className="grow flex-col">
       <Show when={narrationOf() !== null}>
         <Row icon="volume-2" colour={KIND_COLOUR[4]} label={() => `${t(L.NARRATION)}: ${titleOf(narrationOf())}`} chosen={() => selectedItem() === null && shownMedia() !== null && shownMedia() === narrationOf()}
-          at={() => 0} until={() => { const m = narrationOf(); return m === null ? 0 : lengthOf(m); }} length={() => 0} fixed={true} onPick={() => pick(null, null, narrationOf())} onTimes={(at: number, until: number) => {}} />
+          at={() => 0} until={() => { const m = narrationOf(); return m === null ? 0 : lengthOf(m); }} length={() => 0} fixed={true} onPick={() => pick(null, null, narrationOf())} onTimes={(at: number, until: number) => {}} cues={said} />
       </Show>
       <For each={items()}>{(it: Item, i: i32) => {
         const kind = kindIndex(mediaOf(it));
         return <Row icon={kind >= 0 ? KIND_ICON[kind] : 'image'} colour={kind >= 0 ? KIND_COLOUR[kind] : MUTED} label={() => titleOf(mediaOf(it))} chosen={() => selectedItem() === it}
-          at={() => { project(); return it.at; }} until={() => { project(); return it.until; }} length={() => filmOf(it)} fixed={false} onPick={() => pick(it, null, null)} onTimes={(at: number, until: number) => timeItem(it, at, until)} />;
+          at={() => { project(); return it.at; }} until={() => { project(); return it.until; }} length={() => filmOf(it)} fixed={false} onPick={() => pick(it, null, null)} onTimes={(at: number, until: number) => timeItem(it, at, until)} cues={none} />;
       }}</For>
       <For each={links()}>{(l: Link, i: i32) => <Row icon="arrow-right" colour={ACCENT} label={() => `${project().say(l.label, lang())} → ${target(l)}`} chosen={() => selectedLink() === l}
-        at={() => { project(); return l.at; }} until={() => { project(); return l.until; }} length={() => 0} fixed={false} onPick={() => pick(null, l, null)} onTimes={(at: number, until: number) => timeLink(l, at, until)} />}</For>
+        at={() => { project(); return l.at; }} until={() => { project(); return l.until; }} length={() => 0} fixed={false} onPick={() => pick(null, l, null)} onTimes={(at: number, until: number) => timeLink(l, at, until)} cues={none} />}</For>
     </ScrollView>
   </View>;
 }
@@ -408,7 +434,7 @@ function Timeline(): i32 {
 /** The editor of one sequence: library, table, times. */
 export function SequenceEditor(): i32 {
   // the reach zone and the items are drawn by hand: repaint when what they show changes
-  createEffect(() => { project(); lang(); selectedItem(); hoveredItem(); turning(); newTurn(); held(); heldLink(); dx(); dy(); newW(); ui.repaint(); });
+  createEffect(() => { project(); lang(); selectedItem(); hoveredItem(); turning(); newTurn(); held(); heldLink(); dx(); dy(); newW(); together(); ui.repaint(); });
   return <View ref={rootRef} className="grow relative flex-row">
     <Library />
     <View className="grow basis-0 min-w-0 flex-col">

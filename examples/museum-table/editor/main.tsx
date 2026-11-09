@@ -11,6 +11,7 @@
 import { createSignal, createMemo, createEffect, render, For, Show } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { args, launchDir } from 'zinc:sys';
+import { resolve } from 'zinc:path';
 import { exists } from 'zinc:fs';
 import { quit } from 'zinc:gfx';
 import { onCloseRequested, keepOpen } from 'zinc:system/window';
@@ -21,7 +22,7 @@ import { doc, project, path, status, lang, setLang, selected, select, zoomBy, fi
   newProjectCommand, openCommand, openFile, newFile, waiting, answer, goTo, problemText, nameIt, setNameIt, deleting, setDeleting, deleteSequence, linksTo, advanced, setAdvanced, nextLanguage,
   startHere, guard, opened, openSequence, closeSequence, selectedItem, selectedLink, shownMedia, pick, picking, answerPick, adding, setAdding, addFile, addWrittenText, newFiles, kindOfFile, perLanguage, measureTick,
   folder, removing, setRemoving, removeMedia, usesOf, pointing, selectedPoint, pickPoint, closePoints, setLogging, pickFrom, pickAsks, settings, openSettings, closeSettings, forgetting, setForgetting,
-  removeLanguage, textsIn, dropped, dropFiles, cancelAdding, recovering, setRecovering, restoreBackup, discardBackup, offerBackup, backupTick } from './state';
+  removeLanguage, textsIn, missingThemeFiles, dropped, dropFiles, cancelAdding, recovering, setRecovering, restoreBackup, discardBackup, offerBackup, backupTick } from './state';
 import { perform, nudge, deleteChosen, chosenItems, chosenSequences, setMenus, toolsTick } from './tools';
 import { recents } from './files';
 import { Ico, Tool, Segmented, Heading, ACCENT, DANGER, WARN, MUTED, decodePictures } from './widgets';
@@ -90,7 +91,7 @@ function PreviewBar(): i32 {
   </View>;
 }
 
-const problems = createMemo<Problem[]>(() => doc().problems(), []);
+const problems = createMemo<Problem[]>(() => doc().problems().concat(missingThemeFiles()), []);
 const [problemsOpen, setProblemsOpen] = createSignal<boolean>(true);
 /** What the project would do wrong on the table; a click on a line selects what it is about. */
 function Problems(): i32 {
@@ -418,8 +419,9 @@ const a = args().filter((arg: string) => arg !== '--story' && arg !== '--log');
 setTelling(args().indexOf('--story') >= 0);
 setLogging(args().indexOf('--log') >= 0);
 if (a.length > 0) {
-  // `zinc run <dir>` starts the program in the project's directory: a relative path is taken from where the command was typed
-  const file = a[0].startsWith('/') ? a[0] : `${launchDir()}/${a[0]}`;
+  // `zinc run <dir>` starts the program in the project's directory: a relative path is taken from where the command was typed, and
+  // made a plain absolute path (no `..`): the fonts of the folder are read by that path, and a path that climbs out of a folder is refused
+  const file = resolve(launchDir(), a[0]);
   if (exists(file)) openFile(file); else { newFile(file); offerBackup(); }
 } else offerBackup();   // the unsaved work of a project that never had a file
 // closing the window with unsaved work asks first

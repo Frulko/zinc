@@ -4,7 +4,7 @@
 import { createSignal, batch } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
 import * as dialog from 'zinc:system/dialog';
-import { Project, Sequence, Media, Item, Link, Point, Presentation, parseProject } from '../src/project';
+import { Project, Sequence, Media, Item, Link, Point, Presentation, parseProject, spokenDescription } from '../src/project';
 import { Doc, Problem, newProject } from './doc';
 import { decode, Sound } from 'zinc:audio';
 import { Player as Decoder } from 'zinc:video';
@@ -267,11 +267,68 @@ export function redo(): void {
 }
 /** What a problem says, in the interface language. */
 export function problemText(p: Problem): string {
-  return p.kind === 'refused' ? f(L.P_REFUSED, p.detail) : p.kind === 'unreachable' ? f(L.P_UNREACHABLE, p.subject)
-    : f(p.kind === 'no-title' ? L.P_NO_TITLE : L.P_NO_LABEL, p.subject, L.languageName(p.detail));
+  return p.kind === 'refused' ? f(L.P_REFUSED, refusal(p.detail)) : p.kind === 'missing-file' ? f(L.P_MISSING_FILE, t(L.FIELD_WORDS[L.FIELD_NAMES.indexOf(p.subject === 'logo' ? 'logo' : 'font')]), p.detail)
+    : p.kind === 'unreachable' ? f(L.P_UNREACHABLE, p.subject) : f(p.kind === 'no-title' ? L.P_NO_TITLE : L.P_NO_LABEL, p.subject, L.languageName(p.detail));
 }
+/** A refusal of the table's loader ("media[1].title.en: missing (the default language)") in the author's words: what it is about, by
+ *  its title, the field, the language, and what is wrong ("The medium "Vase": its title in English is missing"). A field path the
+ *  editor does not know keeps the loader's words. */
+export function refusal(message: string): string {
+  const colon = message.indexOf(': ');
+  if (colon < 0) return message;
+  const p = current.project, path = message.slice(0, colon).split('.'), why = message.slice(colon + 2);
+  const indexOf = (seg: string, name: string): i32 => seg.startsWith(`${name}[`) && seg.endsWith(']') ? parseInt(seg.slice(name.length + 1, seg.length - 1), 10) : -1;
+  const said = (text: Map<string, string>, fallback: string): string => { const s = p.say(text, lang()); return s.length > 0 ? s : fallback; };
+  let subject = '', at: i32 = 1;
+  const m = indexOf(path[0], 'media'), s = indexOf(path[0], 'sequences'), r = indexOf(path[0], 'presentations');
+  if (m >= 0 && m < p.media.length) {
+    const medium = p.media[m];
+    subject = f(L.R_MEDIUM, said(medium.title, medium.id));
+    const k = path.length > 1 ? indexOf(path[1], 'points') : -1;
+    if (k >= 0 && k < medium.points.length) { subject = `${subject}, ${f(L.R_POINT, said(medium.points[k].title, medium.points[k].id))}`; at = 2; }
+  } else if (s >= 0 && s < p.sequences.length) {
+    const q = p.sequences[s];
+    subject = f(L.R_SEQUENCE, said(q.title, q.id));
+    const j = path.length > 1 ? indexOf(path[1], 'links') : -1, k = path.length > 1 ? indexOf(path[1], 'items') : -1;
+    if (j >= 0 && j < q.links.length) { subject = `${subject}, ${f(L.R_LINK, said(q.links[j].label, `${j + 1}`))}`; at = 2; }
+    else if (k >= 0 && k < q.items.length) { const on = p.medium(q.items[k].media); subject = `${subject}, ${f(L.R_ITEM, on !== null ? said(on.title, on.id) : q.items[k].media)}`; at = 2; }
+  } else if (r >= 0 && r < p.presentations.length) subject = f(L.R_TOUR, said(p.presentations[r].title, p.presentations[r].id));
+  else { subject = t(L.R_SETTINGS); at = 0; }
+  // the field and its language: the last name of the path, and a language code after it
+  let field = '', language = '';
+  for (let i = at; i < path.length; i++) {
+    const seg = path[i], bracket = seg.indexOf('[');
+    if (p.languages.indexOf(seg) >= 0 && i === path.length - 1 && i > at) language = seg;
+    else field = bracket > 0 ? seg.slice(0, bracket) : seg;
+  }
+  const named = L.FIELD_NAMES.indexOf(field);
+  const what = m >= 0 && at === 1 && field === 'title' ? t(L.R_CAPTION) : named >= 0 ? t(L.FIELD_WORDS[named]) : field.length > 0 ? field : t(L.R_IT);
+  const whatIn = language.length > 0 ? f(L.R_IN, what, L.languageName(language)) : what;
+  const problem = why.startsWith('missing') ? f(L.R_MISSING, whatIn) : why.startsWith('unknown sequence') ? f(L.R_NO_SEQUENCE, whatIn)
+    : why.startsWith('unknown presentation') ? f(L.R_NO_TOUR, whatIn) : why.startsWith('must contain {id}') ? f(L.R_NEEDS_ID, whatIn)
+    : why.indexOf('is not an audio medium') >= 0 ? f(L.R_NOT_SOUND, whatIn) : why.startsWith('must not be empty') ? f(L.R_MISSING, whatIn)
+    : `${whatIn}: ${why}`;
+  return `${subject.slice(0, 1).toUpperCase()}${subject.slice(1)}: ${problem}`;
+}
+/** The fonts and the logo the theme names that are not in the project folder (the table then uses its own): one problem each. A family
+ *  of the table (sans, sans-bold, mono) is no file. */
+export function missingThemeFiles(): Problem[] {
+  const th = current.project.theme, out: Problem[] = [], root = folder();
+  rev();
+  if (root.length === 0 || current.project.sequences.length === 0) return out;
+  const fields: string[] = ['font', 'titleFont', 'logo'], names: string[] = [th.font, th.titleFont, th.logo];
+  for (let i = 0; i < fields.length; i++) {
+    const file = names[i];
+    if (file.length === 0 || FAMILIES.indexOf(file) >= 0 || (i === 1 && file === th.font)) continue;   // a file named twice is said once
+    if (!fs.exists(`${root}/${file}`)) out.push(new Problem('warning', 'missing-file', fields[i], file, '', -1));
+  }
+  return out;
+}
+/** The font families of the table: a theme's font is one of them or a font file of the folder. */
+export const FAMILIES: string[] = ['sans', 'sans-bold', 'mono'];
 /** Selects what a problem is about and brings it into view. */
 export function goTo(p: Problem): void {
+  if (p.kind === 'missing-file') { openSettings('theme'); return; }
   const s = current.project.sequence(p.sequence);
   if (s === null) return;
   setOpened(null);
@@ -576,6 +633,14 @@ export function lengthOf(m: Media): number {
   const cues = cuesOf(current.project, m, lang());
   return cues.length > 0 ? Math.round(cues[cues.length - 1].to * 10) / 10 : m.kind === 'video' ? 10 : 0;
 }
+/** Says the audio description of a medium, as the table will: its clip in the language shown, where the settings put the descriptions;
+ *  again, stops it. Without that place the table shows it as subtitles only, and the status says where to give it. */
+export function listenDescription(m: Media): void {
+  const said = spokenDescription(current.project, m);
+  if (said === null) return;
+  if (said.file.length === 0) { listen(null); setStatus(t(L.NO_DESCRIPTIONS)); return; }
+  listen(said);
+}
 /** The clip being listened to, and its medium (null: silence). */
 let heard: Sound | null = null;
 export const [listening, setListening] = createSignal<Media | null>(null);
@@ -585,7 +650,7 @@ export function listen(m: Media | null): void {
   heard?.stop();
   heard = null;
   setListening(null);
-  if (m === null || was === m) return;
+  if (m === null || (was !== null && was.id === m.id && was.file === m.file)) return;   // a description is a new medium each time: same id, same file
   const file = m.file.replaceAll('{lang}', lang()), path = `${folder()}/${file}`;
   if (folder().length === 0 || !fs.exists(path)) { setStatus(f(L.NO_CLIP, file)); return; }
   const s = decode(fs.readBytes(path), file);
@@ -669,7 +734,7 @@ export function addLanguage(code: string): boolean {
 /** Makes a language the default one; the status says what is missing in it when it cannot be. */
 export function makeDefaultLanguage(code: string): void {
   const missing = current.setDefaultLanguage(code);
-  setStatus(missing.length === 0 ? f(L.DONE_DEFAULT, L.languageName(code)) : f(L.NOT_DEFAULT, L.languageName(code), missing));
+  setStatus(missing.length === 0 ? f(L.DONE_DEFAULT, L.languageName(code)) : f(L.NOT_DEFAULT, L.languageName(code), refusal(missing)));
 }
 /** The language whose removal waits for an answer ('' for none): texts are written in it. */
 export const [forgetting, setForgetting] = createSignal<string>('');
@@ -690,6 +755,7 @@ export function setThemeFile(field: string, value: string): void { current.setTh
 export function setNumber(field: string, value: number): void { current.setNumber(field, value); }
 export function setFlag(field: string, on: boolean): void { current.setFlag(field, on); }
 export function setUpdateUrl(url: string): void { current.setUpdateUrl(url); }
+export function setDescriptions(at: string): void { current.setDescriptions(at); }
 export function setTextSizes(sizes: number[]): void { current.setTextSizes(sizes); }
 
 export function addPresentation(): void {

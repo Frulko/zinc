@@ -141,6 +141,33 @@ export const HIDE = S('Hide', 'Masquer');
 export const SHOW = S('Show', 'Afficher');
 export const P_REFUSED = S('The table would refuse this project: {0}', 'La table refuserait ce projet : {0}');
 export const P_UNREACHABLE = S('No link leads to "{0}": visitors cannot reach it.', 'Aucun lien ne mène à « {0} » : les visiteurs ne peuvent pas y arriver.');
+export const P_MISSING_FILE = S('The {0} of the theme, "{1}", is not in the project folder any more: the table uses its own.', 'Le fichier « {1} » du thème ({0}) n’est plus dans le dossier du projet : la table prend le sien.');
+// a refusal of the loader in the author's words (state.ts refusal): what it is about, the field, what is wrong
+export const R_MEDIUM = S('the medium "{0}"', 'le média « {0} »');
+export const R_SEQUENCE = S('the sequence "{0}"', 'la séquence « {0} »');
+export const R_LINK = S('its button "{0}"', 'son bouton « {0} »');
+export const R_ITEM = S('its medium "{0}" on the table', 'son média « {0} » sur la table');
+export const R_POINT = S('its point "{0}"', 'son point « {0} »');
+export const R_TOUR = S('the guided visit "{0}"', 'la visite guidée « {0} »');
+export const R_SETTINGS = S('the settings', 'les réglages');
+export const R_IT = S('a value', 'une valeur');
+export const R_IN = S('{0} in {1}', '{0} en {1}');
+export const R_MISSING = S('{0} is missing', '{0} manque');
+export const R_NO_SEQUENCE = S('{0} leads to a sequence that is no longer there', '{0} mène à une séquence qui n’existe plus');
+export const R_NO_TOUR = S('{0} is a guided visit that is no longer there', '{0} est une visite guidée qui n’existe plus');
+export const R_NEEDS_ID = S('{0} must hold {id}, which stands for each medium', '{0} doit contenir {id}, qui tient lieu de chaque média');
+export const R_NOT_SOUND = S('{0} is not a sound', '{0} n’est pas un son');
+export const R_CAPTION = S('the caption', 'la légende');
+/** The fields of the project file, and their names for an author (the last two: the theme's fonts and logo, P_MISSING_FILE). */
+export const FIELD_NAMES: string[] = ['title', 'text', 'description', 'audioDescription', 'transcript', 'date', 'medium', 'creator', 'source', 'licence', 'label', 'to', 'next',
+  'narration', 'file', 'subtitles', 'poster', 'texture', 'descriptions', 'textSizes', 'start', 'attract', 'path', 'languages', 'sequences', 'font', 'logo'];
+export const FIELD_WORDS: i32[] = [S('the title', 'le titre'), S('the text', 'le texte'), S('the description', 'la description'),
+  S('the audio description', 'l’audiodescription'), S('what is said', 'ce qui est dit'), S('the date', 'la date'), S('the technique', 'la technique'),
+  S('the author', 'l’auteur'), S('the source', 'la source'), S('the licence', 'la licence'), S('the label', 'le texte'), S('where it leads', 'sa destination'),
+  S('the sequence that follows', 'la séquence suivante'), S('the narration', 'la narration'), S('the file', 'le fichier'), S('the subtitles', 'les sous-titres'),
+  S('the poster', 'l’affiche'), S('the texture', 'la texture'), S('the files of the audio descriptions', 'les fichiers des audiodescriptions'),
+  S('the text sizes', 'les tailles de texte'), S('the sequence the visit starts with', 'la séquence de départ'), S('the attract loop', 'la boucle d’attente'),
+  S('the path', 'le parcours'), S('the languages', 'les langues'), S('the sequences', 'les séquences'), S('font', 'police'), S('logo', 'logo')];
 export const P_NO_TITLE = S('"{0}" has no title in {1}.', '« {0} » n’a pas de titre en {1}.');
 export const P_NO_LABEL = S('A link of "{0}" has no label in {1}.', 'Un lien de « {0} » n’a pas de texte en {1}.');
 
@@ -389,6 +416,13 @@ export const TEXT_SIZES_WHAT = S('The sizes a visitor steps through, as factors 
 export const ADD_SIZE = S('Add a size', 'Ajouter une taille');
 export const REMOVE_SIZE = S('Remove the last', 'Retirer la dernière');
 export const HIGH_CONTRAST = S('High contrast', 'Contraste élevé');
+export const DESCRIPTIONS = S('Audio descriptions', 'Audiodescriptions');
+export const DESCRIPTIONS_WHAT = S('Where the spoken descriptions are in the folder: {id} stands for the medium, {lang} for the language. Empty: a description is shown as subtitles only.',
+  'Où sont les descriptions parlées dans le dossier : {id} tient lieu du média, {lang} de la langue. Vide : une description n’est montrée qu’en sous-titres.');
+export const DESCRIPTIONS_AT = S('Files of the descriptions', 'Fichiers des descriptions');
+export const LISTEN_DESCRIPTION = S('Listen to the description, or stop', 'Écouter la description, ou arrêter');
+export const NO_DESCRIPTIONS = S('Say in the settings (Accessibility) where the spoken descriptions are: the table shows this one as subtitles only.',
+  'Indiquez dans les réglages (Accessibilité) où sont les descriptions parlées : la table ne montre celle-ci qu’en sous-titres.');
 export const HIGH_CONTRAST_WHAT = S('The six colours of the table for a visitor who asks for more contrast.', 'Les six couleurs de la table pour un visiteur qui demande plus de contraste.');
 export const TOURS = S('Guided visits', 'Visites guidées');
 export const TOURS_WHAT = S('A guided visit plays sequences in order, each with its narration; visitors start it with a button at their edge.',

@@ -936,6 +936,11 @@ export class Doc {
   setFlag(field: string, on: boolean): void {
     this.apply('Change a setting', '', (p: Project) => { if (field === 'fullscreen') p.kiosk.fullscreen = on; else if (field === 'statistics') p.kiosk.statistics = on; });
   }
+  /** Where the spoken audio descriptions are: a path of the folder with `{id}` for the medium and `{lang}` for the language ('' for none:
+   *  the descriptions are shown as subtitles). A path without `{id}` is kept as typed; the problems say what is missing. */
+  setDescriptions(at: string): void {
+    this.apply('Change a setting', 'descriptions', (p: Project) => { p.accessibility.descriptions = at.trim(); });
+  }
   /** Where the museum publishes a newer project ('' for nowhere). */
   setUpdateUrl(url: string): void {
     this.apply('Change a setting', 'updateUrl', (p: Project) => { p.kiosk.updateUrl = url; });

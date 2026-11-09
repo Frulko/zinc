@@ -8,7 +8,7 @@ import { stroke, polygon, rect, setTransform, resetTransform } from 'zinc:gfx';
 import { Sequence, Link, Item, unreachable } from '../src/project';
 import { project, lang, selected, selectedLink, select, zoom, zoomStep, panX, panY, setPanX, setPanY, zoomBy, CARD_W, CARD_H, setViewSize, addSequence, addSequenceInView,
   moveSequence, link, sourceOf, setStatus, hovered, setHovered, openSequence, fit, viewW, viewH, ZOOMS } from './state';
-import { isChosen, toggleSequence, contextMenu } from './tools';
+import { isChosen, toggleSequence, contextMenu, chosenSequences, moveChosen } from './tools';
 import { Ico, IcoAt, Tool, ACCENT, INK, MUTED, WARN, DARK, KIND_ICON, KIND_COLOUR, kindIndex, drawMedia, shapeOf } from './widgets';
 import { PreviewTools } from './preview';
 import * as L from './strings';
@@ -37,8 +37,13 @@ const [linkX, setLinkX] = createSignal<number>(0);
 const [linkY, setLinkY] = createSignal<number>(0);
 const [target, setTarget] = createSignal<Sequence | null>(null);
 
-function cx(s: Sequence): number { project(); return s.storyX + (dragged() === s ? dragDX() : 0); }
-function cy(s: Sequence): number { project(); return s.storyY + (dragged() === s ? dragDY() : 0); }
+/** Whether a node follows the drag: the one dragged, and when several are selected and one of them is dragged, all of them. */
+function follows(s: Sequence): boolean {
+  const d = dragged();
+  return d !== null && (d === s || (group() && (selected() === s || isChosen(s))));
+}
+function cx(s: Sequence): number { project(); return s.storyX + (follows(s) ? dragDX() : 0); }
+function cy(s: Sequence): number { project(); return s.storyY + (follows(s) ? dragDY() : 0); }
 /** Storyboard units to pixels of the view. */
 function vx(x: number): number { return panX() + x * zoom(); }
 function vy(y: number): number { return panY() + y * zoom(); }
@@ -144,11 +149,15 @@ const STAGE_H = 96;
 
 // the node under the button, where it was pressed, and whether the pointer has moved far enough to be a drag
 let pressed: Sequence | null = null, pressX: number = 0, pressY: number = 0, moving = false;
+/** A node of a selection of several was pressed: a drag moves them all; a click without a drag selects it alone, at the release. */
+const [group, setGroup] = createSignal<boolean>(false);
 function nodeDown(s: Sequence, e: ui.PointerEvent): void {
   if (e.button === 2) { if (selected() !== s && !isChosen(s)) select(s, null); contextMenu('sequence', e.gx, e.gy); return; }
   if (e.button !== 0) return;
   if (e.shift || e.meta || e.ctrl) { toggleSequence(s); return; }
-  select(s, null);
+  const several = chosenSequences().length > 1 && (selected() === s || isChosen(s));
+  if (!several) select(s, null);
+  setGroup(several);
   const p = pointOf(e);
   pressed = s; pressX = p[0]; pressY = p[1]; moving = false;
 }
@@ -161,10 +170,12 @@ function nodeMove(s: Sequence, e: ui.PointerEvent): void {
 }
 function nodeUp(s: Sequence, e: ui.PointerEvent): void {
   pressed = null;
-  if (!moving) return;
+  const several = group();
+  setGroup(false);
+  if (!moving) { if (several) select(s, null); return; }
   moving = false;
-  const x = s.storyX + dragDX(), y = s.storyY + dragDY();
-  batch(() => { setDragged(null); setDragDX(0); setDragDY(0); moveSequence(s, x, y); });
+  const x = s.storyX + dragDX(), y = s.storyY + dragDY(), by = [dragDX(), dragDY()];
+  batch(() => { setDragged(null); setDragDX(0); setDragDY(0); if (several) moveChosen(by[0], by[1]); else moveSequence(s, x, y); });
 }
 function handleDown(s: Sequence, e: ui.PointerEvent): void {
   if (e.button !== 0) return;
@@ -299,7 +310,7 @@ function Empty(): i32 {
 }
 export function Storyboard(): i32 {
   // the arrows are drawn by hand: ask for a repaint when what they show changes without any node moving
-  createEffect(() => { project(); linking(); linkX(); linkY(); target(); selectedLink(); hovered(); dragDX(); dragDY(); panX(); panY(); zoomStep(); ui.repaint(); });
+  createEffect(() => { project(); linking(); linkX(); linkY(); target(); selectedLink(); hovered(); dragDX(); dragDY(); group(); panX(); panY(); zoomStep(); ui.repaint(); });
   return <View ref={viewRef} className="grow relative overflow-hidden bg-zinc-950 cursor-default"
     onPointerDown={(e: ui.PointerEvent) => {
       if (e.button === 0) { panning = true; panned = false; panFromX = e.x - panX(); panFromY = e.y - panY(); }

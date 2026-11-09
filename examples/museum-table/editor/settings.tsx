@@ -5,7 +5,7 @@ import { createSignal, createNodeRef, createEffect, NodeRef, For, Show, batch } 
 import * as ui from 'zinc:ui';
 import { Sequence, Presentation, Colours } from '../src/project';
 import { COLOURS } from './doc';
-import { project, lang, settings, openSettings, closeSettings, done, advanced, setProjectTitle, addLanguage, removeLanguageCommand, makeDefaultLanguage, setColour, setThemeFile, filesEnding, setNumber, setFlag, setUpdateUrl,
+import { project, lang, settings, openSettings, closeSettings, done, advanced, setProjectTitle, addLanguage, removeLanguageCommand, makeDefaultLanguage, setColour, setThemeFile, filesEnding, setNumber, setFlag, setUpdateUrl, setDescriptions, FAMILIES,
   setTextSizes, tour, setTour, addPresentation, renamePresentation, deletePresentation, addStepCommand, removeStep, moveStep, setAttract, nameTour } from './state';
 import { Ico, Tool, Action, Segmented, LangColumns, PlainField, NumberField, ColourField, Heading, ACCENT, MUTED } from './widgets';
 import { SamplePane } from './preview';
@@ -115,7 +115,7 @@ function OneOf(p: { label: string; options: string[]; none: string; value: () =>
   </View>;
 }
 function ThemeForm(): i32 {
-  const fonts = ['sans', 'sans-bold', 'mono'].concat(filesEnding(['ttf']));
+  const fonts = FAMILIES.concat(filesEnding(['ttf']));
   return <View className="flex-col gap-6">
     <Group title={t(L.COLOURS)} what={t(L.COLOURS_WHAT)}><Palette contrast={false} /></Group>
     <Group title={t(L.FONTS)} what={t(L.FONTS_WHAT)}>
@@ -172,6 +172,9 @@ function AccessForm(): i32 {
       </View>
     </Group>
     <Group title={t(L.HIGH_CONTRAST)} what={t(L.HIGH_CONTRAST_WHAT)}><Palette contrast={true} /></Group>
+    <Group title={t(L.DESCRIPTIONS)} what={t(L.DESCRIPTIONS_WHAT)}>
+      <PlainField label={t(L.DESCRIPTIONS_AT)} value={() => project().accessibility.descriptions} placeholder="audio/descriptions/{id}.{lang}.mp3" onInput={setDescriptions} onDone={done} />
+    </Group>
   </View>;
 }
 
