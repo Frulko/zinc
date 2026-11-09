@@ -2,7 +2,8 @@
 id: ZN-1022
 title: 'Classic layout: CSS conformance of 100% sizes, basis, shrink and flex-1'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:36'
 labels:
   - layout

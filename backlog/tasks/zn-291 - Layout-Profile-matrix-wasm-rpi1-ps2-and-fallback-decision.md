@@ -2,7 +2,8 @@
 id: ZN-291
 title: 'Document the layout modes'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-07 13:08'
 labels:
   - ui
