@@ -2,7 +2,8 @@
 id: ZN-698
 title: 'Native SHA-256 for bytes and files read in chunks'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 21:52'
 labels:
   - std

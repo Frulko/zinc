@@ -2,7 +2,8 @@
 id: ZN-1019
 title: 'Bulk byte reads and writes: readBytes, utf8Encode, appendBytes, bytes bodies'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:35'
 labels:
   - perf
