@@ -3,11 +3,11 @@ id: ZN-805
 title: >-
   Lighter exported and idle UI apps: link only what is used, idle redraw, memory
   owners
-status: In Progress
+status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-24 23:55'
-updated_date: '2026-11-09 00:20'
+updated_date: '2026-11-09 00:21'
 labels:
   - size-L
 milestone: m-21
@@ -67,4 +67,10 @@ Memory: ps RSS (135 MB here; the 25-90 MB of the task) counts the shared system 
 - __DATA/__DATA_DIRTY/__AUTH 3.6 MB, CoreUI image data 1.0 MB, ColorSync 0.5 MB, CoreAnimation 0.3 MB: AppKit and the system frameworks, the same in any Cocoa app;
 - stack 0.4 MB, page table 0.75 MB.
 The earlier breakdowns (docs/reports/engine-memory-cpu-2026-10-31.md, engine-memory-hal-2026-10-31.md) give the same owners; the levers left are the double buffer (ZINC_PRESENT=auto, opt-in) and the upload texture, both in the HAL.
+
+Part 4, lines for docs/reports/zinc-next-perf.md (the coordinator adds them, then ticks #4 and sets Done; all measured on the M1 Pro while another tree built, so the CPU figures are indicative, sizes exact):
+- 2026-11-09 ZN-805 idle window: hello (zinc:ui, nothing moving) 0.80% -> 0.17-0.20% of one core; idle loop turns 60/s -> 8.9/s (the 100 ms cap); a due timer fires 6-8 ms late (QuickJS 7.9 ms). Footprint 29-30 MB unchanged; ps RSS 135 MB counts the shared dyld cache.
+- 2026-11-09 ZN-805 export size, hello for macOS, permissions []: binary 6,304,720 -> 5,177,184 B; .app 6168 -> 5064 KB; zip 2,899,375 -> 2,370,332 B (Tauri row: 4888 KB, 2069 KB zipped). No Mbed TLS or llhttp; 7 system frameworks no longer loaded.
+- 2026-11-09 ZN-805 threads: idle hello 14 threads (7 raster bands); with ZINC_RENDERER=metal 7 (bands start only on a large CPU frame).
+Proposed tests: tests/t1/idle_sleep.sh (windowed, ~5 s, ~80 MB: turns per second and timer lateness of an idle window); tests/t1/sbom.sh (the SBOM still lists what a networked export links); tools/resmon on hello for 60 s on a quiet machine (the real idle CPU figure, ~1 min, ~150 MB); tools/window-memory on hello by hand (footprint, ~30 s); bench/vs-electron/measure.sh retake (the size row against Tauri and Electron, a few minutes).
 <!-- SECTION:NOTES:END -->
