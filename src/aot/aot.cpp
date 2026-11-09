@@ -371,6 +371,16 @@ std::vector<char> typedFunctions(const zbc::Module& mod, const std::set<std::str
 
 }  // namespace
 
+bool usesNative(const zbc::Module& mod, std::string_view module) {
+  for (const zbc::Native& n : mod.natives) if (n.module == module) return true;
+  for (const auto& w : mod.workers) {
+    zbc::Module child;
+    std::string err;
+    if (!zbc::decode(w.second, child, err) || usesNative(child, module)) return true;   // unknown worker: keep its libraries
+  }
+  return false;
+}
+
 // Whether the module calls the host (the Rt::Host* entries): the program then installs the graphics host and links its library.
 bool usesHost(const zbc::Module& mod) {
   for (const zbc::Function& fn : mod.functions)
@@ -563,11 +573,21 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
   std::string fileLit;   // the name of the external resources' file as a C string
   appendBytes(fileLit, reinterpret_cast<const std::uint8_t*>(resourcesFile.data()), resourcesFile.size());
   std::vector<std::string> linkedNative;  // modules the program is linked with (ZINC_NATIVE_LIBS): the generated main registers them
-  for (const zn::zbc::Native& nt : mod.natives) if (nt.module != "Fixture" && std::find(linkedNative.begin(), linkedNative.end(), nt.module) == linkedNative.end()) linkedNative.push_back(nt.module);
+  bool hasFixture = false;
+  auto collectNatives = [&](auto&& visit, const zbc::Module& m) -> void {
+    for (const zbc::Native& nt : m.natives) {
+      if (nt.module == "Fixture") hasFixture = true;
+      else if (std::find(linkedNative.begin(), linkedNative.end(), nt.module) == linkedNative.end()) linkedNative.push_back(nt.module);
+    }
+    for (const auto& w : m.workers) {
+      zbc::Module child;
+      std::string err;
+      if (zbc::decode(w.second, child, err)) visit(visit, child);
+    }
+  };
+  collectNatives(collectNatives, mod);   // a worker may be the only caller after the parent's dead native calls are removed
   std::string nativeDecls, nativeRegs;
   for (const std::string& nm : linkedNative) { nativeDecls += "extern \"C\" const ZnModule* zn_module_" + nm + "(void);\n"; nativeRegs += "  { char e[256]; if (zn_register_module(zn_module_" + nm + "(), e, sizeof e) < 0) { std::fprintf(stderr, \"%s\\n\", e); return 2; } }\n"; }
-  bool hasFixture = false;
-  for (const zn::zbc::Native& nt : mod.natives) hasFixture = hasFixture || nt.module == "Fixture";
   s += "static int (*const kNatives[])(Machine&, Slot*) = {";
   for (std::size_t i = 0; i < mod.functions.size(); ++i) s += (i ? ", " : "") + fname(mod, 'f', i);
   s += "};\n\n";

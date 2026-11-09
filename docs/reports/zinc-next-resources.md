@@ -21,7 +21,11 @@ This is why `stb_truetype` or `nanosvg` were not used for the rasterizers: they 
 
 `zinc run` bakes in memory before the program starts (a few milliseconds for the standard UI) and installs the tables in the runtime's rasterizer
 (`src/host/resources.cpp`). `zinc build` bakes at build time and embeds the blob in the C++ of the program, which installs it when it starts.
-The TrueType files are in the blob too, so the runtime can rasterize any other size (HiDPI windows). `zinc bake prog.ts -o blob.bin` writes the blob for inspection.
+The TrueType files are in the blob too, so the runtime can rasterize any other size (HiDPI windows). When they are
+embedded, library and plugin sizes and faces are rasterized only when used. Typed programs take library characters
+from reachable string literals; JavaScript conservatively scans the sources. Importing an unused kit family adds no
+atlas for its text sizes. Bitmap-only baking still scans every source size. `zinc bake prog.ts -o blob.bin` writes the
+blob for inspection.
 
 ## Images at run time and sprites (ZN-432)
 

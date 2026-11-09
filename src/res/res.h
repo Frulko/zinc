@@ -6,6 +6,7 @@
 // The blob layout is private to res.cpp and src/host/resources.cpp (version 1, little endian).
 #include <cstdint>
 #include <set>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,7 @@ struct Options {
   // Which of `sources` are the engine's own modules (zinc:*, lib/std, plugins): with TrueType files embedded, the sizes and styles their tables
   // mention are not baked (the runtime rasterizes what they really use); empty: every source is the program's (ZN-428).
   std::vector<bool> library;
+  std::optional<std::vector<std::string>> libraryLiterals;   // typed engines: reachable decoded strings, instead of dead library declarations' characters
   bool wholeFonts = false;   // "text": "shaped": the shaper needs the whole TrueType files; otherwise they are subset to what the program can show
   std::vector<std::string> leave;   // images of the assets directory (relative, '/') its packs carry as textures (ZN-439): not embedded
 };

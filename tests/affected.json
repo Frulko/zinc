@@ -456,6 +456,8 @@
     {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h"], "tests": ["modules", "checker", "lang", "plugin_manifest"]},
     {"paths": ["src/frontend/lexer.cpp", "src/frontend/parser.cpp"], "tests": ["parser", "lexer", "checker"]},
     {"paths": ["src/platform/", "tests/unit/platform_test.cpp", "tests/t0/platform.sh"], "tests": ["platform"]},
+    {"paths": ["src/res/", "tests/t0/res_library.sh"], "tests": ["res_library", "kit_size"]},
+    {"paths": ["src/ir/opt.cpp", "src/aot/", "tests/t0/native_reachability.sh"], "tests": ["native_reachability", "kit_size"]},
     {"paths": ["src/ir/"], "tests": ["ir", "zbc", "rc_refcast", "rc_lend", "rc_borrow", "rc", "virtual_default"]},
     {"paths": ["src/ir/lower.cpp", "src/ir/opt.cpp", "src/ir/ir.h", "src/frontend/modules.cpp", "src/frontend/parser.cpp", "src/frontend/ast.h", "lib/std/hot.ts", "templates/desktop-app/", "tests/t0/hot_off.sh"], "tests": ["hot_off"]},
     {"paths": ["src/ir/ir.cpp", "src/ir/rc.cpp", "src/ir/opt.cpp", "src/res/res.cpp", "src/assets/assets.cpp", "src/frontend/modules.cpp", "src/dev/hot_swap.cpp", "tests/t0/hot_recompile.sh"], "tests": ["hot_recompile"]},

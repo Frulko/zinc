@@ -5,6 +5,7 @@
 // and globals load through the same code as in the interpreter.
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "zbc/zbc.h"
@@ -25,6 +26,7 @@ std::string emitCpp(const zbc::Module& m, const std::vector<std::uint8_t>* resou
 std::vector<std::string> emitCppParts(const zbc::Module& m, const std::vector<std::uint8_t>* resources, bool rnLayout, unsigned maxParts, const std::string& resourcesFile = {}, const std::string& resourcesIncbin = {});
 
 // Whether the module calls the graphics host (the Rt::Host* entries).
+bool usesNative(const zbc::Module& m, std::string_view module);   // reachable native calls, including workers
 bool usesHost(const zbc::Module& m);
 bool usesLayout(const zbc::Module& m);   // the program calls the host layout engine: link zn_layout and zn_yoga
 bool usesGl(const zbc::Module& m);       // the program calls zinc:gl (ZN-562): link zn_gl, glad and glslang

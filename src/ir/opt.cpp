@@ -629,12 +629,44 @@ void removeUnreachable(Module& m) {
       for (Inst& i : b.insts) if (i.op == IrOp::Call) i.sym = to[i.sym];
 }
 
+// Declarations and string literals in dead functions must not retain native libraries or constant data.
+void removeUnusedData(Module& m) {
+  if (m.hot) return;   // Fast Refresh compares the native ABI table between edits
+  std::vector<std::uint32_t> to(m.natives.size(), kNoClass), strings(m.strings.size(), kNoClass);
+  auto stringConst = [&](const Inst& i) { return i.op == IrOp::Const && m.types[i.ty].k == Type::K::Str && i.imm != kNullConst; };
+  for (const Function& f : m.functions)
+    for (const Block& b : f.blocks)
+      for (const Inst& i : b.insts) {
+        if (i.op == IrOp::CallNative) to[i.sym] = 0;
+        else if (stringConst(i)) strings[i.imm] = 0;
+      }
+  std::vector<Native> kept;
+  for (std::size_t n = 0; n < m.natives.size(); ++n) if (to[n] != kNoClass) {
+    to[n] = static_cast<std::uint32_t>(kept.size());
+    kept.push_back(std::move(m.natives[n]));
+  }
+  m.natives = std::move(kept);
+  std::vector<std::string> keptStrings;
+  for (std::size_t n = 0; n < m.strings.size(); ++n) if (strings[n] != kNoClass) {
+    strings[n] = static_cast<std::uint32_t>(keptStrings.size());
+    keptStrings.push_back(std::move(m.strings[n]));
+  }
+  m.strings = std::move(keptStrings);
+  for (Function& f : m.functions)
+    for (Block& b : f.blocks)
+      for (Inst& i : b.insts) {
+        if (i.op == IrOp::CallNative) i.sym = to[i.sym];
+        else if (stringConst(i)) i.imm = strings[i.imm];
+      }
+}
+
 }  // namespace
 
 void optimize(Module& m, bool deviceCore) {
   using zn::log::Phase;   // ZINC_LOG=build=debug: the time of each pass
   { Phase p("build", "optimise: constant globals", zn::log::Debug); foldConstGlobals(m); }   // first: inlining, CSE and hoisting then see the constants
   if (!deviceCore) { Phase p("build", "optimise: sort", zn::log::Debug); specializeSort(m); }
+  if (!std::getenv("ZN_KEEP_UNREACHABLE")) removeUnreachable(m);   // RTA must remove unconstructed classes' methods before devirtualisation picks a target
   { Phase p("build", "optimise: devirtualise", zn::log::Debug); devirtualize(m); }
   for (int round = 0; round < 3 && !m.debug; ++round) {   // a debug build keeps every call a frame of its own
     Phase p("build", "optimise: inline round " + std::to_string(round + 1), zn::log::Debug);
@@ -646,7 +678,7 @@ void optimize(Module& m, bool deviceCore) {
   { Phase p("build", "optimise: thread branches", zn::log::Debug); threadBranches(m); }  // after inlining: an inlined `a && b` joins like a written one
   { Phase p("build", "optimise: cse", zn::log::Debug); cse(m); }
   { Phase p("build", "optimise: hoist constants", zn::log::Debug); hoistConsts(m); }     // the constants the inlined bodies brought are loaded once too
-  if (!std::getenv("ZN_KEEP_UNREACHABLE")) { Phase p("build", "optimise: unreachable", zn::log::Debug); removeUnreachable(m); }   // last: inlining leaves more functions without callers
+  if (!std::getenv("ZN_KEEP_UNREACHABLE")) { Phase p("build", "optimise: unreachable", zn::log::Debug); removeUnreachable(m); removeUnusedData(m); }   // last: inlining leaves more functions without callers
 }
 
 }  // namespace zn::ir

@@ -571,8 +571,8 @@ FileScan scanFile(const std::string& text, bool lib, bool embedTtf) {
     return false;
   };
   FileScan r;
-  // the library's sizes are real uses (a kit Button is text-sm), but its style tables name every face (italic, font-mono, uppercase) and its comments
-  // say "text (": those faces and the grid come from the program's own files (ZN-428)
+  // Embedded TrueType files rasterize library sizes and faces on demand; scanning their tables would bake unused families too.
+  if (lib) { literalChars(text, r.chars); return r; }
   r.grid = !lib && text.find("zinc:gfx") != std::string::npos && std::regex_search(text, reGfxText);
   r.typing = !lib && embedTtf && types(text);
   // line by line: the patterns do not span lines, and short subjects keep the regex engine fast
@@ -635,11 +635,14 @@ Scan scan(const std::vector<std::string>& sources, const Options& opt) {
       }
       const FileScan& f = it->second;
       sizes.insert(f.sizes.begin(), f.sizes.end());
-      chars.insert(f.chars.begin(), f.chars.end());
+      if (!lib || !opt.libraryLiterals) chars.insert(f.chars.begin(), f.chars.end());
       sc.gridUsed |= f.grid; sc.typing |= f.typing; ellipsisUsed |= f.ellipsis; sc.fontMono |= f.mono; caseUsed |= f.cased; sc.italicUsed |= f.italic;
     }
     memo = std::move(used);
   }
+  if (embedTtf && opt.libraryLiterals)
+    for (const std::string& s : *opt.libraryLiterals)
+      for (std::uint32_t cp : utf8Chars(s)) if (cp >= 128) chars.insert(cp);
   if (!opt.assetsDir.empty() && fs::exists(opt.assetsDir))   // the texts a program reads from its assets at run time (a museum's descriptions in French, ZN-650.09)
     for (auto& e : fs::recursive_directory_iterator(opt.assetsDir)) {
       const std::string ext = e.path().extension().string();

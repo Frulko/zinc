@@ -191,7 +191,7 @@ A program pays for the components it uses, not for the ones it could import. `im
 loads every family of the kit, and the compilers keep only what the program reaches:
 
 - the typed engines (interpreter and AOT) drop every function no reachable code calls, and every method nobody calls
-  (rapid type analysis, after inlining);
+  (rapid type analysis, before and after inlining);
 - `zinc bundle` (QuickJS) tree-shakes with esbuild, which drops every unused export of a module that runs no code when
   it loads.
 
@@ -199,16 +199,17 @@ Measured on an M1 Pro, 2026-11-09 (`tests/t0/kit_size.sh` prints them):
 
 | Program | AOT binary (`zinc build`) | QuickJS bundle (`zinc bundle --minify`) |
 |---|---|---|
-| `<View><Text>` alone | 5.16 MB | 167 KB |
-| plus one `Button`, imported from its own file | +264 KB | +59 KB |
-| the same `Button` through `zinc:ui/kit` (26 families unused) | +1.88 MB | +0.4 KB |
-| nine more components (Card, Input, Switch, Tabs, Slider...) | +48 KB each | +1.5 KB each |
+| one `Button`, imported from its own file | 5.49 MB | 227 KB |
+| the same `Button` through `zinc:ui/kit` (26 families unused) | +66 KB | +0.4 KB |
+| nine more components (Card, Input, Switch, Tabs, Slider...) | +49.6 KB each | +1.5 KB each |
 
 The first `Button` carries the class-string styling of `zinc:ui` and the theme; each component after it costs little.
-The +1.88 MB of the third line is a gap of the AOT build, not of the kit: a plugin is linked when a file the program
-loads imports it, reachable or not. `zinc:icons` and `ProgressRing` draw with `zinc:svg`, so every kit program links
-the SVG plugin and, with a plugin present, the full system host (network and TLS). The test fails until the build links
-a plugin only when reachable code calls it.
+The index leaves a small amount of type metadata. AOT links native plugins only when reachable code calls them.
+The typed engines add no atlas for unused families: embedded TrueType files rasterize library sizes on first use,
+and library characters come from reachable literals. JavaScript keeps its conservative source scan.
+
+The gate allows 4 KB per unused family in AOT and 256 bytes in the bundle, and an average 64 KB / 4 KB for each
+further used component. These are byte budgets, not timing measurements; toolchains and targets can change absolute sizes.
 
 Rules that keep it so, for whoever adds to the kit:
 
@@ -216,13 +217,11 @@ Rules that keep it so, for whoever adds to the kit:
   nothing and defines no scheme when it loads. State is made at its first use (the theme signal and the colour schemes
   are). An empty `Map` or `Set` is fine. `tests/t0/kit_size.sh` checks it.
 - **One module per family**, exported by `index.ts`. No table that names every component, no registry filled at load.
-- **Sizes built at run time** in the looks (`tx(13, '')`, not a written `text-[13px]`): the font baker bakes every size
-  it reads in the sources a program loads, so a size written in a look nobody uses would grow every program.
+- **Keep font sizes in component styles.** Embedded TrueType builds rasterize library sizes when used; bitmap-only
+  builds still pre-bake the sizes written in library sources.
 - **Icons by a written name** (`<Icon name="check" />`): only the names written in the sources are compiled in.
 - **Themes are data**: roles, colours and shapes, never functions stored in a table.
 
-The gate allows 4 KB of AOT binary and 256 bytes of bundle per unused family, and 64 KB and 4 KB for one more
-component used.
 
 ## How it works
 

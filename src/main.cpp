@@ -841,10 +841,11 @@ static std::string appNameEnv(const std::string& entry) {
 // (gfx_host.cpp photoFromAssets), not baked: their pixels weigh ten times the file. A console or a board keeps them baked.
 static bool gPhotosAsFiles = false;
 static std::string humanSize(std::uint64_t n) { char b[32]; if (n < 1000) std::snprintf(b, sizeof b, "%u bytes", static_cast<unsigned>(n)); else if (n < 1000000) std::snprintf(b, sizeof b, "%.0f KB", n / 1e3); else std::snprintf(b, sizeof b, "%.1f MB", n / 1e6); return b; }
-static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err) {
+static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err, const zn::zbc::Module* typed = nullptr) {
   namespace fs = std::filesystem;
   zn::res::Options o;
   o.fontDir = gRoot + "/lib/fonts";
+  if (typed) o.libraryLiterals = typed->strings;
   o.library = gSourceIsLib;   // ZN-428: the library's style tables do not decide what is baked
   std::vector<zn::assets::Rule> rules;
   {   // "text": "shaped" (or ZINC_TEXT=shaped): the shaper reads the whole TrueType files
@@ -1064,7 +1065,7 @@ static zn::rt::Result runHot(std::unique_ptr<zn::dev::hot::Unit> unit, zn::zbc::
     std::string err;
     if (drawsOf(u.zbc)) {
       zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
-      if (!bakeResources(entry.c_str(), u.resources, err)) { errors = err; return false; }
+      if (!bakeResources(entry.c_str(), u.resources, err, &u.zbc)) { errors = err; return false; }
     }
 #endif
     return true;
@@ -1228,7 +1229,16 @@ static std::string packLibs(const std::filesystem::path& libs) {
   for (const char* lib : {"libzn_zpk.a", "libzn_lz4.a", "libzn_zstd.a", "libzn_sha256.a"}) if (std::filesystem::exists(libs / lib)) r += " '" + (libs / lib).string() + "'";
   return r;
 }
+static void pruneNativePlugins(const zn::zbc::Module& zm) {
+  gPlugins.erase(std::remove_if(gPlugins.begin(), gPlugins.end(), [&](const zn::tc::PluginLib& p) {
+    // Display drivers register through static constructors rather than CallNative.
+    if (p.display || p.module.empty() || zn::aot::usesNative(zm, p.module)) return false;
+    gUsedPlugins.erase(std::remove(gUsedPlugins.begin(), gUsedPlugins.end(), p.plugin), gUsedPlugins.end());
+    return true;
+  }), gPlugins.end());
+}
 static int buildNative(const char* argv0, const char* entry, const char* out, zn::zbc::Module& zm, std::chrono::steady_clock::time_point tBuild, RunBuild* run = nullptr) {
+  pruneNativePlugins(zm);
   namespace fs = std::filesystem;
   fs::path libs = fs::absolute(argv0).parent_path(), cpp = fs::path(out).string() + ".cpp";
   printPlugins();
@@ -1236,7 +1246,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   if (drawsOf(zm)) {   // fonts and images: a program that draws (a console program with timers or sockets carries none, ZN-592.06)
     std::string err;
     zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
-    if (!bakeResources(entry, blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
+    if (!bakeResources(entry, blob, err, &zm)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
   }
   std::string assetLines;   // zinc build: the ram budget of zinc:assets and the packs' target, set in main like ZINC_SIZE (ZN-436)
   if (std::string pf = zn::frontend::findProjectFile(entry); !run && !pf.empty()) {   // zinc build: the packs of the project's assets, build/assets/<target> (ZN-434)
@@ -1400,7 +1410,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   // a plugin's archive or the QuickJS engine may call into the network code itself, so a program with either keeps the whole host
   const bool liteHost = !zn::aot::usesNet(zm) && gPlugins.empty() && !usesScript && fs::exists(libs / "libzn_host_sys_lite.a");
   std::string cmd = std::string(cxx ? cxx : "c++") + cflags + ldflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
-                    (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (!zm.natives.empty() && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
+                    (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (zn::aot::usesNative(zm, "Fixture") && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                     (!nativeLibs.empty() ? nativeLibs : std::string()) +
                     (zn::aot::usesGl(zm) && fs::exists(libs / "libzn_gl.a") ? " '" + (libs / "libzn_gl.a").string() + "' '" + (libs / "libzn_glad.a").string() + "' '" + (libs / "libzn_glslang.a").string() + "'" : std::string()) +   // zinc:gl (ZN-562): WebGL linked in, no libzn_webgl
                     (zn::aot::usesLayout(zm) && (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()) && fs::exists(libs / "libzn_layout.a") ? " '" + (libs / "libzn_layout.a").string() + "' '" + (libs / "libzn_yoga.a").string() + "'" : std::string()) + ((zn::aot::usesHost(zm) || !nativeLibs.empty()) && fs::exists(libs / "libzn_host_gfx.a") ? (liteHost ? " '" + (libs / "libzn_host_sys_lite.a").string() + "'" : std::string()) + " '" + (libs / "libzn_host_gfx.a").string() + "'" + (window && separateWindow ? " -Wl,-force_load,'" + (libs / "libzn_host_window.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_codec.a") ? " '" + (libs / "libzn_codec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_webp_dec.a") ? " '" + (libs / "libzn_webp_dec.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_uv.a") ? " '" + (libs / "libzn_uv.a").string() + "'" : std::string()) + (!liteHost && fs::exists(libs / "libzn_llhttp.a") ? " '" + (libs / "libzn_llhttp.a").string() + "'" : std::string()) + (!liteHost && fs::exists(libs / "libzn_mbedtls.a") ? " '" + (libs / "libzn_mbedtls.a").string() + "'" : std::string()) + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + packLibs(libs) + " -lpthread" HOSTLIBS : std::string()) + " -o '" + out + "'";  // the graphics host, used by programs that call it
@@ -2955,7 +2965,7 @@ int main(int argc, char** argv) {
     files["program.info"] = programFacts();   // its files, functions, imports and plugins: the inspector's Info view, the sources being left behind
     std::vector<std::uint8_t> blob; std::string err;
     if (zn::aot::usesHost(zm)) {   // a program that draws: its baked fonts and images (a command-line program needs none)
-      if (!bakeResources(entry.c_str(), blob, err)) { std::fprintf(stderr, "zinc pack: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
+      if (!bakeResources(entry.c_str(), blob, err, &zm)) { std::fprintf(stderr, "zinc pack: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
       files["resources.bin"] = std::string(blob.begin(), blob.end());
     }
     if (have) files["zinc.json"] = ps.str();
@@ -3287,7 +3297,7 @@ int main(int argc, char** argv) {
       else if (gSources.empty() && std::filesystem::exists(baked, rec)) { std::ifstream rf(baked, std::ios::binary); blob.assign(std::istreambuf_iterator<char>(rf), std::istreambuf_iterator<char>()); }
       else {
         zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
-        if (!bakeResources(absPath.c_str(), blob, err)) blob.clear();
+        if (!bakeResources(absPath.c_str(), blob, err, &zm)) blob.clear();
       }
       if (blob.empty() || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
     }
@@ -3475,7 +3485,7 @@ int main(int argc, char** argv) {
     if (int rc = compileToZbc(argv[4], zm)) return rc;
     std::vector<std::uint8_t> blob;
     std::string err;
-    if (!bakeResources(argv[4], blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    if (!bakeResources(argv[4], blob, err, &zm) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     zn::host::RenderBench rb;
     if (!zn::host::benchScene(argv[3], std::atoi(argv[6]), std::atoi(argv[7]), rb)) { std::fprintf(stderr, "zinc: cannot replay %s\n", argv[3]); return 1; }
     std::printf("bench %dx%d cmds=%d median_us=%.0f p99_us=%.0f hash=%016llx\n", rb.width, rb.height, rb.cmds, rb.medianUs, rb.p99Us, static_cast<unsigned long long>(rb.hash));
@@ -3498,7 +3508,7 @@ int main(int argc, char** argv) {
     if (int rc = compileToZbc(argv[4], zm)) return rc;
     std::vector<std::uint8_t> blob;
     std::string err;
-    if (!bakeResources(argv[4], blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    if (!bakeResources(argv[4], blob, err, &zm) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     zn::host::ScrollCheck sc;
     if (!zn::host::scrollCheck(argv[3], argv[6], sc)) { std::fprintf(stderr, "zinc: cannot compare %s and %s\n", argv[3], argv[6]); return 1; }
     if (!sc.moved) { std::printf("scroll none\n"); return 0; }
@@ -3510,7 +3520,7 @@ int main(int argc, char** argv) {
     if (int rc = compileToZbc(argv[4], zm)) return rc;
     std::vector<std::uint8_t> blob;
     std::string err;
-    if (!bakeResources(argv[4], blob, err) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    if (!bakeResources(argv[4], blob, err, &zm) || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     if (!zn::host::replayScene(argv[3], argv[6])) { std::fprintf(stderr, "zinc: cannot replay %s\n", argv[3]); return 1; }
     return 0;
   }
@@ -3519,7 +3529,7 @@ int main(int argc, char** argv) {
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     std::vector<std::uint8_t> blob;
     std::string err;
-    if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    if (!bakeResources(argv[2], blob, err, &zm)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     std::ofstream out(argv[4], std::ios::binary);
     out.write(reinterpret_cast<const char*>(blob.data()), static_cast<std::streamsize>(blob.size()));
     return out ? 0 : 2;
@@ -3580,6 +3590,7 @@ int main(int argc, char** argv) {
     if (zn::log::steps()) std::fprintf(stderr, "zinc build %s for %s\n", zn::log::shortPath(fs::absolute(argv[4]).string()).c_str(), target->name);
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[4], zm)) return rc;
+    pruneNativePlugins(zm);
     std::string zig, err;
     if (!zn::tc::ensureZig(zig, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     fs::path cpp = fs::path(argv[6]).string() + ".cpp";
@@ -3591,7 +3602,7 @@ int main(int argc, char** argv) {
     if (draws) {   // a program that draws: the graphics host cross-built for the target (headless null HAL), the fonts and images baked in, the surface size of the project for the target
       if (!zn::tc::ensureCrossLibs(zig, gRoot, argv[3], libsDir, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       gPhotosAsFiles = true;   // an export ships its assets/ beside the program
-      if (!bakeResources(argv[4], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
+      if (!bakeResources(argv[4], blob, err, &zm)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
       std::string pdir = zn::frontend::findProjectFile(argv[4]);
       pdir = pdir.empty() ? "." : fs::path(pdir).parent_path().string();
       // webOS: the program is a full-screen card on the GPU unless its zinc.json says otherwise under "webos" (the size it names for Linux is a desktop window's)
@@ -3753,7 +3764,7 @@ int main(int argc, char** argv) {
     zn::dev::hot::finish(u);
 #ifdef ZN_HOST_GFX
     std::string err;
-    if (drawsOf(u.zbc) && !bakeResources(entry.c_str(), u.resources, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 1; }
+    if (drawsOf(u.zbc) && !bakeResources(entry.c_str(), u.resources, err, &u.zbc)) { std::fprintf(stderr, "%s\n", err.c_str()); return 1; }
 #endif
     {   // the plugin of each native module, which a player that lacks it names
       std::vector<std::string> problems, seen;
@@ -3776,7 +3787,7 @@ int main(int argc, char** argv) {
       if (wrc) return wrc;
       zn::dev::hot::finish(w);
 #ifdef ZN_HOST_GFX
-      if (drawsOf(w.zbc) && !bakeResources(entry.c_str(), w.resources, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 1; }
+      if (drawsOf(w.zbc) && !bakeResources(entry.c_str(), w.resources, err, &w.zbc)) { std::fprintf(stderr, "%s\n", err.c_str()); return 1; }
 #endif
       w.plugins = u.plugins;
       const bool same = zn::dev::hot::save(w) == bytes;
@@ -3798,7 +3809,7 @@ int main(int argc, char** argv) {
     if (argc == 6) {
       std::vector<std::uint8_t> blob;
       std::string err;
-      if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      if (!bakeResources(argv[2], blob, err, &zm)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       std::ofstream ro(argv[5], std::ios::binary);
       ro.write(reinterpret_cast<const char*>(blob.data()), static_cast<std::streamsize>(blob.size()));
       if (!ro) return 2;
