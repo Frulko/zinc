@@ -2,7 +2,8 @@
 id: ZN-678
 title: 'GL replay: smoothed edges and one filter rule for images through a matrix'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 19:21'
 labels:
   - gpu

@@ -2,7 +2,8 @@
 id: ZN-695
 title: 'zinc:audio: pause and resume a voice'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 21:18'
 labels:
   - audio
