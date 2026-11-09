@@ -28,9 +28,10 @@
 namespace {
 
 // TAG_NAMES of lib/std/ui.ts, then the native kinds of zinc:appkit's components (index.ts)
-enum Kind { KView, KText, KButton, KImage, KScroll, KCanvas, KFragment, KInput, KTextArea, KWindow, KToolbar, KToolbarItem, KSplit, KSidebar, KUnknown };
-const char* const kKinds[] = {"view", "text", "button", "image", "scroll", "canvas", "fragment", "input", "textarea", "window", "toolbar", "toolbaritem", "split", "sidebar"};
-enum Ev { EvEdit, EvChange, EvSubmit, EvFocus, EvBlur, EvScroll, EvPress, EvResize };
+enum Kind { KView, KText, KButton, KImage, KScroll, KCanvas, KFragment, KInput, KTextArea, KWindow, KToolbar, KToolbarItem, KSplit, KSidebar, KTable, KOutline, KUnknown };
+const char* const kKinds[] = {"view", "text", "button", "image", "scroll", "canvas", "fragment", "input", "textarea", "window", "toolbar", "toolbaritem", "split", "sidebar", "table", "outline"};
+// index.ts's event kinds; a Table's and an Outline's have their own (from EvSelect), so a recycled handle never routes a field's event to a list
+enum Ev { EvEdit, EvChange, EvSubmit, EvFocus, EvBlur, EvScroll, EvPress, EvResize, EvSelect, EvSort, EvType, EvOpen, EvExpand, EvRows, EvListFocus };
 
 struct Node {
   bool live = false;
@@ -191,6 +192,129 @@ void pushEdit(NSView* v, NSString* value, NSRange sel) {
 - (void)press:(NSToolbarItem*)item { push(item, EvPress); }
 @end
 
+namespace {
+/** A cell of a Table or an Outline: one AppKit recycles (a cell scrolled out comes back through makeViewWithIdentifier), a label made only when it has
+ *  none to hand back. */
+NSTableCellView* cellView(NSTableView* tv, NSUserInterfaceItemIdentifier ident, id owner) {
+  NSTableCellView* c = [tv makeViewWithIdentifier:ident owner:owner];
+  if (c) return c;
+  c = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
+  c.identifier = ident;
+  NSTextField* t = [NSTextField labelWithString:@""];
+  t.lineBreakMode = NSLineBreakByTruncatingTail;
+  t.translatesAutoresizingMaskIntoConstraints = NO;
+  [c addSubview:t];
+  c.textField = t;
+  [t.leadingAnchor constraintEqualToAnchor:c.leadingAnchor constant:2].active = YES;
+  [t.trailingAnchor constraintEqualToAnchor:c.trailingAnchor constant:-2].active = YES;
+  [t.centerYAnchor constraintEqualToAnchor:c.centerYAnchor].active = YES;
+  return c;
+}
+}  // namespace
+
+/** An Outline's item: one object per id, kept by its controller across commits, since NSOutlineView knows its items by pointer (expansion, selection)
+ *  and does not retain them. */
+@interface ZnItem : NSObject
+@property(copy) NSString* ident;
+@property(copy) NSString* label;
+@property(strong) NSMutableArray<ZnItem*>* kids;
+@end
+@implementation ZnItem
+@end
+
+/** A Table's and an Outline's views: taking the first responder (a click, the keyboard) is zinc:ui's focus on the list. */
+@interface ZnTableView : NSTableView
+@end
+@implementation ZnTableView
+- (BOOL)becomeFirstResponder { BOOL ok = [super becomeFirstResponder]; if (ok) push(self, EvListFocus); return ok; }
+@end
+@interface ZnOutlineView : NSOutlineView
+@end
+@implementation ZnOutlineView
+- (BOOL)becomeFirstResponder { BOOL ok = [super becomeFirstResponder]; if (ok) push(self, EvListFocus); return ok; }
+@end
+
+/** A Table's data source and delegate. It answers only from what the commits pushed: the row count and the cells of the rows zinc:ui's virtual list
+ *  has built (those in view and a few more); a row not pushed yet shows empty until the next commit brings it. It never calls the program. */
+@interface ZnTableCtl : NSObject <NSTableViewDataSource, NSTableViewDelegate> {
+ @public
+  std::unordered_map<int, std::vector<std::string>> cache;   // row -> its cells' texts
+  std::string columns, sort, selection;                       // the attributes applied
+  std::vector<NSTextAlignment> aligns;
+}
+@property(strong) NSTableView* table;
+@property NSInteger count;
+@end
+@implementation ZnTableCtl
+- (const std::string*)cellAt:(NSInteger)row column:(NSInteger)col {
+  auto it = cache.find((int)row);
+  return it != cache.end() && col >= 0 && col < (NSInteger)it->second.size() ? &it->second[col] : nullptr;
+}
+- (NSInteger)numberOfRowsInTableView:(NSTableView*)tv { return self.count; }
+- (NSView*)tableView:(NSTableView*)tv viewForTableColumn:(NSTableColumn*)col row:(NSInteger)row {
+  NSTableCellView* c = cellView(tv, col.identifier, self);
+  const NSUInteger k = [tv.tableColumns indexOfObjectIdenticalTo:col];
+  const std::string* s = [self cellAt:row column:(NSInteger)k];
+  c.textField.stringValue = s ? ns(*s) : @"";
+  c.textField.alignment = k < aligns.size() ? aligns[k] : NSTextAlignmentNatural;
+  return c;
+}
+- (void)tableView:(NSTableView*)tv sortDescriptorsDidChange:(NSArray<NSSortDescriptor*>*)old {
+  NSSortDescriptor* d = tv.sortDescriptors.firstObject;
+  if (committing || !d) return;   // the program's own sort comes back in a commit: no echo
+  push(tv, EvSort, str(d.key), d.ascending ? 1 : 0);
+}
+- (void)tableViewSelectionDidChange:(NSNotification*)n {
+  if (committing) return;
+  NSTableView* tv = n.object;
+  __block std::string s;
+  [tv.selectedRowIndexes enumerateIndexesUsingBlock:^(NSUInteger i, BOOL*) { s += (s.empty() ? "" : ",") + std::to_string(i); }];
+  push(tv, EvSelect, s);
+}
+- (NSString*)tableView:(NSTableView*)tv typeSelectStringForTableColumn:(NSTableColumn*)col row:(NSInteger)row {
+  const std::string* s = [self cellAt:row column:0];
+  return s ? ns(*s) : @"";
+}
+/** Type-select reaches rows never pushed: the program's rows answer (index.ts finds the row and selects it, the next commit shows it); AppKit moves
+ *  nothing itself. It asks again from row 0 when the first search fails: one event per string. */
+- (NSInteger)tableView:(NSTableView*)tv nextTypeSelectMatchFromRow:(NSInteger)start toRow:(NSInteger)stop forString:(NSString*)s {
+  if (start <= stop) push(tv, EvType, str(s), (double)start);
+  return -1;
+}
+- (void)open:(NSTableView*)tv { if (tv.clickedRow >= 0) push(tv, EvOpen, "", (double)tv.clickedRow); }
+@end
+
+/** An Outline's data source and delegate, from the whole tree a commit pushed (attribute `tree`): AppKit expands, collapses and type-selects by
+ *  itself, and reports each change. */
+@interface ZnOutlineCtl : NSObject <NSOutlineViewDataSource, NSOutlineViewDelegate> {
+ @public
+  std::string tree, expanded, selection;   // the attributes applied
+}
+@property(strong) NSOutlineView* outline;
+@property(strong) NSMutableDictionary<NSString*, ZnItem*>* items;   // every item by id: alive as long as the outline may show it
+@property(strong) NSMutableArray<ZnItem*>* roots;
+@end
+@implementation ZnOutlineCtl
+- (NSInteger)outlineView:(NSOutlineView*)ov numberOfChildrenOfItem:(ZnItem*)item { return (NSInteger)(item ? item.kids.count : self.roots.count); }
+- (id)outlineView:(NSOutlineView*)ov child:(NSInteger)i ofItem:(ZnItem*)item { return item ? item.kids[(NSUInteger)i] : self.roots[(NSUInteger)i]; }
+- (BOOL)outlineView:(NSOutlineView*)ov isItemExpandable:(ZnItem*)item { return item.kids.count > 0; }
+- (NSView*)outlineView:(NSOutlineView*)ov viewForTableColumn:(NSTableColumn*)col item:(ZnItem*)item {
+  NSTableCellView* c = cellView(ov, @"c0", self);
+  c.textField.stringValue = item.label ?: @"";
+  return c;
+}
+- (NSString*)outlineView:(NSOutlineView*)ov typeSelectStringForTableColumn:(NSTableColumn*)col item:(ZnItem*)item { return item.label; }
+- (void)outlineViewSelectionDidChange:(NSNotification*)n {
+  if (committing) return;
+  NSOutlineView* ov = n.object;
+  ZnItem* it = ov.selectedRow >= 0 ? [ov itemAtRow:ov.selectedRow] : nil;
+  push(ov, EvSelect, it ? str(it.ident) : "");
+}
+- (void)outlineViewItemDidExpand:(NSNotification*)n { if (!committing) push(n.object, EvExpand, str(((ZnItem*)n.userInfo[@"NSObject"]).ident), 1); }
+- (void)outlineViewItemDidCollapse:(NSNotification*)n { if (!committing) push(n.object, EvExpand, str(((ZnItem*)n.userInfo[@"NSObject"]).ident), 0); }
+- (void)open:(NSOutlineView*)ov { if (ov.clickedRow >= 0) push(ov, EvOpen, "", (double)ov.clickedRow); }
+@end
+
 @interface ZnLabel : NSTextField
 @end
 @implementation ZnLabel
@@ -292,6 +416,7 @@ void forget(Node& n) {
     for (NSToolbarItem* it in d.items.allValues) idOf.erase((__bridge const void*)it);
   }
   if (n.kind == KToolbarItem && n.chrome) idOf.erase((__bridge const void*)n.chrome);
+  if ((n.kind == KTable || n.kind == KOutline) && n.input) { NSTableView* tv = (NSTableView*)n.input; tv.dataSource = nil; tv.delegate = nil; tv.target = nil; }
   n.chrome = nil;
   if (n.observer) { [NSNotificationCenter.defaultCenter removeObserver:n.observer]; n.observer = nil; }
   if (n.input) { idOf.erase((__bridge const void*)n.input); if (n.input.window.firstResponder == n.input || ([n.input isKindOfClass:NSTextField.class] && ((NSTextField*)n.input).currentEditor)) [n.input.window makeFirstResponder:nil]; }
@@ -330,6 +455,49 @@ NSView* make(int id, Node& n) {
     t.textContainer.widthTracksTextView = YES;
     s.documentView = t;
     n.input = t; v = s;
+  } else if (n.kind == KTable || n.kind == KOutline) {   // the scroll view, its table as the node's input (the first responder zinc:ui's focus moves)
+    NSScrollView* s = [[NSScrollView alloc] initWithFrame:NSZeroRect];
+    s.hasVerticalScroller = YES; s.autohidesScrollers = YES;
+    NSTableView* tv = nil;
+    if (n.kind == KTable) {
+      ZnTableCtl* c = [[ZnTableCtl alloc] init];
+      tv = [[ZnTableView alloc] initWithFrame:NSZeroRect];
+      tv.dataSource = c; tv.delegate = c;
+      tv.usesAlternatingRowBackgroundColors = YES;
+      tv.columnAutoresizingStyle = NSTableViewLastColumnOnlyAutoresizingStyle;
+      if (@available(macOS 11.0, *)) tv.style = NSTableViewStyleFullWidth;
+      c.table = tv; n.chrome = c;
+    } else {
+      ZnOutlineCtl* c = [[ZnOutlineCtl alloc] init];
+      NSOutlineView* ov = [[ZnOutlineView alloc] initWithFrame:NSZeroRect];
+      NSTableColumn* col = [[NSTableColumn alloc] initWithIdentifier:@"c0"];
+      col.resizingMask = NSTableColumnAutoresizingMask;
+      [ov addTableColumn:col];
+      ov.outlineTableColumn = col; ov.headerView = nil;
+      ov.columnAutoresizingStyle = NSTableViewUniformColumnAutoresizingStyle;
+      ov.indentationPerLevel = 14; ov.autoresizesOutlineColumn = NO;
+      if (@available(macOS 11.0, *)) ov.style = NSTableViewStyleSourceList;
+      else {   // Mojave and Catalina: the source-list look came from the highlight style
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        ov.selectionHighlightStyle = NSTableViewSelectionHighlightStyleSourceList;
+#pragma clang diagnostic pop
+      }
+      ov.dataSource = c; ov.delegate = c;
+      s.drawsBackground = NO;
+      c.outline = ov; c.items = [NSMutableDictionary dictionary]; c.roots = [NSMutableArray array]; n.chrome = c;
+      tv = ov;
+    }
+    tv.target = n.chrome; tv.doubleAction = @selector(open:);
+    tv.intercellSpacing = NSMakeSize(3, 0);   // rows exactly rowHeight apart, where zinc:ui's virtual list places them
+    s.documentView = tv;
+    s.contentView.postsBoundsChangedNotifications = YES;
+    __weak NSTableView* weak = tv;
+    n.observer = [NSNotificationCenter.defaultCenter addObserverForName:NSViewBoundsDidChangeNotification object:s.contentView queue:nil usingBlock:^(NSNotification*) {
+      NSTableView* t = weak;   // the rows in view, in the table's own coordinates (row 0 at 0): the virtual list builds them
+      if (t) push(t, EvRows, "", 0, NSMinY(t.visibleRect));
+    }];
+    n.input = tv; v = s;
   } else if (n.kind == KSplit) v = [[ZnSplit alloc] initWithFrame:NSZeroRect];
   else if (n.kind == KSidebar) {
     ZnSidebar* e = [[ZnSidebar alloc] initWithFrame:NSZeroRect];
@@ -386,6 +554,144 @@ void apply(Node& n) {
 void setFrame(NSView* v, double x, double y, double w, double h) {
   const NSRect r = NSMakeRect(x, y, w, h);
   if (!NSEqualRects(v.frame, r)) v.frame = r;
+}
+// ---------------------------------------------------------------- Table and Outline (ZN-1072)
+std::vector<std::string> split(const std::string& s, char sep) {
+  std::vector<std::string> out;
+  size_t a = 0;
+  for (size_t b; (b = s.find(sep, a)) != std::string::npos; a = b + 1) out.push_back(s.substr(a, b - a));
+  out.push_back(s.substr(a));
+  return out;
+}
+/** The text of the first text node under id: a cell's string in a row of the virtual list. */
+const std::string* firstText(int id) {
+  Node* n = live(id);
+  if (!n) return nullptr;
+  if (n->kind == KText) return &n->text;
+  for (int k : n->kids) if (const std::string* s = firstText(k)) return s;
+  return nullptr;
+}
+/** A Table from its attributes (columns, count, row height, sort, selection) and the cache of rows: the `row` nodes zinc:ui's virtual list built under
+ *  its body this commit. Rows whose cells changed, came or went are reloaded; AppKit asks for the cells of the rows it shows. */
+void applyTable(Node& n, bool changed) {
+  ZnTableCtl* c = n.chrome;
+  NSTableView* tv = c.table;
+  bool all = false;
+  if (changed) {
+    const std::string& cols = n.attr("columns");
+    if (cols != c->columns) {
+      c->columns = cols;
+      while (tv.tableColumns.count) [tv removeTableColumn:tv.tableColumns.lastObject];
+      c->aligns.clear();
+      if (!cols.empty()) for (const std::string& line : split(cols, '\n')) {   // id, title, width (0: shares what is left), sortable, align
+        const std::vector<std::string> f = split(line, '\t');
+        if (f.size() < 5) continue;
+        NSTableColumn* col = [[NSTableColumn alloc] initWithIdentifier:ns(f[0])];
+        col.title = ns(f[1]);
+        const double w = atof(f[2].c_str());
+        col.width = w > 0 ? w : 100;
+        col.resizingMask = w > 0 ? NSTableColumnUserResizingMask : NSTableColumnAutoresizingMask | NSTableColumnUserResizingMask;
+        if (f[3] == "1") col.sortDescriptorPrototype = [NSSortDescriptor sortDescriptorWithKey:ns(f[0]) ascending:YES];
+        const NSTextAlignment al = f[4] == "right" ? NSTextAlignmentRight : f[4] == "center" ? NSTextAlignmentCenter : NSTextAlignmentNatural;
+        col.headerCell.alignment = al;
+        c->aligns.push_back(al);
+        [tv addTableColumn:col];
+      }
+      all = true;
+    }
+    const double rh = atof(n.attr("rowHeight").c_str());
+    if (rh > 0 && tv.rowHeight != rh) tv.rowHeight = rh;
+    tv.allowsMultipleSelection = n.attr("multiple") == "1";
+    const NSInteger count = atol(n.attr("count").c_str());
+    if (count != c.count) { c.count = count; [tv noteNumberOfRowsChanged]; }
+    const std::string& so = n.attr("sort");
+    if (so != c->sort) {   // the indicator in the header
+      c->sort = so;
+      const size_t sp = so.rfind(' ');
+      tv.sortDescriptors = sp == std::string::npos ? @[] : @[[NSSortDescriptor sortDescriptorWithKey:ns(so.substr(0, sp)) ascending:so.substr(sp + 1) == "1"]];
+    }
+  }
+  std::unordered_map<int, std::vector<std::string>> fresh;
+  for (int b : n.kids) if (Node* bn = live(b)) for (int r : bn->kids) if (Node* rn = live(r)) {
+    const std::string& at = rn->attr("row");
+    if (at.empty()) continue;
+    std::vector<std::string> cells;
+    for (int k : rn->kids) { const std::string* s = firstText(k); cells.push_back(s ? *s : std::string()); }
+    fresh[atoi(at.c_str())] = std::move(cells);
+  }
+  NSMutableIndexSet* rows = [NSMutableIndexSet indexSet];
+  for (const auto& [row, cells] : fresh) { auto it = c->cache.find(row); if (it == c->cache.end() || it->second != cells) [rows addIndex:(NSUInteger)row]; }
+  for (const auto& [row, cells] : c->cache) if (!fresh.count(row)) [rows addIndex:(NSUInteger)row];
+  c->cache.swap(fresh);
+  if (all) { [tv reloadData]; [tv sizeLastColumnToFit]; }
+  else {
+    [rows removeIndexesInRange:NSMakeRange((NSUInteger)c.count, NSUIntegerMax - (NSUInteger)c.count)];
+    if (rows.count) [tv reloadDataForRowIndexes:rows columnIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, (NSUInteger)tv.numberOfColumns)]];
+  }
+  const std::string& se = n.attr("selection");
+  if (changed && se != c->selection) {   // the program's selection (type-select, its own); the user's comes back equal and changes nothing
+    c->selection = se;
+    NSMutableIndexSet* want = [NSMutableIndexSet indexSet];
+    if (!se.empty()) for (const std::string& r : split(se, ',')) [want addIndex:(NSUInteger)atol(r.c_str())];
+    if (![tv.selectedRowIndexes isEqualToIndexSet:want]) {
+      [tv selectRowIndexes:want byExtendingSelection:NO];
+      if (want.count) [tv scrollRowToVisible:(NSInteger)want.firstIndex];
+    }
+  }
+}
+/** Expands the items whose ids are in `open` and collapses the others, parents first. */
+void expandTo(NSOutlineView* ov, NSArray<ZnItem*>* items, const std::vector<std::string>& open) {
+  for (ZnItem* it in items) {
+    const bool want = std::find(open.begin(), open.end(), str(it.ident)) != open.end();
+    if (want && ![ov isItemExpanded:it]) [ov expandItem:it];
+    else if (!want && [ov isItemExpanded:it]) [ov collapseItem:it];
+    if (want) expandTo(ov, it.kids, open);
+  }
+}
+/** An Outline from its attributes: the tree (one item object per id, the same across commits), the expanded ids, the selected id. */
+void applyOutline(Node& n, bool changed) {
+  if (!changed) return;
+  ZnOutlineCtl* c = n.chrome;
+  NSOutlineView* ov = c.outline;
+  const double rh = atof(n.attr("rowHeight").c_str());
+  if (rh > 0 && ov.rowHeight != rh) ov.rowHeight = rh;
+  const std::string& tr = n.attr("tree");
+  if (tr != c->tree) {
+    c->tree = tr;
+    NSMutableDictionary<NSString*, ZnItem*>* old = c.items;   // kept until reloadData has let go of the items that went
+    NSMutableDictionary<NSString*, ZnItem*>* items = [NSMutableDictionary dictionary];
+    NSMutableArray<ZnItem*>* roots = [NSMutableArray array];
+    std::vector<ZnItem*> path;   // the item at each level above the current line
+    if (!tr.empty()) for (const std::string& line : split(tr, '\n')) {   // level, id, label, in tree order
+      const std::vector<std::string> f = split(line, '\t');
+      if (f.size() < 3) continue;
+      const size_t level = std::min((size_t)std::max(0, atoi(f[0].c_str())), path.size());
+      NSString* key = ns(f[1]);
+      ZnItem* it = old[key] ?: [[ZnItem alloc] init];
+      it.ident = key; it.label = ns(f[2]); it.kids = [NSMutableArray array];
+      path.resize(level);
+      [(path.empty() ? roots : path.back().kids) addObject:it];
+      path.push_back(it);
+      items[key] = it;
+    }
+    c.items = items; c.roots = roots;
+    [ov reloadData];
+    old = nil;
+    c->expanded = "\x01";   // expand and select again after the reload
+    c->selection = "\x01";
+  }
+  const std::string& ex = n.attr("expanded");
+  if (ex != c->expanded) { c->expanded = ex; expandTo(ov, c.roots, ex.empty() ? std::vector<std::string>() : split(ex, '\n')); }
+  const std::string& se = n.attr("selection");
+  if (se != c->selection) {
+    c->selection = se;
+    ZnItem* it = se.empty() ? nil : c.items[ns(se)];
+    const NSInteger row = it ? [ov rowForItem:it] : -1;
+    if (row != ov.selectedRow) {
+      if (row >= 0) { [ov selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)row] byExtendingSelection:NO]; [ov scrollRowToVisible:row]; }
+      else [ov deselectAll:nil];
+    }
+  }
 }
 void place(int id, double ox, double oy, NSMutableArray<NSView*>* into, bool pane = false);
 NSWindow* hostWindow();
@@ -490,9 +796,12 @@ void place(int id, double ox, double oy, NSMutableArray<NSView*>* into, bool pan
   }
   if (n.kind == KInput && n.view && [n.view isKindOfClass:NSSecureTextField.class] != (n.secure != 0)) forget(n);   // secure is another class
   if (!n.view) make(id, n);
+  const bool changed = n.dirty;
   if (n.dirty) apply(n);
   if (n.kind != KToolbarItem) setFrame(n.view, x, y, n.w, n.h);   // a toolbar places its items (their size: constraints, applyToolbar)
   [into addObject:n.view];
+  if (n.kind == KTable) { applyTable(n, changed); return; }        // its children are the drawn fallback and the rows' cache, not views
+  if (n.kind == KOutline) { applyOutline(n, changed); return; }
   if (n.kind == KText || n.kind == KInput || n.kind == KTextArea || n.kind == KImage) return;   // leaves (a text's spans are in its string)
   NSMutableArray<NSView*>* sub = [NSMutableArray array];
   for (int k : n.kids) place(k, 0, 0, sub, n.kind == KSplit);
@@ -658,6 +967,44 @@ std::string qstr(const std::string& s) {
   for (char c : s) out += c == '\n' ? std::string("\\n") : c == '"' ? std::string("\\\"") : std::string(1, c);
   return out + "\"";
 }
+/** A Table's or an Outline's line goes on: its rows, cache and selection, then its columns and the rows in view, read back from the cells AppKit made
+ *  (the cells hold what the data source answered from the cache). */
+void dumpList(const Node& n, int depth, std::string& out) {
+  NSTableView* tv = (NSTableView*)n.input;
+  char b[96];
+  __block std::string sel;
+  [tv.selectedRowIndexes enumerateIndexesUsingBlock:^(NSUInteger i, BOOL*) { sel += (sel.empty() ? "" : ",") + std::to_string(i); }];
+  snprintf(b, sizeof b, " rows=%ld", (long)tv.numberOfRows);
+  out += b;
+  if (n.kind == KTable) {
+    ZnTableCtl* c = n.chrome;
+    snprintf(b, sizeof b, " cached=%zu", c->cache.size());
+    out += b;
+    if (NSSortDescriptor* d = tv.sortDescriptors.firstObject) out += " sort=" + str(d.key) + (d.ascending ? " asc" : " desc");
+  }
+  if (!sel.empty()) out += " sel=" + sel;
+  out += "\n";
+  const std::string pad(depth * 2 + 2, ' ');
+  if (n.kind == KTable)
+    for (NSTableColumn* col in tv.tableColumns) out += pad + "column " + str(col.identifier) + " " + qstr(str(col.title)) + (col.sortDescriptorPrototype ? " sortable" : "") + "\n";
+  const NSRange vis = [tv rowsInRect:tv.visibleRect];
+  for (NSUInteger r = vis.location; r < NSMaxRange(vis); r++) {
+    if (n.kind == KTable && r > vis.location + 1 && r + 1 < NSMaxRange(vis)) continue;   // the first two rows in view and the last
+    snprintf(b, sizeof b, "row %lu", (unsigned long)r);
+    out += pad + b;
+    if (n.kind == KOutline) {
+      NSOutlineView* ov = (NSOutlineView*)tv;
+      ZnItem* it = [ov itemAtRow:(NSInteger)r];
+      snprintf(b, sizeof b, " level=%ld", (long)[ov levelForRow:(NSInteger)r]);
+      out += b + std::string(it.kids.count ? ([ov isItemExpanded:it] ? " open" : " closed") : "");
+    }
+    for (NSInteger k = 0; k < tv.numberOfColumns; k++) {
+      NSTableCellView* cell = [tv viewAtColumn:k row:(NSInteger)r makeIfNecessary:YES];
+      out += " " + qstr(cell ? str(cell.textField.stringValue) : "?");
+    }
+    out += "\n";
+  }
+}
 void dumpView(NSView* v, int depth, std::string& out) {
   auto it = idOf.find((__bridge const void*)v);
   Node* n = it != idOf.end() ? live(it->second) : nullptr;
@@ -665,7 +1012,7 @@ void dumpView(NSView* v, int depth, std::string& out) {
   char b[160];
   const NSRect f = v.frame;
   const char* kind = n->kind == KText ? "label" : n->kind == KImage ? "image" : n->kind == KScroll ? "scroll" : n->kind == KInput ? (n->secure ? "secure" : "field") : n->kind == KTextArea ? "area"
-                   : n->kind == KSplit ? "split" : n->kind == KSidebar ? "sidebar" : n->kind == KToolbarItem ? "item" : "view";
+                   : n->kind == KSplit ? "split" : n->kind == KSidebar ? "sidebar" : n->kind == KToolbarItem ? "item" : n->kind == KTable ? "table" : n->kind == KOutline ? "outline" : "view";
   snprintf(b, sizeof b, "%*s#%d %s %g,%g %gx%g", depth * 2, "", it->second, kind, f.origin.x, f.origin.y, f.size.width, f.size.height);
   out += b;
   if (n->kind == KText || n->kind == KInput || n->kind == KTextArea || n->kind == KImage) out += " " + qstr(n->text);
@@ -684,10 +1031,52 @@ void dumpView(NSView* v, int depth, std::string& out) {
   if (n->focusable && !n->input) out += " focusable";   // (fields always are)
   if (responds(v.window.firstResponder, *n)) out += " first";   // the first responder: where the keys go
   if (n->kind == KScroll) { snprintf(b, sizeof b, " content=%gx%g", n->cw, n->ch); out += b; }   // zinc:ui's sizes, not AppKit's (they depend on the scroller setting)
+  if (n->kind == KTable || n->kind == KOutline) { dumpList(*n, depth, out); return; }
   out += "\n";
   if (n->kind == KScroll) { for (NSView* s in ((NSScrollView*)v).documentView.subviews) dumpView(s, depth + 1, out); return; }
   if (n->kind == KTextArea) return;
   for (NSView* s in v.subviews) dumpView(s, depth + 1, out);
+}
+
+/** drive() on a Table or an Outline, through AppKit as a person's input goes: 2 scrolls to (x, y) of the table, 6 sorts by column `s` (x 1:
+ *  ascending) as a click on its header does, 7 selects rows "3,4" (an Outline: the item id), 8 types the keys of `s` into it (type-select), 9 expands
+ *  (x 1) or collapses item `s` of an Outline. */
+bool driveList(Node& n, int action, NSString* s, double x, double y) {
+  NSTableView* tv = (NSTableView*)n.input;
+  if (action == 2) { [tv scrollPoint:NSMakePoint(x, y)]; return true; }
+  if (action == 6 && n.kind == KTable) { tv.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:s ascending:x != 0]]; return true; }
+  if (action == 7) {
+    NSMutableIndexSet* rows = [NSMutableIndexSet indexSet];
+    if (n.kind == KOutline) {
+      ZnOutlineCtl* c = n.chrome;
+      ZnItem* it = c.items[s];
+      const NSInteger r = it ? [(NSOutlineView*)tv rowForItem:it] : -1;
+      if (r < 0) return false;
+      [rows addIndex:(NSUInteger)r];
+    } else for (NSString* r in [s componentsSeparatedByString:@","]) if (r.length) [rows addIndex:(NSUInteger)r.integerValue];
+    [tv selectRowIndexes:rows byExtendingSelection:NO];
+    return true;
+  }
+  if (action == 8) {
+    NSWindow* w = tv.window;
+    if (!w) return false;
+    [w makeFirstResponder:tv];
+    for (NSUInteger i = 0; i < s.length; i++) {
+      NSString* ch = [s substringWithRange:NSMakeRange(i, 1)];
+      NSEvent* e = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+                                windowNumber:w.windowNumber context:nil characters:ch charactersIgnoringModifiers:ch isARepeat:NO keyCode:0];
+      [tv keyDown:e];
+    }
+    return true;
+  }
+  if (action == 9 && n.kind == KOutline) {
+    ZnOutlineCtl* c = n.chrome;
+    ZnItem* it = c.items[s];
+    if (!it) return false;
+    if (x != 0) [(NSOutlineView*)tv expandItem:it]; else [(NSOutlineView*)tv collapseItem:it];
+    return true;
+  }
+  return false;
 }
 
 struct MacAppkit : NativeAppkit, zrt::Poller {
@@ -780,6 +1169,7 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
       }
       if (!n || !n->view) return false;
       NSString* s = ns(std::string(text.ptr(), text.bytes()));
+      if (n->kind == KTable || n->kind == KOutline) return driveList(*n, action, s, x, y);
       if (action == 4) {   // a divider dragged to x, as the mouse would (the views' own drag path)
         if (n->kind != KSplit) return false;
         [(ZnSplit*)n->view dragTo:x divider:0];
@@ -792,7 +1182,7 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
         [sv reflectScrolledClipView:sv.contentView];
         return true;
       }
-      if (!n->input || !n->input.window) return false;
+      if ((n->kind != KInput && n->kind != KTextArea) || !n->input || !n->input.window) return false;
       if (n->input.window.firstResponder != n->input && !([n->input isKindOfClass:NSTextField.class] && ((NSTextField*)n->input).currentEditor)) [n->input.window makeFirstResponder:n->input];
       NSTextView* ed = [n->input isKindOfClass:NSTextField.class] ? (NSTextView*)((NSTextField*)n->input).currentEditor : (NSTextView*)n->input;
       if (!ed) return false;

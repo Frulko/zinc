@@ -1,0 +1,104 @@
+shown true, rows built 17
+root 480x300
+  #12 outline 0,0 140x300 rows=4
+    row 0 level=0 open "Home"
+    row 1 level=1 closed "Documents"
+    row 2 level=1 "Music"
+    row 3 level=0 "Trash"
+  #0 table 140,0 340x300 rows=10000 cached=17
+    column name "Name" sortable
+    column size "Size" sortable
+    column kind "Kind"
+    row 0 "file 0" "0 KB" "Folder"
+    row 1 "file 1" "37 KB" "File"
+    row 11 "file 11" "407 KB" "File"
+
+scroll true
+-- scrolled to row 5000, rows built 20
+root 480x300
+  #12 outline 0,0 140x300 rows=4
+    row 0 level=0 open "Home"
+    row 1 level=1 closed "Documents"
+    row 2 level=1 "Music"
+    row 3 level=0 "Trash"
+  #0 table 140,0 340x300 rows=10000 cached=20
+    column name "Name" sortable
+    column size "Size" sortable
+    column kind "Kind"
+    row 5000 "file 5000" "0 KB" "File"
+    row 5001 "file 5001" "37 KB" "Folder"
+    row 5012 "file 5012" "444 KB" "File"
+
+type true
+table select 9990
+-- type-select, rows built 20
+root 480x300
+  #12 outline 0,0 140x300 rows=4
+    row 0 level=0 open "Home"
+    row 1 level=1 closed "Documents"
+    row 2 level=1 "Music"
+    row 3 level=0 "Trash"
+  #0 table 140,0 340x300 first rows=10000 cached=20 sel=9990
+    column name "Name" sortable
+    column size "Size" sortable
+    column kind "Kind"
+    row 9978 "file 9978" "186 KB" "Folder"
+    row 9979 "file 9979" "223 KB" "File"
+    row 9990 "zulu 9990" "630 KB" "Folder"
+
+sort true
+table sort name desc
+-- sorted
+root 480x300
+  #12 outline 0,0 140x300 rows=4
+    row 0 level=0 open "Home"
+    row 1 level=1 closed "Documents"
+    row 2 level=1 "Music"
+    row 3 level=0 "Trash"
+  #0 table 140,0 340x300 first rows=10000 cached=20 sort=name desc sel=9990
+    column name "Name" sortable
+    column size "Size" sortable
+    column kind "Kind"
+    row 9978 "file 21" "777 KB" "Folder"
+    row 9979 "file 20" "740 KB" "File"
+    row 9990 "file 9" "333 KB" "Folder"
+
+select true
+table select 3,4
+expand true
+outline expand docs
+type true
+outline select trash
+-- outline
+root 480x300
+  #12 outline 0,0 140x300 first rows=6 sel=5
+    row 0 level=0 open "Home"
+    row 1 level=1 open "Documents"
+    row 2 level=2 "Work"
+    row 3 level=2 "Bills"
+    row 4 level=1 "Music"
+    row 5 level=0 "Trash"
+  #0 table 140,0 340x300 rows=10000 cached=20 sort=name desc sel=3,4
+    column name "Name" sortable
+    column size "Size" sortable
+    column kind "Kind"
+    row 9978 "file 21" "777 KB" "Folder"
+    row 9979 "file 20" "740 KB" "File"
+    row 9990 "file 9" "333 KB" "Folder"
+
+collapse true
+outline collapse docs
+outline collapse home
+-- collapsed
+root 480x300
+  #12 outline 0,0 140x300 first rows=2 sel=1
+    row 0 level=0 closed "Home"
+    row 1 level=0 "Trash"
+  #0 table 140,0 340x300 rows=10000 cached=20 sort=name desc sel=3,4
+    column name "Name" sortable
+    column size "Size" sortable
+    column kind "Kind"
+    row 9978 "file 21" "777 KB" "Folder"
+    row 9979 "file 20" "740 KB" "File"
+    row 9990 "file 9" "333 KB" "Folder"
+

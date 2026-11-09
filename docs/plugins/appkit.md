@@ -65,6 +65,33 @@ import { Window, Toolbar, ToolbarItem, SplitView, Sidebar } from 'zinc:appkit';
 Dragging the divider sets the sidebar's width, and zinc:ui lays the sidebar's and the other panes' subtrees out again at the next frame (the drag
 does not run AppKit's tracking loop, so frames keep coming while the mouse moves). The layout stays one tree: no pane is measured by AppKit.
 
+## Tables and outlines
+
+```tsx
+import { Table, Outline } from 'zinc:appkit';
+
+<Outline items={folders} expanded={['home']} onSelect={openFolder} className="w-[200px]" />
+<Table
+  columns={[{ id: 'name', title: 'Name', sortable: true }, { id: 'size', title: 'Size', width: 80, align: 'right', sortable: true }]}
+  count={() => files().length}
+  cell={(row, col) => col === 0 ? files()[row].name : files()[row].size}
+  onSort={(col, ascending) => setFiles(sorted(files(), col, ascending))}
+  onSelect={(rows) => setPicked(rows)}
+  onOpen={(row) => open(files()[row])}
+  className="flex-1" />
+```
+
+| component | AppKit | drawn fallback |
+|---|---|---|
+| `Table` (`columns`: `id`, `title`, `width`, `sortable`, `align`; `count`, `cell`, `rowHeight` 24, `multiple`, `onSelect`, `onSort`, `onOpen`) | an NSTableView: header sorting with its indicator, column resizing, multiple selection, type-select, double-click, alternating rows | a header over zinc:ui's virtual list: a click sorts or selects (shift and cmd extend), arrows, Enter and letters |
+| `Outline` (`items`: `id`, `label`, `children`; `expanded`, `rowHeight` 22, `onSelect`, `onToggle`, `onOpen`) | a source-list NSOutlineView that expands, collapses and type-selects by itself | the rows of the open items with a disclosure; arrows, Left and Right fold, letters |
+
+Only the rows in view (and a few more) are built, whatever `count` says: the table is zinc:ui's virtual list, and the host answers AppKit's questions
+from those rows, pushed with each commit, without calling the program. AppKit recycles the cells; when it scrolls, the list builds the rows it shows
+and the next frame fills them. `count` is read in an effect: change the signals it reads (a sorted copy of the data) and the rows are built again.
+Type-select on a table searches the program's rows (`cell(row, 0)`), so it finds a row that was never built. An Outline gets its whole tree (sidebars
+are small), keeps one AppKit item per `id`, and reports each expand or collapse as `onToggle`.
+
 ## Keyboard
 
 The focus is zinc:ui's: Tab and Shift-Tab walk the focusable nodes in tree order (`tabIndex`, focus scopes), as in the drawn UI, and the host moves
@@ -88,15 +115,18 @@ import * as appkit from 'zinc:appkit';
 appkit.dump();             // the native tree: one view per line, `#ID kind x,y wxh` then its text, colours, content size
 appkit.hit(x, y);          // the node AppKit's hit test picks there, -1 when a press goes through to zinc:ui
 appkit.drive(h, 0, 'hi');  // types into field h through its field editor; 1: Enter; 2: scrolls scroll view h to (x, y);
-                           // 3: sends field h's editor a command ('insertTab:'); 4: drags split view h's divider to x; 5: clicks toolbar item h
+                           // 3: sends field h's editor a command ('insertTab:'); 4: drags split view h's divider to x; 5: clicks toolbar item h;
+                           // a Table or Outline h: 2 scrolls it, 6 sorts by column text, 7 selects rows '3,4' (an outline: an id),
+                           // 8 types keys into it, 9 expands (x 1) or collapses item text
 appkit.snapshot('a.png');  // what the views show, drawn offscreen (for people: it changes with each macOS)
 ```
 
 `tests/t0/ui_appkit.sh` runs `tests/golden/ui-appkit` headless on the interpreter (against its golden), QuickJS and the AOT;
-`tests/t0/ui_appkit_chrome.sh` does the same for the window chrome and the keyboard (`tests/golden/ui-appkit-chrome`), and checks its drawn fallback.
+`tests/t0/ui_appkit_chrome.sh` does the same for the window chrome and the keyboard (`tests/golden/ui-appkit-chrome`), and checks its drawn fallback;
+`tests/t0/ui_appkit_table.sh` for a table of 10,000 rows and an outline (`tests/golden/ui-appkit-table`).
 
 ## Not yet
 
-Tables and outlines (ZN-1072), controls, popovers and sheets (ZN-1073); text spans with their own styles (a `Text`'s string shows in one style),
+Cells other than text (images, checkboxes, a view per cell), rows of different heights, an outline loaded as it opens; controls, popovers and sheets (ZN-1073); text spans with their own styles (a `Text`'s string shows in one style),
 shadows and clipping, a scroll position set by the program, more windows than the main one, collapsing the sidebar, toolbar spacers and the
 sidebar tracking separator.

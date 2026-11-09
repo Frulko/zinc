@@ -91,6 +91,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A project can ask for native views with `"ui": { "render": "native" }` in `zinc.json` (or `ZINC_RENDER=native` for one run): a plugin that installs a host with `ui.setHost` then shows the tree with the platform's own views, and everywhere else the app is drawn as before.
 - On macOS, `import 'zinc:appkit'` in a project with `"render": "native"` shows its `View`, `Text`, `Image`, `ScrollView`, `TextInput`, `TextArea` and `Pressable` as real AppKit views, measured by AppKit, in the system's colours and dark mode, with native typing and scrolling; presses reach your handlers as before. `appkit.dump()` prints the native tree for tests.
 - `zinc:appkit` has the window's chrome: `Window` (title, toolbar style, full-size content), `Toolbar` with `ToolbarItem`s (SF Symbols or your own content, such as a search field), and `SplitView` with a `Sidebar` whose divider you drag; Tab and Shift-Tab move between the native fields and buttons. Without the AppKit host the same components draw a plain window bar, toolbar and sidebar.
+- `zinc:appkit` has `Table` (an NSTableView with columns, sorting by header, multiple selection, type-select and double-click) and `Outline` (a source-list tree that expands, collapses and type-selects): a table of 10,000 rows builds only the rows in view, and without the AppKit host both draw a list with the same keys.
 
 #### Changed
 

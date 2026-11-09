@@ -375,6 +375,7 @@
     {"paths": ["lib/std/ui.ts", "src/frontend/project.cpp", "src/frontend/modules.cpp", "tests/golden/ui-native-host/", "tests/t0/ui_native_host.sh"], "tests": ["ui_native_host"]},
     {"paths": ["plugins/appkit/", "lib/std/ui.ts", "src/host/layout_yoga.cpp", "src/host/layout.h", "tests/golden/ui-appkit/", "tests/t0/ui_appkit.sh"], "tests": ["ui_appkit"]},
     {"paths": ["plugins/appkit/", "lib/std/ui.ts", "tests/golden/ui-appkit-chrome/", "tests/t0/ui_appkit_chrome.sh"], "tests": ["ui_appkit_chrome"]},
+    {"paths": ["plugins/appkit/", "lib/std/ui.ts", "tests/golden/ui-appkit-table/", "tests/t0/ui_appkit_table.sh"], "tests": ["ui_appkit_table"]},
     {"paths": ["examples/webview/hybrid/", "tests/t1/webview_hybrid.sh"], "tests": ["webview_hybrid"]},
     {"paths": ["src/tc/progress.cpp", "include/zn/log.h", "tests/t0/build_progress.sh"], "tests": ["build_progress", "steps", "verbose_log", "plugin_fallback"]},
     {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h", "src/main.cpp", "tests/t1/plugin_fallback.sh"], "tests": ["plugin_fallback"]},
