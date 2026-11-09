@@ -233,6 +233,18 @@ struct Lowering {
           auto ui = unionIface.find(key);
           if (ui != unionIface.end()) return m.refT(ui->second);
         }
+        {  // a union with no type of its own (`boolean | Cam`, `string | number`): its value is a Dyn, as the checker converts it (Checker::dynBacked)
+          std::size_t members = 0;
+          bool scalar = false, held = true;
+          for (frontend::TypeId mt : x.params) {
+            if (mt == frontend::kNoType || c.types[mt].k == frontend::TK::Null) continue;
+            const frontend::TK k = c.types[mt].k;
+            ++members;
+            held = held && k != frontend::TK::Func && k != frontend::TK::Param && k != frontend::TK::Any;
+            scalar = scalar || k != frontend::TK::Object;
+          }
+          if (held && scalar && members >= 2) return irType(frontend::TypeId(6) /* the any of programs: the Dyn class */, at);
+        }
         break;
       }
       default: break;
@@ -1360,7 +1372,7 @@ struct Lowering::FnLower {
     for (auto& [var, p] : pend) fillParam(b, p, var);
   }
   void writeVar(std::uint32_t var, ValueId v) {
-    defs[cur][var] = v; varType[var] = tv(v);
+    defs[cur][var] = v; if (v != kNoValue) varType[var] = tv(v);   // no value: a part refused (Z0005) that the lowering goes past to report the rest
     if (!dbg || v == kNoValue || var > thisVar || !open()) return;   // the lowering's own temporaries (loop indices) have no name
     if (var < thisVar && c.syms[var].decl != kNil && L.notProgram(n(c.syms[var].decl).file)) return;   // a variable of the engine's code (its top level runs in main)
     std::string_view name = var == thisVar ? std::string_view("this") : c.syms[var].name;

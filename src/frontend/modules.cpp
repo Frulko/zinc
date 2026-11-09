@@ -4032,6 +4032,18 @@ bool needsJson(const Ast& A) {
   for (const Node& x : A.nodes) {
     if ((x.kind == N::TypeRef && (x.text == "any" || x.text == "unknown")) || (x.kind == N::Ident && (x.text == "undefined" || x.text == "__recDec" || x.text == "__recEnc"))) return true;   // __rec*: native records (ZN-850)
     if (x.kind == N::Member && x.text == "parse" && A.nodes[x.kids[0]].kind == N::Ident && A.nodes[x.kids[0]].text == "JSON") return true;
+    if (x.kind == N::TypeUnion) {   // `boolean | Cam`, `string | number`: a union of a primitive and another type is held as a Dyn (Checker::dynBacked)
+      static const std::set<std::string_view> prim = {"boolean", "number", "string", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64"};
+      std::size_t members = 0;
+      bool scalar = false;
+      for (std::uint32_t k : x.kids) {
+        const Node& m = A.nodes[k];
+        if (m.kind == N::TypeRef && (m.text == "null" || m.text == "undefined")) continue;
+        ++members;
+        scalar = scalar || (m.kind == N::TypeRef && prim.count(m.text));
+      }
+      if (scalar && members >= 2) return true;
+    }
   }
   return false;
 }

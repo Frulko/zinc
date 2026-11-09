@@ -112,14 +112,14 @@ function wrapInline(f: i32, x: number, y: number, s: string, n: Notif, color: u3
   const imgs = emojiImages(n);
   // tokenize: words and emoji
   const tokens: string[] = [];
-  let word = '';
+  let cur = '';
   for (let i = 0; i < s.length; i++) {
     const ch = s.charAt(i);
-    if (ch === '\uFFFC') { if (word !== '') { tokens.push(word); word = ''; } tokens.push('\uFFFC'); }
-    else if (ch === ' ') { if (word !== '') { tokens.push(word); word = ''; } tokens.push(' '); }
-    else word += ch;
+    if (ch === '\uFFFC') { if (cur !== '') { tokens.push(cur); cur = ''; } tokens.push('\uFFFC'); }
+    else if (ch === ' ') { if (cur !== '') { tokens.push(cur); cur = ''; } tokens.push(' '); }
+    else cur += ch;
   }
-  if (word !== '') tokens.push(word);
+  if (cur !== '') tokens.push(cur);
   const tokenW = (t: string) => t === '\uFFFC' ? emojiSize(f) + 3 : t === ' ' ? textWidth(f, ' ', 0) : textWidth(f, t, 0);
   // build lines
   const lineTokens: string[][] = [];

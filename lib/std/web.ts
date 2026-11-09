@@ -1534,7 +1534,7 @@ export interface MediaTrackConstraints {
 /** What getUserMedia takes for audio: numbers only (no { ideal, exact } objects). */
 export interface MediaTrackAudioConstraints { sampleRate?: number; channelCount?: number; deviceId?: string }
 /** video and audio: true, or a constraints object. */
-export interface MediaStreamConstraints { video?: unknown; audio?: unknown }
+export interface MediaStreamConstraints { video?: boolean | MediaTrackConstraints; audio?: boolean | MediaTrackAudioConstraints }
 // null when no audio is asked for
 function audioConstraints(v: unknown): MediaTrackAudioConstraints | null {
   if (v === undefined || v === null || v === false) return null;

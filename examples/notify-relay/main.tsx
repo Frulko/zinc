@@ -246,18 +246,10 @@ function Pick(props: { on: boolean; label: string; value: string; onPick: (v: st
     <Text className={`text-xs ${props.on ? 'text-white' : 'text-slate-900'}`}>{props.label}</Text>
   </Button>;
 }
-class ChoiceProps { value: string = ''; options: string[] = []; names: string[] = []; onPick: (v: string) => void = (v: string) => {}; }
-function pickAt(c: ChoiceProps, i: number): i32 { return <Pick on={c.value === c.options[i]} label={c.names[i]} value={c.options[i]} onPick={c.onPick} />; }
-// ponytail: a loop that inserts the items; a map whose callback makes them from the captured props trips the IR verifier (later.md)
-function renderChoices(c: ChoiceProps): i32 {
-  const row = <View className="flex-row gap-1" />;
-  for (let i = 0; i < c.options.length; i++) ui.insert(row, pickAt(c, i), -1);
-  return row;
-}
 function Choice(props: { value: string; options: string[]; names: string[]; onPick: (v: string) => void }): i32 {
-  const c = new ChoiceProps();
-  c.value = props.value; c.options = props.options; c.names = props.names; c.onPick = props.onPick;
-  return <View>{renderChoices(c)}</View>;
+  return <View className="flex-row gap-1">
+    {props.options.map((o: string, i: number) => <Pick on={props.value === o} label={props.names[i]} value={o} onPick={props.onPick} />)}
+  </View>;
 }
 function FocusPage(): i32 {
   version();

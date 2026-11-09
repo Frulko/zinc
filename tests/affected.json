@@ -25,6 +25,7 @@
     {"paths": ["lib/std/kit/imageviewer.ts", "tests/data/viewer_lifetime/", "tests/t1/viewer_lifetime.sh", "examples/discord/src/services/cdn.ts", "examples/discord/src/components/Animated.tsx"], "tests": ["viewer_lifetime", "discord_viewer", "image_cache"]},
     {"paths": ["app/sonos-lastfm/", "tests/data/sonos-lastfm/", "tests/t1/sonos_lastfm.sh"], "tests": ["sonos_lastfm"]},
     {"paths": ["src/frontend/check.cpp", "tests/golden/host/dyn_string.", "tests/t0/dyn_string.sh"], "tests": ["dyn_string"]},
+    {"paths": ["src/frontend/check.cpp", "src/frontend/jsx.cpp", "src/ir/lower.cpp", "tests/data/jsx-map-props/", "tests/t0/jsx_map_props.sh"], "tests": ["jsx_map_props"]},
     {"paths": ["targets/macos/hal_metal.mm", "targets/macos/hal_sdl.cpp", "tests/native/surface_present.mm", "tests/t1/surface_present.sh"], "tests": ["surface_present", "window_live_resize"]},
     {"paths": ["targets/wasm/web_main.cpp", "targets/wasm/vm_main.cpp", "tests/unit/wasm_buffers_test.cpp", "tests/t0/wasm_buffers.sh"], "tests": ["wasm_buffers"]},
     {"paths": ["src/rt/rtcalls.cpp", "tests/native/fixture.c", "tests/t0/native_views.sh"], "tests": ["native_views", "native_call", "aot_native_args"]},

@@ -82,11 +82,55 @@ struct Checker {
   std::vector<std::pair<std::uint32_t, TypeId>> selfDeferred;  // lambdas whose body waits for the variable (node, expected type)
   // The names a statement mentions inside a function, method or lambda: a top-level variable such a body uses before its declaration runs (ZN-162).
   // Collected once per statement into the set of the statements above (ZN-415): asking each declaration again walked every statement above it.
+  // A name the body declares itself (a parameter, a local of an enclosing block, a `var` of the function) is not the top-level variable (ZN-798:
+  // a local `let cur` must not make every read of a top-level `cur` a guarded call, which no test can narrow).
   void fnMentions(std::uint32_t i, std::unordered_set<std::string_view>& out, bool inFn = false) const {
+    std::vector<std::string_view> locals;
+    fnMentionsIn(i, out, inFn, locals);
+  }
+  void patternNames(std::uint32_t p, std::vector<std::string_view>& v) const {
+    if (p == kNone) return;
+    const Node& x = n(p);
+    if (x.kind == N::Ident) { v.push_back(x.text); return; }
+    if (x.kind == N::ArrayPattern || x.kind == N::ObjectPattern || x.kind == N::PatProp || x.kind == N::Spread) for (std::uint32_t k : x.kids) patternNames(k, v);
+  }
+  void declaredNames(std::uint32_t d, std::vector<std::string_view>& v) const {   // a Declarator or a Param
+    if (!n(d).text.empty()) v.push_back(n(d).text);
+    else if (n(d).kids.size() > 2) patternNames(n(d).kids[2], v);
+  }
+  void varNames(std::uint32_t i, std::vector<std::string_view>& v) const {   // the `var`s of a function body, hoisted to the function
     const Node& x = n(i);
-    if (x.kind == N::Ident && inFn) out.insert(x.text);
-    bool f = inFn || x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method;
-    for (std::uint32_t k : x.kids) if (k != kNone) fnMentions(k, out, f);
+    if (x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method || x.kind == N::Class) return;
+    if ((x.kind == N::VarDecl || x.kind == N::ForOf || x.kind == N::ForIn) && x.text == "var") for (std::uint32_t d : x.kids) if (d != kNone && n(d).kind == N::Declarator) declaredNames(d, v);
+    for (std::uint32_t k : x.kids) if (k != kNone) varNames(k, v);
+  }
+  void fnMentionsIn(std::uint32_t i, std::unordered_set<std::string_view>& out, bool inFn, std::vector<std::string_view>& locals) const {
+    const Node& x = n(i);
+    if (x.kind == N::Ident) {
+      if (inFn && std::find(locals.begin(), locals.end(), x.text) == locals.end()) out.insert(x.text);
+      return;
+    }
+    const std::size_t mark = locals.size();
+    const bool fn = x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method;
+    if (fn) {
+      for (std::size_t k = 2; k < x.kids.size(); ++k) if (x.kids[k] != kNone && n(x.kids[k]).kind == N::Param) declaredNames(x.kids[k], locals);
+      if (x.kids.size() > 1 && x.kids[1] != kNone) varNames(x.kids[1], locals);
+    } else if (inFn && x.kind == N::Block) {
+      for (std::uint32_t s : x.kids) {
+        if (s == kNone) continue;
+        const Node& st = n(s);
+        if (st.kind == N::VarDecl) { for (std::uint32_t d : st.kids) if (d != kNone && n(d).kind == N::Declarator) declaredNames(d, locals); }
+        else if ((st.kind == N::Function || st.kind == N::Class) && !st.text.empty()) locals.push_back(st.text);
+      }
+    } else if (inFn && (x.kind == N::ForOf || x.kind == N::ForIn) && !x.kids.empty() && x.kids[0] != kNone && n(x.kids[0]).kind == N::Declarator) {
+      declaredNames(x.kids[0], locals);
+    } else if (inFn && x.kind == N::For && !x.kids.empty() && x.kids[0] != kNone && n(x.kids[0]).kind == N::VarDecl) {
+      for (std::uint32_t d : n(x.kids[0]).kids) if (d != kNone && n(d).kind == N::Declarator) declaredNames(d, locals);
+    } else if (inFn && x.kind == N::Try && x.kids.size() > 1 && x.kids[1] != kNone) {
+      patternNames(x.kids[1], locals);   // (the catch name reaches the finally block too: harmless, a top-level variable of that name there is rare)
+    }
+    for (std::uint32_t k : x.kids) if (k != kNone) fnMentionsIn(k, out, inFn || fn, locals);
+    locals.resize(mark);
   }
   bool mentionsIdent(std::uint32_t i, std::string_view nm) const {
     const Node& x = n(i);
@@ -180,6 +224,20 @@ struct Checker {
   std::uint32_t dynObjOf() { if (dynObj == kNone) { std::uint32_t s = lookup("Dyn"); if (s != kNone && out.syms[s].kind == SymKind::Class) dynObj = ty(out.syms[s].type).obj; } return dynObj; }
   bool isDynFamily(TypeId t) { if (t == kNoType || ty(t).k != TK::Object || dynObjOf() == kNone) return false; for (std::uint32_t o = ty(t).obj; o != kNoObj; o = out.objs[o].parent) if (o == dynObj) return true; return false; }
   bool isDyn(TypeId t) { return t == tDyn || (t != kNoType && ty(t).k == TK::Object && dynObjOf() != kNone && ty(t).obj == dynObj); }  // any or unknown
+  // A union the IR has no type of its own for (`boolean | Cam`, `string | number`): its value is held as a Dyn, converted where a typed value
+  // meets it and where a narrowing or an `as` takes a member out; its members are those a Dyn converts (the lowering's irType agrees)
+  bool dynBacked(TypeId t) {
+    if (t == kNoType || bad(t) || ty(t).k != TK::Union || dynObjOf() == kNone) return false;
+    std::size_t members = 0;
+    bool scalar = false;
+    for (TypeId m : ty(t).params) {
+      if (m == tNull) continue;
+      ++members;
+      if (isDyn(m) || ty(m).k == TK::Any || ty(m).k == TK::Param || !dynConvertible(out, m)) return false;
+      scalar = scalar || ty(m).k != TK::Object;
+    }
+    return members >= 2 && scalar;
+  }
   std::string name(TypeId t) const { return typeName(out, t); }
 
   static bool isIntLit(const Ast& ast, std::uint32_t i) {
@@ -1048,8 +1106,9 @@ struct Checker {
     }
     // an operand is any or unknown (an optional one too, `unknown | undefined`, unless it is tested against null or undefined, a plain null
     // test): the operation is a call of the Dyn helper
+    const bool eqOp0 = op == "===" || op == "!==" || op == "==" || op == "!=";   // a Dyn-backed union is compared by the Dyn helper; other operators need it narrowed
     auto nullTest = [&]() { for (std::uint32_t k : {le, re}) if ((n(k).kind == N::Literal && n(k).text == "null") || (n(k).kind == N::Ident && n(k).text == "__undef")) return true; return false; };
-    auto dynish = [&](TypeId t) { return isDyn(t) || (!bad(t) && ty(t).k == TK::Union && hasNull(t) && isDyn(withoutNull(t)) && !nullTest()); };
+    auto dynish = [&](TypeId t) { return isDyn(t) || (!bad(t) && ty(t).k == TK::Union && hasNull(t) && isDyn(withoutNull(t)) && !nullTest()) || (eqOp0 && dynBacked(t) && !nullTest()); };
     if (!rawDyn() && (dynish(l) || dynish(r)) && !bad(l) && !bad(r)) {
       auto isLit = [&](std::uint32_t k, const char* text) { return n(k).kind == N::Literal && n(k).text == text; };
       auto isUndef = [&](std::uint32_t k) { return n(k).kind == N::Ident && n(k).text == "__undef"; };
@@ -1412,6 +1471,24 @@ struct Checker {
   }
   void convertDyn(TypeId from, TypeId to, std::uint32_t node) {
     if (bad(from) || bad(to) || to == tAny || dynObjOf() == kNone) return;
+    const bool intoUnion = dynBacked(to), outOfUnion = dynBacked(from);
+    if (intoUnion && !outOfUnion && !isDyn(from) && !isDynFamily(from) && from != tNull && !hasParam(from)) {   // a member into a Dyn-backed union
+      if (!dynConvertible(out, from)) { diag(kZUnsupported, node, "conversion of '" + name(from) + "' to '" + name(to) + "'"); return; }
+      wrapNode(node, dynSym(from, true, node));
+      if (hasNull(from)) if (std::uint32_t s = lookup("__dynOpt"); s != kNone) wrapNode(node, s);   // its null stays the union's null
+      out.nodeType[node] = tDyn;
+      return;
+    }
+    if (outOfUnion && !intoUnion && !isDyn(to) && !isDynFamily(to) && !hasDynMember(to) && to != tNull && !hasParam(to)) {   // a member out of it (narrowed, or `as`)
+      if (!dynConvertible(out, to)) { diag(kZUnsupported, node, "conversion of '" + name(from) + "' to '" + name(to) + "'"); return; }
+      wrapNode(node, dynSym(to, false, node));
+      out.nodeType[node] = to;
+      return;
+    }
+    // a Dyn into it, or it into a Dyn: the same value, but for its null, which is a null reference there and the Dyn undefined (or null) here
+    if (outOfUnion && isDyn(to) && hasNull(from)) wrapNode(node, dynSym(unionOf({objType(dynObjOf()), tNull}, ty(from).undef), true, node));
+    else if (intoUnion && isDyn(from) && hasNull(to)) { if (std::uint32_t s = lookup("__dynOpt"); s != kNone) wrapNode(node, s); }
+    if (intoUnion || outOfUnion) return;
     if (hasDynMember(to) && !isDyn(from) && from != tNull && ty(from).k != TK::Union) { convertDyn(from, tDyn, node); return; }   // a value into `unknown | null` becomes a Dyn first  // (tAny, console.log's anything, takes a Dyn as it is)
     if (isDyn(to) && !isDyn(from) && !isDynFamily(from)) {
       if (from == tNull) {   // `undefined` written in a file without Dyn values is a null literal flagged undefined (modules.cpp): into a Dyn it is the Dyn undefined
@@ -1879,7 +1956,7 @@ struct Checker {
     };
     const std::uint32_t body = n(cb).kids[1];
     const bool exprBody = n(body).kind == N::Block && n(body).kids.size() == 1 && n(n(body).kids[0]).kind == N::Return && n(n(body).kids[0]).start == n(body).start;
-    return !exprBody && !valued(body);
+    return !exprBody && !valued(body) && !terminates(body);   // a body that only throws gives never, as in TypeScript
   }
   // Replaces node `i` by the expression `text`, parsed with `holes` spliced in; false if it does not parse.
   // An unknown name: `arguments`, `eval` and `globalThis` have codes of their own (what the prototype forbids), anything else is just not declared.
@@ -2795,7 +2872,7 @@ struct Checker {
         if (out.syms[s].kind == SymKind::Func && i != calleeNode) out.funcValueUses.push_back(i);
         if (trackable(s)) {
           TypeId cur = currentType(s);
-          if (isDyn(out.syms[s].type) && cur != out.syms[s].type && !isDyn(cur) && !isDynFamily(cur) && !pendingExempt && !rawDyn()) convertDyn(out.syms[s].type, cur, i);  // narrowed by typeof or instanceof: the typed value
+          if ((isDyn(out.syms[s].type) || dynBacked(out.syms[s].type)) && cur != out.syms[s].type && !isDyn(cur) && !isDynFamily(cur) && !dynBacked(cur) && !pendingExempt && !rawDyn()) convertDyn(out.syms[s].type, cur, i);  // narrowed by typeof or instanceof: the typed value
           return cur;
         }
         return out.syms[s].type;
@@ -2816,7 +2893,7 @@ struct Checker {
         asOperand = x.kids[0];
         TypeId vt = expr(x.kids[0], target);
         asOperand = savedAs;
-        if (!bad(vt) && !rawDyn() && ((isDyn(vt) && !isDyn(target) && !isDynFamily(target)) || (isDyn(target) && !isDyn(vt) && !isDynFamily(vt)))) {  // a checked conversion from or to a Dyn
+        if (!bad(vt) && !rawDyn() && ((isDyn(vt) && !isDyn(target) && !isDynFamily(target)) || (isDyn(target) && !isDyn(vt) && !isDynFamily(vt)) || (dynBacked(vt) && !dynBacked(target) && !isDyn(target)))) {  // a checked conversion from or to a Dyn
           std::uint32_t operand = x.kids[0];
           convertDyn(vt, target, operand);
           a.nodes[i] = a.nodes[operand];
@@ -4221,6 +4298,11 @@ struct Checker {
     }
     return keep.empty() ? kNoType : unionOf(keep);
   }
+  // __tdzChk(__tdz_x, 'x', x): the read of x
+  std::uint32_t unTdz(std::uint32_t k) const {
+    const Node& x = n(k);
+    return x.kind == N::Call && x.kids.size() == 4 && n(x.kids[0]).kind == N::Ident && n(x.kids[0]).text == "__tdzChk" ? x.kids[3] : k;
+  }
   void factsOf(std::uint32_t cond, bool truthy, std::vector<Fact>& fs) {
     const Node& c = n(cond);
     if (c.kind == N::Unary && c.text == "!") { factsOf(c.kids[0], !truthy, fs); return; }
@@ -4234,10 +4316,11 @@ struct Checker {
     if (c.text == "||") { if (!truthy) { factsOf(c.kids[0], false, fs); factsOf(c.kids[1], false, fs); } return; }
     bool eq = c.text == "==" || c.text == "===", ne = c.text == "!=" || c.text == "!==";
     if (eq || ne) {
+      const std::uint32_t k0 = unTdz(c.kids[0]), k1 = unTdz(c.kids[1]);   // a top-level variable read with its dead-zone check is tested as itself
       // typeof x === 'number' (the typeof of a Dyn has become a call of __dynTypeof)
       auto isTypeofOf = [&](std::uint32_t k) { return n(k).kind == N::Call && n(n(k).kids[0]).kind == N::Ident && n(n(k).kids[0]).text == "__dynTypeof" && n(n(k).kids[1]).kind == N::Ident; };
-      if ((isTypeofOf(c.kids[0]) && n(c.kids[1]).kind == N::String) || (isTypeofOf(c.kids[1]) && n(c.kids[0]).kind == N::String)) {
-        std::uint32_t tu = isTypeofOf(c.kids[0]) ? c.kids[0] : c.kids[1], ls = tu == c.kids[0] ? c.kids[1] : c.kids[0];
+      if ((isTypeofOf(k0) && n(k1).kind == N::String) || (isTypeofOf(k1) && n(k0).kind == N::String)) {
+        std::uint32_t tu = isTypeofOf(k0) ? k0 : k1, ls = tu == k0 ? k1 : k0;
         std::uint32_t sy = out.nodeSym[n(tu).kids[1]];
         std::string_view lit = n(ls).text;
         lit = lit.substr(1, lit.size() - 2);
@@ -4247,9 +4330,9 @@ struct Checker {
         }
         return;
       }
-      std::uint32_t dm = n(c.kids[0]).kind == N::Member && n(c.kids[1]).kind == N::String ? c.kids[0] : n(c.kids[1]).kind == N::Member && n(c.kids[0]).kind == N::String ? c.kids[1] : kNone;
+      std::uint32_t dm = n(k0).kind == N::Member && n(k1).kind == N::String ? k0 : n(k1).kind == N::Member && n(k0).kind == N::String ? k1 : kNone;
       if (dm != kNone) {  // s.kind === 'circle': the members of the union s has whose `kind` is (or is not) 'circle'
-        std::uint32_t sn = n(dm).kids[0], ln = dm == c.kids[0] ? c.kids[1] : c.kids[0];
+        std::uint32_t sn = n(dm).kids[0], ln = dm == k0 ? k1 : k0;
         if (n(sn).kind == N::Ident && out.nodeSym[sn] != kNone && trackable(out.nodeSym[sn])) {
           std::uint32_t sy = out.nodeSym[sn];
           TypeId cur = currentType(sy, &fs);
@@ -4260,8 +4343,8 @@ struct Checker {
       }
       auto isNullLit = [&](std::uint32_t k) { return n(k).kind == N::Literal && n(k).text == "null"; };
       auto testable = [&](std::uint32_t k) { return n(k).kind == N::Ident || (n(k).kind == N::Member && pathSymOf(k) != kNone); };
-      if (eq != truthy && (isNullLit(c.kids[0]) || isNullLit(c.kids[1]))) {   // `a?.b !== undefined`: a value came out of the chain, so every base before a `?.` is not null, nor `a.b`
-        const std::uint32_t subj = isNullLit(c.kids[1]) ? c.kids[0] : c.kids[1];
+      if (eq != truthy && (isNullLit(k0) || isNullLit(k1))) {   // `a?.b !== undefined`: a value came out of the chain, so every base before a `?.` is not null, nor `a.b`
+        const std::uint32_t subj = isNullLit(k1) ? k0 : k1;
         bool chain = false;
         for (std::uint32_t m = subj; n(m).kind == N::Member || n(m).kind == N::Index; m = n(m).kids[0]) {
           if (!(n(m).flags & kFlagOptional)) continue;
@@ -4280,7 +4363,7 @@ struct Checker {
           if (nn != kNoType && nn != cur) fs.push_back({ps, nn});
         }
       }
-      std::uint32_t idn = isNullLit(c.kids[1]) && testable(c.kids[0]) ? c.kids[0] : isNullLit(c.kids[0]) && testable(c.kids[1]) ? c.kids[1] : kNone;
+      std::uint32_t idn = isNullLit(k1) && testable(k0) ? k0 : isNullLit(k0) && testable(k1) ? k1 : kNone;
       if (idn == kNone) return;
       std::uint32_t sy = n(idn).kind == N::Member ? pathSymOf(idn) : out.nodeSym[idn];
       if (sy == kNone || !trackable(sy)) return;
@@ -4289,7 +4372,7 @@ struct Checker {
       else { TypeId nn = withoutNull(cur); if (nn != kNoType && nn != cur) fs.push_back({sy, nn}); }
       return;
     }
-    std::uint32_t subject = c.kids[0];   // a narrowed Dyn is the Ident under its conversion call
+    std::uint32_t subject = unTdz(c.kids[0]);   // a narrowed Dyn is the Ident under its conversion call
     if (n(subject).kind == N::Call && n(subject).kids.size() == 2 && n(n(subject).kids[1]).kind == N::Ident) subject = n(subject).kids[1];
     if (c.text == "instanceof" && n(subject).kind == N::Ident && out.nodeSym[subject] != kNone && trackable(out.nodeSym[subject]) && out.nodeSym[c.kids[1]] != kNone) {
       std::uint32_t sy = out.nodeSym[subject];
@@ -5504,8 +5587,9 @@ struct Checker {
           t = in.kind == N::Number ? num(gNumber) : in.kind == N::String ? tStr : (in.kind == N::Literal && in.text != "null") ? tBool : tError;
           if (t == tError && (in.kind == N::Call || in.kind == N::New || in.kind == N::Template || in.kind == N::Binary || in.kind == N::Unary || in.kind == N::Cond || in.kind == N::Member)) {
             // any other initializer: its type, when it can be told from here (names it uses are in scope; the class is not yet built)
+            // a lambda in it is checked once, with the class built, and a checked lambda is not checked again: here a copy tells the type (ZN-798)
             std::size_t before = out.diags.size();
-            TypeId it = expr(mn.kids[1]);
+            TypeId it = expr(hasLambda(mn.kids[1]) ? cloneNode(mn.kids[1], false) : mn.kids[1]);
             if (out.diags.size() > before) out.diags.resize(before);
             if (!bad(it) && it != tNull && it != tVoid) t = it;
           }
