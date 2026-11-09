@@ -113,10 +113,23 @@ static NSMenu* gDockMenu;       // the dock menu (ZN-237)
 @interface ZnMenuTarget : NSObject
 - (void)znClicked:(NSMenuItem*)item;
 @end
+/** An Edit role (role:copy...) chosen while a native text view edits (a field of zinc:appkit's AppKit host): its own selector, sent to that
+ *  editor's responder chain, so cut, copy, paste, undo and select all act on the field. YES when it did; the drawn UI gets the role event. */
+static BOOL editInNativeText(NSString* ident, NSMenuItem* item) {
+  static NSDictionary<NSString*, NSString*>* sels = @{@"role:cut": @"cut:", @"role:copy": @"copy:", @"role:paste": @"paste:", @"role:undo": @"undo:",
+                                                      @"role:redo": @"redo:", @"role:selectAll": @"selectAll:"};
+  NSString* name = sels[ident];
+  if (!name) return NO;
+  NSWindow* key = NSApp.keyWindow;
+  NSResponder* r = [key.firstResponder isKindOfClass:NSText.class] ? key.firstResponder : nil;
+  if (!r) for (NSWindow* w in NSApp.windows) if ([w.firstResponder isKindOfClass:NSText.class]) { r = w.firstResponder; break; }   // a window not key (the app in the background)
+  return r && [r tryToPerform:NSSelectorFromString(name) with:item];   // the field editor, then its field and window (undo: is the window's); NO when nothing to undo
+}
 @implementation ZnMenuTarget
 - (void)znClicked:(NSMenuItem*)item {
   NSString* ident = item.representedObject;
   if (!ident) return;
+  if (!gInPopup && editInNativeText(ident, item)) return;
   if (gInPopup) gPicked = ident;
   pushEvent(@"menu-click", @[ident, gInPopup ? @"context" : (item.tag == 1 ? @"dock" : (item.tag == 2 ? @"tray" : @"app"))]);
 }

@@ -151,6 +151,12 @@ zinc:ui node's label: `aria-label` or `accessibilityLabel` on a primitive (`<Inp
 The host sets it as the view's `accessibilityLabel` (`appkit.dump()` shows it as `ax="..."`). Drawn, the same labels and roles (a table of rows, a
 tree) are the accessibility tree of `ui.inspect()`.
 
+## The menu bar
+
+The menu bar is zinc:system's (`menu.setApp([menu.role('appMenu'), menu.role('editMenu'), ...])`). While a native field edits, the Edit menu's
+Cut, Copy, Paste, Undo, Redo and Select All (and their keys) act on that field, as in any Mac app; elsewhere they reach the program as
+`role:copy`... `examples/appkit-tour` has a File menu of its own beside the standard ones.
+
 ## Keyboard
 
 The focus is zinc:ui's: Tab and Shift-Tab walk the focusable nodes in tree order (`tabIndex`, focus scopes), as in the drawn UI, and the host moves

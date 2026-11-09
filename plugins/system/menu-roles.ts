@@ -1,5 +1,6 @@
 // The role table of zinc:system/menu: what each role expands to (label, accelerator) and which are native AppKit selectors on macOS. Shared by the macOS backend, the simulator and the
-// UI kit's menu bar. Edit roles are not native selectors: Zinc text fields are not NSTextViews, so they post role:<name> events the kit handles as commands.
+// UI kit's menu bar. Edit roles are not native selectors: drawn Zinc text fields are not NSTextViews, so they post role:<name> events the kit handles as commands;
+// on macOS, while a native field of zinc:appkit's host edits, the backend sends the role's own selector (copy:...) to it instead.
 export class RoleInfo {
   label: string;
   accelerator: string;
