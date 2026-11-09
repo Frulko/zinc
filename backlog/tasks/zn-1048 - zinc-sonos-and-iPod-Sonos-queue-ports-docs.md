@@ -2,7 +2,8 @@
 id: ZN-1048
 title: 'zinc:sonos and iPod Sonos: queue, ports, docs'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:39'
 labels:
   - ipod

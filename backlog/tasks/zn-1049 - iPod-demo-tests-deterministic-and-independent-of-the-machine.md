@@ -2,7 +2,8 @@
 id: ZN-1049
 title: 'iPod demo tests: deterministic and independent of the machine'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:39'
 labels:
   - ipod

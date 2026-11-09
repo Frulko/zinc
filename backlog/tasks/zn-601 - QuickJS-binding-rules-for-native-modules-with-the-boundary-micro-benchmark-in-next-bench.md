@@ -4,7 +4,8 @@ title: >-
   QuickJS binding rules for native modules, with the boundary micro-benchmark in
   bench
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 09:29'
 labels:
   - perf
