@@ -1580,3 +1580,7 @@ Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` 
 - Compile in Chrome (fresh instance, first / median of 5): lesson 13 (49 lines) 34 / 34 ms, lesson 04 (43 lines) 98 / 28 ms, lesson 08 (UI TSX, 37 lines) 315 / 309 ms; same ZBC as `zinc` byte for byte. `compileStreaming` 16 ms. Native `zinc --emit=zbc-bin` whole process: 0.03 s / 0.22 s.
 - JSPI suspend+resume 2.7 µs vs 2.5 µs for the bare message (non-isolated page); Asyncify on vm-web.wasm +33% raw, +27% gzip. `vm-web.wasm` stripped: 6,388,503 → 598,544 B raw, 1.81 MB → 216 KB gzip.
 - ZN-774.30 /play/: `zinc-compile.wasm` 3,599,546 B (+96 KB, project.cpp linked for zinc.json); CodeMirror chunk 524,145 B raw, 174,105 gzip (playground pages only); `std.json` 1,472,101 B raw; compile in the page ~30 ms for a drawing, ~300 ms for a zinc:ui lesson (first ~480 ms).
+
+## 2026-11-09 — ZN-1028, zinc:net large bodies (M1 Pro, loopback, sparse 500 MB file)
+
+- `fetch` with `bodyFile`, 500 MB upload: peak RSS 1631 MB → 28.6 MB (sha256 equal). `Reply.file` 500 MB download: 3.6 → 7.4 GB/s, server peak RSS 572 → 21 MB, sys CPU 0.16 → 0.06 s (sendfile). https 500 MB up then down in one process: 57 MB peak.

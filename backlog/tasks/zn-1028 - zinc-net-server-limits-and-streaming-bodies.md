@@ -2,8 +2,7 @@
 id: ZN-1028
 title: 'zinc:net server limits and streaming bodies'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:37'
 updated_date: '2026-11-09 05:56'
 labels:

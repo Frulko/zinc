@@ -64,3 +64,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: ZN-973 (Done). Worker: ZN-278 style levels warning (Hamlet ZN-951 and ZN-967 are parked), beside the DevTools chain.
 - Integrated: ZN-709, ZN-704 (Done, D246). Worker: ZN-1028 zinc:net server limits and streaming bodies, beside ZN-1054.
 - Integrated: ZN-1054 (Done, D247). Worker: UI style chain ZN-260 (box shadow layers), ZN-257 (border model), beside ZN-1028.
+- Integrated: ZN-1028 (Review, D248; Pi unreachable by ssh for #3).

@@ -646,6 +646,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-704: `CSS.takeComputedStyleUpdates` answers `{}` (a long-poll with `nodeIds` if the live Computed pane matters). DevTools quirk for scripts: Enter on a new declaration opens the next one's prompt and steals the next Elements click (press Escape first).
 - ZN-1054: a launch of the Discord example spends ~15 s compiling 155 files on the interpreter: check whether the compile cache applies to `zinc run` of a project (the T1s pay it at every launch).
 - ZN-1054: close-to-tray apps (notify-relay, ipod) now hide instead of quitting on Quit in their own menu if their close handler vetoes: a quitting flag (Electron's `before-quit`) so handlers tell Quit from the close button. Decide whether a captcha 400 on `/auth/login` counts toward Discord's three-refusal pause.
+- ZN-1028: after a 413, keep reading and discarding the body briefly before closing (Linux clients still sending may see a reset instead of the 413); listen on IPv6 and IPv4 by default with two sockets (`::` with `UV_TCP_IPV6ONLY` plus `0.0.0.0`).
+- ZN-1028: read `bodyFile` uploads and `Reply.file` on libuv's thread pool if a slow SD card shows in frame times; `fetch`'s 120 s timeout covers the whole request, so a large upload on a slow link fails: measure it from the last progress.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -841,3 +843,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1012: time the 1.6 MB `zinc doc --std` search index (302 KB gzip) on the Pi and an old tablet; split it per section if slow.
 - ZN-1073: Mojave Mac (`mowmow@192.168.2.215`): AppKit `Switch` falls back to a check box on macOS 10.14; one short run.
 - ZN-278: install ESP-IDF's Python env (`idf5.5_py3.15_env`), then record the `size` of core.bin and app.bin from `zinc export --target esp32` for a zinc:ui app without extended keys (ZN-278 #1; there is no hero-lite example).
+- ZN-1028: run the Linux sendfile path on the Pi (export a server replying with a 100 MB file, `curl -o /dev/null`, `strace -e sendfile`), then tick ZN-1028 #3 (the Pi did not answer ssh on 2026-11-09).
