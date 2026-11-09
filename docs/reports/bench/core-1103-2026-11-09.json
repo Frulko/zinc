@@ -1,0 +1,23 @@
+{
+  "base": "8c31f5cb7e2a7c0ce75afc49735848350c0b38d5",
+  "engine_sha256": "501fe402a1e24e18d207c64012c3967c300815c97915c79bb043d14aec3c9388",
+  "modules_sha256": "ba112553c6574c080468fceff7d449fbca02e84225cf7dc6d8e395e576ada5f0",
+  "gate_sha256": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed",
+  "javascript_bytes": {
+    "button": 235400,
+    "index": 238485,
+    "ten": 275177
+  },
+  "aot_bytes": {
+    "button": 5325320,
+    "index": 5374848,
+    "ten": 5926624
+  },
+  "proof": [
+    "lucide_serialization all3",
+    "library_icons",
+    "original gallery pickers-values interp/Data native/Feedback QuickJS, 3 frames"
+  ],
+  "runtime_cost": "unmeasured; at most8 private helper calls per cold variant plus concatenations",
+  "kit_sources_sha256": "2787a18b5f89a6b89f75c984d1bcf3bc072190c288bc64fd2be74b174eb67b9f"
+}

@@ -1,0 +1,15 @@
+{
+  "base": "902de09c0a64e4954bb3debe4b094a06cb508b49",
+  "engine_sha256": "6d5e70079d97f1b80a4beade10d3a75d7c711e1611c6c9b3c110554eedb17286",
+  "files": {
+    "src/qjs/qjs.cpp": "f200a2c73a75fe221cb4fdcc957a78cc6e3c74f5db7b153d3e42c3c0608af970",
+    "tests/t0/library_icons.sh": "476441f744e292d006f109c8e8391e690e4447b99bc290aa76383aa0e8922e45",
+    "tests/data/library_icons/composed/main.tsx": "6fdad7864475b73bbe586752836bc0cbed7e9d26975cae9b8c7223b53af1305c",
+    "tests/data/library_icons/composed/panels.tsx": "f638bd488b8271163e9688bb900ce8a11f0f59a76cf5ef570adf4b9073842a68"
+  },
+  "exact": "library_icons PASS",
+  "actual_gallery": "Feedback light/dark, action,360px replay PASS/noU0001",
+  "known_gate": "combined kit_size still assigned1103, budgets unchanged",
+  "temporary_diagnostics_removed": true,
+  "own_processes_remaining": false
+}

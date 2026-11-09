@@ -1,0 +1,72 @@
+{
+  "head": "0bac9861d65140f5c439f289a85a9e4f3e41c77f",
+  "tracked_edits": false,
+  "hashes": {
+    "src/frontend/modules.cpp": "3009df1ebb79afdeb1fb988e34ac5df11f886f33544eb6dea79a6823e7d0dec9",
+    "third_party/lucide/icon-nodes.json": "da6e80345f5af5143c81f78ca55c390908188f31f4451488a69969d69a20d95f",
+    "third_party/lucide/aliases.json": "8c5998a7cce49da85e6429677a73852135ceb6f7207d2c890afffeb9fa852c0a",
+    ".logs/size-review-1103/prototype.py": "e0763355a3c95a333194171d69e3d1c5bb138a6c87214e6a353d04469a810b2a",
+    ".logs/size-review-1103/relink.py": "5da136397a88292f6b33f293d4acdad7ecc0afd1021327ef61ec4e97565605b7",
+    ".logs/size-review-1103/one-original.mjs": "18a7d5729d03aac6bda6d70af05c183389577e54ec80c4de721220b75d06a275",
+    ".logs/size-review-1103/ten-original.mjs": "6ee5617477cbf620910e36e5d2eb858ad69e554d32cfd0e0af3f91d9e302d36e",
+    ".logs/size-review-1103/one-prototype.mjs": "6273befc972deed3587961f640f3a5ffce64600742b86f31d9834047f9eb5960",
+    ".logs/size-review-1103/ten-prototype.mjs": "d0e8b969fb7086bdd41a9168618eb9ed3e11175b5340a7dcdacc2e6a16d27000",
+    ".logs/size-review-1103/js/direct.js": "5d773468b4a5de803c1dd15e8c4dfe7fd30e327c05e437908ee821356db84689",
+    ".logs/size-review-1103/js/one.js": "f21843ef445256f9aa58bfd96eab1738d1e90fe9315f7b96ec2e693752b59d2d",
+    ".logs/size-review-1103/js/ten.js": "ffa7bc708216dccfd4aa8d86cb73353ac12b0c777d240a816bbee79a109bc338",
+    ".logs/size-review-1103/one-exact-original.js": "ea38c516b331ec4733fe9578eaebaf72f78ac02f76e048c5ac5fe5a41146739c",
+    ".logs/size-review-1103/ten-exact-original.js": "d75d7b1d5203fbd9743d373181b3155a49429b6ee4d34e839b70f3f736076128",
+    ".logs/size-review-1103/one-exact-prototype.js": "7fe45f18a7c4510aaf81c7ad7e1abf636835d636c07dbbf631c8621f04d29a7d",
+    ".logs/size-review-1103/ten-exact-prototype.js": "c0e1dfe4709467ac2920252c41fe69fbdd6ac05adc863cec3ff9a5d5ef480449",
+    "/Users/mowmow/Lab/zinc/.worktrees/1096/build/zinc": "99e7a6d7c14559a193fc9cc54047471dd605cb38aef4f90cfd4c463b60d2163a",
+    "/Users/mowmow/.zinc/toolchains/esbuild-aarch64-macos-0.28.2/bin/esbuild": "10b6243df618d374bb2d5c9cfbe7052e1405f6aa4e53a6164f11a91b9f2e1384"
+  },
+  "combined_gate_layout_bytes": {
+    "direct": 235400,
+    "index": 238485,
+    "ten": 275728,
+    "used_delta": 37243,
+    "per_component_floor": 4138,
+    "strict_excess": 379,
+    "floor_pass_reduction_required": 371,
+    "unused": 3085,
+    "unused_budget": 8192
+  },
+  "exact_scratch_relinks": {
+    "original_index": 238482,
+    "original_ten": 275725,
+    "prototype_index": 238482,
+    "prototype_ten": 275174,
+    "saving_ten": 551,
+    "used_delta": 36692,
+    "per_component_floor": 4076,
+    "strict_headroom": 172,
+    "original_cmp_byte_equal": true,
+    "gate_layout_banner_difference_each": 3
+  },
+  "provider": {
+    "index_canonical": 37,
+    "index_paths": 94,
+    "ten_canonical": 41,
+    "ten_paths": 100,
+    "index_provider_eliminated": true,
+    "helper_minified_bytes_with_keep_name": 58,
+    "max_paths_per_icon": 8
+  },
+  "svg_equivalence": {
+    "index_inputs": 43,
+    "ten_inputs": 47,
+    "canonical_all": true,
+    "selected_aliases": [
+      "grab",
+      "rows",
+      "text",
+      "text-"
+    ],
+    "unknown_and_empty": true,
+    "COUNT_NAMES_UNKNOWN_equal": true
+  },
+  "risk": "Extra function calls and concatenations at cold icon materialization per name/color/stroke/fill cache key; runtime effects and final engine implementation not measured.",
+  "processes_left": false,
+  "full_gate_or_native_build_run": false
+}

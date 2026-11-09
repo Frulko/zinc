@@ -1,0 +1,14 @@
+{
+  "base": "5d32a0970b55a278ac030b60fad531e93d2d02e2",
+  "engine_sha256": "4152bbbb43e307e037a671573e37c4e8c690b0b26203026eeced024529a1764a",
+  "files": {
+    "src/main.cpp": "3cebaa4156603105c5f82766b4b0861d3bb2f61750c81ea9def2b3f1de739351",
+    "src/cli_core.cpp": "4c95e5f94b48fe7fcf5b38347c70603050134a38598b6c3658da02183504443a",
+    "src/cli_core.h": "634fec3c6f088a4723f71539c0f40299789e6fc55d1081cb75037b8488bf5b2d",
+    "tests/t0/project_cwd.sh": "2fdd079f2b63184b048cb0c7fcf1ac86d4c21c491b9b3d18ddbea132439832c4"
+  },
+  "exact": "project_cwd all3 PASS",
+  "actual_consumer": "root kit_data 12 runs all3 PASS at8f8478bd5",
+  "own_processes_remaining": false,
+  "external_wip_copied": false
+}
