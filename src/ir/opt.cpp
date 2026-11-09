@@ -11,6 +11,7 @@
 #include <optional>
 #include <tuple>
 #include <set>
+#include <unordered_map>
 
 #include "ir/ir.h"
 #include "zn/log.h"
@@ -40,6 +41,23 @@ bool callsItself(const Function& f, std::uint32_t self) {
 }
 
 void devirtualize(Module& m) {
+  // the one target of a selector on a static class, kNoClass when there are none or several: every call of the pair has the same answer, and
+  // the scan of every class for each call was 2% of a compile (ZN-1024)
+  std::unordered_map<std::uint64_t, std::uint32_t> single;
+  auto targetOf = [&](std::uint32_t cls, std::uint32_t sel) {
+    auto [it, fresh] = single.try_emplace(static_cast<std::uint64_t>(cls) << 32 | sel, kNoClass);
+    if (!fresh) return it->second;
+    std::uint32_t target = kNoClass;
+    for (std::uint32_t c = 0; c < m.classes.size(); ++c) {
+      const Class& cl = m.classes[c];
+      if (cl.isInterface || cl.isAbstract || !m.isSubtype(c, cls)) continue;
+      std::uint32_t fn = sel < cl.vtable.size() ? cl.vtable[sel] : kNoClass;
+      if (fn == kNoClass) continue;
+      if (target == kNoClass) target = fn;
+      else if (target != fn) { target = kNoClass; break; }
+    }
+    return it->second = target;
+  };
   for (Function& f : m.functions)
     for (Block& b : f.blocks)
       for (std::size_t k = 0; k < b.insts.size(); ++k) {
@@ -47,17 +65,8 @@ void devirtualize(Module& m) {
         if (i.op != IrOp::CallVirt) continue;
         const Type& rt = m.types[f.valueTypes[i.args[0]]];
         if (rt.k != Type::K::Ref) continue;
-        std::uint32_t target = kNoClass;
-        bool one = true;
-        for (std::uint32_t c = 0; c < m.classes.size() && one; ++c) {
-          const Class& cl = m.classes[c];
-          if (cl.isInterface || cl.isAbstract || !m.isSubtype(c, rt.aux)) continue;
-          std::uint32_t fn = i.sym < cl.vtable.size() ? cl.vtable[i.sym] : kNoClass;
-          if (fn == kNoClass) continue;
-          if (target == kNoClass) target = fn;
-          else if (target != fn) one = false;
-        }
-        if (!one || target == kNoClass) continue;
+        const std::uint32_t target = targetOf(rt.aux, i.sym);
+        if (target == kNoClass) continue;
         // the implementation takes its own class as receiver: cast the receiver when the static type is wider
         TypeId want = m.functions[target].valueTypes[m.functions[target].params[0]];
         if (f.valueTypes[i.args[0]] != want) {
