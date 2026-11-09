@@ -128,6 +128,8 @@ std::string inspectEntry(const std::string& dir, const std::string& entry);
 /** Whether the project in `dir` has a frame loop (what inspectEntry checks): zinc dev --device then forwards its inspector here. */
 bool hasFrameLoop(const std::string& dir);
 bool buildAssets(const std::string& dir, const std::string& target, bool release, std::string& err, std::string* summary = nullptr);
+/** libzn_webgl, opened once (src/main.cpp); null when it is not beside zinc. */
+void* webglModule();
 /** zinc.json app.icon (`icon`, relative to `dir`: a PNG, an SVG or any image zinc decodes) as the launcher tile of a .zapp and of the rmpp
  *  export: a kAppIconSize-square PNG, the picture fit and centred on a transparent square, its own alpha kept: AppLoad's launcher, card and
  *  pill draw it on white, and xochitl's sidebar (a pinned app, AppLoad 0004) uses its alpha as a mask, so an opaque square came out as a black

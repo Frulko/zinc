@@ -161,3 +161,12 @@ std::string esslLink(const std::string& vsSource, const std::string& vsPreamble,
 }
 
 }  // namespace zn::gl
+
+// The asset build's shader check (ZN-444, src/assets/shader.h), for zinc, which opens this module rather than link glslang: the log of
+// esslValidate into `log` (cap bytes, cut), its length returned (0: valid)
+extern "C" __attribute__((visibility("default"))) unsigned long zn_essl_check(const char* source, const char* preamble, int fragment, char* log, unsigned long cap) {
+  std::string pre = preamble ? preamble : "", expanded;
+  const std::string out = zn::gl::esslValidate(source ? source : "", pre, fragment != 0, expanded);
+  if (cap) { const unsigned long n = out.size() < cap - 1 ? out.size() : cap - 1; out.copy(log, n); log[n] = 0; }
+  return out.size();
+}

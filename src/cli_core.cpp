@@ -4276,6 +4276,18 @@ bool buildAssets(const std::string& dir, const std::string& target, bool release
   for (const auto& t : rows) if (t.target == target) o.targetProfile = t.keys;
   o.basisu = [](std::string& path, std::string& e) { return zn::tc::ensureBasisu(path, e); };
   o.gltfpack = [](std::string& path, std::string& e) { return zn::tc::ensureGltfpack(path, e); };
+  o.glsl = [](const std::string& source, const std::string& preamble, bool fragment, std::string& log) {   // glslang lives in libzn_webgl (ZN-444)
+    using Check = unsigned long (*)(const char*, const char*, int, char*, unsigned long);
+    static const Check check = [] {
+      void* h = webglModule();
+      if (!h) std::fprintf(stderr, "zinc: shaders are stored unchecked: %s\n", zn::plat::libError().c_str());
+      return h ? reinterpret_cast<Check>(zn::plat::libSymbol(h, "zn_essl_check")) : nullptr;
+    }();
+    if (!check) return false;
+    char buf[2048];
+    log = check(source.c_str(), preamble.c_str(), fragment, buf, sizeof buf) ? buf : "";
+    return true;
+  };
   for (const auto& r : proj.assets.rules) o.rules.push_back({r.match, r.as, r.options});
   for (const auto& g : proj.assets.groups) o.groups.push_back({g.name, g.include, g.exclude});
   zn::assets::Report r;

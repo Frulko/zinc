@@ -223,6 +223,18 @@ build calls it (`bakeResources`: `zinc run`, `pack`, `build`, `export`, `bake`) 
 Each group (`zinc.json` `assets.groups`) becomes `<group>.zpk`; an asset no group takes goes to `default.zpk`. The entries keep their
 path as name and their importer's kind (0 data, 1 image, 2 fonts). Packs of groups that are gone are removed.
 
+### Shaders (ZN-444)
+
+`.vert`, `.frag`, `.vs` and `.fs` files go to the `shader` importer (another name: a rule `"as": "shader"` with `"stage": "vertex"` or
+`"fragment"`). Each is checked at build by glslang (`src/assets/shader.cpp`; zinc opens it from `libzn_webgl`, `zn_essl_check`, rather
+than link it) in the variants of D29: a source with no `#version` is one source for every profile, checked as GLSL ES 1.00 with `ZN_ES2`
+and the default precision, and as GLSL ES 3.00 with `ZN_ES3` and the 1.00 keywords renamed (`attribute`, `varying`, `texture2D`,
+`gl_FragColor`); `#version 100` is checked as 1.00 only, `#version 300 es` as 3.00 only. An invalid shader fails the build:
+`zinc assets: fx/bad.frag: line 4: 'x' : undeclared identifier (GLSL ES 1.00)`. A dev build stores the file as written (the driver's line
+numbers are the file's); a release build stores it without comments, blank lines and the spaces the grammar does not need, preprocessor
+lines kept as lines (`minify`, an option of the rule, is part of the key). Without `libzn_webgl` (a build with `ZN_WEBGL` off) shaders are
+stored unchecked, with one line saying so. Program binaries cached on the device (`GL_OES_get_program_binary`) are not done.
+
 ## The cache
 
 An importer is a pure function of (its id and version, the engine's build, its options, the source bytes); the key of an artifact is the

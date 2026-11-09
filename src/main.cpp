@@ -2205,6 +2205,7 @@ static void* webglLib(bool quiet) {
   if (!h && !quiet) std::fprintf(stderr, "zinc: WebGL is not available: %s\n", zn::plat::libError().c_str());
   return h;
 }
+void* zn::cli::webglModule() { return webglLib(true); }
 static const zn::gl::PresentHooks* glHooks() {
 #ifdef ZN_HOST_GFX
   return static_cast<const zn::gl::PresentHooks*>(zn::host::glPresentHooks());   // gl.zincPresent / zinc:gl present (ZN-411): the canvas into a runtime image's own pixels

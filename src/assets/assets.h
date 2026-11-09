@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 
+#include "assets/shader.h"
 #include "assets/texture.h"
 #include "res/res.h"
 
@@ -49,7 +50,8 @@ struct Options {
   std::map<std::string, std::string> targetProfile;
   ToolPath basisu;            // the texture encoder (zn::tc::ensureBasisu), asked for when a texture rule needs a block format
   ToolPath gltfpack;          // the model processor (zn::tc::ensureGltfpack), asked for by a model rule
-  std::vector<Rule> rules;    // after the built-in ones: PNG, JPEG, WebP and SVG to "image" (rgba8), anything else to "copy"
+  GlslCheck glsl;             // the GLSL ES front end the shader importer checks with (glslang in libzn_webgl), opened at the first shader
+  std::vector<Rule> rules;    // after the built-in ones: PNG, JPEG, WebP and SVG to "image" (rgba8), .vert, .frag, .vs and .fs to "shader", anything else to "copy"
   std::vector<Group> groups;
   Splash splash;              // on: its entry goes into boot.zpk (a pack of the splash alone when no group is named boot)
 };

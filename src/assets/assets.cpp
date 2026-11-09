@@ -153,6 +153,9 @@ bool importSpriteFile(const Options&, const std::string& name, const std::string
 bool importTilemapFile(const Options&, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
   return importTilemap(name, in, side, o, out, err);
 }
+bool importShaderFile(const Options& opt, const std::string& name, const std::string& in, const Side&, const Opts& o, std::string& out, std::string& err) {
+  return importShader(opt.glsl, name, in, o, out, err);
+}
 bool importTextureFile(const Options& opt, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
   return importTexture(opt.basisu, name, in, o, out, err, side.empty() ? nullptr : &side.begin()->second);   // its night picture
 }
@@ -181,6 +184,7 @@ const Importer kImporters[] = {
   {"model", 1, Kind::Data, importModelFile},   // a bundle of entries (model.h): the model, its LODs, its textures
   {"scene", 2, Kind::Data, importSceneFile},
   {"world", 1, Kind::Data, importWorldFile},   // a bundle (world.h): the .zworld, its chunks, its provenance, its pictures
+  {"shader", 1, Kind::Data, importShaderFile},   // GLSL ES checked by glslang, minified in a release build (shader.h)
 };
 const Importer* findImporter(const std::string& id) {
   for (const Importer& i : kImporters) if (id == i.id) return &i;
@@ -188,7 +192,7 @@ const Importer* findImporter(const std::string& id) {
 }
 
 const std::vector<Rule>& builtinRules() {
-  static const std::vector<Rule> r = {{"**", "copy", {}}, {"**/*.{png,jpg,jpeg,webp,svg}", "image", {}}};
+  static const std::vector<Rule> r = {{"**", "copy", {}}, {"**/*.{png,jpg,jpeg,webp,svg}", "image", {}}, {"**/*.{vert,frag,vs,fs}", "shader", {}}};
   return r;
 }
 
@@ -414,13 +418,14 @@ bool build(const Options& opt, Report& report, std::string& err) {
     if (o.count("skip") && o.at("skip") == "true") continue;   // not on this target
     if (id == "copy" && fs::path(name).extension() == ".json") { std::string json; if (readFile(fs::path(opt.sourceDir)/name,json) && hasSceneWorld(json)) id="scene"; }
     const Importer* imp = findImporter(id);
-    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture, model, world)"; return false; }
+    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture, model, world, shader)"; return false; }
     if (imp->run == importTextureFile || bundles(imp->run)) {   // the target's profile, unless the rule says: part of the key, so each profile has its own artifact
       const std::string pre = bundles(imp->run) ? "texture." : "";   // a model's or a world's textures, as a texture rule's
       auto prof = [&](const char* k) { auto it = opt.targetProfile.find(k); return it == opt.targetProfile.end() ? std::string() : it->second; };
       if (!o.count(pre + "format")) o[pre + "format"] = opt.profile == "release" && !prof("texture").empty() ? prof("texture") : "rgba8";   // dev: no encoder to wait for
       for (const char* k : {"maxSize", "pot"}) if (!o.count(pre + k) && !prof(k).empty()) o[pre + k] = prof(k);
     }
+    if (imp->run == importShaderFile && !o.count("minify")) o["minify"] = opt.profile == "release" ? "true" : "false";   // part of the key
     if (imp->kind == Kind::Image && !o.count("scale")) {   // an SVG is drawn for 2x screens; a raster image is as many pixels per point as its @Nx says
       static const std::regex hi("@([1-8])x\\.[^.]+$");
       std::smatch m;
