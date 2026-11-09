@@ -68,8 +68,14 @@ class Chrome:
 
     def pump(self, seconds): self._recv(-1, seconds)   # reads the events of that long
 
-    def click(self, x, y):   # a real mouse click on the page (the frontend's UI reacts as to a person's)
-        for t in ("mousePressed", "mouseReleased"): self.call("Input.dispatchMouseEvent", {"type": t, "x": x, "y": y, "button": "left", "clickCount": 1})
+    def click(self, x, y, clicks=1):   # a real mouse click on the page (the frontend's UI reacts as to a person's); 2: the second of a double click
+        for t in ("mousePressed", "mouseReleased"): self.call("Input.dispatchMouseEvent", {"type": t, "x": x, "y": y, "button": "left", "clickCount": clicks})
+
+    KEYS = {"Enter": 13, "Tab": 9, "Escape": 27, "ArrowLeft": 37, "ArrowUp": 38, "ArrowRight": 39, "ArrowDown": 40}
+    def key(self, name):   # a key press: Enter, Tab, Escape or an arrow
+        for t in ("keyDown", "keyUp"): self.call("Input.dispatchKeyEvent", {"type": t, "key": name, "code": name, "windowsVirtualKeyCode": self.KEYS[name], **({"text": "\r"} if name == "Enter" and t == "keyDown" else {})})
+
+    def type(self, text): self.call("Input.insertText", {"text": text})
 
     def eval(self, expr, timeout=120):
         r = self.call("Runtime.evaluate", {"expression": expr, "returnByValue": True, "awaitPromise": True}, timeout)

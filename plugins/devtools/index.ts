@@ -322,7 +322,8 @@ function handleIn(client: i32, msg: string, win: i32): void {
     setText(h, v);
     sendWin(win, `{"method":"DOM.characterDataModified","params":{"nodeId":${nodeId},"characterData":${q(v)}}}`);
   } else if (method === 'DOM.pushNodesByBackendIdsToFrontend') {
-    result = `{"nodeIds":[${Math.round(Cdp.num(msg, 'backendNodeIds'))}]}`;
+    const at = msg.indexOf('"backendNodeIds":[');   // the node ids are the backend ids: the list as it came ([] gives [])
+    result = `{"nodeIds":[${at < 0 ? '' : msg.slice(at + 18, msg.indexOf(']', at))}]}`;
   } else if (method === 'DOM.getBoxModel' && n !== null) result = boxModel(h, n);
   else if (method === 'DOM.getNodeForLocation') {
     const at = nodeAt(Cdp.num(msg, 'x'), Cdp.num(msg, 'y'));
@@ -340,6 +341,8 @@ function handleIn(client: i32, msg: string, win: i32): void {
   else if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') light(0);
   else if (method === 'Page.getResourceTree')
     result = '{"frameTree":{"frame":{"id":"main","loaderId":"zinc","url":"zinc://app","domainAndRegistry":"","securityOrigin":"zinc://app","mimeType":"text/html","secureContextType":"Secure","crossOriginIsolatedContextType":"NotIsolated","gatedAPIFeatures":[]},"resources":[]}}';
+  else if (method === 'Page.getNavigationHistory')   // the screencast's address bar: the one page there is
+    result = '{"currentIndex":0,"entries":[{"id":0,"url":"zinc://app","userTypedURL":"zinc://app","title":"zinc","transitionType":"typed"}]}';
   else if (method === 'Runtime.enable') {
     Cdp.send(client, '{"method":"Runtime.executionContextCreated","params":{"context":{"id":1,"origin":"zinc://app","name":"zinc","uniqueId":"zinc-1","auxData":{"isDefault":true,"type":"default","frameId":"main"}}}}');
     for (const e of Cdp.net(6, '').split('\n')) if (e.length > 0) Cdp.send(client, e);   // Zinc Next: the last console lines (the prototype's host replays its own)
@@ -364,6 +367,7 @@ function handleIn(client: i32, msg: string, win: i32): void {
     return;
   }
   else if (method === 'Network.disable') netOn = false;
+  else if (method === 'Network.emulateNetworkConditionsByRule') result = '{"ruleIds":[]}';   // the frontend reads the list it gets back
   else if (method === 'Network.getResponseBody') result = orEmpty(Cdp.net(2, Cdp.str(msg, 'requestId')));
   else if (method === 'Network.getRequestPostData') result = orEmpty(Cdp.net(3, Cdp.str(msg, 'requestId')));
   else if (method === 'Zinc.getResourceStats') result = Cdp.resourceStats();
@@ -596,14 +600,28 @@ function longhands(name: string, value: string): string[] {
 function applies(name: string, value: string): boolean { return styleOps(name, value, 16, [], []); }
 function cssText(d: string[]): string { const s: string[] = []; for (let i = 0; i < d.length; i += 2) s.push(`${d[i]}: ${d[i + 1]};`); return s.join(' '); }
 function range(a: i32, b: i32): string { return `{"startLine":0,"startColumn":${a},"endLine":0,"endColumn":${b}}`; }
+/** The shorthands the rules can hold that DevTools unfolds: the name, then its longhands. */
+const SHORTHANDS: string[][] = [
+  ['gap', 'row-gap', 'column-gap'],
+  ['border-radius', 'border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius'],
+  ['border-width', 'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width'],
+  ['border-color', 'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color'],
+  ['padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left'],
+  ['margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left'],
+];
+function longhandsOf(name: string): string[] { for (const s of SHORTHANDS) if (s[0] === name) return s.slice(1); return []; }
 /** CSSProperty objects of declarations; with ranges in the text cssText(d) when `ranged`. */
 function props(d: string[], ranged: boolean): string {
   const out: string[] = [];
   let at: i32 = 0;
   for (let i = 0; i < d.length; i += 2) {
     const t = `${d[i]}: ${d[i + 1]};`;
+    // a shorthand's longhandProperties: DevTools unfolds the shorthand into them (without, they read empty). CSS's order (top, right, bottom,
+    // left; row, column): a missing value repeats the opposite side's
+    const sides = longhandsOf(d[i]), v = d[i + 1].split(' ').filter((s: string) => s.length > 0), longs: string[] = [];
+    for (let k = 0; k < sides.length && v.length > 0; k++) longs.push(`{"name":${q(sides[k])},"value":${q(v[k < v.length ? k : v.length === 1 ? 0 : k === 3 ? 1 : 0])}}`);
     out.push(`{"name":${q(d[i])},"value":${q(d[i + 1])},"implicit":false,"disabled":false,"parsedOk":${applies(d[i], d[i + 1])}` +
-      (ranged ? `,"text":${q(t)},"range":${range(at, at + t.length)}` : '') + '}');
+      (ranged ? `,"text":${q(t)},"range":${range(at, at + t.length)}` : '') + (longs.length > 0 ? `,"longhandProperties":[${longs.join(',')}]` : '') + '}');
     at += t.length + 1;
   }
   return out.join(',');

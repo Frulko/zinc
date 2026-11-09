@@ -594,7 +594,7 @@
     {"paths": ["lib/std/acme.ts", "src/host/crypto.cpp", "tests/golden/host/net_acme.ts", "tests/t1/net_acme.sh"], "tests": ["net_acme"]},
     {"paths": ["src/host/netlog.cpp", "src/host/netlog.h", "src/host/http.cpp", "src/host/mqtt.cpp", "src/host/sock.cpp", "plugins/devtools/", "tools/cdp-probe", "tools/har-chrome", "tests/netlog_check.py", "tests/netlog_servers.py", "tests/golden/host/netlog.tsx"], "tests": ["netlog", "netlog_kill", "devtools_port", "socket", "net", "mqtt"]},
     {"paths": ["tests/free_ports.py"], "tests": ["devtools_port", "netlog", "socket", "dev_mode"]},
-    {"paths": ["plugins/devtools/", "scripts/cdp-check.mjs", "tests/data/devtools_styles/", "tests/t1/devtools_styles.sh"], "tests": ["devtools_styles", "dev_mode"]},
+    {"paths": ["plugins/devtools/", "scripts/cdp-check.mjs", "tests/data/devtools_styles/", "tests/t1/devtools_styles.sh", "tests/devtools_frontend_check.py", "tests/t1/devtools_frontend_styles.sh"], "tests": ["devtools_styles", "dev_mode", "devtools_frontend_styles"]},
     {"paths": ["tests/affected.py", "tests/affected.json"], "tests": ["affected_paths", "ci_plan"]},
     {"paths": ["plugins/audio/", "tests/golden/audio/"], "tests": ["audio", "webenv_audio", "audio_music"]},
     {"paths": ["tests/data/audio-music/", "tests/golden/audio-music.out", "tests/t1/audio_music.sh"], "tests": ["audio_music"]},

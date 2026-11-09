@@ -7,7 +7,8 @@
                                                               rules, an edit of the box model changes the app's frame
 
 The frontend's WebSocket is watched through Chrome's Network domain: every method it calls and every error it gets back is logged, and a
-reply with an error or an exception in the frontend fails the check. One line per check; exit 1 when one fails, 77 without Chrome."""
+reply with an error or an exception in the frontend fails the check. One line per check; exit 1 when one fails, 77 without Chrome.
+CDP_LOG=<file> writes that protocol log (and prints the frontend's console problems), CDP_SHOT=<png> the frontend as it ends."""
 import json, os, re, subprocess, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))
 import cdp
@@ -22,7 +23,7 @@ def check(ok, what):
 DEEP = """window.__deep = (sel, root = document) => { const out = [];
   const walk = r => { for (const e of r.querySelectorAll('*')) { if (e.matches(sel)) out.push(e); if (e.shadowRoot) walk(e.shadowRoot); } };
   walk(root); return out; };
-window.__text = e => { let s = ''; const walk = n => { if (n.nodeType === 3) s += n.data; for (const c of (n.shadowRoot ? [...n.shadowRoot.childNodes, ...n.childNodes] : n.childNodes)) walk(c); }; walk(e); return s; };
+window.__text = e => { let s = ''; const walk = n => { if (n.nodeType === 3) s += n.data; if (n.nodeName === 'STYLE') return; for (const c of (n.shadowRoot ? [...n.shadowRoot.childNodes, ...n.childNodes] : n.childNodes)) walk(c); }; walk(e); return s; };
 window.__rect = e => { e.scrollIntoViewIfNeeded?.(); const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; };"""
 
 class Frontend:
@@ -68,11 +69,15 @@ class Frontend:
 
     def report(self):
         check(not self.errors, "no error reply to the frontend%s" % ("" if not self.errors else ": " + "; ".join(self.errors[:5])))
+        if os.environ.get("CDP_LOG"): print("\n".join("%s: %s" % p for p in self.c.problems))
         exc = [t for k, t in self.c.problems if k == "exception"]
         check(not exc, "no exception in the frontend%s" % ("" if not exc else ": " + exc[0]))
+        if os.environ.get("CDP_SHOT"):   # the frontend as it ends, to look at
+            import base64
+            with open(os.environ["CDP_SHOT"], "wb") as f: f.write(base64.b64decode(self.c.call("Page.captureScreenshot")["data"]))
         if os.environ.get("CDP_LOG"):
             with open(os.environ["CDP_LOG"], "w") as f:
-                for d, m, p in self.log: f.write("%s %s %s\n" % (d, m, json.dumps(p)[:300]))
+                for d, m, p in self.log: f.write("%s %s %s\n" % (d, m, json.dumps(p)[:4000]))
 
 
 def sources(zinc, program):
@@ -112,9 +117,69 @@ def sources(zinc, program):
         p.kill()
 
 
+def shot(c):   # the app's frame, asked over the frontend's own connection (its page target)
+    return c.eval("""(async () => { const SDK = await import('devtools://devtools/bundled/core/sdk/sdk.js');
+      const r = await SDK.TargetManager.TargetManager.instance().primaryPageTarget().pageAgent().invoke_captureScreenshot({}); return r.data || null; })()""")
+
+
+def styles(port):
+    with cdp.Chrome(["--window-size=1400,900"]) as c:
+        fe = Frontend(c)
+        fe.open(f"devtools://devtools/bundled/inspector.html?ws=127.0.0.1:{port}/zinc")
+        name = lambda li: f"({li})?.querySelector('.webkit-html-tag-name')"   # a row is clicked on its tag name, as a person does
+        tree = lambda text: name(f"__deep('li').find(e => e.closest('.elements-tree-outline') && __text(e.querySelector('.webkit-html-tag') || e).includes({json.dumps(text)}))")
+        row = "flex-row items-start gap-4 p-4"
+        check(fe.click(tree(row)), "Elements: the row selected")
+        c.key("ArrowRight")   # unfolds it, as a person does
+        check(fe.click(tree("<Tagged")), "Elements: the Tagged component selected")
+        c.key("ArrowRight")
+        check(fe.click(tree("p-2 bg-rose-600 rounded")), "Elements: the class-styled box selected")
+        rules = "__deep('.styles-section').map(__text).join(' | ')"
+        shown = fe.wait(f"(() => {{ const t = {rules}; return t.includes('.p-2.bg-rose-600.rounded') && t.includes('padding-left') ? t : null; }})()")
+        check(bool(shown), "Styles: the class rule and its declarations: %s" % (shown or fe.c.eval(rules) or "")[:300])
+        check(bool(shown) and not re.search(r":\s*;", shown), "Styles: no declaration without a value (a shorthand's longhands have theirs)")
+        before = shot(c)
+        check(fe.click("__deep('[role=tab]').find(e => __text(e).trim() === 'Computed')"), "the Computed tab")
+        left = "__deep('.metrics .padding > .left')[0]"
+        xy = fe.wait(f"(() => {{ const e = {left}; return e && __text(e) === '8' ? __rect(e) : null; }})()")
+        check(bool(xy), "the box model shows padding-left 8")
+        if xy:
+            c.click(*xy); c.click(*xy, clicks=2)   # a double click edits the value
+            fe.wait(f"{left}.isContentEditable || {left}.querySelector('[contenteditable]')")
+            c.call("Input.dispatchKeyEvent", {"type": "keyDown", "key": "a", "code": "KeyA", "modifiers": 4, "windowsVirtualKeyCode": 65})   # select all (Cmd+A)
+            c.type("20"); c.key("Enter")
+        edit = fe.saw(">", "CSS.setStyleTexts", lambda p: "padding-left: 20px" in json.dumps(p))
+        check(bool(edit), "the box model sends padding-left: 20px: %s" % json.dumps(edit)[:200])
+        check(bool(fe.wait(f"{left} && __text({left}) === '20'")), "the box model reads padding-left 20 back")
+        patch = fe.saw("<", "Runtime.consoleAPICalled", lambda p: "pl-[20px]" in json.dumps(p))
+        check(bool(patch), "the console shows the patch (pl-[20px])")
+        after = shot(c)
+        check(bool(before) and bool(after) and before != after, "the app's frame changed")
+        # a colour typed into element.style in the Styles pane: a click on its closing brace opens a new declaration
+        check(fe.click("__deep('[role=tab]').find(e => __text(e).trim() === 'Styles')"), "the Styles tab")
+        check(fe.click("__deep('.styles-section')[0]?.querySelector('.sidebar-pane-closing-brace')"), "element.style: a new declaration")
+        c.pump(0.3); c.type("background-color"); c.key("Tab"); c.pump(0.3); c.type("#10b981"); c.key("Enter")
+        edit = fe.saw(">", "CSS.setStyleTexts", lambda p: "#10b981" in json.dumps(p) and "padding-left: 20px" in json.dumps(p))
+        check(bool(edit), "element.style sends padding-left and the colour: %s" % json.dumps(edit)[:200])
+        patch = fe.saw("<", "Runtime.consoleAPICalled", lambda p: "bg-[#10b981]" in json.dumps(p))
+        check(bool(patch), "the console shows the patch (bg-[#10b981])")
+        check(after != shot(c), "the app's frame changed again")
+        # the StyleSheet-styled box: its rule
+        c.key("Escape")   # leaves the new declaration's prompt
+        check(fe.click(tree("<Sheet")), "Elements: the Sheet component selected")
+        c.key("ArrowRight"); c.pump(0.5)
+        child = "(() => { const li = __deep('li').filter(e => e.closest('.elements-tree-outline')), at = li.findIndex(e => __text(e).startsWith('<Sheet')); return li.slice(at + 1).find(e => __text(e).startsWith('<View')); })()"
+        check(fe.click(name(child)), "Elements: the StyleSheet-styled box selected")
+        shown = fe.wait(f"(() => {{ const t = {rules}; return t.includes('style={{StyleSheet}}') && t.includes('background-color: #2563eb') && t.includes('border-top-left-radius: 6px') ? t : null; }})()")
+        check(bool(shown), "Styles: the StyleSheet rule and its declarations: %s" % (shown or fe.c.eval(rules) or "")[:300])
+        if os.environ.get("PROBE"): print(c.eval(open(os.environ["PROBE"]).read()))
+        fe.report()
+
+
 if __name__ == "__main__":
     if not cdp.find_chrome(): print("skip: no Chrome"); sys.exit(77)
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
     if mode == "sources" and len(sys.argv) == 4: sources(sys.argv[2], sys.argv[3])
+    elif mode == "styles" and len(sys.argv) == 3: styles(int(sys.argv[2]))
     else: print(__doc__); sys.exit(2)
     sys.exit(1 if failed else 0)

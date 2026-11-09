@@ -226,7 +226,10 @@ of the Chrome DevTools protocol:
 Across a hot reload the sockets are handed to the new version (`ZINC_DEVTOOLS_FDS`), which sends
 `executionContextsCleared`/`Created` and `documentUpdated`: DevTools stays connected.
 `node scripts/cdp-check.mjs [port]` is a scripted client that checks all of the above against a running program; with `--styles` it
-checks the Styles panel on `tests/data/devtools_styles` (`tests/t1/devtools_styles.sh`).
+checks the Styles panel on `tests/data/devtools_styles` (`tests/t1/devtools_styles.sh`). `tests/devtools_frontend_check.py styles <port>`
+does it through Chrome's own frontend (`inspector.html` in headless Chrome) and its UI: rows of Elements clicked, the class and StyleSheet
+rules in Styles, padding typed into the box model, a colour typed into `element.style`, the frame and the patch after each
+(`tests/t1/devtools_frontend_styles.sh`).
 
 **Zinc Inspector** (ZN-373.01): `zinc run app/inspector/main.tsx -- [port...]` is the same client written in Zinc (zinc:ui, the WebSocket
 of zinc:socket): it finds the programs listening on the ports (9229 and 9222 by default: `zinc:devtools` and `zinc debug --cdp`), attaches
