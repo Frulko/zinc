@@ -95,6 +95,12 @@ code that walks the value of a large field should do the same (`value.split('\n'
 A newline in a `<Text>` starts a line, as in React Native: `{'Shopping\n- milk'}` shows two lines, wrapped each at the box's width (a
 note, an address, a log). Only `whitespace-nowrap` and `truncate` keep one line (`tests/t1/ui_text_newline.sh`).
 
+## Conditional children
+
+`<Show when={condition} fallback={<Text>Empty</Text>}>...</Show>` mounts its complete child body in Solid (and kit components consumed by React): one node,
+several siblings, or a map returning JSX nodes. Changing the condition removes the old branch and its owned effects.
+Its expressions follow ordinary child rules: a map returning numbers and a numeric array such as `{[7, 8]}` remain text (`7,8`).
+
 ## Styled runs inside one text
 
 `ui.setTextRuns(h, runs)` styles parts of a text node without splitting it: `runs` is `[length, style, color, ...]` over its text, in

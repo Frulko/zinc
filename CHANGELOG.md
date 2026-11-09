@@ -172,6 +172,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `Input` accepts a dynamic `inputMode={mode}` keyboard hint and updates it when the value changes; unknown values use the text keyboard.
 - `View` accepts a dynamic `grab={vertical ? 'keep' : 'keep-x'}` policy and updates gesture arbitration when it changes.
 
+- `<Show>` keeps every child, including mapped rows, and switches between its full body and fallback, including in kit components used with React.
+
 ### The web
 
 #### New

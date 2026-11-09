@@ -1483,6 +1483,20 @@ struct Lowering {
       }
       return lower(*c->el);
     };
+    auto childBody = [&]() -> std::string {
+      if (kids.empty()) return "_el(6)";
+      const Child* c = kids[0];
+      if (kids.size() == 1 && c->kind != 0) {
+        if (c->kind != 1 || (jsxStart(c->eb) && parseElem(c->eb)->end == c->ee)) return childNode(c);
+        const std::size_t open = callParen(c->eb, c->ee);
+        if (open && nodeCall(calleeText(c->eb, open))) return childNode(c);
+      }
+      Elem fragment;
+      fragment.frag = true;
+      fragment.begin = e.begin;
+      fragment.kids = e.kids;
+      return lower(fragment);
+    };
     if (tag == "VirtualList") {  // <VirtualList count={n} itemHeight={h} className="...">{(i) => <Row/>}</VirtualList>
       const Attr* count = find("count");
       const Attr* ih = find("itemHeight");
@@ -1521,7 +1535,8 @@ struct Lowering {
       const Attr* when = find("when");
       if (!when) fail(e.begin, "<Show> needs when");
       const Attr* fb = find("fallback");
-      out.push_back("_show(" + v + ", () => (" + valueOf(*when) + "), () => " + childNode(kids.empty() ? nullptr : kids[0]) + ", " + (fb ? "() => " + valueOf(*fb) : "null") + ");");
+      const std::string body = childBody();
+      out.push_back("_show(" + v + ", () => (" + valueOf(*when) + "), () => " + body + ", " + (fb ? "() => " + valueOf(*fb) : "null") + ");");
     } else if (tag == "For" && !react) {
       const Child* c = kids.empty() ? nullptr : kids[0];
       const Attr* each = find("each");
@@ -1559,24 +1574,8 @@ struct Lowering {
         if (!react && p.second->kind == 2 && readsAtEval(p.second->eb, p.second->ee)) { dyn.push_back(key + ": " + val); lastDyn = p.second; }
         else props.push_back(key + ": " + val);
       }
-      auto nodeValued = [&](const Child* k) {
-        if (k->kind != 1 || k->ee <= k->eb) return true;
-        if (jsxStart(k->eb) && parseElem(k->eb)->end == k->ee) return true;
-        std::size_t open = callParen(k->eb, k->ee);
-        return open && nodeCall(calleeText(k->eb, open));
-      };
       if (rn && kids.size() == 1 && kids[0]->kind == 1 && arrowAt(kids[0]->eb, kids[0]->ee)) props.push_back("childrenFn: " + rw(kids[0]->eb, kids[0]->ee));   // Pressable's {({ pressed }) => <...>}
-      else if (kids.size() > 1 || (kids.size() == 1 && (kids[0]->kind == 0 || !nodeValued(kids[0])))) {
-        std::vector<std::string> lines;
-        std::string f = "__n" + std::to_string(counter++);
-        lines.push_back("const " + f + ": i32 = _el(6);");
-        std::vector<Child> copy;
-        for (const Child* k : kids) copy.push_back(*k);
-        children(f, copy, lines);
-        std::string body;
-        for (auto& l : lines) body += l + " ";
-        props.push_back("children: () => ((): i32 => { " + body + "return " + f + "; })()");
-      } else if (kids.size() == 1) props.push_back("children: () => " + childNode(kids[0]));
+      else if (!kids.empty()) props.push_back("children: () => " + childBody());
       const bool tracked = !dyn.empty();
       if (tracked) {
         auto untrackAt = [](std::string& prop, const std::string& before) { std::size_t c = prop.find(": ") + 2; prop = prop.substr(0, c) + "(" + before + "_u(), " + prop.substr(c) + ")"; };
