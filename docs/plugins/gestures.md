@@ -3,7 +3,7 @@
 Touch and mouse gestures on `zinc:gfx` input, in plain TypeScript, on every target. Two levels:
 
 - `Gestures`: one region, one gesture at a time. Pan, zoom and rotate from a mouse drag, the wheel, a trackpad pinch or two fingers, with
-  tap, double tap and the release velocity. The map plugin uses it ([map](map.md#gestures-zincgestures)).
+  tap, double tap and the release velocity. The map plugin uses it ([map](map.md)).
 - `Fingers`, `Pose`, `manipulate` and `glide`: several things under several hands. Each finger belongs to the thing it landed on until it
   lifts, and each thing is dragged, turned and zoomed by its own fingers, then coasts on when they let go. The light table of
   `examples/museum-table` works this way.
