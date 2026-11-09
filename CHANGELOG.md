@@ -55,6 +55,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - JavaScript games hear more of Web Audio: `OscillatorNode` makes sound (its four waves and `setPeriodicWave`), `loopStart` and `loopEnd` set the part a looping sound repeats, and `suspend()` pauses everything until `resume()`, `currentTime` included; `zinc:audio` has the same as `voice.loopPart()` and `suspend()`.
 - Gamepads that SDL does not know by itself work, from the community mappings of SDL_GameControllerDB, and a program on the `gl` display driver reads gamepads too.
 - `zinc:gestures` handles several things under several hands: `Fingers` gives each finger to what it landed on until it lifts, `manipulate` drags, turns and zooms a `Pose` with its own fingers without a jump when one lands or lifts, and `glide` lets it coast on when they let go.
+- `zinc:3d` frames any model: `bounds(node)` gives the box and the sphere around a node and all its children (an OBJ, a glTF made of placed parts, a `.zmesh`), and every `Mesh` keeps its own in `mesh.bounds`.
 
 #### Changed
 

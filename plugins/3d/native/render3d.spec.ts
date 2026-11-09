@@ -21,6 +21,9 @@ export interface Spec extends NativeModule {
   assetMesh(at: i32): i32;
   /** Frees the asset assetOpen read. */
   assetClose(): void;
+  /** The box of the positions of the .zmesh part at byte `at` of `data` (`data` empty: of the asset assetOpen read), written into `out`:
+   *  min x, y, z, max x, y, z, then the largest distance of a vertex from the box's centre. False when the part is damaged. */
+  partBounds(data: u8[], at: i32, out: number[]): boolean;
   /** Render target for a w x h screen box (internal size divided by the `scale` option). Returns `t`, resized if
    *  needed, or a new handle when t < 0. */
   target(t: i32, w: i32, h: i32): i32;

@@ -21,6 +21,7 @@ import { Scene, Camera, Node, Material, Light, cube, render } from 'zinc:3d';
   glTF files (`loadGltf`, from `zinc:3d/gltf`, a module of its own so a program that does not import it links no glTF code).
 - `Material`: colour, texture, `Shading.Smooth`, `Shading.Flat` or `Shading.Unlit`, `Blend.Alpha` and `Blend.Add` for glows.
 - Up to four directional `Light`s and `scene.ambient`; one `Camera` per view (a split screen is two cameras).
+- `bounds(node)`: the box and the sphere around a node and its children, to frame a model with the camera.
 - `World`, for large static worlds (a city, a terrain) streamed in chunks.
 
 ## Where to go next

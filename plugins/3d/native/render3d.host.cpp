@@ -595,6 +595,27 @@ struct Engine : NativeRender3D {
   int32_t assetByte(int32_t at) override { return asset.a && at >= 0 && at < asset.a->len ? asset.a->data[at] : 0; }
   int32_t assetMesh(int32_t at) override { return asset.a ? meshLoad(asset, at) : -1; }
   void assetClose() override { asset = Array<uint8_t>(); }
+  bool partBounds(Array<uint8_t> data, int32_t at, Array<N> out) override {
+    const Array<uint8_t>& d = data.length() > 0 ? data : asset;
+    uint32_t nv, ni, flags;
+    const uint8_t* p = d.a && out.length() >= 7 ? zpart(d, at, &nv, &ni, &flags) : nullptr;
+    if (!p) return false;
+    float b[6] = {INFINITY, INFINITY, INFINITY, -INFINITY, -INFINITY, -INFINITY};
+    for (uint32_t i = 0; i < nv; i++) {
+      float v[3]; memcpy(v, p + 12 * (size_t)i, 12);
+      for (int k = 0; k < 3; k++) { if (v[k] < b[k]) b[k] = v[k]; if (v[k] > b[k + 3]) b[k + 3] = v[k]; }
+    }
+    double r2 = 0;
+    for (uint32_t i = 0; i < nv; i++) {
+      float v[3]; memcpy(v, p + 12 * (size_t)i, 12);
+      double s = 0;
+      for (int k = 0; k < 3; k++) { const double e = v[k] - (b[k] + (double)b[k + 3]) / 2; s += e * e; }
+      if (s > r2) r2 = s;
+    }
+    for (int k = 0; k < 6; k++) out.a->data[k] = N(b[k]);
+    out.a->data[6] = N(sqrt(r2));
+    return true;
+  }
   /** The per-vertex scratch of draw() for meshes of `nv` vertices. */
   void room(int32_t nv) {
     if (nv <= cap) return;

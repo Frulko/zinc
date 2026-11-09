@@ -210,6 +210,21 @@ function meshLoad(data, at) {
   return upload(pos, nrm, uv, col, ix, nv);
 }
 
+// the box of a .zmesh part's positions, and the largest distance of a vertex from its centre (render3d.spec.ts partBounds)
+function partBounds(data, at, out) {
+  if (at < 0 || (at & 3) || at + 24 > data.length || out.length < 7) return false;
+  const b = data instanceof Uint8Array ? data : Uint8Array.from(data);
+  const dv = new DataView(b.buffer, b.byteOffset + at), nv = dv.getUint32(0, true);
+  if (nv === 0 || nv > 65535 || at + 24 + nv * 12 > data.length) return false;
+  const v = (i) => dv.getFloat32(24 + i * 4, true);
+  for (let k = 0; k < 3; k++) { out[k] = Infinity; out[k + 3] = -Infinity; }
+  for (let i = 0; i < nv * 3; i++) { const k = i % 3; out[k] = Math.min(out[k], v(i)); out[k + 3] = Math.max(out[k + 3], v(i)); }
+  let r2 = 0;
+  for (let i = 0; i < nv; i++) { let s = 0; for (let k = 0; k < 3; k++) { const e = v(i * 3 + k) - (out[k] + out[k + 3]) / 2; s += e * e; } r2 = Math.max(r2, s); }
+  out[6] = Math.sqrt(r2);
+  return true;
+}
+
 function meshDestroy(id) {
   const g = meshes[id];
   if (!g) return;
@@ -345,6 +360,7 @@ function end() {
 Z.registerNative('Render3D', {
   meshCreate, meshLoad, meshDestroy, meshDeform,
   assetOpen: () => -1, assetByte: () => 0, assetMesh: () => -1, assetClose() {},
+  partBounds,
   target, targetDestroy, begin,
   ambient(c) { amb[0] = (c >> 16 & 255) / 255; amb[1] = (c >> 8 & 255) / 255; amb[2] = (c & 255) / 255; },
   light(dx, dy, dz, c) {

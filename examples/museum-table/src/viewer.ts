@@ -6,8 +6,8 @@
 // front of +z, 90 on the +x side), its distance is in radii of the object. The object stands upright for the visitor whichever side of
 // the table they are at: the camera rolls with the visitor's frame, and the label, the panel and the buttons are laid out in that frame.
 import { rrect, border, drawText, textWidth } from 'zinc:gfx';
-import { clock, utf8Decode } from 'zinc:sys';
-import { Scene, Camera, Node, Mesh, Material, Light, parseObj, sphere, quatFromAxisAngle, quatMultiply, Shading } from 'zinc:3d';
+import { clock } from 'zinc:sys';
+import { Scene, Camera, Node, Mesh, Material, Light, parseObj, sphere, quatFromAxisAngle, quatMultiply, Shading, bounds } from 'zinc:3d';
 import { loadGltf } from 'zinc:3d/gltf';
 import { Project, Media, Point, Colours } from './project';
 import { Fingers, Finger } from 'zinc:gestures';
@@ -23,41 +23,6 @@ export const VIEWER: i32 = 3;
 const FOV = 40;                 // degrees, vertical: at the format's default distance of 3.2 radii any object is whole in the box
 const DEGREES_PER_UNIT = 0.35;  // how far a finger's travel turns the object
 const MARK = 44;                // a point of interest takes a touch this far from its centre (table units)
-
-/** The corners of the box around the vertices of an OBJ text: [minX, minY, minZ, maxX, maxY, maxZ]. */
-function bounds(obj: string): number[] {
-  const b: number[] = [1e30, 1e30, 1e30, -1e30, -1e30, -1e30];
-  let at: i32 = 0, seen = false;
-  while (at < obj.length) {
-    let end = obj.indexOf('\n', at);
-    if (end < 0) end = obj.length;
-    if (obj.charCodeAt(at) === 118 && obj.charCodeAt(at + 1) === 32) {   // "v "
-      const p = obj.slice(at + 2, end).trim().split(' ');
-      for (let i = 0; i < 3 && i < p.length; i++) { const v = parseFloat(p[i]); b[i] = Math.min(b[i], v); b[i + 3] = Math.max(b[i + 3], v); }
-      seen = true;
-    } else if (seen && obj.charCodeAt(at) === 118) break;   // the vertices come first: the rest is not read twice
-    at = end + 1;
-  }
-  return b;
-}
-
-/** The same box for a glTF model, from the bounds its POSITION accessors must declare. `file` is a .glb or a .gltf of the assets.
- *  ponytail: the transforms of the nodes are not applied, which is right for a scan (one mesh at the origin); a model made of placed
- *  parts needs zinc:3d to give the bounds of the node loadGltf returns. */
-function gltfBounds(file: string): number[] {
-  let json = '';
-  if (file.toLowerCase().endsWith('.glb')) {
-    const d = files.bytes(file), n = d[12] | (d[13] << 8) | (d[14] << 16) | (d[15] << 24);   // header 12 bytes, then the JSON chunk: length, type, text
-    json = utf8Decode(d.slice(20, 20 + n));
-  } else json = files.text(file);
-  const b: number[] = [1e30, 1e30, 1e30, -1e30, -1e30, -1e30];
-  const doc = JSON.parse(json);
-  for (const mesh of doc.meshes) for (const prim of mesh.primitives) {
-    const a = doc.accessors[prim.attributes.POSITION];
-    for (let i = 0; i < 3; i++) { const lo: number = a.min[i], hi: number = a.max[i]; b[i] = Math.min(b[i], lo); b[i + 3] = Math.max(b[i + 3], hi); }
-  }
-  return b;
-}
 
 /** The meshes of a node and of what hangs under it, each once (several nodes may show one mesh). */
 function meshes(n: Node, into: Mesh[]): void {
@@ -115,20 +80,17 @@ export class ObjectView extends Orbit {
     this.nearest = 1.3; this.farthest = 6; this.steepest = 80;
     // an OBJ with the texture the project names, or a glTF / GLB with its own materials
     let body: Node;
-    let b: number[];
     if (media.file.toLowerCase().endsWith('.obj')) {
       const obj = files.text(media.file), skin = new Material(0xffffff);
-      b = bounds(obj);
       if (media.texture.length > 0) skin.texture = files.picture(media.texture);
       skin.specular = 0x262626;   // a glaze: a discreet highlight
       skin.shininess = 48;
       body = new Node(parseObj(obj), skin);
-    } else {
-      b = gltfBounds(media.file);
-      body = loadGltf(files.path(media.file));
-    }
-    this.centre = [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2];
-    this.radius = Math.sqrt((b[3] - b[0]) * (b[3] - b[0]) + (b[4] - b[1]) * (b[4] - b[1]) + (b[5] - b[2]) * (b[5] - b[2])) / 2;
+    } else body = loadGltf(files.path(media.file));
+    // the format's distances are in radii of the object: half the diagonal of its box
+    const b = bounds(body), dx = b.max[0] - b.min[0], dy = b.max[1] - b.min[1], dz = b.max[2] - b.min[2];
+    this.centre = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2];
+    this.radius = Math.sqrt(dx * dx + dy * dy + dz * dz) / 2;
     this.pivot.add(body);
     body.setPosition(-this.centre[0], -this.centre[1], -this.centre[2]);   // the object turns about its centre
     this.pinned = pins;

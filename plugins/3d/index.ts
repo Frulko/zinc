@@ -66,12 +66,92 @@ export function quatMultiply(a: number[], b: number[]): number[] {
   ];
 }
 
+// ---------------------------------------------------------------- bounds
+/** A box along the axes (`min`, `max`) and a sphere (`center`, `radius`) around some vertices. Empty (no vertex): `min` +Infinity,
+ *  `max` -Infinity, `radius` -1, as three.js's Box3 and Sphere. */
+export class Bounds {
+  min: number[] = [Infinity, Infinity, Infinity];
+  max: number[] = [-Infinity, -Infinity, -Infinity];
+  center: number[] = [0, 0, 0];
+  radius = -1;
+  isEmpty(): boolean { return this.radius < 0; }
+}
+
+/** The bounds of xyz positions: the box, and the sphere about the box's centre through the farthest vertex (three.js's
+ *  computeBoundingSphere: not the smallest sphere, never larger than the box's own). */
+function fit(pos: number[]): Bounds {
+  const b = new Bounds(), n: i32 = pos.length - pos.length % 3;
+  if (n === 0) return b;
+  for (let i = 0; i < n; i += 3) for (let a = 0; a < 3; a++) { const v = pos[i + a]; if (v < b.min[a]) b.min[a] = v; if (v > b.max[a]) b.max[a] = v; }
+  for (let a = 0; a < 3; a++) b.center[a] = (b.min[a] + b.max[a]) / 2;
+  let r2 = 0;
+  for (let i = 0; i < n; i += 3) {
+    const x = pos[i] - b.center[0], y = pos[i + 1] - b.center[1], z = pos[i + 2] - b.center[2];
+    r2 = Math.max(r2, x * x + y * y + z * z);
+  }
+  b.radius = Math.sqrt(r2);
+  return b;
+}
+
+/** The bounds of a .zmesh part (`data` empty: of the asset the renderer opened), as fit's. */
+function partBounds(data: u8[], at: i32): Bounds {
+  const b = new Bounds(), o: number[] = [0, 0, 0, 0, 0, 0, 0];
+  if (!R.partBounds(data, at, o)) return b;
+  for (let a = 0; a < 3; a++) { b.min[a] = o[a]; b.max[a] = o[a + 3]; b.center[a] = (o[a] + o[a + 3]) / 2; }
+  b.radius = o[6];
+  return b;
+}
+
+/** Grows `out` to hold the sphere (c, r) (three.js's Sphere.union). */
+function addSphere(out: Bounds, c: number[], r: number): void {
+  if (out.radius < 0) { for (let a = 0; a < 3; a++) out.center[a] = c[a]; out.radius = r; return; }
+  const dx = c[0] - out.center[0], dy = c[1] - out.center[1], dz = c[2] - out.center[2], d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  if (d + r <= out.radius) return;
+  if (d + out.radius <= r) { for (let a = 0; a < 3; a++) out.center[a] = c[a]; out.radius = r; return; }
+  const grown = (d + out.radius + r) / 2, t = (grown - out.radius) / d;
+  out.center[0] += dx * t; out.center[1] += dy * t; out.center[2] += dz * t;
+  out.radius = grown;
+}
+
+function addBounds(n: Node, parent: number[], out: Bounds): void {
+  const m = mat4Multiply(mat4(), parent, mat4Compose(mat4(), n.position, n.rotation, n.scale));
+  const mesh = n.mesh;
+  if (mesh !== null && !mesh.bounds.isEmpty()) {
+    const b = mesh.bounds, c: number[] = [0, 0, 0];
+    let s2 = 0;
+    for (let r = 0; r < 3; r++) {
+      // the box's centre through the matrix, its half size through the matrix's absolute values: the box of its 8 turned corners
+      let mid = m[12 + r], half = 0;
+      for (let k = 0; k < 3; k++) { mid += m[k * 4 + r] * (b.min[k] + b.max[k]) / 2; half += Math.abs(m[k * 4 + r]) * (b.max[k] - b.min[k]) / 2; }
+      out.min[r] = Math.min(out.min[r], mid - half); out.max[r] = Math.max(out.max[r], mid + half);
+      c[r] = m[12 + r] + m[r] * b.center[0] + m[4 + r] * b.center[1] + m[8 + r] * b.center[2];
+      s2 = Math.max(s2, m[r * 4] * m[r * 4] + m[r * 4 + 1] * m[r * 4 + 1] + m[r * 4 + 2] * m[r * 4 + 2]);   // column r: the scale along it
+    }
+    addSphere(out, c, b.radius * Math.sqrt(s2));
+  }
+  for (const k of n.children) addBounds(k, m, out);
+}
+
+/** The box and the sphere around a node and everything under it, in the space of the node's parent: the node's own position, rotation and
+ *  scale apply, its ancestors' do not (a Node does not know its parent), so for a node of the scene it is world space. As three.js's
+ *  Box3.setFromObject (not `precise`): each mesh's box, computed once from its vertices when the mesh was made, goes through the node's
+ *  matrix, so a turned mesh gets the box of its turned box, a little larger than its vertices'. The sphere is each mesh's sphere moved by the
+ *  matrix (its radius times the largest scale) and the union of them: it does not grow when a mesh turns. Hidden nodes count, as in three.js;
+ *  a skinned mesh counts its bind pose (zinc:3d has no morph targets). Cost: a few products per node, no vertex read. */
+export function bounds(node: Node): Bounds {
+  const out = new Bounds();
+  addBounds(node, mat4(), out);
+  return out;
+}
+
 // ---------------------------------------------------------------- meshes
 /** Indexed triangles in C++ memory. Front faces are counter-clockwise; uv origin is the image's top-left. */
 export class Mesh {
   readonly handle: i32;
   readonly vertices: i32;
   readonly triangles: i32;
+  /** The box and the sphere of its vertices in its own space, computed when it was made (bounds(node) adds them up). */
+  readonly bounds: Bounds;
   /** normals: empty = smooth normals computed from the faces; uvs and colors (0xRRGGBB) may be empty. `zmesh`: instead of the arrays, the
    *  part of a .zmesh file that starts at byte `at` (loadModel), taken as it is. */
   constructor(positions: number[], indices: i32[], normals: number[], uvs: number[], colors: u32[], zmesh: u8[] = [], at: i32 = 0, opened: boolean = false) {
@@ -81,6 +161,7 @@ export class Mesh {
     this.handle = h;
     this.vertices = opened ? assetWord(at) : part ? le32(zmesh, at) : positions.length / 3;
     this.triangles = opened ? assetWord(at + 4) / 3 : part ? le32(zmesh, at + 4) / 3 : indices.length / 3;
+    this.bounds = part ? partBounds(opened ? [] : zmesh, at) : fit(positions);
   }
   dispose(): void { R.meshDestroy(this.handle); }
 }

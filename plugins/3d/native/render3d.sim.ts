@@ -91,6 +91,21 @@ export default {
   assetByte(): i32 { return 0; },
   assetMesh(): i32 { return -1; },
   assetClose(): void {},
+  partBounds(data: u8[], at: i32, out: number[]): boolean {
+    if (at < 0 || at + 24 > data.length || out.length < 7) return false;
+    const nv = u32(data, at);
+    if (nv <= 0 || nv > 65535 || at + 24 + nv * 12 > data.length) return false;
+    for (let k = 0; k < 3; k++) { out[k] = Infinity; out[k + 3] = -Infinity; }
+    for (let i = 0; i < nv; i++) for (let k = 0; k < 3; k++) { const v = f32(data, at + 24 + i * 12 + k * 4); out[k] = Math.min(out[k], v); out[k + 3] = Math.max(out[k + 3], v); }
+    let r2 = 0;
+    for (let i = 0; i < nv; i++) {
+      let s = 0;
+      for (let k = 0; k < 3; k++) { const e = f32(data, at + 24 + i * 12 + k * 4) - (out[k] + out[k + 3]) / 2; s += e * e; }
+      r2 = Math.max(r2, s);
+    }
+    out[6] = Math.sqrt(r2);
+    return true;
+  },
   draw(m: i32): void { if (m >= 0 && m < meshes.length) tris += meshes[m]; },
   gpu(): boolean { return false; },
   transform(world: number[], parent: number[], p: number[], q: number[], s: number[]): void {

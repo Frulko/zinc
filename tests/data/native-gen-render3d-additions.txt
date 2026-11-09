@@ -1,0 +1,1 @@
+  virtual bool partBounds(zrt::Array<uint8_t> data, int32_t at, zrt::Array<double> out) = 0;
