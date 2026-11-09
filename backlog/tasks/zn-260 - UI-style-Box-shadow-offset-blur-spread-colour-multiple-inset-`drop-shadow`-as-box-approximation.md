@@ -2,7 +2,8 @@
 id: ZN-260
 title: 'Box shadow: several layers, inset, spread'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-07 12:57'
 labels:
   - ui

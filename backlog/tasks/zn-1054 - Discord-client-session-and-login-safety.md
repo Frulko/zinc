@@ -2,8 +2,7 @@
 id: ZN-1054
 title: 'Discord client: session and login safety'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:40'
 updated_date: '2026-11-09 05:50'
 labels:

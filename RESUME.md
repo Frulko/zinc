@@ -26,10 +26,12 @@
 - Integrated: Hamlet ZN-973 (Done): bread chain run through commands (`breadhash` on three engines), level-2 houses eat bread, no orphan resource in the chain report.
 - Integrated: ZN-278 (Review, D245): U0005 warns at build when a style is drawn simpler on the target profile (`"ui": {"style": "strict"}` makes it an error); `zinc doctor` shows the style level and the last build's simplified styles. #1 needs ESP-IDF's Python env, #4 a forced tier.
 - Integrated: ZN-709, ZN-704 (Done, D246): `zinc debug --cdp` works in Chrome's real DevTools (Sources lists files, gutter breakpoints stop, Scope shows locals) and the Styles panel's box-model and `element.style` edits change the app's frame; CDP sessions are one Phase enum with generation ids.
+- Integrated: ZN-1054 (Done, D247): Quit in an app menu runs the close handlers first (`system.requestClose()`); Discord keeps failed logins across launches and shows Account safety at first login.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-1054 (since 2d4fef26d): T1 `system_sim` (new quit_role_close, 1 min), `discord_safety` (two login launches vs the new `login.out`, re-record with `ZN_UPDATE_GOLDEN=1` if the first launch resumes), `discord_login`.
 - ZN-709/704 (since 6edf6f660): T1 `devtools_frontend_sources` (4 s) and `devtools_frontend_styles` (10 s), one headless Chrome each; rerun `debug_cdp`, `debug_worker`, `devtools_styles` (ids and the session state machine changed).
 - ZN-278 (since 2b28873e4): `tests/run --only style_level` (5 s); `tools/style-neutrality` at the next UI milestone (no pixel change).
 - ZN-973 (since f02eb5c27): `tests/run --only hamlet` (T1, rules on three engines with `breadhash`, 3 min).

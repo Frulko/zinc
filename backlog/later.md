@@ -644,6 +644,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-278: a forced render tier (`ZINC_TIER` over zinc:platform's `TIER` and the renderer) for per-tier goldens of the B10 feature-matrix scene (ZN-278 #4).
 - ZN-709: `DOM.resolveNode` and the dev-run inspector's `Runtime.evaluate` answer a stub, so `$0` in the DevTools console does nothing; arrays in the Scope pane have no preview (`(3) [1, 2, 3]` in Chrome): add `preview` to `remote()`.
 - ZN-704: `CSS.takeComputedStyleUpdates` answers `{}` (a long-poll with `nodeIds` if the live Computed pane matters). DevTools quirk for scripts: Enter on a new declaration opens the next one's prompt and steals the next Elements click (press Escape first).
+- ZN-1054: a launch of the Discord example spends ~15 s compiling 155 files on the interpreter: check whether the compile cache applies to `zinc run` of a project (the T1s pay it at every launch).
+- ZN-1054: close-to-tray apps (notify-relay, ipod) now hide instead of quitting on Quit in their own menu if their close handler vetoes: a quitting flag (Electron's `before-quit`) so handlers tell Quit from the close button. Decide whether a captcha 400 on `/auth/login` counts toward Discord's three-refusal pause.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
