@@ -58,6 +58,11 @@ declare module 'zinc:gfx' {
    *  the assets), the path of a .ttf in the assets, or an absolute path, read as zinc:fs reads it (the fs:read permission). Its text has the pixels of baked text of that size; characters are rasterized on first
    *  use. -1 when there is no such file or the read is refused (the prototype: the nearest baked size of the family). */
   export function loadFont(file: string, px: number): i32;
+  /** `family` at exactly `px` pixels with tabular figures (OpenType tnum): every digit as wide as the others, so a clock or a column of
+   *  numbers keeps its width as the digits change. `family`: "sans", "sans-bold", "mono", the stem of a .ttf of the assets, or a file
+   *  loadFont already read, by the name it was given. A font without the feature keeps its
+   *  own figures; where the text tier is not linked (zinc.json "text": "simple", small boards), the font as loadFont gives it. */
+  export function tabularFont(family: string, px: number): i32;
   export function fontAscent(font: i32): i32;
   export function lineHeight(font: i32): i32;
   export function textWidth(font: i32, s: string, tracking: number): number;

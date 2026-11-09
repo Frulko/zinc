@@ -7,7 +7,7 @@ import {
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
-  escapeByApp, escapeDefault, stroke as g_stroke, polygon as g_polygon, loadFont, setGlobalAlpha, globalAlpha,
+  escapeByApp, escapeDefault, stroke as g_stroke, polygon as g_polygon, loadFont, tabularFont, setGlobalAlpha, globalAlpha,
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId, ease, layerBegin, layerEnd, layerAnim, compClock,
 } from 'zinc:gfx';
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
@@ -487,7 +487,7 @@ export class UiNode {
   z: i32 = 0; invisible: boolean = false; ptr: i32 = 0; rel: boolean = false; sticky: boolean = false; stat: boolean = false; contentBox: boolean = false;   // z-index, visibility: hidden, pointer events (0 auto, 1 none, 2 box-none: its children only, 3 box-only: not its children), position: relative / sticky / static (React Native's opt-out of its default relative), box-sizing: content-box
   fg: i32 = -1;  // -1: inherited from the nearest ancestor with a text color (CSS color)
   letterSpace: number = UNSET; // absolute CSS letter spacing; Tailwind tracking remains relative
-  size: i32 = DEFAULT_TEXT; bold: boolean = false; weight: i32 = 0; italic: boolean = false; transform: i32 = 0; tsX: i32 = 0; tsY: i32 = 0; tsColor: i32 = -1; tsAlpha: i32 = 0; selBg: i32 = -1; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; decoC: i32 = -1; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline; the style << 3) and colour (-1: the text's), word spacing px, sub/super shift (em)
+  size: i32 = DEFAULT_TEXT; bold: boolean = false; weight: i32 = 0; italic: boolean = false; tabular: boolean = false; transform: i32 = 0; tsX: i32 = 0; tsY: i32 = 0; tsColor: i32 = -1; tsAlpha: i32 = 0; selBg: i32 = -1; ws: i32 = 0; brk: i32 = 0; clamp: i32 = 0; ellipsis: boolean = false; balance: boolean = false; deco: i32 = 0; decoC: i32 = -1; wordSp: number = 0; vshift: number = 0;   // text-transform (1 upper, 2 lower, 3 capitalize), decoration bits (1 underline, 2 line-through, 4 overline; the style << 3) and colour (-1: the text's), word spacing px, sub/super shift (em)
    tracking: number = 0; talign: i32 = 0; leading: i32 = 0;
   fontId: i32 = -1;
   family: string = 'sans';
@@ -2792,6 +2792,8 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   const fw = FONT_WEIGHT_TOKENS.indexOf(tok);
   if (fw >= 0) { n.weight = (fw + 1) * 100; n.bold = fw >= 5; return true; }
   if (tok === 'italic') { n.italic = true; return true; }
+  if (tok === 'tabular-nums') { n.tabular = true; return true; }   // OpenType tnum: digits of one width (ZN-1062)
+  if (tok === 'normal-nums') { n.tabular = false; return true; }
   if (tok === 'text-shadow-none') { n.tsAlpha = 0; return true; }
   if (tok === 'text-shadow-sm') { n.tsX = 0; n.tsY = 1; n.tsAlpha = 115; return true; }
   if (tok === 'text-shadow') { n.tsX = 1; n.tsY = 1; n.tsAlpha = 110; return true; }
@@ -3052,7 +3054,7 @@ function resetStyle(n: UiNode): void {
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.contents = false; n.pct = null; n.overflow = n.tag === SCROLL || n.ed !== null; n.scroll = n.tag === SCROLL ? 1 : 0;
   n.bg = -1; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0; n.shAlpha = 255;
   n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.ptr = 0; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = BORDER_DEFAULT; n.borderAlpha = 255; n.fgAlpha = 255;
-  n.opacity = 1; n.fg = -1; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.decoC = -1; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
+  n.opacity = 1; n.fg = -1; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.tabular = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.decoC = -1; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1; n.pattern = 0; n.cache = false;
   if (n.ed !== null) { const e = n.ed as Edit; e.phC = -1; e.caretC = -1; }
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX; n.im = DEF_IMGX;   // the cold records: back to the shared defaults
@@ -3191,7 +3193,7 @@ function inheritText(n: UiNode): void {
   if (n.parent < 0) return;
   let p = n.parent;
   while (p >= 0 && nodes[p].tag === FRAGMENT) p = nodes[p].parent;
-  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.transform = t.transform; n.tsX = t.tsX; n.tsY = t.tsY; n.tsColor = t.tsColor; n.tsAlpha = t.tsAlpha; n.ws = t.ws; n.brk = t.brk; n.clamp = t.clamp; n.ellipsis = t.ellipsis; n.balance = t.balance; n.deco = t.deco; n.decoC = t.decoC; n.wordSp = t.wordSp; n.vshift = t.vshift; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
+  if (p >= 0 && nodes[p].tag === TEXT && n.cls === '\u0000') { const t = nodes[p]; n.size = t.size; n.bold = t.bold; n.weight = t.weight; n.italic = t.italic; n.tabular = t.tabular; n.transform = t.transform; n.tsX = t.tsX; n.tsY = t.tsY; n.tsColor = t.tsColor; n.tsAlpha = t.tsAlpha; n.ws = t.ws; n.brk = t.brk; n.clamp = t.clamp; n.ellipsis = t.ellipsis; n.balance = t.balance; n.deco = t.deco; n.decoC = t.decoC; n.wordSp = t.wordSp; n.vshift = t.vshift; n.family = t.family; n.tracking = t.tracking; n.leading = t.leading; }
 }
 const WEIGHT_FACE: string[] = ['Thin', 'ExtraLight', 'Light', '', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'];   // 100..900 ('' is the family file itself)
 const fontNames: string[] = [], fontFiles: string[] = [];
@@ -3202,11 +3204,17 @@ export function registerFont(name: string, file: string): void {
   else { fontNames.push(name); fontFiles.push(file); }
   for (const n of nodes) if (n.alive && n.family === name) rebuildStyle(n);
 }
+/** Face `name` at px: the baked one, or with tabular figures (tabular-nums) the one made from its TrueType file at exactly px. */
+function faceNamed(name: string, px: i32, tabular: boolean): i32 {
+  if (!tabular) return font(name, px);
+  const f = tabularFont(name, px);
+  return f >= 0 ? f : font(name, px);
+}
 /** The baked face of one family for a weight: the nearest weight the family has (lighter first below 600, heavier first from 600), italic = the real Italic face or the baked slant (Name~i). -1: none. */
-function familyFace(fam: string, weight: i32, italic: boolean, px: i32): i32 {
+function familyFace(fam: string, weight: i32, italic: boolean, px: i32, tabular: boolean): i32 {
   const registered = fontNames.indexOf(fam);
-  if (registered >= 0) return loadFont(fontFiles[registered], px);
-  if (fam === 'sans' && fontSans !== '') { const f = familyFace(fontSans, weight, italic, px); if (f >= 0) return f; }
+  if (registered >= 0) { const f = loadFont(fontFiles[registered], px); return tabular && f >= 0 ? tabularFont(fontFiles[registered], px) : f; }
+  if (fam === 'sans' && fontSans !== '') { const f = familyFace(fontSans, weight, italic, px, tabular); if (f >= 0) return f; }
   const want = Math.max(0, Math.min(8, Math.round(weight / 100) - 1));
   for (let k = 0; k < 9; k++) {
     for (let s = 0; s < 2; s++) {
@@ -3216,11 +3224,11 @@ function familyFace(fam: string, weight: i32, italic: boolean, px: i32): i32 {
       const name = fam === 'sans' ? (i >= 5 ? 'sans-bold' : i === 3 ? 'sans' : '') : WEIGHT_FACE[i] === '' ? fam : fam + '-' + WEIGHT_FACE[i];
       if (name === '') continue;
       if (italic) {
-        let f = font(fam + (i >= 5 ? '-BoldItalic' : '-Italic'), px);
-        if (f < 0) f = font(name + '~i', px);
+        let f = faceNamed(fam + (i >= 5 ? '-BoldItalic' : '-Italic'), px, tabular);
+        if (f < 0) f = faceNamed(name + '~i', px, tabular);
         if (f >= 0) return f;
       }
-      const f = font(name, px);
+      const f = faceNamed(name, px, tabular);
       if (f >= 0) return f;
     }
   }
@@ -3234,17 +3242,17 @@ export function setFontSans(family: string): void {
   for (let i = 0; i < nodes.length; i++) if (nodes[i].alive) rebuildStyle(nodes[i]);
 }
 /** font-[A,B,C]: the first family of the list that has a face wins; the built-in sans is the last resort. */
-function faceOf(n: UiNode, px: i32): i32 { return faceIn(n.family, n.weight > 0 ? n.weight : n.bold ? 700 : 400, n.italic, px); }
-function faceIn(family: string, w: i32, italic: boolean, px: i32): i32 {
-  if (family.indexOf(',') < 0) { const f = familyFace(family, w, italic, px); if (f >= 0) return f; }
-  else for (const fam of family.split(',')) { const f = familyFace(fam.trim(), w, italic, px); if (f >= 0) return f; }
-  return familyFace('sans', w, italic, px);
+function faceOf(n: UiNode, px: i32): i32 { return faceIn(n.family, n.weight > 0 ? n.weight : n.bold ? 700 : 400, n.italic, px, n.tabular); }
+function faceIn(family: string, w: i32, italic: boolean, px: i32, tabular: boolean): i32 {
+  if (family.indexOf(',') < 0) { const f = familyFace(family, w, italic, px, tabular); if (f >= 0) return f; }
+  else for (const fam of family.split(',')) { const f = familyFace(fam.trim(), w, italic, px, tabular); if (f >= 0) return f; }
+  return familyFace('sans', w, italic, px, tabular);
 }
 /** The face of a run's style in text node n (laid out: n.fontId is its own face). */
 function runFace(n: UiNode, style: i32): i32 {
   if ((style & 7) === 0) return n.fontId;
   const w = (style & RUN_BOLD) !== 0 ? 700 : n.weight > 0 ? n.weight : n.bold ? 700 : 400;
-  return faceIn((style & RUN_MONO) !== 0 ? 'mono' : n.family, w, (style & RUN_ITALIC) !== 0 || n.italic, n.size);
+  return faceIn((style & RUN_MONO) !== 0 ? 'mono' : n.family, w, (style & RUN_ITALIC) !== 0 || n.italic, n.size, n.tabular);
 }
 function runsOn(n: UiNode): boolean {
   return n.runs !== null && n.ws === 0 && n.brk <= 1 && n.clamp === 0 && !n.ellipsis && !n.balance && n.transform === 0 && n.wordSp === 0;
@@ -6920,7 +6928,7 @@ function ring(x: number, y: number, w: number, h: number, t: number, r: number, 
 /** The inspect overlay's tooltip for the box x, y, w, h: its lines under the box (over it when there is no room below), kept inside the
  *  window. zinc:stage's highlight draws one too (plugins/devtools/stage.ts). */
 export function inspectTip(x: number, y: number, w: number, h: number, tip: string): void {
-  const f = familyFace('sans', 400, false, 12);
+  const f = familyFace('sans', 400, false, 12, false);
   if (f < 0) return;
   const lines = tip.split('\n'), lh = 16, pad = 6, W = width(), H = height();
   let tw: number = 0;
@@ -6998,7 +7006,7 @@ const CLASS_WORDS: string[] = ['flex', 'flex-row', 'flex-col', 'flex-wrap', 'fle
   'items-start', 'items-center', 'items-end', 'items-stretch', 'justify-start', 'justify-center', 'justify-end', 'justify-between', 'justify-around', 'self-center',
   'overflow-hidden', 'rounded', 'rounded-sm', 'rounded-md', 'rounded-lg', 'rounded-xl', 'rounded-2xl', 'rounded-full', 'border', 'border-2', 'border-4',
   'border-t', 'border-b', 'border-l', 'border-r', 'shadow', 'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl', 'font-normal', 'font-medium', 'font-semibold', 'font-bold', 'font-mono',
-  'italic', 'underline', 'uppercase', 'truncate', 'text-left', 'text-center', 'text-right', 'opacity-0', 'opacity-25', 'opacity-50', 'opacity-75', 'opacity-100', 'bg-transparent'];
+  'italic', 'tabular-nums', 'underline', 'uppercase', 'truncate', 'text-left', 'text-center', 'text-right', 'opacity-0', 'opacity-25', 'opacity-50', 'opacity-75', 'opacity-100', 'bg-transparent'];
 const CLASS_SPACED: string[] = ['p', 'px', 'py', 'pt', 'pr', 'pb', 'pl', 'm', 'mx', 'my', 'mt', 'mr', 'mb', 'ml', 'gap', 'gap-x', 'gap-y', 'w', 'h', 'min-w', 'min-h',
   'max-w', 'max-h', 'top', 'left', 'right', 'bottom', 'size'];
 // the text sizes as suffixes: written as whole class names, the font baker would read them as uses and bake every size into every UI program

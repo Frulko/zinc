@@ -55,6 +55,7 @@ struct Options {
   Direction dir = Direction::Auto;   // base direction of the paragraph
   const char* lang = nullptr;        // "en", "ja", "zh"...: line-break tailoring and shaping language
   float maxWidth = 0;        // wrap at this width; 0 = one line
+  bool tabular = false;      // OpenType tnum: every figure as wide as the others (a clock, a column); a font without the feature keeps its own figures
 };
 
 // Shapes `utf8` (hard breaks start new lines) with `faces` as the fallback chain: a character takes the first face that has its glyph.

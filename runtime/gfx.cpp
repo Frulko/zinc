@@ -1460,7 +1460,8 @@ static int32_t phys_font(int32_t f) {
   if (f >= 0 && f < 64 && font_map[0][f] == key) return font_map[1][f];
   const raster::Font* fo = raster::font_at(f);
   int32_t r = f;
-  if (fo) { uint32_t n = 0; while (fo->name[n]) n++; r = raster::render_font(fo->name, n, fo->px * pxk); }
+  char name[96];   // with its marks: a slanted or tabular font stays one at every pixel scale
+  if (fo) { const uint32_t n = raster::font_name(f, name, sizeof name); if (n) r = raster::render_font(name, n, fo->px * pxk); }
   if (f >= 0 && f < 64) { font_map[0][f] = key; font_map[1][f] = r; }
   return r;
 }
@@ -2367,13 +2368,21 @@ int32_t font(const String& name, int32_t px) { return raster::find_font(name.ptr
 int32_t loadFont(const String& name, double px) {
   const int32_t k = !(px >= 1) ? 1 : px > 512 ? 512 : (int32_t)(px + 0.5);
   const char* s = name.ptr();
-  uint32_t n = name.bytes();
+  const uint32_t n = name.bytes();
   int32_t f = raster::exact_font(s, n, k);
   if (f >= 0) return f;
-  uint32_t from = 0, to = n;   // fonts/Lora-Regular.ttf -> Lora-Regular
-  for (uint32_t i = 0; i < n; i++) if (s[i] == '/') from = i + 1;
-  for (uint32_t i = n; i > from; i--) if (s[i - 1] == '.') { to = i - 1; break; }
-  if (from > 0 || to < n) { f = raster::exact_font(s + from, to - from, k); if (f >= 0) return f; }
+  uint32_t m = n;   // the marks of a slanted or tabular font (~i, ~t) stay on the stem: fonts/Lora.ttf~t -> Lora~t
+  while (m > 2 && s[m - 2] == '~' && (s[m - 1] == 'i' || s[m - 1] == 't')) m -= 2;
+  uint32_t from = 0, to = m;   // fonts/Lora-Regular.ttf -> Lora-Regular
+  for (uint32_t i = 0; i < m; i++) if (s[i] == '/') from = i + 1;
+  for (uint32_t i = m; i > from; i--) if (s[i - 1] == '.') { to = i - 1; break; }
+  if (from > 0 || to < m) {
+    char stem[160];
+    if (to - from + n - m >= sizeof stem) return -1;
+    __builtin_memcpy(stem, s + from, to - from); __builtin_memcpy(stem + (to - from), s + m, n - m);
+    f = raster::exact_font(stem, to - from + n - m, k);
+    if (f >= 0) return f;
+  }
   return raster::find_font(s + from, to - from, k);
 }
 int32_t fontAscent(int32_t f) { const raster::Font* fo = raster::font_at(f); return fo ? fo->ascent : 0; }

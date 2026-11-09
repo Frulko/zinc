@@ -518,7 +518,9 @@ void writeStr(std::vector<std::uint8_t>& b, const std::string& s) { writeU32(b, 
 }  // namespace
 
 // The TrueType file reduced to `cps` with hb-subset (ZN-428): no hinting and no layout tables, which the runtime rasterizer (runtime/ttf.cpp:
-// head, hhea, hmtx, loca, glyf, cmap, maxp) does not read; the outlines and metrics it reads are kept. False: keep the whole file.
+// head, hhea, hmtx, loca, glyf, cmap, maxp) does not read; the outlines and metrics it reads are kept. GSUB keeps one feature, tnum, and its
+// figures (ZN-1062): the shaping tier gives a tabular font (zinc:gfx tabularFont, tabular-nums) those, and nothing else changes by default.
+// False: keep the whole file.
 bool subsetTtf(const std::vector<std::uint8_t>& in, const std::set<std::uint32_t>& cps, std::vector<std::uint8_t>& out) {
   hb_blob_t* blob = hb_blob_create(reinterpret_cast<const char*>(in.data()), static_cast<unsigned>(in.size()), HB_MEMORY_MODE_READONLY, nullptr, nullptr);
   hb_face_t* face = hb_face_create(blob, 0);
@@ -529,7 +531,10 @@ bool subsetTtf(const std::vector<std::uint8_t>& in, const std::set<std::uint32_t
     for (std::uint32_t cp : cps) hb_set_add(u, cp);
     hb_subset_input_set_flags(input, HB_SUBSET_FLAGS_NO_HINTING);
     hb_set_t* drop = hb_subset_input_set(input, HB_SUBSET_SETS_DROP_TABLE_TAG);
-    for (const char* t : {"GSUB", "GPOS", "GDEF", "kern", "DSIG", "STAT", "fvar", "gvar", "HVAR", "avar"}) hb_set_add(drop, HB_TAG(t[0], t[1], t[2], t[3]));
+    for (const char* t : {"GPOS", "GDEF", "kern", "DSIG", "STAT", "fvar", "gvar", "HVAR", "avar"}) hb_set_add(drop, HB_TAG(t[0], t[1], t[2], t[3]));
+    hb_set_t* features = hb_subset_input_set(input, HB_SUBSET_SETS_LAYOUT_FEATURE_TAG);
+    hb_set_clear(features);
+    hb_set_add(features, HB_TAG('t', 'n', 'u', 'm'));
     if (hb_face_t* sub = hb_subset_or_fail(face, input)) {
       hb_blob_t* b = hb_face_reference_blob(sub);
       unsigned n = 0;

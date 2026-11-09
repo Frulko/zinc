@@ -1,5 +1,7 @@
 // The text-shaping tier (ZN-114): kerning, Arabic and Hebrew bidi, Devanagari, a ZWJ emoji and CJK line breaking; every fixture is drawn into a gray image and
 // compared byte for byte with tests/golden/text/<name>.png (`layout_test --update` rewrites them).
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -133,6 +135,13 @@ int main(int argc, char** argv) {
     CHECK(ls.size() >= 3, "Latin text wrapped into %zu lines", ls.size());
     for (auto& l : ls) CHECK(l.width <= 200 + 40, "a line is %.1f wide", l.width);
     check("wrap_latin", all, ls, 28, 230, 140); }
+  // tabular figures (ZN-1062): with tnum every digit of Inter is as wide as the others; without it, Inter's 1 is narrower than its 0
+  { Options t = o; t.tabular = true;
+    float w0 = layout(all, "0", t)[0].width, lo = w0, hi = w0;
+    for (char d = '1'; d <= '9'; d++) { float w = layout(all, std::string(1, d), t)[0].width; lo = std::min(lo, w); hi = std::max(hi, w); }
+    CHECK(hi - lo < 0.01f, "tabular digits are %.2f to %.2f wide", lo, hi);
+    CHECK(layout(all, "1", o)[0].width < layout(all, "0", o)[0].width - 0.5f, "Inter's proportional 1 is not narrower than its 0");
+    CHECK(std::abs(layout(all, "11:11", t)[0].width - layout(all, "00:00", t)[0].width) < 0.01f, "a tabular clock changes width with its digits"); }
   if (failures) { std::printf("%d failures\n", failures); return 1; }
   std::printf("all checks passed\n");
   return 0;

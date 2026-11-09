@@ -1,7 +1,7 @@
 // The drawing kit of the app: Apple's dark palette, Inter, touch zones registered while drawing, sliders, scrolling lists, Lucide icons
 // drawn once into pictures, and pictures fetched from the network. Immediate mode with zinc:gfx: a frame is drawn only when something
 // changed (`ui.dirty`), which keeps the TouchPad's GPU and CPU idle most of the time.
-import { rrect, rect, gradient, drawImageRect, drawText, textWidth, font, fontAscent, drawImage, imageFromBytes, destroyImage, createImage, beginImage, endImage, clip, unclip, imageWidth, imageHeight, shadow, polygon, stroke } from 'zinc:gfx';
+import { rrect, rect, gradient, drawImageRect, drawText, textWidth, font, tabularFont, fontAscent, drawImage, imageFromBytes, destroyImage, createImage, beginImage, endImage, clip, unclip, imageWidth, imageHeight, shadow, polygon, stroke } from 'zinc:gfx';
 import { icon } from 'zinc:icons';
 
 // ---------------------------------------------------------------- palette (iOS dark) and type
@@ -12,6 +12,8 @@ export const ACCENT = 0xfa2d48, GREEN = 0x1ed760, BLUE = 0x0a84ff;
 export const F = {
   hero: font('sans-bold', 34), title: font('sans-bold', 28), head: font('sans-bold', 22), body: font('sans', 20), bodyB: font('sans-bold', 18),
   label: font('sans', 17), small: font('sans', 15), smallB: font('sans-bold', 15), tiny: font('sans', 13), tinyB: font('sans-bold', 12), key: font('sans', 24),
+  // tabular figures (OpenType tnum): every digit as wide as the others, so the time and the battery level do not shift as they change
+  smallNum: tabularFont('sans', 15), smallBNum: tabularFont('sans-bold', 15),
 };
 
 // ---------------------------------------------------------------- state shared with main.ts
@@ -102,35 +104,6 @@ export function fit(f: i32, s: string, w: number): string {
   let lo = 0, hi = s.length;
   while (lo < hi) { const mid = Math.ceil((lo + hi) / 2) as i32; if (textWidth(f, s.slice(0, mid) + '…', 0) <= w) lo = mid; else hi = mid - 1; }
   return s.slice(0, lo).trimEnd() + '…';
-}
-// Tabular figures (owner, 2026-10-15): every digit takes the width of the widest one, so a clock does not shift as its digits change.
-// Done here, a cell per character; the engine's own font feature (OpenType tnum) is a line of backlog/later.md.
-const cellOf = new Map<i32, number>();
-function digitCell(f: i32): number {
-  const c = cellOf.get(f);
-  if (c !== undefined) return c as number;
-  let w = 0;
-  for (let d = 0; d < 10; d++) w = Math.max(w, textWidth(f, '' + d, 0));
-  cellOf.set(f, w);
-  return w;
-}
-/** The width of `s` with tabular digits. */
-export function tabularWidth(f: i32, s: string): number {
-  let w = 0;
-  const cell = digitCell(f);
-  for (let i = 0; i < s.length; i++) { const ch = s.charAt(i); w += ch >= '0' && ch <= '9' ? cell : textWidth(f, ch, 0); }
-  return w;
-}
-/** Text with its top at y and tabular digits, from x; the width used. */
-export function tabular(f: i32, x: number, y: number, s: string, color: u32, alpha: i32 = 255): number {
-  const cell = digitCell(f);
-  let px = x;
-  for (let i = 0; i < s.length; i++) {
-    const ch = s.charAt(i), digit = ch >= '0' && ch <= '9', w = textWidth(f, ch, 0);
-    drawText(f, digit ? px + (cell - w) / 2 : px, y, ch, color, alpha, 0);
-    px += digit ? cell : w;
-  }
-  return px - x;
 }
 /** Draws text with its top at y (not its baseline), cut to the width. */
 export function label(f: i32, x: number, y: number, s: string, color: u32, w: number = 10000, alpha: i32 = 255): void {

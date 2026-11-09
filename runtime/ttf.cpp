@@ -262,7 +262,7 @@ static void cover(const Outline& o, int32_t w, int32_t h, uint8_t* bits) {
 #endif
 struct RFont {
   Font f;          // name/px/metrics; glyphs/bitmap point into the growable arrays below
-  int32_t file; bool italic;   // italic: synthetic slant (12 degrees), the font is asked as "Name~i"
+  int32_t file; bool italic, tabular;   // italic: synthetic slant (12 degrees), asked as "Name~i"; tabular: OpenType tnum figures, "Name~t"
   Glyph* glyphs; int32_t nglyph, capglyph;   // open-addressing table keyed by cp (cp 0xFFFFFFFF = empty)
   uint8_t* bitmap; uint32_t nbits, capbits;
 };
@@ -302,6 +302,7 @@ static const Glyph* rasterize(RFont& r, uint32_t cp) {
   }
   const Ttf& t = ttfs[r.file];
   uint32_t gi = glyph_index(t, cp);
+  if (r.tabular && shape_hooks && shape_hooks->tabular_glyph) { const uint32_t tg = shape_hooks->tabular_glyph(t.d, t.len, cp); if (tg) gi = tg; }   // ZN-1062: tnum's figure, on its own advance
   if (!gi && cp != 0) return nullptr;
   const double scale = (double)r.f.px / t.upem;
   const uint32_t hi = gi < (uint32_t)t.numH ? gi : (uint32_t)t.numH - 1;
@@ -339,6 +340,23 @@ static const Glyph* rasterize(RFont& r, uint32_t cp) {
 }
 
 bool runtime_font(int32_t id) { return id >= RUNTIME_FONT_BASE && id < RUNTIME_FONT_BASE + nrfonts; }
+bool font_tabular(int32_t id) { return runtime_font(id) && rfonts[id - RUNTIME_FONT_BASE].tabular; }
+/** Strips the marks a family is asked with, "~i" (slanted) and "~t" (tabular figures), in any order, from the end of `name`. */
+static void marks(const char* name, uint32_t& len, bool& italic, bool& tabular) {
+  italic = tabular = false;
+  while (len > 2 && name[len - 2] == '~' && (name[len - 1] == 'i' || name[len - 1] == 't')) { (name[len - 1] == 'i' ? italic : tabular) = true; len -= 2; }
+}
+uint32_t font_name(int32_t font, char* out, uint32_t cap) {
+  const Font* f = font_at(font);
+  uint32_t n = 0;
+  if (!f || cap < 6) return 0;
+  while (f->name[n] && n < cap - 5) { out[n] = f->name[n]; n++; }
+  if (f->name[n]) return 0;
+  if (runtime_font(font) && rfonts[font - RUNTIME_FONT_BASE].italic) { out[n++] = '~'; out[n++] = 'i'; }
+  if (runtime_font(font) && rfonts[font - RUNTIME_FONT_BASE].tabular) { out[n++] = '~'; out[n++] = 't'; }
+  out[n] = 0;
+  return n;
+}
 const Font* font_at(int32_t id) {
   if (id >= 0 && id < font_count) return &fonts[id];
   if (runtime_font(id)) return &rfonts[id - RUNTIME_FONT_BASE].f;
@@ -377,13 +395,13 @@ static int32_t from_file(const char* name, uint32_t name_len, int32_t px, bool b
     nrfonts = nscaled = 0;
     for (Ttf& t : ttfs) t.ok = false;
   }
-  bool italic = name_len > 2 && name[name_len - 2] == '~' && name[name_len - 1] == 'i';
-  if (italic) name_len -= 2;
-  if (baked_first) { int32_t b = find_font(name, name_len, px); if (b >= 0 && fonts[b].px == px && !italic) return b; }
+  bool italic, tabular;
+  marks(name, name_len, italic, tabular);
+  if (baked_first) { int32_t b = find_font(name, name_len, px); if (b >= 0 && fonts[b].px == px && !italic && !tabular) return b; }   // a baked font has the default figures
   for (int32_t i = 0; i < nrfonts; i++) {
     const Font& f = rfonts[i].f;
     uint32_t k = 0; while (f.name[k]) k++;
-    if (f.px == px && rfonts[i].italic == italic && k == name_len && !__builtin_memcmp(f.name, name, k)) return RUNTIME_FONT_BASE + i;
+    if (f.px == px && rfonts[i].italic == italic && rfonts[i].tabular == tabular && k == name_len && !__builtin_memcmp(f.name, name, k)) return RUNTIME_FONT_BASE + i;
   }
   if (scaled ? nscaled >= ZRT_SCALED_FONTS : nrfonts - nscaled >= ZRT_RUNTIME_FONTS) return -1;
   for (int32_t i = 0; i < ttf_count + nextra && i < MAX_TTF; i++) {
@@ -398,7 +416,7 @@ static int32_t from_file(const char* name, uint32_t name_len, int32_t px, bool b
     r = RFont{};
     const double s = (double)px / t.upem;   // the baker's metrics: Math.round of the scaled values
     r.f = Font{file.name, px, (int32_t)__builtin_floor(t.ascent * s + 0.5), (int32_t)__builtin_floor(-t.descent * s + 0.5), (int32_t)__builtin_floor(t.lineGap * s + 0.5), 0, nullptr, nullptr};
-    r.file = i; r.italic = italic;
+    r.file = i; r.italic = italic; r.tabular = tabular;
     nscaled += scaled;
     return RUNTIME_FONT_BASE + nrfonts++;
   }
@@ -410,23 +428,21 @@ int32_t exact_font(const char* name, uint32_t name_len, int32_t px) { return fro
 int32_t render_font(const char* name, uint32_t name_len, int32_t px) {
   const int32_t f = from_file(name, name_len, px, true);
   if (f >= 0) return f;
-  bool italic = name_len > 2 && name[name_len - 2] == '~' && name[name_len - 1] == 'i';
-  return find_font(name, italic ? name_len - 2 : name_len, px);
+  bool italic, tabular;
+  marks(name, name_len, italic, tabular);
+  return find_font(name, name_len, px);
 }
 /** The family and style of `font` at `px` pixels, for the glyphs of a text drawn through a matrix that scales (gfx drawText): a baked or
  *  runtime font of that size, else one made from its TrueType file while ZRT_SCALED_FONTS allows, else the closest baked size. -1: none.
  *  ponytail: these fonts are never freed; gfx asks for a few sizes only (its ladder), so the table bounds them. An LRU if a program
  *  zooms more families than the table holds. */
 int32_t scaled_font(int32_t font, int32_t px) {
-  const Font* f = font_at(font);
   char name[96];
-  uint32_t n = 0;
-  if (!f) return -1;
-  while (f->name[n] && n < sizeof name - 3) { name[n] = f->name[n]; n++; }
-  if (f->name[n]) return -1;
-  uint32_t asked = n;
-  if (runtime_font(font) && rfonts[font - RUNTIME_FONT_BASE].italic) { name[n] = '~'; name[n + 1] = 'i'; asked = n + 2; }
-  const int32_t r = from_file(name, asked, px, true, true);
+  uint32_t n = font_name(font, name, sizeof name);
+  if (!n) return -1;
+  const int32_t r = from_file(name, n, px, true, true);
+  bool italic, tabular;
+  marks(name, n, italic, tabular);
   return r >= 0 ? r : find_font(name, n, px);
 }
 /** The font text `s` should be drawn in: `font`, or when it is a baked font that lacks one of the characters (typed at run time, read from a

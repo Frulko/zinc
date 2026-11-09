@@ -11,7 +11,7 @@ import { Spotify, Item, Playback, Login, sharedLoginFile } from 'zinc:spotify';
 import { SPOTIFY_CLIENT_ID } from './spotify-client';
 import { SpotifyPage, SpotifyHost } from './spotify-ui';
 import { openUrl } from 'zinc:system/opener';
-import { spinner, tabular, tabularWidth, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CARD, CARD2, FILL, TEXT, TEXT2, TEXT3, ACCENT, GREEN, Scroll, Zone, zoneAt, wheelScroll, resetZones, onTap, beginScroll, endScroll, label, centered, wrap, clock, glyph, transport, cover, backdrop, iconButton, pill, segmented, slider, card, separator, cardShadow, isPressed } from './ui';
+import { spinner, decodeStats, decodeOne, picturesTick, prefetch, ui, F, BG, CARD, CARD2, FILL, TEXT, TEXT2, TEXT3, ACCENT, GREEN, Scroll, Zone, zoneAt, wheelScroll, resetZones, onTap, beginScroll, endScroll, label, centered, wrap, clock, glyph, transport, cover, backdrop, iconButton, pill, segmented, slider, card, separator, cardShadow, isPressed } from './ui';
 import { Station, loadMine, saveMine, indexOf, directory } from './radios';
 import { keyboard, KEYBOARD_H } from './keyboard';
 import { Screen } from './screen';
@@ -891,7 +891,7 @@ function digitalFace(W: number, H: number): void {
   const d = new Date(), m = d.getMinutes(), t = `${d.getHours()}:${m < 10 ? '0' : ''}${m}`;
   const dl = `${DAYS_LONG[d.getDay()]} ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`.toUpperCase();
   centered(F.smallB, W / 2, H * 0.16, dl, ACCENT);
-  tabular(HUGE, (W - tabularWidth(HUGE, t)) / 2, H * 0.2, t, TEXT);
+  centered(HUGE, W / 2, H * 0.2, t, TEXT);
   nowCard((W - 480) / 2, H - 150, 480);
 }
 /** Hours, minutes and seconds as rings (the Apple Watch's activity rings), the time in their middle. */
@@ -917,7 +917,7 @@ function lavaFace(W: number, H: number): void {
   lava(W, H);
   onTap('lava/colour', 0, 0, W, H, () => { setLampPalette(lampPalette() + 1); remember(); ui.dirty = true; });   // a touch on the glass: the next colours
   centered(F.smallB, W / 2, H * 0.16, `${DAYS_LONG[d.getDay()]} ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`.toUpperCase(), TEXT, 200);
-  tabular(HUGE, (W - tabularWidth(HUGE, t)) / 2, H * 0.2, t, TEXT);
+  centered(HUGE, W / 2, H * 0.2, t, TEXT);
   nowCard((W - 480) / 2, H - 150, 480);
   // the hint: fades in and rises on arriving, gone after 10 s (then a touch on the glass still works)
   if (clockS - lampSeen > 0.5) {
@@ -1444,7 +1444,7 @@ function batteryIndicator(right: number, ty: number): number {
   rrect(x + bw + 1, y + 4, 2, bh - 8, 1, TEXT, 110);
   let left = x;
   if (batteryCharging) { glyph('zap', x - 16, (TOP - 14) / 2, 14, GREEN); left -= 18; }
-  if (cfg.batteryPct) { const t = `${batteryLevel} %`; left -= tabularWidth(F.small, t) + 6; tabular(F.small, left, ty, t, TEXT2); }
+  if (cfg.batteryPct) { const t = `${batteryLevel} %`; left -= textWidth(F.smallNum, t, 0) + 6; drawText(F.smallNum, left, ty, t, TEXT2, 255, 0); }
   return left - 18;
 }
 
@@ -1457,8 +1457,8 @@ function statusBar(W: number): void {
   const c = clockParts(), m = c[1];
   const time = `${c[0]}:${m < 10 ? '0' : ''}${m}`;
   const ty = Math.round(TOP / 2 - fontAscent(F.smallB) * 0.625);   // the capitals' middle on the bar's (Inter: caps are 3/4 of the ascent), as the icons are
-  tabular(F.smallB, 20, ty, time, TEXT);
-  drawText(F.small, 28 + tabularWidth(F.smallB, time), ty, `${DAYS[c[2]]} ${c[3]} ${MONTHS[c[4]]}`, TEXT2, 255, 0);
+  drawText(F.smallBNum, 20, ty, time, TEXT, 255, 0);
+  drawText(F.small, 28 + textWidth(F.smallBNum, time, 0), ty, `${DAYS[c[2]]} ${c[3]} ${MONTHS[c[4]]}`, TEXT2, 255, 0);
   if (page === NOW) for (let i: i32 = 0; i < SLIDES; i++) {   // where the carousel is
     const on = Math.max(0, 1 - Math.abs(slideX - i));
     rrect(W / 2 + (i - (SLIDES - 1) / 2) * 18 - 4, TOP / 2 - 4, 8, 8, 4, TEXT, Math.round(70 + 185 * on) as i32);

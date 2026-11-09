@@ -1,14 +1,14 @@
 // The drawings of the home's other slides (main.ts): a watch face in the spirit of iOS StandBy and the Apple Watch, and activity rings.
 // Strokes and polygons of zinc:gfx, nothing cached: a frame of either costs less than the player's.
-import { stroke, rrect, rect, gradient, gradientPaint, imageFromPixels, updateImage, drawImageRect, ImageFlag, shaderProgram, drawShader, shaderAvailable, clip, unclip, font, fontAscent } from 'zinc:gfx';
+import { stroke, rrect, rect, gradient, gradientPaint, imageFromPixels, updateImage, drawImageRect, ImageFlag, shaderProgram, drawShader, shaderAvailable, clip, unclip, font, tabularFont, fontAscent } from 'zinc:gfx';
 import { ui, F, TEXT, TEXT3, centered } from './ui';
 import gsap from 'gsap';
 
 export const ORANGE = 0xff9f0a;
 /** The rings' colours: Apple's Move, Exercise and Stand, then orange and purple. */
 export const RINGS: u32[] = [0xfa114f, 0x92e82a, 0x1eeaef, 0xff9f0a, 0xbf5af2];
-/** The StandBy time across the screen. */
-export const HUGE = font('sans-bold', 250);
+/** The StandBy time across the screen, with tabular figures: it keeps its place as the minutes change. */
+export const HUGE = tabularFont('sans-bold', 250);
 
 /** An arc from 12 o'clock, clockwise over `turn` (0..1) of the circle, `w` wide with round ends (a whole ring has none). */
 export function arc(cx: number, cy: number, r: number, w: number, turn: number, color: u32, alpha: i32): void {

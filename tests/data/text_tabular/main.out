@@ -1,0 +1,4 @@
+plain 1 < 0: true
+tabular digits equal: true
+tabular clock steady: true
+tabular with a fallback glyph steady: true

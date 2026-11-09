@@ -33,6 +33,7 @@ Every function of the engine's modules on one page: its signature and what it do
 - `path(contours: number[], color: u32, alpha: i32): void` Several contours [count, x0, y0, ..., count, ...], nonzero winding (holes, vector art, Lottie).
 - `font(family: string, px: i32): i32` Baked font: family "sans" | "sans-bold" | "mono" | "grid" at the nearest baked pixel size.
 - `loadFont(file: string, px: number): i32` A font at exactly `px` pixels from a TrueType file chosen at run time: a baked family ("sans", "sans-bold", "mono", the stem of a .ttf of the assets), the path o…
+- `tabularFont(family: string, px: number): i32` `family` at exactly `px` pixels with tabular figures (OpenType tnum): every digit as wide as the others, so a clock or a column of numbers keeps its width as the digits change.
 - `fontAscent(font: i32): i32`
 - `lineHeight(font: i32): i32`
 - `textWidth(font: i32, s: string, tracking: number): number`

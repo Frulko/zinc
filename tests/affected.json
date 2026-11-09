@@ -515,6 +515,7 @@
     {"paths": ["lib/std/gl.ts", "src/gl/webgl_host.cpp", "src/gl/webgl_host_rows.inc", "src/gl/webgl_install.cpp", "tools/gen-zinc-gl", "tests/golden/webgl/api_tour", "examples/gl-cube/"], "tests": ["gl_cube", "zinc_gl_api", "zinc_gl_api_tour"]},
     {"paths": ["src/text/"], "tests": ["text_layout", "segment", "text_shaped"]},
     {"paths": ["runtime/raster.cpp", "src/main.cpp", "src/text/shaped_gfx.cpp", "tests/t0/emoji_text.sh", "tests/data/emoji_text/"], "tests": ["emoji_text"]},
+    {"paths": ["src/text/", "runtime/ttf.cpp", "src/res/res.cpp", "src/frontend/modules.cpp", "tests/t0/text_tabular.sh", "tests/data/text_tabular/"], "tests": ["text_tabular"]},
     {"paths": ["src/frontend/jsx.cpp", "lib/std/ui.ts", "tests/t0/virtual_stick.sh", "tests/data/virtual_stick/"], "tests": ["virtual_stick"]},
     {"paths": ["lib/std/ui.ts", "tests/t0/virtual_settle.sh", "tests/data/virtual_settle/"], "tests": ["virtual_settle"]},
     {"paths": ["lib/std/react.ts", "lib/std/ui.ts", "tests/t0/virtual_rows.sh", "tests/data/virtual_rows/"], "tests": ["virtual_rows"]},

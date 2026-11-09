@@ -99,6 +99,7 @@ A sunset sky: `gradient(0, 0, width(), height(), 0, 0x2b1055, 0xf27a54, true, 25
 |---|---|
 | `font(family: string, px: i32): i32` | A font of the families that come with Zinc, `'sans'` (Inter), `'sans-bold'`, `'mono'` (JetBrains Mono) or `'grid'` (pixel letters), at the nearest prepared size. Ask once, at the start. |
 | `loadFont(file: string, px: number): i32` | A font at exactly `px` pixels from a TrueType file: a `.ttf` of the `assets` folder (`'MyFont.ttf'`), a family name, or a full path. `-1` when there is no such file. |
+| `tabularFont(family: string, px: number): i32` | The same font with tabular figures (OpenType `tnum`): every digit as wide as the others, so a clock or a counter does not shift as its digits change. |
 | `drawText(font, x, y, s: string, color, alpha, tracking)` | Writes `s` with its top left corner at (x, y). `tracking` adds space between the letters (0: none). |
 | `textWidth(font, s: string, tracking): number` | How wide `s` will be: centre with `(width() - textWidth(f, s, 0)) / 2`. |
 | `lineHeight(font): i32` | The height of one line, space between lines included: the step from one line to the next. |

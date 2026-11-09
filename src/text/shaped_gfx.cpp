@@ -101,7 +101,7 @@ int fileOf(int32_t font) {
 
 struct Rendered { std::vector<Bitmap> bitmaps; std::vector<ColorBitmap> colors; std::vector<ShapedGlyph> glyphs; std::vector<char> isColor; int32_t advance = 0; };
 
-std::map<std::string, Rendered> gCache;   // (file, size, tracking, text) -> glyph bitmaps placed on the baseline
+std::map<std::string, Rendered> gCache;   // (file, size, tabular, tracking, text) -> glyph bitmaps placed on the baseline
 std::map<std::tuple<int, uint32_t, int>, Bitmap> gBitmaps;
 std::map<std::tuple<int, uint32_t, int>, ColorBitmap> gColors;
 
@@ -110,7 +110,8 @@ const Rendered* shape(int32_t font, std::string_view text, float tracking) {
   const zrt::raster::Font* fp = zrt::raster::font_at(font);
   int file = fileOf(font);
   if (!fp || file < 0 || file >= static_cast<int>(gFaces.size()) || !gFaces[file]) return nullptr;
-  std::string key = std::to_string(file) + ":" + std::to_string(fp->px) + ":" + std::to_string(tracking) + ":" + std::string(text);
+  const bool tabular = zrt::raster::font_tabular(font);
+  std::string key = std::to_string(file) + ":" + std::to_string(fp->px) + (tabular ? ":t:" : ":") + std::to_string(tracking) + ":" + std::string(text);
   auto it = gCache.find(key);
   if (it != gCache.end()) return &it->second;
   if (gCache.size() > 512) { gCache.clear(); gBitmaps.clear(); gColors.clear(); }
@@ -123,6 +124,7 @@ const Rendered* shape(int32_t font, std::string_view text, float tracking) {
   }
   Options o;
   o.size = static_cast<float>(fp->px);
+  o.tabular = tabular;
   std::vector<Line> lines = layout(faces, text, o);
   Rendered r;
   float lineH = static_cast<float>(fp->ascent + fp->descent + fp->lineGap), y0 = 0, widest = 0;
@@ -166,17 +168,41 @@ const Rendered* shape(int32_t font, std::string_view text, float tracking) {
   return &gCache.emplace(key, std::move(r)).first->second;
 }
 
+// the script measures while the render thread (D182) and the raster bands draw: one cache, one lock, held while its entry is read
+std::mutex gMu;
+
 int32_t run(int32_t font, const char* s, uint32_t n, float tracking, void (*emit)(void*, const ShapedGlyph&), void* user) {
-  // the script measures while the render thread (D182) and the raster bands draw: one cache, one lock, held while its entry is read
-  static std::mutex mu;
-  std::lock_guard<std::mutex> lock(mu);
+  std::lock_guard<std::mutex> lock(gMu);
   const Rendered* r = shape(font, std::string_view(s, n), tracking);
   if (!r) return -1;
   if (emit) for (const ShapedGlyph& g : r->glyphs) emit(user, g);
   return r->advance;
 }
 
-const zrt::raster::ShapeHooks kHooks = {run};
+// The figure of a tabular font (ZN-1062): `cp` shaped alone with and without tnum, the tnum glyph when they differ. A file added at run time
+// (loadFont of an asset) gets a face of its own, kept for the process as the file is.
+uint32_t tabularGlyph(const uint8_t* data, uint32_t len, uint32_t cp) {
+  std::lock_guard<std::mutex> lock(gMu);
+  openFaces();
+  static std::map<const uint8_t*, std::unique_ptr<Face>> added;
+  Face* face = nullptr;
+  for (int i = 0; i < zrt::raster::ttf_count && !face; ++i) if (zrt::raster::ttf_files[i].data == data) face = gFaces[i].get();
+  if (!face) { auto& f = added[data]; if (!f) f = Face::open(data, len); face = f.get(); }
+  if (!face || !face->hasGlyph(cp)) return 0;
+  char u[4];
+  const int k = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+  if (k == 1) u[0] = static_cast<char>(cp);
+  else { static const uint8_t lead[] = {0, 0, 0xC0, 0xE0, 0xF0}; for (int i = k - 1; i > 0; --i) { u[i] = static_cast<char>(0x80 | (cp & 0x3F)); cp >>= 6; } u[0] = static_cast<char>(lead[k] | cp); }
+  Options o;
+  o.size = static_cast<float>(face->unitsPerEm());
+  const auto first = [&](const Options& op) -> uint32_t { auto ls = layout({face}, std::string_view(u, k), op); return ls.empty() || ls[0].runs.empty() || ls[0].runs[0].glyphs.empty() ? 0 : ls[0].runs[0].glyphs[0].gid; };
+  const uint32_t plain = first(o);
+  o.tabular = true;
+  const uint32_t tab = first(o);
+  return tab != plain ? tab : 0;
+}
+
+const zrt::raster::ShapeHooks kHooks = {run, tabularGlyph};
 
 }  // namespace
 

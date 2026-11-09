@@ -152,7 +152,9 @@ bool idleWait(uint64_t paceUs) {
 // zinc:gfx loadFont (ZN-669): a family or file the program embeds, else the file read whole from its assets
 int32_t loadFont(const zrt::String& name, double px) {
   const int32_t f = zrt::gfx::loadFont(name, px);
-  if (f >= 0 || zn_asset_font(name.ptr(), name.bytes()) < 0) return f;
+  uint32_t n = name.bytes();   // the file without the marks of a slanted or tabular font (~i, ~t), which it keeps as its name's
+  while (n > 2 && name.ptr()[n - 2] == '~' && (name.ptr()[n - 1] == 'i' || name.ptr()[n - 1] == 't')) n -= 2;
+  if (f >= 0 || zn_asset_font(name.ptr(), n) < 0) return f;
   return zrt::gfx::loadFont(name, px);
 }
 // zinc:gfx imageFromBytes (ZN-432): the bytes of an image file (one slot per byte) become a runtime image, with alpha when a pixel is not opaque; -1: not an image, or no room

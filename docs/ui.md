@@ -1022,6 +1022,9 @@ For a TrueType face chosen at runtime, `ui.registerFont('MyFace', file)` connect
 One registration denotes one exact face (including its weight/italic variant).
 The app needs filesystem permission for external files; relative names resolve
 inside its assets, as with `gfx.loadFont`. An unavailable file falls back to sans.
+`tabular-nums` (Tailwind's class, inherited by nested text) gives the text tabular figures, OpenType `tnum`: every digit as wide as the
+others, so a clock or a column of numbers does not shift as its digits change; `normal-nums` takes it back. The face is made from its
+TrueType file at the exact size (`gfx.tabularFont`); a face without the feature keeps its own figures.
 
 ### Precedence, reset and caching
 

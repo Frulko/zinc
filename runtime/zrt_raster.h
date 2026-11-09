@@ -34,10 +34,19 @@ static const int32_t RUNTIME_FONT_BASE = 1 << 16;
  *  glyph tables. `run` lays out `n` bytes of UTF-8 in `font` and calls `emit` once per glyph with its 8-bit coverage bitmap placed relative to the pen origin on the baseline
  *  (x right, y down); it returns the advance in 26.6 pixels, or a negative number when it declines the text (the caller falls back to the glyph tables). */
 struct ShapedGlyph { int32_t x, y, w, h; const uint8_t* a; const uint32_t* rgba; };   // a: coverage drawn in the text colour; rgba (0xAABBGGRR, straight alpha): a colour glyph, `a` is null
-struct ShapeHooks { int32_t (*run)(int32_t font, const char* s, uint32_t n, float tracking, void (*emit)(void* user, const ShapedGlyph& g), void* user); };
+/** `tabular_glyph` (ZN-1062): the glyph the font file `data` draws `cp` with under OpenType tnum, 0 when tnum does not change it; the glyph
+ *  tables of a tabular font take their figures from it, so measuring, drawing and the GPU atlas see the same glyphs as shaped text. */
+struct ShapeHooks {
+  int32_t (*run)(int32_t font, const char* s, uint32_t n, float tracking, void (*emit)(void* user, const ShapedGlyph& g), void* user);
+  uint32_t (*tabular_glyph)(const uint8_t* data, uint32_t len, uint32_t cp);
+};
 extern const ShapeHooks* shape_hooks;
 /** The embedded TrueType file (index in ttf_files) a runtime font was made from, -1 for a baked font. */
 int32_t font_file(int32_t id);
+/** A runtime font asked with tabular figures (the family named "Name~t", zinc:gfx tabularFont): its figures are all as wide (OpenType tnum). */
+bool font_tabular(int32_t id);
+/** The name `font` is asked by, with its "~i" (slanted) and "~t" (tabular) marks, written to `out` (NUL-terminated); its length, 0 when unknown. */
+uint32_t font_name(int32_t font, char* out, uint32_t cap);
 /** The fonts' generation: a new program's resources (a player starting another program, ZN-840) reuse the ids of the last one's fonts,
  *  so every cache keyed by a font id is valid for one generation. */
 extern uint32_t font_gen;

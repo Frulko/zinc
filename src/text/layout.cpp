@@ -184,6 +184,7 @@ void paragraph(const std::vector<Face*>& faces, std::string_view p, uint32_t bas
   for (size_t k = 0; k < items.size(); k++) items[k].end = k + 1 < items.size() ? items[k + 1].begin : static_cast<uint32_t>(p.size());
   hb_language_t lang = o.lang ? hb_language_from_string(o.lang, -1) : HB_LANGUAGE_INVALID;
   hb_buffer_t* buf = hb_buffer_create();
+  hb_feature_t tnum{HB_TAG('t', 'n', 'u', 'm'), 1, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END};
   for (Item& it : items) {
     Face::Impl* fi = faces[it.face]->impl();
     hb_buffer_clear_contents(buf);
@@ -191,7 +192,7 @@ void paragraph(const std::vector<Face*>& faces, std::string_view p, uint32_t bas
     hb_buffer_set_direction(buf, it.level & 1 ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
     hb_buffer_set_script(buf, it.script);
     if (lang != HB_LANGUAGE_INVALID) hb_buffer_set_language(buf, lang);
-    hb_shape(fi->font, buf, nullptr, 0);
+    hb_shape(fi->font, buf, o.tabular ? &tnum : nullptr, o.tabular ? 1 : 0);
     unsigned n;
     hb_glyph_info_t* gi = hb_buffer_get_glyph_infos(buf, &n);
     hb_glyph_position_t* gp = hb_buffer_get_glyph_positions(buf, &n);
