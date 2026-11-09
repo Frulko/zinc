@@ -101,6 +101,24 @@ std::string cipher(psa_algorithm_t alg, bool encrypt, const std::string& key, co
 
 }  // namespace
 
+std::string digestStream(const std::string& alg, std::size_t (*read)(void* ctx, unsigned char* buf, std::size_t cap), void* ctx, std::string& err) {
+  err.clear();
+  if (!ready()) return fail(err, "crypto: PSA did not start", PSA_ERROR_BAD_STATE);
+  const psa_algorithm_t h = hashOf(alg);
+  if (h == PSA_ALG_NONE) { err = "unsupported hash"; return std::string(); }
+  psa_hash_operation_t op = PSA_HASH_OPERATION_INIT;
+  psa_status_t st = psa_hash_setup(&op, h);
+  static thread_local unsigned char buf[65536];
+  for (std::size_t got; st == PSA_SUCCESS && (got = read(ctx, buf, sizeof buf)) > 0;) st = psa_hash_update(&op, buf, got);
+  std::string out(PSA_HASH_MAX_SIZE, '\0');
+  size_t len = 0;
+  if (st == PSA_SUCCESS) st = psa_hash_finish(&op, reinterpret_cast<uint8_t*>(out.data()), out.size(), &len);
+  psa_hash_abort(&op);
+  if (st != PSA_SUCCESS) return fail(err, "digest", st);
+  out.resize(len);
+  return out;
+}
+
 std::string run(const std::string& op, const std::string& a, const std::string& b, const std::string& c, const std::string& d, int n, int m, std::string& err) {
   err.clear();
   bool handled = false;

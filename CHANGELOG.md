@@ -135,6 +135,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - On an `any` value the array and string methods work as in TypeScript: `d.items.push(x)`, `.splice`, `.sort()`, `.reduce`, `d.name.trim().toUpperCase()`, `.split`, `.replace`... and a change made through `d` is seen in the data it holds, not in a copy.
 - More npm packages run on `--engine quickjs` and in `zinc bundle`: the browser build of a package is picked (nanoid, qs), CommonJS and UMD packages such as dayjs load with named imports too, and packages find `crypto`, `fetch`, `URL`, `TextEncoder` and the other Web globals Node and Deno have (uuid).
 - `fs.writeBytesAt(path, bytes, offset)` writes bytes in place inside a file (made when missing, never cut), and a `zinc:net` reply can carry its body as bytes with `bytes: u8[]`, so a picture made in memory is served without a temporary file.
+- `zinc:hash` gives `sha256(bytes)` and `sha256File(path)` at native speed on every engine, with `toHex` to print a digest as `sha256sum` does; a file is read in blocks, so a 100 MB file is hashed in a third of a second without being loaded.
 
 #### Faster
 
