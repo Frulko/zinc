@@ -44,6 +44,7 @@
 - Owner 2026-11-09: CUI parity, parent ZN-1078 (M32, 29 subtasks: design doc, Quiet theme, size gate, 16 component families, 9 demos, side-by-side measure), first in the order; the Design rules are in AGENTS.md, CLAUDE.md, examples/GUIDELINES.md and both skills.
 - Integrated: ZN-1040 (Review, D261): museum table fits cards at large text sizes, staff week/month, shared meshes in the attract loop, editor descriptions, group drag, menus, cues; engine: an optional chain short-circuits as a whole (`m?.get(k) ?? d` crashed). #5 is the museum_editor T1, the owner's.
 - Integrated: ZN-703, ZN-161.01 (Done, D262, D263): Math is Node 24's bits on every engine (V8 fdlibm, CORE-MATH pow, QuickJS patch 0005); Object.assign/freeze/fromEntries/getOwnPropertyNames/defineProperty on records and any. Stash-pop conflict in tests/affected.json resolved keeping the other session's lines.
+- Integrated: ZN-1012 (Done, D264): ten plugins documented, `zinc doc` links sources to the zinc.json repository, the --std index measured (1.6 MB, 302 KB gz). Its T0 `doc` runs once a building slot frees (two agents build).
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
