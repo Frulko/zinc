@@ -460,6 +460,7 @@
     {"paths": ["tests/t0/dyn_number.sh", "tests/golden/host/dyn_number."], "tests": ["dyn_number"]},
     {"paths": ["tests/t0/array_sort_default.sh", "tests/golden/host/array_sort_default."], "tests": ["array_sort_default"]},
     {"paths": ["src/frontend/modules.cpp", "src/frontend/modules.h"], "tests": ["modules", "checker", "lang", "plugin_manifest"]},
+    {"paths": ["src/frontend/modules.cpp", "tests/t0/tdz_outline.sh"], "tests": ["tdz", "tdz_outline", "kit_size"]},
     {"paths": ["src/frontend/lexer.cpp", "src/frontend/parser.cpp"], "tests": ["parser", "lexer", "checker"]},
     {"paths": ["src/platform/", "tests/unit/platform_test.cpp", "tests/t0/platform.sh"], "tests": ["platform"]},
     {"paths": ["src/res/", "tests/t0/res_library.sh"], "tests": ["res_library", "kit_size"]},

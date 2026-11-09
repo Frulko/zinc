@@ -2653,8 +2653,10 @@ struct Loader {
 };
 
 // The built-in classes of exceptions, written in Zinc and added when a program throws, catches or mentions them.
+// Share the non-returning error path: the inliner copies the guard, without cloning error construction at every read.
 const char* kTdzPrelude = R"ZN(
-function __tdzChk<T>(ok: boolean, name: string, v: T): T { if (!ok) throw new ReferenceError("Cannot access '" + name + "' before initialization"); return v; }
+function __tdzFail(name: string): void { throw new ReferenceError("Cannot access '" + name + "' before initialization"); }
+function __tdzChk<T>(ok: boolean, name: string, v: T): T { if (!ok) __tdzFail(name); return v; }
 )ZN";
 const char* kErrorPrelude = R"ZN(
 class Error {

@@ -44,6 +44,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - WebGL's `uniform*fv` and `uniformMatrix*fv` read a `Float32Array` or `Int32Array` in place instead of copying it, about 20% faster per call on QuickJS (the matrices three.js uploads for every mesh).
 - A JavaScript program run with `--engine quickjs` calls `zinc:gfx` and the other engine functions that take numbers in about half the time (`gfx.width()` 53 to 27 ns, a call with six numbers 72 to 43 ns on an M1 Pro).
 - Importing a component from `zinc:ui/kit` no longer links unused native plugins or bakes unused families' font atlases: a Button through the kit index adds about 66 KB instead of 1.88 MB to an AOT build.
+- Compiled apps share the error code for reads before a variable is initialized, keeping UI components smaller while preserving the same checks and errors.
 
 #### Fixed
 
