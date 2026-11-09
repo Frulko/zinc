@@ -29,5 +29,5 @@ opaque 1
 windowNumber <native>
 vibrancy 0
 
-in fullscreen: close 20,22 | fullscreen 1
+in fullscreen: close <display> | fullscreen 1
 after leaving fullscreen: close 20,22 | fullscreen 0

@@ -1,11 +1,13 @@
 ---
 id: ZN-394
-title: 'macos_window: do not compare the fullscreen button position (display dependent)'
-status: Backlog
+title: >-
+  macos_window: do not compare the fullscreen button position (display
+  dependent)
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-09 00:33'
-updated_date: '2026-11-07 18:30'
+updated_date: '2026-11-09 06:26'
 labels:
   - test
   - macos
@@ -26,7 +28,7 @@ Found during ZN-322.01: since 4aeb32b7 (transparent window and vibrancy) the win
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 macos_window and macos_vibrancy pass twice in a row on this Mac, or skip with the reason
+- [x] #1 macos_window and macos_vibrancy pass twice in a row on this Mac, or skip with the reason
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -37,4 +39,7 @@ Found during ZN-322.01: since 4aeb32b7 (transparent window and vibrancy) the win
 2026-10-10, Intel Mac (no notch): after iTerm got the screen recording permission, macos_vibrancy passes (its window.png failure was the permission). macos_window passed once, then failed on the fullscreen readback only: 'in fullscreen: close 7,6' where the golden has 20,22, so the fullscreen button position depends on the display; the windowNumber line no longer differs.
 Review 2026-10-25: rewrite. Notes say vibrancy passes once screen-recording is granted; macos_window fails only on the fullscreen button position (display dependent).
 Review 2026-11-07: rewrite. Flaky window test: drop the fullscreen button position from the comparison, or skip with a reason. One-line fix.
+
+2026-11-09 (M1 Pro, notch display): macos_window failed only because the readback took stderr too (2>&1): on a fresh ZINC_HOME the plugin build progress (and the zig download outside tests/run) lands in it. The test now compares stdout only and prints stderr on a failure. The fullscreen button position is placed by AppKit per display (20,22 under the notch, 7,6 on the Intel Mac): the 'in fullscreen' line keeps the button's presence as 'close <display>'; the position after leaving fullscreen is still compared. windowNumber was already normalised. macos_window and macos_vibrancy each passed twice in a row through tests/run --only (Screen Recording granted to this terminal; vibrancy keeps its WARN-and-skip of the pixel check without the permission).
+Research (sonnet): no project golden-compares traffic-light frames; Electron specs wait on enter/leave-full-screen events and always leave fullscreen before closing (electron PR 53502); CGPreflightScreenCaptureAccess() reports the permission without prompting, but the grant belongs to the terminal and can be stale (developer.apple.com/forums/thread/805245), so a real capture probe stays the check.
 <!-- SECTION:NOTES:END -->
