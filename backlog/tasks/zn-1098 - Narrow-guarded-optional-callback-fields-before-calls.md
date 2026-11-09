@@ -1,9 +1,8 @@
 ---
 id: ZN-1098
 title: Narrow guarded optional callback fields before calls
-status: Backlog
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-11-09 20:56'
 updated_date: '2026-11-09 21:06'
 labels:
@@ -24,7 +23,7 @@ Blocks original ZN-1078.12 Data Card. Minimal .worktrees/1078-data-proof/.logs/d
 <!-- AC:BEGIN -->
 - [x] #1 Guarded optional callable fields narrow through boolean conjunction and conditional branches, including optional-chain and explicit object guards; unchecked and invalidated nullable calls remain errors
 - [x] #2 Focused T0 drives valid calls, absent objects/fields, branch/short-circuit side effects, mutation invalidation and negative unsafe calls on all three engines
-- [ ] #3 Original Data Card/gallery check and bounded actual behavior proof pass unchanged; docs/changelog/proposed milestone checks and remaining limits are recorded
+- [x] #3 Original Data Card/gallery check and bounded actual behavior proof pass unchanged; docs/changelog/proposed milestone checks and remaining limits are recorded
 <!-- AC:END -->
 
 ## Implementation and exact proof
@@ -41,3 +40,7 @@ The original guards already narrow correctly: plain `props.selected()` checks, b
 - `tests/run --only guarded_callback`: exact conversion/narrowing regression, seconds after warm AOT cache.
 - Data Card/gallery real click/selection and stateful virtual editor proofs in both UI models/all engines; worker-owned short feature proof next, longer keyboard/assistive-technology interaction at owner-chosen milestone.
 - Broader generic/library-rewrite combinations remain milestone checks; no suite, performance or memory measurement run.
+
+## Coordinated original consumer closure — 2026-11-09
+
+Original public-barrel Data gallery check and `tests/run --only kit_data` PASS on all three engines across Solid, React and Metric fixtures (nine bounded short runs). Source58d38766af376890bc769c04324e26f5bb2cb0a5 on integratedafceb812d; kit SHA256b11fd04d21214e6261cd1d15b5d6292890a03bd6653fd35e57dfda2c9cafadca. Proof covers semantic IDs/IDREFs with Unicode paths, flatMap PathBar typing/escape/focus, stateful virtual cells through parent renders/sort and typed editing Enter/blur/Escape, and ordinary optional callbacks. Actual Picker one/two-month and stateful control proofs also PASS on interpreter/AOT/QuickJS. No app workaround or hidden component. Root clean rebuilt afceb812d and exact guarded_callback PASS; earlier expanded jsx_id/neutral_ownership/array_flatmap proofs remain green. AC3 now checked/Done; family source pictures/size are separately tracked, not claimed by this engine closure. Raw Data log/provenance: .worktrees/1078-data-proof/.logs/data-proof/public-t0.log and public-provenance.json; persisted consumer provenance docs/reports/kit-data-consumer-proof-2026-11-09.json. Broader milestone tests remain proposed; no suite, benchmark or runtime performance claim.

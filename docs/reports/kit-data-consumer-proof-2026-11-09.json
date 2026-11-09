@@ -1,0 +1,28 @@
+{
+  "head": "58d38766af376890bc769c04324e26f5bb2cb0a5",
+  "base": "afceb812d89471613bc440a03f87f8e3cb883826",
+  "kit_sha256": "b11fd04d21214e6261cd1d15b5d6292890a03bd6653fd35e57dfda2c9cafadca",
+  "files": {
+    "lib/std/kit/data.tsx": "c6a1967f9731ff77741efb5bb303cacfe69d7907e41757cb0d8c2fa47fa3e32e",
+    "lib/std/kit/stat.tsx": "7d9a2ca768bf9d86552c73dbbbdedaa0a33d5873cd4ab93ce658fb25642c786c",
+    "tests/golden/kit-data/main.tsx": "bcad10f01e340cfce3d09ee96feedc3c12c69a21bd9baa1c6f0e9602c0113af3",
+    "tests/golden/kit-data-react/main.tsx": "6b783fe52e36c1241fda43834fa51951ba115d57e0fa0b9f6c9770489d65bbbd",
+    "tests/golden/kit-data-metric/main.tsx": "b7178d423380ba7a9884555ab7c5f03c65117729a4910f316a2333332ecb5bc0",
+    "tests/t0/kit_data.sh": "d4843d17996ca0e793a00f8f8dc9a07213bf7081a9b6400f163e1c6f0e5000eb"
+  },
+  "engine": "/Users/mowmow/Lab/zinc/.worktrees/1096/build/zinc",
+  "engine_sha256": "99e7a6d7c14559a193fc9cc54047471dd605cb38aef4f90cfd4c463b60d2163a",
+  "command": "tools/work-run180 env ZINC_ROOT=$PWD ZINC=<engine> tests/run --only kit_data",
+  "result": "PASS kit_data\n1 passed, 0 failed\n",
+  "original_public_barrel": true,
+  "engines": [
+    "interp",
+    "native",
+    "quickjs"
+  ],
+  "fixtures": [
+    "kit-data",
+    "kit-data-react",
+    "kit-data-metric"
+  ]
+}

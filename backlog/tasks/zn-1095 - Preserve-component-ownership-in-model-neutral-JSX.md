@@ -1,9 +1,8 @@
 ---
 id: ZN-1095
 title: Preserve component ownership in model-neutral JSX
-status: Backlog
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-11-09 18:11'
 updated_date: '2026-11-09 18:29'
 labels:
@@ -29,7 +28,7 @@ Fix the shared neutral JSX/helper boundary with component identity/key and exist
 <!-- AC:BEGIN -->
 - [x] #1 Normal nested and conditional model-neutral JSX components have distinct React identities, keys, persistent state while mounted and fresh state after removal/remount; Solid behavior remains coherent on all engines
 - [x] #2 Exact regression proves effect cleanup exactly once on removal, sibling state isolation, keyed reorder and stateful virtual row creation/disposal without owner-null hooks or stale handles
-- [ ] #3 Ordinary Picker one/two-month toggle and Data stateful virtual editor/custom-cell proof pass without UI workarounds; proposed milestone checks and actual limits are recorded
+- [x] #3 Ordinary Picker one/two-month toggle and Data stateful virtual editor/custom-cell proof pass without UI workarounds; proposed milestone checks and actual limits are recorded
 <!-- AC:END -->
 
 ## Implementation and bounded proof — 2026-11-09
@@ -64,3 +63,7 @@ The component identity ABI is opt-in through the two canonical standard helper m
 Coordinator review found a child destroy callback could reenter parent release. UI nodes now use one Alive/Releasing/Released phase and transition before callbacks; alive is derived. Child release snapshots generations so a recycled sibling is untouched, destroy notification is cleared once, and slot return uses finally. React instances similarly use Mounted/Unmounting/Unmounted; cleanup begins its transition before user code, runs remaining owned cleanup even after an error, and clears roots in finally. Scheduled updates ignore unmounting instances. Stored host generations protect old and newly created render nodes; an owner removed inside cleanup cannot resume committing into a reused host. Unrelated scheduling/lifecycle flags are unchanged.
 
 Expanded `neutral_ownership` PASS again on interpreter/AOT/QuickJS: child destroys parent and allocates a survivor, throwing notification returns its free slot once, reentrant component cleanup runs once, interrupted render leaves no `gone` node, survivor content/serial is preserved, owner count returns to zero. Existing state/memo/deps and virtual/focus/sibling cases still pass. Log `.logs/core-proof/neutral_ownership-final.log`.
+
+## Coordinated original consumer closure — 2026-11-09
+
+Original public-barrel Data gallery check and `tests/run --only kit_data` PASS on all three engines across Solid, React and Metric fixtures (nine bounded short runs). Source58d38766af376890bc769c04324e26f5bb2cb0a5 on integratedafceb812d; kit SHA256b11fd04d21214e6261cd1d15b5d6292890a03bd6653fd35e57dfda2c9cafadca. Proof covers semantic IDs/IDREFs with Unicode paths, flatMap PathBar typing/escape/focus, stateful virtual cells through parent renders/sort and typed editing Enter/blur/Escape, and ordinary optional callbacks. Actual Picker one/two-month and stateful control proofs also PASS on interpreter/AOT/QuickJS. No app workaround or hidden component. Root clean rebuilt afceb812d and exact guarded_callback PASS; earlier expanded jsx_id/neutral_ownership/array_flatmap proofs remain green. AC3 now checked/Done; family source pictures/size are separately tracked, not claimed by this engine closure. Raw Data log/provenance: .worktrees/1078-data-proof/.logs/data-proof/public-t0.log and public-provenance.json; persisted consumer provenance docs/reports/kit-data-consumer-proof-2026-11-09.json. Broader milestone tests remain proposed; no suite, benchmark or runtime performance claim.

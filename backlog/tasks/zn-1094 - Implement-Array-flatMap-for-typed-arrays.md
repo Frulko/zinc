@@ -1,9 +1,8 @@
 ---
 id: ZN-1094
 title: Implement Array.flatMap for typed arrays
-status: Backlog
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-11-09 16:31'
 updated_date: '2026-11-09 18:12'
 labels:
@@ -27,7 +26,7 @@ Data sub-agent primary research: https://tc39.es/ecma262/multipage/indexed-colle
 <!-- AC:BEGIN -->
 - [x] #1 Typed array flatMap works generically on numbers, strings and records through the shared compiler and all three engines, including inference and the original nested string array
 - [x] #2 Exact regression covers one-level flattening, empty results, callback order/value/index/source, captured length and exception cleanup; existing supported dense-array and type boundaries remain explicit
-- [ ] #3 Unchanged PathBar/Data source checks and a short original feature proof pass, with documented scope and proposed milestone checks
+- [x] #3 Unchanged PathBar/Data source checks and a short original feature proof pass, with documented scope and proposed milestone checks
 <!-- AC:END -->
 
 ## Private source checkpoint — 2026-11-09
@@ -69,3 +68,7 @@ Expanded exact `array_flatmap.sh` PASS on interpreter/AOT/QuickJS and interprete
 ### Proposed later.md line
 
 - ZN-1094: Contextually type array literals as tuple members in mixed scalar/tuple return unions; the existing checker reports Z0103 even when the intended tuple branch fits. Positive already-typed tuple semantics are proven; no general contextual-typing rewrite in this task.
+
+## Coordinated original consumer closure — 2026-11-09
+
+Original public-barrel Data gallery check and `tests/run --only kit_data` PASS on all three engines across Solid, React and Metric fixtures (nine bounded short runs). Source58d38766af376890bc769c04324e26f5bb2cb0a5 on integratedafceb812d; kit SHA256b11fd04d21214e6261cd1d15b5d6292890a03bd6653fd35e57dfda2c9cafadca. Proof covers semantic IDs/IDREFs with Unicode paths, flatMap PathBar typing/escape/focus, stateful virtual cells through parent renders/sort and typed editing Enter/blur/Escape, and ordinary optional callbacks. Actual Picker one/two-month and stateful control proofs also PASS on interpreter/AOT/QuickJS. No app workaround or hidden component. Root clean rebuilt afceb812d and exact guarded_callback PASS; earlier expanded jsx_id/neutral_ownership/array_flatmap proofs remain green. AC3 now checked/Done; family source pictures/size are separately tracked, not claimed by this engine closure. Raw Data log/provenance: .worktrees/1078-data-proof/.logs/data-proof/public-t0.log and public-provenance.json; persisted consumer provenance docs/reports/kit-data-consumer-proof-2026-11-09.json. Broader milestone tests remain proposed; no suite, benchmark or runtime performance claim.

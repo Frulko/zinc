@@ -4,11 +4,11 @@
 
 Continue `zn-coordinate` until the main repository `.paused` exists or no work remains. Never ask the owner a question. This root session is the sole backlog coordinator; [COORDINATOR.md](docs/reports/backlog-review-2026-11-07/COORDINATOR.md) records claims and integrations. Other sessions are working on Mapper, documents and runtime/LVGL changes.
 
-This session closed 22 tasks: ZN-1078.03/.04/.05/.06/.08/.09/.10, ZN-1079–1087, ZN-1088–1092 and ZN-1096. Earlier integration details, known failures and proposed tests remain in [the archived handover](docs/reports/session-handover-2026-11-09.md).
+This session closed 26 tasks: ZN-1078.03/.04/.05/.06/.08/.09/.10, ZN-1079–1087, ZN-1088–1096 and ZN-1098. Earlier integration details, known failures and proposed tests remain in [the archived handover](docs/reports/session-handover-2026-11-09.md).
 
 | Worker | Branch / worktree | Current work |
 | --- | --- | --- |
-| Sole core writer | `work/1096`, `.worktrees/1096` | 1093 correction and1096 integrated/proved; now1097 collection inference,1098 callback guards,1099 Dyn cleanup returns. Five-task batch maximum including1093/1096. |
+| Sole core writer | `work/1096`, `.worktrees/1096` | 1093 correction and1096 integrated/proved; now1097 collection inference/1099 Dyn cleanup returns finalizing;1098 integrated/proved. Five-task batch maximum including1093/1096. |
 | Pickers | `work/1078-pickers-proof`, `.worktrees/1078-pickers-proof` | Fresh checkpoint proof; original private source `b1b945b19` retained. AllACopen. Actual source reveals1093 Z0107 and iterable Set inference Z0109; no app workaround. |
 | Data | `work/1078-data-proof`, `.worktrees/1078-data-proof` | Fresh checkpoint `f048a55bf` proof; allACopen. Original Data IDs reveal1093 regression; optional callback guarding also fails checker despite tsc strict acceptance. |
 | Feedback parked | `.worktrees/1078-feedback-astra` | Integrated source `b088d2952`; cleanup patch and notes in `.logs/feedback-astra-handover.*`. OnlyAC2 checked. |
@@ -19,13 +19,17 @@ New workers inherit the configured model after the owner's “on rebascule”. L
 ## Integrated core and remaining blockers
 
 - Inputs06 and Navigation09 are nowDone after clean root kit_size, kit_inputs, kit_navigation and original gallery check/three-frame smoke PASS.
-- Integrated five commits:1088 `9b4f5451d`,1093 `e3a20b747`,1094 `e500cf6de`,1095 `0d1228346`,1090 `41c30e3ac`.1088/1090 Done;1093/1094/1095 keep original Picker/Data consumerAC3 open. Root checked engine source-tree identity against tested provenance and rebuilt the clean retained tree; unchanged kit_size PASS. Corrective1093 integration0ae64e937 was rebuilt there and expanded exactjsx_id PASS again. Existing asset/nanosvg warnings are not a new warning-free claim.
+- Integrated five commits:1088 `9b4f5451d`,1093 `e3a20b747`,1094 `e500cf6de`,1095 `0d1228346`,1090 `41c30e3ac`.1088/1090 Done;1093/1094/1095/1098 nowDone after original public Data nine-run/all3 and Picker stateful/all3 proofs; raw provenance persisted. Root checked engine source-tree identity against tested provenance and rebuilt the clean retained tree; unchanged kit_size PASS. Corrective1093 integration0ae64e937 was rebuilt there and expanded exactjsx_id PASS again. Existing asset/nanosvg warnings are not a new warning-free claim.
 - Final combined gate: AOT direct/index/ten5,325,320/5,374,848/5,910,096 B; unused49,528 and59,472 B/component pass. JS233,514/235,601/272,216 B; unused2,087 and4,068 B/component pass,249 B total headroom. New Picker Slider/Data Card changes are excluded and need fresh gates. Shared exact SVG wrappers save7,409 minified B with all41 canonical selected glyphs preserved. No budget/UI trim and no runtime speed claim.
 - Exact layout/plugin-host/codec/Script/ID/flatMap/ownership/icons/Input/Navigation/Overlay checks pass on tested source. Original gallery interpreter and Feedback QuickJS short smokes pass. Provenance persisted at `docs/reports/bench/kit-core-2026-11-09.json`; proof artifacts archived under `.logs/archive-core-1088/core-proof`; completed1088-resume tree/branch removed after clean replacement validation.
 - Real paired-Pi aarch64 Script+SVG executable10,391,584 B returned42/exit0; no remote proof process remains. Preserve CLI baker64MP policy/engine callback ABI; bounded runtime image helpers use16MP cap. Normal configured SSH identity agent stalled; paired deployment succeeded without changing credentials.
 - Fresh UI caller checks caught unconditional synthesized `??` on composed nonnullable IDs (Z0107).1093 is being corrected by the sole core worker, with no app ID rewrite. 1097 constructor inference,1098 guarded optional calls and1099 Dyn nullable cleanup returns have minimal actual-source evidence/strict tsc acceptance/primary research and are reserved. No UI source workaround.
 -1096 integrated0ee881168 +closure1d9e56589 andDone: root clean scroll_request PASS classic/Yoga×all3, original repro now200; actual Wheel/Ruler/hidden TimePicker QuickJS proofs pass. Earlier repro expected200 but observed0. RN/Flutter research is in task; no picker frame-delay workaround. Picker catalogue is lazy Unicode17 (1,914 entries/nine groups/330tone sets); actual glyph coverage and captures remain unproved.
 - Decisions D270–273 record stable metadata/allocation cost, conservative plugin host capability, canonical neutral JSX ownership and reached icon serialization. Contextual mixed scalar/tuple literal inference remains a later line; already-typed tuple flatMap is proven.
+
+- Data pure `zinc:hash` identity helpers replace broad eager web import; unused size passes, usedJS currently209 B over. Worker is measuring ordinary Card default-props simplification without feature cuts; Data stays open until finalgate/captures. Picker actual all3/size pass, final rebased source handoff pending.
+- Next fresh core task1100 is reserved for baseline nullable String Set/Map keys trapping in shared runtime. This is not1097 inference regression. Preserve protected external runtime WIP; inspect hash/equality/delete paths and exact lifetime before a minimal fix. Current core batch remains five tasks, no sixth.
+- Archived seven completed clean old worker trees/logs/checkpoints under `.logs/archive-completed-workers`; old retained source paths may now be historical. Active proof trees and stable clean demo tree remain.
 
 ## Machine and integration safety
 

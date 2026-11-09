@@ -1,9 +1,8 @@
 ---
 id: ZN-1093
 title: Support JSX id attributes for accessible composite controls
-status: Backlog
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-11-09 16:23'
 updated_date: '2026-11-09 16:38'
 labels:
@@ -25,7 +24,7 @@ Blocks ZN-1078.12 Data grid. Minimal repro /tmp/zinc-id-1093/main.tsx: three lin
 <!-- AC:BEGIN -->
 - [x] #1 Literal and reactive id attributes work on JSX host nodes and VirtualList in both UI models, stored as the same generic attribute across engines
 - [x] #2 Small exact regression covers id updates, aria-activedescendant relationships and sibling identifiers without changing refs or unknown-attribute diagnostics
-- [ ] #3 Original Data grid check and a short relevant host feature proof pass; no app workaround is kept
+- [x] #3 Original Data grid check and a short relevant host feature proof pass; no app workaround is kept
 <!-- AC:END -->
 
 ## Private source checkpoint — 2026-11-09
@@ -63,3 +62,7 @@ Fresh Picker/Data checks exposed Z0107 from the generated `(expression) ?? ''` o
 - `tools/build zinc` completed; jsx.cpp introduces no warning. A fresh tree also reports existing SDK V8, cJSON, GLFW and source warnings outside this edit; do not call the whole build warning-free.
 - Expanded `tests/run --only jsx_id` PASS: both models × all three engines, composed/helper/template/ternary/nonnullable IDs, nullable clearing, numeric String conversion, stable refs/IDREFs, unknown-attribute rejection. Side-effecting ID producers are asserted exactly once per update. Log `.logs/id-normalize/test.log`.
 - AC3 remains open for the original Data proof; constructor-inference and optional-callback narrowing are independent confirmed blockers assigned by the coordinator. Runtime speed unmeasured; broad/browser/accessibility checks remain proposed milestone work.
+
+## Coordinated original consumer closure — 2026-11-09
+
+Original public-barrel Data gallery check and `tests/run --only kit_data` PASS on all three engines across Solid, React and Metric fixtures (nine bounded short runs). Source58d38766af376890bc769c04324e26f5bb2cb0a5 on integratedafceb812d; kit SHA256b11fd04d21214e6261cd1d15b5d6292890a03bd6653fd35e57dfda2c9cafadca. Proof covers semantic IDs/IDREFs with Unicode paths, flatMap PathBar typing/escape/focus, stateful virtual cells through parent renders/sort and typed editing Enter/blur/Escape, and ordinary optional callbacks. Actual Picker one/two-month and stateful control proofs also PASS on interpreter/AOT/QuickJS. No app workaround or hidden component. Root clean rebuilt afceb812d and exact guarded_callback PASS; earlier expanded jsx_id/neutral_ownership/array_flatmap proofs remain green. AC3 now checked/Done; family source pictures/size are separately tracked, not claimed by this engine closure. Raw Data log/provenance: .worktrees/1078-data-proof/.logs/data-proof/public-t0.log and public-provenance.json; persisted consumer provenance docs/reports/kit-data-consumer-proof-2026-11-09.json. Broader milestone tests remain proposed; no suite, benchmark or runtime performance claim.
