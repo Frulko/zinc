@@ -27,6 +27,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - `ZINC_GL_QUIRK=no-replay` turns the GPU renderer off on a machine whose graphics driver draws wrong: the app is drawn on the CPU and one line says so.
 - On the 2D canvas of a JavaScript program, `CanvasPattern.setTransform` places a pattern, and a pattern drawn larger is smoothed as Chrome smooths it, or kept sharp with `imageSmoothingEnabled = false`.
+- `imageFromBytes` reads GIF pictures (the first frame of an animated one) as well as PNG, JPEG and WebP.
 
 #### Faster
 

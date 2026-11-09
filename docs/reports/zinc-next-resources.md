@@ -25,7 +25,7 @@ The TrueType files are in the blob too, so the runtime can rasterize any other s
 
 ## Images at run time and sprites (ZN-432)
 
-`imageFromBytes(bytes)` decodes a PNG or a JPEG file while the program runs. The decoder is a second, static copy of `stb_image` in `src/res/codec.cpp`
+`imageFromBytes(bytes)` decodes a PNG, JPEG or GIF file (stb_image; a GIF's first frame, ZN-674: +7.0 KB of code) and a WebP (libwebp) while the program runs. The decoder is a second, static copy of `stb_image` in `src/res/codec.cpp`
 (`zn_codec`), the library a program built with `zinc build` links; the baker's copy stays in the CLI. A file that declares more than 2^24 pixels is refused before
 anything is allocated. The pixels become a runtime image (`raster::dyn_create`) that carries straight alpha in the top byte of each pixel when one of them is
 not opaque (`raster::dyn_set_alpha`); an image used as a render target is opaque again.

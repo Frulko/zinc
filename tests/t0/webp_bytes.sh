@@ -1,12 +1,15 @@
 #!/bin/sh
-# zinc:gfx imageFromBytes decodes WebP (a picture of Discord's media proxy comes as WebP): two files give their size, a truncated one -1, the same lines on the
-# interpreter, QuickJS and the AOT build.
+# zinc:gfx imageFromBytes decodes WebP (a picture of Discord's media proxy comes as WebP) and GIF (its first frame, ZN-674): each file gives its size,
+# a truncated one -1, the same lines on the interpreter, QuickJS and the AOT build.
 cd "$(dirname "$0")/../.." || exit 2
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 d=tests/data/webp_bytes
 want="photo.webp true 16x8
 photo.webp true 160x120
-truncated -1"
+fixture.gif true 32x24
+anim.gif true 12x6
+truncated -1
+truncated gif -1"
 export ZINC_HEADLESS=1 ZINC_BACKGROUND=1 ZINC_FRAMES=1
 fail=0
 check() { [ "$2" = "$want" ] || { printf 'webp_bytes: %s gave:\n%s\nwant:\n%s\n' "$1" "$2" "$want"; fail=1; }; }

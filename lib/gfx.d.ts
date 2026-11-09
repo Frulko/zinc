@@ -88,7 +88,7 @@ declare module 'zinc:gfx' {
    *  multiplies its colour (0xFFFFFF: none); `blend` is a Blend mode. The GL renderer draws sprites as textured quads, batched while the
    *  image and the blend mode stay the same. */
   export function drawImageRect(image: i32, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number, alpha?: i32, flags?: i32, rotation?: number, tint?: u32, blend?: i32): void;
-  /** Runtime image decoded from the bytes of a PNG or JPEG file (zinc:assets readBytes, a download), with its transparency. -1 when the
+  /** Runtime image decoded from the bytes of a PNG, JPEG, WebP or GIF file (its first frame; zinc:assets readBytes, a download), with its transparency. -1 when the
    *  bytes are not such an image. Free it with destroyImage. */
   export function imageFromBytes(bytes: u8[]): i32;
   /** Starts decoding the bytes of a PNG, JPEG or WebP file on a worker thread (low priority, one at a time) and returns a handle, so no frame

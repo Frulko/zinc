@@ -3,11 +3,13 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
-// the decoder a program links (zn_res, the baker's, is the CLI's): static, so it meets no other copy of stb_image; the two formats a program gets at run time
+// the decoder a program links (zn_res, the baker's, is the CLI's): static, so it meets no other copy of stb_image; the formats a program gets at run time
+// (GIF, ZN-674: its first frame through stbi_load_from_memory, never the animation API of CVE-2023-45666/45667; 7.0 KB more code in a built program)
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
+#define STBI_ONLY_GIF
 #define STBI_NO_STDIO
 #include "stb_image.h"
 #include "webp/decode.h"

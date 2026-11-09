@@ -160,8 +160,8 @@ reads the directory's files at run time (where a built program finds it: [distri
 automatic — resources are baked at the display scale (Retina ×2 on macOS, ×window `zoom`).
 
 Sprites: `drawImage(image, x, y, w, h, alpha, radius)` draws a whole image, `drawImageRect` a rectangle of it (a frame of a
-sprite sheet, a tile), mirrored or not, with the nearest texel for pixel art or the linear blend. `imageFromBytes` decodes a PNG or
-a JPEG file at run time (a download, a file the user picked) into an image that keeps its transparency:
+sprite sheet, a tile), mirrored or not, with the nearest texel for pixel art or the linear blend. `imageFromBytes` decodes a PNG,
+JPEG, WebP or GIF file (its first frame) at run time (a download, a file the user picked) into an image that keeps its transparency:
 
 ```ts
 import { image, drawImageRect, imageFromBytes, destroyImage, ImageFlag } from 'zinc:gfx';

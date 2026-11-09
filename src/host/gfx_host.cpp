@@ -158,7 +158,7 @@ int32_t loadFont(const zrt::String& name, double px) {
   return zrt::gfx::loadFont(name, px);
 }
 // zinc:gfx imageFromBytes (ZN-432): the bytes of an image file (one slot per byte) become a runtime image, with alpha when a pixel is not opaque; -1: not an image, or no room
-int32_t imageFromFile(const uint8_t* file, size_t n) {   // the bytes of a PNG, JPEG or WebP file: a runtime image, -1 when they are not one
+int32_t imageFromFile(const uint8_t* file, size_t n) {   // the bytes of a PNG, JPEG, WebP or GIF file: a runtime image, -1 when they are not one
   int w = 0, h = 0;
   uint8_t* rgba = zn::res::decodeRgbaAlloc(file, n, &w, &h);
   if (!rgba) return -1;

@@ -120,7 +120,7 @@ drawText(big, (width() - textWidth(big, 'Score', 0)) / 2, 20, 'Score', 0xffffff,
 | `drawImage(image, x, y, w, h, alpha, radius)` | Draws the whole picture into the box (x, y, w, h), stretched to fit, with rounded corners when `radius` > 0. |
 | `drawImageRect(image, sx, sy, sw, sh, dx, dy, dw, dh, alpha?, flags?, rotation?, tint?, blend?)` | Draws a part of a picture (sx, sy, sw, sh) into the box (dx, dy, dw, dh): one frame of a sprite sheet, one tile. `flags`: `ImageFlag` bits; `rotation`: radians, clockwise, around the box's centre; `tint`: a colour that multiplies the picture's (`0xffffff`: none); `blend`: a `Blend` mode. |
 | `ImageFlag` | Bits for `drawImageRect`, added together: `FlipX`, `FlipY` (mirrored), `Nearest` (sharp pixels, for pixel art), `Smooth` (a softer stretch of a small picture). |
-| `imageFromBytes(bytes: u8[]): i32` | A picture from the bytes of a PNG or JPEG file (downloaded, read from a file). `-1` when the bytes are not one. Free it with `destroyImage`. |
+| `imageFromBytes(bytes: u8[]): i32` | A picture from the bytes of a PNG, JPEG, WebP or GIF file (the first frame of an animated GIF; downloaded, read from a file). `-1` when the bytes are not one. Free it with `destroyImage`. |
 | `startImageDecode(bytes: u8[], maxSide?: i32): i32` | Decodes the bytes of a PNG, JPEG or WebP file on a worker thread, so no frame pays for it; with `maxSide`, a larger picture is also shrunk to it there. Returns a handle, `0` when too much is in flight (try later). |
 | `pollImageDecode(handle): i32` | `-2` while it runs, `-1` when it failed, else the new picture (free it with `destroyImage`); the handle is then spent. |
 | `cancelImageDecode(handle)` | Gives up a decode you no longer need. |
