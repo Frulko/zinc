@@ -4311,7 +4311,6 @@ let laRunning = false;
 const laOld: number[] = [];          // per handle: x, y, w, h before the layout (NaN: not laid out yet)
 const laFrom: number[] = [];         // per animated node: handle, x0, y0, w0, h0, x1, y1, w1, h1, kind (0 update, 1 create)
 const laGone: i32[] = [];            // nodes leaving (removed during the animation)
-const laStepper: () => void = (): void => laStep();   // one function value, so addStepper/removeStepper find it again
 /** The curve of one animation kind at t in 0..1. */
 function laCurve(a: LayoutAnimationAnim | undefined, t: number): number {
   if (a === undefined) return 1;
@@ -4352,7 +4351,7 @@ function laStart(): void {
   }
   laStartAt = clock;
   laRunning = true;
-  addStepper(laStepper);
+  addStepper(laStep);
   laStep();
 }
 /** A node removed while an animation is armed or running fades out where it is; true: it stays in the tree until then. */
@@ -4365,12 +4364,12 @@ function laDeleting(h: i32): boolean {
   if (n.leaving) return true;
   n.leaving = true;
   laGone.push(h);
-  if (!laRunning) { laStartAt = clock; laRunning = true; laCfg = c; addStepper(laStepper); }
+  if (!laRunning) { laStartAt = clock; laRunning = true; laCfg = c; addStepper(laStep); }
   return true;
 }
 function laStep(): void {
   const c = laCfg;
-  if (c === null) { removeStepper(laStepper); laRunning = false; return; }
+  if (c === null) { removeStepper(laStep); laRunning = false; return; }
   const cfg = c as LayoutAnimationConfig;
   const el = clock - laStartAt, t = el >= cfg.duration - 0.001 ? 1 : Math.max(0, el / Math.max(1, cfg.duration));   // (the engine clock adds frame times: an epsilon ends on time)
   const pu = laCurve(cfg.update, t), pc = laCurve(cfg.create, t), pd = laCurve(cfg.delete, t);
@@ -4395,7 +4394,7 @@ function laStep(): void {
   for (let k = 0; k < laFrom.length; k += 10) if (nodes[laFrom[k]].alive) nodes[laFrom[k]].fade = 1;
   laFrom.length = 0;
   laRunning = false; laCfg = null;
-  removeStepper(laStepper);
+  removeStepper(laStep);
   layoutDirty = true;
   const done = laOnEnd;
   laOnEnd = null;

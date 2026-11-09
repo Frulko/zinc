@@ -161,6 +161,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - An app's first run on this version also brings over the AsyncStorage keys (`@async/…`) older engines kept in the shared `~/.zinc/storage.kv`, so apps that ran on `--engine quickjs` find their saved data again in their own store.
 - On `--engine quickjs`, `getHours()`, `getDate()` and the other local getters of a `Date` use the machine's time zone, as its constructor does, so date-fns, dayjs and moment are no longer off by the zone's offset; `catch (e: any)` is accepted there too.
 - On `--engine quickjs`, `new Date()` and `Date()` read the same clock as `Date.now()`: today's date in a normal run, and in a test run (`ZINC_DETERMINISTIC`) the same fixed date at every run, as on the Zinc engines.
+- A function or a static method read as a value is the same object every time, as in JavaScript: `f === f` is true, and `indexOf`, `includes` or a remove-listener call find a callback that was added before.
 
 ### Developer tools
 

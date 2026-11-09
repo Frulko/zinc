@@ -614,6 +614,7 @@ struct Lowering {
   }
   std::unordered_map<std::uint32_t, std::pair<std::uint32_t, std::uint32_t>> thunkOfSym;  // function symbol -> {class, function}
   std::unordered_map<std::string, std::pair<std::uint32_t, std::uint32_t>> thunkOfStatic;  // "obj:name" of a static method used as a value -> {class, function}
+  std::unordered_map<std::uint32_t, std::pair<std::uint32_t, std::uint32_t>> thunkGetter;  // thunk class -> {getter function, global}: one object per function, so `f === f`
   std::unordered_map<TypeId, std::uint32_t> cellOfType;
   bool isCell(std::uint32_t s) const { return c.syms[s].captured && c.syms[s].reassigned && !c.syms[s].isGlobal; }
 
@@ -807,7 +808,37 @@ struct Lowering {
     rt.op = IrOp::Ret; rt.ty = m.voidT();
     if (rv != kNoValue) rt.args = {rv};
     f.blocks[0].insts.push_back(std::move(rt));
+    makeThunkGetter(cls);
     return {cls, fi};
+  }
+  // A function read as a value is one object, as in JavaScript (`f === f`, `fns.indexOf(f)`): a global made on first read by
+  // a getter, `g = G; if (g == null) { g = new thunk; G = g; } return g`. Lazy rather than made in @main, so a hot swap that
+  // adds a thunk finds its global empty and fills it.
+  void makeThunkGetter(std::uint32_t cls) {
+    const TypeId rt = m.refT(cls);
+    m.globals.push_back({m.classes[cls].name, rt});
+    const auto gi = static_cast<std::uint32_t>(m.globals.size() - 1);
+    std::uint32_t fi = addFunction(m.classes[cls].name + "$get", {}, rt);
+    Function& f = m.functions[fi];
+    auto val = [&](TypeId t) { f.valueTypes.push_back(t); return static_cast<ValueId>(f.valueTypes.size() - 1); };
+    auto inst = [&](IrOp op, TypeId t, std::vector<ValueId> args, std::uint32_t sym = 0) {
+      Inst in; in.op = op; in.ty = t; in.args = std::move(args); in.sym = sym;
+      if (m.types[t].k != Type::K::Void) in.res = val(t);
+      return in;
+    };
+    f.blocks.resize(3);
+    Inst g = inst(IrOp::GetGlobal, rt, {}, gi), nl = inst(IrOp::Const, rt, {});
+    Inst eq = inst(IrOp::Eq, m.boolT(), {g.res, nl.res});
+    Inst cb = inst(IrOp::CondBr, m.voidT(), {eq.res});
+    cb.edges = {Edge{1, {}}, Edge{2, {}}};
+    Inst kept = inst(IrOp::Ret, m.voidT(), {g.res});
+    f.blocks[0].insts = {std::move(g), std::move(nl), std::move(eq), std::move(cb)};
+    Inst made = inst(IrOp::New, rt, {}, cls);
+    Inst set = inst(IrOp::SetGlobal, m.voidT(), {made.res}, gi);
+    Inst ret = inst(IrOp::Ret, m.voidT(), {made.res});
+    f.blocks[1].insts = {std::move(made), std::move(set), std::move(ret)};
+    f.blocks[2].insts = {std::move(kept)};
+    thunkGetter[cls] = {fi, gi};
   }
   void buildThunks() {
     std::vector<std::uint32_t> uses = c.funcValueUses;
@@ -1078,7 +1109,11 @@ struct Lowering {
       if (int nth = seen[k]++) k += "." + std::to_string(nth);
       m.classes[li->cls].key = k;
     }
-    auto thunk = [&](std::pair<std::uint32_t, std::uint32_t> th, const std::string& key) { m.classes[th.first].key = key; m.functions[th.second].key = key + "$call"; };
+    auto thunk = [&](std::pair<std::uint32_t, std::uint32_t> th, const std::string& key) {
+      m.classes[th.first].key = key; m.functions[th.second].key = key + "$call";
+      const auto [get, g] = thunkGetter.at(th.first);
+      m.functions[get].key = key + "$get"; m.globals[g].key = key;
+    };
     for (auto& [sym, th] : thunkOfSym) thunk(th, where(c.syms[sym].decl) + "::thunk:" + std::string(c.syms[sym].name));
     for (auto& [k, th] : thunkOfStatic) {   // k is "<object>:<method>"
       const auto o = static_cast<std::uint32_t>(std::stoul(k));
@@ -1189,6 +1224,7 @@ struct Lowering::FnLower {
     bool fl = x.num == NumK::f64 || x.num == NumK::f32 || x.num == NumK::fx12 || x.num == NumK::fx16;
     return emit(IrOp::Const, t, {}, fl ? 0 : static_cast<std::int64_t>(v), fl ? v : 0);
   }
+  ValueId thunkValue(std::uint32_t cls) { return emit(IrOp::Call, m.refT(cls), {}, 0, 0, L.thunkGetter.at(cls).first); }   // the one object of a function used as a value
   ValueId constBool(bool b) { return emit(IrOp::Const, m.boolT(), {}, b ? 1 : 0); }
   ValueId constStr(const std::string& s) { return emit(IrOp::Const, m.strT(), {}, L.internStr(s)); }
   // o.constructor.name: the name of the object's class at run time, tested from the most derived class of the closed world down to its static one
@@ -1788,7 +1824,7 @@ struct Lowering::FnLower {
         if (c.syms[s].kind == SymKind::Func && !L.closureFns.count(c.syms[s].decl)) {  // a function used as a value
           auto th = L.thunkOfSym.find(s);
           if (th == L.thunkOfSym.end()) { unsupported(i, "this function used as a value"); return constBool(false); }
-          return coerce(emit(IrOp::New, m.refT(th->second.first), {}, 0, 0, th->second.first), natural(i));   // typed as the function type, so two functions meet at a join
+          return coerce(thunkValue(th->second.first), natural(i));   // typed as the function type, so two functions meet at a join
         }
         if (c.types[c.syms[s].type].k == frontend::TK::Void) return constNum(m.numT(NumK::i32), 0);   // a variable of type void holds nothing: what reads it drops the value
         ValueId v = readSym(s);
@@ -1957,7 +1993,7 @@ struct Lowering::FnLower {
           if (sm->method) {   // Class.staticMethod as a value: its thunk
             auto th = L.thunkOfStatic.find(Lowering::mkey(sm->owner, x.text));
             if (th == L.thunkOfStatic.end()) { unsupported(i, "this static method used as a value"); return constBool(false); }
-            return coerce(emit(IrOp::New, m.refT(th->second.first), {}, 0, 0, th->second.first), natural(i));
+            return coerce(thunkValue(th->second.first), natural(i));
           }
           return emit(IrOp::GetGlobal, natural(i), {}, 0, 0, L.staticGlobal[Lowering::mkey(sm->owner, x.text)]);
         }
