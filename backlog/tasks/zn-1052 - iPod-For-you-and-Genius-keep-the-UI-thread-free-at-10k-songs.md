@@ -2,7 +2,8 @@
 id: ZN-1052
 title: 'iPod For you and Genius: keep the UI thread free at 10k songs'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:40'
 labels:
   - ipod

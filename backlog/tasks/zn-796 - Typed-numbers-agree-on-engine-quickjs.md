@@ -2,7 +2,8 @@
 id: ZN-796
 title: Typed numbers agree on --engine quickjs
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-24 23:55'
 labels:
   - size-M
