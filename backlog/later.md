@@ -565,6 +565,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1043: a sound-only script with no frames has no clock (an oscillator's `onended` never fires).
 - ZN-1016: the console core's plugin list is in three places (capabilities.json, `targets/console/stubs.cpp`, `targets/console/player_console.cpp`); `tools/build-console-core` could read capabilities.json.
 - ZN-1016: `zinc pack` of a JavaScript-engine project still ignores an assets folder outside the project.
+- ZN-805: wake the idle wait as soon as a socket is ready by watching `uv_backend_fd` from a thread (Electron's node_bindings_mac); socket events wait up to 100 ms when nothing else wakes the loop.
+- ZN-805: the `idle_frame` reader in `runtime/zrt.cpp` is not atomic (the writer in `runtime/gfx.cpp` now is).
+- ZN-805: SDL3's render, blit and surface code is 614 KB in every export; prune it where the HAL presents on its own.
+- ZN-805: zstd's compressor and lz4hc (about 400 KB) are pruned only in the lite host; split pack reading from pack writing so plugin apps drop them too.
+- ZN-805: `tools/package` ships no `libzn_*.a`; check that `libzn_host_sys_lite.a` ships wherever `libzn_host_gfx.a` does.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
