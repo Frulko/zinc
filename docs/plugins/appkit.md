@@ -17,6 +17,8 @@ import 'zinc:appkit';   // installs the host; nothing else changes in the progra
 | macos | AppKit views over the SDL window's view (`native/appkit.macos.mm`, ARC); headless runs use a window that is never shown |
 | everything else | the stand-in: no host starts, the program is drawn as before |
 
+`examples/appkit-tour` puts every part together: a Finder-like browser with a toolbar, a sidebar, a table of 10,000 files, an inspector form, an alert, a sheet and the menu bar.
+
 ## What becomes what
 
 | zinc:ui | AppKit | Notes |

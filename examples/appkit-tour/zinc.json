@@ -1,0 +1,16 @@
+{
+  "name": "appkit-tour",
+  "entry": "src/main.tsx",
+  "app": {
+    "name": "AppKit Tour",
+    "id": "dev.zinc.appkit-tour",
+    "version": "0.1.0"
+  },
+  "ui": { "render": "native" },
+  "targets": {
+    "macos": { "width": 1100, "height": 700, "resize": "fill" },
+    "linux": { "width": 1100, "height": 700, "resize": "fill" }
+  },
+  "permissions": ["menu"],
+  "requires": ["keyboard", "pointer"]
+}
