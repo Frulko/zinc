@@ -177,6 +177,6 @@ function layerPixels(): number[] {
   return [covered[0], covered[1]];
 }
 
-export function SurfaceCanvas(): i32 {
-  return <PointCanvas className="w-full h-[360]" editor={editor} points={surfacePoints} pixelSize={layerPixels} draw={draw} onEmpty={addMaskPoint} onShiftPoint={removeMaskPoint} />;
+export function SurfaceCanvas(props: { onMaximize?: () => void; onRestore?: () => boolean }): i32 {
+  return <PointCanvas onMaximize={props.onMaximize} onRestore={props.onRestore} className="w-full h-full" editor={editor} points={surfacePoints} pixelSize={layerPixels} draw={draw} onEmpty={addMaskPoint} onShiftPoint={removeMaskPoint} />;
 }

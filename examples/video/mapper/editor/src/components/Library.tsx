@@ -1,5 +1,5 @@
 // The library: what can go in the grid, the media on the mapper and its sources. Drag a tile onto a cell, or click it and then click cells.
-import { ResizeHandle } from 'zinc:ui/kit';
+import { ResizeHandle, theme } from 'zinc:ui/kit';
 import * as dnd from 'zinc:ui/dnd';
 import { createNodeRef, onCleanup, onMount } from 'zinc:ui/solid';
 import { Clip, EMPTY_CLIP, isEmptyClip } from '../model/clips';
@@ -42,7 +42,7 @@ function Tile(props: { clip: Clip; detail: string }): i32 {
   let off = (): void => {};
   onMount(() => { off = dnd.draggable(tile.node, { data: JSON.stringify(props.clip) }); });
   onCleanup(() => { off(); });
-  return <View ref={tile} className={`w-[104] rounded overflow-hidden cursor-pointer bg-zinc-800 ${armed ? 'border-2 border-orange-500' : 'border-2 border-zinc-800'}`} grab="keep"
+  return <View ref={tile} className={`w-[104] rounded overflow-hidden cursor-pointer bg-zinc-800 ${armed ? `border-2 border-${theme().accent}` : 'border-2 border-zinc-800'}`} grab="keep"
     onPress={() => { store.armed = armed ? EMPTY_CLIP : props.clip; touch(); }}>
     <ClipThumb clip={props.clip} className="w-full h-[56]" />
     <Text className="px-1 text-[11px] text-zinc-100" numberOfLines={1}>{props.clip.label}</Text>

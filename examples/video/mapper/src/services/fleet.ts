@@ -50,12 +50,18 @@ export function fleetState(): FleetState {
 }
 
 /** Takes the time of the machine at host:port, unless that is already the one. */
-export async function followClock(host: string, port: i32): Promise<void> {
+export async function followClock(host: string, port: i32, isCurrent: () => boolean): Promise<void> {
   const address = `${host}:${port}`;
   if (joined === address) return;
-  clock.close();
-  joined = address;
-  clock = await joinClock(host, port);
+  try {
+    const next = await joinClock(host, port);
+    if (!isCurrent()) { next.close(); return; }
+    clock.close();
+    clock = next;
+    joined = address;
+  } catch (e) {
+    if (isCurrent()) console.error(`mapper: could not follow clock ${address}: ${e}`);
+  }
 }
 
 /** `place`: 'x,y,w,h', '' for the whole canvas. Every mapper gives the time on `port`, in case it leads others. */

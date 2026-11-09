@@ -8,6 +8,7 @@ import * as os from 'zinc:os';
 import * as sys from 'zinc:sys';
 import { EXTENSIONS, isVideo } from 'zinc:video';
 import { TOKEN_FILE } from '../constants';
+import { activateProject, currentProjectPath, saveProject, projectEpoch } from './project';
 import { cardKind } from './cards';
 import { applyCommand, isHudShown } from './control';
 import { historyJson, noteChange, stepHistory } from './history';
@@ -15,6 +16,7 @@ import { LayerCommand } from './layerCommands';
 import { beginTask, deviceJson, endTask } from './device';
 import { deleteMedia, mediaExists, mediaListJson, mediaPath, receiveMedia, thumbnailPath } from './mediaStore';
 import { deleteScene, importScene, isSceneName, loadScene, newScene, saveScene, sceneJson, sceneListJson } from './scenes';
+import { revisionFileReply } from './fleetRevision';
 import { fleetJson } from './fleetMaster';
 import { askForCode, pairPage, pairingPort, startPairing } from './pairing';
 import { replaceShow, showJson } from './show';
@@ -29,6 +31,8 @@ const FILE_TYPES: [string, string][] = [['.mp4', 'video/mp4'], ['.m4v', 'video/m
 
 function jsonReply(status: i32, body: string): Reply { return { status, body, contentType: JSON_TYPE }; }
 function errorReply(status: i32, message: string): Reply { return jsonReply(status, JSON.stringify({ error: message })); }
+function currentProjectRequest(req: Request): boolean { return req.headers.get('x-mapper-project') === projectEpoch(); }
+function projectChangedReply(): Reply { return jsonReply(409, JSON.stringify({ error: 'The project changed. Reconnect before editing.', code: 'project_changed', projectEpoch: projectEpoch() })); }
 
 function typeOf(name: string, table: [string, string][]): string {
   const lower = name.toLowerCase();
@@ -48,7 +52,7 @@ function stateJson(): string {
   const layers: string[] = [];
   for (let i: i32 = 0; i < mapping.layerCount(); i++) layers.push(mapping.layerJson(i));
   const info = mapping.info();
-  return `{"layers":[${layers.join(',')}],"hud":${isHudShown()},"card":${JSON.stringify(cardKind())},${soundJson()},${info.slice(1, info.length - 1).replace(/"layers":\d+,/, '')}}`;
+  return `{"projectEpoch":${JSON.stringify(projectEpoch())},"layers":[${layers.join(',')}],"hud":${isHudShown()},"card":${JSON.stringify(cardKind())},${soundJson()},${info.slice(1, info.length - 1).replace(/"layers":\d+,/, '')}}`;
 }
 
 async function readBody(req: Request): Promise<string> {
@@ -100,6 +104,7 @@ async function mediaRoute(req: Request, name: string): Promise<Reply> {
     } finally {
       endTask(task);
     }
+    if (!currentProjectRequest(req)) return projectChangedReply();
     return jsonReply(200, mediaListJson());
   }
   if (req.method === 'DELETE') return deleteMedia(name) ? jsonReply(200, mediaListJson()) : errorReply(404, 'no such media');
@@ -143,15 +148,30 @@ async function sceneRoute(req: Request, rest: string): Promise<Reply> {
   if (req.method !== 'POST') return errorReply(405, 'GET, POST or DELETE');
   // no body: the scene on now, under this name; a body: a scene file brought from elsewhere
   const body = await readBody(req);
+  if (!currentProjectRequest(req)) return projectChangedReply();
   if (body === '') saveScene(name);
   else if (!importScene(name, body)) return errorReply(400, 'not a scene file');
   return jsonReply(200, sceneListJson());
 }
 
 async function apiRoute(req: Request, path: string): Promise<Reply> {
+  if (req.method !== 'GET' && req.method !== 'HEAD' && !currentProjectRequest(req)) return projectChangedReply();
+  if (path === '/project' && req.method === 'GET') return jsonReply(200, JSON.stringify({ path: currentProjectPath(), projectEpoch: projectEpoch() }));
+  if ((path === '/project/open' || path === '/project/save') && req.method === 'POST') {
+    try {
+      if (path === '/project/open') {
+        const body: any = JSON.parse(await readBody(req));
+        if (!currentProjectRequest(req)) return projectChangedReply();
+        if (body === null || typeof body.path !== 'string' || body.path.length > 4096) return errorReply(400, 'Expected a project path');
+        activateProject(body.path as string);
+      } else saveProject();
+      return jsonReply(200, JSON.stringify({ path: currentProjectPath(), projectEpoch: projectEpoch() }));
+    } catch (error) { return errorReply(409, `${error}`); }
+  }
   if (path === '/state' && req.method === 'GET') return jsonReply(200, stateJson());
   if (path === '/osc' && req.method === 'POST') {
     const commands = parseCommands(await readBody(req));
+    if (!currentProjectRequest(req)) return projectChangedReply();
     if (commands === null) return errorReply(400, 'expected [[address, ...args], ...]');
     for (const command of commands as LayerCommand[]) {
       if (!applyCommand(command)) console.warn(`mapper: refused ${command.address}`);
@@ -178,7 +198,9 @@ async function apiRoute(req: Request, path: string): Promise<Reply> {
   if (path.startsWith('/history/') && req.method === 'POST') return stepHistory(path.slice(9)) ? jsonReply(200, historyJson()) : errorReply(404, 'no such entry');
   if (path === '/show' && req.method === 'GET') return jsonReply(200, showJson());
   if (path === '/show' && req.method === 'PUT') {
-    const problem = replaceShow(await readBody(req), true);
+    const body = await readBody(req);
+    if (!currentProjectRequest(req)) return projectChangedReply();
+    const problem = replaceShow(body, true);
     if (problem === '') noteChange();
     return problem === '' ? { status: 204, body: '', contentType: JSON_TYPE } : errorReply(400, problem);
   }
@@ -197,6 +219,7 @@ export function startWebEditor(port: i32, deviceName: string, keys: string): str
   const handle = async (req: Request): Promise<Reply> => {
     const query = req.path.indexOf('?');
     const path = query < 0 ? req.path : req.path.slice(0, query);
+    if (req.method === 'GET' && path.startsWith('/revision-file/')) return revisionFileReply(path);
     if (req.method === 'GET') {
       const page = servePage(path);
       if (page !== null) return page as Reply;

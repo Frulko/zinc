@@ -1,0 +1,5 @@
+{
+  "name": "mapper-assemble",
+  "entry": "main.ts",
+  "permissions": ["fs"]
+}

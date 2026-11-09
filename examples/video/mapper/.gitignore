@@ -2,6 +2,8 @@
 media/
 mapping.json
 show.json
+active-project.json
+active-project.json.part
 web-token.txt
 scenes/
 volume.json

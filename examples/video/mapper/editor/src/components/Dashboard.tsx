@@ -1,7 +1,7 @@
 // The grid, as in Resolume and Millumin: a row per layer, top layer first, a column per moment of the show. A click on a clip plays it on its layer, a second click stops it,
 // a column's title plays the whole column or stops it, an empty column stops everything, a layer's x empties it. Clips arrive by a drag from the library, or by a click with a tile armed.
 import { Icon } from 'zinc:icons';
-import { Button, ResizeHandle, Switch } from 'zinc:ui/kit';
+import { Button, ResizeHandle, Switch, theme } from 'zinc:ui/kit';
 import * as dnd from 'zinc:ui/dnd';
 import { createNodeRef, createSignal, onCleanup, onMount } from 'zinc:ui/solid';
 import { Clip, Column, clipFrom, columnIsEmpty, isEmptyClip } from '../model/clips';
@@ -100,15 +100,15 @@ function CellBox(props: { column: i32; layer: i32; rowSelected: boolean }): i32 
   });
   onCleanup(() => { offTarget(); offDrag(); });
   const dragging = (): boolean => dragged() !== '';
-  const edge = (): string => dropCell() === key ? 'border-orange-400' : dragged() === FROM_CELL + key ? 'border-zinc-500' : dragging() ? 'border-zinc-600' : playing ? 'border-emerald-400' : chosen ? 'border-zinc-100' : 'border-transparent';
-  return <View ref={cell} grab="keep" className={`w-[112] h-[63] rounded overflow-hidden border-2 cursor-pointer ${edge()} ${dragged() === FROM_CELL + key ? 'opacity-40' : ''} ${props.rowSelected ? 'bg-orange-950' : 'bg-zinc-800'}`}
+  const edge = (): string => dropCell() === key ? `border-${theme().accent}` : dragged() === FROM_CELL + key ? 'border-zinc-500' : dragging() ? 'border-zinc-600' : playing ? 'border-emerald-400' : chosen ? 'border-zinc-100' : 'border-transparent';
+  return <View ref={cell} grab="keep" className={`w-[112] h-[63] rounded overflow-hidden border-2 cursor-pointer ${edge()} ${dragged() === FROM_CELL + key ? 'opacity-40' : ''} ${props.rowSelected ? `bg-${theme().accentSoft}` : 'bg-zinc-800'}`}
     onPress={() => pressCell(props.column, props.layer, clip)}>
     {!empty && <ClipThumb clip={clip} className="absolute left-0 top-0 right-0 bottom-0" />}
     {!empty && <Text className="absolute left-0 right-0 bottom-0 px-1 bg-black/60 text-[10px] text-zinc-100" numberOfLines={1}>{clip.label}</Text>}
     {playing && <View className="absolute left-[2] top-[2] w-[18] h-[18] items-center justify-center rounded bg-black/60"><Icon name="play" size={12} color={() => PLAYING_ICON} /></View>}
     {!empty && <View className="absolute right-[2] top-[2] w-[18] h-[18] items-center justify-center rounded bg-black/60 cursor-pointer" role="button" aria-label={tr('mapper.dashboard.removeClip')}
       onPress={() => removeClip(props.column, props.layer)}><Icon name="x" size={12} color={() => X_ICON} /></View>}
-    {dropCell() === key && <View className="absolute left-0 top-0 right-0 bottom-0 items-center justify-center bg-orange-500/40 pointer-events-none">
+    {dropCell() === key && <View className="absolute left-0 top-0 right-0 bottom-0 items-center justify-center bg-zinc-700/60 pointer-events-none">
       <Text className="text-xs text-white">{empty ? tr('mapper.dashboard.dropHere') : tr('mapper.dashboard.replace')}</Text>
     </View>}
   </View>;
@@ -117,7 +117,7 @@ function CellBox(props: { column: i32; layer: i32; rowSelected: boolean }): i32 
 function LayerHead(props: { layer: i32 }): i32 {
   const layer = store.layers[props.layer];
   const selected = props.layer === store.selected;
-  return <View className={`w-[196] h-[63] px-2 justify-center rounded overflow-hidden cursor-pointer ${selected ? 'bg-orange-600' : 'bg-zinc-800'}`} onPress={() => selectLayer(props.layer)}>
+  return <View className={`w-[196] h-[63] px-2 justify-center rounded overflow-hidden cursor-pointer ${selected ? `bg-${theme().accentSoft}` : 'bg-zinc-800'}`} onPress={() => selectLayer(props.layer)}>
     <View className="flex-row items-center gap-2">
       <Switch checked={() => numbers(layer, 'visible')[0] > 0} accessibilityLabel={tr('mapper.dashboard.visible')} onChange={(on: boolean) => {
         layer.visible = [on ? 1 : 0];
@@ -191,7 +191,7 @@ function removeSelected(): void {
 
 function Toolbar(): i32 {
   return <View className="flex-row items-center gap-1">
-    <Text className="text-[11px] uppercase text-zinc-500 mr-2">{tr('mapper.dashboard.layers')}</Text>
+    <Text className="text-[11px] text-zinc-500 mr-2">{tr('mapper.dashboard.layers')}</Text>
     <IconButton icon="plus" variant="secondary" label={tr('mapper.dashboard.add')} onClick={addLayer} />
     <IconButton icon="arrow-up" variant="secondary" label={tr('mapper.dashboard.up')} onClick={() => moveSelected(1)} />
     <IconButton icon="arrow-down" variant="secondary" label={tr('mapper.dashboard.down')} onClick={() => moveSelected(-1)} />

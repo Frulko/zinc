@@ -44,7 +44,7 @@ export function drawPairingCode(digits: string): void {
   if (codeFont < 0) codeFont = loadFont('sans-bold', CODE_PX);
   const shown = codeFont >= 0 ? codeFont : VALUE;
   const text = `${digits.slice(0, 3)} ${digits.slice(3)}`;
-  const label = 'Pairing code: enter it in the editor', pad = 16;
+  const label = 'Pairing code: enter on phone or editor', pad = 16;
   const w = Math.max(textWidth(shown, text, 0), textWidth(LABEL, label, 0)) + pad * 2, h = CODE_PX + 22 + pad * 2;
   const x = width() - w - 16, y = height() - h - 16;
   rrect(x, y, w, h, 12, 0xffffff, 245);
@@ -54,19 +54,29 @@ export function drawPairingCode(digits: string): void {
 }
 
 let code: QrCode | null = null;
+let codeUrl = '';
 
-/** The editor's address over the card: as text, and as a QR code for a phone. */
+/** The public address and a phone calibration QR. The editor's token never appears on the projection. */
 export function drawAddress(url: string): void {
-  if (code === null) code = encode(url);
+  const query = url.indexOf('?');
+  const editor = query >= 0 ? url.slice(0, query) : url;
+  const remote = `${editor}#remote`;
+  if (code === null || codeUrl !== remote) {
+    code = encode(remote);
+    codeUrl = remote;
+  }
   const qr = code as QrCode;
   const module = 3, pad = 12, qrSize = qr.size * module;
-  const w = Math.max(qrSize, textWidth(LABEL, url, 0)) + pad * 2, h = qrSize + 22 + pad * 2;
+  const label = 'Phone calibration · pair with code';
+  const w = Math.max(qrSize, textWidth(LABEL, remote, 0), textWidth(LABEL, editor, 0), textWidth(LABEL, label, 0)) + pad * 2, h = qrSize + 54 + pad * 2;
   const x = 16, y = height() - 16 - 72 - 12 - h;
   rrect(x, y, w, h, 12, 0xffffff, 245);
   border(x, y, w, h, 12, 1, 0xe4e4e7, 255);
   for (let row: i32 = 0; row < qr.size; row++) {
     const runs = qr.runs(row);
-    for (let i: i32 = 0; i < runs.length; i += 2) rect(x + pad + runs[i] * module, y + pad + row * module, runs[i + 1] * module, module, STRONG);
+    for (let i: i32 = 0; i < runs.length; i += 2) rect(x + pad + runs[i] * module, y + pad + 16 + row * module, runs[i + 1] * module, module, STRONG);
   }
-  drawText(LABEL, x + pad, y + pad + qrSize + 6, url, STRONG, 255, 0);
+  drawText(LABEL, x + pad, y + pad, label, MUTED, 255, 0);
+  drawText(LABEL, x + pad, y + pad + qrSize + 22, remote, STRONG, 255, 0);
+  drawText(LABEL, x + pad, y + pad + qrSize + 38, `Editor: ${editor}`, MUTED, 255, 0);
 }

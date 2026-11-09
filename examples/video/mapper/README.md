@@ -7,7 +7,7 @@ the show lives on the device and starts again by itself.
 Mapper is a demo of Zinc and a real tool. It runs today on a €50 Android 4.4 pico projector (Rockchip RK3128, Mali-400) at its
 panel's full 59 images per second, with a 1080p video on a warped, masked layer.
 
-![The editor](../../../docs/img/mapper-editor.png)
+![The editor](../../../docs/img/mapper-composition-implemented.png)
 
 ## Start
 
@@ -33,6 +33,13 @@ The editor is built once, into the mapper's assets. The mapper explains this if 
 zinc export examples/video/mapper/editor --target web -o examples/video/mapper/assets/editor
 ```
 
+For a phone-sized alignment control, scan the phone QR on the mapper's status card (Tab), or open the mapper's address with `#remote` at the end (for example `http://mapper:8080/#remote`). The QR contains only the public address; the same pairing code as the editor is required. Players and the calibration toolbar also show the phone address. Choose a zone and one of its four corners, unlock alignment, then nudge it in 1, 5 or 10 output pixels while watching the projector. The relative touchpad moves one output pixel per touch pixel; lock it again before pocketing the phone. The grid button shows a calibration card on the selected zone and the off button removes it. Changes affect the live mapping and are saved by the mapper.
+
+The phone controller edits corners; mesh points, masks and other properties remain in the full editor. Use one operator during alignment: this control loads geometry when it connects and does not merge simultaneous edits from another client.
+
+**Project and exports** opens and saves the connected player's project, collects a local project with its media, and prepares video or authoring exports. See [projects and recovery](PROJECTS.md) and [pre-baked video](bake/USAGE.md) for the supported paths and limits. Authoring guides use the connected player's geometry; local video/collection exports use the selected saved folder.
+
+
 **No QR code at hand?** The mapper announces itself on the network (DNS-SD, under its own service type, so it never meets another
 program's). The native editor lists the mappers it finds: choose one, press **Show a code on it**, type the six digits that appear on
 the output. It is paired for good and finds the mapper again when its address changes. A browser cannot look for devices, so open
@@ -44,10 +51,11 @@ is the status card, F fullscreen, Esc quits. Options: `--media <folder>`, `--por
 
 ## How you work
 
-1. **Pin the surfaces.** In *Output*, click a zone to select it and drag its corners onto the real object while watching the wall. Click a point: the
-   arrows move it by one pixel of the output, with Shift by ten, and Tab goes to the next point. Curved or uneven surface? Open
+1. **Pin the surfaces.** In *Mapping*, click a zone to select it and drag its corners onto the real object while watching the wall. Click a point: the
+   arrows move it by the chosen pixel step (1 by default), with Shift by the coarse step (10 by default). N and Shift+N select the next/previous point; Tab leaves the canvas. Curved or uneven surface? Open
    *Deformation grid*, pick 3 x 3 up to 9 x 9, and move any point of the grid, as in Resolume.
-2. **Cut the shapes.** In *Masks*, add a mask and click around the shape; **Curve** turns a point (or all of them) into a Bézier point with two handles, **feather** softens its edge (0 is sharp), and you can invert it. Crop and edge
+   Wheel/pinch zooms around the pointer. Space-drag, middle-drag or the **Pan** tool moves the view without moving geometry. **Fit** / 0 restores the full output. **F** maximizes the canvas; **Escape** or the visible return button restores the editor.
+2. **Cut the shapes.** In *Zones*, add a mask and click around the shape; **Curve** turns a point (or all of them) into a Bézier point with two handles, **feather** softens its edge (0 is sharp), and you can invert it. Crop and edge
    blend are in the same view, for two projectors that overlap.
 3. **Measure, then make the media.** In *Calibration*, each layer tells how many pixels it really covers on the output, and the
    size to give a media so that it is neither stretched nor wasted. Download a template (see below), compose over it in your tool,
@@ -77,6 +85,29 @@ device: **Save** under a name, **Load**, **Delete**, and **New empty scene** for
 keep or to bring to another mapper with **Import a file**. A scene holds the layers and the columns; the media stay on the device,
 so another mapper needs the same files. Loading or starting new first keeps what was on as `previous`: a wrong click loses nothing.
 
+### Take a complete project to another machine
+
+Stop the mapper before copying its files so that its current mapping and show form a consistent snapshot. Then assemble its working
+directory into a new folder (use absolute paths):
+
+```sh
+zinc run examples/video/mapper/assemble -- /path/to/current-project /path/to/destination
+```
+
+The command prints the new `mapper-project-*` folder. It carries `mapping.json`, `show.json`, all saved scenes and every file in the
+media folder, including unused media. Missing referenced media stop the operation with the file name; a failed copy removes its own
+incomplete folder. The original project and the destination's other contents are not changed. Pass a third argument when the mapper
+used `--media` with a folder outside the project. Pairing tokens and machine-specific fleet/feedback settings are deliberately omitted.
+
+Copy the assembled folder to the other machine and open it with:
+
+```sh
+zinc run examples/video/mapper -- --project /path/to/mapper-project-XXXXXX
+```
+
+The mapper uses that folder for its files and its `media/` folder by default. Without `--project`, the existing startup behavior is
+unchanged. This is a folder export; the command does not make a ZIP archive or transfer it between machines.
+
 ### A 1920x1080 media in a smaller zone
 
 Nothing to prepare: a layer takes any media and draws it in its zone. `fit` says how: **stretch** fills the zone and deforms,
@@ -90,7 +121,11 @@ what counts on small hardware.
 | --- | --- |
 | **Template SVG** of a layer | the flat media as it must be drawn, with the deformation grid; import it on top of your composition |
 | **Stage SVG** | the whole output as the projector draws it: every surface where it is, for a piece that crosses several |
+| **After Effects (.jsx)** | a script that creates a flat composition for each zone and editable outline guides; run it in After Effects through **File → Scripts → Run Script File** |
+| **Cavalry (.js)** | run the script in Cavalry's JavaScript Editor to create one composition per zone with editable outline shapes, then save the scene |
 | **calibration.json** | the snapshot of the setting: sizes in pixels, corners, grids, for a script or another tool |
+
+The After Effects script creates ten-second, 30 fps compositions at the recommended zone sizes. Its outline and mask layers are guide layers, so they do not render. The Cavalry script uses the recommended sizes and Cavalry's default timing, preserves the previously active composition and adds ordinary editable shapes: hide those outline layers before rendering. Both scripts connect mask points with straight lines: Bézier handles, feather, edge blending, media and projector warp are not transferred. Animate the flat media and let Mapper apply the warp; this is not a pre-baked projection. SVG remains available for vector import. The Cavalry script uses the documented [composition and editable-path API](https://cavalry.studio/docs/tech-info/scripting/api-module/); generation has been checked against an API fixture, not in the Cavalry application.
 
 ### Light that spills past an edge
 

@@ -55,9 +55,11 @@ async function askWhere(name: string): Promise<string | null> {
   return await dialog.save(options);
 }
 
-export async function saveText(name: string, text: string): Promise<void> {
+export async function saveText(name: string, text: string): Promise<boolean> {
   const path = await askWhere(name);
-  if (path !== null) fs.writeText(path as string, text);
+  if (path === null) return false;
+  fs.writeText(path as string, text);
+  return true;
 }
 
 export async function saveBytes(name: string, bytes: u8[]): Promise<void> {

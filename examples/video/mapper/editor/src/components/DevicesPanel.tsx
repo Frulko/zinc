@@ -4,10 +4,12 @@ import { For, createSignal, onCleanup, onMount } from 'zinc:ui/solid';
 import { tr } from '../i18n';
 import { getJson, send } from '../services/link';
 import { Heading, IconButton, NumberField, Row, ValueSlider } from './Field';
+import { PlayerDeployment, Deployment } from './PlayerDeployment';
+import { RemoteAccess } from './RemoteAccess';
 
 interface Copying { left: i32; name: string; done: number; total: number; problem: string }
 interface Place { id: string; name: string; viewport: number[]; trimMs: number }
-interface Device extends Place { host: string; online: boolean; fps: number; offsetMs: number; rttMs: number; synced: boolean; late: number; system: string; output: number[]; media: Copying; videoMs: number }
+interface Device extends Place { host: string; online: boolean; fps: number; offsetMs: number; rttMs: number; synced: boolean; late: number; system: string; output: number[]; media: Copying; videoMs: number; live: boolean; revision?: Deployment }
 interface Found { id: string; name: string; host: string; pairing: boolean }
 interface Fleet {
   self: { id: string; name: string; linkPort: i32; trimMs: number; masterName: string; viewport: number[] };
@@ -95,6 +97,7 @@ function DeviceCard(props: { device: Device }): i32 {
     </View>
     <Text className="text-xs text-zinc-400">{statusOf(deviceNow(id))}</Text>
     <Text className="text-xs text-amber-400">{copyOf(deviceNow(id))}</Text>
+    <PlayerDeployment id={id} online={() => deviceNow(id)?.online ?? false} live={() => deviceNow(id)?.live ?? false} revision={() => deviceNow(id)?.revision} />
     <Placement id={id} viewport={props.device.viewport} trimMs={props.device.trimMs} />
   </View>;
 }
@@ -149,6 +152,7 @@ export function DevicesPanel(): i32 {
   });
   onCleanup(() => { clearInterval(timer); });
   return <View className="p-3 gap-2">
+    <RemoteAccess />
     <Heading text={tr('mapper.devices.heading')} />
     <View className="flex-row gap-3 items-start">
       <For each={[`${JSON.stringify(fleet()?.self.viewport)}${(fleet()?.devices ?? []).map((d: Device): string => `${d.name}${d.viewport}`).join()}`]}>{(key: string) => <Canvas />}</For>

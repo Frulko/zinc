@@ -25,7 +25,12 @@ let mediaDir = '';
 const playing: Playing[] = [];
 let led: VideoTime[] = [];
 
-export function useMediaFolder(dir: string): void { mediaDir = dir; }
+export function useMediaFolder(dir: string): void {
+  for (const entry of playing) stop(entry);
+  playing.length = 0;
+  led = [];
+  mediaDir = dir;
+}
 
 function stop(entry: Playing): void {
   if (entry.player !== null) (entry.player as Player).close();
@@ -117,6 +122,22 @@ export function controlFilm(layer: i32, what: string, value: number): boolean {
     player.pause(entry.paused);
   } else return false;
   return true;
+}
+
+export interface PlaybackPosition { layer: i32; time: number; speed: number; paused: boolean }
+export function playbackPositions(): PlaybackPosition[] {
+  const positions: PlaybackPosition[] = [];
+  playing.forEach((entry: Playing, layer: i32) => {
+    if (entry.player !== null) positions.push({ layer, time: (entry.player as Player).playhead, speed: entry.speed, paused: entry.paused });
+  });
+  return positions;
+}
+export function restorePlayback(positions: PlaybackPosition[]): void {
+  for (const position of positions) {
+    controlFilm(position.layer, 'time', position.time);
+    controlFilm(position.layer, 'speed', position.speed);
+    controlFilm(position.layer, 'pause', position.paused ? 1 : 0);
+  }
 }
 
 /** Null when the layer plays no film here. */

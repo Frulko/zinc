@@ -28,7 +28,8 @@ export class PointEditor {
   /** The next point (or the previous one), alone in the selection. */
   step(count: i32, backwards: boolean): void {
     if (count === 0) return;
-    const current: i32 = this.selection.length > 0 ? this.selection[0] : -1;
+    if (this.selection.length === 0) { this.selection = [backwards ? count - 1 : 0]; return; }
+    const current: i32 = this.selection[0];
     this.selection = [(current + (backwards ? count - 1 : 1)) % count];
   }
 }

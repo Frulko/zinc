@@ -1,12 +1,11 @@
-// Files on their way to the mapper, one at a time. A folder sends the media in it. A single file also becomes a clip of the selected layer and plays at once.
+// Import into the library without changing the currently playing show.
 import { createSignal } from 'zinc:ui/solid';
-import { EMPTY_CLIP } from './model/clips';
 import { expandFolders, mediaName } from './services/files';
-import { sendFile } from './services/link';
-import { placeClipAndPlay, setStatus, store, touch } from './state';
+import { sendFile, linkProjectVersion } from './services/link';
+import { setStatus, store, touch } from './state';
 import { tr, trn } from './i18n';
 
-export interface Transfer { name: string; path: string; part: number; state: string; problem: string }
+export interface Transfer { name: string; path: string; part: number; state: string; problem: string; projectVersion: string }
 export const WAITING = 'waiting', SENDING = 'sending', DONE = 'done', FAILED = 'failed';
 
 const MEDIA = /\.(mp4|m4v|webm|mov|mkv|avi|png|jpe?g|webp|gif|bmp|svg|mp3|wav|ogg|m4a)$/i;
@@ -30,6 +29,7 @@ async function sendAll(): Promise<void> {
     transfer.state = SENDING;
     changed();
     try {
+      if (transfer.projectVersion !== linkProjectVersion()) throw new Error('Player or project changed; import the media again');
       store.media = await sendFile(`/media/${transfer.name}`, transfer.path, (part: number) => {
         transfer.part = part;
         changed();
@@ -45,7 +45,6 @@ async function sendAll(): Promise<void> {
   }
   running = false;
   const all = transfers();
-  if (all.length === 1 && all[0].state === DONE && store.selected >= 0) await placeClipAndPlay({ ...EMPTY_CLIP, label: all[0].name, media: all[0].name });
   const failed = all.filter((t: Transfer): boolean => t.state === FAILED).length;
   setStatus(failed > 0 ? trn('mapper.transfer.failed', all.length, ['failed', `${failed}`]) : trn('mapper.transfer.sent', all.length));
 }
@@ -62,7 +61,7 @@ export function sendFiles(paths: string[]): void {
     setTransferOpen(true);
   }
   const list = transfers().slice();
-  for (const path of files) list.push({ name: mediaName(path), path, part: 0, state: WAITING, problem: '' });
+  for (const path of files) list.push({ name: mediaName(path), path, part: 0, state: WAITING, problem: '', projectVersion: linkProjectVersion() });
   setTransfers(list);
   if (!running) sendAll();
 }

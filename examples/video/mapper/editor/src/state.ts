@@ -6,7 +6,7 @@ import { Clip, Column, EMPTY_CLIP, clipFrom, ensureColumns, firstFreeColumn, isE
 import { Lens, Link } from './model/room';
 import { Placement } from './model/geometry';
 import { EDGE_OUTSIDE, SETTLE_MS } from './constants';
-import { deleteJson, getJson, getText, postJson, putJson, send, sendFile } from './services/link';
+import { deleteJson, getJson, getText, linkProjectVersion, postJson, putJson, send, sendFile } from './services/link';
 import { mediaName, saveText } from './services/files';
 import { tr, trn } from './i18n';
 
@@ -178,10 +178,21 @@ export function setOptions(change: (options: Options) => void): void {
   storage.set(OPTIONS_KEY, JSON.stringify(store.options));
 }
 
+let loadedProjectVersion = '';
 export async function loadState(): Promise<void> {
   await new Promise<void>((resolve: () => void) => { setTimeout(resolve, SETTLE_MS); });
   try {
     const state = await getJson('/state');
+    if (loadedProjectVersion !== linkProjectVersion()) {
+      loadedProjectVersion = linkProjectVersion();
+      store.selected = -1;
+      store.clipColumn = -1;
+      store.clipLayer = -1;
+      store.inspecting = INSPECT_LAYER;
+      store.armed = EMPTY_CLIP;
+      store.scenes = [];
+      store.history = { entries: [], at: 0 };
+    }
     store.aspect = state.aspect as number;
     if ((state.pixels as number[])[0] > 0) store.pixels = state.pixels as number[];
     store.layers = state.layers as any[];
@@ -212,30 +223,58 @@ export async function loadShow(): Promise<void> {
   store.columns = ensureColumns(columns);
   store.playing = Array.isArray(show.playing) ? show.playing as i32[] : [];
   store.activeColumn = show.active as i32;
-  if (show.surfaces !== undefined) store.surfaces = show.surfaces;
-  if (show.lens !== undefined) store.lens = show.lens as Lens;
+  store.surfaces = show.surfaces !== undefined ? show.surfaces : {};
+  store.lens = show.lens !== undefined ? show.lens as Lens : { throwRatio: 1.4, shiftY: 0 };
   store.links = show.links !== undefined ? show.links as Link[] : [];
   store.sceneName = typeof show.scene === 'string' ? show.scene as string : '';
   touch();
 }
 
-async function putShow(json: string): Promise<void> {
-  try {
-    await putJson('/show', json);
-  } catch (e) {
-    setStatus(tr('mapper.state.notSaved'));
+enum ShowSavePhase { Idle, Saving, Failed }
+let showSavePhase = ShowSavePhase.Idle;
+let showWrites: Promise<void> = Promise.resolve();
+let pendingShow: { json: string; version: string; setPlaying: boolean } | null = null;
+function transitionShowSave(next: ShowSavePhase): void {
+  if ((next === ShowSavePhase.Saving) === (showSavePhase === ShowSavePhase.Saving)) throw new Error('Invalid show save transition');
+  showSavePhase = next;
+}
+export async function waitForShowSave(): Promise<void> {
+  await showWrites;
+  if (showSavePhase === ShowSavePhase.Failed) throw new Error(tr('mapper.state.notSaved'));
+}
+
+/** One request in flight, one latest snapshot: dragging cannot build an unbounded queue. */
+async function drainShowWrites(): Promise<void> {
+  let failed = false;
+  while (pendingShow !== null) {
+    const request = pendingShow as { json: string; version: string; setPlaying: boolean };
+    pendingShow = null;
+    try {
+      if (request.version !== linkProjectVersion()) throw new Error('Project changed before saving');
+      await putJson('/show', request.json);
+      failed = false;
+    } catch (error) {
+      failed = true;
+      setStatus(tr('mapper.state.notSaved'));
+    }
   }
+  transitionShowSave(failed ? ShowSavePhase.Failed : ShowSavePhase.Idle);
 }
 
 /** With `setPlaying`, what plays changes with it, in one step: a clip that changes cell does not start again. */
 export function saveShow(setPlaying: boolean = false): void {
   if (setPlaying && !store.playing.includes(store.activeColumn)) store.activeColumn = -1;
+  const followPlaying = setPlaying || (pendingShow !== null && pendingShow.setPlaying);
   const show: any = { columns: store.columns, active: store.activeColumn, surfaces: store.surfaces, lens: store.lens, links: store.links, scene: store.sceneName };
-  if (setPlaying) {
+  if (followPlaying) {
     show.playing = store.playing;
     show.setPlaying = true;
   }
-  putShow(JSON.stringify(show));
+  pendingShow = { json: JSON.stringify(show), version: linkProjectVersion(), setPlaying: followPlaying };
+  if (showSavePhase !== ShowSavePhase.Saving) {
+    transitionShowSave(ShowSavePhase.Saving);
+    showWrites = drainShowWrites();
+  }
 }
 
 export function clipAt(column: i32, layer: i32): Clip {

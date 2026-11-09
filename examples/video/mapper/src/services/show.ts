@@ -1,3 +1,4 @@
+import { projectFile } from './projectPaths';
 // The show: a grid of clips, a row per layer and a column per moment, as in Resolume. A clip is a media or a source with how it plays; each layer
 // plays one at a time, fired alone or with its column. The page owns the file's
 // other fields (the surfaces' real sizes, the lens); this service keeps them untouched.
@@ -9,20 +10,37 @@ import { applyLayerCommand } from './layerCommands';
 let show: any = { columns: [], active: -1, playing: [] };
 
 export function loadShow(): void {
-  if (!fs.exists(SHOW_FILE)) return;
+  if (!fs.exists(projectFile(SHOW_FILE))) return;
   try {
-    show = JSON.parse(fs.readText(SHOW_FILE));
+    show = JSON.parse(fs.readText(projectFile(SHOW_FILE)));
   } catch (e) {
     console.error(`mapper: ${SHOW_FILE} is not readable, starting with no columns (${e})`);
   }
 }
 
+export function installProjectShow(json: string): void {
+  const next: any = JSON.parse(json);
+  const error = validateShow(next);
+  if (error !== '') throw new Error(error);
+  next.setPlaying = false;
+  show = next;
+}
+
 export function showJson(): string { return JSON.stringify(show); }
 
-function saveShow(): void {
-  const coming = `${SHOW_FILE}.part`;
+export function saveShow(): void {
+  const coming = `${projectFile(SHOW_FILE)}.part`;
   fs.writeText(coming, showJson());
-  fs.rename(coming, SHOW_FILE);   // a power cut leaves the old file or the new one
+  fs.rename(coming, projectFile(SHOW_FILE));   // a power cut leaves the old file or the new one
+}
+
+/** Validate without changing the live show; scenes use the same rules before loading their mapping. */
+export function validateShow(next: any): string {
+  if (next === null || next === undefined || !Array.isArray(next.columns)) return 'expected {"columns": [...]}';
+  for (const column of next.columns as any[]) {
+    if (column === null || column === undefined || !Array.isArray(column.cells)) return 'expected {"cells": [...]} in each column';
+  }
+  return '';
 }
 
 /** Replaces the show; the error to show it, '' when accepted. The page edits the clips: `keepPlaying` leaves what plays as it is unless the page says (`setPlaying`, a clip that moved), and the layers follow the new cells. */
@@ -33,10 +51,8 @@ export function replaceShow(json: string, keepPlaying: boolean = false): string 
   } catch (e) {
     return 'not JSON';
   }
-  if (next === null || !Array.isArray(next.columns)) return 'expected {"columns": [...]}';
-  for (const column of next.columns as any[]) {
-    if (column === null || !Array.isArray(column.cells)) return 'expected {"cells": [...]} in each column';
-  }
+  const problem = validateShow(next);
+  if (problem !== '') return problem;
   const follow = next.setPlaying === true;
   const before = playingList().slice();
   if (keepPlaying && !follow) {

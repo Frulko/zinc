@@ -81,10 +81,10 @@ function renameLayer(layer: any, name: string): void {
   saveShow();
 }
 
-function LayerProps(props: { layer: any }): i32 {
+function LayerProps(props: { layer: any; showPlayback?: boolean }): i32 {
   const layer = props.layer;
   return <View>
-    <Text className="text-[11px] text-zinc-400 mb-1" numberOfLines={1}>{playsNow(store.selected)}</Text>
+    {props.showPlayback !== false && <Text className="text-[11px] text-zinc-400 mb-1" numberOfLines={1}>{playsNow(store.selected)}</Text>}
     <Row label={tr('mapper.props.name')}><Input className="h-[28] px-2 rounded bg-zinc-800 text-zinc-100 text-xs" aria-label={tr('mapper.props.nameLabel')} value={word(layer, 'name')} onChange={(text: string) => {
       if (text !== '') renameLayer(layer, text);
     }} /></Row>
@@ -110,20 +110,20 @@ function inspect(tab: i32): void {
   touch();
 }
 
-function Content(): i32 {
+function Content(props: { layerOnly?: boolean }): i32 {
   const layer = currentLayer();
   if (layer === null) return <Text className="text-xs text-zinc-500">{tr('mapper.props.noLayer')}</Text>;
   return <View className="gap-3">
-    <IconTabs items={[tr('mapper.props.tabClip'), tr('mapper.props.tabLayer', ['name', word(layer, 'name')])]} icons={['film', 'layers']} selected={() => store.inspecting} onSelect={inspect} />
-    {store.inspecting === INSPECT_CLIP ? <ClipProps /> : <LayerProps layer={layer} />}
+    {props.layerOnly !== true && <IconTabs items={[tr('mapper.props.tabClip'), tr('mapper.props.tabLayer', ['name', word(layer, 'name')])]} icons={['film', 'layers']} selected={() => store.inspecting} onSelect={inspect} />}
+    {props.layerOnly !== true && store.inspecting === INSPECT_CLIP ? <ClipProps /> : <LayerProps layer={layer} showPlayback={props.layerOnly !== true} />}
   </View>;
 }
 
-export function PropsPanel(): i32 {
+export function PropsPanel(props: { layerOnly?: boolean }): i32 {
   return <View className="flex-row">
     <ResizeHandle vertical after size={() => panelSize(PANEL_PROPERTIES)} min={MIN_WIDTH} max={MAX_WIDTH} onResize={(px: number) => resizePanel(PANEL_PROPERTIES, px)} />
     <ScrollView className="p-3 bg-zinc-900" style={{ width: panelSize(PANEL_PROPERTIES) }}>
-      <Rebuilt make={Content} />
+      <Rebuilt make={() => <Content layerOnly={props.layerOnly} />} />
     </ScrollView>
   </View>;
 }

@@ -10,6 +10,14 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 This version is about staying solid when things go wrong: gestures, navigation, reactive updates and app updates now recover cleanly from interruptions and errors instead of getting stuck. A window that is covered stops drawing and costs almost nothing, Sidecar can be driven from the Mac's mouse and keyboard, and Riffle joins the apps as a window switcher for macOS.
 
+### Video mapper
+
+#### New
+
+- The editor separates Composition, Mapping, Zones, Players and Project. Calibration offers a maximum canvas, pointer-centered zoom, panning and precise point steps; a locked phone controller provides a relative touchpad.
+- Projects can be opened and saved independently of device credentials, assembled with their assets, and prepared on remote players before deliberate activation. Stale editors cannot write into a newly opened project.
+- Project exports include editable After Effects/Cavalry geometry guides and a cancellable offline MP4 bake of one column (up to four videos and 120 silent frames). Export limits are shown before use.
+
 ### Sidecar
 
 #### New

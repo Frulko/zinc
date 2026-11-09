@@ -1,9 +1,12 @@
 // mapper: GPU video mapping (zinc:mapping on display-gl). Any browser edits it live through the web editor the app serves (services/web.ts); OSC desks reach the same commands.
-// Usage: mapper [--media DIR] [--port N] [--web N|off] [--name NAME] [--viewport X,Y,W,H] [--fleet-port N] [--keys FILE] [--feedback HOST:PORT[:mapper|millumin|resolume]]   (default: media, 9000, 8080). Keys: Tab status card, Left/Right columns, F fullscreen, Esc quit.
+// Usage: mapper [--device-root DIR] [--project DIR] [--media DIR] [--port N] [--web N|off] [--name NAME] [--viewport X,Y,W,H] [--fleet-port N] [--keys FILE] [--feedback HOST:PORT[:mapper|millumin|resolume]]   (default: media, 9000, 8080). Keys: Tab status card, Left/Right columns, F fullscreen, Esc quit.
 import * as gfx from 'zinc:gfx';
 import * as mapping from 'zinc:mapping';
-import { args } from 'zinc:sys';
-import { DEFAULT_FLEET_PORT, DEFAULT_MEDIA_DIR, DEFAULT_OSC_PORT, DEFAULT_WEB_PORT, SETUP_FILE } from './constants';
+import { exists } from 'zinc:fs';
+import { args, chdir } from 'zinc:sys';
+import { DEFAULT_FLEET_PORT, DEFAULT_OSC_PORT, DEFAULT_WEB_PORT, SETUP_FILE } from './constants';
+import { initializeProject } from './services/project';
+import { projectFile, projectMediaPath } from './services/projectPaths';
 import { drawHud, drawAddress, drawPairingCode } from './hud';
 import { drawOutputCard } from './services/cards';
 import { createDemoLayers } from './layers';
@@ -28,12 +31,17 @@ function option(name: string, fallback: string): string {
   return at >= 0 && at + 1 < argv.length ? argv[at + 1] : fallback;
 }
 
-const mediaDir = option('media', DEFAULT_MEDIA_DIR);
+const deviceDir = option('device-root', '');
+if (deviceDir !== '' && !chdir(deviceDir)) throw new Error(`Cannot open device folder: ${deviceDir}`);
+const projectDir = option('project', '');
+initializeProject(projectDir, option('media', ''));
+const mediaDir = projectMediaPath();
 openMediaFolder(mediaDir);
 useMediaFolder(mediaDir);
 
 // a saved setup starts as it was left, with a clean picture; a first start shows the demo layers and how to reach the editor
-const hadSetup = mapping.load(SETUP_FILE);
+const hadSetup = mapping.load(projectFile(SETUP_FILE));
+if (!hadSetup && exists(projectFile(SETUP_FILE))) throw new Error('Saved mapping was rejected by the compositor');
 if (!hadSetup) createDemoLayers(liveImage);
 setHudShown(!hadSetup);
 loadShow();

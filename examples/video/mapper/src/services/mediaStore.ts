@@ -6,6 +6,8 @@ import { EXTENSIONS, isVideo } from 'zinc:video';
 
 const THUMBNAILS = '.thumbs';   // hidden: never listed as a media
 let folder = '';
+let uploads: i32 = 0;
+export function mediaUploadsBusy(): boolean { return uploads > 0; }
 let videos: i32 = 0, count: i32 = 0, bytes = 0;   // what the status card and the editor show; counted when the folder changes, not at each frame
 
 export function openMediaFolder(dir: string): void {
@@ -84,8 +86,9 @@ export function takeMedia(coming: string, name: string): void {
 /** Writes the body to the folder under `name`. Rejects when the client leaves or the disk refuses; no partial file stays. */
 export async function receiveMedia(name: string, body: BodyStream, onPart: (bytes: number) => void): Promise<void> {
   const coming = mediaPath(`.${name}.part`);
-  fs.writeText(coming, '');
+  uploads++;
   try {
+    fs.writeText(coming, '');
     await body.each((chunk: string) => {
       fs.appendText(coming, chunk);
       onPart(chunk.length);
@@ -94,5 +97,7 @@ export async function receiveMedia(name: string, body: BodyStream, onPart: (byte
   } catch (e) {
     fs.remove(coming);
     throw e;
+  } finally {
+    uploads--;
   }
 }

@@ -6,6 +6,7 @@ const CURVE_STEPS: i32 = 32;
 const GRID_DIVISIONS: i32 = 8;
 
 export interface Mask { feather: number; hideInside: boolean; points: number[] }
+export interface AuthoringZone { name: string; width: number; height: number; masks: Mask[] }
 export interface TemplateLayer { name: string; placement: Placement; edge: number[]; masks: Mask[] }
 
 function pathOf(line: Point[]): string {

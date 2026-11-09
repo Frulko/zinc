@@ -1,3 +1,4 @@
+import { projectFile } from './projectPaths';
 // The history of the setup: the layers and the clips after each action, on the mapper so that every editor shares it. It lasts until the app stops.
 // An action is what changed once the commands fall quiet: a whole drag is one. What plays is left out both ways: firing a clip is not an edit, and going back does not change the picture's content.
 import * as mapping from 'zinc:mapping';
@@ -108,6 +109,11 @@ function record(): void {
 }
 
 export function startHistory(): void {
+  if (timer >= 0) clearTimeout(timer);
+  timer = -1;
+  comingLabel = '';
+  entries.length = 0;
+  at = 0;
   entries.push({ label: 'Start', mapping: mapping.toJson(), show: showJson() });
 }
 
@@ -139,7 +145,7 @@ function goTo(index: i32): void {
   for (let n: i32 = 0; n < now.length; n++) {
     for (const key of editedKeys(now[n], wanted[n])) applyLayerKey(n, key, wanted[n][key]);
   }
-  mapping.save(SETUP_FILE);
+  mapping.save(projectFile(SETUP_FILE));
   replaceShow(target.show, true);
 }
 

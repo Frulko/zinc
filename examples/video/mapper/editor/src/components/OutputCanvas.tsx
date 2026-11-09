@@ -143,7 +143,7 @@ function meshPoints(layer: any): EditablePoint[] {
   return all;
 }
 
-function outputPoints(): EditablePoint[] {
+export function outputPoints(): EditablePoint[] {
   const layer = currentLayer();
   if (layer === null) return [];
   if (mode === MODE_EDGES) return [];
@@ -330,12 +330,13 @@ function drawOtherCorners(x: i32, y: i32, w: i32, h: i32): void {
   }
 }
 
-function draw(x: i32, y: i32, w: i32, h: i32): void {
+function draw(x: i32, y: i32, w: i32, h: i32, readOnly: boolean = false): void {
   gfx.rect(x, y, w, h, CANVAS_BLACK);
   for (let n: i32 = 0; n < store.layers.length; n++) {
     const layer = store.layers[n];
     if (numbers(layer, 'visible')[0] > 0 || n === store.selected) drawLayer(layer, n === store.selected, x, y, w, h);
   }
+  if (readOnly) return;
   const current = currentLayer();
   if (current !== null) drawSideMarks(current, x, y, w, h);
   if (mode === MODE_CORNERS) drawOtherCorners(x, y, w, h);
@@ -362,8 +363,8 @@ export function selectedPointText(): string {
   return outputEditor.selection.length > 1 ? tr('mapper.output.pointsFirst', ['count', `${outputEditor.selection.length}`, 'x', x, 'y', y]) : tr('mapper.output.point', ['x', x, 'y', y]);
 }
 
-export function OutputCanvas(): i32 {
-  return <PointCanvas className="w-full h-full" aspect={() => store.aspect} editor={outputEditor} points={() => linkFrom !== null ? [] : outputPoints()} pixelSize={() => store.pixels} draw={draw} whole={{ grab: grabZoneAt, move: moveZone }} onEmpty={(x: number, y: number, w: number, h: number) => {
+export function OutputCanvas(props: { readOnly?: boolean; onMaximize?: () => void; onRestore?: () => boolean }): i32 {
+  return <PointCanvas onMaximize={props.onMaximize} onRestore={props.onRestore} readOnly={props.readOnly} className="w-full h-full" aspect={() => store.aspect} editor={outputEditor} points={() => linkFrom !== null ? [] : outputPoints()} pixelSize={() => store.pixels} draw={(x: i32, y: i32, w: i32, h: i32) => draw(x, y, w, h, props.readOnly === true)} whole={{ grab: grabZoneAt, move: moveZone }} onEmpty={(x: number, y: number, w: number, h: number) => {
     if (linkFrom !== null) linkToCornerAt(x, y, w, h);
     else if (mode === MODE_EDGES) selectEdgeAt(x, y, w, h);
     else selectLayerAt(x, y);

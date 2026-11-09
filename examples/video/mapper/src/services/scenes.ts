@@ -1,3 +1,4 @@
+import { projectFile } from './projectPaths';
 // Scenes: the layers and the columns under a name, in one file the person can also carry to another mapper. The media stay in the media folder.
 // The scene on now is always saved by itself (mapping.json, show.json): a scene file is a copy to come back to.
 import * as fs from 'zinc:fs';
@@ -5,13 +6,13 @@ import * as mapping from 'zinc:mapping';
 import { PREVIOUS_SCENE, SCENES_DIR, SETUP_FILE } from '../constants';
 import { hideCards } from './cards';
 import { followLayerMedia } from './layerMedia';
-import { replaceShow, resumeShow, showJson } from './show';
+import { replaceShow, resumeShow, showJson, validateShow } from './show';
 
 const EMPTY_SHOW = '{"columns":[],"active":-1}';
 
-function scenePath(name: string): string { return `${SCENES_DIR}/${name}.json`; }
+function scenePath(name: string): string { return `${projectFile(SCENES_DIR)}/${name}.json`; }
 
-export function openScenes(): void { fs.mkdir(SCENES_DIR, true); }
+export function openScenes(): void { fs.mkdir(projectFile(SCENES_DIR), true); }
 
 /** Letters, digits, - and _: the name is a file name. */
 export function isSceneName(name: string): boolean {
@@ -20,7 +21,7 @@ export function isSceneName(name: string): boolean {
 
 export function sceneListJson(): string {
   const names: string[] = [];
-  for (const entry of fs.readDir(SCENES_DIR)) {
+  for (const entry of fs.readDir(projectFile(SCENES_DIR))) {
     if (entry.name.endsWith('.json')) names.push(entry.name.slice(0, entry.name.length - 5));
   }
   names.sort();
@@ -45,7 +46,8 @@ export function sceneJson(name: string): string {
 function parsedScene(json: string): any {
   try {
     const scene = JSON.parse(json);
-    return scene !== null && scene.mapping !== undefined && scene.show !== undefined && Array.isArray(scene.show.columns) ? scene : null;
+    if (scene === null || scene.mapping === null || typeof scene.mapping !== 'object' || !Array.isArray(scene.mapping.layers)) return null;
+    return validateShow(scene.show) === '' ? scene : null;
   } catch (e) {
     return null;
   }
@@ -60,12 +62,19 @@ export function importScene(name: string, json: string): boolean {
 
 /** Puts a whole setup on, and starts what it plays. */
 export function restoreSetup(mappingJson: string, show: string): boolean {
-  hideCards();
+  let parsed: any = null;
+  try {
+    parsed = JSON.parse(show);
+  } catch (e) {
+    return false;
+  }
+  if (validateShow(parsed) !== '') return false;
   if (!mapping.fromJson(mappingJson)) return false;
+  hideCards();
   if (replaceShow(show) !== '') return false;
   followLayerMedia();
   resumeShow();
-  mapping.save(SETUP_FILE);
+  mapping.save(projectFile(SETUP_FILE));
   return true;
 }
 
