@@ -43,6 +43,7 @@ const Rule kRules[] = {
     {"quickjs", "warning", "source", "a global or API QuickJS-ng does not have (Q0001), in a program on a JavaScript engine", "a typeof guard, a polyfill, or a zinc: module"},
     {"unused-dependency", "warning", "source", "a plugin of zinc.json \"dependencies\" that no file of the project imports", "zinc remove <plugin>"},
     {"plugin-targets", "warning", "target", "an imported plugin does not name the target in plugin.json \"targets\"", "a platform file (x.<target>.tsx) without the import"},
+    {"host-module", "warning", "target", "an imported host module (zinc:gl) the target's engine does not have (targets/capabilities.json \"modules\")", "a platform file (x.<target>.ts) without the import"},
     {"module-requires", "warning", "target", "an imported module's `@requires` comment does not hold on the target", "a platform file, or a lighter module"},
     {"ui-tier", "warning", "target", "a style the target's UI tier draws in a simpler form (what lib/std/ui.ts tierWarn logs at run time)", "a two-stop linear gradient along an axis, or an image"},
     {"screen-size", "warning", "target", "a fixed size larger than the target's screen", "a relative size (w-full, flex-1) or a responsive variant"},
@@ -283,7 +284,9 @@ struct Linter {
     return true;
   }
   // Where the program imports `spec`: the first quoted occurrence in a loaded file outside the plugin itself (`skipDir`), else the entry.
-  std::tuple<std::string, int, int> importSite(const fe::Program& prog, const std::string& spec, const std::string& skipDir) const {
+  // `found` says whether a file quotes it at all.
+  std::tuple<std::string, int, int> importSite(const fe::Program& prog, const std::string& spec, const std::string& skipDir, bool* found = nullptr) const {
+    if (found) *found = true;
     for (const fe::SourceFile& f : prog.files) {
       if (under(cn(f.path), skipDir)) continue;
       const std::string& text = f.original.empty() ? f.text : f.original;
@@ -292,7 +295,21 @@ struct Linter {
         if (at != std::string::npos) { auto lc = fe::lineCol(text, static_cast<std::uint32_t>(at)); return {shown(f.path), static_cast<int>(lc.line), static_cast<int>(lc.col)}; }
       }
     }
+    if (found) *found = false;
     return {shown(entry), 1, 1};
+  }
+  // Every host module some profile of targets/capabilities.json lists under "modules": the ones a profile may lack.
+  std::vector<std::string> hostModules() const {
+    std::set<std::string> all;
+    if (yyjson_doc* doc = yyjson_read(capsText.data(), capsText.size(), 0)) {
+      size_t i, n, j, m;
+      yyjson_val *k, *v, *x;
+      yyjson_obj_foreach(yyjson_doc_get_root(doc), i, n, k, v)
+        if (yyjson_val* mods = yyjson_is_obj(v) ? yyjson_obj_get(v, "modules") : nullptr)
+          yyjson_arr_foreach(mods, j, m, x) if (yyjson_is_str(x)) all.insert(yyjson_get_str(x));
+      yyjson_doc_free(doc);
+    }
+    return {all.begin(), all.end()};
   }
 
   void targetRules(const std::string& t) {
@@ -361,11 +378,20 @@ struct Linter {
         auto lists = [&](const std::string& x) { return std::find(ts.begin(), ts.end(), x) != ts.end(); };
         if (ts.empty() || lists(t)) continue;
         if (t == "sim" && (lists("macos") || lists("linux"))) continue;   // the simulator runs on the host, with the host's plugins
+        if (fe::capsList(caps, "plugins", pl.manifest.name)) continue;      // linked into the target's core (a console's audio, 3d, physics2d)
         std::string list;
         for (const std::string& x : ts) list += (list.empty() ? "" : ", ") + x;
         auto [file, line, col] = importSite(prog, pl.manifest.module.empty() ? pl.manifest.name : pl.manifest.module, cn(pl.dir));
         add(file, line, col, "plugin-targets", "plugin " + pl.manifest.name + " is not made for this target (its plugin.json targets: " + list + ")", t);
       }
+    }
+    // the host modules it imports that the target's engine does not have (zinc:gl on a console)
+    for (const std::string& m : hostModules()) {
+      if (fe::capsList(caps, "modules", m)) continue;
+      bool found = false;
+      auto [file, line, col] = importSite(prog, m, "", &found);
+      std::string has = caps["modules"];
+      if (found) add(file, line, col, "host-module", m + " is not available on this target (its engine has:" + has.substr(0, has.size() ? has.size() - 1 : 0) + ")", t);
     }
   }
 

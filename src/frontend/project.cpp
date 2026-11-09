@@ -149,8 +149,11 @@ bool parseGameKeys(yyjson_val* root, const std::string& text, Project& out, std:
   auto unknown = [&](const std::string& at) { out.warnings.push_back("unknown key \"" + at + "\""); };
   Assets& a = out.assets;
   if (yyjson_val* as = yyjson_obj_get(root, "assets")) {
+    a.given = true;
     if (yyjson_is_str(as)) a.dir = yyjson_get_str(as);
-    else if (!yyjson_is_obj(as)) return fail("assets", "\"assets\" must be the assets directory or an object: { \"dir\", \"rules\", \"groups\", \"profiles\", \"budgets\" }");
+    else if (!yyjson_is_obj(as))
+      return fail("assets", std::string("\"assets\" must be the assets directory (\"assets\": \"assets\") or an object: { \"dir\", \"rules\", \"groups\", \"profiles\", \"budgets\" }, not ") +
+                                (yyjson_is_arr(as) ? "an array" : yyjson_is_num(as) ? "a number" : yyjson_is_bool(as) ? "true or false" : "null"));
     size_t i, n; yyjson_val *k, *v;
     if (yyjson_is_obj(as)) yyjson_obj_foreach(as, i, n, k, v) {
       const std::string key = yyjson_get_str(k);
@@ -684,6 +687,12 @@ std::string entryOf(const std::string& dir, const Project* project) {
     if (fs::is_regular_file(f, ec)) return f.string();
   }
   return "";
+}
+
+std::string assetsProblem(const Project& p, const std::string& projectDir) {
+  std::error_code ec;
+  if (!p.assets.given || std::filesystem::is_directory(std::filesystem::path(projectDir) / p.assets.dir, ec)) return "";
+  return "\"assets\": " + p.assets.dir + " is not a directory (from " + projectDir + "): no picture, sound or file of it is baked or packed";
 }
 
 namespace { LoaderStage gStage; }

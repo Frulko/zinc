@@ -156,7 +156,7 @@ static std::string gBakedSize;   // "WxH" of the board, for the main of a progra
 static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
 // the target whose zinc.json adjustments ("targets.<name>.permissions") a run uses: the profile's, else this machine's OS
 static std::string runTarget() { return gProfile ? gProfile->name : zn::tc::pluginTarget(); }
-static bool gPackingConsole = false;   // zinc pack --profile psp|vita|n3ds: the program goes into a console core (installNativeProvider)
+static zn::frontend::Caps gCoreCaps;   // zinc pack --profile <console>: the profile whose core links the "plugins" of targets/capabilities.json (installNativeProvider)
 static std::vector<std::string> gPluginDirs;   // the directories of those plugins: inputs of a compiled run (ZN-605)
 static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
 static bool gFusedApp = false;                   // this is a fused executable (ZN-319): its archive's native libraries are its own code (ZN-652)
@@ -289,15 +289,15 @@ static void installNativeProvider(const char* entry) {
   zn::tc::loadPolicy(gProjectDir);     // the trust policy of the plugins built for it (ZN-346)
   zn::frontend::gNativeProvider = [](const std::string& module, std::string& err) {
     if (packedPlugin(module)) return true;
-    // a console's pack: its core links these modules itself (tools/build-console-core), so no library of this machine is built for it, and
-    // a build that fails here cannot slip the plugin's x.sim.ts stand-in into the console's program
-    if (gPackingConsole && (module == "Render3D" || module == "Physics2D")) return true;
     std::vector<std::string> problems;
     std::string root = gRoot;
     static std::vector<zn::frontend::FoundPlugin> found;
     found = zn::frontend::discoverPlugins(root, gProjectDir, problems);
     const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
     if (!p) { err = "no plugin provides it (zinc plugins lists them)"; return false; }
+    // a console's pack: its core links these plugins itself (targets/capabilities.json "plugins", tools/build-console-core), so no library of
+    // this machine is built for it, and a build that fails here cannot slip the plugin's x.sim.ts stand-in into the console's program
+    if (zn::frontend::capsList(gCoreCaps, "plugins", p->manifest.name)) return true;
     zn::tc::PluginLib lib;
     if (std::getenv("ZN_AOT_CPP_ONLY") && gProfile) {   // the C++ for another machine (zinc export to a phone): the export compiles the plugin there from its sources
       // (and refuses one whose plugin.json has no entry for it); nothing is built or loaded here
@@ -2861,7 +2861,7 @@ int main(int argc, char** argv) {
     }
     zn::zbc::Module zm;
     gPhotosAsFiles = !gProfile;   // the engine there reads its assets/ (a console's core keeps them baked)
-    gPackingConsole = gProfile && (!std::strcmp(gProfile->name, "psp") || !std::strcmp(gProfile->name, "vita") || !std::strcmp(gProfile->name, "n3ds"));
+    if (gProfile) gCoreCaps = zn::frontend::capsFor(*gProfile, gRoot);
     if (int rc = compileToZbc(entry.c_str(), zm)) return rc;
     printPlugins();   // a stand-in packed in place of a plugin's native code says so (a build that failed would otherwise go unseen)
     std::map<std::string, std::string> files;
@@ -2926,11 +2926,30 @@ int main(int argc, char** argv) {
         std::ifstream f(it->path(), std::ios::binary); std::stringstream b; b << f.rdbuf();
         files[rel] = b.str();
       }
-    const fs::path assets = fs::path(projDir) / "assets";
-    if (fs::is_directory(assets, ec))
+    // the folder zinc.json "assets" names (ZN-1016); one outside the project (n3ds-platformer's ../platformer/assets) rides along as assets/, and
+    // the packed zinc.json points there: a .zapp holds the project's files only
+    if (have) if (const std::string why = zn::frontend::assetsProblem(project, projDir); !why.empty()) zn::log::warning("pack", "zinc.json " + why);
+    const fs::path assets = (fs::path(projDir) / (have ? project.assets.dir : std::string("assets"))).lexically_normal();
+    std::string under = assets.lexically_relative(projDir).generic_string();
+    if (fs::is_directory(assets, ec) && (under.empty() || under.rfind("..", 0) == 0)) {
+      zn::log::step("pack", "assets: " + project.assets.dir + " lies outside the project: packed as assets/");
+      under = "assets";
+      yyjson_doc* doc = yyjson_read(files["zinc.json"].data(), files["zinc.json"].size(), 0);
+      yyjson_mut_doc* md = doc ? yyjson_doc_mut_copy(doc, nullptr) : nullptr;
+      yyjson_doc_free(doc);
+      if (yyjson_mut_val* root = md ? yyjson_mut_doc_get_root(md) : nullptr) {
+        yyjson_mut_val* a = yyjson_mut_obj_get(root, "assets");
+        yyjson_mut_obj_put(yyjson_mut_is_obj(a) ? a : root, yyjson_mut_str(md, yyjson_mut_is_obj(a) ? "dir" : "assets"), yyjson_mut_str(md, "assets"));
+        std::size_t len = 0;
+        if (char* text = yyjson_mut_write(md, YYJSON_WRITE_PRETTY, &len)) { files["zinc.json"].assign(text, len); std::free(text); }
+      }
+      yyjson_mut_doc_free(md);
+    }
+    const std::string prefix = under + "/";
+    if (under != "." && fs::is_directory(assets, ec))   // "assets": "." is the project itself: its sources are not assets
       for (auto it = fs::recursive_directory_iterator(assets, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
         // lexically: fs::relative follows a link (hero's assets/city.bin is examples/maps/navigation's) and names a file outside the archive
-        const std::string rel = it->path().lexically_relative(projDir).generic_string();
+        const std::string rel = prefix + it->path().lexically_relative(assets).generic_string();
         if (!it->is_regular_file() || rel.find("/.") != std::string::npos) continue;   // hidden files (.gitkeep, .DS_Store) stay out
         std::ifstream af(it->path(), std::ios::binary); std::stringstream as; as << af.rdbuf();
         files[rel] = as.str();
@@ -3018,8 +3037,9 @@ int main(int argc, char** argv) {
         std::stringstream ss;
         ss << in.rdbuf();
         std::string err;
-        if (zn::frontend::parseProject(ss.str(), project, err)) { have = true; projectDir = fs::path(projFile).parent_path().string(); for (const std::string& w : project.warnings) std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), w.c_str()); }
-        else { std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), err.c_str()); if (project.fatal) return 2; }
+        if (zn::frontend::parseProject(ss.str(), project, err)) { have = true; projectDir = fs::path(projFile).parent_path().string(); for (const std::string& w : project.warnings) std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), w.c_str());
+          if (const std::string why = zn::frontend::assetsProblem(project, projectDir); !why.empty()) std::fprintf(stderr, "zinc: %s: warning: %s\n", projFile.c_str(), why.c_str());
+        } else { std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), err.c_str()); if (project.fatal) return 2; }
       }
       {
         const std::string nm = appNameEnv(path);
@@ -3790,6 +3810,12 @@ int main(int argc, char** argv) {
       int files = 0;
       for (const auto& f : prog.files) files += !engineFile(f.path);
       std::printf("%s\n", zn::i18n::trn("cli.check.ok", files, {{"entry", zn::log::shortPath(std::filesystem::absolute(argv[3]).string())}}).c_str());
+      // a zinc.json "assets" folder that is not there (ZN-1016): nothing of it would be baked or packed
+      zn::frontend::Project proj;
+      std::string pf = zn::frontend::findProjectFile(argv[3]), text, perr;
+      if (!pf.empty() && readFile(pf, text) && zn::frontend::parseProject(text, proj, perr))
+        if (const std::string why = zn::frontend::assetsProblem(proj, std::filesystem::path(pf).parent_path().string()); !why.empty())
+          std::fprintf(stderr, "zinc: %s: warning: %s\n", pf.c_str(), why.c_str());
     }
     return 0;
   }

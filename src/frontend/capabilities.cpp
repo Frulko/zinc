@@ -72,6 +72,13 @@ Caps capsFromFile(const Profile& p, const std::string& capabilitiesJson) {
           while (yyjson_val* k2 = yyjson_obj_iter_next(&in)) caps[std::string(yyjson_get_str(key)) + "." + yyjson_get_str(k2)] = text(yyjson_obj_iter_get_val(k2));
           continue;
         }
+        if (yyjson_is_arr(v)) {   // a list ("modules": ["zinc:gfx", "zinc:gl"]) reads as its words, " zinc:gfx zinc:gl " (capsList)
+          std::string words = " ";
+          size_t i, n; yyjson_val* x;
+          yyjson_arr_foreach(v, i, n, x) words += text(x) + " ";
+          caps[yyjson_get_str(key)] = words;
+          continue;
+        }
         caps[yyjson_get_str(key)] = text(v);
       }
     }

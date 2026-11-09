@@ -4,5 +4,5 @@
   "module": "zinc:sprite",
   "entry": "index.ts",
   "description": "Frames, animations and pivots of the sprite atlases the asset build packs (zinc.json \"as\": \"sprite\" rules)",
-  "targets": { "macos": {}, "linux": {}, "windows": {}, "rpi1": {}, "wasm": {}, "esp32": {}, "ps2": {} }
+  "targets": { "macos": {}, "linux": {}, "windows": {}, "rpi1": {}, "wasm": {}, "esp32": {}, "ps2": {}, "psp": {}, "vita": {}, "n3ds": {} }
 }

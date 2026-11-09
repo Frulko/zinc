@@ -159,6 +159,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Auto-import in editors and Zinc Atelier: typing `rr` offers `rrect` from `zinc:gfx` (or an export of the sketch's other files), says where it comes from, and accepting it adds the import line or extends the one already there.
 - `zinc lint` warns about a plugin in `zinc.json` `dependencies` that nothing imports (`zinc remove <plugin>` drops it), about the assets loaded at start (the `boot` group, or `loading.groups`) against the target's `boot` budget, and now reads the pixel size of JPEG and WebP images as well as PNG for its memory and texture-size estimates.
 - Editors show `zinc lint`'s per-target warnings for a project whose `zinc.json` names its targets (a size wider than the ESP32's screen, a style its UI tier simplifies, a plugin not made for it): `zinc lsp` checks again each time a file is saved.
+- `zinc lint` warns when a program imports a module the target's engine does not have (`zinc:gl` on the 3DS, PSP or Vita), and `zinc device deploy` to a console says so before sending it.
 
 #### Changed
 
@@ -194,6 +195,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A QuickJS app's bytecode (`.qbc`) records the zinc that compiled it: after an update the app runs its `.js` instead of bytecode another zinc wrote, and a lone `.qbc` says to build it again. Its source map carries the sources, so a moved or exported build still shows them, and its stack traces name the project's file (`src/util.js:2`).
 - Export and build fixes: `zinc build <dir> --bundle` works with `--bundle` after the folder, `zinc export --apk` with a relative `-o` passes its 16 KB check, an export run with `ZINC_DETERMINISTIC=1` ships a plugin's native code instead of its test stand-in, and the `flash.sh` of an ESP32 export (`--engine mquickjs`) no longer erases the board's saved settings (touch calibration, Wi-Fi networks, `zinc:storage`).
 - What a program printed is written before it starts a child process or reads its input, so a prompt shows before `onStdin` waits and the program's lines come before what the child writes to the same terminal or file; `onStdin` of `zinc:sys` now also works on `--engine quickjs`.
+- `zinc lint --target n3ds` (and psp, vita) no longer warns about the plugins a console has built in (`audio`, `3d`, `physics2d`, `lan`, and the pure-Zinc `sprite` and `tilemap`).
+- `zinc pack` carries the assets folder `zinc.json` names, also when it lies outside the project (`"assets": "../shared/assets"`), instead of only a folder called `assets`; `zinc check`, `zinc run` and `zinc pack` warn when that folder does not exist, and an `"assets"` written as an array says what to write.
 
 ### Apps and examples
 

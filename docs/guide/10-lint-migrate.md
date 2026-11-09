@@ -36,7 +36,8 @@ What it checks:
   file of the project imports (`unused-dependency`: `zinc remove <plugin>` drops it).
 - **Each target**, with the program loaded the way `zinc run` loads it there (its `x.<target>.tsx` files included): files that do not
   load (`compile`), plugins whose `plugin.json` `requires` do not hold (`plugin-requires`) or whose `targets` leave the target out
-  (`plugin-targets`), `zinc.json` `requires` (`project-requires`) and `ui.layout` (`ui-layout`), modules with a `@requires` comment
+  (`plugin-targets`; a plugin linked into a console's core, listed under `plugins` in `targets/capabilities.json`, is there whatever it says),
+  host modules the target's engine does not have (`host-module`: `zinc:gl` on a console), `zinc.json` `requires` (`project-requires`) and `ui.layout` (`ui-layout`), modules with a `@requires` comment
   (`module-requires`), styles the target's UI tier draws more simply (`ui-tier`: conic gradients below T3, gradients beyond two stops
   along an axis and repeated images on T0 and T1), fixed sizes wider or taller than a fixed screen (`screen-size`), and the assets against
   the target's budgets (`assets-flash`, `assets-memory`, `texture-size`; PNG, JPEG and WebP sizes read from their headers; estimates,

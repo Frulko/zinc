@@ -689,6 +689,11 @@ void playerWarnings(const std::string& self, const std::string& dir, const Val& 
   const std::vector<std::string> have = info.strs("plugins");   // linked into the player (3d, audio): there whatever their plugin.json says
   std::istringstream lines(out);
   for (std::string line; std::getline(lines, line);) {   // "...: warning plugin-targets [n3ds]: plugin canvas2d is not made for this target (its plugin.json targets: ...) (fix: ...)"
+    if (const std::size_t h = line.find("host-module ["), m = line.find("]: ", h); h != std::string::npos && m != std::string::npos) {   // "zinc:gl is not available on this target (...)"
+      const std::string what = line.substr(m + 3, line.find(" is not available", m) - m - 3);
+      std::fprintf(stderr, "warning: %s is not available on %s (profile %s): the program stops where it uses it\n", what.c_str(), device.c_str(), profile.c_str());
+      continue;
+    }
     const std::size_t p = line.find("plugin-targets ["), n = line.find(": plugin ", p == std::string::npos ? 0 : p);
     if (p == std::string::npos || n == std::string::npos) continue;
     const std::string plugin = line.substr(n + 9, line.find(' ', n + 9) - n - 9);

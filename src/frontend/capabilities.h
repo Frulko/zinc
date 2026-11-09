@@ -15,6 +15,11 @@ using Caps = std::map<std::string, std::string>;
 Caps capsFor(const Profile& p, const std::string& engineRoot);
 /** The same from the file itself (a path to targets/capabilities.json). */
 Caps capsFromFile(const Profile& p, const std::string& capabilitiesJson);
+/** Whether the list `key` of the profile ("modules", "plugins") names `word`. */
+inline bool capsList(const Caps& caps, const std::string& key, const std::string& word) {
+  auto it = caps.find(key);
+  return it != caps.end() && it->second.find(" " + word + " ") != std::string::npos;
+}
 /** One requirement: `touch`, `touch|pointer`, `!eink`, `heap>=256K`, `numbers=f64`. */
 bool satisfied(const std::string& req, const Caps& caps);
 /** "heap>=256K (esp32 has heap 160K)": a readable reason for each requirement that does not hold, joined by ", " (empty: compatible). */

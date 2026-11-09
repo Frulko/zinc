@@ -76,9 +76,12 @@ void up() {
   p.kind = ZN_CONSOLE_KIND;
   p.engine = ZN_CONSOLE_VERSION;
   p.address = addr;
-  p.plugins = {"audio"};
+  p.plugins = {"audio", "lan"};   // as targets/capabilities.json "plugins" of the console says
 #ifdef ZN_CONSOLE_WITH_3D
   p.plugins.push_back("3d");
+#endif
+#ifdef ZN_CONSOLE_WITH_PHYSICS2D
+  p.plugins.push_back("physics2d");
 #endif
   if (const char* v = std::getenv("ZINC_PLAYER_NAME"); v && *v) p.name = v;
   if (const char* v = std::getenv("ZINC_PLAYER_PORT"); v && *v) p.port = std::atoi(v);

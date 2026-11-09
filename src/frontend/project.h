@@ -18,6 +18,7 @@ struct AssetRule { std::string match, as; std::map<std::string, std::string> opt
 struct AssetGroup { std::string name; std::vector<std::string> include, exclude; int priority = 0; };
 struct Assets {
   std::string dir = "assets";                       // `"assets": "dir"` or `assets.dir`
+  bool given = false;                               // zinc.json has the key (the default dir may be absent; a named one must exist)
   bool optimize = true;                             // `assets.optimize`: zinc pack turns large PNGs into fast-load images (res/codec.h)
   std::vector<AssetRule> rules;
   std::vector<AssetGroup> groups;                   // in the manifest's order: the first group that includes an asset takes it
@@ -158,6 +159,8 @@ std::string projectExplain(const std::string& code);
 
 // The entry source of a directory argument (`zinc run examples/breakout`): zinc.json "entry"/"main", then src/main.ts[x], main.ts[x]; "" when none exists.
 std::string entryOf(const std::string& dir, const Project* project);
+// What is wrong with the assets directory zinc.json names, for zinc check, run and pack to say (ZN-1016): "" when it is fine or not named.
+std::string assetsProblem(const Project& p, const std::string& projectDir);
 
 /** The loader stage (ZN-447, docs/reports/games/toolchain-assets-loading.md 7.5): a module that the program initialises before its own modules
  *  (loadProgram, the QuickJS engine); the command line makes it from zinc.json `loading` (zn::cli::loaderStageFor). `path` names it in the

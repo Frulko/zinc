@@ -39,6 +39,8 @@ modules and tests declare what they need.
 
 The `ui` group of each profile holds build settings of `zinc:ui` rather than hardware flags: `layout` (the engine `"ui": {"layout": "auto"}` picks), `rn` (whether the Yoga engine may be built for the profile) and `why` (the reason when it may not: esp32, ps1). They are read as `ui.layout`, `ui.rn`, `ui.why` and are not `zinc:platform` constants; `UI_LAYOUT` gives the result (ZN-285).
 
+Two lists say what the engine of a profile carries (ZN-1016): `modules`, its host modules (`zinc:gfx`, and `zinc:gl` everywhere but the ESP32 and the consoles), and on a console `plugins`, the plugins whose native part its core links (`audio`, `lan`, `3d`, `physics2d`). `zinc lint` warns about a host module the target lacks (`host-module`) and says nothing of a plugin its core links, whatever that plugin's `targets`; `zinc pack --profile <console>` builds nothing for those plugins; `zinc device deploy` to a console warns before sending. Neither list is a `zinc:platform` constant.
+
 The `assets` group is the target's default asset build profile (ZN-435): `texture` (the formats its GPU takes, in preference order), `maxSize`, `pot`, the `audio` (music) and `sfx` codecs it decodes cheaply, the `pack` codec, `split`, and `budgets` (`download`, `boot`, `gpu`, `ram`, `flash`) for `zinc assets check`. A project's `zinc.json` `assets.profiles`, `assets.budgets` and `targets.<id>.assets` override it; `zinc assets info` prints the result per target ([the asset build](../reports/zinc-next-assets.md)). The numbers are starting values from `docs/reports/games/toolchain-assets-loading.md` (sections 3 and 6.6) until measured on each device.
 
 ## Requirements
