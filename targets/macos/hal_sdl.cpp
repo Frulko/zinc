@@ -1108,6 +1108,28 @@ static void live_resize_sim(int n) {
   }
 }
 
+// The idle wait of src/host/gfx_host.cpp (ZN-805): the frames change nothing, so the loop sleeps until an event of the window system (any
+// window's), a wake-up (sdl_hal_idle_wake: a worker's message) or `ms`. 0 when it does not wait here: no window, a frame drawn from the watcher,
+// an app shell's loop (it pumps), an unseen window (paced above), deterministic or counted frames (tests and measures count frames).
+static std::atomic<bool> idle_waiting{false};
+static Uint32 wake_event = 0;
+extern "C" int32_t sdl_hal_idle_wait(uint32_t ms) {
+  if (!gfx_on || !win || in_watch || no_pump || unseen || det || frames_left >= 0) return 0;
+  if (!wake_event) wake_event = SDL_RegisterEvents(1);
+  idle_waiting = true;
+  SDL_WaitEventTimeout(nullptr, (Sint32)ms);
+  idle_waiting = false;
+  return 1;
+}
+// Any thread: ends an idle wait at once (SDL wakes a wait from another thread's push); nothing when the loop is not waiting.
+extern "C" void sdl_hal_idle_wake(void) {
+  if (!idle_waiting.exchange(false) || !wake_event) return;
+  SDL_Event e;
+  SDL_zero(e);
+  e.type = wake_event;
+  SDL_PushEvent(&e);
+}
+
 void hal_poll_input(HalInput* in) {
   in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;
   struct Polling { bool was = in_poll; Polling() { in_poll = true; } ~Polling() { in_poll = was; } } polling;   // a frame drawn from the watcher polls inside this poll

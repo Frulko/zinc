@@ -245,7 +245,7 @@ bool nativeTurn(napi_env env) {
 
 bool wantsFrames(napi_env env) { return isFunction(env, global(env, "__zincFrameCb")); }
 
-void hostCall(zn::Rt id, HostArg* r) { (zn::isLayoutRow(id) ? zn::host::hostLayout : zn::isSysRow(id) ? zn::host::hostSys : zn::host::hostGfx)(static_cast<int>(id), nullptr, r); }
+void hostCall(zn::Rt id, HostArg* r, const HostArg* a = nullptr) { (zn::isLayoutRow(id) ? zn::host::hostLayout : zn::isSysRow(id) ? zn::host::hostSys : zn::host::hostGfx)(static_cast<int>(id), a, r); }
 
 double call0(napi_env env, napi_value f) { napi_value r; return napi_call_function(env, undefined(env), f, 0, nullptr, &r) == napi_ok ? num(env, r) : 0; }
 
@@ -292,6 +292,9 @@ bool frameLoop(napi_env env) {
     if (ok) {
       hostCall(zn::Rt::HostGfxBegin, &r);
       if (isFunction(env, cb)) ok = callFn(env, cb, doublev(env, dt));
+      const double at = call0(env, global(env, "__nextAt"));   // a frame that changed nothing may sleep until the next timer (ZN-805)
+      HostArg in[1]; in[0].d = at < 0 ? -1 : at > clock ? at - clock : 0;
+      hostCall(zn::Rt::HostGfxIdleDue, &r, in);
       hostCall(zn::Rt::HostGfxEnd, &r);
       napi_value g;
       napi_get_global(env, &g);

@@ -23,7 +23,7 @@ namespace zrt {
 extern int32_t frame_no;
 extern HalInput input, prev_input;
 extern bool quit_requested;
-extern bool idle_frame;   // the last frame drew nothing new (runtime/gfx.cpp)
+extern bool idle_frame;   // the last frame drew nothing new (runtime/gfx.cpp; written by the render thread: read with __atomic_load_n)
 namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); void pause_badge(bool on); extern bool grow_enabled;
   extern uint8_t* (*png_encoder)(const uint32_t*, int32_t, int32_t, size_t*, void* (*)(size_t)); }
 }
@@ -39,7 +39,7 @@ uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h);
 namespace zn::host { const char* assetsRoot(); }   // sys_host.cpp: the directory zinc:assets reads
 namespace zrt { extern bool display_driver; }  // runtime/zrt.cpp: a plugins/display-* driver took over the screen
 namespace zrt { extern void (*mirror_input)(HalInput* in); extern void (*shell_input)(HalInput* in); }  // runtime/zrt.cpp: zinc device screen --live, zinc:shell
-namespace zn::loop { void holdClock(bool on); void stepClock(double ms); }   // src/host/loop.cpp (zn/loop.h brings <vector>, which zrt.h clashes with)
+namespace zn::loop { void holdClock(bool on); void stepClock(double ms); extern void (*idleWake)(void); }   // src/host/loop.cpp (zn/loop.h brings <vector>, which zrt.h clashes with)
 
 namespace {
 
@@ -126,6 +126,29 @@ extern "C" int zn_asset_image(const char* name, uint32_t n);
 // The SDL window on Android draws SHADER commands on a GPU layer under its software-rastered frame when a program asks for a shader before its
 // first frame is shown (targets/macos/hal_sdl.cpp, ZN-746); no SDL window: nothing to do
 extern "C" __attribute__((weak)) void zn_hal_sdl_gpu_layers(void) {}
+// The idle wait (ZN-805): a window whose frames changed nothing for half a second (zinc:ui keeps them: 30 kept frames, runtime/gfx.cpp) sleeps
+// until an event of the window system, the program's next timer (host.gfxIdleDue) or kIdleCapUs, whichever is first, instead of turning its loop
+// 60 times a second; Flutter and GPUI draw only when asked, Chromium's compositor goes quiet the same way. Not while a button or a finger is
+// down: a long press is timed by the frames. The window HAL waits (targets/macos/hal_sdl.cpp); without one (headless, a display plugin) the
+// weak stand-in answers 0 and the frame keeps its ordinary pacing.
+// ponytail: socket and fetch completions on libuv do not wake the wait, they wait kIdleCapUs at most; watching uv_backend_fd from a thread that
+// wakes SDL (Electron's node_bindings_mac) would deliver them at once
+extern "C" __attribute__((weak)) int zn_hal_idle_wait(uint32_t) { return 0; }   // src/host/hal_dispatch.cpp
+extern "C" __attribute__((weak)) void zn_hal_idle_wake(void) {}
+extern "C" uint32_t zn_gfx_idle_frames(void);   // runtime/gfx.cpp
+constexpr uint64_t kIdleCapUs = 100000;
+double idleDueMs = -1;   // host.gfxIdleDue of this frame: -1 no timer
+bool idleSlept = false;  // the last frame ended in the idle wait: the next step is the time slept, not capped (nothing animates, and the clocks
+                         // of QuickJS and the Node-API engines add the steps: a cap would put their timers late)
+bool idleWait(uint64_t paceUs) {
+  if (!__atomic_load_n(&zrt::idle_frame, __ATOMIC_RELAXED) || zn_gfx_idle_frames() < 30 || zrt::input.pdown || zrt::input.pbuttons || zrt::input.ntouch > 0) return false;
+  uint64_t us = kIdleCapUs;
+  if (idleDueMs >= 0 && idleDueMs * 1000 < static_cast<double>(us)) us = static_cast<uint64_t>(idleDueMs * 1000);
+  if (us <= paceUs) return false;   // a timer due before the next frame anyway
+  zn::loop::idleWake = zn_hal_idle_wake;   // a worker's message ends the wait
+  idleSlept = zn_hal_idle_wait(static_cast<uint32_t>((us + 999) / 1000)) != 0;
+  return idleSlept;
+}
 // zinc:gfx loadFont (ZN-669): a family or file the program embeds, else the file read whole from its assets
 int32_t loadFont(const zrt::String& name, double px) {
   const int32_t f = zrt::gfx::loadFont(name, px);
@@ -348,8 +371,8 @@ void call(int id, const HostArg* a, HostArg* r) {
       hal_frame_end();
       if (!kAppShell && hal_fixed_dt() <= 0) {  // a window: keep to about 125 frames per second when presenting does not wait for the display, to 60 when nothing was drawn (no panel is faster, and nothing waited for one)
         static const bool uncapped = getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0;   // ZINC_VSYNC=0: as fast as the frames come (measurements), as in runtime/zrt.cpp
-        const uint64_t period = zrt::idle_frame ? 16667 : 8000, spent = hal_time_us() - frameStartUs;
-        if (!uncapped && spent < period) hal_sleep_us(period - spent);
+        const uint64_t period = __atomic_load_n(&zrt::idle_frame, __ATOMIC_RELAXED) ? 16667 : 8000, spent = hal_time_us() - frameStartUs;
+        if (!uncapped && spent < period && !idleWait(period - spent)) hal_sleep_us(period - spent);
       }
       break;
     }
@@ -405,6 +428,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxUpdateRect: putRect(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n, n(2), n(3), n(4), n(5)); break;
     case Rt::HostGfxPoll: {  // the start of a frame as the runtime's loop does it: input, then the time step (fixed headless, measured with a window)
       hal_frame_begin();
+      idleDueMs = -1;   // given again before this frame ends (a frame of the inspector's pause gives none: it runs no timer)
       zrt::prev_input = zrt::input;
       zrt::input.wheel = 0; zrt::input.pinch = 1;
       hal_poll_input(&zrt::input);
@@ -416,7 +440,8 @@ void call(int id, const HostArg* a, HostArg* r) {
       devShortcut();
       uint64_t t = hal_time_us();
       double fixed = hal_fixed_dt(), dt = fixed;
-      if (fixed <= 0) { dt = lastFrameUs ? static_cast<double>(t - lastFrameUs) / 1e6 : 1.0 / 60.0; if (dt > 0.1) dt = 0.1; }
+      if (fixed <= 0) { dt = lastFrameUs ? static_cast<double>(t - lastFrameUs) / 1e6 : 1.0 / 60.0; if (dt > (idleSlept ? 1.0 : 0.1)) dt = idleSlept ? 1.0 : 0.1; }
+      idleSlept = false;
       lastFrameUs = frameStartUs = t;   // measured while paused too: the first frame after it is an ordinary step, not the pause
       devFrame = 0;
       if (devOn) {   // a step is one frame of the program (1/60 s of its clock), then paused again
@@ -513,6 +538,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxLayerEnd: r->i = g::layerEnd() ? 1 : 0; break;
     case Rt::HostGfxLayerAnim: g::layerAnim(n(0), n(1), a[2].d, a[3].d, a[4].d, a[5].d, n(6), a[7].d); break;
     case Rt::HostGfxCompClock: r->i = g::compClock(a[0].d) ? 1 : 0; break;
+    case Rt::HostGfxIdleDue: idleDueMs = a[0].d; break;
     case Rt::HostGfxProfMark: if (g::profiling()) g::profMark(n(0)); zn_ui_log_mark(n(0)); break;
     case Rt::HostGfxFinish:
       if (pauseFlag) { pauseFlag = false; break; }   // paused, not finished: the next loop draws in the same window

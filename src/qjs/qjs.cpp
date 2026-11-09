@@ -687,7 +687,7 @@ bool frameLoop(Engine& e) {
   HostArg r;
   hostCall(zn::Rt::HostGfxFrames, &r);
   const long frames = static_cast<long>(r.i);
-  JSValue setClock = global(e, "__setClock"), due = global(e, "__dueTimer"), cb = global(e, "__zincFrameCb"), clockFn = global(e, "__clock");
+  JSValue setClock = global(e, "__setClock"), due = global(e, "__dueTimer"), cb = global(e, "__zincFrameCb"), clockFn = global(e, "__clock"), nextAt = global(e, "__nextAt");
   double clock = 0;   // goes on from where the timers before the first frame left the virtual clock (onFrame after an awaited timer, ZN-566)
   { JSValue c = JS_Call(e.ctx, clockFn, JS_UNDEFINED, 0, nullptr); JS_ToFloat64(e.ctx, &clock, c); JS_FreeValue(e.ctx, c); }
   bool ok = true;
@@ -732,6 +732,13 @@ bool frameLoop(Engine& e) {
     }
     hostCall(zn::Rt::HostGfxBegin, &r);
     if (JS_IsFunction(e.ctx, cb)) { JSValue dv = JS_NewFloat64(e.ctx, dt); ok = callFn(e, cb, dv, true); JS_FreeValue(e.ctx, dv); }
+    {   // a frame that changed nothing may sleep until the next timer (ZN-805), as the typed engine's __gfxStep says
+      double at = -1;
+      JSValue a = JS_Call(e.ctx, nextAt, JS_UNDEFINED, 0, nullptr);
+      JS_ToFloat64(e.ctx, &at, a); JS_FreeValue(e.ctx, a);
+      HostArg in[1]; in[0].d = at < 0 ? -1 : at > clock ? at - clock : 0;
+      hostCall(zn::Rt::HostGfxIdleDue, &r, in);
+    }
     hostCall(zn::Rt::HostGfxEnd, &r);
     JSValue g = JS_GetGlobalObject(e.ctx);
     JS_SetPropertyStr(e.ctx, g, "__zincFrameNo", JS_NewInt32(e.ctx, static_cast<int32_t>(++drawn)));
@@ -742,7 +749,7 @@ bool frameLoop(Engine& e) {
   for (long f = 0; f < frames && step(); ++f) {}
   zn::host::redraw = nullptr;
   hostCall(zn::Rt::HostGfxFinish, &r);
-  JS_FreeValue(e.ctx, setClock); JS_FreeValue(e.ctx, due); JS_FreeValue(e.ctx, cb); JS_FreeValue(e.ctx, clockFn);
+  JS_FreeValue(e.ctx, setClock); JS_FreeValue(e.ctx, due); JS_FreeValue(e.ctx, cb); JS_FreeValue(e.ctx, clockFn); JS_FreeValue(e.ctx, nextAt);
   return ok;
 }
 

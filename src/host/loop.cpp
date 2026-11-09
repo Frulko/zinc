@@ -461,7 +461,12 @@ void* wakeNew() {
   a->data = const_cast<int*>(&kOwned);
   return a;   // closed and freed with its thread's loop (a worker's when its thread ends; the main thread's never)
 }
-void wakeSend(void* h) { if (h) uv_async_send(static_cast<uv_async_t*>(h)); }
+void (*idleWake)(void) = nullptr;
+void wakeSend(void* h) {
+  if (!h) return;
+  uv_async_send(static_cast<uv_async_t*>(h));
+  if (void (*w)(void) = idleWake) w();
+}
 void readStdin() {
   if (gStdin) return;
   gStdin = true;

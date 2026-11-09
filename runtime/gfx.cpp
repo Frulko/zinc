@@ -37,7 +37,7 @@ bool screen_watched() { return shot_watch || mirror_watching; }
 bool layers_usable() { return display_driver && hal_display->layers && !screen_watched(); }
 bool idle_frame = false;
 static void present(const HalFrame* f) {
-  idle_frame = !f->move && (f->x1 <= f->x0 || f->y1 <= f->y0);
+  __atomic_store_n(&idle_frame, !f->move && (f->x1 <= f->x0 || f->y1 <= f->y0), __ATOMIC_RELAXED);   // the render thread presents, the script's loop reads it
   if (display_driver) hal_display->present(f); else hal_present(f);
   if (mirror_present) mirror_present(f);
   if (first_present) { void (*f1)() = first_present; first_present = nullptr; f1(); }

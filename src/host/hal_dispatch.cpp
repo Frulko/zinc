@@ -30,6 +30,7 @@ void sdl_hal_set_cursor(int32_t); void sdl_hal_escape_by_app(int32_t); void sdl_
 int32_t sdl_hal_win_open(int32_t, const char*, int32_t, int32_t); void sdl_hal_win_close(int32_t); int32_t sdl_hal_win_state(int32_t);
 void sdl_hal_win_input(int32_t, HalInput*, int32_t*, int32_t*); void sdl_hal_win_present(int32_t, const uint32_t*, int32_t, int32_t); void sdl_hal_win_current(int32_t);
 int32_t sdl_hal_win_ctl(int32_t, int32_t, const char*, int32_t, int32_t);
+int32_t sdl_hal_idle_wait(uint32_t); void sdl_hal_idle_wake(void);
 #endif
 
 static bool live = false;
@@ -373,6 +374,8 @@ __attribute__((weak)) void sdl_hal_win_present(int32_t, const uint32_t*, int32_t
 __attribute__((weak)) void sdl_hal_win_current(int32_t) {}
 __attribute__((weak)) int32_t sdl_hal_win_ctl(int32_t, int32_t, const char*, int32_t, int32_t) { return 0; }
 __attribute__((weak)) void hal_set_resize(int32_t) {}
+__attribute__((weak)) int32_t sdl_hal_idle_wait(uint32_t) { return 0; }
+__attribute__((weak)) void sdl_hal_idle_wake(void) {}
 #else
 __attribute__((weak)) int zn_window_load(void) { return 1; }   // the window host is in this library
 #endif
@@ -406,6 +409,9 @@ void hal_win_input(int32_t id, HalInput* in, int32_t* w, int32_t* h) { if (live)
 void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) { if (live) sdl_hal_win_present(id, px, pw, ph); }
 void hal_win_current(int32_t id) { if (live) sdl_hal_win_current(id); }
 int32_t hal_win_ctl(int32_t id, int32_t op, const char* s, int32_t a, int32_t b) { return live ? sdl_hal_win_ctl(id, op, s, a, b) : nullWinCtl(id, op, a, b); }
+// the idle wait of src/host/gfx_host.cpp (ZN-805): only a window sleeps until its next event; 0 headless (the frame keeps its pacing)
+int zn_hal_idle_wait(uint32_t ms) { return live ? sdl_hal_idle_wait(ms) : 0; }
+void zn_hal_idle_wake(void) { if (live) sdl_hal_idle_wake(); }
 #else
 int zn_hal_wants_window(void) { return 0; }
 void hal_init(const HalConfig* c) { null_hal_init(c); }

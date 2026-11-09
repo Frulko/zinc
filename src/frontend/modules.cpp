@@ -59,6 +59,7 @@ function __gfxStep(): boolean {
   __host_gfxBegin();
   __gfxDraw(dt);
   __drainJobs();
+  __host_gfxIdleDue(__timerDue());   // a frame that changed nothing may sleep until then (ZN-805)
   __host_gfxEnd();
   __frameNo++;
   return !__host_gfxShouldQuit();
@@ -3306,6 +3307,14 @@ function __frameTimers(): void {
     t.f();
     __drainJobs();
   }
+}
+// The milliseconds until the next timer is due (0: due now), -1 when there is none: what a window whose frames change nothing may sleep (ZN-805).
+function __timerDue(): f64 {
+  if (__timers.length === 0) return -1;
+  let at = __timers[0].at;
+  for (let i: i32 = 1; i < __timers.length; i++) if (__timers[i].at < at) at = __timers[i].at;
+  const d = at - __now();
+  return d > 0 ? d : 0;
 }
 // Work that happens outside the program (a child process, a signal, standard input) reaches it as events of the host's loop, one string each
 // ("handle", "kind" and "data" joined by U+001F); the handlers registered here (zinc:process, zinc:sys) pick the kinds they own.

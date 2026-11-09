@@ -66,6 +66,8 @@ void addActive(int delta);
 // A wake-up of the calling thread's loop (its wait returns), which any thread may send: the messages of zinc:worker (src/rt/worker.cpp).
 void* wakeNew();
 void wakeSend(void* handle);
+// Set by a window that sleeps while its frames change nothing (src/host/gfx_host.cpp, ZN-805): wakeSend ends that sleep too. Any thread calls it.
+extern void (*idleWake)(void);
 bool resolveHost(const std::string& host, int port, void* out);
 
 }  // namespace zn::loop
