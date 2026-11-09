@@ -12,6 +12,10 @@ printf "console.log('hello from the device');\nlet s = 0;\nfor (let i = 0; i < 1
 printf "console.log('before');\nthrow new Error('boom');\n" > "$tmp/boom.ts"
 out=$("$ZINC" run "$tmp/boom.ts" --target esp32 --device "$sim" 2>&1); rc=$?
 [ $rc -eq 101 ] && echo "$out" | grep -q "Uncaught Error: boom" || { echo "an uncaught exception does not end with 101 and its message ($rc)"; fail=1; }
+# console.error and sys.exit(n) on the device (ZN-644): every line comes back in the out frame, in order, and the code is the program's
+printf "import * as sys from 'zinc:sys';\nconsole.log('a');\nconsole.error('b');\nconsole.log('c');\nsys.exit(3);\nconsole.log('never');\n" > "$tmp/exit.ts"
+out=$("$ZINC" run "$tmp/exit.ts" --target esp32 --device "$sim" 2>/dev/null); rc=$?
+[ $rc -eq 3 ] && [ "$out" = "$(printf 'a\nb\nc')" ] || { echo "console.error and exit on the device: exit $rc, output: $out"; fail=1; }
 # a board flashed by an older zinc refuses the newer ZBC: the message says to flash the core again, not to update zinc
 old="printf '\\036ZN ready 0.1 1000\\n\\036ZN err not a ZBC module: ZBC version 9 is newer than the supported version 8: update zinc\\n'; cat >/dev/null"
 "$ZINC" run "$tmp/hello.ts" --target esp32 --device "$old" 2>&1 | grep -q "older than this zinc.*zinc flash --target esp32" || { echo "an older core is not answered with zinc flash"; fail=1; }

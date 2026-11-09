@@ -2593,8 +2593,10 @@ int main(int argc, char** argv) {
     zn::rt::Result res = isMem ? zn::prof::memory(zm, out, json, report) : zn::prof::profile(zm, out, po, report);
     std::fwrite(out.data(), 1, out.size(), stderr);  // the program's own output goes to stderr: stdout is the report
     std::fputs(report.c_str(), stdout);
-    if (!res.ok) { std::fprintf(stderr, "%s\n", res.error.c_str()); return res.error.rfind("panic: ", 0) == 0 ? 101 : 1; }
+    const int exitCode = res.exitCode();   // zinc:sys exit(n) ended the run: the report stands, the code is the program's (ZN-644)
+    if (!res.ok && exitCode < 0) { std::fprintf(stderr, "%s\n", res.error.c_str()); return res.error.rfind("panic: ", 0) == 0 ? 101 : 1; }
     if (!isMem) std::fprintf(stderr, "wrote %s%s%s\n", po.speedscope.c_str(), po.trace.empty() ? "" : " and ", po.trace.c_str());
+    if (exitCode > 0) return exitCode;
     if (checkLeaks && res.leaked) { std::fprintf(stderr, "leaked %zu object(s)\n", res.leaked); return 4; }
     return 0;
   }
@@ -3238,7 +3240,7 @@ int main(int argc, char** argv) {
         dd->attach(m);
         if (gDap) zn::dbg::dapReady(*dd);   // breakpoints come now, before the first statement runs
         if (gCdp) zn::dbg::cdpReady(*dd);
-      }, &d, nullptr, nullptr);
+      }, &d, nullptr, nullptr, 0, 0, true);   // out is the terminal's, as zinc run's
     }();
     if (gDebug && !res.ok && res.error.rfind("stopped by the debugger", 0) == 0) { std::fwrite(out.data(), 1, out.size(), stdout); return 0; }   // q in zinc debug
     const int runCode = zn::rt::report(res, out, trace);

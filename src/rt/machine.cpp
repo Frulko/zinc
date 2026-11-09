@@ -41,6 +41,11 @@ void Machine::flushOut() {
 }
 
 void Machine::flushErrLine() {
+  if (!outLive) {   // a host that keeps the output (zinc mem, the device core): the line stays in it, in order, and the host writes it (ZN-644)
+    if (gConsoleTap && !gOnWorker()) gConsoleTap(out->data() + errMark, out->size() - errMark, true);
+    out->push_back('\n');
+    return;
+  }
   std::string line = out->substr(errMark) + '\n';
   out->resize(errMark);
   flushOut();

@@ -197,6 +197,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - What a program printed is written before it starts a child process or reads its input, so a prompt shows before `onStdin` waits and the program's lines come before what the child writes to the same terminal or file; `onStdin` of `zinc:sys` now also works on `--engine quickjs`.
 - `zinc lint --target n3ds` (and psp, vita) no longer warns about the plugins a console has built in (`audio`, `3d`, `physics2d`, `lan`, and the pure-Zinc `sprite` and `tilemap`).
 - `zinc pack` carries the assets folder `zinc.json` names, also when it lies outside the project (`"assets": "../shared/assets"`), instead of only a folder called `assets`; `zinc check`, `zinc run` and `zinc pack` warn when that folder does not exist, and an `"assets"` written as an array says what to write.
+- `zinc mem --json` and `zinc profile` of a program that calls `console.error` or `sys.exit` keep stdout for the report (the program's lines go to stderr, in order, and the exit code is the program's), and a program on an ESP32 sends all its lines back, `console.error` and `sys.exit` included.
 
 ### Apps and examples
 

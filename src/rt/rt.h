@@ -324,6 +324,8 @@ struct Result {
   std::string error;       // runtime error: division by zero, stack overflow, trap, uncaught throw (`panic: Uncaught ...`)
   std::string trace;       // with traceFree: one `free <class>` line per destroyed object, in destruction order
   std::size_t leaked = 0;  // objects still alive after main returned and the globals were released (cycles, or a bug)
+  // zinc:sys exit(n) ended the run rather than the process (a player, a worker, a host that keeps the output: error "exit <n>"); -1 otherwise
+  int exitCode() const { return !ok && error.rfind("exit ", 0) == 0 ? std::atoi(error.c_str() + 5) : -1; }
 };
 
 // Loads `m`, lets `setup` bind engine-specific code to the functions, runs functions[0] (main) and releases the globals.

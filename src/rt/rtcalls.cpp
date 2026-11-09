@@ -894,8 +894,10 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
   if (id == Rt::HostSysWrite) { StrObj* s = S(a[0]); if (!s) return kNull; m.out->append(s->data(), s->len); return nullptr; }
   if (gStop) return gStop;
   if (id == Rt::HostSysExit) {
-    m.flushOut();
-    if (gExitEndsRun || gOnWorker()) { ZN_THREAD_LOCAL(std::string, why, {}); why ="exit " + std::to_string(static_cast<std::int32_t>(a[0])); return why.c_str(); }
+    // a host that keeps the output (zinc mem and profile, the device core, zinc debug) gets it and the code back: the run ends, not the
+    // process, which would print the program's lines on the report's stdout and drop the device's out frame (ZN-644)
+    if (m.outLive) m.flushOut();
+    if (gExitEndsRun || gOnWorker() || !m.outLive) { ZN_THREAD_LOCAL(std::string, why, {}); why ="exit " + std::to_string(static_cast<std::int32_t>(a[0])); return why.c_str(); }
     if (gOnExit) gOnExit(static_cast<std::int32_t>(a[0]));
     std::exit(static_cast<int>(static_cast<std::int32_t>(a[0])));
   }

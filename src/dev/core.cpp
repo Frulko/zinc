@@ -76,8 +76,9 @@ void Core::run() {
   body_.shrink_to_fit();  // the decoded module is what runs now
   std::string out;
   rt::Result res = vm::runHooked(m, out, nullptr, nullptr, nullptr, nullptr, cfg_.stackSlots, cfg_.maxDepth);
-  int status = res.ok ? 0 : res.error.rfind("panic: ", 0) == 0 ? 101 : 1;
-  if (!res.ok) out += res.error + "\n";
+  const int exitCode = res.exitCode();   // zinc:sys exit(n) ends the run here, the output and the code go back in the frames (ZN-644)
+  int status = res.ok ? 0 : exitCode >= 0 ? exitCode : res.error.rfind("panic: ", 0) == 0 ? 101 : 1;
+  if (!res.ok && exitCode < 0) out += res.error + "\n";
   line("out " + std::to_string(out.size()));
   write_(out.data(), out.size());
   line("done " + std::to_string(status) + " " + std::to_string(res.leaked) + " " + std::to_string(cfg_.freeHeap ? cfg_.freeHeap() : 0));

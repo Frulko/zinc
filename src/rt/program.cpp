@@ -43,6 +43,7 @@ Result runModuleHooked(const zbc::Module& mod, std::string& out, bool traceFree,
 int report(const Result& res, const std::string& out, bool traceFree) {
   std::fwrite(out.data(), 1, out.size(), stdout);
   if (traceFree) std::fwrite(res.trace.data(), 1, res.trace.size(), stderr);
+  if (const int code = res.exitCode(); code >= 0) return code;   // zinc:sys exit(n) that ended the run (a worker, a player)
   if (!res.ok) {
     std::fflush(stdout);  // what the program printed comes before the error
     if (res.error.rfind("panic: ", 0) == 0) { std::fprintf(stderr, "%s\n", res.error.c_str()); return 101; }  // an uncaught exception

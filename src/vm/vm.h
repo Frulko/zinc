@@ -17,6 +17,6 @@ using zn::rt::Result;
 Result run(const zbc::Module& m, std::string& out, bool traceFree = false);
 // With hooks: `setup` runs after the module is loaded and before main, `finish` after the run (see rt::runModuleHooked).
 Result runHooked(const zbc::Module& m, std::string& out, void (*setup)(rt::Machine&, const void*), const void* setupData, void (*finish)(rt::Machine&, const void*), const void* finishData,
-                 std::size_t stackSlots = 0, std::size_t maxDepth = 0);
+                 std::size_t stackSlots = 0, std::size_t maxDepth = 0, bool outLive = false);   // outLive: `out` is the process's stdout (rt::Machine::outLive)
 
 }  // namespace zn::vm

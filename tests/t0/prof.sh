@@ -23,6 +23,12 @@ d = json.load(open(sys.argv[1]))
 assert d["allocs"] == d["frees"] > 0 and d["retains"] > 0 and d["leaked"] == 0 and d["peakLiveObjects"] > 0 and d["processPeakRssMb"] > 0
 assert any(c["name"] == "str" for c in d["classes"])
 PY
+# console.error and sys.exit(n) keep stdout for the report (ZN-644): the program's lines go to stderr in order, the code is the program's
+printf "import * as sys from 'zinc:sys';\nconsole.log('a');\nconsole.error('b');\nconsole.log('c');\nsys.exit(3);\n" > "$tmp/exit.ts"
+"$ZINC" mem "$tmp/exit.ts" --json >"$tmp/exit.json" 2>"$tmp/exit.err"; rc=$?
+[ $rc -eq 3 ] || { echo "zinc mem of a program that exits 3: exit $rc"; fail=1; }
+python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$tmp/exit.json" || { echo "zinc mem --json: stdout is not only the report: $(head -c 200 "$tmp/exit.json")"; fail=1; }
+[ "$(grep -v '^  ' "$tmp/exit.err")" = "$(printf 'a\nb\nc')" ] || { echo "zinc mem: the program's lines on stderr: $(cat "$tmp/exit.err")"; fail=1; }
 "$ZINC" mem tests/conformance/features.ts --check-leaks >/dev/null 2>&1; [ $? -eq 4 ] || { echo "zinc mem --check-leaks did not report the known cycle of features.ts"; fail=1; }
 # frame phases of a UI app (p50/p99) and a trace Perfetto opens
 ZINC_DETERMINISTIC=1 ZINC_FRAMES=10 ZINC_PROFILE=1 ZINC_TRACE="$tmp/trace.json" "$ZINC" run tests/visual/ui.tsx 2>"$tmp/frames" >/dev/null
