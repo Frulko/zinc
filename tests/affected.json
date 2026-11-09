@@ -197,6 +197,7 @@
     {"paths": ["src/cli_core.cpp", "src/lint/", "src/qjs/bundle.cpp", "tests/t0/check_js.sh"], "tests": ["check_js"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/modules.cpp", "tests/golden/host/promise_adopt.ts", "tests/t0/promise_adopt.sh"], "tests": ["promise_adopt"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/parser.cpp", "src/ir/lower.cpp", "tests/golden/assign/", "tests/t0/ts_assignability.sh"], "tests": ["ts_assignability"]},
+    {"paths": ["src/frontend/check.cpp", "src/frontend/parser.cpp", "src/ir/lower.cpp", "tests/golden/chain/", "tests/t0/optional_chain.sh"], "tests": ["optional_chain"]},
     {"paths": ["src/rt/worker.cpp", "lib/std/worker.ts", "tests/data/busy_worker/", "tests/t1/busy_worker.sh"], "tests": ["busy_worker"]},
     {"paths": ["src/rt/worker.cpp", "src/host/loop.cpp", "src/qjs/worker_js.cpp", "tests/data/worker_churn/", "tests/t1/worker_churn.sh"], "tests": ["worker_churn"]},
     {"paths": ["src/aot/aot.cpp", "src/rt/worker.cpp", "src/qjs/prelude.cpp", "src/qjs/worker_js.cpp", "src/qjs/strip.cpp", "include/zn/worker_bridge.h", "lib/std/worker.ts", "tests/data/worker_basic/", "tests/data/worker_wire/", "tests/t1/worker_engines.sh"], "tests": ["worker_engines"]},

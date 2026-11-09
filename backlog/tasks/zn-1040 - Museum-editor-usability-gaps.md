@@ -1,10 +1,11 @@
 ---
 id: ZN-1040
 title: 'Museum editor: usability gaps'
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:38'
+updated_date: '2026-11-09 09:30'
 labels:
   - museum
   - ui
@@ -12,7 +13,6 @@ labels:
 milestone: m-27
 dependencies: []
 ordinal: 13800
-updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -46,3 +46,9 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 - [ ] #4 Multi-selection drags together; menu items enable and disable; narration bar shows cues
 - [ ] #5 museum_editor T1 still passes
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Engine gap met (Fill the engine's gaps): an optional chain did not short-circuit as a whole (`views.twin?.viewers.get(id)` refused with Z0107: the link after `?.` was checked on `T | null`), and `m?.get(k) ?? d` crashed with a null reference when there was no Map (the Map.get fast path of `??` ignored the `?.`). Fixed: the parser marks the links after a `?.` of the same chain (kFlagChain), the checker reads such a link as `?.` when its receiver is null only because the chain may stop there (TypeScript's short-circuit; a member that may itself be null, or a chain closed by parentheses, is still refused), and the `??` lowering tests the Map first. T0 tests/t0/optional_chain.sh (interpreter, native, QuickJS = Node's output; the two refusals). PASS optional_chain, ts_assignability, optional_unknown_undef.
+<!-- SECTION:NOTES:END -->

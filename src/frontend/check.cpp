@@ -74,6 +74,19 @@ struct Checker {
   bool curStatic = false;          // inside a static method or static initializer
   std::vector<std::uint32_t> fnStack;  // enclosing function, method and lambda nodes, innermost last
   std::uint32_t calleeNode = kNone;    // the callee being evaluated, so a bare function name can be told from a call
+  // The links of an optional chain whose type is `T | null` only because the chain may stop there (`a?.b` with `b: B`): what follows
+  // them in the same chain (`a?.b.c`, `a?.b[0]`, `a?.b.f()`) short-circuits with them, and is read as `?.` (kFlagChain).
+  std::unordered_set<std::uint32_t> chainNull;
+  /** `T | null` for a link of an optional chain that can stop at `i` (a?.b, a?.[i], a?.f()). */
+  TypeId chainStop(std::uint32_t i, TypeId t) {
+    if (!hasNull(t)) chainNull.insert(i);
+    return unionOf({t, tNull}, true);
+  }
+  /** A link that follows an optional one in the same chain (kFlagChain) on a receiver that is null only when the chain stopped: it
+   *  becomes `?.` itself, which gives what TypeScript's short-circuit gives (the receiver's own type cannot be null). */
+  void continueChain(std::uint32_t i, std::uint32_t receiver, TypeId rt) {
+    if ((n(i).flags & kFlagChain) && !(n(i).flags & kFlagOptional) && chainNull.count(receiver) && !bad(rt) && hasNull(rt)) a.nodes[i].flags |= kFlagOptional;
+  }
   bool atTop = false, declAsGlobal = false;
   struct Forward { std::uint32_t sym; TypeId type; };
   std::unordered_map<std::uint32_t, Forward> forwardVars;  // top-level declarators with a type annotation, declared before the statements run through
@@ -2752,7 +2765,7 @@ struct Checker {
       }
       ft = ct;
       result = ty(ft).elem;
-      if (n(callee).kind == N::Member && (n(callee).flags & kFlagOptional) && result != tVoid && !bad(result)) result = unionOf({result, tNull}, true);  // a?.f(): the result, or undefined
+      if (n(callee).kind == N::Member && (n(callee).flags & kFlagOptional) && result != tVoid && !bad(result)) result = chainStop(i, result);  // a?.f(): the result, or undefined
     }
     const Type f = ty(ft);  // copy: expr() below may grow `types`
     if (f.rest && !packed) packRest(i, f.params.size() - 1, 1);
@@ -3287,7 +3300,7 @@ struct Checker {
       case N::Call: callExpected = expected; return callExpr(i, x, false);
       case N::New: newExpected = expected; return callExpr(i, x, true);
       case N::Member: {
-        const bool opt = (x.flags & kFlagOptional) != 0;  // a?.b: null when a is null
+        bool opt = (x.flags & kFlagOptional) != 0;  // a?.b: null when a is null
         const bool called = i == calleeNode;   // read before the object: a call inside it (a.join(', ').toUpperCase()) resets calleeNode
         if (isBuiltin(x.kids[0], "Number")) {  // the constants of Number
           static const std::pair<const char*, const char*> kConsts[] = {{"MAX_VALUE", "1.7976931348623157e308"}, {"MIN_VALUE", "5e-324"}, {"POSITIVE_INFINITY", "Infinity"}, {"NEGATIVE_INFINITY", "-Infinity"},
@@ -3340,6 +3353,8 @@ struct Checker {
         TypeId ot = expr(x.kids[0]);
         pendingExempt = exemptHere;
         if (bad(ot)) return tError;
+        continueChain(i, n(i).kids[0], ot);   // a?.b.c
+        opt = (n(i).flags & kFlagOptional) != 0;
         if (ot == tDyn) {  // a property of an `any`; inside the prelude and generated code `any` is the class Dyn
           if (rawDyn() && dynObjOf() != kNone) ot = objType(dynObj);
           else if (!opt && replaceWith(i, "__dynGet(__H0, '" + std::string(x.text) + "')", {{x.kids[0]}})) return expr0(i, expected);
@@ -3375,7 +3390,7 @@ struct Checker {
         }
         if (!accessible(*m)) diag(kZNotAccessible, i, "'" + std::string(x.text) + "'");
         TypeId mt = m->getter ? ty(m->type).elem : m->type;
-        if ((n(i).flags & kFlagOptional) && calleeNode != i && mt != tVoid) return unionOf({mt, tNull}, true);  // a?.b is b, or undefined
+        if ((n(i).flags & kFlagOptional) && !called && mt != tVoid) return chainStop(i, mt);  // a?.b is b, or undefined (a?.b() adds it to the call)
         if (!m->getter && !m->method && ty(mt).k == TK::Union && !pendingExempt) {
           std::uint32_t ps = pathSymFor2(i, mt);
           if (ps != kNone) return currentType(ps);  // narrowed by an earlier test of this property
@@ -3389,7 +3404,8 @@ struct Checker {
           if (replaceWith(i, std::string(fn) + "(__H0, __H1)", {{x.kids[0]}, {x.kids[1]}})) return expr0(i, expected);
         }
         bool optIdx = false;   // a?.[i]: undefined when a is null (ZN-1003); the lowering tests the receiver, as for a?.b
-        if ((x.flags & kFlagOptional) && !bad(ot)) {
+        continueChain(i, n(i).kids[0], ot);   // a?.b[0]
+        if ((n(i).flags & kFlagOptional) && !bad(ot)) {
           if (!hasNull(ot)) a.nodes[i].flags &= ~kFlagOptional;   // on a value that cannot be null `?.[` is `[`
           else {
             ot = withoutNull(ot);
@@ -3419,7 +3435,7 @@ struct Checker {
           }
           return ty(ot).elem;
         }();
-        return optIdx && !bad(r) ? unionOf({r, tNull}, true) : r;
+        return optIdx && !bad(r) ? chainStop(i, r) : r;
       }
       default: diag(kZUnsupported, i, "this expression (node kind " + std::to_string(static_cast<int>(x.kind)) + ")"); return tError;
     }

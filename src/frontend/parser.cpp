@@ -660,6 +660,7 @@ struct Parser {
   std::uint32_t postfix() {
     std::uint32_t e = isKw("new") ? newExpr() : primary();
     std::vector<std::uint32_t> pendingTargs;  // explicit type arguments of the call being built: f<T>(x)
+    bool chain = false;  // a `?.` was met: what follows in this chain short-circuits with it (`a?.b.c` is undefined when a is)
     for (;;) {
       if (isP("<") && (r.ast.nodes[e].kind == N::Ident || r.ast.nodes[e].kind == N::Member)) {
         std::size_t save = i, diagCount = r.diags.size();
@@ -672,6 +673,7 @@ struct Parser {
       }
       if (isP(".") || isP("?.")) {
         bool opt = isP("?.");
+        if (opt) chain = true;
         if (opt && (isP("[", 1) || isP("(", 1))) {
           ++i;
           if (isP("[")) { ++i; std::uint32_t ix = expression(); expectP("]"); e = mk(N::Index, startOf(e), prevEnd(), {}, {e, ix}); r.ast.nodes[e].flags |= kFlagOptional; }  // `a?.[i]`
@@ -686,15 +688,18 @@ struct Parser {
         ++i;
         e = mk(N::Member, startOf(e), prevEnd(), name, {e});
         if (opt) r.ast.nodes[e].flags |= kFlagOptional;  // `a?.b`
+        else if (chain) r.ast.nodes[e].flags |= kFlagChain;
       } else if (isP("[")) {
         ++i;
         std::uint32_t ix = expression();
         expectP("]");
         e = mk(N::Index, startOf(e), prevEnd(), {}, {e, ix});
+        if (chain) r.ast.nodes[e].flags |= kFlagChain;
       } else if (isP("(")) {
         auto as = arguments();
         as.insert(as.begin(), e);
         e = mk(N::Call, startOf(e), prevEnd(), {}, std::move(as));
+        if (chain) r.ast.nodes[e].flags |= kFlagChain;
         if (!pendingTargs.empty()) { r.ast.targs[e] = std::move(pendingTargs); pendingTargs.clear(); }
       } else if ((isP("++") || isP("--")) && !newlineBefore()) {
         std::string_view op = txt(); ++i;

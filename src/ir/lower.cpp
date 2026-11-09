@@ -2314,6 +2314,12 @@ struct Lowering::FnLower {
     }
     if (mapGet) {
       ValueId mp = expr(n(ln.kids[0]).kids[0]);
+      if (n(ln.kids[0]).flags & frontend::kFlagOptional) {   // m?.get(k) ?? d: no Map, the default too
+        BlockId some = newBlock();
+        condbr(emit(IrOp::Ne, m.boolT(), {mp, nullConst(tv(mp))}), some, eb);
+        sealed[some] = 1;
+        cur = some;
+      }
       ValueId key = exprTo(ln.kids[1], ty(tv(mp)).aux2);
       ValueId has = emit(IrOp::Rt, m.boolT(), {mp, key}, 0, 0, static_cast<std::uint32_t>(zn::Rt::MapHas));
       condbr(has, hb, eb);

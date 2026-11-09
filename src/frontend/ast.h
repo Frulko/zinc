@@ -114,7 +114,8 @@ inline constexpr std::uint32_t kFlagAbstract = 1, kFlagStatic = 2, kFlagReadonly
                                kFlagRest = 131072,  // a Param written `...name`: the remaining arguments as an array
                                kFlagSetter = 262144,  // a Prop of an object literal written `set name(v) { ... }` (kFlagGetter: `get name() { ... }`)
                                kFlagTypeOnly = 524288,  // an ExportList written `export type { ... }`, an ExportSpec `type B`, an ImportSpec of `import type` or `{ type B }`: no value at run time
-                               kFlagModuleLevel = 1048576;  // an Await outside any function (top-level await of a module)
+                               kFlagModuleLevel = 1048576,  // an Await outside any function (top-level await of a module)
+                               kFlagChain = 2097152;  // a Member, Index or Call after a `?.` of the same chain (`a?.b.c`): it short-circuits with it
 
 // Class members start at this index of a Class node's kids; Interface members start at 1.
 inline constexpr std::size_t kClassMembersFrom = 2;
