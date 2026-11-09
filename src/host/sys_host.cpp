@@ -1591,6 +1591,14 @@ void call(int id, const HostArg* a, HostArg* r) {
 
 }  // namespace
 
+std::string fsReadRefused(const std::string& path) {   // the checks of a read (permissions, fs scope) and nothing else: the reader runs on its own thread
+  const bool failed = gFailed;
+  const std::string before = gError;
+  std::string refused;
+  if (denyByPermission("fs:read", path) || denyByScope("cannot open", path)) refused = gError;
+  gFailed = failed; gError = before;   // the rows' own error stays as it was: this is no row
+  return refused;
+}
 void setProgramArgs(const std::vector<std::string>& args) { gArgs = args; zn::netlog::on(); }   // on(): a run with --har writes its HAR even without a request
 static std::string gProgramInfo = "{}";   // an AOT program's, from ZINC_PROGRAM_INFO
 static std::string (*gProgramInfoSource)() = nullptr;

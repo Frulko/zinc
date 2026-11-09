@@ -1,0 +1,5 @@
+bitmap true 300x200 top 255,0,0,255 bottom 0,0,255,128 flipY false premultiply true
+rectangle 20x20 first row 255,0,0,255 last row 0,0,255,128 flipY true premultiply false
+no picture refused: InvalidStateError
+a resize refused: NotSupportedError
+closed 0 null

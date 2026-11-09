@@ -14,4 +14,4 @@ Real three.js (r186, unmodified) on zinc's WebGL 2, inside a normal `zinc:ui` pa
 
 `assets/scene.mjs` is the three.js side; `src/main.tsx` the page. The script context runs at twice the screen resolution and `zincPresent` averages it down (anti-aliasing); `tests/t1/webgl_studio.sh` checks the scene's logic headless.
 
-Known gap: the truck's PNG texture is not applied (`GLTFLoader` decodes textures through `createImageBitmap`, which script contexts do not have yet), so the truck is plain white. The truck model is CC-BY 4.0 (Cesium).
+The truck's PNG texture is decoded off the frame by `createImageBitmap` of the script context (`GLTFLoader` uses it). The truck model is CC-BY 4.0 (Cesium).

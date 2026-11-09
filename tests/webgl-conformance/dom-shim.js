@@ -105,6 +105,7 @@
   function srcPixels(src) {
     if (!src) return null;
     if (src.data && src.width) return src;
+    if (typeof src._pixels === 'function') return src._pixels();   // an image element
     if (src._ctx2d) { const px = src._ctx2d._fit(); return { data: px, width: src._ctx2d._w, height: src._ctx2d._h }; }
     if (src.__gl) {
       const gl = src.__gl, w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, raw = new Uint8Array(w * h * 4), out = new Uint8ClampedArray(w * h * 4);
@@ -143,24 +144,55 @@
   doc.location = g.location;
   g.document = doc;
   g.Node = Node; g.HTMLElement = Node; g.HTMLCanvasElement = Canvas; g.Element = Node;
-  g.HTMLImageElement = class HTMLImageElement extends Node {};
   g.HTMLVideoElement = class HTMLVideoElement extends Node {};
-  // there is no image decoder: an image source never loads, so the page learns it from an error event (and fails with that reason rather than waiting for a load)
+  // An image element over the engine's decoder (__zincImages, src/qjs/webenv.cpp, ZN-569): a file of the page's directory or a data: URL, its
+  // load or error event in a task of its own. What it cannot decode (an SVG, a video) is an error the page hears; with nobody listening, the
+  // page fails with that reason rather than waiting for a load that cannot come.
+  const images = g.__zincImages, decoding = new Map();
+  function pumpImages() {
+    for (let r = images.take(images.deterministic ? -1 : 2); r !== undefined; r = images.take(0)) { const done = decoding.get(r.id); decoding.delete(r.id); if (done) done(r.data ? r : null); }
+    if (decoding.size) setTimeout(pumpImages, 1);
+  }
   g.Image = class Image extends Node {
-    constructor() { super('img'); }
+    constructor(w, h) { super('img'); this.complete = true; this.naturalWidth = this.naturalHeight = 0; this.width = w || 0; this.height = h || 0; this._req = 0; this._px = null; }
     get src() { return this._src || ''; }
     set src(v) {
       this._src = String(v);
+      const req = ++this._req;
+      this._px = null; this.complete = false;
       if (this._src === 'data:image/png;base64,') return;   // canvas.toDataURL() of this shim: a picture for the page's log, nobody waits for it
-      setTimeout(() => {
-        const e = { type: 'error', target: this };
-        out('@E', 'image decoding is not available (' + this._src.slice(0, 40) + ')');
-        if (typeof this.onerror === 'function') this.onerror(e);
-        else if (!(this._ev.error || []).length && typeof g.testFailed === 'function') { g.testFailed('image decoding is not available (' + this._src.slice(0, 40) + ')'); if (typeof g.finishTest === 'function') g.finishTest(); }   // the page waits for a load that cannot come
-        this.dispatchEvent(e);
+      const done = d => setTimeout(() => {
+        if (req !== this._req) return;
+        this.complete = true;
+        if (d) {
+          this._px = { data: new Uint8ClampedArray(d.data), width: d.width, height: d.height };
+          this.naturalWidth = d.width; this.naturalHeight = d.height;
+          if (!this.attributes.width) this.width = d.width;
+          if (!this.attributes.height) this.height = d.height;
+          return this.dispatchEvent({ type: 'load', target: this });
+        }
+        const why = 'image could not be decoded (' + this._src.slice(0, 40) + ')';
+        out('@E', why);
+        if (typeof this.onerror !== 'function' && !(this._ev.error || []).length && typeof g.testFailed === 'function') { g.testFailed(why); if (typeof g.finishTest === 'function') g.finishTest(); }
+        this.dispatchEvent({ type: 'error', target: this });
       }, 0);
+      let r;
+      try {
+        const u = this._src;
+        if (/^data:/i.test(u)) {
+          const comma = u.indexOf(','), head = u.slice(5, comma), body = decodeURIComponent(u.slice(comma + 1));
+          const bytes = /;base64$/i.test(head) ? Uint8Array.fromBase64(body) : new TextEncoder().encode(body);
+          r = images.start(bytes.buffer, bytes.byteOffset, bytes.byteLength, true);
+        } else r = images.file((g.__pageDir || '.') + '/' + u.split(/[?#]/)[0], '');
+      } catch (e) { r = undefined; }
+      if (r === undefined || r === null || typeof r === 'object') return done(r || null);
+      decoding.set(r, done);
+      if (decoding.size === 1) setTimeout(pumpImages, 0);
     }
+    decode() { return new Promise((resolve, reject) => { if (this._px) return resolve(); this.addEventListener('load', () => resolve()); this.addEventListener('error', () => reject(new Error('EncodingError'))); }); }
+    _pixels() { return this._px; }
   };
+  g.HTMLImageElement = g.Image;
   g.ImageData = class ImageData { constructor(a, w, h) { if (typeof a === 'number') { h = w; w = a; a = new Uint8ClampedArray(w * h * 4); } this.data = a; this.width = w; this.height = h; } };
 
   // synchronous XMLHttpRequest over local files: the page directory is __pageDir (set by the runner), __zincReadFile comes with the WebGL bindings

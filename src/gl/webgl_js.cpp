@@ -400,7 +400,11 @@ int domPixels(napi_env c, WebGL1& gl, napi_value src, std::uint32_t format, std:
   const std::size_t al = static_cast<std::size_t>(gl.unpackAlignment());
   row = (row + al - 1) / al * al;
   out.assign(row * h * depth, 0);
-  const bool flip = gl.unpackFlipY(), premul = gl.unpackPremultiply();
+  // UNPACK_FLIP_Y_WEBGL and UNPACK_PREMULTIPLY_ALPHA_WEBGL, except for a source that carries its own (an ImageBitmap: WebGL ignores the two
+  // parameters for it, its orientation and premultiplication were fixed by createImageBitmap's options)
+  bool flip = gl.unpackFlipY(), premul = gl.unpackPremultiply();
+  if (napi_value fv = get(c, r, "flipY"); !isUndef(c, fv)) flip = truthy(c, fv);
+  if (napi_value pv = get(c, r, "premultiply"); !isUndef(c, pv)) premul = truthy(c, pv);
   for (int z = 0; z < depth; ++z) for (int y = 0; y < h; ++y) {
     // flipY turns the whole source over first, the skips and the slice rows count in the flipped image (WebGL 2: texImage2D with a sub-rectangle)
     const int rowInFlipped = y0 + z * sliceH + y;

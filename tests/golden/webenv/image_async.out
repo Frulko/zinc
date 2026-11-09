@@ -1,0 +1,9 @@
+file: false load 1024x1024 first pixel 128,128,128,255
+blob: load 1024x1024 first pixel 128,128,128,255
+src set twice: 1 event 1024
+src removed: 0 events true 0
+two requests: number true live 2
+one cancelled: live 1
+delivered: the second, 1024x1024 live 0
+stale ids cancelled again: live 0 take undefined
+no bytes: undefined | a small picture is decoded at once: object live 0

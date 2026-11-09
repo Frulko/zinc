@@ -3,15 +3,24 @@
 // zinc.json); this file starts it and gives it what JavaScript cannot do alone, over host rows that exist. A program that does not ask pays nothing.
 #include "qjs/qjs.h"
 
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
+#include <memory>
+#include <mutex>
 #include <sstream>
+#include <thread>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
+#include <sys/stat.h>
 
 #ifndef ZN_ENGINE_MODULE   // the engine modules (src/engine) build the Node-API part only
 extern "C" {
@@ -30,6 +39,15 @@ extern "C" {
 #include "res/codec.h"
 #include "zn/host.h"
 #include "zn/runtime.h"
+#ifndef ZN_ENGINE_MODULE
+#include "zn/loop.h"
+namespace zn::host {
+// src/host/sys_host.cpp: the checks the file rows make before a read (zinc.json "permissions", the fs scope), for a reader that does its I/O on
+// another thread: "" when the program may read `path`, else the error the rows would give. Main thread. (Not in zn/host.h: <string> there
+// would come before runtime/zrt.h's own placement new.)
+std::string fsReadRefused(const std::string& path);
+}
+#endif
 
 namespace zn::qjs {
 void installCanvas2d(napi_env env, napi_value native, const std::string& stdRoot);   // canvas2d.cpp: native.c2d, what a 2D context draws with
@@ -119,7 +137,8 @@ napi_value js_httpTake(napi_env c, napi_callback_info info) {
   return o;
 }
 // The bytes [at, at + n) of an ArrayBuffer argument (offset and length optional); nullptr with an exception pending when they are not there.
-const uint8_t* slice(napi_env c, Args<3>& A, const char* what, std::size_t& len) {
+template <std::size_t N>
+const uint8_t* slice(napi_env c, Args<N>& A, const char* what, std::size_t& len) {
   void* data = nullptr;
   std::size_t size = 0;
   bool is = false;
@@ -141,21 +160,148 @@ napi_value js_decode(napi_env c, napi_callback_info info) {
   const uint8_t* p = slice(c, A, "decode", n);
   return p ? string(c, reinterpret_cast<const char*>(p), n) : nullptr;
 }
+// ---- pictures, decoded off the frame (ZN-569): the engine's codec (src/res/codec.h: PNG, JPEG, BMP, the first frame of a GIF, WebP) on a
+// thread of its own, so a large picture never holds a frame. What a context sees is `__zincImages` (images below): start(bytes) and file(path)
+// ask, take(ms) hands the results over one at a time, cancel(id) forgets a request. A picture is { data: ArrayBuffer of RGBA8 rows from the top,
+// alpha not premultiplied, width, height }; its buffer is the decoder's own storage, handed over, not copied.
 // ponytail: one image size limit for every program (zn::kMaxImagePixels, include/zn/limits.h); a zinc.json key if a program ever needs more
-// decodeImage(buffer, offset, length): the pixels of an image file through the engine's codec (src/res/codec.h: PNG, JPEG, BMP, the first frame
-// of a GIF, WebP) as { data: ArrayBuffer of RGBA8 rows from the top, alpha not premultiplied, width, height }. undefined when the bytes are
-// not such an image; a RangeError when it is larger than kMaxImagePixels. The buffer is the decoder's own storage, handed over, not copied.
-napi_value js_decodeImage(napi_env c, napi_callback_info info) {
-  Args<3> A(c, info);
-  std::size_t n = 0;
-  const uint8_t* p = slice(c, A, "decodeImage", n);
-  if (!p) return nullptr;
-  int w = 0, h = 0;
-  if (!zn::res::imageSize(p, n, w, h) || w <= 0 || h <= 0) return nullptr;
-  if (static_cast<std::int64_t>(w) * h > kMaxImagePixels)
-    return throwRange(c, "an image of " + std::to_string(w) + " x " + std::to_string(h) + " pixels is larger than the " + std::to_string(static_cast<long long>(kMaxImagePixels)) + " the web environment decodes");
-  auto* px = new std::vector<uint8_t>();
-  if (!zn::res::decodeRgba(p, n, w, h, *px) || px->size() != static_cast<size_t>(w) * h * 4) { delete px; return nullptr; }
+constexpr std::int64_t kInlinePixels = 256 * 256;   // a picture this small is decoded at once (well under a millisecond), as a browser has a page's icons before its next script
+
+std::string tooLarge(int w, int h) {
+  return "an image of " + std::to_string(w) + " x " + std::to_string(h) + " pixels is larger than the " + std::to_string(static_cast<long long>(kMaxImagePixels)) + " the web environment decodes";
+}
+// The pixels of an image file: true with px filled; false with `error` empty when the bytes are no picture, or naming why it was refused
+bool decodePicture(const uint8_t* p, std::size_t n, int& w, int& h, std::vector<uint8_t>& px, std::string& error) {
+  if (!zn::res::imageSize(p, n, w, h) || w <= 0 || h <= 0) return false;
+  if (static_cast<std::int64_t>(w) * h > kMaxImagePixels) { error = tooLarge(w, h); return false; }
+  return zn::res::decodeRgba(p, n, w, h, px) && px.size() == static_cast<std::size_t>(w) * h * 4;
+}
+bool readWhole(const std::string& path, std::vector<uint8_t>& out) {   // one fread of the file's size
+  struct stat st;
+  if (stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) return false;
+  std::FILE* f = std::fopen(path.c_str(), "rb");
+  if (!f) return false;
+  out.resize(static_cast<std::size_t>(st.st_size));
+  const bool ok = std::fread(out.data(), 1, out.size(), f) == out.size();
+  std::fclose(f);
+  return ok;
+}
+
+// One context's requests and results. Its lifecycle is one enum changed by close(): Open while the context lives, Closed when it goes (its
+// results are freed and nothing more is kept). A request is live from start to take or cancel: a result for a request that is not live, or that
+// reaches a closed inbox, is dropped, never delivered. Shared by the context's thread and the decoding thread, so everything is under its lock.
+class Inbox {
+ public:
+  enum class State { Open, Closed };
+  struct Done { std::uint32_t id = 0; std::vector<uint8_t>* px = nullptr; int w = 0, h = 0; std::string error; };
+  std::uint32_t open() { std::lock_guard<std::mutex> l(m_); const std::uint32_t id = ++next_; if (state_ == State::Open) live_.insert(id); return id; }
+  bool wanted(std::uint32_t id) { std::lock_guard<std::mutex> l(m_); return state_ == State::Open && live_.count(id); }
+  void put(Done d) {
+    { std::lock_guard<std::mutex> l(m_); if (state_ == State::Open && live_.count(d.id)) { done_.push_back(std::move(d)); d.px = nullptr; } }
+    delete d.px;   // not delivered: cancelled, or the context is gone
+    cv_.notify_all();
+  }
+  // The next result; waitMs > 0 waits that long for one, < 0 until every live request has one (a deterministic run: the same frame each time)
+  bool take(Done& out, double waitMs) {
+    std::unique_lock<std::mutex> l(m_);
+    const auto ready = [&] { return !done_.empty() || live_.empty() || state_ != State::Open; };
+    if (waitMs < 0) cv_.wait(l, ready);
+    else if (waitMs > 0) cv_.wait_for(l, std::chrono::microseconds(static_cast<std::int64_t>(waitMs * 1000)), ready);
+    if (done_.empty()) return false;
+    out = std::move(done_.front());
+    done_.pop_front();
+    live_.erase(out.id);
+    return true;
+  }
+  void cancel(std::uint32_t id) {
+    std::lock_guard<std::mutex> l(m_);
+    live_.erase(id);
+    for (auto it = done_.begin(); it != done_.end(); ++it) if (it->id == id) { delete it->px; done_.erase(it); break; }
+  }
+  std::size_t live() { std::lock_guard<std::mutex> l(m_); return live_.size(); }
+  // Bytes lent by the context (a buffer no script can reach, read in place: no copy on the frame): the context's thread keeps the buffer alive
+  // until the decoding thread gives it back, whatever became of the request.
+  void lend(napi_env c, std::uint32_t id, napi_value buffer) {
+    napi_ref r = nullptr;
+    if (napi_create_reference(c, buffer, 1, &r) != napi_ok) return;
+    lent_[id] = r;
+    std::lock_guard<std::mutex> l(m_);
+    ++out_;
+  }
+  void giveBack(std::uint32_t id) { { std::lock_guard<std::mutex> l(m_); back_.push_back(id); --out_; } cv_.notify_all(); }   // decoding thread
+  void settleLoans(napi_env c) {   // the context's thread: frees what was given back
+    std::vector<std::uint32_t> ids;
+    { std::lock_guard<std::mutex> l(m_); ids.swap(back_); }
+    for (std::uint32_t id : ids) if (auto it = lent_.find(id); it != lent_.end()) { napi_delete_reference(c, it->second); lent_.erase(it); }
+  }
+  void close() {
+    std::unique_lock<std::mutex> l(m_);
+    if (state_ != State::Open) return;   // the only transition: Open -> Closed
+    state_ = State::Closed;
+    for (Done& d : done_) delete d.px;
+    done_.clear();
+    live_.clear();
+    cv_.notify_all();
+    cv_.wait(l, [&] { return out_ == 0; });   // a lent buffer being read is not freed under the decoding thread (the context is going)
+  }
+ private:
+  std::mutex m_;
+  std::condition_variable cv_;
+  State state_ = State::Open;
+  std::uint32_t next_ = 0;   // ids are never reused: a stale id names nothing
+  std::unordered_set<std::uint32_t> live_;
+  std::deque<Done> done_;
+  std::unordered_map<std::uint32_t, napi_ref> lent_;   // the context's thread only
+  std::vector<std::uint32_t> back_;                    // lent buffers the decoding thread no longer reads
+  std::size_t out_ = 0;                                // lent buffers it may still read
+};
+
+// The decoding thread of the process: the requests of every context, in the order they came. Idle until the first, then Running for the rest
+// of the process (never joined, so never torn down under a decode at exit).
+class Decoder {
+ public:
+  struct Job { std::shared_ptr<Inbox> to; std::uint32_t id = 0; std::string path; std::vector<uint8_t> bytes; const uint8_t* lent = nullptr; std::size_t lentSize = 0; };   // a path: read here too
+  enum class State { Idle, Running };
+  static Decoder& get() { static Decoder* d = new Decoder(); return *d; }   // ponytail: never freed, it lives as long as the process
+  void push(Job j) {
+    {
+      std::lock_guard<std::mutex> l(m_);
+      todo_.push_back(std::move(j));
+      if (state_ == State::Idle) { std::thread([this] { run(); }).detach(); state_ = State::Running; }
+    }
+    cv_.notify_one();
+  }
+ private:
+  void run() {
+    for (;;) {
+      Job j;
+      { std::unique_lock<std::mutex> l(m_); cv_.wait(l, [&] { return !todo_.empty(); }); j = std::move(todo_.front()); todo_.pop_front(); }
+      Inbox::Done d;
+      d.id = j.id;
+      if (j.to->wanted(j.id)) {   // else cancelled while it waited: not read, not decoded
+        if (!j.path.empty() && !readWhole(j.path, j.bytes)) j.bytes.clear();
+        const uint8_t* p = j.lent ? j.lent : j.bytes.data();
+        auto* px = new std::vector<uint8_t>();
+        if (decodePicture(p, j.lent ? j.lentSize : j.bytes.size(), d.w, d.h, *px, d.error)) d.px = px; else delete px;
+      }
+      if (j.lent) j.to->giveBack(j.id);
+      j.to->put(std::move(d));
+#ifndef ZN_ENGINE_MODULE
+      if (zn::loop::idleWake) zn::loop::idleWake();   // a window that sleeps while nothing changes wakes to deliver it
+#endif
+    }
+  }
+  std::mutex m_;
+  std::condition_variable cv_;
+  State state_ = State::Idle;
+  std::deque<Job> todo_;
+};
+
+// The inbox of each context that has one, for the hosts that pump on their own (zinc:script: imagesLive).
+std::mutex gInboxesLock;
+std::unordered_map<napi_env, Inbox*> gInboxes;
+
+napi_value pictureValue(napi_env c, std::vector<uint8_t>* px, int w, int h) {   // takes px
   napi_value o, data;
   if (napi_create_external_arraybuffer(c, px->data(), px->size(), [](napi_env, void*, void* hint) { delete static_cast<std::vector<uint8_t>*>(hint); }, px, &data) != napi_ok) {
     data = arrayBufferCopy(c, px->data(), px->size());   // an engine that cannot hand memory over (V8's sandbox): one copy
@@ -165,6 +311,121 @@ napi_value js_decodeImage(napi_env c, napi_callback_info info) {
   set(c, o, "data", data);
   set(c, o, "width", int32v(c, w));
   set(c, o, "height", int32v(c, h));
+  return o;
+}
+// A picture of these bytes: decoded now when it is small (the picture), else queued (its id); undefined when they are no picture, a RangeError
+// when it is larger than kMaxImagePixels.
+napi_value startBytes(napi_env c, Inbox& in, const std::shared_ptr<Inbox>& to, const uint8_t* p, std::size_t n, std::vector<uint8_t>* owned, napi_value lend = nullptr) {
+  int w = 0, h = 0;
+  if (!zn::res::imageSize(p, n, w, h) || w <= 0 || h <= 0) return nullptr;
+  if (static_cast<std::int64_t>(w) * h > kMaxImagePixels) return throwRange(c, tooLarge(w, h));
+  if (static_cast<std::int64_t>(w) * h <= kInlinePixels) {
+    auto* px = new std::vector<uint8_t>();
+    std::string error;
+    if (!decodePicture(p, n, w, h, *px, error)) { delete px; return nullptr; }
+    return pictureValue(c, px, w, h);
+  }
+  Decoder::Job j;
+  j.to = to; j.id = in.open();
+  if (owned) j.bytes.swap(*owned);
+  else if (lend) { j.lent = p; j.lentSize = n; in.lend(c, j.id, lend); }
+  else j.bytes.assign(p, p + n);   // the script's buffer may change before the thread reads it
+  const std::uint32_t id = j.id;
+  Decoder::get().push(std::move(j));
+  return uint32v(c, id);
+}
+// start(buffer, offset, length[, lend]): a picture of the bytes, or the id of its decode (take hands it over later); undefined for no picture.
+// lend: the buffer is read in place, not copied (32 MiB cost 3 to 4 ms to copy); only for a buffer no script can reach or change (the web
+// environment's own: a Blob's bytes, a response body), since the decoding thread reads it while scripts run.
+napi_value js_imgStart(napi_env c, napi_callback_info info) {
+  Args<4> A(c, info);
+  std::size_t n = 0;
+  const uint8_t* p = slice(c, A, "start", n);
+  if (!p) return nullptr;
+  const auto& to = *static_cast<std::shared_ptr<Inbox>*>(A.data);
+  to->settleLoans(c);
+  return startBytes(c, *to, to, p, n, nullptr, A.argc > 3 && truthy(c, A.argv[3]) ? A.argv[0] : nullptr);
+}
+#ifndef ZN_ENGINE_MODULE
+constexpr std::size_t kInlineBytes = 64 << 10;   // a file this small is read at once, then decoded at once when it is small too
+// file(path, fallback): the same for a file of the program, read on the thread too (fallback: where to look when the path has no file);
+// undefined when it cannot be read (the program's permissions are checked here, as the file rows check them)
+napi_value js_imgFile(napi_env c, napi_callback_info info) {
+  Args<3> A(c, info);
+  std::string path, fallback;
+  if (A.argc < 1 || !zn::napi::text(c, A.argv[0], path)) return nullptr;
+  if (A.argc > 1 && !zn::napi::text(c, A.argv[1], fallback)) fallback.clear();
+  struct stat st;
+  const auto readable = [&](const std::string& p) { return !p.empty() && zn::host::fsReadRefused(p).empty() && stat(p.c_str(), &st) == 0 && S_ISREG(st.st_mode); };
+  if (!readable(path)) { if (!readable(fallback)) return nullptr; path.swap(fallback); }
+  const auto& to = *static_cast<std::shared_ptr<Inbox>*>(A.data);
+  if (static_cast<std::size_t>(st.st_size) <= kInlineBytes) {
+    std::vector<uint8_t> bytes;
+    if (!readWhole(path, bytes)) return nullptr;
+    return startBytes(c, *to, to, bytes.data(), bytes.size(), &bytes);
+  }
+  Decoder::Job j;
+  j.to = to; j.id = to->open(); j.path = path;
+  const std::uint32_t id = j.id;
+  Decoder::get().push(std::move(j));
+  return uint32v(c, id);
+}
+#endif
+// take(ms): the next finished decode, { id, data, width, height } or { id, error } ("" for no picture); undefined when none is ready after
+// waiting up to ms (< 0: until every request has its result)
+napi_value js_imgTake(napi_env c, napi_callback_info info) {
+  Args<3> A(c, info);
+  double ms = 0;
+  if (A.argc > 0) number(c, A.argv[0], ms);
+  Inbox::Done d;
+  Inbox& in = **static_cast<std::shared_ptr<Inbox>*>(A.data);
+  in.settleLoans(c);
+  if (!in.take(d, ms)) return nullptr;
+  napi_value o;
+  if (d.px) o = pictureValue(c, d.px, d.w, d.h);
+  else { napi_create_object(c, &o); set(c, o, "error", string(c, d.error)); }
+  set(c, o, "id", uint32v(c, d.id));
+  return o;
+}
+napi_value js_imgCancel(napi_env c, napi_callback_info info) {   // cancel(id): its result, ready or not, is never delivered
+  Args<3> A(c, info);
+  std::uint32_t id = 0;
+  if (A.argc > 0 && uint32(c, A.argv[0], id)) (*static_cast<std::shared_ptr<Inbox>*>(A.data))->cancel(id);
+  return nullptr;
+}
+napi_value js_imgLive(napi_env c, napi_callback_info info) {   // live(): the requests not taken nor cancelled
+  Args<3> A(c, info);
+  return uint32v(c, static_cast<std::uint32_t>((*static_cast<std::shared_ptr<Inbox>*>(A.data))->live()));
+}
+// The context's `__zincImages` (made once): its functions share one inbox, closed when the context frees them
+napi_value images(napi_env env) {
+  napi_value g, have;
+  napi_get_global(env, &g);
+  napi_valuetype t = napi_undefined;
+  if (napi_get_named_property(env, g, "__zincImages", &have) == napi_ok && napi_typeof(env, have, &t) == napi_ok && t == napi_object) return have;
+  auto* holder = new std::shared_ptr<Inbox>(std::make_shared<Inbox>());
+  napi_value o, keep;
+  napi_create_object(env, &o);
+  const auto fn = [&](const char* name, napi_callback cb) { napi_value f; napi_create_function(env, name, NAPI_AUTO_LENGTH, cb, holder, &f); set(env, o, name, f); };
+  fn("start", js_imgStart);
+#ifndef ZN_ENGINE_MODULE
+  fn("file", js_imgFile);
+#endif
+  fn("take", js_imgTake);
+  fn("cancel", js_imgCancel);
+  fn("live", js_imgLive);
+  const char* det = std::getenv("ZINC_DETERMINISTIC");
+  set(env, o, "deterministic", boolean(env, det && *det && *det != '0'));   // results wait for their decode: the same frame at every run
+  { std::lock_guard<std::mutex> l(gInboxesLock); gInboxes[env] = holder->get(); }
+  napi_create_external(env, holder, [](napi_env e, void* data, void*) {
+    auto* h = static_cast<std::shared_ptr<Inbox>*>(data);
+    { std::lock_guard<std::mutex> l(gInboxesLock); auto it = gInboxes.find(e); if (it != gInboxes.end() && it->second == h->get()) gInboxes.erase(it); }
+    (*h)->close();   // a decode still running finishes into a closed inbox: dropped
+    delete h;
+  }, nullptr, &keep);
+  set(env, o, "_inbox", keep);
+  napi_property_descriptor d = {"__zincImages", nullptr, nullptr, nullptr, nullptr, o, napi_configurable, nullptr};   // not enumerable: no page sees it in the window's keys
+  napi_define_properties(env, g, 1, &d);
   return o;
 }
 // run(text, name): a classic script, run as the global code it is (its functions and vars become the window's), under its file's name in stack traces
@@ -216,6 +477,119 @@ JSValue js_module(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
 
 }  // namespace
 
+void imagesHook(napi_env env) { images(env); }
+
+// What a zinc:script context that draws with WebGL needs to load pictures as a page does (three.js's GLTFLoader: a Blob of the bytes, an object
+// URL, fetch of it, createImageBitmap). A context has no web environment and no timers: its host calls __zincImagesPump at each entry while
+// decodes are out (src/qjs/script_native.cpp). There is no Worker here, and no library that makes one on finding createImageBitmap (PixiJS) runs
+// in such a context; the web environment adds createImageBitmap with Worker (lib/std/webenv.js).
+const char* kImageShims = R"JS((g => {
+  const images = g.__zincImages;
+  if (!images || typeof g.createImageBitmap !== 'undefined') return;
+  const domError = (message, name) => typeof g.DOMException === 'function' ? new g.DOMException(message, name) : Object.assign(new Error(message), { name });
+  if (typeof g.Blob === 'undefined') {
+    const enc = new TextEncoder();
+    g.Blob = class Blob {   // the bytes of its parts, joined
+      constructor(parts = [], options = {}) {
+        const list = Array.from(parts, p => p instanceof Blob ? p._bytes : p instanceof ArrayBuffer ? new Uint8Array(p) : ArrayBuffer.isView(p) ? new Uint8Array(p.buffer, p.byteOffset, p.byteLength) : enc.encode(String(p)));
+        const out = new Uint8Array(list.reduce((n, b) => n + b.length, 0));
+        let at = 0;
+        for (const b of list) { out.set(b, at); at += b.length; }
+        Object.defineProperty(this, '_bytes', { value: out });
+        this.type = String(options.type || '').toLowerCase();
+      }
+      get size() { return this._bytes.length; }
+      arrayBuffer() { return Promise.resolve(this._bytes.slice().buffer); }
+      bytes() { return Promise.resolve(this._bytes.slice()); }
+      text() { return Promise.resolve(new TextDecoder().decode(this._bytes)); }
+      slice(start, end, type) { return new g.Blob([this._bytes.slice(start, end)], { type }); }
+    };
+  }
+  const blobs = new Map();
+  let blobCount = 0;
+  if (typeof g.URL === 'undefined') g.URL = class URL { constructor(url) { this.href = String(url); } toString() { return this.href; } };
+  if (typeof g.URL.createObjectURL !== 'function') {
+    g.URL.createObjectURL = blob => { const url = 'blob:zinc-script/' + ++blobCount; blobs.set(url, blob); return url; };
+    g.URL.revokeObjectURL = url => { blobs.delete(String(url)); };
+  }
+  if (typeof g.fetch === 'undefined') {
+    g.fetch = input => new Promise((resolve, reject) => {   // blob: and data: URLs: what loaders fetch of what they already hold
+      const url = String(input && input.url || input);
+      let blob = blobs.get(url);
+      if (!blob && /^data:/i.test(url)) {
+        const comma = url.indexOf(','), head = url.slice(5, comma), data = decodeURIComponent(url.slice(comma + 1));
+        if (comma > 0) blob = new g.Blob([/;base64$/i.test(head) ? Uint8Array.fromBase64(data) : data], { type: head.replace(/;base64$/i, '') });
+      }
+      if (!blob) return reject(new TypeError('Failed to fetch ' + url + ': a zinc:script context fetches blob: and data: URLs only'));
+      resolve({ ok: true, status: 200, statusText: 'OK', url, headers: { get: k => String(k).toLowerCase() === 'content-type' ? blob.type : null },
+        blob: () => Promise.resolve(blob), arrayBuffer: () => blob.arrayBuffer(), text: () => blob.text(), json: () => blob.text().then(JSON.parse) });
+    });
+  }
+  // the pixels of a texture source for the WebGL binding (src/gl/webgl_js.cpp): a bitmap's, or an ImageData
+  if (typeof g.__srcPixels !== 'function') g.__srcPixels = src => !src ? null : typeof src._pixels === 'function' ? src._pixels() : src.data && src.width ? src : null;
+
+  const waiting = new Map();   // decode id -> what settles its promise
+  Object.defineProperty(g, '__zincImagesPump', { value: () => {
+    for (let r = images.take(images.deterministic ? -1 : 0); r !== undefined; r = images.take(0)) {
+      const settle = waiting.get(r.id);
+      waiting.delete(r.id);
+      if (settle) settle(r);
+    }
+  }, configurable: true });
+  const picture = d => ({ data: new Uint8ClampedArray(d.data), width: d.width, height: d.height });
+  const decode = bytes => new Promise((resolve, reject) => {   // a picture of the bytes, null for none
+    let r;
+    try { r = images.start(bytes.buffer, bytes.byteOffset, bytes.byteLength, true); } catch (err) { return reject(err); }   // lent: a Blob's own bytes, or a copy of them
+    if (r === undefined || r === null) return resolve(null);
+    if (typeof r === 'object') return resolve(picture(r));
+    waiting.set(r, d => d.data ? resolve(picture(d)) : d.error ? reject(new RangeError(d.error)) : resolve(null));
+  });
+  // An ImageBitmap: pixels with an orientation and a premultiplication fixed when it was made (createImageBitmap's options). The pixels are kept
+  // as decoded and the two choices travel with them: the WebGL binding applies them as it uploads, in place of the context's unpack parameters,
+  // which WebGL ignores for a bitmap. So making one costs no pass over the pixels.
+  const made = Symbol('made');
+  class ImageBitmap {
+    constructor(token, px, flipY, premultiply) {
+      if (token !== made) throw new TypeError('Illegal constructor');
+      this.width = px.width; this.height = px.height;
+      Object.defineProperty(this, '_px', { value: { px, flipY, premultiply }, writable: true });
+    }
+    close() { this._px = null; this.width = 0; this.height = 0; }
+    _pixels() { const p = this._px; return p && { data: p.px.data, width: p.px.width, height: p.px.height, flipY: p.flipY, premultiply: p.premultiply }; }
+  }
+  // createImageBitmap(source[, sx, sy, sw, sh][, options]): from a Blob (an image file's bytes, decoded off the frame), an ImageData or another
+  // bitmap. imageOrientation 'flipY' and premultiplyAlpha 'none' | 'premultiply' | 'default' (premultiplied) are honoured, from any source as the pixels stay unpremultiplied; a rectangle that
+  // leaves the source is transparent there. Resizing is not done: asked for, the promise is rejected by name.
+  function createImageBitmap(source, a, b, c, d, e) {
+    const options = (typeof a === 'object' && a !== null ? a : e) || {};
+    if (options.resizeWidth !== undefined || options.resizeHeight !== undefined) return Promise.reject(domError('createImageBitmap does not resize', 'NotSupportedError'));
+    const isBlob = source && typeof source.arrayBuffer === 'function' && typeof source.size === 'number';
+    const pixels = !isBlob ? Promise.resolve(g.__srcPixels(source)) : source._bytes instanceof Uint8Array ? decode(source._bytes) : source.arrayBuffer().then(buf => decode(new Uint8Array(buf)));
+    return pixels.then(px => {
+      if (!px || !px.width || !px.height) throw domError('The source image could not be decoded', 'InvalidStateError');
+      if (typeof a === 'number') {   // the source rectangle: a negative size counts back from its corner
+        let sx = Math.trunc(a), sy = Math.trunc(b), sw = Math.trunc(c), sh = Math.trunc(d);
+        if (sw < 0) { sx += sw; sw = -sw; }
+        if (sh < 0) { sy += sh; sh = -sh; }
+        if (!sw || !sh) throw new RangeError('createImageBitmap: the source rectangle is empty');
+        if (px.flipY) sy = px.height - (sy + sh);   // a bitmap that is shown turned over keeps its rows as decoded: the rectangle is in what is shown
+        const out = new Uint8ClampedArray(sw * sh * 4), x0 = Math.max(0, sx), x1 = Math.min(px.width, sx + sw);
+        if (x1 > x0) for (let y = Math.max(0, sy), y1 = Math.min(px.height, sy + sh); y < y1; y++) out.set(px.data.subarray((y * px.width + x0) * 4, (y * px.width + x1) * 4), ((y - sy) * sw + x0 - sx) * 4);
+        px = { data: out, width: sw, height: sh, flipY: px.flipY, premultiply: px.premultiply };
+      }
+      return new ImageBitmap(made, px, !!px.flipY !== (options.imageOrientation === 'flipY'), options.premultiplyAlpha !== 'none');
+    });
+  }
+  g.ImageBitmap = ImageBitmap;
+  g.createImageBitmap = createImageBitmap;
+})(globalThis);
+)JS";
+std::size_t imagesLive(napi_env env) {
+  std::lock_guard<std::mutex> l(gInboxesLock);
+  auto it = gInboxes.find(env);
+  return it == gInboxes.end() ? 0 : it->second->live();
+}
+
 #ifndef ZN_ENGINE_MODULE
 std::string webMode(const std::string& entry) {
   if (const char* v = std::getenv("ZINC_WEB"); v && *v) return std::strcmp(v, "0") ? v : "";   // ZINC_WEB=0 turns a project's "web" off, ZINC_WEB=trace names the window members a library misses
@@ -245,7 +619,7 @@ bool webEnv(napi_env env, const std::string& stdRoot, const std::string& mode, c
   method(env, n, "httpPoll", js_httpPoll);
   method(env, n, "httpTake", js_httpTake);
   method(env, n, "decode", js_decode);
-  method(env, n, "decodeImage", js_decodeImage);
+  set(env, n, "images", images(env));   // pictures decoded off the frame
   method(env, n, "run", js_run);
   method(env, n, "xmldom", js_xmldom);
   gThirdParty = (std::filesystem::path(stdRoot) / "../../third_party").lexically_normal().string();

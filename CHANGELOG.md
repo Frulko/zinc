@@ -175,11 +175,13 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The web environment tells a page when its window loses or gets the focus (`blur`, `focus`, `document.hasFocus()`) and when it is minimised or shown again (`visibilitychange`, `document.hidden`); a hidden page runs no animation frame, as a background tab in a browser.
 - Shift, Control, Alt and Meta pressed alone reach a page as `keydown` and `keyup` events, so a game's Shift key works; `FormData` sends forms and files as `multipart/form-data`, and `localStorage.best = 3`, `delete localStorage.best` and `Object.keys(localStorage)` work as in a browser.
 - `zinc dev . --target web --engine wasm` runs the program on Zinc's own interpreter compiled to WebAssembly, in the page, and builds it again and reloads at each save: the same output as `zinc run --interp`, for console-style programs and `zinc:gfx` games. A program that needs native modules this engine lacks names them all at once.
+- A WebGL script of `zinc:script` has `createImageBitmap`, `Blob` and `fetch` of `blob:` and `data:` URLs, so three.js loads glTF models with their textures there: the truck of `examples/webgl-studio` is painted instead of plain white.
 
 #### Faster
 
 - `zinc export --target wasm` ships an interpreter of 0.6 MB instead of 6.4 MB (about 0.2 MB over the network), so the page starts sooner: it no longer carries its debug information.
 - Under `zinc dev --target web`, files and other bytes reach the page from your machine as base64, in one request and about a third of the size they had.
+- Pictures that JavaScript libraries load with `"web": true` (an `Image` of PixiJS, Phaser or three.js) are decoded on a thread of their own: a 4096 x 4096 PNG no longer freezes the page for a third of a second, the frame goes on.
 
 #### Fixed
 

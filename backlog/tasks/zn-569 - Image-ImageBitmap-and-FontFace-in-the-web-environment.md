@@ -1,11 +1,11 @@
 ---
 id: ZN-569
 title: 'Web environment: asynchronous image decode and createImageBitmap'
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-09 08:11'
-updated_date: '2026-11-07 18:30'
+updated_date: '2026-11-09 09:11'
 labels:
   - games
   - js
@@ -28,10 +28,10 @@ Image.src (files, data/blob URLs, http through zinc:net) and createImageBitmap d
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 the Cesium Milk Truck in examples/webgl-studio shows its texture
-- [ ] #2 PixiJS Assets.load('bunny.png') and Phaser this.load.image upload real pixels (pixel check of one sprite)
-- [ ] #3 the WebGL conformance texture pages that need images run (count reported)
-- [ ] #4 decoding a 4096x4096 PNG never blocks a frame for more than 2 ms
+- [x] #1 the Cesium Milk Truck in examples/webgl-studio shows its texture
+- [x] #2 PixiJS Assets.load('bunny.png') and Phaser this.load.image upload real pixels (pixel check of one sprite)
+- [x] #3 the WebGL conformance texture pages that need images run (count reported)
+- [x] #4 decoding a 4096x4096 PNG never blocks a frame for more than 2 ms
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -115,4 +115,60 @@ Review 2026-11-07: done-partly. Decode works; the off-main-thread pool read, one
 Review 2026-11-07, from backlog/later.md: ZN-569: a Worker in the web environment, and `createImageBitmap` with it; PixiJS `Assets.load` takes that path when both exist.
 Review 2026-11-07, from backlog/later.md: ZN-569: images read and decoded off the frame in the host; a large image stalls the frame that loads it.
 Review 2026-11-07, from backlog/later.md: ZN-587: the web environment's global Worker (Blob URL entries, structured clone with ArrayBuffer transfer, webenv in the worker) for PixiJS `preferWorkers` and Tone.js (criteria #1 and #2).
+
+2026-11-09, parallel agent (worktree worktree-agent-a75823577a48826cc), M1 Pro. STEP 3: pictures decoded off the frame, createImageBitmap in zinc:script WebGL contexts. All four criteria met; status Done.
+
+WEB SEARCH (sonnet sub-agent, the useful findings):
+- PixiJS 8 (unpkg pixi.js@8.17.1 lib/assets/loader/parsers/textures/loadTextures.mjs, workers/WorkerManager.mjs): takes createImageBitmap + a Worker with no `typeof Worker` guard. This confirms step 2: the web environment keeps createImageBitmap out until a Worker exists (ZN-587).
+- three.js GLTFLoader takes ImageBitmapLoader as soon as createImageBitmap exists (no user agent in a script context). ImageBitmapLoader defaults to {premultiplyAlpha:'none'}, and Texture.flipY and premultiplyAlpha are ignored for a bitmap, so the bitmap carries its own orientation (https://threejs.org/docs/pages/ImageBitmapLoader.html).
+- Deno's createImageBitmap (deno_canvas 01_image.js, deno_image bitmap.rs) maps imageOrientation and premultiplyAlpha to flags passed to an async op. That is the shape used here.
+- Chromium decodes ImageBitmaps on a background runner and drops the result at delivery when the context is gone. img.decode() rejects if src changes meanwhile. Mapping to this design: never cancel a decode, drop its result at delivery (a request id that is no longer live).
+- stb_image's flip setter is global (the thread-local variant exists only with STBI_THREAD_LOCAL). It is never set here: flips are done by the uploader. failure_reason is thread-local since 2.24. Bound the bytes in flight, not just the number of jobs (the existing 2^26-pixel bound refuses from the header).
+
+WHAT WAS BUILT:
+- src/qjs/webenv.cpp: one decoding thread for the process (Decoder, state Idle/Running, started at the first request). Each context has a completion queue (Inbox, state Open/Closed, changed only by close()). Ids are monotonic uint32 and are never reused. A request is live from start until its result is taken or it is cancelled; a result for an id that is not live is dropped, never delivered. A closed inbox (context finalised) takes no result. close() waits until the bytes it lent are given back.
+  - Natives on the non-enumerable `__zincImages`: start(buf, off, len[, lend]) decodes bytes, either copied or lent (read in place, with the buffer held until the decode is done); file(path, fallback) reads the file on the thread after the permission and fs-scope checks of the file row (zn::host::fsReadRefused); take(ms), cancel(id), live(), deterministic.
+  - A picture under 256 x 256 pixels, or under 64 KiB of bytes, is decoded at once. The pixels are handed over as an external ArrayBuffer, not copied. zn::loop::idleWake runs after each result so a sleeping window wakes.
+  - ZINC_DETERMINISTIC: take(-1) waits for every live request, so a run gives the same frames.
+- lib/std/webenv.js: Image.src (a file read on the thread, otherwise its bytes lent), with the events in a browser's order. A src set again, or removed, abandons the request (cancel); one event comes, for the last src.
+- zinc:script WebGL contexts (kImageShims, run when "webgl" is set): Blob, URL.createObjectURL, fetch of blob: and data: URLs, ImageBitmap, createImageBitmap (Blob / ImageData / bitmap, source rectangle, imageOrientation, premultiplyAlpha; resize refused with NotSupportedError, no picture with InvalidStateError). script_native's pump() delivers results at each entry into the script.
+- src/gl/webgl_js.cpp domPixels: a source's own flipY and premultiply win over the unpack parameters (a bitmap's flags, as WebGL says).
+- tests/webgl-conformance/dom-shim.js: Image over __zincImages (a file of the page's directory, or a data: URL).
+
+CRITERIA:
+#1 examples/webgl-studio: GLTFLoader takes ImageBitmapLoader, and the truck shows its texture (shots in deterministic and realtime runs). The README's "Known gap" line was replaced.
+#2 PixiJS v7 and v8 picture goldens are unchanged. Phaser picture pixels are right. A 1024 x 1024 PNG loaded off the frame gives the file's pixels in PixiJS 8 Assets.load and Phaser this.load.image (R = x>>2, G = y>>4 at two points), both deterministic and realtime.
+#3 24 conformance pages that need images were run by name (WGC_JOBS=1); 9 pass: gl-teximage, png-image-types, tex-image-canvas-corruption, texture-transparent-pixels-initialized, image-decoder-to-texture, ext-sRGB, astc, pvrtc, conformance2 integer-cubemap. 5 of the 13 that stopped with "no image decoder" now pass. The other 15 fail for reasons outside decoding:
+  - SVG ×2 (tex-image-svg-image-no-natural-width-and-height, texture-upload-size);
+  - video ×2 (canPlayType);
+  - cross-origin https ×3 (origin-clean);
+  - tex-image-with-format-and-type: 8 premultiply checks fail with image sources. The decode was checked: alpha 0 for all 256 pixels;
+  - tex-image-10bpc: a 16-bit PNG is decoded to 8 bits;
+  - oes-texture-(half-)float-with-image: needs canvas toDataURL;
+  - exif-orientation: needs fetch and createImageBitmap in the shim, plus EXIF;
+  - texture-srgb-upload and tex-image-with-bad-args-from-dom-elements: "not a function";
+  - canvas-teximage-after-multiple-drawimages: no PASS.
+#4 4096 x 4096 PNG (33.6 MiB), realtime, headless:
+  - Setting src takes 0.45 to 0.61 ms (one 0.99 ms; one 5 ms at load average 10). The longest timer task is 0.04 to 0.13 ms.
+  - The longest gap between frames is 19 to 21 ms, the same as with no picture (20 to 21 ms).
+  - Before: a 282 to 314 ms gap, and src= took 17 to 62 ms.
+  - Bytes path: start() on 32 MiB takes 3 to 4 ms copied, 0.01 ms lent (why the environment lends).
+
+PROPOSED DECISION: Pictures of the web environment and of zinc:script WebGL contexts decode on one process-wide thread with a completion queue per context. Each queue has one state (Open/Closed), ids are monotonic and never reused, and a cancelled, stale or closed request is dropped at delivery; a decode is never interrupted. createImageBitmap exists in zinc:script WebGL contexts, where no library looks for a Worker and three.js needs it for glTF textures. It stays out of the web environment until a Worker exists (ZN-587), because PixiJS 7 and 8 fail to load any picture with createImageBitmap and no Worker. A bitmap keeps its pixels as decoded, and its two flags are applied by the uploader.
+
+LATER.MD LINES:
+- ZN-569: the first `new URL()` of a web-environment program costs 28 to 45 ms (it loads zinc:web), which a frame pays. Load that module at start, or make URL native.
+- ZN-569: the conformance dom-shim lacks fetch, createImageBitmap, canvas toDataURL, video and SVG pictures, which keeps about 10 texture pages from running.
+- ZN-569: tex-image-with-format-and-type fails 8 premultiply checks with image sources even though the decode gives alpha 0. Look at the upload path for an image with UNPACK_PREMULTIPLY_ALPHA.
+- ZN-569: 16-bit PNGs decode to 8 bits (stbi_load_16), so tex-image-10bpc fails.
+- ZN-569: one decoding thread for the process. A pool of 2 to 4 would load a page with many pictures faster; measure on the Pi before adding one.
+- ZN-569: EXIF orientation of JPEGs (imageOrientation 'from-image') is not applied.
+
+NOTE, not caused by this task: tests/golden/webenv/phaser/page.out differs on lines 5 to 7 (pointer/key frame shift) with the develop binary too. The pixel lines match.
+
+PROPOSED TESTS (none run beyond T0 webenv and script_images, both PASS):
+- tests/run --tier t1 --only webgl_studio: the truck scene still checks out with textures loaded; about 10 s, 300 MB.
+- tests/run --tier t1 --only webenv_image,webenv_pixi,webenv_phaser,webenv_three: pictures through each loader on the new async path; about 1 min, 300 MB.
+- tools/webgl-conformance on the 24 image pages named above: the 9 PASS stay; about 2 min, 400 MB.
+- A T1 frame-gap check (a 4096 x 4096 PNG under ZINC_REALTIME, longest frame gap at most the baseline + 2 ms): criterion 4 kept; about 5 s, 200 MB. It measures time, so run it alone.
 <!-- SECTION:NOTES:END -->

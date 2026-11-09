@@ -2656,6 +2656,7 @@ int main(int argc, char** argv) {
   zn::text::installSegmenter();   // Intl.Segmenter in the QuickJS engine (ZN-165)
   zn::qjs::addContextHook(webglHook);
   zn::qjs::addContextHook(wasmHook);   // WebAssembly, from the wasm pack on first use (ZN-773.06)
+  zn::qjs::addContextHook(zn::qjs::imagesHook);   // __zincImages: pictures decoded off the frame (ZN-569)
   zn::host::hostGl = glRows;   // document.createElement('canvas').getContext('webgl') in the QuickJS engine (ZN-203.03), from the module
   if (argc >= 5 && !std::strcmp(argv[1], "run") && !std::strcmp(argv[3], "--engine")) {  // zinc run <file> --engine quickjs [-- args...]: plain JavaScript or stripped TypeScript on QuickJS-ng
     const std::string engine = argv[4];

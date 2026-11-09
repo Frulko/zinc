@@ -25,7 +25,7 @@ bool qjs_lre_check_stack_overflow(void*, size_t);
 
 #include "zn/native.h"
 #include "zn/shortest.h"
-namespace zn::qjs { extern const char* kWebShims; }   // src/qjs/prelude.cpp
+namespace zn::qjs { extern const char* kWebShims; extern const char* kImageShims; std::size_t imagesLive(napi_env env); }   // src/qjs/web_shims.cpp, webenv.cpp
 
 namespace {
 
@@ -42,6 +42,7 @@ struct Vm {
   JSContext* ctx = nullptr;
   double limitMs = 0, memLimit = 0, deadline = 0;
   bool interrupted = false, stopped = false, closing = false, cut = false;
+  bool images = false;                     // the context loads pictures (kImageShims): each entry delivers the finished decodes
   int depth = 0;
   std::string result, err;
   std::vector<JSValue> refs;               // function handles (JS_UNINITIALIZED = free slot)
@@ -334,6 +335,12 @@ int interruptHandler(JSRuntime*, void* opaque) {
 void freeVm(Vm* vm);
 // Runs the pending promise jobs; false (error in vm->err) when one hit a limit.
 bool pump(Vm* vm) {
+  if (vm->images && zn::qjs::imagesLive(zn::qjs::napiEnv(vm->ctx))) {   // the pictures decoded since the last entry settle their promises (the jobs below run them)
+    JSValue g = JS_GetGlobalObject(vm->ctx), f = JS_GetPropertyStr(vm->ctx, g, "__zincImagesPump");
+    JSValue r = JS_Call(vm->ctx, f, g, 0, nullptr);
+    if (JS_IsException(r)) { takeError(vm, JS_GetException(vm->ctx)); JS_FreeValue(vm->ctx, f); JS_FreeValue(vm->ctx, g); return false; }
+    JS_FreeValue(vm->ctx, r); JS_FreeValue(vm->ctx, f); JS_FreeValue(vm->ctx, g);
+  }
   for (;;) {
     JSContext* c = nullptr;
     int r = JS_ExecutePendingJob(vm->rt, &c);
@@ -537,9 +544,13 @@ int32_t qCreate(void*, ZnCtx*, Args a, ZnVal* r) {
   if (a[2].d > 0) JS_SetMaxStackSize(rt, static_cast<size_t>(a[2].d));
   JSContext* ctx = JS_NewContext(rt);
   if (!ctx) { JS_FreeRuntime(rt); return ZN_OK; }
-  if (const char* wg = std::getenv("ZINC_WEBGL"); wg && *wg && *wg != '0') zn::qjs::runContextHooks(zn::qjs::napiEnv(ctx));   // zinc.json "webgl": true: document.createElement('canvas').getContext('webgl') in scripts (ZN-205)
+  const char* wg = std::getenv("ZINC_WEBGL");
+  const bool images = wg && *wg && *wg != '0';
+  if (images) zn::qjs::runContextHooks(zn::qjs::napiEnv(ctx));   // zinc.json "webgl": true: document.createElement('canvas').getContext('webgl') in scripts (ZN-205)
   { JSValue r = JS_Eval(ctx, zn::qjs::kWebShims, strlen(zn::qjs::kWebShims), "<web-shims>", JS_EVAL_TYPE_GLOBAL); JS_FreeValue(ctx, r); }   // TextDecoder and friends: GLTFLoader and other loaders need them
+  if (images) { JSValue r = JS_Eval(ctx, zn::qjs::kImageShims, strlen(zn::qjs::kImageShims), "<image-shims>", JS_EVAL_TYPE_GLOBAL); JS_FreeValue(ctx, r); }   // Blob, fetch of blob: URLs, createImageBitmap: GLTFLoader's textures (ZN-569)
   Vm* vm = new Vm();
+  vm->images = images;
   gGen = gGen % 0xFFFFFF + 1;
   vm->h = h + kMaxVm * gGen; vm->rt = rt; vm->ctx = ctx; vm->limitMs = a[1].d; vm->memLimit = a[0].d;
   JS_SetContextOpaque(ctx, vm);

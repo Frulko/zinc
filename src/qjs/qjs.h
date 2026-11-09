@@ -78,6 +78,13 @@ bool webEnv(JSContext* ctx, const std::string& stdRoot, const std::string& entry
 bool webEnv(napi_env env, const std::string& stdRoot, const std::string& mode, const std::string& base, void (*services)(napi_env env, struct napi_value__* web));
 std::string webMode(const std::string& entry);
 std::string webBase(const std::string& entry);
+// Pictures decoded off the frame (ZN-569): imagesHook, a context hook, gives the context `__zincImages` (start, file, take, cancel, live: one
+// decoding thread for the process, an inbox per context); imagesLive counts a context's requests still out. kImageShims: Blob, URL.createObjectURL,
+// fetch of blob: and data: URLs, ImageBitmap and createImageBitmap over it, for a zinc:script context that draws with WebGL (it has no web
+// environment); there `__zincImagesPump()` delivers the results, called by the context's host.
+void imagesHook(napi_env env);
+std::size_t imagesLive(napi_env env);
+extern const char* kImageShims;
 
 // src/qjs/worker_js.cpp, zinc:worker (ZN-587): the globals its module calls (the record wire, the Rt::HostWorker* rows over zn::host::workerBridge),
 // installed in every context; `mainDir` (the main program's) is where a relative worker entry is read. kWorkerSelfJs follows the module's own code.

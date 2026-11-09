@@ -35,6 +35,13 @@ file=tests/golden/webenv/image.js
 web 1 > "$tmp/image.out" 2> "$tmp/image.err" || { echo "webenv: image.js failed: $(head -c 300 "$tmp/image.err")"; fail=1; }
 diff "$tmp/image.out" tests/golden/webenv/image.out > "$tmp/image.diff" || { echo "webenv: image.js differs from tests/golden/webenv/image.out:"; head -20 "$tmp/image.diff"; fail=1; }
 grep -q "^zinc: an image of 9000 x 9000 pixels is larger than" "$tmp/image.err" || { echo "webenv: a picture over the pixel bound is not refused by name: $(head -c 200 "$tmp/image.err")"; fail=1; }
+# pictures decoded off the frame (ZN-569): a file and a blob: URL on the decoding thread, src set twice or removed while it decodes, a cancelled
+# or stale request never delivered; the same output whether each result waits for its decode (deterministic) or comes when it is done
+file=tests/golden/webenv/image_async.js
+for det in 1 0; do
+  web 1 ZINC_DETERMINISTIC=$det > "$tmp/async.out" 2> "$tmp/async.err" || { echo "webenv: image_async.js (deterministic $det) failed: $(head -c 300 "$tmp/async.err")"; fail=1; }
+  diff "$tmp/async.out" tests/golden/webenv/image_async.out > "$tmp/async.diff" || { echo "webenv: image_async.js (deterministic $det) differs from tests/golden/webenv/image_async.out:"; head -20 "$tmp/async.diff"; fail=1; }
+done
 # the same over the host's network: a server of the assets on a loopback port the system picks
 if command -v python3 >/dev/null 2>&1; then
   python3 -c 'import http.server, socketserver, sys, os
