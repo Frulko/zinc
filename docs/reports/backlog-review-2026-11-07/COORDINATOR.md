@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Created/claimed ZN-1083 (blocks RadioCards): complete mapped/multiple Show children must use existing fragment emission. Research completed from Solid/React/TS primary docs. New core worker work/1083-show, one engine build maximum currently. Selection may separately build only AppKit mixed-state plugin (second tree), but native fixture waits Show fix; no concurrent runtime tests. Inputs gets retained artifact size attribution first, no source contortions or budget change.
+
 - 2026-11-09: Integrated ZN-1082 (c1c330cfa, Done); clean retained binary rebuilt, jsx_grab actual arbitration PASS all6 model/engine combinations, solid fixture check PASS. Original Slider horizontal/vertical all3 proof passed. Core worker clean/no processes; remove work/1082-grab. Next1083 Show direct-map/sibling lowering research completed; original RadioCards unchanged. Inputs source frozen at4912B used-component size overage pending retained artifact attribution and Money focus subscription correction.
 
 - 2026-11-09: Created/claimed ZN-1082 (blocks Selection slider): dynamic grab binding rejected by literal-only frontend. Exact existing enum keep/keep-x/auto only. Short primary-source research completed; fourth agent slot reserved for one core worker, no further UI research until released. Inputs has next bounded proof batch; engine worker must avoid final link while it runs.
