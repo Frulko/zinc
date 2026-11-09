@@ -186,6 +186,45 @@ compositor; under reduced motion (`ui.prefersReducedMotion()`) the property take
 | `SPRING_SNAPPY` | 260 ms, 0.12 | presses, small feedback |
 | `SPRING_MORPH` | 420 ms, 0.16 | a shape turning into another |
 
+## What a component costs
+
+A program pays for the components it uses, not for the ones it could import. `import { Button } from 'zinc:ui/kit'`
+loads every family of the kit, and the compilers keep only what the program reaches:
+
+- the typed engines (interpreter and AOT) drop every function no reachable code calls, and every method nobody calls
+  (rapid type analysis, after inlining);
+- `zinc bundle` (QuickJS) tree-shakes with esbuild, which drops every unused export of a module that runs no code when
+  it loads.
+
+Measured on an M1 Pro, 2026-11-09 (`tests/t0/kit_size.sh` prints them):
+
+| Program | AOT binary (`zinc build`) | QuickJS bundle (`zinc bundle --minify`) |
+|---|---|---|
+| `<View><Text>` alone | 5.16 MB | 167 KB |
+| plus one `Button`, imported from its own file | +264 KB | +59 KB |
+| the same `Button` through `zinc:ui/kit` (26 families unused) | +1.88 MB | +0.4 KB |
+| nine more components (Card, Input, Switch, Tabs, Slider...) | +48 KB each | +1.5 KB each |
+
+The first `Button` carries the class-string styling of `zinc:ui` and the theme; each component after it costs little.
+The +1.88 MB of the third line is a gap of the AOT build, not of the kit: a plugin is linked when a file the program
+loads imports it, reachable or not. `zinc:icons` and `ProgressRing` draw with `zinc:svg`, so every kit program links
+the SVG plugin and, with a plugin present, the full system host (network and TLS). The test fails until the build links
+a plugin only when reachable code calls it.
+
+Rules that keep it so, for whoever adds to the kit:
+
+- **No code at the top level.** A kit module declares functions, types and constant data; it calls nothing, registers
+  nothing and defines no scheme when it loads. State is made at its first use (the theme signal and the colour schemes
+  are). An empty `Map` or `Set` is fine. `tests/t0/kit_size.sh` checks it.
+- **One module per family**, exported by `index.ts`. No table that names every component, no registry filled at load.
+- **Sizes built at run time** in the looks (`tx(13, '')`, not a written `text-[13px]`): the font baker bakes every size
+  it reads in the sources a program loads, so a size written in a look nobody uses would grow every program.
+- **Icons by a written name** (`<Icon name="check" />`): only the names written in the sources are compiled in.
+- **Themes are data**: roles, colours and shapes, never functions stored in a table.
+
+The gate allows 4 KB of AOT binary and 256 bytes of bundle per unused family, and 64 KB and 4 KB for one more
+component used.
+
 ## How it works
 
 Each kit file starts with `/** @jsxHelpers ./host */`: the JSX compiler lowers that file against

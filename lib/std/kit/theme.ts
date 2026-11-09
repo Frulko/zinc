@@ -169,7 +169,10 @@ function defineSchemes(): void {
   ui.defineScheme('dark', KEYS, want === 'kit' ? colorsOf(DARK) : quietColors(1));
 }
 
-const [current, setCurrent] = createSignal<Theme>(VARS);
+// The theme signal is made at the first read, as the schemes are: loading the kit runs no code (docs/ui-kit.md, what a component costs)
+let signal: [() => Theme, (v: Theme) => void] | null = null;
+function current(): Theme { if (signal === null) signal = createSignal<Theme>(VARS); return signal![0](); }
+function setCurrent(t: Theme): void { if (signal === null) signal = createSignal<Theme>(t); else signal![1](t); }
 
 /** The current theme (a tracked read under Solid). */
 export function theme(): Theme { defineSchemes(); return current(); }
