@@ -190,5 +190,19 @@
   "proposed_tests": [
     "Physical keyboard/pointer/touch/VoiceOver and native-host replay: links/tasks, find/go-to-line, diff/JSON navigation; minutes, one bounded window.",
     "Owner-selected quiet-machine large-file scrolling, idle and repeated unmount memory checks, then device coverage."
-  ]
+  ],
+  "integration": {
+    "commit": "8bbf8a245",
+    "root_checks": {
+      "kit_code": "all six PASS",
+      "gallery_check": "PASS",
+      "original_editor_gallery_quickjs_3_frames": "exit0"
+    },
+    "root_inspected": [
+      "docs/img/kit-code-editor.png",
+      "docs/img/kit-code-json-dark-narrow.png"
+    ],
+    "logs": ".logs/integration-2026-11-10/{kit_code-integrated,code-gallery-check,code-gallery-run}.log",
+    "size_acceptance": "still open12 strict JS bytes; no size budget waiver"
+  }
 }

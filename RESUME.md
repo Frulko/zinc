@@ -4,9 +4,11 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 ## Active work
 
+Core1108→1109 active in .worktrees/1108/work/1108, fresh sole core worker; optional-chain helper guard correction building, method receiver defaults next.
+
 | Work | Location | State |
 | --- | --- | --- |
-| Code13 | work/1078-code, .worktrees/1078-code | Five controls implemented via existing editor/Markdown/inspector providers. Original both-model/all3 interactions pass with integrated1105/1107. Final caches and all6 proofs pass; pictures/provenance checkpoint being finalized. AC3 stays open: JS235962/239442/276318,12B strict used-budget excess; unused/AOT pass. Next free slot goes core1108/1109. No core edits. |
+| Code13 | integrated8bbf8a245, released Backlog | Five controls implemented via existing editor/Markdown/inspector providers. Original both-model/all3 interactions pass with integrated1105/1107. Final caches, all6 root replay, gallery check/run and pictures pass; D277. No active worker. AC3 stays open: JS235962/239442/276318,12B strict used-budget excess; unused/AOT pass. Next free slot goes core1108/1109. No core edits. |
 | Tool panels14 | work/1078-panels, .worktrees/1078-panels | Fresh implementation worker active, ten controls, caller-owned state and existing providers. Owns minimal ScrubField default-bounds correction; prior caller has explicit bounds. QJS model/gallery passes independently; original optional-find/default-this code waits1108/1109. Numeric control geometry is the portable path under documented ZN-382 classic percent-inset limit; separate rn class-parser defect is in later.md. Rebase before final delivery to omit duplicate1107 cherry-pick. |
 | Charts15 | work/1078.15, .worktrees/1078.15 | Claimed896b30461, fresh inherited-model TS-only worker. All listed charts, actual interactions, gallery/pictures and unchanged gate. Avoids Code/panels/input providers. |
 | Data12 | integrated8f8478bd5 | Done: original twelve runs and root final combined gate pass on da7ca0360. Eight inspected pictures. |
@@ -26,7 +28,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 ## Current verification and next commands
 
--1108→1109 reserved NEXT fresh core batch (two tasks):1109 method default `this.lines.length` produces non-ref field IR, blocking TerminalBuffer.text; six-line repro .logs/blockers/default-this.1108: valid `track()?.keys.find(...)` fails Z0106 on Key[] while direct call passes. Blocks original Tool14 Timeline/Curve code; no app guard workaround. Minimal sources/logs .logs/blockers/optional-array-method and panels/.logs. TypeScript3.7/ECMAScript primary references in task. Current three slots are Code/Tool/Charts; assign fresh core when one reports, prioritize this blocker.
+-1108→1109 reserved NEXT fresh core batch (two tasks):1109 method default `this.lines.length` produces non-ref field IR, blocking TerminalBuffer.text; six-line repro .logs/blockers/default-this.1108: valid `track()?.keys.find(...)` fails Z0106 on Key[] while direct call passes. Blocks original Tool14 Timeline/Curve code; no app guard workaround. Minimal sources/logs .logs/blockers/optional-array-method and panels/.logs. TypeScript3.7/ECMAScript primary references in task. Fresh core_1108 now owns both tasks in work/1108 beside Tool/Charts; one core writer.
 
 Root final targeted checks PASS on the rebuilt clean binary: collection_results, nullable_numeric, text_offset, component_signal, kit_data (twelve runs), kit_feedback and raw unchanged kit_size. Combined JS235962/239047/275739B (4076/component;172B strict headroom), AOT5325320/5374848/5926624B (61308/component). Source hashes/raw stdout: docs/reports/bench/kit-integration-2026-11-10.json and .logs/integration-2026-11-10. Data12 and Feedback11 are closed/released on this evidence. Only exact regressions/short feature proofs ran, no suite.
 

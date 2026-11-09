@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Code13 checkpoint8bbf8a245 integrated/released Backlog AC1/2 complete, AC3 open12 strict JS bytes; root exact all6/gallery check/3frame QJS original editor PASS. D277/provenance recorded. Fresh core1108→1109 started in work/1108, sole core writer, beside Tool14/Charts15.39Done unchanged; no UI/budget cut. Code completed tree logs/stash will be archived before removal.
+
 - Reserved1109 after confirmed original Tool14 Terminal default-this regression: six lines fail RC verification on clean da7ca, source/log archived, ordinary method receiver/default semantics researched from ECMAScript. Fresh sole core chain1108→1109 next free slot; no control workaround. Code13 finishes truthful checkpoint AC1/2, AC3 open for12 strict JS bytes; other size gates and exact all6 pass.
 
 - 2026-11-10: OptiPlex first actual proof PASS via Tailscale: unchanged nullable_numeric compiled x86_64-linux on Mac, remote timeout15/headless, exit0, SHA2567c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a; no process left. Nine completed clean trees archived/removed, active/common tree retained. Created/reserved1108 original Tool14 blocker: optional-chain array.find Z0106, direct call passes. Source/logs and primary semantics recorded; next fresh free slot takes sole core correction, panels continues independent work.
