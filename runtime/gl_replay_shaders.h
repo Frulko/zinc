@@ -102,9 +102,14 @@ static const char* const FS_MODE[MODES] = {
   "    cov = 1.0;\n",
   // RESTORE: rounded clip corners
   "    col = texture2D(u_tex, v_pos.zw).rgb; a = 1.0 - cover(p, c, h, r); cov = 1.0;\n",
-  // SHADOW: blurred rounded box
-  "    float blur = v_par.y, k = clamp(1.0 - (sdf(p, c, h, r) + blur * 0.5) / (blur * 1.5), 0.0, 1.0);\n"
-  "    cov = k * k * (3.0 - 2.0 * k);\n",
+  // SHADOW: blurred rounded box; an inset (blur < 0, ZN-260): inside the box, the falloff turned outward from the hole (the pixel from its
+  // centre in v_pos.zw, the box shrunk by the spread in grad), as raster.cpp inset_rrect
+  "    float blur = abs(v_par.y), k = 1.0;\n"
+  "    if (v_par.y < 0.0) {\n"
+  "      vec2 hh = h - grad;\n"
+  "      if (hh.x > 0.0 && hh.y > 0.0) { k = clamp((sdf(v_pos.zw, vec2(0.0), hh, clamp(r - grad, 0.0, min(hh.x, hh.y))) + blur) / (blur * 1.5), 0.0, 1.0); k = k * k * (3.0 - 2.0 * k); }\n"
+  "      cov = cover(p, c, h, r) * k;\n"
+  "    } else { k = clamp(1.0 - (sdf(p, c, h, r) + blur * 0.5) / (blur * 1.5), 0.0, 1.0); cov = k * k * (3.0 - 2.0 * k); }\n",
   // STROKE: the capsule of segment A-B (round joins and caps); the pixel is this segment's when no neighbour is nearer (ties to the
   // previous one): blended once
   "    float d = seg(p, v_pos.zw, c);\n"

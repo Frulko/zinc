@@ -48,6 +48,9 @@ declare module 'zinc:gfx' {
   export function border(x: number, y: number, w: number, h: number, r: number, width: number, color: u32, alpha: i32): void;
   /** Soft drop shadow of a rounded box. */
   export function shadow(x: number, y: number, w: number, h: number, r: number, blur: number, color: u32, alpha: i32): void;
+  /** Inner shadow of a rounded box (CSS `box-shadow: inset`): inside the box, the shade around a hole that is the box moved by (dx, dy)
+   *  and shrunk by `spread` (its radius r - spread), soft over `blur`. Nothing is drawn outside the box. */
+  export function insetShadow(x: number, y: number, w: number, h: number, r: number, blur: number, dx: number, dy: number, spread: number, color: u32, alpha: i32): void;
   /** Filled polygon from flat [x0, y0, x1, y1, ...] points (anti-aliased). */
   export function polygon(points: number[], color: u32, alpha: i32): void;
   /** Several contours [count, x0, y0, ..., count, ...], nonzero winding (holes, vector art, Lottie). */

@@ -21,6 +21,9 @@ namespace {
 // The words of zinc:ui's painter (lib/std/ui.ts paintGradient, tierWarn), so the build and the run-time line say the same thing.
 const char* const kConic = "a conic gradient is drawn as the average of its stops";
 const char* const kStops = "a gradient beyond two stops along an axis is drawn from its first to its last colour";
+const char* const kInset = "an inset shadow is not drawn";   // paintShadows (ZN-260), below T2
+const char* const kLayers = "a box shadow beyond two layers is drawn with its first two";
+const char* const kBlur = "a box shadow blur beyond 8 px is drawn at 8 px";
 
 bool offAxis(double deg) { return std::fmod(std::fabs(deg), 90.0) != 0; }
 
@@ -43,6 +46,33 @@ bool linearBeyondTwo(const std::string& args) {
   }
   // ponytail: stop positions and stop alphas are not looked at here; zinc:ui's line at run time still names the gradient
   return stops > 2;
+}
+// shadow-[..]'s layers (`_` for spaces, `,` between them) as T0 and T1 draw them simpler: an inset first, more than two layers, a blur over 8 px
+const char* shadowBeyond(const std::string& v) {
+  std::vector<std::string> layers(1);
+  int depth = 0;
+  for (char c : v) {
+    if (c == '(') ++depth;
+    if (c == ')') --depth;
+    if (c == ',' && depth == 0) layers.emplace_back(); else layers.back() += c;
+  }
+  bool blur = false;
+  for (const std::string& l : layers) {
+    int lengths = 0;
+    for (std::size_t at = 0; at <= l.size();) {
+      std::size_t end = l.find('_', at);
+      if (end == std::string::npos) end = l.size();
+      const std::string w = l.substr(at, end - at);
+      at = end + 1;
+      if (w == "inset") return kInset;
+      char* stop = nullptr;
+      const double px = std::strtod(w.c_str(), &stop);
+      const std::string unit = stop;
+      if (w.empty() || stop == w.c_str() || !(unit.empty() || unit == "px" || unit == "rem")) continue;   // a colour
+      if (++lengths == 3 && px * (unit == "rem" ? 16 : 1) > 8) blur = true;
+    }
+  }
+  return layers.size() > 2 ? kLayers : blur ? kBlur : nullptr;
 }
 }  // namespace
 
@@ -71,6 +101,9 @@ int styleTokenTier(const std::string& raw, std::string& what) {
     if (m[1].str() == "from" ? v > 0 : v < 100) { what = kStops; return 2; }
   }
   if (std::regex_match(t, m, linear) && linearBeyondTwo(m[1].str())) { what = kStops; return 2; }
+  static const std::regex insetShadow(R"(^inset-shadow-(2xs|xs|sm|\[.+\])$)"), shadowArb(R"(^shadow-\[(.+)\]$)");
+  if (std::regex_match(t, insetShadow)) { what = kInset; return 2; }
+  if (std::regex_match(t, m, shadowArb)) if (const char* w = shadowBeyond(m[1].str())) { what = w; return 2; }
   return 0;
 }
 
@@ -80,7 +113,8 @@ std::vector<StyleUse> styleUses(std::string_view text, int tier) {
   for (const Token& k : lex(text, false)) {
     if ((k.kind != Tok::String && k.kind != Tok::TemplateNoSub) || k.end < k.start + 2) continue;
     const std::string_view s = text.substr(k.start + 1, k.end - k.start - 2);
-    if (s.find("bg-") == std::string_view::npos && s.find("via-") == std::string_view::npos && s.find("from-") == std::string_view::npos && s.find("to-") == std::string_view::npos) continue;
+    if (s.find("bg-") == std::string_view::npos && s.find("via-") == std::string_view::npos && s.find("from-") == std::string_view::npos && s.find("to-") == std::string_view::npos &&
+        s.find("shadow-") == std::string_view::npos) continue;
     for (std::size_t at = 0; at < s.size();) {
       while (at < s.size() && std::isspace(static_cast<unsigned char>(s[at]))) ++at;
       std::size_t end = at;

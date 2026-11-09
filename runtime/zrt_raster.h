@@ -163,6 +163,18 @@ enum Blend : uint8_t { BLEND_NORMAL, BLEND_ADD, BLEND_MULTIPLY, BLEND_SCREEN };
 inline uint32_t image_tint(const Cmd& c) { return c.pad & kImageTint ? (uint32_t)c.r & 0xFFFFFF : 0xFFFFFF; }
 inline float image_radius(const Cmd& c) { return c.pad & kImageTint ? 0.0f : c.r; }
 inline uint32_t image_blend(const Cmd& c) { return (uint32_t)(c.pad >> kBlendShift) & 3; }
+/** An inset SHADOW (box-shadow: inset, ZN-260), pad bit kShadowInset: x, y, w, h, r is the box it shades (nothing is painted outside its
+ *  rounded rectangle) and s the blur; the hole that stays clear is the box moved by (dx, dy) and shrunk by the spread, radius r - spread, its
+ *  three floats in off, n and c2, which a SHADOW has no other use for (the frame diff compares off for it). Shaded:
+ *  the shadow the frame around the hole casts into it (raster.cpp inset_rrect); an empty hole shades the whole box. */
+constexpr uint8_t kShadowInset = 1;
+struct Hole { float dx, dy, spread; };
+inline Hole shadow_hole(const Cmd& c) {
+  Hole h;
+  __builtin_memcpy(&h.dx, &c.off, 4); __builtin_memcpy(&h.dy, &c.n, 4); __builtin_memcpy(&h.spread, &c.c2, 4);
+  return h;
+}
+inline void set_shadow_hole(Cmd& c, Hole h) { __builtin_memcpy(&c.off, &h.dx, 4); __builtin_memcpy(&c.n, &h.dy, 4); __builtin_memcpy(&c.c2, &h.spread, 4); }
 /** Pad bit kImageLayer (ZN-731): the image's picture is on a hardware layer of the display, under the frame. The rasterizer writes
  *  HAL_LAYER_HOLE where the picture lies (layer_rect) and the image's own pixels around it; c2 is 0, a new picture damages nothing. */
 constexpr uint8_t kImageLayer = 64;

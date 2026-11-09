@@ -315,6 +315,29 @@ static void shadow_rrect(const Target& t, const Cmd& c) {
   }
 }
 
+// An inset shadow (ZN-260, kShadowInset): inside the box's rounded rectangle, the shadow the frame around the hole casts into it, with
+// shadow_rrect's falloff at the hole's distance turned outward (inset_k(d) = k(-d)): the hole is the box moved by (dx, dy) and shrunk by the
+// spread; an empty hole shades the whole box.
+// ponytail: one rr_sdf pair per pixel of the box, no row cache: insets are few and small profiles drop them (lib/std/ui.ts)
+static inline float inset_k(float d, float blur) { float k = clampf((d + blur) / (blur * 1.5f), 0, 1); return k * k * (3 - 2 * k); }
+static void inset_rrect(const Target& t, const Cmd& c) {
+  const Rect b = bounds(c.x, c.y, c.w, c.h, t.clip);
+  const float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh, r = clampf(c.r, 0, hw < hh ? hw : hh);
+  const Hole o = shadow_hole(c);
+  const float blur = c.s > 0.5f ? c.s : 0.5f, hx = cx + o.dx, hy = cy + o.dy, ohw = hw - o.spread, ohh = hh - o.spread;
+  const bool empty = !(ohw > 0 && ohh > 0);
+  const float orr = empty ? 0 : clampf(r - o.spread, 0, ohw < ohh ? ohw : ohh);
+  for (int32_t y = b.y0; y < b.y1; y++) {
+    const float py = y + 0.5f;
+    for (int32_t x = b.x0; x < b.x1; x++) {
+      const float px = x + 0.5f, cov = clampf(0.5f - rr_sdf(px, py, cx, cy, hw, hh, r), 0, 1);
+      if (cov <= 0) continue;
+      const float a = cov * (empty ? 1 : inset_k(rr_sdf(px, py, hx, hy, ohw, ohh, orr), blur));
+      if (a > 0) blend(at(t, x, y), c.c1, (uint32_t)(a * c.alpha));
+    }
+  }
+}
+
 // Gradient paint of a POLY (grad 4, stored after its contours) or of a RECT (grad 5, at its offset, ZN-261):
 // [kind, x0, y0, r0, x1, y1, r1, n, (offset, 0xRRGGBB, alpha 0..255) * n], sorted offsets. Kinds: 1 linear (x0, y0) -> (x1, y1), 2 two circles
 // (HTML canvas), 3 CSS ellipse (centre x0, y0, radii x1, y1), 4 CSS conic (centre x0, y0, from r0 radians, clockwise from the top); +8 repeats
@@ -1255,7 +1278,7 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
   // skipped, the pixels inside it by a margin (coverage exactly 1 below) take the fast loop, and only the edge goes through the distance per pixel.
   // The same arithmetic in both: a pixel is the same whichever loop paints it.
   const float px1 = 1.0f / (m.sc > 1e-6f ? m.sc : 1e-6f);   // one pixel in the shape's units
-  const bool sh = in.kind == SHADOW;
+  const bool inset = in.kind == SHADOW && (in.pad & kShadowInset), sh = in.kind == SHADOW && !inset;   // an inset paints inside its box only
   const float outer = (sh ? blur : 0.5f * px1) + 2 * px1;   // beyond hw + outer, hh + outer: nothing is painted (d > outer)
   float inner = -1;                                         // within hw - inner, hh - inner: the whole pixel is inside (-1: no fast loop)
   if (in.kind == RECT && !in.grad) inner = (r > 0.5f * px1 ? r : 0.5f * px1) + 2 * px1;
@@ -1396,6 +1419,13 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
           break;
         }
         case SHADOW: {   // shadow_rrect's falloff, in the shadow's own units
+          if (inset) {   // inset_rrect's
+            const Hole o = shadow_hole(in);
+            const float ohw = hw - o.spread, ohh = hh - o.spread, cov = clampf(0.5f - d * m.sc, 0, 1);
+            const float k = ohw > 0 && ohh > 0 ? inset_k(rr_sdf(lx, ly, cx + o.dx, cy + o.dy, ohw, ohh, clampf(r - o.spread, 0, ohw < ohh ? ohw : ohh)), blur) : 1;
+            if (cov * k > 0) blend(at(t, x, y), in.c1, (uint32_t)(cov * k * in.alpha));
+            break;
+          }
           float k = clampf(1.0f - (d + blur * 0.5f) / (blur * 1.5f), 0, 1);
           k = k * k * (3 - 2 * k);
           if (k > 0) blend(at(t, x, y), in.c1, (uint32_t)(k * in.alpha));
@@ -1474,7 +1504,7 @@ template<class Pick> static void run_cmds(const Frame& f, Target t, uint32_t n, 
         } else fill_rrect(t, c, c.grad == 5 ? f.pts + c.off : nullptr);
         break;
       case BORDER: border_rrect(t, c); break;
-      case SHADOW: shadow_rrect(t, c); break;
+      case SHADOW: if (c.pad & kShadowInset) inset_rrect(t, c); else shadow_rrect(t, c); break;
       case TEXT: draw_text(t, c, f.text + c.off); break;
       case IMAGE: draw_image(t, c); break;
       case LINE: case POLY: fill_poly(t, c, f.pts + c.off); break;
@@ -1559,6 +1589,7 @@ static bool same(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y) {
     return p[0] == (float)TEXT ? an == bn && !__builtin_memcmp(a.text + ao, b.text + bo, an) : ao == bo && an == bn;
   }
   if (x.kind == IMAGE) return x.off == y.off;   // not a pool offset: part of its box (image_box)
+  if (x.kind == SHADOW && (x.pad & kShadowInset)) return x.off == y.off;   // not a pool offset: its hole's dx (shadow_hole)
   if (x.kind == RECT && x.grad == 5) return !__builtin_memcmp(a.pts + x.off, b.pts + y.off, x.n * sizeof(float));   // its paint record
   if (x.kind == SHADER) return shader_holes || !__builtin_memcmp(a.pts + x.off, b.pts + y.off, x.n * sizeof(float));   // its uniforms
   return true;
@@ -1943,6 +1974,7 @@ static uint32_t cmd_hash(const Frame& f, const Cmd& c) {
     else h = fnv(h, p + 13, 2 * (uint32_t)sizeof(float));
   }
   else if (c.kind == IMAGE) h = fnv(h, &c.off, sizeof c.off);
+  else if (c.kind == SHADOW && (c.pad & kShadowInset)) h = fnv(h, &c.off, sizeof c.off);
   else if (c.kind == RECT && c.grad == 5) h = fnv(h, f.pts + c.off, c.n * (uint32_t)sizeof(float));
   else if (c.kind == SHADER && !shader_holes) h = fnv(h, f.pts + c.off, c.n * (uint32_t)sizeof(float));
   return h;

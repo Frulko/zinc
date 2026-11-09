@@ -120,6 +120,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Animated's `useNativeDriver: true` works as in React Native: bind a value to a view with `Animated.attach(node, 'translateX', value)` (also `translateY`, `scale`, `rotate`, `opacity`), and its `timing`, `spring` or `decay` is played by the engine, so the view keeps moving smoothly while your code is busy and your code runs nothing per frame; binding a layout property such as `width` throws React Native's own error.
 - A build for a small profile (`--profile esp32`, a console, a Raspberry Pi 1) warns with the file and line about each style it draws in a simpler form, such as a conic gradient or a gradient with more than two stops (`zinc explain U0005`). `"ui": {"style": "strict"}` in `zinc.json` makes these warnings errors and `"off"` turns them off. `zinc doctor` shows the profile's style level and what the last build drew simpler.
+- Box shadows as in CSS: several layers with an offset, a blur, a spread and a colour (`shadow-[0_1px_2px_rgba(0,0,0,0.3),0_8px_12px_-2px_#0004]`), and inner shadows: `inset-shadow-2xs`, `inset-shadow-xs`, `inset-shadow-sm`, `inset-shadow-[..]` and `inset-shadow-rose-500/60` for their colour, or `inset` inside `shadow-[..]`; a style object takes the same as React Native's `boxShadow` string. `gfx.insetShadow` draws one. Small profiles keep two layers and blurs up to 8 px and leave out inner shadows, with a build warning.
 
 #### Changed
 

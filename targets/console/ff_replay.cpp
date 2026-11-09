@@ -148,7 +148,8 @@ bool shapesFull;
 bool isShape(const Cmd& c) {
   switch (c.kind) {
     case RECT: return c.r > 0 && c.grad <= 2;
-    case BORDER: case SHADOW: case POLY: return c.grad <= 2;   // one colour, or a linear gradient (the quads' corner colours)
+    case SHADOW: return !(c.pad & kShadowInset) && c.grad <= 2;   // an inset shadow (ZN-260): refused, the software raster draws the frame
+    case BORDER: case POLY: return c.grad <= 2;   // one colour, or a linear gradient (the quads' corner colours)
     default: return false;
   }
 }

@@ -3,7 +3,7 @@
 // pointer + focus input (UI-11). Written in Zinc: the same code is compiled to C++ and to the sim.
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
-  onFrame, onResize, clear, rrect as g_rrect, gradient as g_gradient, gradientPaint as g_gradientPaint, border as g_border, shadow as g_shadow, drawText as g_drawText, setTransform, resetTransform, drawImage as g_drawImage, drawImageRect, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, beginImage, endImage, commandCount, commandsFree,
+  onFrame, onResize, clear, rrect as g_rrect, gradient as g_gradient, gradientPaint as g_gradientPaint, border as g_border, shadow as g_shadow, insetShadow as g_insetShadow, drawText as g_drawText, setTransform, resetTransform, drawImage as g_drawImage, drawImageRect, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, beginImage, endImage, commandCount, commandsFree,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
@@ -66,6 +66,10 @@ function border(x: number, y: number, w: number, h: number, r: number, bw: numbe
 }
 function shadow(x: number, y: number, w: number, h: number, r: number, blur: number, color: u32, alpha: i32): void {
   if (!EINK) { g_shadow(x, y, w, h, r, blur, color, alpha); return; }
+  einkDropped++;
+}
+function insetShadow(x: number, y: number, w: number, h: number, r: number, blur: number, dx: number, dy: number, spread: number, color: u32, alpha: i32): void {
+  if (!EINK) { g_insetShadow(x, y, w, h, r, blur, dx, dy, spread, color, alpha); return; }
   einkDropped++;
 }
 function drawText(font: i32, x: number, y: number, s: string, color: u32, alpha: i32, tracking: number): void {
@@ -287,6 +291,24 @@ export class BorderX {
   bL: number = -1;
 }
 const DEF_BORDERX = new BorderX();
+/** One layer of a box shadow (ZN-260): offset, blur and spread in CSS pixels, the colour and its alpha, inset or around the box. */
+export class ShadowLayer {
+  x: number = 0;
+  y: number = 0;
+  blur: number = 0;
+  spread: number = 0;
+  color: i32 = 0;
+  alpha: i32 = 255;
+  inset: boolean = false;
+}
+/** The box shadows beyond the presets (ZN-260): shadow-[..]'s layers, inset-shadow-*'s and the colour inset-shadow-<colour> gives them (-2: theirs). */
+export class ShadowX {
+  layers: ShadowLayer[] | null = null;
+  insets: ShadowLayer[] | null = null;
+  insetC: i32 = -2;
+  insetA: i32 = 255;
+}
+const DEF_SHADOWX = new ShadowX();
 export class SnapX {
   snap: i32 = 0;
   snapProx: boolean = false;
@@ -527,6 +549,7 @@ export class UiNode {
     // focus-within: colors
   rg: RingX = DEF_RINGX;   // cold fields in a record shared by every node that has none of them (copy on write: ownRg())
   bd: BorderX = DEF_BORDERX;   // cold fields in a record shared by every node that has none of them (copy on write: ownBd())
+  shx: ShadowX = DEF_SHADOWX;   // shadow-[..] and inset-shadow-* layers (copy on write: ownShx())
   sn: SnapX = DEF_SNAPX;   // cold fields in a record shared by every node that has none of them (copy on write: ownSn())
   it: InterX = DEF_INTERX;   // cold fields in a record shared by every node that has none of them (copy on write: ownIt())
   gx: GradX = DEF_GRADX;     // the gradient record (copy on write: ownGx())
@@ -584,6 +607,7 @@ export class UiNode {
   get transStart(): number { return this.it.transStart; }
   ownRg(): RingX { if (this.rg === DEF_RINGX) this.rg = new RingX(); return this.rg; }
   ownBd(): BorderX { if (this.bd === DEF_BORDERX) this.bd = new BorderX(); return this.bd; }
+  ownShx(): ShadowX { if (this.shx === DEF_SHADOWX) this.shx = new ShadowX(); return this.shx; }
   ownSn(): SnapX { if (this.sn === DEF_SNAPX) this.sn = new SnapX(); return this.sn; }
   ownIt(): InterX { if (this.it === DEF_INTERX) this.it = new InterX(); return this.it; }
   ownGx(): GradX { if (this.gx === DEF_GRADX) this.gx = new GradX(); return this.gx; }
@@ -1821,7 +1845,11 @@ function hslToRgb(h0: i32, s: i32, l: i32): i32 {
   const R: i32 = Math.round((r + m) * 255 / 100), G: i32 = Math.round((g + m) * 255 / 100), B: i32 = Math.round((b + m) * 255 / 100);
   return (R << 16) | (G << 8) | B;
 }
-function cssParts(inner: string): string[] { return inner.replaceAll(' ', '').replaceAll('%', '').split(','); }
+function cssParts(inner: string): string[] {
+  const s = inner.replaceAll('%', '');
+  if (s.indexOf(',') >= 0) return s.replaceAll(' ', '').split(',');
+  return splitTop(s.replaceAll('/', ' '), ' ');   // CSS Color 4's spaces: rgb(0 0 0 / 0.5)
+}
 function byteOf(v: string): i32 { const x: i32 = Math.round(parseFloat(v)); return x < 0 ? 0 : x > 255 ? 255 : x; }
 function alphaPart(v: string): i32 { const a = parseFloat(v); return a !== a ? 255 : Math.round(a <= 1 ? a * 255 : a * 2.55); }
 /** -2 when `v` (the inside of the brackets) is not a CSS colour; sets cssAlpha. */
@@ -1904,6 +1932,86 @@ function stopColor(w: string): i32 {
   if (c < 0) return -2;
   stopA = alphaOf(w);
   return c;
+}
+// ---- box shadows beyond the presets (ZN-260): shadow-[<CSS box-shadow>] (its layers replace the preset; `_` for a space, `,` between
+// layers), Tailwind v4's inset-shadow-2xs|xs|sm|none|[..] and inset-shadow-<colour>, the colour of those (with /50, its alpha too).
+const INSET_Y: number[] = [1, 1, 2], INSET_BLUR: number[] = [0, 1, 4];   // inset 0 1px, inset 0 1px 1px, inset 0 2px 4px; black at 5%
+function shadowToken(n: UiNode, tok: string): boolean {
+  if (tok.startsWith('shadow-[')) {
+    const l = tok.endsWith(']') ? shadowLayers(tok.slice(8, tok.length - 1), false) : null;
+    if (l === null) return false;
+    n.ownShx().layers = l;
+    return true;
+  }
+  const k = tok.slice(13);
+  if (k === 'none') { n.ownShx().insets = null; return true; }
+  const p: i32 = k === '2xs' ? 0 : k === 'xs' ? 1 : k === 'sm' ? 2 : -1;
+  if (p >= 0) {
+    const l = new ShadowLayer();
+    l.y = INSET_Y[p]; l.blur = INSET_BLUR[p]; l.alpha = 13; l.inset = true;
+    n.ownShx().insets = [l];
+    return true;
+  }
+  if (k.startsWith('[')) {
+    const l = k.endsWith(']') ? shadowLayers(k.slice(1, k.length - 1), true) : null;
+    if (l === null) return false;
+    n.ownShx().insets = l;
+    return true;
+  }
+  const c = colorOf(k);
+  if (c < 0) return false;
+  const x = n.ownShx();
+  x.insetC = c; x.insetA = k.indexOf('/') > 0 ? alphaOf(k) : -1;   // -1: the layer's own alpha
+  return true;
+}
+/** The layers of a CSS box-shadow written in a class (`_` for spaces): `x y [blur [spread]] [colour] [inset]` each, `,` between them; null
+ *  when one is not a shadow. A layer without a colour is black (CSS: the text's colour). `inset`: every layer is. */
+function shadowLayers(v: string, inset: boolean): ShadowLayer[] | null {
+  const out: ShadowLayer[] = [];
+  const parts = splitTop(v.replaceAll('_', ' '), ',');
+  for (let i: i32 = 0; i < parts.length; i++) {
+    const l = new ShadowLayer();
+    l.inset = inset;
+    let nl: i32 = 0, coloured = false;
+    const words = splitTop(parts[i], ' ');
+    for (let j: i32 = 0; j < words.length; j++) {
+      const w = words[j];
+      if (w === 'inset') { l.inset = true; continue; }
+      if (posOf(w, false) === 2) {
+        if (nl === 0) l.x = posVal; else if (nl === 1) l.y = posVal; else if (nl === 2 && posVal >= 0) l.blur = posVal; else if (nl === 3) l.spread = posVal; else return null;
+        nl++;
+        continue;
+      }
+      const c = coloured ? -2 : stopColor(w);
+      if (c < 0) return null;
+      l.color = c; l.alpha = stopA; coloured = true;
+    }
+    if (nl < 2) return null;
+    out.push(l);
+  }
+  return out.length > 0 ? out : null;
+}
+/** The layers of `ls` that are inset (or around the box), the last first so that the first is on top (CSS). From tier T1 down a profile
+ *  draws two layers around the box at most, blurs of 8 px at most and no inset shadow, one log line each (U0005 says it at build, D245). */
+function paintShadows(n: UiNode, ls: ShadowLayer[], inset: boolean, x: number, y: number, w: number, hh: number, r: number, kk: number, a: number): void {
+  const small = TIER <= 1, sx = n.shx, own = inset && ls === sx.insets;   // own: inset-shadow-*'s, which inset-shadow-<colour> colours
+  const pick: i32[] = [];
+  for (let i: i32 = 0; i < ls.length; i++) {
+    if (ls[i].inset !== inset) continue;
+    if (inset && small) { tierWarn(8, 'an inset shadow is not drawn'); return; }
+    if (small && pick.length === 2) { tierWarn(16, 'a box shadow beyond two layers is drawn with its first two'); break; }
+    pick.push(i);
+  }
+  const ib = inset && n.borderW > 0 ? n.borderW * kk : 0;   // an inset shadow lies inside the border (the padding box)
+  for (let j: i32 = pick.length - 1; j >= 0; j--) {
+    const l = ls[pick[j]];
+    let blur = l.blur;
+    if (small && blur > 8) { tierWarn(32, 'a box shadow blur beyond 8 px is drawn at 8 px'); blur = 8; }
+    const c: i32 = own && sx.insetC >= 0 ? sx.insetC : l.color, al: i32 = own && sx.insetC >= 0 && sx.insetA >= 0 ? sx.insetA : l.alpha;
+    if (inset) { insetShadow(x + ib, y + ib, w - 2 * ib, hh - 2 * ib, Math.max(0, r - ib), blur * kk, l.x * kk, l.y * kk, l.spread * kk, c as u32, Math.round(al * a)); continue; }
+    const sp = l.spread * kk;
+    if (w + 2 * sp > 0 && hh + 2 * sp > 0) shadow(x + l.x * kk - sp, y + l.y * kk - sp, w + 2 * sp, hh + 2 * sp, r > 0 ? Math.max(0, r + sp) : 0, blur * kk, c as u32, Math.round(al * a));
+  }
 }
 /** A CSS angle in degrees (deg, grad, rad, turn, a bare 0); NaN when it is not one. */
 function angleOf(s: string): number {
@@ -2789,6 +2897,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   }
   if (tok === 'w-full') { n.fullW = true; n.w = -1; n.wFrac = 0; return true; }
   if (tok === 'h-full') { n.fullH = true; n.h = -1; n.hFrac = 0; return true; }
+  if (tok.startsWith('inset-shadow-') || tok.startsWith('shadow-[')) return shadowToken(n, tok);
   if (tok.startsWith('inset-')) {   // inset-0, inset-4, inset-x-2, inset-y-0, inset-[10px]: an absolute box
     const k = tok.slice(6), ax = k.startsWith('x-'), ay = k.startsWith('y-');
     const fv = num(ax || ay ? k.slice(2) : k);
@@ -2889,7 +2998,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     n.ownIt().transEase = e;
     return true;
   }
-  if (tok === 'shadow-none') { n.shadowLevel = 0; return true; }
+  if (tok === 'shadow-none') { n.shadowLevel = 0; if (n.shx.layers !== null) n.shx.layers = null; return true; }
   if (tok === 'shadow-sm') { n.shadowLevel = 1; return true; }
   if (tok === 'shadow') { n.shadowLevel = 2; return true; }
   if (tok === 'shadow-md') { n.shadowLevel = 3; return true; }
@@ -3067,7 +3176,7 @@ function resetStyle(n: UiNode): void {
   n.opacity = 1; n.fg = -1; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.tabular = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.decoC = -1; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
   n.cursor = -1; n.pattern = 0; n.cache = false;
   if (n.ed !== null) { const e = n.ed as Edit; e.phC = -1; e.caretC = -1; }
-  n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX; n.im = DEF_IMGX;   // the cold records: back to the shared defaults
+  n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.shx = DEF_SHADOWX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX; n.im = DEF_IMGX;   // the cold records: back to the shared defaults
   if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; o.transMask = -1; o.transDelay = 0; o.transEase = 7; }   // curBg, fromBg, transStart and the tr* fields stay: a transition goes on across a class change
 }
 // The class parser (applyToken and the token helpers, a sixth of a style-only program) is called only through this variable, which setClass and
@@ -4931,12 +5040,14 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   if (tileRec) {   // recording one tile of a scroll container: what lies outside it is not recorded
     if (n.sticky) tileSticky = true;
     // ponytail: a ring or an outline wider than the margin is cut at a tile's edge; the node's own extent when one shows
-    if ((n.children.length === 0 || n.overflow) && n.shadowLevel === 0 && n.shOpacity <= 0 && n.tf === null && (x >= TILE + 16 || y >= TILE + 16 || x + w <= -16 || y + hh <= -16)) return;
+    if ((n.children.length === 0 || n.overflow) && n.shadowLevel === 0 && n.shOpacity <= 0 && n.shx.layers === null && n.tf === null && (x >= TILE + 16 || y >= TILE + 16 || x + w <= -16 || y + hh <= -16)) return;
   }
   if (n.tag !== FRAGMENT) {
     const r = Math.min(n.radius * kk, Math.min(w, hh) / 2);
-    if (n.shadowLevel > 0) shadow(x, y + SHADOW_Y[n.shadowLevel] * kk, w, hh, r, SHADOW_BLUR[n.shadowLevel] * kk, 0x000000, Math.round(SHADOW_A[n.shadowLevel] * a));
+    const sx = n.shx;
+    if (n.shadowLevel > 0 && sx.layers === null) shadow(x, y + SHADOW_Y[n.shadowLevel] * kk, w, hh, r, SHADOW_BLUR[n.shadowLevel] * kk, 0x000000, Math.round(SHADOW_A[n.shadowLevel] * a));   // shadow-[..] replaces a preset
     if (n.shOpacity > 0) shadow(x + n.shX * kk, y + n.shY * kk, w, hh, r, n.shBlur * kk, n.shColor as u32, Math.round(Math.min(1, n.shOpacity) * n.shAlpha * a));
+    if (sx.layers !== null) paintShadows(n, sx.layers, false, x, y, w, hh, r, kk, a);
     const gr = n.grad > 0 || n.gx.kind > 0, two = gr && n.gx === DEF_GRADX && n.gradFrom >= 0 && n.gradTo >= 0;   // two: the prototype's two-stop gradient
     if (!two) {
       const bg = !gr || gradOpen(n) ? effectiveBg(h, n) : -1;   // under a gradient only where it lets it through
@@ -4949,6 +5060,10 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       gradient(x, y, w, hh, r, flip ? n.gradTo : n.gradFrom, flip ? n.gradFrom : n.gradTo, n.grad === 1 || n.grad === 3, ai);
     } else if (gr) paintGradient(h, n, x, y, w, hh, r, kk, ai);
     if (n.pattern > 0) paintPattern(n.pattern, x, y, w, hh, r, kk);
+    if (sx !== DEF_SHADOWX) {   // inset shadows: over the background, under the border; inset-shadow-*'s on top of shadow-[..]'s
+      if (sx.layers !== null) paintShadows(n, sx.layers, true, x, y, w, hh, r, kk, a);
+      if (sx.insets !== null) paintShadows(n, sx.insets, true, x, y, w, hh, r, kk, a);
+    }
     const focused = h === focus;
     let bc = focused && n.it.focusBorder >= 0 ? n.it.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.it.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.it.withinBorder : n.hovered && n.it.hoverBorder >= 0 ? n.it.hoverBorder : n.borderColor;
     const bw = n.borderW < 0 ? 1 : n.borderW;

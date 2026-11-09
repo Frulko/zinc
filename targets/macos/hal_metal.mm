@@ -580,7 +580,8 @@ static void run_list(const Frame& f) {
         if (k.w > 0 && k.h > 0) rectq(k, C.clip, M_FILL); break; }
       case RECT: { const RRect b = isect(bounds(c.x, c.y, c.w, c.h), C.clip); if (b.x0 < b.x1 && b.y0 < b.y1) rectq(c, b, M_FILL); break; }
       case BORDER: { const RRect b = isect(bounds(c.x, c.y, c.w, c.h), C.clip); if (b.x0 < b.x1 && b.y0 < b.y1) rectq(c, b, M_BORDER); break; }
-      case SHADOW: { const float bl = c.s > 0.5f ? c.s : 0.5f; const RRect b = isect(bounds(c.x - bl, c.y - bl, c.w + 2 * bl, c.h + 2 * bl), C.clip); if (b.x0 < b.x1 && b.y0 < b.y1) rectq(c, b, M_SHADOW); break; }
+      case SHADOW: { if (c.pad & kShadowInset) break;   // ponytail: an inset shadow (ZN-260) is the GL replay's and the raster's only
+        const float bl = c.s > 0.5f ? c.s : 0.5f; const RRect b = isect(bounds(c.x - bl, c.y - bl, c.w + 2 * bl, c.h + 2 * bl), C.clip); if (b.x0 < b.x1 && b.y0 < b.y1) rectq(c, b, M_SHADOW); break; }
       case TEXT: draw_text(c, f.text + c.off); break;
       case IMAGE: draw_image(c); break;
       case CLIP: if (C.sp < 16) { C.cs[C.sp++] = C.clip; set_clip(isect(C.clip, bounds(c.x, c.y, c.w, c.h))); } break;

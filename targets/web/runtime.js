@@ -357,6 +357,15 @@ const canvasPainter = {
     ctx.shadowColor = rgba(color, alpha); ctx.shadowBlur = blur * Math.abs(m.a); ctx.shadowOffsetX = 100000; ctx.shadowOffsetY = 0;
     ctx.fillStyle = '#000'; rr(ctx, x - BIG, y, w, h, r); ctx.fill(); ctx.restore();
   },
+  insetShadow(x, y, w, h, r, blur, dx, dy, spread, color, alpha) {   // inside the box: a frame around the hole drawn far away, its shadow offset back
+    applyTransform();
+    const m = ctx.getTransform(), BIG = 100000 / Math.max(1e-3, Math.abs(m.a)), hw = w - 2 * spread, hh = h - 2 * spread;
+    ctx.save(); ctx.globalAlpha = 1; rr(ctx, x, y, w, h, r); ctx.clip();
+    if (!(hw > 0 && hh > 0)) { ctx.fillStyle = rgba(color, alpha); ctx.fillRect(x, y, w, h); ctx.restore(); return; }
+    ctx.shadowColor = rgba(color, alpha); ctx.shadowBlur = blur * Math.abs(m.a); ctx.shadowOffsetX = 100000; ctx.shadowOffsetY = 0;
+    rr(ctx, x - BIG + dx + spread, y + dy + spread, hw, hh, Math.max(0, r - spread)); ctx.rect(x - BIG - w, y - h, 3 * w, 3 * h);   // rr begins the path
+    ctx.fillStyle = '#000'; ctx.fill('evenodd'); ctx.restore();
+  },
   polygon(pts, color, alpha) {
     applyTransform(); ctx.globalAlpha = Math.min(255, alpha) / 255; ctx.fillStyle = hex6(color);
     ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i + 1 < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.closePath(); ctx.fill('nonzero'); ctx.globalAlpha = 1;
@@ -818,7 +827,7 @@ const rows = {
   // drawing
   gfxClear: (c) => B.clear(c), gfxRect: (x, y, w, h, c) => B.rect(x, y, w, h, c), gfxRRect: (x, y, w, h, r, c, a) => B.rrect(x, y, w, h, r, c, a),
   gfxLine: (a, b, c, d, e) => B.line(a, b, c, d, e), gfxText: (x, y, s, c, k) => B.text(x, y, s, c, k),
-  gfxGradient: (...a) => B.gradient(...a), gfxGradientPaint: (...a) => B.gradientPaint(...a), gfxBorder: (...a) => B.border(...a), gfxShadow: (...a) => B.shadow(...a),
+  gfxGradient: (...a) => B.gradient(...a), gfxGradientPaint: (...a) => B.gradientPaint(...a), gfxBorder: (...a) => B.border(...a), gfxShadow: (...a) => B.shadow(...a), gfxInsetShadow: (...a) => B.insetShadow(...a),
   gfxPolygon: (p, c, a) => B.polygon(p, c, a), gfxPath: (p, c, a) => B.path(p, c, a), gfxStroke: (...a) => B.stroke(...a),
   gfxFont: (name, px) => fontId(name, px), gfxLoadFont: (file, px) => { const stem = String(file).replace(/^.*\//, '').replace(/\.[^.]+$/, ''); return loadedFaces.has(stem) ? fontId(stem, px) : -1; },
   gfxFontAscent: (id) => (fonts[id] ? fonts[id].asc : 0), gfxLineHeight: (id) => (fonts[id] ? fonts[id].lh : 0),

@@ -794,6 +794,8 @@ int32_t shaderProgram(const String& source, int32_t scale = 1);
 void drawShader(int32_t program, double x, double y, double w, double h, const double* uniforms, uint32_t n);   // shaderSource, shaders_drawn: zrt_raster.h
 void border(double x, double y, double w, double h, double r, double width, uint32_t color, int32_t alpha);
 void shadow(double x, double y, double w, double h, double r, double blur, uint32_t color, int32_t alpha);
+/** An inset shadow (CSS box-shadow: inset, ZN-260): inside the rounded box, the shade around a hole that is the box moved by (dx, dy) and shrunk by spread. */
+void insetShadow(double x, double y, double w, double h, double r, double blur, double dx, double dy, double spread, uint32_t color, int32_t alpha);
 void polygon(const Array<double>& pts, uint32_t color, int32_t alpha);
 void polygon(const double* pts, uint32_t n, uint32_t color, int32_t alpha);   // the same from n f64 values in place
 void path(const Array<double>& contours, uint32_t color, int32_t alpha);

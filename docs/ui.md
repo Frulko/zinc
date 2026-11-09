@@ -367,6 +367,18 @@ from its first to its last colour along the nearest axis, a conic as the average
 simpler. Per-corner radii
 (`rounded-tl-*`) are not followed by a gradient: it takes the box's radius. The golden is `tests/golden/style-gradient` (`tests/t1/style_gradient.sh`).
 
+## Box shadows
+
+`shadow-sm` to `shadow-xl` are the five presets. `shadow-[..]` takes a CSS `box-shadow` (`_` for a space, `,` between layers):
+`shadow-[0_1px_2px_rgba(0,0,0,0.3),0_8px_12px_-2px_#0004]`, each layer `x y [blur [spread]] [colour] [inset]` with lengths in `px` or `rem`
+and the colours of a gradient stop (a layer without a colour is black); its layers replace the preset, the first is drawn on top, and a spread
+grows the box and its radius; a style object's `boxShadow` string (React Native 0.76) is lowered to it. Inner shadows are Tailwind v4's `inset-shadow-2xs`, `inset-shadow-xs`, `inset-shadow-sm`, `inset-shadow-[..]`
+and `inset-shadow-none`, coloured by `inset-shadow-<colour>` (`inset-shadow-rose-500/60`: its alpha too), or `inset` layers of `shadow-[..]`:
+they are drawn over the background and under the border, inside the border. `gfx.insetShadow(x, y, w, h, r, blur, dx, dy, spread, colour,
+alpha)` is the command. The blur keeps the presets' falloff (a CSS blur radius, not a Gaussian sigma). Profiles below tier T2 draw two layers
+around the box at most, blurs up to 8 px and no inner shadow, with one log line each and a U0005 warning at build. The goldens are
+`tests/golden/ui-style/shadow-presets` and `shadow-layers` (`tests/t0/style_shadow_layers.sh`).
+
 ## Images in a box
 
 `<Image src="logo.png" />` shows an image of the assets; `<Image image={img} />` shows a runtime image: one decoded with `imageFromBytes`, built

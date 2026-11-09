@@ -389,6 +389,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxGradientPaint: g::gradientPaint(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, static_cast<const double*>(a[5].p), a[5].n, n(6)); break;
     case Rt::HostGfxBorder: g::border(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, u(6), n(7)); break;
     case Rt::HostGfxShadow: g::shadow(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, u(6), n(7)); break;
+    case Rt::HostGfxInsetShadow: g::insetShadow(a[0].d, a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, a[6].d, a[7].d, a[8].d, u(9), n(10)); break;
     case Rt::HostGfxPolygon: g::polygon(static_cast<const double*>(a[0].p), a[0].n, u(1), n(2)); break;   // the program's f64 storage, read in place (ZN-405)
     case Rt::HostGfxPath: g::path(static_cast<const double*>(a[0].p), a[0].n, u(1), n(2)); break;
     case Rt::HostGfxStroke: g::stroke(static_cast<const double*>(a[0].p), a[0].n, a[1].d, u(2), n(3), a[4].i != 0); break;

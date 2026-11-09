@@ -1493,7 +1493,10 @@ static void to_physical(Buf& b, uint32_t from = 0) {   // from: the first plugin
         if (!(c.pad & raster::kImageTint)) c.r *= k;   // r: a radius, or a sprite's tint
         if (c.pad & raster::kImageBox) { const raster::Box m = raster::image_box(c); raster::set_image_box(c, raster::Box{m.x * k, m.y * k, m.w * k, m.h * k}); }
         break;
-      case raster::BORDER: case raster::SHADOW: c.r *= k; c.s *= k; break;
+      case raster::BORDER: case raster::SHADOW:
+        c.r *= k; c.s *= k;
+        if (c.kind == raster::SHADOW && (c.pad & raster::kShadowInset)) { const raster::Hole o = raster::shadow_hole(c); raster::set_shadow_hole(c, raster::Hole{o.dx * k, o.dy * k, o.spread * k}); }
+        break;
       case raster::TEXT:
         c.s *= k; c.res = phys_font(c.res);
         // rasterize missing runtime glyphs now, on this thread: bands are rendered in parallel (hal_sdl.cpp)
@@ -2215,7 +2218,9 @@ static void box(Cmd* c, double x, double y, double w, double h) {
 static bool xf_plain(Cmd* c, const float* m) {
   if (m[1] != 0 || m[2] != 0 || !(m[0] > 0 && m[3] > 0) || c->kind == raster::TEXT || c->grad == 5) return false;
   const bool image = c->kind == raster::IMAGE, boxed = image && (c->pad & raster::kImageBox), tinted = image && (c->pad & raster::kImageTint);
-  if (m[0] != m[3] && ((!tinted && c->r != 0) || (!boxed && c->s != 0))) return false;
+  const bool inset = c->kind == raster::SHADOW && (c->pad & raster::kShadowInset);
+  if (m[0] != m[3] && ((!tinted && c->r != 0) || (!boxed && c->s != 0) || inset)) return false;
+  if (inset) { const raster::Hole o = raster::shadow_hole(*c); raster::set_shadow_hole(*c, raster::Hole{o.dx * m[0], o.dy * m[0], o.spread * m[0]}); }
   if (boxed) {   // the box the whole image would cover lands with the rectangle painted
     const raster::Box b = raster::image_box(*c);
     raster::set_image_box(*c, raster::Box{m[0] * b.x + m[4], m[3] * b.y + m[5], m[0] * b.w, m[3] * b.h});
@@ -2364,6 +2369,14 @@ void border(double x, double y, double w, double h, double r, double width, uint
 }
 void shadow(double x, double y, double w, double h, double r, double blur, uint32_t color, int32_t alpha) {
   if (Cmd* c = push(raster::SHADOW, color, alpha)) { box(c, x, y, w, h); c->r = (float)r * rec_k(); c->s = (float)blur * rec_k(); xform(c); }
+}
+void insetShadow(double x, double y, double w, double h, double r, double blur, double dx, double dy, double spread, uint32_t color, int32_t alpha) {
+  if (Cmd* c = push(raster::SHADOW, color, alpha)) {
+    const float k = rec_k();
+    box(c, x, y, w, h); c->r = (float)r * k; c->s = (float)blur * k; c->pad = raster::kShadowInset;
+    raster::set_shadow_hole(*c, raster::Hole{(float)dx * k, (float)dy * k, (float)spread * k});
+    xform(c);
+  }
 }
 // The point rows read the program's f64 storage in place (ZN-405): no array is built per call.
 static bool add_points(Cmd* c, const double* pts, uint32_t n, bool closed_list) {

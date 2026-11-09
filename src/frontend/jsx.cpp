@@ -125,9 +125,10 @@ bool validClass(const std::string& c) {
       std::regex("^-?translate-[xy]-" + num + "$"),
       std::regex(R"(^line-clamp-[1-9]\d*$)"),
       std::regex(R"(^-?word-(\d+|\[\d+(px)?\])$)"),
-      std::regex(R"(^opacity-\d+$)"), std::regex(R"(^(duration|delay)-\d+$)")};
+      std::regex(R"(^opacity-\d+$)"), std::regex(R"(^(duration|delay)-\d+$)"),
+      std::regex(R"(^(inset-)?shadow-\[\S+\]$)"), std::regex(R"(^inset-shadow-(none|2xs|xs|sm)$)")};   // box shadows (ZN-260)
   static const std::regex variant(R"(^(focus|focus-visible|selection|placeholder|disabled|group-hover|group-focus|group-active|peer-hover|peer-focus|peer-active|aria-(?:checked|selected|expanded|pressed|disabled|busy|current|invalid|required|readonly)|data-\[[a-z][a-z0-9-]*=[A-Za-z0-9_-]+\]|dark|light|landscape|portrait|pointer-coarse|pointer-fine|hover-none|max-(?:sm|md|lg|xl|2xl)|(?:min|max)-\[\d+px\]|@(?:sm|md|lg|xl)|@\[\d+px\]|focus-within|active|hover|sm|md|lg|xl|2xl):(.*)$)");
-  static const std::regex colored("^(bg|text|text-shadow|border|from|via|to|ring|outline|tint|caret)-" + color + "$");
+  static const std::regex colored("^(bg|text|text-shadow|inset-shadow|border|from|via|to|ring|outline|tint|caret)-" + color + "$");
   static const std::set<std::string> families = {"slate", "gray", "zinc", "red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose"};
   std::smatch m;
   if (std::regex_match(c, m, variant)) {
@@ -264,6 +265,12 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
     static const std::regex urlFn(R"(^\s*(url\(\S+\))\s*$)");   // an image of the assets (ZN-262)
     if (std::regex_match(value.str, gm, urlFn)) return {{"@bg-[" + gm[1].str() + "]", 0}};
     if (name != "background") throw std::runtime_error(name + " takes a url(..), a linear-, radial- or conic-gradient(...) or none");
+  }
+  if (name == "boxShadow" && !value.isNum) {   // React Native's CSS string (0.76): zinc:ui's shadow-[..] token (ZN-260)
+    if (trim(value.str) == "none") return {{"@shadow-none", 0}};
+    std::string u;
+    for (char ch : trim(value.str)) u += ch == ' ' ? '_' : ch;
+    return {{"@shadow-[" + u + "]", 0}};
   }
   if (name == "transformOrigin" && !value.isNum) {   // React Native's 'top left', '10px 20%': zinc:ui's origin-[..] token (ZN-263.02)
     std::string u;

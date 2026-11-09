@@ -201,6 +201,23 @@ declare module 'zinc:ui' {
       bB: number;
       bL: number;
   }
+  /** One layer of a box shadow (ZN-260): offset, blur and spread in CSS pixels, the colour and its alpha, inset or around the box. */
+  export class ShadowLayer {
+      x: number;
+      y: number;
+      blur: number;
+      spread: number;
+      color: i32;
+      alpha: i32;
+      inset: boolean;
+  }
+  /** The box shadows beyond the presets (ZN-260): shadow-[..]'s layers, inset-shadow-*'s and the colour inset-shadow-<colour> gives them (-2: theirs). */
+  export class ShadowX {
+      layers: ShadowLayer[] | null;
+      insets: ShadowLayer[] | null;
+      insetC: i32;
+      insetA: i32;
+  }
   export class SnapX {
       snap: i32;
       snapProx: boolean;
@@ -486,6 +503,7 @@ declare module 'zinc:ui' {
       layer: boolean;
       rg: RingX;
       bd: BorderX;
+      shx: ShadowX;
       sn: SnapX;
       it: InterX;
       gx: GradX;
@@ -542,6 +560,7 @@ declare module 'zinc:ui' {
       get transStart(): number;
       ownRg(): RingX;
       ownBd(): BorderX;
+      ownShx(): ShadowX;
       ownSn(): SnapX;
       ownIt(): InterX;
       ownGx(): GradX;

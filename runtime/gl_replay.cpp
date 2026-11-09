@@ -666,7 +666,7 @@ static void set_filter(Tex2& t, bool nearest) {
   t.nearest = nearest;
 }
 static void setc(uint8_t* o, uint32_t c, uint32_t a) { o[0] = (uint8_t)(c >> 16); o[1] = (uint8_t)(c >> 8); o[2] = (uint8_t)c; o[3] = (uint8_t)a; }
-struct Q { float x0, y0, x1, y1, u0, v0, u1, v1, bx, by, bw, bh, r, p1; int mode, grad; uint32_t c1, c2; uint32_t alpha; bool full, cached; };   // full: every pixel of the quad is inside its box (the interior of a split rounded rect)
+struct Q { float x0, y0, x1, y1, u0, v0, u1, v1, bx, by, bw, bh, r, p1; int mode, grad; uint32_t c1, c2; uint32_t alpha; bool full, cached; float hx, hy, sp; };   // full: every pixel of the quad is inside its box (the interior of a split rounded rect); hx, hy, sp: an inset shadow's hole (inset_q)
 // XFORM (ZN-263.01): while it is on, quads are given in a box's own coordinates and their corners go through this matrix; the boxes'
 // distance functions get their own coordinates in (u, v), with 16 added to the mode, and images and glyphs keep their texture coordinates.
 static bool xf_on;
@@ -707,7 +707,7 @@ static void quad(const Q& q, bool divide_clip = true) {
     for (int i = 0; i < 4; i++) {
       const float lx = xs[i], ly = ys[i];
       xs[i] = xf_m[0] * lx + xf_m[2] * ly + xf_m[4]; ys[i] = xf_m[1] * lx + xf_m[3] * ly + xf_m[5];
-      if (local) { us[i] = lx; vs[i] = ly; }
+      if (local) { us[i] = lx - q.hx; vs[i] = ly - q.hy; }   // an inset shadow's pixel from its hole's centre (inset_q)
       x0 = xs[i] < x0 ? xs[i] : x0; x1 = xs[i] > x1 ? xs[i] : x1; y0 = ys[i] < y0 ? ys[i] : y0; y1 = ys[i] > y1 ? ys[i] : y1;
     }
     if (local) mode += 16;
@@ -735,15 +735,27 @@ static void quad(const Q& q, bool divide_clip = true) {
     if (whole && (m15 == FILL || m15 == SOLID) && (opaque || whole_translucent)) lean = LEAN_FILLSQ;   // a translucent one measured slower than LEAN_FILL on a Tegra 3 (16 fps against 22 for eight screens)
     else if (m15 == FILL) lean = q.grad <= 2 ? LEAN_FILL : q.grad == 3 ? LEAN_RADIAL : -1;
     else if (m15 == BORDER_M) lean = LEAN_BORDER;
-    else if (m15 == SHADOW_M) lean = LEAN_SHADOW;
+    else if (m15 == SHADOW_M) lean = q.p1 < 0 ? -1 : LEAN_SHADOW;   // an inset (p1 < 0): the general program's
     else if (q.r <= 0) lean = m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.p1 == 0 ? LEAN_IMAGE : -1;
   }
   run_of(mode, lean, opaque, !needs_clip);
   nq++;
   for (int i = 0; i < 4; i++) {
-    v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)mode, (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
+    v[i] = V{xs[i], ys[i], us[i], vs[i], q.bx, q.by, q.bw, q.bh, q.r, q.p1, (float)mode, m15 == SHADOW_M ? q.sp : (float)q.grad, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
     setc(v[i].c1, q.c1, q.alpha); setc(v[i].c2, q.c2, 255);
   }
+}
+// An inset shadow (ZN-260, kShadowInset) over the box's pixels b: the fragment reads the pixel from the hole's centre in v_pos.zw, the spread
+// in v_par.w and the blur, negative, in v_par.y. Through a matrix the box's centre is given from the hole's too (quad() moves the pixel there).
+static Q box_q(const Cmd& c, const Rect& b, int mode);
+static void inset_q(const Cmd& c, const Rect& b) {
+  Q q = box_q(c, b, SHADOW_M);
+  const Hole o = shadow_hole(c);
+  const float hx = q.bx + o.dx, hy = q.by + o.dy;
+  q.p1 = -(c.s > 0.5f ? c.s : 0.5f); q.sp = o.spread;
+  if (xf_on) { q.hx = hx; q.hy = hy; q.bx -= hx; q.by -= hy; }
+  else { q.u0 = q.x0 - hx; q.u1 = q.x1 - hx; q.v0 = q.y0 - hy; q.v1 = q.y1 - hy; }
+  quad(q);
 }
 static Q box_q(const Cmd& c, const Rect& b, int mode) {
   float hw = c.w * 0.5f, hh = c.h * 0.5f;
@@ -1762,6 +1774,7 @@ static void draw_xform(const Cmd& c, const float* p, const char* text, const flo
       Q q = box_q(in, b, BORDER_M); q.p1 = in.s; quad(q); break;
     }
     case SHADOW: {
+      if (in.pad & kShadowInset) { inset_q(in, bounds(in.x - 1, in.y - 1, in.w + 2, in.h + 2, HUGE_R)); break; }
       const float blur = in.s > 0.5f ? in.s : 0.5f;
       Q q = box_q(in, bounds(in.x - blur - 1, in.y - blur - 1, in.w + 2 * blur + 2, in.h + 2 * blur + 2, HUGE_R), SHADOW_M);
       q.p1 = blur; quad(q); break;
@@ -2226,6 +2239,7 @@ static void run(const Frame& f, bool first) {
         break;
       }
       case SHADOW: {
+        if (c.pad & kShadowInset) { const Rect b = bounds(c.x - 1, c.y - 1, c.w + 2, c.h + 2, HUGE_R); if (b.x0 < b.x1 && b.y0 < b.y1) inset_q(c, b); break; }
         float blur = c.s > 0.5f ? c.s : 0.5f;
         Rect b = bounds(c.x - blur, c.y - blur, c.w + 2 * blur, c.h + 2 * blur, HUGE_R);
         if (b.x0 >= b.x1 || b.y0 >= b.y1) break;
