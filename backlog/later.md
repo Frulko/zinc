@@ -769,6 +769,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-700: a shared kit for the editors written in Zinc (the pinball and museum editors repeat panels, lists and inspectors); worth it when a third editor appears.
 - ZN-946: Hamlet should save and hash people's positions and jobs and the deer, so a restored run continues exactly like an uninterrupted one (the hash holds but the resumed run diverges); server repair by snapshot needs it.
 - ZN-970: Hamlet's Ctrl+Z, storage orders, labour priority and the debug tick still change the village outside the command log; make them commands. A multi-player queue sorts by tick, then player, then arrival (arrival only today).
+- ZN-971: Hamlet's sim reads the dev panel's prefs (walkSpeed, treeMin, treeRegrow, deerMin, deerRespawn): a replay or a server with other prefs desyncs; move them into world state or the log header. The log header should hash the economy.json it ran with; optional checkpoint lines (tick + hash every N ticks, as OpenTTD) would point at the first diverging tick. `recordLog` is not reachable in the app yet (a Debug window button; ZN-972's server is its first user).
 
 ## Cross-platform pass
 

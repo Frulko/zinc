@@ -59,3 +59,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: ZN-774.29 (Done, D242). Worker: ZN-774.30 the /play/ page, beside Hamlet.
 - Integrated: ZN-946, ZN-970 (Done). Worker: ZN-971 Hamlet command log and replay, beside ZN-774.30.
 - Integrated: ZN-774.30 (Done, D243). Worker: ZN-437 zinc assets check and report --diff, beside ZN-971.
+- Integrated: ZN-971 (Done). Worker: ZN-973 Hamlet chain 3 (farm, mill, bakery), beside ZN-437.

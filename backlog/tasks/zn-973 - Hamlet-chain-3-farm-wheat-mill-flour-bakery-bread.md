@@ -2,7 +2,8 @@
 id: ZN-973
 title: 'Hamlet: chain 3: farm -> wheat -> mill -> flour -> bakery -> bread'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 13:10'
 updated_date: '2026-11-07 18:30'
 labels:
