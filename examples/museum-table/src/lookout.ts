@@ -4,7 +4,7 @@
 // it, and the panel's button leads to the sequence the point names.
 import { rrect, border, drawText, textWidth } from 'zinc:gfx';
 import { Project, Media, Point, Colours } from './project';
-import { Fingers, Finger } from './touch';
+import { Fingers, Finger } from 'zinc:gestures';
 import { PanoramaView } from './panorama';
 import { Frame } from './frame';
 import { drawPanel } from './panel';

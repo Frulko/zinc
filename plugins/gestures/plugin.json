@@ -3,6 +3,6 @@
   "kind": "module",
   "module": "zinc:gestures",
   "entry": "index.ts",
-  "description": "Pan / pinch / rotate / tap gestures from mouse, wheel, trackpad and multitouch",
+  "description": "Pan / pinch / rotate / tap gestures from mouse, wheel, trackpad and multitouch, and fingers owned per target with a manipulate gesture and inertia",
   "targets": { "macos": {}, "linux": {}, "windows": {}, "rpi1": {}, "wasm": {}, "esp32": {}, "ps2": {} }
 }

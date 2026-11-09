@@ -199,8 +199,7 @@ The document is `editor/doc.ts` (one operation per command, checked without a wi
 | `src/stage.ts` | one sequence on the table: its clock, its cards, its object or panorama, its links |
 | `src/storyboard.ts` | the map of the story for the visitor, with the visited trail |
 | `src/narration.ts` | a narration: the clip through `zinc:audio`, the subtitles from WebVTT or from the transcript |
-| `src/touch.ts` | fingers (touch points or the mouse) and `manipulate`: what one or two fingers do to what they hold |
-| `src/table.ts` | the light table: cards drawn with `zinc:gfx` under a matrix, glide, soft edges, turning over, hotspots, timed cards |
+| `src/table.ts` | the light table: cards drawn with `zinc:gfx` under a matrix, each held by its own fingers and moved with `manipulate` and `glide` of `zinc:gestures`, soft edges, turning over, hotspots, timed cards |
 | `src/viewer.ts`, `src/orbit.ts`, `src/panel.ts` | the 3D object viewer on `zinc:3d` (OBJ, glTF, GLB), the turning it shares with the panorama, the panel of a point |
 | `src/lookout.ts`, `src/panorama.ts`, `src/pano.ts` | 360-degree panoramas: on the table, the view itself, and alone |
 | `src/frame.ts` | the table as the visitor at one of its sides sees it: where texts and buttons are laid out, and the matrix that turns them |

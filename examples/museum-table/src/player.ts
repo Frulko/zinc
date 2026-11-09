@@ -15,7 +15,7 @@
 import { rect, rrect, border, polygon, drawImage, drawText, textWidth, imageWidth, imageHeight, wheel, pinch, pointerX, pointerY, modifiers, Mod } from 'zinc:gfx';
 import { clock } from 'zinc:sys';
 import { Project, Sequence, Item, Link, Media, Presentation, Colours, Table, Kiosk, spokenDescription } from './project';
-import { Fingers, Finger } from './touch';
+import { Fingers, Finger } from 'zinc:gestures';
 import { Card } from './table';
 import { Stage, Views } from './stage';
 import { Button, drawButton, setInRows, rowWidth } from './button';

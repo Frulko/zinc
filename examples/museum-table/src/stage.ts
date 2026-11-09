@@ -3,7 +3,7 @@
 // (player.ts) owns the clock's meaning: what follows, what opens over what.
 import { rrect, drawText, textWidth } from 'zinc:gfx';
 import { Project, Sequence, Item, Media, Colours, LIGHTS } from './project';
-import { Fingers } from './touch';
+import { Fingers } from 'zinc:gestures';
 import { LightTable } from './table';
 import { ObjectView } from './viewer';
 import { Lookout } from './lookout';

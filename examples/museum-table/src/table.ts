@@ -6,7 +6,7 @@
 // card by itself while the card is there; a touch pauses it and starts it again.
 import { imageWidth, imageHeight, rrect, border, shadow, polygon, drawImage, drawText, textWidth, setTransform, resetTransform } from 'zinc:gfx';
 import { Project, Sequence, Media, Link, Colours } from './project';
-import { Fingers, Finger, Pose, manipulate } from './touch';
+import { Fingers, Finger, Pose, manipulate, glide } from 'zinc:gestures';
 import { sans, bold, wrap, leading, reading, faint } from './type';
 import { files } from './files';
 import { Film } from './film';
@@ -53,10 +53,6 @@ export class Card {
   said: string[] = [];
   /** Has a back to read. */
   turns = false;
-  /** Speed kept when the last finger lifts: table units and radians per second. */
-  vx = 0;
-  vy = 0;
-  va = 0;
   /** Fingers on it. */
   held: i32 = 0;
   /** The face asked for, and where the turn is: 0 front, 1 back. */
@@ -204,27 +200,17 @@ export class LightTable {
       const c = this.cardAt(f.x, f.y);
       if (c !== null) { f.owner = c.uid; this.raise(c); }
     }
-    const follow = Math.min(1, 18 * dt), glide = Math.exp(-4 * dt), spin = Math.exp(-6 * dt), pull = 1 - Math.exp(-9 * dt);
+    const spin = Math.exp(-6 * dt), pull = 1 - Math.exp(-9 * dt);
     for (const c of this.cards) {
       const held = fingers.of(c.uid), p = c.pose;
       c.held = held.length;
-      if (held.length > 0) {
-        const x = p.x, y = p.y, a = p.angle;
-        manipulate(p, held, NARROWEST / c.w, WIDEST / c.w);
-        if (dt > 0) {   // the speed the card would leave with, smoothed over a few frames
-          c.vx += ((p.x - x) / dt - c.vx) * follow;
-          c.vy += ((p.y - y) / dt - c.vy) * follow;
-          c.va += ((p.angle - a) / dt - c.va) * follow;
-        }
-      } else {
-        p.x += c.vx * dt; p.y += c.vy * dt; p.angle += c.va * dt;
-        c.vx *= glide; c.vy *= glide; c.va *= spin;
-        if (Math.abs(c.vx) + Math.abs(c.vy) < 4) { c.vx = 0; c.vy = 0; }
-        if (Math.abs(c.va) < 0.02) c.va = 0;
+      if (held.length > 0) manipulate(p, held, NARROWEST / c.w, WIDEST / c.w, dt);
+      else {
+        glide(p, dt);   // a released card glides on
         // soft edges: a card pushed out comes back, without a wall to hit
         const inX = Math.min(this.width - INSET, Math.max(INSET, p.x)), inY = Math.min(this.height - INSET, Math.max(INSET, p.y));
-        if (inX !== p.x) { p.x = Math.abs(inX - p.x) < 0.05 ? inX : p.x + (inX - p.x) * pull; c.vx *= spin; }
-        if (inY !== p.y) { p.y = Math.abs(inY - p.y) < 0.05 ? inY : p.y + (inY - p.y) * pull; c.vy *= spin; }
+        if (inX !== p.x) { p.x = Math.abs(inX - p.x) < 0.05 ? inX : p.x + (inX - p.x) * pull; p.vx *= spin; }
+        if (inY !== p.y) { p.y = Math.abs(inY - p.y) < 0.05 ? inY : p.y + (inY - p.y) * pull; p.vy *= spin; }
       }
       const to = c.back ? 1 : 0;
       if (c.turn !== to) c.turn = Math.abs(to - c.turn) < 3.2 * dt ? to : c.turn + (to > c.turn ? 3.2 : -3.2) * dt;
@@ -246,7 +232,7 @@ export class LightTable {
   rest(): void { for (const c of this.cards) this.halt(c); }
 
   private tapped(c: Card, f: Finger, now: number): void {
-    c.vx = 0; c.vy = 0; c.va = 0;
+    c.pose.vx = 0; c.pose.vy = 0; c.pose.va = 0;
     this.toCard(c, f.x, f.y);
     if (c.turns && this.lx > c.w / 2 - FOLD && this.ly > c.h / 2 - FOLD) { c.back = !c.back; c.lastTap = -10; return; }
     if (c.turn < 0.5) for (const l of c.spots) {

@@ -10,7 +10,7 @@ import { clock, utf8Decode } from 'zinc:sys';
 import { Scene, Camera, Node, Mesh, Material, Light, parseObj, sphere, quatFromAxisAngle, quatMultiply, Shading } from 'zinc:3d';
 import { loadGltf } from 'zinc:3d/gltf';
 import { Project, Media, Point, Colours } from './project';
-import { Fingers, Finger } from './touch';
+import { Fingers, Finger } from 'zinc:gestures';
 import { Orbit } from './orbit';
 import { Frame } from './frame';
 import { drawPanel } from './panel';

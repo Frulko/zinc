@@ -7,6 +7,7 @@
     {"paths": ["examples/murdoku/src/deduction.ts", "examples/murdoku/src/hints.ts", "tests/data/murdoku/reasoning.ts", "tests/t1/murdoku_reasoning.sh"], "tests": ["murdoku_reasoning"]},
     {"paths": ["src/app/ios_feedback_store.h", "src/app/ios_feedback_store.mm", "tests/native/feedback_store.mm", "tests/t0/feedback_store.sh"], "tests": ["feedback_store"]},
     {"paths": ["examples/just-go-straight/", "tests/golden/just-go-straight/", "tests/t1/just_go_straight.sh"], "tests": ["just_go_straight"]},
+    {"paths": ["plugins/gestures/", "tests/t0/gestures_manipulate.sh"], "tests": ["gestures_manipulate"]},
     {"paths": ["src/app/dev_gestures.h", "src/app/player.cpp", "tests/t0/zinc_go_gesture.sh"], "tests": ["zinc_go_gesture"]},
     {"paths": ["examples/murdoku/src/main.tsx", "tests/data/murdoku/safe-area.ts", "tests/t1/murdoku_safe_area.sh"], "tests": ["murdoku_safe_area"]},
     {"paths": ["src/app/ios_glue.mm", "lib/std/ui.ts", "tests/golden/text-touch/edits.tsx", "tests/t1/ios_text_edits.sh"], "tests": ["ios_text_edits"]},
