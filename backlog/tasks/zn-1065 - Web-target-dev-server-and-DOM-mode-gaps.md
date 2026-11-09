@@ -2,7 +2,8 @@
 id: ZN-1065
 title: 'Web target: dev server and DOM-mode gaps'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:43'
 labels:
   - web

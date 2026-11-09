@@ -2,7 +2,8 @@
 id: ZN-1069
 title: 'zinc:ui native host hook: a renderer chosen per target and ui.render'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-08 21:43'
 labels:
   - ui

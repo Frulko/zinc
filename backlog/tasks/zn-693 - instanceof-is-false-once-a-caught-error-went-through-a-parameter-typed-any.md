@@ -2,7 +2,8 @@
 id: ZN-693
 title: instanceof is false once a caught error went through a parameter typed any
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 20:17'
 labels:
   - compiler
