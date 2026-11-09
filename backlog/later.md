@@ -575,6 +575,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-684: compute scale and turn from all held fingers (centroid and mean spread, as WPF does), not only the first two, so a three-finger grip moves as people expect.
 - ZN-567: a max-tree index cache like Firefox's WebGLElementArrayCache, so a `bufferSubData` on part of an index buffer keeps the rest of the cache (only if meshes update sub-ranges every frame).
 - ZN-684: the museum table's last frame hash (534365c613d00312) differs from `tests/golden/museum-table/frames.txt` (216961b085c60998) on develop before and after ZN-684: check at the milestone run.
+- ZN-1022: `flex-1` in a `flex-wrap` row still breaks lines by content width (CSS: by the content minimum); `shrink`, `flex-auto` and `flex-initial` children shrink to 0, not to their automatic minimum; the `flex: 1` style without the react-native preset still grows over the content.
+- ZN-263.02: `transformOrigin` as an array or a run-time value is not lowered; zinc:ui has no Tailwind `rotate-*`, `scale-*` or `skew-*` classes.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -762,3 +764,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-182/183: Pi 3B+ runs of `gl_atlas_churn` with `ZINC_DISPLAY=gl` (the GLES 2 atlas path) and with `ZINC_GL_QUIRK=no-replay` (fallback under KMS); the Vita target build.
 - ZN-1043: gamepads on display-gl's Pi KMS driver (evdev).
 - ZN-1016: check whether a ps2 core built with graphics also links 3d and physics2d (ps2 lists only audio and lan).
+- ZN-291: measure the rn (Yoga) layout on wasm (size), rpi1 and ps2 and set `ui.layout.rn` in `targets/capabilities.json` from the results (commands in the task notes).

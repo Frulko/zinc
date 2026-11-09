@@ -2,10 +2,9 @@
 id: ZN-291
 title: Document the layout modes
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-07 13:08'
-updated_date: '2026-11-09 02:00'
+updated_date: '2026-11-09 00:55'
 labels:
   - ui
   - layout
@@ -13,7 +12,7 @@ labels:
 milestone: m-17
 dependencies:
   - ZN-285
-ordinal: 6700
+ordinal: 50500
 ---
 
 ## Description
@@ -48,4 +47,6 @@ Line for backlog/later.md (Cross-platform pass):
 - ZN-291: measure rn (Yoga) on wasm (size), rpi1 and ps2 and set targets/capabilities.json ui.layout.rn from it.
 
 Proposed tests: none (documentation only).
+
+2026-11-09 coordinator: criterion 3 done on develop (4f9722632); criteria 1-2 need rn measured on wasm, rpi1 and ps2: moved to the cross-platform pass (ordinal 50500).
 <!-- SECTION:NOTES:END -->
