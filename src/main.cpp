@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <iterator>
 #include <map>
+#include <optional>
 #include <vector>
 #include <sstream>
 #include <string>
@@ -281,19 +282,23 @@ struct PluginBatch {
 static PluginBatch* gBatch = nullptr;
 
 // A native module that is not registered: find its plugin (the engine's, the project's, pluginDirs), build it into the cache and load it (ZN-101).
+// The plugins of the compile under way: looked for once per compile, at its first native module, not at each (ZN-1024); a compile starts
+// with none (installNativeProvider), so a plugin added between two saves of zinc dev is found
+static std::optional<std::vector<zn::frontend::FoundPlugin>> gCompilePlugins;
+static const std::vector<zn::frontend::FoundPlugin>& compilePlugins() {
+  if (!gCompilePlugins) { std::vector<std::string> problems; gCompilePlugins = zn::frontend::discoverPlugins(gRoot, gProjectDir, problems); }
+  return *gCompilePlugins;
+}
 static void installNativeProvider(const char* entry) {
   namespace fs = std::filesystem;
+  gCompilePlugins.reset();
   std::string pf = zn::frontend::findProjectFile(entry);
   gProjectDir = pf.empty() ? fs::absolute(entry).parent_path().string() : fs::path(pf).parent_path().string();
   zn::cli::warnRevoked(gProjectDir);   // plugins of zinc.lock the index revoked (ZN-345)
   zn::tc::loadPolicy(gProjectDir);     // the trust policy of the plugins built for it (ZN-346)
   zn::frontend::gNativeProvider = [](const std::string& module, std::string& err) {
     if (packedPlugin(module)) return true;
-    std::vector<std::string> problems;
-    std::string root = gRoot;
-    static std::vector<zn::frontend::FoundPlugin> found;
-    found = zn::frontend::discoverPlugins(root, gProjectDir, problems);
-    const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
+    const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(compilePlugins(), module);
     if (!p) { err = "no plugin provides it (zinc plugins lists them)"; return false; }
     // a console's pack: its core links these plugins itself (targets/capabilities.json "plugins", tools/build-console-core), so no library of
     // this machine is built for it, and a build that fails here cannot slip the plugin's x.sim.ts stand-in into the console's program
@@ -324,16 +329,12 @@ static void installNativeProvider(const char* entry) {
   };
   zn::frontend::gNativeLive = [](const std::string& module) {
     if (standIns()) return false;
-    std::vector<std::string> problems;
-    auto found = zn::frontend::discoverPlugins(gRoot, gProjectDir, problems);
-    const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
+    const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(compilePlugins(), module);
     return p && p->manifest.live;
   };
   zn::frontend::gNativePreferred = [](const std::string& module) {
     if (!standIns()) return true;
-    std::vector<std::string> problems;
-    auto found = zn::frontend::discoverPlugins(gRoot, gProjectDir, problems);
-    const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(found, module);
+    const zn::frontend::FoundPlugin* p = zn::tc::pluginForModule(compilePlugins(), module);
     return p && p->manifest.deterministic;
   };
 }
@@ -389,7 +390,7 @@ static void notePlugins(const zn::frontend::Program& prog) {
   std::vector<std::string> problems, files;
   for (const auto& f : prog.files) if (!f.typesOnly && !f.path.empty() && f.path[0] != '<' && f.path.rfind("zinc:", 0) != 0) files.push_back(fs::absolute(f.path).lexically_normal().string());   // a plugin read for its types only is not used
   std::vector<std::string> pluginDirs;
-  for (const auto& p : zn::frontend::discoverPlugins(gRoot, gProjectDir, problems)) {
+  for (const auto& p : compilePlugins()) {
     const std::string dir = (fs::absolute(p.dir).lexically_normal() / "").string();
     pluginDirs.push_back(dir);
     for (const std::string& f : files) if (f.compare(0, dir.size(), dir) == 0) { gUsedPlugins.push_back(p.manifest.name); break; }

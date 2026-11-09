@@ -313,14 +313,27 @@ std::string deviceTarget() {
 namespace { std::string buildOs() { return gCross.on ? "linux" : pluginTarget(); } }
 
 const frontend::FoundPlugin* pluginForModule(const std::vector<frontend::FoundPlugin>& plugins, const std::string& module) {
+  // the module a spec declares, by its path and text: generated once while the spec stays the same (each compile asks, ZN-1024)
+  static std::mutex mu;
+  static std::map<std::string, std::string> declares;   // path NUL text -> module name ("" when it does not generate)
   for (const frontend::FoundPlugin& p : plugins) {
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(fs::path(p.dir) / "native", ec)) {
       std::string path = e.path().string(), text;
       if (!isSpec(e.path()) || !readAll(path, text)) continue;
-      frontend::NativeGen g;
-      std::string err;
-      if (frontend::generateNative(path, text, g, err) && g.name == module) return &p;
+      std::string key = path + '\0' + text, name;
+      {
+        std::lock_guard<std::mutex> g(mu);
+        auto it = declares.find(key);
+        if (it == declares.end()) {
+          if (declares.size() > 1024) declares.clear();   // ponytail: specs edited many times in one process start over
+          frontend::NativeGen gen;
+          std::string err;
+          it = declares.emplace(std::move(key), frontend::generateNative(path, text, gen, err) ? gen.name : std::string()).first;
+        }
+        name = it->second;
+      }
+      if (!name.empty() && name == module) return &p;
     }
   }
   return nullptr;
