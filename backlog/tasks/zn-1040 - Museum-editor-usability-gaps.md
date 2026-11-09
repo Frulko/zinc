@@ -2,7 +2,8 @@
 id: ZN-1040
 title: 'Museum editor: usability gaps'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:38'
 labels:
   - museum
