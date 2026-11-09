@@ -2,8 +2,7 @@
 id: ZN-1084
 title: Measure sparse UI work and lifecycle in zbench
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 13:33'
 updated_date: '2026-11-09 13:49'
 labels:

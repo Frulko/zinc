@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Recorded/released ZN-1084, D269: clean bench_harness and focus-disposer T0 PASS; preserve three small artifact JSONs. Workflow51326feea persists automatic queue and five-worker CLI launch setting (new sessions only). Current three workers: Inputs, Overlays, core1086 then1085 correction. Size core gate is green; family workers validate against that binary before closure.
+
 - Reopened ZN-1085 AC2/3 after real Inputs React MoneyField found registration-while-focused snapshot=false misses blur. Existing disposer commit remains integrated; core worker1086 fixes this in a separate1085 commit after finishing its size change. No new task, no UI workaround, no parallel shared-core editing.
 
 - Focus disposer d78054826 integrated; Inputs and Overlays migrate their own subscriptions. Claimed ZN-1086 to restore unchanged AOT kit size budget through measured engine code/metadata work (D268 revisit), never kit source contortions or raised limits. New core worker replaces finished1085; no other shared core source worker active.

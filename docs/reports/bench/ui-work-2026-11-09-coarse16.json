@@ -1,0 +1,958 @@
+{
+ "schema": "zbench/1",
+ "suite": "render",
+ "date": "2026-11-09T14:47:57",
+ "tool": {
+  "rev": "2c3656727",
+  "dirty": true
+ },
+ "device": {
+  "id": "mac",
+  "before": {
+   "model": "MacBookPro18,3",
+   "cpu": "Apple M1 Pro",
+   "cores": "10",
+   "os": "macOS 15.7.4",
+   "gpu": [
+    "Apple M1 Pro"
+   ],
+   "thermal": "Note: No thermal warning level has been recorded Note: No performance warning level has been recorded Note: No CPU power status has been recorded",
+   "power": "Now drawing from 'AC Power'",
+   "load": "3.08 4.48 4.59"
+  },
+  "after": {
+   "model": "MacBookPro18,3",
+   "cpu": "Apple M1 Pro",
+   "cores": "10",
+   "os": "macOS 15.7.4",
+   "gpu": [
+    "Apple M1 Pro"
+   ],
+   "thermal": "Note: No thermal warning level has been recorded Note: No performance warning level has been recorded Note: No CPU power status has been recorded",
+   "power": "Now drawing from 'AC Power'",
+   "load": "3.00 4.41 4.57"
+  }
+ },
+ "config": {
+  "engine": "quickjs",
+  "set": {
+   "ZB_ROWS": "16",
+   "ZB_WIRING": "coarse",
+   "ZINC_HEADLESS": "1",
+   "ZINC_DETERMINISTIC": "1"
+  },
+  "frames": 8,
+  "skip": 0,
+  "runs": 1,
+  "modes": [
+   "uncapped"
+  ],
+  "size": "240x160"
+ },
+ "modes": {
+  "uncapped": {
+   "scenes": {
+    "ui_noop": {
+     "runs": 1,
+     "ok_runs": 1,
+     "work_p50_us": 16,
+     "work_p99_us": 317,
+     "interval_p50_us": 7,
+     "interval_p99_us": 324,
+     "raster_p50_us": 0,
+     "present_p50_us": 0,
+     "frames": 7,
+     "window": [
+      240,
+      160
+     ],
+     "drawn": [
+      [
+       240,
+       160
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 142857.1,
+     "spread": 0.0,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "45cd7f50cc531383"
+     ],
+     "retried_runs": 0,
+     "ui_work": {
+      "scenario_version": 1,
+      "frames": 8,
+      "model": "retained-solid-signals",
+      "wiring": "coarse",
+      "rows": 16,
+      "oracle": {
+       "pass": true,
+       "failures": []
+      },
+      "phases": [
+       {
+        "phase": "creation",
+        "binding_evaluations": 16,
+        "component_constructions": 16,
+        "cleanups": 0,
+        "live_rows": 16,
+        "layout_passes": 1,
+        "measure_visits": 36,
+        "place_visits": 36,
+        "paint_visits": 68,
+        "native_host_visits": 0,
+        "native_host_commits": 0,
+        "memory": {
+         "rss_bytes": null,
+         "heap_bytes": null,
+         "status": "unavailable: no in-process memory sampler"
+        }
+       },
+       {
+        "phase": "settled",
+        "binding_evaluations": 0,
+        "component_constructions": 0,
+        "cleanups": 0,
+        "live_rows": 16,
+        "layout_passes": 0,
+        "measure_visits": 0,
+        "place_visits": 0,
+        "paint_visits": 0,
+        "native_host_visits": 0,
+        "native_host_commits": 0,
+        "memory": {
+         "rss_bytes": null,
+         "heap_bytes": null,
+         "status": "unavailable: no in-process memory sampler"
+        }
+       },
+       {
+        "phase": "disposal",
+        "binding_evaluations": 0,
+        "component_constructions": 0,
+        "cleanups": 16,
+        "live_rows": 0,
+        "layout_passes": 1,
+        "measure_visits": 3,
+        "place_visits": 3,
+        "paint_visits": 16,
+        "native_host_visits": 0,
+        "native_host_commits": 0,
+        "memory": {
+         "rss_bytes": null,
+         "heap_bytes": null,
+         "status": "unavailable: no in-process memory sampler"
+        }
+       }
+      ],
+      "unmeasured": [
+       "style visits",
+       "Yoga internal visits",
+       "DOM host visits",
+       "RSS",
+       "heap"
+      ]
+     },
+     "oracle_pass": true,
+     "work_counts_stable": true
+    },
+    "ui_sparse_label": {
+     "runs": 1,
+     "ok_runs": 1,
+     "work_p50_us": 480,
+     "work_p99_us": 508,
+     "interval_p50_us": 481,
+     "interval_p99_us": 509,
+     "raster_p50_us": 0,
+     "present_p50_us": 0,
+     "frames": 7,
+     "window": [
+      240,
+      160
+     ],
+     "drawn": [
+      [
+       240,
+       160
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 2079.0,
+     "spread": 0.0,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "45cd7f50cc531383"
+     ],
+     "retried_runs": 0,
+     "ui_work": {
+      "scenario_version": 1,
+      "frames": 8,
+      "model": "retained-solid-signals",
+      "wiring": "coarse",
+      "rows": 16,
+      "oracle": {
+       "pass": true,
+       "failures": []
+      },
+      "phases": [
+       {
+        "phase": "creation",
+        "binding_evaluations": 16,
+        "component_constructions": 16,
+        "cleanups": 0,
+        "live_rows": 16,
+        "layout_passes": 1,
+        "measure_visits": 36,
+        "place_visits": 36,
+        "paint_visits": 68,
+        "native_host_visits": 0,
+        "native_host_commits": 0,
+        "memory": {
+         "rss_bytes": null,
+         "heap_bytes": null,
+         "status": "unavailable: no in-process memory sampler"
+        }
+       },
+       {
+        "phase": "settled",
+        "binding_evaluations": 64,
+        "component_constructions": 0,
+        "cleanups": 0,
+        "live_rows": 16,
+        "layout_passes": 4,
+        "measure_visits": 144,
+        "place_visits": 144,
+        "paint_visits": 272,
+        "native_host_visits": 0,
+        "native_host_commits": 0,
+        "memory": {
+         "rss_bytes": null,
+         "heap_bytes": null,
+         "status": "unavailable: no in-process memory sampler"
+        }
+       },
+       {
+        "phase": "disposal",
+        "binding_evaluations": 0,
+        "component_constructions": 0,
+        "cleanups": 16,
+        "live_rows": 0,
+        "layout_passes": 1,
+        "measure_visits": 3,
+        "place_visits": 3,
+        "paint_visits": 16,
+        "native_host_visits": 0,
+        "native_host_commits": 0,
+        "memory": {
+         "rss_bytes": null,
+         "heap_bytes": null,
+         "status": "unavailable: no in-process memory sampler"
+        }
+       }
+      ],
+      "unmeasured": [
+       "style visits",
+       "Yoga internal visits",
+       "DOM host visits",
+       "RSS",
+       "heap"
+      ]
+     },
+     "oracle_pass": true,
+     "work_counts_stable": true
+    },
+    "ui_paint_only": {
+     "runs": 1,
+     "ok_runs": 1,
+     "work_p50_us": 257,
+     "work_p99_us": 280,
+     "interval_p50_us": 258,
+     "interval_p99_us": 282,
+     "raster_p50_us": 0,
+     "present_p50_us": 0,
+     "frames": 7,
+     "window": [
+      240,
+      160
+     ],
+     "drawn": [
+      [
+       240,
+       160
+      ]
+     ],
+     "late_work_gt_16_7": 0,
+     "late_interval_gt_25": 0,
+     "fps": 3876.0,
+     "spread": 0.0,
+     "vsync_locked": false,
+     "frame_hashes": [
+      "45cd7f50cc531383"
+     ],
+     "retried_runs": 0,
+     "ui_work": {
+      "scenario_version": 1,
+      "frames": 8,
+      "model": "retained-solid-signals",
+      "wiring": "coarse",
+      "rows": 16,
+      "oracle": {
+       "pass": true,
+       "failures": []
+      },
+      "phases": [
+       {
+        "phase": "creation",
+        "binding_evaluations": 32,
+        "component_constructions": 16,
+        "cleanups": 0,
+        "live_rows": 16,
+        "layout_passes": 1,
+        "measure_visits": 36,
+        "place_visits": 36,
+        "paint_visits": 68,
+        "native_host_visits": 0,
+        "native_host_commits": 0,
+        "memory": {
+         "rss_bytes": null,
+         "heap_bytes": null,
+         "status": "unavailable: no in-process memory sampler"
+        }
+       },
+       {
+        "phase": "settled",
+        "binding_evaluations": 64,
+        "component_constructions": 0,
+        "cleanups": 0,
+        "live_rows": 16,
+        "layout_passes": 0,
+        "measure_visits": 0,
+        "place_visits": 0,
+        "paint_visits": 204,
+        "native_host_visits": 0,
+        "native_host_commits": 0,
+        "memory": {
+         "rss_bytes": null,
+         "heap_bytes": null,
+         "status": "unavailable: no in-process memory sampler"
+        }
+       },
+       {
+        "phase": "disposal",
+        "binding_evaluations": 0,
+        "component_constructions": 0,
+        "cleanups": 16,
+        "live_rows": 0,
+        "layout_passes": 1,
+        "measure_visits": 3,
+        "place_visits": 3,
+        "paint_visits": 16,
+        "native_host_visits": 0,
+        "native_host_commits": 0,
+        "memory": {
+         "rss_bytes": null,
+         "heap_bytes": null,
+         "status": "unavailable: no in-process memory sampler"
+        }
+       }
+      ],
+      "unmeasured": [
+       "style visits",
+       "Yoga internal visits",
+       "DOM host visits",
+       "RSS",
+       "heap"
+      ]
+     },
+     "oracle_pass": true,
+     "work_counts_stable": true
+    }
+   },
+   "problems": [],
+   "raw": {
+    "ui_noop": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_noop",
+       "frame_hash": "45cd7f50cc531383",
+       "hash_size": "240x160",
+       "frames": 7,
+       "skipped": 0,
+       "window": [
+        240,
+        160
+       ],
+       "phases": {
+        "app": {
+         "p50": 7,
+         "p99": 160,
+         "max": 711,
+         "mean": 129
+        },
+        "input": {
+         "p50": 6,
+         "p99": 28,
+         "max": 104,
+         "mean": 21
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 2,
+         "max": 3,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 0,
+         "p99": 86,
+         "max": 344,
+         "mean": 61
+        },
+        "paint": {
+         "p50": 0,
+         "p99": 30,
+         "max": 173,
+         "mean": 29
+        },
+        "effects": {
+         "p50": 1,
+         "p99": 2,
+         "max": 3,
+         "mean": 1
+        },
+        "diff": {
+         "p50": 0,
+         "p99": 3,
+         "max": 8,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 0,
+         "p99": 1,
+         "max": 3,
+         "mean": 0
+        },
+        "work": {
+         "p50": 16,
+         "p99": 317,
+         "max": 1340,
+         "mean": 246
+        },
+        "interval": {
+         "p50": 7,
+         "p99": 324,
+         "max": 1350,
+         "mean": 246
+        },
+        "present_interval": {
+         "p50": 8,
+         "p99": 38,
+         "max": 319,
+         "mean": 56
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0,
+        "present_gt_16_7": 0,
+        "present_gt_100": 0
+       },
+       "screen": {
+        "gap_max": 318,
+        "ticks": 0
+       },
+       "info": {},
+       "ui_work": {
+        "scenario_version": 1,
+        "frames": 8,
+        "model": "retained-solid-signals",
+        "wiring": "coarse",
+        "rows": 16,
+        "oracle": {
+         "pass": true,
+         "failures": []
+        },
+        "phases": [
+         {
+          "phase": "creation",
+          "binding_evaluations": 16,
+          "component_constructions": 16,
+          "cleanups": 0,
+          "live_rows": 16,
+          "layout_passes": 1,
+          "measure_visits": 36,
+          "place_visits": 36,
+          "paint_visits": 68,
+          "native_host_visits": 0,
+          "native_host_commits": 0,
+          "memory": {
+           "rss_bytes": null,
+           "heap_bytes": null,
+           "status": "unavailable: no in-process memory sampler"
+          }
+         },
+         {
+          "phase": "settled",
+          "binding_evaluations": 0,
+          "component_constructions": 0,
+          "cleanups": 0,
+          "live_rows": 16,
+          "layout_passes": 0,
+          "measure_visits": 0,
+          "place_visits": 0,
+          "paint_visits": 0,
+          "native_host_visits": 0,
+          "native_host_commits": 0,
+          "memory": {
+           "rss_bytes": null,
+           "heap_bytes": null,
+           "status": "unavailable: no in-process memory sampler"
+          }
+         },
+         {
+          "phase": "disposal",
+          "binding_evaluations": 0,
+          "component_constructions": 0,
+          "cleanups": 16,
+          "live_rows": 0,
+          "layout_passes": 1,
+          "measure_visits": 3,
+          "place_visits": 3,
+          "paint_visits": 16,
+          "native_host_visits": 0,
+          "native_host_commits": 0,
+          "memory": {
+           "rss_bytes": null,
+           "heap_bytes": null,
+           "status": "unavailable: no in-process memory sampler"
+          }
+         }
+        ],
+        "unmeasured": [
+         "style visits",
+         "Yoga internal visits",
+         "DOM host visits",
+         "RSS",
+         "heap"
+        ]
+       }
+      },
+      "frame_hash": "45cd7f50cc531383",
+      "hash_size": "240x160",
+      "scene": "ui_noop",
+      "size": [
+       240,
+       160
+      ],
+      "drawn": [
+       240,
+       160
+      ]
+     }
+    ],
+    "ui_sparse_label": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_sparse_label",
+       "frame_hash": "45cd7f50cc531383",
+       "hash_size": "240x160",
+       "frames": 7,
+       "skipped": 0,
+       "window": [
+        240,
+        160
+       ],
+       "phases": {
+        "app": {
+         "p50": 39,
+         "p99": 126,
+         "max": 649,
+         "mean": 135
+        },
+        "input": {
+         "p50": 49,
+         "p99": 50,
+         "max": 97,
+         "mean": 44
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 1,
+         "max": 3,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 243,
+         "p99": 248,
+         "max": 319,
+         "mean": 191
+        },
+        "paint": {
+         "p50": 147,
+         "p99": 148,
+         "max": 154,
+         "mean": 109
+        },
+        "effects": {
+         "p50": 1,
+         "p99": 1,
+         "max": 1,
+         "mean": 0
+        },
+        "diff": {
+         "p50": 0,
+         "p99": 4,
+         "max": 5,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 0,
+         "p99": 1,
+         "max": 3,
+         "mean": 0
+        },
+        "work": {
+         "p50": 480,
+         "p99": 508,
+         "max": 1228,
+         "mean": 484
+        },
+        "interval": {
+         "p50": 481,
+         "p99": 509,
+         "max": 1234,
+         "mean": 484
+        },
+        "present_interval": {
+         "p50": 477,
+         "p99": 482,
+         "max": 511,
+         "mean": 309
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0,
+        "present_gt_16_7": 0,
+        "present_gt_100": 0
+       },
+       "screen": {
+        "gap_max": 512,
+        "ticks": 0
+       },
+       "info": {},
+       "ui_work": {
+        "scenario_version": 1,
+        "frames": 8,
+        "model": "retained-solid-signals",
+        "wiring": "coarse",
+        "rows": 16,
+        "oracle": {
+         "pass": true,
+         "failures": []
+        },
+        "phases": [
+         {
+          "phase": "creation",
+          "binding_evaluations": 16,
+          "component_constructions": 16,
+          "cleanups": 0,
+          "live_rows": 16,
+          "layout_passes": 1,
+          "measure_visits": 36,
+          "place_visits": 36,
+          "paint_visits": 68,
+          "native_host_visits": 0,
+          "native_host_commits": 0,
+          "memory": {
+           "rss_bytes": null,
+           "heap_bytes": null,
+           "status": "unavailable: no in-process memory sampler"
+          }
+         },
+         {
+          "phase": "settled",
+          "binding_evaluations": 64,
+          "component_constructions": 0,
+          "cleanups": 0,
+          "live_rows": 16,
+          "layout_passes": 4,
+          "measure_visits": 144,
+          "place_visits": 144,
+          "paint_visits": 272,
+          "native_host_visits": 0,
+          "native_host_commits": 0,
+          "memory": {
+           "rss_bytes": null,
+           "heap_bytes": null,
+           "status": "unavailable: no in-process memory sampler"
+          }
+         },
+         {
+          "phase": "disposal",
+          "binding_evaluations": 0,
+          "component_constructions": 0,
+          "cleanups": 16,
+          "live_rows": 0,
+          "layout_passes": 1,
+          "measure_visits": 3,
+          "place_visits": 3,
+          "paint_visits": 16,
+          "native_host_visits": 0,
+          "native_host_commits": 0,
+          "memory": {
+           "rss_bytes": null,
+           "heap_bytes": null,
+           "status": "unavailable: no in-process memory sampler"
+          }
+         }
+        ],
+        "unmeasured": [
+         "style visits",
+         "Yoga internal visits",
+         "DOM host visits",
+         "RSS",
+         "heap"
+        ]
+       }
+      },
+      "frame_hash": "45cd7f50cc531383",
+      "hash_size": "240x160",
+      "scene": "ui_sparse_label",
+      "size": [
+       240,
+       160
+      ],
+      "drawn": [
+       240,
+       160
+      ]
+     }
+    ],
+    "ui_paint_only": [
+     {
+      "profile": {
+       "schema": 1,
+       "section": "ui_paint_only",
+       "frame_hash": "45cd7f50cc531383",
+       "hash_size": "240x160",
+       "frames": 7,
+       "skipped": 0,
+       "window": [
+        240,
+        160
+       ],
+       "phases": {
+        "app": {
+         "p50": 42,
+         "p99": 165,
+         "max": 736,
+         "mean": 156
+        },
+        "input": {
+         "p50": 51,
+         "p99": 54,
+         "max": 148,
+         "mean": 47
+        },
+        "anim": {
+         "p50": 1,
+         "p99": 2,
+         "max": 3,
+         "mean": 1
+        },
+        "layout": {
+         "p50": 1,
+         "p99": 67,
+         "max": 308,
+         "mean": 54
+        },
+        "paint": {
+         "p50": 158,
+         "p99": 181,
+         "max": 200,
+         "mean": 103
+        },
+        "effects": {
+         "p50": 1,
+         "p99": 4,
+         "max": 4,
+         "mean": 1
+        },
+        "diff": {
+         "p50": 1,
+         "p99": 4,
+         "max": 4,
+         "mean": 1
+        },
+        "raster": {
+         "p50": 0,
+         "p99": 0,
+         "max": 0,
+         "mean": 0
+        },
+        "present": {
+         "p50": 0,
+         "p99": 1,
+         "max": 4,
+         "mean": 0
+        },
+        "work": {
+         "p50": 257,
+         "p99": 280,
+         "max": 1403,
+         "mean": 365
+        },
+        "interval": {
+         "p50": 258,
+         "p99": 282,
+         "max": 1415,
+         "mean": 367
+        },
+        "present_interval": {
+         "p50": 254,
+         "p99": 274,
+         "max": 282,
+         "mean": 167
+        }
+       },
+       "late": {
+        "work_gt_8_3": 0,
+        "work_gt_16_7": 0,
+        "work_gt_33_3": 0,
+        "work_gt_50": 0,
+        "interval_gt_16_7": 0,
+        "interval_gt_25": 0,
+        "interval_gt_33_3": 0,
+        "interval_gt_50": 0,
+        "interval_gt_100": 0,
+        "present_gt_16_7": 0,
+        "present_gt_100": 0
+       },
+       "screen": {
+        "gap_max": 281,
+        "ticks": 0
+       },
+       "info": {},
+       "ui_work": {
+        "scenario_version": 1,
+        "frames": 8,
+        "model": "retained-solid-signals",
+        "wiring": "coarse",
+        "rows": 16,
+        "oracle": {
+         "pass": true,
+         "failures": []
+        },
+        "phases": [
+         {
+          "phase": "creation",
+          "binding_evaluations": 32,
+          "component_constructions": 16,
+          "cleanups": 0,
+          "live_rows": 16,
+          "layout_passes": 1,
+          "measure_visits": 36,
+          "place_visits": 36,
+          "paint_visits": 68,
+          "native_host_visits": 0,
+          "native_host_commits": 0,
+          "memory": {
+           "rss_bytes": null,
+           "heap_bytes": null,
+           "status": "unavailable: no in-process memory sampler"
+          }
+         },
+         {
+          "phase": "settled",
+          "binding_evaluations": 64,
+          "component_constructions": 0,
+          "cleanups": 0,
+          "live_rows": 16,
+          "layout_passes": 0,
+          "measure_visits": 0,
+          "place_visits": 0,
+          "paint_visits": 204,
+          "native_host_visits": 0,
+          "native_host_commits": 0,
+          "memory": {
+           "rss_bytes": null,
+           "heap_bytes": null,
+           "status": "unavailable: no in-process memory sampler"
+          }
+         },
+         {
+          "phase": "disposal",
+          "binding_evaluations": 0,
+          "component_constructions": 0,
+          "cleanups": 16,
+          "live_rows": 0,
+          "layout_passes": 1,
+          "measure_visits": 3,
+          "place_visits": 3,
+          "paint_visits": 16,
+          "native_host_visits": 0,
+          "native_host_commits": 0,
+          "memory": {
+           "rss_bytes": null,
+           "heap_bytes": null,
+           "status": "unavailable: no in-process memory sampler"
+          }
+         }
+        ],
+        "unmeasured": [
+         "style visits",
+         "Yoga internal visits",
+         "DOM host visits",
+         "RSS",
+         "heap"
+        ]
+       }
+      },
+      "frame_hash": "45cd7f50cc531383",
+      "hash_size": "240x160",
+      "scene": "ui_paint_only",
+      "size": [
+       240,
+       160
+      ],
+      "drawn": [
+       240,
+       160
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

@@ -1684,3 +1684,7 @@ Barrel overhead: 66,040 B AOT across 26 unused families (budget 106,496 B), 395 
 ## 2026-11-09 — Selection size gate (ZN-1078.08)
 
 At53009551b, unchanged kit_size in the Selection tree, clean engine and ZINC_ROOT pointing at that tree: minified bundle direct227388 B, index228260 B (+872, budget7424), ten245375 B (+1901/component). AOT direct5506440 B, index5605520 B (+99080, budget118784), ten6200256 B (+66081/component, budget65536): FAIL only the used-component AOT limit. Size diagnostics, not timing or cross-framework rankings; no budget changed. Structural/interaction/native proofs pass. Inputs retained detailed artifacts separately; matching rounded AOT file sizes do not establish a stale-cache defect.
+
+## 2026-11-09 — UI work structural pilot (ZN-1084, D269)
+
+At e426a7560, bounded eight-frame scenes, one diagnostic run per case on a shared Mac; no timing or framework ranking. QuickJS64 fine: four sparse writes →4 binding evaluations,528 measure/528 place/848 paint visits; settled no-op →zero at each measured stage. Virtual list retains10 live rows versus64 retained; disposal oracles pass. AOT16 fine has4 bindings and144/144/272 visits; QuickJS16 coarse has64 bindings and144/144/272 visits. These rows differ in engine/wiring provenance and are not a timing comparison. All artifacts have no problems and successful oracles; RSS/heap are null/unavailable, and AppKit host/Yoga/style/DOM work is not proven. Artifacts: docs/reports/bench/ui-work-2026-11-09-{qjs64,coarse16,aot16}.json.
