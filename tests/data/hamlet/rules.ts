@@ -8,7 +8,7 @@ import { population, createResident } from '../../../examples/hamlet/src/engine/
 import { seedFromText, parseSeedRequest } from '../../../examples/hamlet/src/world/seed';
 import { snapshot, restore, SaveCheck } from '../../../examples/hamlet/src/world/snapshot';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
-import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK, PLACE_NO_LODE, PLACE_LOCKED, ROLE_PEDDLER, ROCK_DEPOSIT, LODE_REACH } from '../../../examples/hamlet/src/constants';
+import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_BLOCKED, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK, PLACE_NO_LODE, PLACE_LOCKED, ROLE_PEDDLER, ROCK_DEPOSIT, LODE_REACH } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
 import { parseBiomes } from '../../../examples/hamlet/src/world/biomes';
 import { BIOME_IDS, BI_HILLS, BI_PLAIN, BI_MARSH, DECO_REEDS, DECO_TRAIL } from '../../../examples/hamlet/src/gen/terrain';
@@ -34,7 +34,8 @@ import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/ho
 import { computeAppeal, appealTiles } from '../../../examples/hamlet/src/rules/appeal';
 import { PRESETS } from '../../../examples/hamlet/src/gen/presets';
 import { terrain, TerrainParams, TerrainLayers, GEN_CLUSTERED } from '../../../examples/hamlet/src/gen/terrain';
-import { issue, replayAt } from '../../../examples/hamlet/src/rules/commands';
+import { issue, replayAt, submit, command, validate } from '../../../examples/hamlet/src/rules/commands';
+import { advance, play } from '../../../examples/hamlet/src/engine/simulate';
 import { canStart } from '../../../examples/hamlet/src/rules/adventure';
 import { offerLines, canTrade } from '../../../examples/hamlet/src/rules/trade';
 import { lockText, scenarioWon } from '../../../examples/hamlet/src/rules/goals';
@@ -421,7 +422,7 @@ const logsBefore = world.stock[WOOD];
 applyTool(toolOf('lumberhut'), at(3, 9));
 run(25);
 check('a goal is reached in the daily slice: its reward unlocks the sawmill and gives wood', world.goals[goalIx('wood')] === 1 && applyTool(TOOL_SAWMILL, at(5, 9)) === PLACE_OK && world.news.length === 1 && world.news[0].indexOf('Du bois') >= 0);
-check('the reward went through the command log', world.log.length === 1 && world.log[0].kind === 'goal' && world.log[0].a === goalIx('wood') && world.log[0].tick > 0);
+check('the reward went through the command log', world.log.length === 1 && world.log[0].type === 'goal' && world.log[0].args[0] === goalIx('wood') && world.log[0].tick > 0);
 world.tree[at(6, 9)] = 0;
 check('the next goal waits for its conditions (planks)', world.goals[goalIx('planks')] === 0 && applyTool(TOOL_LODGE, at(6, 9)) === PLACE_LOCKED);
 setStock(PLANK, 15);
@@ -465,7 +466,7 @@ let bought = -1;
 for (let k = 0; k < world.offers.length; k++) if (bought < 0 && world.offers[k].side === 'sell' && canTrade(k)) bought = k;
 const logCount = world.log.length;
 const line = sold >= 0 ? world.offers[sold] : world.offers[bought];
-check('a trade is a command: it moves goods and coins, is logged, and cannot be taken twice', issue('trade', sold >= 0 ? sold : bought) && world.log.length === logCount + 1 && world.log[logCount].kind === 'trade' && line.taken
+check('a trade is a command: it moves goods and coins, is logged, and cannot be taken twice', issue('trade', sold >= 0 ? sold : bought) && world.log.length === logCount + 1 && world.log[logCount].type === 'trade' && line.taken
   && (line.side === 'buy' ? world.stock[COIN] === stockBefore[COIN] + line.coins && world.stock[line.resource] === stockBefore[line.resource] - line.qty : world.stock[COIN] === stockBefore[COIN] - line.coins && world.stock[line.resource] === stockBefore[line.resource] + line.qty)
   && !issue('trade', sold >= 0 ? sold : bought));
 setStock(COIN, 0);
@@ -984,6 +985,30 @@ check('a committed H22 save still loads', restore(fixture).ok() && world.seed ==
 const keptHash = stateHash(), future = restore('H23' + fixture.slice(fixture.indexOf(';'))), shortFuture = restore('H100;1;2'), stranger = restore('hello');
 check('a save from a newer version is refused with a message, the village untouched', !future.ok() && future.check === SaveCheck.Future && future.message.indexOf('H23') >= 0 && shortFuture.check === SaveCheck.Future && stateHash() === keptHash);
 check('a text that is no save is refused with a message', !stranger.ok() && stranger.check === SaveCheck.NotASave && stranger.message !== '' && restore('H17' + fixture.slice(fixture.indexOf(';'))).check === SaveCheck.TooOld);
+// ---- commands: the player's actions are data, queued by submit and run by advance at their tick; the same list gives the same village (hamlet.sh compares the hash across engines) ----
+function commandRun(): number {
+  generate(1234, 16); rich();
+  for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) world.tree[t] = 0;
+  const script: number[][] = [[0, 0], [10, 1], [10, 2], [20, 3], [20, 4], [100, 5], [110, 6], [300, 7]];   // frame, action; the second house is refused at its tick (the tile is not open) and not logged
+  for (let frame = 0; frame < 640; frame++) {
+    for (const s of script) if (s[0] === frame) {
+      const a = s[1];
+      submit(a === 0 ? command('road', [at(1, 8), at(6, 8), 0, 0]) : a === 1 ? command('place', [HOUSE, at(2, 7)]) : a === 2 ? command('place', [HOUSE, at(4, 7)])
+        : a === 3 ? command('place', [TOOL_SAWMILL - TOOL_HOUSE, at(5, 9)]) : a === 4 ? command('place', [TOOL_LODGE - TOOL_HOUSE, at(3, 9)])
+        : a === 5 ? command('pause', [1]) : a === 6 ? command('pause', [0]) : command('demolish', [at(2, 7), at(2, 7), 0]));
+    }
+    advance(1);
+  }
+  return stateHash();
+}
+const firstRun = commandRun(), firstLog = world.log.map((c) => c.tick + ':' + c.type + ':' + c.args.join('.')).join(' ');
+check('advance runs the queued commands at their tick, logged in order; a pause holds the clock', world.tick === 630 && world.queue.length === 0 && firstLog === '0:road:129.134.0.0 10:place:0.114 20:place:1.149 20:place:2.147 100:pause:1 100:pause:0 290:demolish:114.114.0' && world.build[at(2, 7)] < 0 && world.build[at(5, 9)] >= 0 && world.road[at(3, 8)] === 1);
+check('two runs with the same commands give the same state hash', commandRun() === firstRun);
+console.log('hamlet rules: commandhash ' + firstRun);
+const logBefore = world.log.length;
+check('a command the rules refuse says why and changes nothing', play(command('place', [HOUSE, at(3, 8)])) === PLACE_BLOCKED && validate(command('place', [HOUSE, at(3, 8)])) === PLACE_BLOCKED && world.log.length === logBefore);
+for (let k = 0; k < economy.resources.length; k++) setStock(k, 0);
+check('a road the stock cannot pay is refused for that reason', play(command('road', [at(1, 10), at(6, 10), 0, 0])) === PLACE_NO_STOCK && world.road[at(2, 10)] === 0 && world.log.length === logBefore);
 // ---- map presets: deterministic on every engine, a plain default, every required deposit reachable on foot from the gate, params kept by a save ----
 const defaultVillage = new TerrainParams(); defaultVillage.genStyle = GEN_CLUSTERED;   // the presets use the clustered generator
 check('the first preset is the default village', JSON.stringify(PRESETS[0].params) === JSON.stringify(defaultVillage));

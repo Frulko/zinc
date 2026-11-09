@@ -4,13 +4,14 @@ import { edgeTiles } from '../engine/network';
 import { economy } from '../world/economy';
 import { housingReport } from '../rules/housing';
 import { sourceOf, harvestLines } from '../rules/harvest';
-import { applyTool } from '../rules/build';
+import { command } from '../rules/commands';
+import { play } from '../engine/simulate';
 import { orderOf, setOrder } from '../rules/storage';
 import { normalizePriority } from '../rules/labour';
 import { resourceShown, summary } from '../hud';
 import { doesText, needsText } from './BuildMenu';
 import {
-  TOOL_ERASE, ORDER_ACCEPT, BS_ISOLATED, BS_OFF_NET, BS_WAITING, BS_FULL, BS_NO_SOURCE, BS_WORKING, ROLE_NAMES,
+  ORDER_ACCEPT, BS_ISOLATED, BS_OFF_NET, BS_WAITING, BS_FULL, BS_NO_SOURCE, BS_WORKING, ROLE_NAMES,
   ST_SLEEP, ST_HOME, ST_FREE, ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_TO_SHORE, ST_FISH, ST_WORK, ST_FETCH, ST_BRING, ST_ROAM, ST_ROAM_BACK,
 } from '../constants';
 import { drawBuilding, drawResource, drawGlyph } from './icons';
@@ -164,7 +165,7 @@ export function infoClick(id: string): boolean {
   if (id === 'info:goto') { const p = world.people[ui.selId]; if (p !== undefined) act.jump(p.x, p.y); return true; }
   if (id === 'info:demolish') {
     const b = world.buildings[ui.selId];
-    if (b !== undefined && b.alive) { applyTool(TOOL_ERASE, tileIndex(b.i, b.j)); closeInfo(); }
+    if (b !== undefined && b.alive) { const t = tileIndex(b.i, b.j); play(command('demolish', [t, t, 0])); closeInfo(); }
     return true;
   }
   return false;

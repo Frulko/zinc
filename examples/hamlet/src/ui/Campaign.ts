@@ -4,7 +4,9 @@ import { goalList, conditionText } from '../rules/goals';
 import { currentMission, timeLeftText } from '../world/missions';
 import { offerLines, canTrade } from '../rules/trade';
 import { adventureLines, expeditionLines, canStart } from '../rules/adventure';
-import { issue } from '../rules/commands';
+import { command } from '../rules/commands';
+import { play } from '../engine/simulate';
+import { PLACE_OK } from '../constants';
 import { sound } from '../audio';
 import { kit, col, window_, winOrigin, parchment, text, wrap, labelButton, glyphButton, block, addHit } from './kit';
 import { ui, viewport } from './state';
@@ -72,7 +74,7 @@ function adventures(x: number, y: number, w: number): void {
 export function campaignClick(id: string): boolean {
   if (id === 'camp:brief') { briefing = !briefing; return true; }
   if (id.startsWith('camp:tab:')) { tab = Number(id.slice(9)); return true; }
-  if (id.startsWith('camp:trade:')) { if (issue('trade', Number(id.slice(11)))) sound('coin', .6); else sound('error', .5); return true; }
-  if (id.startsWith('camp:adv:')) { if (!issue('adventure_start', Number(id.slice(9)))) sound('error', .5); return true; }
+  if (id.startsWith('camp:trade:')) { if (play(command('trade', [Number(id.slice(11))])) === PLACE_OK) sound('coin', .6); else sound('error', .5); return true; }
+  if (id.startsWith('camp:adv:')) { if (play(command('adventure_start', [Number(id.slice(9))])) !== PLACE_OK) sound('error', .5); return true; }
   return false;
 }

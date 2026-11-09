@@ -17,8 +17,9 @@ import { economy, loadEconomy, amountText } from './world/economy';
 import { MODEL_IDS } from './view/models';
 import { saveGame, loadGame, eraseSave } from './world/save';
 import { parseSeedRequest, randomSeed } from './world/seed';
-import { checkTool, applyTool } from './rules/build';
-import { stepWorld } from './engine/simulate';
+import { checkTool } from './rules/build';
+import { advance, play } from './engine/simulate';
+import { command } from './rules/commands';
 import { wolfCount } from './engine/deer';
 import { bakeVillage, rebakeStatic, moveCamera, setZoom, stepZoom, resetView, resizeWindow } from './view/scenery';
 import { drawVillage, frameDirty } from './view/frame';
@@ -35,7 +36,7 @@ import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
 import { drawInfo, pickAt, closeInfo } from './ui/Info';
 import { look, record, Snapshot, beginGroup, endGroup, undo, drawPlacementLabel, reasonText, showLine, drawLine } from './ui/Placement';
-import { planRoad, linePath, RoadPlan, buildRoad, demolishRoad, costOf } from './rules/roadplan';
+import { planRoad, linePath, RoadPlan, costOf } from './rules/roadplan';
 import { WIN_MAIN } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
 import { drawGuide } from './ui/Guide';
@@ -64,8 +65,7 @@ export class HamletScene extends Sprite {
   set tool(v: number) { ui.tool = v; }
   /** The tools of the column, in order: the fishing hut only exists in a village that has a pond. */
   private tools: number[] = [];
-  get paused(): boolean { return ui.paused; }
-  set paused(v: boolean) { ui.paused = v; }
+  get paused(): boolean { return world.paused; }
   private surface = new PixelSurface();
   private cite: boolean = settings.view === 'cite';       // the GPU tile view of src/cite replaces the pixel renderer of src/view
   private frame = new PixelGame('hamlet', 'Hameau', '');
@@ -211,11 +211,12 @@ export class HamletScene extends Sprite {
   private loaded(): void { resetEnding(); this.bake(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size; ui.category = -1; closeInfo(); uiState.dirty = true; }
   /** The panel's "new map": the same seed on another grid size. */
   private resizeVillage(): void { this.createVillage(world.seed, Math.max(MIN_SIZE, Math.min(MAX_SIZE, this.pendingSize)), world.progression, world.risks, world.params); }
+  /** Places the building of the current tool (roads and demolition are lines: commitLine). */
   private act(t: number): void {
-    if (this.tool === TOOL_NONE) return;
-    const before = look(t), code = applyTool(this.tool, t);
-    if (code === PLACE_OK) { record(this.tool, t, before); sound(this.tool === TOOL_ERASE ? 'erase' : this.tool === TOOL_ROAD ? 'road' : 'place', .6); return; }
-    if (this.tool !== TOOL_ROAD && t >= 0) { sound('error', .5); this.say(reasonText(this.tool, code)); }
+    if (this.tool === TOOL_NONE || this.isLine()) return;
+    const before = look(t), code = play(command('place', [this.tool - TOOL_HOUSE, t]));
+    if (code === PLACE_OK) { record(this.tool, t, before); sound('place', .6); return; }
+    if (t >= 0) { sound('error', .5); this.say(reasonText(this.tool, code)); }
   }
   /** The zoom keys: one step in or out of the pixel view; the tile view zooms smoothly about the middle of the map (0: back to 1). */
   private zoomKey(dir: number): void {
@@ -240,7 +241,7 @@ export class HamletScene extends Sprite {
     else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.category >= 0) ui.category = -1; else if (closeTopWindow()) { /* the topmost window closed */ } else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
     else if (name === '[' || name === ']') { const i = this.tools.indexOf(this.tool); this.tool = this.tools[(Math.max(0, i) + (name === ']' ? 1 : this.tools.length - 1)) % this.tools.length]; }
     else if (name >= '1' && name <= '9' && Number(name) <= this.tools.length) this.tool = this.tools[Number(name) - 1];
-    else if (name === 'p' || name === 'P') { this.paused = !this.paused; this.dragging = false; pauseSound(this.paused); }
+    else if (name === 'p' || name === 'P') { play(command('pause', [this.paused ? 0 : 1])); this.dragging = false; pauseSound(this.paused); }
     else if (name === 'm' || name === 'M') toggleSound();
     else if (name === 'h' || name === 'H') settings.hints = !settings.hints;
     else if (name === 'f' || name === 'F') openAdvisor(ui.advisor);
@@ -318,21 +319,26 @@ export class HamletScene extends Sprite {
     if (start < 0 || end < 0) return;
     if (this.tool === TOOL_ROAD && this.route && this.anchor < 0 && start === end) { this.anchor = start; return; }
     this.anchor = -1;
-    const plan = this.linePlanFor(start, end);
-    let done = 0;
+    const plan = this.linePlanFor(start, end), flip = this.flip ? 1 : 0;
+    let done = false;
     if (this.tool === TOOL_ROAD) {
       const tiles = plan.fresh.slice(0, plan.built), before = tiles.map((t: number): Snapshot => look(t));
-      if (buildRoad(tiles) > 0) { tiles.forEach((t: number, k: number): void => record(this.tool, t, before[k])); done = tiles.length; }
+      done = play(command('road', [start, end, flip, this.route ? 1 : 0])) === PLACE_OK;
+      if (done) tiles.forEach((t: number, k: number): void => record(this.tool, t, before[k]));
     } else {
-      const tiles = linePath(start, end, this.flip), roads = tiles.filter((t: number): boolean => world.road[t] !== 0 && t !== world.gate && world.build[t] < 0);
-      for (const t of tiles) if (roads.indexOf(t) < 0) { const before = look(t); if (applyTool(this.tool, t) === PLACE_OK) { record(this.tool, t, before); done++; } }
-      const before = roads.map((t: number): Snapshot => look(t));
-      if (demolishRoad(roads) > 0) { roads.forEach((t: number, k: number): void => record(this.tool, t, before[k])); done += roads.length; }
+      const tiles = linePath(start, end, this.flip), before = tiles.map((t: number): Snapshot => look(t)), seen: number[] = [];
+      done = play(command('demolish', [start, end, flip])) === PLACE_OK;
+      if (done) tiles.forEach((t: number, k: number): void => {          // Ctrl+Z takes back what changed: a road, or a building once (by its anchor) whatever tiles of it the line crossed
+        const b = before[k], a = look(t);
+        if ((b.road === a.road && b.building === a.building) || (b.building >= 0 && seen.indexOf(b.building) >= 0)) return;
+        if (b.building >= 0) seen.push(b.building);
+        record(this.tool, t, b);
+      });
     }
     showLine(null); this.lineKey = '';
-    if (done > 0) sound(this.tool === TOOL_ERASE ? 'erase' : 'place', .6);
+    if (done) sound(this.tool === TOOL_ERASE ? 'erase' : 'place', .6);
     if (this.tool === TOOL_ROAD && plan.built < plan.fresh.length) { sound('error', .5); this.say('Il manque : ' + amountText(costOf(plan.fresh), world.stock) + '.'); }
-    else if (done === 0 && this.tool === TOOL_ROAD && plan.blocked >= 0) { sound('error', .5); this.say(reasonText(this.tool, 1)); }
+    else if (!done && this.tool === TOOL_ROAD && plan.blocked >= 0) { sound('error', .5); this.say(reasonText(this.tool, 1)); }
   }
   /** Roads and demolition are painted by dragging; a building is placed once, on the press. */
   private drag(x: number, y: number, first: boolean): void {
@@ -400,7 +406,9 @@ export class HamletScene extends Sprite {
     if (!this.paused && !isModal() && (!settings.pauseOnMove || this.sinceMove > .3)) {
       this.time += dt;
       this.acc += Math.min(.1, dt) * settings.simSpeed;
-      while (this.acc >= TICK) { stepWorld(); this.acc -= TICK; }
+      const ticks = Math.floor(this.acc / TICK);
+      this.acc -= ticks * TICK;
+      advance(ticks);
       scanEvents(); checkEnding(); sampleHistory();
       const pose = Math.floor(this.time * settings.animFps);
       this.panel.push(this.fpsRow, dt > 0 ? 1 / dt : 0);

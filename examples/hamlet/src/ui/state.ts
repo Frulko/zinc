@@ -7,7 +7,6 @@ export const WIN_NONE = 0, WIN_MENU = 3, WIN_OPTIONS = 4, WIN_MAIN = 5, WIN_SAVE
 export const SPEEDS: number[] = [.5, 1, 2, 4];
 export const ui = {
   tool: TOOL_NONE as number,
-  paused: false,
   speed: 1,                 // index in SPEEDS
   category: -1,             // the open build flyout (index of categories()), -1 none
   collapsed: false,         // the control column folded to a handle

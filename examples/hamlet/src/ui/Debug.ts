@@ -91,7 +91,7 @@ function labourText(): string { const l = labourStats(); return 'réserve ' + l.
 function simulation(): string[] {
   let working = 0, idle = 0;
   for (const p of world.people) { if (p.job >= 0) working++; else idle++; }
-  const lines = [pair('Vitesse', String(settings.simSpeed)), pair('Tick par seconde', String(Math.round(1 / TICK))), pair('Pause', ui.paused ? 'oui' : 'non'),
+  const lines = [pair('Vitesse', String(settings.simSpeed)), pair('Tick par seconde', String(Math.round(1 / TICK))), pair('Pause', world.paused ? 'oui' : 'non'),
     pair('Postes tenus / sans poste', working + ' / ' + idle), pair('Main-d’œuvre', labourText()), pair('Réseaux routiers', networkCount() + ' (celui de l’entrée : ' + gateNetwork() + ')'), pair('Chômage', world.jobless + ' %'), pair('Humeur du village', String(world.mood)), pair('Paix', world.risks ? world.crime.peace + ' % (' + peaceReasons().join(', ') + ') · voleurs ' + world.crime.outlaws.length + ' · ' + world.crime.robbed + ' vols, ' + world.crime.caught + ' arrêtés, ' + world.crime.riots + ' émeutes' : 'sans risques'), pair('Difficulté', levelLabel()),
     pair('Arrivées', arrivalFactor(world.mood) === 0 ? 'personne ne vient' : 'facteur ' + arrivalFactor(world.mood) + (world.waitingForFood ? ', attend de la nourriture' : ''))];
   for (let k = 0; k < economy.resources.length; k++) if (world.stock[k] > 0) lines.push(pair('Stock ' + economy.resources[k].label, String(world.stock[k])));
@@ -171,7 +171,7 @@ export function drawDebugWindow(): void {
   const by = y + WH - 46, labels = ['Copier', 'Sauver', 'Rebake', 'Effets', 'Flèches', 'Bulles', 'Pas', 'Réglages [F2]'];
   for (let i = 0; i < labels.length; i++) {
     const on = i === 3 ? settings.fx : i === 4 ? settings.hints : i === 5 ? settings.thoughts : false;
-    labelButton('dbg:' + i, x + 8 + i * 70, by, i === 7 ? 96 : 66, 26, labels[i], i === 6 ? 'Un tick, en pause' : '', i !== 6 || ui.paused, on);
+    labelButton('dbg:' + i, x + 8 + i * 70, by, i === 7 ? 96 : 66, 26, labels[i], i === 6 ? 'Un tick, en pause' : '', i !== 6 || world.paused, on);
   }
   if (report !== '') text(kit.small, x + 12, y + WH - 14, report, col('muted'));
 }

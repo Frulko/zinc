@@ -8,6 +8,8 @@ import { appealSlice } from '../rules/appeal';
 import { economy } from '../world/economy';
 import { updateOutlaws } from './crime';
 import { SAVE_DELAY, TICK, DAY_TICKS } from '../constants';
+import { Command } from '../world/world';
+import { submit, runDue } from '../rules/commands';
 
 /** One tick (TICK seconds) of the whole village. Pure game state: drawing never calls it; the scene feeds it whole ticks from its own accumulator. */
 export function stepWorld(): void {
@@ -24,3 +26,12 @@ export function stepWorld(): void {
   updateNature(TICK);
   if (world.autosave && world.saveDirty && world.time - world.lastSave > SAVE_DELAY) saveGame();
 }
+
+/** Steps n ticks, running the queued commands due before each one (rules/commands.ts). A paused village still runs its commands (an unpause among them) but its clock
+ *  does not move: advance(0) only runs what is due. */
+export function advance(n: number): void {
+  runDue();
+  for (let k = 0; k < n && !world.paused; k++) { stepWorld(); runDue(); }
+}
+/** The player's path: queue a command and run it at this tick, so the scene can answer at once. Its result is PLACE_OK or why it was refused. */
+export function play(c: Command): number { submit(c); advance(0); return c.result; }

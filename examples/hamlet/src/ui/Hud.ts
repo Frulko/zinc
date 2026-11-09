@@ -71,9 +71,9 @@ export function topBar(): void {
   }
   // right side: speed buttons, then the date and the season
   let r = w - 8;
-  r -= 30; glyphButton('speed:pause', r, 4, 30, 26, 'pause', 'Pause [P]', true, ui.paused);
+  r -= 30; glyphButton('speed:pause', r, 4, 30, 26, 'pause', 'Pause [P]', true, world.paused);
   for (let i = SPEEDS.length - 1; i >= 0; i--) {
-    r -= 36; labelButton('speed:' + i, r, 4, 34, 26, '×' + SPEEDS[i], 'Vitesse ×' + SPEEDS[i], true, !ui.paused && ui.speed === i);
+    r -= 36; labelButton('speed:' + i, r, 4, 34, 26, '×' + SPEEDS[i], 'Vitesse ×' + SPEEDS[i], true, !world.paused && ui.speed === i);
   }
   const date = dateText(), season_ = SEASONS[season()], dw = measure(date) + 16;
   r -= dw + 8;
@@ -145,5 +145,5 @@ export function hudClick(id: string): void {
   if (id === 'win:menu') { ui.window = WIN_MENU; return; }
   if (id === 'col:fold') { ui.collapsed = !ui.collapsed; act.rebake(); return; }
   if (id === 'speed:pause') { act.togglePause(); return; }
-  if (id.startsWith('speed:')) { act.setSpeed(Number(id.slice(6))); if (ui.paused) act.togglePause(); return; }
+  if (id.startsWith('speed:')) { act.setSpeed(Number(id.slice(6))); if (world.paused) act.togglePause(); return; }
 }

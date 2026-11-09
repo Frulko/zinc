@@ -87,7 +87,7 @@ check('scripted opening: a road, a house and a lumber hut stand', roads >= 6 && 
 const gh = world.build[home];
 createResident(gh); createResident(gh); world.buildings[gh].residents = 2; world.buildings[gh].timer = 1e9;
 run(25);
-check('the wood goal is reached in the daily slice and logged', world.goals[0] === 1 && world.log.length >= 1 && world.log[0].kind === 'goal');
+check('the wood goal is reached in the daily slice and logged', world.goals[0] === 1 && world.log.length >= 1 && world.log[0].type === 'goal');
 let mill = -1;
 for (let i = 1; i <= 8 && mill < 0; i++) if (applyTool(toolOf('sawmill'), row + i + world.size) === PLACE_OK || applyTool(toolOf('sawmill'), row + i - world.size) === PLACE_OK) mill = i;
 setStock(economy.resourceOf('plank'), 20);
