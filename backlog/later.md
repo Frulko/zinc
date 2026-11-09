@@ -677,6 +677,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1048: `AddMultipleURIsToQueue` at a position and a 10,000-song queue on a real Sonos speaker (the stub accepts any position).
 - ZN-1077: JSON.stringify of a value whose type holds a union of two classes (A | B) writes '{}' through any and is refused when typed: jsonFunction could dispatch with instanceof as inspect does; stack traces of generated code still use the generated text's offsets (only diagnostics were redirected).
 - ZN-1047: render3d World handles reuse the first free slot without a generation (`Pool::add`): the TS `disposed` flag guards it, a native generation is the rule.
+- ZN-569: the first `new URL()` in a web-environment program costs 28-45 ms on a frame (it loads zinc:web): load it at start or make URL native.
+- ZN-569: WebGL texture pages: the conformance shim lacks fetch, `createImageBitmap`, canvas `toDataURL`, video (`canPlayType`) and SVG pictures (about 10 pages); tex-image-with-format-and-type fails 8 premultiply checks with image sources (look at UNPACK_PREMULTIPLY_ALPHA for images); 16-bit PNGs decode to 8 bits (tex-image-10bpc); JPEG EXIF orientation is not applied.
+- ZN-569: one decode thread: a pool of 2-4 would load picture-heavy pages faster (measure on the Pi first).
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

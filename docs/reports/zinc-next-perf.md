@@ -1622,3 +1622,7 @@ A 4 s stereo 44.1 kHz PCM track, 705,644 B, becomes 142,528 B of QOA (4.95x) in 
 ## 2026-11-09: QuickJS typed fast calls (ZN-601, ZN-596; M1 Pro at load 4-9 while other trees built: indicative, ~25% above quiet)
 
 ns per call, `bench/qjs_boundary` (generic → fast): vec4 method 49.3 → 40.4, int method 34.0 → 31.0, int + Float32Array 50.5 → 39.7, global with 4 doubles 43.0 → 33.9. Host rows from QuickJS: `gfxWidth` 53 → 26-27, `gfxEase` 64 → 40, `gfxSetTransform` (6 doubles) 72 → 43. WebGL `uniform4fv(Float32Array)` read in place: 147 → 116. Harness at load 4: nop 21.7, throw 1367, object return 163/141, command buffer 303. 367 of 599 host rows are fast functions. `baseline.json` taken at load 5: rewrite it on a quiet machine.
+
+## 2026-11-09: web environment pictures decoded off the frame (ZN-569, M1 Pro, realtime headless, machine busy)
+
+A 4096² PNG (33.6 MiB decoded): setting `Image.src` 17-62 ms → 0.45-0.61 ms; longest frame gap 282-314 ms → 19-21 ms (20-21 ms with no picture); longest timer task 0.04-0.13 ms. Lending 32 MiB of bytes to the decode thread: 0.01 ms, copying 3-4 ms. WebGL conformance image pages run by name: 9 of 24 pass (5 of 13 that stopped at "no image decoder").
