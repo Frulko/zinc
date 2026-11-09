@@ -76,6 +76,21 @@ template <class V> class TextMemo {
   }
 };
 
+// lowerStyleSheets and lowerJsx, kept by their inputs (the text, the options, the layout and preset they read): the lowered text, its source
+// map and the diagnostics, which take the file's index of this load (ZN-1024)
+struct Lowered { std::string text; std::vector<SrcPiece> map; std::vector<Diag> diags; };
+std::string keptLowering(TextMemo<Lowered>& memo, const std::string& key, std::vector<Diag>& diags, std::uint32_t file, std::vector<SrcPiece>* map,
+                         const std::function<std::string(std::vector<Diag>&, std::vector<SrcPiece>*)>& lower) {
+  Lowered l = memo.get(uiLayout() + '\0' + uiPreset() + '\0' + key, [&] {
+    Lowered r;
+    r.text = lower(r.diags, map ? &r.map : nullptr);
+    return r;
+  });
+  for (Diag& d : l.diags) { d.file = file; diags.push_back(std::move(d)); }
+  if (map) *map = std::move(l.map);
+  return std::move(l.text);
+}
+
 // The host's modules ('zinc:gfx'), written in Zinc over the __host_* functions of the runtime table (zn/runtime.h, owner "host").
 // A first subset of lib/gfx.d.ts: frames, clear, rect, rrect, fonts and text. `onFrame` hands the callback to the frame loop,
 // which runs in place of the timer loop once the program's own statements are done (see kAsyncPrelude).
@@ -2408,14 +2423,23 @@ struct Loader {
     if (!typesMode && text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives);
     if (!typesMode && (text.find("zinc:worker'") != std::string::npos || text.find("zinc:worker\"") != std::string::npos))
       text = lowerWorkerEntries(text, path, std::filesystem::absolute(prog.files.empty() ? path : prog.files[0].path).parent_path().string(), prog.diags, fi, prog.workers);
-    if (text.find("StyleSheet") != std::string::npos && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = lowerStyleSheets(text, prog.diags, fi, isTsx);
+    if (text.find("StyleSheet") != std::string::npos && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) {
+      static TextMemo<Lowered> sheets;
+      text = keptLowering(sheets, std::string(isTsx ? "x" : "t") + '\0' + text, prog.diags, fi, nullptr, [&](std::vector<Diag>& d, std::vector<SrcPiece>*) { return lowerStyleSheets(text, d, fi, isTsx); });
+    }
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
       std::size_t before = prog.diags.size();
       std::set<std::string> importedFns;
       const std::set<std::string> classTags = classTagsOf(path, text, &importedFns);
       original = text;
-      text = lowerJsx(text, prog.diags, fi, &classTags, &map, hot && !libraryModule(path), dev && !libraryModule(path) ? shownPath(path) : std::string(),
-                      projectReact && !libraryModule(path), libraryModule(path), &importedFns);
+      const bool lib = libraryModule(path), hotJsx = hot && !lib, react = projectReact && !lib;
+      const std::string devFile = dev && !lib ? shownPath(path) : std::string();
+      std::string key = std::string(hotJsx ? "h" : "-") + (react ? "r" : "-") + (lib ? "l" : "-") + devFile + '\0';
+      for (const std::set<std::string>* names : {&classTags, static_cast<const std::set<std::string>*>(&importedFns)}) { for (const std::string& n : *names) key += n + ','; key += '\0'; }
+      static TextMemo<Lowered> jsx;
+      text = keptLowering(jsx, key + text, prog.diags, fi, &map, [&](std::vector<Diag>& d, std::vector<SrcPiece>* m) {
+        return lowerJsx(text, d, fi, &classTags, m, hotJsx, devFile, react, lib, &importedFns);
+      });
       if (map.empty()) original.clear();
       else for (std::size_t k = diagsAtStart; k < prog.diags.size(); ++k) if (prog.diags[k].file == fi) prog.diags[k].pos = loweredOffset(map, prog.diags[k].pos);   // in the lowered text, as the parser's
       if (const char* d = std::getenv("ZN_DUMP_JSX")) if (path.find(d) != std::string::npos) std::fprintf(stderr, "=== %s (JSX lowered)\n%s\n", path.c_str(), text.c_str());  // debugging: the plain code a .tsx file became
