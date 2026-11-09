@@ -3689,6 +3689,23 @@ int main(int argc, char** argv) {
       }
     }
     const auto bytes = zn::dev::hot::save(u);
+    // ZN_HOT_RECOMPILE=n: compiles n more times in this process, as zinc dev's saves do, its caches warm: each must give the same bytes (ZN-1024)
+    for (int k = 0, n = std::getenv("ZN_HOT_RECOMPILE") ? std::atoi(std::getenv("ZN_HOT_RECOMPILE")) : 0; k < n; ++k) {
+      zn::dev::hot::Unit w;
+      gHotUnit = &w;
+      const auto t0 = std::chrono::steady_clock::now();
+      const int wrc = compileToZbc(entry.c_str(), w.zbc);
+      gHotUnit = nullptr;
+      if (wrc) return wrc;
+      zn::dev::hot::finish(w);
+#ifdef ZN_HOST_GFX
+      if (drawsOf(w.zbc) && !bakeResources(entry.c_str(), w.resources, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 1; }
+#endif
+      w.plugins = u.plugins;
+      const bool same = zn::dev::hot::save(w) == bytes;
+      std::fprintf(stderr, "recompile %d: %.0f ms, %s\n", k + 1, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(), same ? "same bytes" : "DIFFERENT bytes");
+      if (!same) return 4;
+    }
     std::ofstream out(argv[3], std::ios::binary);
     out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
     return out && !bytes.empty() ? 0 : 2;

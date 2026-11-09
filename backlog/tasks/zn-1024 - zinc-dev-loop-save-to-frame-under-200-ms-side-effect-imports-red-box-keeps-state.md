@@ -3,7 +3,7 @@ id: ZN-1024
 title: >-
   zinc dev loop: save-to-frame under 200 ms, side-effect imports, red box keeps
   state
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:36'
@@ -58,4 +58,10 @@ later.md lines (for the coordinator):
 - ZN-1024: the bake key (assets::bake) reads and hashes every font file of lib/fonts at each compile; key the fonts by (path, mtime, size).
 
 Proposed tests: `tests/run --only hot_swap` (side-effect import, red box keeps state, its pixel; ~15 s, <300 MB), `tests/run --only dev_mode` (~20 s), `tests/run --only fast_refresh` (the Solid/desktop-app refresh still swaps; ~20 s).
+
+Session 2026-11-09 (criterion #1, worktree agent). Research (sonnet web search): esbuild caches each file-system answer the resolver used (reads, directory listings, misses) and dirties only that answer (https://github.com/evanw/esbuild/issues/1409); (mtime, size) is racy within the timestamp granularity: version-control tools and Go re-hash entries younger than a couple of seconds (https://golang.org/issue/58571); key on (path, mtime_ns, size, inode) and let the content decide; editors save by rename (new inode); parallel per-function passes stay deterministic when workers touch only their own function and shared tables are filled before or merged after in source order; dev builds skip optimisation elsewhere (-O0, V8 Ignition) but rc insertion stays.
+
+Measure in one process: `ZN_HOT_RECOMPILE=n zinc --emit=hot <entry> <out>` compiles n more times as zinc dev's saves do and fails (exit 4) when a recompile gives other bytes; tests/t0/hot_recompile.sh runs it on hero and the desktop-app template (one thread vs several, cold vs warm). Profile (sample, 12 recompiles of hero, ~780 ms each): read and parse 205 (jsxClassTags 32, plugin discovery 24, lex + parse 78, lowerJsx 30), check 56, lower 72, optimise 180 (a copy of every function per inline round: 27), rc 120 (Rc::block + liveness 100, per function), emit 80 (FnEmitter::run), bake 2 on an asset-cache hit but 130 on a miss, and every save of a new text misses (the key hashes the whole texts).
+
+Step 1 (perf(ir): copy only the inlinable callees): inlineRound copied every function each round; now only the callees it can inline. Optimise 181 -> 155 ms on hero (back to back, load ~3), same bytes.
 <!-- SECTION:NOTES:END -->

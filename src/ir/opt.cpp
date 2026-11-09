@@ -139,10 +139,13 @@ std::vector<bool> mutuallyRecursive(const std::vector<Function>& fs) {
 }
 
 bool inlineRound(Module& m) {
-  std::vector<Function> snap = m.functions;  // callees as they were at the start of the round
-  std::vector<bool> ok(snap.size());
-  const std::vector<bool> cyclic = mutuallyRecursive(snap);
-  for (std::size_t g = 1; g < snap.size(); ++g) ok[g] = !snap[g].entry && size(snap[g]) <= kInlineMaxInsts && returns(snap[g]) && !callsItself(snap[g], static_cast<std::uint32_t>(g)) && !cyclic[g];
+  const std::vector<Function>& fs = m.functions;
+  std::vector<bool> ok(fs.size());
+  const std::vector<bool> cyclic = mutuallyRecursive(fs);
+  for (std::size_t g = 1; g < fs.size(); ++g) ok[g] = !fs[g].entry && size(fs[g]) <= kInlineMaxInsts && returns(fs[g]) && !callsItself(fs[g], static_cast<std::uint32_t>(g)) && !cyclic[g];
+  // the callees as they were at the start of the round: only those that can be inlined (a copy of every function was a fifth of the optimiser, ZN-1024)
+  std::vector<Function> snap(fs.size());
+  for (std::size_t g = 1; g < fs.size(); ++g) if (ok[g]) snap[g] = fs[g];
   bool changed = false;
   const TypeId voidT = m.voidT();
   for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {
