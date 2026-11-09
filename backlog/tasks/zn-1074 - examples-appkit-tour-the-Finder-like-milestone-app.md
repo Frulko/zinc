@@ -2,7 +2,8 @@
 id: ZN-1074
 title: 'examples/appkit-tour: the Finder-like milestone app'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-08 21:44'
 labels:
   - ui
