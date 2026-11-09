@@ -40,4 +40,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: layout chain ZN-1022 (Review), ZN-263.02 (Review), ZN-291 (moved to the cross pass) (D223). Skipped for agents: ZN-203.06 (needs the WebGL conformance run), ZN-713 (a measurement alone on a quiet machine), ZN-1067 (needs the Pi shell).
 - Integrated: WebGL and gestures chain ZN-567, ZN-684 (perf line logged).
 - Integrated: compiler chain ZN-376, ZN-667, ZN-1030 (Backlog) and ZN-796 (Review), ZN-1052 (Review) (D224, perf lines logged).
-- Workers: ZN-1069 (AppKit native host hook, first M31 task) and web chain ZN-1065, ZN-693 (claimed 022db5d94).
+- Integrated: ZN-1069 (D225). Worker: web chain ZN-1065, ZN-693 (claimed 022db5d94).

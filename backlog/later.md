@@ -583,6 +583,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-796: the QuickJS numeric wraps know only the kinds one file shows (no fields of other objects, no imported signatures).
 - ZN-796: `Array.concat` with several arguments is refused (Z0104); TypeScript allows it.
 - ZN-1052: on QuickJS (no workers) the iPod daily mixes and Genius' mixes still hold ~75 ms slices and `genius()` takes 58 ms at 10k songs.
+- ZN-1069: `targets/web/dom.js` could read the native host buffer (`d` frees its element cache, `k` replaces `reconcile`) instead of syncing every node on each changed frame.
+- ZN-1069: under the classic layout leaves are measured in ui.ts; a native host only measures leaves of the rn (Yoga) layout.
+- ZN-1069: under a native host `frame()` still starts SDL text input for a focused field, and `mountWindow` windows are not sent to the host; the AppKit host should own both (ZN-1070, ZN-1071).
+- ZN-1069: switch to a binary record buffer if string building shows in ZN-1074's measurements.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
