@@ -2,8 +2,7 @@
 id: ZN-1086
 title: Restore the AOT kit component size budget
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 13:57'
 updated_date: '2026-11-09 13:58'
 labels:

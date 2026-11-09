@@ -2,8 +2,7 @@
 id: ZN-1085
 title: Dispose focus-within subscriptions before node release
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 13:53'
 updated_date: '2026-11-09 14:06'
 labels:

@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Recorded/released ZN-1085/1086 and .10; Selection .08 size AC now passes and task Done. Clean rebuilt engine: tdz_outline, ui_focus_dispose, kit_overlays, original gallery check/run and unchanged kit_size all PASS (62412 B/component). RESUME archived losslessly then shortened for fresh-worker context. Active: Inputs, Navigation, Feedback; no process left by root.
+
 - Core c69f4e7a8 (TDZ shared error construction) and8fc1bb2d1 (focused subscription snapshot) integrated. Core slot now becomes fresh Navigation worker ZN-1078.09, claimed in work/1078-navigation. Inputs and Overlays finish their actual caller proofs; root owns clean engine rebuild/integration checks. Three worker slots stay occupied.
 
 - Recorded/released ZN-1084, D269: clean bench_harness and focus-disposer T0 PASS; preserve three small artifact JSONs. Workflow51326feea persists automatic queue and five-worker CLI launch setting (new sessions only). Current three workers: Inputs, Overlays, core1086 then1085 correction. Size core gate is green; family workers validate against that binary before closure.
