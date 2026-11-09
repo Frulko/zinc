@@ -36,5 +36,5 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: JS games chain ZN-1042, ZN-1043 (D219); webenv T0 fixed (page URL global).
 - Integrated: ZN-805 (D221, perf lines logged, Done). ZN-1024 released for a later perf pass.
 - Integrated: CLI chain ZN-1016, ZN-644 (D220).
-- Worker: bytes chain ZN-1019, ZN-698 (claimed 954ff142d), beside ZN-805.
+- Integrated: bytes chain ZN-1019, ZN-698 (D222); runtime.h row conflict with ZN-805 resolved (gfxIdleDue, then the bytes rows).
 - Worker: layout chain ZN-1022, ZN-263.02, ZN-291 (claimed baa1d00ae), beside the bytes chain. Skipped for agents: ZN-203.06 (needs the WebGL conformance run), ZN-713 (a measurement alone on a quiet machine), ZN-1067 (needs the Pi shell).

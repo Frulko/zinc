@@ -570,6 +570,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-805: SDL3's render, blit and surface code is 614 KB in every export; prune it where the HAL presents on its own.
 - ZN-805: zstd's compressor and lz4hc (about 400 KB) are pruned only in the lite host; split pack reading from pack writing so plugin apps drop them too.
 - ZN-805: `tools/package` ships no `libzn_*.a`; check that `libzn_host_sys_lite.a` ships wherever `libzn_host_gfx.a` does.
+- ZN-1019: `u8[]` still takes 8 bytes per element on the interpreter and AOT (a packed bytes type); host writes of a `u8[]` (`writeBytes`, `appendBytes`, `packAdd`) still copy element by element.
+- ZN-698: BLAKE2b in `zinc:hash` when a caller needs it (Monocypher is vendored), and an incremental hasher (update/digest, like Node's `createHash`) to hash a download as it streams.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
