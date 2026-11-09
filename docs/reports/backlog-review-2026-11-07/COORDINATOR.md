@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Created/claimed ZN-1085: focus-within registration disposer blocks repeated React Tooltip/HoverCard/Inputs cleanup. Harness e426a7560 integrated, core source ownership now free; fresh TS-only core worker will implement API, kit workers migrate their own callers. Size optimization follows this concrete lifecycle blocker; no local callback registry workaround.
+
 - Recorded/released Selection .08 and unstarted.09; clean integrated kit_selection/kit_selection_native PASS. .08 staysBacklogAC3 size-only failure, no repeated microtrims. Temporary identical artifact sizes across branches are consistent with page/link rounding; no demonstrated cache defect. OldSelection tree removable.
 
 - Selection .08 progress integrated53009551b: feature/React/native proof green, AC1/2 complete, task BacklogAC3 unchanged AOTsize gate66081>65536. .09 unstarted. Fresh Overlays worker resumes checkpointf300498dc in work/1078-overlays-resume; Inputs and harness continue. Owner asked kit testing: quiet/input/actions/chrome T0 PASS, clean gallery check/headless capture PASS, bounded background interactive window60s.
