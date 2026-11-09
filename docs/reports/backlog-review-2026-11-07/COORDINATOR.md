@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Core c69f4e7a8 (TDZ shared error construction) and8fc1bb2d1 (focused subscription snapshot) integrated. Core slot now becomes fresh Navigation worker ZN-1078.09, claimed in work/1078-navigation. Inputs and Overlays finish their actual caller proofs; root owns clean engine rebuild/integration checks. Three worker slots stay occupied.
+
 - Recorded/released ZN-1084, D269: clean bench_harness and focus-disposer T0 PASS; preserve three small artifact JSONs. Workflow51326feea persists automatic queue and five-worker CLI launch setting (new sessions only). Current three workers: Inputs, Overlays, core1086 then1085 correction. Size core gate is green; family workers validate against that binary before closure.
 
 - Reopened ZN-1085 AC2/3 after real Inputs React MoneyField found registration-while-focused snapshot=false misses blur. Existing disposer commit remains integrated; core worker1086 fixes this in a separate1085 commit after finishing its size change. No new task, no UI workaround, no parallel shared-core editing.
