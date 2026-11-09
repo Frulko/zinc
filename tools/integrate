@@ -11,9 +11,12 @@ git rev-parse -q --verify "$B" >/dev/null || { echo "no branch $B"; exit 2; }
 [ "$(git branch --show-current)" = develop ] || { echo "the main tree is not on develop"; exit 2; }
 both() { python3 - "$@" <<'PY'
 import re, sys
+def joined(m, markdown):
+    ours = re.split(r'^\|{7} [^\n]*\n', m.group(1), maxsplit=1, flags=re.M)[0]
+    return ours.rstrip('\n') + '\n' + ('\n' if markdown else '') + m.group(2)
 for p in sys.argv[1:]:
     s = open(p).read()
-    s = re.sub(r'<<<<<<< [^\n]*\n(.*?)=======\n(.*?)>>>>>>> [^\n]*\n', lambda m: m.group(1).rstrip('\n') + '\n' + ('\n' if p.endswith('.md') else '') + m.group(2), s, flags=re.S)
+    s = re.sub(r'^<<<<<<< [^\n]*\n(.*?)^=======\n(.*?)^>>>>>>> [^\n]*\n', lambda m: joined(m, p.endswith('.md')), s, flags=re.S | re.M)
     open(p, 'w').write(s)
 PY
 }
