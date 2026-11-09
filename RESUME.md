@@ -11,10 +11,13 @@
 - Integrated: ZN-1030 cases 1 and 4 (Backlog, D231): methods through `any`, widened records shared; cases 2 (array covariance, design in notes) and 3 left. ir.sh closures goldens re-recorded (correct since D224).
 - Integrated: ZN-1072 AppKit Table and Outline (Done, D232): 10,000 rows with only the visible ones built, sort, selection, type-select, outline expand; drawn fallback.
 - Integrated: ZN-610 (Done, D233): MQTT over TLS 1.3 tested on a node broker, `connectTimeoutMs`, zinc:mqtt now works on QuickJS; `--native` no longer reruns an old binary after an edit.
+- Integrated: ZN-1062 tabular figures (Done, D234): `tabular-nums`, `tabularFont`, Musique's clock without the digit-by-digit workaround. ZN-1073 AppKit controls and overlays (Done, D235): kit, nuxt and react-native Button, Switch, Slider, Select... become AppKit controls; `alert`, `sheet`, `popover` without `runModal`.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-1062 (since 1d1a40640): `text_tabular` on AOT (`zinc build tests/data/text_tabular`, 40 s, 1 GB); a frame hash of Musique's digital clock at 11:11 and 00:00; a GL replay pixel check of tabular text.
+- ZN-1073 (since b20d6b1f3): `tests/run --only ui_appkit_controls` (1 min); a windowed macOS run alone (overlays presented and closed through AppKit, frames continuing); a golden of the kits under the host on three engines.
 - ZN-610 (since 542514d24): `tests/run --only tls`, `mqtt`, `run_native_edit`, `netlog`; T1 `run_cache` and `zbc_cache` (the cache now saves a `sources` file).
 - ZN-1072 (since ed2f9f077): `tests/run --only ui_appkit_table`; by hand: fling the 10,000-row table on the 120 Hz display with `tools/window-memory`; an AXUIElement read of the table (VoiceOver role, 10 s); a 100,000-row case in `ui_appkit_table` (flat commit cost, 20 s).
 - ZN-1030 (since 498f78a79): `tools/diff-matrix` (records, `any`, classes over the corpus, ~10 min), `tests/run --only json_large`, the rn-showcase T1 session (its DOM event-init records are now shared).

@@ -611,6 +611,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1072: the AppKit header (~28 px) is taller than the drawn one (24 px), covered by overscan; `ui.domViewport` would make it exact. The `lists` map in `plugins/appkit/index.ts` keeps one entry per Table ever made.
 - ZN-610: zinc:socket wss and other raw TLS sockets have no handshake deadline; a server that accepts and stays silent may hang them as MQTT did (`sock.cpp`, same connect deadline).
 - ZN-610: rows `host.mqttOpen` and `host.mqttOpenTls` serve only bytecode of an older zinc; drop them at the next ZBC version bump.
+- ZN-1062: React Native `fontVariant: ['tabular-nums']` style key (only the class exists); tabular figures without the shaping tier (`"text": "simple"`, boards) by giving each digit the widest digit's width.
+- ZN-1062: the GL replay does not shape text (emoji, Arabic reach the GPU only through the glyph tables): check shaped text on GL.
+- ZN-1073: native AppKit controls never take zinc:ui's keyboard focus (Tab skips them, no focus ring); move the first responder to controls for keyboard access to native forms.
+- ZN-1073: clicks on drawn-only views inside a native Sheet or Popover do not reach zinc:ui (no SDL view under them); forward them to zinc:ui's hit testing.
+- ZN-1073: dragging an NSSlider runs AppKit's tracking loop and pauses frames and value events until release; drag on `mouseDragged` like ZnSplit.
+- ZN-1073: under the AppKit host, measure native controls with the macOS look or the control's `fittingSize` (the neutral look gives 36 px buttons where macOS gives 24 px).
+- ZN-1073: zinc:system `dialog.message` still uses NSAlert `runModal`, which stops SDL's event pump and the frames; run it as a sheet like `appkit.alert()`. A transient popover closes when an alert sheet opens on its window (AppKit behaviour): document it.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -800,3 +807,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1016: check whether a ps2 core built with graphics also links 3d and physics2d (ps2 lists only audio and lan).
 - ZN-291: measure the rn (Yoga) layout on wasm (size), rpi1 and ps2 and set `ui.layout.rn` in `targets/capabilities.json` from the results (commands in the task notes).
 - ZN-1012: time the 1.6 MB `zinc doc --std` search index (302 KB gzip) on the Pi and an old tablet; split it per section if slow.
+- ZN-1073: Mojave Mac (`mowmow@192.168.2.215`): AppKit `Switch` falls back to a check box on macOS 10.14; one short run.

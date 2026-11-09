@@ -2,7 +2,8 @@
 id: ZN-1075
 title: Custom native components declared in a plugin's spec
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-08 21:44'
 labels:
   - ui
