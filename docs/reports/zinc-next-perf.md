@@ -1542,3 +1542,10 @@ Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` 
 
 - ZN-1015 (develop 820b9444d): a 1 MB accented `charCodeAt` loop takes 36 ms on the interpreter and 16 ms on AOT with the per-string UTF-16 cursor; the binary before printed nothing in 120 s. ASCII paths untouched; `tools/bench-gate` on the string kernels is still to run (owner's call).
 - ZN-774.18 (develop 218cbebd5, M1 Pro, best of 5, load 3.2-5.8): style-only program without vs with one className: 64,521 vs 71,318 ZBC instructions (-9.5%), start 0.24 vs 0.25 s, cold `zinc build` 3.73 vs 4.13 s (-10%), executable 6,170,912 vs 6,319,600 B (-145 KB). prims-rn: 71,915 instructions, 0.30 s, 4.40 s, 6,915,104 B. Lesson 12: 73,510, 0.26 s, 4.12 s, 6,781,952 B. The start gain is at the edge of the noise.
+
+## 2026-11-09 — ZN-805, lighter idle and exported UI apps (CPU indicative: another tree was building; sizes exact)
+
+- Idle window: hello (zinc:ui, nothing moving) 0.80% → 0.17-0.20% of one core; idle loop 60 → 8.9 turns/s; a due timer fires 6-8 ms late (QuickJS 7.9 ms). Footprint 29-30 MB, unchanged (ps RSS shows 135 MB: it counts the shared dyld cache).
+- Export size, hello for macOS, permissions []: binary 6,304,720 → 5,177,184 B; .app 6168 → 5064 KB; zip 2,899,375 → 2,370,332 B. Tauri row: 4888 KB installed, 2069 KB zipped; Zinc is 176 KB above it installed and 300 KB zipped. No Mbed TLS or llhttp in the binary, 7 system frameworks no longer loaded.
+- Threads: idle hello runs 14 (main, 7 raster bands, "zinc render", NSEventThread, 3-4 GCD); the bands now start on the first large frame, so `ZINC_RENDERER=metal` runs 7.
+- Memory owners of the 29 MB footprint: IOSurface 8 MB (window double buffer), IOAccelerator 4.6 MB (uploaded frame texture), malloc 9.5 MB (framebuffer rows, glyph atlas, font tables, UI tree, interpreter arenas), AppKit and system data 5.4 MB.

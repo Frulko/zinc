@@ -3,11 +3,11 @@ id: ZN-805
 title: >-
   Lighter exported and idle UI apps: link only what is used, idle redraw, memory
   owners
-status: Review
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-24 23:55'
-updated_date: '2026-11-09 00:21'
+updated_date: '2026-11-09 00:24'
 labels:
   - size-L
 milestone: m-21
@@ -33,7 +33,7 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 - [x] #1 A UI-only export with permissions [] links no TLS, libuv, llhttp or unused SDL3 subsystems; size compared with the Tauri row
 - [x] #2 An app with no animation or input sleeps until an event (idle hello below 1% CPU)
 - [x] #3 Report names what holds the 25-90 MB RSS (atlas, fonts, tree, arenas) and the 14 threads; unused ones start lazily
-- [ ] #4 Numbers logged in docs/reports/zinc-next-perf.md
+- [x] #4 Numbers logged in docs/reports/zinc-next-perf.md
 <!-- AC:END -->
 
 ## Implementation Notes
