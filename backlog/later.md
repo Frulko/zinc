@@ -577,6 +577,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-684: the museum table's last frame hash (534365c613d00312) differs from `tests/golden/museum-table/frames.txt` (216961b085c60998) on develop before and after ZN-684: check at the milestone run.
 - ZN-1022: `flex-1` in a `flex-wrap` row still breaks lines by content width (CSS: by the content minimum); `shrink`, `flex-auto` and `flex-initial` children shrink to 0, not to their automatic minimum; the `flex: 1` style without the react-native preset still grows over the content.
 - ZN-263.02: `transformOrigin` as an array or a run-time value is not lowered; zinc:ui has no Tailwind `rotate-*`, `scale-*` or `skew-*` classes.
+- ZN-667: an arrow function using a `const`/`let` declared below it in the same block (`const show = () => LIMIT; const LIMIT = 1;`) is refused with Z0101; TypeScript accepts it (the lowering half is handled).
+- ZN-376: `'s' + x` with `x` a nullable object is refused with Z0107; TypeScript accepts it.
+- ZN-1030: open records still fail on: `(o as any).greet` undefined (the any view has no function kind), a narrower record field (`Dog[]` for `Animal[]`) refused with Z0103, a wider-class value written into a narrower field throws, and a fields-only interface assigned to a wider record is copied (writes not seen through the original).
+- ZN-796: the QuickJS numeric wraps know only the kinds one file shows (no fields of other objects, no imported signatures).
+- ZN-796: `Array.concat` with several arguments is refused (Z0104); TypeScript allows it.
+- ZN-1052: on QuickJS (no workers) the iPod daily mixes and Genius' mixes still hold ~75 ms slices and `genius()` takes 58 ms at 10k songs.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
