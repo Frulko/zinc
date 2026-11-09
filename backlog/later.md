@@ -710,6 +710,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1088: Classify relative `lib/std/...` imports consistently with absolute engine-library imports; the same physical module can otherwise get different font baking.
 - ZN-1078.09: Investigate the interpreter heading-size discrepancy in the shared kit gallery after typed library font reachability changes; QuickJS captures are correct.
 
+- ZN-1103: measure cold SVG path helper/concatenation cost on a quiet machine before attributing runtime benefit to the proven bundle saving.
+- ZN-1102: measure typed collection adapter allocation/runtime overhead and replay supported collection boundaries on future device engines; raw JavaScript/package/Script native behavior must remain unchanged.
+- ZN-1107: long-lived keyboard/virtual-row/owner churn after the live-getter correction, retaining transaction/resource ownership and raw React snapshot semantics.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -914,3 +918,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-703: `tests/run --only math_ieee754` on the Intel Mac and the Pi 3B+ (same bits without FMA and on Linux ARM; only proven by x86_64 Node under Rosetta matching the arm64 build).
 - ZN-429: run a `zinc build --target aarch64-linux` drawing program on the Pi for one frame (the .incbin cross builds were linked and their bytes checked, not run).
 - ZN-1024: measure the compile on the Pi with 3 threads against 2 (D267 thread count).
+
+- ZN-1105: physical mouse/touch/VoiceOver and mixed-font wrapped glyph/source-hit parity on Pi, Mojave and the new OptiPlex; local-coordinate and clipping proof currently comes from the development Mac.

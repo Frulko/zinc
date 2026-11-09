@@ -1,0 +1,51 @@
+{
+  "date": "2026-11-10",
+  "source_commit": "da7ca03602d1a3fc372cf10871598b08c2c06500",
+  "engine_sha256": "85f6d02a26948c1755090b0c06b3a926cad5cefa6df1799ce01d737a13e28f68",
+  "source_files_sha256": {
+    "src/ir/lower.cpp": "baaf2b4b428a83c5356fc83b6c8816eddd483651530c8fedf814475a208cfd08",
+    "src/qjs/qjs.cpp": "ff6a1c291f7eb692690511a159dc28ec9c268cd6b3b89b4107e5670bb17c32bd",
+    "src/qjs/strip.cpp": "e50274dece61c84dbeddb1bff54f4826a88ffd6ceb6b7f44e436b41015591bb5",
+    "src/qjs/strip.h": "9271166afbd30ce37e727ef2b02979d023ee8c311c65b61d0e63a86682048cac",
+    "lib/std/ui.ts": "ebb8069543b6a6aefd2a29cb0fc07be650b22f366746317792f97791921c5196",
+    "lib/ui.d.ts": "6e4a54801e491f8394937b680b85dfdf6c9f3c1a0ee8fd4f9c827dbe70317ca3",
+    "lib/std/kit/host.ts": "7ea69c699df3857d7276c41ba97a22d60115eef63c3eef30d7f80eec0c8d53c4",
+    "lib/std/kit/data.tsx": "4259e57bb7973c3dd18a0dcb6b1036a168a77f25d6322d581f5f50d2ebe652e9",
+    "lib/std/kit/feedback.tsx": "8888be3d55e86e999055232176d83c399eeea303effb6ac669c22548da16772f",
+    "tests/t0/kit_size.sh": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed"
+  },
+  "kit_hash_method": "sorted repository-relative .ts/.tsx path + NUL + contents + NUL",
+  "kit_sources_sha256": "5f5a33da179fb719c1b0daad889feb5a846a8a7b9cfc07cca677f64ac23e7fab",
+  "checks": {
+    "collection_results": "PASS",
+    "nullable_numeric": "PASS",
+    "text_offset": "PASS",
+    "component_signal": "PASS",
+    "kit_data": "PASS",
+    "kit_feedback": "PASS",
+    "kit_size": "PASS"
+  },
+  "raw_size_output": [
+    "bundle: Button 235962 B, through the index 239047 B (+3085 for 33 unused families, budget 8448), ten 275739 B (+4076 per component)",
+    "aot: Button 5325320 B, through the index 5374848 B (+49528 for 33 unused families, budget 135168), ten 5926624 B (+61308 per component)"
+  ],
+  "javascript_bytes": {
+    "button": 235962,
+    "index": 239047,
+    "ten": 275739
+  },
+  "aot_bytes": {
+    "button": 5325320,
+    "index": 5374848,
+    "ten": 5926624
+  },
+  "strict_used_javascript_headroom_bytes": 172,
+  "original_callers": "Data twelve fixture/engine runs and Feedback exact check pass on integrated source. Code six model/engine runs used source-identical1105/1107 candidate overlays before its private cache cleanup; Code family final gate/captures remain with its worker.",
+  "logs": ".logs/integration-2026-11-10/",
+  "not_proven": [
+    "runtime speed/allocations of SVG serialization and typed collection adapter",
+    "physical accessibility/touch/device glyph parity",
+    "broad suites and long churn"
+  ],
+  "owned_processes": "none after each bounded check"
+}

@@ -2,9 +2,9 @@
 id: ZN-1103
 title: Preserve combined kit size budgets after Data and Pickers
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 21:45'
+updated_date: '2026-11-09 23:27'
 labels:
   - ui
   - perf
@@ -26,6 +26,12 @@ Blocks unchanged tests/t0/kit_size after legitimate Data/Picker additions, both 
 - [x] #2 Attribute the combined failure with exact source/engine hashes and raw artifact bytes, then apply the smallest generic engine/provider or deliberate shared reuse fix with its own exact regression; do not raise budgets, cut UI, prune requested icons, or make special-case compiler rules for kit/demos
 - [x] #3 Original Data/Picker/default-icon behavior, valid SVG geometry/aliases/metadata and all three engines remain coherent; documentation/changelog and unmeasured runtime effects/remaining boundaries are recorded
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Coordinator decision D274 records lossless private path construction and its unmeasured cold cost.
+<!-- SECTION:NOTES:END -->
 
 ## Attribution and implementation
 

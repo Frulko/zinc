@@ -2,8 +2,7 @@
 id: ZN-1104
 title: Preserve default icons in composed QuickJS galleries
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 21:47'
 labels:
   - ui

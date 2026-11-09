@@ -1,0 +1,43 @@
+{
+  "base": "20fc720436a29316e8f0772fbe6ad6ccdcf800cd",
+  "engine_sha256": "8637544164c92f8d5d9e5ca8691c59b98faeb5d2eda2aaa9b2d657390c18088b",
+  "files": {
+    "src/qjs/qjs.cpp": "ff6a1c291f7eb692690511a159dc28ec9c268cd6b3b89b4107e5670bb17c32bd",
+    "src/qjs/strip.cpp": "e50274dece61c84dbeddb1bff54f4826a88ffd6ceb6b7f44e436b41015591bb5",
+    "src/qjs/strip.h": "9271166afbd30ce37e727ef2b02979d023ee8c311c65b61d0e63a86682048cac",
+    "lib/std/ui.ts": "23ae2bdc17d74f610b72dd2b4760416c9801bd8af7489d6d5526e10c509f900a",
+    "lib/zinc.d.ts": "5c9574e9a69edbf82b97fc8b182cbe435e7b1e172c8aa8b6b59b792066ee0c06",
+    "tests/t0/collection_results.sh": "a1e2581d24ae383a74b384a07518cf393648e1f4bb58777fdb70a1918b995106",
+    "tests/t0/kit_size.sh": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed"
+  },
+  "javascript_bytes": {
+    "button": 235831,
+    "index": 238916,
+    "ten": 275608
+  },
+  "aot_bytes": {
+    "button": 5325320,
+    "index": 5374848,
+    "ten": 5926624
+  },
+  "used_js_total_headroom": 172,
+  "tests": [
+    "collection_results",
+    "collection_infer",
+    "nullable_keys"
+  ],
+  "feature": "original Data gallery QuickJS, headless3frames",
+  "logs": [
+    ".logs/1102/final-all.log",
+    ".logs/1102/cache-boundary-final.log"
+  ],
+  "baseline_numeric_union_engine_sha256": "1d4b213a4d72e5693b03c4aaaaa7b5c6dd09ccad78886facfcc33edeb690e0f1",
+  "not_proven": [
+    "mquickjs/device/browser replay",
+    "runtime timing/allocation"
+  ],
+  "owned_processes": "none after completion",
+  "kit_sources_sha256": "2787a18b5f89a6b89f75c984d1bcf3bc072190c288bc64fd2be74b174eb67b9f",
+  "integrated_commit": "888d29aed",
+  "archived_logs": ".logs/integration-2026-11-10/1102-*"
+}

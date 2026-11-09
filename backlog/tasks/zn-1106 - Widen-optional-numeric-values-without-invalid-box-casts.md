@@ -2,8 +2,7 @@
 id: ZN-1106
 title: Widen optional numeric values without invalid box casts
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 22:40'
 updated_date: '2026-11-09 23:18'
 labels:

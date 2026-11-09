@@ -2,9 +2,9 @@
 id: ZN-1102
 title: Align typed collection result methods across engines
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 21:34'
+updated_date: '2026-11-09 23:27'
 labels:
   - runtime
   - qjs
@@ -26,6 +26,12 @@ Found by1100 exact regression: lib/zinc.d.ts promises Map/Set values()/keys() ar
 - [x] #2 A focused regression covers array length/index/map/join use where promised, standard for-of, empty collections, nullable contents and mutation after obtaining the result; arbitrary user methods with those names remain untouched
 - [x] #3 The minimal values().length repro passes on all three engines, existing collection_infer/nullable_keys stay green, and actual compatibility boundaries for unsupported JavaScript or embedded Script are explicitly documented without a global native-JS behavior regression
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Coordinator decision D275 records typed-source-only collection result adaptation and native raw/package/Script boundaries. Tracked provenance: docs/reports/bench/core-1102-2026-11-10.json.
+<!-- SECTION:NOTES:END -->
 
 ## Research and implementation
 

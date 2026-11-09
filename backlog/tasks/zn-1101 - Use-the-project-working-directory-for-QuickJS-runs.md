@@ -2,8 +2,7 @@
 id: ZN-1101
 title: Use the project working directory for QuickJS runs
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 21:27'
 labels:
   - runtime

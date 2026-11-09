@@ -1,42 +1,47 @@
-# Resume — Zinc backlog coordinator, session2026-11-09
+# Resume — Zinc backlog coordinator, 2026-11-10
 
-Continue zn-coordinate until main `.paused` exists or no startable work remains. Never ask the owner. This root is the only backlog coordinator; current claims/integrations are in docs/reports/backlog-review-2026-11-07/COORDINATOR.md. No push. New workers inherit the configured model after “on rebascule”; Fast remains in launchers, no global model setting change.
+Continue zn-coordinate until main `.paused` exists or no startable work remains. Never ask the owner. This root is the only coordinator; current state is in docs/reports/backlog-review-2026-11-07/COORDINATOR.md. No push. New workers inherit the configured model after “on rebascule”; Fast remains a launcher option.
 
 ## Active work
 
 | Work | Location | State |
 | --- | --- | --- |
-| Core batch1101/1104/1103/1102 | work/1101, .worktrees/1101 |1101/1104/1103 integrated;1102 ready ab4d4dd61, clean. Integrate then retire completed batch. Fresh core1105(text hit) then1106(nullable numeric widening); no sixth task in old batch. |
-| Code13 | work/1078-code, .worktrees/1078-code | Five controls implemented via editor/Markdown/inspector providers. Earlier both-model/all3 proof passes; actual inline links await1105. Provider laziness improves unused import cost; final captures/gate remain. No core edits. |
-| Tool panels14 | .worktrees/1078-panels-research | Primary research complete/clean, source copies in.logs. Task claimed. Persist research into task and start fresh implementation worktree/agent; do not resume researcher for implementation. |
-| Data12 | integrated8f8478bd5 | Backlog AC2complete; root kit_data12-run all3 incl actual FS PASS with1101 candidate. Final combined gate/proofs close AC1/3. Eight inspected pictures. |
-| Feedback11 | integratedc9be3d26a | Backlog AC1/2complete, AC3finalcombinedgate pending. Defaults without manifest, light/dark/action/360px proof allpass after1104. |
+| Code13 | work/1078-code, .worktrees/1078-code | Five controls implemented via existing editor/Markdown/inspector providers. Original both-model/all3 interactions pass with integrated1105/1107. Finishing input-keyed caches, final pictures/gate. No core edits. |
+| Tool panels14 | work/1078-panels, .worktrees/1078-panels | Fresh implementation worker active, ten controls, caller-owned state and existing providers. Owns minimal ScrubField default-bounds correction; prior caller has explicit bounds. Rebase before final delivery to omit duplicate1107 cherry-pick. |
+| Charts15 | work/1078.15, .worktrees/1078.15 | Claimed896b30461, fresh inherited-model TS-only worker. All listed charts, actual interactions, gallery/pictures and unchanged gate. Avoids Code/panels/input providers. |
+| Data12 | integrated8f8478bd5 | Done: original twelve runs and root final combined gate pass on da7ca0360. Eight inspected pictures. |
+| Feedback11 | integratedc9be3d26a | Done: root exact behavior/defaults and final combined gate pass; original light/dark/action/360px pictures inspected. |
 
-## Latest integrations and proofs
+## Integrated and proven
 
-Session main has33 distinct Done tasks before family final closure:1078.03/.04/.05/.06/.07/.08/.09/.10 and1079–1101,1103,1104.1102 is still private/unintegrated. Inputs/Navigation/Pickers done; Data/Feedback finish after root final checks. Earlier details/known failures/proposed tests are archived losslessly in docs/reports/session-handover-2026-11-09.md.
+39 distinct Done tasks since1078.03 (ten kit subtasks03–12 and1079–1107), counted from actual task statuses. Data/Feedback are now included after their final combined proof. Earlier history/proposed tests are archived in docs/reports/session-handover-2026-11-09.md.
 
--1101 cwd902de09c0: shared project working directory across all3, launchDir preserved, invalid/missing entries rejected. Root clean rebuild +project_cwd all3 PASS; actual combined Data12runs PASS. No engine-conditional app path.
--1104 reader8c31f5cb7: QuickJS optional icon probe had accepted sibling directories as empty files, losing PickersSection export. Two-line regular-file guard; actual Feedback gallery all defaults/action/narrow PASS and root clean library_icons PASS. No reachability-policy change or manifest workaround.
--1103 serialization20fc72043: lossless private SVG path constructor. Exact byte-equal canonical/alias/unknown/metadata oracle all3 PASS; library_icons and original Picker(interp)/Data(native)/Feedback(QJS) short smokes PASS. Actual unchanged combined gate: JS235400/238485/275177 B,4076 B/component,172 B strict total headroom; AOT5325320/5374848/5926624,61308 B/component.551 B ten saving; no feature/icon/budget cut. Cold helper/concatenation cost unmeasured.
--1102 readyab4d4dd61: private typed TS collection result snapshots, rawJS/packages/embeddedScript native, no prototype patches, optional/getter/this/async/yield/super/hashbang boundaries tested. Candidate gate JS235831/238916/275608 (same4076/component/172Bheadroom,431 B shared base); AOTunchanged. MquickJS retains existing ES5 unsupported-Map boundary. Integrate/rebuild/test exact collection_results.
--1100 nullable string keysbaf4c2d0f:160-string hash/rehash/delete/reinsert/null-vs-empty/reference cleanup all3+leak proof PASS. D18 typed nullish representation preserved; owner array WIP untouched.
--1088/1090/1093–1099 solved metadata size, host contract, library defaults, JSX IDs, flatMap, neutral ownership/virtual rows/reentrant disposal, pending scroll, constructor inference and nullable cleanup. Their original consumer proofs pass. DecisionsD270–273 and raw provenance are tracked; do not integrate obsolete private checkpoints.
+-1101 cwd902de09c0 and1104 reader8c31f5cb7: root clean project_cwd/library_icons and original Data/Feedback defaults pass; no app paths or manifest workarounds.
+-1103 SVG20fc72043: byte-identical private path constructor, all3 serialization proof. Original combined gate JS235400/238485/275177, AOT5325320/5374848/5926624;4076B/component JS,172B strict headroom. No UI/icon/budget cut; cold helper cost unmeasured.
+-1102 collection888d29aed: private typed-source snapshot-array adapter, native rawJS/packages/embeddedScript unchanged. Exact collection_results on newly rebuilt root binary passes. Candidate adds431B equally to three JS programs; same used delta. Existing mquickjs ES5 boundary unchanged. Provenance docs/reports/bench/core-1102-2026-11-10.json.
+-1105 text source hits ed5150388: local glyph source offsets/-1, old caret units unchanged. Exact all3 and original Code all6 links/keyboard/drag/cancel pass; AC3 closed. No copied component layout.
+-1107 live neutral getters4399fedce: central React ref plus existing state scheduling; raw useState snapshot contract unchanged. Removed redundant Data mirrors. Exact all6, original Data12 and Code6 pass. JSON rows are asserted at existing first-normal setAfterPaint; no extra UI frame/control workaround.
+-1106 nullable numeric da7ca0360:17-line generic lowering preserves absence, converts scalar payload then boxes. Original optional Map.length program unchanged, exact all3/negatives/IR/leaks and collection_results pass. Existing unrelated build warnings recorded; changed lowering emits none. Core batch work/1105 ended after three tasks, no more work appended.
+-1088/1090/1093–1100 details and provenance remain in tracked reports/task notes. DecisionsD270–273 recorded; D274–276 describe SVG construction, typed-source boundaries and neutral getters.
 
-## Next core tasks
+## Current verification and next commands
 
--1105 claimed: ui.textOffsetAt(h,x,y), local coordinates, source-string glyph offset/-1 outside. Code13 real inline links are blocked. tsPosAt currently returns flattened displayed-line CARET units; rich runs lineAt keeps source offsets. Reuse geometry, preserve old selection units, handle plain wraps/whitespace/newlines/nonASCII/boundaries. Code worker prepared provider, no duplicate link buttons/layout copy. Primary Flutter/CSSOM references in task. Fifth slot was reserved in prior batch but no source started; use fresh context with1106 after old batch handoff.
--1106 claimed for NEXT fresh batch: baseline optional Map length i32→number|undefined creates invalid IR Box<i32>→Box<f64> refcast. Repro/log .worktrees/1101/.logs/1102/optional-length-original.ts and optional-length-baseline.log. Exact i32 annotation is a separate1102 test, no original-program workaround. Fix generic nullable numeric coercion with existing profile rules/ownership.
+Root final targeted checks PASS on the rebuilt clean binary: collection_results, nullable_numeric, text_offset, component_signal, kit_data (twelve runs), kit_feedback and raw unchanged kit_size. Combined JS235962/239047/275739B (4076/component;172B strict headroom), AOT5325320/5374848/5926624B (61308/component). Source hashes/raw stdout: docs/reports/bench/kit-integration-2026-11-10.json and .logs/integration-2026-11-10. Data12 and Feedback11 are closed/released on this evidence. Only exact regressions/short feature proofs ran, no suite.
 
-## Machine and clean binaries
+First OptiPlex proof: cross-build the unchanged nullable_numeric fixture for x86_64-linux on the Mac, deploy under ~/zn/nullable-numeric-20261110 and run bounded/headless; build is queued/running, no target result claimed yet.
 
-- Retained clean tree .claude/worktrees/agent-aae96db4e67d4b8e6 is reset to20fc72043; current tools/build zinc completed through1103. Use read-only binary there with ZINC_ROOT=$worker_tree. New1102 still requires integration/rebuild. Frozen worker binaries .worktrees/1096/build/zinc and .worktrees/1100/build/zinc are obsolete after final handoffs; archive then remove completed clean trees/branches, notify remaining users first.
-- Every heavy command uses absolute tools/work-run SECONDS COMMAND ARGS, one queued command per worker. Two building trees globally, one app/test at a time, bounded/headless or ZINC_BACKGROUND=1, no leftovers. Queue is healthy; cached static checks only outside it. Markdown/Discord plugin auto-builds also go through queue. No synthetic load.
-- Main carries external WIP: ui.ts42add19del sparseFenwick, src/main.cpp12/0 display, rt.h137/1 array storage, rtcalls30/17, machine3/2, perf15/0, runtime/LVGL/host/changelog/affected edits. Preserve every hunk; tools/integrate restores them. Do not build main. Its unfinished prependRows still uses old array fields after hs became Map; known unrelated overlay failure, do not re-investigate.
-- Stage only owned appended performance blocks via HEAD+block/hash-object/update-index. Main index is clean at checkpoint. Check conflict markers/affectedJSON and immutable stash IDs after integration.
+Archive completed worker logs/provenance before removing clean trees/branches; retained clean binary users must be notified before replacement/removal. Core work/1101 and work/1105 are finished; old proof/worker trees are still retained pending final shared replay.
+
+## Machines and clean binaries
+
+- Retained clean tree .claude/worktrees/agent-aae96db4e67d4b8e6 reset da7ca0360 and successfully built through1106. Binary SHA25685f6d02a26948c1755090b0c06b3a926cad5cefa6df1799ce01d737a13e28f68. Workers use it read-only with their own ZINC_ROOT; no engine build for TS-only tasks.
+- Owner added OptiPlex Linux x86_64, Fedora45 KDE, i3-7100T2cores/4threads,16GB. SSH verified LAN mowmow@192.168.2.228 and Tailscale100.66.7.14 / optiplex.tail80b63.ts.net (HostKeyAlias=192.168.2.228 checks same key). No compiler/build tools/Zinc executable initially installed. Deploy bounded cross-built programs under owned ~/zn/name; desktop/GPU unproven. Pi spark@192.168.2.31 and Mojave mowmow@192.168.2.215 remain available.
+- Every heavy command uses absolute tools/work-run SECONDS COMMAND ARGS, one queued command per worker. Two building trees globally, one app/test at a time, bounded/headless or ZINC_BACKGROUND=1, no leftovers. Plugin auto-builds also go through queue; no synthetic load.
+- Main carries external WIP: ui.ts42add19del sparseFenwick, src/main.cpp12/0 display, rt.h137/1 array storage, rtcalls30/17, machine3/2, perf15/0, runtime/LVGL/host/changelog/affected edits. Preserve every hunk, never build main. Its unfinished prependRows still uses old array fields after hs became Map; known unrelated overlay failure, do not reinvestigate.
+- Stage only owned appended performance blocks via HEAD+block/hash-object/update-index. Main index clean before coordinator bookkeeping. Verify markers/affectedJSON/stash identity at integration.
 
 ## Tests to run — owner chooses milestones
 
-Only exact T0/short feature proofs now; no suites/T1/T2/demo/pixelcompare/fuzz/fullbench. Proposed physical keyboard/VoiceOver/touch, Pi/Mojave glyphs, long virtual-scroll/churn/RC/energy and quiet-machine UI-work scaling remain in task notes/archived handover. Shared allocation/inlining and cold SVG costs unmeasured. Earlier paired Pi Script+SVG aarch64 proof10391584 B returned42, exit0, no remote process. CLI baker64MP/engine callback ABI unchanged; runtime image cap16MP.
+Physical keyboard/VoiceOver/touch, Pi/Mojave/Linux glyphs and window behavior, long virtual-scroll/churn/RC/energy, quiet-machine UI-work scaling and cold SVG/adapter cost remain proposed in task notes/archived handover. No suites/T1/T2/demo/pixelcompare/fuzz/fullbench. Earlier paired Pi Script+SVG aarch6410391584B proof returned42/exit0; no remote process.
 
-Owner responsive/password gallery is Done, pictures docs/img/design/gallery-responsive.png and password-reveal.png. Run from retained clean tree: PICTURE=gallery ZINC_SIZE=1280x900 ZINC_ROOT="$PWD" build/zinc run docs/img/design/src --interp. Kit: ZINC_ROOT="$PWD" build/zinc run examples/ui/kit-gallery --interp; GALLERY selects actions/chrome/inputs/pickers-values/selection/navigation/overlays/feedback/data. Agent runs stay bounded/background.
+Owner responsive/password gallery is Done; pictures docs/img/design/gallery-responsive.png and password-reveal.png. Run from retained clean tree: PICTURE=gallery ZINC_SIZE=1280x900 ZINC_ROOT="$PWD" build/zinc run docs/img/design/src --interp. Kit: ZINC_ROOT="$PWD" build/zinc run examples/ui/kit-gallery --interp; GALLERY chooses the family. Agent runs stay bounded/background.

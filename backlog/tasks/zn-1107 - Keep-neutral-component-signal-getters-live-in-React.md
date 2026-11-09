@@ -2,10 +2,9 @@
 id: ZN-1107
 title: Keep neutral component signal getters live in React
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 23:09'
-updated_date: '2026-11-09 23:12'
+updated_date: '2026-11-09 23:27'
 labels:
   - ui
   - reactivity
@@ -29,10 +28,9 @@ Blocks ZN-1078.13 actual JsonViewer and inline-link React keyboard proof. Canoni
 - [x] #4 Remove only per-control mirror refs used solely to compensate for this bridge snapshot gap, retaining actual transaction/resource/lifetime ownership; document contract and proposed milestone tests
 <!-- AC:END -->
 
-Primary semantics: https://react.dev/learn/state-as-a-snapshot ; https://react.dev/reference/react/useRef ; https://docs.solidjs.com/reference/basic-reactivity/create-signal . Preserve raw useState snapshots; this task fixes the neutral getter/direct-setter bridge contract.
+## Implementation Notes
 
-## Implementation notes
-
+<!-- SECTION:NOTES:BEGIN -->
 - Existing provider `componentSignal` now keeps its React value in the existing stable `useRef` hook. Its getter reads `current`, and its direct setter updates `current` before calling the existing React state setter. Raw `react.useState`, scheduling, reconciliation, generation and unmount paths are unchanged. No per-control state mirror or delayed-event workaround was added.
 - Primary references: [React useRef](https://react.dev/reference/react/useRef) describes stable ref identity across renders and mutable current values; [React state snapshots](https://react.dev/learn/state-as-a-snapshot) describes the separate raw state/callback contract; [Solid createSignal](https://docs.solidjs.com/reference/basic-reactivity/create-signal) supplies the getter/direct-setter shape. This is Zinc's internal neutral getter contract, not advice to mutate ordinary React render state.
 - Caller audit: DataGrid `editOwner` and PathBar `draftOwner` duplicated their signal payload solely for same-event freshness. Removed both mirror refs/wrapper setters; reads use `edit()` / `draft()`. TreeTable's duplicate revision counter now increments its live signal. Kept GridEdit state transitions, selection anchors, tree branch generations and cleanup, file request/session/history refs, and picker gesture/calendar/hue/catalog ownership.
@@ -44,3 +42,8 @@ Primary semantics: https://react.dev/learn/state-as-a-snapshot ; https://react.d
 ## Proposed tests
 
 - Quiet-machine long-lived Data/tree/file/virtual-row churn and physical keyboard/touch/VoiceOver tests at an owner-selected milestone; no suite, pixels, benchmark or broad lifecycle suite was run.
+
+Coordinator decision D276 records the neutral live-getter contract and preserved raw React snapshots.
+<!-- SECTION:NOTES:END -->
+
+Primary semantics: https://react.dev/learn/state-as-a-snapshot ; https://react.dev/reference/react/useRef ; https://docs.solidjs.com/reference/basic-reactivity/create-signal . Preserve raw useState snapshots; this task fixes the neutral getter/direct-setter bridge contract.
