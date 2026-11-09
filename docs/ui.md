@@ -44,6 +44,7 @@ const [name, setName] = createSignal('');
 | `placeholder` | shown while empty |
 | `password` / `type="password"` | bullets; copy and cut are disabled |
 | `readOnly` | selectable and copyable, not editable |
+| `inputMode` | keyboard hint: `text`, `numeric`, `decimal`, `tel`, `email`, `url` or `search`; `inputMode={mode()}` updates reactively. Dynamic values ignore case and fall back to `text` when unknown; the hint does not validate content |
 | `rows` | textarea height in lines when no height class is set (default 4); `rows={0}`: as tall as its content, like CSS `field-sizing: content` (a block editor's paragraphs: the field grows and shrinks as the text wraps, before the frame is painted) |
 | `wrap={false}` | textarea: no line wrapping, horizontal scroll |
 | `lineNumbers` | textarea: line number gutter; with `lineNumbers` or `font-mono` the textarea is a code editor: Tab inserts 2 spaces, Enter keeps the indentation |

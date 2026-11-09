@@ -1346,6 +1346,12 @@ struct Lowering {
         push(react || lit ? "_num(" + v + ", 'pointerEvents', " + val + ");" : "_dynNum(" + v + ", 'pointerEvents', () => " + val + ");");
       }
       else if (name == "inputMode" && lit && kInputModes.count(a.lit)) push("_num(" + v + ", 'inputMode', " + num(kInputModes.at(a.lit)) + ");");
+      else if (name == "inputMode" && a.kind == 2) {
+        std::string choice = "0";
+        for (const auto& [key, value] : kInputModes) if (value != 0) choice = "__mode === " + quote(key) + " ? " + num(value) + " : " + choice;
+        const std::string val = "((__mode: string): i32 => (" + choice + "))((" + expr + ").toLowerCase())";
+        push(react ? "_num(" + v + ", 'inputMode', " + val + ");" : "_dynNum(" + v + ", 'inputMode', () => " + val + ");");
+      }
       else if (kFlagAttrs.count(name)) {
         if (lit || a.kind == 0 || plainExpr == "true" || plainExpr == "false") push("_num(" + v + ", '" + name + "', " + (lit || plainExpr == "true" || a.kind == 0 ? "1" : "0") + ");");
         else push(react ? "_num(" + v + ", '" + name + "', (" + expr + ") ? 1 : 0);" : "_dynNum(" + v + ", '" + name + "', () => ((" + expr + ") ? 1 : 0));");
