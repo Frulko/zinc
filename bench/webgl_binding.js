@@ -15,9 +15,9 @@ const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.buf
 const c = gl.getUniformLocation(prog, 'c'), m = gl.getUniformLocation(prog, 'm');
 gl.uniformMatrix4fv(m, false, new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
 const v4 = new Float32Array([1, 0.5, 0.25, 1]), data = new Float32Array(8), raw = new ArrayBuffer(32);
-function time(n, f) {   // best of 5 runs, ns per call
+function time(n, f, finish = true) {   // best of 5 runs, ns per call; finish: the GPU's work counts too
   let best = Infinity;
-  for (let r = 0; r < 5; r++) { const t = performance.now(); for (let i = 0; i < n; i++) f(); gl.finish(); best = Math.min(best, (performance.now() - t) * 1e6 / n); }
+  for (let r = 0; r < 5; r++) { gl.finish(); const t = performance.now(); for (let i = 0; i < n; i++) f(); if (finish) gl.finish(); best = Math.min(best, (performance.now() - t) * 1e6 / n); }
   return best;
 }
 const out = {
@@ -27,6 +27,8 @@ const out = {
   'bufferSubData(Float32Array)': time(100000, () => gl.bufferSubData(gl.ARRAY_BUFFER, 0, data)),
   'drawArrays': time(50000, () => gl.drawArrays(gl.TRIANGLES, 0, 3)),
   'drawElements 60k': time(2000, () => gl.drawElements(gl.TRIANGLES, 60000, gl.UNSIGNED_SHORT, 0)),
+  // the binding's own cost: validation and submission, without waiting for the GPU to walk the 60k indices (200 draws fit in the queue)
+  'drawElements 60k submit': time(200, () => gl.drawElements(gl.TRIANGLES, 60000, gl.UNSIGNED_SHORT, 0), false),
 };
-for (const k in out) console.log(k.padEnd(28) + (out[k] >= 10000 ? (out[k] / 1000).toFixed(1) + ' us' : out[k].toFixed(0) + ' ns'));
+for (const k in out) console.log(k.padEnd(30) + (out[k] >= 10000 ? (out[k] / 1000).toFixed(1) + ' us' : out[k].toFixed(0) + ' ns'));
 if (gl.getError()) console.log('GL error');
