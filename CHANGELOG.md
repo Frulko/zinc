@@ -163,6 +163,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - On `--engine quickjs`, `new Date()` and `Date()` read the same clock as `Date.now()`: today's date in a normal run, and in a test run (`ZINC_DETERMINISTIC`) the same fixed date at every run, as on the Zinc engines.
 - A function or a static method read as a value is the same object every time, as in JavaScript: `f === f` is true, and `indexOf`, `includes` or a remove-listener call find a callback that was added before.
 - A function declared inside another one can use a `const` or `let` written below it, as in JavaScript, and may share its name with a top-level function, class or constant; such programs stopped with an internal error.
+- Writing an optional field through a record type adds it to a class instance that lacks it, as JavaScript does, instead of throwing "object is not extensible"; `console.log` and `JSON.stringify` show it once set, and an optional field left out of an object literal is no longer printed as `note: undefined`.
 
 ### Developer tools
 

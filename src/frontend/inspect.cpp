@@ -57,6 +57,36 @@ std::vector<std::uint32_t> openClasses(const Checked& c, std::uint32_t rec) {
   return r;
 }
 
+std::vector<std::pair<std::uint32_t, const Member*>> addedFields(const Checked& c, std::uint32_t cls) {
+  std::vector<std::pair<std::uint32_t, const Member*>> r;
+  const ObjInfo& ci = c.objs[cls];
+  if (!ci.isClass || ci.isRecord || ci.isTuple || ci.isTemplate) return r;
+  std::vector<std::uint32_t> recs;
+  for (const auto& [rec, ks] : c.openRecords)
+    for (std::uint32_t k : ks)
+      if (k == cls || (c.objs[k].isInterface && objAssignable(c, cls, k))) { recs.push_back(rec); break; }
+  if (recs.empty()) return r;
+  std::sort(recs.begin(), recs.end());   // one layout on every compile
+  std::vector<std::string> held;   // the names an ancestor already added
+  for (std::uint32_t p = ci.parent; p != 0xFFFFFFFFu; p = c.objs[p].parent)
+    for (const auto& [rec, m] : addedFields(c, p)) held.push_back(m->name);
+  for (std::uint32_t rec : recs)
+    for (const Member& m : c.objs[rec].members) {
+      if (!m.optional || m.method || m.isStatic || lookupMember(c, cls, m.name, false)) continue;
+      if (std::find(held.begin(), held.end(), m.name) != held.end()) continue;
+      held.push_back(m.name);
+      r.push_back({rec, &m});
+    }
+  return r;
+}
+
+// addedFields of the class and its ancestors, the ancestors' first (the layout's order): what printing and JSON show.
+static std::vector<std::pair<std::uint32_t, const Member*>> addedFieldsAll(const Checked& c, std::uint32_t cls) {
+  std::vector<std::pair<std::uint32_t, const Member*>> r = c.objs[cls].parent == 0xFFFFFFFFu ? std::vector<std::pair<std::uint32_t, const Member*>>{} : addedFieldsAll(c, c.objs[cls].parent);
+  for (const auto& f : addedFields(c, cls)) r.push_back(f);
+  return r;
+}
+
 std::string inspectSubName(TypeId t) { return "__fmtSub" + std::to_string(t); }
 std::string jsonSubName(TypeId t) { return "__jsSub" + std::to_string(t); }
 
@@ -194,7 +224,8 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
         body += "  const sub: string | null = " + jsonSubName(t) + "(v);\n  if (sub !== null) return sub;\n";
         extra = "function " + jsonSubName(t) + "(v: " + inspectAliasName(t) + "): string | null {\n  return null;\n}\n";
       }
-      bool anyOmit = false;
+      const auto added = oi.isRecord ? std::vector<std::pair<std::uint32_t, const Member*>>{} : addedFieldsAll(c, x.obj);
+      bool anyOmit = !added.empty();
       for (const Member* m : fs) anyOmit = anyOmit || (c.types[m->type].k == TK::Union && c.types[m->type].undef);
       if (!anyOmit) {   // every field is written: one concatenation, no array and join per object (ZN-654: jsonout's work -14%)
         std::string e, lit = "{";
@@ -212,6 +243,11 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
         if (c.types[m->type].k == TK::Func) continue;
         bool omit = c.types[m->type].k == TK::Union && c.types[m->type].undef;  // an undefined field is left out of the text
         body += std::string("  ") + (omit ? "if (v." + m->name + " !== null) " : "") + "out.push('\"" + m->name + "\":' + " + call(m->type, "v." + m->name) + ");\n";
+      }
+      for (const auto& [rec, m] : added) {
+        const TypeId rt = typeOfObj(c, rec);
+        deps.push_back(rt);
+        body += "  { const e = (v as " + inspectAliasName(rt) + ")." + m->name + ";\n    if (e !== null) out.push('\"" + m->name + "\":' + " + call(m->type, "e") + ");\n  }\n";
       }
       body += "  return '{' + out.join(',') + '}';\n";
       break;
@@ -311,7 +347,16 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
       std::string prefix = plain ? "" : cname + " ";
       if (fs.empty()) { body += "  return '" + prefix + "{}';\n"; break; }
       body += cyc + "  if (lvl > 2) return '[" + (plain ? std::string("Object") : cname) + "]';\n  c[2 + lvl] = id;\n  const l: i32 = lvl + 1;\n  c[1] = l;\n  const out: string[] = [];\n  c[0] += 2;\n";
-      for (const Member* m : fs) body += "  out.push('" + m->name + ": ' + " + call(m->type, "v." + m->name, "l") + ");\n";
+      for (const Member* m : fs) {
+        const bool omit = plain && m->optional && c.types[m->type].k == TK::Union;   // left out of the literal: JavaScript has no such key
+        body += std::string("  ") + (omit ? "if (v." + m->name + " !== null) " : "") + "out.push('" + m->name + ": ' + " + call(m->type, "v." + m->name, "l") + ");\n";
+      }
+      if (!plain)   // the optional fields a write through a record added (addedFields): shown once set, after the class's own
+        for (const auto& [rec, m] : addedFieldsAll(c, x.obj)) {
+          const TypeId rt = typeOfObj(c, rec);
+          deps.push_back(rt);
+          body += "  { const e = (v as " + inspectAliasName(rt) + ")." + m->name + ";\n    if (e !== null) out.push('" + m->name + ": ' + " + call(m->type, "e", "l") + ");\n  }\n";
+        }
       body += "  c[0] -= 2;\n" + reduce("'" + prefix + "{'", "'}'", false, false, "false");
       break;
     }

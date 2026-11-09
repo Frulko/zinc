@@ -256,6 +256,7 @@ struct Lowering {
       if (c.objs[obj].parent != kNil) lay = layoutOf(c.objs[obj].parent);
       for (const frontend::Member& mem : c.objs[obj].members)
         if (!mem.method && !mem.isStatic && mem.owner == obj) lay.push_back({mem.name, mem.type});
+      for (const auto& [rec, mem] : frontend::addedFields(c, obj)) lay.push_back({mem->name, mem->type});   // optional fields of a record it is shared as: a write adds them
       layouts[obj] = std::move(lay);
     }
     return layouts[obj];

@@ -21,6 +21,10 @@ std::vector<std::uint32_t> implementations(const Checked& c, std::uint32_t obj);
 // The same for an open record (Checked::openRecords): the classes whose instances are shared as it, most derived first, each once.
 std::vector<std::uint32_t> openClasses(const Checked& c, std::uint32_t rec);
 
+// The optional fields of open records that class `cls` lacks and that a write through the record adds, as JavaScript adds a property (ZN-1030):
+// {record, member}, the ones an ancestor already holds left out (the layout appends them to the class's own fields).
+std::vector<std::pair<std::uint32_t, const Member*>> addedFields(const Checked& c, std::uint32_t cls);
+
 // __fmtSub<t> and __jsSub<t> of a record t: the formatter or serialiser of the class of an instance shared as t (the lowering writes them,
 // Checked::fmtSubs), null for t's own literals.
 std::string inspectSubName(TypeId t);
