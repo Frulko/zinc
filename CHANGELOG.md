@@ -135,6 +135,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Box shadows as in CSS: several layers with an offset, a blur, a spread and a colour (`shadow-[0_1px_2px_rgba(0,0,0,0.3),0_8px_12px_-2px_#0004]`), and inner shadows: `inset-shadow-2xs`, `inset-shadow-xs`, `inset-shadow-sm`, `inset-shadow-[..]` and `inset-shadow-rose-500/60` for their colour, or `inset` inside `shadow-[..]`; a style object takes the same as React Native's `boxShadow` string. `gfx.insetShadow` draws one. Small profiles keep two layers and blurs up to 8 px and leave out inner shadows, with a build warning.
 - The kit has a Quiet theme: `useQuietTheme()` gives neutral greys, hairline borders, cards without shadows and controls of 30, 36 and 44 px, in light and dark; `setThemeAccent('blue')` picks one of eight accents and recolours what is on screen, and `springTo` animates with springs that become a cut under reduced motion. The `dashboard` and `desktop-app` templates of `zinc new` use it, and `docs/design.md` says how to design with it.
 
+- The Quiet kit adds named icon buttons, split and toggle groups, segmented controls, clipboard feedback, hold confirmation and a searchable command palette; the gallery shows them with keyboard controls.
+
 #### Changed
 
 - The default layout sizes `flex-1`, `w-full` and `h-full` as a browser does: `flex-1` items share a row or a column equally whatever their content, but never get narrower than their content unless they have `min-w-0`, `overflow-hidden` or `truncate`; a `w-full` or `h-full` box along the row or column stays inside its parent instead of growing with its content; and the last width or height class wins (`w-full w-[280px]` is 280 px wide).

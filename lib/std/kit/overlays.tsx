@@ -118,9 +118,13 @@ export interface MenuItem {
   action?: string;
   onSelect?: () => void;
   disabled?: boolean;
+  checked?: boolean;
+  separator?: boolean;
+  destructive?: boolean;
 }
 export interface DropdownMenuProps {
   label: string;
+  disabled?: boolean;
   items: MenuItem[];
   variant?: string;         // of the trigger button (default 'outline')
   placement?: string;       // default 'bottom-start'
@@ -128,7 +132,8 @@ export interface DropdownMenuProps {
 }
 function MenuRow(props: { item: MenuItem; menu: i32 }): i32 {
   const t = theme(), it = props.item, keys = shortcutOf(it.action);
-  return <Button className={`flex-row items-center justify-between gap-6 h-8 px-2 rounded-sm bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle} ${it.disabled === true ? 'opacity-50' : ''}`}
+  if (it.separator === true) return <View className={`h-px my-1 bg-${t.border}`} />;
+  return <Button role="menuitem" aria-checked={it.checked === undefined ? '' : String(it.checked)} className={`flex-row items-center justify-between gap-6 h-8 px-2 rounded-[8px] bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle} ${it.disabled === true ? 'opacity-45' : ''}`}
     disabled={it.disabled === true}
     onClick={() => {
       show(props.menu, false);
@@ -137,7 +142,7 @@ function MenuRow(props: { item: MenuItem; menu: i32 }): i32 {
       const a = it.action;
       if (a !== undefined) ui.dispatchAction(a);
     }}>
-    <Text className={`text-sm text-${t.foreground}`}>{it.label}</Text>
+    <Text className={`text-[13px] text-${it.destructive === true ? t.destructive : t.foreground}`}>{it.checked === true ? '✓ ' : ''}{it.label}</Text>
     <Text className={`text-xs tracking-widest text-${t.mutedForeground}`}>{keys}</Text>
   </Button>;
 }
@@ -146,8 +151,8 @@ export function DropdownMenu(props: DropdownMenuProps): i32 {
   const trig = createNodeRef(), menu = createNodeRef();
   const t = theme();
   const node = <View className="flex-col">
-    <View ref={trig} className="flex-col"><KitButton label={props.label} variant={props.variant ?? 'outline'} onClick={() => show(menu.node, !shown(menu.node))} /></View>
-    <View ref={menu} hidden={1} className={`flex-col p-1 w-56 ${look().panel} border border-${t.border} bg-${t.card} ${props.className ?? ''}`}>
+    <View ref={trig} className="flex-col" onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'ArrowDown' && props.disabled !== true) { show(menu.node, true); e.preventDefault(); } }}><KitButton label={props.label} disabled={props.disabled} variant={props.variant ?? 'outline'} onClick={() => show(menu.node, !shown(menu.node))} /></View>
+    <View ref={menu} role="menu" hidden={1} className={`flex-col p-[6px] w-56 ${look().panel} border border-${t.border} bg-${t.card} ${props.className ?? ''}`}>
       {props.items.map((it: MenuItem) => <MenuRow item={it} menu={menu.node} />)}
     </View>
   </View>;

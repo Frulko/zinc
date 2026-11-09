@@ -24,7 +24,7 @@ function SyncPanel(): i32 {
       <Text className={mutedText()}>{Math.floor(upload())} %</Text>
     </View>
     <Progress value={upload} />
-    <Text className={mutedText()}>The bar follows a signal updated every frame.</Text>
+    <Text className={mutedText()}>The bar follows a signal; it stays still when no upload is running.</Text>
   </View>;
 }
 

@@ -708,6 +708,7 @@
     {"paths": ["examples/hamlet/src/cite/", "tests/t1/hamlet_cite.sh", "tests/data/hamlet/cite.input"], "tests": ["hamlet_cite", "hamlet_atlas"]},
     {"paths": ["examples/hamlet/assets/atlas/", "examples/hamlet/ASSETS.md", "tests/t1/hamlet_atlas.sh"], "tests": ["hamlet_atlas"]},
     {"paths": ["examples/hamlet/src/ui/", "examples/hamlet/src/hud.ts", "tests/t1/hamlet_advisors.sh", "tests/data/hamlet/advisors.input"], "tests": ["hamlet_advisors"]},
+    {"paths": ["lib/std/kit/actions.tsx", "lib/std/kit/button.tsx", "tests/golden/kit-actions/", "tests/t0/kit_actions.sh"], "tests": ["kit_actions"]},
     {"paths": ["lib/std/kit/input.tsx", "lib/std/kit/index.ts", "tests/t0/kit_input.sh"], "tests": ["kit_input"]},
     {"paths": ["lib/std/ui.ts", "lib/ui.d.ts", "lib/editor/jsx.d.ts", "tools/ui-dts", "tests/t0/ui_dts.sh"], "tests": ["ui_dts"]},
     {"paths": ["runtime/gfx.cpp", "tests/t0/framehash_corner.sh", "tests/data/framehash_corner/"], "tests": ["framehash_corner"]}

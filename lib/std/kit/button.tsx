@@ -11,6 +11,10 @@ import { look } from '../platform/index';
 export interface ButtonProps {
   label?: string;
   variant?: string;       // 'default' | 'secondary' | 'outline' | 'ghost' | 'destructive'
+  pressed?: boolean;
+  disabled?: boolean;
+  loading?: boolean;
+  ariaLabel?: string;
   size?: string;          // 'sm' | 'default' | 'lg' | 'icon'
   onClick?: () => void;
   type?: string;          // 'submit' in a Form: the page's button submits it (web target)
@@ -27,6 +31,7 @@ function sizeClass(size: string): string {
 /** Fill, border and the focused / pressed fills of a variant. */
 function surfaceClass(variant: string, t: Theme): string {
   const rest = look().name === 'quiet' ? '' : ' shadow-sm';   // Quiet (docs/design.md): buttons sit in the page, no drop shadow
+  if (variant === 'link') return 'bg-transparent';
   if (variant === 'secondary') return `bg-${t.secondary} focus:bg-${t.secondaryPressed} active:bg-${t.secondaryPressed}`;
   if (variant === 'outline') return `bg-${t.card} border border-${t.border}${rest} focus:bg-${t.subtle} active:bg-${t.subtle}`;
   if (variant === 'ghost') return `bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle}`;
@@ -40,7 +45,8 @@ function surfaceClass(variant: string, t: Theme): string {
 function tinted(t: Theme): boolean { return t.name === 'vars' && look().name !== 'neutral'; }
 
 /** Text colour of a variant. */
-function labelColor(variant: string, t: Theme): string {
+export function buttonLabelColor(variant: string, t: Theme): string {
+  if (variant === 'link') return t.accent;
   if (variant === 'secondary' || variant === 'outline' || variant === 'ghost') return t.secondaryForeground;
   if (variant === 'destructive') return t.destructiveForeground;
   return tinted(t) ? '[var(--pfOnTint)]' : t.primaryForeground;
@@ -51,10 +57,11 @@ export function Button(props?: ButtonProps): i32 {
   const size = props?.size ?? 'default';
   const textSize = look().buttonText[size === 'sm' ? 0 : 1];
   const h = <Button
-    className={`flex-row items-center justify-center transition-colors ${sizeClass(size)} ${surfaceClass(variant, theme())} ${props?.className ?? ''}`}
+    className={`flex-row items-center justify-center transition-colors ${sizeClass(size)} ${surfaceClass(variant, theme())} ${props?.disabled === true || props?.loading === true ? 'opacity-45' : ''} ${props?.className ?? ''}`}
+    disabled={props?.disabled === true || props?.loading === true} aria-label={props?.ariaLabel ?? props?.label ?? ''} aria-pressed={props?.pressed === undefined ? '' : String(props?.pressed)} aria-busy={String(props?.loading === true)}
     type={props?.type ?? 'button'} onClick={() => { const handler = props?.onClick; if (handler !== undefined) handler(); }}>
     <Show when={props?.label !== undefined}>
-      <Text className={`${textSize} text-${labelColor(variant, theme())}`}>{props?.label ?? ''}</Text>
+      <Text className={`${textSize} text-${buttonLabelColor(variant, theme())}`}>{props?.label ?? ''}</Text>
     </Show>
     {renderSlot(props?.children)}
   </Button>;

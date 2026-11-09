@@ -145,6 +145,12 @@ export function ContextMenu(props: ContextMenuProps): i32 {
       <Panel items={props.items} menu={menu.node} close={close} run={run} className={props.className} />
     </View>
   </View>;
+  ui.setFocusable(area.node, true);
+  ui.onKeyDown(area.node, (e: ui.KeyEvent) => {
+    if (e.key === 'ContextMenu' || (e.shift && e.key === 'F10')) {
+      ui.anchor(menu.node, area.node, 'bottom-start', 2); show(menu.node, true); e.preventDefault();
+    }
+  });
   ui.openLayer(menu.node, { priority: 100 });
   ui.focusScope(menu.node, { trap: true, restore: true, autoFocus: true });
   ui.onDismiss(menu.node, close);

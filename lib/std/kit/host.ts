@@ -99,3 +99,9 @@ export function _dynStr(n: i32, key: string, get: () => string): void {
   if (fineGrained()) solid._dynStr(n, key, get); else _str(n, key, get());
 }
 export function _hl(n: i32, f: (line: string) => i32[]): void { ui.setHighlight(n, f); }
+
+/** Releases a component-owned resource on unmount (or before React renders its replacement closure). */
+export function onCleanup(fn: () => void): void {
+  if (fineGrained()) solid.onCleanup(fn);
+  else react.useEffect(() => fn, null);
+}

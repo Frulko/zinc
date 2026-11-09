@@ -1,9 +1,9 @@
-# zinc:ui/kit — shadcn-style components
+# zinc:ui/kit — Quiet components
 
-`zinc:ui/kit` is a small component kit written in Zinc (`lib/std/kit`), styled after [shadcn/ui](https://ui.shadcn.com):
-a light neutral theme (zinc greys, one indigo accent), Inter with tight tracking on titles, hairline borders, soft
-shadows and 6–12 px radii. A dark theme uses the same roles. The kit is plain Zinc on top of `zinc:ui`: it compiles to
-native code like the rest of the program and adds nothing at runtime beyond its nodes.
+`zinc:ui/kit` is a small component kit written in Zinc (`lib/std/kit`). Call `useQuietTheme()` before rendering for
+neutral surfaces, one accent, Inter, hairline borders and shadows on floating layers. Light and dark share the same
+roles and the keyboard keeps a visible focus ring. The kit compiles to native code with the application; the
+original shadcn and adaptive platform looks remain available. See [the design principles](design.md).
 
 ![Kit gallery](img/kit-gallery.png)
 
@@ -238,3 +238,39 @@ the same screen in both models and must print the same layout (on the sim and on
   Focusable kit nodes always set a `focus:` fill, which also replaces the yellow keyboard-focus ring of `zinc:ui`.
 - Two weights are baked (Inter Regular and Bold): `font-medium` renders regular, `font-semibold` bold.
 - The kit's text sizes are baked into every program that imports it (seven sizes, regular and bold).
+
+## Quiet Actions
+
+Call `useQuietTheme()` before rendering. The Actions family is in `lib/std/kit/actions.tsx`; existing `Button`,
+`DropdownMenu` and `ContextMenu` remain compatible. Controls use the theme roles in light and dark, keyboard focus
+rings and disabled opacity of 45%. Springs stop at the final state under reduced motion; hold confirmation still
+requires the full hold time.
+
+![Actions drawn by Zinc](img/kit-actions.png)
+
+| Component | Props and behavior |
+| --- | --- |
+| `Button` | `variant="default"` (primary), `secondary`, `outline`, `ghost`, `destructive`, `link`; `size="sm"`, `default`, `lg`, `icon`; `disabled`, `loading` retains the label and blocks presses; `ariaLabel` names custom content. Children can hold leading/trailing content. |
+| `IconButton` | `label`, Lucide `icon`, `onClick?`, `disabled?`, `variant?` (`ghost` default). The label names the button and its tooltip; list icons in `zinc.json`. |
+| `ButtonGroup` | `label?`, children, `className?`. A named row of buttons; Tab and arrows move focus, Enter/Space activate. |
+| `SplitButton` | `label`, `onClick`, `items: MenuItem[]`, `disabled?`. The main action and its alternative menu; Down opens the focused menu button. |
+| `ToggleGroup` | `label`, `items: {value,label,disabled?}[]`, `value: () => string[]`, `onChange`, `multiple?`. Exclusive mode keeps one selected item; multiple mode toggles independently. Selection is exposed as `aria-pressed`. |
+| `SegmentedControl` | `label`, `items`, `value: () => string`, `onChange`. Left/Right select the next enabled view; Home/End select the ends. |
+| `CopyButton` | `text: () => string`, `label?`, `onError?: (message: string) => void`. Copies on activation and announces “Copied” in place; without an error callback clipboard errors propagate. |
+| `HoldToConfirm` | `label`, `onConfirm`, `duration?` (1200 ms), `disabled?`. Hold pointer, Space or Enter until the fill completes. Fires once; release, pointer leave/cancel, Escape or focus loss resets it. |
+| `DropdownMenu` | Existing `label`, `items`, `variant?`, `placement?`, `className?`; items additionally support `checked`, `separator`, `destructive`. Down opens, arrows navigate, Enter picks, Escape/outside dismisses and restores focus. |
+| `ContextMenu` | `items: MenuEntry[]`, children, `onSelect?`. Right press, touch long press, ContextMenu key or Shift+F10 opens the menu; keyboard activation and dismissal follow the same focus scope. |
+| `CommandPalette` | `open`, `onOpenChange`, `items: {label,keywords?,group?,shortcut?,disabled?,onSelect}[]`, `title?`. Fuzzy subsequence filtering ranks compact matches first. Down enters results; Up/Down navigate, Enter runs, Escape closes. The application owns its shortcut binding, so palettes do not compete for a global key. |
+
+![Command palette drawn by Zinc](img/kit-command-palette.png)
+
+```tsx
+const [view, setView] = createSignal('week');
+<SegmentedControl label="Calendar view" value={view} onChange={setView}
+  items={[{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week' }]} />
+<HoldToConfirm label="Hold to archive" onConfirm={archiveDocument} />
+```
+
+Recreate the pictures with `GALLERY=actions` or `GALLERY=palette`, `ZINC_HEADLESS=1`, `ZINC_FRAMES=40`,
+`ZINC_SHOT=<path>` and `zinc run examples/ui/kit-gallery --engine quickjs`. `GALLERY_DARK=1` selects Quiet dark.
+The gallery rests when nothing changes; its sample upload value is static.

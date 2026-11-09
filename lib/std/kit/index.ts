@@ -30,3 +30,5 @@ export { Tooltip, TooltipProps, Popover, PopoverProps, DropdownMenu, DropdownMen
 export { MenuBar, MenuBarProps, ContextMenu, ContextMenuProps, MenuEntry } from './menubar';
 export { ZoomView, ZoomViewProps, zoomViewDraws } from './zoomview';
 export { ViewerItem, ViewerOptions, openImageViewer, closeImageViewer, imageViewerOpen, imageViewerState } from './imageviewer';
+
+export { IconButton, ButtonGroup, SplitButton, ToggleGroup, SegmentedControl, CopyButton, HoldToConfirm, CommandPalette, ActionOption, CommandItem } from './actions';
