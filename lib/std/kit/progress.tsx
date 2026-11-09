@@ -7,6 +7,7 @@ import { createEffect } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { Svg } from 'zinc:svg';
 import { theme } from './theme';
+import { nativeControl } from './host';
 
 export interface ProgressProps {
   value: () => number;   // 0..100
@@ -21,9 +22,10 @@ function widthClass(value: number): string {
 
 export function Progress(props: ProgressProps): i32 {
   const fill = (): string => (props.accent ?? false) ? theme().accent : theme().primary;
-  return <View className={`flex-row h-2 w-full rounded-full overflow-hidden bg-${theme().muted} ${props.className ?? ''}`} role="progressbar" aria-valuenow={String(Math.round(props.value()))} aria-valuemin="0" aria-valuemax="100">
+  const h = <View className={`flex-row h-2 w-full rounded-full overflow-hidden bg-${theme().muted} ${props.className ?? ''}`} role="progressbar" aria-valuenow={String(Math.round(props.value()))} aria-valuemin="0" aria-valuemax="100">
     <View className={`rounded-full bg-${fill()} ${widthClass(props.value())}`} />
   </View>;
+  return nativeControl(h, 'progress', () => ['value', '' + props.value()]);   // a native host's progress bar
 }
 
 /** A ring that fills clockwise from the top, 0 to 100: a job's progress where a bar has no room (a sidebar row, a table cell). Drawn with

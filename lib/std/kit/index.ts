@@ -21,6 +21,7 @@ export { Spinner } from './spinner';
 export { Slider } from './slider';
 export { Switch } from './switch';
 export { Tabs } from './tabs';
+export { nativeControl } from './host';
 export { Stat } from './stat';
 export { CallStats, CallStatsProps, CallStatsSample } from './callstats';
 export { List, ListItem } from './list';

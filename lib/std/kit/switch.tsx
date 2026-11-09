@@ -7,6 +7,8 @@
 //   <Switch checked={wifi} onChange={setWifi} label="Wi-Fi" />
 import { theme } from './theme';
 import { look, toggleFeedback } from '../platform/index';
+import { createNodeRef, NodeRef } from 'zinc:ui/solid';
+import { nativeControl } from './host';
 
 export interface SwitchProps {
   checked: () => boolean;
@@ -36,22 +38,30 @@ function thumbColor(on: boolean): string {
 }
 
 export function Switch(props: SwitchProps): i32 {
-  const L = look();
+  const L = look(), track = createNodeRef();
   const flip = (): void => { toggleFeedback(); props.onChange(!props.checked()); };
-  if (L.name === 'neutral') return <View className="flex-row items-center gap-2">
-    <View className={`flex-row w-9 h-5 p-0.5 rounded-full transition-colors ${trackClass(props.checked())}`} onClick={flip} role="switch" aria-checked={String(props.checked())} aria-label={props.accessibilityLabel ?? props.label ?? ''}>
+  const h = L.name === 'neutral' ? Neutral(props, flip, track) : Shaped(props, flip, track);
+  nativeControl(track.node, 'switch', () => ['value', props.checked() ? '1' : '0'], (v: string) => { props.onChange(v === '1'); });   // a native host's switch
+  return h;
+}
+function Neutral(props: SwitchProps, flip: () => void, track: NodeRef): i32 {
+  return <View className="flex-row items-center gap-2">
+    <View ref={track} className={`flex-row w-9 h-5 p-0.5 rounded-full transition-colors ${trackClass(props.checked())}`} onClick={flip} role="switch" aria-checked={String(props.checked())} aria-label={props.accessibilityLabel ?? props.label ?? ''}>
       <View className={`w-4 h-4 rounded-full shadow-sm bg-${thumbColor(props.checked())}`} style={{ translateX: props.checked() ? 16 : 0 }} />
     </View>
     <Show when={props.label !== undefined}>
       <Text className={`text-sm font-medium text-${theme().foreground}`}>{props.label ?? ''}</Text>
     </Show>
   </View>;
+}
+function Shaped(props: SwitchProps, flip: () => void, track: NodeRef): i32 {
+  const L = look();
   // the thumb's left edge inside the border: centred on the left of the track when off, on its right when on (Material's thumb grows from 16 to 24)
   const inner = L.switchW - 2 * L.outline, innerH = L.switchH - 2 * L.outline;
   const k = (on: boolean): number => on ? L.thumbOn : L.thumbOff;
   const x = (on: boolean): number => on ? inner - (innerH - L.thumbOn) / 2 - L.thumbOn : (innerH - L.thumbOff) / 2;
   return <View className="flex-row items-center gap-2">
-    <View className={`flex-row items-center w-[${L.switchW}px] h-[${L.switchH}px] rounded-full transition-colors ${trackClass(props.checked())}`} onClick={flip} role="switch" aria-checked={String(props.checked())} aria-label={props.accessibilityLabel ?? props.label ?? ''}>
+    <View ref={track} className={`flex-row items-center w-[${L.switchW}px] h-[${L.switchH}px] rounded-full transition-colors ${trackClass(props.checked())}`} onClick={flip} role="switch" aria-checked={String(props.checked())} aria-label={props.accessibilityLabel ?? props.label ?? ''}>
       <View className={`w-[${k(props.checked())}px] h-[${k(props.checked())}px] rounded-full ${L.outline > 0 ? '' : 'shadow-sm'} bg-${thumbColor(props.checked())}`} style={{ translateX: x(props.checked()) }} />
     </View>
     <Show when={props.label !== undefined}>

@@ -160,6 +160,7 @@ export class Handlers {
   keyCtx: string = '';          // keyContext
   acts: string[] = [];          // onAction(h, action, f)
   actFns: (() => void)[] = [];
+  nativeValue: ((v: string) => void) | null = null;   // onNativeValue: a native control's new value, set by the person (setNativeKind)
 }
 /** Text field state (<Input>, <TextArea>); offsets are UTF-16 indices into `value`. */
 export class Edit {
@@ -8261,6 +8262,18 @@ export function setNativeAttr(h: i32, name: string, value: string): void {
   for (let i = 0; i < n.nkv.length; i += 2) if (n.nkv[i] === name) { if (n.nkv[i + 1] !== value) { n.nkv[i + 1] = value; paintDirty = true; } return; }
   n.nkv.push(name); n.nkv.push(value);
   paintDirty = true;
+}
+/** A native control's value as the person set it (a switch flipped, a slider moved, an item picked): the host reports it with nativeValue and `f`
+ *  gets it as text. Drawn it never fires; the component's own handlers do the work. */
+export function onNativeValue(h: i32, f: (v: string) => void): void { handlers(h).nativeValue = f; }
+/** The host's report of a native control's new value: runs h's onNativeValue; false when it has none or is disabled. */
+export function nativeValue(h: i32, v: string): boolean {
+  const s = node(h).hs;
+  if (s === null || (s as Handlers).nativeValue === null || isDisabled(h)) return false;
+  const f = (s as Handlers).nativeValue as (v: string) => void;
+  f(v);
+  paintDirty = true;
+  return true;
 }
 /** Whether the keys of the HAL go to hostKey: a native host shows the tree and one of its fields has the focus (it edits itself). */
 function hostKeys(): boolean { return hostCommit !== null && focus >= 0 && nodes[focus].ed !== null; }

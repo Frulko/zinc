@@ -1219,4 +1219,8 @@ declare module 'zinc:ui' {
   export function setNativeKind(h: i32, kind: string): void;
   /** A string attribute of a native component (a window's title, a toolbar item's symbol), sent to the host when it changes. */
   export function setNativeAttr(h: i32, name: string, value: string): void;
+  /** A native control's value as the person set it (a switch flipped, a slider moved, an item picked), reported by the host as text; drawn it never fires. */
+  export function onNativeValue(h: i32, f: (v: string) => void): void;
+  /** The host's report of a native control's new value: runs h's onNativeValue; false when it has none or is disabled. */
+  export function nativeValue(h: i32, v: string): boolean;
 }

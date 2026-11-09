@@ -11,6 +11,11 @@
 // are real views at zinc:ui's boxes. A divider dragged by the user reports the first pane's width, which zinc:ui lays out again (index.ts). The
 // keyboard focus stays zinc:ui's: Tab in a field is left to zinc:ui's focus walk, and each `o` record moves the first responder to the field, or to
 // the focusable view with a focus ring when the keyboard put it there.
+// The controls (ZN-1073: push button, switch, check box, pop-up, segmented control, slider, date picker, search field, progress bar) are leaves whose
+// value is an attribute; the person's press or new value is queued (EvCPress, EvCValue) and, a poll later, the control shows its attribute again, so
+// a value the program refused does not stay. The overlays (alert, sheet, popover) are presented as a sheet of the window or an NSPopover, never with
+// runModal (it would hold SDL's pump, and so the frames); their end comes back as EvClose. Headless (the window never shown) they are built but not
+// presented, so a test puts nothing on screen.
 // ARC (plugin.json flags). Everything runs on the main thread: the program's commits and AppKit's callbacks inside SDL's event pump.
 #define ZRT_HOSTED_CPP
 #import <AppKit/AppKit.h>
@@ -28,10 +33,13 @@
 namespace {
 
 // TAG_NAMES of lib/std/ui.ts, then the native kinds of zinc:appkit's components (index.ts)
-enum Kind { KView, KText, KButton, KImage, KScroll, KCanvas, KFragment, KInput, KTextArea, KWindow, KToolbar, KToolbarItem, KSplit, KSidebar, KTable, KOutline, KUnknown };
-const char* const kKinds[] = {"view", "text", "button", "image", "scroll", "canvas", "fragment", "input", "textarea", "window", "toolbar", "toolbaritem", "split", "sidebar", "table", "outline"};
+enum Kind { KView, KText, KButton, KImage, KScroll, KCanvas, KFragment, KInput, KTextArea, KWindow, KToolbar, KToolbarItem, KSplit, KSidebar, KTable, KOutline,
+           KPushButton, KSwitch, KCheckbox, KPopup, KSegmented, KSlider, KDatePicker, KProgress, KSearch, KAlert, KSheet, KPopover, KUnknown };
+const char* const kKinds[] = {"view", "text", "button", "image", "scroll", "canvas", "fragment", "input", "textarea", "window", "toolbar", "toolbaritem", "split", "sidebar", "table", "outline",
+                              "pushbutton", "switch", "checkbox", "popup", "segmented", "slider", "datepicker", "progress", "search", "alert", "sheet", "popover"};
 // index.ts's event kinds; a Table's and an Outline's have their own (from EvSelect), so a recycled handle never routes a field's event to a list
-enum Ev { EvEdit, EvChange, EvSubmit, EvFocus, EvBlur, EvScroll, EvPress, EvResize, EvSelect, EvSort, EvType, EvOpen, EvExpand, EvRows, EvListFocus };
+enum Ev { EvEdit, EvChange, EvSubmit, EvFocus, EvBlur, EvScroll, EvPress, EvResize, EvSelect, EvSort, EvType, EvOpen, EvExpand, EvRows, EvListFocus,
+          EvCPress, EvCValue, EvClose };   // the controls' and overlays' own kinds
 
 struct Node {
   bool live = false;
@@ -90,6 +98,34 @@ void push(id v, int kind, const std::string& text = "", double a = 0, double b =
 }
 void pushEdit(NSView* v, NSString* value, NSRange sel) {
   push(v, EvEdit, str(value), sel.location == NSNotFound ? 0 : (double)sel.location, sel.location == NSNotFound ? 0 : (double)(sel.location + sel.length));
+}
+bool isField(int k) { return k == KInput || k == KSearch; }   // a search field is a field to zinc:ui: its edits come back as any field's
+bool isControl(int k) { return k >= KPushButton && k <= KProgress; }
+bool isOverlay(int k) { return k == KAlert || k == KSheet || k == KPopover; }
+std::string fmtNum(double v) { char b[32]; snprintf(b, sizeof b, "%g", v); return b; }
+/** A date picker's value: 'YYYY-MM-DD', in UTC so it never moves with the time zone. */
+NSDateFormatter* dayFormat() {
+  static NSDateFormatter* f = [] { NSDateFormatter* d = [[NSDateFormatter alloc] init]; d.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"]; d.timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0]; d.dateFormat = @"yyyy-MM-dd"; return d; }();
+  return f;
+}
+/** On or off: an NSSwitch's, or a check box's (the switch before macOS 10.15). */
+NSInteger stateOf(NSControl* c) {
+  if (@available(macOS 10.15, *)) { if ([c isKindOfClass:NSSwitch.class]) return ((NSSwitch*)c).state; }
+  return [c isKindOfClass:NSButton.class] ? ((NSButton*)c).state : NSControlStateValueOff;
+}
+void setState(NSControl* c, bool on) {
+  const NSControlStateValue v = on ? NSControlStateValueOn : NSControlStateValueOff;
+  if (@available(macOS 10.15, *)) { if ([c isKindOfClass:NSSwitch.class]) { if (((NSSwitch*)c).state != v) ((NSSwitch*)c).state = v; return; } }
+  if ([c isKindOfClass:NSButton.class] && ((NSButton*)c).state != v) ((NSButton*)c).state = v;
+}
+/** What a control holds now, as its `value` attribute says it: '1' or '0', the item's title, the segment, the number, the date. */
+std::string controlValue(const Node& n, NSControl* c) {
+  if (n.kind == KSwitch || n.kind == KCheckbox) return stateOf(c) == NSControlStateValueOn ? "1" : "0";
+  if (n.kind == KPopup) return str(((NSPopUpButton*)c).titleOfSelectedItem ?: @"");
+  if (n.kind == KSegmented) return std::to_string((long)((NSSegmentedControl*)c).selectedSegment);
+  if (n.kind == KSlider) return fmtNum(c.doubleValue);
+  if (n.kind == KDatePicker) return str([dayFormat() stringFromDate:((NSDatePicker*)c).dateValue]);
+  return "";
 }
 
 }  // namespace
@@ -350,8 +386,63 @@ NSTableCellView* cellView(NSTableView* tv, NSUserInterfaceItemIdentifier ident, 
 - (BOOL)becomeFirstResponder { BOOL ok = [super becomeFirstResponder]; if (ok) push(self, EvFocus); return ok; }
 @end
 
+@interface ZnSearchField : NSSearchField
+@end
+@implementation ZnSearchField
+- (BOOL)becomeFirstResponder { BOOL ok = [super becomeFirstResponder]; if (ok) push(self, EvFocus); return ok; }
+@end
+
+/** The controls' target: a push button's press, the new value of the others (a slider's snapped to its step), as the person set them. */
+@interface ZnControls : NSObject
+@end
+@implementation ZnControls
+- (void)act:(NSControl*)c {
+  auto it = idOf.find((__bridge const void*)c);
+  Node* n = it != idOf.end() ? live(it->second) : nullptr;
+  if (!n) return;
+  if (n->kind == KPushButton) { push(c, EvCPress); return; }
+  if (n->kind == KSlider) {
+    const double step = atof(n->attr("step").c_str()), lo = ((NSSlider*)c).minValue;
+    if (step > 0) c.doubleValue = lo + round((c.doubleValue - lo) / step) * step;
+  }
+  const std::string v = controlValue(*n, c);
+  push(c, EvCValue, v, atof(v.c_str()));
+}
+- (void)searched:(NSSearchField*)f { pushEdit(f, f.stringValue, NSMakeRange(f.stringValue.length, 0)); }   // the clear button empties it without an edit
+@end
+
+/** An alert, a sheet or a popover: what AppKit shows for one overlay node, whether it is shown for real (a visible window) and whether it ended. */
+@class ZnOverlay;
+@interface ZnSheetWindow : NSWindow
+@property(weak) ZnOverlay* overlay;
+@end
+@interface ZnOverlay : NSObject <NSPopoverDelegate>
+@property(strong) NSAlert* alert;
+@property(strong) ZnSheetWindow* sheet;
+@property(strong) NSPopover* popover;
+@property(strong) NSView* content;   // a sheet's or a popover's: the overlay node's children go in it
+@property BOOL shown, closed;
+@end
+@implementation ZnOverlay
+/** The person ended it (a button of the alert, Escape, a click outside the popover): EvClose, once; the program then takes the node away. */
+- (void)finish:(double)button { if (self.closed) return; self.closed = YES; push(self, EvClose, "", button); }
+- (void)popoverDidClose:(NSNotification*)n { [self finish:-1]; }
+/** Takes away what AppKit still shows (the node went): no event, the program knows already. */
+- (void)end {
+  self.closed = YES;
+  if (!self.shown) return;
+  self.shown = NO;
+  NSWindow* w = self.alert ? self.alert.window : self.sheet;
+  if (w.sheetParent) [w.sheetParent endSheet:w];
+  if (self.popover.shown) [self.popover close];
+}
+@end
+@implementation ZnSheetWindow
+- (void)cancelOperation:(id)sender { [self.overlay finish:-1]; }   // Escape
+@end
+
 /** The fields' and text views' delegate: edits, the end of editing (and Enter), as the DOM host reports them (domEdit, domChanged, submitFrom). */
-@interface ZnDelegate : NSObject <NSTextFieldDelegate, NSTextViewDelegate>
+@interface ZnDelegate : NSObject <NSTextFieldDelegate, NSSearchFieldDelegate, NSTextViewDelegate>
 @end
 @implementation ZnDelegate
 - (void)controlTextDidChange:(NSNotification*)n {
@@ -374,6 +465,7 @@ NSTableCellView* cellView(NSTableView* tv, NSUserInterfaceItemIdentifier ident, 
 namespace {
 
 ZnDelegate* delegate() { static ZnDelegate* d = [[ZnDelegate alloc] init]; return d; }
+ZnControls* controls() { static ZnControls* c = [[ZnControls alloc] init]; return c; }
 
 // ---------------------------------------------------------------- measuring (the layout's native measure hook)
 /** Text and field leaves sized by the cells that show them: a wrapping label for a text, a field's cell for an input; a textarea is `rows` lines. */
@@ -417,6 +509,7 @@ void forget(Node& n) {
   }
   if (n.kind == KToolbarItem && n.chrome) idOf.erase((__bridge const void*)n.chrome);
   if ((n.kind == KTable || n.kind == KOutline) && n.input) { NSTableView* tv = (NSTableView*)n.input; tv.dataSource = nil; tv.delegate = nil; tv.target = nil; }
+  if (isOverlay(n.kind) && n.chrome) { ZnOverlay* o = n.chrome; [o end]; idOf.erase((__bridge const void*)o); }
   n.chrome = nil;
   if (n.observer) { [NSNotificationCenter.defaultCenter removeObserver:n.observer]; n.observer = nil; }
   if (n.input) { idOf.erase((__bridge const void*)n.input); if (n.input.window.firstResponder == n.input || ([n.input isKindOfClass:NSTextField.class] && ((NSTextField*)n.input).currentEditor)) [n.input.window makeFirstResponder:nil]; }
@@ -445,6 +538,38 @@ NSView* make(int id, Node& n) {
     f.usesSingleLineMode = YES;
     f.bezelStyle = NSTextFieldRoundedBezel;   // the system's look of a text field (a square bezel crops a field's text at zinc:ui's heights)
     n.input = f; v = f;
+  } else if (n.kind == KSearch) {
+    ZnSearchField* f = [[ZnSearchField alloc] initWithFrame:NSZeroRect];
+    f.delegate = delegate();
+    f.target = controls(); f.action = @selector(searched:);
+    n.input = f; v = f;
+  } else if (isControl(n.kind)) {
+    if (n.kind == KProgress) {
+      NSProgressIndicator* p = [[NSProgressIndicator alloc] initWithFrame:NSZeroRect];
+      p.style = NSProgressIndicatorStyleBar; p.minValue = 0; p.maxValue = 100; p.indeterminate = NO;
+      v = p;
+    } else {
+      NSControl* c = nil;
+      if (n.kind == KPushButton) { NSButton* b = [[NSButton alloc] initWithFrame:NSZeroRect]; b.bezelStyle = NSBezelStyleRounded; c = b; }
+      else if (n.kind == KCheckbox) { NSButton* b = [[NSButton alloc] initWithFrame:NSZeroRect]; [b setButtonType:NSButtonTypeSwitch]; c = b; }
+      else if (n.kind == KSwitch) {
+        if (@available(macOS 10.15, *)) c = [[NSSwitch alloc] initWithFrame:NSZeroRect];
+        else { NSButton* b = [[NSButton alloc] initWithFrame:NSZeroRect]; [b setButtonType:NSButtonTypeSwitch]; b.title = @""; c = b; }   // Mojave: a check box
+      } else if (n.kind == KPopup) c = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+      else if (n.kind == KSegmented) {
+        NSSegmentedControl* sg = [[NSSegmentedControl alloc] initWithFrame:NSZeroRect];
+        sg.trackingMode = NSSegmentSwitchTrackingSelectOne; sg.segmentDistribution = NSSegmentDistributionFillEqually;
+        c = sg;
+      } else if (n.kind == KSlider) { NSSlider* sl = [[NSSlider alloc] initWithFrame:NSZeroRect]; sl.continuous = YES; sl.minValue = 0; sl.maxValue = 100; c = sl; }
+      else {
+        NSDatePicker* d = [[NSDatePicker alloc] initWithFrame:NSZeroRect];
+        d.datePickerStyle = NSDatePickerStyleTextFieldAndStepper; d.datePickerElements = NSDatePickerElementFlagYearMonthDay;
+        d.timeZone = dayFormat().timeZone; d.calendar = [NSCalendar calendarWithIdentifier:NSCalendarIdentifierGregorian];
+        c = d;
+      }
+      c.target = controls(); c.action = @selector(act:);
+      v = c;
+    }
   } else if (n.kind == KTextArea) {
     NSScrollView* s = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     s.hasVerticalScroller = YES; s.autohidesScrollers = YES; s.borderType = NSBezelBorder;
@@ -519,6 +644,57 @@ NSImage* imageNamed(const std::string& name) {
   }
   return [[NSImage alloc] initWithContentsOfFile:ns(path)];
 }
+/** A control from its attributes: its title, items, range and value, enabled unless `enabled` is 0; touched only where it differs. */
+void applyControl(Node& n) {
+  const std::string& val = n.attr("value");
+  if (n.kind == KProgress) {
+    NSProgressIndicator* p = (NSProgressIndicator*)n.view;
+    const double x = atof(val.c_str());
+    if (p.indeterminate != (x < 0)) p.indeterminate = x < 0;
+    if (x >= 0 && p.doubleValue != x) p.doubleValue = x;
+    return;
+  }
+  NSControl* c = (NSControl*)n.view;
+  const bool on = n.attr("enabled") != "0";
+  if (c.enabled != on) c.enabled = on;
+  auto lines = [](const std::string& s) { return s.empty() ? @[] : [ns(s) componentsSeparatedByString:@"\n"]; };
+  if (n.kind == KPushButton || n.kind == KCheckbox) {
+    NSButton* b = (NSButton*)c;
+    NSString* t = ns(n.attr("title"));
+    if (![b.title isEqualToString:t]) b.title = t;
+  }
+  if (n.kind == KPushButton) {
+    NSButton* b = (NSButton*)c;
+    const std::string& k = n.attr("keyEquivalent");
+    NSString* key = k == "Enter" ? @"\r" : k == "Escape" ? @"\x1b" : ns(k);   // a letter goes with Command
+    if (![b.keyEquivalent isEqualToString:key]) { b.keyEquivalent = key; b.keyEquivalentModifierMask = k.size() == 1 ? NSEventModifierFlagCommand : 0; }
+  } else if (n.kind == KSwitch || n.kind == KCheckbox) setState(c, val == "1");
+  else if (n.kind == KPopup) {
+    NSPopUpButton* pb = (NSPopUpButton*)c;
+    NSArray<NSString*>* items = lines(n.attr("items"));
+    if (![pb.itemTitles isEqualToArray:items]) { [pb removeAllItems]; [pb addItemsWithTitles:items]; }
+    NSString* t = ns(val);
+    if (![(pb.titleOfSelectedItem ?: @"") isEqualToString:t]) { if ([pb itemWithTitle:t]) [pb selectItemWithTitle:t]; else [pb selectItem:nil]; }
+  } else if (n.kind == KSegmented) {
+    NSSegmentedControl* sg = (NSSegmentedControl*)c;
+    NSArray<NSString*>* items = lines(n.attr("items"));
+    bool same = sg.segmentCount == (NSInteger)items.count;
+    for (NSUInteger i = 0; same && i < items.count; i++) same = [[sg labelForSegment:(NSInteger)i] isEqualToString:items[i]];
+    if (!same) { sg.segmentCount = (NSInteger)items.count; for (NSUInteger i = 0; i < items.count; i++) [sg setLabel:items[i] forSegment:(NSInteger)i]; }
+    const NSInteger sel = val.empty() ? -1 : atol(val.c_str());
+    if (sg.selectedSegment != sel) sg.selectedSegment = sel;
+  } else if (n.kind == KSlider) {
+    NSSlider* sl = (NSSlider*)c;
+    const double lo = atof(n.attr("min").c_str()), hi = n.attr("max").empty() ? 100 : atof(n.attr("max").c_str()), x = atof(val.c_str());
+    if (sl.minValue != lo) sl.minValue = lo;
+    if (sl.maxValue != hi) sl.maxValue = hi;
+    if (sl.doubleValue != x) sl.doubleValue = x;
+  } else if (n.kind == KDatePicker) {
+    NSDatePicker* d = (NSDatePicker*)c;
+    NSDate* day = val.empty() ? nil : [dayFormat() dateFromString:ns(val)];
+    if (day && ![d.dateValue isEqualToDate:day]) d.dateValue = day;
+  }
+}
 void apply(Node& n) {
   NSView* v = n.view;
   v.hidden = n.hidden != 0;
@@ -535,7 +711,7 @@ void apply(Node& n) {
     if (![l.stringValue isEqualToString:s]) l.stringValue = s;
   } else if (n.kind == KImage) {
     ((NSImageView*)v).image = imageNamed(n.text);
-  } else if (n.kind == KInput) {
+  } else if (isField(n.kind)) {
     NSTextField* f = (NSTextField*)v;
     f.font = fontOf(n.fontSize, n.bold != 0);
     if (NSColor* c = fgOf(n)) f.textColor = c; else f.textColor = NSColor.controlTextColor;
@@ -548,7 +724,7 @@ void apply(Node& n) {
     t.textColor = fgOf(n) ?: NSColor.textColor;
     NSString* s = ns(n.text);
     if (![t.string isEqualToString:s]) t.string = s;
-  }
+  } else if (isControl(n.kind)) applyControl(n);
   n.dirty = false;
 }
 void setFrame(NSView* v, double x, double y, double w, double h) {
@@ -695,6 +871,76 @@ void applyOutline(Node& n, bool changed) {
 }
 void place(int id, double ox, double oy, NSMutableArray<NSView*>* into, bool pane = false);
 NSWindow* hostWindow();
+/** Node id's box in the root view: its offsets summed up to its root (a popover's anchor, flattened or not). */
+NSRect boxOf(int id) {
+  Node* n = live(id);
+  if (!n) return NSZeroRect;
+  double x = 0, y = 0;
+  for (Node* p = n; p; p = live(p->parent)) { x += p->x; y += p->y; }
+  return NSMakeRect(x, y, n->w, n->h);
+}
+/** Shows an overlay on the window: an alert or a sheet as a sheet of it (beginSheet: the call returns and SDL's pump goes on, never runModal), a
+ *  popover at its anchor's box. Headless (the window that is never shown) nothing is presented: the overlay stays built for the dump and the tests. */
+void present(ZnOverlay* o, const Node& n) {
+  NSWindow* w = hostWindow();
+  if (!w || !w.visible || !rootView.window) return;
+  o.shown = YES;
+  __weak ZnOverlay* weak = o;
+  if (o.alert) [o.alert beginSheetModalForWindow:w completionHandler:^(NSModalResponse r) { [weak finish:r >= NSAlertFirstButtonReturn ? (double)(r - NSAlertFirstButtonReturn) : -1]; }];
+  else if (o.sheet) [w beginSheet:o.sheet completionHandler:^(NSModalResponse) { [weak finish:-1]; }];
+  else {
+    const std::string& e = n.attr("edge");
+    const NSRectEdge edge = e == "top" ? NSRectEdgeMinY : e == "left" ? NSRectEdgeMinX : e == "right" ? NSRectEdgeMaxX : NSRectEdgeMaxY;   // the root view is flipped
+    [o.popover showRelativeToRect:boxOf(atoi(n.attr("anchor").c_str())) ofView:rootView preferredEdge:edge];
+  }
+}
+/** An alert, a sheet or a popover node: built once (an NSAlert from its attributes; a sheet window or an NSPopover whose content holds the node's
+ *  children at zinc:ui's boxes), its content placed at each commit, presented when it can be. The node takes no room in the window's content. */
+void applyOverlay(int id, Node& n) {
+  ZnOverlay* o = n.chrome;
+  if (!o) {
+    o = [[ZnOverlay alloc] init];
+    if (n.kind == KAlert) o.alert = [[NSAlert alloc] init];
+    else {
+      o.content = [[ZnDoc alloc] initWithFrame:NSMakeRect(0, 0, n.w, n.h)];
+      if (n.kind == KSheet) {
+        o.sheet = [[ZnSheetWindow alloc] initWithContentRect:NSMakeRect(0, 0, n.w, n.h) styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:YES];
+        o.sheet.releasedWhenClosed = NO;
+        o.sheet.overlay = o;
+        o.sheet.contentView = o.content;
+      } else {
+        o.popover = [[NSPopover alloc] init];
+        o.popover.behavior = NSPopoverBehaviorTransient;
+        o.popover.delegate = o;
+        NSViewController* vc = [[NSViewController alloc] init];
+        vc.view = o.content;
+        o.popover.contentViewController = vc;
+      }
+    }
+    n.chrome = o;
+    idOf[(__bridge const void*)o] = id;
+  }
+  if (n.kind == KAlert) {
+    if (n.dirty) {
+      NSAlert* al = o.alert;
+      al.messageText = ns(n.attr("message"));
+      al.informativeText = ns(n.attr("detail"));
+      const std::string& st = n.attr("style");
+      al.alertStyle = st == "critical" ? NSAlertStyleCritical : st == "warning" ? NSAlertStyleWarning : NSAlertStyleInformational;
+      if (al.buttons.count == 0) for (NSString* b in [ns(n.attr("buttons")) componentsSeparatedByString:@"\n"]) [al addButtonWithTitle:b];
+      [al layout];
+    }
+  } else {
+    NSMutableArray<NSView*>* sub = [NSMutableArray array];
+    for (int k : n.kids) place(k, 0, 0, sub);
+    if (![o.content.subviews isEqualToArray:sub]) o.content.subviews = sub;
+    const NSSize size = NSMakeSize(n.w, n.h);
+    if (o.sheet && !NSEqualSizes(o.sheet.contentView.frame.size, size)) [o.sheet setContentSize:size];
+    if (o.popover) { if (!NSEqualSizes(o.popover.contentSize, size)) o.popover.contentSize = size; setFrame(o.content, 0, 0, n.w, n.h); }
+  }
+  n.dirty = false;
+  if (!o.shown && !o.closed) present(o, n);
+}
 /** The window's title and style from a Window node (ponytail: the main window only; more windows come with zinc:system's). */
 void applyWindow(const Node& n) {
   NSWindow* w = hostWindow();
@@ -788,6 +1034,7 @@ void place(int id, double ox, double oy, NSMutableArray<NSView*>* into, bool pan
   if (n.kind == KWindow && n.dirty) applyWindow(n);
   if (n.kind == KToolbar) { applyToolbar(id, n); n.dirty = false; return; }   // in the window's title bar, not in the content
   if (n.kind == KToolbarItem && !pane) return;   // a toolbar item outside a Toolbar shows nothing
+  if (isOverlay(n.kind)) { applyOverlay(id, n); return; }   // a sheet of the window or a popover, not in the content
   if (layoutOnly(n) && !(pane && n.kind != KFragment)) {
     if (n.view) forget(n);
     if (n.kind == KWindow) n.dirty = false;
@@ -802,7 +1049,7 @@ void place(int id, double ox, double oy, NSMutableArray<NSView*>* into, bool pan
   [into addObject:n.view];
   if (n.kind == KTable) { applyTable(n, changed); return; }        // its children are the drawn fallback and the rows' cache, not views
   if (n.kind == KOutline) { applyOutline(n, changed); return; }
-  if (n.kind == KText || n.kind == KInput || n.kind == KTextArea || n.kind == KImage) return;   // leaves (a text's spans are in its string)
+  if (n.kind == KText || isField(n.kind) || n.kind == KTextArea || n.kind == KImage || isControl(n.kind)) return;   // leaves (a text's spans are in its string, a control's children are its drawn fallback)
   NSMutableArray<NSView*>* sub = [NSMutableArray array];
   for (int k : n.kids) place(k, 0, 0, sub, n.kind == KSplit);
   NSView* box = n.kind == KScroll ? ((NSScrollView*)n.view).documentView : n.view;
@@ -878,9 +1125,10 @@ void moveFocus() {
   if (!w) return;
   Node* n = live(focusWant);
   NSResponder* want = !n ? nil : n->input ? n->input : focusKeyboard && n->view && [n->view isKindOfClass:ZnView.class] && n->focusable ? n->view : nil;
-  NSResponder* now = w.firstResponder;
-  if (want && !(n && responds(now, *n))) [w makeFirstResponder:want];
+  NSWindow* fw = want ? ((NSView*)want).window : nil;   // a field in a sheet or a popover is in that window
+  if (want && fw && !(n && responds(fw.firstResponder, *n))) [fw makeFirstResponder:want];
   else if (!want) {
+    NSResponder* now = w.firstResponder;
     const void* who = (__bridge const void*)now;
     const bool ours = idOf.count(who) || ([now isKindOfClass:NSTextView.class] && idOf.count((__bridge const void*)((NSTextView*)now).delegate));
     if (ours && ![w makeFirstResponder:rootView.superview]) [w makeFirstResponder:nil];
@@ -1005,23 +1253,69 @@ void dumpList(const Node& n, int depth, std::string& out) {
     out += "\n";
   }
 }
+/** A control's state read back from AppKit: its title, on or off, the item, the segment, the value, the date. */
+std::string controlDump(const Node& n, NSView* v) {
+  if (n.kind == KProgress) { NSProgressIndicator* p = (NSProgressIndicator*)v; return p.indeterminate ? " indeterminate" : " value=" + fmtNum(p.doubleValue); }
+  NSControl* c = (NSControl*)v;
+  std::string s;
+  if (n.kind == KPushButton || n.kind == KCheckbox) s += " " + qstr(str(((NSButton*)c).title));
+  if (n.kind == KPushButton && ((NSButton*)c).keyEquivalent.length) {
+    NSString* k = ((NSButton*)c).keyEquivalent;
+    s += " key=" + ([k isEqualToString:@"\r"] ? std::string("return") : [k isEqualToString:@"\x1b"] ? std::string("escape") : "cmd-" + str(k));
+  }
+  if (n.kind == KSwitch || n.kind == KCheckbox) s += stateOf(c) == NSControlStateValueOn ? " on" : " off";
+  if (n.kind == KPopup) s += " " + qstr(controlValue(n, c)) + " items=" + std::to_string((long)((NSPopUpButton*)c).numberOfItems);
+  if (n.kind == KSegmented) {
+    NSSegmentedControl* sg = (NSSegmentedControl*)c;
+    s += " sel=" + controlValue(n, c) + " items=";
+    for (NSInteger i = 0; i < sg.segmentCount; i++) s += (i ? "|" : "") + str([sg labelForSegment:i]);
+  }
+  if (n.kind == KSlider) s += " value=" + fmtNum(c.doubleValue) + " range=" + fmtNum(((NSSlider*)c).minValue) + ".." + fmtNum(((NSSlider*)c).maxValue);
+  if (n.kind == KDatePicker) s += " " + qstr(controlValue(n, c));
+  if (!c.enabled) s += " disabled";
+  return s;
+}
+void dumpView(NSView* v, int depth, std::string& out);
+/** The overlays after the root: an alert's texts and buttons, a sheet's or a popover's size and content, and whether AppKit shows it. */
+void dumpOverlays(std::string& out) {
+  for (size_t i = 0; i < nodes.size(); i++) {
+    const Node& n = nodes[i];
+    if (!n.live || !isOverlay(n.kind) || !n.chrome) continue;
+    ZnOverlay* o = n.chrome;
+    char b[160];
+    snprintf(b, sizeof b, "#%zu %s", i, kKinds[n.kind]);
+    out += b;
+    if (o.alert) {
+      out += " " + qstr(str(o.alert.messageText)) + " " + qstr(str(o.alert.informativeText)) + " buttons";
+      for (NSButton* btn in o.alert.buttons) out += " " + qstr(str(btn.title));
+    } else {
+      snprintf(b, sizeof b, " %gx%g", n.w, n.h);
+      out += b;
+      if (o.popover) { const NSRect r = boxOf(atoi(n.attr("anchor").c_str())); snprintf(b, sizeof b, " at %g,%g %gx%g %s", r.origin.x, r.origin.y, r.size.width, r.size.height, n.attr("edge").c_str()); out += b; }
+    }
+    out += o.shown ? " shown" : " offscreen";
+    out += "\n";
+    if (o.content) for (NSView* s in o.content.subviews) dumpView(s, 1, out);
+  }
+}
 void dumpView(NSView* v, int depth, std::string& out) {
   auto it = idOf.find((__bridge const void*)v);
   Node* n = it != idOf.end() ? live(it->second) : nullptr;
   if (!n) { for (NSView* s in v.subviews) dumpView(s, depth, out); return; }   // AppKit's own views (a scroll view's clip view and document)
   char b[160];
   const NSRect f = v.frame;
-  const char* kind = n->kind == KText ? "label" : n->kind == KImage ? "image" : n->kind == KScroll ? "scroll" : n->kind == KInput ? (n->secure ? "secure" : "field") : n->kind == KTextArea ? "area"
+  const char* kind = n->kind >= KPushButton && n->kind < KUnknown ? kKinds[n->kind] : n->kind == KText ? "label" : n->kind == KImage ? "image" : n->kind == KScroll ? "scroll" : n->kind == KInput ? (n->secure ? "secure" : "field") : n->kind == KTextArea ? "area"
                    : n->kind == KSplit ? "split" : n->kind == KSidebar ? "sidebar" : n->kind == KToolbarItem ? "item" : n->kind == KTable ? "table" : n->kind == KOutline ? "outline" : "view";
   snprintf(b, sizeof b, "%*s#%d %s %g,%g %gx%g", depth * 2, "", it->second, kind, f.origin.x, f.origin.y, f.size.width, f.size.height);
   out += b;
-  if (n->kind == KText || n->kind == KInput || n->kind == KTextArea || n->kind == KImage) out += " " + qstr(n->text);
+  if (n->kind == KText || isField(n->kind) || n->kind == KTextArea || n->kind == KImage) out += " " + qstr(n->text);
   if (!n->placeholder.empty()) out += " placeholder=" + qstr(n->placeholder);
-  if (n->kind == KText || n->kind == KInput || n->kind == KTextArea) {
+  if (n->kind == KText || isField(n->kind) || n->kind == KTextArea) {
     const double fg = fgValue(*n);
     snprintf(b, sizeof b, " size=%g%s fg=", n->fontSize, n->bold ? " bold" : "");
     out += b + (fg >= 0 ? hex(fg) : n->kind == KText ? "label" : "text");   // the system colours by name: they follow dark mode
   }
+  if (isControl(n->kind)) { out += controlDump(*n, v) + "\n"; return; }   // the classes are its drawn fallback's: AppKit draws it
   if (n->bg >= 0) out += " bg=" + hex(n->bg) + (n->bgAlpha < 255 ? "/" + std::to_string((int)n->bgAlpha) : "");
   if (n->border > 0) { snprintf(b, sizeof b, " border=%g", n->border); out += b + hex(n->borderColor); }
   if (n->radius > 0) { snprintf(b, sizeof b, " radius=%g", n->radius); out += b; }
@@ -1138,6 +1432,7 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
       snprintf(b, sizeof b, "root %gx%g\n", rootView.bounds.size.width, rootView.bounds.size.height);
       out += b;
       for (NSView* v in rootView.subviews) dumpView(v, 1, out);
+      dumpOverlays(out);
     }
     return zrt::String::from(out.data(), (uint32_t)out.size());
   }
@@ -1167,8 +1462,31 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
         NSToolbarItem* it = n->chrome;
         return [NSApp sendAction:it.action to:it.target from:it];
       }
+      if (n && action == 12) {   // an overlay ended by the person: button x of an alert (-1: dismissed), a sheet or a popover dismissed
+        if (!isOverlay(n->kind) || !n->chrome) return false;
+        ZnOverlay* o = n->chrome;
+        if (o.shown && o.alert && x >= 0 && x < (double)o.alert.buttons.count) [o.alert.buttons[(NSUInteger)x] performClick:nil];
+        else if (o.shown && o.popover) [o.popover performClose:nil];
+        else if (o.shown && o.sheet) [o.sheet cancelOperation:nil];
+        else [o finish:o.alert ? x : -1];
+        return true;
+      }
       if (!n || !n->view) return false;
       NSString* s = ns(std::string(text.ptr(), text.bytes()));
+      if (isControl(n->kind) && n->kind != KProgress && (action == 10 || action == 11)) {   // a click on a button, a switch or a check box; a value set as by the person
+        NSControl* c = (NSControl*)n->view;
+        if (action == 10) {
+          if (n->kind != KPushButton && n->kind != KSwitch && n->kind != KCheckbox) return false;   // a pop-up's click opens its menu (a tracking loop)
+          [c performClick:nil];
+          return true;
+        }
+        if (n->kind == KPopup) { if (![(NSPopUpButton*)c itemWithTitle:s]) return false; [(NSPopUpButton*)c selectItemWithTitle:s]; }
+        else if (n->kind == KSegmented) ((NSSegmentedControl*)c).selectedSegment = s.integerValue;
+        else if (n->kind == KSlider) c.doubleValue = x;
+        else if (n->kind == KDatePicker) { NSDate* d = [dayFormat() dateFromString:s]; if (!d) return false; ((NSDatePicker*)c).dateValue = d; }
+        else return false;
+        return [c sendAction:c.action to:c.target];
+      }
       if (n->kind == KTable || n->kind == KOutline) return driveList(*n, action, s, x, y);
       if (action == 4) {   // a divider dragged to x, as the mouse would (the views' own drag path)
         if (n->kind != KSplit) return false;
@@ -1182,7 +1500,7 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
         [sv reflectScrolledClipView:sv.contentView];
         return true;
       }
-      if ((n->kind != KInput && n->kind != KTextArea) || !n->input || !n->input.window) return false;
+      if ((!isField(n->kind) && n->kind != KTextArea) || !n->input || !n->input.window) return false;
       if (n->input.window.firstResponder != n->input && !([n->input isKindOfClass:NSTextField.class] && ((NSTextField*)n->input).currentEditor)) [n->input.window makeFirstResponder:n->input];
       NSTextView* ed = [n->input isKindOfClass:NSTextField.class] ? (NSTextView*)((NSTextField*)n->input).currentEditor : (NSTextView*)n->input;
       if (!ed) return false;
@@ -1195,8 +1513,11 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
   }
   void onEvent(zrt::Fn<void(int32_t, int32_t, zrt::String, double, double)> f) override { cb = f; }
 
+  std::vector<int> resync;   // controls whose new value the program got in the last poll: they show their attribute again now (a refused value goes)
   bool poll() override {
     if (rootView && rootView.superview) placeRoot();   // follows the window's size
+    for (int id : resync) if (Node* n = live(id)) if (n->view && isControl(n->kind)) applyControl(*n);
+    resync.clear();
     if (queue.empty()) return false;
     std::vector<Queued> evs;
     evs.swap(queue);
@@ -1207,12 +1528,13 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
       zrt::Fn<void(int32_t, int32_t, zrt::String, double, double)> f = cb;
       f(e.id, e.kind, zrt::String::from(e.text.data(), (uint32_t)e.text.size()), e.a, e.b);
       zrt::check_uncaught();
+      if (e.kind == EvCValue) resync.push_back(e.id);
     }
     return true;
   }
   void shutdown() override {
     cb = nullptr;
-    queue.clear();
+    queue.clear(); resync.clear();
     for (Node& n : nodes) forget(n);
     nodes.clear(); roots.clear(); idOf.clear();
     [rootView removeFromSuperview];

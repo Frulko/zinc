@@ -72,6 +72,18 @@ export function _virtual(n: i32, count: () => i32, itemH: number, render: (i: i3
 export function _comp(parent: i32, make: () => i32): void { if (fineGrained()) solid._comp(parent, make); else ui.insert(parent, make(), -1); }
 export function _u(): void { if (fineGrained()) solid._u(); }
 
+/** Under a native host ("ui": {"render": "native"}) node n shows as the platform's own control `kind` (zinc:appkit: pushbutton, switch, checkbox,
+ *  slider, segmented, popup, progress): `attrs` gives its string attributes as name, value pairs (an effect under Solid, read once per render under
+ *  React), and `onValue` gets the value the person sets. A press comes back as a click of n. Drawn, nothing changes. Returns n. */
+export function nativeControl(n: i32, kind: string, attrs: () => string[], onValue: ((v: string) => void) | null = null): i32 {
+  if (!ui.nativeRender() || n < 0) return n;
+  ui.setNativeKind(n, kind);
+  const set = (): void => { const a = attrs(); for (let i = 0; i + 1 < a.length; i += 2) ui.setNativeAttr(n, a[i], a[i + 1]); };
+  if (fineGrained()) solid.createEffect(set); else set();
+  if (onValue !== null) ui.onNativeValue(n, onValue);
+  return n;
+}
+
 /** Renders an optional node-valued prop (`children`, `leading`...): an empty fragment when it is absent. */
 export function renderSlot(slot: (() => i32) | undefined): i32 { return slot !== undefined ? slot() : _el(ui.FRAGMENT); }
 

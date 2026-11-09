@@ -5,6 +5,7 @@
 //   <Tabs items={['Overview', 'Settings']} selected={tab} onSelect={setTab} />
 import { theme } from './theme';
 import { look, selectionFeedback } from '../platform/index';
+import { nativeControl } from './host';
 
 export interface TabsProps {
   items: string[];
@@ -27,11 +28,13 @@ function labelClass(active: boolean): string {
 
 export function Tabs(props: TabsProps): i32 {
   const L = look();
-  return <View role="tablist" className={`flex-row ${L.segTrack} ${L.name === 'neutral' ? 'bg-' + theme().muted : ''} ${props.className ?? ''}`}>
+  const h = <View role="tablist" className={`flex-row ${L.segTrack} ${L.name === 'neutral' ? 'bg-' + theme().muted : ''} ${props.className ?? ''}`}>
     {props.items.map((label: string, i: i32) =>
       <View role="tab" aria-selected={String(props.selected() === i)} className={`grow flex-row items-center justify-center ${L.segItem} transition-colors ${triggerClass(props.selected() === i)}`}
         onClick={() => { if (props.selected() !== i) selectionFeedback(); props.onSelect(i); }}>
         <Text className={labelClass(props.selected() === i)}>{label}</Text>
       </View>)}
   </View>;
+  // a native host's segmented control
+  return nativeControl(h, 'segmented', () => ['items', props.items.join('\n'), 'value', '' + props.selected()], (v: string) => { props.onSelect(parseInt(v) as i32); });
 }

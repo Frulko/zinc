@@ -8,7 +8,8 @@ import * as Device from 'zinc:device-info';
 import { width, height, pixelScale, stroke, quit } from 'zinc:gfx';
 import { createEffect } from 'zinc:ui/solid';
 import * as A from 'zinc:ui/animated';
-import * as P from 'zinc:ui/platform';   // the platform look (ZN-748): Button, Switch and ActivityIndicator draw as the platform's own
+import * as P from 'zinc:ui/platform';
+import { nativeControl } from './kit/host';   // a native host's controls (Button, Switch)   // the platform look (ZN-748): Button, Switch and ActivityIndicator draw as the platform's own
 
 export { StyleSheet, PanResponder, LayoutAnimation } from 'zinc:ui';
 
@@ -84,7 +85,13 @@ function Dimmed(p: PressableProps): i32 { return Press(p, P.look().name === 'and
 /** React Native's Button, as its Button.js draws it per platform (zinc:ui/platform's look): iOS a tinted title (18 px; `color` tints it), Android a
  *  raised filled rectangle with an upper-case white title (`color` fills it, #2196f3 by default), macOS a push button (a white bezel, 13 px). It dims
  *  while pressed; disabled greys it. The neutral look keeps iOS's. */
-export function Button(p: { title: string; onPress?: () => void; color?: string; disabled?: boolean; accessibilityLabel?: string; testID?: string }): i32 {
+export function Button(p: ButtonProps): i32 {
+  const h = DrawnButton(p);   // Dimmed's node: the pressable view is its one child
+  nativeControl(ui.childAt(h, 0), 'pushbutton', () => ['title', p.title, 'enabled', p.disabled === true ? '0' : '1']);   // a native host's push button
+  return h;
+}
+export type ButtonProps = { title: string; onPress?: () => void; color?: string; disabled?: boolean; accessibilityLabel?: string; testID?: string };
+function DrawnButton(p: ButtonProps): i32 {
   const L = P.look(), off = p.disabled ?? false, given = p.color !== undefined ? processColor(p.color as string) : -1;
   if (L.name === 'android') {
     const bg = off ? 0xdfdfdf : given >= 0 ? given : 0x2196f3;
@@ -144,10 +151,12 @@ export function Switch(p: SwitchProps): i32 {
   const flip = (): void => { const f = p.onValueChange; if (!off && f !== undefined) { P.toggleFeedback(); f(!on); } };
   const o = S.outline, inner = S.switchW - 2 * o, innerH = S.switchH - 2 * o, k = on ? S.thumbOn : S.thumbOff;
   const x = on ? inner - (innerH - k) / 2 - k : (innerH - k) / 2;
-  return <View style={[{ width: S.switchW, height: S.switchH, borderRadius: S.switchH / 2, borderWidth: o, borderColor: on ? tt : P.color(S.border), backgroundColor: on ? tt : tf, opacity: off ? 0.5 : 1,
+  const h = <View style={[{ width: S.switchW, height: S.switchH, borderRadius: S.switchH / 2, borderWidth: o, borderColor: on ? tt : P.color(S.border), backgroundColor: on ? tt : tf, opacity: off ? 0.5 : 1,
     flexDirection: 'row', alignItems: 'center' }, p.style ?? NONE]} onPress={flip} role="switch" aria-checked={on}>
     <View style={{ width: k, height: k, borderRadius: k / 2, backgroundColor: th, translateX: x, shadowColor: 0x000000, shadowOffset: { width: 0, height: o > 0 ? 0 : 2 }, shadowOpacity: o > 0 ? 0 : 0.2, shadowRadius: 3 }} />
   </View>;
+  // a native host's switch, controlled as React Native's: it reports the new value and shows `value`
+  return nativeControl(h, 'switch', () => ['value', on ? '1' : '0', 'enabled', off ? '0' : '1'], (v: string) => { const f = p.onValueChange; if (!off && f !== undefined) f(v === '1'); });
 }
 
 // ---------------------------------------------------------------- ActivityIndicator, SafeAreaView, StatusBar

@@ -1,0 +1,71 @@
+root 480x300
+  #2 pushbutton 12,12 68x36 "Save" key=return
+  #8 switch 88,20 36x20 off
+  #13 switch 132,20 36x20 off
+  #18 checkbox 12,68 97x16 "Hidden files" on
+  #22 popup 117,65 76x22 "Name" items=3
+  #32 segmented 201,58 216x36 sel=0 items=Icons|List|Columns
+  #41 slider 12,105 140x20 value=20 range=0..100
+  #45 datepicker 160,104 110x22 "2026-11-09"
+  #46 search 278,104 180x22 "" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999
+  #47 progress 12,136 160x8 value=20
+
+click true true true true
+set true true true true true
+press save
+switch true
+locked refuses true
+checkbox false
+popup Size
+segment 2
+slider 45
+date 2026-12-25
+search abc
+-- after the person
+root 480x300
+  #2 pushbutton 12,12 68x36 "Save" key=return
+  #8 switch 88,20 36x20 on
+  #13 switch 132,20 36x20 off
+  #18 checkbox 12,68 97x16 "Hidden files" off
+  #22 popup 117,65 66x22 "Size" items=3
+  #32 segmented 191,58 216x36 sel=2 items=Icons|List|Columns
+  #41 slider 12,105 140x20 value=45 range=0..100
+  #45 datepicker 160,104 110x22 "2026-12-25"
+  #46 search 278,104 180x22 "abc" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999 first
+  #47 progress 12,136 160x8 value=45
+
+-- overlays
+root 480x300
+  #2 pushbutton 12,12 68x36 "Save" key=return
+  #8 switch 88,20 36x20 on
+  #13 switch 132,20 36x20 off
+  #18 checkbox 12,68 97x16 "Hidden files" off
+  #22 popup 117,65 66x22 "Size" items=3
+  #32 segmented 191,58 216x36 sel=2 items=Icons|List|Columns
+  #41 slider 12,105 140x20 value=45 range=0..100
+  #45 datepicker 160,104 110x22 "2026-12-25"
+  #46 search 278,104 180x22 "abc" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999 first
+  #47 progress 12,136 160x8 value=45
+#49 alert "Delete 3 files?" "This cannot be undone." buttons "Delete" "Cancel" offscreen
+#58 sheet 420x78 offscreen
+  #61 pushbutton 21,21 69x36 "Done"
+#66 popover 89x44 at 12,12 68x36 bottom offscreen
+  #67 checkbox 13,13 63x18 "Pinned" on
+
+end true true true
+alert 1
+sheet 'done'
+popover ''
+-- closed: overlays ''
+root 480x300
+  #2 pushbutton 12,12 68x36 "Save" key=return
+  #8 switch 88,20 36x20 on
+  #13 switch 132,20 36x20 off
+  #18 checkbox 12,68 97x16 "Hidden files" off
+  #22 popup 117,65 66x22 "Size" items=3
+  #32 segmented 191,58 216x36 sel=2 items=Icons|List|Columns
+  #41 slider 12,105 140x20 value=45 range=0..100
+  #45 datepicker 160,104 110x22 "2026-12-25"
+  #46 search 278,104 180x22 "abc" placeholder="Search" size=13 fg=text bg=#ffffff border=1#c8c8c8 radius=9999 first
+  #47 progress 12,136 160x8 value=45
+

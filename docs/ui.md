@@ -769,6 +769,9 @@ hover and drags go through the views to zinc:ui's own hit testing, so handlers f
 Enter, focus and scrolling. Under a native host zinc:ui starts no text input of its own, and keys pressed in a native field reach only the
 program's key handlers. The buffer also carries a field's value and an image's asset (`t`), the placeholder (`a ID placeholder TEXT`), `secure`
 (a password field), `focusable`, and the focus (`o ID K`, K 1 when the keyboard put it there); `ui.hostMounted(h)` tells a host whether a late event's handle still holds the node it was about.
+The kits' Button, Switch, Slider, Tabs and Progress, zinc:ui/nuxt's Button, Switch, Checkbox and Select, and zinc:react-native's Button and Switch
+become the platform's own controls under a native host: each sets a native kind (`pushbutton`, `switch`, `checkbox`, `slider`, `segmented`, `popup`,
+`progress`) and its value as attributes, and the host reports a press as a click of the node and a new value through `ui.onNativeValue(h, f)`.
 
 ## Tests
 

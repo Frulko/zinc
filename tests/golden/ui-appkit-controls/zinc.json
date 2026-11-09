@@ -1,0 +1,1 @@
+{ "name": "ui-appkit-controls", "entry": "main.ts", "ui": { "render": "native" } }

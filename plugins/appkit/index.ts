@@ -5,13 +5,15 @@
 import * as ui from 'zinc:ui';
 import { windowCtl } from 'zinc:gfx';
 import { createEffect, untrack } from 'zinc:ui/solid';
+import { Button as KitButton, Switch as KitSwitch, Slider as KitSlider, Tabs, Progress as KitProgress, nativeControl } from 'zinc:ui/kit';
 import A from './native/appkit.spec';
 
 const EDIT = 0, CHANGE = 1, SUBMIT = 2, FOCUS = 3, BLUR = 4, SCROLL = 5, PRESS = 6, RESIZE = 7, SELECT = 8, SORT = 9, TYPE = 10, OPEN = 11, EXPAND = 12, ROWS = 13, LFOCUS = 14;
+const CPRESS = 15, CVALUE = 16, CLOSE = 17;   // a control's press and new value, an overlay closed by the person
 
 function onEvent(id: i32, kind: i32, text: string, a: number, b: number): void {
   if (!ui.hostMounted(id)) return;   // the node went, or its handle holds another node now
-  const l = kind >= SELECT ? lists.get(id) : undefined;
+  const l = kind >= SELECT && kind <= LFOCUS ? lists.get(id) : undefined;
   if (l !== undefined) { listEvent(l, kind, text, a, b); return; }   // a Table's or an Outline's own kinds
   if (kind === EDIT) ui.domEdit(id, text, a, b);
   else if (kind === CHANGE) ui.domChanged(id);
@@ -21,6 +23,9 @@ function onEvent(id: i32, kind: i32, text: string, a: number, b: number): void {
   else if (kind === SCROLL) ui.domScroll(id, a, b);
   else if (kind === PRESS) ui.click(id);   // a toolbar item: its onPress, as a press of the drawn item
   else if (kind === RESIZE) ui.setNumber(id, 'width', a);   // a split pane the divider moved: its Yoga subtree is laid out again at that width
+  else if (kind === CPRESS) ui.click(id);                    // a push button: the node's onClick, as a press of the drawn button
+  else if (kind === CVALUE) ui.nativeValue(id, text);        // a switch, slider, pop-up...: the component's onNativeValue
+  else if (kind === CLOSE) finish(id, text, a);              // an alert's button (a), a sheet or a popover dismissed
 }
 
 let shown = false;
@@ -40,7 +45,9 @@ export function hit(x: number, y: number): i32 { return shown ? A.hit(x, y) : -1
 /** Test hook (as ui.pointerAt is for the drawn UI): 0 types `text` into field `h` through AppKit, 1 presses Enter in it, 2 scrolls scroll view `h` to
  *  (x, y), 3 sends the field editor of `h` the command `text` ('insertTab:'), 4 drags the first divider of split view `h` to x, 5 clicks toolbar item
  *  `h`; on a Table or an Outline `h`: 2 scrolls it to (x, y), 6 sorts by column `text` (x 1: ascending) as a click on its header does, 7 selects rows
- *  '3,4' (an Outline: the item id), 8 types the keys of `text` into it (type-select), 9 expands (x 1) or collapses item `text` of an Outline.
+ *  '3,4' (an Outline: the item id), 8 types the keys of `text` into it (type-select), 9 expands (x 1) or collapses item `text` of an Outline;
+ *  on a control: 10 clicks it (a push button, a switch, a check box), 11 sets its value (a pop-up's item `text`, a segment `text`, a slider's x, a
+ *  date `text`); on an alert's, a sheet's or a popover's panel `h`: 12 ends it (an alert's button x, -1: dismissed).
  *  The events come back at the next frame as a person's would. False when no host runs or h has no such view. */
 export function drive(h: i32, action: i32, text: string = '', x: number = 0, y: number = 0): boolean { return shown && A.drive(h, action, text, x, y); }
 
@@ -391,4 +398,201 @@ export function Outline(p: OutlineProps): i32 {
   ui.insert(l.outer, l.body, -1);
   reflat();
   return l.outer;
+}
+
+// ---------------------------------------------------------------- controls (ZN-1073)
+// The kits' Button, Switch, Slider, Tabs and Progress are the controls already: under a native host they set a native kind (nativeControl) and
+// become NSButton, NSSwitch, NSSlider, NSSegmentedControl and NSProgressIndicator; drawn they are the kits' own. The others (Checkbox, PopUpButton,
+// DatePicker, SearchField) are small zinc:ui nodes here, with the same hook. A press comes back as the node's click, a value through ui.onNativeValue.
+
+export interface PushButtonProps {
+  title: string;
+  onPress?: () => void;
+  keyEquivalent?: string;   // 'Enter' (the default button), 'Escape' (cancel), or a letter pressed with Command
+  className?: string;
+}
+/** `<PushButton title="Save" onPress={save} keyEquivalent="Enter" />`: an NSButton under the host; drawn, the kit's Button. */
+export function PushButton(p: PushButtonProps): i32 {
+  const h = KitButton({ label: p.title, variant: p.keyEquivalent === 'Enter' ? 'default' : 'outline', onClick: p.onPress, className: p.className });
+  if (p.keyEquivalent !== undefined) ui.setNativeAttr(h, 'keyEquivalent', p.keyEquivalent as string);
+  return h;
+}
+
+export interface SwitchProps { value: () => boolean; onValueChange: (on: boolean) => void; label?: string }
+/** `<Switch value={shared} onValueChange={setShared} />`: an NSSwitch under the host (a check box before macOS 10.15); drawn, the kit's Switch. */
+export function Switch(p: SwitchProps): i32 { return KitSwitch({ checked: p.value, onChange: p.onValueChange, label: p.label }); }
+
+export interface SliderProps { value: () => number; onValueChange: (v: number) => void; min?: number; max?: number; step?: number; className?: string }
+/** `<Slider value={volume} onValueChange={setVolume} max={100} />`: a continuous NSSlider under the host (snapped to `step`); drawn, the kit's Slider. */
+export function Slider(p: SliderProps): i32 { return KitSlider({ value: p.value, onChange: p.onValueChange, min: p.min, max: p.max, step: p.step, className: p.className }); }
+
+export interface SegmentedControlProps { items: string[]; selected: () => i32; onSelect: (i: i32) => void; className?: string }
+/** `<SegmentedControl items={['Icons', 'List']} selected={view} onSelect={setView} />`: an NSSegmentedControl; drawn, the kit's Tabs. */
+export function SegmentedControl(p: SegmentedControlProps): i32 { return Tabs({ items: p.items, selected: p.selected, onSelect: p.onSelect, className: p.className }); }
+
+export interface ProgressProps { value: () => number; className?: string }
+/** `<Progress value={done} />`, 0 to 100 (below 0: indeterminate): an NSProgressIndicator bar; drawn, the kit's Progress. */
+export function Progress(p: ProgressProps): i32 { return KitProgress({ value: p.value, className: p.className ?? 'w-[160px]' }); }
+
+export interface CheckboxProps { title: string; value: () => boolean; onValueChange: (on: boolean) => void; className?: string }
+/** `<Checkbox title="Show hidden files" value={hidden} onValueChange={setHidden} />`: an NSButton check box with its title; drawn, a box and a label. */
+export function Checkbox(p: CheckboxProps): i32 {
+  const h = el(ui.VIEW, `flex-row items-center gap-[6px] ${p.className ?? ''}`);
+  const box = ui.createNode(ui.VIEW), mark = ui.createText('');
+  ui.setClass(mark, 'text-[10px] text-[#ffffff]');
+  ui.insert(box, mark, -1);
+  ui.insert(h, box, -1);
+  label(h, p.title, 'text-[13px]');
+  createEffect(() => {
+    const on = p.value();
+    ui.setClass(box, `w-[14px] h-[14px] rounded-[3px] items-center justify-center ${on ? 'bg-[#007aff]' : 'bg-[#ffffff] border border-[#b0b0b0]'}`);
+    ui.setText(mark, on ? '✓' : '');
+  });
+  ui.listen(h, () => { p.onValueChange(!p.value()); });
+  return nativeControl(h, 'checkbox', () => ['title', p.title, 'value', p.value() ? '1' : '0'], (v: string) => { p.onValueChange(v === '1'); });
+}
+
+export interface PopUpButtonProps { items: string[]; value: () => string; onValueChange: (v: string) => void; className?: string }
+/** `<PopUpButton items={['Name', 'Date', 'Size']} value={sort} onValueChange={setSort} />`: an NSPopUpButton that opens its own menu; drawn, a button
+ *  with the value that opens a list under it. */
+export function PopUpButton(p: PopUpButtonProps): i32 {
+  const h = el(ui.BUTTON, `flex-row items-center justify-between gap-[8px] h-[22px] px-[8px] rounded-[5px] bg-[#ffffff] border border-[#c8c8c8] ${p.className ?? ''}`);
+  const value = ui.createText(''); ui.setClass(value, 'text-[13px]'); ui.insert(h, value, -1);
+  label(h, '▾', 'text-[11px] text-[#666666]');
+  createEffect(() => { ui.setText(value, p.value()); });
+  const menu = el(ui.VIEW, 'flex-col p-[4px] min-w-[120px] rounded-[6px] bg-[#ffffff] border border-[#c8c8c8]');
+  ui.setNumber(menu, 'hidden', 1);
+  for (const it of p.items) menuRow(menu, it, p);
+  ui.openLayer(menu, { priority: 100 });
+  ui.anchor(menu, h, 'bottom-start', 2);
+  ui.onDismiss(menu, () => { ui.setNumber(menu, 'hidden', 1); });
+  ui.onOutsidePointer(menu, (_e: ui.PointerEvent) => { ui.setNumber(menu, 'hidden', 1); }, h);
+  ui.listen(h, () => { const n = ui.inspectNode(menu); ui.setNumber(menu, 'hidden', n !== null && n.hidden ? 0 : 1); });
+  return nativeControl(h, 'popup', () => ['items', p.items.join('\n'), 'value', p.value()], (v: string) => { p.onValueChange(v); });
+}
+function menuRow(menu: i32, it: string, p: PopUpButtonProps): void {
+  const r = el(ui.BUTTON, 'flex-row items-center px-[8px] h-[22px] rounded-[4px] hover:bg-[#e8e8e8]');
+  label(r, it, 'text-[13px]');
+  ui.listen(r, () => { ui.setNumber(menu, 'hidden', 1); p.onValueChange(it); });
+  ui.insert(menu, r, -1);
+}
+
+export interface DatePickerProps { value: () => string; onValueChange: (date: string) => void; className?: string }
+/** `<DatePicker value={due} onValueChange={setDue} />`, the date as 'YYYY-MM-DD': an NSDatePicker (field and stepper) under the host; drawn, a field
+ *  that takes a typed date. */
+export function DatePicker(p: DatePickerProps): i32 {
+  const h = el(ui.INPUT, `w-[110px] h-[22px] px-[6px] rounded-[5px] bg-[#ffffff] border border-[#c8c8c8] text-[13px] ${p.className ?? ''}`);
+  createEffect(() => { ui.setValue(h, p.value()); });
+  ui.onText(h, true, (v: string) => { if (isDate(v)) p.onValueChange(v); else ui.setValue(h, p.value()); });
+  return nativeControl(h, 'datepicker', () => ['value', p.value()], (v: string) => { p.onValueChange(v); });
+}
+function isDate(v: string): boolean {
+  if (v.length !== 10 || v.charAt(4) !== '-' || v.charAt(7) !== '-') return false;
+  const m = parseInt(v.substring(5, 7)), d = parseInt(v.substring(8, 10));
+  return parseInt(v.substring(0, 4)) > 0 && m >= 1 && m <= 12 && d >= 1 && d <= 31;
+}
+
+export interface SearchFieldProps { onChange: (text: string) => void; onSubmit?: (text: string) => void; placeholder?: string; className?: string }
+/** `<SearchField onChange={filter} />`: an NSSearchField (its magnifier and clear button) under the host, edited as any field; drawn, a rounded field. */
+export function SearchField(p: SearchFieldProps): i32 {
+  const h = el(ui.INPUT, `w-[180px] h-[22px] px-[8px] rounded-full bg-[#ffffff] border border-[#c8c8c8] text-[13px] ${p.className ?? ''}`);
+  ui.setPlaceholder(h, p.placeholder ?? 'Search');
+  ui.onText(h, false, (v: string) => { p.onChange(v); });
+  const f = p.onSubmit;
+  if (f !== undefined) ui.onSubmit(h, () => { f(ui.getValue(h)); });
+  ui.setNativeKind(h, 'search');   // still a field to zinc:ui: its edits come back as any field's
+  return h;
+}
+
+// ---------------------------------------------------------------- overlays: alert, sheet, popover (ZN-1073)
+// Each is a layer of zinc:ui (the drawn fallback: a dialog, a panel under the top, a panel anchored to a node) whose panel has a native kind: under
+// the host an NSAlert or a window run as a sheet of the window (beginSheet, never runModal: the frames go on), or an NSPopover. The result comes back
+// as a Promise; closing it (a button, close(), Escape, a click outside a popover) takes the layer away.
+class Open {
+  root: i32; done: (result: string, button: number) => void;
+  constructor(root: i32, done: (result: string, button: number) => void) { this.root = root; this.done = done; }
+}
+const shownOverlays: Map<i32, Open> = new Map<i32, Open>();   // panel -> its layer and its promise
+function overlay(kind: string, wrap: string, cls: string, o: ui.LayerOptions, done: (result: string, button: number) => void): i32 {
+  const panel = el(ui.VIEW, cls);
+  let root = panel;
+  if (wrap !== '') { root = el(ui.VIEW, wrap); ui.insert(root, panel, -1); }
+  ui.setNativeKind(panel, kind);
+  ui.openLayer(root, o);
+  ui.onDismiss(root, () => { finish(panel, '', -1); });
+  shownOverlays.set(panel, new Open(root, done));
+  return panel;
+}
+function finish(panel: i32, result: string, button: number): void {
+  const o = shownOverlays.get(panel);
+  if (o === undefined) return;
+  shownOverlays.delete(panel);
+  ui.closeLayer(o.root);
+  ui.destroy(o.root);
+  o.done(result, button);
+}
+/** Test hook: the panels of the alerts, sheets and popovers open now, oldest first (what drive's action 12 ends). */
+export function overlays(): i32[] { const out: i32[] = []; shownOverlays.forEach((_o: Open, panel: i32) => { out.push(panel); }); return out; }
+function label(parent: i32, s: string, cls: string): void { if (s === '') return; const t = ui.createText(s); ui.setClass(t, cls); ui.insert(parent, t, -1); }
+
+export interface AlertOptions {
+  message: string;
+  detail?: string;
+  style?: string;       // 'informational' (the default) | 'warning' | 'critical'
+  buttons?: string[];   // ['OK']; the first is the default (Return), one named 'Cancel' answers Escape
+}
+/** `const b = await alert({ message: 'Delete 3 files?', buttons: ['Delete', 'Cancel'] })`: the index of the button pressed, -1 when dismissed. An NSAlert
+ *  run as a sheet of the window under the host; drawn, a modal dialog. */
+export function alert(o: AlertOptions): Promise<number> {
+  return new Promise<number>((resolve) => {
+    const buttons = o.buttons ?? ['OK'];
+    const panel = overlay('alert', 'absolute inset-0 items-center justify-center', 'flex-col gap-[8px] p-[20px] w-[280px] rounded-[10px] bg-[#f0f0f0] border border-[#c8c8c8]',
+      { priority: 300, modal: true, backdrop: 0x000000, backdropAlpha: 60 }, (_r: string, b: number) => { resolve(b); });
+    ui.setNativeAttr(panel, 'message', o.message);
+    ui.setNativeAttr(panel, 'detail', o.detail ?? '');
+    ui.setNativeAttr(panel, 'style', o.style ?? 'informational');
+    ui.setNativeAttr(panel, 'buttons', buttons.join('\n'));
+    label(panel, o.message, 'text-[13px] font-bold');
+    label(panel, o.detail ?? '', 'text-[11px]');
+    const row = el(ui.VIEW, 'flex-row justify-end gap-[8px] mt-[8px]');
+    for (let i = 0; i < buttons.length; i++) alertButton(row, panel, buttons[i], i);
+    ui.insert(panel, row, -1);
+  });
+}
+function alertButton(row: i32, panel: i32, title: string, i: i32): void {
+  const b = el(ui.BUTTON, `px-[12px] h-[22px] rounded-[5px] items-center justify-center ${i === 0 ? 'bg-[#007aff]' : 'bg-[#ffffff] border border-[#c8c8c8]'}`);
+  label(b, title, `text-[13px] ${i === 0 ? 'text-[#ffffff]' : ''}`);
+  ui.listen(b, () => { finish(panel, '', i); });
+  ui.insert(row, b, -1);
+}
+
+/** `const name = await sheet((close) => <NameForm onDone={close} />)`: content shown as a sheet of the window (a window that slides from the title bar
+ *  under the host, beginSheet; drawn, a panel at the top over a dim). It resolves with what the content passes to `close`, '' when dismissed (Escape).
+ *  Inside a native sheet the controls and fields take input; presses on drawn-only views there do not reach zinc:ui yet. */
+export function sheet(content: (close: (result: string) => void) => i32, className: string = ''): Promise<string> {
+  return new Promise<string>((resolve) => {
+    let panel: i32 = -1;
+    panel = overlay('sheet', 'absolute inset-0 items-center', `flex-col gap-[12px] p-[20px] w-[420px] rounded-b-[10px] bg-[#f6f6f6] border border-[#c8c8c8] ${className}`,
+      { priority: 250, modal: true, backdrop: 0x000000, backdropAlpha: 40 }, (r: string, _b: number) => { resolve(r); });
+    ui.insert(panel, content((r: string) => { finish(panel, r, 0); }), -1);
+  });
+}
+
+export interface PopoverOptions {
+  edge?: string;        // the side of the anchor it shows on: 'bottom' (the default), 'top', 'left', 'right'
+  className?: string;   // classes of the panel ('w-[240px]', 'p-[12px]'...)
+}
+/** `const v = await popover(button, (close) => <Picker onPick={close} />)`: content in an NSPopover pointing at node `anchor` (transient: a click
+ *  outside closes it) under the host; drawn, a panel anchored to it. Resolves with what the content passes to `close`, '' when dismissed. */
+export function popover(anchor: i32, content: (close: (result: string) => void) => i32, o?: PopoverOptions): Promise<string> {
+  return new Promise<string>((resolve) => {
+    const edge = o?.edge ?? 'bottom';
+    let panel: i32 = -1;
+    panel = overlay('popover', '', `flex-col gap-[8px] p-[12px] rounded-[8px] bg-[#ffffff] border border-[#c8c8c8] ${o?.className ?? ''}`, { priority: 150 }, (r: string, _b: number) => { resolve(r); });
+    ui.setNativeAttr(panel, 'anchor', '' + anchor);
+    ui.setNativeAttr(panel, 'edge', edge);
+    ui.anchor(panel, anchor, edge, 6);
+    ui.onOutsidePointer(panel, (_e: ui.PointerEvent) => { finish(panel, '', -1); }, anchor);
+    ui.insert(panel, content((r: string) => { finish(panel, r, 0); }), -1);
+  });
 }

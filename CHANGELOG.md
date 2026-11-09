@@ -94,6 +94,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc:appkit` has `Table` (an NSTableView with columns, sorting by header, multiple selection, type-select and double-click) and `Outline` (a source-list tree that expands, collapses and type-selects): a table of 10,000 rows builds only the rows in view, and without the AppKit host both draw a list with the same keys.
 - Clocks, timers and columns of numbers stop shifting as their digits change: the `tabular-nums` class (and `normal-nums` to undo it) gives text tabular figures, every digit as wide as the others, and `gfx.tabularFont('sans', 15)` gives a `zinc:gfx` font the same.
 
+- `zinc:appkit` has the macOS controls: `PushButton`, `Switch`, `Checkbox`, `PopUpButton`, `SegmentedControl`, `Slider`, `DatePicker`, `SearchField` and `Progress`, and the kits' `Button`, `Switch`, `Slider`, `Tabs`, `Select` and `Checkbox` and React Native's `Button` and `Switch` become them under `"render": "native"`. `alert()`, `sheet()` and `popover()` show an NSAlert, a sheet or a popover without stopping your frames and resolve with the button pressed or the result; without the AppKit host they draw a dialog, a panel and an anchored panel.
+
 #### Changed
 
 - The default layout sizes `flex-1`, `w-full` and `h-full` as a browser does: `flex-1` items share a row or a column equally whatever their content, but never get narrower than their content unless they have `min-w-0`, `overflow-hidden` or `truncate`; a `w-full` or `h-full` box along the row or column stays inside its parent instead of growing with its content; and the last width or height class wins (`w-full w-[280px]` is 280 px wide).

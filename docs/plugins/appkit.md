@@ -92,6 +92,55 @@ and the next frame fills them. `count` is read in an effect: change the signals 
 Type-select on a table searches the program's rows (`cell(row, 0)`), so it finds a row that was never built. An Outline gets its whole tree (sidebars
 are small), keeps one AppKit item per `id`, and reports each expand or collapse as `onToggle`.
 
+## Controls
+
+```tsx
+import { PushButton, Switch, Checkbox, PopUpButton, SegmentedControl, Slider, DatePicker, SearchField, Progress } from 'zinc:appkit';
+
+<PushButton title="Save" onPress={save} keyEquivalent="Enter" />
+<Switch value={shared} onValueChange={setShared} />
+<Checkbox title="Show hidden files" value={hidden} onValueChange={setHidden} />
+<PopUpButton items={['Name', 'Date', 'Size']} value={sort} onValueChange={setSort} />
+<SegmentedControl items={['Icons', 'List']} selected={view} onSelect={setView} />
+<Slider value={volume} onValueChange={setVolume} max={100} step={5} />
+<DatePicker value={due} onValueChange={setDue} />        // 'YYYY-MM-DD'
+<SearchField onChange={filter} />
+<Progress value={done} />                                 // 0 to 100, below 0: indeterminate
+```
+
+| Component | Under the host | Drawn |
+|---|---|---|
+| `PushButton` | an NSButton (`keyEquivalent`: `Enter` the default button, `Escape`, or a letter with Command) | the kit's `Button` |
+| `Switch` | an NSSwitch (a check box before macOS 10.15) | the kit's `Switch` |
+| `Checkbox` | an NSButton check box with its title | a box and a label |
+| `PopUpButton` | an NSPopUpButton that opens its own menu | a button that opens a list under it |
+| `SegmentedControl` | an NSSegmentedControl | the kit's `Tabs` |
+| `Slider` | a continuous NSSlider, snapped to `step` | the kit's `Slider` |
+| `DatePicker` | an NSDatePicker (field and stepper), the date in UTC | a field that takes a typed date |
+| `SearchField` | an NSSearchField, edited as any field (`onChange` on each edit, `onSubmit` on Enter) | a rounded field |
+| `Progress` | an NSProgressIndicator bar | the kit's `Progress` |
+
+The kits map to the same controls, so a program written with them gets the native ones under `render: "native"` without changing a line: the
+kit's `Button` (when it is only a label), `Switch`, `Slider`, `Tabs` and `Progress`, zinc:ui/nuxt's `Button`, `Switch`, `Checkbox` and `Select`,
+and zinc:react-native's `Button` and `Switch`. Each sets a native kind on its node (`nativeControl` of zinc:ui/kit); its classes are the drawn
+fallback. Controls are controlled: the value shown is the program's; the person's change comes back (`onValueChange`, `onChange`...), and a value
+the program does not take goes back to the program's one frame later.
+
+## Alerts, sheets and popovers
+
+```tsx
+import { alert, sheet, popover } from 'zinc:appkit';
+
+const b = await alert({ message: 'Delete 3 files?', detail: 'This cannot be undone.', style: 'warning', buttons: ['Delete', 'Cancel'] });   // 0, 1, or -1
+const name = await sheet((close) => <NameForm onDone={close} />);      // what the content passes to close, '' on Escape
+const pick = await popover(button, (close) => <Colors onPick={close} />, { edge: 'bottom' });   // '' when a click outside closed it
+```
+
+Under the host an alert is an NSAlert and a sheet a window, both run as a sheet of the window (`beginSheet`), and a popover is a transient
+NSPopover pointing at the anchor node. None runs a modal loop (`runModal`), so the frames go on while they are open. Drawn, each is a zinc:ui layer:
+a modal dialog, a panel at the top over a dim, a panel anchored to the node; Escape dismisses it. Inside a native sheet or popover the controls and
+fields take input; presses on drawn-only views there do not reach zinc:ui yet (they have no SDL view under them).
+
 ## Keyboard
 
 The focus is zinc:ui's: Tab and Shift-Tab walk the focusable nodes in tree order (`tabIndex`, focus scopes), as in the drawn UI, and the host moves
@@ -117,16 +166,20 @@ appkit.hit(x, y);          // the node AppKit's hit test picks there, -1 when a 
 appkit.drive(h, 0, 'hi');  // types into field h through its field editor; 1: Enter; 2: scrolls scroll view h to (x, y);
                            // 3: sends field h's editor a command ('insertTab:'); 4: drags split view h's divider to x; 5: clicks toolbar item h;
                            // a Table or Outline h: 2 scrolls it, 6 sorts by column text, 7 selects rows '3,4' (an outline: an id),
-                           // 8 types keys into it, 9 expands (x 1) or collapses item text
+                           // 8 types keys into it, 9 expands (x 1) or collapses item text;
+                           // a control h: 10 clicks it (a button, a switch, a check box), 11 sets its value (an item, a segment, x, a date);
+                           // an overlay's panel h (appkit.overlays()): 12 ends it (an alert's button x, -1 dismissed)
 appkit.snapshot('a.png');  // what the views show, drawn offscreen (for people: it changes with each macOS)
 ```
 
 `tests/t0/ui_appkit.sh` runs `tests/golden/ui-appkit` headless on the interpreter (against its golden), QuickJS and the AOT;
 `tests/t0/ui_appkit_chrome.sh` does the same for the window chrome and the keyboard (`tests/golden/ui-appkit-chrome`), and checks its drawn fallback;
-`tests/t0/ui_appkit_table.sh` for a table of 10,000 rows and an outline (`tests/golden/ui-appkit-table`).
+`tests/t0/ui_appkit_table.sh` for a table of 10,000 rows and an outline (`tests/golden/ui-appkit-table`); `tests/t0/ui_appkit_controls.sh` for the
+controls and the overlays (`tests/golden/ui-appkit-controls`). Headless, alerts, sheets and popovers are built but not presented, so a test puts
+nothing on screen.
 
 ## Not yet
 
-Cells other than text (images, checkboxes, a view per cell), rows of different heights, an outline loaded as it opens; controls, popovers and sheets (ZN-1073); text spans with their own styles (a `Text`'s string shows in one style),
+Cells other than text (images, checkboxes, a view per cell), rows of different heights, an outline loaded as it opens; a native control taking zinc:ui's keyboard focus (Tab skips to fields and focusable views), the kits' macOS sizes under the deterministic look of the tests; text spans with their own styles (a `Text`'s string shows in one style),
 shadows and clipping, a scroll position set by the program, more windows than the main one, collapsing the sidebar, toolbar spacers and the
 sidebar tracking separator.

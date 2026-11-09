@@ -4,7 +4,7 @@
   "deterministic": true,
   "module": "zinc:appkit",
   "entry": "index.ts",
-  "description": "The zinc:ui tree shown with real AppKit views under \"ui\": {\"render\": \"native\"} (macOS): View, Text, Image, ScrollView, TextInput, TextArea and Pressable as NSViews, measured by AppKit, in the system colours; Window, Toolbar, SplitView and Sidebar as the window's own chrome; Table and Outline as NSTableView and NSOutlineView",
+  "description": "The zinc:ui tree shown with real AppKit views under \"ui\": {\"render\": \"native\"} (macOS): View, Text, Image, ScrollView, TextInput, TextArea and Pressable as NSViews, measured by AppKit, in the system colours; Window, Toolbar, SplitView and Sidebar as the window's own chrome; Table and Outline as NSTableView and NSOutlineView; the controls (push button, switch, check box, pop-up, segmented control, slider, date picker, search field, progress bar, and the kits' mapped to them) and alerts, sheets and popovers",
   "native": { "impl": { "macos": "native/appkit.macos.mm" } },
   "targets": {
     "macos": { "frameworks": ["AppKit", "Foundation"], "flags": ["-fobjc-arc"] },

@@ -5,7 +5,7 @@
 //   <Button label="Save changes" onClick={save} />
 //   <Button label="Cancel" variant="outline" size="sm" onClick={close} />
 import { theme, Theme } from './theme';
-import { renderSlot } from './host';
+import { renderSlot, nativeControl } from './host';
 import { look } from '../platform/index';
 
 export interface ButtonProps {
@@ -49,7 +49,7 @@ export function Button(props?: ButtonProps): i32 {
   const variant = props?.variant ?? 'default';
   const size = props?.size ?? 'default';
   const textSize = look().buttonText[size === 'sm' ? 0 : 1];
-  return <Button
+  const h = <Button
     className={`flex-row items-center justify-center transition-colors ${sizeClass(size)} ${surfaceClass(variant, theme())} ${props?.className ?? ''}`}
     type={props?.type ?? 'button'} onClick={() => { const handler = props?.onClick; if (handler !== undefined) handler(); }}>
     <Show when={props?.label !== undefined}>
@@ -57,4 +57,7 @@ export function Button(props?: ButtonProps): i32 {
     </Show>
     {renderSlot(props?.children)}
   </Button>;
+  // a native host's push button when it is only a label (NSButton holds no children)
+  if (props?.label !== undefined && props?.children === undefined) nativeControl(h, 'pushbutton', () => ['title', props?.label ?? '']);
+  return h;
 }

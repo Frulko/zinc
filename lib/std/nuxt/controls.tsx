@@ -8,7 +8,7 @@ import { createNodeRef } from 'zinc:ui/solid';
 import { theme, hex, mix, rounded } from './theme';
 import { buttonSize, buttonIconSize, buttonVariant, contentColor, badgeSize, badgeIconSize, badgeVariant, avatarBox, inputSize, inputHeight, inputVariant,
   choiceText, checkboxBox, switchThumb, radioDot, checkedFill, choiceCard, rgb } from './variants';
-import { renderSlot } from './host';
+import { renderSlot, nativeControl } from './host';
 import { Icon } from 'zinc:icons';
 import { look, toggleFeedback } from '../platform/index';
 
@@ -23,13 +23,16 @@ export function Button(p: ButtonProps): i32 {
   const off = (p.disabled ?? false) || (p.loading ?? false);
   const lead = p.loading === true ? 'loader-circle' : p.icon ?? '';
   const ink = (): i32 => rgb(contentColor(theme(), color, variant));
-  return <View className={`flex-row items-center font-medium transition-colors ${rounded('md')} ${buttonSize(size, square)} ${buttonVariant(theme(), color, variant)} ${p.block === true ? 'w-full justify-center' : ''} ${off ? 'opacity-75' : ''} ${p.className ?? ''}`}
+  const h = <View className={`flex-row items-center font-medium transition-colors ${rounded('md')} ${buttonSize(size, square)} ${buttonVariant(theme(), color, variant)} ${p.block === true ? 'w-full justify-center' : ''} ${off ? 'opacity-75' : ''} ${p.className ?? ''}`}
     onClick={() => { const f = p.onClick; if (!off && f !== undefined) f(); }} role="button" aria-label={p.label ?? lead}>
     <Show when={lead !== ''}><Icon name={lead} size={buttonIconSize(size)} color={ink} /></Show>
     <Show when={p.label !== undefined}><Text className={`text-${hex(contentColor(theme(), color, variant))}`}>{p.label ?? ''}</Text></Show>
     {renderSlot(p.children)}
     <Show when={p.trailingIcon !== undefined}><Icon name={p.trailingIcon ?? ''} size={buttonIconSize(size)} color={ink} /></Show>
   </View>;
+  // a native host's push button when it is only a label
+  if (p.label !== undefined && lead === '' && p.trailingIcon === undefined && p.children === undefined) nativeControl(h, 'pushbutton', () => ['title', p.label ?? '', 'enabled', off ? '0' : '1']);
+  return h;
 }
 
 export type BadgeProps = { label?: string; color?: string; variant?: string; size?: string; icon?: string; className?: string };
@@ -143,6 +146,8 @@ export function Select(p: SelectProps): i32 {
   ui.focusScope(menu.node, { trap: false, restore: true, autoFocus: true });
   ui.onDismiss(menu.node, () => setOpen(false));
   ui.onOutsidePointer(menu.node, (e: ui.PointerEvent) => setOpen(false), trigger.node);
+  // a native host's pop-up button: it opens its own menu
+  nativeControl(trigger.node, 'popup', () => ['items', p.items.join('\n'), 'value', value(), 'placeholder', p.placeholder ?? ''], (v: string) => { const f = p.onUpdate; if (f !== undefined) f(v); });
   return node;
 }
 
@@ -152,8 +157,9 @@ export function Checkbox(p: CheckboxProps): i32 {
   const color = p.color ?? 'primary', size = p.size ?? 'md', box = checkboxBox(size);
   const on = (): boolean => p.modelValue !== undefined && (p.modelValue as () => boolean)();
   const flip = (): void => { const f = p.onUpdate; if (!(p.disabled ?? false) && f !== undefined) f(!on()); };
-  return <View className={`flex-row items-start gap-2 ${p.variant === 'card' ? choiceCard(theme(), color, on(), size) : ''} ${p.disabled === true ? 'opacity-75' : ''} ${p.className ?? ''}`} onClick={flip} role="checkbox" aria-checked={on()}>
-    <View className={`items-center justify-center mt-[2px] w-[${box}px] h-[${box}px] ${rounded('sm')} ${on() ? 'bg-' + hex(checkedFill(theme(), color)) : 'border border-' + hex(theme().borderAccented)}`}>
+  const mark = createNodeRef();
+  const h = <View className={`flex-row items-start gap-2 ${p.variant === 'card' ? choiceCard(theme(), color, on(), size) : ''} ${p.disabled === true ? 'opacity-75' : ''} ${p.className ?? ''}`} onClick={flip} role="checkbox" aria-checked={on()}>
+    <View ref={mark} className={`items-center justify-center mt-[2px] w-[${box}px] h-[${box}px] ${rounded('sm')} ${on() ? 'bg-' + hex(checkedFill(theme(), color)) : 'border border-' + hex(theme().borderAccented)}`}>
       <Show when={on()}><Icon name="check" size={box - 2} color={() => rgb(theme().textInverted)} strokeWidth={3} /></Show>
     </View>
     <View className="flex-col">
@@ -161,6 +167,8 @@ export function Checkbox(p: CheckboxProps): i32 {
       <Show when={p.description !== undefined}><Text className={`${choiceText(size)} text-${hex(theme().textMuted)}`}>{p.description ?? ''}</Text></Show>
     </View>
   </View>;
+  nativeControl(mark.node, 'checkbox', () => ['value', on() ? '1' : '0', 'enabled', p.disabled === true ? '0' : '1'], (v: string) => { const f = p.onUpdate; if (f !== undefined) f(v === '1'); });   // a native host's check box
+  return h;
 }
 
 export type SwitchProps = { modelValue?: () => boolean; onUpdate?: (v: boolean) => void; label?: string; description?: string; color?: string; size?: string; disabled?: boolean; className?: string };
@@ -174,8 +182,9 @@ export function Switch(p: SwitchProps): i32 {
   const k = (o: boolean): number => own ? switchThumb(size) : o ? L.thumbOn : L.thumbOff, w = own ? switchThumb(size) * 2 + 4 : L.switchW, h = own ? switchThumb(size) + 4 : L.switchH;
   const edge = own ? 0 : L.outline, inner = w - 2 * edge, innerH = h - 2 * edge, rtl = ui.isRtl() ? -1 : 1;
   const x = (o: boolean): number => own ? (o ? k(o) * rtl : 0) : rtl * (o ? inner - (innerH - k(o)) / 2 - k(o) : (innerH - k(o)) / 2);
-  return <View className={`flex-row items-center gap-2 ${p.disabled === true ? 'opacity-75' : ''} ${p.className ?? ''}`} onClick={flip} role="switch" aria-checked={on()}>
-    <View className={`flex-row items-center rounded-full ${own ? 'p-[2px]' : edge > 0 ? `border-[${edge}px] border-${hex(on() ? checkedFill(theme(), color) : theme().borderAccented)}` : ''} w-[${w}px] h-[${h}px] transition-colors bg-${hex(on() ? checkedFill(theme(), color) : theme().bgAccented)}`}>
+  const track = createNodeRef();
+  const node = <View className={`flex-row items-center gap-2 ${p.disabled === true ? 'opacity-75' : ''} ${p.className ?? ''}`} onClick={flip} role="switch" aria-checked={on()}>
+    <View ref={track} className={`flex-row items-center rounded-full ${own ? 'p-[2px]' : edge > 0 ? `border-[${edge}px] border-${hex(on() ? checkedFill(theme(), color) : theme().borderAccented)}` : ''} w-[${w}px] h-[${h}px] transition-colors bg-${hex(on() ? checkedFill(theme(), color) : theme().bgAccented)}`}>
       <View className={`rounded-full ${edge > 0 ? '' : 'shadow-lg'} w-[${k(on())}px] h-[${k(on())}px] bg-${hex(edge > 0 && !on() ? theme().textMuted : theme().bg)}`} style={{ translateX: x(on()) }} />
     </View>
     <View className="flex-col">
@@ -183,6 +192,8 @@ export function Switch(p: SwitchProps): i32 {
       <Show when={p.description !== undefined}><Text className={`${choiceText(size)} text-${hex(theme().textMuted)}`}>{p.description ?? ''}</Text></Show>
     </View>
   </View>;
+  nativeControl(track.node, 'switch', () => ['value', on() ? '1' : '0', 'enabled', p.disabled === true ? '0' : '1'], (v: string) => { const f = p.onUpdate; if (f !== undefined) f(v === '1'); });   // a native host's switch
+  return node;
 }
 
 export type RadioGroupProps = { items: string[]; modelValue?: () => string; onUpdate?: (v: string) => void; legend?: string; color?: string; size?: string; variant?: string; orientation?: string; disabled?: boolean; className?: string };
