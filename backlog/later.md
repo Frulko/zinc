@@ -619,6 +619,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1073: under the AppKit host, measure native controls with the macOS look or the control's `fittingSize` (the neutral look gives 36 px buttons where macOS gives 24 px).
 - ZN-1073: zinc:system `dialog.message` still uses NSAlert `runModal`, which stops SDL's event pump and the frames; run it as a sheet like `appkit.alert()`. A transient popover closes when an alert sheet opens on its window (AppKit behaviour): document it.
 - ZN-1075: generate the TypeScript side of a plugin view from the spec too (attributes from typed props, event decoding), and let the view give its intrinsic size (a measure in ZnViewClass); UIKit glue for `--views` with the UIKit host (ZN-1076).
+- ZN-364.01: `animate()` translate and opacity on the compositor, as class transitions now are; colour bindings, loops beyond one and per-frame listeners (RN's onAnimatedValueUpdate) played natively.
+- ZN-364.01: feed `ui.alarm` deadlines to gfxIdleDue (an unbound native value in an idle window may end up to 100 ms late); exact opacity rounding when translucent layers nest (1/255).
+- ZN-364.01: the frame trace hook `zn_frame_trace` has no installer.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

@@ -1563,3 +1563,8 @@ Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` 
 
 - Save to frame: 1174-1194 ms → 643-721 ms (three saves each, back to back). One recompile (`ZN_HOT_RECOMPILE`): optimise 181 → ~77 ms (inline copies only inlinable callees, per-function passes threaded), reference counting 121 → 43 ms (threaded), bake 137 → 3.5 ms (keyed on each file's scan), read and parse ~205 → 61-70 ms (parses, icon/class scans and JSX lowering kept for unchanged files, plugins found once per compile), `ir::verify` threaded ~15-20 ms.
 - Now per save (118 files, 2733 functions): parse 79, check 107, lower 112, optimise 111, rc 60, emit 104, bake 3 ms. Under 200 ms needs incremental check and lowering per module (~250 ms).
+
+## 2026-11-09 — ZN-364.01, Animated native driver and class transitions on the compositor (headless, indicative)
+
+- `tests/t1/busy_native.sh` (program busy-waits 1 s): longest screen gap 28 ms with 54 compositor ticks on the native driver, against 1000 ms when the program drives the animation.
+- Frames painted by the program: animated-native golden 8 with the compositor vs 45 without; transition-slots golden 4 vs 28 (framehash identical with the compositor on and off).
