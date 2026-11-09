@@ -117,6 +117,7 @@ whatever its size and with no `maxBytes`: a 200 replaces the file, a 206 (you as
 ```ts
 import { MqttClient } from 'zinc:mqtt';           // MQTT 3.1.1, QoS 0
 const c = new MqttClient('broker', 1883, 'client-id');
+c.connectTimeoutMs = 5000;                         // connect() rejects when the broker has not answered by then (30 s by default)
 c.connect().then(() => c.publish('sensors/hub', '{"t":21.4}'));
 c.subscribe('cmd/#', (topic, payload) => console.log(topic, payload));
 

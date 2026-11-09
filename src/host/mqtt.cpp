@@ -17,19 +17,34 @@ namespace {
 
 constexpr size_t kBrokerPacketLimit = 1u << 20;   // a longer packet from the broker ends the connection (plaintext TCP, untrusted lengths)
 
+// One client's lifecycle, changed only by to(): the TCP connect, the TLS handshake (secure only), CONNECT sent and its CONNACK awaited, then
+// connected; dead after a failure or close, from any phase. The connect deadline covers every phase before Connected (ZN-610).
+enum class Phase : uint8_t { Connecting, Securing, Greeting, Connected, Dead };
+
 struct Client {
   uv_tcp_t tcp;
   uv_connect_t connectReq;
-  uv_timer_t ping;
+  uv_timer_t ping;   // the connect deadline until the CONNACK, then the keepalive's PINGREQ
   std::string in;
   int handle = 0;
   uint16_t nextId = 1;
   int log = 0;   // the entry of the network log (netlog.h), 0 when nobody records
-  bool connected = false, dead = false;
+  Phase phase = Phase::Connecting;
   tls::Conn* tls = nullptr;   // a TLS connection: bytes go through it once the handshake is done (`pending` waits)
   std::string pending, hello;
 };
 std::vector<Client*> gClients;   // index = handle - 1; entries live until the process ends (handles are never reused)
+
+bool to(Client* c, Phase next) {   // false (and nothing changed) for a transition the lifecycle does not have
+  const Phase p = c->phase;
+  const bool ok = next == Phase::Dead       ? p != Phase::Dead
+                  : next == Phase::Securing ? p == Phase::Connecting
+                  : next == Phase::Greeting ? p == Phase::Connecting || p == Phase::Securing
+                                            : next == Phase::Connected && p == Phase::Greeting;
+  if (ok) c->phase = next;
+  return ok;
+}
+bool dead(const Client* c) { return c->phase == Phase::Dead; }
 
 Client* at(int h) { return h > 0 && static_cast<size_t>(h) <= gClients.size() ? gClients[static_cast<size_t>(h) - 1] : nullptr; }
 void onClosed(uv_handle_t* h) { (void)h; }
@@ -48,13 +63,13 @@ std::string packet(uint8_t type, const std::string& body) {
 
 struct WriteReq { uv_write_t req; std::string data; };
 void rawSend(Client* c, const std::string& bytes) {
-  if (c->dead || bytes.empty()) return;
+  if (dead(c) || bytes.empty()) return;
   auto* w = new WriteReq{{}, bytes};
   uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
   if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&c->tcp), &b, 1, [](uv_write_t* r, int) { delete reinterpret_cast<WriteReq*>(r); }) != 0) delete w;
 }
 void send(Client* c, const std::string& bytes) {
-  if (c->dead) return;
+  if (dead(c)) return;
   if (!c->tls) { rawSend(c, bytes); return; }
   if (tls::step(c->tls) != tls::State::Ready) { c->pending += bytes; return; }
   tls::write(c->tls, bytes);
@@ -62,15 +77,15 @@ void send(Client* c, const std::string& bytes) {
 }
 
 void shut(Client* c) {   // closes both handles once
-  if (c->dead) return;
-  c->dead = true;
+  if (!to(c, Phase::Dead)) return;
   if (c->tls) { tls::destroy(c->tls); c->tls = nullptr; }
   uv_close(reinterpret_cast<uv_handle_t*>(&c->ping), onClosed);
   uv_close(reinterpret_cast<uv_handle_t*>(&c->tcp), onClosed);
   loop::addActive(-1);
 }
-void fail(Client* c, const char* why) {
-  bool wasConnected = c->connected;
+void fail(Client* c, const char* why) {   // once: after a close or the deadline, a cancelled connect or read reports nothing more
+  if (dead(c)) return;
+  const bool wasConnected = c->phase == Phase::Connected;
   shut(c);
   netlog::close(c->log, why);
   loop::pushEvent(c->handle, wasConnected ? 32 : 30, why);
@@ -89,7 +104,9 @@ bool parse(Client* c) {
   const uint8_t* p = reinterpret_cast<const uint8_t*>(in.data()) + i + 1;
   if ((type & 0xF0) == 0x20 && len >= 2) {   // CONNACK
     if (p[1] != 0) { fail(c, "mqtt: connection refused"); return false; }
-    c->connected = true;
+    if (!to(c, Phase::Connected)) { fail(c, "mqtt: unexpected CONNACK"); return false; }
+    uv_timer_start(&c->ping, [](uv_timer_t* t) { send(static_cast<Client*>(t->data), std::string("\xC0\0", 2)); }, 30000, 30000);   // ends the deadline
+    uv_unref(reinterpret_cast<uv_handle_t*>(&c->ping));
     netlog::accepted(c->log, "CONNACK");
     loop::pushEvent(c->handle, 30, "");
   } else if ((type & 0xF0) == 0x30 && len >= 2) {   // PUBLISH
@@ -108,7 +125,7 @@ bool parse(Client* c) {
 
 }  // namespace
 
-int open(const std::string& host, int port, const std::string& clientId, bool secure) {
+int open(const std::string& host, int port, const std::string& clientId, bool secure, int timeoutMs) {
   sockaddr_in a;
   if (!loop::resolveHost(host, port, &a)) return -1;
   auto* c = new Client();
@@ -121,6 +138,11 @@ int open(const std::string& host, int port, const std::string& clientId, bool se
   uv_timer_init(l, &c->ping);
   c->tcp.data = c->ping.data = c->connectReq.data = c;
   loop::addActive(1);
+  if (timeoutMs > 0)   // ponytail: one deadline for TCP, TLS and the CONNACK, as curl's CURLOPT_CONNECTTIMEOUT, not one per phase
+    uv_timer_start(&c->ping, [](uv_timer_t* t) {
+      auto* k = static_cast<Client*>(t->data);
+      fail(k, k->phase == Phase::Connecting ? "mqtt: connect timed out" : k->phase == Phase::Securing ? "mqtt: TLS handshake timed out" : "mqtt: no CONNACK from the broker");
+    }, static_cast<uint64_t>(timeoutMs), 0);
   std::string hello;
   str16(hello, "MQTT");
   hello += std::string("\x04\x02\0\x3c", 4);   // level 4, clean session, keepalive 60 s
@@ -130,31 +152,30 @@ int open(const std::string& host, int port, const std::string& clientId, bool se
     auto* k = static_cast<Client*>(r->data);
     if (status != 0) { fail(k, "mqtt: cannot connect"); return; }
     netlog::mark(k->log, netlog::Connect);
+    to(k, k->tls ? Phase::Securing : Phase::Greeting);
     uv_read_start(reinterpret_cast<uv_stream_t*>(&k->tcp),
                   [](uv_handle_t*, size_t n, uv_buf_t* b) { b->base = static_cast<char*>(std::malloc(n)); b->len = static_cast<unsigned>(b->base ? n : 0); },
                   [](uv_stream_t* s, ssize_t n, const uv_buf_t* b) {
                     auto* k = static_cast<Client*>(s->data);
-                    if (n > 0 && !k->dead && k->tls) {
+                    if (n > 0 && !dead(k) && k->tls) {
                       tls::feed(k->tls, b->base, static_cast<size_t>(n));
                       tls::State st = tls::step(k->tls);
                       rawSend(k, tls::takeOutput(k->tls));
                       if (st == tls::State::Failed) { fail(k, "mqtt: TLS handshake failed"); }
                       else if (st == tls::State::Ready) {
-                        netlog::mark(k->log, netlog::Tls);
+                        if (to(k, Phase::Greeting)) netlog::mark(k->log, netlog::Tls);
                         if (!k->pending.empty()) { std::string p; p.swap(k->pending); send(k, p); }
                         std::string plain;
                         tls::State rs = tls::read(k->tls, plain);
                         rawSend(k, tls::takeOutput(k->tls));
                         k->in += plain;
-                        while (!k->dead && parse(k)) {}
-                        if (rs != tls::State::Ready && !k->dead) fail(k, k->connected ? "mqtt: closed by broker" : "mqtt: cannot connect");
+                        while (!dead(k) && parse(k)) {}
+                        if (rs != tls::State::Ready && !dead(k)) fail(k, k->phase == Phase::Connected ? "mqtt: closed by broker" : "mqtt: cannot connect");
                       }
-                    } else if (n > 0 && !k->dead) { k->in.append(b->base, static_cast<size_t>(n)); while (!k->dead && parse(k)) {} }
+                    } else if (n > 0 && !dead(k)) { k->in.append(b->base, static_cast<size_t>(n)); while (!dead(k) && parse(k)) {} }
                     if (b->base) std::free(b->base);
-                    if (n < 0) fail(k, k->connected ? "mqtt: closed by broker" : "mqtt: cannot connect");
+                    if (n < 0) fail(k, k->phase == Phase::Connected ? "mqtt: closed by broker" : "mqtt: cannot connect");
                   });
-    uv_timer_start(&k->ping, [](uv_timer_t* t) { send(static_cast<Client*>(t->data), std::string("\xC0\0", 2)); }, 30000, 30000);
-    uv_unref(reinterpret_cast<uv_handle_t*>(&k->ping));
     if (k->tls) { tls::step(k->tls); rawSend(k, tls::takeOutput(k->tls)); }   // the ClientHello
   });
   if (rc != 0) { fail(c, "mqtt: cannot connect"); return c->handle; }
@@ -169,7 +190,7 @@ int open(const std::string& host, int port, const std::string& clientId, bool se
 
 void publish(int h, const std::string& topic, const std::string& payload, bool retain, int qos) {
   Client* c = at(h);
-  if (!c || c->dead || !c->connected) return;
+  if (!c || c->phase != Phase::Connected) return;
   std::string b;
   str16(b, topic);
   if (qos == 1) { b += static_cast<char>(c->nextId >> 8); b += static_cast<char>(c->nextId & 255); c->nextId++; }
@@ -178,7 +199,7 @@ void publish(int h, const std::string& topic, const std::string& payload, bool r
 }
 void subscribe(int h, const std::string& filter) {
   Client* c = at(h);
-  if (!c || c->dead) return;
+  if (!c || dead(c)) return;
   std::string b;
   b += static_cast<char>(c->nextId >> 8);
   b += static_cast<char>(c->nextId & 255);
@@ -190,7 +211,7 @@ void subscribe(int h, const std::string& filter) {
 }
 void close(int h) {
   Client* c = at(h);
-  if (!c || c->dead) return;
+  if (!c || dead(c)) return;
   send(c, std::string("\xE0\0", 2));
   netlog::close(c->log);
   uv_shutdown_t* sd = new uv_shutdown_t;   // let the DISCONNECT out before the socket closes

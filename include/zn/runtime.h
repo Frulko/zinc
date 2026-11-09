@@ -433,7 +433,9 @@
   X(HostFsBytes, "host.fsBytes", ">B", 2) X(HostSysUtf8Bytes, "host.sysUtf8Bytes", "s>B", 2) X(HostSysRandomBytes, "host.sysRandomBytes", "i>B", 2) \
   X(HostFsWriteAt, "host.fsWriteAt", "sBd>n", 2) X(HostHttpReplyBytes, "host.httpReplyBytes", "iisB>n", 2) \
   /* zinc:hash sha256File (ZN-698): the digest (sha-256, sha-1, sha-384, sha-512, md5) of a file read in 64 KiB blocks, never whole; system row, appended */ \
-  X(HostHashFile, "host.hashFile", "ss>B", 2)
+  X(HostHashFile, "host.hashFile", "ss>B", 2) \
+  /* zinc:mqtt connect (ZN-610): host, port, client id, secure, the connect deadline in ms (TCP, TLS and the CONNACK; 0 none); system row, appended */ \
+  X(HostMqttConnect, "host.mqttConnect", "sisii>i", 2)
 
 namespace zn {
 
@@ -475,7 +477,8 @@ inline constexpr bool isSysTailRow(Rt r) {
          r == Rt::HostCrypto || r == Rt::HostCryptoError ||   // zinc:subtle
          (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostSysBytesToString || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes || (r >= Rt::HostHttpOption && r <= Rt::HostHttpSetCert) || r == Rt::HostHttpFetchFile || r == Rt::HostHttpSaveTo ||   // zinc:net, its server too
          r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes || r == Rt::HostResourceStats || (r >= Rt::HostEvPayloadBytes && r <= Rt::HostHttpBodyBytes) ||
-         (r >= Rt::HostFsBytes && r <= Rt::HostHttpReplyBytes) || r == Rt::HostHashFile;   // bulk bytes (ZN-1019), zinc:hash (ZN-698)
+         (r >= Rt::HostFsBytes && r <= Rt::HostHttpReplyBytes) || r == Rt::HostHashFile ||   // bulk bytes (ZN-1019), zinc:hash (ZN-698)
+         (r >= Rt::HostMqttOpen && r <= Rt::HostMqttClose) || r == Rt::HostMqttOpenTls || r == Rt::HostMqttConnect;   // zinc:mqtt (ZN-610)
 }
 // The host calls before which every engine writes what the program printed (ZN-638, ZN-643): a turn of the event loop begins or the loop waits,
 // a child starts (it may write to the same terminal or file), or the program waits on the outside (stdin, a blocking write to a child's stdin).

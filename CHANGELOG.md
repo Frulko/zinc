@@ -152,6 +152,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `fs.writeBytesAt(path, bytes, offset)` writes bytes in place inside a file (made when missing, never cut), and a `zinc:net` reply can carry its body as bytes with `bytes: u8[]`, so a picture made in memory is served without a temporary file.
 - `zinc:hash` gives `sha256(bytes)` and `sha256File(path)` at native speed on every engine, with `toHex` to print a digest as `sha256sum` does; a file is read in blocks, so a 100 MB file is hashed in a third of a second without being loaded.
 - The methods of an object seen through an `any` work as in TypeScript: `typeof d.greet` is `'function'`, `console.log(d.greet)` prints `[Function: greet]`, and `d.greet()` or `d.add(2, 3)` calls it; calling a missing one throws a `TypeError`.
+- `MqttClient` no longer waits forever on a broker that does not answer: `connect()` rejects after `connectTimeoutMs` (30 s by default, 0 for none) and says whether the connection, the TLS handshake or the broker's CONNACK was missing.
 
 #### Faster
 
@@ -176,6 +177,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - On `--engine quickjs`, typed numbers compute as on the Zinc engines: `i32` and `u32` arithmetic wraps, a `u8` or `i16` wraps when stored, `f32` rounds, and a division stored in an `i32` truncates (`z = 7 / 2` is 3).
 - A value of a record or interface type used where a wider record type is expected (`const r: Named = hasName`) stays the same object, as in TypeScript: a write through either name, an added optional field included, is seen through the other instead of going to a copy.
+- `zinc:mqtt` works on `--engine quickjs`: connecting, subscribing, publishing and closing were missing there.
 
 ### Developer tools
 

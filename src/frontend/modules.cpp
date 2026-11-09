@@ -1150,6 +1150,8 @@ export class MqttClient {
   onConnect: (() => void) | null = null;
   onFail: ((e: Error) => void) | null = null;
   secure: boolean;
+  /** The TCP connect, the TLS handshake and the broker's CONNACK must be done within it, or connect() rejects with why (0: no deadline). */
+  connectTimeoutMs: i32 = 30000;
   /** secure: MQTT over TLS (port 8883 usually), the broker's certificate verified. */
   constructor(host: string, port: i32, clientId: string, secure: boolean = false) { this.host = host; this.port = port; this.clientId = clientId; this.secure = secure; }
   connect(): Promise<void> {
@@ -1172,7 +1174,7 @@ export class MqttClient {
     return new Promise<void>((resolve, reject) => {
       this.onConnect = () => resolve();
       this.onFail = (e: Error) => reject(e);
-      this.handle = this.secure ? __host_mqttOpenTls(this.host, this.port, this.clientId, 1) : __host_mqttOpen(this.host, this.port, this.clientId);
+      this.handle = __host_mqttConnect(this.host, this.port, this.clientId, this.secure ? 1 : 0, this.connectTimeoutMs);
       if (this.handle < 0) { reject(new Error('mqtt: ' + (this.handle === -2 ? __host_sockError() : 'cannot connect'))); return; }
       __mqttClients.push(this);
     });

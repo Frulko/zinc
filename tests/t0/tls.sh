@@ -19,19 +19,25 @@ run() { ZINC_CA_FILE="$tmp/$1.pem" timeout 30 "$ZINC" run tests/golden/host/tls.
 { run ca good; run ca other; run ca old; run stranger good; } > "$tmp/out"
 diff -u tests/golden/host/tls.out "$tmp/out" || { echo "https output differs"; exit 1; }
 
-# MQTT over TLS against the python broker (skips when python3 is missing)
-if command -v python3 >/dev/null 2>&1; then
-  python3 tests/mqtt_broker.py 18832 "$tmp/good.pem" "$tmp/good.key" >/dev/null 2>&1 & bpid=$!
-  sleep 1
-  out=$(ZINC_CA_FILE="$tmp/ca.pem" timeout 30 "$ZINC" run tests/golden/host/mqtt_tls.ts -- 18832 2>&1)
-  kill "$bpid" 2>/dev/null; wait "$bpid" 2>/dev/null
-  [ "$out" = "[ 'secure/a=hello over tls' ]" ] || { echo "mqtt over TLS: $out"; exit 1; }
-fi
-
 # wss:// in zinc:socket against a node echo server over TLS 1.2 and 1.3 (1.3 sends its session tickets close to the first reply, ZN-762): the test CA
-# trusted, then a CA the client does not trust (skips without node)
+# trusted, then a CA the client does not trust; MQTT over TLS against a node broker at each version (ZN-610) (skips without node)
 if command -v node >/dev/null 2>&1; then
+  # a broker that accepts and never answers: the TLS handshake cannot complete, connect() rejects within its 1 s deadline (ZN-610)
+  port=$(python3 tests/free_ports.py 2>/dev/null || echo 18831)
+  timeout 60 node tests/mqtt_tls_broker.mjs "$port" "$tmp/good.pem" "$tmp/good.key" TLSv1.3 mute > "$tmp/mute.log" 2>&1 & bpid=$!
+  for _ in $(seq 30); do grep -q ready "$tmp/mute.log" 2>/dev/null && break; sleep 0.3; done
+  t0=$(date +%s)
+  out=$(ZINC_CA_FILE="$tmp/ca.pem" timeout 10 "$ZINC" run tests/golden/host/mqtt_stall.ts -- "$port" 2>&1)
+  t1=$(date +%s)
+  kill "$bpid" 2>/dev/null; wait "$bpid" 2>/dev/null
+  [ "$out" = "mqtt: TLS handshake timed out" ] && [ $((t1 - t0)) -le 5 ] || { echo "stalled mqtt handshake ($((t1 - t0)) s): $out"; exit 1; }
   for v in TLSv1.2 TLSv1.3; do
+    port=$(python3 tests/free_ports.py 2>/dev/null || echo 18832)
+    timeout 60 node tests/mqtt_tls_broker.mjs "$port" "$tmp/good.pem" "$tmp/good.key" "$v" > "$tmp/mqtt.log" 2>&1 & bpid=$!
+    for _ in $(seq 30); do grep -q ready "$tmp/mqtt.log" 2>/dev/null && break; sleep 0.3; done
+    out=$(ZINC_CA_FILE="$tmp/ca.pem" timeout 30 "$ZINC" run tests/golden/host/mqtt_tls.ts -- "$port" 2>&1)
+    kill "$bpid" 2>/dev/null; wait "$bpid" 2>/dev/null
+    [ "$out" = "[ 'secure/a=hello over tls' ]" ] || { echo "mqtt over $v: $out"; exit 1; }
     port=$(python3 tests/free_ports.py 2>/dev/null || echo 18853)
     node tests/wss_echo.mjs "$port" "$tmp/good.pem" "$tmp/good.key" "$v" > "$tmp/wss.log" 2>&1 & wpid=$!
     for _ in $(seq 30); do grep -q ready "$tmp/wss.log" 2>/dev/null && break; sleep 0.3; done

@@ -192,6 +192,8 @@ declare module 'zinc:mqtt' {
   export class MqttClient {
     /** secure: MQTT over TLS, the broker's certificate verified against the system roots (Zinc Next). */
     constructor(host: string, port: i32, clientId: string, secure?: boolean);
+    /** The TCP connect, the TLS handshake and the broker's CONNACK must be done within it, or connect() rejects with why (default 30000; 0: no deadline). */
+    connectTimeoutMs: i32;
     connect(): Promise<void>;
     publish(topic: string, payload: string): void;
     subscribe(topic: string, cb: (topic: string, payload: string) => void): void;
