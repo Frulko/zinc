@@ -113,6 +113,17 @@ than the line (a path, a URL) where it stops fitting. Otherwise plain wrapping o
 a text shadow is not drawn under runs. A face is only there if the program bakes it: `RUN_MONO` needs a `font-mono` somewhere in the
 program. `setTextRuns(h, [])` removes them.
 
+`ui.textOffsetAt(h, x, y)` returns the source UTF-16 offset of the displayed glyph cell under a point, or `-1` for
+padding, empty or hidden text, an invalid handle, or a generated ellipsis. Pass the text node's own `PointerEvent.x/y`;
+these are already local through scrolling and transforms. Glyph cells use the line height and measured character advances
+(including spaces), not an ink-pixel mask. Styled runs use their actual faces and original source line starts; wrapping
+skips whitespace without renumbering the source. A surrogate pair returns its first code unit. Case-expanded characters
+still name their source character. A recycled handle refers to its current occupant; keep `nodeSerial(h)` when retaining
+an identity. This API does not change static selection's displayed-line insertion-caret offsets.
+
+Inline links keep exact `[start, end)` source ranges and check the hit on both pointer down and up, cancelling on drag or
+pointer cancellation. Keyboard link navigation belongs to the component; no second list of destination buttons is needed.
+
 ## Pictures in a text
 
 An `<Image>` inside a `<Text>` sits in its lines, as React Native's inline images do: it takes its own width and height (`w-[20] h-[20]`,

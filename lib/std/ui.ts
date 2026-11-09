@@ -545,6 +545,7 @@ export class UiNode {
   leaving: boolean = false;            // removed while a LayoutAnimation runs: painted where it was, fading out, then released            // what the rn layout engine was last told about this node (ZN-286)
   wk: WrapKey | null = null;          // what the text lines were computed from (wrapText)
   runs: i32[] | null = null;          // style runs inside the text (setTextRuns): [length, style, color...]
+  lineEllipsis: i32[] | null = null;  // lines whose last glyph was synthesized by ellipsize
   lineAt: i32[] | null = null;        // with runs: where each line starts in the text
   hs: Handlers | null = null;
   ed: Edit | null = null;
@@ -3642,6 +3643,7 @@ function wrapText(n: UiNode, maxW: number): void {
   n.lines = [];
   n.lineW = [];
   n.lineAt = null;
+  n.lineEllipsis = null;
   if (runsOn(n)) { wrapRuns(n, avail); return; }
   const text = shownText(n);
   let lines: string[] = [];
@@ -3669,9 +3671,14 @@ function wrapText(n: UiNode, maxW: number): void {
     }
     if (n.clamp > 0 && lines.length > n.clamp) {
       lines = lines.slice(0, n.clamp);
+      n.lineEllipsis = [n.clamp - 1];
       lines[n.clamp - 1] = ellipsize(n, f, tr, lines[n.clamp - 1], avail);
     } else if (n.ellipsis && (n.ws === 1 || n.ws === 2 || n.clamp === 1)) {
-      for (let i = 0; i < lines.length; i++) if (lineWidth(n, f, lines[i], tr) > avail && avail > n.size) lines[i] = ellipsize(n, f, tr, lines[i], avail);
+      for (let i = 0; i < lines.length; i++) if (lineWidth(n, f, lines[i], tr) > avail && avail > n.size) {
+        if (n.lineEllipsis === null) n.lineEllipsis = [];
+        (n.lineEllipsis as i32[]).push(i);
+        lines[i] = ellipsize(n, f, tr, lines[i], avail);
+      }
     }
   }
   for (const l of lines) { n.lines.push(l); n.lineW.push(lineWidth(n, f, l, tr)); }
@@ -6569,6 +6576,63 @@ function tsPosAt(n: UiNode, lx: number, ly: number): i32 {
     prev = w; col = c;
   }
   return tsStart(n, line) + col;
+}
+/** The source UTF-16 offset of the glyph cell at node-local (x, y), or -1 outside visible text. A space has its measured advance;
+ *  skipped wrap whitespace, padding and a generated ellipsis have no hit. Selection keeps its separate insertion-caret units. */
+export function textOffsetAt(h: i32, x: number, y: number): i32 {
+  if (h < 0 || h >= nodes.length || !shownNow(h)) return -1;
+  const n = nodes[h];
+  if (n.tag !== TEXT) return -1;
+  for (let p = h; p >= 0; p = nodes[p].parent) {
+    const a = nodes[p];
+    if (a.invisible || a.opacity <= 0 || a.fade <= 0) return -1;
+  }
+  if (layoutDirty) layout();
+  if (!(x >= 0 && y >= 0 && x < n.lw && y < n.lh)) return -1;
+  boxOf(h);
+  const gx = boxX + x * boxK, gy = boxY + y * boxK;
+  for (let p = n.parent; p >= 0; p = nodes[p].parent) if (nodes[p].overflow && nodes[p].tag !== FRAGMENT) {
+    boxOf(p);
+    if (gx < boxX || gy < boxY || gx >= boxX + nodes[p].lw * boxK || gy >= boxY + nodes[p].lh * boxK) return -1;
+  }
+  const lh = lineHeightOf(n), line: i32 = Math.floor((y - inT(n)) / lh);
+  if (line < 0 || line >= n.lines.length) return -1;
+  const t = n.lines[line], free = n.lw - inL(n) - inR(n) - n.lineW[line];
+  const px = x - inL(n) - (talignOf(n) === 1 ? Math.floor(free / 2) : talignOf(n) === 2 ? free : 0);
+  if (px < 0) return -1;
+  const jx = n.lineAt === null && n.talign === 3 && line < n.lines.length - 1 && spaces(t) > 0 ? free / spaces(t) : 0;
+  let col: i32 = -1;
+  for (let c = 0; c < t.length;) {
+    const end = charRight(t, c);
+    const w = linePrefixW(n, line, end) + (n.lineAt === null ? (n.wordSp + jx) * spaces(t.slice(0, end)) : 0);
+    if (px < w) { col = c; break; }
+    c = end;
+  }
+  if (col < 0 || (n.lineEllipsis !== null && (n.lineEllipsis as i32[]).includes(line) && col === t.length - 1)) return -1;
+  if (n.lineAt !== null) return (n.lineAt as i32[])[line] + col;
+  const src = shownText(n);
+  let start: i32 = 0;
+  for (let i = 0; i <= line; i++) {
+    let part = n.lines[i];
+    if (n.lineEllipsis !== null && (n.lineEllipsis as i32[]).includes(i)) part = part.slice(0, part.length - 1);
+    const at = src.indexOf(part, start);
+    if (at < 0) return -1;
+    if (i === line) { start = at + col; break; }
+    start = at + part.length;
+    if (n.lineEllipsis !== null && (n.lineEllipsis as i32[]).includes(i)) {
+      const nl = src.indexOf('\n', start); if (nl >= 0) start = nl + 1;
+    }
+  }
+  if (n.transform === 0) return start;
+  // Case conversion can expand one source character (ß -> SS); both displayed cells still name that source character.
+  let at: i32 = 0, wordStart = true;
+  for (let c = 0; c < n.text.length;) {
+    const end = charRight(n.text, c);
+    const part = n.text.slice(c, end), shown = n.transform === 1 || (n.transform === 3 && wordStart) ? part.toUpperCase() : n.transform === 2 ? part.toLowerCase() : part;
+    if (start < at + shown.length) return c;
+    at += shown.length; wordStart = part === ' ' || part === '\n'; c = end;
+  }
+  return -1;
 }
 let tsS: i32 = 0, tsE: i32 = 0;
 /** The selectable text nodes in document order (the unit a selection runs over, as a browser's text nodes). */

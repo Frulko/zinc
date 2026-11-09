@@ -317,12 +317,18 @@ declare module 'zinc:ui' {
       opx: number;
       opy: number;
   }
+  enum NodePhase {
+      Alive = 0,
+      Releasing = 1,
+      Released = 2
+  }
   export class UiNode {
       tag: i32;
       parent: i32;
       children: i32[];
       text: string;
-      alive: boolean;
+      phase: NodePhase;
+      get alive(): boolean;
       row: boolean;
       wrap: boolean;
       justify: i32;
@@ -478,6 +484,7 @@ declare module 'zinc:ui' {
       lw: number;
       lh: number;
       onClick: (() => void) | null;
+      onDestroy: (() => void) | null;
       onDraw: ((x: i32, y: i32, w: i32, h: i32) => void) | null;
       k: number;
       tf: TransformX | null;
@@ -497,6 +504,7 @@ declare module 'zinc:ui' {
       leaving: boolean;
       wk: WrapKey | null;
       runs: i32[] | null;
+      lineEllipsis: i32[] | null;
       lineAt: i32[] | null;
       hs: Handlers | null;
       ed: Edit | null;
@@ -632,12 +640,14 @@ declare module 'zinc:ui' {
   /** Empties a node's child list without destroying the children (the React reconciler re-appends them). */
   export function detachChildren(h: i32): void;
   export function destroy(h: i32): void;
+  /** Renderer-owned logical resources follow this node's lifetime, including imperative layers. */
+  export function onDestroy(h: i32, cleanup: () => void): void;
   export function listen(h: i32, f: () => void): void;
   export function draw(h: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void;
   /** Scroll offset of a scroll container (pixels from the top / left). */
   export function scrollTop(h: i32): number;
   export function scrollLeft(h: i32): number;
-  /** Scrolls to an offset, clamped after current layout; requests before mounting or while hidden wait for bounds. `animated` uses the scroll spring. */
+  /** Scrolls to an offset, clamped after current layout; a request before mounting or while hidden waits for its bounds. */
   export function scrollTo(h: i32, x: number, y: number, animated?: boolean): void;
   /** Moves a container's offset by (dx, dy) without stopping a scroll in progress (fingers, momentum, inertia, wheel easing): content inserted
    *  above what is shown keeps its place on screen while the user scrolls through it. At rest it is scrollTo. */
@@ -652,6 +662,8 @@ declare module 'zinc:ui' {
    * function rebuilds the visible rows.
    */
   export function virtualize(h: i32, count: i32, itemH: number, render: (i: i32) => i32, drop: ((row: i32) => void) | null): void;
+  /** Renderer ownership: forget a recycled row slot without touching its new occupant; layout builds a fresh row. */
+  export function invalidateVirtualRow(h: i32, row: i32, serial: i32): void;
   /** k rows were added above row 0 of virtual list h (older messages loaded above a chat's history): the rows shown keep their place on screen, as
    *  FlatList's maintainVisibleContentPosition and CSS scroll anchoring keep them, and the heights measured so far stay with their rows. Call it when
    *  the data changes, before the list renders with its new count (rows are by index: the list cannot tell an insertion above from rows added below). */
@@ -1011,6 +1023,9 @@ declare module 'zinc:ui' {
   /** Gives the keyboard focus to a node (-1: none). A text field starts the text input. A disabled node keeps it away, as the DOM's focus(). */
   export function focusNode(h: i32): void;
   export function focused(): i32;
+  /** The source UTF-16 offset of the glyph cell at node-local (x, y), or -1 outside visible text. A space has its measured advance;
+   *  skipped wrap whitespace, padding and a generated ellipsis have no hit. Selection keeps its separate insertion-caret units. */
+  export function textOffsetAt(h: i32, x: number, y: number): i32;
   /** The selected text of a static node, for tests and for programs that copy it. */
   export function selectedStaticText(): string;
   /** The selection handles on the surface: [startX, startBottom, endX, endBottom] ([] without a touch selection). */
