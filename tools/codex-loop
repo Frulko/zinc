@@ -4,7 +4,7 @@
 # tree, under the lock). One fresh `codex exec` per step, so no context grows ("Fresh contexts" in AGENTS.md). Stops when `.paused`
 # exists or nothing is left. Only one coordinator at a time: stop the Claude Code /loop before starting this.
 # Environment: ZN_LANES (default 2: two building trees, AGENTS.md "Spare the machine"), ZN_CODEX_SANDBOX (default danger-full-access:
-# workspace-write keeps .git read-only, so nothing could commit), ZN_WORKER_TIMEOUT (default 3h), ZN_CODEX_MODEL (default gpt-6-astra, Fast tier).
+# workspace-write keeps .git read-only, so nothing could commit), ZN_WORKER_TIMEOUT (default 3h), ZN_CODEX_MODEL (optional; configured model, Fast tier).
 set -u
 cd "$(dirname "$0")/.." || exit 2
 ROOT=$PWD
@@ -13,8 +13,9 @@ LANES=${1:-${ZN_LANES:-2}}
 SANDBOX=${ZN_CODEX_SANDBOX:-danger-full-access}
 codex_run() {   # codex_run <timeout> <dir> <last-message file> <prompt>
   local t=$1; shift
-  local args=(exec -C "$1" -s "$SANDBOX" -o "$2" -m "${ZN_CODEX_MODEL:-gpt-6-astra}" -c service_tier=fast -c features.fast_mode=true -c sandbox_workspace_write.network_access=true
+  local args=(exec -C "$1" -s "$SANDBOX" -o "$2" -c service_tier=fast -c features.fast_mode=true -c sandbox_workspace_write.network_access=true
               --add-dir "$HOME/.zinc" --add-dir "$HOME/Library/Caches/ccache" --add-dir "$ROOT")   # $ROOT: a worktree commits into the main .git
+  [ -n "${ZN_CODEX_MODEL:-}" ] && args+=(-m "$ZN_CODEX_MODEL")
   timeout "$t" codex "${args[@]}" "$3"
 }
 lock() { until mkdir "$LOG/lock" 2>/dev/null; do sleep 5; done; }

@@ -3,13 +3,14 @@
 # (the zn-coordinate skill) and runs each worker as one of its own sub-agents, in its own worktree under .worktrees/; `codex agents`
 # in another terminal browses the workers' sessions. tools/codex-loop is the headless variant. One coordinator at a time.
 # Environment: ZN_CODEX_SANDBOX (default danger-full-access: workspace-write keeps .git read-only),
-# ZN_CODEX_MODEL (default gpt-6-astra). Fast tier for the owner-requested backlog work.
+# ZN_CODEX_MODEL (optional, otherwise the configured Codex model). Fast tier for backlog work.
 set -u
 cd "$(dirname "$0")/.." || exit 2
 [ -f .paused ] && { echo "codex-live: .paused exists, remove it first (zn-resume)"; exit 1; }
 [ -d .logs/codex-loop/lock ] && { echo "codex-live: tools/codex-loop is running (.logs/codex-loop/lock): stop it first"; exit 1; }
 mkdir -p .worktrees
-exec codex -C "$PWD" -s "${ZN_CODEX_SANDBOX:-danger-full-access}" -a never --search -m "${ZN_CODEX_MODEL:-gpt-6-astra}" \
+model=(); [ -n "${ZN_CODEX_MODEL:-}" ] && model=(-m "$ZN_CODEX_MODEL")
+exec codex -C "$PWD" -s "${ZN_CODEX_SANDBOX:-danger-full-access}" -a never --search ${model[@]+"${model[@]}"} \
   -c service_tier=fast -c features.fast_mode=true -c agents.max_threads=5 -c sandbox_workspace_write.network_access=true --add-dir "$HOME/.zinc" --add-dir "$HOME/Library/Caches/ccache" \
   "You are the coordinator of the Zinc backlog team. Follow the zn-coordinate skill and keep going until .paused exists or nothing is left; never ask the owner a question.
 Run each worker as one of your sub-agents: create its worktree with 'git worktree add -b work/<first-id> .worktrees/<first-id> develop', brief it as the skill's section 'Brief' says, and tell it to run every command inside that worktree and to work its tasks with the zn-start skill.
