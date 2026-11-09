@@ -42,4 +42,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: compiler chain ZN-376, ZN-667, ZN-1030 (Backlog) and ZN-796 (Review), ZN-1052 (Review) (D224, perf lines logged).
 - Integrated: ZN-1069 (D225). Integrated: web chain ZN-1065, ZN-693 (D226).
 - Worker: ZN-1070 AppKit primitives (claimed 6e23af277), beside the web chain.
-- Workers: ZN-1024 (save-to-frame 200 ms, second pass) and ZN-1012 (plugin docs, sonnet, no build) (claimed f8e422711), beside ZN-1070.
+- Integrated: ZN-1012 (Backlog, D227). Worker: ZN-1024 (save-to-frame 200 ms, second pass), beside ZN-1070.

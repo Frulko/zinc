@@ -4,8 +4,7 @@ title: >-
   Plugin docs: fill plugins/<name>/docs for the main plugins, links to source,
   site decision
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:34'
 updated_date: '2026-11-09 01:46'
 labels:

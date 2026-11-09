@@ -589,6 +589,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1069: switch to a binary record buffer if string building shows in ZN-1074's measurements.
 - ZN-1065: serve linked workspace packages unbundled under `zinc dev`, as Vite does, so their modules swap in place instead of a full reload.
 - ZN-1065: zinc:net fetch upload progress (`onProgress`) in a page, over XMLHttpRequest as fetch.browser.ts `uploadFile` does.
+- ZN-1012: tutorials for the other plugins listed in `docs/reports/plugin-docs-audit/`, in the layout of `plugins/3d/docs`.
+- ZN-1012: once `plugins/<name>/docs/index.md` exists, `zinc doc` no longer shows the long `docs/plugins/<name>.md`: move the long reference into the plugin folder or let `index.md` include it.
+- ZN-1012: a T0 that runs `zinc doc --std` (0.3 s) and fails on any warning from `plugins/*/docs`.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -777,3 +780,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1043: gamepads on display-gl's Pi KMS driver (evdev).
 - ZN-1016: check whether a ps2 core built with graphics also links 3d and physics2d (ps2 lists only audio and lan).
 - ZN-291: measure the rn (Yoga) layout on wasm (size), rpi1 and ps2 and set `ui.layout.rn` in `targets/capabilities.json` from the results (commands in the task notes).
+- ZN-1012: time the 1.6 MB `zinc doc --std` search index (302 KB gzip) on the Pi and an old tablet; split it per section if slow.
