@@ -36,3 +36,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: JS games chain ZN-1042, ZN-1043 (D219); webenv T0 fixed (page URL global).
 - Worker: ZN-805 lighter idle UI apps (claimed f8f010fc4), beside the JS games chain. ZN-1024 released for a later perf pass.
 - Integrated: CLI chain ZN-1016, ZN-644 (D220).
+- Worker: bytes chain ZN-1019, ZN-698 (claimed 954ff142d), beside ZN-805.
