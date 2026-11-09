@@ -170,6 +170,7 @@ struct Checker {
   void diag(const char* code, std::uint32_t node, std::string detail = "") { diag(code, node, nullptr, {}, std::move(detail)); }
   // a detail a beginner meets often: the message `key` of i18n/<lang>/diag.json, its English text kept for the tools (D159)
   void diag(const char* code, std::uint32_t node, const char* key, std::vector<i18n::Arg> args, std::string detail = "") {
+    if (node < genAt.size() && genAt[node] != kNone) node = genAt[node];   // generated code: its offsets are not the file's, say the use site
     for (const Diag& d : out.diags) if (d.code == code && d.pos == a.nodes[node].start && d.file == a.nodes[node].file) return;   // one error per cause
     for (i18n::Arg& x : args) x.value = spoken(std::move(x.value));
     if (key) detail = i18n::message("en", key, args);
@@ -201,6 +202,10 @@ struct Checker {
   bool mayFallOff(TypeId t) const { return t < out.types.size() && ty(t).k == TK::Union && hasNull(t); }   // t may be a marker (a return still to infer)
   // ---- Dyn (`any` is tDyn, `unknown` is the class Dyn of the prelude; both are references to the classes of dyn.cpp)
   bool generating = false;       // declaring generated code: its `any` is not the program's
+  std::vector<std::uint32_t> genAt;   // a node of generated source -> the program node it was generated for (kNone: the program's own)
+  void sameOrigin(std::uint32_t from) {   // the node just pushed was made from `from`: generated when `from` is
+    if (from < genAt.size() && genAt[from] != kNone) { genAt.resize(a.nodes.size(), kNone); genAt.back() = genAt[from]; }
+  }
   bool inPrelude = false;        // checking the prelude: `any` there is the class Dyn itself
   bool rawDyn() const { return inspectMode || inPrelude; }
   /** The library (zinc:* modules, lib/std, plugins) is exempt from the strict profile: only the program's own files are held to it. */
@@ -949,6 +954,7 @@ struct Checker {
     const std::uint32_t fs = n(node).kind == N::Ident ? out.nodeSym[node] : kNone;
     if (fs != kNone && out.syms[fs].kind == SymKind::Func && f.params.size() > t.params.size() && !isVoidClass(f.params[t.params.size()])) {
       a.nodes.push_back(a.nodes[node]);
+      sameOrigin(node);
       out.nodeType.push_back(out.nodeType[node]);
       out.nodeSym.push_back(fs);
       const auto copy = static_cast<std::uint32_t>(a.nodes.size() - 1);
@@ -1182,6 +1188,7 @@ struct Checker {
 
   std::uint32_t newNode(N kind, std::string_view text, std::vector<std::uint32_t> kids, std::uint32_t at) {
     a.nodes.push_back({kind, n(at).start, n(at).end, text, std::move(kids), 0, n(at).file});
+    sameOrigin(at);
     out.nodeType.push_back(kNoType);
     out.nodeSym.push_back(kNone);
     return static_cast<std::uint32_t>(a.nodes.size() - 1);
@@ -1201,6 +1208,9 @@ struct Checker {
     }
     for (auto& [k, v] : pr.ast.tparams) { auto& d = a.tparams[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }  // generic declarations and explicit type arguments
     for (auto& [k, v] : pr.ast.targs) { auto& d = a.targs[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
+    const std::uint32_t origin = at < genAt.size() && genAt[at] != kNone ? genAt[at] : at;
+    genAt.resize(off, kNone);
+    genAt.resize(a.nodes.size(), origin);
     out.nodeType.resize(a.nodes.size(), kNoType);
     out.nodeSym.resize(a.nodes.size(), kNone);
     return a.nodes[pr.ast.root + off].kids;
@@ -1373,7 +1383,10 @@ struct Checker {
     }
     std::vector<TypeId> alias;
     for (auto& u : closure) alias.push_back(u.first);
-    for (TypeId f : formatters) { inspectLog(f, at); jsonSym(f, at); }  // the view of an object prints and serialises through its own generated functions
+    for (TypeId f : formatters) {   // the view of an object prints and serialises through its own generated functions
+      inspectLog(f, at);
+      if (jsonable(out, f)) jsonSym(f, at);   // printable is not serialisable: `A | B | null` prints, its view's toJSON says '{}' (dynConverter's jsonOk)
+    }
     Ctx sv = saveCtx();
     enterGenerated();
     addAliases(alias);
@@ -1447,6 +1460,7 @@ struct Checker {
   // The node `node` becomes a call of `sym` on a copy of what it was.
   void wrapNode(std::uint32_t node, std::uint32_t sym) {
     a.nodes.push_back(a.nodes[node]);
+    sameOrigin(node);
     out.nodeType.push_back(out.nodeType[node]);
     out.nodeSym.push_back(out.nodeSym[node]);
     auto copy = static_cast<std::uint32_t>(a.nodes.size() - 1);
@@ -3546,6 +3560,7 @@ struct Checker {
       std::uint32_t sym = helper("truthy," + std::to_string(t), "function $F(v: " + inspectAliasName(t) + "): boolean {\n  return " + (inner == tBool ? "v === true" : t == inner ? "v !== 0 && v === v" : "v !== null && v !== 0 && v === v") + ";\n}\n", {t}, e);
       std::uint32_t orig = static_cast<std::uint32_t>(a.nodes.size());  // the operand moves to a node of its own, the call takes its place
       a.nodes.push_back(a.nodes[e]);
+      sameOrigin(e);
       out.nodeType.push_back(out.nodeType[e]);
       out.nodeSym.push_back(out.nodeSym[e]);
       auto ta = a.targs.find(e);
@@ -5102,6 +5117,7 @@ struct Checker {
     Node copy = a.nodes[id];
     for (auto& k : copy.kids) k = cloneNode(k, false);
     a.nodes.push_back(copy);
+    sameOrigin(id);
     auto nid = static_cast<std::uint32_t>(a.nodes.size() - 1);
     out.nodeType.push_back(kNoType);
     out.nodeSym.push_back(kNone);

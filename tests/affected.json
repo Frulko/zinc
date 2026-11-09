@@ -4,6 +4,7 @@
   "map": [
     {"paths": ["examples/murdoku/authoring/analyze_official.py", "examples/murdoku/references/official/", "tests/t0/murdoku_references.sh"], "tests": ["murdoku_references"]},
     {"paths": ["src/frontend/check.cpp", "tests/golden/run/nested_defaults.ts", "tests/golden/run/nested_defaults.out", "tests/t0/nested_defaults.sh"], "tests": ["nested_defaults"]},
+    {"paths": ["src/frontend/check.cpp", "src/frontend/dyn.cpp", "src/frontend/inspect.cpp", "tests/golden/run/dyn_union_view.ts", "tests/golden/run/dyn_union_view.out", "tests/t0/dyn_union_view.sh"], "tests": ["dyn_union_view"]},
     {"paths": ["examples/murdoku/src/deduction.ts", "examples/murdoku/src/hints.ts", "tests/data/murdoku/reasoning.ts", "tests/t1/murdoku_reasoning.sh"], "tests": ["murdoku_reasoning"]},
     {"paths": ["src/app/ios_feedback_store.h", "src/app/ios_feedback_store.mm", "tests/native/feedback_store.mm", "tests/t0/feedback_store.sh"], "tests": ["feedback_store"]},
     {"paths": ["examples/just-go-straight/", "tests/golden/just-go-straight/", "tests/t1/just_go_straight.sh"], "tests": ["just_go_straight"]},

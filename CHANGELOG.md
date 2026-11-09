@@ -235,6 +235,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Compiler fixes: a local variable no longer stops the narrowing of a top-level one of the same name in other functions (nor does a function written above the top-level declaration), the errors inside a lambda that initialises a class field are reported, a `catch` callback that only rethrows keeps the promise's type, and a union the engine cannot hold yet is an error instead of a crash.
 - A field, `readonly` or not, that the constructor assigns in both branches of an `if`/`else` (or in one branch, the other throwing) counts as initialized, as in TypeScript, instead of failing with Z0111.
 - `String.fromCharCode` and `String.fromCodePoint` take several codes, as in JavaScript (`String.fromCharCode(104, 105)` is `'hi'`), instead of refusing more than one.
+- An object passed as `unknown` or `any` whose field or method result is a union of two classes (`A | B | null`) no longer fails `zinc check` with a Z0103 about that union, and an error in code the compiler writes for you now points at the line that asked for it, not at an unrelated place in `lib/std`.
 
 ### Developer tools
 
