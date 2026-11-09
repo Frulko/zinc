@@ -90,6 +90,10 @@ struct TParam {
 
 struct Checked {
   std::vector<Type> types;
+  // Per ObjInfo index: its Object type, the first in `types` (kNoType before it has one); kept by the checker's intern, so the lookups of
+  // the inspector and JSON generators no longer scan every type (ZN-1024: with zinc:devtools, 90% of the check of hero)
+  std::vector<TypeId> objTypes;
+  TypeId typeOfObj(std::uint32_t obj) const { return obj < objTypes.size() ? objTypes[obj] : kNoType; }
   std::vector<TParam> tparams;
   std::vector<ObjInfo> objs;
   std::vector<Symbol> syms;

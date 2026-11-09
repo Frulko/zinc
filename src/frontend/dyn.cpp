@@ -8,10 +8,7 @@ namespace zn::frontend {
 
 namespace {
 
-TypeId typeOfObject(const Checked& c, std::uint32_t obj) {
-  for (TypeId t = 0; t < c.types.size(); ++t) if (c.types[t].k == TK::Object && c.types[t].obj == obj) return t;
-  return kNoType;
-}
+TypeId typeOfObject(const Checked& c, std::uint32_t obj) { return c.typeOfObj(obj); }
 
 bool isIdentName(const std::string& s) {
   if (s.empty() || std::isdigit(static_cast<unsigned char>(s[0]))) return false;

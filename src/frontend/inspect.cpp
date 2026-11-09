@@ -13,10 +13,7 @@ bool isIdent(const std::string& s) {
   return true;
 }
 
-TypeId typeOfObj(const Checked& c, std::uint32_t obj) {
-  for (TypeId t = 0; t < c.types.size(); ++t) if (c.types[t].k == TK::Object && c.types[t].obj == obj) return t;
-  return kNoType;
-}
+TypeId typeOfObj(const Checked& c, std::uint32_t obj) { return c.typeOfObj(obj); }
 
 int depthOf(const Checked& c, std::uint32_t o) {
   int d = 0;

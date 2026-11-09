@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:36'
-updated_date: '2026-11-09 10:02'
+updated_date: '2026-11-09 10:06'
 labels:
   - dev
   - perf
@@ -106,4 +106,6 @@ Profile of a hero recompile (sample, ~9 recompiles, load ~6): loadChecked 26%, o
 Step 10 (perf(zbc): emit and verify on several threads): zbc::emit emits every function at once through ir::parallelFor against a frozen table of the collection classes known before the functions (TypeTable::index, the first of equal classes kept, as its scan finds); a function that needs a class not in it is emitted again afterwards, in order, with the growing table, so the class ids are those of one thread. zbc::verify takes an optional forEach (zbc.cpp has no threads of its own: it builds into the device cores) and returns the first problem in function order. The compile's program, checker tables and IR are freed on a thread of their own (freeLater in main.cpp, one at a time; the future waits at exit). Hero, recompiles back to back, load ~7.7: emit 84 -> 45 ms, a recompile 517-535 -> 461-471 ms. Bytes: hot_recompile passes; --emit=hot and --emit=zbc-bin of hero, ui/kit-gallery, nuxt-ui and breakout are byte for byte those of the binary before this step.
 
 Step 11 (perf(frontend): intern types through a hash index): Checker::intern and ir::Module::intern scanned every type; both keep a hash index of their table (the first of equal types, as the scan found; types pushed without intern are indexed at the next call). Hero, recompiles back to back, load ~8: check 66 -> 49 ms, lower 77 -> 71 ms, a recompile 532-551 -> 432-459 ms (with step 10). Same bytes as before (hot_recompile; --emit=hot and --emit=zbc-bin of hero, ui/kit-gallery, nuxt-ui, breakout).
+
+Step 12 (perf(frontend): find an object's type without scanning every type): zinc dev compiles build/.zinc-dev/main.ts, which imports zinc:devtools before the program; with it the check of hero took 510-585 ms (49 without it), 90% in implementations(): for every class it looked up the class's type with a scan of every type (typeOfObj in inspect.cpp and dyn.cpp), and the inspector's printers ask it for every inspectable type. Checked::objTypes (the first Object type of each ObjInfo, kept by the checker's intern) answers in one step. The dev entry, recompiles back to back (load ~9): check 515 -> 70 ms, a recompile ~1000 -> 586-595 ms; zinc dev of hero, saves of a comment in Icon.tsx (load 7-15): 1151-1371 -> 662-720 ms after the save. Same bytes (the dev entry with ZINC_DEV=1, hot_recompile, the four examples).
 <!-- SECTION:NOTES:END -->

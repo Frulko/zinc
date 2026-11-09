@@ -213,6 +213,10 @@ struct Checker {
     if (auto it = typeIndex.find(t); it != typeIndex.end()) return it->second;
     out.types.push_back(t);
     typeIndex.emplace(t, static_cast<TypeId>(out.types.size() - 1));
+    if (t.k == TK::Object) {
+      if (out.objTypes.size() <= t.obj) out.objTypes.resize(t.obj + 1, kNoType);
+      if (out.objTypes[t.obj] == kNoType) out.objTypes[t.obj] = static_cast<TypeId>(out.types.size() - 1);
+    }
     typeIndexed = out.types.size();
     return static_cast<TypeId>(out.types.size() - 1);
   }
