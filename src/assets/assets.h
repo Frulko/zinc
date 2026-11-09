@@ -57,8 +57,8 @@ struct Options {
 };
 
 /** packBytes: what its entry takes in its pack (compressed); format and gpuBytes, for an image: its layout and what its texels take on the GPU;
- *  codec, for a sound: how it is stored (qoa, pcm, ima-adpcm, flac, mp3, vorbis, opus...; soundCodec). */
-struct Item { std::string name, importer, group; std::uint64_t sourceBytes = 0, outputBytes = 0; double ms = 0; bool cached = false; std::string format; std::uint64_t gpuBytes = 0, packBytes = 0; std::string codec; };
+ *  codec, for a sound: how it is stored (qoa, pcm, ima-adpcm, flac, mp3, vorbis, opus...; soundCodec); glyphs, for a font: the characters it keeps. */
+struct Item { std::string name, importer, group; std::uint64_t sourceBytes = 0, outputBytes = 0; double ms = 0; bool cached = false; std::string format; std::uint64_t gpuBytes = 0, packBytes = 0; std::string codec; std::size_t glyphs = 0; };
 struct Pack { std::string file, group; std::size_t entries = 0; std::uint64_t bytes = 0; };
 struct Report { std::vector<Item> items; std::vector<Pack> packs; std::size_t imported = 0; double ms = 0; };
 

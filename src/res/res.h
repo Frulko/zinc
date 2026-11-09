@@ -43,6 +43,10 @@ bool bakerReads(const std::string& ext);
 // Whether a photo can use the runtime decoder; larger assets keep their existing embedded representation.
 bool canLoadImageFile(const std::string& path);
 
+// The TrueType file reduced to the characters `cps` with hb-subset (ZN-428): the outlines and metrics the runtime rasterizer reads, no hinting.
+// False when it is not a font or keeps none of them (the font importer of src/assets, ZN-442, uses it too).
+bool subsetTtf(const std::vector<std::uint8_t>& in, const std::set<std::uint32_t>& cps, std::vector<std::uint8_t>& out);
+
 // An SVG document drawn `width` pixels wide (0: its own size) to straight RGBA rows, as bake draws it (the image importer of src/assets).
 bool rasterizeSvg(const std::string& svg, int width, int& w, int& h, std::vector<std::uint8_t>& rgba, std::string& err);
 

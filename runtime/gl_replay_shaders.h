@@ -71,6 +71,8 @@ static const char* const FS_HEAD =
 // IMAGE: baked RGBA / runtime 0x00RRGGBB (grad 1: 0xAARRGGBB), times the sprite's tint in c1 (white: none, ZN-581); grad 2: premultiplied
 // texels (a compressed texture, ZN-439)
 // ImageFlag.Smooth (v_par.y 1, ZN-746): the cubic B-spline of raster.cpp draw_smooth in four linear taps; v_box.zw is then the texture's size
+// ImageFlag.Msdf (grad 3, ZN-442): the median of the texel's channels is the distance to the outline, over the range in screen pixels of
+// c2 (sixteenths: red the low byte, green the high), include/zn/msdf.h; the colour is the tint
 // Through a matrix (xf, ZN-678: gl_replay.cpp draw_image): p from the image box's origin, the rectangle in c, h, the image box's size in
 // K = (v_par.y, r), all in the box's units times the matrix's scale; the texel at p clamped into the rectangle, the edges of both smooth
 static const char* const FS_IMAGE =
@@ -84,6 +86,8 @@ static const char* const FS_IMAGE =
   "    } else t = texture2D(u_tex, v_pos.zw);\n"
   "    if (grad > 1.5 && t.a > 0.0) t.rgb /= t.a;\n"
   "    col = (mode < 3.5 ? t.rgb : t.bgr) * v_c1.rgb; cov = mode < 3.5 || grad > 0.5 ? t.a : 1.0;\n"
+  "    if (grad > 2.5) { float md = max(min(t.r, t.g), min(max(t.r, t.g), t.b)); col = v_c1.rgb;\n"
+  "      cov = clamp((md - 0.5) * (v_c2.r + v_c2.g * 256.0) * (255.0 / 16.0) + 0.5, 0.0, 1.0); }\n"
   "    if (xf > 0.5) cov *= min(cover(p, c, h, 0.0), cover(p, K * 0.5, abs(K) * 0.5, 0.0));\n"
   "    else if (r > 0.0) cov *= cover(p, c, h, r);\n";
 // A block sets the coverage of the pixel, and its colour when that is not the vertex's.

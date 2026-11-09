@@ -391,6 +391,7 @@
     {"paths": ["src/assets/assets.cpp", "src/assets/assets.h", "src/cli_core.cpp", "tests/data/assets_check/", "tests/t0/assets_check.sh", "tests/t0/assets_report.sh", "tests/t0/assets_clean.sh"], "tests": ["assets_check", "assets_report", "assets_clean"]},
     {"paths": ["src/assets/", "third_party/xxhash/", "src/res/res.cpp", "src/res/res.h", "tests/unit/assets_test.cpp", "tests/t0/assets.sh"], "tests": ["assets"]},
     {"paths": ["src/assets/shader.", "src/assets/assets.cpp", "src/gl/essl_check.", "tests/t0/shader_assets.sh"], "tests": ["shader_assets"]},
+    {"paths": ["src/assets/font.", "src/assets/assets.cpp", "third_party/msdfgen/", "include/zn/msdf.h", "lib/std/msdf.ts", "runtime/raster.cpp", "runtime/gl_replay.cpp", "runtime/gl_replay_shaders.h", "tests/data/font_assets/", "tests/t0/font_assets.sh"], "tests": ["font_assets"]},
     {"paths": ["src/assets/tilemap.cpp", "src/assets/tilemap.h", "src/assets/sprite.cpp", "src/assets/assets.cpp", "plugins/tilemap/", "plugins/sprite/", "tests/data/tilemap/", "tests/t1/tilemap.sh"], "tests": ["tilemap", "assets"]},
     {"paths": ["src/assets/sprite.cpp", "src/assets/sprite.h", "third_party/stb/stb_rect_pack.h", "third_party/cute_aseprite/", "plugins/sprite/", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "tests/data/sprite_atlas/", "tests/t1/sprite_atlas.sh"], "tests": ["sprite_atlas", "assets"]},
     {"paths": ["examples/platformer/", "tests/data/platformer/", "tests/t1/platformer.sh"], "tests": ["platformer"]},

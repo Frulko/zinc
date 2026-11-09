@@ -265,7 +265,7 @@ export function image(name: string): i32 { return __host_gfxImage(name); }
 export function imageWidth(img: i32): i32 { return __host_gfxImageWidth(img); }
 export function imageHeight(img: i32): i32 { return __host_gfxImageHeight(img); }
 export function drawImage(img: i32, x: number, y: number, w: number, h: number, alpha: i32, radius: number): void { __host_gfxDrawImage(img, x, y, w, h, __ga === 255 ? alpha : Math.round(alpha * __ga / 255), radius); }
-export enum ImageFlag { FlipX = 1, FlipY = 2, Nearest = 4, Smooth = 8 }
+export enum ImageFlag { FlipX = 1, FlipY = 2, Nearest = 4, Smooth = 8, Msdf = 16 }
 export enum Blend { Normal = 0, Add = 1, Multiply = 2, Screen = 3 }
 export function drawImageRect(img: i32, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number, alpha: i32 = 255, flags: i32 = 0, rotation: number = 0, tint: u32 = 0xFFFFFF, blend: i32 = 0): void { __host_gfxDrawImageRect(img, sx, sy, sw, sh, dx, dy, dw, dh, __ga === 255 ? alpha : Math.round(alpha * __ga / 255), flags, rotation, tint, blend); }
 export function imageFromBytes(bytes: u8[]): i32 { return __host_gfxImageFromBytes(bytes); }
@@ -2041,7 +2041,7 @@ std::uint32_t hotMeta(Ast& A, std::uint32_t from, std::uint32_t file, const std:
 // The standard modules written in Zinc: their files under lib/std, and the web target's own versions (docs/targets/web.md: the page has these APIs).
 struct StdModule { std::string_view spec, file, browser; };
 constexpr StdModule kStdModules[] = {
-    {"zinc:ui", "ui.ts", {}}, {"zinc:ui/image-cache", "image-cache.ts", {}}, {"zinc:gl", "gl.ts", {}}, {"zinc:web", "web.ts", "web.browser.ts"}, {"zinc:web/fetch", "fetch.ts", "fetch.browser.ts"},
+    {"zinc:ui", "ui.ts", {}}, {"zinc:ui/image-cache", "image-cache.ts", {}}, {"zinc:gfx/msdf", "msdf.ts", {}}, {"zinc:gl", "gl.ts", {}}, {"zinc:web", "web.ts", "web.browser.ts"}, {"zinc:web/fetch", "fetch.ts", "fetch.browser.ts"},
     {"zinc:web/websocket", "websocket.ts", {}}, {"zinc:subtle", "subtle.ts", "subtle.browser.ts"}, {"zinc:ui/dom", "ui-dom.ts", "ui-dom.browser.ts"}, {"zinc:ui/solid", "solid.ts", {}},
     {"zinc:ui/react", "react.ts", {}}, {"zinc:ui/kit", "kit/index.ts", {}}, {"zinc:ui/kit/host", "kit/host.ts", {}}, {"zinc:icons", "icons.tsx", {}}, {"zinc:ui/animated", "animated.ts", {}},
     {"zinc:ui/dnd", "dnd.ts", {}}, {"zinc:react-native", "react-native.tsx", {}}, {"zinc:react-native/linking", "react-native-linking.ts", {}},

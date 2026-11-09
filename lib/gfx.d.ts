@@ -75,8 +75,10 @@ declare module 'zinc:gfx' {
   export function imageWidth(image: i32): i32;
   export function imageHeight(image: i32): i32;
   export function drawImage(image: i32, x: number, y: number, w: number, h: number, alpha: i32, radius: number): void;
-  /** Smooth: a cubic B-spline instead of the linear blend, for a small picture stretched far (a field computed at low resolution): no grid. */
-  export const enum ImageFlag { FlipX = 1, FlipY = 2, Nearest = 4, Smooth = 8 }
+  /** Smooth: a cubic B-spline instead of the linear blend, for a small picture stretched far (a field computed at low resolution): no grid.
+   *  Msdf: the image is a multi-channel distance field (the atlas of a font rule with "sdf": "msdf"): the pixel is the tint, covered by the
+   *  distances, with an edge one pixel wide at any size and under any matrix (zinc:gfx/msdf draws text with it). */
+  export const enum ImageFlag { FlipX = 1, FlipY = 2, Nearest = 4, Smooth = 8, Msdf = 16 }
   /** How a sprite's colour meets what is under it: Normal paints over it, Add adds (glows, sparks), Multiply darkens (shadows, stains), Screen
    *  lightens (light, fog). */
   export const enum Blend { Normal = 0, Add = 1, Multiply = 2, Screen = 3 }

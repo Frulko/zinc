@@ -3,6 +3,7 @@
 #include "zrt.h"
 #include "zrt_raster.h"
 #include "zn/image_limits.h"
+#include "zn/msdf.h"
 extern "C" __attribute__((weak)) void zrt_render_idle(void) {}   // runtime/gfx.cpp has the real one
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
@@ -1031,10 +1032,13 @@ static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   const float hw = c.w * 0.5f, hh = c.h * 0.5f, cx = c.x + hw, cy = c.y + hh;   // rounded corners are those of the painted rectangle
   // one texel per pixel on whole pixels is a copy: the nearest path, which the linear weights (0 and 1) would give
-  const bool nearest = c.grad == 1 || (fabsf_(m.w) == (float)im.w && fabsf_(m.h) == (float)im.h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y));
+  // ImageFlag.Msdf (IMAGE grad 3, ZN-442): the texels are distances (include/zn/msdf.h), always blended; the pixel is the tint, covered by them
+  const bool msdf = c.grad == 3;
+  const float msdf_range = msdf ? __builtin_fmaxf(1.0f, zn::kMsdfRange * fabsf_(m.w) / (float)im.w) : 0;   // the range in screen pixels
+  const bool nearest = !msdf && (c.grad == 1 || (fabsf_(m.w) == (float)im.w && fabsf_(m.h) == (float)im.h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y)));
   const float rad = image_radius(c);
   const uint32_t tint = image_tint(c), mode = image_blend(c);   // a sprite's (ZN-581)
-  const bool plain = c.alpha == 255 && rad <= 0 && !im.alpha && tint == 0xFFFFFF && mode == BLEND_NORMAL;
+  const bool plain = !msdf && c.alpha == 255 && rad <= 0 && !im.alpha && tint == 0xFFFFFF && mode == BLEND_NORMAL;
   const float kx = (float)im.w / m.w, ky = (float)im.h / m.h;
   auto px = [&im](int32_t x, int32_t y) { return texel(im, x, y); };
   LinRows<decltype(px)> lr{nullptr, b.x1 - b.x0, px};
@@ -1064,7 +1068,7 @@ static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
     // below (NEON's multiply-accumulate rounds the product, as VFP's does), the tint's (c t + 127) / 255 exact for c t + 127 < 65535; the
     // values never go through a core register (each move from VFP to the core stalls a Cortex-A9). The music remote's backdrop on the
     // Nexus 7: 107 ns a pixel with the loop below, 53 with this (both bit-exact, tested on the device)
-    if (!im.alpha && rad <= 0 && c.alpha >= 255 && mode == BLEND_NORMAL) {
+    if (!msdf && !im.alpha && rad <= 0 && c.alpha >= 255 && mode == BLEND_NORMAL) {
       const float32x4_t vu = vdupq_n_f32(uy), vt = vdupq_n_f32(ty);
       const uint32x4_t v127 = vdupq_n_u32(127), v1 = vdupq_n_u32(1);
       const bool tinting = tint != 0xFFFFFF;
@@ -1090,6 +1094,11 @@ static void draw_boxed(const Target& t, const Cmd& c, const Tex& im) {
       const float *h0 = lr.h0 + (x - b.x0), *h1 = lr.h1 + (x - b.x0);
       float v[4];
       for (int k = 0; k < 4; k++) v[k] = h0[k * lr.n] * uy + h1[k * lr.n] * ty;
+      if (msdf) {
+        const float a = zn::msdfCoverage(v[0], v[1], v[2], msdf_range) * c.alpha;
+        if (a >= 1) blend_as(dst[x], tint, (uint32_t)a, mode);
+        continue;
+      }
       const uint32_t out = (uint32_t)v[0] | (uint32_t)v[1] << 8 | (uint32_t)v[2] << 16;
       float a = im.alpha ? v[3] / 255 * c.alpha : c.alpha;
       if (rad > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, rad), 0, 1);
@@ -1257,6 +1266,11 @@ static bool xf_sample_at(const Dyn* d, int32_t res, float u, float v, bool neare
   a = ch[3] / 255;
   return true;
 }
+/** The coverage of a bilinear MSDF sample through a matrix of scale `sc`: the image box is `bw` units wide for `iw` texels. */
+static inline float xf_msdf(uint32_t rgb, int32_t iw, float bw, float sc) {
+  const float range = __builtin_fmaxf(1.0f, zn::kMsdfRange * fabsf_(bw) * sc / (float)(iw > 0 ? iw : 1));
+  return zn::msdfCoverage((float)((rgb >> 16) & 255), (float)((rgb >> 8) & 255), (float)(rgb & 255), range);
+}
 static void draw_xform(const Target& t, const Cmd& c, const float* p, const char* text, const float* pool) {
   Cmd in = c;
   in.kind = (uint8_t)p[0]; in.x = p[7]; in.y = p[8]; in.w = p[9]; in.h = p[10]; in.r = p[11]; in.s = p[12];
@@ -1389,6 +1403,7 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
               }
               uint32_t rgb; float a;
               if (xf_sample_at(dd, in.res, u, v, in.grad == 1, rgb, a)) {
+                if (in.grad == 3) { a = xf_msdf(rgb, iw, ib.w, m.sc); rgb = 0xFFFFFF; }   // ImageFlag.Msdf: the tint, covered by the distances
                 const float al = a * 1.0f * in.alpha;
                 if (al >= 1) blend_as(row[q], tinted(rgb, tint), (uint32_t)al, mode);
               }
@@ -1447,6 +1462,11 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
           }
           uint32_t rgb; float a;
           if (xf_sample(in.res, u, v, in.grad == 1, rgb, a)) {
+            if (in.grad == 3) {   // ImageFlag.Msdf
+              int32_t iw = 0, ih = 0;
+              if (!image_size(in.res, &iw, &ih)) break;
+              a = xf_msdf(rgb, iw, ib.w, m.sc); rgb = 0xFFFFFF;
+            }
             const float al = a * cov * in.alpha;
             if (al >= 1) blend_as(at(t, x, y), tinted(rgb, tint), (uint32_t)al, mode);
           }

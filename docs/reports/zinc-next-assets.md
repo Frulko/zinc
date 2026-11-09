@@ -76,6 +76,7 @@ matches a path applies in order, a later one overriding an earlier one's options
 | `texture` | a GPU texture (below): resized for the target, mipmapped, premultiplied, in the format the target's profile prefers (a block format through basisu) |
 | `model` | a glTF or GLB model (below) through gltfpack: a quantised GLB compressed with `EXT_meshopt_compression` for three, or a `.zmesh` for zinc:3d; its embedded images become texture entries of their own; `lods` adds simplified copies |
 | `audio` | a sound (WAV, FLAC, MP3, Ogg Vorbis, read by miniaudio's decoders) encoded at pack time (ZN-440.01): `codec` `qoa` (the default and only one yet: 3.2 bits a sample, about a fifth of 16-bit PCM, frames of 5120 samples decoded alone, so `loadMusic` streams it), `rate` (8000 to 192000 Hz) and `channels` (1 mixes down) when set; the entry keeps the source's name and is stored as it is, so `load('sfx/coin.wav')` reads the QOA a target got. Rule: `{ "match": "sfx/**/*.wav", "as": "audio", "rate": 22050, "channels": 1 }`, per target through `targets` |
+| `font` | a TrueType or OpenType font (below, ZN-442): subset with hb-subset to its `charset`, and with `"sdf": "msdf"` an MSDF atlas of those characters (`<font>.msdf`) and its table (`<font>.msdf.json`) for zinc:gfx/msdf |
 
 Image header (little-endian, `include/zn/zim.h`): `ZIM1`, u8 format (1 rgba8, 2 rgb565, 3 rgba4444, 4 rgba5551; the texture importer's block
 formats 8 bc1, 9 bc3, 10 bc7, 11 etc1, 12 etc2 (RGBA8 EAC), 13 astc (4x4), 14 pvrtc and 15 pvrtca (PVRTC1 4 bpp, RGB and RGBA)), u8 scale,
@@ -235,6 +236,25 @@ and the default precision, and as GLSL ES 3.00 with `ZN_ES3` and the 1.00 keywor
 numbers are the file's); a release build stores it without comments, blank lines and the spaces the grammar does not need, preprocessor
 lines kept as lines (`minify`, an option of the rule, is part of the key). Without `libzn_webgl` (a build with `ZN_WEBGL` off) shaders are
 stored unchecked, with one line saying so. Program binaries cached on the device (`GL_OES_get_program_binary`) are not done.
+
+### Fonts (ZN-442)
+
+A rule `"as": "font"` takes a `.ttf` or `.otf` file of the assets directory. `charset` says which characters it keeps: a name or an array of
+named sets (`ascii`, `latin-1`, `latin-ext`, `greek`, `cyrillic`, `punctuation`) and globs of files of the assets directory whose text the
+program shows at run time and the scan of its code cannot see: a JSON file adds its string values (an i18n catalog: the keys are names),
+any other file its text. Without `charset`: `latin-1`. A glob that matches no file fails the build, naming it. The font is reduced with
+hb-subset (`src/res` `subsetTtf`: no hinting, no positioning tables) and keeps its name, so `loadFont('fonts/x.ttf', px)` reads it;
+report.json gives the characters kept (`glyphs`).
+
+`"sdf": "msdf"` also draws a multi-channel signed distance field of each kept character with msdfgen 1.13's core (`third_party/msdfgen`,
+MIT, no FreeType: HarfBuzz draws the outlines into msdfgen's shape), `size` pixels per em (32 by default, 16 to 128) with a range of 4
+atlas pixels (`kMsdfRange`, `include/zn/msdf.h`), on one page of rows: `<font>.msdf`, an rgba8 image whose red, green and blue are the
+distances, and `<font>.msdf.json`, `{size, range, ascent, descent, lineGap, width, height, glyphs: [[codepoint, x, y, w, h, left, top,
+advance]]}`. `MsdfFont.load('fonts/x.ttf')` of `zinc:gfx/msdf` reads both and `draw(text, x, y, px, color)` draws each glyph as one
+`drawImageRect` with `ImageFlag.Msdf`: the software raster and the GL replay take the median of the bilinear texel's channels as the
+distance to the outline over the range in screen pixels, so the edge stays one pixel wide at any size and under any matrix (a 12 px label
+drawn at 96 px: SSIM 0.996 against Inter rasterized at 96 px, the GL frame within 8 levels of the software one). No kerning yet. Inter's
+ASCII and 12 more characters make a 512 x 164 page (336 KB of GPU memory) in 90 ms.
 
 ## The cache
 

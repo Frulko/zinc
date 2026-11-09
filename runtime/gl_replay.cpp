@@ -18,6 +18,7 @@
 #include "gl_paint_cache.h"
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
+#include "zn/msdf.h"
 #endif
 #include <math.h>     // cosf, fabsf: libstdc++ does not bring it in through the headers above, as libc++ does
 #include <string.h>
@@ -737,7 +738,7 @@ static void quad(const Q& q, bool divide_clip = true) {
     else if (m15 == FILL) lean = q.grad <= 2 ? LEAN_FILL : q.grad == 3 ? LEAN_RADIAL : -1;
     else if (m15 == BORDER_M) lean = LEAN_BORDER;
     else if (m15 == SHADOW_M) lean = q.p1 < 0 ? -1 : LEAN_SHADOW;   // an inset (p1 < 0): the general program's
-    else if (q.r <= 0) lean = m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.p1 == 0 ? LEAN_IMAGE : -1;
+    else if (q.r <= 0) lean = m15 == SOLID ? LEAN_SOLID : m15 == TEXT_M ? LEAN_TEXT : (m15 == IMAGE_RGBA || m15 == IMAGE_BGR) && q.p1 == 0 && q.grad <= 2 ? LEAN_IMAGE : -1;
   }
   run_of(mode, lean, opaque, !needs_clip);
   nq++;
@@ -1112,12 +1113,22 @@ static void draw_image(const Cmd& c) {
   bool copy = false;
   if (boxed) {
     // one texel a pixel on whole pixels is a copy; through a matrix (XFORM) the pixels are not the image's own any more
-    copy = c.grad != 1 && !xf_on && mw == (float)t->w && mh == (float)t->h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y);
+    copy = c.grad != 1 && c.grad != 3 && !xf_on && mw == (float)t->w && mh == (float)t->h && m.x == (float)ifloor(m.x) && m.y == (float)ifloor(m.y);
     nearest = c.grad == 1 || copy;
     b = isect(b, bounds(mx0, my0, mw, mh, HUGE_R));   // nothing is painted outside the image
   }
   const bool smooth = c.grad == 2 && !copy && !alpha && !xf_on && c.res >= DYN_BASE;   // ImageFlag.Smooth: the spline of the image shader on linear taps (opaque pictures, as the CPU)
   if (smooth) nearest = false;
+  // ImageFlag.Msdf (ZN-442, include/zn/msdf.h): linear texels read as distances, grad 3; the range in screen pixels travels in c2 (sixteenths,
+  // low byte in red, high in green), as raster.cpp draw_boxed and draw_xform compute it
+  const bool msdf = c.grad == 3;
+  if (msdf) nearest = false;
+  auto msdf_c2 = [&](float sc) {
+    float r = zn::kMsdfRange * mw * sc / (float)(t->w > 0 ? t->w : 1);
+    r = r < 1 ? 1 : r > 4095 ? 4095 : r;
+    const uint32_t v = (uint32_t)(r * 16 + 0.5f);
+    return (v & 255) << 16 | (v >> 8) << 8;
+  };
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   // a copy samples texel centres, where both filters give the texel: the texture keeps its filter, so the frames of an atlas page drawn
   // at their size and scaled stay in one batch (ZN-438)
@@ -1139,14 +1150,16 @@ static void draw_image(const Cmd& c) {
     q.bx = (c.x + c.w * 0.5f - m.x) * sc; q.by = (c.y + c.h * 0.5f - m.y) * sc; q.bw = c.w * 0.5f * sc; q.bh = c.h * 0.5f * sc;
     q.p1 = m.w * sc; q.r = m.h * sc;
     q.mode = mode + 16; q.c1 = image_tint(c);
-    q.grad = t->cmp == 2 ? 2 : alpha;
+    q.grad = msdf ? 3 : t->cmp == 2 ? 2 : alpha;
+    if (msdf) q.c2 = msdf_c2(sc);
     quad(q);
     return;
   }
   const float rad = image_radius(c);
   q.r = rad > 0 ? rad : 0;   // the CPU does not clamp an image's radius
   q.c1 = image_tint(c);
-  q.grad = t->cmp == 2 ? 2 : alpha;   // the coverage is the texture's alpha; 2: its texels are premultiplied
+  q.grad = msdf ? 3 : t->cmp == 2 ? 2 : alpha;   // the coverage is the texture's alpha; 2: its texels are premultiplied; 3: distances
+  if (msdf) { q.r = 0; q.c2 = msdf_c2(1); }
   q.u0 = (q.x0 - m.x) / m.w; q.u1 = (q.x1 - m.x) / m.w; q.v0 = (q.y0 - m.y) / m.h; q.v1 = (q.y1 - m.y) / m.h;
   if (smooth) { q.p1 = 1; q.r = 0; q.bw = (float)t->w; q.bh = (float)t->h; }   // the shader's spline reads the texture's size there
   quad(q);

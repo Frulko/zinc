@@ -1,6 +1,7 @@
 // The asset build (ZN-434): rules, the importer registry, the content-addressed cache, groups to packs, report.json. See assets.h.
 #include "assets/assets.h"
 
+#include "assets/font.h"
 #include "assets/model.h"
 #include "assets/sprite.h"
 #include "assets/texture.h"
@@ -196,10 +197,13 @@ bool importModelFile(const Options& opt, const std::string& name, const std::str
 bool importWorldFile(const Options& opt, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
   return importWorld(opt.basisu, name, in, side, o, out, err);
 }
-/** An importer whose artifact is a bundle of entries (model.h): a model, a world. */
+bool importFontFile(const Options&, const std::string& name, const std::string& in, const Side& side, const Opts& o, std::string& out, std::string& err) {
+  return importFont(name, in, side, o, out, err);
+}
+/** An importer whose artifact is a bundle of entries (model.h): a model, a world, a font. */
 bool importSceneFile(const Options& opt,const std::string& name,const std::string& in,const Side& side,const Opts& o,std::string& out,std::string& err) { return importSceneWorld(opt.basisu,name,in,side,o,out,err); }
 
-bool bundles(ImportFn f) { return f == importModelFile || f == importWorldFile || f == importSceneFile; }
+bool bundles(ImportFn f) { return f == importModelFile || f == importWorldFile || f == importSceneFile || f == importFontFile; }
 
 struct Importer { const char* id; int version; Kind kind; ImportFn run; };
 // Built-in importers (the importer decision of ZN-434: codecs come as pinned command-line tools run as subprocesses, data formats as Zinc
@@ -217,6 +221,7 @@ const Importer kImporters[] = {
   {"scene", 2, Kind::Data, importSceneFile},
   {"world", 1, Kind::Data, importWorldFile},   // a bundle (world.h): the .zworld, its chunks, its provenance, its pictures
   {"shader", 1, Kind::Data, importShaderFile},   // GLSL ES checked by glslang, minified in a release build (shader.h)
+  {"font", 1, Kind::Data, importFontFile},   // a bundle (font.h): the font subset to its charset; with sdf "msdf", its atlas and the atlas's table
 };
 const Importer* findImporter(const std::string& id) {
   for (const Importer& i : kImporters) if (id == i.id) return &i;
@@ -467,8 +472,8 @@ bool build(const Options& opt, Report& report, std::string& err) {
     if (o.count("skip") && o.at("skip") == "true") continue;   // not on this target
     if (id == "copy" && fs::path(name).extension() == ".json") { std::string json; if (readFile(fs::path(opt.sourceDir)/name,json) && hasSceneWorld(json)) id="scene"; }
     const Importer* imp = findImporter(id);
-    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture, model, world, shader, audio)"; return false; }
-    if (imp->run == importTextureFile || bundles(imp->run)) {   // the target's profile, unless the rule says: part of the key, so each profile has its own artifact
+    if (!imp) { err = name + ": no importer \"" + id + "\" (built in: copy, image, sprite, tilemap, texture, model, world, shader, audio, font)"; return false; }
+    if (imp->run == importTextureFile || (bundles(imp->run) && imp->run != importFontFile)) {   // the target's profile, unless the rule says: part of the key, so each profile has its own artifact
       const std::string pre = bundles(imp->run) ? "texture." : "";   // a model's or a world's textures, as a texture rule's
       auto prof = [&](const char* k) { auto it = opt.targetProfile.find(k); return it == opt.targetProfile.end() ? std::string() : it->second; };
       if (!o.count(pre + "format")) o[pre + "format"] = opt.profile == "release" && !prof("texture").empty() ? prof("texture") : "rgba8";   // dev: no encoder to wait for
@@ -516,6 +521,14 @@ bool build(const Options& opt, Report& report, std::string& err) {
       const auto base=fs::weakly_canonical(opt.sourceDir);
       for(const auto& dep:e.deps){const auto file=fs::weakly_canonical(base/dep);const auto rel=file.lexically_relative(base);if(rel.empty()||*rel.begin()==".."){err=name+": asset dependency escapes the source directory: "+dep;return false;}}
       consumed.insert(removed.begin(),removed.end());retained.insert(kept.begin(),kept.end());
+    } else if (imp->run == importFontFile) {   // the files of strings its charset names (an i18n folder): the characters it keeps
+      for (const std::string& item : charsetItems(e.opts.count("charset") ? e.opts.at("charset") : std::string())) {
+        if (namedCharset(item)) continue;
+        const std::regex re = globRegex(item);
+        const std::size_t before = e.deps.size();
+        for (const std::string& n : names) if (n != name && std::regex_match(n, re)) e.deps.push_back(n);
+        if (e.deps.size() == before) { err = name + ": charset \"" + item + "\" is neither a named set (ascii, latin-1, latin-ext, greek, cyrillic, punctuation) nor a file of the assets directory"; return false; }
+      }
     } else if (imp->run == importWorldFile) {   // the scenes it reads are not entries of their own
       std::string src;
       if (!readFile(fs::path(opt.sourceDir) / name, src)) { err = name + ": cannot read the file"; return false; }
@@ -539,7 +552,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
     k.add("zinc-asset 1").add(e.imp->id).add(std::to_string(e.imp->version)).add(opt.tool);
     for (const auto& [key, v] : e.opts) k.add(key).add(v);
     k.add(bytes);
-    if (!e.deps.empty()) k.add(e.name);   // the files it names are found from its place, and a map's tiles are named by their image's path
+    if (!e.deps.empty() || bundles(e.imp->run)) k.add(e.name);   // a bundle names its entries after its source   // the files it names are found from its place, and a map's tiles are named by their image's path
     for (const auto& [d, b] : side) k.add(d).add(b);
     e.key = k.hex();
     std::uint64_t outBytes = 0;
@@ -595,13 +608,15 @@ bool build(const Options& opt, Report& report, std::string& err) {
       std::string head = bytesAt(0, want);
       while (!bundleDirectory(head, dir, need) && need > head.size() && head.size() == want) head = bytesAt(0, want = need * 2);
       Item& it = report.items.back();
-      it.format = e.imp->run == importSceneFile ? "scene" : e.imp->run == importWorldFile ? "zworld" : e.opts.count("format") ? e.opts.at("format") : "glb";
+      it.format = e.imp->run == importSceneFile ? "scene" : e.imp->run == importWorldFile ? "zworld"
+                : e.imp->run == importFontFile ? (e.opts.count("sdf") && e.opts.at("sdf") == "msdf" ? "msdf" : "ttf") : e.opts.count("format") ? e.opts.at("format") : "glb";
       for (const BundleEntry& b : dir) {
         outputs[e.name].push_back(b.name);
         std::string f;
         std::uint64_t gpu = 0;
         if (b.kind == Kind::Image && describeImage(bytesAt(b.offset, 512), f, gpu)) it.gpuBytes += gpu;
       }
+      if (e.imp->run == importFontFile && !dir.empty()) it.glyphs = fontCharacters(bytesAt(dir[0].offset, dir[0].size));   // the subset font: its first entry
     }
     if (!hit) ++report.imported;
     packs[group].push_back(std::move(e));
@@ -717,7 +732,7 @@ std::string reportJson(const Options& opt, const Report& r) {
          ", \"sourceBytes\": " + std::to_string(it.sourceBytes) + ", \"outputBytes\": " + std::to_string(it.outputBytes) + ", \"ms\": " + ms(it.ms) +
          ", \"cached\": " + (it.cached ? "true" : "false") + ", \"packBytes\": " + std::to_string(it.packBytes) +
          (it.format.empty() ? std::string() : ", \"format\": " + jsonString(it.format) + ", \"gpuBytes\": " + std::to_string(it.gpuBytes)) +
-         (it.codec.empty() ? std::string() : ", \"codec\": " + jsonString(it.codec)) + "}";
+         (it.codec.empty() ? std::string() : ", \"codec\": " + jsonString(it.codec)) + (it.glyphs ? ", \"glyphs\": " + std::to_string(it.glyphs) : std::string()) + "}";
   }
   s += std::string(r.items.empty() ? "" : "\n  ") + "],\n  \"packs\": [";
   std::uint64_t packBytes = 0;
