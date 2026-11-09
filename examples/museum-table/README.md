@@ -156,8 +156,8 @@ The project asks for statistics (`kiosk.statistics`) and the directory says wher
 to the reset), their length, the hour they began in, their language, each sequence opened and for how long, each picture seen in full,
 each audio description, each point of interest, each guided visit started and played to its end. A day is a CSV file of sums that a
 spreadsheet opens (`docs/museum-table-format.md`, "The statistics of a table"): nothing identifies a visitor, no time is finer than the
-hour, and no touch is kept. Two fingers held three seconds in two opposite corners show the staff the counts of the day; the next touch
-closes them. Without `--statistics` nothing is counted and nothing is written.
+hour, and no touch is kept. Two fingers held three seconds in two opposite corners show the staff the counts of the day; its tabs add up
+the last 7 or 30 days instead, and a touch anywhere else closes them. Without `--statistics` nothing is counted and nothing is written.
 
 ## Updates
 
@@ -217,6 +217,6 @@ is asked for and when.
 
 A film has no sound (zinc:video decodes its pictures), and needs FFmpeg's libraries on the machine: without them its card keeps the
 poster, with the subtitles and the timeline. At the two larger text sizes the buttons take two or
-three rows at the visitor's edge and lie over the foot of the lowest cards, which the visitor moves; the notice on the back of a card
-shows what fits, as at the designed size (the full view has all of it). The narration and the audio descriptions were checked by their
+three rows at the visitor's edge, and the cards come nearer the far side, a little smaller, to stay above them; the notice on the back
+of a card shows what fits, as at the designed size (the full view has all of it). The narration and the audio descriptions were checked by their
 durations and their decoding, not by ear, and the table mode by scripted touches, not on a touch table.

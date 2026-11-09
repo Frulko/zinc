@@ -60,6 +60,9 @@ export class ObjectView extends Orbit {
   private scene = new Scene();
   private camera = new Camera();
   private pivot = new Node(null, null);
+  /** The object itself, centred, with its meshes and textures; and whether this view made it (and frees it) or shares another's. */
+  readonly body: Node;
+  private owns = true;
   private recentring = false;
   private pinned = false;
   // the screen box of the last draw and the projection that goes with it
@@ -73,12 +76,33 @@ export class ObjectView extends Orbit {
   py = 0;
   pfacing = false;
 
-  /** `pins`: a small red ball on every point of interest, part of the object (the test of the projection looks for them). */
-  constructor(project: Project, media: Media, colours: Colours, lang: string, frame: Frame, pins: boolean) {
+  /** `pins`: a small red ball on every point of interest, part of the object (the test of the projection looks for them). `shared`:
+   *  another view of the same medium whose object this one shows too, turned its own way (the attract loop's view of the visit's
+   *  object): the model is read and its meshes and textures are made once. */
+  constructor(project: Project, media: Media, colours: Colours, lang: string, frame: Frame, pins: boolean, shared: ObjectView | null = null) {
     super();
     this.project = project; this.media = media; this.colours = colours; this.lang = lang; this.frame = frame;
     this.nearest = 1.3; this.farthest = 6; this.steepest = 80;
-    // an OBJ with the texture the project names, or a glTF / GLB with its own materials
+    this.owns = shared === null;
+    this.body = shared !== null ? shared.body : ObjectView.make(media, pins);
+    const at = this.body.children[0].position;   // where the object's centre was in its own units
+    this.centre = [-at[0], -at[1], -at[2]];
+    // the format's distances are in radii of the object: half the diagonal of its box
+    const b = bounds(this.body), dx = b.max[0] - b.min[0], dy = b.max[1] - b.min[1], dz = b.max[2] - b.min[2];
+    this.radius = Math.sqrt(dx * dx + dy * dy + dz * dz) / 2;
+    this.pivot.add(this.body);
+    this.pinned = pins;
+    this.scene.add(this.pivot);
+    this.camera.fov = FOV;
+    this.camera.near = this.radius * 0.05;
+    this.camera.far = this.radius * 20;
+    this.setLight(media.light);
+    this.reset(false);
+  }
+
+  /** The object of a medium, its centre at the origin: an OBJ with the texture the project names, or a glTF / GLB with its own
+   *  materials; with `pins`, a small red ball on every point of interest. */
+  private static make(media: Media, pins: boolean): Node {
     let body: Node;
     if (media.file.toLowerCase().endsWith('.obj')) {
       const obj = files.text(media.file), skin = new Material(0xffffff);
@@ -87,25 +111,16 @@ export class ObjectView extends Orbit {
       skin.shininess = 48;
       body = new Node(parseObj(obj), skin);
     } else body = loadGltf(files.path(media.file));
-    // the format's distances are in radii of the object: half the diagonal of its box
     const b = bounds(body), dx = b.max[0] - b.min[0], dy = b.max[1] - b.min[1], dz = b.max[2] - b.min[2];
-    this.centre = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2];
-    this.radius = Math.sqrt(dx * dx + dy * dy + dz * dz) / 2;
-    this.pivot.add(body);
-    body.setPosition(-this.centre[0], -this.centre[1], -this.centre[2]);   // the object turns about its centre
-    this.pinned = pins;
+    const centre = new Node(null, null);   // the object turns about its centre
+    centre.add(body).setPosition(-(b.min[0] + b.max[0]) / 2, -(b.min[1] + b.max[1]) / 2, -(b.min[2] + b.max[2]) / 2);
     if (pins) {
       const red = new Material(0xff0000);
       red.shading = Shading.Unlit;
-      const ball = sphere(this.radius * 0.012, 10, 6);
+      const ball = sphere(Math.sqrt(dx * dx + dy * dy + dz * dz) / 2 * 0.012, 10, 6);
       for (const p of media.points) body.add(new Node(ball, red)).setPosition(p.at[0], p.at[1], p.at[2]);
     }
-    this.scene.add(this.pivot);
-    this.camera.fov = FOV;
-    this.camera.near = this.radius * 0.05;
-    this.camera.far = this.radius * 20;
-    this.setLight(media.light);
-    this.reset(false);
+    return centre;
   }
 
   setLanguage(lang: string): void { this.lang = lang; }
@@ -116,6 +131,7 @@ export class ObjectView extends Orbit {
    *  reader's. */
   dispose(): void {
     this.camera.dispose();
+    if (!this.owns) return;   // the meshes are the view's that made them
     const all: Mesh[] = [];
     meshes(this.pivot, all);
     for (const m of all) m.dispose();

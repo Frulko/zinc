@@ -108,5 +108,13 @@ export class Statistics {
   drop(): void { this.session = null; }
   /** Today, as its file is named, and its counts, as its file has them. */
   get day(): string { return dayOf(new Date()); }
-  today(): Counts { return Counts.parse(this.read(this.day)); }
+  today(): Counts { return this.last(1); }
+  /** The counts of the `days` days that end today, added up from their files (7: the week, 30: the month). */
+  last(days: i32): Counts {
+    const all = new Counts(), now = new Date();
+    for (let i: i32 = 0; i < days; i++) all.merge(Counts.parse(this.read(dayOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() - i, 12)))));
+    return all;
+  }
+  /** The first of those days: 2026-10-05 for the week that ends on 2026-10-11. */
+  firstDay(days: i32): string { const now = new Date(); return dayOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() - days + 1, 12)); }
 }

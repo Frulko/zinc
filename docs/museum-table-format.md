@@ -351,7 +351,8 @@ A file holds sums, and a visit is added to the day it began on when it is forgot
 visit be followed: no time finer than the hour a visit began in, no touch, no position, no order of events. The seconds are whole, and
 stop at the last touch (or at the end of a presentation being watched): a table left alone is not being looked at. The attract loop is
 not a visit. The id comes last so that it may hold a comma. The staff see the counts of the day on the table: two fingers held three
-seconds in two opposite corners; the next touch closes them, and none of those touches is counted.
+seconds in two opposite corners; three tabs show the day, the last 7 days or the last 30 days (the files of those days added up), a touch
+anywhere else closes them, and none of those touches is counted.
 
 ## Replacing the content of a table
 

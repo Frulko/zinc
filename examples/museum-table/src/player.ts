@@ -31,6 +31,8 @@ import { Statistics, Counts } from './stats';
 const FULL: i32 = 1, BUTTON: i32 = 2, BOARD: i32 = 5, STAFF: i32 = 6, NOTHING: i32 = -1;
 /** The staff's gesture: two fingers this close to two opposite corners (table units), held this many seconds. */
 const CORNER = 40, HOLD = 3;
+/** The days the staff's summary can add up: the day, the week, the month. */
+const PERIODS: i32[] = [1, 7, 30];
 /** Seconds a transition takes, and how dark the sequence underneath an overlay gets (0 to 255). */
 const FADE = 0.5, SLIDE = 0.45, DIM = 205;
 
@@ -82,7 +84,7 @@ export class Player {
   private home: Sequence;
   private first: Sequence;
   /** The 3D views made so far: the visit's, and the attract loop's own, so that the loop leaves an object and a panorama as the visitor
-   *  turned them (the model and the image are then loaded twice: once for each). */
+   *  turned them. The two are twins: an object or a panorama both show is read once, its meshes and its picture shared. */
   private views = new Views();
   private shows = new Views();
 
@@ -125,6 +127,9 @@ export class Player {
    *  interest open at the last frame (the object's, the panorama's), which are counted as they open. */
   private gesture = 0;
   private summary: Counts | null = null;
+  /** The days the summary adds up (1: the day, 7: the week, 30: the month), and the boxes of its three tabs as drawn, in frame units. */
+  private period: i32 = 1;
+  private tabs: number[] = [];
   private pointed: string[] = ['', ''];
 
   /** The player's own controls, in the visitor's frame. */
@@ -174,6 +179,7 @@ export class Player {
     this.TURN = Math.min(this.T.reach, 0.15 * Math.min(this.T.width, this.T.height));
     this.home = project.sequence(project.start) ?? project.sequences[0];
     this.first = project.sequence(first) ?? this.home;
+    this.views.twin = this.shows; this.shows.twin = this.views;
   }
 
   /** The id of the sequence on the table ('' before the first frame). */
@@ -785,7 +791,13 @@ export class Player {
     if (stats === null) return;
     if (this.summary !== null) {
       for (const f of down) if (f.fresh) f.owner = STAFF;
-      for (const f of this.fingers.lifted) if (f.owner === STAFF) { this.tell('summary close'); this.reset(); return; }
+      for (const f of this.fingers.lifted) {
+        if (f.owner !== STAFF) continue;
+        const tab = this.tabAt(this.F.x(f.x, f.y), this.F.y(f.x, f.y));   // a tab shows the day, the week or the month; elsewhere closes
+        if (tab < 0) { this.tell('summary close'); this.reset(); return; }
+        this.period = PERIODS[tab]; this.summary = stats.last(this.period);
+        this.tell(`summary ${this.period} days`);
+      }
       return;
     }
     const corner = (f: Finger): boolean => Math.min(f.x, T.width - f.x) <= CORNER && Math.min(f.y, T.height - f.y) <= CORNER;
@@ -794,7 +806,7 @@ export class Player {
     if (this.gesture < HOLD) return;
     this.gesture = 0;
     stats.drop();
-    this.summary = stats.today();
+    this.period = 1; this.summary = stats.today();
     this.tell('summary open');
   }
 
@@ -818,7 +830,7 @@ export class Player {
     this.drawTour(k);
     this.drawDock(k);
     const counts = this.summary, stats = this.counting;
-    if (counts !== null && stats !== null) this.drawSummary(counts, stats.day, k);
+    if (counts !== null && stats !== null) this.drawSummary(counts, this.period === 1 ? stats.day : stats.firstDay(this.period), k);
     F.off();
     this.drawEdges(ox, oy, k);
     for (const f of fingers.down) border(ox + (f.x - 30) * k, oy + (f.y - 30) * k, 60 * k, 60 * k, 30 * k, Math.max(1, 2 * k), this.colours.accent, 150);   // where the table feels a finger
@@ -1020,8 +1032,15 @@ export class Player {
     }
   }
 
-  /** The counts of a day, for the staff, over everything, in the visitor's frame (which is on) and at the designed text size: the visits
-   *  and how long they lasted, when and in which language, each sequence opened, what was looked at closely, the presentations. */
+  /** The tab of the summary at (x, y) of the frame: 0 the day, 1 the week, 2 the month; -1 for none. */
+  private tabAt(x: number, y: number): i32 {
+    const t = this.tabs;
+    for (let i: i32 = 0; i + 3 < t.length; i += 4) if (x >= t[i] && x <= t[i] + t[i + 2] && y >= t[i + 1] && y <= t[i + 1] + t[i + 3]) return i / 4;
+    return -1;
+  }
+  /** The counts of a day, a week or a month, for the staff, over everything, in the visitor's frame (which is on) and at the designed
+   *  text size: the visits and how long they lasted, when and in which language, each sequence opened, what was looked at closely, the
+   *  presentations. Three tabs at its top choose the days added up. `day`: the first of them. */
   private drawSummary(c: Counts, day: string, k: number): void {
     const F = this.F, colours = this.colours, project = this.project, L = this.lang, rows: string[] = [];
     const row = (label: string, value: string): void => { rows.push(label); rows.push(value); };
@@ -1043,7 +1062,18 @@ export class Player {
     rrect(F.ox, F.oy, F.w * k, F.h * k, 0, colours.background, 236);
     rrect(x, y, w, h, 18 * k, colours.background, 255);
     border(x, y, w, h, 18 * k, Math.max(1, 1.5 * k), colours.accent, 255);
-    drawText(head, x + 40 * k, y + 32 * k, `${word('stats', L)} · ${day}`, colours.text, 255, 0);
+    drawText(head, x + 40 * k, y + 32 * k, this.period === 1 ? `${word('stats', L)} · ${day}` : `${word('stats-since', L)} ${day}`, colours.text, 255, 0);
+    this.tabs = [];
+    let right = x + w - 40 * k;
+    for (let i: i32 = PERIODS.length - 1; i >= 0; i--) {
+      const label = word(['stats-day', 'stats-week', 'stats-month'][i], L), on = PERIODS[i] === this.period;
+      const tw = textWidth(small, label, 0) + 36 * k, th = 40 * k, tx = right - tw, ty = y + 28 * k;
+      rrect(tx, ty, tw, th, th / 2, on ? colours.accent : colours.background, 255);
+      border(tx, ty, tw, th, th / 2, Math.max(1, k), on ? colours.accent : colours.muted, 255);
+      drawText(small, tx + 18 * k, ty + (th - leading(small)) / 2, label, on ? colours.background : colours.text, 255, 0);
+      this.tabs = [(tx - F.ox) / k, (ty - F.oy) / k, tw / k, th / k].concat(this.tabs);
+      right = tx - 12 * k;
+    }
     let ty = y + 32 * k + leading(head) + 18 * k;
     for (let i = 0; i < rows.length; i += 2) {
       drawText(f, x + 40 * k, ty, wrap(f, rows[i], w * 0.45 - 60 * k, 1)[0], colours.muted, 255, 0);

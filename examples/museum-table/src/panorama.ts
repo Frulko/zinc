@@ -45,13 +45,18 @@ function insideSphere(segments: i32, rings: i32): Mesh {
 export class PanoramaView extends Orbit {
   private readonly scene = new Scene();
   private readonly camera = new Camera();
-  private readonly sphere: Mesh = insideSphere(64, 32);
+  /** The sphere the picture is drawn inside, and whether this view made it (and frees it) or shares another's. */
+  readonly sphere: Mesh;
+  private readonly owns: boolean;
   /** The side of the table the visitor stands at (frame.ts: 0 the bottom of the screen, 1 the right, 2 the top, 3 the left): the image
    *  is upright for them, and the field of view is that of the height they see. */
   side: i32 = 0;
 
-  constructor(image: i32, view: View) {
+  /** `shared`: a view of the same picture whose sphere this one draws in too (the attract loop's view of the visit's panorama). */
+  constructor(image: i32, view: View, shared: PanoramaView | null = null) {
     super();
+    this.sphere = shared !== null ? shared.sphere : insideSphere(64, 32);
+    this.owns = shared === null;
     this.nearest = FOV_MIN; this.farthest = FOV_MAX; this.steepest = PITCH_MAX;
     const m = new Material(0xffffff);
     m.texture = image;
@@ -66,7 +71,7 @@ export class PanoramaView extends Orbit {
 
   /** Frees the sphere and the picture the view is drawn into (the panorama's image is its owner's). */
   suspend(): void { this.camera.dispose(); }
-  dispose(): void { this.suspend(); this.sphere.dispose(); }
+  dispose(): void { this.suspend(); if (this.owns) this.sphere.dispose(); }
 
   /** The field of view in degrees: what a pinch changes here. */
   get fov(): number { return this.reach; }

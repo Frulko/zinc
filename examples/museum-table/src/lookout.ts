@@ -35,9 +35,10 @@ export class Lookout {
   /** The box of the open panel's button, in frame units ([] without one). */
   private button: number[] = [];
 
-  constructor(project: Project, media: Media, colours: Colours, lang: string, frame: Frame) {
+  /** `shared`: another lookout on the same panorama, whose picture and sphere this one draws with (the attract loop's). */
+  constructor(project: Project, media: Media, colours: Colours, lang: string, frame: Frame, shared: Lookout | null = null) {
     this.project = project; this.media = media; this.colours = colours; this.lang = lang; this.frame = frame;
-    this.view = new PanoramaView(files.picture(media.file), media.view);
+    this.view = new PanoramaView(files.picture(media.file), media.view, shared !== null ? shared.view : null);
   }
 
   setLanguage(lang: string): void { this.lang = lang; }

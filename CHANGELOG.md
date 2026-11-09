@@ -321,10 +321,12 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The Discord example keeps refused logins across launches, so quitting no longer lifts the hour-long pause after three wrong passwords, and it opens Account safety after your first login.
 - The iPod example orders songs that score the same by title, so Genius, For you, the mood mixer and radio make the same lists on every iPod that holds the same songs, and the iPod daemon takes `--port 0` to serve on a free port and says which.
 - On a Sonos speaker, the iPod example puts the whole list on the group, the songs before the one picked too, so Previous goes back through it, and pages in lists of more than 1,000 songs instead of cutting them; switching to another speaker carries the moment of the song over, even while the speaker is still starting.
+- On the museum table, at the two larger text sizes the cards come nearer the far side, a little smaller, so the rows of buttons at the visitor's edge no longer lie over the lowest ones; the staff's summary has tabs for the last 7 and 30 days beside the day.
 
 #### Faster
 
 - The iPod example's For you page no longer pauses the window when it refreshes a large history (the year's counts are now done by SQLite), and the first sync after a library change reads the 10,000 songs a slice at a time instead of in one block.
+- The museum table's attract loop shows the 3D object and the panorama with the meshes and pictures the visit already loaded, instead of reading them a second time.
 
 #### Fixed
 

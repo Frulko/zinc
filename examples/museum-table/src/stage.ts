@@ -12,10 +12,16 @@ import { Button, drawButton, setInRows, touching } from './button';
 import { sans, bold, wrap, leading, reading, faint } from './type';
 import { word } from './words';
 
+/** The table units kept between the lowest card and the rows at the visitor's edge. */
+const GAP = 12;
+
 /** The 3D views a player has made so far, by medium: a model or a panorama is loaded once, however often its sequence comes back. */
 export class Views {
   viewers = new Map<string, ObjectView>();
   lookouts = new Map<string, Lookout>();
+  /** The other views of the same player (the visit's and the attract loop's are twins): a view of a medium the twin already shows
+   *  shares its meshes and its picture, made once. Both are disposed together. */
+  twin: Views | null = null;
   /** Hidden views retain their small scene/view state, but no full-size render targets. */
   trimTargets(active: Stage[]): void {
     for (const v of this.viewers.values()) if (!active.some((s: Stage): boolean => s.viewer === v)) v.suspend();
@@ -23,6 +29,7 @@ export class Views {
   }
   /** Frees them all: the player that made them is done. */
   dispose(): void {
+    // a view that shares its twin's meshes leaves them to it
     for (const v of this.viewers.values()) v.dispose();
     for (const v of this.lookouts.values()) v.dispose();
     this.viewers.clear(); this.lookouts.clear();
@@ -71,13 +78,13 @@ export class Stage {
       // ponytail: one model and one panorama per sequence (the first of each), and the same one cannot be on two open sequences at once
       if (m.kind === 'model' && this.viewer === null) {
         let v = views.viewers.get(m.id) ?? null;
-        if (v === null) { v = new ObjectView(project, m, colours, lang, frame, pins); views.viewers.set(m.id, v); }
+        if (v === null) { v = new ObjectView(project, m, colours, lang, frame, pins, views.twin?.viewers.get(m.id) ?? null); views.viewers.set(m.id, v); }
         v.setLanguage(lang); v.reset(false);
         v.x = item.x; v.y = item.y; v.w = item.width; v.h = item.height > 0 ? item.height : item.width;
         this.viewer = v; this.viewerItem = item;
       } else if (m.kind === 'panorama' && this.lookout === null) {
         let v = views.lookouts.get(m.id) ?? null;
-        if (v === null) { v = new Lookout(project, m, colours, lang, frame); views.lookouts.set(m.id, v); }
+        if (v === null) { v = new Lookout(project, m, colours, lang, frame, views.twin?.lookouts.get(m.id) ?? null); views.lookouts.set(m.id, v); }
         v.setLanguage(lang); v.reset();
         v.x = item.x; v.y = item.y; v.w = item.width; v.h = item.height > 0 ? item.height : item.width / 2;
         this.lookout = v; this.lookoutItem = item;
@@ -204,6 +211,10 @@ export class Stage {
       if (v !== null) this.setStrip(this.objectStrip.filter(shown), v.box());
       if (p !== null) this.setStrip(this.windowStrip.filter(shown), p.box());
     }
+    // the cards lie above what is at the visitor's edge: when the rows rise over the lowest of them (a larger text, more rows), the cards
+    // come nearer to the far side, smaller, as they were designed among themselves
+    const low = this.table.lowest((x: number, y: number): number => F.y(x, y)), over = this.edge > 0 && low > this.edge;
+    this.table.fit(over ? Math.max(0.5, (this.edge - GAP) / low) : 1, F.tableX(F.w / 2, 0), F.tableY(F.w / 2, 0));
   }
   /** The buttons of a view at the bottom-left of its box, in the frame, above what lies at the visitor's edge. */
   private setStrip(strip: Button[], box: number[]): void {

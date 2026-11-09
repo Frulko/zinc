@@ -31,7 +31,11 @@ const WORDS: string[] = [
   'stats-descriptions', 'Audiodescriptions', 'Audio descriptions',
   'stats-points', 'Points d’intérêt ouverts', 'Points of interest opened',
   'stats-ended', 'jusqu’au bout', 'to the end',
-  'stats-close', 'Toucher pour refermer. Ce geste n’est pas compté.', 'Touch to close. This gesture is not counted.',
+  'stats-close', 'Toucher ailleurs pour refermer. Ce geste n’est pas compté.', 'Touch elsewhere to close. This gesture is not counted.',
+  'stats-day', 'Aujourd’hui', 'Today',
+  'stats-week', '7 jours', '7 days',
+  'stats-month', '30 jours', '30 days',
+  'stats-since', 'Statistiques depuis le', 'Statistics since',
 ];
 
 export function word(key: string, lang: string): string {

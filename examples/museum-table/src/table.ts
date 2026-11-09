@@ -65,6 +65,10 @@ export class Card {
   shown = 0;
   /** The hotspots on it. */
   spots: Link[] = [];
+  /** Where it was designed: its centre and its turn (radians), at scale 1. */
+  homeX = 0;
+  homeY = 0;
+  homeAngle = 0;
   constructor(uid: i32, media: Media) { this.uid = uid; this.media = media; }
 }
 
@@ -90,15 +94,21 @@ export class LightTable {
     this.width = project.table.width; this.height = project.table.height;
   }
 
+  /** How much smaller than designed the cards are laid out, and the point of the table they come nearer to (fit). */
+  private fitted = 1;
+  private fitX = 0;
+  private fitY = 0;
+
   /** Lays out the cards of `sequence` as designed. */
   open(sequence: Sequence): void {
-    this.cards = [];
+    this.cards = []; this.fitted = 1;
     this.opened = null;
     for (let i: i32 = 0; i < sequence.items.length; i++) {
       const item = sequence.items[i], m = this.project.medium(item.media);
       if (m === null || m.kind === 'model' || m.kind === 'panorama' || m.kind === 'audio') continue;   // these have their own views; a sound has no card
       const c = new Card(CARD + i, m);
       c.pose.x = item.x; c.pose.y = item.y; c.pose.angle = item.rotation * Math.PI / 180;
+      c.homeX = c.pose.x; c.homeY = c.pose.y; c.homeAngle = c.pose.angle;
       c.w = item.width; c.at = item.at; c.until = item.until;
       c.shown = item.at > 0 ? 0 : 1;
       let first = true;   // a medium laid out twice has its hotspots on the first card
@@ -150,6 +160,30 @@ export class LightTable {
     for (const c of this.cards) { c.film?.setLanguage(lang); this.measure(c); }
   }
   setColours(colours: Colours): void { this.colours = colours; }
+
+  /** How near the visitor the cards reach as designed: the largest `fy` (a point of the table, in the visitor's frame) of their corners. */
+  lowest(fy: (x: number, y: number) => number): number {
+    let low = 0;
+    for (const c of this.cards) {
+      const cos = Math.cos(c.homeAngle), sin = Math.sin(c.homeAngle);
+      for (const corner of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        const lx = corner[0] * c.w / 2, ly = corner[1] * c.h / 2;
+        low = Math.max(low, fy(c.homeX + lx * cos - ly * sin, c.homeY + lx * sin + ly * cos));
+      }
+    }
+    return low;
+  }
+  /** Lays the cards out `s` times their designed size and distance from the point (ax, ay) of the table (1: as designed), so that they
+   *  lie above what is at the visitor's edge. A card a visitor moved keeps its place among the others. */
+  fit(s: number, ax: number, ay: number): void {
+    if (s === this.fitted && ax === this.fitX && ay === this.fitY) return;
+    const back = 1 / this.fitted;
+    for (const c of this.cards) {
+      const p = c.pose, dx = this.fitX + (p.x - this.fitX) * back, dy = this.fitY + (p.y - this.fitY) * back;
+      p.x = ax + (dx - ax) * s; p.y = ay + (dy - ay) * s; p.scale *= back * s;
+    }
+    this.fitted = s; this.fitX = ax; this.fitY = ay;
+  }
 
   /** The topmost card under (x, y), or null. */
   cardAt(x: number, y: number): Card | null {
