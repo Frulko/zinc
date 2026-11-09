@@ -1069,6 +1069,7 @@ export function stop(port?: i32): void {
 const char* kNativeModule = R"ZN(
 export interface NativeModule {}
 export interface NativeResource {}
+export interface NativeComponent {}
 export function requireNative<T>(name: string): T { throw new Error('the native module ' + name + ' is not linked into this engine'); }
 )ZN";
 

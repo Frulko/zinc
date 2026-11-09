@@ -1,0 +1,1 @@
+{ "name": "ui-appkit-views", "entry": "main.ts", "ui": { "render": "native" }, "pluginDirs": ["../../../examples/native-view/plugins"] }

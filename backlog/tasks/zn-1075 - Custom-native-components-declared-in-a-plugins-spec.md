@@ -1,10 +1,11 @@
 ---
 id: ZN-1075
 title: Custom native components declared in a plugin's spec
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-08 21:44'
+updated_date: '2026-11-09 03:35'
 labels:
   - ui
   - appkit
@@ -24,7 +25,28 @@ A component declared in a plugin's spec (props, events), Objective-C++ glue gene
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A plugin declares a native component with props and events in its spec
-- [ ] #2 zinc native-gen writes the glue; the host mounts the plugin's NSView like a built-in kind
-- [ ] #3 A small example plugin shows it; a T0 test checks the generated glue
+- [x] #1 A plugin declares a native component with props and events in its spec
+- [x] #2 zinc native-gen writes the glue; the host mounts the plugin's NSView like a built-in kind
+- [x] #3 A small example plugin shows it; a T0 test checks the generated glue
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done (2026-11-09).
+
+Research (sonnet sub-agent): React Native Fabric native components and Codegen (https://reactnative.dev/docs/fabric-native-components-introduction): a typed props interface plus DirectEventHandler/BubblingEventHandler events, codegenNativeComponent<Props>('Name') names the kind, generated Props/EventEmitter, updateProps:oldProps:, a componentProvider map. Lynx custom elements (https://lynxjs.org/next/guide/custom-native-component, https://lynxjs.org/3.8/guide/autolink.html): LynxUI subclass, LYNX_PROP_SETTER(name, selector, type) with string-typed props, LYNX_LAZY_REGISTER_UI(tag). Expo Modules View (https://docs.expo.dev/modules/module-api/): Prop(name, default) { view, value in }, Events(onX) with an EventDispatcher, OnViewDidUpdateProps after a batch. Taken: a removed or empty prop gets its type's zero, one post-batch hook (didUpdateProps), onX event names, events tagged with the node's handle and generation.
+
+What was built:
+- include/zn/native_view.h: the C ABI (ZnViewClass: kind, create(token, emit), set(view, prop, text), done, drop) and the engine's registry zn_host_register_view / zn_host_view_class (src/host/layout_yoga.cpp, beside zn_host_set_native_measure). Both plugins reference them weakly.
+- zinc:native exports NativeComponent; an interface of a spec that extends it is a component, its name the kind. zinc native-gen --views writes zinc_views_<x>.h (AppKit glue: Zinc<Kind>View protocol of update<Prop>: setters, Zinc<Kind>Events, the class, zinc_views_<x>_register()); the plugin build writes it beside zinc_native_<x>.h and refuses a malformed component with its member.
+- plugins/appkit: a kind no built-in has is looked up in the engine (KCustom), mounted as a leaf, its attributes set through the class at each change, its events queued as kind 18 under the node's generation and given to ui.nativeValue; a refused value goes back (resync); drive action 11 on a plugin's NSControl; dump shows the kind, what the control shows and the props.
+- examples/native-view with plugins/levels: LevelIndicator as NSLevelIndicator (stars, bar), drawn cells elsewhere.
+- Tests: tests/t0/native_gen.sh compares the glue with tests/golden/native_gen/views and compiles it with the plugin's view (-Wall -Wextra -Werror, ARC); tests/t0/ui_appkit_views.sh mounts it headless on the interpreter (golden), QuickJS, the AOT and drawn.
+
+Decisions: the registry is in the engine, not in zinc:appkit: plugin libraries load RTLD_LOCAL, so one plugin cannot dlsym another's symbol, and an AOT program is linked with -no_exported_symbols, where dlsym(RTLD_DEFAULT) finds nothing; a weak reference to the engine's function works in both. Kinds of plugins' views are their interface's PascalCase name, so they never meet the lowercase built-in kinds. Setters are update<Prop>: (not set<Prop>:, which an NSControl subclass would override). A plugin module starts at its first call, so the component calls the module once (registered()) before marking its node.
+
+Ran: tools/build zinc; tests/run --only native_gen, ui_appkit_views, ui_appkit, ui_appkit_controls, ui_appkit_chrome, ui_appkit_table (all pass); zinc check and a headless run of examples/native-view native and drawn; appkit.snapshot shows the real stars and bar.
+
+Proposed tests: none beyond the two T0 written; a T1 of examples/native-view is not proposed (the T0 covers it).
+<!-- SECTION:NOTES:END -->

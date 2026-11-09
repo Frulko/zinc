@@ -451,6 +451,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   for (const auto& e : fs::directory_iterator(nativeDir, ec)) if (isSpec(e.path())) { specPath = e.path().string(); base = e.path().filename().string(); base.resize(base.size() - 8); }
   if (specPath.empty() || !readAll(specPath, specText)) { err = "plugin '" + m.name + "' has no native/*.spec.ts"; return false; }
   if (!frontend::generateNative(specPath, specText, gen, err)) return false;
+  if (!gen.viewsNote.empty()) { err = specPath + ": " + gen.viewsNote; return false; }
   out.module = gen.name;
   // the implementation: the manifest's, else <x>.<target>.cpp, else <x>.host.cpp, else <x>.abi.c or .abi.cpp (on include/zn/native.h, it defines zn_module_<X> itself: no thunk)
   auto it = m.nativeImpl.find(target);
@@ -592,7 +593,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   for (const std::string& f : ts.vendorFlags) vh.add(f);
   vh.add("-g0");   // the vendored libraries carry no debug information: zig's clang writes it by default, and it was 70 to 85% of their archives
   h.add(ccId); vh.add(ccId);
-  h.add(gen.cppHeader); h.add(abi ? gen.cHeader : gen.thunk);
+  h.add(gen.cppHeader); h.add(abi ? gen.cHeader : gen.thunk); h.add(gen.viewsHeader);
   h.add(display ? "display" : "module");
   for (const std::string& s : own) { std::string t; readAll(s, t); h.add(relToPlugin(s)); h.add(t); }
   for (const std::string& hp : {root + "/include/zn/native.h", root + "/include/zn/rec.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/gl_caps.h", runtime + "/gl_clip.h", runtime + "/gl_paint_cache.h", runtime + "/include/hal.h", runtime + "/include/render_bands.h"}) h.add(sha256File(hp));
@@ -686,6 +687,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     else if (!display) {
       { std::ofstream(gdir + "/zinc_native_" + lower + ".h") << gen.cppHeader; }
       { std::ofstream(thunk) << gen.thunk; }
+      if (!gen.viewsHeader.empty()) std::ofstream(gdir + "/zinc_views_" + lower + ".h") << gen.viewsHeader;   // the native views' glue (ZN-1075)
     }
     // third_party last: a plugin may compile a library the engine vendors by its directory (three: "meshoptimizer/vertexcodec.cpp", ZN-441)
     std::string inc = " -I" + q(gdir) + " -I" + q(root + "/src") + " -I" + q(root + "/include") + " -I" + q(runtime) + " -I" + q(runtime + "/include") + " -I" + q(p.dir)

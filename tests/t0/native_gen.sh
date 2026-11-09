@@ -42,4 +42,20 @@ if [ "$(uname)" = Darwin ]; then
 fi
 "$ZINC" native-gen --android plugins/sqlite/native/sqlite.spec.ts "$tmp" 2>"$tmp/err" >/dev/null && { echo "a spec with arrays got phone glue"; fail=1; }
 grep -q "member 'bindBlob'" "$tmp/err" || { echo "the refusal does not name the member: $(cat "$tmp/err")"; fail=1; }
+# a plugin's native views (ZN-1075): the AppKit glue of examples/native-view's LevelIndicator equals tests/golden/native_gen/views (UPDATE=1
+# rewrites it) and, on macOS, compiles warning-free with the plugin's view under ARC; a spec without a component has none, a malformed one names
+# the member
+spec=examples/native-view/plugins/levels/native/levels.spec.ts
+mkdir -p "$tmp/v"
+"$ZINC" native-gen --views "$spec" "$tmp/v" >/dev/null || { echo "native-gen --views fails on the levels spec"; fail=1; }
+[ -n "$UPDATE" ] && cp "$tmp/v/zinc_views_levels.h" tests/golden/native_gen/views/
+diff -q "$tmp/v/zinc_views_levels.h" tests/golden/native_gen/views/zinc_views_levels.h >/dev/null || { echo "zinc_views_levels.h differs from tests/golden/native_gen/views"; fail=1; }
+if [ "$(uname)" = Darwin ]; then
+  "$ZINC" native-gen "$spec" "$tmp/v" >/dev/null
+  "${CXX:-c++}" -std=c++20 -fsyntax-only -fobjc-arc -x objective-c++ -Wall -Wextra -Werror -I "$tmp/v" -I runtime -I runtime/include -I src -I include examples/native-view/plugins/levels/native/levels.macos.mm || { echo "the views glue does not compile with the plugin's view"; fail=1; }
+fi
+"$ZINC" native-gen --views examples/native-module/native/sensor.spec.ts "$tmp" >/dev/null 2>&1 && { echo "a spec without a component got views glue"; fail=1; }
+printf "import { NativeModule, NativeComponent, requireNative } from 'zinc:native';\nexport interface Bad extends NativeComponent { onTap: number; }\nexport interface Spec extends NativeModule { f(): void; }\nexport default requireNative<Spec>('Bad');\n" > "$tmp/bad.spec.ts"
+"$ZINC" native-gen --views "$tmp/bad.spec.ts" "$tmp" 2>"$tmp/err" >/dev/null && { echo "a malformed component got views glue"; fail=1; }
+grep -q "member 'onTap'" "$tmp/err" || { echo "the views refusal does not name the member: $(cat "$tmp/err")"; fail=1; }
 exit $fail

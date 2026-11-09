@@ -1,0 +1,14 @@
+{
+  "name": "levels",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:levels",
+  "entry": "index.ts",
+  "description": "An example of a plugin's own native view (ZN-1075): <LevelIndicator> is AppKit's NSLevelIndicator under the AppKit host, declared in the spec and mounted through the glue zinc native-gen --views writes; drawn cells anywhere else",
+  "native": { "impl": { "macos": "native/levels.macos.mm" } },
+  "targets": {
+    "macos": { "frameworks": ["AppKit", "Foundation"], "flags": ["-fobjc-arc"] },
+    "linux": {},
+    "windows": {}
+  }
+}

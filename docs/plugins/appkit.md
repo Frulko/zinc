@@ -157,6 +157,37 @@ scrolling (`ui.domScroll`, so `onScroll` and virtual lists). Each event carries 
 of a view deleted since, or of a handle that holds another node now, is dropped. Keys pressed in a native field reach only the program's key
 handlers (`onKeyDown`, `onKey`, the keymap); the field does the editing.
 
+## Plugin views
+
+A plugin adds its own AppKit view the way React Native's Fabric components do: it declares the component in its spec, `zinc native-gen
+--views` writes the Objective-C++ glue, and the host mounts the plugin's view wherever the component's kind shows under `render: "native"`.
+`examples/native-view` (its `plugins/levels`) is a complete one, an NSLevelIndicator.
+
+```ts
+// native/levels.spec.ts
+import { NativeModule, NativeComponent, requireNative } from 'zinc:native';
+export interface LevelIndicator extends NativeComponent {   // the kind is the interface's name
+  value: f64;                                                // props: string, boolean, number/f64, i32, u32
+  style: string;
+  onChange: (value: f64) => void;                            // events: onX, arguments of the same types
+}
+export interface Spec extends NativeModule { registered(): boolean; }
+export default requireNative<Spec>('Levels');
+```
+
+The plugin's build writes `zinc_views_levels.h` beside its `zinc_native_levels.h`: a `ZincLevelIndicatorView` protocol with one setter per
+prop (`updateValue:`, `updateStyle:`, and an optional `didUpdateProps` after each commit's props), a `ZincLevelIndicatorEvents` object whose
+methods send the events (`[events onChange:v]`), and the class the engine hands to the host. Its `.mm` includes the header once, implements the
+protocol with an NSView subclass, defines `ZincLevelIndicatorMake(events)`, and calls `zinc_views_levels_register()` in `zinc_create_Levels`.
+The plugin's TS gives the component its drawn fallback and marks the node: call the module once first (it starts, and registers its views,
+at its first call), then `nativeControl(node, 'LevelIndicator', () => ['value', ...], onEvent)` of `zinc:ui/kit`. An event reaches `onEvent`
+as its name, then its arguments, joined by U+001F; props cross as text and the glue parses them by their declared type.
+
+The two plugins never link to each other: the plugin registers its class with the engine (`include/zn/native_view.h`), and the host asks the
+engine for the class of a kind it does not know. A kind with no class (the plugin is not there, or another platform) shows as a plain view of
+its fallback. The view is a leaf: its children are the drawn fallback. Its events carry the node's handle and generation, so the event of a
+view whose node went is dropped, and as with the controls a value the program refuses goes back to the program's one frame later.
+
 ## Tests
 
 ```ts
@@ -167,7 +198,8 @@ appkit.drive(h, 0, 'hi');  // types into field h through its field editor; 1: En
                            // 3: sends field h's editor a command ('insertTab:'); 4: drags split view h's divider to x; 5: clicks toolbar item h;
                            // a Table or Outline h: 2 scrolls it, 6 sorts by column text, 7 selects rows '3,4' (an outline: an id),
                            // 8 types keys into it, 9 expands (x 1) or collapses item text;
-                           // a control h: 10 clicks it (a button, a switch, a check box), 11 sets its value (an item, a segment, x, a date);
+                           // a control h: 10 clicks it (a button, a switch, a check box), 11 sets its value (an item, a segment, x, a date;
+                           // a plugin's view that is an NSControl: text, else x);
                            // an overlay's panel h (appkit.overlays()): 12 ends it (an alert's button x, -1 dismissed)
 appkit.snapshot('a.png');  // what the views show, drawn offscreen (for people: it changes with each macOS)
 ```
@@ -175,7 +207,8 @@ appkit.snapshot('a.png');  // what the views show, drawn offscreen (for people: 
 `tests/t0/ui_appkit.sh` runs `tests/golden/ui-appkit` headless on the interpreter (against its golden), QuickJS and the AOT;
 `tests/t0/ui_appkit_chrome.sh` does the same for the window chrome and the keyboard (`tests/golden/ui-appkit-chrome`), and checks its drawn fallback;
 `tests/t0/ui_appkit_table.sh` for a table of 10,000 rows and an outline (`tests/golden/ui-appkit-table`); `tests/t0/ui_appkit_controls.sh` for the
-controls and the overlays (`tests/golden/ui-appkit-controls`). Headless, alerts, sheets and popovers are built but not presented, so a test puts
+controls and the overlays (`tests/golden/ui-appkit-controls`); `tests/t0/ui_appkit_views.sh` for a plugin's view (`tests/golden/ui-appkit-views`), whose
+glue `tests/t0/native_gen.sh` compares with `tests/golden/native_gen/views`. Headless, alerts, sheets and popovers are built but not presented, so a test puts
 nothing on screen.
 
 ## Not yet

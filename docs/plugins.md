@@ -127,6 +127,9 @@ the view over the surface inside a clipping container at the clip, the view at t
 Touches inside the clip go to the native view. Zinc does not draw over it: while a zinc:ui layer (menu, dialog, toast) overlaps it, `shown` is
 false and the view is hidden.
 
+Under the native renderer a plugin's view can instead be a component of the tree, mounted by the host itself: the plugin declares it in its
+spec and `zinc native-gen --views` writes its glue (macOS: [zinc:appkit, "Plugin views"](plugins/appkit.md#plugin-views)).
+
 ## Search path
 
 `<zinc>/plugins/*`, then `<project>/plugins/*`, then `zinc.json` `"pluginDirs"`. A project plugin shadows a bundled one

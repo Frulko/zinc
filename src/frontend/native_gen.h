@@ -38,6 +38,9 @@ struct NativeGen {
   std::string javaPackage, javaName, java, jniBridge;   // dev.zinc.plugins.<lower>, <Name>Spec, <Name>Spec.java, zinc_native_<lower>_android.cpp
   std::string objcName, objcHeader, swiftProtocol, objcBridge;   // Zinc<Name>Spec, its .h and .swift, zinc_native_<lower>_ios.mm
   std::string mobileNote;
+  // zinc native-gen --views (ZN-1075, include/zn/native_view.h): the AppKit glue of the components the spec declares (interfaces extending
+  // NativeComponent: props and onX events), zinc_views_<lower>.h; empty when it declares none, or with viewsNote when one is malformed.
+  std::string viewsHeader, viewsNote;
 };
 
 // `specFile` is only used in the comment of the header. False with `err` when the text is not a native spec or uses a type the generator cannot write.

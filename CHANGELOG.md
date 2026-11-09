@@ -95,6 +95,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Clocks, timers and columns of numbers stop shifting as their digits change: the `tabular-nums` class (and `normal-nums` to undo it) gives text tabular figures, every digit as wide as the others, and `gfx.tabularFont('sans', 15)` gives a `zinc:gfx` font the same.
 
 - `zinc:appkit` has the macOS controls: `PushButton`, `Switch`, `Checkbox`, `PopUpButton`, `SegmentedControl`, `Slider`, `DatePicker`, `SearchField` and `Progress`, and the kits' `Button`, `Switch`, `Slider`, `Tabs`, `Select` and `Checkbox` and React Native's `Button` and `Switch` become them under `"render": "native"`. `alert()`, `sheet()` and `popover()` show an NSAlert, a sheet or a popover without stopping your frames and resolve with the button pressed or the result; without the AppKit host they draw a dialog, a panel and an anchored panel.
+- A plugin can add its own macOS view to `zinc:appkit`: it declares the component in its spec (an interface extending `NativeComponent`, with typed props and `onX` events), `zinc native-gen --views` writes the Objective-C++ glue, and the plugin's NSView subclass shows wherever the component is used under `"render": "native"`; elsewhere its own drawn fallback shows. `examples/native-view` has a level indicator built this way.
 
 #### Changed
 

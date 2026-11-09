@@ -10,6 +10,7 @@ import A from './native/appkit.spec';
 
 const EDIT = 0, CHANGE = 1, SUBMIT = 2, FOCUS = 3, BLUR = 4, SCROLL = 5, PRESS = 6, RESIZE = 7, SELECT = 8, SORT = 9, TYPE = 10, OPEN = 11, EXPAND = 12, ROWS = 13, LFOCUS = 14;
 const CPRESS = 15, CVALUE = 16, CLOSE = 17;   // a control's press and new value, an overlay closed by the person
+const VIEW = 18;   // a plugin's native view sent an event (ZN-1075): its name and arguments, for the component's onNativeValue
 
 function onEvent(id: i32, kind: i32, text: string, a: number, b: number): void {
   if (!ui.hostMounted(id)) return;   // the node went, or its handle holds another node now
@@ -26,6 +27,7 @@ function onEvent(id: i32, kind: i32, text: string, a: number, b: number): void {
   else if (kind === CPRESS) ui.click(id);                    // a push button: the node's onClick, as a press of the drawn button
   else if (kind === CVALUE) ui.nativeValue(id, text);        // a switch, slider, pop-up...: the component's onNativeValue
   else if (kind === CLOSE) finish(id, text, a);              // an alert's button (a), a sheet or a popover dismissed
+  else if (kind === VIEW) ui.nativeValue(id, text);          // a plugin's view (its spec's onX): the component decodes name and arguments
 }
 
 let shown = false;
@@ -47,7 +49,7 @@ export function hit(x: number, y: number): i32 { return shown ? A.hit(x, y) : -1
  *  `h`; on a Table or an Outline `h`: 2 scrolls it to (x, y), 6 sorts by column `text` (x 1: ascending) as a click on its header does, 7 selects rows
  *  '3,4' (an Outline: the item id), 8 types the keys of `text` into it (type-select), 9 expands (x 1) or collapses item `text` of an Outline;
  *  on a control: 10 clicks it (a push button, a switch, a check box), 11 sets its value (a pop-up's item `text`, a segment `text`, a slider's x, a
- *  date `text`); on an alert's, a sheet's or a popover's panel `h`: 12 ends it (an alert's button x, -1: dismissed).
+ *  date `text`; a plugin's view that is an NSControl: `text`, else x); on an alert's, a sheet's or a popover's panel `h`: 12 ends it (an alert's button x, -1: dismissed).
  *  The events come back at the next frame as a person's would. False when no host runs or h has no such view. */
 export function drive(h: i32, action: i32, text: string = '', x: number = 0, y: number = 0): boolean { return shown && A.drive(h, action, text, x, y); }
 

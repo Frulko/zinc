@@ -1,0 +1,13 @@
+registered true
+root 320x120
+  #1 LevelIndicator 12,12 90x16 shows="2" value="2" max="5" style="rating" editable="true"
+  #7 LevelIndicator 12,38 160x16 shows="4" value="4" max="10" style="continuous" editable="true"
+
+set true true
+rating 4
+fixed refuses 9
+-- after the person
+root 320x120
+  #1 LevelIndicator 12,12 90x16 shows="4" value="4" max="5" style="rating" editable="true"
+  #7 LevelIndicator 12,38 160x16 shows="4" value="4" max="10" style="continuous" editable="true"
+

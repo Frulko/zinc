@@ -3775,9 +3775,9 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (argc >= 3 && !std::strcmp(argv[1], "native-gen")) {  // zinc native-gen [--c] <x.spec.ts> [outdir]: zinc_native_<x>.h (zrt types, for the plugins' x.host.cpp), or with --c the export table for include/zn/native.h
-    bool c = !std::strcmp(argv[2], "--c"), thunk = !std::strcmp(argv[2], "--thunk"), android = !std::strcmp(argv[2], "--android"), ios = !std::strcmp(argv[2], "--ios");
-    int first = c || thunk || android || ios ? 3 : 2;
-    if (argc <= first) { std::fprintf(stderr, "usage: zinc native-gen [--c | --thunk | --android | --ios] <x.spec.ts> [outdir]\n"); return 2; }
+    bool c = !std::strcmp(argv[2], "--c"), thunk = !std::strcmp(argv[2], "--thunk"), android = !std::strcmp(argv[2], "--android"), ios = !std::strcmp(argv[2], "--ios"), views = !std::strcmp(argv[2], "--views");
+    int first = c || thunk || android || ios || views ? 3 : 2;
+    if (argc <= first) { std::fprintf(stderr, "usage: zinc native-gen [--c | --thunk | --android | --ios | --views] <x.spec.ts> [outdir]\n"); return 2; }
     std::ifstream in(argv[first]);
     if (!in) { std::fprintf(stderr, "zinc: cannot read %s\n", argv[first]); return 2; }
     std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -3788,6 +3788,7 @@ int main(int argc, char** argv) {
     for (char& ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     if (thunk && g.thunk.empty()) { std::fprintf(stderr, "%s: no thunk: %s\n", argv[first], g.thunkNote.c_str()); return 1; }
     if (c && g.cHeader.empty()) { std::fprintf(stderr, "%s: no C header: %s\n", argv[first], g.cNote.c_str()); return 1; }
+    if (views && g.viewsHeader.empty()) { std::fprintf(stderr, "%s: no native views: %s\n", argv[first], g.viewsNote.empty() ? "the spec declares no component (an interface extending NativeComponent)" : g.viewsNote.c_str()); return 1; }
     std::string dir = argc > first + 1 ? argv[first + 1] : ".";
     if (android || ios) {   // ZN-628: the Java interface or the Objective-C and Swift protocols the author implements, and the bridge zinc export compiles
       if (g.java.empty()) { std::fprintf(stderr, "%s: no phone glue: %s\n", argv[first], g.mobileNote.c_str()); return 1; }
@@ -3802,9 +3803,9 @@ int main(int argc, char** argv) {
       }
       return 0;
     }
-    std::string file = dir + "/zinc_native_" + lower + (c ? "_abi.h" : thunk ? "_thunk.cpp" : ".h");
+    std::string file = dir + (views ? "/zinc_views_" : "/zinc_native_") + lower + (c ? "_abi.h" : thunk ? "_thunk.cpp" : ".h");
     std::ofstream o(file);
-    o << (c ? g.cHeader : thunk ? g.thunk : g.cppHeader);
+    o << (c ? g.cHeader : thunk ? g.thunk : views ? g.viewsHeader : g.cppHeader);
     if (!o) { std::fprintf(stderr, "zinc: cannot write %s\n", file.c_str()); return 2; }
     std::printf("%s\n", file.c_str());
     return 0;

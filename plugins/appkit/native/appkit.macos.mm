@@ -16,6 +16,8 @@
 // a value the program refused does not stay. The overlays (alert, sheet, popover) are presented as a sheet of the window or an NSPopover, never with
 // runModal (it would hold SDL's pump, and so the frames); their end comes back as EvClose. Headless (the window never shown) they are built but not
 // presented, so a test puts nothing on screen.
+// A plugin's own native views (ZN-1075, include/zn/native_view.h) come as nodes whose kind no built-in has: the engine gives the class the plugin
+// registered for it, and its view is a leaf like a control (its children are the drawn fallback), its props the node's attributes, its events EvView.
 // ARC (plugin.json flags). Everything runs on the main thread: the program's commits and AppKit's callbacks inside SDL's event pump.
 #define ZRT_HOSTED_CPP
 #import <AppKit/AppKit.h>
@@ -28,18 +30,23 @@
 #include <unordered_map>
 #include <vector>
 #include "zinc_native_appkit.h"
+#include "zn/native_view.h"
 #include "zrt_assets_dir.h"
+
+extern "C" const ZnViewClass* zn_host_view_class(const char* kind) __attribute__((weak));   // the engine's registry of plugins' views (Yoga's file)
 
 namespace {
 
 // TAG_NAMES of lib/std/ui.ts, then the native kinds of zinc:appkit's components (index.ts)
 enum Kind { KView, KText, KButton, KImage, KScroll, KCanvas, KFragment, KInput, KTextArea, KWindow, KToolbar, KToolbarItem, KSplit, KSidebar, KTable, KOutline,
-           KPushButton, KSwitch, KCheckbox, KPopup, KSegmented, KSlider, KDatePicker, KProgress, KSearch, KAlert, KSheet, KPopover, KUnknown };
+           KPushButton, KSwitch, KCheckbox, KPopup, KSegmented, KSlider, KDatePicker, KProgress, KSearch, KAlert, KSheet, KPopover, KUnknown,
+           KCustom };   // a plugin's view (no name in kKinds: its class names it)
 const char* const kKinds[] = {"view", "text", "button", "image", "scroll", "canvas", "fragment", "input", "textarea", "window", "toolbar", "toolbaritem", "split", "sidebar", "table", "outline",
                               "pushbutton", "switch", "checkbox", "popup", "segmented", "slider", "datepicker", "progress", "search", "alert", "sheet", "popover"};
 // index.ts's event kinds; a Table's and an Outline's have their own (from EvSelect), so a recycled handle never routes a field's event to a list
 enum Ev { EvEdit, EvChange, EvSubmit, EvFocus, EvBlur, EvScroll, EvPress, EvResize, EvSelect, EvSort, EvType, EvOpen, EvExpand, EvRows, EvListFocus,
-          EvCPress, EvCValue, EvClose };   // the controls' and overlays' own kinds
+          EvCPress, EvCValue, EvClose,   // the controls' and overlays' own kinds
+          EvView };                      // a plugin's view: text is the event's name, then its arguments, joined by 0x1f
 
 struct Node {
   bool live = false;
@@ -56,6 +63,8 @@ struct Node {
   NSView* input = nil; // the view that edits: the field, or the text view of a textarea
   id observer = nil;   // a scroll view's bounds observer
   id chrome = nil;     // a toolbar's delegate (it holds the NSToolbar), a toolbar item's NSToolbarItem
+  const ZnViewClass* cls = nullptr;   // a plugin's view: its class, and the +1 reference its create returned (dropped by forget)
+  void* custom = nullptr;
   const std::string& attr(const char* name) const {
     static const std::string none;
     for (const auto& a : attrs) if (a.first == name) return a.second;
@@ -95,6 +104,13 @@ void push(id v, int kind, const std::string& text = "", double a = 0, double b =
   auto it = idOf.find((__bridge const void*)v);
   if (it == idOf.end() || !live(it->second)) return;
   queue.push_back({it->second, nodes[it->second].gen, kind, text, a, b});
+}
+/** A plugin's view sent an event (ZnViewEmit, on the main thread): queued under the node and generation it was made for, so a late one is dropped. */
+void emitView(uint64_t token, const char* event, const char* args) {
+  const int id = (int)(uint32_t)token;
+  const uint32_t gen = (uint32_t)(token >> 32);
+  if (!live(id) || nodes[id].gen != gen || !event) return;
+  queue.push_back({id, gen, EvView, args ? std::string(event) + '\x1f' + args : std::string(event), 0, 0});
 }
 void pushEdit(NSView* v, NSString* value, NSRange sel) {
   push(v, EvEdit, str(value), sel.location == NSNotFound ? 0 : (double)sel.location, sel.location == NSNotFound ? 0 : (double)(sel.location + sel.length));
@@ -515,6 +531,7 @@ void forget(Node& n) {
   if (n.input) { idOf.erase((__bridge const void*)n.input); if (n.input.window.firstResponder == n.input || ([n.input isKindOfClass:NSTextField.class] && ((NSTextField*)n.input).currentEditor)) [n.input.window makeFirstResponder:nil]; }
   if (n.view) { idOf.erase((__bridge const void*)n.view); [n.view removeFromSuperview]; }
   n.view = nil; n.input = nil; n.dirty = true;
+  if (n.custom) { n.cls->drop(n.custom); n.custom = nullptr; }
 }
 NSView* make(int id, Node& n) {
   NSView* v = nil;
@@ -628,6 +645,9 @@ NSView* make(int id, Node& n) {
     ZnSidebar* e = [[ZnSidebar alloc] initWithFrame:NSZeroRect];
     e.material = NSVisualEffectMaterialSidebar; e.blendingMode = NSVisualEffectBlendingModeBehindWindow; e.state = NSVisualEffectStateFollowsWindowActiveState;
     v = e;
+  } else if (n.kind == KCustom) {
+    n.custom = n.cls->create((uint64_t)(uint32_t)id | (uint64_t)n.gen << 32, emitView);
+    v = n.custom ? (__bridge NSView*)n.custom : [[ZnView alloc] initWithFrame:NSZeroRect];   // no view: an empty box
   } else v = [[ZnView alloc] initWithFrame:NSZeroRect];   // view, button, window, toolbar item, canvas (drawn islands come later), anything new
   idOf[(__bridge const void*)v] = id;
   if (n.input) idOf[(__bridge const void*)n.input] = id;
@@ -725,6 +745,10 @@ void apply(Node& n) {
     NSString* s = ns(n.text);
     if (![t.string isEqualToString:s]) t.string = s;
   } else if (isControl(n.kind)) applyControl(n);
+  else if (n.kind == KCustom && n.custom) {   // every prop again (setters take the same value twice), then the commit's end
+    for (const auto& a : n.attrs) n.cls->set(n.custom, a.first.c_str(), a.second.c_str());
+    if (n.cls->done) n.cls->done(n.custom);
+  }
   n.dirty = false;
 }
 void setFrame(NSView* v, double x, double y, double w, double h) {
@@ -1049,7 +1073,7 @@ void place(int id, double ox, double oy, NSMutableArray<NSView*>* into, bool pan
   [into addObject:n.view];
   if (n.kind == KTable) { applyTable(n, changed); return; }        // its children are the drawn fallback and the rows' cache, not views
   if (n.kind == KOutline) { applyOutline(n, changed); return; }
-  if (n.kind == KText || isField(n.kind) || n.kind == KTextArea || n.kind == KImage || isControl(n.kind)) return;   // leaves (a text's spans are in its string, a control's children are its drawn fallback)
+  if (n.kind == KText || isField(n.kind) || n.kind == KTextArea || n.kind == KImage || isControl(n.kind) || n.kind == KCustom) return;   // leaves (a text's spans are in its string, a control's children are its drawn fallback)
   NSMutableArray<NSView*>* sub = [NSMutableArray array];
   for (int k : n.kids) place(k, 0, 0, sub, n.kind == KSplit);
   NSView* box = n.kind == KScroll ? ((NSScrollView*)n.view).documentView : n.view;
@@ -1171,6 +1195,7 @@ void record(const char* p, const char* end) {
       n.gen = g; n.live = true;
       const std::string k(p, end);
       for (int i = 0; i < KUnknown; i++) if (k == kKinds[i]) n.kind = i;
+      if (n.kind == KUnknown && zn_host_view_class) if ((n.cls = zn_host_view_class(k.c_str()))) n.kind = KCustom;   // a plugin's view; none: a plain view of the fallback
       return;
     }
     case 'f': n.x = num(p); n.y = num(p); n.w = num(p); n.h = num(p); return;
@@ -1304,7 +1329,7 @@ void dumpView(NSView* v, int depth, std::string& out) {
   if (!n) { for (NSView* s in v.subviews) dumpView(s, depth, out); return; }   // AppKit's own views (a scroll view's clip view and document)
   char b[160];
   const NSRect f = v.frame;
-  const char* kind = n->kind >= KPushButton && n->kind < KUnknown ? kKinds[n->kind] : n->kind == KText ? "label" : n->kind == KImage ? "image" : n->kind == KScroll ? "scroll" : n->kind == KInput ? (n->secure ? "secure" : "field") : n->kind == KTextArea ? "area"
+  const char* kind = n->kind == KCustom ? n->cls->kind : n->kind >= KPushButton && n->kind < KUnknown ? kKinds[n->kind] : n->kind == KText ? "label" : n->kind == KImage ? "image" : n->kind == KScroll ? "scroll" : n->kind == KInput ? (n->secure ? "secure" : "field") : n->kind == KTextArea ? "area"
                    : n->kind == KSplit ? "split" : n->kind == KSidebar ? "sidebar" : n->kind == KToolbarItem ? "item" : n->kind == KTable ? "table" : n->kind == KOutline ? "outline" : "view";
   snprintf(b, sizeof b, "%*s#%d %s %g,%g %gx%g", depth * 2, "", it->second, kind, f.origin.x, f.origin.y, f.size.width, f.size.height);
   out += b;
@@ -1316,6 +1341,12 @@ void dumpView(NSView* v, int depth, std::string& out) {
     out += b + (fg >= 0 ? hex(fg) : n->kind == KText ? "label" : "text");   // the system colours by name: they follow dark mode
   }
   if (isControl(n->kind)) { out += controlDump(*n, v) + "\n"; return; }   // the classes are its drawn fallback's: AppKit draws it
+  if (n->kind == KCustom) {   // what the plugin's view shows, when it is a control; its props as the host gave them
+    if ([v isKindOfClass:NSControl.class]) out += " shows=" + qstr(str(((NSControl*)v).stringValue)) + (((NSControl*)v).enabled ? "" : " disabled");
+    for (const auto& a : n->attrs) out += " " + a.first + "=" + qstr(a.second);
+    out += "\n";
+    return;
+  }
   if (n->bg >= 0) out += " bg=" + hex(n->bg) + (n->bgAlpha < 255 ? "/" + std::to_string((int)n->bgAlpha) : "");
   if (n->border > 0) { snprintf(b, sizeof b, " border=%g", n->border); out += b + hex(n->borderColor); }
   if (n->radius > 0) { snprintf(b, sizeof b, " radius=%g", n->radius); out += b; }
@@ -1487,6 +1518,12 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
         else return false;
         return [c sendAction:c.action to:c.target];
       }
+      if (n->kind == KCustom && action == 11) {   // a plugin's control set as by the person: its text, else the number x; its action follows
+        if (![n->view isKindOfClass:NSControl.class]) return false;
+        NSControl* c = (NSControl*)n->view;
+        if (s.length) c.stringValue = s; else c.doubleValue = x;
+        return [c sendAction:c.action to:c.target];
+      }
       if (n->kind == KTable || n->kind == KOutline) return driveList(*n, action, s, x, y);
       if (action == 4) {   // a divider dragged to x, as the mouse would (the views' own drag path)
         if (n->kind != KSplit) return false;
@@ -1516,7 +1553,10 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
   std::vector<int> resync;   // controls whose new value the program got in the last poll: they show their attribute again now (a refused value goes)
   bool poll() override {
     if (rootView && rootView.superview) placeRoot();   // follows the window's size
-    for (int id : resync) if (Node* n = live(id)) if (n->view && isControl(n->kind)) applyControl(*n);
+    for (int id : resync) if (Node* n = live(id)) {
+      if (n->view && isControl(n->kind)) applyControl(*n);
+      else if (n->view && n->kind == KCustom) apply(*n);   // its props again: a value the program refused goes
+    }
     resync.clear();
     if (queue.empty()) return false;
     std::vector<Queued> evs;
@@ -1528,7 +1568,7 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
       zrt::Fn<void(int32_t, int32_t, zrt::String, double, double)> f = cb;
       f(e.id, e.kind, zrt::String::from(e.text.data(), (uint32_t)e.text.size()), e.a, e.b);
       zrt::check_uncaught();
-      if (e.kind == EvCValue) resync.push_back(e.id);
+      if (e.kind == EvCValue || e.kind == EvView) resync.push_back(e.id);
     }
     return true;
   }

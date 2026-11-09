@@ -1,0 +1,5 @@
+{
+  "name": "native-view",
+  "entry": "src/main.tsx",
+  "ui": { "render": "native" }
+}

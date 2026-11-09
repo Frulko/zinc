@@ -282,6 +282,8 @@ declare module 'zinc:native' {
   export interface NativeModule {}
   /** Opaque native ownership. Pass it to module methods; it has no guest-visible fields. */
   export interface NativeResource {}
+  /** Base of a native view a plugin's spec declares (ZN-1075): its fields are props, its `onX: (args) => void` fields events; the kind is the interface's name. */
+  export interface NativeComponent {}
   /** `export default requireNative<Spec>('Name')` in native/<name>.spec.ts */
   export function requireNative<T extends NativeModule>(name: string): T;
 }

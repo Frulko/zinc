@@ -2,11 +2,14 @@
 // by the handle; the UI node itself gets no field. Boxes come back parent-relative and rounded by Yoga (point scale factor 1). Leaves (text, image, text field)
 // are measured here with the port of wrapText (text_wrap.cpp), never by calling back into the program (ZN-284).
 #include <cmath>
+#include <cstring>
+#include <mutex>
 #include <vector>
 
 #include <yoga/Yoga.h>
 
 #include "host/layout.h"
+#include "zn/native_view.h"
 
 namespace zn::host {
 namespace {
@@ -293,4 +296,25 @@ std::unique_ptr<Layout> makeYogaLayout(TextMetric metric, bool webDefaults) { re
 extern "C" void zn_host_set_native_measure(zn::host::CMeasure measure, void* user) {
   zn::host::gCHook = {measure, user};
   zn::host::setNativeMeasure(measure ? zn::host::NativeMeasure{&zn::host::cMeasure, nullptr} : zn::host::NativeMeasure{});
+}
+
+// The plugins' native view classes (ZN-1075, include/zn/native_view.h): beside the measure hook, as the native host that asks for them needs Yoga.
+// A plugin registers when its module loads, which may be off the main thread; the host asks on the main thread.
+namespace {
+std::mutex gViewsMu;
+std::vector<const ZnViewClass*> gViews;   // ponytail: a linear scan, a handful of kinds per program
+}  // namespace
+
+extern "C" int zn_host_register_view(const ZnViewClass* cls) {
+  if (!cls || cls->abi != ZN_VIEW_ABI || !cls->kind || !cls->create || !cls->set || !cls->drop) return -1;
+  std::lock_guard<std::mutex> g(gViewsMu);
+  for (const ZnViewClass*& c : gViews) if (!std::strcmp(c->kind, cls->kind)) { c = cls; return 0; }   // the latest wins: a plugin rebuilt and loaded again
+  gViews.push_back(cls);
+  return 0;
+}
+
+extern "C" const ZnViewClass* zn_host_view_class(const char* kind) {
+  std::lock_guard<std::mutex> g(gViewsMu);
+  for (const ZnViewClass* c : gViews) if (kind && !std::strcmp(c->kind, kind)) return c;
+  return nullptr;
 }

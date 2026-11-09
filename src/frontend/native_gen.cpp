@@ -440,6 +440,106 @@ std::string nativeLetter(const Ast& a, const std::string& text, std::uint32_t ty
   return "";
 }
 
+// The native views of a spec (zinc native-gen --views, ZN-1075, include/zn/native_view.h): each interface that extends NativeComponent is a component
+// whose kind is its name; its fields are props (string, boolean, number/f64, i32, u32) and its `onX: (args) => void` fields events with such
+// arguments. The AppKit glue: a protocol of prop setters the plugin's NSView subclass implements, an events object it calls, and the ZnViewClass
+// the engine hands to the host. Empty with no component; `viewsNote` says what is wrong with one.
+struct ViewMember { std::string name; char l = 0; std::vector<std::pair<std::string, char>> args; bool event = false; };
+
+void viewsGlue(Gen& g, const Ast& a, const std::string& base, const std::string& lower, NativeGen& out) {
+  auto plain = [&](std::uint32_t t) {   // `T | undefined` of an optional field: T
+    if (t != kNone && a.nodes[t].kind == N::TypeUnion)
+      for (std::uint32_t k : a.nodes[t].kids) if (!(a.nodes[k].kind == N::TypeRef && (a.nodes[k].text == "null" || a.nodes[k].text == "undefined"))) return k;
+    return t;
+  };
+  auto cap = [](std::string n) { n[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(n[0]))); return n; };
+  std::string protos, impls, regs;
+  for (std::uint32_t st : a.nodes[a.root].kids) {
+    std::uint32_t d = st;
+    if (a.nodes[d].kind == N::Export && !a.nodes[d].kids.empty()) d = a.nodes[d].kids[0];
+    const Node& in = a.nodes[d];
+    if (in.kind != N::Interface || in.kids.empty() || in.kids[0] == kNone) continue;
+    bool component = false;
+    for (std::uint32_t h : a.nodes[in.kids[0]].kids) component = component || a.nodes[h].text == "NativeComponent";
+    if (!component) continue;
+    const std::string kind(in.text);
+    std::vector<ViewMember> ms;
+    for (std::size_t k = 1; k < in.kids.size(); ++k) {
+      const Node& f = a.nodes[in.kids[k]];
+      ViewMember m;
+      m.name = std::string(f.text);
+      auto fail = [&](const std::string& why) { out.viewsNote = "component '" + kind + "', member '" + m.name + "': " + why; };
+      const std::uint32_t t = f.kind == N::Field && !f.kids.empty() ? plain(f.kids[0]) : kNone;
+      if (t == kNone) { fail("a component holds typed fields: props and onX events"); return; }
+      const bool onX = m.name.size() > 2 && m.name.compare(0, 2, "on") == 0 && std::isupper(static_cast<unsigned char>(m.name[2]));
+      if (a.nodes[t].kind == N::TypeFunc) {
+        if (!onX) { fail("an event is named onX"); return; }
+        if (g.letter(a.nodes[t].kids[0]) != 'n') { fail("an event returns void"); return; }
+        for (std::size_t q = 1; q < a.nodes[t].kids.size(); ++q) {
+          const Node& p = a.nodes[a.nodes[t].kids[q]];
+          const char l = p.kids.empty() ? 0 : g.letter(p.kids[0]);
+          if (!l || !std::strchr("siubd", l)) { fail("an event's arguments are string, boolean, number, f64, i32 or u32"); return; }
+          m.args.emplace_back(std::string(p.text), l);
+        }
+        m.event = true;
+      } else {
+        m.l = g.letter(t);
+        if (onX) { fail("a field named onX is an event: (args) => void"); return; }
+        if (!m.l || !std::strchr("siubd", m.l)) { fail("a prop is string, boolean, number, f64, i32 or u32"); return; }
+      }
+      ms.push_back(m);
+    }
+    const std::string P = "Zinc" + kind;
+    std::string setters, events, eventImpls, sets;
+    for (const ViewMember& m : ms) {
+      if (m.event) {
+        std::string sel, body;
+        for (std::size_t q = 0; q < m.args.size(); ++q) {
+          const auto& [an, l] = m.args[q];
+          sel += (q ? " " + an : std::string()) + ":(" + objcType(l) + ")" + an;
+          body += std::string(q ? "  zn_args += '\\x1f';\n" : "") + "  zinc_views_put(zn_args, " + an + ");\n";
+        }
+        events += "- (void)" + m.name + sel + ";\n";
+        eventImpls += "- (void)" + m.name + sel + " {\n" + (m.args.empty() ? "  emit_(token_, \"" + m.name + "\", nullptr);\n"
+                      : "  std::string zn_args;\n" + body + "  emit_(token_, \"" + m.name + "\", zn_args.c_str());\n") + "}\n";
+        continue;
+      }
+      setters += "- (void)update" + cap(m.name) + ":(" + objcType(m.l) + ")" + m.name + ";\n";
+      const std::string v = m.l == 's' ? "([NSString stringWithUTF8String:value] ?: @\"\")" : m.l == 'b' ? "(!strcmp(value, \"true\") || !strcmp(value, \"1\"))"
+                            : m.l == 'd' ? "strtod(value, nullptr)" : m.l == 'i' ? "(int32_t)strtol(value, nullptr, 10)" : "(uint32_t)strtoul(value, nullptr, 10)";
+      sets += std::string(sets.empty() ? "  if" : "  else if") + " (!strcmp(prop, \"" + m.name + "\")) [view update" + cap(m.name) + ":" + v + "];\n";
+    }
+    protos += "@class " + P + "Events;\n\n/** " + kind + " (kind '" + kind + "'): implement it with an NSView subclass; each update<Prop>: gets the prop when the program sets it. */\n"
+              "@protocol " + P + "View <NSObject>\n" + setters + "@optional\n/** After the props of one commit, for a view that applies them together. */\n- (void)didUpdateProps;\n@end\n\n"
+              "/** " + kind + "'s events: its view calls them as the person acts, and they reach the program's onX. */\n@interface " + P + "Events : NSObject\n" + events + "@end\n\n"
+              "/** Defined by the plugin: the view of one " + kind + " node, which keeps `events` to send its events. */\nNSView<" + P + "View>* " + P + "Make(" + P + "Events* events);\n\n";
+    impls += "@implementation " + P + "Events {\n @public\n  uint64_t token_;\n  ZnViewEmit emit_;\n}\n" + eventImpls + "@end\n\n"
+             "static void* " + P + "Create(uint64_t token, ZnViewEmit emit) {\n  " + P + "Events* e = [[" + P + "Events alloc] init];\n  e->token_ = token;\n  e->emit_ = emit;\n"
+             "  return (__bridge_retained void*)" + P + "Make(e);\n}\n"
+             "static void " + P + "Set(void* v, const char* prop, const char* value) {\n  NSView<" + P + "View>* view = (__bridge NSView<" + P + "View>*)v;\n" +
+             (sets.empty() ? "  (void)view; (void)prop; (void)value;\n" : sets) + "}\n"
+             "static const ZnViewClass k" + P + "Class = {ZN_VIEW_ABI, \"" + kind + "\", " + P + "Create, " + P + "Set, zinc_views_done, zinc_views_drop};\n\n";
+    regs += "  ok = zn_host_register_view(&k" + P + "Class) == 0 && ok;\n";
+  }
+  if (regs.empty()) return;
+  out.viewsHeader = "// Generated by zinc native-gen --views from " + base + ": do not edit.\n"
+    "// The native views of the spec on macOS (include/zn/native_view.h): implement each Zinc<Kind>View protocol with an NSView subclass, define\n"
+    "// Zinc<Kind>Make, and call zinc_views_" + lower + "_register() when the module starts. Include this file in one Objective-C++ file (ARC) of the plugin.\n"
+    "#pragma once\n#import <AppKit/AppKit.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <string>\n#include \"zn/native_view.h\"\n\n"
+    "extern \"C\" int zn_host_register_view(const ZnViewClass* cls) __attribute__((weak));   // the engine's, absent where no native host can run\n\n" + protos +
+    "// ---------------------------------------------------------------- the glue\n"
+    "static inline void zinc_views_put(std::string& s, NSString* v) { const char* u = v.UTF8String; s += u ? u : \"\"; }\n"
+    "static inline void zinc_views_put(std::string& s, BOOL v) { s += v ? \"true\" : \"false\"; }\n"
+    "static inline void zinc_views_put(std::string& s, int32_t v) { s += std::to_string(v); }\n"
+    "static inline void zinc_views_put(std::string& s, uint32_t v) { s += std::to_string(v); }\n"
+    "static inline void zinc_views_put(std::string& s, double v) {   // the shortest text that reads back as v\n"
+    "  char b[32];\n  snprintf(b, sizeof b, \"%.15g\", v);\n  if (strtod(b, nullptr) != v) snprintf(b, sizeof b, \"%.17g\", v);\n  s += b;\n}\n"
+    "static void zinc_views_done(void* v) { id view = (__bridge id)v; if ([view respondsToSelector:@selector(didUpdateProps)]) [view didUpdateProps]; }\n"
+    "static void zinc_views_drop(void* v) { NSView* view = (__bridge_transfer NSView*)v; (void)view; }\n\n" + impls +
+    "/** Registers the views of the spec with the engine, where a native host mounts them by kind: false where none can run (they are drawn). */\n"
+    "static inline bool zinc_views_" + lower + "_register(void) {\n  if (!zn_host_register_view) return false;\n  bool ok = true;\n" + regs + "  return ok;\n}\n";
+}
+
 bool generateNative(const std::string& specFile, const std::string& text, NativeGen& out, std::string& err) {
   ParseResult pr = parse(text);
   if (pr.ast.root == kNone || !pr.diags.empty()) { err = "the spec does not parse"; return false; }
@@ -601,6 +701,7 @@ bool generateNative(const std::string& specFile, const std::string& text, Native
                 "  m.exports = kExports;\n  m.nexports = static_cast<uint32_t>(sizeof kExports / sizeof kExports[0]);\n  m.flags = ZN_THREADS;\n  m.init = t_init;\n  m.poll = t_poll;\n  return &m;\n}\n";
   }
   mobileGlue(g, pr.ast, iface, base, lower, out);
+  viewsGlue(g, pr.ast, base, lower, out);
   return true;
 }
 
