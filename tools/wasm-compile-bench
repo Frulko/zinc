@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""The compiler in a page, measured (ZN-774.29): headless Chrome loads build-wasm/zinc-compile.wasm (tools/build-wasm compiler) on a page served
+WITHOUT COOP/COEP, gives it lib/std and targets/capabilities.json as an in-memory file system (targets/wasm/glue/compiler.mjs) and compiles each
+program given 5 times. Prints the module's size (raw, gzip), the standard library's, the time to compile the module, and per program the first and
+the median compile time, with the ZBC size; with ZINC set, also checks the ZBC is byte for byte what `zinc --emit=zbc-bin` writes.
+Usage: tools/wasm-compile-bench [chrome] [main.ts ...] (default: lessons 04, 13 and 08 of docs/learn/samples)."""
+import base64, gzip, http.server, json, os, socketserver, statistics, subprocess, sys, tempfile, threading, time
+
+HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+from cdp import Chrome, find_chrome
+
+args = sys.argv[1:]
+chrome = args.pop(0) if args and not args[0].endswith((".ts", ".tsx")) else find_chrome()
+progs = args or [os.path.join(ROOT, "docs/learn/samples", s, "src", m) for s, m in (("04-mouse-and-touch", "main.ts"), ("13-a-stage-and-a-sprite", "main.ts"), ("08-state", "main.tsx"))]
+wasm = os.path.join(ROOT, "build-wasm", "zinc-compile.wasm")
+if not os.path.exists(wasm): sys.exit("no %s: tools/build-wasm compiler" % wasm)
+
+vfs = {}
+for d, _, fs in os.walk(os.path.join(ROOT, "lib", "std")):
+    for f in fs: p = os.path.join(d, f); vfs["/zinc/" + os.path.relpath(p, ROOT)] = open(p, encoding="utf-8").read()
+vfs["/zinc/targets/capabilities.json"] = open(os.path.join(ROOT, "targets", "capabilities.json"), encoding="utf-8").read()
+vfs_bytes = json.dumps(vfs).encode()
+raw = open(wasm, "rb").read()
+print("module    %d bytes raw, %d gzip -9" % (len(raw), len(gzip.compress(raw, 9))))
+print("lib/std   %d files, %d bytes as one JSON, %d gzip -9" % (len(vfs), len(vfs_bytes), len(gzip.compress(vfs_bytes, 9))))
+
+class H(http.server.SimpleHTTPRequestHandler):   # no Cross-Origin-Opener-Policy, no Cross-Origin-Embedder-Policy: the page is not isolated
+    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{".mjs": "text/javascript", ".wasm": "application/wasm"})
+    def __init__(self, *a, **k): super().__init__(*a, directory=ROOT, **k)
+    def log_message(self, *a): pass
+    def do_GET(self):
+        body = {"/vfs.json": vfs_bytes, "/bench.html": b"<!doctype html><title>bench</title>"}.get(self.path)
+        if body is None: return super().do_GET()
+        self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+srv = socketserver.TCPServer(("127.0.0.1", 0), H); port = srv.server_address[1]; threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+js = """(async () => { try {
+  const { compile } = await import('/targets/wasm/glue/compiler.mjs');
+  const t0 = performance.now();
+  const module = await WebAssembly.compileStreaming(fetch('/build-wasm/zinc-compile.wasm'));
+  const tc = performance.now() - t0;
+  const vfs = await (await fetch('/vfs.json')).json();
+  const base = Object.entries(vfs).map(([k, v]) => [k, new TextEncoder().encode(v)]);
+  const b64 = (z) => { let s = ''; for (let i = 0; i < z.length; i += 8192) s += String.fromCharCode.apply(null, z.subarray(i, i + 8192)); return btoa(s); };
+  const out = { isolated: self.crossOriginIsolated, sab: typeof SharedArrayBuffer, moduleMs: tc, runs: [] };
+  for (const src of %s) {
+    const files = new Map(base); files.set('/p/' + src.name, new TextEncoder().encode(src.text));
+    const ms = []; let r;
+    try { for (let i = 0; i < 5; i++) { r = compile(module, files, '/p/' + src.name, '/o/out.zbc', { ZINC_PLATFORM: 'linux' }); ms.push(r.ms); } }
+    catch (e) { out.runs.push({ name: src.label, code: -1, stderr: String(e), zbc: '', ms: [0] }); continue; }
+    out.runs.push({ name: src.label, code: r.code, stderr: r.stderr.slice(0, 400), zbc: r.zbc ? b64(r.zbc) : '', ms });
+  }
+  return JSON.stringify(out);
+} catch (e) { return JSON.stringify({ error: String(e && e.stack || e) }); } })()""" % json.dumps([{"name": os.path.basename(p), "label": os.path.relpath(p, ROOT), "text": open(p, encoding="utf-8").read()} for p in progs])
+
+with Chrome([], chrome) as c:
+    c.open("http://127.0.0.1:%d/bench.html" % port)
+    time.sleep(1)
+    res = json.loads(c.eval(js, timeout=300) or "{}")
+    console = c.console
+srv.shutdown()
+if not res or "error" in res: sys.exit("the page failed: %s; console: %s" % (res.get("error"), " / ".join(console)[:800]))
+print("page      crossOriginIsolated=%s, SharedArrayBuffer %s" % (res["isolated"], res["sab"]))
+print("compile of the module (WebAssembly.compileStreaming) %.0f ms" % res["moduleMs"])
+zinc = os.environ.get("ZINC"); fail = 0
+for r in res["runs"]:
+    lines = sum(1 for _ in open(os.path.join(ROOT, r["name"]), encoding="utf-8"))
+    zbc = base64.b64decode(r["zbc"])
+    same = ""
+    if zinc and zbc:
+        with tempfile.TemporaryDirectory() as t:
+            ref = os.path.join(t, "ref.zbc")
+            subprocess.run([zinc, "--emit=zbc-bin", os.path.join(ROOT, r["name"]), ref], check=True, env=dict(os.environ, ZINC_PLATFORM="linux"))
+            same = ", same ZBC as zinc" if open(ref, "rb").read() == zbc else ", ZBC DIFFERS from zinc"
+            fail |= "DIFFERS" in same
+    print("%-48s %3d lines: exit %d, first %.0f ms, median %.0f ms, ZBC %d bytes%s" % (r["name"], lines, r["code"], r["ms"][0], statistics.median(r["ms"]), len(zbc), same))
+    if r["code"]: print("  " + r["stderr"]); fail = 1
+sys.exit(fail)

@@ -7,8 +7,10 @@
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#ifndef __wasi__
 #include <thread>
-#ifndef _WIN32
+#endif
+#if !defined(_WIN32) && !defined(__wasi__)
 #include <pthread.h>
 #endif
 
@@ -52,6 +54,9 @@ bool Module::isSubtype(std::uint32_t a, std::uint32_t b) const {
 }
 
 void parallelFor(std::size_t n, const std::function<void(std::size_t)>& fn) {
+#ifdef __wasi__
+  for (std::size_t k = 0; k < n; ++k) fn(k);   // the compiler built for the browser (ZN-774.29): one thread
+#else
   static const unsigned cores = std::max(1u, std::thread::hardware_concurrency());
   unsigned threads = std::clamp(cores / 2, 1u, 4u);
 #ifndef _WIN32
@@ -80,6 +85,7 @@ void parallelFor(std::size_t n, const std::function<void(std::size_t)>& fn) {
   pthread_attr_destroy(&attr);
   work();   // a thread that did not start leaves its share to the others
   for (pthread_t th : pool) pthread_join(th, nullptr);
+#endif
 #endif
 }
 

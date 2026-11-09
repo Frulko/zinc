@@ -28,6 +28,7 @@
     {"paths": ["src/frontend/check.cpp", "src/frontend/jsx.cpp", "src/ir/lower.cpp", "tests/data/jsx-map-props/", "tests/t0/jsx_map_props.sh"], "tests": ["jsx_map_props"]},
     {"paths": ["targets/macos/hal_metal.mm", "targets/macos/hal_sdl.cpp", "tests/native/surface_present.mm", "tests/t1/surface_present.sh"], "tests": ["surface_present", "window_live_resize"]},
     {"paths": ["targets/wasm/web_main.cpp", "targets/wasm/vm_main.cpp", "tests/unit/wasm_buffers_test.cpp", "tests/t0/wasm_buffers.sh"], "tests": ["wasm_buffers"]},
+    {"paths": ["targets/wasm/compile_main.cpp", "targets/wasm/nothreads.h", "targets/wasm/stubs.cpp", "tools/build-wasm", "tests/wasm/compile.mjs", "tests/t0/wasm_compiler.sh"], "tests": ["wasm_compiler"]},
     {"paths": ["src/rt/rtcalls.cpp", "tests/native/fixture.c", "tests/t0/native_views.sh"], "tests": ["native_views", "native_call", "aot_native_args"]},
     {"paths": ["runtime/raster.cpp", "tests/native/raster_scratch.cpp", "tests/t0/raster_scratch.sh"], "tests": ["raster_scratch"]},
     {"paths": ["src/rt/program.cpp", "tests/unit/program_buffers_test.cpp", "tests/t0/program_buffers.sh"], "tests": ["program_buffers"]},

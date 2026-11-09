@@ -3,6 +3,36 @@
 cd "$(dirname "$0")/.." || exit 2
 Z=${ZIG:-$(ls -d "$HOME"/.zinc/toolchains/zig-*/zig 2>/dev/null | head -1)}
 [ -x "$Z" ] || { echo "no zig: zinc toolchain install"; exit 1; }
+
+# `tools/build-wasm compiler [out]`: the compiler (frontend, IR, ZBC writer) as a WASI program, build-wasm/zinc-compile.wasm (ZN-774.29,
+# targets/wasm/compile_main.cpp). The compiler throws and catches, reads files and scans directories, so beside the interpreter's flags it
+# takes wasm exceptions (libc++abi and libunwind's wasm unwinder, built here from the zig toolchain's sources: its libc++abi for WASI has none),
+# and libc++'s std::filesystem and file streams, which zig turns off for WASI, built the same way. No threads: targets/wasm/nothreads.h.
+if [ "${1:-}" = compiler ]; then
+  out=${2:-build-wasm/zinc-compile.wasm}; obj=$(dirname "$out")/cobj; gen=$(dirname "$out")/gen; mkdir -p "$obj" "$gen"
+  L=$(dirname "$Z")/lib
+  EH="-target wasm32-wasi -mcpu=generic+exception_handling -fwasm-exceptions -O2 -w"
+  CXX="$EH -std=c++20 -D_LIBCPP_HAS_FILESYSTEM=1 -DZN_NO_MIMALLOC -D_WASI_EMULATED_MMAN -fwrapv -ffp-contract=off"
+  { echo "// tools/build-wasm compiler, from i18n/en/*.json"; for a in cli diag; do printf '{"%s", R"ZNI18N(' "$a"; cat "i18n/en/$a.json"; printf ')ZNI18N"},\n'; done; } > "$gen/en.inc.new"
+  cmp -s "$gen/en.inc.new" "$gen/en.inc" && rm "$gen/en.inc.new" || mv "$gen/en.inc.new" "$gen/en.inc"
+  jobs=""
+  add() { o="$obj/$(echo "$2" | tr / _ | sed 's|.*lib_||').o"; objs="$objs $o"; [ "$o" -nt "$2" ] && [ -z "$(find include src/frontend src/ir src/zbc src/i18n targets/wasm "$gen" \( -name '*.h' -o -name '*.inc' \) -newer "$o" 2>/dev/null | head -1)" ] || jobs="$jobs|$1 $2 $o"; }
+  objs=""
+  for f in "$L"/libcxxabi/src/cxa_exception.cpp "$L"/libcxxabi/src/cxa_personality.cpp "$L"/libcxx/src/filesystem/*.cpp "$L"/libcxx/src/fstream.cpp "$L"/libcxx/src/ios.instantiations.cpp; do add lib "$f"; done
+  for f in src/frontend/*.cpp src/ir/ir.cpp src/ir/parse.cpp src/ir/lower.cpp src/ir/rc.cpp src/ir/opt.cpp src/zbc/zbc.cpp src/zbc/emit.cpp src/i18n/i18n.cpp targets/wasm/compile_main.cpp targets/wasm/stubs.cpp; do add app "$f"; done
+  add c "$L/libunwind/src/Unwind-wasm.c"; add c third_party/yyjson/yyjson.c
+  echo "$jobs" | tr '|' '\n' | grep . | while read -r kind src o; do
+    case $kind in
+      app) echo "\"$Z\" c++ $CXX -include targets/wasm/nothreads.h -Iinclude -Isrc -I$gen -Ithird_party/yyjson -c $src -o $o" ;;
+      lib) echo "\"$Z\" c++ $CXX -D_LIBCPP_BUILDING_LIBRARY -D_LIBCXXABI_BUILDING_LIBRARY -I$L/libcxx/src -I$L/libcxxabi/include -I$L/libcxxabi/src -I$L/libunwind/include -c $src -o $o" ;;
+      c) echo "\"$Z\" cc $EH -D_LIBUNWIND_IS_NATIVE_ONLY -D_LIBUNWIND_HIDE_SYMBOLS -I$L/libunwind/include -Ithird_party/yyjson -c $src -o $o" ;;
+    esac
+  done | tr '\n' '\0' | xargs -0 -n 1 -P "${ZN_WASM_JOBS:-4}" sh -c || exit 1
+  # the exception objects first: zig's libc++abi.a has stubs of the same symbols (cxa_noexception.o), pulled in when an object before ours needs one
+  "$Z" c++ $EH $objs -lwasi-emulated-mman -s -o "$out" || exit 1
+  ls -la "$out"; exit 0
+fi
+
 out=${1:-build-wasm/vm.wasm}; obj=$(dirname "$out")/obj; mkdir -p "$obj"
 web=$(dirname "$out")/vm-web.wasm
 FLAGS="-target wasm32-wasi -std=c++20 -O2 -DZN_NO_MIMALLOC -D_WASI_EMULATED_MMAN -fwrapv -ffp-contract=off -Iinclude -Isrc -Ithird_party/quickjs-ng -w"
@@ -18,7 +48,7 @@ for f in third_party/quickjs-ng/libunicode.c third_party/quickjs-ng/cutils.c; do
   [ "$o" -nt "$f" ] || "$Z" cc -target wasm32-wasi -O2 -w -D_WASI_EMULATED_MMAN -Ithird_party/quickjs-ng -c "$f" -o "$o" || exit 1
 done
 shared=""; for o in $objs; do case "$o" in *vm_main*|*web_main*|*host_gfx_web*) ;; *) shared="$shared $o";; esac; done
-"$Z" c++ -target wasm32-wasi -O2 $shared "$obj/targets_wasm_vm_main.cpp.o" -lwasi-emulated-mman -o "$out" || exit 1
+"$Z" c++ -target wasm32-wasi -O2 $shared "$obj/targets_wasm_vm_main.cpp.o" -lwasi-emulated-mman -s -o "$out" || exit 1   # -s: no DWARF, 0.6 MB instead of 6.4 (ZN-774.29)
 # the browser build: a reactor (no _start), zn_run and the graphics import (glue/worker.mjs)
-"$Z" c++ -target wasm32-wasi -O2 -mexec-model=reactor $shared "$obj/targets_wasm_web_main.cpp.o" "$obj/targets_wasm_host_gfx_web.cpp.o" -lwasi-emulated-mman -o "$web" || exit 1
+"$Z" c++ -target wasm32-wasi -O2 -mexec-model=reactor $shared "$obj/targets_wasm_web_main.cpp.o" "$obj/targets_wasm_host_gfx_web.cpp.o" -lwasi-emulated-mman -s -o "$web" || exit 1
 ls -la "$out" "$web"

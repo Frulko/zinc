@@ -20,6 +20,8 @@ void zn_native_poll(uint64_t) {}
 // thread_local objects with a destructor (the runtime's per-thread state, src/rt/rtcalls.cpp): one thread here, which lives as long as the program,
 // so their destructors are not registered (as a static the process ends with)
 int __cxa_thread_atexit(void (*)(void*), void*, void*) { return 0; }
+#ifndef __wasm_exception_handling__   // the compiler build (tools/build-wasm compiler) has real exceptions: libc++abi's, from the zig toolchain
 void* __cxa_allocate_exception(size_t n) { return std::malloc(n); }
 void __cxa_throw(void*, void*, void (*)(void*)) { std::fputs("panic: C++ exception in the WASI runtime\n", stderr); std::abort(); }
+#endif
 }

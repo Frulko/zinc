@@ -141,6 +141,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `fetch` of `zinc:net` works in an exported page, over the browser's own `fetch` (timeouts, size limits, `saveTo`), so apps and plugins that download with it, such as `zinc:map`, export without a W0603 warning.
 - `zinc dev --target web` watches the workspace packages your app imports (npm, pnpm, yarn and bun workspaces, `npm link`): a save in one bundles the packages again and reloads the page.
 
+#### Faster
+
+- `zinc export --target wasm` ships an interpreter of 0.6 MB instead of 6.4 MB (about 0.2 MB over the network), so the page starts sooner: it no longer carries its debug information.
+
 #### Fixed
 
 - An exported page whose program read a file's bytes (`readBytes` of `zinc:fs` or `zinc:assets`, as the hero demo's map does) no longer stops at start with `__qjs_bytes is not defined`, an app that makes transparent images no longer gets a W0603 warning for it, and a program that installs a signal handler at start (`sys.onSignal`) runs in a page.
