@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -25,6 +27,17 @@
 #include <sys/stat.h>
 #ifndef _WIN32
 #include <unistd.h>
+#endif
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+#if defined(__linux__)
+#include <sys/sendfile.h>
+#define ZN_SENDFILE 1
+#elif defined(__APPLE__) && !TARGET_OS_IPHONE   // iOS kills a process that calls sendfile (SIGSYS)
+#include <sys/socket.h>
+#include <sys/uio.h>
+#define ZN_SENDFILE 1
 #endif
 
 namespace zn::http {
@@ -90,6 +103,14 @@ struct Fetch {
   bool held = false, heldOk = false;   // the answer is in: told once the file has it all
   std::string heldWhy;
   bool saveFailed = false;
+  // RequestInit.bodyFile: the file goes after reqBody and before upTail, read one block at a time as the socket takes them (a 500 MB
+  // upload holds a few blocks, not the file). Its lifecycle is `up`, changed only by upTo.
+  enum class Up { None, Waiting, Sending, Sent };   // no file; the head is not out yet; blocks go as the socket drains; all queued
+  Up up = Up::None;
+  uv_file upFd = -1;
+  uint64_t upSize = 0, upOff = 0;
+  uint64_t inFlight = 0;   // bytes handed to uv_write whose callback has not come: libuv writes at once and frees in the callback
+  std::string upPath, upTail;
 };
 std::vector<std::unique_ptr<Fetch>> gFetches;   // index = handle - 1
 Fetch* fetchAt(int h) { return h > 0 && static_cast<size_t>(h) <= gFetches.size() ? gFetches[static_cast<size_t>(h) - 1].get() : nullptr; }
@@ -123,6 +144,28 @@ void logOpen(Fetch* f) {
   f->log = netlog::open(f->secure ? "https" : "http", f->url, f->method, req.substr(a, b - a), f->reqBody);
 }
 
+void fdClose(uv_file fd) { uv_fs_t r; uv_fs_close(nullptr, &r, fd, nullptr); uv_fs_req_cleanup(&r); }
+// The one place the file body changes state: Waiting (again) at each connection, from the first byte; Sending once the head is out; Sent
+// when all is queued; None drops it (the fetch ended, or a redirect turned it into a GET).
+void upTo(Fetch* f, Fetch::Up to) {
+  using Up = Fetch::Up;
+  if (f->up == Up::None) return;   // no file, or dropped: nothing brings it back
+  if (to == Up::Sending && f->up != Up::Waiting) return;
+  if (to == Up::Sent && f->up != Up::Sending) return;
+  if (to == Up::Waiting) f->upOff = 0;
+  if (to == Up::None) { fdClose(f->upFd); f->upFd = -1; f->upTail.clear(); }
+  f->up = to;
+}
+// The body bytes not yet handed to the socket.
+uint64_t upLeft(const Fetch* f) { return f->up == Fetch::Up::Waiting || f->up == Fetch::Up::Sending ? f->upSize - f->upOff + f->upTail.size() : 0; }
+// Never killed by a peer that leaves mid-write (Linux sends SIGPIPE; libuv sets SO_NOSIGPIPE on macOS): as Node does, unless the program
+// listens for the signal itself.
+void noSigpipe() {
+#ifndef _WIN32
+  static const bool done = [] { struct sigaction sa{}; if (sigaction(SIGPIPE, nullptr, &sa) == 0 && sa.sa_handler == SIG_DFL) std::signal(SIGPIPE, SIG_IGN); return true; }();
+  (void)done;
+#endif
+}
 void maybeFree(Fetch* f) {
   if (f->closing == 0 && f->released && f->finished) gFetches[static_cast<size_t>(f->handle) - 1].reset();
 }
@@ -179,6 +222,7 @@ void finish(Fetch* f, bool ok, const std::string& why) {
   if (f->finished || f->held) return;
   if (f->saveWriting || !f->saveWaiting.empty()) { f->held = true; f->heldOk = ok; f->heldWhy = why; return; }
   f->finished = true;
+  upTo(f, Fetch::Up::None);
   if (f->saveFailed) ok = false;
   if (f->saving) { if (std::fclose(f->saving) != 0 && ok) { ok = false; f->saveFailed = true; } f->saving = nullptr; }
   if (f->timerOpen) { uv_timer_stop(&f->timer); f->closing++; uv_close(reinterpret_cast<uv_handle_t*>(&f->timer), onFetchClosed); f->timerOpen = false; }
@@ -236,7 +280,7 @@ void onComplete(Fetch* f) {
     Fetch probe;
     if (!splitUrl(next, &probe, &why)) { finish(f, false, "fetch failed: " + why); return; }
     if (std::string deny = zn::host::perm::check("net", probe.host); !deny.empty()) { finish(f, false, "fetch failed: redirected, " + deny); return; }
-    if (s == 303 || ((s == 301 || s == 302) && f->method == "POST")) { if (f->method != "HEAD") f->method = "GET"; f->reqBody.clear(); }
+    if (s == 303 || ((s == 301 || s == 302) && f->method == "POST")) { if (f->method != "HEAD") f->method = "GET"; f->reqBody.clear(); upTo(f, Fetch::Up::None); }
     netlog::response(f->log, s, f->reason, f->msg.head, f->msg.body);   // the redirect is an entry of its own, as in a HAR
     // credentials are for the origin they were given to: a redirect to another scheme, host or port drops them, as browsers and curl do
     if (probe.secure != f->secure || probe.host != f->host || probe.port != f->port) f->headers = withoutCredentials(f->headers);
@@ -252,18 +296,26 @@ void onComplete(Fetch* f) {
 }
 
 constexpr size_t kUploadBlock = 256 << 10;   // a large body goes in blocks: each one written is a step of its progress
+constexpr size_t kUploadAhead = 1u << 20;    // a file body is read while less than this waits for the socket
+void pumpUpload(Fetch* f);
 void rawWrite(Fetch* f, const std::string& bytes) {
   if (bytes.empty() || f->finished || !f->tcpOpen) return;
   f->wireTotal += bytes.size();
   for (size_t at = 0; at < bytes.size(); at += kUploadBlock) {
-    auto* w = new WriteReq{{}, bytes.substr(at, kUploadBlock), false, f->progress ? f->handle : 0};
+    auto* w = new WriteReq{{}, bytes.substr(at, kUploadBlock), false, f->handle};
     uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
     if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&f->tcp), &b, 1, [](uv_write_t* r2, int st) {
           auto* x = reinterpret_cast<WriteReq*>(r2);
-          Fetch* g = x->fetch > 0 ? fetchAt(x->fetch) : nullptr;
-          if (g && st == 0 && !g->finished) { g->wireSent += x->data.size(); loop::pushEvent(g->handle, 47, std::to_string(g->wireSent) + " " + std::to_string(g->wireTotal)); }
+          Fetch* g = fetchAt(x->fetch);
+          if (g) g->inFlight -= x->data.size();
+          if (g && st == 0 && !g->finished) {
+            g->wireSent += x->data.size();
+            if (g->progress) loop::pushEvent(g->handle, 47, std::to_string(g->wireSent) + " " + std::to_string(g->wireTotal + upLeft(g)));
+            pumpUpload(g);
+          }
           delete x;
         }) != 0) { delete w; return; }
+    f->inFlight += w->data.size();
   }
 }
 // Plain bytes of the response into llhttp.
@@ -289,7 +341,8 @@ std::string buildRequest(Fetch* k) {
     req += k->headers.substr(i, e - i) + "\r\n";
     i = e + 1;
   }
-  if (!k->reqBody.empty() || k->method == "POST" || k->method == "PUT" || k->method == "PATCH") req += "Content-Length: " + std::to_string(k->reqBody.size()) + "\r\n";
+  const uint64_t file = k->up == Fetch::Up::None ? 0 : k->upSize + k->upTail.size();
+  if (!k->reqBody.empty() || file || k->method == "POST" || k->method == "PUT" || k->method == "PATCH") req += "Content-Length: " + std::to_string(k->reqBody.size() + file) + "\r\n";
   return req + "\r\n" + k->reqBody;
 }
 // Moves what the TLS connection has to say to the socket, then takes what it can say to the program.
@@ -327,7 +380,8 @@ void pumpTls(Fetch* f) {
   rawWrite(f, tls::takeOutput(f->tls));
   if (st == tls::State::Failed) { finish(f, false, "fetch failed: " + tls::error(f->tls)); return; }
   if (st != tls::State::Ready) return;
-  if (!f->reqSent) { f->reqSent = true; netlog::mark(f->log, netlog::Tls); tls::write(f->tls, buildRequest(f)); rawWrite(f, tls::takeOutput(f->tls)); netlog::mark(f->log, netlog::Sent); }
+  if (!f->reqSent) { f->reqSent = true; netlog::mark(f->log, netlog::Tls); tls::write(f->tls, buildRequest(f)); rawWrite(f, tls::takeOutput(f->tls)); netlog::mark(f->log, netlog::Sent); pumpUpload(f); }
+  if (f->finished || f->restart) return;
   std::string plain;
   tls::State rs = tls::read(f->tls, plain);
   rawWrite(f, tls::takeOutput(f->tls));
@@ -355,6 +409,7 @@ void onFetchRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
 
 void connectTo(Fetch* f, sockaddr_in a) {
   netlog::mark(f->log, netlog::Dns);
+  upTo(f, Fetch::Up::Waiting);   // a new connection (a redirect, the TLS 1.2 retry) sends the file from its start
   uv_tcp_init(L(), &f->tcp);
   f->tcp.data = f->creq.data = f;
   f->tcpOpen = true;
@@ -399,10 +454,37 @@ void connectTo(Fetch* f, sockaddr_in a) {
       k->tls = tls::openClient(k->host, err, k->tls12);
       if (!k->tls) { finish(k, false, "fetch failed: " + err); return; }
       pumpTls(k);
-    } else { rawWrite(k, buildRequest(k)); netlog::mark(k->log, netlog::Sent); }
+    } else { k->reqSent = true; rawWrite(k, buildRequest(k)); netlog::mark(k->log, netlog::Sent); pumpUpload(k); }
 
   });
   if (rc != 0) finish(f, false, "fetch failed: ECONNREFUSED");
+}
+
+// Reads the file body block by block while less than kUploadAhead waits for the socket: a disk faster than the network waits for the network
+// (each write done calls this again), and the memory stays a few blocks. The reads are libuv's synchronous calls on the loop thread, as the
+// server's file replies (a page-cache hit is microseconds). ponytail: a uv_fs read on the pool if a slow disk shows in the frames.
+void pumpUpload(Fetch* f) {
+  using Up = Fetch::Up;
+  if (!f->reqSent || f->finished || f->restart || !f->tcpOpen || f->tlsBusy) return;
+  upTo(f, Up::Sending);
+  thread_local std::unique_ptr<char[]> buf;
+  while (f->up == Up::Sending && f->inFlight < kUploadAhead && !f->finished) {
+    if (f->upOff == f->upSize) {
+      const std::string tail = f->upTail;
+      upTo(f, Up::Sent);
+      if (f->tls) { tls::write(f->tls, tail); rawWrite(f, tls::takeOutput(f->tls)); } else rawWrite(f, tail);
+      break;
+    }
+    if (!buf) buf.reset(new char[kUploadBlock]);
+    uv_buf_t b = uv_buf_init(buf.get(), static_cast<unsigned>(std::min<uint64_t>(kUploadBlock, f->upSize - f->upOff)));
+    uv_fs_t r;
+    const ssize_t n = uv_fs_read(nullptr, &r, f->upFd, &b, 1, static_cast<int64_t>(f->upOff), nullptr);
+    uv_fs_req_cleanup(&r);
+    if (n <= 0) { finish(f, false, "fetch failed: cannot read " + f->upPath + (n < 0 ? std::string(": ") + uv_strerror(static_cast<int>(n)) : std::string(": it shrank"))); return; }
+    f->upOff += static_cast<uint64_t>(n);
+    if (f->tls) { tls::write(f->tls, std::string(buf.get(), static_cast<size_t>(n))); rawWrite(f, tls::takeOutput(f->tls)); }
+    else rawWrite(f, std::string(buf.get(), static_cast<size_t>(n)));
+  }
 }
 
 // A name asks the network and can take seconds (5 s seen for a radio's logo on a tablet): on a worker, or every frame waits for it.
@@ -436,7 +518,8 @@ void startConnection(Fetch* f) {
 // with uv_try_write first: a reply that fits in the socket's buffer (nearly all) is not copied at all.
 struct Limits {
   size_t headerBytes = 16384;        // request line and headers: 431 above
-  size_t bodyBytes = 64u << 20;      // 413 above (a .zapp uploaded to app/hub-server, ZN-842)
+  size_t bodyBytes = 16u << 20;      // 413 above; a body is held whole until the handler runs: 32 uploads at 16 MiB are half a Pi 3's 1 GB
+                                     // (ZN-1028; 64 MiB was 2 GB). Larger bodies: maxBodyBytes, or streamBody, which holds none
   size_t conns = 10000;              // open connections of the program's servers: the next ones are closed at once
   int connsPerIp = 256;              // open connections of one client address
   double ratePerIp = 0;              // requests per second of one address (a bucket that size, refilled continuously); 0: no limit; 429 above
@@ -449,7 +532,7 @@ struct Limits {
   size_t wsBackpressureBytes = 16u << 20;   // bytes waiting for a WebSocket client that does not read: above it the connection closes (1008)
 };
 struct FileSend;
-struct Listener { uv_tcp_t tcp; int port = 0; std::shared_ptr<tls::Server> tls; Limits lim; };   // tls: an https server (its connections share it)
+struct Listener { uv_tcp_t tcp; int port = 0; std::shared_ptr<tls::Server> tls; Limits lim; bool toldBody = false; };   // toldBody: the program heard of a 413   // tls: an https server (its connections share it)
 enum class St { Reading, Handling, Streaming, Idle, WebSocket };   // Streaming: a reply in parts (replyStart/write/end) or a file goes out
 struct SConn {
   int id = 0, port = 0;   // port: the listener's; the program's handler for that server answers
@@ -588,8 +671,18 @@ void quick(SConn* c, int status) {
   if (c->answered) { closeConn(c); return; }
   c->answered = true;
   c->keepAlive = false;
-  std::string h = std::string("HTTP/1.1 ") + std::to_string(status) + " " + reasonOf(status) + "\r\n" + dateLine() +
-                  (status == 429 ? "Retry-After: 1\r\n" : "") + "Content-Length: 0\r\nConnection: close\r\n\r\n";
+  // A limit the program set says which, to the client in the body and to the program once on stderr (its log), with the option to raise.
+  const std::string why = status == 413 ? "request body over this server's limit of " + std::to_string(c->lim.bodyBytes) + " bytes (maxBodyBytes)\n"
+                        : status == 431 ? "request headers over this server's limit of " + std::to_string(c->lim.headerBytes) + " bytes (maxHeaderBytes)\n" : "";
+  if (status == 413) {
+    auto li = gListeners.find(c->port);
+    if (li != gListeners.end() && !li->second->toldBody) {
+      li->second->toldBody = true;
+      std::fprintf(stderr, "zinc: warning: the server on port %d refused a request body from %s with 413: over its limit of %zu bytes; raise it with serve(port, handler, { maxBodyBytes }) or take the body as it comes with { streamBody: true }\n", c->port, c->ip.c_str(), c->lim.bodyBytes);
+    }
+  }
+  std::string h = std::string("HTTP/1.1 ") + std::to_string(status) + " " + reasonOf(status) + "\r\n" + dateLine() + (status == 429 ? "Retry-After: 1\r\n" : "") +
+                  (why.empty() ? "" : "Content-Type: text/plain; charset=utf-8\r\n") + "Content-Length: " + std::to_string(why.size()) + "\r\nConnection: close\r\n\r\n" + why;
   send(c, std::move(h), std::string_view(), Then::Close);
 }
 
@@ -851,10 +944,14 @@ void endHead(SConn* c, Head& h) {
 }
 bool bodiless(SConn* c, int status) { return c->isHead || status == 204 || status == 304 || (status >= 100 && status < 200); }
 
-// A file as the body, read one block at a time into one buffer and written (uv_try_write: no copy while the socket takes it all); the next
+// A file as the body. On macOS and Linux over plain HTTP the kernel copies it from the page cache to the socket (sendfile(2), no byte through
+// the program), as much as the socket takes; when it is full, one small block goes by uv_write, and its completion (the socket has room
+// again) brings the next sendfile: libuv offers no other wait for a writable socket it owns. Under TLS (the bytes must be encrypted) and on
+// Windows, the file is read one block at a time into one buffer and written (uv_try_write: no copy while the socket takes it all); the next
 // block once the socket holds no more than this one, so a slow client slows the reads. A Range asks for one byte range. The reads are
 // libuv's synchronous file calls on the loop thread (a page-cache hit is microseconds; portable, no stdio buffer in between). ponytail: a
-// uv_fs read pool if a slow disk shows in other requests' latency, sendfile(2) if the copy shows in a profile.
+// uv_fs read pool if a slow disk shows in other requests' latency. Not uv_fs_sendfile: on Linux it tries copy_file_range first, which a
+// socket refuses, and falls back to a read/write loop that blocks in poll().
 constexpr size_t kFileBlock = 256u << 10, kFileTurn = 1u << 20;   // kFileTurn: bytes written in one go before the loop gets its turn back
 void fileClose(uv_file fd) { uv_fs_t r; uv_fs_close(nullptr, &r, fd, nullptr); uv_fs_req_cleanup(&r); }
 // Files stay open between requests, checked by a stat (same inode, size and modification time) at each: on macOS an open and a close cost
@@ -885,11 +982,63 @@ std::shared_ptr<OpenFile> openFile(const std::string& path) {
 }
 struct FileSend { SConn* c; std::shared_ptr<OpenFile> file; uint64_t off, left; std::string head; };
 void fileDrop(SConn* c) { delete c->file; c->file = nullptr; }
+#ifdef ZN_SENDFILE
+constexpr size_t kProbeBlock = 16u << 10;   // the block written by uv_write to learn when a full socket has room: the only bytes copied
+// Up to `len` bytes of `fd` from `off` straight into the socket: what it took (0 when it is full), -1 on an error or past the file's end.
+int64_t sendfileTo(int sock, int fd, uint64_t off, size_t len) {
+#ifdef __linux__
+  off_t o = static_cast<off_t>(off);
+  const ssize_t n = ::sendfile(sock, fd, &o, len);
+  if (n > 0) return n;
+  return n < 0 && (errno == EAGAIN || errno == EINTR) ? 0 : -1;   // 0: the file ended (it shrank)
+#else
+  off_t sent = static_cast<off_t>(len);   // in: how much to send; out: how much went, an EAGAIN included
+  const int r = ::sendfile(fd, sock, static_cast<off_t>(off), &sent, nullptr, 0);
+  if (r == 0) return sent > 0 ? sent : -1;   // 0 sent without an error: past the end
+  return errno == EAGAIN || errno == EINTR ? sent : -1;
+#endif
+}
+#endif
 void sendBlock(FileSend* s) {
   SConn* c = s->c;
   thread_local std::unique_ptr<char[]> buf;
   if (!buf) buf.reset(new char[kFileBlock]);
   size_t turn = 0;
+#ifdef ZN_SENDFILE
+  uv_os_fd_t sock = -1;
+  if (!c->tls && s->left > 0 && uv_fileno(reinterpret_cast<uv_handle_t*>(&c->tcp), &sock) == 0) {
+    c->file = s;   // owned by the connection while it goes: a close drops it
+    if (!s->head.empty()) {   // the head first, through libuv: the file goes once the socket took it
+      std::string head = std::move(s->head);
+      s->head.clear();
+      send(c, std::move(head), std::string_view(), Then::More);
+      if (c->closed) return;
+      if (c->tcp.write_queue_size > 0) { arm(c, c->lim.requestMs); return; }
+    }
+    while (s->left > 0 && turn < kFileTurn) {
+      const int64_t n = sendfileTo(sock, s->file->fd, s->off, static_cast<size_t>(std::min<uint64_t>(s->left, kFileTurn - turn)));
+      if (n < 0) { fileDrop(c); closeConn(c); return; }   // the client left, or the file shrank: the client sees a short body
+      if (n == 0) break;
+      s->off += static_cast<uint64_t>(n);
+      s->left -= static_cast<uint64_t>(n);
+      turn += static_cast<size_t>(n);
+    }
+    if (s->left == 0) { c->file = nullptr; delete s; send(c, std::string(), std::string_view(), Then::End); return; }
+    // full, or the loop's turn: a small block by uv_write; its completion (onWritten) calls this again
+    const size_t want = static_cast<size_t>(std::min<uint64_t>(kProbeBlock, s->left));
+    uv_buf_t b = uv_buf_init(buf.get(), static_cast<unsigned>(want));
+    uv_fs_t r;
+    const ssize_t n = uv_fs_read(nullptr, &r, s->file->fd, &b, 1, static_cast<int64_t>(s->off), nullptr);
+    uv_fs_req_cleanup(&r);
+    if (n <= 0) { fileDrop(c); closeConn(c); return; }
+    s->off += static_cast<uint64_t>(n);
+    s->left -= static_cast<uint64_t>(n);
+    if (s->left == 0) { c->file = nullptr; delete s; send(c, std::string(), std::string_view(buf.get(), static_cast<size_t>(n)), Then::End, false, true); return; }
+    send(c, std::string(), std::string_view(buf.get(), static_cast<size_t>(n)), Then::More, false, true);
+    if (!c->closed) arm(c, c->lim.requestMs);
+    return;
+  }
+#endif
   for (;;) {
     const size_t want = static_cast<size_t>(std::min<uint64_t>(kFileBlock, s->left));
     uv_buf_t b = uv_buf_init(buf.get(), static_cast<unsigned>(want));
@@ -911,7 +1060,9 @@ void sendBlock(FileSend* s) {
     c->file = s;   // owned by the connection while it goes: a close drops it
     send(c, std::move(head), std::string_view(buf.get(), static_cast<size_t>(n)), Then::More, false, turn >= kFileTurn);
     if (c->closed) return;
-    if (c->tcp.write_queue_size > 0) { arm(c, c->lim.requestMs); return; }   // onWritten goes on once the socket took it; idle that long: gone
+    // onWritten goes on once the socket took it; idle that long: gone. After the turn's queued write too: libuv may write it at once and
+    // free its copy only in the callback, so going on here copied the whole file into memory for a fast client (572 MB for 500 MB)
+    if (c->tcp.write_queue_size > 0 || turn >= kFileTurn) { arm(c, c->lim.requestMs); return; }
   }
 }
 /** "bytes=a-b", "bytes=a-", "bytes=-n" of a file of `size` bytes: false when it is not one satisfiable range. */
@@ -994,7 +1145,8 @@ std::string base64(const unsigned char* p, size_t n) {
 
 void fetchSaveTo(int h, const std::string& path) { if (Fetch* f = fetchAt(h)) f->savePath = path; }
 
-int fetchOpen(const std::string& url, const std::string& method, const std::string& headers, const std::string& body, int timeoutMs, int maxBytes, const std::string& fail) {
+int fetchOpen(const std::string& url, const std::string& method, const std::string& headers, const std::string& body, int timeoutMs, int maxBytes, const std::string& file, const std::string& tail) {
+  noSigpipe();
   auto f = std::make_unique<Fetch>();
   Fetch* p = f.get();
   gFetches.push_back(std::move(f));
@@ -1002,7 +1154,18 @@ int fetchOpen(const std::string& url, const std::string& method, const std::stri
   p->method = method.empty() ? "GET" : method;
   p->headers = headers;
   p->reqBody = body;
-  p->progress = body.size() > (64u << 10);
+  std::string fail;
+  if (!file.empty()) {
+    uv_fs_t r;
+    p->upPath = file;
+    p->upFd = uv_fs_open(nullptr, &r, file.c_str(), UV_FS_O_RDONLY, 0, nullptr);
+    uv_fs_req_cleanup(&r);
+    if (p->upFd >= 0 && uv_fs_fstat(nullptr, &r, p->upFd, nullptr) == 0 && (r.statbuf.st_mode & S_IFMT) == S_IFREG) { p->upSize = r.statbuf.st_size; p->upTail = tail; p->up = Fetch::Up::Waiting; }
+    else fail = "cannot read " + file;
+    uv_fs_req_cleanup(&r);
+    if (!fail.empty() && p->upFd >= 0) { fdClose(p->upFd); p->upFd = -1; }
+  }
+  p->progress = body.size() + upLeft(p) > (64u << 10);
   p->timeoutMs = timeoutMs > 0 ? static_cast<uint64_t>(timeoutMs) : 120000;
   p->maxBytes = maxBytes > 0 ? maxBytes : 64 << 20;
   p->startMs = uv_now(L());
@@ -1024,6 +1187,7 @@ std::string fetchUrl(int h) { Fetch* f = fetchAt(h); return f ? f->url : ""; }
 void fetchFree(int h) { Fetch* f = fetchAt(h); if (f) { f->released = true; maybeFree(f); } }
 
 int serve(int port, const std::string& certPem, const std::string& keyPem, const std::string& host) {
+  noSigpipe();
   if (port != 0) stop(port);   // the same port again replaces its server
   std::shared_ptr<tls::Server> secure;
   if (!certPem.empty()) {   // parsed once: a handshake no longer parses the certificate and key again (849 to N handshakes/s, ZN-893)
@@ -1036,10 +1200,12 @@ int serve(int port, const std::string& certPem, const std::string& keyPem, const
   l->tls = std::move(secure);
   uv_tcp_init(L(), &l->tcp);
   l->tcp.data = l;
-  // Every IPv4 address by default, or the address the program gives (127.0.0.1, ::1, or :: for IPv6 and IPv4). ponytail: not :: by default:
-  // on macOS a bind of :: succeeds while another program holds the IPv4 port, which then gets the IPv4 clients; two sockets would fix it.
+  // Every IPv4 address by default, or the address the program gives (127.0.0.1, ::1, or :: for IPv6 and IPv4), else ZINC_BIND (the person
+  // who runs it restricts it without a rebuild, behind a reverse proxy: docs/guide/08-security.md). ponytail: not :: by default: on macOS a
+  // bind of :: succeeds while another program holds the IPv4 port, which then gets the IPv4 clients; two sockets would fix it.
   sockaddr_storage a{};
-  const std::string h = host.empty() ? std::string("0.0.0.0") : host;
+  const char* bindEnv = std::getenv("ZINC_BIND");
+  const std::string h = !host.empty() ? host : bindEnv && *bindEnv ? std::string(bindEnv) : std::string("0.0.0.0");
   int rc = h.find(':') != std::string::npos ? uv_ip6_addr(h.c_str(), port, reinterpret_cast<sockaddr_in6*>(&a)) : uv_ip4_addr(h.c_str(), port, reinterpret_cast<sockaddr_in*>(&a));
   if (rc != 0) { gError = "cannot listen on " + h + ": not an IP address"; uv_close(reinterpret_cast<uv_handle_t*>(&l->tcp), [](uv_handle_t* x) { delete static_cast<Listener*>(x->data); }); return 0; }
   rc = uv_tcp_bind(&l->tcp, reinterpret_cast<sockaddr*>(&a), 0);

@@ -18,12 +18,13 @@ curl localhost:3000/readings                         # {"seq":…,"tempC":…,"h
 `zinc:net` gives you `serve(port, handler)`: an HTTP/1.1 server on libuv and llhttp (Node's loop and parser) whose handler runs on
 the event loop. Connections are kept alive and pipelined requests are answered in order; on the development Mac it answers more
 requests per second than Node 24 (`tools/bench-http` compares it with Node and Bun). Bind is `0.0.0.0` unless `hostname` says otherwise
-(`127.0.0.1` or `::1` for this machine only, `::` for IPv6 and IPv4); see [security](08-security.md) about exposure. The third argument, `ServeOptions`, holds `cert` and `key` (PEM: an https server) and the limits, each with its default:
+(`127.0.0.1` or `::1` for this machine only, `::` for IPv6 and IPv4), or, without `hostname`, the `ZINC_BIND` environment variable
+(`ZINC_BIND=127.0.0.1` keeps a service behind a reverse proxy without a rebuild); see [security](08-security.md) about exposure. The third argument, `ServeOptions`, holds `cert` and `key` (PEM: an https server) and the limits, each with its default:
 
 | Option | Default | Over it |
 |---|---|---|
 | `maxHeaderBytes` | 16 KiB | 431 |
-| `maxBodyBytes` | 64 MiB | 413 (a `Content-Length` over it is refused before the body comes) |
+| `maxBodyBytes` | 16 MiB (a body is held whole until the handler runs: 32 uploads fill half a Raspberry Pi 3) | 413, its body naming the limit, and one warning on stderr (a `Content-Length` over it is refused before the body comes) |
 | `maxConnections` | 10000, all servers of the program | the connection is closed |
 | `maxConnectionsPerIp` | 256 | the connection is closed |
 | `requestsPerSecondPerIp` | 0 (no limit) | 429 with `Retry-After: 1` |
@@ -44,9 +45,10 @@ serve(3000, (req: Request): Reply => {
 ```
 
 `serveAsync(port, handler)` takes a handler that returns a `Promise<Reply>`: the reply goes out when it resolves (a rejection is
-a 500), so a handler can await a file, a plugin or another server. A reply with `file: path` sends that file's bytes in 256 KiB
-blocks instead of `body` (a song, a video, a picture of any size: the next block is read once the last is written, so a slow
-client slows the reads), with `Accept-Ranges: bytes`; a request with one `Range` gets a 206 and its `Content-Range`, a range
+a 500), so a handler can await a file, a plugin or another server. A reply with `file: path` sends that file's bytes instead of
+`body` (a song, a video, a picture of any size): on macOS and Linux over http the kernel copies it straight to the socket
+(`sendfile`), elsewhere and over https in 256 KiB blocks; either way the file goes as fast as the client reads, so a slow client
+slows the reads, with `Accept-Ranges: bytes`; a request with one `Range` gets a 206 and its `Content-Range`, a range
 past the end a 416, a missing file a 404. Players and `<audio>`/`<video>` elements seek with these ranges.
 
 Streams both ways: with `streamBody: true` a handler reads a large upload as it arrives, `await req.bodyStream.each((chunk) => ...)`
@@ -106,8 +108,8 @@ by hand: new connections get it, open ones keep theirs. Port 80 needs administra
 are fetched, following at most 20 redirects; on hosts, a redirect to another scheme, host or port drops the `Authorization`,
 `Proxy-Authorization` and `Cookie` headers. A request times out after `timeoutMs` (default 120000; connecting takes
 at most 30 s). A response body larger than `maxBytes` (default: a quarter of the heap, at most 64 MiB) is refused with
-`fetch failed: response too large`. To send a file, `bodyFile: path` lets the engine read it (the program never holds it),
-between `bodyPrefix` and `bodySuffix` (a multipart form's parts); `onProgress(sent, total)` is called as a body over 64 KiB
+`fetch failed: response too large`. To send a file, `bodyFile: path` lets the engine read it from disk as the network takes it
+(neither the program nor the engine holds it: a 500 MB upload stays under 30 MB of memory), between `bodyPrefix` and `bodySuffix` (a multipart form's parts); `onProgress(sent, total)` is called as a body over 64 KiB
 goes out (bytes on the wire), for an upload bar. To receive a file, `saveTo: path` has the engine write the response body there,
 whatever its size and with no `maxBytes`: a 200 replaces the file, a 206 (you asked a `Range`) adds to it, another status stays in the response. The handler receives
 `method`, `path`, `body`; there is no routing framework — branch on `req.path` yourself.

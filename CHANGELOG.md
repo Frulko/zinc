@@ -78,6 +78,21 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A JavaScript program that makes sound on a machine where the audio plugin cannot be built goes on in silence after one line that says why, instead of stopping with an error.
 - Quit in the app menu (Cmd+Q) runs the program's close handlers first, as the window's close button does, so a program can save its work, ask, or keep its state before it ends.
 
+### Network
+
+#### New
+
+- `serve` listens on the address in the `ZINC_BIND` environment variable when the program names no `hostname`: `ZINC_BIND=127.0.0.1` keeps a service behind a reverse proxy without a rebuild.
+
+#### Changed
+
+- `serve` takes request bodies up to 16 MiB by default instead of 64 MiB, so 32 uploads at once fit on a Raspberry Pi 3; a larger body gets a 413 whose text names the limit, and the program prints one warning saying to raise `maxBodyBytes` or take the body with `streamBody`.
+
+#### Faster
+
+- `fetch` with `bodyFile` reads the file from disk as the network takes it: a 500 MB upload uses under 30 MB of memory instead of 1.6 GB.
+- A reply with `file:` goes out through `sendfile` on macOS and Linux, twice as fast on the same machine; a fast client no longer makes the server hold most of a large file in memory, over https too.
+
 ### UI
 
 #### New

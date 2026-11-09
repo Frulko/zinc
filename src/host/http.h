@@ -11,11 +11,12 @@
 namespace zn::http {
 
 // Starts a request; `headers` holds "Name: value\n" lines. Redirects are followed (20 at most). Returns a handle (>= 1).
-// fail: a reason the request cannot start (the body's file unreadable); it fails like a refused connection. A body over 64 KB reports
-// its upload as it goes (loop event 43, "sent total" in bytes on the wire).
+// file: the body goes on with that file, read from disk as the socket takes it (never whole in memory), then `tail` (a multipart form's
+// parts around it); a file that cannot be read fails the fetch like a refused connection. A body over 64 KB reports its upload as it goes
+// (loop event 47, "sent total" in bytes on the wire).
 /** Right after fetchOpen: a 200 replaces the file `path` with its body, a 206 adds to it; any other status keeps its body in memory. */
 void fetchSaveTo(int h, const std::string& path);
-int fetchOpen(const std::string& url, const std::string& method, const std::string& headers, const std::string& body, int timeoutMs, int maxBytes, const std::string& fail = "");
+int fetchOpen(const std::string& url, const std::string& method, const std::string& headers, const std::string& body, int timeoutMs, int maxBytes, const std::string& file = "", const std::string& tail = "");
 int fetchStatus(int h);
 std::string fetchHead(int h);   // the reason phrase, then "name: value\n" lines
 std::string fetchBody(int h);
