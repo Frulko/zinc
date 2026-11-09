@@ -25,6 +25,10 @@
 namespace zn::dbg {
 namespace {
 
+// A target's program: Waiting for Runtime.runIfWaitingForDebugger, Running, or Paused (its own thread serves the client's requests). Changed by
+// to() only. Each pause has a generation: the call frame and object ids it hands out carry it, so an id of an earlier pause is refused.
+enum class Phase { Waiting, Running, Paused };
+
 // A debug target: the main program (id "") or a worker ("worker-<id>"). Its fields are guarded by gQm.
 struct Session {
   std::string id;
@@ -36,8 +40,9 @@ struct Session {
   std::string title, url;
   std::deque<std::string> queue;     // requests for its thread while it is paused
   std::map<std::string, int> bpIds;  // CDP breakpoint id -> the debugger's
-  bool started = false;              // Runtime.runIfWaitingForDebugger came
-  bool enabled = false;              // Debugger.enable came (its scripts are sent once its program is compiled)
+  Phase phase = Phase::Waiting;
+  unsigned pauses = 0;               // the generation of the current pause
+  bool enabled = false;              // the client sent Debugger.enable (its scripts are sent once its program is compiled); reset when it goes
   int excMode = 0;                   // Debugger.setPauseOnExceptions, kept for the debugger made later
 };
 
@@ -48,6 +53,21 @@ bool gAutoAttach = false, gWaitOnStart = false;               // Target.setAutoA
 int gPort = 0;
 
 Session& mainSession() { auto& s = gSessions[""]; if (!s) s = std::make_unique<Session>(); return *s; }
+
+bool to(Session& s, Phase next) {   // under gQm: Waiting -> Running <-> Paused; anything else is refused
+  const bool ok = next == Phase::Running ? s.phase != Phase::Running : next == Phase::Paused && s.phase == Phase::Running;
+  if (!ok) return false;
+  if (next == Phase::Paused) ++s.pauses;
+  s.phase = next;
+  gQc.notify_all();
+  return true;
+}
+
+// "<prefix><generation>:<n>" of the current pause: n, or -1 for another id or a stale one.
+long long idOf(const Session& s, const std::string& id, const std::string& prefix) {
+  const std::string g = prefix + std::to_string(s.pauses) + ":";
+  return id.rfind(g, 0) == 0 ? std::atoll(id.c_str() + g.size()) : -1;
+}
 
 std::string q(const std::string& s) { return ws::quote(s); }
 std::string tag(const Session& s) { return s.id.empty() ? std::string() : ",\"sessionId\":" + q(s.id); }
@@ -95,7 +115,7 @@ void scriptsParsed(const Session& s) {
     std::uint32_t lines = 0;
     for (char c : src) lines += c == '\n';
     event(s, "Debugger.scriptParsed", "{\"scriptId\":\"" + std::to_string(f) + "\",\"url\":" + q(urlOf(s, f)) + ",\"startLine\":0,\"startColumn\":0,\"endLine\":" + std::to_string(lines) +
-          ",\"endColumn\":0,\"executionContextId\":1,\"hash\":\"" + std::to_string(f) + "\",\"isLiveEdit\":false,\"sourceMapURL\":\"\",\"hasSourceURL\":false,\"isModule\":true,\"length\":" + std::to_string(src.size()) + "}");
+          ",\"endColumn\":0,\"executionContextId\":1,\"hash\":\"" + std::to_string(f) + "\",\"buildId\":\"\",\"isLiveEdit\":false,\"sourceMapURL\":\"\",\"hasSourceURL\":false,\"isModule\":true,\"length\":" + std::to_string(src.size()) + "}");
   }
 }
 
@@ -115,6 +135,22 @@ void setBreakpointByUrl(Session& s, const Msg& m) {
     if (p == url || (p.size() > url.size() && p.compare(p.size() - url.size(), url.size(), url) == 0)) script = f;
   }
   reply(s, m.id, "{\"breakpointId\":" + q(bid) + ",\"locations\":[{\"scriptId\":\"" + std::to_string(script) + "\",\"lineNumber\":" + std::to_string(at) + ",\"columnNumber\":0}]}");
+}
+
+// Debugger.getPossibleBreakpoints: the statements of the script from start up to end (its lines, end excluded; no end: start's line).
+std::string possibleBreakpoints(const Session& s, const Msg& m) {
+  auto at = [&](const char* where, const char* k) -> yyjson_val* { yyjson_val* o = m.params ? yyjson_obj_get(m.params, where) : nullptr; return o ? yyjson_obj_get(o, k) : nullptr; };
+  yyjson_val* sid = at("start", "scriptId");
+  const std::string script = sid && yyjson_is_str(sid) ? yyjson_get_str(sid) : "";
+  const long long from = yyjson_get_sint(at("start", "lineNumber")) + 1;
+  yyjson_val* e = at("end", "lineNumber");
+  const long long until = e ? yyjson_get_sint(e) + 1 + (yyjson_get_sint(at("end", "columnNumber")) > 0) : from + 1;
+  std::string o;
+  if (s.mod)
+    for (const zbc::LineInfo& li : s.mod->lines)
+      if (std::to_string(li.file) == script && li.line >= from && li.line < until)
+        o += std::string(o.empty() ? "" : ",") + "{\"scriptId\":" + q(script) + ",\"lineNumber\":" + std::to_string(li.line - 1) + ",\"columnNumber\":" + std::to_string(li.col ? li.col - 1 : 0) + "}";
+  return "{\"locations\":[" + o + "]}";
 }
 
 void attached(const Session& s, bool waiting) {   // a worker's target, to the main session
@@ -137,7 +173,12 @@ void handle(const std::string& body) {
     s.enabled = true;
     if (s.mod) scriptsParsed(s);   // before the answer, as V8 does (else when the compile is done, cdpReady)
     reply(s, m.id, "{\"debuggerId\":" + q("zinc-debugger" + (s.id.empty() ? "" : "-" + s.id)) + "}");
-  } else if (m.method == "Debugger.getScriptSource") {
+    if (s.phase == Phase::Paused) { s.queue.push_back(body); gQc.notify_all(); }   // a client that comes back to a paused program: Debugger.paused again
+  } else if (m.method == "Debugger.getPossibleBreakpoints") {   // the statements of those lines: the editor's inline breakpoint marks
+    reply(s, m.id, possibleBreakpoints(s, m));
+  } else if (m.method == "Runtime.getIsolateId") reply(s, m.id, "{\"id\":" + q("zinc" + s.id) + "}");
+  else if (m.method == "Network.emulateNetworkConditionsByRule") reply(s, m.id, "{\"ruleIds\":[]}");   // js_app asks the node target for it
+  else if (m.method == "Debugger.getScriptSource") {
     const std::size_t f = static_cast<std::size_t>(std::atoll(m.str("scriptId").c_str()));
     reply(s, m.id, "{\"scriptSource\":" + q(s.sources && f < s.sources->size() ? (*s.sources)[f] : std::string()) + "}");
   } else if (m.method == "Debugger.setBreakpointByUrl") setBreakpointByUrl(s, m);
@@ -155,8 +196,7 @@ void handle(const std::string& body) {
     reply(s, m.id);
   } else if (m.method == "Runtime.runIfWaitingForDebugger") {
     reply(s, m.id);
-    s.started = true;
-    gQc.notify_all();
+    if (s.phase == Phase::Waiting) to(s, Phase::Running);
   } else if (m.method == "Target.setAutoAttach") {   // the workers become targets: those running now, then each that starts
     gAutoAttach = m.flag("autoAttach");
     gWaitOnStart = m.flag("waitForDebuggerOnStart");
@@ -164,6 +204,7 @@ void handle(const std::string& body) {
     if (gAutoAttach) for (auto& [id, w] : gSessions) if (!id.empty()) attached(*w, false);
   } else if (m.method == "Debugger.resume" || m.method == "Debugger.stepOver" || m.method == "Debugger.stepInto" || m.method == "Debugger.stepOut" ||
              m.method == "Runtime.getProperties" || m.method == "Debugger.evaluateOnCallFrame" || m.method == "Runtime.evaluate") {
+    if (s.phase != Phase::Paused) { fail(s, m.id, "Can only perform operation while paused."); return; }   // V8's words; never queued for a later pause
     s.queue.push_back(body);
     gQc.notify_all();
   } else reply(s, m.id);   // what is not served answers empty, so DevTools never waits
@@ -171,7 +212,7 @@ void handle(const std::string& body) {
 
 
 // A RemoteObject for a value; objects and arrays get an id that Runtime.getProperties takes while the program stays paused.
-std::string remote(const Local& l, std::vector<Local>& refs) {
+std::string remote(const Local& l, std::vector<Local>& refs, unsigned gen) {
   const std::string& v = l.value;
   if (l.vt.cls == zbc::Cls::R) {
     if (v == "null") return "{\"type\":\"object\",\"subtype\":\"null\",\"value\":null}";
@@ -179,7 +220,7 @@ std::string remote(const Local& l, std::vector<Local>& refs) {
     refs.push_back(l);
     const bool array = !v.empty() && v[0] == '[';
     return "{\"type\":\"object\"" + std::string(array ? ",\"subtype\":\"array\"" : "") + ",\"className\":" + q(array ? "Array" : l.type) + ",\"description\":" + q(l.type) +
-           ",\"objectId\":\"obj:" + std::to_string(refs.size() - 1) + "\"}";
+           ",\"objectId\":\"obj:" + std::to_string(gen) + ":" + std::to_string(refs.size() - 1) + "\"}";
   }
   if (v == "true" || v == "false") return "{\"type\":\"boolean\",\"value\":" + v + "}";
   const bool finite = !v.empty() && v.find_first_not_of("-0123456789.e+") == std::string::npos && v != "-";
@@ -187,13 +228,14 @@ std::string remote(const Local& l, std::vector<Local>& refs) {
 }
 
 // A frame's scope chain: its locals, what its arrow function captured, the program's globals.
-std::string scopes(const Debugger& d, std::size_t frame) {
+std::string scopes(const Debugger& d, std::size_t frame, unsigned gen) {
   auto scope = [](const char* type, const char* name, const std::string& id) {
     return std::string("{\"type\":\"") + type + "\",\"name\":\"" + name + "\",\"object\":{\"type\":\"object\",\"className\":\"Object\",\"description\":\"" + name + "\",\"objectId\":\"" + id + "\"}}";
   };
-  std::string o = scope("local", "Local", "scope:" + std::to_string(frame));
-  if (!d.closure(frame).empty()) o += "," + scope("closure", "Closure", "closure:" + std::to_string(frame));
-  if (!d.globals().empty()) o += "," + scope("global", "Global", "globals");
+  const std::string at = std::to_string(gen) + ":" + std::to_string(frame);
+  std::string o = scope("local", "Local", "scope:" + at);
+  if (!d.closure(frame).empty()) o += "," + scope("closure", "Closure", "closure:" + at);
+  if (!d.globals().empty()) o += "," + scope("global", "Global", "globals:" + std::to_string(gen) + ":0");
   return o;
 }
 
@@ -219,7 +261,11 @@ bool cdpStart(int port, const std::string& program) {
   return false;
 #else
   { std::lock_guard<std::mutex> lock(gQm); mainSession(); }
-  gPort = ws::start(port, {"zinc-debug", program, "file://" + program}, handle);
+  gPort = ws::start(port, {"zinc-debug", program, "file://" + program}, handle, [] {   // the client went: the next one enables and attaches again
+    std::lock_guard<std::mutex> lock(gQm);
+    for (auto& [id, s] : gSessions) s->enabled = false;
+    gAutoAttach = gWaitOnStart = false;
+  });
   if (!gPort) { std::fprintf(stderr, "zinc debug: port %d unavailable\n", port); return false; }
   return true;
 #endif
@@ -237,7 +283,7 @@ void cdpReady(Debugger& d) {
   }
   std::fprintf(stderr, "zinc debug: chrome://inspect (Discover network targets: localhost:%d) or devtools://devtools/bundled/js_app.html?ws=127.0.0.1:%d/zinc-debug; waiting for the debugger\n", gPort, gPort);   // once compiled: the scripts are there
   std::unique_lock<std::mutex> lock(gQm);
-  gQc.wait(lock, [] { return mainSession().started; });   // the client sets its breakpoints first, then Runtime.runIfWaitingForDebugger
+  gQc.wait(lock, [] { return mainSession().phase != Phase::Waiting; });   // the client sets its breakpoints first, then Runtime.runIfWaitingForDebugger
 }
 
 void cdpLog(const std::string& message) {
@@ -269,9 +315,10 @@ void cdpWorkerStart(rt::Machine& m, int id, const std::string& entry, const std:
   std::unique_lock<std::mutex> lock(gQm);
   Session& ref = *s;
   gSessions[sid] = std::move(s);
+  if (!gAutoAttach || !gWaitOnStart) to(ref, Phase::Running);
   if (!gAutoAttach) return;
   attached(ref, gWaitOnStart);
-  if (gWaitOnStart) gQc.wait(lock, [&] { return ref.started; });   // its breakpoints are set first, then its Runtime.runIfWaitingForDebugger
+  gQc.wait(lock, [&] { return ref.phase != Phase::Waiting; });   // its breakpoints are set first, then its Runtime.runIfWaitingForDebugger
 }
 
 void cdpWorkerEnd(rt::Machine& m) {
@@ -287,27 +334,33 @@ void cdpWorkerEnd(rt::Machine& m) {
 
 Resume cdpPaused(Debugger& d) {
   Session* sp;
-  { std::lock_guard<std::mutex> lock(gQm); sp = sessionOf(d); }
-  if (!sp) return Resume::Continue;
+  unsigned gen;
+  {
+    std::lock_guard<std::mutex> lock(gQm);
+    sp = sessionOf(d);
+    if (!sp || !to(*sp, Phase::Paused)) return Resume::Continue;
+    gen = sp->pauses;
+  }
   Session& s = *sp;   // a session lives until its target's machine ends: not while it is paused here
-  std::vector<Local> refs;   // objectId obj:k is refs[k] while the program stays paused
+  std::vector<Local> refs;   // objectId obj:<gen>:k is refs[k] while the program stays paused
   const std::vector<StackFrame> st = d.stack();
   std::string frames;
   for (std::size_t i = 0; i < st.size(); ++i) {
     const zbc::LineInfo* li = d.lineInfo(st[i].line);
     const std::uint32_t file = li ? li->file : 0;
-    frames += std::string(i ? "," : "") + "{\"callFrameId\":\"" + std::to_string(i) + "\",\"functionName\":" + q(d.fnName(st[i].fn)) + ",\"location\":{\"scriptId\":\"" + std::to_string(file) +
+    frames += std::string(i ? "," : "") + "{\"callFrameId\":\"" + std::to_string(gen) + ":" + std::to_string(i) + "\",\"functionName\":" + q(d.fnName(st[i].fn)) + ",\"location\":{\"scriptId\":\"" + std::to_string(file) +
               "\",\"lineNumber\":" + std::to_string(li ? li->line - 1 : 0) + ",\"columnNumber\":" + std::to_string(li && li->col ? li->col - 1 : 0) + "},\"url\":" + q(urlOf(s, file)) +
-              ",\"scopeChain\":[" + scopes(d, i) + "],\"this\":{\"type\":\"undefined\"}}";
+              ",\"scopeChain\":[" + scopes(d, i, gen) + "],\"this\":{\"type\":\"undefined\"}}";
   }
   const bool exc = std::string(d.reason()) == "exception";
   const std::string bpPrefix = "zinc:" + (s.id.empty() ? std::string() : s.id + ":");
-  event(s, "Debugger.paused", "{\"callFrames\":[" + frames + "],\"reason\":\"" + (exc ? "exception" : "other") + "\"" +
-                                  (exc ? ",\"data\":{\"type\":\"object\",\"className\":\"Error\",\"description\":" + q(d.exception()) + "}" : std::string()) +
-                                  (d.hitBreakpoint() ? ",\"hitBreakpoints\":[\"" + bpPrefix + std::to_string(d.hitBreakpoint()) + "\"]" : std::string()) + "}");
+  const std::string paused = "{\"callFrames\":[" + frames + "],\"reason\":\"" + (exc ? "exception" : "other") + "\"" +
+                             (exc ? ",\"data\":{\"type\":\"object\",\"className\":\"Error\",\"description\":" + q(d.exception()) + "}" : std::string()) +
+                             (d.hitBreakpoint() ? ",\"hitBreakpoints\":[\"" + bpPrefix + std::to_string(d.hitBreakpoint()) + "\"]" : std::string()) + "}";
+  event(s, "Debugger.paused", paused);
   auto props = [&](const std::vector<Local>& ls) {
     std::string o;
-    for (const Local& l : ls) o += std::string(o.empty() ? "" : ",") + "{\"name\":" + q(l.name) + ",\"value\":" + remote(l, refs) + ",\"configurable\":true,\"enumerable\":true,\"writable\":true,\"isOwn\":true}";
+    for (const Local& l : ls) o += std::string(o.empty() ? "" : ",") + "{\"name\":" + q(l.name) + ",\"value\":" + remote(l, refs, gen) +",\"configurable\":true,\"enumerable\":true,\"writable\":true,\"isOwn\":true}";
     return "{\"result\":[" + o + "]}";
   };
   for (;;) {
@@ -318,22 +371,31 @@ Resume cdpPaused(Debugger& d) {
     else if (m.method == "Debugger.stepInto") r = Resume::StepInto;
     else if (m.method == "Debugger.stepOut") r = Resume::StepOut;
     if (r != Resume::Stop) {
-      reply(s, m.id);
+      {
+        std::lock_guard<std::mutex> lock(gQm);
+        to(s, Phase::Running);   // before the answer: what comes after it is not queued for this pause
+        reply(s, m.id);
+        for (const std::string& late : s.queue) { Msg l(late); if (l.method != "Debugger.enable") fail(s, l.id,"Can only perform operation while paused."); }   // sent before it was running: never for a later pause
+        s.queue.clear();
+      }
       event(s, "Debugger.resumed");
       return r;
     }
+    if (m.method == "Debugger.enable") { event(s, "Debugger.paused", paused); continue; }   // a client that came back (handle answered it)
     if (m.method == "Runtime.getProperties") {
       const std::string id = m.str("objectId");
-      if (id.rfind("scope:", 0) == 0) reply(s, m.id, props(d.locals(static_cast<std::size_t>(std::atoll(id.c_str() + 6)))));
-      else if (id.rfind("closure:", 0) == 0) reply(s, m.id, props(d.closure(static_cast<std::size_t>(std::atoll(id.c_str() + 8)))));
-      else if (id == "globals") reply(s, m.id, props(d.globals()));
-      else if (id.rfind("obj:", 0) == 0 && static_cast<std::size_t>(std::atoll(id.c_str() + 4)) < refs.size()) reply(s, m.id, props(d.children(refs[static_cast<std::size_t>(std::atoll(id.c_str() + 4))])));
-      else reply(s, m.id, "{\"result\":[]}");
+      long long n;
+      if ((n = idOf(s, id, "scope:")) >= 0) reply(s, m.id, props(d.locals(static_cast<std::size_t>(n))));
+      else if ((n = idOf(s, id, "closure:")) >= 0) reply(s, m.id, props(d.closure(static_cast<std::size_t>(n))));
+      else if (idOf(s, id, "globals:") == 0) reply(s, m.id, props(d.globals()));
+      else if ((n = idOf(s, id, "obj:")) >= 0 && static_cast<std::size_t>(n) < refs.size()) reply(s, m.id, props(d.children(refs[static_cast<std::size_t>(n)])));
+      else fail(s, m.id, "Could not find object with given id");   // V8's words: another id, or one of an earlier pause
     } else if (m.method == "Debugger.evaluateOnCallFrame" || m.method == "Runtime.evaluate") {   // watches, hovers and the console: an expression in the frame (the top one for the console)
       Local l;
       std::string err;
-      const std::size_t frame = m.method == "Runtime.evaluate" ? 0 : static_cast<std::size_t>(std::atoll(m.str("callFrameId").c_str()));
-      if (d.evaluate(m.str("expression"), frame, l, err)) reply(s, m.id, "{\"result\":" + remote(l, refs) + "}");
+      const long long frame = m.method == "Runtime.evaluate" ? 0 : idOf(s, m.str("callFrameId"), "");
+      if (frame < 0 || static_cast<std::size_t>(frame) >= st.size()) fail(s, m.id, "Invalid call frame id");
+      else if (d.evaluate(m.str("expression"), static_cast<std::size_t>(frame), l, err)) reply(s, m.id, "{\"result\":" + remote(l, refs, gen) + "}");
       else reply(s, m.id, "{\"result\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"Error\",\"description\":" + q(err) + "},\"exceptionDetails\":{\"exceptionId\":1,\"text\":" + q(err) + ",\"lineNumber\":0,\"columnNumber\":0}}");
     } else reply(s, m.id);
   }

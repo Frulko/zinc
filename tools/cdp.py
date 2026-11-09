@@ -14,6 +14,7 @@ class Chrome:
         if not self.chrome: raise RuntimeError("no Chrome")
         self.args = list(args); self.buf = b""; self.id = 0; self.console = []; self.session = None; self.headless = headless
         self.problems = []   # (kind, text): every console.error/warn, uncaught exception, rejection and browser log entry (tools/web-real-test)
+        self.on_event = None   # called with every event (a message with a method)
 
     def __enter__(self):
         spare = [os.dup(0) for _ in range(6)]   # so the pipes do not land on fds 3 and 4
@@ -51,6 +52,7 @@ class Chrome:
                 if m.get("method") == "Log.entryAdded" and m["params"]["entry"].get("level") in ("error", "warning"):
                     e = m["params"]["entry"]; self.problems.append(("log-" + e["level"], (e.get("text", "") + " " + e.get("url", ""))[:400]))
                 if m.get("method") == "Runtime.exceptionThrown": self.console.append("EXCEPTION " + str(m["params"]["exceptionDetails"].get("exception", {}).get("description", ""))[:300])
+                if self.on_event and m.get("method"): self.on_event(m)
                 if m.get("id") == until_id: return m
             if select.select([self.r_out], [], [], 0.2)[0]:
                 d = os.read(self.r_out, 1 << 22)
@@ -63,6 +65,11 @@ class Chrome:
         return (m or {}).get("result", {})
 
     def open(self, url): self.call("Page.navigate", {"url": url})
+
+    def pump(self, seconds): self._recv(-1, seconds)   # reads the events of that long
+
+    def click(self, x, y):   # a real mouse click on the page (the frontend's UI reacts as to a person's)
+        for t in ("mousePressed", "mouseReleased"): self.call("Input.dispatchMouseEvent", {"type": t, "x": x, "y": y, "button": "left", "clickCount": 1})
 
     def eval(self, expr, timeout=120):
         r = self.call("Runtime.evaluate", {"expression": expr, "returnByValue": True, "awaitPromise": True}, timeout)

@@ -516,7 +516,11 @@ for another; 9222 is in `chrome://inspect`'s default list, the inspector of `zin
 DevTools with the Sources panel: the program's files (`Debugger.scriptParsed`, their text), breakpoints by line, the paused program's call
 stack and Scope (locals, objects and arrays unfold through `Runtime.getProperties`), watches and hovers on a local's name, resume, step over,
 into, out and pause. The program starts paused at its first statement when DevTools attaches (`Runtime.runIfWaitingForDebugger`), as
-`node --inspect-brk` does; its output stays on the terminal. `tests/cdp_debug_check.mjs` is a scripted client (`tests/t1/debug_cdp.sh`).
+`node --inspect-brk` does; its output stays on the terminal. `tests/cdp_debug_check.mjs` is a scripted client (`tests/t1/debug_cdp.sh`), and
+`tests/devtools_frontend_check.py sources` drives Chrome's own frontend (`js_app.html` in headless Chrome) through its UI: the file in the
+navigator, a click in the gutter, the Resume button, the Scope pane (`tests/t1/devtools_frontend_sources.sh`). Closing DevTools and opening it
+again on a paused program shows it paused again. Call frame and object ids belong to one pause: an id of an earlier pause, or stepping
+while the program runs, is refused as V8 refuses it.
 
 Workers (`zinc:worker`) are targets of their own, as Chrome attaches a page's workers: after `Target.setAutoAttach` (flatten) each worker
 that starts is announced by `Target.attachedToTarget` with a session id, and waits for that session's `Runtime.runIfWaitingForDebugger`

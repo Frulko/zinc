@@ -68,6 +68,7 @@ await session(program, async ({ call, wait, events, exited, output }) => {
   await call('Debugger.stepInto');
   paused = await wait('Debugger.paused');
   check(paused.callFrames[0].functionName === 'add' && paused.callFrames[0].location.lineNumber === 8, `stepInto: ${paused.callFrames[0].functionName} line ${paused.callFrames[0].location.lineNumber + 1}`);
+  check((await call('Runtime.getProperties', { objectId: scope })).error, 'a scope id of the previous pause is refused');   // ids carry their pause
   await call('Debugger.stepOver');
   paused = await wait('Debugger.paused');
   check(paused.callFrames[0].location.lineNumber === 9, `stepOver: line ${paused.callFrames[0].location.lineNumber + 1}`);
@@ -86,6 +87,7 @@ if (pauseFile) await session(resolve(pauseFile), async ({ call, wait }) => {
   await call('Runtime.runIfWaitingForDebugger');
   await wait('Debugger.paused');
   await call('Debugger.resume');
+  check((await call('Debugger.stepOver')).error, 'stepOver while running is refused');   // not kept for the next pause
   await new Promise(r => setTimeout(r, 300));
   await call('Debugger.pause');
   const paused = await wait('Debugger.paused');
