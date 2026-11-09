@@ -1642,3 +1642,14 @@ ns per call, `bench/math.ts` (2M calls), platform libm → V8 fdlibm / CORE-MATH
 | atan2 | 11 → 11 | 37 → 39 | 84 → 83 |
 
 zinc grows by 51 KB. Object statics (ZN-161.01) on a 455 KB AOT program: freeze and getOwnPropertyNames +0, assign, fromEntries, defineProperty +16.5 KB each (page-rounded); unused, +0.
+
+## 2026-11-09: AOT resources with .incbin (ZN-429, indicative: load 4-8, another tree building)
+
+A 3600x3600 noise PNG, 51,989,060 bytes baked, `zinc build` on the M1 Pro:
+
+| | literal (before) | .incbin (after) |
+|---|---|---|
+| `zinc build` | 10.9 s | 1.6 s (2.4 s at load 7-8) |
+| generated C++ | 148 MB | 118 KB |
+| max RSS | 2.9 GB | clang -cc1 296 MB, ld 347 MB (208 MB footprint) |
+| zinc peak footprint | 434 MB | 116 MB |
