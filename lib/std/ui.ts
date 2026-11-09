@@ -352,8 +352,35 @@ export class ImgX {
   rx: i32 = 1; ry: i32 = 1;   // repeat along x and y: 0 no, 1 repeat, 2 space, 3 round
 }
 const DEF_IMGX = new ImgX();
-/** React Native's transform array, composed in one fixed order around the node's centre: rotate, then scale, then skew (degrees). */
-class TransformX { rot: number = 0; skX: number = 0; skY: number = 0; sx: number = 1; sy: number = 1; }
+/** React Native's transform array, composed in one fixed order around the transform origin: rotate, then scale, then skew (degrees). The origin
+ *  is a fraction of the box plus pixels on each axis (CSS's transform-origin, React Native's transformOrigin): the centre by default. */
+class TransformX { rot: number = 0; skX: number = 0; skY: number = 0; sx: number = 1; sy: number = 1; ofx: number = 0.5; ofy: number = 0.5; opx: number = 0; opy: number = 0; }
+/** The transform origin of n inside its box, in its own units (the centre without a transform). */
+function tfOX(n: UiNode): number { const t = n.tf; return t === null ? n.lw * 0.5 : n.lw * t.ofx + t.opx; }
+function tfOY(n: UiNode): number { const t = n.tf; return t === null ? n.lh * 0.5 : n.lh * t.ofy + t.opy; }
+/** One axis of an origin: a keyword (left, center, right on x; top, center, bottom on y), a percent, or pixels. False when it is none of them. */
+function originAxis(t: TransformX, v: string, y: boolean): boolean {
+  const kw: number = v === 'center' ? 0.5 : (y ? v === 'top' : v === 'left') ? 0 : (y ? v === 'bottom' : v === 'right') ? 1 : -1;
+  let f: number = kw, px: number = 0;
+  if (kw < 0) {
+    const pct = v.endsWith('%'), n = parseFloat(pct ? v.slice(0, v.length - 1) : v.endsWith('px') ? v.slice(0, v.length - 2) : v);
+    if (n !== n) return false;
+    if (pct) f = n / 100; else { f = 0; px = n; }
+  }
+  if (y) { t.ofy = f; t.opy = px; } else { t.ofx = f; t.opx = px; }
+  return true;
+}
+/** Tailwind's origin-* (origin-top-left, origin-[25%_75%], origin-[10px_bottom]) and React Native's transformOrigin string ('top left', '10px 20px'):
+ *  one value is x, or y when it is top or bottom; two keywords may come in either order (CSS). */
+function setOrigin(n: UiNode, spec: string): boolean {
+  const parts = spec.split(' ').filter((p: string): boolean => p.length > 0);
+  if (parts.length < 1 || parts.length > 3) return false;   // a third value (z) is React Native's 3D origin: no effect in 2D
+  let a = parts[0], b = parts.length > 1 ? parts[1] : 'center';
+  if (a === 'top' || a === 'bottom' || b === 'left' || b === 'right') { const s = a; a = b; b = s; }
+  if (n.tf === null) n.tf = new TransformX();
+  const t = n.tf as TransformX;
+  return originAxis(t, a, false) && originAxis(t, b, true);
+}
 /** The even scale of a transform, which paint folds into its scale k; the rest (rotate, skew, an uneven scale) paints through the
  *  renderer's matrix around the centre (pushTf). */
 function tfK(n: UiNode): number { const t = n.tf; if (t === null) return 1; return t.sx === t.sy ? t.sx : 1; }
@@ -2694,6 +2721,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   }
   if (tok === 'flex') return true;
   if (tok === 'flex-row') { n.row = true; return true; }
+  if (tok.startsWith('origin-')) { const k = tok.slice(7); return setOrigin(n, k.startsWith('[') && k.endsWith(']') ? k.slice(1, k.length - 1).split('_').join(' ') : k.split('-').join(' ')); }   // origin-top-left, origin-[25%_75%]
   if (tok === 'flex-col') { n.row = false; return true; }
   if (tok === 'flex-wrap') { n.wrap = true; return true; }
   if (tok === 'flex-wrap-reverse') { n.wrap = true; n.wrapRev = true; return true; }
@@ -4754,14 +4782,14 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const a = EINK ? (n.opacity > 0.004 && n.fade > 0.004 ? alpha : 0) : alpha * n.opacity * n.fade * (h === dimNode ? 1 - (1 - PRESS_OPACITY) * dimT : 1);   // e-ink: no opacity, a node is there or not
   if (a <= 0.004) return;
   let x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy, kk = k * n.k;
-  if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; }
+  if (n.tf !== null) { const s = tfK(n); x += tfOX(n) * kk * (1 - s); y += tfOY(n) * kk * (1 - s); kk *= s; }
   const w = n.lw * kk, hh = n.lh * kk;
   const ai: i32 = Math.round(a * 255);
   // a rotate the compositor plays: the node and its subtree in a layer with no matrix, turned at each present (D182)
   const tf = n.tf, lay = n.ca && !mOn && !tileRec && tf !== null && tf.skX === 0 && tf.skY === 0 && tf.sx === tf.sy && tf.sx !== 0;
   if (n.ca) for (const an of anims) if (an.comp && an.ref === n) an.layered = lay;
-  if (lay) layerBegin(h, x + w / 2, y + hh / 2);
-  const tfSaved = n.tf !== null && !lay ? pushTf(n, x + w / 2, y + hh / 2) : null;   // rotate, skew: the node and its subtree through a matrix
+  if (lay) layerBegin(h, x + tfOX(n) * kk, y + tfOY(n) * kk);
+  const tfSaved = n.tf !== null && !lay ? pushTf(n, x + tfOX(n) * kk, y + tfOY(n) * kk) : null;   // rotate, skew: the node and its subtree through a matrix
   if (tileRec) {   // recording one tile of a scroll container: what lies outside it is not recorded
     if (n.sticky) tileSticky = true;
     // ponytail: a ring or an outline wider than the margin is cut at a tile's edge; the node's own extent when one shows
@@ -5527,7 +5555,7 @@ function scrollerAt(h: i32, px: number, py: number, ox: number, oy: number, k: n
   const n = node(h);
   if (n.hidden || (n.layer && h !== layerPass)) return -1;
   let x0 = (n.x + n.tx) * k + ox, y0 = (n.y + n.ty) * k + oy, kk = k * n.k;
-  if (n.tf !== null) { const s = tfK(n); x0 += n.lw * kk * (1 - s) / 2; y0 += n.lh * kk * (1 - s) / 2; kk *= s; untransform(n, px, py, x0 + n.lw * kk / 2, y0 + n.lh * kk / 2); px = tpx; py = tpy; }
+  if (n.tf !== null) { const s = tfK(n); x0 += tfOX(n) * kk * (1 - s); y0 += tfOY(n) * kk * (1 - s); kk *= s; untransform(n, px, py, x0 + tfOX(n) * kk, y0 + tfOY(n) * kk); px = tpx; py = tpy; }
   const inside = px >= x0 && py >= y0 && px < x0 + n.lw * kk && py < y0 + n.lh * kk;
   if (n.overflow && n.tag !== FRAGMENT && !inside) return -1;
   const cx = x0 - (n.x + n.sx) * kk, cy = y0 - (n.y + n.sy) * kk;
@@ -5857,7 +5885,7 @@ function hitIn(h: i32, px: number, py: number, ox: number, oy: number, k: number
   if (n.hidden || n.invisible || n.ptr === 1 || (n.layer && h !== layerPass)) return -1;
   const sd = n.sticky ? stickyDy(n) : 0;
   let x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + sd) * k + oy, kk = k * n.k;
-  if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; untransform(n, px, py, x + n.lw * kk / 2, y + n.lh * kk / 2); px = tpx; py = tpy; }
+  if (n.tf !== null) { const s = tfK(n); x += tfOX(n) * kk * (1 - s); y += tfOY(n) * kk * (1 - s); kk *= s; untransform(n, px, py, x + tfOX(n) * kk, y + tfOY(n) * kk); px = tpx; py = tpy; }
   const inside = px >= x && py >= y && px < x + n.lw * kk && py < y + n.lh * kk;
   if (n.overflow && n.tag !== FRAGMENT && !inside) return n.hs !== null && inRect(n, px, py, x, y, kk, 0) && wants(n, mode) ? h : -1;
   const cx = x - (n.x + n.sx) * kk, cy = y - (n.y + n.sy) * kk;
@@ -5920,12 +5948,12 @@ function boxOf(h: i32): void {
   for (let i = chain.length - 1; i >= 1; i--) {
     const a = nodes[chain[i]];
     let x = (a.x + a.tx) * k + ox, y = (a.y + a.ty + (a.sticky ? stickyDy(a) : 0)) * k + oy, kk = k * a.k;
-    if (a.tf !== null) { const s = tfK(a); x += a.lw * kk * (1 - s) / 2; y += a.lh * kk * (1 - s) / 2; kk *= s; }
+    if (a.tf !== null) { const s = tfK(a); x += tfOX(a) * kk * (1 - s); y += tfOY(a) * kk * (1 - s); kk *= s; }
     ox = x - (a.x + a.sx) * kk; oy = y - (a.y + a.sy) * kk; k = kk;
   }
   const n = nodes[h];
   boxX = (n.x + n.tx) * k + ox; boxY = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy; boxK = k * n.k;
-  if (n.tf !== null) { const s = tfK(n); boxX += n.lw * boxK * (1 - s) / 2; boxY += n.lh * boxK * (1 - s) / 2; boxK *= s; }
+  if (n.tf !== null) { const s = tfK(n); boxX += tfOX(n) * boxK * (1 - s); boxY += tfOY(n) * boxK * (1 - s); boxK *= s; }
 }
 /** Converts a surface point to node-local coordinates (its own units). */
 export function toLocal(h: i32, gx: number, gy: number): number[] { boxOf(h); return [(gx - boxX) / boxK, (gy - boxY) / boxK]; }

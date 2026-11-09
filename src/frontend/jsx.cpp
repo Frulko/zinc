@@ -116,6 +116,7 @@ bool validClass(const std::string& c) {
       std::regex(R"(^bg-(gradient|linear)-to-(t|tr|r|br|b|bl|l|tl)(/[a-z]+)?$)"), std::regex(R"(^-?bg-(linear|conic)-\d+(\.\d+)?(/[a-z]+)?$)"),   // gradients (ZN-261)
       std::regex(R"(^bg-(radial|conic)(/[a-z]+)?$)"), std::regex(R"(^bg-(linear|radial|conic)-\[\S+\]$)"), std::regex(R"(^bg-\[(repeating-)?(linear|radial|conic)-gradient\(\S+\)\]$)"),
       std::regex(R"(^(from|via|to)-\d+(\.\d+)?%$)"),
+      std::regex(R"(^origin-(center|((top|bottom)(-(left|right))?)|left|right|\[\S+\])$)"),   // transform origin (ZN-263.02)
       std::regex(R"(^object-(contain|cover|fill|none|scale-down|\[\S+\])$)"), std::regex(R"(^(object|bg)-(center|((top|bottom)(-(left|right))?)|((left|right)(-(top|bottom))?))$)"),   // images in a box (ZN-262)
       std::regex(R"(^bg-(\[url\(\S+\)\]|auto|cover|contain|(size|position)-\[\S+\]|repeat|no-repeat|repeat-(x|y|space|round))$)"),
       std::regex(R"(^border-(\d+|\[\d+(px)?\])$)"), std::regex(R"(^border-[trblxy](-(\d+|\[\d+(px)?\]))?$)"),
@@ -263,6 +264,11 @@ std::vector<StyleOp> styleEntry(std::string name, StyleVal value) {
     static const std::regex urlFn(R"(^\s*(url\(\S+\))\s*$)");   // an image of the assets (ZN-262)
     if (std::regex_match(value.str, gm, urlFn)) return {{"@bg-[" + gm[1].str() + "]", 0}};
     if (name != "background") throw std::runtime_error(name + " takes a url(..), a linear-, radial- or conic-gradient(...) or none");
+  }
+  if (name == "transformOrigin" && !value.isNum) {   // React Native's 'top left', '10px 20%': zinc:ui's origin-[..] token (ZN-263.02)
+    std::string u;
+    for (char ch : trim(value.str)) u += ch == ' ' ? '_' : ch;
+    return {{"@origin-[" + u + "]", 0}};
   }
   if ((name == "backgroundSize" || name == "backgroundPosition" || name == "objectPosition" || name == "backgroundRepeat") && !value.isNum) {   // zinc:ui's bg-* and object-* tokens (ZN-262)
     std::string v = trim(value.str), u;

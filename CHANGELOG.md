@@ -87,6 +87,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - React Native's `pointerEvents` works as a `View` prop, `'box-none'` (only its children take touches) and `'box-only'` (not its children) included, and `transform: [{ rotate: angle }]` takes an angle decided at run time, such as `` `${deg}deg` ``.
 
 - Several windows: `win.open({ x, y, ... })` places a window as it opens, `onClosed(cb)` runs once after a window closes (`win.get(0).onClosed(quit)` ends the app with its main window), `onWindowClosed` of `zinc:gfx` reports any window, and a `port.handle` answer may be `async`: the reply leaves when its Promise settles, from the program or from a worker.
+- A rotated, skewed or scaled view turns around a transform origin: React Native's `transformOrigin` (`'top left'`, `'10px 20%'`) or an `origin-*` class (`origin-top-left`, `origin-[25%_75%]`); touches follow it.
 
 #### Changed
 

@@ -1,5 +1,6 @@
 // React Native's transform array (ZN-361): rotate, scale, scaleX, skewX, translate, a dynamic rotate, all around the centre of the card. The hits follow
-// the transformed shape: a point just above a 45° card is inside it, its old corner is not; a card scaled 1.5 is hit past its layout box.
+// the transformed shape: a point just above a 45° card is inside it, its old corner is not; a card scaled 1.5 is hit past its layout box. A card turned
+// around its top-left corner (transformOrigin) is hit at that corner, and a child turned inside a parent scaled 1.5 is hit where both put it (ZN-263.02).
 import * as ui from 'zinc:ui';
 import { StyleSheet } from 'zinc:ui';
 import { createSignal, render } from 'zinc:ui/solid';
@@ -12,6 +13,9 @@ const s = StyleSheet.create({
   r45: { left: 40, top: 40, transform: [{ rotate: '45deg' }] },
   big: { left: 220, top: 40, backgroundColor: '#ff5a36', transform: [{ scale: 1.5 }] },
   skew: { left: 420, top: 40, backgroundColor: '#6d28d9', transform: [{ skewX: '30deg' }, { scaleX: 1.4 }] },
+  pivot: { position: 'absolute', left: 600, top: 120, width: 40, height: 20, backgroundColor: '#be123c', transformOrigin: 'top left', transform: [{ rotate: '90deg' }] },
+  outer: { position: 'absolute', left: 470, top: 200, width: 60, height: 60, backgroundColor: '#94a3b8', transform: [{ scale: 1.5 }] },
+  inner: { position: 'absolute', left: 0, top: 0, width: 20, height: 40, backgroundColor: '#0369a1', transform: [{ rotate: '90deg' }] },
   moved: { left: 40, top: 200, backgroundColor: '#1c1917', transform: [{ translateX: 20 }, { translateY: -10 }, { rotate: '0.25turn' }] },
 });
 const [turn, setTurn] = createSignal<number>(0);
@@ -21,6 +25,8 @@ function App(): i32 {
     <View style={[s.card, s.big]} onPress={() => {}}><Text>big</Text></View>
     <View style={[s.card, s.skew]} onPress={() => {}}><Text>skew</Text></View>
     <View style={[s.card, s.moved]} onPress={() => {}}><Text>moved</Text></View>
+    <View style={s.pivot} onPress={() => {}}><Text>pivot</Text></View>
+    <View style={s.outer} onPress={() => {}}><Text>outer</Text><View style={s.inner} onPress={() => {}}><Text>inner</Text></View></View>
     <View style={[s.card, { left: 260, top: 200, backgroundColor: '#ca8a04', transform: [{ rotate: turn() }, { scale: 1 + turn() / 180 }] }]} onPress={() => {}}><Text>dyn</Text></View>
   </View>;
 }
@@ -40,6 +46,8 @@ render(App, 0xf4f1ec, (dt: number) => {
     console.log('skew sheared', who(395, 44), 'skew cut', who(421, 99));
     console.log('moved upright', who(110, 175), 'moved old corner', who(62, 192));
     console.log('dyn upright', who(310, 160), 'dyn old corner', who(262, 202));
+    console.log('pivot corner', who(598, 122), 'pivot turned', who(590, 158), 'pivot beside corner', who(602, 118), 'pivot old box', who(615, 125));
+    console.log('inner corner', who(442, 202), 'inner turned', who(445, 215), 'inner old box', who(477, 242));
     quit();
   }
 });

@@ -435,7 +435,8 @@ the area the focus is in, or with nothing focused the one under the pointer. A h
 
 `style={{ scale, translateX, translateY }}` on a view transforms the view and its subtree: scale around the view's
 top-left corner, then translate (in the parent's units). Painting, hit testing, hover, pointer event coordinates,
-`ui.toLocal` and `ui.screenBox` follow it; a node graph canvas is a viewport (`overflow-hidden`, pan / zoom
+`ui.toLocal` and `ui.screenBox` follow it (a React Native `transform` array turns, skews and scales around the
+transform origin instead: the centre, or an `origin-*` class such as `origin-top-left` or `origin-[25%_75%]`); a node graph canvas is a viewport (`overflow-hidden`, pan / zoom
 handlers) holding a world view:
 
 ```tsx
