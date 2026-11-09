@@ -3,7 +3,9 @@ import { world } from '../world/world';
 import { economy, Housing } from '../world/economy';
 import { population } from '../engine/villagers';
 import { housingReport, levelCount, buildAdvice, providersOf } from '../rules/housing';
-import { normalizePriority, movePriority } from '../rules/labour';
+import { normalizePriority } from '../rules/labour';
+import { command } from '../rules/commands';
+import { play } from '../engine/simulate';
 import { summary, foodStock } from '../hud';
 import { HOUSE, BS_OFF_NET, BS_FULL } from '../constants';
 import { drawResource, drawBuilding } from './icons';
@@ -75,7 +77,7 @@ function movePlaced(type: number, dir: number): void {
   let at = full.indexOf(type) + dir;
   while (at >= 0 && at < full.length && !built(full[at])) at += dir;
   if (at < 0 || at >= full.length) return;
-  movePriority(type, at - full.indexOf(type));
+  play(command('priority', [type, at - full.indexOf(type)]));
 }
 
 class Row { label: string = ''; houses: number = 0; people: number = 0; missing: string[] = []; counts: number[] = []; }

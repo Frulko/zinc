@@ -2,16 +2,15 @@ import { world } from '../world/world';
 import { updatePeople, assignJobs } from './villagers';
 import { updateDeer } from './deer';
 import { updateNature } from './nature';
-import { saveGame } from '../world/save';
 import { stepDay } from './day';
 import { appealSlice } from '../rules/appeal';
 import { economy } from '../world/economy';
 import { updateOutlaws } from './crime';
-import { SAVE_DELAY, TICK, DAY_TICKS } from '../constants';
+import { TICK, DAY_TICKS } from '../constants';
 import { Command } from '../world/world';
 import { submit, runDue } from '../rules/commands';
 
-/** One tick (TICK seconds) of the whole village. Pure game state: drawing never calls it; the scene feeds it whole ticks from its own accumulator. */
+/** One tick (TICK seconds) of the whole village. Pure game state: drawing never calls it, nor storage (the scene autosaves); the scene feeds it whole ticks from its own accumulator. */
 export function stepWorld(): void {
   world.tick++;
   world.time += TICK;
@@ -24,7 +23,6 @@ export function stepWorld(): void {
   updateOutlaws(TICK);
   updateDeer(TICK);
   updateNature(TICK);
-  if (world.autosave && world.saveDirty && world.time - world.lastSave > SAVE_DELAY) saveGame();
 }
 
 /** Steps n ticks, running the queued commands due before each one (rules/commands.ts). A paused village still runs its commands (an unpause among them) but its clock

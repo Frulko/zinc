@@ -2,6 +2,8 @@ import { Panel } from './Panel';
 import { settings, LOD_MODES, RESAMPLE_MODES } from '../settings';
 import { ATLAS_MODES, atlasModeIndex, setMode } from '../cite/atlas';
 import { world } from '../world/world';
+import { command } from '../rules/commands';
+import { play } from '../engine/simulate';
 import { MIN_SIZE, MAX_SIZE } from '../constants';
 
 /** Builds the live settings panel. `actions` carries what a value needs from the scene (zoom, detail re-bake, new village). */
@@ -28,7 +30,7 @@ export function buildSettingsPanel(actions: PanelActions): { panel: Panel; fps: 
   panel.folder('Simulation');
   panel.number('Vitesse', (): number => settings.simSpeed, (v: number): void => { settings.simSpeed = v; }, .25, 6, .25);
   panel.number('Marche', (): number => settings.walkSpeed, (v: number): void => { settings.walkSpeed = v; }, .25, 4, .25);
-  panel.bool('Sans limite', (): boolean => world.unlimited, (v: boolean): void => { world.unlimited = v; world.saveDirty = true; });
+  panel.bool('Sans limite', (): boolean => world.unlimited, (v: boolean): void => { play(command('unlimited', [v ? 1 : 0])); });
   panel.number('Arbres min', (): number => settings.treeMin, (v: number): void => { settings.treeMin = v; }, 0, 60, 1);
   panel.number('Repousse (s)', (): number => settings.treeRegrow, (v: number): void => { settings.treeRegrow = v; }, 1, 60, 1);
   panel.number('Cerfs min', (): number => settings.deerMin, (v: number): void => { settings.deerMin = v; }, 0, 16, 1);

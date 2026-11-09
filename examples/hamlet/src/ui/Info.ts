@@ -6,7 +6,7 @@ import { housingReport } from '../rules/housing';
 import { sourceOf, harvestLines } from '../rules/harvest';
 import { command } from '../rules/commands';
 import { play } from '../engine/simulate';
-import { orderOf, setOrder } from '../rules/storage';
+import { orderOf } from '../rules/storage';
 import { normalizePriority } from '../rules/labour';
 import { resourceShown, summary } from '../hud';
 import { doesText, needsText } from './BuildMenu';
@@ -161,7 +161,7 @@ function person(): void {
   labelButton('info:goto', x + 12, y + H - 32, 120, 24, 'Suivre', 'Centrer la carte sur lui');
 }
 export function infoClick(id: string): boolean {
-  if (id.startsWith('ord:')) { const b = world.buildings[ui.selId]; if (b !== undefined && b.alive) { const k = Number(id.slice(4)); setOrder(ui.selId, k, (orderOf(b, k) + 1) % 3); } return true; }
+  if (id.startsWith('ord:')) { const b = world.buildings[ui.selId]; if (b !== undefined && b.alive) { const k = Number(id.slice(4)); play(command('order', [ui.selId, k, (orderOf(b, k) + 1) % 3])); } return true; }
   if (id === 'info:goto') { const p = world.people[ui.selId]; if (p !== undefined) act.jump(p.x, p.y); return true; }
   if (id === 'info:demolish') {
     const b = world.buildings[ui.selId];

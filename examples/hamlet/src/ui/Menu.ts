@@ -2,6 +2,8 @@ import * as storage from 'zinc:storage';
 import { openDebug } from './Debug';
 import { width, height, rrect, createImage, updatePixels, drawImageRect, ImageFlag, KeyKind, startTextInput, stopTextInput } from 'zinc:gfx';
 import { world, tileCount } from '../world/world';
+import { command } from '../rules/commands';
+import { play } from '../engine/simulate';
 import { economy } from '../world/economy';
 import { snapshot, restore } from '../world/snapshot';
 import { parseSeedRequest, randomSeed } from '../world/seed';
@@ -318,7 +320,7 @@ export function menuClick(id: string): boolean {
   if (id === 'opt:debug') { closeMenus(); openDebug(); return true; }
   if (id === 'opt:fx') { settings.fx = !settings.fx; savePrefs(); return true; }
   if (id === 'opt:thoughts') { settings.thoughts = !settings.thoughts; savePrefs(); return true; }
-  if (id === 'opt:unlimited') { world.unlimited = !world.unlimited; world.saveDirty = true; return true; }
+  if (id === 'opt:unlimited') { play(command('unlimited', [world.unlimited ? 0 : 1])); return true; }
   if (id === 'opt:appeal') { settings.appeal = !settings.appeal; return true; }
   if (id === 'opt:skin') { setSkin((kit.skin + 1) % skinNames().length); savePrefs(); return true; }
   return false;

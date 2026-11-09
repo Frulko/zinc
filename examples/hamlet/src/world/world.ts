@@ -37,7 +37,7 @@ export class Alert { kind: string = ''; text: string = ''; tile: number = -1; }
 export class Offer { resource: number = 0; qty: number = 0; side: string = ''; coins: number = 0; taken: boolean = false; }
 /** An expedition under way: the adventure, the days left, and the house each member comes from (members leave the people list while away). */
 export class Expedition { adventure: number = 0; left: number = 0; homes: number[] = []; }
-/** A decision applied to the village and logged with its tick (rules/commands.ts): the player's actions (place, demolish, road, pause) and the campaign's (goal, trade, adventure).
+/** A decision applied to the village and logged with its tick (rules/commands.ts): the player's actions (place, demolish, road, pause, undo, store orders, labour priority, the unlimited and free modes) and the campaign's (goal, trade, adventure).
  *  `result` is what its execution gave, PLACE_OK or why it was refused; it is not part of what replays. */
 export class Command { tick: number = 0; player: number = 0; type: string = ''; args: number[] = []; result: number = -1; }
 /** A wild animal (engine/deer.ts, species in rules/species.ts): `id` is stable while the slot may be reused, `leader` the id of the herd's leader (-1: it leads or is alone), `errand` 1 going to drink. */
@@ -67,6 +67,7 @@ export interface World {
   goals: number[];                  // per goal: 1 when done (rules/goals.ts); unlocked: per building type 1 when it may be built
   unlocked: number[]; progression: boolean; risks: boolean; news: string[]; alerts: Alert[]; log: Command[];   // progression: the campaign layers (locked buildings, the peddler, adventures) are on; the new-village flow turns it on, a plain sandbox or a test leaves it off; risks: fire, collapse and theft are on (engine/risk.ts), a choice of the new-village form, on with the campaign; news: lines for the UI to show and clear; log: the commands issued
   expeditions: Expedition[];
+  origin: string;                   // what the command log starts from (engine/replay.ts): the save it was restored from, a new village's start line, '' until the first command
   queue: Command[];                 // commands submitted and not run yet (rules/commands.ts); `advance` runs them at their tick
   paused: boolean;                  // the clock stands still: `advance` runs the commands but steps no tick (a command, so it replays)
   offers: Offer[]; peddlerLeft: number;   // the peddler at the gate: his offers, and the days he still stays (0: not here)
@@ -84,7 +85,7 @@ export function resetGoals(): void {
   world.unlocked = economy.buildings.map((_d: BuildingDef): number => 1);
   if (economy.openAtStart.length > 0) world.unlocked = economy.buildings.map((_d: BuildingDef, k: number): number => economy.openAtStart.indexOf(k) >= 0 ? 1 : 0);   // a mission names what is open at the start
   for (const g of economy.goals) for (const k of g.unlock) world.unlocked[k] = 0;
-  world.news = []; world.log = []; world.queue = []; world.offers = []; world.peddlerLeft = 0; world.expeditions = [];
+  world.news = []; world.log = []; world.origin = ''; world.queue = []; world.offers = []; world.peddlerLeft = 0; world.expeditions = [];
 }
 /** A new building of a type on a tile, empty. The rules add buildings the same way (rules/build.ts). */
 export function newBuilding(type: number, t: number, w: number = economy.buildings[type].w, h: number = economy.buildings[type].h): number {
@@ -159,7 +160,7 @@ export const world: World = {
   terrain: zeros(), height: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), biome: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, netRev: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, watch: -1, sleepers: [], sleeping: 0, deerSeq: 0, mood: 70, jobless: 0, appeal: [], mission: '', goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], queue: [], paused: false, offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, crime: new Crime(), priority: [],
+  revision: 0, netRev: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, watch: -1, sleepers: [], sleeping: 0, deerSeq: 0, mood: 70, jobless: 0, appeal: [], mission: '', goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], origin: '', queue: [], paused: false, offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, crime: new Crime(), priority: [],
 };
 
 // ---- tiles ----

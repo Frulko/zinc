@@ -8,7 +8,7 @@ import { season } from './ui/clock';
 import { focus } from './view/focus';
 import { sound, setAmbience, toggleSound, pauseSound, muted, ambientTick } from './audio';
 import {
-  TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE, MIN_SIZE, MAX_SIZE, PLACE_OK, ROLE_NAMES,
+  TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE, MIN_SIZE, MAX_SIZE, PLACE_OK, ROLE_NAMES, SAVE_DELAY,
 } from './constants';
 import * as assets from 'zinc:assets';
 import { world, generate, tileAt, tileIndex } from './world/world';
@@ -254,7 +254,7 @@ export class HamletScene extends Sprite {
     else if (name === 'F2') this.panel.open = !this.panel.open;
     else if (name === 'F3') cycleDebug();
     else if (name === 'u' || name === 'U') {
-      world.unlimited = !world.unlimited; world.saveDirty = true;
+      play(command('unlimited', [world.unlimited ? 0 : 1]));
       this.say(world.unlimited ? 'Mode sans limite : arbres et gibier repoussent quand il en manque.' : 'Mode normal : les ressources s’épuisent.');
     }
     uiState.dirty = true;
@@ -409,6 +409,7 @@ export class HamletScene extends Sprite {
       const ticks = Math.floor(this.acc / TICK);
       this.acc -= ticks * TICK;
       advance(ticks);
+      if (world.autosave && world.saveDirty && world.time - world.lastSave > SAVE_DELAY) saveGame();
       scanEvents(); checkEnding(); sampleHistory();
       const pose = Math.floor(this.time * settings.animFps);
       this.panel.push(this.fpsRow, dt > 0 ? 1 / dt : 0);

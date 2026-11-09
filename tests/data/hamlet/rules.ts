@@ -34,7 +34,8 @@ import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/ho
 import { computeAppeal, appealTiles } from '../../../examples/hamlet/src/rules/appeal';
 import { PRESETS } from '../../../examples/hamlet/src/gen/presets';
 import { terrain, TerrainParams, TerrainLayers, GEN_CLUSTERED } from '../../../examples/hamlet/src/gen/terrain';
-import { issue, replayAt, submit, command, validate } from '../../../examples/hamlet/src/rules/commands';
+import { issue, replayAt, submit, command, validate, UNDO_BUILD } from '../../../examples/hamlet/src/rules/commands';
+import { recordLog, replayLog, LogCheck } from '../../../examples/hamlet/src/engine/replay';
 import { advance, play } from '../../../examples/hamlet/src/engine/simulate';
 import { canStart } from '../../../examples/hamlet/src/rules/adventure';
 import { offerLines, canTrade } from '../../../examples/hamlet/src/rules/trade';
@@ -1405,4 +1406,44 @@ const fields = withRelief.split(';');
 fields[0] = 'H19'; fields.pop(); fields[10] = fields[10].split(',').slice(0, 10).join(',');
 check('relief: a save from before the heights loads flat', restore(fields.join(';')).ok() && world.size === 32 && world.height.every((v) => v === 0) && world.params.relief === 0);
 console.log('hamlet rules: reliefsavehash ' + (stateHash() >>> 0));
+// ---- command log: recordLog writes the start and the player's commands, replayLog rebuilds the village and checks the end hash; a corrupt line is refused by its number ----
+function scriptedVillage(): string {
+  generate(1234, 16); rich();
+  for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8), at(6, 7), at(1, 9)]) world.tree[t] = 0;
+  restore(snapshot());                                                     // the rich, cleared village is the log's origin (a save)
+  const store = economy.typeOf('storehouse'), hut = toolOf('lumberhut') - TOOL_HOUSE;
+  const script: number[][] = [[0, 0], [10, 1], [10, 2], [30, 3], [30, 4], [60, 5], [200, 6], [210, 7], [400, 8], [401, 9], [700, 10], [900, 11], [1200, 12], [1500, 13], [1800, 14]];
+  for (let frame = 0; frame < 2000; frame++) {
+    for (const s of script) if (s[0] === frame) {
+      const a = s[1], storeId = world.build[at(6, 7)];
+      submit(a === 0 ? command('road', [at(1, 8), at(6, 8), 0, 0]) : a === 1 ? command('place', [HOUSE, at(2, 7)]) : a === 2 ? command('place', [HOUSE, at(4, 7)])
+        : a === 3 ? command('place', [TOOL_SAWMILL - TOOL_HOUSE, at(5, 9)]) : a === 4 ? command('place', [hut, at(3, 9)]) : a === 5 ? command('place', [store, at(6, 7)])
+        : a === 6 ? command('order', [storeId, PLANK, ORDER_GET]) : a === 7 ? command('priority', [TOOL_SAWMILL - TOOL_HOUSE, -3]) : a === 8 ? command('pause', [1])
+        : a === 9 ? command('pause', [0]) : a === 10 ? command('unlimited', [1]) : a === 11 ? command('place', [TOOL_LODGE - TOOL_HOUSE, at(1, 9)])
+        : a === 12 ? command('undo', [UNDO_BUILD, at(1, 9), TOOL_LODGE - TOOL_HOUSE]) : a === 13 ? command('demolish', [at(2, 7), at(2, 7), 0]) : command('unlimited', [0]));
+    }
+    advance(1);
+  }
+  return recordLog();
+}
+const logText = scriptedVillage(), recordedHash = stateHash(), recordedTick = world.tick, logLines = logText.split('\n');
+check('the log names its version, its origin, its commands and its end (2000 frames, one held by the pause)', logLines[0] === 'hamlet-log 1' && logLines[1].startsWith('H') && recordedTick === 1999 && logLines[logLines.length - 2] === 'end 1999 ' + recordedHash && logText.indexOf(' undo ') > 0 && logText.indexOf(' order ') > 0 && logText.indexOf(' priority ') > 0);
+check('the scripted village kept its commands: the lodge was undone, the store keeps planks', world.build[at(1, 9)] < 0 && world.buildings[world.build[at(6, 7)]].orders[PLANK] === ORDER_GET && world.build[at(2, 7)] < 0 && !world.unlimited);
+generate(99, 12);
+const replayed = replayLog(logText);
+check('a 2000-tick log replays to the same state hash', replayed.ok() && replayed.hash === recordedHash && world.tick === recordedTick && stateHash() === recordedHash);
+check('the replayed village records the same log', recordLog() === logText);
+console.log('hamlet rules: replayhash ' + recordedHash);
+const fresh = (): string => { generate(4321, 16); for (let f = 0; f < 300; f++) { if (f === 5) submit(command('unlimited', [1])); if (f === 50) submit(command('pause', [1])); if (f === 51) submit(command('pause', [0])); advance(1); } return recordLog(); };
+const freshLog = fresh(), freshHash = stateHash();
+check('a new village logs its start line, not a save, and replays', freshLog.split('\n')[1].startsWith('start;4321;16;') && freshLog.split('\n')[1].endsWith(';0') && replayLog(freshLog).ok() && stateHash() === freshHash);
+const corrupt = (n: number, line: string): string => { const l = logText.split('\n'); l[n] = line; return l.join('\n'); };
+const logBase = stateHash();
+const badArgs = replayLog(corrupt(4, '10 0 place 0,x')), unknown = replayLog(corrupt(5, '10 0 teleport 1')), back = replayLog(corrupt(6, '3 0 pause 1')), truncated = replayLog(logLines.slice(0, 6).join('\n'));
+check('a corrupt command is refused at its line, the village untouched', badArgs.check === LogCheck.BadLine && badArgs.line === 5 && badArgs.message.indexOf('Ligne 5') === 0 && unknown.check === LogCheck.BadLine && unknown.line === 6 && back.check === LogCheck.BadLine && back.line === 7 && stateHash() === logBase);
+check('a log cut before its end line, a newer version or a stranger text is refused', truncated.check === LogCheck.BadLine && truncated.line === 7 && replayLog('hamlet-log 2\n' + logLines.slice(1).join('\n')).check === LogCheck.Future && replayLog('hello').check === LogCheck.NotALog && stateHash() === logBase);
+const refused = replayLog(corrupt(4, logLines[4].split(' ')[0] + ' 0 place 0,' + at(1, 8)));
+check('a command the village refuses at its tick stops the replay at its line', refused.check === LogCheck.Refused && refused.line === 5);
+const desync = replayLog(corrupt(logLines.length - 2, 'end 1999 ' + ((recordedHash + 1) >>> 0)));
+check('a different end hash is a desync, with both hashes', desync.check === LogCheck.Desync && desync.hash === recordedHash && desync.expected === ((recordedHash + 1) >>> 0));
 console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');

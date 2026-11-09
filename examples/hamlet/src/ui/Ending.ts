@@ -1,4 +1,6 @@
 import { world } from '../world/world';
+import { command } from '../rules/commands';
+import { play } from '../engine/simulate';
 import { economy } from '../world/economy';
 import { population } from '../engine/villagers';
 import { scenarioWon } from '../rules/goals';
@@ -54,7 +56,7 @@ export function drawEnding(): void {
 export function endingClick(id: string): boolean {
   if (!id.startsWith('end:')) return false;
   ui.window = WIN_NONE;
-  if (id === 'end:continue') { world.progression = false; world.saveDirty = true; act.say('Mode libre : tous les bâtiments sont ouverts.'); }
+  if (id === 'end:continue') { play(command('progression', [0])); act.say('Mode libre : tous les bâtiments sont ouverts.'); }
   else if (id === 'end:next') startMission(nextMission());
   else if (id === 'end:new') openNew(world.mission === '' ? 1 : 0);
   else if (id === 'end:retry') act.newVillage(world.seed, world.size, world.progression, world.risks, world.params);

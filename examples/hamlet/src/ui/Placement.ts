@@ -3,17 +3,16 @@ import { TERRAIN_WATER } from '../constants';
 import { world } from '../world/world';
 import { economy, amountText } from '../world/economy';
 import { TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_LOCKED, PLACE_NO_LODE, PLACE_UNEVEN, PLACE_ROCKY } from '../constants';
-import { checkTool, destroyBuilding, addBuilding } from '../rules/build';
-import { give } from '../rules/stock';
+import { checkTool } from '../rules/build';
+import { command, UNDO_ROAD, UNDO_ERASE_ROAD, UNDO_BUILD, UNDO_ERASE_BUILDING } from '../rules/commands';
+import { play } from '../engine/simulate';
 import { lockText } from '../rules/goals';
-import { recount } from '../world/world';
 import { drawResource } from './icons';
 import { tint } from './Overlays';
-import { RoadPlan, costOf, unrefund } from '../rules/roadplan';
+import { RoadPlan, costOf } from '../rules/roadplan';
 import { kit, col, parchment, text, measure, wrap } from './kit';
 
 // Placement feedback: the label that follows the pointer (cost, why not), the count of a drag, and Ctrl+Z.
-const A_ROAD = 0, A_BUILD = 1, A_ERASE_ROAD = 2, A_ERASE_BUILDING = 3;
 class Action { kind: number = 0; tile: number = 0; type: number = 0; }
 const groups: Action[][] = [];
 let current: Action[] = [];
@@ -45,31 +44,18 @@ export function look(t: number): Snapshot {
 }
 export function record(tool: number, t: number, before: Snapshot): void {
   const a = new Action(); a.tile = before.building >= 0 ? world.buildings[before.building].j * world.size + world.buildings[before.building].i : t; drag.count++;      // a building is named by its anchor tile
-  if (tool === TOOL_ROAD) a.kind = A_ROAD;
-  else if (tool === TOOL_ERASE) { a.kind = before.building >= 0 ? A_ERASE_BUILDING : A_ERASE_ROAD; a.type = before.type; }
-  else { a.kind = A_BUILD; a.type = tool - TOOL_HOUSE; }
+  if (tool === TOOL_ROAD) a.kind = UNDO_ROAD;
+  else if (tool === TOOL_ERASE) { a.kind = before.building >= 0 ? UNDO_ERASE_BUILDING : UNDO_ERASE_ROAD; a.type = before.type; }
+  else { a.kind = UNDO_BUILD; a.type = tool - TOOL_HOUSE; }
   current.push(a);
 }
-/** Takes back the last drag or placement. Returns the sentence to say ('' when there is nothing to undo). */
+/** Takes back the last drag or placement, as an undo command (so it replays). Returns the sentence to say ('' when there is nothing to undo). */
 export function undo(): string {
   const group = groups.pop();
   if (group === undefined) return '';
-  const paid: number[] = [], taken: number[] = [];
-  world.netRev++;
-  for (let i = group.length - 1; i >= 0; i--) {
-    const a = group[i];
-    if (a.kind === A_ROAD) { world.road[a.tile] = 0; paid.push(a.tile); }
-    else if (a.kind === A_ERASE_ROAD) { world.road[a.tile] = 1; taken.push(a.tile); }
-    else if (a.kind === A_BUILD) {
-      if (world.build[a.tile] >= 0) destroyBuilding(world.build[a.tile]);
-      const cost = economy.buildings[a.type].cost;
-      for (let k = 0; k < cost.length; k++) if (cost[k] > 0) give(k, cost[k]);
-    } else if (world.build[a.tile] < 0) addBuilding(a.type, a.tile);
-  }
-  const back = costOf(paid);                                    // the roads laid by the drag are paid back whole (a felled tree stays felled)
-  for (let k = 0; k < back.length; k++) if (back[k] > 0) give(k, back[k]);
-  unrefund(taken);
-  recount(); world.revision++; world.saveDirty = true;
+  const args: number[] = [];
+  for (const a of group) args.push(a.kind, a.tile, a.type);
+  if (play(command('undo', args)) !== PLACE_OK) return '';
   return group.length > 1 ? 'Annulé : ' + group.length + ' cases.' : 'Annulé.';
 }
 

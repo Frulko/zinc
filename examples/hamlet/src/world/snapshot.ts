@@ -6,7 +6,7 @@ import { createResident, dropPerson } from '../engine/villagers';
 import { spawnPeddler } from '../engine/trade';
 import { computeAppeal } from '../rules/appeal';
 import { defaultLevel } from '../rules/difficulty';
-import { applyMission } from './missions';
+import { applyMission, missionOf } from './missions';
 import { stockWithCarried, forgetCarried } from '../engine/transport';
 import { economy, Housing } from './economy';
 
@@ -139,5 +139,23 @@ export function restore(text: string): Restored {
   world.tick = Number(fields[7]); world.rng = Number(fields[8]);    // last: rebuilding the residents drew random numbers
   forgetCarried();
   computeAppeal(); recount(); world.revision++; world.netRev++;
+  world.origin = text;                                            // a command log of this village replays from this save
   return r;
+}
+
+/** A new village as one line, what a command log starts from (engine/replay.ts): start;seed;size;params;mission;difficulty;progression;risks;unlimited. */
+export function startText(): string {
+  return ['start', String(world.seed), String(world.size), paramsText(), world.mission, String(world.difficulty), world.progression ? '1' : '0', world.risks ? '1' : '0', world.unlimited ? '1' : '0'].join(';');
+}
+/** Makes the village a start line describes, as the new-village form does (the mission and difficulty before generating). '' when done, else why the line was refused (the village untouched). */
+export function startVillage(text: string): string {
+  const f = text.split(';'), whole = (v: string): boolean => /^-?[0-9]+$/.test(v), flag = (v: string): boolean => v === '0' || v === '1';
+  if (f.length !== 9 || f[0] !== 'start' || !whole(f[1]) || !whole(f[2]) || !whole(f[5]) || !flag(f[6]) || !flag(f[7]) || !flag(f[8])) return 'la ligne de départ est mal formée';
+  if (f[3].split(',').some((v: string): boolean => !isFinite(Number(v)) || v === '')) return 'les réglages de la carte sont mal formés';
+  if (f[4] !== '' && missionOf(f[4]) === null) return 'mission inconnue : ' + f[4];
+  applyMission(f[4]);
+  world.difficulty = Number(f[5]);
+  generate(Number(f[1]), Number(f[2]), paramsOf(f[3]));
+  world.progression = f[6] === '1'; world.risks = f[7] === '1'; world.unlimited = f[8] === '1';
+  return '';
 }

@@ -23,7 +23,7 @@ grep -q 'hamlet icons: .* ALL PASS' "$tmp/icons" || { cat "$tmp/icons"; exit 1; 
 # the simulation never reads a clock or the system generator, and keeps to + - * / sqrt (no hypot, sin, cos, pow): determinism for replays and servers
 if grep -rnE 'Math\.(random|hypot|sin|cos|pow)|Date\.' examples/hamlet/src/world examples/hamlet/src/rules examples/hamlet/src/engine | grep -v 'randomSeed'; then echo 'nondeterministic call in the simulation'; exit 1; fi
 # player input has one path: the scene and its windows submit commands (rules/commands.ts) and never change the village themselves, so the mouse sessions below run through submit
-if grep -nE '(^|[^A-Za-z])(applyTool|buildRoad|demolishRoad|stepWorld|issue)\(' examples/hamlet/src/HamletScene.ts examples/hamlet/src/ui/*.ts | grep -v 'ui/Debug.ts'; then echo 'player input that bypasses submit'; exit 1; fi
+if grep -nE '(^|[^A-Za-z])(applyTool|buildRoad|demolishRoad|stepWorld|issue|setOrder|movePriority)\(' examples/hamlet/src/HamletScene.ts examples/hamlet/src/ui/*.ts | grep -v 'ui/Debug.ts'; then echo 'player input that bypasses submit'; exit 1; fi
 grep -q "play(command('place'" examples/hamlet/src/HamletScene.ts && grep -q "play(command('road'" examples/hamlet/src/HamletScene.ts && grep -q "play(command('demolish'" examples/hamlet/src/HamletScene.ts && grep -q "play(command('pause'" examples/hamlet/src/HamletScene.ts || { echo 'the scene does not submit its commands'; exit 1; }
 # the mouse session: roads by dragging, a house, a sawmill, a lodge; ZINC_INPUT must be an absolute path
 ZINC_SIZE=1100x900 ZINC_FRAMES=3200 ZINC_INPUT="$PWD/tests/data/hamlet/session.input" \
