@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Integrated ZN-1078.04 (fed3600d1) and .05 (fc75c5744), Done. Clean retained tree kit_actions, kit_chrome, ui_dnd and kit_size PASS; short chrome run exits0 and documentation pictures inspected. No C++ rebuild. Inputs/core workers rebased to these APIs;1080 ready c7d77cdfb with all3 original Inputs proofs, separate authored event bounds failure remains .06. Actions worker clean, no processes; remove its finished tree/branch.
+
 - 2026-11-09: Integrated ZN-1081 (1b8b79f99, Done), ui_focus_dispose PASS on clean develop across all3 engines, original same-frame Dock cancel/repeat drag green. TS-only, no engine rebuild. External Virtual/Fenwick WIP restored. Retain work/1080-inputmode for active worker; clean reset to develop required before1080 so its old1081 commit is not cherry-picked twice. Actions rebases/finalizes .05; Inputs waits Button APIs and1080.
 
 - 2026-11-09: Created/claimed ZN-1081 (blocks actual App chrome docking): stale focus-within callbacks survive release and act on reused node slots. Core blocker chain will do1081 then1080 in work/1080-inputmode; one building worker plus two non-building kit workers. Main ui.ts WIP inspected: only Virtual/Fenwick at636/967, isolated release/focus lifecycle changes permitted near777/6282. No event timing or component workaround.

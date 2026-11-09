@@ -700,6 +700,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-1078.03: trim unused class metadata only if kit growth exceeds the unchanged size gate; direct/barrel Button currently retain 292/880 classes after dead native, string and font data are removed.
 
+- ZN-1078.04: support generic String(Error) coercion in the checker; the task notes preserve a minimal Z0005 repro. CopyButton correctly needs error.message and carries no coercion helper.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
