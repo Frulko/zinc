@@ -23,10 +23,12 @@
 - Integrated: ZN-774.30 (Done, D243): `/play/` on the site edits and runs Zinc in Chrome without COOP/COEP (program in the link, diagnostics linked, starters per template, lessons editable, export as a project). The Pages workflow now builds the wasm modules: not run yet.
 - Integrated: Hamlet ZN-971 (Done): `recordLog`/`replayLog` replay a 2000-frame village to the same hash on three engines, corrupt lines refused at their number; undo, orders, priority, unlimited and progression are commands now.
 - Integrated: ZN-437 (Done, D244): `zinc assets check` (exit 1 naming the budget broken), `zinc assets report [--diff old.json]`, `zinc assets clean`.
+- Integrated: Hamlet ZN-973 (Done): bread chain run through commands (`breadhash` on three engines), level-2 houses eat bread, no orphan resource in the chain report.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-973 (since f02eb5c27): `tests/run --only hamlet` (T1, rules on three engines with `breadhash`, 3 min).
 - ZN-437 (since b677f1c19): `zinc assets check examples/<a game with groups> --target rpi1` (the default budgets on a real project, 10 s).
 - ZN-971 (since 8861f2f06): `tests/t1/hamlet.sh` now also compares `replayhash` and checks orders and priority go through commands; proposed T0 `hamlet_replay` (20 s).
 - ZN-774.30 (since 4d1868344): `pnpm build` in site/ then `ZINC=build/zinc tools/play-link-test` (one Chrome, 30 s); `tests/t2/wasm_browser.sh` (the SharedArrayBuffer path after the JSPI change); one run of the Pages workflow (`gh workflow run pages`: setup-zig builds both wasm modules on Ubuntu, /play/ on GitHub Pages) — outward-facing, owner's call.
