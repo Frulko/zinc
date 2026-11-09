@@ -36,6 +36,7 @@
     {"paths": ["runtime/raster.cpp", "tests/native/raster_scratch.cpp", "tests/t0/raster_scratch.sh"], "tests": ["raster_scratch"]},
     {"paths": ["src/rt/program.cpp", "tests/unit/program_buffers_test.cpp", "tests/t0/program_buffers.sh"], "tests": ["program_buffers"]},
     {"paths": ["src/aot/", "tests/t0/aot_native_args.sh"], "tests": ["aot_native_args"]},
+    {"paths": ["src/aot/aot.cpp", "src/main.cpp", "tests/t0/aot_incbin.sh"], "tests": ["aot_incbin"]},
     {"paths": ["examples/photo-sorter/", "tests/golden/photo-sorter/", "tests/t1/photo_sorter.sh", "plugins/imageio/"], "tests": ["photo_sorter"]},
     {"paths": ["runtime/gfx.cpp", "runtime/ttf.cpp", "targets/macos/hal_sdl.cpp", "targets/macos/hal_metal.mm", "src/host/window_module.cpp", "src/text/shaped_gfx.cpp", "include/zn/frame_trace.h", "tests/t1/render_thread.sh"], "tests": ["render_thread"]},
     {"paths": ["runtime/gfx.cpp", "include/zn/ease.h", "include/zn/frame_trace.h", "lib/std/kit/spinner.tsx", "tests/golden/compositor/", "tests/t1/compositor.sh"], "tests": ["compositor"]},

@@ -277,6 +277,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Faster
 
 - A save in `zinc dev` reaches the screen in about half the time (hero: 1.2 s down to 0.65 s): the files you did not change are not parsed again, the fonts and images are baked again only when the save changes a text size, a character or a font face, and the compiler does more of its work on several cores.
+- `zinc build` of an app with large images is much quicker and lighter: the fonts and images go into the program as they are instead of being written out as C++ (50 MB of pictures: 11 s and 2.9 GB of memory down to 1.6 s and under 300 MB), on macOS, Linux and in cross builds alike.
 
 #### Fixed
 
