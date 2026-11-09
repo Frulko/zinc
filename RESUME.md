@@ -18,10 +18,12 @@
 - Integrated: ZN-798 (Done, D239): `boolean | Interface` unions compile (no crash), a local name no longer breaks narrowing of a module variable, lambda field initialisers keep their errors; workarounds in web.ts, notify.ts and notify-relay removed.
 - Integrated: ZN-682 (Done, D240): zinc:3d `bounds(node)` (box and sphere); the museum viewer frames its object with it, its 75-frame session hash unchanged.
 - Integrated: ZN-675 (Done): frame hashes of partial frames repeat (capture buffer cleared); ZN-639 (Done): socket test on port 0; checker accepts fields assigned in both branches, plugins/3d workaround removed (D241).
+- Integrated: ZN-774.29 (Done, D242): the compiler builds to wasm (0.75 MB brotli), compiles lessons in Chrome in 30-300 ms to the same ZBC as `zinc`, no cross-origin isolation; `vm-web.wasm` stripped to 216 KB gzip.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-774.29 (since 9419db88d): `tests/run --only wasm_compiler`; `tools/wasm-compile-bench` (one Chrome, 10 s); `tests/t2/wasm.sh` and `tests/t2/wasm_browser.sh` (the stripped vm.wasm and vm-web.wasm still run the M3 set and breakout).
 - ZN-675 (since bdfcef7d5): the T0 frame-hash tests (`assets_groups`, `app_library`, `console_core`, `fuse`), `tools/proto-capture --canary` (no golden relied on uncleared memory); `diagnostics`, `check_js` for the checker change.
 - ZN-682 (since d1e19fe82): `tests/demo/museum_viewer.sh` (session and three frame hashes through `bounds()`, 20 s); the viewer on a multi-node GLB (centred at the opening view, 5 s).
 - ZN-798 (since beb619f27): `tests/t1/webcam.sh` (typed getUserMedia constraints), the T0 tier (new goldens, regenerated closures/tuples IR goldens, the dead-zone change), `tools/diff-matrix` over `tests/golden/run`.

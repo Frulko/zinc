@@ -633,6 +633,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-682: `SkinnedModel` could refresh `mesh.bounds` from its current pose on request (three.js `SkinnedMesh.computeBoundingBox()`); an optional precise mode of `bounds(node)` reading every vertex.
 - ZN-639: zinc:socket binds UDP with `UV_UDP_REUSEADDR` (SO_REUSEPORT on macOS and the BSDs): two programs on one fixed port both bind and one silently receives nothing; make reuse opt-in or document it.
 - ZN-675: the field initialisation check still accepts a constructor that returns early before assigning a field (`if (c) return; this.x = 1;`); full definite-assignment flow would cover `switch`, `try` and early returns.
+- ZN-774.29: the playground (ZN-774.30) should compile for the web profile, not the `linux` that `zn::builtPlatform()` reports under WASI; define `__wasi__` → `"wasm"` in `include/zn/platform.h`.
+- ZN-774.29: `targets/wasm/glue/worker.mjs` should use a JSPI frame loop so run pages need no COOP/COEP (SharedArrayBuffer kept when the page is already isolated).
+- ZN-774.29: `wasm-opt -Oz` on `zinc-compile.wasm` (-17% raw, -6% gzip) once binaryen is pinned as a toolchain (Homebrew today); zinc:worker programs are refused by the one-thread wasm compiler (revisit with wasm32-wasi-threads).
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

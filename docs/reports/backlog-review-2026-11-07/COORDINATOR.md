@@ -56,3 +56,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: ZN-798 (Done, D239). Worker: ZN-774.29 compiler-to-wasm spike, beside ZN-682.
 - Integrated: ZN-682 (Done, D240). Worker: ZN-675, ZN-639 and the readonly-in-if/else checker gap (Z0111) found by ZN-682, beside ZN-774.29.
 - Integrated: ZN-675, ZN-639 (Done, D241). Worker: Hamlet chain ZN-946, ZN-970, beside ZN-774.29.
+- Integrated: ZN-774.29 (Done, D242).

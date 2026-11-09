@@ -1573,3 +1573,9 @@ Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` 
 
 - First-frame work: native 119 ms on the interpreter (layout 58, commit 61), 148 ms AOT (layout 78, commit 70); drawn 5.7 / 5.9 ms.
 - Built app, 60 frames: 0.43 s native, 0.03 s drawn; max RSS 50 MB / 18 MB; footprint 25 MB / 10 MB. 300 idle frames paint nothing in both.
+
+## 2026-11-09 — ZN-774.29, the compiler built to wasm (M1 Pro, headless Chrome 157, page without COOP/COEP)
+
+- `zinc-compile.wasm`: 3,502,240 B raw, 1,026,157 gzip -9, 746,910 brotli 11 (`wasm-opt -Oz`: 2,908,663 / 960,047 / 725,043). `lib/std` + capabilities (98 files): 1,443,183 raw, 415,151 gzip, 334,232 brotli. Code: frontend 1696 KB, ir 403 KB, libc++ 337 KB, zbc 98 KB, yyjson 77 KB, std::regex 69 KB, filesystem 29 KB, exception runtime 10 KB.
+- Compile in Chrome (fresh instance, first / median of 5): lesson 13 (49 lines) 34 / 34 ms, lesson 04 (43 lines) 98 / 28 ms, lesson 08 (UI TSX, 37 lines) 315 / 309 ms; same ZBC as `zinc` byte for byte. `compileStreaming` 16 ms. Native `zinc --emit=zbc-bin` whole process: 0.03 s / 0.22 s.
+- JSPI suspend+resume 2.7 µs vs 2.5 µs for the bare message (non-isolated page); Asyncify on vm-web.wasm +33% raw, +27% gzip. `vm-web.wasm` stripped: 6,388,503 → 598,544 B raw, 1.81 MB → 216 KB gzip.
