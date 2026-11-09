@@ -835,6 +835,37 @@ without a `shrink` class, so Tailwind's `flex-1 min-w-0` pane narrows to the roo
 window's edge; an explicit `shrink-*` wins. A `basis-*` counts inside the child's `min-*`/`max-*` sizes when the line shares its room
 (`flex-1 basis-0 min-w-[200px]` takes 200 px from siblings that shrink), as CSS's hypothetical main size does.
 
+### Layout modes: classic and rn side by side
+
+The same tree can lay out differently in the two engines. `classic` reads the Tailwind classes the way a browser does wherever
+that does not move the pixels of the existing demos; `rn` is Yoga with React Native's defaults. Yoga's 548 cases generated in
+Chrome (`docs/reports/layout-conformance.md`): `rn` passes the 482 that zinc:ui can express, `classic` 343 of them.
+
+| | `classic` (default) | `rn` (Yoga 3.2.1) |
+|---|---|---|
+| Defaults | a column, children stretched, packed at the start; wrapped lines at the start | the same (React Native's: not the web's row, stretch lines and shrink 1) |
+| Where | every target; the only engine on esp32 and ps1 (no room for Yoga: 160 KB heap, soft float) | desktop, Pi, wasm, consoles with an FPU (`ui.layout.rn` in `targets/capabilities.json`); the web page uses the browser's CSS |
+| `flex-1` class | CSS's `flex: 1 1 0%`: equal shares whatever the content, never narrower than the content unless `min-w-0`, `overflow-hidden` or `truncate` | grow 1 over the content size (basis auto) |
+| `flex: 1` style | grow 1 over the content size; with the react-native preset, grow 1, shrink 1, basis 0 (equal shares) | grow 1, shrink 1, basis 0 (equal shares) |
+| `w-full` / `h-full` along the line | 100% of the line, shrinks beside its siblings, at least its content (at most 100%) | 100% of the parent, shrinks only with `flexShrink` |
+| Shrinking | opt-in: `shrink`, `min-w-0` (row) or `min-h-0` (column), and the `flex-1` / `w-full` / `h-full` lines; a fixed size never shrinks | `flexShrink` (0 by default, as in React Native) |
+| Minimum size | `min-*` classes; the content's minimum (CSS's `min-width: auto`) only for `flex-1`, `w-full` and `h-full` | `minWidth`/`minHeight` only, no automatic minimum (as React Native) |
+| `basis-*` / `flexBasis` | the child is laid out at its basis (a wrapping list inside wraps there) | the same |
+| Text in a grow or shrink box | measured again at the width it gets, so it wraps there | the measure function is called with the final width |
+| Wrap | rows and columns, `flex-wrap-reverse`; `w-full` takes a whole line | the same |
+| `alignContent`, `alignSelf`, `order`, reverse directions, auto margins, `aspectRatio` | yes | yes |
+| Baseline alignment | at the end of the line | real baselines |
+| Percent sizes | of the parent's content width; a height of an auto-height parent takes the room left on screen | of the parent's inner size, undefined when the parent's size is |
+| Percent padding, margins, insets, gaps, min/max | no | yes |
+| Rounding | positions rounded; the shares of a `flex-1` line add up to the line, a `grow` share is rounded down | positions and sizes on the pixel grid: neighbours always touch |
+| Border | takes room inside the box (border-box) | the same |
+| `top`/`left` on a box in the flow | moves it only with `relative` (or the react-native preset) | moves it: `position` is `relative` by default |
+| Right to left | `ui.setDirection('rtl')` | the same |
+| `display` | `hidden`, `contents` | `none`, `flex`, `contents` |
+
+A demo written for one engine is checked in it; to move a React Native screen to `rn`, set `"ui": {"layout": "rn"}` and look at the
+`flex: 1` boxes and the rows whose children used to grow from their content first.
+
 ## Gestures: PanResponder and Animated.event
 
 `PanResponder.create({ onStartShouldSetPanResponder, onMoveShouldSetPanResponder, onPanResponderGrant, onPanResponderMove, onPanResponderRelease,

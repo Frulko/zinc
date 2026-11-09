@@ -105,7 +105,7 @@ browse the Android files). `Platform.OS` and `Platform.select` choose at run tim
 
 React Native's object style keys: flex (grow, shrink 1, basis 0 under the preset), flexGrow / Shrink / Basis, flexDirection (reverse too), flexWrap (wrap-reverse too), justifyContent,
 alignItems / Self / Content (baseline: Yoga, flex-end in classic), position (relative by default, static, absolute) and insets (percent too in rn: padding, margin, insets, gaps, min / max), width / height (numbers, `'50%'`, `` `${n}%` ``), min / max sizes,
-aspectRatio, margin / padding (sides, horizontal / vertical, margins `'auto'`), gap, rowGap, columnGap, display, overflow, opacity, backgroundColor, color, border widths (they take layout space in the rn engine, paint only in classic: ZN-388), boxSizing, colours (sides),
+aspectRatio, margin / padding (sides, horizontal / vertical, margins `'auto'`), gap, rowGap, columnGap, display, overflow, opacity, backgroundColor, color, border widths (they take layout space in both engines, as in CSS and React Native), boxSizing, colours (sides),
 radii (corners), borderStyle, backgroundImage (`url(..)` or a gradient) with backgroundSize / Position / Repeat, resizeMode, objectFit, objectPosition, tintColor, shadowColor / Offset / Opacity / Radius, elevation, the transform array (translate, scale, scaleX / Y, rotate, skew: rotate
 and skew paint and hit-test in their shape) around `transformOrigin` (`'top left'`, `'10px 20%'`; the centre by default), zIndex, pointerEvents (auto, none), cursor, fontSize, fontWeight (100 to 900), fontStyle, lineHeight, letterSpacing, textAlign,
 textTransform, textDecorationLine / Color / Style, textShadowColor / Offset / Radius (drawn without blur), numberOfLines, outlineWidth / Color / Offset / Style (React
