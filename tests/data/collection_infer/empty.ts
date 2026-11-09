@@ -1,0 +1,1 @@
+const cannot = new Set([]);

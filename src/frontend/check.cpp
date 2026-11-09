@@ -1944,11 +1944,33 @@ struct Checker {
     TypeId rt = out.nodeType[n(c.kids[0]).kids[0]];
     return rt != kNoType && ty(rt).k == TK::Map;
   }
+  TypeId iterableElement(TypeId t, int depth = 0) {
+    if (t == kNoType || bad(t) || depth > 16) return kNoType;
+    const Type type = ty(t);
+    if (type.k == TK::Array || type.k == TK::Set) return type.elem;
+    if (type.k == TK::Map) return tupleOf({type.params[0], type.elem});
+    if (type.k == TK::Str) return tStr;
+    if (type.k != TK::Object) return kNoType;
+    if (name(t).rfind("Generator<", 0) == 0) {
+      const Member* value = findMember(t, "value");
+      return value && ty(value->type).k == TK::Array ? ty(value->type).elem : kNoType;
+    }
+    const Member* iterator = findMember(t, "[Symbol.iterator]");
+    return iterator && ty(iterator->type).k == TK::Func ? iterableElement(ty(iterator->type).elem, depth + 1) : kNoType;
+  }
+  TypeId collectionArray(std::uint32_t arg, TypeId type) {
+    const TypeId elem = iterableElement(type), list = arrayOf(elem);
+    const std::string T = inspectAliasName(type), L = inspectAliasName(list);
+    const auto sym = helper("collectionArray," + std::to_string(type), "function $F(src: " + T + "): " + L + " {\n  const values: " + L + " = [];\n  for (const value of src) values.push(value);\n  return values;\n}\n", {type, elem, list}, arg);
+    wrapNode(arg, sym);   // use the existing for-of lowering, including custom iterators and generator close
+    return list;
+  }
   TypeId newCollection(std::uint32_t i, const Node& c, const std::vector<std::uint32_t>& argNodes) {
     bool isMap = c.text == "Map";
     TypeId want = newExpected;
     newExpected = kNoType;
-    TypeId t = tError;
+    TypeId t = tError, at = kNoType;
+    if (argNodes.size() > 1) { for (std::uint32_t an : argNodes) expr(an); diag(kZWrongArgCount, i, "expected 0-1 argument(s), got " + std::to_string(argNodes.size())); return tError; }
     auto ex = a.targs.find(i);
     if (ex != a.targs.end()) {
       std::vector<TypeId> args;
@@ -1956,14 +1978,44 @@ struct Checker {
       if (args.size() != (isMap ? 2u : 1u)) { diag(kZWrongArgCount, i, "expected " + std::string(isMap ? "2" : "1") + " type argument(s), got " + std::to_string(args.size())); return tError; }
       t = isMap ? mapOf(args[0], args[1]) : setOf(args[0]);
     } else if (want != kNoType && ty(want).k == (isMap ? TK::Map : TK::Set)) t = want;
-    else { diag(kZCannotInfer, i, "the type arguments of '" + std::string(c.text) + "'"); return tError; }
+    else if (!argNodes.empty() && !(n(argNodes[0]).kind == N::Array && n(argNodes[0]).kids.empty())) {
+      const std::uint32_t arg = argNodes[0];
+      if (isMap && n(arg).kind == N::Array && n(n(arg).kids[0]).kind == N::Array && n(n(arg).kids[0]).kids.size() == 2) {
+        const std::vector<std::uint32_t> pair = n(n(arg).kids[0]).kids;
+        const TypeId key = expr(pair[0]), value = expr(pair[1]);
+        if (bad(key) || bad(value)) return tError;
+        for (std::uint32_t p : pair) if (n(p).kind == N::Call || n(p).kind == N::New) rewritten.insert(p);
+        t = mapOf(key, value);   // the entry positions supply tuple context before the outer literal is checked
+      } else {
+        at = expr(arg);
+        if (bad(at)) return tError;
+        if (ty(at).k == (isMap ? TK::Map : TK::Set)) t = at;
+        else {
+          if (ty(at).k != TK::Array && iterableElement(at) != kNoType) at = collectionArray(arg, at);
+          if (!bad(at) && ty(at).k == TK::Array) {
+            const TypeId elem = ty(at).elem;
+            if (!isMap) t = setOf(elem);
+            else if (isTupleType(elem) && out.objs[ty(elem).obj].members.size() == 2) {
+              const auto members = out.objs[ty(elem).obj].members;
+              t = mapOf(members[0].type, members[1].type);
+            }
+          }
+        }
+      }
+    }
+    if (bad(t)) { diag(kZCannotInfer, i, "the type arguments of '" + std::string(c.text) + "' from its iterable argument"); return tError; }
     for (TypeId e : isMap ? std::vector<TypeId>{ty(t).params[0], ty(t).elem} : std::vector<TypeId>{ty(t).elem}) if (bad(e)) { for (std::uint32_t an : argNodes) expr(an); return tError; }
-    if (argNodes.size() > 1) { for (std::uint32_t an : argNodes) expr(an); diag(kZWrongArgCount, i, "expected 0-1 argument(s), got " + std::to_string(argNodes.size())); return tError; }
     if (argNodes.empty()) return t;
-    // new Map(entries) / new Map(otherMap), new Set(items) / new Set(otherSet): a generated helper fills a new collection
+    // Explicit/expected types also make a literal nullish argument the empty constructor.
     const std::uint32_t arg = argNodes[0];
+    if ((n(arg).kind == N::Literal && n(arg).text == "null") || (n(arg).kind == N::Ident && n(arg).text == "undefined" && lookup("undefined") == kNone)) {
+      a.nodes[i].kids.resize(1); return t;
+    }
+    // new Map(entries) / new Map(otherMap), new Set(items) / new Set(otherSet): a generated helper fills a new collection
     const TypeId list = arrayOf(isMap ? tupleOf({ty(t).params[0], ty(t).elem}) : ty(t).elem);
-    TypeId at = expr(arg, n(arg).kind == N::Array ? list : t);
+    if (at == kNoType) at = expr(arg, n(arg).kind == N::Array ? list : t);
+    if (bad(at)) return tError;
+    if (ty(at).k != ty(t).k && ty(at).k != TK::Array && iterableElement(at) != kNoType) at = collectionArray(arg, at);
     if (bad(at)) return tError;
     const bool same = ty(at).k == ty(t).k;
     if (!require(at, same ? t : list, arg)) return tError;
