@@ -2289,6 +2289,8 @@ struct Checker {
         diag(kZUnsupported, args[0], "Object.keys of '" + name(at) + "' (its fields are known from its type; a Map lists its keys with keys())");
         return tError;
       }
+      if (on == "Object" && isBuiltin(cn.kids[0], "Object") && !rawDyn() && (m == "assign" || m == "freeze" || m == "fromEntries" || m == "getOwnPropertyNames" || m == "defineProperty"))
+        return objectStatic(i, std::string(m), args);
       if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "stringify" && (args.size() == 2 || args.size() == 3) &&
           ((n(args[1]).kind == N::Literal && n(args[1]).text == "null") || (n(args[1]).kind == N::Ident && n(args[1]).text == "undefined"))) {
         if (args.size() == 2) { a.nodes[i].kids.pop_back(); return libraryCall(i); }   // no replacer, no indent
@@ -4061,25 +4063,189 @@ struct Checker {
     const TypeId t = expr(src);
     if (bad(t)) return false;
     if (!rawDyn() && isDyn(t)) return replaceWith(src, "__dynKeys(__H0)", {{cloneNode(src, false)}});
-    const Type tt = ty(t);
-    std::string body;
-    if (tt.k == TK::Array) body = "  for (let i: i32 = 0; i < o.length; i++) r.push('' + i);\n";  // (a string is refused, as TypeScript does)
-    else if (tt.k == TK::Object && !isTupleType(t) && !out.objs[tt.obj].isInterface) {
-      // ponytail: the keys of the static type; an instance of a subclass seen through its base type lists the base's fields only
-      ensureBuilt(tt.obj);
-      std::vector<Member> fs;
-      instanceFields(tt.obj, fs);
-      for (const Member& m : fs) {
-        if (m.name.empty() || m.name[0] == '#') continue;  // a #private field is no property
-        const std::string key = m.name[0] == '\'' || m.name[0] == '"' ? m.name : "'" + m.name + "'";
-        body += m.optional ? "  if (o." + m.name + " !== null) r.push(" + key + ");\n" : "  r.push(" + key + ");\n";
-      }
-    } else { diag(kZUnsupported, src, "for...in over '" + name(t) + "' (for...of goes over its values)"); return false; }
-    const std::uint32_t sym = helper("keys," + std::to_string(t), "function $F(o: " + inspectAliasName(t) + "): string[] {\n  const r: string[] = [];\n" + body + "  return r;\n}\n", {t}, s);
+    const std::uint32_t sym = ownKeysHelper(t, false, s);
+    if (sym == kNone) { diag(kZUnsupported, src, "for...in over '" + name(t) + "' (for...of goes over its values)"); return false; }
     const std::uint32_t call = callGenerated(sym, {src}, s);
     rewritten.insert(call);
     a.nodes[s].kids[1] = call;
     return true;
+  }
+  // The own property names of a typed value, as a generated function of it: the indices of an array (and its 'length' when `names`, as
+  // Object.getOwnPropertyNames lists it), the own fields of an object in declaration order (an optional one when it is there). kNone otherwise.
+  std::uint32_t ownKeysHelper(TypeId t, bool names, std::uint32_t at) {
+    const Type tt = ty(t);
+    std::string body;
+    if (tt.k == TK::Array) body = std::string("  for (let i: i32 = 0; i < o.length; i++) r.push('' + i);\n") + (names ? "  r.push('length');\n" : "");  // (a string is refused, as TypeScript does)
+    else if (tt.k == TK::Object && !isTupleType(t) && !out.objs[tt.obj].isInterface) {
+      // ponytail: the keys of the static type; an instance of a subclass seen through its base type lists the base's fields only
+      for (const Member& m : ownFields(tt.obj)) {
+        const std::string key = m.name[0] == '\'' || m.name[0] == '"' ? m.name : "'" + m.name + "'";
+        body += m.optional ? "  if (o." + m.name + " !== null) r.push(" + key + ");\n" : "  r.push(" + key + ");\n";
+      }
+    } else return kNone;
+    return helper(std::string(names ? "names," : "keys,") + std::to_string(t), "function $F(o: " + inspectAliasName(t) + "): string[] {\n  const r: string[] = [];\n" + body + "  return r;\n}\n", {t}, at);
+  }
+  // The fields that are own properties of an object type at run time: no #private field, no accessor.
+  std::vector<Member> ownFields(std::uint32_t obj) {
+    ensureBuilt(obj);
+    std::vector<Member> fs, r;
+    instanceFields(obj, fs);
+    for (const Member& m : fs) if (!m.name.empty() && m.name[0] != '#' && !m.getter && !m.ifaceSetter) r.push_back(m);
+    return r;
+  }
+  // Object.assign, freeze, fromEntries, getOwnPropertyNames and defineProperty (ZN-161.01). On typed objects they are generated functions of
+  // the static types (a field copy, the field names); on an any value the helpers of the Dyn prelude, which keep the attributes JavaScript has.
+  TypeId objectStatic(std::uint32_t i, const std::string& m, const std::vector<std::uint32_t>& args) {
+    auto rewrite = [&](const std::string& text, std::vector<std::vector<std::uint32_t>> holes) -> TypeId {
+      if (!replaceWith(i, text, holes)) { diag(kZUnsupported, i, "internal error: library rewrite did not parse"); return tError; }
+      return expr0(i, kNoType);
+    };
+    auto callHelper = [&](std::uint32_t sym, std::vector<std::uint32_t> as) -> TypeId {   // node i becomes a call of a generated function, its arguments checked already
+      std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+      out.nodeSym[id] = sym;
+      out.nodeType[id] = out.syms[sym].type;
+      as.insert(as.begin(), id);
+      a.nodes[i].kind = N::Call;
+      a.nodes[i].kids = std::move(as);
+      rewritten.insert(i);
+      return out.nodeType[i] = ty(out.syms[sym].type).elem;
+    };
+    auto isFields = [&](TypeId t) { return ty(t).k == TK::Object && !isTupleType(t) && !isDynFamily(t) && !out.objs[ty(t).obj].isInterface; };
+    auto arity = [&](std::size_t lo, std::size_t hi) {
+      if (args.size() >= lo && args.size() <= hi) return true;
+      diag(kZUnsupported, i, "Object." + m + " with " + std::to_string(args.size()) + " argument" + (args.size() == 1 ? "" : "s"));
+      return false;
+    };
+    if (m == "getOwnPropertyNames") {
+      if (!arity(1, 1)) return tError;
+      TypeId t = expr(args[0]);
+      if (bad(t)) return tError;
+      if (isDyn(t)) return rewrite("__dynOwnNames(__H0)", {{args[0]}});
+      std::uint32_t sym = ownKeysHelper(t, true, i);
+      if (sym == kNone) { diag(kZUnsupported, args[0], "Object.getOwnPropertyNames of '" + name(t) + "' (an interface hides which object it is: name its class or record)"); return tError; }
+      return callHelper(sym, {args[0]});
+    }
+    if (m == "freeze") {   // a typed object comes back as it is: its type says what may change (see the notes of ZN-161.01)
+      if (!arity(1, 1)) return tError;
+      TypeId t = expr(args[0]);
+      if (bad(t)) return tError;
+      return rewrite(isDyn(t) ? "__dynFreeze(__H0)" : "__H0", {{args[0]}});
+    }
+    if (m == "fromEntries") {   // an object made from [key, value] pairs is an any value, as TypeScript's { [k: string]: T }
+      if (!arity(1, 1)) return tError;
+      const bool lit = n(args[0]).kind == N::Array;
+      TypeId t = expr(args[0], lit ? arrayOf(tupleOf({tStr, tDyn})) : kNoType);
+      if (bad(t)) return tError;
+      if (isDyn(t)) return rewrite("__dynFromEntries(__H0)", {{args[0]}});
+      const Type& tt = ty(t);
+      const bool pairs = tt.k == TK::Array && isTupleType(tt.elem) && out.objs[ty(tt.elem).obj].members.size() >= 2 && out.objs[ty(tt.elem).obj].members[0].type == tStr;
+      const bool map = tt.k == TK::Map && !tt.params.empty() && tt.params[0] == tStr;
+      if (!pairs && !map) { diag(kZUnsupported, args[0], "Object.fromEntries of '" + name(t) + "' (an array of [string, value] pairs or a Map<string, T>)"); return tError; }
+      std::uint32_t sym = helper("fromEntries," + std::to_string(t), "function $F(e: " + inspectAliasName(t) + "): any {\n  const o: any = JSON.parse('{}');\n" +
+                                 (map ? "  e.forEach((v, k) => { __dynSet(o, k, v); });\n" : "  for (const p of e) __dynSet(o, p[0], p[1]);\n") + "  return o;\n}\n", {t}, i);
+      return callHelper(sym, {args[0]});
+    }
+    if (m == "defineProperty") {   // a data descriptor written as an object literal: value, writable, enumerable, configurable
+      if (!arity(3, 3)) return tError;
+      TypeId t = expr(args[0]);
+      TypeId kt = expr(args[1]);
+      if (bad(t) || bad(kt)) return tError;
+      if (n(args[2]).kind != N::ObjectLit) { diag(kZUnsupported, args[2], "a property descriptor that is not an object literal ({ value, writable, enumerable, configurable })"); return tError; }
+      std::uint32_t value = kNone, writable = kNone, enumerable = kNone;
+      for (std::uint32_t p : n(args[2]).kids) {
+        const Node& pn = n(p);
+        if (pn.kind != N::Prop || pn.text.empty() || (pn.flags & (kFlagGetter | kFlagSetter)) || pn.text == "get" || pn.text == "set") {
+          diag(kZUnsupported, p, "an accessor in Object.defineProperty (declare `get name()` in the class or the object literal)");
+          return tError;
+        }
+        if (pn.text == "value") value = pn.kids[0];
+        else if (pn.text == "writable") writable = pn.kids[0];
+        else if (pn.text == "enumerable") enumerable = pn.kids[0];
+        else if (pn.text != "configurable") { diag(kZUnsupported, p, "the descriptor key '" + std::string(pn.text) + "'"); return tError; }
+      }
+      if (isDyn(t)) {
+        if (kt != tStr && ty(kt).k != TK::Num && !isDyn(kt)) { diag(kZUnsupported, args[1], "a property key of type '" + name(kt) + "'"); return tError; }
+        std::vector<std::vector<std::uint32_t>> holes{{args[0]}, {args[1]}};
+        auto flag = [&](std::uint32_t v) { if (v == kNone) return std::string("-1"); holes.push_back({v}); return "(__H" + std::to_string(holes.size() - 1) + " ? 1 : 0)"; };
+        std::string val = "__undef", has = "false";
+        if (value != kNone) { holes.push_back({value}); val = "__H" + std::to_string(holes.size() - 1); has = "true"; }
+        const std::string w = flag(writable), e = flag(enumerable);
+        return rewrite("__dynDefine(__H0, '' + __H1, " + val + ", " + has + ", " + w + ", " + e + ")", holes);
+      }
+      // a typed object: its fields are fixed, so only a new value of a declared field, which stays writable and enumerable
+      if (!isFields(t)) { diag(kZUnsupported, args[0], "Object.defineProperty on '" + name(t) + "'"); return tError; }
+      const Node& kn = n(args[1]);
+      std::string key = kn.kind == N::String && kn.text.size() >= 2 ? std::string(kn.text.substr(1, kn.text.size() - 2)) : "";
+      const std::vector<Member> fs = ownFields(ty(t).obj);
+      auto f = std::find_if(fs.begin(), fs.end(), [&](const Member& x) { return x.name == key; });
+      if (f == fs.end()) { diag(kZUnsupported, args[1], "Object.defineProperty of a property '" + name(t) + "' does not declare (declare the field, or use an any value)"); return tError; }
+      for (std::uint32_t v : {writable, enumerable}) if (v != kNone && !(n(v).kind == N::Literal && n(v).text == "true")) {
+        diag(kZUnsupported, v, "a non-writable or non-enumerable field of a typed object (declare it readonly, or use an any value)");
+        return tError;
+      }
+      if (value == kNone) return rewrite("__H0", {{args[0]}});
+      const TypeId vt = expr(value);
+      if (bad(vt)) return tError;
+      std::uint32_t sym = helper("define," + std::to_string(t) + "," + key + "," + std::to_string(vt), "function $F(o: " + inspectAliasName(t) + ", v: " + inspectAliasName(vt) + "): " +
+                                 inspectAliasName(t) + " {\n  o." + key + " = v;\n  return o;\n}\n", {t, vt}, i);
+      return callHelper(sym, {args[0], value});
+    }
+    // assign(target, ...sources): own enumerable properties of each source, in order, onto the target, which comes back
+    if (!arity(1, 64)) return tError;
+    std::vector<TypeId> ts;
+    for (std::uint32_t x : args) { ts.push_back(expr(x)); if (bad(ts.back())) return tError; }
+    bool anyDyn = false;
+    for (TypeId t : ts) anyDyn = anyDyn || isDyn(t);
+    const bool fresh = n(args[0]).kind == N::ObjectLit;
+    if (fresh && !anyDyn) {   // Object.assign({}, a, b): a new object of the merged fields, as the spread { ...a, ...b } makes it
+      std::string text = "({ ";
+      std::vector<std::vector<std::uint32_t>> holes;
+      for (std::size_t k = n(args[0]).kids.empty() ? 1 : 0; k < args.size(); ++k) { text += "...__H" + std::to_string(holes.size()) + ", "; holes.push_back({args[k]}); }
+      return rewrite(text + "})", holes);
+    }
+    const TypeId target = fresh ? tDyn : ts[0];   // ({}, d): an any value
+    if (!isDyn(target) && !isFields(target)) { diag(kZUnsupported, args[0], "Object.assign onto '" + name(target) + "'"); return tError; }
+    std::string params = "t: " + std::string(isDyn(target) ? "any" : inspectAliasName(target)), body, key = "assign," + std::to_string(target);
+    std::vector<TypeId> aliases{target};
+    const std::vector<Member> tfs = isDyn(target) ? std::vector<Member>{} : ownFields(ty(target).obj);
+    for (std::size_t k = 1; k < args.size(); ++k) {
+      const TypeId s = ts[k];
+      const std::string sn = "s" + std::to_string(k);
+      key += "," + std::to_string(s);
+      const Node& an = n(args[k]);
+      if ((an.kind == N::Literal && an.text == "null") || (an.kind == N::Ident && an.text == "undefined")) { params += ", " + sn + ": any"; continue; }   // skipped, as JavaScript skips them
+      if (isDyn(s)) {
+        params += ", " + sn + ": any";
+        if (isDyn(target)) body += "  __dynAssign(t, " + sn + ");\n";
+        else for (const Member& f : tfs) body += "  if (__dynOwnEnum(" + sn + ", '" + f.name + "')) t." + f.name + " = __dynGet(" + sn + ", '" + f.name + "');\n";
+        continue;
+      }
+      if (!isFields(s)) { diag(kZUnsupported, args[k], "Object.assign from '" + name(s) + "'"); return tError; }
+      params += ", " + sn + ": " + inspectAliasName(s);
+      aliases.push_back(s);
+      for (const Member& f : ownFields(ty(s).obj)) {
+        if (!isDyn(target) && std::none_of(tfs.begin(), tfs.end(), [&](const Member& x) { return x.name == f.name; })) {
+          diag(kZUnsupported, args[k], "Object.assign of '" + f.name + "', which '" + name(target) + "' does not declare (declare it, or make a new object with { ...a, ...b })");
+          return tError;
+        }
+        const std::string read = sn + "." + f.name, write = isDyn(target) ? "__dynSet(t, '" + f.name + "', " + read + ")" : "t." + f.name + " = " + read;
+        body += f.optional ? "  if (" + read + " !== null) " + write + ";\n" : "  " + write + ";\n";
+      }
+    }
+    std::vector<std::uint32_t> as(args.begin(), args.end());
+    if (fresh) {   // ({}, d, ...): a new any object, made in the helper, then the same copy (the literal's own fields first)
+      as.erase(as.begin());
+      params.erase(0, params.find(',') == std::string::npos ? params.size() : params.find(',') + 2);
+      std::string own;
+      for (std::uint32_t p : n(args[0]).kids) {
+        if (n(p).kind != N::Prop || n(p).text.empty()) { diag(kZUnsupported, p, "this property in the target of Object.assign"); return tError; }
+        own += "  __dynSet(t, '" + std::string(n(p).text) + "', s0." + std::string(n(p).text) + ");\n";
+      }
+      if (!own.empty()) { params = "s0: " + inspectAliasName(ts[0]) + (params.empty() ? "" : ", ") + params; aliases.push_back(ts[0]); as.insert(as.begin(), args[0]); key += ",own" + std::to_string(ts[0]); }
+      body = "  const t: any = JSON.parse('{}');\n" + own + body;
+    }
+    std::uint32_t sym = helper((fresh ? "fresh" : "") + key, "function $F(" + params + "): " + (isDyn(target) ? std::string("any") : inspectAliasName(target)) + " {\n" + body + "  return t;\n}\n", aliases, i);
+    return callHelper(sym, as);
   }
 
   // ---- functions and classes

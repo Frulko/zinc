@@ -1,0 +1,27 @@
+1 10 2
+1 7 m
+5 true
+p
+3 2 big 6
+4 0
+{"1":"one","2":"two","x":4,"z":5,"w":1}
+{"0":"h","1":"i","a":1,"x":5,"y":2,"label":"p"}
+x,y,label
+x,y
+w,h,tag
+0,1,length
+1,2,x,z
+{"a":3,"b":2} 2
+{"k":"v","n":"m"}
+{"one":1,"two":2} one,two
+{"q":1,"r":[2]}
+{"a":1,"shown":"yes"} 42 a,hidden,shown
+{ a: 1, shown: 'yes' }
+write: TypeError
+changed true
+9 true
+frozen: TypeError
+frozen: TypeError
+1 {"k":1}
+1 a
+true 5

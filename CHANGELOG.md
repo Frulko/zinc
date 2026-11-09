@@ -210,6 +210,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The methods of an object seen through an `any` work as in TypeScript: `typeof d.greet` is `'function'`, `console.log(d.greet)` prints `[Function: greet]`, and `d.greet()` or `d.add(2, 3)` calls it; calling a missing one throws a `TypeError`.
 - `MqttClient` no longer waits forever on a broker that does not answer: `connect()` rejects after `connectTimeoutMs` (30 s by default, 0 for none) and says whether the connection, the TLS handshake or the broker's CONNACK was missing.
 - A union of a primitive and another type (`video?: boolean | MediaTrackConstraints`, `string | number`) can be stored, passed and compared with `===` on the Zinc engines, and taken apart with `as`; `getUserMedia` now types its `video` and `audio` options this way.
+- `Object.assign`, `Object.freeze`, `Object.fromEntries`, `Object.getOwnPropertyNames` and `Object.defineProperty` work on typed objects and on `any` values on every engine: `Object.assign(this, options)` in a constructor, `Object.assign({}, a, b)` to merge, a frozen or read-only property of an `any` object throws a `TypeError` when written, and a property defined without `enumerable` stays out of `JSON.stringify` and `console.log`.
 
 #### Changed
 

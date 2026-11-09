@@ -230,8 +230,16 @@ class DynArr extends Dyn {
     return r;
   }
 }
+// What Object.freeze and Object.defineProperty set on an any object (ZN-161.01); none until one of them is called. The non-enumerable
+// properties live outside `map`, so keys, JSON and console.log, which walk the map (the runtime too), leave them out.
+class DynAttrs {
+  frozen: boolean = false;
+  hidden: Map<string, Dyn> = new Map<string, Dyn>();
+  fixed: Set<string> = new Set<string>();  // the keys that are not writable
+  names: string[] = [];                     // every own key in the order it was made, hidden or not (getOwnPropertyNames)
+}
 class DynObj extends Dyn {
-  constructor(public map: Map<string, Dyn>) { super(); }
+  constructor(public map: Map<string, Dyn>, public attrs: DynAttrs | null = null) { super(); }  // the runtime makes DynObjs too: a zero attrs is null
   kind(): i32 { return 6; }
   toString(): string { return '[object Object]'; }
 }
@@ -449,6 +457,8 @@ function __dynGet(o: Dyn, k: string): any {
   const fast: any = __dynGetFast(o, __undef, k);
   if (__identity(fast) !== 0) return fast;
   if (o instanceof DynObj) {
+    const at: DynAttrs | null = o.attrs;
+    if (at !== null && at.hidden.has(k)) { const h: Dyn = at.hidden.get(k) ?? __undef; return h; }
     const v: Dyn = o.map.get(k) ?? __undef;
     return v;
   }
@@ -478,7 +488,19 @@ function __dynSetN(o: Dyn, i: f64, v: any): void {
   __dynSet(o, `${i}`, v);
 }
 function __dynSet(o: Dyn, k: string, v: any): void {
-  if (o instanceof DynObj) { o.map.set(k, v); return; }
+  if (o instanceof DynObj) {
+    const at: DynAttrs | null = o.attrs;
+    if (at !== null) {
+      if (at.fixed.has(k)) throw new TypeError("Cannot assign to read only property '" + k + "' of object '#<Object>'");
+      if (at.hidden.has(k)) { at.hidden.set(k, v); return; }
+      if (!o.map.has(k)) {
+        if (at.frozen) throw new TypeError('Cannot add property ' + k + ', object is not extensible');
+        at.names.push(k);
+      }
+    }
+    o.map.set(k, v);
+    return;
+  }
   if (o instanceof DynArr) {
     const i: i32 = __indexOfKey(k);
     if (i >= 0) { __dynSetN(o, i, v); return; }
@@ -493,7 +515,7 @@ function __dynSetD(o: Dyn, key: Dyn, v: any): void {
 }
 function __dynIn(key: Dyn, o: Dyn): boolean {
   const k: string = key.toString();
-  if (o instanceof DynObj) return o.map.has(k);
+  if (o instanceof DynObj) { const at: DynAttrs | null = o.attrs; return o.map.has(k) || (at !== null && at.hidden.has(k)); }
   if (o instanceof DynArr) { const i: i32 = __indexOfKey(k); return (i >= 0 && i < o.items.length) || k === 'length'; }
   if (o instanceof DynRef) return o.has(k);
   throw new TypeError("Cannot use 'in' operator to search for '" + k + "' in " + o.toString());
@@ -538,15 +560,88 @@ function __dynKeys(d: Dyn): string[] {
   const r: string[] = [];
   if (d instanceof DynArr) { for (let i: i32 = 0; i < d.items.length; i++) r.push('' + i); return r; }
   if (d instanceof DynStr) { for (let i: i32 = 0; i < d.v.length; i++) r.push('' + i); return r; }
-  if (d instanceof DynObj) {
-    const ks: string[] = d.map.keys();
-    const idx: i32[] = [];
-    for (const k of ks) { const i: i32 = __indexOfKey(k); if (i >= 0 && '' + i === k) idx.push(i); }
-    idx.sort((a: i32, b: i32): number => a - b);
-    for (const i of idx) r.push('' + i);
-    for (const k of ks) { const i: i32 = __indexOfKey(k); if (!(i >= 0 && '' + i === k)) r.push(k); }
-  }
+  if (d instanceof DynObj) return __keyOrder(d.map.keys());
   return r;  // ponytail: a typed object seen through a Dyn (DynRef) lists no keys; add a keys row to DynRefT if a program needs them
+}
+// ---- Object statics on any values (ZN-161.01)
+function __dynAttrs(o: DynObj): DynAttrs {
+  const at: DynAttrs | null = o.attrs;
+  if (at !== null) return at;
+  const made: DynAttrs = new DynAttrs();
+  made.names = o.map.keys();
+  o.attrs = made;
+  return made;
+}
+function __dynOwnNames(d: Dyn): string[] {
+  if (d.kind() <= 1) throw new TypeError('Cannot convert undefined or null to object');
+  const r: string[] = __dynKeys(d);
+  if (d instanceof DynArr || d instanceof DynStr) r.push('length');
+  if (d instanceof DynObj) {
+    const at: DynAttrs | null = d.attrs;
+    if (at !== null) return __keyOrder(at.names);
+  }
+  return r;
+}
+function __dynOwnEnum(d: Dyn, k: string): boolean { return d instanceof DynObj ? d.map.has(k) : d.kind() > 1 && __dynIn(new DynStr(k), d); }
+// ponytail: an array is frozen in its object form only (its own methods, push and splice, still change it); a typed object seen through an
+// any is not frozen either (its type says what may change)
+function __dynFreeze(d: Dyn): any {
+  const r: any = d;
+  if (d instanceof DynObj) {
+    const at: DynAttrs = __dynAttrs(d);
+    at.frozen = true;
+    for (const k of d.map.keys()) at.fixed.add(k);
+    for (const k of at.hidden.keys()) at.fixed.add(k);
+  }
+  return r;
+}
+function __dynAssign(t: Dyn, s: Dyn): void {
+  if (s.kind() <= 1) return;
+  if (t.kind() <= 1) throw new TypeError('Cannot convert undefined or null to object');
+  for (const k of __dynKeys(s)) __dynSet(t, k, __dynGet(s, k));
+}
+function __dynFromEntries(d: Dyn): any {
+  const o: Dyn = new DynObj(new Map<string, Dyn>());
+  for (const x of __dynIter(d)) {
+    const it: Dyn = x;
+    if (it.kind() < 5) throw new TypeError('Iterator value ' + it.toString() + ' is not an entry object');
+    const key: Dyn = __dynGetN(it, 0);
+    __dynSet(o, key.toString(), __dynGetN(it, 1));
+  }
+  return o;
+}
+// w and e: -1 when the descriptor leaves writable or enumerable out (false for a new property, unchanged for an existing one), else 0 or 1
+function __dynDefine(o: Dyn, k: string, v: any, hasValue: boolean, w: i32, e: i32): any {
+  const r: any = o;
+  if (o instanceof DynObj) {
+    const at: DynAttrs = __dynAttrs(o);
+    const exists: boolean = o.map.has(k) || at.hidden.has(k);
+    if (!exists && at.frozen) throw new TypeError('Cannot define property ' + k + ', object is not extensible');
+    const hv: Dyn | undefined = at.hidden.get(k);
+    const mv: Dyn | undefined = o.map.get(k);
+    const cur: Dyn = hv !== undefined ? hv : mv !== undefined ? mv : __undef;
+    const val: Dyn = hasValue ? v : cur;
+    if (exists && at.fixed.has(k) && hasValue && !__dynSeq(cur, val)) throw new TypeError('Cannot redefine property: ' + k);
+    const enumerable: boolean = e === 1 || (e === -1 && exists && !at.hidden.has(k));
+    const writable: boolean = w === 1 || (w === -1 && exists && !at.fixed.has(k));
+    if (enumerable) { at.hidden.delete(k); o.map.set(k, val); } else { o.map.delete(k); at.hidden.set(k, val); }
+    if (writable) at.fixed.delete(k); else at.fixed.add(k);
+    if (!exists) at.names.push(k);
+    return r;
+  }
+  if (o.kind() < 5) throw new TypeError('Object.defineProperty called on non-object');
+  if (hasValue) __dynSet(o, k, v);
+  return r;
+}
+// keys in JavaScript's order: array indices first, ascending, then the others as inserted
+function __keyOrder(ks: string[]): string[] {
+  const r: string[] = [];
+  const idx: i32[] = [];
+  for (const k of ks) { const i: i32 = __indexOfKey(k); if (i >= 0 && '' + i === k) idx.push(i); }
+  idx.sort((a: i32, b: i32): number => a - b);
+  for (const i of idx) r.push('' + i);
+  for (const k of ks) { const i: i32 = __indexOfKey(k); if (!(i >= 0 && '' + i === k)) r.push(k); }
+  return r;
 }
 function __dynObjOf(keys: string[], vals: any[]): any {
   const m: Map<string, Dyn> = new Map<string, Dyn>();

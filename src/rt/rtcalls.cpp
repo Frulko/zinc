@@ -1751,6 +1751,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       if (o->cls == m.dynObj) {
         auto* mo = reinterpret_cast<MapObj*>(o->fields()[0]);
         std::int32_t e = mo->t.find(reinterpret_cast<Slot>(key));
+        if (e < 0 && o->cls->nfields > 1 && o->fields()[1]) return nullptr;  // attributes set (DynObj.attrs, ZN-161.01): a hidden property is the prelude's to find
         Slot v = e >= 0 ? mo->t.vals[static_cast<std::size_t>(e)] : a[1];  // a missing property is the undefined the caller passed
         m.retain(reinterpret_cast<Obj*>(v));
         a[0] = v;
