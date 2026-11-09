@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Integrated ZN-1078.03 (7273abc75, Done, D268). Clean smoke tree rebuilt; native_reachability, res_library, kit_size pass, Button checked and two frames inspected. AOT barrel +66,040 B / 106,496 B budget; JS +395 B. Original main.cpp cross-display WIP and tests/affected.json WIP restored. ZN-1079 follows next; Actions/App chrome worker remains active pending its JSX fix.
+
 - 2026-11-09: ZN-1079 created under the blocks exception for kit-gallery command palette (block-bodied JSX map returns a local node but prints numeric handles). Queued immediately after ZN-1078.03; Actions keeps original code and continues unrelated work. Size worker may make minimal non-overlapping main.cpp reachability wiring: current external WIP there is only on-demand cross-display collection near line 3632.
 
 - 2026-11-09: live Codex coordinator active (root session, native sub-agents). No other coordinator process or codex-loop lock found; .paused absent. Main-tree WIP in runtime/host/display/LVGL/ui.ts/main.cpp is owned by another session; no builds or feature runs here. Reserving ZN-1078.03 (size gate, IR/AOT reachability; avoid held files) and ZN-1078.04-.05 (Actions/App chrome, no engine build). Existing clean smoke tree retained.

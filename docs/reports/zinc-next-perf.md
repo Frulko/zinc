@@ -1668,3 +1668,15 @@ hero under `zinc dev`, one save to the frame on screen: 1150-1370 ms (develop f9
 | read and parse | 73 ms | 48 ms |
 
 Recompile of the dev entry by thread count: 709 ms (1), ~530 (2), ~470 (4), ~410 (6), ~390 (8). A save now: parse 48-70, check 70-75, lower 100-125 (one thread), optimise 123-139, rc 78-85, emit 44-60, bake 3, swap 3 ms, plus ~60 ms of settle and frame wait.
+
+## 2026-11-09 — ZN-1078.03, reachable kit data (7273abc75, D268)
+
+Indicative local M1 Pro artifact sizes, not a timing benchmark; unchanged `tests/t0/kit_size.sh` budgets. Worker branch `8eb4cf316`, integrated as `7273abc75`. No cross-target size claim.
+
+| Program | AOT bytes | Minified QuickJS bytes |
+|---|---:|---:|
+| Direct Button | 5,489,928 | 226,682 |
+| Button through kit index | 5,555,968 | 227,077 |
+| Ten components | 6,002,016 | 240,810 |
+
+Barrel overhead: 66,040 B AOT across 26 unused families (budget 106,496 B), 395 B JS (budget 6,656 B). Each additional component averages 49,560 B AOT / 1,525 B JS (budgets 65,536 / 4,096 B). Initial AOT barrel overhead was 1,876,744 B: the fix removes unused plugin libraries, library font atlases and dead literals. Maximum observed child RSS below 1 GB; no quiet-machine timing or hardware proof. Commands: `tests/run --only kit_size`, `--only native_reachability`, `--only res_library`.

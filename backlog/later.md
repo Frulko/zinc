@@ -698,6 +698,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1024: allocations are about a quarter of the compile's samples (`Inst`'s vectors, per-pass copies); measure mimalloc for the compiler against D67's launch cost.
 - ZN-1024: `zinc dev` polls the project every 40 ms, so a save waits 0-40 ms before it is seen; FSEvents or kqueue would remove it.
 
+- ZN-1078.03: trim unused class metadata only if kit growth exceeds the unchanged size gate; direct/barrel Button currently retain 292/880 classes after dead native, string and font data are removed.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
