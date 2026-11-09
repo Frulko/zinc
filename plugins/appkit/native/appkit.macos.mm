@@ -21,7 +21,6 @@
 // ARC (plugin.json flags). Everything runs on the main thread: the program's commits and AppKit's callbacks inside SDL's event pump.
 #define ZRT_HOSTED_CPP
 #import <AppKit/AppKit.h>
-#include <dlfcn.h>
 #include <math.h>
 #include <algorithm>
 #include <stdio.h>
@@ -34,6 +33,12 @@
 #include "zrt_assets_dir.h"
 
 extern "C" const ZnViewClass* zn_host_view_class(const char* kind) __attribute__((weak));   // the engine's registry of plugins' views (Yoga's file)
+// The engine's, referenced weakly rather than found with dlsym: an AOT program links with -no_exported_symbols, so dlsym finds nothing there.
+// The layout's native measure hook (src/host/layout.h): absent from a program that never lays out with Yoga.
+extern "C" void zn_host_set_native_measure(int (*measure)(void*, int32_t, int, const char*, size_t, int32_t, int32_t, int32_t, float, int32_t, float, int,
+                                                          float, int, float*, float*),
+                                           void* user) __attribute__((weak));
+extern "C" void hal_surface_size(int* w, int* h) __attribute__((weak));   // the surface's logical size (runtime/include/hal.h)
 
 namespace {
 
@@ -1107,9 +1112,8 @@ NSWindow* sdlWindow() {
 NSWindow* hostWindow() { NSWindow* w = sdlWindow(); return w ?: offWindow; }
 /** The root over SDL's view, the surface's logical pixels mapped onto it as the renderer maps them (letterbox); headless: a view in no window. */
 void placeRoot() {
-  static auto surface = reinterpret_cast<void (*)(int*, int*)>(dlsym(RTLD_DEFAULT, "hal_surface_size"));
   int W = 0, H = 0;
-  if (surface) surface(&W, &H);
+  if (hal_surface_size) hal_surface_size(&W, &H);
   if (W <= 0 || H <= 0) { W = 320; H = 240; }
   if (!rootView) {
     rootView = [[ZnRoot alloc] initWithFrame:NSMakeRect(0, 0, W, H)];
@@ -1410,8 +1414,7 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
 
   bool start() override {
     if (!started) {
-      static auto hook = reinterpret_cast<void (*)(decltype(&measure), void*)>(dlsym(RTLD_DEFAULT, "zn_host_set_native_measure"));
-      if (hook) hook(&measure, nullptr);   // a program that never lays out with Yoga has no hook: its leaves keep the engine's measure
+      if (zn_host_set_native_measure) zn_host_set_native_measure(&measure, nullptr);   // a program that never lays out with Yoga has no hook: its leaves keep the engine's measure
       started = true;
     }
     return true;
@@ -1579,8 +1582,7 @@ struct MacAppkit : NativeAppkit, zrt::Poller {
     nodes.clear(); roots.clear(); idOf.clear();
     [rootView removeFromSuperview];
     rootView = nil; focusWant = -2;
-    static auto hook = reinterpret_cast<void (*)(decltype(&measure), void*)>(dlsym(RTLD_DEFAULT, "zn_host_set_native_measure"));
-    if (hook && started) hook(nullptr, nullptr);
+    if (zn_host_set_native_measure && started) zn_host_set_native_measure(nullptr, nullptr);
     started = false;
   }
 };
