@@ -67,5 +67,5 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: ZN-1028 (Review, D248; Pi unreachable by ssh for #3). Worker: web environment chain ZN-705, ZN-706, beside the UI style chain.
 - Integrated: ZN-260, ZN-257 (Review, D250). Worker: system chain ZN-394, ZN-249, ZN-243 (macOS window tests, transparency and vibrancy, Linux deep links on the Pi) beside the audio chain.
 - Integrated: audio chain ZN-697, ZN-440.02 (D251) and system chain ZN-394, ZN-243, ZN-249 (Review).
-- Workers: audio chain ZN-695, ZN-440.01 and GL chain ZN-678, ZN-444. Integrated: GL chain (D252, D253). Worker: web dev chain ZN-1033, ZN-863.06. Integrated: audio chain ZN-695, ZN-440.01 (D254). Worker: assets chain ZN-674, ZN-442.
+- Workers: audio chain ZN-695, ZN-440.01 and GL chain ZN-678, ZN-444. Integrated: GL chain (D252, D253). Worker: web dev chain ZN-1033, ZN-863.06. Integrated: audio chain ZN-695, ZN-440.01 (D254). Worker: assets chain ZN-674, ZN-442. Integrated: web dev chain ZN-1033, ZN-863.06 (D255).
 - Integrated: ZN-706 (Done), ZN-705 (Review, D249). Worker: audio chain ZN-697 (voice fade), ZN-440.02 (streaming music from a ZPK pack), beside the UI style chain.

@@ -665,6 +665,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-695: a 5 ms volume ramp on pause and resume (a hard cut today); the web backend's resume offset ignores the playback rate.
 - ZN-440.01: IMA ADPCM encoding in the audio importer (adpcm-xq, BSD-3) for the ESP32 `adpcm:16000`; the default codec from the profile's `sfx` when a rule names none; r8brain resampling and loudness normalisation.
 - ZN-440.01: QOA in the web backend (a small JS or wasm decoder: decodeAudioData cannot read it); `openMusic` of a .qoa file on disk; `zinc assets report` prints the codecs line; a QOA line in `console_audio.sh`.
+- ZN-1033: `lib/modules.d.ts` declares zinc:net serve/serveAsync with `tls?` only (ServeOptions hostname, limits, webSocket missing); a `beforeunload` cancelled by another handler leaves the dev bridge poll stopped.
+- ZN-1033: zinc dev (desktop and web) reloads on any file the program writes in its folder; watch only the module graph, assets and zinc.json, as Vite does.
+- ZN-863.06: the wasm glue fetches `app.res` for a program without assets (a 404 per load); `--engine wasm` prints the program's output in the page only, not the terminal; the JSPI worker as a fallback for pages that cannot be cross-origin isolated.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

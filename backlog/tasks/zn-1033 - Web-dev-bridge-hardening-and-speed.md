@@ -2,8 +2,7 @@
 id: ZN-1033
 title: Web dev bridge hardening and speed
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:37'
 updated_date: '2026-11-09 07:21'
 labels:

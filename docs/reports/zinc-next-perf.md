@@ -1602,3 +1602,13 @@ stb_vorbis setup memory: 176 to 194 KB on six repository oggs. The 64 KB bound h
 ## 2026-11-09: QOA at pack time (ZN-440.01, M1 Pro, null backend)
 
 A 4 s stereo 44.1 kHz PCM track, 705,644 B, becomes 142,528 B of QOA (4.95x) in 12.6 ms; 22.05 kHz mono: 35,720 B. `loadMusic` of the QOA entry: `music.memory` 25,024 B (one decoded frame is 20,480 of them), beside 4,672 for ADPCM WAV in the table above.
+
+## 2026-11-09: zinc dev web bridge and --engine wasm (ZN-1033, ZN-863.06, M1 Pro, headless Chrome)
+
+| What | Result |
+|---|---|
+| 4 MB file through the dev bridge | 1 request, 287 ms |
+| Encoding 4 MB on QuickJS | base64 2 ms / 5.6 MB, was a JSON array 393 ms / 15 MB |
+| `zinc dev --target web --engine wasm` first start | hero 2.9 s (1.8 MB bytecode), breakout 0.5 s |
+| `--engine wasm` rebuild on save | ~0.4 s |
+| `vm-web.wasm` | 0.6 MB; `tools/build-wasm` in a fresh tree 13 s |

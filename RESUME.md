@@ -34,10 +34,12 @@
 - Integrated: ZN-697, ZN-440.02 (Done, D251): `voice.stop(delay, fade)`, `loadMusic` streams from a pack with a few KB (perf log). ZN-394, ZN-243 (Done), ZN-249 (Review): macOS window tests stable, see-through key colour proven, Linux deep links without xdg-utils proven on the Pi; the vibrancy blur check skips here because Reduce Transparency is on.
 - Integrated: ZN-678, ZN-444 (Done, D252, D253): GL turned images match the raster (xform.ts 0.195% → 0.000%), shaders checked at build with file and line, minified in release; one GL run checked the program builds.
 - Integrated: ZN-695, ZN-440.01 (Done, D254): `voice.pause()/resume()` on every backend (museum table resumes its narration), sounds encoded to QOA at pack time (4.95x), `String.fromCharCode(a, b, ...)` accepted. Conflict with ZN-444 in the importer table resolved by keeping both.
+- Integrated: ZN-1033, ZN-863.06 (Done, D255): the zinc dev web bridge on 127.0.0.1 with a token per load, base64 bytes, sqlite native under dev, the bridge events defect fixed; `zinc dev --target web --engine wasm` runs breakout, names hero's missing native modules.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- Web dev (since 324deacf9): `tests/t1/web_bridge.sh` (every bridge step, was failing at events; 40 s, Chrome), `tests/t1/web_dev_wasm.sh` (new; 15 s, Chrome), `web_fs`.
 - Audio (since 961423158): `tests/run --tier t1 --only museum_visit` (the story's narration stop moved, resume; 2 min); `console_audio` with a QOA clip and a pause (builds the console core, 3 min, 1 GB); T0 `str_index`, `assets`, `project_assets` (report fields).
 - GL (since 8fe2485ec): `tests/run --only image_rect_gl` (xform under 0.05%, 20 s, a window), `gfx_transform` (15 s, a window), `tests/t1/gl_replay_es2.sh`; T0 `assets` (20 s).
 - Audio (since 3e4ad7f24): `tests/t1/audio_music.sh` (openMusic loops, memory; 10 s); a 10-minute IMA ADPCM `loadMusic` RSS over 60 s headless (1 min); on the Pi `audio_stream_pack` and decode CPU per codec (2 min).
