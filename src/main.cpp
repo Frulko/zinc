@@ -1810,7 +1810,8 @@ static int exec(const fs::path& app, bool built, const std::string& entry, const
   assetsEnv(entry);   // as for the interpreter's run below main's compile
   printPlugins();
   zn::log::step("run", built ? "native" : "native, cached build (--interp to interpret)");
-  if (!projectDir.empty()) { std::error_code ec; setenv("ZINC_LAUNCH_DIR", std::string(fs::current_path(ec).string()).c_str(), 0); fs::current_path(projectDir, ec); }   // sys.launchDir (ZN-687)
+  std::string cwdError;
+  if (!zn::cli::enterRunDirectory(projectDir, cwdError)) { std::fprintf(stderr, "zinc: %s\n", cwdError.c_str()); return 2; }
   // The process list, the Dock and the app menu show the executable's file name: the program starts through a link named after
   // the project, beside `app` (ZN-733). Not when the name is one of the cache's own files.
   fs::path named = app;
@@ -2735,7 +2736,14 @@ int main(int argc, char** argv) {
       bundleOfBytecode = e.substr(0, e.size() - 4) + ".js";
       argv[2] = bundleOfBytecode.data();
     }
+    entryOfDir = std::filesystem::absolute(argv[2]).lexically_normal().string();
+    argv[2] = entryOfDir.data();
     qo.entry = argv[2];
+    const std::string projectFile = zn::frontend::findProjectFile(qo.entry);
+    std::string cwdError;
+    if (!zn::cli::enterRunDirectory(projectFile.empty() ? "" : std::filesystem::path(projectFile).parent_path().string(), cwdError)) {
+      std::fprintf(stderr, "zinc: %s\n", cwdError.c_str()); return 2;
+    }
     appNameEnv(argv[2]);   // its own store and data folder, as on the typed engines
     if (zn::log::steps()) std::fprintf(stderr, "zinc run %s\n", zn::log::shortPath(std::filesystem::absolute(qo.entry).string()).c_str());
     zn::log::step("engine", std::string(engineName) + " (JavaScript)");
@@ -3277,11 +3285,8 @@ int main(int argc, char** argv) {
     std::string out;
     bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
     std::string absPath = std::filesystem::absolute(path).string();
-    if (!projectDir.empty()) {   // the program's relative file names (media/...) are the project's; sys.launchDir is where the user was (ZN-687)
-      std::error_code ec;
-      setenv("ZINC_LAUNCH_DIR", std::filesystem::current_path(ec).string().c_str(), 0);
-      std::filesystem::current_path(projectDir, ec);
-    }
+    std::string cwdError;
+    if (!zn::cli::enterRunDirectory(projectDir, cwdError)) { std::fprintf(stderr, "zinc: %s\n", cwdError.c_str()); return 2; }
 #ifdef ZN_HOST_GFX
     if (path.size() <= 4 || path.substr(path.size() - 4) != ".zbc") {   // a compiled run, as the old toolchain's `zinc run` was (ZN-398, D43)
       std::vector<std::string> progArgs;

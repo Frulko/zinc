@@ -74,6 +74,17 @@
 namespace fs = std::filesystem;
 
 namespace zn::cli {
+
+bool enterRunDirectory(const std::string& projectDir, std::string& err) {
+  if (projectDir.empty()) return true;
+  std::error_code ec;
+  const std::string launch = fs::current_path(ec).string();
+  if (ec) { err = "cannot read the launch directory: " + ec.message(); return false; }
+  fs::current_path(projectDir, ec);
+  if (ec) { err = "cannot enter " + projectDir + ": " + ec.message(); return false; }
+  setenv("ZINC_LAUNCH_DIR", launch.c_str(), 0);
+  return true;
+}
 namespace {
 
 struct Command { const char* name; const char* usage; const char* summary; const char* detail; };   // summary: its id in i18n/<lang>/cli.json
@@ -481,6 +492,7 @@ bool discoverEntryIn(std::vector<std::string>& args, std::string& err) {
   std::error_code ec;
   std::string dirArg = entry;
   if (hasEntry && !fs::is_directory(entry, ec)) {
+    if (cmd == "run" && !std::ifstream(entry, std::ios::binary)) { err = "cannot read " + entry; return false; }
     if (jsCheck(entry, "", entry)) return true;
     if (cmd == "build") {   // a file: `-o` is optional too
       bool hasOut = false;

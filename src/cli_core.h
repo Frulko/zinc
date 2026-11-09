@@ -16,6 +16,8 @@ namespace zn::cli {
 // zinc run --simulate <device>: the definition, the state file and the control panel of a simulated device; false and `err` when it is unknown.
 bool simulate(std::vector<std::string>& args, const std::string& engineRoot, std::string& err);
 bool discoverEntry(std::vector<std::string>& args, std::string& err);
+/** Enter the project's directory for the process being run, preserving the original launch directory. */
+bool enterRunDirectory(const std::string& projectDir, std::string& err);
 /** The index of the entry in `zinc <command> [options] <entry> ...`: the first argument after the command that is not an option (`--engine quickjs`
  *  takes its value); args.size() or the index of `--` when there is none. */
 std::size_t entryIndex(const std::vector<std::string>& args);

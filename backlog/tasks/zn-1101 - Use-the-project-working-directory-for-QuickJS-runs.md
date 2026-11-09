@@ -1,7 +1,7 @@
 ---
 id: ZN-1101
 title: Use the project working directory for QuickJS runs
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-09 21:27'
@@ -22,7 +22,19 @@ Blocks real Data FileDialog/FileView in ZN-1078.12. Confirmed four-line repro .w
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 zinc run project uses the documented project working directory on interpreter, native and QuickJS, retaining launchDir as the original caller directory and preserving single-file invocation rules
-- [ ] #2 Relative filesystem paths and scoped fs permissions resolve consistently before QuickJS plugin initialization; absolute entry/assets paths remain valid and failures clean up/restore context where the CLI requires it
-- [ ] #3 Focused T0 proves the same cwd/marker result on all three engines from an external launch directory, plus missing-project/error paths; actual Data FileDialog/FileView and existing checks pass with no engine-conditional path workaround
+- [x] #1 zinc run project uses the documented project working directory on interpreter, native and QuickJS, retaining launchDir as the original caller directory and preserving single-file invocation rules
+- [x] #2 Relative filesystem paths and scoped fs permissions resolve consistently before QuickJS plugin initialization; absolute entry/assets paths remain valid and failures clean up/restore context where the CLI requires it
+- [x] #3 Focused T0 proves the same cwd/marker result on all three engines from an external launch directory, plus missing-project/error paths; actual Data FileDialog/FileView and existing checks pass with no engine-conditional path workaround
 <!-- AC:END -->
+
+## Implementation notes
+
+Research: Node documents cwd as the process current directory (https://nodejs.org/api/process.html#processcwd); POSIX chdir makes it the base for relative paths and leaves it unchanged on failure (https://man7.org/linux/man-pages/man2/chdir.2.html). Zinc already promises project cwd and caller launchDir in docs/guide/04-headless-services.md. No dependency is needed.
+
+One CLI enterRunDirectory helper now owns that execution setup for native exec, interpreter and JavaScript dispatch. The JavaScript entry becomes absolute first, then the process enters the project before permission/native-plugin initialization. The existing engine root is already absolute. This is the final process execution directory, not a temporary frame context, so no new saved/restored lifecycle or guard class is introduced. A failed chdir reports the error and runs no program; inherited launchDir remains respected. No-manifest single-file runs keep caller cwd. A shared entry-read check also rejects unreadable or nonexistent file arguments before dispatch, including extensionless paths that the typed loader previously treated as empty programs.
+
+Read-only main diff inspected: the other session's display-driver block near3653 is separate and unchanged; none of its runtime/LVGL/array edits were copied.
+
+Proposed milestone checks: existing tests/run --only sys_launch (T1) and broader dev/desktop-launch/error restart paths, a few seconds for the launch fixture; platform launch/permissions behavior on Pi/Mojave/Windows at their selected pass. No broad suite, T1/T2/demo, benchmark or cross-target run here.
+
+Final proof: own tools/build zinc PASS; exact tests/run --only project_cwd PASS across interpreter, native AOT and QuickJS. The fixture drives directory/relative-file entries, no-manifest standalone files, imported sibling modules, relative marker reads, caller launchDir, denied outside-scope reads, empty project and nonexistent extensionless/.ts entries. Missing extensionless paths previously exited0; the shared entry-read validation now rejects them on every engine. Root also reports original public kit_data PASS on combined source8f8478bd5: all12 interpreter/native/QuickJS runs for Solid/React/Metric/Surfaces, including real readonly Open/Save/reopen paths, using this candidate before the independent missing-entry guard. No application path workaround. Logs .logs/1101/{build-final,project_cwd-final}.log and provenance.json. Existing nanosvg signedness warning remains; no new warning from the changed code. No own process or queued command remains. No runtime speed/memory or broader-platform claim.
