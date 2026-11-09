@@ -38,8 +38,9 @@ export interface Spec extends NativeModule {
    *  for an unknown handle. `offset`: seconds into the sound where it starts; `delay`: seconds of mix from now before it is
    *  heard, to the sample (0: now). A voice ends with its sound, when it is stopped, or when a 33rd voice takes its place. */
   start(sound: i32, volume: f64, loop: boolean, rate: f64, pan: f64, offset: f64, delay: f64): i32;
-  /** Stops one voice after `delay` seconds of mix (0: now). */
-  voiceStop(voice: i32, delay: f64): void;
+  /** Stops one voice after `delay` seconds of mix (0: now); with `fade` above 0 its gain falls to 0 over `fade` more seconds, sample by sample
+   *  in the mixer, and it stops at the end of the fade. */
+  voiceStop(voice: i32, delay: f64, fade: f64): void;
   /** Volume, rate (only for a voice started at another rate than 1) and stereo position of one voice. */
   voiceSet(voice: i32, volume: f64, rate: f64, pan: f64): void;
   voicePlaying(voice: i32): boolean;

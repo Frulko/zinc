@@ -53,7 +53,7 @@ export default {
   },
   voiceLoop(voice: i32, from: f64, to: f64): void {},
   suspend(on: boolean): void { held = on; },
-  voiceStop(voice: i32, delay: f64): void { if (voice > 0 && voice <= ends.length) ends[voice - 1] = Math.min(ends[voice - 1], clock + Math.max(0, delay)); },
+  voiceStop(voice: i32, delay: f64, fade: f64): void { if (voice > 0 && voice <= ends.length) ends[voice - 1] = Math.min(ends[voice - 1], clock + Math.max(0, delay) + Math.max(0, fade)); },
   voiceSet(voice: i32, volume: f64, rate: f64, pan: f64): void {},
   voicePlaying(voice: i32): boolean { return voice > 0 && voice <= ends.length && clock < ends[voice - 1]; },
   played(): f64[] { return []; },

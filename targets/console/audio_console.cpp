@@ -33,7 +33,7 @@ struct Voice {
   double pos = 0, step = 1;   // in the clip's frames
   float vol = 1, pan = 0;
   bool loop = false, used = false, pitched = false;
-  uint64_t started = 0, from = 0, stopAt = 0;   // mixer frames: from = when a delayed voice starts, stopAt = when it ends (0: never)
+  uint64_t started = 0, from = 0, stopAt = 0, fade = 0;   // mixer frames: from = when a delayed voice starts, stopAt = when it ends (0: never), fade = how many frames before stopAt its gain falls linearly to 0
 };
 struct Stream { std::vector<float> buf; size_t head = 0, count = 0; int ch = 0, rate = 0; bool used = false, primed = false; double underruns = 0, dropped = 0; float vol = 1; };
 Clip clips[kSounds];
@@ -94,8 +94,9 @@ void mixInto(int frames) {
         v.pos += v.step;
       }
       const float gl = v.pan > 0 ? 1 - v.pan : 1, gr = v.pan < 0 ? 1 + v.pan : 1;   // balance: at -1 the right is silent
-      acc[static_cast<size_t>(i) * 2] += l * v.vol * gl;
-      acc[static_cast<size_t>(i) * 2 + 1] += r * v.vol * gr;
+      const float fg = v.fade && v.stopAt - t < v.fade ? static_cast<float>(v.stopAt - t) / static_cast<float>(v.fade) : 1.0f;   // as miniaudio's fader
+      acc[static_cast<size_t>(i) * 2] += l * v.vol * gl * fg;
+      acc[static_cast<size_t>(i) * 2 + 1] += r * v.vol * gr * fg;
     }
   }
   now += static_cast<uint64_t>(frames);
@@ -204,7 +205,16 @@ FN(fSetRate) { (void)r; for (Voice& v : voices) if (v.used && v.pitched && v.cli
 FN(fSetPan) { (void)r; for (Voice& v : voices) if (v.used && v.clip == a[0].i) v.pan = panOf(a[1].d); return ZN_OK; }
 FN(fStopAll) { (void)a; (void)r; for (Voice& v : voices) if (v.stream < 0) v.used = false; return ZN_OK; }
 FN(fStart) { r->i = startVoice(a[0].i, a[1].d, a[2].i != 0, a[3].d, a[4].d, a[5].d, a[6].d); return ZN_OK; }
-FN(fVoiceStop) { (void)r; if (Voice* v = voiceAt(a[0].i)) { if (a[1].d > 0) v->stopAt = now + static_cast<uint64_t>(a[1].d * kRate); else v->used = false; } return ZN_OK; }
+FN(fVoiceStop) {
+  (void)r;
+  Voice* v = voiceAt(a[0].i);
+  if (!v) return ZN_OK;
+  const uint64_t d = a[1].d > 0 ? static_cast<uint64_t>(a[1].d * kRate + 0.5) : 0, f = a[2].d > 0 ? static_cast<uint64_t>(a[2].d * kRate + 0.5) : 0;
+  if (d + f == 0) { v->used = false; return ZN_OK; }
+  v->stopAt = now + d + f;
+  if (f) v->fade = f;
+  return ZN_OK;
+}
 FN(fVoiceSet) {
   (void)r;
   if (Voice* v = voiceAt(a[0].i)) {
@@ -305,7 +315,7 @@ const ZnExport kExports[] = {
   {"backend", ">s", fBackend, 0}, {"load", "B>i", fLoad, 0}, {"tone", "idd>i", fTone, 0}, {"error", ">s", fError, 0}, {"duration", "i>d", fDuration, 0},
   {"unload", "i>n", fUnload, 0}, {"play", "idbdd>b", fPlay, 0}, {"stop", "i>n", fStop, 0}, {"playing", "i>b", fPlaying, 0},
   {"setVolume", "id>n", fSetVolume, 0}, {"setLoop", "ib>n", fSetLoop, 0}, {"setRate", "id>n", fSetRate, 0}, {"setPan", "id>n", fSetPan, 0},
-  {"stopAll", ">n", fStopAll, 0}, {"start", "idbdddd>i", fStart, 0}, {"voiceStop", "id>n", fVoiceStop, 0}, {"voiceSet", "iddd>n", fVoiceSet, 0},
+  {"stopAll", ">n", fStopAll, 0}, {"start", "idbdddd>i", fStart, 0}, {"voiceStop", "idd>n", fVoiceStop, 0}, {"voiceSet", "iddd>n", fVoiceSet, 0},
   {"voicePlaying", "i>b", fVoicePlaying, 0}, {"pcm", "Dii>i", fPcm, 0}, {"channels", "i>i", fChannels, 0}, {"rate", "i>i", fRate, 0},
   {"samples", "ii>D", fSamples, 0}, {"time", ">d", fTime, 0}, {"streamOpen", "ii>i", fStreamOpen, 0}, {"streamWrite", "iD>i", fStreamWrite, 0},
   {"streamInfo", "i>D", fStreamInfo, 0}, {"streamSetVolume", "id>n", fStreamSetVolume, 0}, {"streamClose", "i>n", fStreamClose, 0},

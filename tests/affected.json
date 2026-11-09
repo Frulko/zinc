@@ -601,6 +601,7 @@
     {"paths": ["plugins/devtools/", "scripts/cdp-check.mjs", "tests/data/devtools_styles/", "tests/t1/devtools_styles.sh", "tests/devtools_frontend_check.py", "tests/t1/devtools_frontend_styles.sh"], "tests": ["devtools_styles", "dev_mode", "devtools_frontend_styles"]},
     {"paths": ["tests/affected.py", "tests/affected.json"], "tests": ["affected_paths", "ci_plan"]},
     {"paths": ["plugins/audio/", "tests/golden/audio/"], "tests": ["audio", "webenv_audio", "audio_music"]},
+    {"paths": ["plugins/audio/", "targets/console/audio_console.cpp", "tests/t0/audio_fade.sh"], "tests": ["audio_fade"]},
     {"paths": ["tests/data/audio-music/", "tests/golden/audio-music.out", "tests/t1/audio_music.sh"], "tests": ["audio_music"]},
     {"paths": ["plugins/midi/", "examples/midi/", "tests/data/midi/"], "tests": ["midi"]},
     {"paths": ["plugins/photos/", "examples/photos/", "tests/golden/host/photos_session.ts", "tests/t1/photos.sh"], "tests": ["photos"]},

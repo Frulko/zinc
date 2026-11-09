@@ -83,11 +83,16 @@ Z.registerNative('Audio', {
   setPan(h, p) { const s = sounds.get(h); if (!s) return; s.pan = p; for (const id of s.ids) { const o = voices.get(id); if (o && o.pn) o.pn.pan.value = p; } },
   stopAll() { for (const id of [...voices.keys()]) this.voiceStop(id, 0); for (const s of sounds.values()) s.waiting.length = 0; },
   start(h, vol, loop, rate, pan, offset, delay) { const s = sounds.get(h); return s ? begin(s, vol, loop, rate, pan, offset, delay) : 0; },
-  voiceStop(id, delay) {
+  voiceStop(id, delay, fade) {
     const o = voices.get(id);
     if (!o) return;
-    if (o.src) { try { o.src.stop(context().currentTime + Math.max(0, delay || 0)); } catch {} } else { o.playing = false; o.sound.waiting.length = 0; }
-    if (!delay) { o.playing = false; o.sound.ids.delete(id); }
+    const at = context().currentTime + Math.max(0, delay || 0), f = Math.max(0, fade || 0);
+    if (o.src && f > 0 && o.gain) {   // a linear ramp of the voice's gain to 0, then the stop: sample-accurate in the browser's mixer
+      const g = o.gain.gain;
+      g.cancelScheduledValues(at); g.setValueAtTime(g.value, at); g.linearRampToValueAtTime(0, at + f);
+    }
+    if (o.src) { try { o.src.stop(at + f); } catch {} } else { o.playing = false; o.sound.waiting.length = 0; }
+    if (!delay && !f) { o.playing = false; o.sound.ids.delete(id); }
   },
   voiceSet(id, vol, rate, pan) { const o = voices.get(id); if (!o || !o.src) return; o.gain.gain.value = vol; if (o.rate0 !== 1) o.src.playbackRate.value = rate; if (o.pn) o.pn.pan.value = pan; },
   voiceLoop(id, from, to) { const o = voices.get(id); if (o && o.src) { o.src.loopStart = from; o.src.loopEnd = to; } },

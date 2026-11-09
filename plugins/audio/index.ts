@@ -15,8 +15,9 @@ export class Voice {
   constructor(v: i32) { this.v = v; }
   /** True until the instance ends, is stopped, or gives way as the oldest of 32. */
   get playing(): boolean { return this.v > 0 && A.voicePlaying(this.v); }
-  /** Stops the instance, now or after `delay` seconds of mix. */
-  stop(delay: number = 0): void { if (this.v > 0) A.voiceStop(this.v, delay); }
+  /** Stops the instance, now or after `delay` seconds of mix; with `fade`, it fades to silence over `fade` seconds (from `delay` on) and
+   *  stops at the end of the fade: `voice.stop(0, 2)` fades it out over two seconds. The fade is applied by the mixer to the sample. */
+  stop(delay: number = 0, fade: number = 0): void { if (this.v > 0) A.voiceStop(this.v, delay, fade); }
   /** Volume, rate (only for an instance started at another rate than 1) and stereo position of this instance. */
   set(volume: number, rate: number, pan: number): void { if (this.v > 0) A.voiceSet(this.v, level(volume), rate, pan); }
   /** For a looping instance: repeat `from` to `to` seconds into the sound instead of the whole of it (`to` not after `from`: the whole). */

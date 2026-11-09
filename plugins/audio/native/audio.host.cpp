@@ -20,7 +20,17 @@ const ma_uint32 RATE = 48000;
 struct Clip { void* pcm; ma_uint64 frames; ma_uint32 channels, rate; ma_uint64 filled; int pending, quit; pthread_t th; ma_decoder* dec; void* file; };
 // a clip as a data source: the frames decoded so far, silence (the cursor waiting) for the ones not yet there
 struct Prog { ma_data_source_base base; Clip* clip; ma_uint64 cursor; };
-struct Voice { ma_audio_buffer_ref src; Prog prog; bool useProg; ma_sound sound; int32_t clip; uint64_t started; ma_uint64 from; bool used, pitched; };   // from: the mix frame a delayed voice starts at
+// A voice's lifecycle (ZN-697): a free slot, a voice that plays (or waits for its `from`), one whose end is set (a stop time, faded or not:
+// it plays on until that frame of the mix). The end itself is miniaudio's clock reaching the stop time, or the clip's end: live() reads it.
+enum class VState : uint8_t { Free, Playing, Ending };
+struct Voice { ma_audio_buffer_ref src; Prog prog; bool useProg; ma_sound sound; int32_t clip; uint64_t started; ma_uint64 from; VState state; bool pitched; };   // from: the mix frame a delayed voice starts at
+// The one place a voice changes state: Free -> Playing (start), Playing -> Ending (a stop time), any -> Free (release); nothing goes back to
+// Playing but a new start on a free slot, so an ending voice cannot be revived by a late voiceSet.
+bool to(Voice& v, VState s) {
+  const bool ok = s == VState::Free || (s == VState::Playing && v.state == VState::Free) || (s == VState::Ending && v.state == VState::Playing);
+  if (ok) v.state = s;
+  return ok;
+}
 Clip clips[MAXSOUND];
 Voice voices[MAXVOICE];
 ma_engine eng;
@@ -90,18 +100,18 @@ void settle(Clip* c, bool abandon) {
   c->th = 0;
 }
 void release(Voice& v) {
-  if (!v.used) return;
+  if (v.state == VState::Free) return;
   ma_sound_uninit(&v.sound);   // leaves the mix before its samples can go away
   if (v.useProg) ma_data_source_uninit(&v.prog.base); else ma_audio_buffer_ref_uninit(&v.src);
-  v.used = false;
+  to(v, VState::Free);
 }
 // A voice's number for the program: the count of plays when it started (never 0), so a voice that took the place of another is not it.
 int32_t voice_id(Voice& v) { return (int32_t)(v.started & 0x7fffffff); }
 Voice* voice_at(int32_t id) {
-  for (Voice& v : voices) if (v.used && id > 0 && voice_id(v) == id) return &v;
+  for (Voice& v : voices) if (v.state != VState::Free && id > 0 && voice_id(v) == id) return &v;
   return nullptr;
 }
-bool live(Voice& v) { return v.used && !ma_sound_at_end(&v.sound) && (ma_sound_is_playing(&v.sound) || ma_engine_get_time_in_pcm_frames(&eng) < v.from); }   // playing, or waiting for its time
+bool live(Voice& v) { return v.state != VState::Free && !ma_sound_at_end(&v.sound) && (ma_sound_is_playing(&v.sound) || ma_engine_get_time_in_pcm_frames(&eng) < v.from); }   // playing, or waiting for its time
 bool env_on(const char* n) { const char* v = getenv(n); return v && *v && *v != '0'; }
 // A playback rate (pitch and speed together) between 1/64 and 64, 1 for NaN; a pan between -1 and 1, 0 for NaN.
 float rate_of(double r) { return r > 0 ? (float)(r < 1.0 / 64 ? 1.0 / 64 : r > 64 ? 64 : r) : 1.0f; }
@@ -507,7 +517,7 @@ struct HostAudio : NativeAudio {
     const float r = rate_of(rate);
     const ma_uint32 flags = MA_SOUND_FLAG_NO_SPATIALIZATION | (r == 1.0f ? MA_SOUND_FLAG_NO_PITCH : 0);
     if (ma_sound_init_from_data_source(e, src, flags, nullptr, &v->sound) != MA_SUCCESS) return 0;
-    v->used = true;
+    to(*v, VState::Playing);
     v->pitched = r != 1.0f;
     if (v->pitched) ma_sound_set_pitch(&v->sound, r);
     ma_sound_set_pan(&v->sound, pan_of(pan));   // balance: at -1 the right channel is silent, a mono clip included
@@ -520,21 +530,25 @@ struct HostAudio : NativeAudio {
     ma_sound_set_looping(&v->sound, loop);
     return ma_sound_start(&v->sound) == MA_SUCCESS ? voice_id(*v) : 0;
   }
-  void stop(int32_t h) override { for (Voice& v : voices) if (v.used && v.clip == h) release(v); }
+  void stop(int32_t h) override { for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) release(v); }
   bool playing(int32_t h) override {
     for (Voice& v : voices) if (v.clip == h && live(v)) return true;
     return false;
   }
-  void setVolume(int32_t h, double volume) override { for (Voice& v : voices) if (v.used && v.clip == h) ma_sound_set_volume(&v.sound, (float)volume); }
-  void setLoop(int32_t h, bool on) override { for (Voice& v : voices) if (v.used && v.clip == h) ma_sound_set_looping(&v.sound, on); }
-  void setRate(int32_t h, double rate) override { for (Voice& v : voices) if (v.used && v.pitched && v.clip == h) ma_sound_set_pitch(&v.sound, rate_of(rate)); }
-  void setPan(int32_t h, double pan) override { for (Voice& v : voices) if (v.used && v.clip == h) ma_sound_set_pan(&v.sound, pan_of(pan)); }
+  void setVolume(int32_t h, double volume) override { for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) ma_sound_set_volume(&v.sound, (float)volume); }
+  void setLoop(int32_t h, bool on) override { for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) ma_sound_set_looping(&v.sound, on); }
+  void setRate(int32_t h, double rate) override { for (Voice& v : voices) if (v.state != VState::Free && v.pitched && v.clip == h) ma_sound_set_pitch(&v.sound, rate_of(rate)); }
+  void setPan(int32_t h, double pan) override { for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) ma_sound_set_pan(&v.sound, pan_of(pan)); }
   void stopAll() override { for (Voice& v : voices) release(v); }
-  void voiceStop(int32_t id, double delay) override {
+  // A stop now, or at a frame of the mix; with a fade, miniaudio's fader takes the voice's gain from where it is to 0 over the `fade` seconds
+  // before that frame, sample by sample on the mixer's thread (after the resampler: a pitched voice fades over the same frames of mix).
+  void voiceStop(int32_t id, double delay, double fade) override {
     Voice* v = voice_at(id);
     if (!v) return;
-    if (delay > 0) ma_sound_set_stop_time_in_pcm_frames(&v->sound, ma_engine_get_time_in_pcm_frames(&eng) + (ma_uint64)(delay * RATE));
-    else release(*v);
+    const ma_uint64 d = delay > 0 ? (ma_uint64)(delay * RATE + 0.5) : 0, f = fade > 0 ? (ma_uint64)(fade * RATE + 0.5) : 0;
+    if (d + f == 0) { release(*v); return; }
+    ma_sound_set_stop_time_with_fade_in_pcm_frames(&v->sound, ma_engine_get_time_in_pcm_frames(&eng) + d + f, f);
+    to(*v, VState::Ending);   // a second stop moves the end (a running fade goes on when it asks for none)
   }
   void voiceSet(int32_t id, double volume, double rate, double pan) override {
     Voice* v = voice_at(id);
