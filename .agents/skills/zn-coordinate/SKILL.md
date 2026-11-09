@@ -11,7 +11,7 @@ Each iteration (a wake-up, a worker's report, or one run of `tools/codex-loop`):
 
 1. `.paused` exists: stop (answer `STOP: paused`).
 2. Integrate every worker that reported (section "Integrate").
-3. Keep two building workers busy, plus any number of non-building ones (documents, tests, research). Section "Choose and claim", then "Brief".
+3. Fill the available worker slots with independent chains, at most two that build; TypeScript-only, document and research workers build nothing. Section "Choose and claim", then "Brief".
 4. Tests: never a suite (AGENTS.md "Move fast"); heavy tests go to "Tests to run" in `RESUME.md`.
 
 ## Choose and claim
@@ -29,6 +29,7 @@ Each worker gets its own worktree and branch on develop: Claude Code `Agent` wit
 - First commands: `git reset --hard develop` (a fresh worktree may start from an older base), `git config core.hooksPath .githooks`.
 - The task ids in order, one commit per task (code, test, task file, changelog line), worked as the zn-start skill says; read `AGENTS.md` and `CLAUDE.md` once.
 - What you know that the task file does not: the decisions just made (D numbers), the files another worker or session holds, an engine fix just landed that it must keep working, which binary to use if it does not build (a recent develop build that runs UI programs; the main tree's may carry another session's work).
+- Heavy commands queue themselves: `tools/work-run SECONDS COMMAND [ARG...]` locks across worktrees and bounds the command with the existing timeout helper. Workers run their authorized builds and feature checks through it without waiting for a coordinator token; reading, editing and cheap static checks continue independently. Use one such command at a time per worker. This queue conservatively serializes builds too; the two-building-tree ceiling still applies to every other session.
 - The rules: build only through `tools/build zinc` (or nothing); `timeout` on every run, headless or `ZINC_BACKGROUND=1`, one heavy process, kill what it started; no suites, only short runs and seconds-long T0 `--only`; timing taken while trees build is indicative; leave alone `RESUME.md`, `backlog/priority.json`, `backlog/keys.json`, `docs/reports/zinc-next-decisions.md`, `docs/reports/zinc-next-perf.md`, `backlog/later.md`, `AGENTS.md`, `CLAUDE.md`; no new task, no decision number; a failing criterion keeps the task open (Backlog with a handover note, Review when it needs a person or machine); no push.
 - The final report it must return: branch, commits (hash, subject), status and criteria ticked per task, proposed decision text, later.md lines, numbers (marked indicative), proposed tests (command, what it proves, duration), anything left running or unproven.
 
@@ -50,5 +51,5 @@ When a worker reports:
 ## The loop
 
 - Claude Code: `/loop` with the prompt "Coordinate the Zinc backlog team: follow the zn-coordinate skill" (dynamic mode); worker reports wake you; fallback wake-up 1800 s.
-- Codex, live: `tools/codex-live` opens an interactive Codex as the coordinator, the workers as its sub-agents in `.worktrees/` (`codex agents` shows them).
+- Codex, live: `tools/codex-live` opens an interactive Codex as the coordinator, with up to five sub-agents in `.worktrees/` (`codex agents` shows them). This configures new CLI sessions; an existing session keeps its runtime capacity.
 - Codex, headless: `tools/codex-loop` (lanes of claim, worker, integrate; one fresh `codex exec` per step, logs in `.logs/codex-loop/`).
