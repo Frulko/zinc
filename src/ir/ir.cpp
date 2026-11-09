@@ -2,8 +2,12 @@
 
 #include "zn/native_sig.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cstdio>
+#include <cstdlib>
+#include <thread>
 
 namespace zn::ir {
 
@@ -42,6 +46,21 @@ bool Module::isSubtype(std::uint32_t a, std::uint32_t b) const {
     for (std::uint32_t i : classes[o].implements) if (i == b) return true;
   }
   return false;
+}
+
+void parallelFor(std::size_t n, const std::function<void(std::size_t)>& fn) {
+  static const unsigned cores = std::max(1u, std::thread::hardware_concurrency());
+  unsigned threads = std::clamp(cores / 2, 1u, 4u);
+  double load = 0;
+  if (getloadavg(&load, 1) == 1 && load > cores / 2.0) threads = std::max(1u, threads / 2);   // ponytail: the load at the call, not a share of the cores
+  if (const char* e = std::getenv("ZN_IR_THREADS")) threads = static_cast<unsigned>(std::max(1, std::atoi(e)));
+  threads = static_cast<unsigned>(std::min<std::size_t>(threads, n / 8 + 1));
+  std::atomic<std::size_t> next{0};
+  auto work = [&] { for (std::size_t k; (k = next.fetch_add(1, std::memory_order_relaxed)) < n;) fn(k); };
+  std::vector<std::thread> pool;
+  for (unsigned t = 1; t < threads; ++t) pool.emplace_back(work);
+  work();
+  for (std::thread& t : pool) t.join();
 }
 
 TypeId Module::intern(const Type& t) {

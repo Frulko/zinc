@@ -4,6 +4,7 @@
 // representation: every instruction has an effect set, and a Call may carry an unwind edge; Throw is a terminator.
 // Dependency direction: ir includes frontend (types of numeric kinds), never the reverse.
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -172,6 +173,10 @@ std::string verify(const Module& m);
 
 // Inserts Retain and Release so that every reference is released exactly once on every path (see rc.cpp for the conventions).
 void insertRc(Module& m);
+
+// Runs fn(0) .. fn(n - 1) on a few threads (at most 4, half the cores, fewer under load; ZN_IR_THREADS=n sets it), each index once, and returns when
+// all are done: for per-function work whose result does not depend on the order (ZN-1024). n small or one thread: in the calling thread.
+void parallelFor(std::size_t n, const std::function<void(std::size_t)>& fn);
 
 // Devirtualises single-target virtual calls and inlines small functions; run before insertRc.
 // `deviceCore`: the module runs on a device core built from an older release, so the rewrites that need a newer runtime row (the number sort) are left out.

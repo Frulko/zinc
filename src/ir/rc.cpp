@@ -461,10 +461,14 @@ void insertRc(Module& m) {
     }
   }
   swrites = slotsOf();
-  for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {
+  // each function on its own, on a few threads (ZN-1024): Rc changes only its function, and the only types it interns are interned here first,
+  // so the workers read m.types and never grow it (the output does not depend on the order)
+  m.voidT();
+  for (std::size_t c = 0; c < m.classes.size(); ++c) if (m.classes[c].name == "Error") { m.refT(static_cast<std::uint32_t>(c)); break; }
+  parallelFor(m.functions.size(), [&](std::size_t fi) {
     Rc rc(m, m.functions[fi], thr, slots, conv, conv.fn[fi], writes, swrites);
     rc.run();
-  }
+  });
 }
 
 }  // namespace zn::ir
