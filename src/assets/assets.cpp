@@ -570,7 +570,7 @@ bool build(const Options& opt, Report& report, std::string& err) {
     auto pk = opt.targetProfile.find("pack");
     const std::string packCodec = opt.profile != "release" ? "none" : pk == opt.targetProfile.end() ? "zstd" : pk->second;
     Key k;
-    k.add("zpk 1").add(opt.profile).add(packCodec);
+    k.add("zpk 1 sound-as-is").add(opt.profile).add(packCodec);   // sound-as-is: the rule below (ZN-440.02), so older packs are written again
     for (const Entry& e : entries) k.add(e.name).add(e.key).add(std::string(1, static_cast<char>(e.imp->kind)));
     const bool withSplash = opt.splash.on && group == "boot";
     if (withSplash) k.add(kSplashEntry).add(splashData);
@@ -602,7 +602,8 @@ bool build(const Options& opt, Report& report, std::string& err) {
           e.data = std::move(tiles);
         }
         if (!e.atlas.empty()) { frames[e.atlas].push_back({e.name, std::move(e.data)}); packing.emplace(e.atlas, &e.opts); continue; }
-        inputs.push_back({e.name, std::move(e.data), 0, e.imp->kind, codec});
+        // a sound file stays as it is in every profile (zpk::readInPlace)
+        inputs.push_back({e.name, std::move(e.data), 0, e.imp->kind, zpk::readInPlace(e.name) ? zpk::Codec::None : codec});
       }
       for (const auto& [atlas, list] : frames) {
         std::vector<zpk::Input> made;

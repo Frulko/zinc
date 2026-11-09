@@ -24,6 +24,11 @@ void names(std::vector<std::string>& out);
 int mount(const std::string& path, std::string& err);
 /** False when it is not mounted or a load is in flight. */
 bool unmount(const std::string& path);
+/** The bytes of the data entry `name` in place in its mapped pack, when it is stored as it is (codec none): a music read as it plays (zinc:audio's
+ *  loadMusic). The pack stays mounted until unview(); null when no pack has it, or with `err` when it is compressed or does not match its checksum. */
+const std::uint8_t* view(const std::string& name, std::size_t& size, std::string& err);
+/** Gives back a view; false when `d` is in no mounted pack. */
+bool unview(const std::uint8_t* d);
 /** The groups of the mounted packs, sorted. */
 void groups(std::vector<std::string>& out);
 

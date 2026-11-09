@@ -35,6 +35,10 @@ struct Entry {
   Codec codec = Codec::None;
 };
 
+/** A name whose bytes are compressed already and read in place from the mapping (a sound file: zinc:audio's loadMusic streams it, ZN-440.02):
+ *  the writers store it as `none` whatever codec they were asked for. */
+bool readInPlace(std::string_view name);
+
 /** FNV-1a 64 of the name: the TOC's sort key. */
 std::uint64_t nameHash(std::string_view name);
 

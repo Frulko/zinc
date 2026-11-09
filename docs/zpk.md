@@ -65,7 +65,9 @@ Each entry is compressed on its own, so reading one never decodes another:
 - **zstd-dict**: zstd with the dictionary stored in the pack, for many small entries. The writer trains it (ZDICT, single-threaded,
   hence deterministic) from the entries that ask for it, about a hundredth of their bytes and 110 KB at most, unless the caller gives one.
 
-An entry whose compressed form is not smaller than its bytes is stored as `none`, and so is an empty one.
+An entry whose compressed form is not smaller than its bytes is stored as `none`, and so is an empty one. A sound file (`.wav`, `.ogg`, `.mp3`,
+`.flac`, `.opus`, `.qoa`, `.m4a`) is stored as `none` whatever codec is asked (`zpk::readInPlace`): it is compressed already, and zinc:audio's
+`loadMusic` streams it in place from the mapping.
 
 ## Reading and checking
 

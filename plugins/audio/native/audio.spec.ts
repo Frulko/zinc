@@ -80,7 +80,14 @@ export interface Spec extends NativeModule {
   musicPlay(music: i32, on: boolean): void;
   /** Moves to `seconds` into the file. */
   musicSeek(music: i32, seconds: f64): void;
-  /** [position in seconds, duration in seconds, 1 while it plays, status: 0 opening, 1 open, 2 ended, -1 failed (musicError())]. */
+  /** A music from an asset: the entry `name` of a mounted pack, stored as it is (the asset build keeps sound files so), or a file of the assets
+   *  directory, read in place from its mapping and decoded on the mixer's thread as the mix asks for it, never whole: WAV (PCM and IMA ADPCM),
+   *  FLAC, MP3, Ogg Vorbis. Open at once (status 1). A music handle, or -1 (see error()). */
+  musicAsset(name: string): i32;
+  /** Whether a music starts again from its beginning at its end, without a gap. */
+  musicLoop(music: i32, on: boolean): void;
+  /** [position in seconds, duration in seconds, 1 while it plays, status: 0 opening, 1 open, 2 ended, -1 failed (musicError()), bytes of
+   *  memory it has held at most (a streamed asset: its decoder and its node; a file: its ring)]. */
   musicInfo(music: i32): f64[];
   musicError(music: i32): string;
   musicSetVolume(music: i32, volume: f64): void;

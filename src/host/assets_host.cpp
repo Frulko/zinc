@@ -39,6 +39,7 @@ struct Pack {
   void* map = nullptr;
   std::size_t size = 0;
   zpk::Reader reader;
+  int pins = 0;   // views handed out (view()): its mapping stays while one is held, so unmount() refuses
   ~Pack() {
 #ifdef _WIN32
     if (map) UnmapViewOfFile(map);
@@ -354,7 +355,26 @@ bool unmount(const std::string& path) {
   Manager& g = ready();
   if (!g.running.empty() || !g.queued[0].empty() || !g.queued[1].empty()) return false;   // ponytail: refused while loading; cancelling that pack's jobs if a game needs it
   for (auto it = g.mounts.begin(); it != g.mounts.end(); ++it)
-    if ((*it)->path == path) { g.mounts.erase(it); return true; }
+    if ((*it)->path == path) {
+      if ((*it)->pins) return false;   // a music still reads it in place
+      g.mounts.erase(it);
+      return true;
+    }
+  return false;
+}
+const std::uint8_t* view(const std::string& name, std::size_t& size, std::string& err) {
+  Manager& g = ready();
+  auto [p, i] = find(g, name);
+  if (!p || p->reader.entry(static_cast<std::size_t>(i)).kind != 0) return nullptr;
+  const std::uint8_t* d = p->reader.view(static_cast<std::size_t>(i), err);
+  if (!d) return nullptr;
+  size = static_cast<std::size_t>(p->reader.entry(static_cast<std::size_t>(i)).size);
+  const_cast<Pack*>(p)->pins++;
+  return d;
+}
+bool unview(const std::uint8_t* d) {
+  for (const auto& p : ready().mounts)
+    if (p->pins && d >= static_cast<const std::uint8_t*>(p->map) && d < static_cast<const std::uint8_t*>(p->map) + p->size) { p->pins--; return true; }
   return false;
 }
 void groups(std::vector<std::string>& out) {

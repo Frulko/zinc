@@ -8,7 +8,7 @@ const ends: f64[] = [];        // per voice started by start(), at index voice -
 let clock: f64 = 0;
 let held: boolean = false;   // suspend(): the clock and the musics stand still
 const buffered: i32[] = [], rates: i32[] = [], chans: i32[] = [];   // per stream: frames buffered, frames per second, channels
-const mPos: f64[] = [], mOn: boolean[] = [];   // per music: the position (it moves with mix()), whether it plays; nothing is read: it lasts 180 s
+const mPos: f64[] = [], mOn: boolean[] = [], mLoop: boolean[] = [];   // per music: the position (it moves with mix()), whether it plays and loops; nothing is read: it lasts 180 s
 const known = (s: i32): boolean => s >= 0 && s < lengths.length && lengths[s] >= 0;
 function add(seconds: f64): i32 { lengths.push(seconds); active.push(false); return lengths.length - 1; }
 
@@ -81,12 +81,14 @@ export default {
   streamInfo(stream: i32): f64[] { return stream >= 0 && stream < buffered.length ? [buffered[stream] / rates[stream], 0, 0] : [0, 0, 0]; },
   streamSetVolume(stream: i32, volume: f64): void {},
   streamClose(stream: i32): void { if (stream >= 0 && stream < buffered.length) buffered[stream] = 0; },
-  musicOpen(path: string): i32 { if (path === '') { err = 'no file, or a path too long'; return -1; } mPos.push(0); mOn.push(false); return mPos.length - 1; },
+  musicOpen(path: string): i32 { if (path === '') { err = 'no file, or a path too long'; return -1; } mPos.push(0); mOn.push(false); mLoop.push(false); return mPos.length - 1; },
+  musicAsset(name: string): i32 { if (name === '') { err = 'no such asset'; return -1; } mPos.push(0); mOn.push(false); mLoop.push(false); return mPos.length - 1; },
+  musicLoop(music: i32, on: boolean): void { if (music >= 0 && music < mLoop.length) mLoop[music] = on; },
   musicPlay(music: i32, on: boolean): void { if (music >= 0 && music < mOn.length) { if (on && mPos[music] >= 180) mPos[music] = 0; mOn[music] = on; } },
   musicSeek(music: i32, seconds: f64): void { if (music >= 0 && music < mPos.length) mPos[music] = Math.min(180, Math.max(0, seconds)); },
   musicInfo(music: i32): f64[] {
-    if (music < 0 || music >= mPos.length) return [0, 0, 0, -1];
-    return [mPos[music], 180, mOn[music] && mPos[music] < 180 ? 1 : 0, mPos[music] >= 180 ? 2 : 1];
+    if (music < 0 || music >= mPos.length) return [0, 0, 0, -1, 0];
+    return [mPos[music], 180, mOn[music] && mPos[music] < 180 ? 1 : 0, mPos[music] >= 180 ? 2 : 1, 0];
   },
   musicError(music: i32): string { return ''; },
   musicSetVolume(music: i32, volume: f64): void {},
@@ -94,7 +96,7 @@ export default {
   mix(frames: i32): f64[] {
     const r: f64[] = [];
     if (frames > 0 && !held) clock += frames / 48000;
-    if (!held) for (let i = 0; i < mPos.length; i++) if (mOn[i]) mPos[i] = Math.min(180, mPos[i] + frames / 48000);
+    if (!held) for (let i = 0; i < mPos.length; i++) if (mOn[i]) mPos[i] = mLoop[i] ? (mPos[i] + frames / 48000) % 180 : Math.min(180, mPos[i] + frames / 48000);
     for (let i = 0; i < frames * 2; i++) r.push(0);
     return r;
   },

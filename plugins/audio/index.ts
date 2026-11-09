@@ -127,10 +127,11 @@ export function stream(channels: i32 = 1, rate: i32 = 48000): AudioStream {
   return new AudioStream(h, channels, rate);
 }
 
-/** A file played as it is read (a song, an audiobook), never decoded whole: see openMusic(). */
+/** A file played as it is read (a song, an audiobook), never decoded whole: see openMusic() and loadMusic(). */
 export class Music {
   private h: i32;
   private vol: number = 1;
+  private looping: boolean = false;
   readonly path: string;
   constructor(h: i32, path: string) { this.h = h; this.path = path; }
   /** Plays from where it is (from the start once it ended); asked while the file opens, it starts once it is open. */
@@ -153,12 +154,21 @@ export class Music {
   }
   get volume(): number { return this.vol; }
   set volume(v: number) { this.vol = level(v); if (this.h >= 0) A.musicSetVolume(this.h, this.vol); }
+  /** At its end it starts again from its beginning, without a gap, until pause() or close(). */
+  get loop(): boolean { return this.looping; }
+  set loop(on: boolean) { this.looping = on; if (this.h >= 0) A.musicLoop(this.h, on); }
+  /** Bytes of memory it has held at most: for loadMusic(), its decoder and its place in the mix (the file is read in place, not counted);
+   *  for openMusic(), its read-ahead buffer. */
+  get memory(): number { return this.h < 0 ? 0 : A.musicInfo(this.h)[4]; }
   /** Stops it and closes the file. */
   close(): void { if (this.h >= 0) { A.musicClose(this.h); this.h = -1; } }
 }
 /** The file at `path` (a path on disk, not an asset) as a Music, paused: AAC, ALAC, MP3, WAV and AIFF on macOS and iOS (AudioToolbox),
  *  WAV, FLAC, MP3 and Ogg Vorbis elsewhere. It is read a few seconds ahead as it plays; four are open at most. */
 export function openMusic(path: string): Music { return new Music(A.musicOpen(path), path); }
+/** A music of the project's assets, streamed: read in place from its pack (or the assets directory) and decoded as it plays, a few kilobytes
+ *  in memory whatever its length (an IMA ADPCM WAV: under 16 KB; Ogg Vorbis about 200 KB). WAV, FLAC, MP3 and Ogg Vorbis. Paused, ready at once. */
+export function loadMusic(name: string): Music { return new Music(A.musicAsset(name), name); }
 
 let master: number = 1;
 /** Volume of everything that plays: 1 by default, 0 mutes. */

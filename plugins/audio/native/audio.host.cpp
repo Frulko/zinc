@@ -4,9 +4,13 @@
 // run is silent, starts no thread and renders the same samples every time.
 #include "zinc_native_audio.h"
 #include "../vendor/miniaudio.h"
+#define STB_VORBIS_HEADER_ONLY
+#include "../vendor/stb_vorbis.c"   // only to size a Vorbis decoder's memory (loadMusic): the code is in miniaudio_impl.c
+#undef STB_VORBIS_HEADER_ONLY
 #ifdef __APPLE__
 #include <AudioToolbox/ExtendedAudioFile.h>
 #endif
+#include <math.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,6 +36,40 @@ bool to(Voice& v, VState s) {
   return ok;
 }
 Clip clips[MAXSOUND];
+// Heap bytes counted by an allocator handed to miniaudio: the engine's (a sound's node, measured around its init) and each streamed music's decoder.
+// A 16-byte header keeps the size (and the alignment of what follows).
+struct Heap { size_t now, peak; };
+Heap engineHeap;
+void heap_add(void* u, size_t add, size_t sub) {
+  Heap* h = (Heap*)u;
+  const size_t n = __atomic_add_fetch(&h->now, add - sub, __ATOMIC_RELAXED);
+  size_t p = __atomic_load_n(&h->peak, __ATOMIC_RELAXED);
+  while (n > p && !__atomic_compare_exchange_n(&h->peak, &p, n, true, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {}
+}
+void* heap_malloc(size_t sz, void* u) {
+  size_t* p = (size_t*)malloc(sz + 16);
+  if (!p) return nullptr;
+  *p = sz;
+  heap_add(u, sz, 0);
+  return (char*)p + 16;
+}
+void* heap_realloc(void* q, size_t sz, void* u) {
+  if (!q) return heap_malloc(sz, u);
+  size_t* p = (size_t*)((char*)q - 16);
+  const size_t old = *p;
+  p = (size_t*)realloc(p, sz + 16);
+  if (!p) return nullptr;
+  *p = sz;
+  heap_add(u, sz, old);
+  return (char*)p + 16;
+}
+void heap_free(void* q, void* u) {
+  if (!q) return;
+  size_t* p = (size_t*)((char*)q - 16);
+  heap_add(u, 0, *p);
+  free(p);
+}
+ma_allocation_callbacks counted(Heap* h) { return ma_allocation_callbacks{h, heap_malloc, heap_realloc, heap_free}; }
 Voice voices[MAXVOICE];
 ma_engine eng;
 ma_device dev;
@@ -174,10 +212,19 @@ Stream* stream_at(int32_t h) { return h >= 0 && h < MAXSTREAM && streams[h].used
 // decoders (WAV, FLAC, MP3, Ogg Vorbis). The file is opened on that thread too: a sleeping iPod disk takes a second to answer.
 const int MAXMUSIC = 4;
 const double RING = 2.0;
+// Where a music comes from: a file on disk, read ahead by its thread into the ring (openMusic); or an asset read in place from its mapped pack
+// and decoded on the mixer's thread as the mix asks for it (loadMusic, ZN-440.02): no thread, no ring, the decoder's state alone in memory.
+enum class MSrc : uint8_t { File, Asset };
 struct Music {
   ma_data_source_base base;   // first: miniaudio sees the music as a data source
   ma_sound sound;
-  bool used, soundOn;
+  bool used, soundOn, loop;
+  MSrc src;
+  int32_t gen;                // the handle is gen << 2 | slot: a closed music's handle is refused, never another's
+  const unsigned char* view;  // Asset: the bytes in the pack (zn_asset_view)
+  ma_decoder adec;            // Asset: the decoder the mixer reads, its memory counted in heap
+  Heap heap;
+  size_t fixed;               // Asset: bytes outside heap (the sound's node, a Vorbis decoder's setup)
   char path[1024];
   pthread_t th;
   pthread_mutex_t mu;
@@ -198,7 +245,28 @@ struct Music {
 #endif
 };
 Music musics[MAXMUSIC];
-Music* music_at(int32_t h) { return h >= 0 && h < MAXMUSIC && musics[h].used ? &musics[h] : nullptr; }
+int32_t music_id(Music& m) { return m.gen << 2 | (int32_t)(&m - musics); }
+Music* music_at(int32_t h) { Music* m = h > 0 ? &musics[h & 3] : nullptr; return m && m->used && m->gen == h >> 2 ? m : nullptr; }
+static_assert(MAXMUSIC == 4, "music handles keep the slot in 2 bits");
+Music* free_music() {
+  for (Music& m : musics) if (!m.used) return &m;
+  fail("too many musics open (4): close() the ones no longer played");
+  return nullptr;
+}
+// The asset bytes in place (src/host/sys_host.cpp): weak, so a host without them refuses loadMusic.
+extern "C" const unsigned char* zn_asset_view(const char* name, uint32_t n, uint64_t* size, const char** why) __attribute__((weak));
+extern "C" void zn_asset_unview(const unsigned char* p) __attribute__((weak));
+// What stb_vorbis allocates for a file (its setup: codebooks, windows, channel buffers): it takes it from malloc, not from miniaudio's allocator,
+// so it is read from a probe of the same bytes. 0 for anything else.
+size_t vorbis_setup(const unsigned char* d, uint64_t size) {
+  if (size < 4 || memcmp(d, "OggS", 4) || size > 0x7fffffff) return 0;
+  int e = 0;
+  stb_vorbis* v = stb_vorbis_open_memory(d, (int)size, &e, nullptr);
+  if (!v) return 0;
+  const size_t n = stb_vorbis_get_info(v).setup_memory_required;
+  stb_vorbis_close(v);
+  return n;
+}
 
 ma_result music_read(ma_data_source* ds, void* out, ma_uint64 frames, ma_uint64* read) {
   Music* m = (Music*)ds;
@@ -305,12 +373,14 @@ void* music_thread(void* p) {
     if (seek >= 0) music_file_seek(m, seek);
     const size_t n = music_decode(m, tmp, CHUNK);   // unlocked: the mixer reads on meanwhile
     pthread_mutex_lock(&m.mu);
+    const bool again = n == 0 && m.loop && m.seekTo < 0;
     if (m.seekTo < 0) {   // a seek asked during the read drops it
       for (size_t i = 0; i < n; i++) { const size_t k = (m.head + m.count + i) % m.cap; m.buf[k * 2] = tmp[i * 2]; m.buf[k * 2 + 1] = tmp[i * 2 + 1]; }
       m.count += n;
-      if (n == 0) m.eof = true;
+      if (n == 0 && !again) m.eof = true;
     }
     pthread_mutex_unlock(&m.mu);
+    if (again) music_file_seek(m, 0);   // a loop: the ring goes on with the start, without a gap
   }
   ma_free(tmp, nullptr);
   music_close_file(m);
@@ -363,9 +433,15 @@ bool output() {
   if (opening) { pthread_join(opener, nullptr); opening = false; }
   return playing_out;
 }
-void close_music(int32_t h) {
-  Music* m = music_at(h);
-  if (!m) return;
+void close_music(Music* m) {
+  if (!m || !m->used) return;
+  if (m->src == MSrc::Asset) {
+    ma_sound_uninit(&m->sound);   // leaves the mix before its decoder goes
+    ma_decoder_uninit(&m->adec);
+    if (zn_asset_unview) zn_asset_unview(m->view);
+    m->used = false;
+    return;
+  }
   pthread_mutex_lock(&m->mu);
   m->quit = true;
   pthread_mutex_unlock(&m->mu);
@@ -383,7 +459,7 @@ void shutdown() {   // the device stops with the program instead of being cut by
   if (output()) ma_device_uninit(&dev);
   for (Voice& v : voices) release(v);
   for (Stream& s : streams) if (s.used) { ma_sound_uninit(&s.sound); s.used = false; }
-  for (int32_t h = 0; h < MAXMUSIC; h++) close_music(h);
+  for (Music& m : musics) close_music(&m);
   ma_engine_uninit(&eng);
   opened = false;
 }
@@ -395,6 +471,7 @@ ma_engine* engine() {
   c.noDevice = MA_TRUE;
   c.channels = 2;
   c.sampleRate = RATE;
+  c.allocationCallbacks = counted(&engineHeap);
   if (ma_engine_init(&c, &eng) != MA_SUCCESS) return nullptr;
   opened = true;
   atexit(shutdown);
@@ -652,33 +729,86 @@ struct HostAudio : NativeAudio {
     ma_engine* e = engine();
     if (!e) return fail("no mixer");
     if (path.bytes() == 0 || path.bytes() >= sizeof(musics[0].path)) return fail("no file, or a path too long");
-    int32_t h = 0;
-    while (h < MAXMUSIC && musics[h].used) h++;
-    if (h == MAXMUSIC) return fail("too many musics open (4): close() the ones no longer played");
-    Music& m = musics[h];
+    Music* free_m = free_music();
+    if (!free_m) return -1;
+    Music& m = *free_m;
     memset(m.path, 0, sizeof m.path);
     memcpy(m.path, path.ptr(), path.bytes());
     m.cap = (size_t)(RING * RATE);
     m.buf = (float*)ma_malloc(m.cap * 2 * sizeof(float), nullptr);
     if (!m.buf) return fail("out of memory");
     m.head = m.count = 0; m.played = 0; m.startAt = 0; m.duration = 0; m.seekTo = -1;
-    m.status = 0; m.quit = m.eof = m.wantPlay = false; m.err[0] = 0;
+    m.status = 0; m.quit = false; m.eof = false; m.wantPlay = false; m.loop = false; m.err[0] = 0;
+    m.src = MSrc::File;
     pthread_mutex_init(&m.mu, nullptr);
     pthread_cond_init(&m.cv, nullptr);
     ma_data_source_config dc = ma_data_source_config_init();
     dc.vtable = &music_vtable;
-    m.soundOn = ma_data_source_init(&dc, &m.base) == MA_SUCCESS && ma_sound_init_from_data_source(e, &m.base, MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH, nullptr, &m.sound) == MA_SUCCESS;
-    if (!m.soundOn || pthread_create(&m.th, nullptr, music_thread, &m) != 0) {
+    const bool ds = ma_data_source_init(&dc, &m.base) == MA_SUCCESS;
+    m.soundOn = ds && ma_sound_init_from_data_source(e, &m.base, MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH, nullptr, &m.sound) == MA_SUCCESS;
+    if (!m.soundOn || pthread_create(&m.th, nullptr, music_thread, &m) != 0) {   // nothing is left behind (it leaked the source, mutex and condition)
       if (m.soundOn) ma_sound_uninit(&m.sound);
+      if (ds) ma_data_source_uninit(&m.base);
+      pthread_mutex_destroy(&m.mu);
+      pthread_cond_destroy(&m.cv);
       ma_free(m.buf, nullptr);
       return fail("the music cannot start");
     }
+    m.gen++;
     m.used = true;
-    return h;
+    return music_id(m);
+  }
+  // An asset streamed in place: the decoder reads the mapped pack on the mixer's thread, as the mix pulls frames, at the file's own rate and
+  // channels (the sound's node converts them, so a loop is seamless across the resampler too); a loop is miniaudio's data-source loop, which
+  // seeks to the start inside the read that reached the end.
+  int32_t musicAsset(zrt::String name) override {
+    ma_engine* e = engine();
+    if (!e) return fail("no mixer");
+    if (!zn_asset_view || !zn_asset_unview) return fail("this program reads no asset in place");
+    Music* free_m = free_music();
+    if (!free_m) return -1;
+    Music& m = *free_m;
+    uint64_t size = 0;
+    const char* why = "no such asset";
+    const unsigned char* d = zn_asset_view(name.ptr(), (uint32_t)name.bytes(), &size, &why);
+    if (!d) return fail(why);
+    m.heap = Heap{};
+    ma_decoder_config dc = ma_decoder_config_init(ma_format_f32, 0, 0);
+    dc.allocationCallbacks = counted(&m.heap);
+    if (ma_decoder_init_memory(d, (size_t)size, &dc, &m.adec) != MA_SUCCESS) {
+      zn_asset_unview(d);
+      return fail("not a WAV, FLAC, MP3 or Ogg Vorbis file");
+    }
+    const size_t before = __atomic_load_n(&engineHeap.now, __ATOMIC_RELAXED);
+    const ma_uint32 flags = MA_SOUND_FLAG_NO_SPATIALIZATION | (m.adec.outputSampleRate == RATE ? MA_SOUND_FLAG_NO_PITCH : 0);   // a resampler only off 48 kHz
+    if (ma_sound_init_from_data_source(e, &m.adec, flags, nullptr, &m.sound) != MA_SUCCESS) {
+      ma_decoder_uninit(&m.adec);
+      zn_asset_unview(d);
+      return fail("the music cannot start");
+    }
+    m.fixed = __atomic_load_n(&engineHeap.now, __ATOMIC_RELAXED) - before + vorbis_setup(d, size);
+    ma_uint64 len = 0;
+    ma_decoder_get_length_in_pcm_frames(&m.adec, &len);
+    m.duration = m.adec.outputSampleRate ? (double)len / m.adec.outputSampleRate : 0;
+    m.src = MSrc::Asset;
+    m.view = d;
+    m.status = 1;
+    m.soundOn = true;
+    m.wantPlay = m.loop = false;
+    m.err[0] = 0;
+    snprintf(m.path, sizeof m.path, "%.*s", (int)name.bytes(), name.ptr());
+    m.gen++;
+    m.used = true;
+    return music_id(m);
   }
   void musicPlay(int32_t h, bool on) override {
     Music* m = music_at(h);
     if (!m) return;
+    if (m->src == MSrc::Asset) {   // ma_sound_start plays an ended sound from its start
+      m->wantPlay = on;
+      if (on) ma_sound_start(&m->sound); else ma_sound_stop(&m->sound);
+      return;
+    }
     pthread_mutex_lock(&m->mu);
     m->wantPlay = on;
     if (m->status == 1) {
@@ -687,35 +817,55 @@ struct HostAudio : NativeAudio {
     }
     pthread_mutex_unlock(&m->mu);
   }
+  void musicLoop(int32_t h, bool on) override {
+    Music* m = music_at(h);
+    if (!m) return;
+    if (m->src == MSrc::Asset) { m->loop = on; ma_sound_set_looping(&m->sound, on); return; }
+    pthread_mutex_lock(&m->mu);
+    m->loop = on;
+    pthread_mutex_unlock(&m->mu);
+  }
   void musicSeek(int32_t h, double seconds) override {
     Music* m = music_at(h);
     if (!m) return;
+    const double at = seconds > 0 ? (m->duration > 0 && seconds > m->duration ? m->duration : seconds) : 0;
+    if (m->src == MSrc::Asset) { ma_sound_seek_to_pcm_frame(&m->sound, (ma_uint64)(at * m->adec.outputSampleRate)); return; }   // done on the mixer's thread
     pthread_mutex_lock(&m->mu);
-    m->seekTo = seconds > 0 ? (m->duration > 0 && seconds > m->duration ? m->duration : seconds) : 0;
+    m->seekTo = at;
     m->head = m->count = 0;   // what was decoded for before the seek is not heard
     pthread_mutex_unlock(&m->mu);
     pthread_cond_signal(&m->cv);
   }
   zrt::Array<double> musicInfo(int32_t h) override {
     Music* m = music_at(h);
-    double v[4] = {0, 0, 0, -1};
-    if (m) {
+    double v[5] = {0, 0, 0, -1, 0};
+    if (m && m->src == MSrc::Asset) {
+      ma_uint64 at = 0;
+      ma_sound_get_cursor_in_pcm_frames(&m->sound, &at);
+      const bool end = ma_sound_at_end(&m->sound);
+      v[0] = end ? m->duration : (double)at / m->adec.outputSampleRate;
+      v[1] = m->duration;
+      v[2] = m->wantPlay && !end ? 1 : 0;
+      v[3] = end ? 2 : 1;
+      v[4] = (double)(__atomic_load_n(&m->heap.peak, __ATOMIC_RELAXED) + m->fixed);
+    } else if (m) {
       pthread_mutex_lock(&m->mu);
       v[0] = m->seekTo >= 0 ? m->seekTo : m->startAt + (double)m->played / RATE;
-      if (m->duration > 0 && v[0] > m->duration) v[0] = m->duration;
+      if (m->duration > 0 && v[0] > m->duration) v[0] = m->loop ? fmod(v[0], m->duration) : m->duration;
       v[1] = m->duration;
       v[2] = m->wantPlay && m->status == 1 && !(m->eof && m->count == 0 && m->seekTo < 0) ? 1 : 0;
       v[3] = m->status == 1 && m->eof && m->count == 0 && m->seekTo < 0 ? 2 : m->status;
+      v[4] = (double)(m->cap * 2 * sizeof(float));   // its ring; the system's decoder is not counted
       pthread_mutex_unlock(&m->mu);
     }
-    zrt::Array<double> r = zrt::Array<double>::with_cap(4);
+    zrt::Array<double> r = zrt::Array<double>::with_cap(5);
     memcpy(r.a->data, v, sizeof v);
-    r.a->len = 4;
+    r.a->len = 5;
     return r;
   }
   zrt::String musicError(int32_t h) override { Music* m = music_at(h); return str(m ? m->err : "no such music"); }
   void musicSetVolume(int32_t h, double volume) override { if (Music* m = music_at(h)) ma_sound_set_volume(&m->sound, (float)volume); }
-  void musicClose(int32_t h) override { close_music(h); }
+  void musicClose(int32_t h) override { close_music(music_at(h)); }
   zrt::Array<double> played() override {
     pthread_mutex_lock(&tapMu);
     tapOn = true;

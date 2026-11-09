@@ -37,6 +37,7 @@
 #include <net/if.h>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
+#include <sys/mman.h>
 #endif
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -1214,7 +1215,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostAssetsPackAdd: {
       zn::zpk::Input in;
       in.name = s(0);
-      in.codec = zn::zpk::Codec::Zstd;
+      in.codec = zn::zpk::readInPlace(in.name) ? zn::zpk::Codec::None : zn::zpk::Codec::Zstd;
       const std::uint64_t* p = static_cast<const std::uint64_t*>(a[1].p);
       for (std::uint32_t i = 0; i < a[1].n; ++i) in.data += static_cast<char>(p[i] & 0xFF);
       gPack.push_back(std::move(in));
@@ -1769,6 +1770,36 @@ extern "C" unsigned char* zn_asset_bytes(const char* name, uint32_t n, uint32_t*
   std::memcpy(p, d.data(), d.size());
   *size = static_cast<uint32_t>(d.size());
   return p;
+}
+// An asset's bytes in place, for a native module that reads them as it goes (zinc:audio's loadMusic, ZN-440.02): an entry of a mounted pack stored as it
+// is (the pack stays mounted until zn_asset_unview), else a file of assetsDir mapped read-only. Null with `why` (a static string) otherwise.
+std::map<const unsigned char*, std::size_t> gFileViews;   // the files mapped here, unmapped by zn_asset_unview
+extern "C" const unsigned char* zn_asset_view(const char* name, uint32_t n, uint64_t* size, const char** why) {
+  const std::string key(name, n);
+  std::string err;
+  std::size_t len = 0;
+  if (const std::uint8_t* d = assets::view(key, len, err)) { *size = len; return d; }
+  if (!err.empty()) { *why = "it is compressed in its pack (store it as it is: the asset build keeps sound files uncompressed) or damaged"; return nullptr; }
+#ifdef _WIN32
+  *why = "no such asset in a mounted pack";   // ponytail: a file of assetsDir is not mapped on Windows yet (MapViewOfFile when a game asks)
+  return nullptr;
+#else
+  const std::string dir = assetsDir();
+  const int fd = dir.empty() ? -1 : ::open((dir + "/" + key).c_str(), O_RDONLY | O_CLOEXEC);
+  struct stat st {};
+  void* m = fd >= 0 && fstat(fd, &st) == 0 && st.st_size > 0 ? mmap(nullptr, static_cast<std::size_t>(st.st_size), PROT_READ, MAP_PRIVATE, fd, 0) : MAP_FAILED;
+  if (fd >= 0) ::close(fd);
+  if (m == MAP_FAILED) { *why = "no such asset"; return nullptr; }
+  *size = static_cast<uint64_t>(st.st_size);
+  gFileViews[static_cast<const unsigned char*>(m)] = static_cast<std::size_t>(st.st_size);
+  return static_cast<const unsigned char*>(m);
+#endif
+}
+extern "C" void zn_asset_unview(const unsigned char* p) {
+  if (assets::unview(p)) return;
+#ifndef _WIN32
+  if (auto it = gFileViews.find(p); it != gFileViews.end()) { munmap(const_cast<unsigned char*>(it->first), it->second); gFileViews.erase(it); }
+#endif
 }
 void assets::imageReloaded(const std::string& name) {
   if (auto it = gPackImages.find(name); it != gPackImages.end()) packImage(name, it->second);

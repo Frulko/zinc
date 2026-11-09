@@ -25,6 +25,15 @@ std::string corrupted(std::string_view name) { return "the pack is corrupted: " 
 
 }  // namespace
 
+bool readInPlace(std::string_view name) {
+  const std::size_t dot = name.rfind('.');
+  if (dot == std::string_view::npos || name.size() - dot > 5) return false;
+  std::string ext;
+  for (char ch : name.substr(dot)) ext += static_cast<char>(ch >= 'A' && ch <= 'Z' ? ch - 'A' + 'a' : ch);
+  for (const char* e : {".ogg", ".mp3", ".wav", ".flac", ".opus", ".qoa", ".m4a"})
+    if (ext == e) return true;
+  return false;
+}
 std::uint64_t nameHash(std::string_view name) {
   std::uint64_t h = 0xcbf29ce484222325ull;
   for (unsigned char c : name) h = (h ^ c) * 0x100000001b3ull;

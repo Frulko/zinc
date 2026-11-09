@@ -58,6 +58,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc:gestures` handles several things under several hands: `Fingers` gives each finger to what it landed on until it lifts, `manipulate` drags, turns and zooms a `Pose` with its own fingers without a jump when one lands or lifts, and `glide` lets it coast on when they let go.
 - `zinc:3d` frames any model: `bounds(node)` gives the box and the sphere around a node and all its children (an OBJ, a glTF made of placed parts, a `.zmesh`), and every `Mesh` keeps its own in `mesh.bounds`.
 - `zinc:audio` fades a sound out for you: `voice.stop(0, 2)` lowers that one voice to silence over two seconds and stops it, smoothly to the sample, with no volume to step each frame (on the web, a Web Audio ramp).
+- `zinc:audio` streams a game's music from its assets with `loadMusic('music/theme.wav')`: read from the pack as it plays, it keeps a few kilobytes in memory whatever its length (under 5 KB for an IMA ADPCM WAV, about 230 KB for Ogg Vorbis, shown by `music.memory`), and `music.loop` repeats it without a gap, for `openMusic` too. Packs keep sound files uncompressed so they can be read in place.
 
 #### Changed
 
