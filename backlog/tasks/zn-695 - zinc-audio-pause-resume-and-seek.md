@@ -2,8 +2,7 @@
 id: ZN-695
 title: 'zinc:audio: pause and resume a voice'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 21:18'
 updated_date: '2026-11-09 06:54'
 labels:

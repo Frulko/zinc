@@ -1598,3 +1598,7 @@ Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` 
 | Ogg Vorbis (libvorbis file) | 230472 |
 
 stb_vorbis setup memory: 176 to 194 KB on six repository oggs. The 64 KB bound holds for WAV, FLAC and MP3, not Vorbis. `audio_stream_pack`: hash 584403488, same on interpreter, AOT and QuickJS; no step above 0.04 across two loop points.
+
+## 2026-11-09: QOA at pack time (ZN-440.01, M1 Pro, null backend)
+
+A 4 s stereo 44.1 kHz PCM track, 705,644 B, becomes 142,528 B of QOA (4.95x) in 12.6 ms; 22.05 kHz mono: 35,720 B. `loadMusic` of the QOA entry: `music.memory` 25,024 B (one decoded frame is 20,480 of them), beside 4,672 for ADPCM WAV in the table above.

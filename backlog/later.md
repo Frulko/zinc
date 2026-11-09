@@ -662,6 +662,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-678: rounded corners of a turned image on the GL replay (the raster draws them); turned text and the scaled group of gfx_transform still differ on GL (0.043%, max 151): glyph sampling under a matrix.
 - ZN-444: program-binary cache (`GL_OES_get_program_binary`, key vendor+renderer+version+format+engine build+source hash, drop on failure); first check VC4 on the Pi 3 reports a format, then measure the second start.
 - ZN-444: no desktop GLSL 3.30 core variant is checked; a WebGL 1 fragment shader without precision passes the build (the prelude gives one) but fails in a browser: a `webgl` rule option checks without the prelude.
+- ZN-695: a 5 ms volume ramp on pause and resume (a hard cut today); the web backend's resume offset ignores the playback rate.
+- ZN-440.01: IMA ADPCM encoding in the audio importer (adpcm-xq, BSD-3) for the ESP32 `adpcm:16000`; the default codec from the profile's `sfx` when a rule names none; r8brain resampling and loudness normalisation.
+- ZN-440.01: QOA in the web backend (a small JS or wasm decoder: decodeAudioData cannot read it); `openMusic` of a .qoa file on disk; `zinc assets report` prints the codecs line; a QOA line in `console_audio.sh`.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
