@@ -494,6 +494,7 @@ std::uint64_t Table::hash(Slot k) const {
     case KeyKind::F32: return hashDouble(static_cast<double>(std::bit_cast<float>(static_cast<std::uint32_t>(k))));
     case KeyKind::Str: {
       const StrObj* s = S(k);
+      if (!s) return mix(0);   // nullable string keys share the typed null-reference representation
       std::uint64_t h = 1469598103934665603ULL;
       for (std::uint32_t i = 0; i < s->len; ++i) h = (h ^ static_cast<std::uint8_t>(s->data()[i])) * 1099511628211ULL;
       return mix(h);
@@ -1870,7 +1871,6 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       ArrObj* o = A(a[0]);
       NN(o);
       KeyKind k = o->cls->elemKind;
-      if (k == KeyKind::Str) NN(a[1]);
       std::int64_t at = -1;
       for (std::size_t i = 0; i < o->v.size() && at < 0; ++i) if (elemEq(k, o->v[i], a[1], id == Rt::ArrIncludes)) at = static_cast<std::int64_t>(i);
       a[0] = id == Rt::ArrIndexOf ? static_cast<Slot>(at) : boolSlot(at >= 0);
@@ -1892,7 +1892,6 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
     case Rt::MapDelete: case Rt::SetDelete: {
       MapObj* o = M(a[0]);
       NN(o);
-      if (o->cls->keyKind == KeyKind::Str) NN(a[1]);
       std::int32_t e = o->t.find(a[1]);
       Slot key = 0, val = 0;
       if (e >= 0) { key = o->t.keys[static_cast<std::size_t>(e)]; if (o->t.hasVals) val = o->t.vals[static_cast<std::size_t>(e)]; o->t.erase(a[1]); }

@@ -1,10 +1,11 @@
 ---
 id: ZN-1100
 title: Support nullable string keys in typed collections
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-09 21:18'
+updated_date: '2026-11-09 21:30'
 labels:
   - runtime
   - size-S
@@ -21,7 +22,23 @@ Found while proving1097 constructor inference. Existing clean develop binary bef
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Nullable string Set elements and Map keys support construction, add/set, has/get, delete and iteration with null/undefined semantics matching the typed representation; ordinary string equality stays by value
-- [ ] #2 A small regression covers inferred and explicit constructors, duplicate nullish keys, empty vs null strings, value replacement, deletion, exception/reference lifetime and interpreter/AOT/QuickJS behavior
-- [ ] #3 Original two-line baseline repro succeeds; constructor-inference regression remains green; changelog, exact proof and remaining boundaries are recorded
+- [x] #1 Nullable string Set elements and Map keys support construction, add/set, has/get, delete and iteration with null/undefined semantics matching the typed representation; ordinary string equality stays by value
+- [x] #2 A small regression covers inferred and explicit constructors, duplicate nullish keys, empty vs null strings, value replacement, deletion, exception/reference lifetime and interpreter/AOT/QuickJS behavior
+- [x] #3 Original two-line baseline repro succeeds; constructor-inference regression remains green; changelog, exact proof and remaining boundaries are recorded
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Need → provider → gap: existing KeyKind::Str already has null-safe value equality in elemEq; its hot Map/Set rows and deletion rejected zero keys, while Table::hash dereferenced them after the eight-entry linear threshold. Removed only the key-null checks (receiver-null checks stay), made the existing string hash accept the typed null reference, and removed the equivalent array membership guard using the same equality. No new key kind, object layout, library, API or target-specific path.
+
+Research: ECMAScript keyed collections admit arbitrary values as keys/elements and use SameValueZero (https://tc39.es/ecma262/2025/multipage/keyed-collections.html). Preserve Zinc D18: typed null/undefined share their existing null-reference representation and static flavour; optional undefined and explicit null are proved separately. This task does not change mixed-nullish value ABI. Existing string equality still compares separately allocated strings by contents; null and empty strings remain distinct.
+
+Proof: own fresh tools/build zinc PASS through shared work-run queue. tests/run --only nullable_keys PASS on interpreter, native AOT and QuickJS, plus interpreter mem --check-leaks. Exact fixture proves inferred/explicit constructors, duplicate null, nullable undefined, small/hashed tables through160 strings, growth/rehash, lookup, replacement, delete/reinsert, clear/reuse, iteration, empty strings, allocated equal strings, array membership, reference-valued Map replacement and throw/finally cleanup. A null collection receiver still throws on all three engines. Existing tests/run --only collection_infer PASS; unchanged original two-line repro prints2/exit0. All commands bounded/headless, no process left. Logs .logs/1100/{build,nullable_keys,compat-original}.log, provenance .logs/1100/provenance.json. Existing V8 SDK/vendor warnings were recorded; no new warnings from changed runtime code and no overall warning-free claim.
+
+Read-only main WIP reviewed first: array storage/realloc changes in rt.h and related array operations in rtcalls are separate from these key/hash/deletion hunks; none copied or committed. The coordinator must preserve them at integration.
+
+Separate observed boundary: QuickJS native Set.values/Map.keys/values return iterators whereas lib/zinc.d.ts advertises arrays; set.values().length returns undefined there. Minimal .logs/1100/iterator-array.ts retained for coordinator follow-up. Current nullable-key iteration proof uses ordinary for-of counting, and nullable array membership is tested on an explicit array; no application code changed to hide a failure.
+
+Proposed tests: owner-chosen cross-target nullable Map/Set smoke and long churn/leak/RC stress (minutes, memory unmeasured). No suite/T1/T2/demo, benchmark, fuzz or cross-target run performed. usage: n/a.
+<!-- SECTION:NOTES:END -->

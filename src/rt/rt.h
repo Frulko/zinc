@@ -455,20 +455,20 @@ inline const char* logStr(Machine& m, Slot v) {
 // The hot Map and Set rows (ZN-602): rtCall's cases, and compiled code's direct calls (no dispatch, no frame window).
 inline const char* mapGet(Slot& map, Slot key) {
   const MapObj* o = reinterpret_cast<const MapObj*>(map);
-  if (!o || (o->cls->keyKind == KeyKind::Str && !key)) return kNullRef;
+  if (!o) return kNullRef;
   const std::int32_t e = o->t.find(key);
   map = e < 0 ? 0 : o->t.vals[static_cast<std::size_t>(e)];
   return nullptr;
 }
 inline const char* mapHas(Slot& map, Slot key) {   // Map.has and Set.has
   const MapObj* o = reinterpret_cast<const MapObj*>(map);
-  if (!o || (o->cls->keyKind == KeyKind::Str && !key)) return kNullRef;
+  if (!o) return kNullRef;
   map = o->t.find(key) >= 0 ? 1 : 0;
   return nullptr;
 }
 inline const char* mapSet(Machine& m, Slot map, Slot key, Slot val) {   // the key and the value are consumed: stored, or released when the key was there
   MapObj* o = reinterpret_cast<MapObj*>(map);
-  if (!o || (o->cls->keyKind == KeyKind::Str && !key)) return kNullRef;
+  if (!o) return kNullRef;
   const std::int32_t e = o->t.find(key);
   if (e >= 0) {
     const Slot old = o->t.vals[static_cast<std::size_t>(e)];
@@ -481,7 +481,7 @@ inline const char* mapSet(Machine& m, Slot map, Slot key, Slot val) {   // the k
 }
 inline const char* setAdd(Machine& m, Slot set, Slot key) {
   MapObj* o = reinterpret_cast<MapObj*>(set);
-  if (!o || (o->cls->keyKind == KeyKind::Str && !key)) return kNullRef;
+  if (!o) return kNullRef;
   if (o->t.find(key) >= 0) { if (o->cls->keyRef) m.releaseSlot(key); } else o->t.putNew(key, 0);
   m.retain(o);
   return nullptr;
