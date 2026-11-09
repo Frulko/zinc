@@ -16,7 +16,7 @@ access.apiKey = options.apiKey;
 access.allowChanges = options.allowChanges;
 access.scrobble = scrobbleFromSubsonic;
 
-start(options.port);
+options.port = start(options.port);   // --port 0: a free port, said below
 console.log(`ipod-web: http://localhost:${options.port} (Ctrl+C to stop)`);
 if (!options.tokenGiven) console.log(`ipod-web: /api token ${options.token} (none needed from this machine)`);
 if (options.jukebox !== '') console.log(`ipod-web: the iPod is reported to jukebox ${options.jukebox}`);

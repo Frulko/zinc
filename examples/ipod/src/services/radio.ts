@@ -5,7 +5,7 @@
 // recommendation worker, services/recommend.ts, which extends it). No UI and no player here: src/radio.ts keeps the queue topped up;
 // nothing is saved to the iPod.
 import * as ipod from 'zinc:ipod';
-import { Model, path } from './genius';
+import { Model, path, tieOrder } from './genius';
 
 /** The songs queued last that the next picks follow (with the seeds). */
 const RECENT: i32 = 5;
@@ -71,7 +71,7 @@ export function extend(m: Model, r: Radio, queued: string[], n: i32): ipod.Track
     score[i] = 0.6 * mean(m, seeds, i) + 0.4 * mean(m, recent, i) - 0.5 * mean(m, disliked, i) + m.prior[i];
     pool.push(i);
   }
-  pool.sort((a: i32, b: i32) => score[b] - score[a] !== 0 ? score[b] - score[a] : m.tracks[a].id < m.tracks[b].id ? -1 : 1);
+  pool.sort((a: i32, b: i32) => score[b] - score[a] !== 0 ? score[b] - score[a] : tieOrder(m.tracks[a], m.tracks[b]));
   const last = trail[trail.length - 1];
   const picked = path(m, last, pool.slice(0, Math.max(4 * n, 100)), score, n + 1, trail.slice(0, trail.length - 1));
   const out: ipod.Track[] = [];

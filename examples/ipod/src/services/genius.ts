@@ -326,6 +326,10 @@ async function addHistory(m: Model, listens: PodListen[], b: Budget): Promise<vo
 
 // ---- Genius
 
+/** The order of two songs that score the same: by title, then by id. The ids are new on each iPod, so a list cut at n is the same on
+ *  every iPod that holds the same songs. */
+export function tieOrder(a: ipod.Track, b: ipod.Track): number { return a.title !== b.title ? (a.title < b.title ? -1 : 1) : a.id < b.id ? -1 : a.id > b.id ? 1 : 0; }
+
 /** A small, fixed jitter per song and round: Refresh gives another list, the same one each time for that round. */
 function jitter(id: string, round: i32): number {
   if (round === 0) return 0;
@@ -384,7 +388,7 @@ export function pathBetween(m: Model, fromId: string, toId: string, n: i32 = 20)
       if (used.has(c) || !m.pickable(c)) continue;
       if (t > 0.5 && m.pair(end, c) < m.pair(end, cur)) continue;   // past halfway, never away from B: a short list rather than a detour
       const v = (1 - t) * m.pair(start, c) + t * m.pair(end, c) - m.step(cur, c);
-      if (v > bestV || (v === bestV && m.tracks[c].id < m.tracks[best].id)) { best = c; bestV = v; }
+      if (v > bestV || (v === bestV && tieOrder(m.tracks[c], m.tracks[best]) < 0)) { best = c; bestV = v; }
     }
     if (best < 0) break;
     out.push(m.tracks[best]); used.add(best); cur = best;
@@ -405,7 +409,7 @@ export function genius(m: Model, seedId: string, n: i32, round: i32 = 0): ipod.T
     score.push(i === seed ? 0 : m.pair(seed, i) + m.prior[i] + 0.1 * jitter(m.tracks[i].id, round));
     if (i !== seed && m.pickable(i)) pool.push(i);
   }
-  pool.sort((a: i32, b: i32) => score[b] - score[a] !== 0 ? score[b] - score[a] : m.tracks[a].id < m.tracks[b].id ? -1 : 1);
+  pool.sort((a: i32, b: i32) => score[b] - score[a] !== 0 ? score[b] - score[a] : tieOrder(m.tracks[a], m.tracks[b]));
   const top = pool.slice(0, Math.max(4 * n, 200));
   const out: ipod.Track[] = [];
   for (const i of path(m, seed, top, score, n)) out.push(m.tracks[i]);
@@ -476,7 +480,7 @@ export async function mixes(m: Model, max: i32 = 6, size: i32 = 50, minSize: i32
   let heard = false;
   for (let i: i32 = 0; i < m.tracks.length; i++) if (m.plays[i] > 0) { heard = true; break; }
   for (let i: i32 = 0; i < m.tracks.length; i++) if (!heard || m.plays[i] > 0) nodes.push(i);
-  nodes.sort((a: i32, b: i32) => m.plays[b] - m.plays[a] !== 0 ? m.plays[b] - m.plays[a] : m.tracks[a].id < m.tracks[b].id ? -1 : 1);
+  nodes.sort((a: i32, b: i32) => m.plays[b] - m.plays[a] !== 0 ? m.plays[b] - m.plays[a] : tieOrder(m.tracks[a], m.tracks[b]));
   const label = new Map<i32, i32>();
   if (!heard) {   // nothing heard: the mixes are the genres
     const genres: string[] = [];

@@ -17,7 +17,7 @@
 import * as ipod from 'zinc:ipod';
 import { PodListen, Ranked } from './history';
 import { SESSION_GAP_S } from './norm';
-import { Model, Mix, genius, mixes, path } from './genius';
+import { Model, Mix, genius, mixes, path, tieOrder } from './genius';
 import { Deep, DeepPath, moodsOf, pathOf } from './audiomuse';
 import { Budget } from './slice';
 
@@ -151,7 +151,7 @@ function ids(s: Signals, list: i32[]): string[] { const out: string[] = []; for 
 /** The `n` songs of `list` with the highest `v`, highest first (ties: the id). */
 function topBy(s: Signals, list: i32[], v: number[], n: i32): i32[] {
   const out = list.filter((i: i32) => v[i] > 0);
-  out.sort((a: i32, b: i32) => v[b] - v[a] !== 0 ? v[b] - v[a] : s.m.tracks[a].id < s.m.tracks[b].id ? -1 : 1);
+  out.sort((a: i32, b: i32) => v[b] - v[a] !== 0 ? v[b] - v[a] : tieOrder(s.m.tracks[a], s.m.tracks[b]));
   return out.slice(0, n);
 }
 function all(s: Signals): i32[] { const out: i32[] = []; for (let i: i32 = 0; i < s.m.tracks.length; i++) out.push(i); return out; }
@@ -209,7 +209,7 @@ export async function dailyMixes(s: Signals, day: string, size: i32 = 50, b: Bud
     const want = Math.min(familiar.length, Math.round(size * 0.7)) as i32;
     const fam: i32[] = [];
     const left = familiar.slice();
-    left.sort((a: i32, b: i32) => m.tracks[a].id < m.tracks[b].id ? -1 : 1);
+    left.sort((a: i32, b: i32) => tieOrder(m.tracks[a], m.tracks[b]));
     while (fam.length < want && left.length > 0) {
       let total = 0;
       for (const i of left) total += s.aff[i] + 0.2;

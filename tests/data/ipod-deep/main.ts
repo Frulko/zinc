@@ -4,7 +4,8 @@
 // one group) and, for the stub, what AudioMuse "heard": A and B sound alike (aggressive, guitars), C apart (danceable); Charlie Four's
 // two songs were not analysed (tier 1 only), Lonely Star Song 1 comes under another server's id (matched by its names) and one song
 // AudioMuse knows is not on the iPod. Prints lines the test compares; letters are the groups of the songs picked, in order (sorted for
-// the shelves and the path, whose ties follow the iPod's ids).
+// the shelves and the path; songs as close as each other come by title, in the app and the stub, so a list cut short is the same on
+// every fake iPod).
 //   DEEP_MODE=''        reach, a bad token, an analysis polled to its end, one cancelled, the sync (paged), Genius tier 1 vs merged,
 //                       the near lists and a path, the tier-2 shelves; the cache is left in <ZINC_IPOD_BACKUPS>/cache/<GUID>
 //   DEEP_MODE=offline   the stub is down: reach and near say offline, the cache is read back and Genius is the merged one again
@@ -29,7 +30,7 @@ const NUM: string[] = ['One', 'Two', 'Three', 'Four'];
 let seed: number = 7;
 function rnd(n: i32): i32 { seed = (seed * 1103515245 + 12345) % 2147483648; return Math.floor(seed / 2147483648 * n) as i32; }
 function letters(ts: ipod.Track[]): string { let s = ''; for (const t of ts) s += t.artist[0]; return s; }
-/** The groups of `ids`, sorted (the order of songs as close as each other follows the iPod's ids, new on each fake iPod). */
+/** The groups of `ids`, sorted. */
 function lettersOf(ids: string[], tracks: ipod.Track[]): string {
   const out: string[] = [];
   for (const id of ids) for (const t of tracks) if (t.id === id) out.push(t.artist[0]);

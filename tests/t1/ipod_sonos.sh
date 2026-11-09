@@ -12,15 +12,16 @@
 # app" removes comes back into session.json. The window closed while Salon plays leaves the app in the menu bar (window.hide, the
 # tray item). The app is quit (SIGTERM): the speaker gets Pause, then the UNSUBSCRIBEs, and the process is gone within 4 s. Started again: it attaches to the group, which still holds its
 # queue (no command sent, the same server port and token). Then another app replaces the group's queue and the app is started a third
-# time: the session stays paused and the speaker gets no command. No real speaker is contacted. Skipped (77) without the plugin's
+# time: the session stays paused and the speaker gets no command. Last, a remote iPod (its daemon on a free port): the speaker queues
+# the daemon's own URL (/api/file/<id>?token=) and gets the song from it. No real speaker is contacted. Skipped (77) without the plugin's
 # libraries. KEEP=dir keeps the shots and the logs.
 cd "$(dirname "$0")/../.." || exit 2
 pkg-config --exists glib-2.0 gobject-2.0 libplist-2.0 taglib libusb-1.0 2>/dev/null || { echo "skipped: the libraries of zinc:ipod are not installed"; exit 77; }
 command -v python3 >/dev/null || exit 77
 root=$(pwd)
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
-tmp=$(mktemp -d); srv=''; pid=''
-trap '[ -n "$pid" ] && kill $pid 2>/dev/null; [ -n "$srv" ] && { kill $srv; wait $srv; } 2>/dev/null; [ -n "$KEEP" ] && mkdir -p "$KEEP" && cp "$tmp"/*.png "$tmp"/*.out "$tmp"/*.log "$tmp"/backups/session.json "$KEEP/" 2>/dev/null; rm -rf "$tmp"' EXIT
+tmp=$(mktemp -d); srv=''; pid=''; dpid=''
+trap '[ -n "$pid" ] && kill $pid 2>/dev/null; [ -n "$dpid" ] && kill $dpid 2>/dev/null; [ -n "$srv" ] && { kill $srv; wait $srv; } 2>/dev/null; [ -n "$KEEP" ] && mkdir -p "$KEEP" && cp "$tmp"/*.png "$tmp"/*.out "$tmp"/*.log "$tmp"/backups/session.json "$KEEP/" 2>/dev/null; rm -rf "$tmp"' EXIT
 pod="$tmp/Volumes/ZINCPOD"
 mkdir -p "$pod/iPod_Control/Device"
 printf 'ModelNumStr: xB029\npszSerialNumber: 8K1234ABCDE\nFirewireGuid: 0x000A27001234ABCD\n' > "$pod/iPod_Control/Device/SysInfo"
@@ -183,5 +184,23 @@ pid=$!
 sleep 4; kill $pid 2>/dev/null; wait $pid 2>/dev/null; pid=''
 sent=$(tail -n +$((mark + 1)) "$log" | grep -vE '^(SUBSCRIBE|UNSUBSCRIBE|RENEW|NOTIFY|fetch|cover|traversal|no token)' | head -3 | cut -c1-120 | tr '\n' ';')
 [ -z "$sent" ] || { echo "ipod_sonos: the app touched a group whose queue was replaced: $sent"; fail=1; }
+# a remote iPod: the same fake iPod served by its daemon (examples/ipod-web, read only, a free port), the app connected to it (its own
+# backups folder) picks Salon and double-clicks the first song: the speaker queues the daemon's URL (/api/file/<id>?token=), and its
+# ranged GET of it is answered 206 by the daemon
+"$Z" run "$root/examples/ipod-web" -- --port 0 --token secret --mount "$pod" > daemon.out 2>&1 &
+dpid=$!
+dport=''
+for i in $(seq 1 120); do dport=$(sed -n 's|^ipod-web: http://localhost:\([0-9][0-9]*\) .*|\1|p' daemon.out); [ -n "$dport" ] && curl -s "http://127.0.0.1:$dport/" | grep -q ': 4 songs' && break; sleep 0.5; done
+mark=$(wc -l < "$log")
+head -14 "$tmp/session.input" > remote.input   # the output button, Salon, Songs, the first song double-clicked
+ZINC_IPOD_BACKUPS="$tmp/backups-remote" IPOD_DEMO_REMOTE=http://127.0.0.1:$dport IPOD_DEMO_REMOTE_TOKEN=secret IPOD_DEMO_MOUNT="$tmp/none" \
+  ZINC_INPUT="$tmp/remote.input" timeout 60 "$Z" run --interp "$app" > remote.out 2>&1 &
+pid=$!
+for i in $(seq 1 300); do tail -n +$((mark + 1)) "$log" | grep -q '^fetch ' && break; kill -0 $pid 2>/dev/null || break; sleep 0.1; done
+kill $pid 2>/dev/null; wait $pid 2>/dev/null; pid=''
+kill $dpid 2>/dev/null; wait $dpid 2>/dev/null; dpid=''
+tail -n +$((mark + 1)) "$log" | grep -qE "^AddMultipleURIsToQueue [0-9]+ http://127\.0\.0\.1:$dport/api/file/[^ ?]+\?token=secret " ||
+  { echo "ipod_sonos: the remote iPod's songs were not queued by the daemon's URL (port $dport): $(tail -n +$((mark + 1)) "$log" | cut -c1-160 | tr '\n' ';') $(tail -3 remote.out)"; fail=1; }
+tail -n +$((mark + 1)) "$log" | grep -qE '^fetch 206 bytes 0-3/' || { echo "ipod_sonos: the speaker's GET of the daemon's URL was not answered 206: $(tail -n +$((mark + 1)) "$log" | grep '^fetch')"; fail=1; }
 [ $fail = 0 ] && echo "ipod_sonos: ok"
 exit $fail

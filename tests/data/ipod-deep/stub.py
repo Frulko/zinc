@@ -6,7 +6,8 @@ mood_vector, other_features, tempo, energy). Each request is one JSON line of <d
   analysis   task-1 runs three albums, one per status call, then SUCCESS; task-2 runs until POST /api/cancel/task-2, then REVOKED
   sync       pages of PAGE songs (has_more, next_page), so the client has to page; fields=index gives {id, fp}
   last task  task-0, a finished analysis; while <dir>/auto exists, task-auto: RUNNING at the first two calls, then SUCCESS
-  similar    the n nearest by Euclidean distance over the mood and feature scores"""
+  similar    the n nearest by Euclidean distance over the mood and feature scores; songs as near as each other by title (the item
+             ids are the fake iPod's, new on each run), as is the path"""
 import http.server, json, math, os, sys, urllib.parse
 
 TOKEN, PAGE = 'muse-token', 4
@@ -127,9 +128,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not seed:
                 return error(404, 'Track not found.')
             v = vec(seed[0])
-            near = sorted((dist(v, vec(t)), t['id'], t) for t in lib if t['id'] != seed[0]['id'])
+            near = sorted(((dist(v, vec(t)), t['title'], t['id'], t) for t in lib if t['id'] != seed[0]['id']), key=lambda x: x[:3])
             return 200, [row(t, {'distance': round(x, 4), 'mood_vector': t['mood_vector'], 'other_features': t['other_features']})
-                         for x, _, t in near[:int(q.get('n', 10))]]
+                         for x, _, _, t in near[:int(q.get('n', 10))]]
         if path == '/api/find_path':
             a, b = q.get('start_song_id'), q.get('end_song_id')
             by = {t['id']: t for t in lib}
@@ -137,8 +138,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return error(404, 'Song not found.')
             # the songs between: those closer to both ends than the ends are to each other, nearest to the start first
             va, vb = vec(by[a]), vec(by[b])
-            mid = sorted((dist(va, vec(t)), t['id']) for t in lib if t['id'] not in (a, b) and dist(vb, vec(t)) < dist(va, vb) and dist(va, vec(t)) < dist(va, vb))
-            ids = [a] + [i for _, i in mid][:int(q.get('max_steps', 25)) - 2] + [b]
+            mid = sorted((dist(va, vec(t)), t['title'], t['id']) for t in lib if t['id'] not in (a, b) and dist(vb, vec(t)) < dist(va, vb) and dist(va, vec(t)) < dist(va, vb))
+            ids = [a] + [i for _, _, i in mid][:int(q.get('max_steps', 25)) - 2] + [b]
             return 200, {'path': [row(by[i]) for i in ids], 'total_distance': round(dist(va, vb), 4)}
         return error(404, 'Not found.')
 

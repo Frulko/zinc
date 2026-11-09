@@ -11,8 +11,10 @@
 #   2. the app (stub up): For you shows the deep shelves and "Deep analysis of", its mood mixer makes the Party mix from AudioMuse's
 #      moods when Party is clicked; the stub down and the near lists dropped: "Deep
 #      analysis offline";
-#   3. the app, AudioMuse's last task asked every 0.2 s of the virtual clock (IPOD_MUSE_POLL_MS): an analysis running, then finished,
-#      is synced by itself once (deep.v1.json says its task). A free port; the stub is stopped at the end.
+#   3. the app, AudioMuse's last task asked every 0.2 s of the virtual clock (IPOD_MUSE_POLL_MS, ZINC_DETERMINISTIC): an analysis
+#      running, then finished, is synced by itself once (deep.v1.json says its task), the app stopped once it was. A free port; the
+#      stub is stopped at the end. Songs as close as each other come by title in the app and the stub, so the lists are the same on
+#      every fake iPod (whose ids are new on each run).
 # Skips (77) without the system libraries of zinc:ipod. KEEP=dir keeps the output.
 cd "$(dirname "$0")/../.." || exit 2
 pkg-config --exists glib-2.0 gobject-2.0 libplist-2.0 taglib libusb-1.0 2>/dev/null || { echo "skipped: the libraries of zinc:ipod are not installed"; exit 77; }
@@ -109,17 +111,28 @@ rm -f backups/cache/000A27001234ABCD/foryou.json
 app offline
 says offline 'Deep analysis offline'
 says offline 'Mood mixes'
-# ---- 3. the app while AudioMuse analyses (task-auto running, then finished): one sync, by itself
+# ---- 3. the app while AudioMuse analyses (task-auto running, then finished): one sync, by itself. It looks every 0.2 s of the virtual
+# clock (ZINC_DETERMINISTIC: the same looks however loaded the machine is) and runs until the sync is written and two more looks
+# followed it (60 s at most), then it is stopped.
 start; config; : > requests.jsonl; : > auto
-IPOD_MUSE_POLL_MS=200 IPOD_DEMO_MOUNT=$pod ZINC_FRAMES=900 timeout 120 "$Z" run "$root/examples/ipod" --interp > auto.out 2>&1 || { echo "ipod_deep: the auto session failed: $(tail -5 auto.out)"; fail=1; }
-stop
-python3 - requests.jsonl $deep > calls.out <<'PY' || { echo "ipod_deep (auto sync): $(cat calls.out)"; fail=1; }
+IPOD_MUSE_POLL_MS=200 IPOD_DEMO_MOUNT=$pod ZINC_DETERMINISTIC=1 ZINC_FRAMES=100000000 timeout 90 "$Z" run "$root/examples/ipod" --interp > auto.out 2>&1 &
+app=$!
+synced() {   # synced [check]: true once task-auto's sync is written and two looks followed it; with check, the counts asserted
+  python3 - requests.jsonl $deep "$1" > calls.out 2>&1 <<'PY'
 import json, sys
 calls = [json.loads(l) for l in open(sys.argv[1])]
+first = [k for k, c in enumerate(calls) if c['path'] == '/api/sync' and c['query'].get('page') == '1' and 'fields' not in c['query']]
 looks = sum(1 for c in calls if c['path'] == '/api/last_task')
-syncs = sum(1 for c in calls if c['path'] == '/api/sync' and c['query'].get('page') == '1' and 'fields' not in c['query'])
-task = json.load(open(sys.argv[2]))['task']
-assert looks >= 5 and syncs == 1 and task == 'task-auto', 'looks %d, syncs %d, task %r' % (looks, syncs, task)
+after = sum(1 for c in calls[first[0]:] if c['path'] == '/api/last_task') if first else 0
+task = json.load(open(sys.argv[2])).get('task')
+if sys.argv[3] == '':
+    sys.exit(0 if task == 'task-auto' and after >= 2 else 1)
+assert looks >= 5 and len(first) == 1 and task == 'task-auto', 'looks %d, syncs %d, task %r' % (looks, len(first), task)
 PY
+}
+for i in $(seq 1 600); do synced && break; kill -0 $app 2>/dev/null || break; sleep 0.1; done
+kill $app 2>/dev/null; wait $app 2>/dev/null
+stop
+synced check || { echo "ipod_deep (auto sync): $(tail -1 calls.out) $(tail -3 auto.out)"; fail=1; }
 [ $fail -eq 0 ] && echo "ipod_deep: ok"
 exit $fail

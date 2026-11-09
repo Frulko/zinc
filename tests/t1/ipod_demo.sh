@@ -1,7 +1,7 @@
 #!/bin/sh
 # examples/ipod, headless, on a fake iPod: a 128 MB HFS+ disk image (a fixed size, so the storage shown is the same on every run)
 # with iPod_Control/Device/SysInfo, filled by tests/data/ipod-demo (nine tracks in three albums, two with covers, a podcast and a
-# playlist, then three duplicates: two from the same file with fewer tags, one melody as WAV and AAC; a note and a voice recording beside them), mounted at /tmp/zinc-ipod-demo/Volumes/ZINCPOD (a fixed path: the pages show it). The demo sees only that iPod
+# playlist, then three duplicates: two from the same file with fewer tags, one melody as WAV and AAC; a note and a voice recording beside them), mounted at /tmp/zinc-ipod-demo/Volumes/ZINCPOD (a fixed path: the pages show it; one run at a time holds it, by a lock, and the image is in a folder of the run). The demo sees only that iPod
 # (ZINC_IPOD_ROOTS, ZINC_IPOD_NO_USB, IPOD_DEMO_MOUNT), opens it by itself and the session (tests/data/ipod-demo/session.input)
 # goes through its pages. Checked: one frame hash per page (tests/golden/ipod-demo/hashes.txt: the overview, the album grid with
 # its covers, an album, the songs searched, the songs sorted by artist, the playlists, the specs, the albums in the dark scheme, the
@@ -19,14 +19,17 @@ command -v python3 >/dev/null || exit 77
 root=$(pwd)
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 gold=$root/tests/golden/ipod-demo
-tmp=/tmp/zinc-ipod-demo
+tmp=/tmp/zinc-ipod-demo   # a fixed path, as the pages show it (MOUNTED AT): one run at a time holds it, another tree's run waits
 pod=$tmp/Volumes/ZINCPOD
+lock=/tmp/zinc-ipod-demo.lock
+i=0; until shlock -f "$lock" -p $$; do i=$((i + 1)); [ $i -lt 900 ] || { echo "ipod_demo: another run held $tmp for 15 minutes"; exit 1; }; sleep 1; done   # shlock drops a dead run's lock
+img=$(mktemp -d) || { rm -f "$lock"; exit 2; }   # the disk image: a path of this run
 hdiutil detach "$pod" -quiet -force 2>/dev/null; rm -rf "$tmp"; mkdir -p "$tmp" || exit 2   # what a killed run left
-trap 'hdiutil detach "$pod" -quiet -force 2>/dev/null; [ -n "$KEEP" ] && mkdir -p "$KEEP" && cp "$tmp"/*.png "$tmp"/*.out "$KEEP/" 2>/dev/null; rm -rf "$tmp"' EXIT
+trap 'hdiutil detach "$pod" -quiet -force 2>/dev/null; [ -n "$KEEP" ] && mkdir -p "$KEEP" && cp "$tmp"/*.png "$tmp"/*.out "$KEEP/" 2>/dev/null; rm -rf "$tmp" "$img"; rm -f "$lock"' EXIT
 python3 tests/data/ipod-demo/media.py "$tmp" || exit 1
 afconvert -f m4af -d aac -b 64000 "$tmp/melody-a.wav" "$tmp/melody-a.m4a" || exit 1   # the AAC copy only its sound gives away
 mkdir -p "$pod"
-hdiutil create -size 128m -fs HFS+ -volname ZINCPOD -layout NONE "$tmp/pod.dmg" -quiet && hdiutil attach "$tmp/pod.dmg" -mountpoint "$pod" -nobrowse -quiet \
+hdiutil create -size 128m -fs HFS+ -volname ZINCPOD -layout NONE "$img/pod.dmg" -quiet && hdiutil attach "$img/pod.dmg" -mountpoint "$pod" -nobrowse -quiet \
   || { echo "ipod_demo: the disk image of the fake iPod could not be made"; exit 1; }
 mkdir -p "$pod/iPod_Control/Device"
 printf 'ModelNumStr: xB029\npszSerialNumber: 8K1234ABCDE\nFirewireGuid: 0x000A27001234ABCD\n' > "$pod/iPod_Control/Device/SysInfo"
@@ -73,7 +76,7 @@ opened=$(count 'Opened Zinc Pod')
 ZINC_FRAMES=100000000 timeout 60 "$Z" run --interp "$root/examples/ipod" > live.out 2>&1 &
 app=$!
 if wait_for 'Opened Zinc Pod' $((opened + 1)) && hdiutil detach "$pod" -quiet -force && wait_for 'Zinc Pod disconnected' 1 \
-  && hdiutil attach "$tmp/pod.dmg" -mountpoint "$pod" -nobrowse -quiet && wait_for 'Opened Zinc Pod' $((opened + 2)); then :
+  && hdiutil attach "$img/pod.dmg" -mountpoint "$pod" -nobrowse -quiet && wait_for 'Opened Zinc Pod' $((opened + 2)); then :
 else echo "ipod_demo: unmounting and mounting again were not followed: $(tail -3 "$log")"; fail=1; fi
 kill $app 2>/dev/null; wait $app 2>/dev/null
 [ $fail -eq 0 ] && echo "ipod_demo: ok"

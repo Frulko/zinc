@@ -4,7 +4,7 @@
 // energy (its rank in the library, 0..1) and its tempo; without it, by the genre tags the mood names and the BPM field (energy is not
 // known then). pages/foryou/MoodMixer.tsx shows it.
 import * as ipod from 'zinc:ipod';
-import { Model, path } from './genius';
+import { Model, path, tieOrder } from './genius';
 import { Deep, moodsOf } from './audiomuse';
 
 export class Mood {
@@ -83,7 +83,7 @@ export function moodMix(m: Model, mood: Mood, energy: number, tempo: number, n: 
     }
   }
   if (pool.length === 0) return out;
-  pool.sort((a: i32, b: i32) => score[b] - score[a] !== 0 ? score[b] - score[a] : m.tracks[a].id < m.tracks[b].id ? -1 : 1);
+  pool.sort((a: i32, b: i32) => score[b] - score[a] !== 0 ? score[b] - score[a] : tieOrder(m.tracks[a], m.tracks[b]));
   const top = pool.slice(0, Math.min(pool.length, 2 * n));
   for (const i of path(m, top[0], top, score, n)) out.tracks.push(m.tracks[i]);
   return out;

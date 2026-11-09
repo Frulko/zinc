@@ -30,6 +30,7 @@ async function handle(req: net.Request): Promise<net.Reply> {
   return { status: 404, body: 'not found\n', contentType: 'text/plain' };
 }
 
-export function start(port: i32): void {
-  net.serveAsync(port, options.logRequests ? logged : handle);
+/** Serves on `port` (0: a free one); the port served. */
+export function start(port: i32): i32 {
+  return net.serveAsync(port, options.logRequests ? logged : handle);
 }

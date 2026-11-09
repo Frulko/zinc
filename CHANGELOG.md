@@ -312,6 +312,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `examples/midi` plays each note as a tone too, so its first run is heard with no instrument open (`MIDI_TONE=0` leaves the sound to the instrument).
 - Hamlet refuses a save made by a newer version with a sentence that says so, and keeps that save aside instead of overwriting it with a new village.
 - The Discord example keeps refused logins across launches, so quitting no longer lifts the hour-long pause after three wrong passwords, and it opens Account safety after your first login.
+- The iPod example orders songs that score the same by title, so Genius, For you, the mood mixer and radio make the same lists on every iPod that holds the same songs, and the iPod daemon takes `--port 0` to serve on a free port and says which.
 
 #### Faster
 
