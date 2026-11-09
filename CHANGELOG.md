@@ -37,6 +37,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - A desktop window where nothing moves sleeps until you touch it, a timer is due or a worker sends a message, instead of waking 60 times a second to look for changes: an idle screen uses about a quarter of the CPU it did (0.2% of one core for a hello screen on an M1 Pro).
 - An exported app that uses no network is about 1.1 MB smaller (5.1 MB for a hello app on macOS, 2.4 MB zipped): it carries no TLS or HTTP code and loads no system framework it does not use.
+- Opacity, translate and rotate transitions of classes (`transition duration-300 opacity-40 translate-x-16`) are played by the engine's compositor: your app draws the view once instead of at every frame of the transition, and it keeps moving while your code is busy.
 
 #### Fixed
 

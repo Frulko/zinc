@@ -316,7 +316,9 @@ nothing per frame.
 `ease-linear`, `ease-in`, `ease-out` and `ease-in-out` are Tailwind's curves, and the default is its `cubic-bezier(0.4, 0, 0.2, 1)`. As in CSS: a node's
 first style does not transition, a new end set while the property moves starts from the value shown, colours ease channel by channel, keyword values
 (`shadow-*` levels) switch half way, and a length that is `auto` or unset at either end jumps. Opacity, transform, colour and shadow transitions are
-paint-only: no layout runs while they move (`tests/golden/ui-transition`); length transitions lay out on each frame.
+paint-only: no layout runs while they move (`tests/golden/ui-transition`); length transitions lay out on each frame. Opacity, translate and rotate
+transitions are played by the compositor (as `animate`'s rotate below): the node is drawn once into a layer and the program paints nothing while
+they move, with the same frames (`tests/golden/transition-slots`).
 
 `ui.animate(node, key, to, ms, easing, delay)` tweens any key of the style table (the keys of `setNumber`, listed under Style reference below) from the
 value it has now: numbers, colours channel by channel, keyword keys half way; `ui.getNumber(node, key)` reads a key's value, while it moves too. An

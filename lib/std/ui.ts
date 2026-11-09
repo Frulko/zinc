@@ -1747,7 +1747,10 @@ function trChange(n: UiNode, id: i32, old: number, oldC: i32): void {
   const v: number = col ? 0 : propValue(n, id);
   const a = o.trActive > 0 ? transAnim(n.id, id) : null;
   if (a !== null) {   // moving: a new end starts from where it is
-    if (col ? c !== a.c1 : v !== a.to) { a.from = a.cur; a.c0 = a.cc; a.to = v; a.c1 = c; a.start = clock + o.transDelay; a.dur = o.transMs; a.easing = o.transEase; }
+    if (col ? c !== a.c1 : v !== a.to) {
+      a.from = a.cur; a.c0 = a.cc; a.to = v; a.c1 = c; a.start = clock + o.transDelay; a.dur = o.transMs; a.easing = o.transEase;
+      if (a.comp) { a.dk = -1; paintDirty = true; }   // the compositor takes the new curve at the next paint
+    }
     showTween(n, a);
     return;
   }
@@ -1755,6 +1758,7 @@ function trChange(n: UiNode, id: i32, old: number, oldC: i32): void {
   if ((col ? oldC < 0 || c < 0 : !tweenable(id, old, v)) || anims.length >= TWEEN_CAP) return;   // a keyword value, or over the budget: the end at once
   const b = new Anim(n.id, n, '', id, kindOf(id), clock + o.transDelay, o.transMs, o.transEase);
   b.trans = true; b.from = old; b.cur = old; b.to = v; b.c0 = oldC; b.cc = oldC; b.c1 = c;
+  if (compProp(id) >= 0 && compClock(-1)) { b.comp = true; b.lid = n.id; n.ca = true; paintDirty = true; }   // opacity and transform: the compositor plays it (ZN-364.01)
   anims.push(b); o.trActive++;
   showTween(n, b);
 }
@@ -4536,7 +4540,7 @@ function stepAnims(): void {
       e = fin ? 1 : ease(a.easing, (el % a.dur) / a.dur);   // the end exactly (the spring curve is not 1 at t = 1)
       v = a.kind === 2 ? (e < 0.5 ? a.from : a.to) : a.from + (a.to - a.from) * e;
     }
-    if (a.trans) { a.cur = v; a.cc = mix(a.c0, a.c1, e); showTween(a.ref, a); }
+    if (a.trans) { a.cur = v; a.cc = mix(a.c0, a.c1, e); if (a.comp && a.layered && !fin) showComp(a.ref, a.id, v); else showTween(a.ref, a); }
     else if (a.comp && a.layered && !fin) showComp(a.ref, a.id, v);   // what the compositor shows now: hit tests see it, nothing is painted
     else { inTween = true; if (a.kind === 1) setNumber(a.node, a.key, mix(a.c0, a.c1, e)); else setNumber(a.node, a.key, v); inTween = false; }
     if (fin) { animEnd(a, ANIM_DONE); continue; }   // dropped at once (below, on this same pass)

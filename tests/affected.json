@@ -327,7 +327,7 @@
     {"paths": ["lib/std/react-native.ts", "lib/std/react-native-linking.ts", "tests/golden/react-native-input/", "tests/golden/react-native-lists/", "tests/golden/react-native-modal/", "tests/golden/system/linking/", "tests/golden/react-native-imports/"], "tests": ["react_native", "react_native_input", "react_native_lists", "react_native_modal", "ui_modal_motion", "ui_press", "react_native_imports", "rn_port", "rn_tester", "system_sim"]},
     {"paths": ["lib/std/nuxt/", "tests/golden/nuxt-theme/", "examples/nuxt-ui/", "tests/golden/nuxt-ui/", "tests/golden/oklab-tints/", "tools/oklab-tints"], "tests": ["nuxt_theme", "nuxt_ui", "oklab_tints", "rtl"]},
     {"paths": ["lib/std/animated.ts", "tests/golden/animated/"], "tests": ["animated", "animated_native", "rn_showcase", "pan_responder"]},
-    {"paths": ["tests/golden/animated-native/", "tests/t0/animated_native.sh", "runtime/gfx.cpp", "include/zn/ease.h"], "tests": ["animated_native"]},
+    {"paths": ["tests/golden/animated-native/", "tests/golden/transition-slots/", "tests/t0/animated_native.sh", "runtime/gfx.cpp", "include/zn/ease.h"], "tests": ["animated_native"]},
     {"paths": ["tests/data/busy_native/", "tests/t1/busy_native.sh"], "tests": ["busy_native"]},
     {"paths": ["lib/std/icons.tsx", "third_party/lucide/", "tests/golden/icons/", "tests/golden/icons-all/"], "tests": ["icons", "rn_showcase"]},
     {"paths": ["lib/std/icons.tsx", "third_party/lucide/", "src/frontend/modules.cpp", "src/frontend/jsx.cpp", "lib/std/ui.ts", "tests/t0/ui_say_what.sh"], "tests": ["ui_say_what"]},
