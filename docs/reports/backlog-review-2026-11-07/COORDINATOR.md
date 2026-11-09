@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Created/claimed1093: ordinary JSX id is rejected by host attribute whitelist, blocking Data aria-activedescendant. Minimal3line check reproduced, Data-subagent WAI/React primary research recorded. Sole core order1088 then1093 then1090; no second enginewriter. Pickers string|| rejected by deliberatebooleancondition policy, uses explicit emptyselection; no invented gap/task. DirectReactimport in neutralData UI belongs sharedkit host provider; adjustlayering and record existing inference issue later if needed. Other session relaunches Mapper3600s, so all runtime/build checks queued; bounded cheap static checks may proceed without executing apps.
+
 - Claimed independent ZN-1078.12 Data after short CUI/APG/provider research. Fresh TS-only worker work/1078-data uses existing virtualization/resize/dialog/breadcrumb controls, no engine build. Pickers and Data own separate family/gallery modules; shared exports/docs integrated serially. Source preparation proceeds while known1088/1090 gates and another session’s long Mapper app hold validation. No workaround or false Done. Read-only review/research trees1088-size-review and1090-research removed after findings were handed off.
 
 - Resume already-reserved ZN-1078.07 Pickers in fresh work/1078-pickers, TypeScript family only, no engine build. The core writer stays sole engine owner on1088/1090; independent picker implementation/reuse research proceeds while the global heavy queue is occupied by another session’s bounded Mapper app. Known size/icon criteria remain open until fixed, no source workaround or budget raise. Future workers inherit configured model.
