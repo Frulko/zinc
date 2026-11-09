@@ -47,6 +47,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A program that starts and terminates many `zinc:worker` workers no longer runs out of open files or grows in memory: each ended worker left two open files and about 8 KB behind.
 - An open Zinc window no longer keeps the screen from going to sleep on the desktop: an app that must stay visible asks with `navigator.wakeLock.request('screen')`, and a kiosk (`"kiosk": true`) still keeps it on.
 - A Phaser game with `type: Phaser.CANVAS` draws its MULTIPLY and SCREEN blend modes instead of plain source-over: a script now runs once the pictures the page is loading from `data:` URLs are ready, as in a browser.
+- A screenshot (`ZINC_SHOT`, `zinc capture`) or a frame hash (`ZINC_FRAMEHASH`) of a program that does not paint the whole window shows black where nothing was drawn, the same at every run, instead of leftover memory.
 
 ### Plugins
 

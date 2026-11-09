@@ -1135,6 +1135,8 @@ static uint32_t* grab() {
   zrt_render_idle();   // the render thread neither presents nor composes while the frame is read
   init_scale();
   uint32_t* px = (uint32_t*)hal_alloc((size_t)pw * ph * 4);
+  // zeroed as the displays' surfaces are (calloc'd framebuffer, GL clear): a frame that does not cover it hashes the same at every run (ZN-675)
+  if (px) __builtin_memset(px, 0, (size_t)pw * ph * 4);
   capturing = true;
   if (px) render_rows(px, 0, ph);
   capturing = false;
