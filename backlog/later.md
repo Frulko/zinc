@@ -587,6 +587,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1069: under the classic layout leaves are measured in ui.ts; a native host only measures leaves of the rn (Yoga) layout.
 - ZN-1069: under a native host `frame()` still starts SDL text input for a focused field, and `mountWindow` windows are not sent to the host; the AppKit host should own both (ZN-1070, ZN-1071).
 - ZN-1069: switch to a binary record buffer if string building shows in ZN-1074's measurements.
+- ZN-1065: serve linked workspace packages unbundled under `zinc dev`, as Vite does, so their modules swap in place instead of a full reload.
+- ZN-1065: zinc:net fetch upload progress (`onProgress`) in a page, over XMLHttpRequest as fetch.browser.ts `uploadFile` does.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
