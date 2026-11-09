@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // Sliders share one rail and gesture lifecycle. Touches commit only on release or an intentional drag.
 import { createNodeRef, NodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';

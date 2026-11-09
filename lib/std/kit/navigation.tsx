@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // Quiet navigation: controlled destinations and document anchors, composed from the kit's existing controls.
 import * as ui from 'zinc:ui';
 import { createNodeRef } from 'zinc:ui/solid';

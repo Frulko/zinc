@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — Card and its sections, after shadcn/ui's: a white surface with a hairline border and a soft shadow.
 // The card spaces its sections; each section pads itself horizontally.
 //

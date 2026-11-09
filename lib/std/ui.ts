@@ -450,12 +450,14 @@ function untransform(n: UiNode, px: number, py: number, cx: number, cy: number):
   tpx = cx + (d * qx - c * qy) / det; tpy = cy + (a * qy - b * qx) / det;
 }
 
+enum NodePhase { Alive, Releasing, Released }
 export class UiNode {
   tag: i32;
   parent: i32 = -1;
   children: i32[] = [];
   text: string = '';
-  alive: boolean = true;
+  phase: NodePhase = NodePhase.Alive;
+  get alive(): boolean { return this.phase === NodePhase.Alive; }
   row: boolean = false; wrap: boolean = false;
   justify: i32 = 0;   // 0 start, 1 center, 2 end, 3 between, 4 around, 5 evenly
   align: i32 = 3;     // 0 start, 1 center, 2 end, 3 stretch
@@ -524,6 +526,7 @@ export class UiNode {
   cls: string = '\u0000';
   x: number = 0; y: number = 0; lw: number = 0; lh: number = 0;
   onClick: (() => void) | null = null;
+  onDestroy: (() => void) | null = null;
   onDraw: ((x: i32, y: i32, w: i32, h: i32) => void) | null = null;
   k: number = 1;                       // style scale: zooms the node and its subtree (origin: top-left corner)
   tf: TransformX | null = null;        // React Native's transform array: rotate, skew, scaleX/Y around the centre (ZN-361)
@@ -638,12 +641,16 @@ export class Virtual {
   hs: number[] = []; known: boolean[] = []; tree: number[] = [];   // heights, measured flags and their Fenwick tree (prefix sums in O(log n))
   constructor(render: (i: i32) => i32) { this.render = render; }
 }
+function nodePhase(n: UiNode, next: NodePhase): void {
+  if (!((n.phase === NodePhase.Alive && next === NodePhase.Releasing) || (n.phase === NodePhase.Releasing && next === NodePhase.Released))) throw new Error('invalid UI node transition');
+  n.phase = next;
+}
 const nodes: UiNode[] = [];
 const free: i32[] = [];
 /** Stands in for every destroyed node: the slot keeps its number for reuse but drops the node's memory (a page of
  *  171 nodes held ~100 KiB after it was left, which a 160 KiB ESP32 heap cannot afford). */
 const DEAD: UiNode = new UiNode(0);
-DEAD.alive = false;
+nodePhase(DEAD, NodePhase.Releasing); nodePhase(DEAD, NodePhase.Released);
 let layoutDirty = true;
 let traceLayout = false, layoutCause = '';
 let childUpdateDepth: i32 = 0;
@@ -777,57 +784,70 @@ export function destroy(h: i32): void { release(h); }
 function release(h: i32): void {
   const n = node(h);
   if (!n.alive) return;
-  forgetFocusWithin(h);
-  if (n.cImg >= 0) { destroyImage(n.cImg); n.cImg = -1; n.cValid = false; }
-  if (n.skey !== '') { if (!dropRestore(h)) keepScroll(n); n.skey = ''; }
-  if (scrollWatch.indexOf(h) >= 0) forgetScrolls(h);   // its onScroll goes with it: the handle comes back as another node
-  if (n.virt !== null) {   // a virtual list goes with its rows: what they made is let go as when they scroll out
-    const v = n.virt as Virtual, d = v.drop;
-    n.virt = null;
-    if (d !== null) v.rows.forEach((row: i32, i: i32) => { d(row); });
+  nodePhase(n, NodePhase.Releasing);
+  let failure: Error | null = null;
+  const children = n.children.slice(), serials: i32[] = [];
+  for (const child of children) serials.push(nodeSerial(child));
+  try {
+    forgetFocusWithin(h);
+    if (n.cImg >= 0) { destroyImage(n.cImg); n.cImg = -1; n.cValid = false; }
+    if (n.skey !== '') { if (!dropRestore(h)) keepScroll(n); n.skey = ''; }
+    if (scrollWatch.indexOf(h) >= 0) forgetScrolls(h);   // its onScroll goes with it: the handle comes back as another node
+    if (n.virt !== null) {   // a virtual list goes with its rows: what they made is let go as when they scroll out
+      const v = n.virt as Virtual, d = v.drop;
+      n.virt = null;
+      if (d !== null) v.rows.forEach((row: i32, i: i32) => { d(row); });
+    }
+    for (let k = 0; k < children.length; k++) if (serials[k] !== 0 && nodeSerial(children[k]) === serials[k]) { try { release(children[k]); } catch (e) { if (failure === null) failure = e; } }
+    if (n.rn !== null) {
+      LY.destroy(h); n.rn = null;
+      // the parent's cached child list names this handle, and handles are recycled: a new node with the same handle would look already inserted (ZN-289)
+      const p = n.parent;
+      if (p >= 0 && p < nodes.length && nodes[p].rn !== null) (nodes[p].rn as RnRec).kids = [];
+    }
+    if (n.tag === CANVAS && !n.lazy) canvases--;
+    if (n.surface && n.img >= 0) { destroyImage(n.img); n.img = -1; }
+    if (overlays.length > 0 || layers.length > 0 || anchors.length > 0) forget(h);
+    if (componentNames.size > 0) { componentNames.delete(h); componentSources.delete(h); componentPropsOf.delete(h); }
+    if (devStyles.size > 0) devStyles.delete(h);
+    n.onClick = null;
+    n.onDraw = null;
+    n.hs = null;
+    n.ed = null;
+    if (focus === h) focus = -1;
+    if (pressed === h) pressed = -1;
+    if (keyHeld === h) keyHeld = -1;
+    if (dimNode === h) dimNode = -1;
+    if (capture === h) capture = -1;
+    for (let b = 0; b < 3; b++) if (btnCap[b] === h) btnCap[b] = -1;
+    if (selecting === h) selecting = -1;
+    if (tsNode === h || tsEnd === h) tsNode = -1;
+    // the gesture under way lets go of it too: handles are recycled, and a drag begun on this node scrolled the next node made
+    if (dragScroller === h) { dragScroller = -1; dragging = false; }
+    if (grabber === h) { grabber = -1; grabKind = 0; }
+    if (tapNode === h) tapNode = -1;
+    if (longNode === h) longNode = -1;
+    if (gHit === h) gHit = -1;
+    if (dragCands.indexOf(h) >= 0) dragCands.splice(dragCands.indexOf(h), 1);
+    if (tapEdit === h) tapEdit = -1;
+    if (fingerField === h) fingerField = -1;
+    if (touchSel === h) touchSel = -1;
+    if (padScroller === h) padScroller = -1;
+    if (padEdit === h) padEdit = -1;
+    if (momScroller === h) momScroller = -1;
+    if (momEdit === h) momEdit = -1;
+    for (const a of anims) if (a.node === h) animEnd(a, ANIM_STOPPED);
+  } finally {
+    nodes[h] = DEAD; nodePhase(n, NodePhase.Released);
+    const cleanup = n.onDestroy; n.onDestroy = null;
+    try { if (cleanup !== null) cleanup(); } finally { free.push(h); }
   }
-  for (const c of n.children) release(c);
-  if (n.rn !== null) {
-    LY.destroy(h); n.rn = null;
-    // the parent's cached child list names this handle, and handles are recycled: a new node with the same handle would look already inserted (ZN-289)
-    const p = n.parent;
-    if (p >= 0 && p < nodes.length && nodes[p].rn !== null) (nodes[p].rn as RnRec).kids = [];
-  }
-  if (n.tag === CANVAS && !n.lazy) canvases--;
-  if (n.surface && n.img >= 0) { destroyImage(n.img); n.img = -1; }
-  if (overlays.length > 0 || layers.length > 0 || anchors.length > 0) forget(h);
-  if (componentNames.size > 0) { componentNames.delete(h); componentSources.delete(h); componentPropsOf.delete(h); }
-  if (devStyles.size > 0) devStyles.delete(h);
-  n.alive = false;
-  n.onClick = null;
-  n.onDraw = null;
-  n.hs = null;
-  n.ed = null;
-  if (focus === h) focus = -1;
-  if (pressed === h) pressed = -1;
-  if (keyHeld === h) keyHeld = -1;
-  if (dimNode === h) dimNode = -1;
-  if (capture === h) capture = -1;
-  for (let b = 0; b < 3; b++) if (btnCap[b] === h) btnCap[b] = -1;
-  if (selecting === h) selecting = -1;
-  if (tsNode === h || tsEnd === h) tsNode = -1;
-  // the gesture under way lets go of it too: handles are recycled, and a drag begun on this node scrolled the next node made
-  if (dragScroller === h) { dragScroller = -1; dragging = false; }
-  if (grabber === h) { grabber = -1; grabKind = 0; }
-  if (tapNode === h) tapNode = -1;
-  if (longNode === h) longNode = -1;
-  if (gHit === h) gHit = -1;
-  if (dragCands.indexOf(h) >= 0) dragCands.splice(dragCands.indexOf(h), 1);
-  if (tapEdit === h) tapEdit = -1;
-  if (fingerField === h) fingerField = -1;
-  if (touchSel === h) touchSel = -1;
-  if (padScroller === h) padScroller = -1;
-  if (padEdit === h) padEdit = -1;
-  if (momScroller === h) momScroller = -1;
-  if (momEdit === h) momEdit = -1;
-  for (const a of anims) if (a.node === h) animEnd(a, ANIM_STOPPED);
-  nodes[h] = DEAD;
-  free.push(h);
+  if (failure !== null) throw failure;
+}
+/** Renderer-owned logical resources follow this node's lifetime, including imperative layers. */
+export function onDestroy(h: i32, cleanup: () => void): void {
+  const n = node(h), previous = n.onDestroy;
+  n.onDestroy = previous === null ? cleanup : () => { try { previous(); } finally { cleanup(); } };
 }
 export function listen(h: i32, f: () => void): void { const n = node(h); n.onClick = f; n.focusable = true; }
 export function draw(h: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void { node(h).onDraw = f; }
@@ -939,6 +959,16 @@ export function virtualize(h: i32, count: i32, itemH: number, render: (i: i32) =
   vv.rows = new Map<i32, i32>();
   vv.first = 0; vv.last = -1;
   layoutDirty = true;
+}
+/** Renderer ownership: forget a recycled row slot without touching its new occupant; layout builds a fresh row. */
+export function invalidateVirtualRow(h: i32, row: i32, serial: i32): void {
+  if (nodeSerial(row) === serial) return;
+  const n = node(h), v = n.virt;
+  if (v === null) return;
+  const removed: i32[] = [];
+  v.rows.forEach((host: i32, index: i32) => { if (host === row) removed.push(index); });
+  for (const index of removed) v.rows.delete(index);
+  if (removed.length > 0) { v.first = 0; v.last = -1; layoutDirty = true; }
 }
 /** k rows were added above row 0 of virtual list h (older messages loaded above a chat's history): the rows shown keep their place on screen, as
  *  FlatList's maintainVisibleContentPosition and CSS scroll anchoring keep them, and the heights measured so far stay with their rows. Call it when

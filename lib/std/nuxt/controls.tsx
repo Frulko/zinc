@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/nuxt/host */
 // zinc:ui/nuxt, form and display components (ZN-357.02): Button, Badge, Avatar, Card, Input, Textarea, Select, Checkbox, Switch, RadioGroup with Nuxt UI 4's
 // props (color, variant, size, label, icon, loading, disabled...), variants and sizes (variants.ts, docs/nuxt-ui.md). Written once for both UI models like
 // zinc:ui/kit: under Solid the classes follow theme() and the accessors; under React a render reads them. Controlled values are an accessor

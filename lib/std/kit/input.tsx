@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // Quiet fields share the engine's editing, undo, selection, IME and focus handling.
 import * as ui from 'zinc:ui';
 import { createNodeRef, NodeRef } from 'zinc:ui/solid';

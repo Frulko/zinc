@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — MenuBar and ContextMenu: the application menu drawn by the kit where the system does not draw it (Linux without a global menu, Pi, sim, reMarkable). They show the same template as
 // the native menu bar of macOS (docs/reports/system-integration.md 4.3): labels, accelerator hints, checkmarks, separators, submenus. Accelerators work in the window: each item's accelerator is
 // bound as a key (Cmd/Ctrl+N -> mod-n) and runs the item, so the menu behaves the same with or without the pointer.

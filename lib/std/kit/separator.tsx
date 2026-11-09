@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — Separator: a one-pixel hairline, horizontal (full width) or vertical (full height of its row).
 //
 //   <Separator />   <Separator vertical />

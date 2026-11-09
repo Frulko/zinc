@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // Quiet feedback: notices, activity, identity and empty/history states. The old component files remain import-compatible.
 import * as ui from 'zinc:ui';
 import { createNodeRef } from 'zinc:ui/solid';

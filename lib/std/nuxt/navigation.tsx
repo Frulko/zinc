@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/nuxt/host */
 // zinc:ui/nuxt, navigation and data (ZN-357.04): Tabs, Accordion, Table, Pagination, Breadcrumb, NavigationMenu and the Dashboard layout (DashboardGroup,
 // DashboardSidebar, DashboardPanel, DashboardNavbar, DashboardToolbar) with Nuxt UI 4's look (docs/reports/nuxt-ui-research.md 3.11, 3.12, 3.18 to 3.22).
 // Controlled state is an accessor and an onUpdate, like the controls.

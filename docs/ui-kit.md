@@ -310,10 +310,10 @@ add `GALLERY=navigation` and, for dark, `GALLERY_DARK=1`.
 
 ## How it works
 
-Each kit file starts with `/** @jsxHelpers ./host */`: the JSX compiler lowers that file against
+Each kit file starts with `/** @jsxHelpers zinc:ui/kit/host */`: the JSX compiler lowers that file against
 `lib/std/kit/host.ts` instead of the Solid or React helpers. The host helpers ask whether the React engine is
 rendering the program: under Solid, dynamic classes and texts become fine-grained effects; under React they are read
-once per render and the nodes come from the reconciler. `tests/conformance/kit_solid.tsx` and `kit_react.tsx` build
+once per render and the nodes come from the reconciler. Nested components and logical Show/For owners keep their own hooks and keys. The canonical kit and Nuxt helper specifiers opt into this component identity contract; arbitrary custom helper modules keep their existing two-argument `_comp` interface. A React virtual list with unchanged count and row height preserves mounted row state and focused fields when its parent renders again; changing the count or height rebuilds its visible rows. `tests/conformance/kit_solid.tsx` and `kit_react.tsx` build
 the same screen in both models and must print the same layout (on the sim and on every native target).
 
 ## Quiet Overlays

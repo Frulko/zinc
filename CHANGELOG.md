@@ -166,6 +166,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### Fixed
 
+- Nested kit and Nuxt components keep their own React state and cleanup; editing a virtual row preserves its focused field when the parent updates.
 - One error no longer freezes a reactive app: a throw inside `batch`, `untrack` or an effect used to hold every later signal update back, and a render caught by its parent (an error boundary) stopped reordered children from moving.
 - Removing a scroll view in the middle of a drag no longer makes the next view created scroll under the same finger.
 - A `ui.animate()` that is replaced by another, or whose view goes away, now resolves its Promise instead of leaving an `await` hanging.

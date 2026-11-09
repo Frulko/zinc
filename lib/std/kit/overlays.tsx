@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — overlays, after shadcn/ui's: Tooltip, Popover, DropdownMenu, Dialog and toast(). They are built on the
 // engine's layers (they escape clipping and scrolling, and paint above the page), anchored positioning (they flip when
 // there is no room), focus scopes (menus and dialogs take the focus and give it back), the dismiss stack (Escape closes

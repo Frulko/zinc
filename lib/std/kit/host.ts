@@ -1,6 +1,6 @@
 // zinc:ui/kit — JSX helpers shared by both UI models.
 //
-// Kit components are written once, in JSX, and lowered against this module (`@jsxHelpers ./host` at the top of each
+// Kit components are written once, in JSX, and lowered against this module (`@jsxHelpers zinc:ui/kit/host` at the top of each
 // component file). Every helper asks one question: is the React engine rendering this program?
 //   - Solid model: dynamic classes and texts become fine-grained effects (the Solid helpers).
 //   - React model: a component re-runs as a whole on each render, so dynamic values are simply read once and host
@@ -8,6 +8,7 @@
 import * as ui from 'zinc:ui';
 import * as solid from 'zinc:ui/solid';
 import * as react from 'zinc:ui/react';
+export { _props, _rc, _cc } from 'zinc:ui/react';
 
 /** Solid model (fine-grained effects), unless the program renders with the React (or Inferno) engine. */
 function fineGrained(): boolean { return !react._active(); }
@@ -46,13 +47,12 @@ export function _dynImg(n: i32, get: () => string): void {
   if (fineGrained()) solid._dynImg(n, get); else ui.setImage(n, get());
 }
 
-/** <Show when fallback>: a reactive branch under Solid, a plain condition under React. */
+/** <Show when fallback>: a reactive branch under Solid, a stable branch owner under React. */
 export function _show(parent: i32, when: () => boolean, render: () => i32, fallback: (() => i32) | null): void {
   if (fineGrained()) { solid._show(parent, when, render, fallback); return; }
   const frag = react._el(ui.FRAGMENT);
   ui.insert(parent, frag, -1);
-  if (when()) ui.insert(frag, render(), -1);
-  else if (fallback !== null) ui.insert(frag, fallback(), -1);
+  react._rc(frag, () => when() ? render() : fallback !== null ? fallback() : null, '_show');
 }
 
 /** {items.map(...)}: a keyed list under Solid, every item rendered in order under React. */
@@ -60,8 +60,11 @@ export function _for<T>(parent: i32, each: () => T[], render: (item: T, i: i32) 
   if (fineGrained()) { solid._for(parent, each, render, indexed); return; }
   const frag = react._el(ui.FRAGMENT);
   ui.insert(parent, frag, -1);
-  const items = each();
-  for (let i = 0; i < items.length; i++) ui.insert(frag, render(items[i], i), -1);
+  react._rc(frag, () => {
+    const root = react._el(ui.FRAGMENT), items = each();
+    for (let i = 0; i < items.length; i++) ui.insert(root, render(items[i], i), -1);
+    return root;
+  }, '_for');
 }
 
 export function _virtual(n: i32, count: () => i32, itemH: number, render: (i: i32) => i32): void {
@@ -70,6 +73,12 @@ export function _virtual(n: i32, count: () => i32, itemH: number, render: (i: i3
 
 /** A component whose props read signals: mounted again when they change under Solid, a plain call under React (it re-renders anyway). */
 export function _comp(parent: i32, make: () => i32): void { if (fineGrained()) solid._comp(parent, make); else ui.insert(parent, make(), -1); }
+/** Canonical neutral JSX keeps React component identity without adding tracking to static Solid props. */
+export function _component(parent: i32, make: () => i32 | null, name: string, key: string, tracked: boolean): void {
+  if (!fineGrained()) { react._rc(parent, make, name, key); return; }
+  if (tracked) solid._comp(parent, make);
+  else { const node = make(); if (node !== null) ui.insert(parent, node, -1); }
+}
 export function _u(): void { if (fineGrained()) solid._u(); }
 
 /** Under a native host ("ui": {"render": "native"}) node n shows as the platform's own control `kind` (zinc:appkit: pushbutton, switch, checkbox,
@@ -90,6 +99,7 @@ export function renderSlot(slot: (() => i32) | undefined): i32 { return slot !==
 // Text fields and pointer/keyboard events (same behaviour in both models).
 export function _ptr(n: i32, kind: i32, f: (e: ui.PointerEvent) => void): void { ui.onPointer(n, kind, f); }
 export function _key(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onKeyDown(n, f); }
+export function _scroll(n: i32, f: ui.ResponderHandler): void { ui.onScroll(n, f, true); }
 export function _keyUp(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onNodeKeyUp(n, f); }
 export function _ctx(n: i32, c: string): void { ui.keyContext(n, c); }
 export function _submit(n: i32, f: () => void): void { ui.onSubmit(n, f); }   // <Form onSubmit>
@@ -112,7 +122,21 @@ export function componentRef<T>(initial: T): react.MutableRef<T> {
 }
 
 /** Owns a component effect and its replacement/unmount cleanup in either UI model. */
-export function componentEffect(fn: () => (() => void) | undefined): void {
+export function componentEffect(fn: () => (() => void) | undefined, deps: number[] | null = null): void {
   if (fineGrained()) solid.createEffect(() => { const cleanup = fn(); if (cleanup !== undefined) solid.onCleanup(cleanup); });
-  else react.useEffect(fn, null);
+  else react.useEffect(fn, deps);
+}
+
+/** Component-local values update their owning UI model. */
+export function componentSignal<T>(initial: T): [() => T, (value: T) => void] {
+  if (fineGrained()) return solid.createSignal(initial);
+  const [value, setValue] = react.useState(initial);
+  return [() => value, setValue];
+}
+
+/** Tracks a derived value under Solid and computes it once per React render. */
+export function componentMemo<T>(read: () => T, initial: T): () => T {
+  if (fineGrained()) return solid.createMemo(read, initial);
+  const value = read();
+  return () => value;
 }

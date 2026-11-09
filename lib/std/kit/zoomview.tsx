@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — ZoomView: pinch, pan, double tap and Ctrl+wheel zoom, done once for every app (docs/reports/engine-gestures-zoom-refresh.md).
 // While the fingers move, the content is not drawn again: picture mode keeps the content's last picture and only scales and moves it (one
 // blit a frame), content mode scales its children by paint (no layout). When they lift, onView tells the app the zoom factor and the move;

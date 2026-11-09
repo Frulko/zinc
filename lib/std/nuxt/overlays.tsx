@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/nuxt/host */
 // zinc:ui/nuxt, overlays (ZN-357.03): Modal, Slideover, DropdownMenu, Tooltip and toasts with Nuxt UI 4's look (docs/reports/nuxt-ui-research.md 3.13 to 3.17),
 // on zinc:ui's layers: each overlay stays mounted and toggles `hidden`, Escape and a press outside close it, a modal keeps the focus inside.
 import * as ui from 'zinc:ui';

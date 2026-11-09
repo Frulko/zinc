@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — List and ListItem: a bordered panel of rows (title, description, an optional leading node and
 // trailing text or content), like a shadcn command menu. Rows with `onClick` highlight when focused or pressed.
 //

@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // Quiet Actions: composed from the kit's buttons, layers and focus scopes. No registration at import time.
 import * as ui from 'zinc:ui';
 import { setClipboardText } from 'zinc:gfx';

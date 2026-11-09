@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — Button, after shadcn/ui's: variants default, secondary, outline, ghost, destructive; sizes sm,
 // default, lg, icon. The text comes from `label`; `children` adds custom content after it (a Kbd, a Badge).
 //

@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — Stat: a metric tile (a label, a large live value with an optional unit, a hint line), like the
 // cards at the top of a shadcn dashboard.
 //

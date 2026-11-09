@@ -475,6 +475,7 @@ struct Lowering {
   int counter = 0;
   std::map<std::string, std::string> imported;
   std::string lib;
+  bool neutralHelpers() const { return lib == "zinc:ui/kit/host" || lib == "zinc:ui/nuxt/host"; }
   bool hot = false;   // zinc dev's hot mode, a file of the project: Solid calls to the project's components get their Fast Refresh proxy
   std::string devFile;   // a dev run (zinc dev, ZINC_DEV=1), a file of the project: each component call records its name, file:line and props for the inspector
 
@@ -1432,7 +1433,7 @@ struct Lowering {
           else {
             bool indexed = false;
             if (isP(open + 1, "(")) scan(open + 2, match(open + 1), [&](std::size_t, const std::string& token) { if (token == ",") indexed = true; });
-            out.push_back("_for(" + parent + ", () => (" + list + "), " + fn + ((indexed && (lib == "zinc:ui/solid" || lib == "zinc:ui/kit/host")) ? ", true" : "") + ");");
+            out.push_back("_for(" + parent + ", () => (" + list + "), " + fn + ((indexed && (lib == "zinc:ui/solid" || neutralHelpers())) ? ", true" : "") + ");");
           }
           continue;
         }
@@ -1547,7 +1548,7 @@ struct Lowering {
       if (!c || c->kind != 1 || c->ee <= c->eb || !each) fail(e.begin, "<For> expects each and a function child: {(item, i) => <...>}");
       bool indexed = false;
       if (isP(c->eb, "(")) scan(c->eb + 1, match(c->eb), [&](std::size_t, const std::string& token) { if (token == ",") indexed = true; });
-      out.push_back("_for(" + v + ", () => (" + valueOf(*each) + "), " + rw(c->eb, c->ee) + ((indexed && (lib == "zinc:ui/solid" || lib == "zinc:ui/kit/host")) ? ", true" : "") + ");");
+      out.push_back("_for(" + v + ", () => (" + valueOf(*each) + "), " + rw(c->eb, c->ee) + ((indexed && (lib == "zinc:ui/solid" || neutralHelpers())) ? ", true" : "") + ");");
     } else {
       std::vector<std::string> props;
       const Attr* key = find("key");
@@ -1591,7 +1592,7 @@ struct Lowering {
       std::string args;
       for (std::size_t k = 0; k < props.size(); ++k) args += (k ? ", " : "") + props[k];
       std::string call = tag + "(" + (props.empty() ? "{}" : "{ " + args + " }") + ")";   // `<Bar />`: props all left out are `{}`, as JSX passes them
-      if (react && !props.empty() && !classTags.count(tag)) {   // React: the props are evaluated once, here, where what they read is narrowed
+      if ((react || (neutralHelpers() && !tracked)) && !props.empty() && !classTags.count(tag)) {   // evaluate static props here, where what they read is narrowed
         const std::string pv = "__p" + std::to_string(counter++);
         out.push_back("const " + pv + " = _props(" + tag + ", { " + args + " });");
         call = tag + "(" + pv + ")";
@@ -1602,6 +1603,7 @@ struct Lowering {
       }
       std::string keyArg = key ? "'' + (" + valueOf(*key) + ")" : "''";
       if (react && classTags.count(tag)) out.push_back("_cc(" + v + ", () => new " + tag + "(" + (props.empty() ? "{}" : "{ " + args + " }") + "), " + quote(tag) + ", " + keyArg + ");");   // a class component (Inferno, React classes): an instance per mount
+      else if (!react && neutralHelpers()) out.push_back("_component(" + v + ", () => " + call + ", " + quote(tag) + ", " + keyArg + ", " + (tracked ? "true" : "false") + ");");
       else out.push_back(react ? "_rc(" + v + ", () => " + call + ", " + quote(tag) + ", " + keyArg + ");" : tracked ? "_comp(" + v + ", () => " + call + ");" : "_append(" + v + ", " + call + ");");
       if (!devFile.empty() && (lib == "zinc:ui/solid" || lib == "zinc:ui/react")) {   // the inspector's component tree: its name, where it is called, its props as written
         const std::size_t at = t[e.begin].start;
@@ -1987,6 +1989,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     if (out.find("_flat(") != std::string::npos) helpers += ", _flat";
     if (out.find("_props(") != std::string::npos) helpers += ", _props";
     if (out.find("_comp(") != std::string::npos) helpers += ", _comp, _u";
+    if (out.find("_component(") != std::string::npos) helpers += ", _component, _u";
     if (out.find("_hotC(") != std::string::npos) helpers += ", _hotC";
     if (out.find("_cn(") != std::string::npos) helpers += ", _cn";
     std::string styleImport = out.find("new __ZStyle(") != std::string::npos && out.find("Style as __ZStyle") == std::string::npos ? "import { Style as __ZStyle } from 'zinc:ui'; " : "";

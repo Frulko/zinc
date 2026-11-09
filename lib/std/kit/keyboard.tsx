@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 /** @requires heap>=256K */
 // zinc:ui/kit — Keyboard: an on-screen keyboard for touch devices (kiosks, Pi touch screens, reMarkable, ESP32 panels).
 //

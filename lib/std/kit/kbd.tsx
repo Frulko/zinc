@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — Kbd: a keyboard key or shortcut hint.
 //
 //   <Kbd label="Space" />   <Kbd label="⌘K" />

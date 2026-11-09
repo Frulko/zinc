@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // Controlled selection controls; state changes are immediate, including under reduced motion.
 import * as ui from 'zinc:ui';
 import { createNodeRef } from 'zinc:ui/solid';

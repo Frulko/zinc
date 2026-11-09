@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // Quiet app chrome. Application-owned document/panel identities and state survive close/reopen and layout saves.
 import * as ui from 'zinc:ui';
 import * as dnd from 'zinc:ui/dnd';

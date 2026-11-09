@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // Basic controlled tabs; NavigationTabs adds icons and a moving indicator without charging this API for them.
 import * as ui from 'zinc:ui';
 import { createNodeRef } from 'zinc:ui/solid';

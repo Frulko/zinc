@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — CallStats: the health of a call, live: a quality badge (good, fair, poor, with its MOS), the loss, the round trip, the
 // jitter and the bit rates, and a sparkline each for the loss, the round trip and the outgoing bit rate. It reads plain numbers, so any
 // source fills it; zinc:webrtc's CallQuality gives them (its QualitySample has these fields):

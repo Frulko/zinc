@@ -1,4 +1,4 @@
-/** @jsxHelpers ./host */
+/** @jsxHelpers zinc:ui/kit/host */
 // zinc:ui/kit — Switch: an on/off toggle with an optional label. `checked` is an accessor (a signal getter under
 // Solid, `() => value` under React); the switch reports clicks through `onChange` and never flips itself.
 // Its shape is the platform look's (zinc:ui/platform: iOS 51 x 31, Material 3 52 x 32 with a thumb that grows, macOS 38 x 22, neutral 36 x 20);
