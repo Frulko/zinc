@@ -3,14 +3,17 @@
 ## Active coordination
 
 - Continue zn-coordinate until the main repository `.paused` exists or nothing can start. Never ask the owner a question. One coordinator: this root session; state log is [COORDINATOR.md](docs/reports/backlog-review-2026-11-07/COORDINATOR.md).
-- Three workers active: Inputs/Pickers (.06/.07), Navigation (.09), Feedback (.11). Every command runs in its own worktree; source and ownership below. They use zn-start, no suites, no push.
+- Three workers: sole core, owner gallery proof, Feedback. Every command runs in its own worktree; source and ownership below. They use zn-start, no suites, no push.
 - This session closed13 tasks: ZN-1078.03/.04/.05/.08/.10 and ZN-1079/1080/1081/1082/1083/1084/1085/1086. Full integration history and older unresolved handovers/tests remain in [the archived resume](docs/reports/session-handover-2026-11-09.md); read only the relevant topic.
 
 | Worker | Branch/worktree | State and next step |
 | --- | --- | --- |
-| Inputs | work/1078-inputs, .worktrees/1078-inputs | .06 functional Solid/React proofs green after stable component state, multi-select and focused-blur fixes; final natural Input/PasswordField split size attribution and captures, then commit. .07 unstarted. Owns input.tsx. |
-| Navigation | work/1078-navigation, .worktrees/1078-navigation | .09 active, tabs/sidebar/breadcrumb/pagination/stepper/TOC/dock/tabbar. Keep plain Tabs API/size, own navigation family and gallery section. |
-| Feedback | work/1078-overlays-resume, .worktrees/1078-overlays-resume | .10 integrated2a0c72f1f and Done; clean reset to develop before .11. .11 active, owns feedback/spinner/progress and sole internal host.componentEffect addition. |
+| Core | work/1089-core, .worktrees/1089-core | 1089 integrated cf0b4c9e0; 1091 aspect fix integrated b189f5bab, AC3 waits1092. Now1092 nestedwrap, then1088 size attribution and1090 library default icons. Sole shared core writer. |
+| Gallery proof | work/1087-gallery-proof, .worktrees/1087-gallery-proof | Owner screenshot fixes integrated c59fa16fa: real aligned password eye/pointer/keyboard, responsive app source. AC1 waits1091/1092; fresh worker verifies defaults/resize/scroll and closes criteria. |
+| Feedback | work/1078-overlays-resume, .worktrees/1078-overlays-resume | .11 feature checks green across3engines after1089; owns feedback/spinner/progress and sole host.componentEffect. Final generic icon/size proofs wait1090/1088. |
+
+- Inputs progress0a8c0b141 and Navigation progress3dde12a02 are integrated with functional proofs green, size AC3 open and dependency1088. Their old worktrees/artifacts remain read-only for core attribution. .07Pickers unstarted. Metadata alone may not explain used-code growth; core measures both.
+- Owner screenshot app is docs/img/design/src (PICTURE=gallery), not the kit-gallery app. No ZINC_RESIZE workaround:1091 clears SDL startup aspect lock;1092 fixes confirmed nestedwrap parentheight/scroll overlap. Repros/probes /tmp/1087-proof/; preserve original worker tree until absolute imports retargeted.
 
 ## Safe engine and machine
 

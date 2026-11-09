@@ -1,7 +1,7 @@
 ---
 id: ZN-1091
 title: Release native aspect lock when UI switches to fill
-status: Review
+status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-09 14:41'
@@ -11,7 +11,8 @@ labels:
   - host
   - size-S
 milestone: m-32
-dependencies: []
+dependencies:
+  - ZN-1092
 type: bug
 ordinal: 1009
 ---

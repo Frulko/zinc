@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Galleryc59fa16fa and nativeaspectb189f5bab integrated. New fresh1087 proof worker will own remaining owner default resize/scroll criteria; core handles1092 before1088/1090. Inputs06/Navigation09 released with dependency1088;1091BacklogAC3 dependency1092 (not human Review). Existing clean kit_inputs/input/navigation PASS. Preserve old source artifacts; no new feature chain while engine blockers remain.
+
 - Claimed1092 after independent17line ordinary-View repro confirms nestedwrap stale parentheight causes768px gallery overlap. Sole core order:1089done,1091aspect,1092wrap,1088size,1090icons (five-task maximum batch). Gallery1087 commits own UI progress without workaround; Feedback awaits shared fixes.
 
 - Owner gallery1087 default resize is blocked by confirmed SDL aspect lock left active when hal_set_resize switches to fill. Claimed1091; sole core worker handles immediately after integrated1089(cf0b4c9e0), before size1088/icons1090. Minimal repro /tmp/1087-proof/resize.tsx; no ZINC_RESIZE workaround. Gallery/Feedback workers keep own source.
