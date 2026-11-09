@@ -18,6 +18,11 @@ The pure runtime (strings, arrays, Maps, classes, exceptions, closures, async wi
 
 Images: `&res=<file>` (default `app.res` beside the page) is the blob of `zinc bake`; the worker puts each baked image on a canvas of its own and `image(name)` finds it. `drawImageRect` mirrors with the canvas transform and samples nearest with `imageSmoothingEnabled = false`; nearest sprites are the engine's pixels (translucent texels within 2 a channel: the canvas keeps premultiplied pixels). A linear sample stays inside the source rectangle on a 2D canvas, where the engine and a GPU read the texels around it. `imageFromBytes` answers -1 (no decoder in the page yet) and text is the browser's own, not the baked fonts.
 
+## Under zinc dev
+
+`zinc dev . --target web --engine wasm` builds the program as `zinc export --target wasm` does into `build/.zinc-web-dev/wasm`, serves it on
+`http://127.0.0.1:8000/` with the COOP/COEP headers, and builds it again and reloads the page at each save; [web.md](web.md) ("Two engines") says when to pick it.
+
 ## Tests
 
 `tests/t2/wasm.sh`: the 18 programs of `corpus/M3-set.txt` print on WASI what `zinc run` prints in a deterministic run, with the same exit code. `tests/t2/wasm_browser.sh`: headless Chrome (driven over the DevTools pipe by `tools/wasm-browser-test`) runs breakout on `vm-web.wasm` and the last frame is checked (skipped without Chrome). `tests/t1/image_rect_wasm.sh`: the sprites of a sheet are the same frame in Chrome as in the interpreter, and the exported game-2d template shows its player and coins.

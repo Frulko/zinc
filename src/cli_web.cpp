@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -1711,6 +1712,143 @@ int serve(Dev& d, int lfd, bool lan) {
   return 0;
 }
 
+// ---- zinc dev --target web --engine wasm (docs/targets/web.md "Two engines"): the engine's own ZBC interpreter (vm-web.wasm) in a worker of the page,
+// as zinc export --target wasm builds it (docs/targets/wasm.md), served with the cross-origin isolation its frame loop needs; a save builds it again
+// and reloads the page (a new worker and canvas: an OffscreenCanvas is transferred once, a wasm instance does not start over).
+struct WasmDev {
+  WebArgs a;
+  fs::path out;
+  std::mutex m;
+  std::condition_variable changed;
+  enum class Build { Building, Ready, Failed } state = Build::Building;   // changed only by built()
+  int version = 0;                        // the builds that ended: the page reloads when it passes the one it was served with
+  std::string error;                      // the last failed build's output (Failed)
+};
+
+// the one transition of WasmDev::state: a build ended (ok or not); the page's long poll wakes up
+void built(WasmDev& w, bool ok, const std::string& log) {
+  std::lock_guard<std::mutex> lock(w.m);
+  w.state = ok ? WasmDev::Build::Ready : WasmDev::Build::Failed;
+  w.error = ok ? "" : log;
+  ++w.version;
+  w.changed.notify_all();
+}
+
+// zinc export --target wasm into build/.zinc-web-dev/wasm, then the page's reload script; false (the export's output in `log`) when it failed
+bool buildWasmSite(WasmDev& w, std::string& log) {
+  { std::lock_guard<std::mutex> lock(w.m); w.state = WasmDev::Build::Building; }
+  const fs::path logf = w.out.parent_path() / "wasm-build.log";
+  const int rc = run("ZINC_STEPS=0 " + q(selfExe()) + " export " + q(w.a.dir) + " --target wasm -o " + q(w.out.string()) + " >" + q(logf.string()) + " 2>&1");
+  log = readAll(logf);
+  if (rc != 0) return false;
+  std::string page = readAll(w.out / "index.html");
+  // the dev page: waits for the build after this one (this one becomes version + 1 when it ends) and reloads; a failed build shows its errors under the canvas
+  const std::string reload = "<script>(async () => { const log = document.getElementById('log');\n"
+      "  for (let v = " + std::to_string(w.version + 2) + ";;) { try { const r = await (await fetch('/__zinc/wait?v=' + v)).json();\n"
+      "    if (r.error) { log.textContent = 'zinc dev: the build failed\\n' + r.error; v = r.v + 1; continue; } if (r.v >= v) location.reload(); }\n"
+      "  catch { await new Promise((res) => setTimeout(res, 1000)); } } })();</script>\n";
+  if (const std::size_t at = page.rfind("</body>"); at != std::string::npos) page.insert(at, reload);
+  writeAll(w.out / "index.html", page);
+  return true;
+}
+
+void wasmConnection(WasmDev* w, int fd) {
+  std::string req;
+  char buf[4096];
+  while (req.find("\r\n\r\n") == std::string::npos) {
+    const long n = zn::plat::sockRead(fd, buf, sizeof buf);
+    if (n <= 0 || req.size() > 65536) { zn::plat::sockClose(fd); return; }
+    req.append(buf, static_cast<std::size_t>(n));
+  }
+  std::istringstream rs(req);
+  std::string method, target;
+  rs >> method >> target;
+  std::string path = urlDecode(target.substr(0, target.find('?')));
+  const std::string query = target.find('?') == std::string::npos ? "" : target.substr(target.find('?') + 1);
+  auto send = [&](int code, const std::string& type, const std::string& body) {
+    // the frame loop waits on a SharedArrayBuffer: the page must be cross-origin isolated
+    sendAll(fd, "HTTP/1.1 " + std::to_string(code) + (code == 200 ? " OK" : code == 403 ? " Forbidden" : " Not Found") + "\r\nContent-Type: " + type + "\r\nContent-Length: " + std::to_string(body.size()) +
+                "\r\nCross-Origin-Opener-Policy: same-origin\r\nCross-Origin-Embedder-Policy: require-corp\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n" + body);
+    zn::plat::sockClose(fd);
+  };
+  const std::string lw = lower(req);
+  const std::size_t hat = lw.find("\r\nhost:");
+  std::string host = hat == std::string::npos ? "" : lw.substr(hat + 7, lw.find("\r\n", hat + 7) - hat - 7);
+  while (!host.empty() && host[0] == ' ') host.erase(0, 1);
+  const std::string p = ":" + std::to_string(w->a.port);
+  if (host != "127.0.0.1" + p && host != "localhost" + p && host != "[::1]" + p) { send(403, "text/plain", "zinc dev serves this machine only\n"); return; }   // DNS rebinding
+  if (method != "GET" || path.find("..") != std::string::npos || path.find("/.") != std::string::npos) { send(404, "text/plain", "not found\n"); return; }
+  if (path == "/__zinc/wait") {   // the page's long poll: answers when a build newer than v ended, or after 25 s
+    const int v = query.rfind("v=", 0) == 0 ? std::atoi(query.c_str() + 2) : 0;
+    std::unique_lock<std::mutex> lock(w->m);
+    w->changed.wait_for(lock, std::chrono::seconds(25), [&] { return w->version >= v || gStop; });
+    const std::string body = "{\"v\":" + std::to_string(w->version) + (w->state == WasmDev::Build::Failed ? ",\"error\":" + jstr(w->error) : "") + "}";
+    lock.unlock();
+    send(200, "application/json", body);
+    return;
+  }
+  if (path == "/") path = "/index.html";
+  const fs::path f = w->out / path.substr(1);
+  std::error_code ec;
+  if (!fs::is_regular_file(f, ec)) { send(404, "text/plain", "not found: " + path + "\n"); return; }
+  send(200, f.extension() == ".wasm" ? "application/wasm" : f.extension() == ".zbc" || f.extension() == ".res" ? "application/octet-stream" : mime(f.string()), readAll(f));
+}
+
+int devWasm(const WebArgs& a) {
+  WasmDev w;
+  w.a = a;
+  w.out = fs::path(a.dir) / "build" / ".zinc-web-dev" / "wasm";
+  std::error_code ec;
+  fs::create_directories(w.out.parent_path(), ec);
+  const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+  keepFromChildren(lfd);
+  const int one = 1;
+  setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&one), sizeof one);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  int bound = 0;
+  for (int k = 0; k < 20 && !bound; ++k) {
+    addr.sin_port = htons(static_cast<std::uint16_t>(a.port + k));
+    if (::bind(lfd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) == 0) bound = a.port + k;
+  }
+  if (!bound || ::listen(lfd, 16) != 0) { std::fprintf(stderr, "zinc dev: cannot listen on port %d\n", a.port); zn::plat::sockClose(lfd); return 1; }
+  w.a.port = bound;
+  std::string log;
+  const auto t0 = std::chrono::steady_clock::now();
+  const bool ok = buildWasmSite(w, log);
+  built(w, ok, log);
+  if (!ok) std::fprintf(stderr, "zinc dev: the wasm build failed:\n%s", log.c_str());
+  std::fprintf(stderr, "zinc dev: %s on http://127.0.0.1:%d/ (the ZBC interpreter in WebAssembly, %ld ms; saves build it again and reload the page)\n", a.name.c_str(), bound,
+               static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count()));
+  std::thread([&w, lfd] {
+    for (;;) {
+      const int c = static_cast<int>(::accept(lfd, nullptr, nullptr));
+      if (c < 0) { if (gStop) return; continue; }
+      keepFromChildren(c);
+      std::thread(wasmConnection, &w, c).detach();
+    }
+  }).detach();
+  Snapshot seen = snapshotOf(a.dir);
+  while (!gStop) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    Snapshot now = snapshotOf(a.dir);
+    if (now == seen) continue;
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));   // an editor writes in steps
+    seen = snapshotOf(a.dir);
+    const auto s0 = std::chrono::steady_clock::now();
+    const bool good = buildWasmSite(w, log);
+    built(w, good, log);
+    const long ms = static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - s0).count());
+    if (good) std::fprintf(stderr, "zinc dev: saved: built again, reloading the page (%ld ms)\n", ms);
+    else std::fprintf(stderr, "zinc dev: saved: the build failed (%ld ms)\n%s", ms, log.c_str());
+  }
+  { std::lock_guard<std::mutex> lock(w.m); w.changed.notify_all(); }   // the pending polls answer before the detached threads outlive w
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  zn::plat::sockClose(lfd);
+  return 0;
+}
+
 }  // namespace
 
 int exportWeb(const WebArgs& a) { return exportSite(a, "web-export"); }
@@ -1721,6 +1859,7 @@ int devWeb(const WebArgs& a) {
 #ifdef SIGPIPE
   std::signal(SIGPIPE, SIG_IGN);
 #endif
+  if (a.engine == "wasm") return devWasm(a);
   if (!a.lan && a.prepare.empty()) setenv("ZINC_WEB_DEV", "1", 1);   // the bundle keeps the native entry of a plugin that asks for the bridge ("web": {"dev": "native"})
   Dev d;
   d.a = a;

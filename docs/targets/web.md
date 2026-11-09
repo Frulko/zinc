@@ -62,6 +62,25 @@ dist/hero-web/
 `--render canvas|dom`, `--prerender`, `--browsers '<set>'`, `--check`, `--werror`, `--no-pwa`, `--sourcemap` and `-o dir` override or add to it. (The key `web` of `zinc.json` itself is something else: it turns on the window / document
 environment of the QuickJS engine for JavaScript game libraries.)
 
+## Two engines: JavaScript or the interpreter in WebAssembly
+
+`zinc dev --target web` runs the program on the browser's own JavaScript engine (`--engine js`, the default). `zinc dev . --target web --engine wasm` runs it on the
+engine's own ZBC interpreter compiled to WebAssembly instead, in a worker of the page, as `zinc export --target wasm` builds it ([wasm.md](wasm.md)): a save compiles the
+program to ZBC again (about 0.5 s) and reloads the page, a compile error shows under the canvas until the next good save.
+
+| | `--engine js` (default) | `--engine wasm` |
+|---|---|---|
+| What runs | the program as JavaScript, on the browser's JIT | the program as ZBC bytecode, on Zinc's interpreter (`vm-web.wasm`, 0.6 MB) |
+| Behaves like | a page: `zinc:ui` and the UI kits, canvas or semantic DOM, the plugins with a browser backend, the dev bridge for the others | `zinc run --interp`: the same compiler and the same bytecode as the desktop interpreter, so the same output |
+| Draws | `zinc:ui`, `zinc:gfx`, WebGL, three.js | `zinc:gfx` on an OffscreenCanvas: rectangles, rounded rectangles, lines, text, baked images; gradients, shadows, polygons and clips warn once and are skipped |
+| Plugins | browser backends, the dev bridge under `zinc dev` | none: a program that needs a native module stops at start and names them all (`the native modules 'SvgEngine', 'Lottie', 'Video' are not linked into this engine`, examples/hero) |
+| Hot reload | modules swapped in place (Fast Refresh) | the page reloads |
+| Speed | the JIT: much faster on loops | an interpreter: console-style programs and small games (examples/breakout) |
+| Needs | any browser of the support matrix | SharedArrayBuffer: `zinc dev` serves the page cross-origin isolated (COOP/COEP) |
+
+Pick `--engine wasm` to see in a browser exactly what the desktop interpreter does with a program (a console-style program, a `zinc:gfx` game), or for a program the
+JavaScript export cannot run yet. Everything else, and every app with a UI or plugins, wants the default.
+
 ## Two ways to draw
 
 The app's UI (`zinc:ui`, its classic layout engine, the UI kits, React Native components) is JavaScript in both modes. They differ in who lays out and who draws.

@@ -169,6 +169,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - JavaScript libraries run with `"web": true` can use `DOMParser` and `XMLSerializer`, so bitmap fonts, SVG files and tile maps in XML load as in a browser; a program that parses no XML pays nothing for it.
 - The web environment tells a page when its window loses or gets the focus (`blur`, `focus`, `document.hasFocus()`) and when it is minimised or shown again (`visibilitychange`, `document.hidden`); a hidden page runs no animation frame, as a background tab in a browser.
 - Shift, Control, Alt and Meta pressed alone reach a page as `keydown` and `keyup` events, so a game's Shift key works; `FormData` sends forms and files as `multipart/form-data`, and `localStorage.best = 3`, `delete localStorage.best` and `Object.keys(localStorage)` work as in a browser.
+- `zinc dev . --target web --engine wasm` runs the program on Zinc's own interpreter compiled to WebAssembly, in the page, and builds it again and reloads at each save: the same output as `zinc run --interp`, for console-style programs and `zinc:gfx` games. A program that needs native modules this engine lacks names them all at once.
 
 #### Faster
 

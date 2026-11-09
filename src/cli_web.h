@@ -13,6 +13,7 @@ struct WebArgs {
   bool strict = false, noPwa = false, sourcemap = false, check = false, lan = false, prerender = false;
   std::string prepare;   // zinc dev --prepare <dir>: write the staged modules and the host files there and stop (the Vite plugin, packages/vite-plugin-zinc); packages stay bare imports
   bool build = false;    // with --prepare: for a production build (no hot reload hooks)
+  std::string engine;    // zinc dev --engine: "" (the browser's JavaScript engine) or "wasm" (the engine's ZBC interpreter in the page, devWasm)
   int port = 8000;
 };
 

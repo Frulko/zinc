@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""zinc dev --target web --engine wasm in headless Chrome (docs/targets/web.md, "Two engines"; tests/t1/web_dev_wasm.sh).
+Serves tests/fixtures/web-dev-wasm (a console program) on the ZBC interpreter in WebAssembly: the page is cross-origin isolated and prints the
+program's line; a save with a type error shows the error under the canvas; the next good save reloads the page with the new output; a request
+with another Host is refused.
+usage: web-dev-wasm-test <zinc> <project-dir>   Prints one JSON line; exit 1 on a failed step, 77 without Chrome."""
+import json, os, socket, subprocess, sys, threading, time, urllib.error, urllib.request
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+zinc, project = sys.argv[1], os.path.abspath(sys.argv[2])
+if not find_chrome():
+    print("SKIP no Chrome"); sys.exit(77)
+main = os.path.join(project, "src", "main.ts"); good = open(main).read()
+s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
+dev = subprocess.Popen([zinc, "dev", project, "--target", "web", "--engine", "wasm", "--port", str(port)], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=dict(os.environ, ZINC_BACKGROUND="1"), text=True)
+log, steps = [], {}
+threading.Thread(target=lambda: [log.append(l.rstrip()) for l in dev.stderr], daemon=True).start()
+def stop():
+    open(main, "w").write(good)
+    dev.terminate()
+    try: dev.wait(10)
+    except Exception: dev.kill()
+def fail(why, page=""):
+    steps["failed"] = why
+    print(json.dumps({"steps": steps, "devlog": log[-12:], "page": page[:600]})); stop(); sys.exit(1)
+t0 = time.monotonic()
+while time.monotonic() - t0 < 120 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
+if not any("WebAssembly" in l for l in log): fail("zinc dev --engine wasm did not start")
+try: urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:%d/" % port, headers={"Host": "rebind.example:%d" % port}), timeout=10); fail("another Host was served")
+except urllib.error.HTTPError as e:
+    if e.code != 403: fail("another Host got %d" % e.code)
+steps["rebinding"] = True
+with Chrome() as c:
+    def text(): return c.eval("document.getElementById('log').textContent") or ""
+    def wait(cond, secs=20):
+        end = time.monotonic() + secs
+        while time.monotonic() < end and not cond(text()): c.pump(0.2)
+        return text()
+    c.open("http://127.0.0.1:%d/" % port)
+    t = wait(lambda t: "wasm says 42" in t)
+    if c.eval("crossOriginIsolated") is not True: fail("the page is not cross-origin isolated")
+    if "wasm says 42" not in t: fail("the program's line is not on the page", t)
+    steps["runs"] = True
+    open(main, "w").write(good.replace("6 * 7", "'six'"))
+    t = wait(lambda t: "the build failed" in t)
+    if "Z0103" not in t: fail("a type error is not shown on the page", t)
+    steps["error"] = True
+    open(main, "w").write(good.replace("6 * 7", "6 * 8"))
+    t = wait(lambda t: "wasm says 48" in t)
+    if "wasm says 48" not in t: fail("the next good save did not reload the page", t)
+    steps["reload"] = True
+stop()
+print(json.dumps({"steps": steps}))
