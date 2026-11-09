@@ -74,6 +74,7 @@ export type Stage = 'login' | 'connecting' | 'ready' | 'reconnecting' | 'failed'
 
 const str = (v: any): string => typeof v === 'string' ? v : '';
 const SERVERS_KEY = 'servers';
+const SAFETY_SHOWN_KEY = 'safety-shown';   // Account safety was opened at a first login
 const sortedIds = (s: Set<string>): string[] => { const out: string[] = []; s.forEach((v: string): void => { out.push(v); }); return out.sort(); };
 
 export class Store implements GatewayHandler {
@@ -103,8 +104,10 @@ export class Store implements GatewayHandler {
   settingsOpen = false;
   /** Narrow windows: the servers and channels are shown (true) or the conversation (false). */
   navOpen = true;
-  /** The settings' pane: 'servers', 'voice' (Voice & audio) or 'appearance' (the themes). */
+  /** The settings' pane: 'servers', 'voice' (Voice & audio), 'safety' (Account safety) or 'appearance' (the themes). */
   settingsTab = 'servers';
+  /** A login from the login screen waits for READY to open Account safety, the first time on this machine (SAFETY_SHOWN_KEY). */
+  private safetyAtReady = false;
   /** The servers shown, chosen in the settings and kept on this machine (zinc:storage), never sent to Discord: null until a choice is
    *  made (every server shows), then an allowlist. `known`: the servers the settings listed, so one joined after is new (and off). */
   private allowed: Set<string> | null = null;
@@ -169,6 +172,7 @@ export class Store implements GatewayHandler {
     if (t === '') { this.error = tr('discord.error.paste_token'); this.changed(); return; }
     this.error = '';
     guard.forgetSession();
+    this.safetyAtReady = storage.get(SAFETY_SHOWN_KEY) === '';
     if (env('DISCORD_TOKEN') === '') {
       try { await saveToken(t); } catch (e) { this.error = tr('discord.error.keychain', ['error', e.message]); this.changed(); return; }
     }
@@ -181,7 +185,7 @@ export class Store implements GatewayHandler {
     if (env('DISCORD_TOKEN') === '') try { await forgetToken(); } catch (e) {}   // a test's token was never in the keychain
     this.guilds = []; this.dms = []; this.messages.clear(); this.users.clear(); this.reads.clear(); this.typists.clear(); this.guildId = ''; this.channelId = '';
     this.members = []; this.membersOf = ''; this.complete.clear();
-    this.stage = 'login'; this.changed();
+    this.stage = 'login'; this.safetyAtReady = false; this.changed();
   }
   /** Drops the gateway connection (tests): it must resume. */
   dropConnection(): void { this.gateway.drop(); }
@@ -214,13 +218,19 @@ export class Store implements GatewayHandler {
   status(s: string): void {
     if (s === this.stage) return;
     if (s === 'connecting' || s === 'ready' || s === 'reconnecting' || s === 'failed') { this.stage = s; this.log(`stage ${s}`); this.changed(); }
+    if (s === 'ready' && this.safetyAtReady) {   // the first login: what the app does for the account, and what the person should do
+      this.safetyAtReady = false;
+      storage.set(SAFETY_SHOWN_KEY, '1');
+      this.settingsTab = 'safety';
+      this.showSettings(true);
+    }
   }
   authFailed(): void {
     this.log('auth failed');
     this.gateway.stop();
     if (env('DISCORD_TOKEN') === '') forgetToken().catch((): void => {});
     guard.forgetSession();
-    this.stage = 'login'; this.error = tr('discord.error.token_refused'); this.changed();
+    this.stage = 'login'; this.safetyAtReady = false; this.error = tr('discord.error.token_refused'); this.changed();
   }
   dispatch(t: string, d: any): void {
     if (t === 'READY') this.ready(d);

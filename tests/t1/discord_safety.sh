@@ -3,8 +3,10 @@
 # FAKE_GUARDS=1: a launch that identifies and quits, a second launch a moment later that resumes the session (READY read back, RESUME, no
 # IDENTIFY), then the scripted session of src/safety-session.ts (a read-only channel, a blocked person's DM, a slowmode, a repeated text,
 # too many mentions, a burst of reactions, a loop of history pages, a captcha, a long 429, op 9 d:false, a 401) while a second instance
-# is started and refused. What the app prints and what the fake received (the writes, the pages, IDENTIFY and RESUME; sorted) are compared
-# with tests/golden/discord-safety. ZN_UPDATE_GOLDEN=1 records again.
+# is started and refused; then two launches of DISCORD_DEMO=login (ZN-1054): three wrong passwords stop the password login, the next
+# launch finds the pause kept, and Account safety opens at the first login only. The launches quit through the close handlers, as Cmd+Q
+# does. What the app prints and what the fake received (the writes, the pages, IDENTIFY and RESUME; sorted) are compared with
+# tests/golden/discord-safety (login.out: the two login launches and what the fake received during them). ZN_UPDATE_GOLDEN=1 records again.
 cd "$(dirname "$0")/../.." || exit 2
 golden=$PWD/tests/golden/discord-safety
 case $ZINC in /*) ;; *) ZINC=$PWD/$ZINC ;; esac   # the app runs from its own directory
@@ -28,12 +30,19 @@ for _ in $(seq 200); do grep -q '^safety: ready' "$tmp/safety" && break; sleep 0
 DISCORD_DEMO=restart timeout 30 "$ZINC" run . > "$tmp/again" 2>&1
 wait "$app" || { echo "discord_safety: the session failed"; tail -8 "$tmp/safety"; exit 1; }
 app=
+mark=$(wc -l < "$tmp/fake")   # what the fake received before the login launches
+for n in 1 2; do
+  DISCORD_DEMO=login timeout 30 "$ZINC" run . > "$tmp/login$n" 2>&1 || { echo "discord_safety: login launch $n failed"; tail -5 "$tmp/login$n"; exit 1; }
+done
 cd ../.. || exit 2
 { grep -E '^(restart|session): ' "$tmp/first" | sed 's/^/first /'; grep -E '^(restart|session): ' "$tmp/second" | sed 's/^/second /'
   grep -E '^discord: ' "$tmp/again" | sed 's/^/again /'; grep -E '^(safety|session): ' "$tmp/safety"; } > "$tmp/session"
-grep -E '^(identify|resume) |^rest (POST|PUT|PATCH|DELETE) |^rest GET .*before=' "$tmp/fake" | sort > "$tmp/server"
-if [ -n "$ZN_UPDATE_GOLDEN" ]; then mkdir -p "$golden"; cp "$tmp/session" "$golden/session.out"; cp "$tmp/server" "$golden/server.out"; echo "discord_safety: goldens recorded"; exit 0; fi
+head -n "$mark" "$tmp/fake" | grep -E '^(identify|resume) |^rest (POST|PUT|PATCH|DELETE) |^rest GET .*before=' | sort > "$tmp/server"
+{ for n in 1 2; do grep -E '^login: ' "$tmp/login$n" | sed "s/^/$n /"; done
+  tail -n +"$((mark + 1))" "$tmp/fake" | grep -E '^identify |^rest POST /api/v9/auth/'; } > "$tmp/login"
+if [ -n "$ZN_UPDATE_GOLDEN" ]; then mkdir -p "$golden"; cp "$tmp/session" "$golden/session.out"; cp "$tmp/server" "$golden/server.out"; cp "$tmp/login" "$golden/login.out"; echo "discord_safety: goldens recorded"; exit 0; fi
 fail=0
+cmp -s "$tmp/login" "$golden/login.out" || { echo "discord_safety: the login launches differ"; diff "$golden/login.out" "$tmp/login" | head -12; fail=1; }
 cmp -s "$tmp/session" "$golden/session.out" || { echo "discord_safety: session differs"; diff "$golden/session.out" "$tmp/session" | head -12; fail=1; }
 cmp -s "$tmp/server" "$golden/server.out" || { echo "discord_safety: what the server received differs"; diff "$golden/server.out" "$tmp/server" | head -12; fail=1; }
 exit $fail

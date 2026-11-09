@@ -37,8 +37,9 @@ const access = new Access();
 const cold = new ColdDms();
 const toggles = new Toggles();
 let dmPausedUntil: number = 0;   // Discord's 40003
-const loginFailures = new Window(LOGIN_FAILURES, LOGIN_PAUSE_MS);
-let loginStopUntil: number = 0;   // ponytail: in memory only (a test's wrong passwords must not lock the next run); kept across launches if restarts are abused
+// refused passwords or codes and the pause they started, kept across launches (zinc:storage): quitting does not lift the pause
+const LOGIN_FAILURES_KEY = 'login-failures', LOGIN_STOP_KEY = 'login-stop';
+let loginStopUntil: number = Number(storage.get(LOGIN_STOP_KEY));
 const sleep = (ms: number): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });
 let log: (line: string) => void = (line: string): void => {};
 let listeners: (() => void)[] = [];
@@ -352,8 +353,8 @@ async function http(v: Verdict, method: string, path: string, body: any, backgro
       continue;
     }
     if (!r.ok && (v.kind === 'login' || v.kind === 'mfa') && (r.status === 400 || r.status === 401)) {   // rule 23: a refused password or code
-      loginFailures.add(Date.now());
-      if (loginFailures.count(Date.now()) >= LOGIN_FAILURES) loginStopUntil = Date.now() + LOGIN_PAUSE_MS;
+      const now = Date.now();
+      if (keptTimes(LOGIN_FAILURES_KEY, LOGIN_PAUSE_MS, now).length >= LOGIN_FAILURES) { loginStopUntil = now + LOGIN_PAUSE_MS; storage.set(LOGIN_STOP_KEY, `${loginStopUntil}`); }
     }
     if (!r.ok) {
       let message = plainError(r.status, j, wait);

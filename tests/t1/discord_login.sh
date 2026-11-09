@@ -8,6 +8,7 @@ tmp=$(mktemp -d)
 cleanup() { [ -n "$fake" ] && { kill "$fake" 2>/dev/null; wait "$fake" 2>/dev/null; }; rm -rf "$tmp"; }
 trap cleanup EXIT
 export ZINC_DETERMINISTIC=0   # real sockets and timers
+export ZINC_STORAGE=$tmp/storage.kv   # the failed logins are kept across launches: each run starts with none
 FAKE_ASSETS=$PWD/examples/discord/tests/assets FAKE_PORTS_FILE=$tmp/ports timeout 300 "$ZINC" run --interp examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>&1 &
 fake=$!
 for _ in $(seq 2400); do [ -s "$tmp/ports" ] && break; kill -0 $fake 2>/dev/null || break; sleep 0.1; done   # a cold cache builds zinc:discord-voice first

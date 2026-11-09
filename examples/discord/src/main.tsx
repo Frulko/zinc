@@ -5,7 +5,7 @@
 // keychain, DISCORD_LOG=1 prints what happens, DISCORD_DEMO=1 runs the scripted session (servers, a channel's history, a live message,
 // a dropped connection that resumes, a second live message, a DM, then the writing of write() and the pictures, files and members of
 // media() below, then the servers switched in settings()) and quits; DISCORD_DEMO=voice runs the call of voice() (tests/t1/discord_voice.sh),
-// DISCORD_DEMO=showcase every kind of message content (showcase.ts), DISCORD_DEMO=safety the safety model (safety-session.ts), DISCORD_DEMO=restart a launch that quits once ready (tests/t1/discord_safety.sh); DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
+// DISCORD_DEMO=showcase every kind of message content (showcase.ts), DISCORD_DEMO=safety the safety model (safety-session.ts), DISCORD_DEMO=restart a launch that quits once ready and DISCORD_DEMO=login the failed logins and the first login (tests/t1/discord_safety.sh); DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
 // ZINC_PROFILE=1). DISCORD_CACHE moves the pictures' folder, DISCORD_UPLOAD_FILE is the file media() sends.
 // Files dropped on the window are sent to the open channel.
 import { render } from 'zinc:ui/react';
@@ -14,7 +14,8 @@ import { quit, capture, imageWidth, imageHeight } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
 import App from './App';
-import { on } from 'zinc:system';
+import { on, requestClose } from 'zinc:system';
+import { passwordLogin, loginError, Mfa } from './services/auth';
 import { store, Message, Attachment, Guild } from './state';
 import { parse, describe } from './markdown';
 import { picturesLoading } from './services/cdn';
@@ -168,8 +169,9 @@ if (scripting && !fakeDiscord) console.log('discord: DISCORD_DEMO and DISCORD_BE
 if (fakeDiscord && env('DISCORD_DEMO') === 'safety') safety();
 if (fakeDiscord && env('DISCORD_DEMO') === 'restart') until(() => store.stage === 'ready').then((): void => {
   console.log(`restart: ready, identifies today ${guard.identifiesToday()}`);
-  leave();
+  requestClose();   // as Cmd+Q or the close button: the close handler keeps the session and quits
 });
+if (fakeDiscord && env('DISCORD_DEMO') === 'login') loginSession();
 if (fakeDiscord && env('DISCORD_DEMO') === '1') demo();
 if (fakeDiscord && env('DISCORD_DEMO') === 'voice') voice();
 if (fakeDiscord && env('DISCORD_DEMO') === 'showcase') showcase();
@@ -177,6 +179,24 @@ if (fakeDiscord && env('DISCORD_DEMO') === 'code') codeSession();
 if (fakeDiscord && env('DISCORD_DEMO') === 'viewer') viewerSession();
 if (fakeDiscord && env('DISCORD_DEMO') === 'tips') tipsSession();
 if (fakeDiscord && env('DISCORD_DEMO') === 'layout') layoutSession();
+
+/** DISCORD_DEMO=login (tests/t1/discord_safety.sh): the password login's pause kept from the last launch; when there is none, three wrong
+ *  passwords start it; then a log out and a login with the token: Account safety opens at the first login on this machine, not later. */
+async function loginSession(): Promise<void> {
+  const paused = (): string => guard.safetyState().pauses.join('; ').replace(/\d\d:\d\d/g, 'HH:MM');
+  await until(() => store.stage === 'ready');
+  console.log(`login: kept pause '${paused()}'`);
+  let refused = '';
+  if (paused() === '') for (let i = 0; i < 3; i++) {
+    try { await passwordLogin('ada@example.com', 'wrong', new Mfa()); } catch (e) { refused = loginError(e as Error); }
+  }
+  if (refused !== '') console.log(`login: three wrong passwords ('${refused}'), pause '${paused()}'`);
+  await store.logout();
+  await store.login(env('DISCORD_TOKEN'));
+  await until(() => store.stage === 'ready');
+  console.log(`login: ready, settings open ${store.settingsOpen} on ${store.settingsTab}`);
+  leave();
+}
 
 const speaking = (): string => Array.from(store.call.speaking).map((id: string) => store.userName(id)).sort().join(', ');
 const pause = (ms: i32): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });

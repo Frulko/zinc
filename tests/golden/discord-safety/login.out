@@ -1,0 +1,11 @@
+1 login: kept pause ''
+1 login: three wrong passwords ('Login or password is invalid.'), pause 'The password login until HH:MM: 3 logins failed.'
+1 login: ready, settings open true on safety
+2 login: kept pause 'The password login until HH:MM: 3 logins failed.'
+2 login: ready, settings open false on servers
+identify token=true capabilities=1246 browser=Chrome
+rest POST /api/v9/auth/login auth=false login=ada@example.com
+rest POST /api/v9/auth/login auth=false login=ada@example.com
+rest POST /api/v9/auth/login auth=false login=ada@example.com
+identify token=true capabilities=1246 browser=Chrome
+identify token=true capabilities=1246 browser=Chrome
