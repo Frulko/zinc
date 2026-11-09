@@ -10,6 +10,7 @@
 #include <unordered_map>
 
 #include "platform/socket.h"
+#include "zn/log.h"
 
 #include "frontend/lexer.h"
 #include "frontend/modules.h"
@@ -199,7 +200,7 @@ void compiled() {
   }
   gReeval.clear();
   gChanged.clear();
-  const std::string why = plan(*gCur, *u, gReeval, gChanged);
+  const std::string why = [&] { zn::log::Phase ph("build", "plan the swap", zn::log::Debug); return plan(*gCur, *u, gReeval, gChanged); }();
   if (!why.empty()) { send("restart " + why + "\n"); reloadTo(Reload::Idle); return; }
   gNext = std::move(u);
   reloadTo(Reload::Swapping);
@@ -244,7 +245,7 @@ rt::Result run(std::unique_ptr<Unit> first, std::string& out, bool traceFree, Co
   if (!m.load(cur->zbc, err)) { res.ok = false; res.error = err; return res; }
   bool ok = m.exec(&m.funcs[0], m.stack);
   while (ok && gNext) {
-    const std::string why = swap(m, *cur, *gNext, gReeval, gChanged);
+    const std::string why = [&] { zn::log::Phase ph("build", "swap", zn::log::Debug); return swap(m, *cur, *gNext, gReeval, gChanged); }();
     if (!why.empty()) {   // the old program let go of its state: only a restart is left
       send("restart " + why + "\n");
       m.flushOut();

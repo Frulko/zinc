@@ -1059,7 +1059,7 @@ static zn::rt::Result runHot(std::unique_ptr<zn::dev::hot::Unit> unit, zn::zbc::
       at = nl;
     }
     errors.clear();
-    zn::dev::hot::finish(u);
+    { zn::log::Phase ph("build", "keys and modules of the save", zn::log::Debug); zn::dev::hot::finish(u); }
 #ifdef ZN_HOST_GFX
     std::string err;
     if (drawsOf(u.zbc)) {

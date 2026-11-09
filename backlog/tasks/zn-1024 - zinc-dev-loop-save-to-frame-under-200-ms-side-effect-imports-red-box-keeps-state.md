@@ -3,11 +3,11 @@ id: ZN-1024
 title: >-
   zinc dev loop: save-to-frame under 200 ms, side-effect imports, red box keeps
   state
-status: In Progress
+status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:36'
-updated_date: '2026-11-09 10:16'
+updated_date: '2026-11-09 10:20'
 labels:
   - dev
   - perf
@@ -116,4 +116,20 @@ Step 14 (perf(dev): take a save once two snapshots agree): zinc dev waited a fix
 Step 15 (perf(ir): spread the throw and store facts over a worklist): which functions may throw and which may store a reference were fixed points that scanned every function again until nothing changed (on one thread, before the per-function work); one worklist over the reversed call graph and the vtable slots gives the same least fixed point. Rc::block moves its block's instructions instead of copying them, and a call that may throw looks only at the values the block holds (a bit set), not at every tracked value of the function. The dev entry of hero, load ~6: reference counting 96 -> 78 ms; a recompile of the dev entry 1210-1227 ms with the binary before step 10 -> 547-558 ms now. Same bytes (hot_recompile, the four examples, the dev entry, hero with ZN_NO_BORROW=1); tests/run --only rc_borrow, rc_lend, rc_refcast pass.
 
 Step 16 (perf(frontend): read files in one call, keep web globals by text): the loader read every file through a stringstream (a character at a time: the 770 KB Lucide set, its aliases, every .ts/.tsx of the project for the icon scan, each source, the capabilities), now one fread loop (readFile in main.cpp, the resolver's reader, slurp in modules.cpp); webGlobalImports (each identifier compared with 70 names, strlen each) is kept by text like the other scans. The dev entry of hero, load ~6.5: read and parse 72.6 -> 47.7 ms. Same bytes (hot_recompile, the four examples, the dev entry).
+
+Step 17 (perf(ir): compile on three quarters of the cores): parallelFor used at most 4 threads (half the cores); on the 10 cores of the M1 Pro a recompile of the dev entry took 709 ms on 1 thread, 522-546 on 2, 459-502 on 4, 401-421 on 6, 387-396 on 8 (load ~4). It now takes three quarters of the cores, at most 8 (7 here), still halved when the load is above half the cores. Plan, swap and hot::finish are timed at ZINC_LOG=build=debug (0.5, 2.9 and 0.03 ms: the swap costs nothing). zinc dev of hero, four saves of a comment in Icon.tsx, load ~3.4 (other trees building: indicative): 448-595 ms after the save. Same bytes (hot_recompile, the four examples, the dev entry).
+
+Handover (2026-11-09, end of session 2; criterion #1 still open, task back to Backlog). Where it stands: zinc dev of hero, from 1151-1371 ms after the save on develop at the start of this session to 448-595 ms (indicative, load 3-7, other trees building). Most of that came from a regression: zinc dev's entry imports zinc:devtools, and the inspector's printers made the check quadratic (510-585 ms of check; step 12). A dev save now (dev entry, 118 files, ~2830 functions): read and parse 48-70, check 70-75, lower 100-125 (one thread), optimise 123-139, reference counting 78-85, emit 44-60, bake 3, swap 3 ms, plus ~60 ms of waiting (settle 8 ms, frame ends at 60 Hz). 200 ms still needs the compile to stop being whole-program.
+Next steps, in order of gain: (1) incremental compile with the library as a high-durability unit (Dart's platform dill, salsa's durability): lib/std, the kits, the plugins and zinc:devtools never import the project and are two thirds of the functions; check and lower them once per session and keep their checked declarations and lowered IR under the hot keys, recompiling only the project's modules (a design of its own: stable type, class, function and string ids across compiles, or a relinking pass); (2) lowering per function body on several threads with an ordered merge of what FnLower adds to the module (~100 ms on one thread now); (3) the checker's fnMentionsIn compares names with a linear find over the locals (memcmp, ~5% of check); (4) malloc and free are a quarter of all samples: fewer allocations per instruction (Inst holds two vectors) or mimalloc for the compiler (D67 weighs its launch cost).
+Quiet run for the owner: tools/build zinc, then copy examples/hero to <tmp>/ex/hero with <tmp>/ex/ui and <tmp>/ex/maps linked to examples/ui and examples/maps (hero imports ../../ui/kit-gallery and ../../maps/navigation), run 'ZINC_HEADLESS=1 ZINC_REALTIME=1 ZINC_FRAMES=6000 ZINC_BACKGROUND=1 timeout 120 build/zinc dev .' in it, append '// save N' to src/components/Icon.tsx four times 2 s apart, read 'refreshed ... (N ms after the save)'. One process: 'ZINC_DEV=1 ZN_HOT_RECOMPILE=4 zinc --emit=hot build/.zinc-dev/main.ts out.hot' in that copy.
+
+Decision (record as a D-number): zinc's compiler passes run on three quarters of the cores, at most 8, halved under load (was half, at most 4): a dev save is the user waiting, and the bytes do not depend on the thread count (hot_recompile checks it). Revisit if a Pi or a 4-core machine is measured slower with 3 threads than with 2.
+
+later.md lines (for the coordinator):
+- ZN-1024: tests/t1 or a T0: a check-time budget for the program zinc dev compiles (zinc:devtools + hero): the quadratic implementations()/typeOfObj made it 10x slower unnoticed.
+- ZN-1024: Checker::fnMentionsIn finds a name in its locals with a linear scan (5% of the check of hero).
+- ZN-1024: the compile's allocations (Inst's args and edges vectors, per-pass copies) are a quarter of its samples; measure mimalloc for the compiler against D67's launch cost.
+- ZN-1024: zinc dev polls the project every 40 ms: a save waits 0-40 ms before it is seen, outside the logged number; FSEvents/kqueue would remove it.
+
+Proposed tests: tests/run --only hot_recompile (T0, ~10 s, <500 MB: ran, passes), tests/run --only rc_borrow rc_lend rc_refcast (T0: ran, pass), tools/diff-matrix at the next milestone (emit, verify and the passes now run on up to 8 threads), tests/run --only hot_swap / dev_mode / fast_refresh (T1, ~20 s each), the quiet zinc dev measurement above.
 <!-- SECTION:NOTES:END -->

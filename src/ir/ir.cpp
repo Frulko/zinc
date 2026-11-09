@@ -58,7 +58,8 @@ void parallelFor(std::size_t n, const std::function<void(std::size_t)>& fn) {
   for (std::size_t k = 0; k < n; ++k) fn(k);   // the compiler built for the browser (ZN-774.29): one thread
 #else
   static const unsigned cores = std::max(1u, std::thread::hardware_concurrency());
-  unsigned threads = std::clamp(cores / 2, 1u, 4u);
+  // three quarters of the cores, at most 8: on the 10 cores of an M1 Pro a dev save of hero took 460 ms on 4 threads, 400 on 6, 390 on 8 (ZN-1024)
+  unsigned threads = std::clamp(cores * 3 / 4, 1u, 8u);
 #ifndef _WIN32
   double load = 0;
   if (getloadavg(&load, 1) == 1 && load > cores / 2.0) threads = std::max(1u, threads / 2);   // ponytail: the load at the call, not a share of the cores

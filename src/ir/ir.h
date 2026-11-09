@@ -179,7 +179,7 @@ std::string verify(const Module& m);
 // Inserts Retain and Release so that every reference is released exactly once on every path (see rc.cpp for the conventions).
 void insertRc(Module& m);
 
-// Runs fn(0) .. fn(n - 1) on a few threads (at most 4, half the cores, fewer under load; ZN_IR_THREADS=n sets it), each index once, and returns when
+// Runs fn(0) .. fn(n - 1) on a few threads (three quarters of the cores, at most 8, half as many under load; ZN_IR_THREADS=n sets it), each index once, and returns when
 // all are done: for per-function work whose result does not depend on the order (ZN-1024). n small or one thread: in the calling thread.
 void parallelFor(std::size_t n, const std::function<void(std::size_t)>& fn);
 
