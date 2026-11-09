@@ -1,7 +1,7 @@
 ---
 id: ZN-1104
 title: Preserve default icons in composed QuickJS galleries
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-09 21:47'
@@ -22,7 +22,17 @@ Blocks ZN-1078.11 final default-icon proof on current real gallery after Picker 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Valid fully composed Zinc programs retain reached library-default icons in QuickJS even when they also contain an unused large App body, with explicit, empty or absent custom manifests
-- [ ] #2 Minimize and fix the actual discovery load/check/lower/reachability failure, preserving unsupported-arbitrary-JavaScript fallback, worker/stage isolation, no-icon lazy loading and offline behavior without application manifests or component-specific rules
-- [ ] #3 Add the exact composition regression and prove original Feedback gallery light/dark/defaults plus existing library_icons across all3; every selected SVG keeps valid geometry/metadata and unchanged size budgets remain enforced
+- [x] #1 Valid fully composed Zinc programs retain reached library-default icons in QuickJS even when they also contain an unused large App body, with explicit, empty or absent custom manifests
+- [x] #2 Minimize and fix the actual discovery load/check/lower/reachability failure, preserving unsupported-arbitrary-JavaScript fallback, worker/stage isolation, no-icon lazy loading and offline behavior without application manifests or component-specific rules
+- [x] #3 Add the exact composition regression and prove original Feedback gallery light/dark/defaults plus existing library_icons across all3; every selected SVG keeps valid geometry/metadata and unchanged size budgets remain enforced
 <!-- AC:END -->
+
+## Implementation notes
+
+Short primary research: Rollup documents that aggressive side-effect assumptions can hide semantic issues (https://rollupjs.org/configuration-options/#treeshake). The read-only analysis must preserve normal module resolution rather than pruning an application body or guessing icons. No dependency or new discovery policy is needed.
+
+Temporary diagnostics showed the probe failing at CHECK with Z0101: PickersSection not exported by sections/pickers. The composed module path had no extension, zero statements and zero exports. QuickJS readFile accepted a directory through ifstream and returned successful empty text; the resolver therefore selected the existing pickers/ directory before sibling pickers.tsx. The normal compiler and default ModuleResolver readers already refuse non-regular files, explaining the normal interpreter success. The QuickJS reader now does the same regular-file check with error_code; temporary diagnostics were removed. No icon catalog, reachability, arbitrary-JS fallback, worker/stage or application change.
+
+A tiny regression retains an unused App body importing panels from sibling panels.tsx while panels/ exists and renders a library-default icon directly. It covers absent, empty and explicit custom manifests; unused apple stays omitted, custom heart retained, and every selected SVG parses. Existing library_icons still covers native/QuickJS/defaults, offline/stage/bundle, worker isolation and deliberate arbitrary-JS fallback.
+
+Final proof: own warm tools/build zinc PASS. Expanded exact library_icons PASS with the new composition regression (absent manifest on interpreter/native/QuickJS, empty/custom on QuickJS), valid SVG parsing and existing offline/stage/bundle/worker/arbitrary-JS boundary cases. Feedback worker replayed the unchanged actual gallery on this candidate: light and dark show all default icons with noU0001, New project reaches Preview ready/Workshop created, and360px bottom-scrolled capture keeps every control/action contained. Evidence .worktrees/1078-feedback-proof/.logs/feedback-proof/*-final.* and narrow-bottom.*; candidate SHA2566d5e7007 is fully recorded in this tree's provenance.json. No composition or manifest workaround. The separate known combined kit size failure remains assigned1103; its thresholds are unchanged and still enforced, not claimed passing here. No runtime performance measurement, broad suite, benchmark or cross-target run. Existing broader module-resolution/platform and real-device accessibility sessions remain proposed milestone checks. No own process/queue remains.

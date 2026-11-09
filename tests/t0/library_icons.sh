@@ -39,6 +39,23 @@ for fixture in helper defaults selection dynamic; do
     if printf '%s' "$names" | grep -qw apple; then echo 'unused library icon retained'; exit 1; fi
   done
 done
+# A same-named directory must not shadow its .tsx module in optional typed discovery.
+for manifest in absent empty custom; do
+  dir="$tmp/composed-$manifest"; mkdir -p "$dir/panels"
+  cp tests/data/library_icons/composed/*.tsx "$dir/"
+  icons=''; case "$manifest" in empty) icons=',"icons":[]';; custom) icons=',"icons":["heart"]';; esac
+  printf '{"name":"composed-icons","entry":"main.tsx"%s}\n' "$icons" >"$dir/zinc.json"
+  engines='quickjs'; [ "$manifest" != absent ] || engines='interp native quickjs'
+  for engine in $engines; do
+    case "$engine" in quickjs) set -- --engine quickjs;; *) set -- "--$engine";; esac
+    ZINC_OFFLINE=1 ZINC_HEADLESS=1 ZINC_FRAMES=3 timeout 45 "$ZINC" run "$dir" "$@" >"$tmp/log" 2>&1 || { cat "$tmp/log"; exit 1; }
+    if grep -q U0001 "$tmp/log"; then cat "$tmp/log"; exit 1; fi
+    names=$(sed -n 's/^composed-icons://p' "$tmp/log")
+    printf '%s' "$names" | grep -qw alarm-clock
+    if printf '%s' "$names" | grep -qw apple; then echo 'unused composed icon retained'; exit 1; fi
+    if [ "$manifest" = custom ]; then printf '%s' "$names" | grep -qw heart; fi
+  done
+done
 # Only the worker imports the provider; the parent must not need eager icon discovery.
 mkdir "$tmp/worker"
 cp tests/data/library_icons/worker/*.ts "$tmp/worker/"

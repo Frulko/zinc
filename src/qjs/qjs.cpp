@@ -65,6 +65,8 @@ struct Engine {
 };
 
 bool readFile(const std::string& path, std::string& out) {
+  std::error_code ec;
+  if (!std::filesystem::is_regular_file(path, ec)) return false;
   std::ifstream in(path, std::ios::binary);
   if (!in) return false;
   std::stringstream ss;

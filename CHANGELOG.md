@@ -374,6 +374,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc mem --json` and `zinc profile` of a program that calls `console.error` or `sys.exit` keep stdout for the report (the program's lines go to stderr, in order, and the exit code is the program's), and a program on an ESP32 sends all its lines back, `console.error` and `sys.exit` included.
 - `zinc run --native` runs your edits: after a plain `zinc run` of the same file, it kept starting the executable it had built before the edit.
 
+- Library-default icons remain available in QuickJS when an imported module shares its name with a directory.
 - JavaScript-engine runs start in the project directory, as interpreter and native runs do, so relative file paths and scoped file permissions agree; `launchDir()` keeps the caller’s directory.
 
 ### Apps and examples
