@@ -2,6 +2,7 @@
 // ZBC: typed register bytecode module, its binary form, verifier, disassembler and the emitter from the IR.
 // Dependency direction: zbc includes ir (and everything left of it), never the reverse.
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -110,7 +111,9 @@ EmitResult emit(const ir::Module& m);   // m.debug: Line instructions, homes of 
 
 // Empty when the module is well formed: operands in range, jumps land on instructions, every path ends in a
 // terminator, and every register read has the class the operation expects (typed abstract interpretation).
-std::string verify(const Module& m);
+// `forEach` (optional) runs the per-function checks, fn(0) .. fn(n - 1), on several threads (ir::parallelFor; zbc.cpp itself also builds into the
+// device cores, which have no threads): the first problem in function order is returned either way.
+std::string verify(const Module& m, void (*forEach)(std::size_t n, const std::function<void(std::size_t)>& fn) = nullptr);
 // The class of every register before each instruction of function `fn`, as the verifier proves it (index = code word of an instruction's
 // start; other words stay empty): 0 none or unknown, 1 I, 2 S, 3 D, 4 + class id for a reference of that class. Empty when it does not verify.
 // `tablesChecked`: the caller already found verifyTables(m) empty (the AOT asks for every function: checking the tables each time was quadratic).

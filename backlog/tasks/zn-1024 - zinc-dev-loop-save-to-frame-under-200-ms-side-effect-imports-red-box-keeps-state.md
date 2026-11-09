@@ -3,11 +3,11 @@ id: ZN-1024
 title: >-
   zinc dev loop: save-to-frame under 200 ms, side-effect imports, red box keeps
   state
-status: Backlog
+status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:36'
-updated_date: '2026-11-08 23:23'
+updated_date: '2026-11-09 09:59'
 labels:
   - dev
   - perf
@@ -98,4 +98,10 @@ later.md lines (for the coordinator):
 - ZN-1024: tests/t0/ir.sh: the IR goldens of closures and closures2 no longer match develop's --emit=ir.
 
 Proposed tests (this session): `tests/run --only hot_recompile` (T0, ~8 s, <500 MB: ran, passes), `tests/run --only ir` (fails on develop already, see above), `tools/diff-matrix` at the next milestone (the optimiser, reference counting and verification now run on several threads: interpreter vs AOT vs frozen output over the corpus, minutes), `tests/run --only hot_swap` / `dev_mode` / `fast_refresh` (T1, as above).
+
+Session 2026-11-09 (2), criterion #1, worktree agent. Research (sonnet web search): Dart's frontend_server recompiles the invalidated libraries only and sends a kernel delta of them, with accept/reject so a refused delta is sent again; the SDK is never recompiled, it ships precompiled (platform dill) (https://flutter.googlesource.com/mirrors/engine/+show/refs/heads/fuchsia_f6/flutter_frontend_server/README.md). TypeScript's builder keeps a signature per file (the hash of its .d.ts) and re-checks importers only when it changed (https://deepwiki.com/microsoft/TypeScript/8.3-builderprogram-and-state). Salsa marks library inputs high durability, so an edit of a user file skips revalidating everything that depends only on them (rust-analyzer: ~300 ms saved per keystroke, https://rust-analyzer.github.io/blog/2023/07/24/durable-incrementality.html), and stops propagation when a recomputed result is equal (backdating). Zig tracks dependencies per declaration and keys them on stable tracked instructions, not raw indices, which shift between updates (https://ziggit.dev/t/how-zig-incremental-compilation-is-implemented-internally/3543). For Zinc: the library (lib/std, the kits, the plugins) is most of the 2800 functions of hero and never imports the project: it is the high-durability part to compile once per session; ids come from the hot keys Zinc already has.
+
+Profile of a hero recompile (sample, ~9 recompiles, load ~6): loadChecked 26%, optimise 17%, lower 16%, emit 14%, reference counting 10%, zbc::verify 5% (one thread), freeing the IR module at the end 4%, ir::verify 1.5%; malloc and free are a quarter of all samples, spread over every phase.
+
+Step 10 (perf(zbc): emit and verify on several threads): zbc::emit emits every function at once through ir::parallelFor against a frozen table of the collection classes known before the functions (TypeTable::index, the first of equal classes kept, as its scan finds); a function that needs a class not in it is emitted again afterwards, in order, with the growing table, so the class ids are those of one thread. zbc::verify takes an optional forEach (zbc.cpp has no threads of its own: it builds into the device cores) and returns the first problem in function order. The compile's program, checker tables and IR are freed on a thread of their own (freeLater in main.cpp, one at a time; the future waits at exit). Hero, recompiles back to back, load ~7.7: emit 84 -> 45 ms, a recompile 517-535 -> 461-471 ms. Bytes: hot_recompile passes; --emit=hot and --emit=zbc-bin of hero, ui/kit-gallery, nuxt-ui and breakout are byte for byte those of the binary before this step.
 <!-- SECTION:NOTES:END -->

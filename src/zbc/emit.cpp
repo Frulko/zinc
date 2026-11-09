@@ -75,10 +75,28 @@ struct TypeTable {
 
   // the class found for a collection type: the scan of every class for each value was 0.9 of the 1.3 s emit of examples/ipod. Classes are only
   // appended, so the first match found stays the first match.
-  std::map<std::tuple<int, int, unsigned, int, unsigned>, std::uint16_t> found;
+  using Key = std::tuple<int, int, unsigned, int, unsigned>;
+  std::map<Key, std::uint16_t> found;
+  // Several functions emitted at once (ZN-1024) read a frozen table: every collection class known before the functions, none added. A type
+  // not in it sets `missed` (the id given is wrong): that function is emitted again afterwards, in order, with the growing table.
+  const std::map<Key, std::uint16_t>* frozen = nullptr;
+  bool missed = false;
+  static Key keyOf(CKind k, VType elem, VType key) {
+    return k == CKind::String ? std::make_tuple(static_cast<int>(k), 0, 0u, 0, 0u)
+                              : std::make_tuple(static_cast<int>(k), static_cast<int>(elem.cls), elem.cls == Cls::R ? elem.ref : 0u, static_cast<int>(key.cls), key.cls == Cls::R ? key.ref : 0u);   // as VType's ==
+  }
+  // every class of the table in `found`, the first of equal ones kept (what the scan below finds)
+  void index() {
+    for (std::size_t c = 0; c < zm.classes.size(); ++c)
+      if (const ClassInfo& ci = zm.classes[c]; ci.kind != CKind::Object) found.emplace(keyOf(ci.kind, ci.elem, ci.key), static_cast<std::uint16_t>(c));
+  }
   std::uint16_t coll(CKind k, VType elem, VType key, ir::TypeId t) {
-    const auto id = k == CKind::String ? std::make_tuple(static_cast<int>(k), 0, 0u, 0, 0u)
-                                       : std::make_tuple(static_cast<int>(k), static_cast<int>(elem.cls), elem.cls == Cls::R ? elem.ref : 0u, static_cast<int>(key.cls), key.cls == Cls::R ? key.ref : 0u);   // as VType's ==
+    const Key id = keyOf(k, elem, key);
+    if (frozen) {
+      if (auto it = frozen->find(id); it != frozen->end()) return it->second;
+      missed = true;
+      return 0;
+    }
     if (auto it = found.find(id); it != found.end()) return it->second;
     for (std::size_t c = 0; c < zm.classes.size(); ++c) {
       const ClassInfo& ci = zm.classes[c];
@@ -946,17 +964,33 @@ EmitResult emit(const ir::Module& m) {
     r.module.classes[ci] = std::move(info);
   }
   r.module.functions.resize(m.functions.size());
-  for (std::size_t i = 0; i < m.functions.size(); ++i) {
+  std::vector<std::string> errors(m.functions.size());
+  auto emitOne = [&](std::size_t i, TypeTable& types) {
     Function& zf = r.module.functions[i];
+    zf = Function{};
     zf.name = m.functions[i].name;
-    FnEmitter e(m, m.functions[i], zf, tt);
+    FnEmitter e(m, m.functions[i], zf, types);
+    errors[i].clear();
     if (!e.run()) {
       if (e.error.find("more than 256 registers") != std::string::npos)
-        r.errors.push_back("error: function '" + zf.name + "' keeps more than " + std::to_string(kMaxRegisters) + " values alive at once, and the interpreter and the compiled build have " + std::to_string(kMaxRegisters) +
-                           " registers a function (many locals, or a very long expression or inlined body). Split it into smaller functions, or keep the values in an array or a record.");
-      else r.errors.push_back("@" + zf.name + ": " + e.error);
+        errors[i] = "error: function '" + zf.name + "' keeps more than " + std::to_string(kMaxRegisters) + " values alive at once, and the interpreter and the compiled build have " + std::to_string(kMaxRegisters) +
+                    " registers a function (many locals, or a very long expression or inlined body). Split it into smaller functions, or keep the values in an array or a record.";
+      else errors[i] = "@" + zf.name + ": " + e.error;
       zf.code.clear();
     }
+  };
+  std::vector<char> again(m.functions.size(), 1);
+  if (!m.debug) {   // a debug build appends to the module's line table as it goes: in order, on one thread
+    tt.index();
+    ir::parallelFor(m.functions.size(), [&](std::size_t i) {   // the bytes of one thread: a function whose types are all known is final (ZN-1024)
+      TypeTable local{m, r.module, ir::kNoClass, {}, &tt.found, false};
+      emitOne(i, local);
+      again[i] = local.missed;
+    });
+  }
+  for (std::size_t i = 0; i < m.functions.size(); ++i) {
+    if (again[i]) emitOne(i, tt);   // in order: the collection classes it adds take the ids one thread gives them
+    if (!errors[i].empty()) r.errors.push_back(std::move(errors[i]));
   }
   if (!r.module.strings.empty() && std::none_of(r.module.classes.begin(), r.module.classes.end(), [](const ClassInfo& c) { return c.kind == CKind::String; })) {
     ClassInfo info;   // constants of code the optimizer removed (after a return) still need the string class to be loaded (ZN-155)

@@ -665,11 +665,17 @@ bool unpackRuns(const std::uint8_t* p, std::size_t n, std::vector<std::uint8_t>&
   return true;
 }
 
-std::string verify(const Module& m) {
+std::string verify(const Module& m, void (*forEach)(std::size_t n, const std::function<void(std::size_t)>& fn)) {
   if (m.functions.empty()) return "module has no functions";
   if (m.functions.size() > kMaxFunctions) return "too many functions";
   if (m.functions[0].name != "main" || !m.functions[0].params.empty()) return "function 0 must be main with no parameters";
   if (std::string e = checkTables(m); !e.empty()) return e;
+  if (forEach) {   // each function reads only the module (ZN-1024: 5% of zinc dev's save on one thread)
+    std::vector<std::string> errs(m.functions.size());
+    forEach(m.functions.size(), [&](std::size_t i) { Verifier v(m, i); if (!v.run()) errs[i] = v.err; });
+    for (std::string& e : errs) if (!e.empty()) return e;
+    return "";
+  }
   for (std::size_t i = 0; i < m.functions.size(); ++i) {
     Verifier v(m, i);
     if (!v.run()) return v.err;

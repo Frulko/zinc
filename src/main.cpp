@@ -79,6 +79,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 #include "zbc/zbc.h"
 #include "zapp.h"
 #include <thread>
+#include <future>
 #include <set>
 #include <atomic>
 #include <mutex>
@@ -915,6 +916,17 @@ static bool gDebugNative = false;              // zinc build --debug (ZN-371.06)
 static std::vector<std::string> gDebugSources;  // the text of each file of the debug build (Module::files)
 static std::map<std::string, std::vector<std::string>> gWorkerSources;   // the same for each worker of the debug build, by its key
 static zn::dev::hot::Unit* gHotUnit = nullptr;   // zinc dev's child (ZN-742): the compile also fills the keys and modules of this unit
+
+// What a compile leaves once its ZBC is out: the program's AST and texts, the checker's tables and the IR. Freeing them took ~25 ms at the end of
+// each compile (a tenth of zinc dev's save, ZN-1024): a thread of its own frees them while the program is swapped in or starts. One at a time;
+// the future's destructor waits for the last one at exit.
+static void freeLater(zn::frontend::Program&& prog, zn::frontend::Checked&& checked, zn::ir::Module&& ir) {
+  struct Garbage { zn::frontend::Program prog; zn::frontend::Checked checked; zn::ir::Module ir; };
+  static std::future<void> last;
+  if (last.valid()) last.wait();
+  auto g = std::make_unique<Garbage>(Garbage{std::move(prog), std::move(checked), std::move(ir)});
+  last = std::async(std::launch::async, [g = std::move(g)]() mutable { g.reset(); });   // reset inside: the lambda itself dies with the future, on this thread
+}
 static int compileToZbc(const char* path, zn::zbc::Module& out) {
   const auto t0 = std::chrono::steady_clock::now();
   zn::log::step("compile", "read, check and lower sources...");
@@ -953,7 +965,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
       auto em = zn::zbc::emit(low.module);
       for (const auto& e : em.errors) std::fprintf(stderr, "%s: %s\n", path, e.c_str());
       if (!em.errors.empty()) return 1;
-      std::string bad = zn::zbc::verify(em.module);
+      std::string bad = zn::zbc::verify(em.module, &zn::ir::parallelFor);
       if (!bad.empty()) { std::fprintf(stderr, "internal error: invalid ZBC: %s\n", bad.c_str()); return 3; }
       out = std::move(em.module);
       if (gDebug) {   // the line table's offsets become lines and columns of the program's files
@@ -1007,6 +1019,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
       }
       gInfoFunctions = static_cast<long>(out.functions.size());
       zn::log::step("compile", std::to_string(prog.files.size()) + (prog.files.size() == 1 ? " file" : " files") + ", " + std::to_string(out.functions.size()) + " functions", zn::log::since(t0));
+      freeLater(std::move(prog), std::move(checked), std::move(low.module));
       return 0;
     }
   }
