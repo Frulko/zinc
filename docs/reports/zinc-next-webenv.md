@@ -45,6 +45,14 @@ What a program finds:
   permissions hold; a missing file is a 404), `data:` and `blob:` URLs, and http(s) through `zinc:net`'s rows with the body as its bytes; `URL` and
   `URLSearchParams` (the typed engine's WHATWG parser, `lib/std/web.ts`, loaded at the first URL made), `Blob`, `File`; `localStorage` over
   `zinc:storage`, `sessionStorage` in memory.
+- **XML** (ZN-706): `DOMParser` and `XMLSerializer` are `@xmldom/xmldom` 0.9.12 (`third_party/xmldom`, MIT, unmodified), its CommonJS files
+  read by the engine (`native.xmldom`, from `lib/std/../../third_party`, in the repository and in share/zinc) at the first parse: a program
+  that parses nothing reads none of it (`ZINC_WEB=trace` prints `web: loaded @xmldom/xmldom (N ms)`). A bitmap font and an SVG give the
+  nodes headless Chrome gives (`tests/t0/webenv_domparser.sh`); the document has no node for the XML declaration or the blanks around the
+  root, the element traversal getters (`firstElementChild`, `nextElementSibling`...) and the simple selectors (`querySelector`, `matches`,
+  `closest`) are added to xmldom's prototypes, and a document that is not well formed is a `<parsererror>` document (Firefox's shape), not
+  an exception. An XML document's nodes are xmldom's: no events, and they cannot go into the page's document. `XMLSerializer` writes a
+  namespace declaration it adds after the attributes, where Chrome writes it first.
 - **Canvas**: `getContext('webgl' | 'webgl2')` is the existing binding with the element as `gl.canvas`; each frame the window shows the canvases
   of the document that have a context, over black, at the box their style gives them (through `gl.zincPresent`, a read).
 - **Images** (ZN-569): `Image` / `HTMLImageElement` loads its `src` as `fetch` does (files, `data:` and `blob:` URLs, the network) and the
@@ -83,7 +91,7 @@ What a program finds:
   three.js and Phaser load pictures through image elements, unmodified (measured: the notes of ZN-569). Nothing is decoded off the main
   thread; SVG and animated pictures are not images here. **Audio** (ZN-573): media elements play nothing; no `AudioContext`.
   **Gamepads** (ZN-574): `navigator.getGamepads()` is empty.
-- `innerHTML` with markup (kept as text), `DOMParser`, `FormData`, streams, cookies, `Worker`, the window's `focus` / `blur` /
+- `innerHTML` with markup (kept as text), `FormData`, streams, cookies, `Worker`, the window's `focus` / `blur` /
   `visibilitychange`, `toDataURL` of a WebGL canvas.
 
 ## Libraries (2026-10-11, unmodified builds, no shim in the test)
@@ -99,7 +107,7 @@ What a program finds:
 ## Tests
 
 `tests/t0/webenv.sh` (globals, tree, events, frames and input, files, `data:` and `blob:` URLs, http against a local server, storage, scripts,
-the trace, image elements), `tests/t1/webenv_canvas.sh` (the canvas on WebGL and in the window), `tests/t1/webenv_image.sh`
+the trace, image elements), `tests/t0/webenv_domparser.sh` (XML against Chrome's DOMParser, loaded at the first use), `tests/t1/webenv_canvas.sh` (the canvas on WebGL and in the window), `tests/t1/webenv_image.sh`
 (images as textures, read back against a picture of known colours), `tests/t1/webgl_libs.sh` (the binding defects libraries
 found, ZN-565) and one T1 test per library above. Their programs and goldens are in `tests/golden/webenv/`. PixiJS, three.js and Phaser (MIT)
 are test data in `third_party/pixi`, `third_party/three` and `third_party/phaser`. p5.js is LGPL-2.1, which

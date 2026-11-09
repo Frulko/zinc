@@ -158,6 +158,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `fetch` of `zinc:net` works in an exported page, over the browser's own `fetch` (timeouts, size limits, `saveTo`), so apps and plugins that download with it, such as `zinc:map`, export without a W0603 warning.
 - `zinc dev --target web` watches the workspace packages your app imports (npm, pnpm, yarn and bun workspaces, `npm link`): a save in one bundles the packages again and reloads the page.
 - The site has a playground at `/play/`: edit a Zinc program, see the checker's problems as you type (each code opens its explanation), run it in the page and share it, since the link carries the program. It starts from any `zinc new` template (`/play/new/<template>/`) or lesson (the lesson pages get an Edit and run button), and Export as project downloads a folder that `zinc run` opens. Running needs Chrome or Edge 137 or later; checking works in every browser.
+- JavaScript libraries run with `"web": true` can use `DOMParser` and `XMLSerializer`, so bitmap fonts, SVG files and tile maps in XML load as in a browser; a program that parses no XML pays nothing for it.
 
 #### Faster
 

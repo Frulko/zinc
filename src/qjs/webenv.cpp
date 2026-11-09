@@ -177,6 +177,17 @@ napi_value js_run(napi_env c, napi_callback_info info) {
   napi_run_script(c, code, name.c_str(), &r);
   return r;
 }
+// xmldom(file): the text of one CommonJS file of @xmldom/xmldom (third_party/xmldom/lib, ZN-706), read by the engine and not through the
+// host's file row: it is the engine's own file, beside lib/std in the repository and in share/zinc, not the program's
+std::string gThirdParty;   // <root>/third_party, set by webEnv; the same for every context of the process
+napi_value js_xmldom(napi_env c, napi_callback_info info) {
+  Args<1> A(c, info);
+  std::string name, src;
+  if (A.argc < 1 || !zn::napi::text(c, A.argv[0], name) || name.empty() || name.find_first_not_of("abcdefghijklmnopqrstuvwxyz-") != std::string::npos) return nullptr;
+  const std::string path = gThirdParty + "/xmldom/lib/" + name + ".js";
+  if (!readText(path, src)) return throwRange(c, "the XML parser is missing (" + path + ")");
+  return string(c, src);
+}
 #ifndef ZN_ENGINE_MODULE
 // module(name): the namespace of a module, loaded and run now: `new URL()` cannot wait for an import. A module that imports it and leaves the
 // namespace on the global object is evaluated here; QuickJS runs a module's body at once (only its promise settles later), so one with no
@@ -236,6 +247,8 @@ bool webEnv(napi_env env, const std::string& stdRoot, const std::string& mode, c
   method(env, n, "decode", js_decode);
   method(env, n, "decodeImage", js_decodeImage);
   method(env, n, "run", js_run);
+  method(env, n, "xmldom", js_xmldom);
+  gThirdParty = (std::filesystem::path(stdRoot) / "../../third_party").lexically_normal().string();
   set(env, n, "base", string(env, base));
   set(env, n, "trace", boolean(env, mode == "trace"));
 #ifndef ZN_ENGINE_MODULE   // (an engine module has no frontend: there a GPU without WebGL 2 gets the warning, not the refusal)

@@ -1,0 +1,16 @@
+@xmldom/xmldom 0.9.12 (MIT), npm tarball xmldom-xmldom-0.9.12.tgz from https://registry.npmjs.org/@xmldom/xmldom/-/xmldom-0.9.12.tgz
+  sha256 08245e18c248b957b4c6e07f8549ad5f55ae11b7a8abd4c1113a0fd61ddc67ee
+  equal to the registry's record of the release (dist.shasum 1f84c07cb95ccf28202299f77b5fd7fc257151e8, dist.integrity
+  sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A==), checked 2026-11-09
+  lib/*.js = the package's lib/ (the eight CommonJS files, without .eslintrc.yml), unmodified:
+    da57fbe2b07f5a4aaee9217b49778936c11a1108da1761b2f24f356a900ff124  lib/conventions.js
+    4188e24b953e2c70b66150306c66547495ad968d040e31dd65f22a7b3485da28  lib/dom-parser.js
+    bea9ba89adfec227e9e572ee934a48223a170c5cf96b7087d7e3d3023ac47be3  lib/dom.js
+    ef333b680379392e8ee120e1cc77e0a8ff99a135e3b365b048f69c0df5f571f9  lib/entities.js
+    3e97f9c4f0a189346e2621b29c7c5a3899cd7375d1d15cbfbddd044fb781cb9f  lib/errors.js
+    144f27b46adfb4a139adeb7483820def568b3940a6893194c03f5a71a94babc0  lib/grammar.js
+    418c42598a45290498f4350b6b6f531ceeb25e8d4d9a107db2448a1c0b5b784e  lib/index.js
+    324e8a0c7b475c645efcd1736b634733e133150849bff741fa0e2215e7017d02  lib/sax.js
+  LICENSE = LICENSE (sha256 4da724fc305d81606b245b324d4d2586916b9d248b23d82183df753ace0fdf71), unmodified
+Read at run time by the web environment (lib/std/webenv.js) at the first DOMParser or XMLSerializer a program makes; packaged in share/zinc
+(tools/package). Nothing of it is compiled or linked into zinc.
