@@ -43,3 +43,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: ZN-1069 (D225). Integrated: web chain ZN-1065, ZN-693 (D226).
 - Worker: ZN-1070 AppKit primitives (claimed 6e23af277), beside the web chain.
 - Integrated: ZN-1012 (Backlog, D227). Worker: ZN-1024 (save-to-frame 200 ms, second pass), beside ZN-1070.
+- Integrated: ZN-1070 (Done, D228). Worker: ZN-1071 AppKit window chrome, beside ZN-1024.

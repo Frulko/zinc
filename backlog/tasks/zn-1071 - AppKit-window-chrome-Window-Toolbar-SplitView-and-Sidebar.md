@@ -2,7 +2,8 @@
 id: ZN-1071
 title: 'AppKit window chrome: Window, Toolbar, SplitView and Sidebar'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-08 21:43'
 labels:
   - ui

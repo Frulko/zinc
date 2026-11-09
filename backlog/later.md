@@ -592,6 +592,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1012: tutorials for the other plugins listed in `docs/reports/plugin-docs-audit/`, in the layout of `plugins/3d/docs`.
 - ZN-1012: once `plugins/<name>/docs/index.md` exists, `zinc doc` no longer shows the long `docs/plugins/<name>.md`: move the long reference into the plugin folder or let `index.md` include it.
 - ZN-1012: a T0 that runs `zinc doc --std` (0.3 s) and fails on any warning from `plugins/*/docs`.
+- ZN-1070: nested Text spans show as one string in one style in the AppKit host; build an NSAttributedString from the runs.
+- ZN-1070: WrapStyle carries no font weight, so bold text is measured regular until its first commit; pass the weight to the native measure.
+- ZN-1070: a scroll position the program sets (scrollTo) and zinc:ui's content size are not in the host buffer; add a scroll record with both (content padding is lost today).
+- ZN-1070: the AppKit host shows no shadows, clipping (overflow-hidden), transforms or pressed dim.
+- ZN-1070: the host walks the whole tree on each commit (views touched only where they differ); make it incremental if ZN-1074's measures ask.
+- ZN-1070: `zinc check` could warn when a render-native project never imports zinc:appkit (it is drawn); plugins/appkit has no web entry, a web export of such a project should skip it.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
