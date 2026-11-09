@@ -19,6 +19,9 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Core warm build and exact layout/plugin/Script/ID/flatMap checks pass; neutral ownership, actual kit_inputs/overlays and original gallery smoke pass. Unchanged combined size gate passes at57,640B/component (direct5,308,712/index5,358,240/ten5,877,008), no runtime speed claim. Read-only review found/fixed recycled-row insertion and imperative toast owner leaks; shared host helpers transferred to core. Pi reachable through paired zinc-player despite SSH-agent auth blocker; one bounded cross proof is in progress.
+- Created/claimed1096 after an actual3frame interpreter repro proves pre-layout scrollTo(0,200) becomes0. RN/Flutter primary research supports preserving pending intent. A fresh sole core worker takes it after the current five-task batch; do not append a sixth task. Picker checkpointb1b945b19 and Dataf048a55bf are private Backlog/allACopen, ready for fresh proof workers after core integration. Code13 reuse research saved in its unclaimed task.
+
 - Created/claimed ZN-1095 after Picker static lowering proves neutral nested JSX bypasses React component ownership. Prepared runtime assertions are unrun; no cleanup/state pass claimed. Sole core batch now 1088 -> 1093 -> 1094 -> 1095 -> 1090 (five tasks). Picker checkpoint2476e9887 and Data checkpoint28095e6ca remain private Backlog, all criteria open, pending engine proofs and captures; no new UI feature chain yet.
 
 - Core parked private1088 checkpoint e6d744868 (allACopen) after layout regressionPASS; nativeScript hostcontract test exposed missing transitive staticarchives, fixedsource unproved behindother-sessionMapperlock. Canceled onlyownqueuedbuild; now1093 then1094 then1090 source in same solewriter. Keep everycommitunintegrated until exactproof/fixups; no fabricatedDone. Pickers fullUnicode17catalog1914entries/9groups/330tones islazy/shakeable, ownruntime stillqueued.
