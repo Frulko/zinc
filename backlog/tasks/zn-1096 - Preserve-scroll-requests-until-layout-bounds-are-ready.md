@@ -1,11 +1,11 @@
 ---
 id: ZN-1096
 title: Preserve scroll requests until layout bounds are ready
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-09 19:06'
-updated_date: '2026-11-09 20:51'
+updated_date: '2026-11-09 21:03'
 labels:
   - ui
   - layout
@@ -32,8 +32,14 @@ Main tree has another session's Virtual/Fenwick UI changes around636/967: preser
 - [x] #1 Initial, hidden/detached and dirty-layout scroll requests preserve the latest x/y and animation intent, apply after current bounds exist, and then clamp normally; an explicit final zero request is honored
 - [x] #2 Existing restoration and imperative callers, including row alignment, remain coherent; animated/reduced-motion paths and per-window ownership are explicit
 - [x] #3 Focused T0 proves both axes, repeated requests, grow/shrink, hidden reveal, virtual rows and destroy/reuse across the three engines without stale callbacks or queued-handle leakage
-- [ ] #4 The original small repro and ordinary WheelPicker/Ruler initial selection pass with bounded feature smoke; documentation, changelog and proposed milestone checks are recorded
+- [x] #4 The original small repro and ordinary WheelPicker/Ruler initial selection pass with bounded feature smoke; documentation, changelog and proposed milestone checks are recorded
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Original fresh Picker Solid and React QuickJS feature proofs pass with this engine change: initial Wheel value2 and vertical scroll, Ruler40/Offset7 and horizontal scroll, hidden TimePicker wheels reveal at their selected offsets, keyboard minute End selects15:55 and Escape restores focus. Logs .worktrees/1078-pickers-proof/.logs/pickers-proof/solid-qjs-extended.log and react-qjs-scroll.log. AC4 is proven by these bounded actual-caller smokes; AC3 independently passed all3 engines on classic/Yoga. Original full native/interpreter Picker fixture still awaits independent1097/1099 frontend fixes; no such caller pass claimed.
+<!-- SECTION:NOTES:END -->
 
 ## Implementation and exact proof — 2026-11-09
 
