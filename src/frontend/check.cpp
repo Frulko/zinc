@@ -1571,7 +1571,7 @@ struct Checker {
 
   // d.m(...) on an any value (ZN-1035), as TypeScript allows: 1 an array method, 2 a string method, 3 both (dispatched on what d holds at run time)
   static int dynMethodKind(std::string_view m) {
-    for (std::string_view a : {"map", "filter", "forEach", "some", "every", "find", "findIndex", "findLast", "findLastIndex", "reduce", "reduceRight", "join",
+    for (std::string_view a : {"map", "flatMap", "filter", "forEach", "some", "every", "find", "findIndex", "findLast", "findLastIndex", "reduce", "reduceRight", "join",
                                "push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill"}) if (m == a) return 1;
     for (std::string_view t : {"toUpperCase", "toLowerCase", "trim", "trimStart", "trimEnd", "split", "charAt", "charCodeAt", "codePointAt", "startsWith",
                                "endsWith", "padStart", "padEnd", "replace", "replaceAll", "substring", "substr", "repeat", "localeCompare"}) if (m == t) return 2;
@@ -1584,7 +1584,7 @@ struct Checker {
     return isDyn(expr(r));
   }
   static bool isHofName(std::string_view m) {
-    for (std::string_view h : {"map", "filter", "some", "every", "forEach", "reduce", "reduceRight", "concat", "findIndex", "find", "findLast", "findLastIndex", "at", "indexOf", "lastIndexOf", "includes", "fill", "join", "splice", "shift", "unshift"}) if (m == h) return true;
+    for (std::string_view h : {"map", "flatMap", "filter", "some", "every", "forEach", "reduce", "reduceRight", "concat", "findIndex", "find", "findLast", "findLastIndex", "at", "indexOf", "lastIndexOf", "includes", "fill", "join", "splice", "shift", "unshift"}) if (m == h) return true;
     return false;
   }
   // arr.map(f) and friends: the call becomes a call of a helper generated in Zinc for this element and callback type.
@@ -1672,7 +1672,7 @@ struct Checker {
       if (args.empty()) { std::uint32_t sep = newNode(N::String, "\",\"", {}, i); out.nodeType[sep] = tStr; args.push_back(sep); }
       else if (!require(expr(args[0], tStr), tStr, args[0])) return tError;
       std::string key = "join," + std::to_string(at);
-      std::uint32_t sym = helper(key, "function $F(a: " + inspectAliasName(at) + ", sep: string): string {\n  let r = '';\n  for (let k: i32 = 0; k < a.length; k++) {\n    if (k > 0) r += sep;\n    r += " + std::string(isDyn(E) ? "__dynJoin(a[k])" : hasNull(E) ? "(a[k] === null ? '' : `${a[k]}`)" : "`${a[k]}`") + ";\n  }\n  return r;\n}\n", {at}, i);
+      std::uint32_t sym = helper(key, "function $F(a: " + inspectAliasName(at) + ", sep: string): string {\n  let r = '';\n  for (let k: i32 = 0; k < a.length; k++) {\n    if (k > 0) r += sep;\n    r += " + std::string(isDyn(E) ? "__dynJoin(a[k])" : dynBacked(E) ? (hasNull(E) ? "(a[k] === null ? '' : __dynJoin(a[k] as any))" : "__dynJoin(a[k] as any)") : hasNull(E) ? "(a[k] === null ? '' : `${a[k]}`)" : "`${a[k]}`") + ";\n  }\n  return r;\n}\n", {at}, i);
       std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
       out.nodeSym[id] = sym;
       out.nodeType[id] = out.syms[sym].type;
@@ -1845,12 +1845,12 @@ struct Checker {
       result = at;
     } else {
       bool boolRet = m == "filter" || m == "some" || m == "every" || m == "findIndex" || m == "find" || m == "findLast" || m == "findLastIndex";
-      TypeId lt = callback(boolRet ? tBool : kNoType, {E, i32});
+      TypeId lt = callback(boolRet ? tBool : kNoType, m == "flatMap" ? std::vector<TypeId>{E, i32, at} : std::vector<TypeId>{E, i32});
       if (bad(lt)) return tError;
       TypeId U = ty(lt).elem;
       if (boolRet && U != tBool) { diag(kZNotAssignable, args[0], "diag.detail.assign", {{"from", name(U)}, {"to", "boolean"}}); return tError; }
       std::string F = inspectAliasName(lt);
-      std::string call = arity == 0 ? "f()" : arity == 1 ? "f(a[k])" : "f(a[k], k)";
+      std::string call = arity == 0 ? "f()" : arity == 1 ? "f(a[k])" : arity == 2 ? "f(a[k], k)" : "f(a[k], k, a)";
       std::string fwd = "for (let k: i32 = 0; k < a.length; k++)", bwd = "for (let k: i32 = a.length - 1; k >= 0; k--)";
       key += "," + std::to_string(arity);
       if (m == "map") {
@@ -1860,6 +1860,41 @@ struct Checker {
         std::string R = inspectAliasName(result);
         sig = "(a: " + A + ", f: " + F + "): " + R;
         body = "  const r: " + R + " = [];\n  " + fwd + " r.push(" + call + ");\n  return r;\n";
+      } else if (m == "flatMap") {
+        if (U == tVoid || bad(U)) { diag(kZCannotInfer, args[0], "the result type of 'flatMap'"); return tError; }
+        std::vector<TypeId> elements;
+        bool dynamic = isDyn(U);
+        for (TypeId t : unionMembers(U)) {
+          const bool array = ty(t).k == TK::Array, tuple = isTupleType(t);
+          dynamic = dynamic || (ty(U).k == TK::Union && (array || tuple));
+          if (array) elements.push_back(ty(t).elem);
+          else if (tuple) for (const Member& field : out.objs[ty(t).obj].members) elements.push_back(field.type);
+          else elements.push_back(t);
+        }
+        if (elements.empty()) { diag(kZCannotInfer, args[0], "flatMap element type from an empty tuple: give the callback an array return type"); return tError; }
+        const TypeId V = unionOf(elements, ty(U).k == TK::Union && ty(U).undef);
+        result = arrayOf(V);
+        aliases.push_back(result);
+        aliases.push_back(V);
+        const std::string R = inspectAliasName(result);
+        sig = "(a: " + A + ", f: " + F + "): " + R;
+        body = "  const r: " + R + " = [];\n  const n: i32 = a.length;\n  for (let k: i32 = 0; k < n; k++) {\n    if (k >= a.length) continue;\n";
+        if (dynamic) {  // generated helpers bypass implicit Dyn rewriting: name their checked conversions explicitly
+          const std::string Vs = inspectAliasName(V);
+          auto scalar = [&](const std::string& value) {
+            if (isDyn(V)) return value;
+            if (dynBacked(V)) return "(" + (hasNull(V) ? "__dynOpt(" + value + ")" : value) + " as " + Vs + ")";
+            return std::string(out.syms[dynSym(V, false, i)].name) + "(" + value + ")";
+          };
+          body += "    const v: any = " + call + ";\n    if (__dynIsArray(v)) {\n      for (const item of __dynIter(v)) r.push(" + scalar("item") + ");\n    } else r.push(" + scalar("v") + ");\n";
+        }
+        else if (ty(U).k == TK::Array) body += "    const items = " + call + ";\n    for (const item of items) r.push(item);\n";
+        else if (isTupleType(U)) {
+          body += "    const items = " + call + ";\n";
+          for (const Member& field : out.objs[ty(U).obj].members) body += "    r.push(items[" + field.name + "]);\n";
+        }
+        else body += "    r.push(" + call + ");\n";
+        body += "  }\n  return r;\n";
       } else if (m == "filter") {
         result = at;
         sig = "(a: " + A + ", f: " + F + "): " + A;

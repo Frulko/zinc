@@ -4082,6 +4082,7 @@ bool needsArena(const Ast& A) {
 // Dyn: `any`, `unknown`, `undefined` and JSON.parse bring the classes and helpers of dyn.cpp (with the console.log and JSON helpers they use).
 bool needsJson(const Ast& A) {
   for (const Node& x : A.nodes) {
+    if (x.kind == N::Member && x.text == "flatMap") return true;   // generated callback-result array/scalar inspection uses Dyn, even when its union is inferred
     if ((x.kind == N::TypeRef && (x.text == "any" || x.text == "unknown")) || (x.kind == N::Ident && (x.text == "undefined" || x.text == "__recDec" || x.text == "__recEnc"))) return true;   // __rec*: native records (ZN-850)
     if (x.kind == N::Member && x.text == "parse" && A.nodes[x.kids[0]].kind == N::Ident && A.nodes[x.kids[0]].text == "JSON") return true;
     if (x.kind == N::TypeUnion) {   // `boolean | Cam`, `string | number`: a union of a primitive and another type is held as a Dyn (Checker::dynBacked)

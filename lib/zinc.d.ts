@@ -171,6 +171,7 @@ interface Array<T> {
   some(f: (v: T, i: i32) => boolean): boolean;
   every(f: (v: T, i: i32) => boolean): boolean;
   map<U>(f: (v: T, i: i32) => U): U[];
+  flatMap<U>(f: (v: T, i: i32, source: T[]) => U | ReadonlyArray<U>): U[];
   filter(f: (v: T, i: i32) => boolean): T[];
   reduce<U>(f: (acc: U, v: T, i: i32) => U, init: U): U;
   reduceRight<U>(f: (acc: U, v: T, i: i32) => U, init: U): U;
