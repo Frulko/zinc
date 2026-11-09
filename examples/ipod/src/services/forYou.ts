@@ -431,13 +431,20 @@ export function topArtists(rows: Ranked[]): Card[] {
   return out;
 }
 
-/** The year of `now` in review as the history counts it: `times`, its listens (History.times), and its top artists and songs
- *  (History.topArtists, topTracks); yearReview adds the minutes and the genres. */
-export function yearCounts(now: number, times: number[], artists: Ranked[], songs: Ranked[]): YearReview {
-  const y: YearReview = { year: new Date(now * 1000).getFullYear() as i32, listens: times.length as i32, minutes: 0, artists: [], songs: [], genres: [], months: [] };
-  for (let k = 0; k < 12; k++) y.months.push(0);
-  for (const t of times) y.months[new Date(t * 1000).getMonth()] += 1;
-  for (const r of artists) y.artists.push({ name: r.artist, detail: '', count: r.plays });
+/** The local starts of the 12 months of the year of `now`, then its end (`now` included): the spans History.listensIn counts. */
+export function monthEdges(now: number): number[] {
+  const first = yearStart(now), end = Math.min(yearStart(now, 1), now + 1), out: number[] = [];
+  for (let k: i32 = 0; k < 12; k++) out.push(Math.min(monthStart(first, k), end));
+  out.push(end);
+  return out;
+}
+
+/** The year of `now` in review as the history counts it: its listens per month (History.listensIn over monthEdges), and its top
+ *  artists (the first 5) and songs (History.topArtists, topTracks); yearReview adds the minutes and the genres. */
+export function yearCounts(now: number, months: i32[], artists: Ranked[], songs: Ranked[]): YearReview {
+  const y: YearReview = { year: new Date(now * 1000).getFullYear() as i32, listens: 0, minutes: 0, artists: [], songs: [], genres: [], months: [] };
+  for (let k = 0; k < 12; k++) { const n = k < months.length ? months[k] : 0; y.months.push(n); y.listens += n; }
+  for (const r of artists.slice(0, 5)) y.artists.push({ name: r.artist, detail: '', count: r.plays });
   for (const r of songs) if (r.plays > 0) y.songs.push({ name: r.title, detail: r.artist, count: r.plays });
   return y;
 }

@@ -3,12 +3,14 @@
 //   covers/<track id>.png    the covers shown (the largest the iPod stores), read from here before the iPod or the daemon is asked;
 //                            the Sonos speakers are served the same files
 //   library.json             the last library read (device, tracks, playlists, specs) and the marker of the database it came from
+//   library-keys.jsonl       its songs as the history's matcher reads them, a line each (services/history.ts syncPods)
 //   audio/<track id>.<ext>   a remote iPod's files played, the least recently used dropped past the size set in the settings
 //   plays.json               the plays not yet written to the iPod (services/listening.ts)
 // The covers are kept whatever their size (a few tens of KB each); the audio is capped.
 import * as fs from 'zinc:fs';
 import * as ipod from 'zinc:ipod';
 import { backupPlace } from './log';
+import { LibTrack, writeLibraryKeys } from './history';
 
 /** The library as the app last read it, and the marker of the iPod's database then (its size and time: services/ipod.ts). */
 export interface LibrarySnapshot {
@@ -71,6 +73,9 @@ export function writeSnapshot(s: LibrarySnapshot): void {
     const file = libraryFile();
     fs.writeText(`${file}.part`, JSON.stringify(s));
     fs.rename(`${file}.part`, file);
+    const keys: LibTrack[] = [];   // what the history's matcher reads of it, a line per song (history.ts syncPods)
+    for (const t of s.tracks) keys.push({ id: t.id, artist: t.artist, albumArtist: t.albumArtist, title: t.title, album: t.album, mbid: '' });
+    writeLibraryKeys(cacheDir(), s.marker, keys);
   } catch (e) { console.error(`ipod: ${libraryFile()}: ${(e as Error).message}`); }
 }
 

@@ -10,7 +10,7 @@ import * as fs from 'zinc:fs';
 import * as ipod from 'zinc:ipod';
 import { library, albums, artists, Album, Artist, openAlbum, openArtist, openPlaylist, showPage } from './state';
 import { PodLibrary } from './services/ipod';
-import { History } from './services/history';
+import { History, ForYouSql } from './services/history';
 import { history, historyStarted, syncHistory, historyCounts } from './services/historyJobs';
 import * as fy from './services/forYou';
 import { Draft, keepDrafts, modelNow, play, job, ask } from './drafts';
@@ -19,7 +19,7 @@ import { deepKey, prepareNear } from './deep';
 import * as cache from './services/cache';
 import { PAGE_YEAR } from './constants';
 import { loadConfig, saveConfig } from './services/config';
-import { tick } from './services/slice';
+import { Budget, tick } from './services/slice';
 
 const FORMAT: i32 = 1;
 const PREFIX = 'draft:foryou:';
@@ -142,11 +142,15 @@ async function work(lib: PodLibrary): Promise<void> {
   const j = job('foryou');
   j.now = t; j.day = today; j.playlists = lib.playlists;
   if (old !== null && (old as ForYouData).day === today) { for (const sh of (old as ForYouData).shelves) if (sh.id === 'daily') j.daily = sh.cards; }
-  j.loved = h !== null ? (h as History).lovedOn(guid) : [];
-  const from = fy.yearStart(t), to = Math.min(fy.yearStart(t, 1), t + 1);
-  j.year = h !== null ? fy.yearCounts(t, (h as History).times(from, to), (h as History).topArtists(from, to, 5), (h as History).topTracks(from, to, 5)) : fy.yearCounts(t, [], [], []);
-  j.artistsMonth = h !== null ? fy.topArtists((h as History).topArtists(fy.monthStart(t), t + 1, 12)) : [];
-  j.artistsYear = h !== null ? fy.topArtists((h as History).topArtists(from, t + 1, 12)) : [];
+  let q: ForYouSql | null = null;
+  if (h !== null) {   // counted by SQLite, a query per slice
+    q = await (h as History).forYouSql(guid, fy.monthStart(t), fy.monthEdges(t), new Budget());
+    if (library() !== lib) return;
+  }
+  j.loved = q !== null ? (q as ForYouSql).loved : [];
+  j.year = q !== null ? fy.yearCounts(t, (q as ForYouSql).months, (q as ForYouSql).artistsYear, (q as ForYouSql).songsYear) : fy.yearCounts(t, [], [], []);
+  j.artistsMonth = q !== null ? fy.topArtists((q as ForYouSql).artistsMonth) : [];
+  j.artistsYear = q !== null ? fy.topArtists((q as ForYouSql).artistsYear) : [];
   const o = await ask(j);
   if (o === null || library() !== lib) return;   // a newer one is worked out
   const shelves = o.shelves as fy.Shelf[];

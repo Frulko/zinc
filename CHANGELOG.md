@@ -234,6 +234,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `examples/js-phaser` opens at three times its 320x240 game size on a desktop, instead of a small window.
 - `examples/midi` plays each note as a tone too, so its first run is heard with no instrument open (`MIDI_TONE=0` leaves the sound to the instrument).
 
+#### Faster
+
+- The iPod example's For you page no longer pauses the window when it refreshes a large history (the year's counts are now done by SQLite), and the first sync after a library change reads the 10,000 songs a slice at a time instead of in one block.
+
 #### Fixed
 
 - The delete icons of the Nuxt UI, Carnet and Discord examples and of the `desktop-app` template draw again: they used `trash-2`, a name Lucide changed to `trash`.

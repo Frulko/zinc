@@ -73,6 +73,9 @@ const FUZZY_MIN = 0.90, FUZZY_MARGIN = 0.03;
 
 export class Counts { listens: i32 = 0; matchedListens: i32 = 0; songs: i32 = 0; unmatchedSongs: i32 = 0; unmatchedListens: i32 = 0; }
 export class Ranked { key: string = ''; artist: string = ''; title: string = ''; plays: i32 = 0; skips: i32 = 0; last: number = 0; }
+
+/** History.forYouSql's answer. */
+export interface ForYouSql { loved: string[]; months: i32[]; artistsMonth: Ranked[]; artistsYear: Ranked[]; songsYear: Ranked[]; }
 export class PodPlays { trackId: string = ''; plays: i32 = 0; skips: i32 = 0; last: number = 0; }
 export class Session { start: number = 0; end: number = 0; listens: i32 = 0; }
 export class MatchResult { trackId: string = ''; score: number = 0; method: string = ''; }
@@ -359,11 +362,29 @@ export class History {
     return out;
   }
 
-  /** When each listen (not skipped) between `from` and `to` started, oldest first. */
-  times(from: number, to: number): number[] {
-    const out: number[] = [];
-    for (const r of this.db.prepare('SELECT ts FROM listens WHERE ts >= ? AND ts < ? AND skipped = 0 ORDER BY ts').all([from, to])) out.push(r.number('ts'));
+  /** The listens (not skipped) in each span [edges[k], edges[k + 1]) (Unix seconds), counted by SQLite on the time index (`+skipped`: not the skipped index, which scans every listen): no row per listen. */
+  listensIn(edges: number[]): i32[] {
+    const out: i32[] = [];
+    for (let k = 0; k + 1 < edges.length; k++)
+      out.push((this.db.prepare('SELECT count(*) AS n FROM listens WHERE ts >= ? AND ts < ? AND +skipped = 0').get([edges[k], edges[k + 1]]) as Row).number('n') as i32);
     return out;
+  }
+
+  /** What For you reads from SQL for the iPod `guid` (src/forYou.ts gives it to the worker): the loved songs on it, the listens per span of
+   *  `edges` (the months of the year), the top artists from `month` and from edges[0] to the last edge, and the top songs of that span; a
+   *  turn of the event loop between the queries when the slice of `b` is used up. */
+  async forYouSql(guid: string, month: number, edges: number[], b: Budget = new Budget()): Promise<ForYouSql> {
+    const end = edges[edges.length - 1];
+    const q: ForYouSql = { loved: this.lovedOn(guid), months: [], artistsMonth: [], artistsYear: [], songsYear: [] };
+    await b.check();
+    q.months = this.listensIn(edges);
+    await b.check();
+    q.artistsMonth = this.topArtists(month, end, 12);
+    await b.check();
+    q.artistsYear = this.topArtists(edges[0], end, 12);
+    await b.check();
+    q.songsYear = this.topTracks(edges[0], end, 5);
+    return q;
   }
 
   /** Changes whenever a listen, a love or a match of the iPod `guid` is added or removed (the For you page keeps its shelves under it). */
@@ -434,18 +455,51 @@ export async function syncPods(h: History, cacheDir: string, b: Budget = new Bud
       if (!fs.exists(f)) continue;
       const st = fs.stat(f), stamp = `${st.size}:${Math.floor(st.mtimeMs)}`, fileKey = `match.${e.name}.file`;
       if (h.get(fileKey) === stamp && h.lastRow() <= h.getNumber(`match.${e.name}.row`)) continue;   // nothing new
-      const snap = JSON.parse(fs.readText(f));
-      await b.check();
       const tracks: LibTrack[] = [];
-      const list = snap.tracks;
-      await b.each(list.length as i32, (i: i32) => {
-        const t = list[i];
-        tracks.push({ id: '' + t.id, artist: '' + t.artist, albumArtist: t.albumArtist !== undefined ? '' + t.albumArtist : '', title: '' + t.title,
-          album: t.album !== undefined ? '' + t.album : '', mbid: t.mbid !== undefined ? '' + t.mbid : '' });
-      });
-      n += await h.match(e.name, tracks, '' + snap.marker, b);
+      let marker = await readLibraryKeys(dir, stamp, tracks, b);
+      if (marker === null) {   // no keys file for this library.json (written by an older version): the whole library, in one parse
+        const snap = JSON.parse(fs.readText(f));
+        await b.check();
+        const list = snap.tracks;
+        await b.each(list.length as i32, (i: i32) => {
+          const t = list[i];
+          tracks.push({ id: '' + t.id, artist: '' + t.artist, albumArtist: t.albumArtist !== undefined ? '' + t.albumArtist : '', title: '' + t.title,
+            album: t.album !== undefined ? '' + t.album : '', mbid: t.mbid !== undefined ? '' + t.mbid : '' });
+        });
+        marker = '' + snap.marker;
+      }
+      n += await h.match(e.name, tracks, marker as string, b);
       h.set(fileKey, stamp);
     } catch (x) { console.error(`history: ${dir}/library.json: ${(x as Error).message}`); }
   }
   return n;
+}
+
+// ---- the songs the matcher reads, beside library.json: library-keys.jsonl, one JSON line each (the stamp of the library.json they come
+// from, its marker, then [id, artist, albumArtist, title, album] per song), so a sync parses a line at a time within its budget instead
+// of the whole library (40 ms for 10,000 songs) in one go
+
+const LIBRARY_KEYS = 'library-keys.jsonl';
+
+/** Writes the keys of `tracks` beside `dir`/library.json, just written with `marker` (services/cache.ts writeSnapshot). */
+export function writeLibraryKeys(dir: string, marker: string, tracks: LibTrack[]): void {
+  const st = fs.stat(`${dir}/library.json`);
+  const lines: string[] = [JSON.stringify(`${st.size}:${Math.floor(st.mtimeMs)}`), JSON.stringify(marker)];
+  for (const t of tracks) lines.push(JSON.stringify([t.id, t.artist, t.albumArtist, t.title, t.album, t.mbid]));
+  fs.writeText(`${dir}/${LIBRARY_KEYS}.part`, lines.join('\n'));
+  fs.rename(`${dir}/${LIBRARY_KEYS}.part`, `${dir}/${LIBRARY_KEYS}`);
+}
+
+/** The songs of `dir`/library-keys.jsonl into `tracks`, a batch of lines per check of `b`; its marker, or null when the file is missing
+ *  or was written for another library.json than `stamp`. */
+export async function readLibraryKeys(dir: string, stamp: string, tracks: LibTrack[], b: Budget): Promise<string | null> {
+  const f = `${dir}/${LIBRARY_KEYS}`;
+  if (!fs.exists(f)) return null;
+  const lines = (await fs.readTextAsync(f)).split('\n');
+  if (lines.length < 2 || ('' + JSON.parse(lines[0])) !== stamp) return null;
+  await b.each((lines.length - 2) as i32, (i: i32) => {
+    const a = JSON.parse(lines[i + 2]);
+    tracks.push({ id: '' + a[0], artist: '' + a[1], albumArtist: '' + a[2], title: '' + a[3], album: '' + a[4], mbid: '' + a[5] });
+  });
+  return '' + JSON.parse(lines[1]);
 }

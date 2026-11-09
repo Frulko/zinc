@@ -13,7 +13,8 @@
 // holds bench.sqlite and an optional similar-artists.jsonl); =big puts that library and history on the fake iPod, to time the app on it. FORYOU_COVERS: a folder of <Artist-Name>.png covers.
 import * as ipod from 'zinc:ipod';
 import { env } from 'zinc:sys';
-import { History, Listen, LibTrack } from '../../../examples/ipod/src/services/history';
+import * as fs from 'zinc:fs';
+import { History, Listen, LibTrack, writeLibraryKeys, readLibraryKeys } from '../../../examples/ipod/src/services/history';
 import { loadWeights, readArtistGraph, buildModel, mixes, genius, Model } from '../../../examples/ipod/src/services/genius';
 import { MOODS, moodMix } from '../../../examples/ipod/src/services/moods';
 import { Budget } from '../../../examples/ipod/src/services/slice';
@@ -148,7 +149,7 @@ async function main(): Promise<void> {
   const artistsMonth: string[] = [];
   for (const c of fy.topArtists(h.topArtists(fy.monthStart(NOW), NOW + 1, 4))) artistsMonth.push(`${c.title} (${c.subtitle})`);
   console.log('top artists month', artistsMonth.join(', '));
-  const y = await fy.yearReview(yearCounts(h, NOW), s, NOW);
+  const y = await fy.yearReview(await yearCounts(h, GUID, NOW), s, NOW);
   let monthSum = 0;
   for (const n of y.months) monthSum += n;
   console.log('year', y.year, 'listens', y.listens === in2026, 'months', monthSum === y.listens, y.months.slice(4, 6).join(' '), 'artists', y.artists.length,
@@ -171,13 +172,13 @@ async function main(): Promise<void> {
   h.close();
 }
 
-/** FORYOU_MODE=big: the bench's library (10,000 songs) on the fake iPod and its 100,000 listens in the history, to time the app on it. */
 /** The year's counts from the history, as src/forYou.ts reads them for the worker. */
-function yearCounts(h: History, now: number): fy.YearReview {
-  const from = fy.yearStart(now), to = Math.min(fy.yearStart(now, 1), now + 1);
-  return fy.yearCounts(now, h.times(from, to), h.topArtists(from, to, 5), h.topTracks(from, to, 5));
+async function yearCounts(h: History, guid: string, now: number, b: Budget = new Budget()): Promise<fy.YearReview> {
+  const q = await h.forYouSql(guid, fy.monthStart(now), fy.monthEdges(now), b);
+  return fy.yearCounts(now, q.months, q.artistsYear, q.songsYear);
 }
 
+/** FORYOU_MODE=big: the bench's library (10,000 songs) on the fake iPod and its 100,000 listens in the history, to time the app on it. */
 async function big(mount: string, db: string): Promise<void> {
   await ipod.open(mount, true, '', 'Zinc Pod');
   const items: ipod.TrackInput[] = [];
@@ -251,7 +252,30 @@ async function bench(): Promise<void> {
   done('time capsule', (await fy.timeCapsule(s, 30, b)).length);
   done('because', (await fy.becauseYouListened(s, 3, b)).length);
   done('tops', fy.topSongs(s, 'a', '', '', fy.monthStart(NOW), NOW, 50).length + fy.topArtists(h.topArtists(fy.yearStart(NOW), NOW, 12)).length);
-  done('year', (await fy.yearReview(yearCounts(h, NOW), s, NOW, b)).listens);
+  const q = await h.forYouSql('BENCH', fy.monthStart(NOW), fy.monthEdges(NOW), b);   // the app's SQL step (src/forYou.ts)
+  const yc = fy.yearCounts(NOW, q.months, q.artistsYear, q.songsYear);
+  const am = fy.topArtists(q.artistsMonth), ay = fy.topArtists(q.artistsYear);
+  done('sql', yc.listens + q.loved.length + am.length + ay.length);
+  const yr = await fy.yearReview(yc, s, NOW, b);
+  done('year', yr.listens);
+  const shelves: fy.Shelf[] = [{ id: 'daily', title: 'Your daily mixes', cards: await fy.dailyMixes(s, '2026-06-15', 50, b) },
+    { id: 'made', title: 'Made for you', cards: fy.onRepeat(s).concat(fy.repeatRewind(s)).concat(await fy.rediscover(s, 30, b)).concat(await fy.timeCapsule(s, 30, b)) },
+    { id: 'top', title: 'Your top songs', cards: fy.topSongs(s, 'top-month', '', '', fy.monthStart(NOW), NOW + 1, 50).concat(fy.topSongs(s, 'top-year', '', '', fy.yearStart(NOW), NOW + 1, 100)) },
+    { id: 'artists-month', title: '', cards: am }, { id: 'artists-year', title: '', cards: ay }];
+  for (const sh of await fy.becauseYouListened(s, 3, b)) shelves.push(sh);
+  b = new Budget(); t0 = performance.now();
+  const text = JSON.stringify({ format: 1, guid: 'BENCH', key: '', day: '2026-06-15', listens: 0, matched: 0, shelves: shelves, year: yr });
+  done('write', text.length);
+  // the library as a sync reads it (history.ts syncPods): library.json whole (a cache of an older version), its keys a line at a time
+  const libDir = `${dir}/lib`;
+  fs.mkdir(libDir, true);
+  fs.writeText(`${libDir}/library.json`, JSON.stringify({ marker: 'b', tracks: tracks }));
+  writeLibraryKeys(libDir, 'b', libTracks(tracks));
+  b = new Budget(); t0 = performance.now();
+  done('library.json', JSON.parse(fs.readText(`${libDir}/library.json`)).tracks.length);
+  const st = fs.stat(`${libDir}/library.json`), keyed: LibTrack[] = [];
+  const marker = await readLibraryKeys(libDir, `${st.size}:${Math.floor(st.mtimeMs)}`, keyed, b);
+  done('library keys', marker === 'b' ? keyed.length : -1);
   done('version', h.version('BENCH').length);
   done('mixes', (await mixes(m, 6, 50, 5, b)).length);
   done('genius 100', genius(m, 't1234', 100).length);
