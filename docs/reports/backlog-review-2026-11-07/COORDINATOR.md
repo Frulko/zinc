@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Owner gallery1087 default resize is blocked by confirmed SDL aspect lock left active when hal_set_resize switches to fill. Claimed1091; sole core worker handles immediately after integrated1089(cf0b4c9e0), before size1088/icons1090. Minimal repro /tmp/1087-proof/resize.tsx; no ZINC_RESIZE workaround. Gallery/Feedback workers keep own source.
+
 - Common engine chain claimed:1089 reset evaluated compositor values,1088 retain only needed standalone type/code metadata,1090 reached-library default icons. Fresh sole core worker replaces returned Navigation worker; works in that order, separate commits. Inputs0a8c0b141 and Navigation3dde12a02 progress integrated, size ACs open. Gallery1087 owner fix and Feedback11 continue independently. No UI source workarounds or budget changes.
 
 - Owner screenshot correction takes priority: ZN-1087 claimed for docs/img/design/src responsive gallery and real aligned password reveal; fresh worker replaces finished Inputs. Inputs progress0a8c0b141 integrated, AC3 remains open on new-source AOT metadata costs. Navigation/Feedback continue; queue common engine metadata/animation blockers when a worker slot returns.
