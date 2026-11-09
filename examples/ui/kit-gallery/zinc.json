@@ -25,6 +25,9 @@
   },
   "icons": [
     "undo",
-    "redo"
+    "redo",
+    "x",
+    "save",
+    "rotate-ccw"
   ]
 }

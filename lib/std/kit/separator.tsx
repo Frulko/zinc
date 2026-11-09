@@ -37,10 +37,17 @@ export function ResizeHandle(props: ResizeHandleProps): i32 {
     if (e.phase === 0) start = props.size();
     props.onResize(Math.max(lo, Math.min(hi, Math.round(start + sign * d))));
   };
+  const keys = (e: ui.KeyEvent): void => {
+    const backward = e.key === 'ArrowLeft' || e.key === 'ArrowUp';
+    const forward = e.key === 'ArrowRight' || e.key === 'ArrowDown';
+    if (!backward && !forward && e.key !== 'Home' && e.key !== 'End') return;
+    const value = e.key === 'Home' ? lo : e.key === 'End' ? hi : props.size() + sign * (backward ? -10 : 10);
+    props.onResize(Math.max(lo, Math.min(hi, value))); e.preventDefault();
+  };
   const look = `shrink-0 bg-${theme().border} hover:bg-${theme().accent} ${props.className ?? ''}`;
   if (props.vertical ?? false)
-    return <View className={`w-1 self-stretch cursor-col-resize ${look}`} role="separator" aria-orientation="vertical" dragAxis="x" dragThreshold={1}
+    return <Button onKeyDown={keys} className={`w-1 self-stretch cursor-col-resize ${look}`} role="separator" aria-orientation="vertical" dragAxis="x" dragThreshold={1}
       onDrag={(e: ui.PointerEvent) => { drag(e, e.dx); }} />;
-  return <View className={`h-1 self-stretch cursor-row-resize ${look}`} role="separator" aria-orientation="horizontal" dragAxis="y" dragThreshold={1}
+  return <Button onKeyDown={keys} className={`h-1 self-stretch cursor-row-resize ${look}`} role="separator" aria-orientation="horizontal" dragAxis="y" dragThreshold={1}
     onDrag={(e: ui.PointerEvent) => { drag(e, e.dy); }} />;
 }

@@ -137,6 +137,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - The Quiet kit adds named icon buttons, split and toggle groups, segmented controls, clipboard feedback, hold confirmation and a searchable command palette; the gallery shows them with keyboard controls.
 
+- Build Quiet workspaces with keyboard menus, an overflow toolbar, status items, document tabs and resizable docking; layouts can be saved, validated and restored without losing closed or temporarily unavailable panels.
+
 #### Changed
 
 - The default layout sizes `flex-1`, `w-full` and `h-full` as a browser does: `flex-1` items share a row or a column equally whatever their content, but never get narrower than their content unless they have `min-w-0`, `overflow-hidden` or `truncate`; a `w-full` or `h-full` box along the row or column stays inside its parent instead of growing with its content; and the last width or height class wins (`w-full w-[280px]` is 280 px wide).
@@ -166,7 +168,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - With the `rn` layout, `flex-1` shrinks as in Tailwind and React Native's `flex: 1`: a pane next to a widened sidebar narrows instead of running past the window.
 - A JSX list mounts nodes returned through a local variable in a block-bodied `map` callback, instead of drawing their numeric handles; ordinary number arrays still draw as text.
 - Removing a tooltip or another focus-aware control drops its focus callbacks before its node slot is reused, so cancelling a dock drag no longer hides the next dragged panel.
-
+- Shortcut hints retain minus keys, including `Ctrl+-` and `Mod+Shift+-`.
 
 ### The web
 

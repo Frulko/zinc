@@ -199,6 +199,9 @@ dnd.autoScroll(list);                                                           
   gives each record its closest edge (Pragmatic's hitbox `closest-edge`).
 - `monitor({ onDragStart, onDrag, onDropTargetChange, onDrop })` sees every drag. A cancelled drag is a drop on nothing
   (`targets` empty).
+- `cancelDrag()` cancels the active drag (for example from an Escape handler), sends target leave notifications, and
+  returns whether anything was cancelled. Releasing the cancelled press does not drop it. Disposing a draggable
+  also cancels its active drag; callback errors still release the drag lifecycle.
 - `DragInfo`: `source`, `data`, `x` / `y` (surface px), `dx` / `dy`, `targets` and `previous` (`DropRecord`: `node`,
   `data`, `edge`), `self` in a target's own callbacks. Each function returns the one that undoes it.
 - The preview is the app's (a translucent copy, a line where it lands): nothing is drawn by the module. The test is

@@ -274,3 +274,46 @@ const [view, setView] = createSignal('week');
 Recreate the pictures with `GALLERY=actions` or `GALLERY=palette`, `ZINC_HEADLESS=1`, `ZINC_FRAMES=40`,
 `ZINC_SHOT=<path>` and `zinc run examples/ui/kit-gallery --engine quickjs`. `GALLERY_DARK=1` selects Quiet dark.
 The gallery rests when nothing changes; its sample upload value is static.
+
+## Quiet App chrome
+
+The App chrome family composes the existing kit primitives and `zinc:ui/dnd`. Bars inherit their surface and draw
+one inner hairline. Document and dock state belongs to the application; closing a dirty document asks the caller,
+and loading an invalid saved layout leaves the current workspace intact.
+
+![App chrome drawn by Zinc](img/kit-app-chrome.png)
+
+| Component | Props and keyboard behavior |
+| --- | --- |
+| `MenuBar` | Existing `items: MenuEntry[]`, `native?`, `onSelect?`, `className?`; top-level entries accept `mnemonic?`. F10 enters the bar, Left/Right changes titles, Down/Enter opens, arrows navigate and Enter picks; Escape closes and restores focus. `Alt+mnemonic` opens a named menu. Hover switches open menus; accelerators remain global while the bar is mounted. Native mode still suppresses the drawn bar. |
+| `Toolbar` | `label`, `items: {label,icon?,checked?,disabled?,separator?,onSelect?}[]`, `trailing?`, `className?`. Ghost actions and named icon tooltips; actions that do not fit move into “More actions”. All actions remain reachable by Tab, Enter/Space and the overflow menu. |
+| `StatusBar` | Children and optional `trailing`, `className`. A 30 px row with a top hairline; the trailing slot aligns right. |
+| `StatusItem` | `label`, `onClick?`, `progress?: () => number` (0–100). Text uses 12 px tabular figures; clickable items enter the Tab order. A progress value stays still when no work changes it. |
+| `DocumentTabs` | `items: () => DocumentTab[]`, `selected`, `onSelect`, `onClose?`, `onMove?`, `className?`; tabs have stable `id`, `label`, `dirty?`, `closable?`. Click selects; the close button, middle press, Delete or Mod+W asks `onClose`. Left/Right and Home/End select, Shift+Left/Right and drag request reorder; Ctrl+Tab/Shift+Tab or Ctrl+PageDown/Up cycle. The caller decides whether to save a dirty document. |
+| `DockLayout` | `layout: () => DockLayoutState`, `onChange`, `panels: {id,label,content}[]`, `className?`. A recursive tree of horizontal/vertical splits and tab groups. Drag a panel to an edge to split or to a group's centre to join it; “Panel actions” offers these moves by keyboard. Dividers resize by drag or 10 px arrow steps, Home/End use the bounds. Closed panels stop building; reopening retains their original group. |
+
+`DockLayoutState` contains `root: DockNode` and `closed: string[]`. A node has a stable `id`, `axis` (`tabs`,
+`horizontal`, `vertical`), `ratio`, `tabs`, `selected` and optional `first`/`second`. Split ratios stay within
+0.05–0.95 and dividers reserve up to 120 px per side, sharing smaller spaces. Unknown panel IDs remain in the data,
+so a temporarily absent plugin does not lose its position. Empty branches compact after a move.
+
+```tsx
+import * as storage from 'zinc:storage';
+// Save when the person chooses; persistence is never performed at import time.
+storage.set('workspace', saveDockLayout(layout()));
+try { setLayout(parseDockLayout(storage.get('workspace'))); }
+catch (error) { showStatus('Layout unchanged: ' + error.message); }
+setLayout(setDockPanelOpen(layout(), 'output', true));
+setLayout(moveDockPanel(layout(), 'output', 'editor', 'bottom'));
+```
+
+`parseDockLayout` throws on malformed data, duplicate node/panel identities, invalid selections or ratios, more
+than 48 panels, 95 nodes, 16 levels or 64 KiB of source. It builds a validated copy before the caller applies it.
+`saveDockLayout`, `moveDockPanel`, and `setDockPanelOpen` return data or new layouts; applications own storage and
+surface any read/write error. Dock highlight and resize track direct manipulation; springs use the kit's reduced
+motion path. No chrome control starts a decorative animation.
+
+Recreate the picture with `GALLERY=chrome ZINC_HEADLESS=1 ZINC_FRAMES=40 ZINC_SHOT=docs/img/kit-app-chrome.png zinc run examples/ui/kit-gallery --engine quickjs`.
+
+Escape cancels an active dock drag and clears its highlight; releasing afterwards cannot apply the cancelled drop.
+The same shared operation is available as `cancelDrag()` from `zinc:ui/dnd`, returning whether it cancelled a drag.

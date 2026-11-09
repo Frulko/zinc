@@ -10,11 +10,13 @@ import * as ui from 'zinc:ui';
 import { theme } from './theme';
 import { keyLabel } from './overlays';
 import { renderSlot } from './host';
+import { look } from '../platform/index';
 import { longPressFeedback } from '../platform/index';
 
 export interface MenuEntry {
   id?: string;
   label?: string;
+  mnemonic?: string;
   /** 'mod-n', 'mod-shift-s' (the kit's key strokes: mod is Cmd on macOS and Ctrl elsewhere). */
   accelerator?: string;
   checked?: boolean;
@@ -65,7 +67,7 @@ function Row(props: { entry: MenuEntry; panel: i32; close: () => void; run: (e: 
   const sub = e.submenu;
   const subRef = createNodeRef();
   const row = <View className="flex-col">
-    <Button className={`flex-row items-center justify-between gap-6 h-8 px-2 rounded-sm bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle} ${e.disabled === true ? 'opacity-50' : ''}`}
+    <Button className={`flex-row items-center justify-between gap-6 h-8 px-2 rounded-[8px] bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle} ${e.disabled === true ? 'opacity-45' : ''}`}
       disabled={e.disabled === true}
       onClick={() => {
         if (sub !== undefined) { show(subRef.node, !shown(subRef.node)); return; }
@@ -73,10 +75,10 @@ function Row(props: { entry: MenuEntry; panel: i32; close: () => void; run: (e: 
         props.run(e);
       }}>
       <View className="flex-row items-center gap-2">
-        <Text className={`text-sm w-4 text-${t.foreground}`}>{e.checked === true ? '✓' : ''}</Text>
-        <Text className={`text-sm text-${t.foreground}`}>{e.label ?? ''}</Text>
+        <Text className={`text-[13px] w-4 text-${t.foreground}`}>{e.checked === true ? '✓' : ''}</Text>
+        <Text className={`text-[13px] text-${t.foreground}`}>{e.label ?? ''}</Text>
       </View>
-      <Text className={`text-xs tracking-widest text-${t.mutedForeground}`}>{sub !== undefined ? '›' : hint}</Text>
+      <Text className={`text-[11px] tracking-widest text-${t.mutedForeground}`}>{sub !== undefined ? '›' : hint}</Text>
     </Button>
     <View ref={subRef} hidden={1} className={`flex-col p-1 ml-4 rounded-md border border-${t.border} bg-${t.card}`}>
       {sub !== undefined ? sub.map((s: MenuEntry) => <Row entry={s} panel={props.panel} close={props.close} run={props.run} depth={props.depth + 1} />) : NO_ROWS}
@@ -87,7 +89,7 @@ function Row(props: { entry: MenuEntry; panel: i32; close: () => void; run: (e: 
 
 function Panel(props: { items: MenuEntry[]; menu: i32; close: () => void; run: (e: MenuEntry) => void; className?: string }): i32 {
   const t = theme();
-  return <View className={`flex-col p-1 w-56 rounded-md border border-${t.border} bg-${t.card} shadow-md ${props.className ?? ''}`}>
+  return <View role="menu" className={`flex-col p-[6px] w-56 ${look().panel} border border-${t.border} bg-${t.card} ${props.className ?? ''}`}>
     {props.items.map((e: MenuEntry) => <Row entry={e} panel={props.menu} close={props.close} run={props.run} depth={0} />)}
   </View>;
 }
@@ -100,21 +102,45 @@ function runner(onSelect: ((id: string) => void) | undefined): (e: MenuEntry) =>
   };
 }
 
-function TopMenu(props: { top: MenuEntry; run: (e: MenuEntry) => void }): i32 {
-  const t = theme();
+enum MenuPhase { Closed, Open }
+class MenuController {
+  phase: MenuPhase = MenuPhase.Closed;
+  active: i32 = 0;
+  panels: i32[] = [];
+  triggers: i32[] = [];
+  transition(next: MenuPhase, index: i32): void {
+    if (index < 0 || index >= this.panels.length) return;
+    for (let i = 0; i < this.panels.length; i++) show(this.panels[i], next === MenuPhase.Open && i === index);
+    this.phase = next; this.active = index;
+  }
+  move(delta: i32): void {
+    if (this.panels.length === 0) return;
+    const next = (this.active + delta + this.panels.length) % this.panels.length;
+    this.transition(this.phase, next);
+    if (this.phase === MenuPhase.Closed) ui.focusNode(this.triggers[next]);
+  }
+}
+function TopMenu(props: { top: MenuEntry; index: i32; control: MenuController; run: (e: MenuEntry) => void }): i32 {
+  const t = theme(), c = props.control, i = props.index;
   const trig = createNodeRef(), menu = createNodeRef();
-  const close = (): void => show(menu.node, false);
-  const node = <View className="flex-col">
-    <View ref={trig} className="flex-col">
-      <Button className={`h-7 px-3 rounded-sm bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle}`} onClick={() => show(menu.node, !shown(menu.node))}>
-        <Text className={`text-sm text-${t.foreground}`}>{props.top.label ?? ''}</Text>
-      </Button>
-    </View>
-    <View ref={menu} hidden={1}>
+  const close = (): void => c.transition(MenuPhase.Closed, i);
+  const node = <View className="flex-col" onPointerEnter={(e: ui.PointerEvent) => { if (c.phase === MenuPhase.Open) c.transition(MenuPhase.Open, i); }}>
+    <Button ref={trig} role="menuitem" aria-haspopup="menu" className={`h-[30px] px-3 rounded-[8px] bg-transparent focus:bg-${t.subtle} active:bg-${t.subtle}`}
+      onKeyDown={(e: ui.KeyEvent) => {
+        c.active = i;
+        if (e.key === 'ArrowDown') { c.transition(MenuPhase.Open, i); e.preventDefault(); }
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { c.move(e.key === 'ArrowLeft' ? -1 : 1); e.preventDefault(); }
+      }} onClick={() => c.transition(c.phase === MenuPhase.Open && c.active === i ? MenuPhase.Closed : MenuPhase.Open, i)}>
+      <Text className={`text-[13px] text-${t.foreground}`}>{props.top.label ?? ''}</Text>
+    </Button>
+    <View ref={menu} hidden={1} onKeyDown={(e: ui.KeyEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { c.move(e.key === 'ArrowLeft' ? -1 : 1); e.preventDefault(); }
+    }}>
       <Panel items={props.top.submenu !== undefined ? props.top.submenu : NO_ENTRIES} menu={menu.node} close={close} run={props.run} />
     </View>
   </View>;
-  ui.openLayer(menu.node, { priority: 100 });
+  c.triggers.push(trig.node); c.panels.push(menu.node);
+  ui.openLayer(menu.node, { priority: 100, motion: 'fade' });
   ui.anchor(menu.node, trig.node, 'bottom-start', 2);
   ui.focusScope(menu.node, { trap: true, restore: true, autoFocus: true });
   ui.onDismiss(menu.node, close);
@@ -122,15 +148,26 @@ function TopMenu(props: { top: MenuEntry; run: (e: MenuEntry) => void }): i32 {
   return node;
 }
 
-/** The menu bar: one button per top-level entry, each opening its menu as a layer (arrows move, Enter picks, Escape closes). */
+/** F10 enters the bar; arrows traverse titles, Down opens, Escape returns focus. Alt+mnemonic opens a named menu. */
 export function MenuBar(props: MenuBarProps): i32 {
-  if (props.native === true) return <View className="hidden" hidden={1} />;   // the system draws it: no double menu
-  const t = theme();
+  if (props.native === true) return <View className="hidden" hidden={1} />;
+  const t = theme(), ref = createNodeRef(), control = new MenuController();
   const run = runner(props.onSelect);
-  bindAll(props.items, run);
-  return <View className={`flex-row items-center gap-1 px-2 h-9 border-b border-${t.border} bg-${t.background} ${props.className ?? ''}`}>
-    {props.items.map((top: MenuEntry) => <TopMenu top={top} run={run} />)}
+  const node = <View ref={ref} role="menubar" className={`flex-row items-center gap-1 px-2 h-9 border-b border-${t.border} ${props.className ?? ''}`}>
+    {props.items.map((top: MenuEntry, i: i32) => <TopMenu top={top} index={i} control={control} run={run} />)}
   </View>;
+  const serial = ui.nodeSerial(ref.node);
+  bindAll(props.items, (entry: MenuEntry) => { if (ui.nodeSerial(ref.node) === serial) run(entry); });
+  const bind = (stroke: string, action: string, invoke: () => void): void => {
+    if (bound.indexOf(action) < 0) { bound.push(action); ui.bindKeys(stroke, action); }
+    ui.onAction(-1, action, () => { if (ui.nodeSerial(ref.node) === serial) invoke(); });
+  };
+  bind('f10', 'menubar:focus', () => { if (control.triggers.length > 0) ui.focusNode(control.triggers[0]); });
+  for (let i = 0; i < props.items.length; i++) {
+    const mnemonic = props.items[i].mnemonic;
+    if (mnemonic !== undefined && mnemonic.length === 1) bind('alt-' + mnemonic, 'menubar:' + mnemonic, () => control.transition(MenuPhase.Open, i));
+  }
+  return node;
 }
 
 /** A right press opens the menu under the pointer; on a touch screen a finger's long press does (with the platform's haptic), as on iOS and Android. */

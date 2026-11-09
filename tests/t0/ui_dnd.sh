@@ -37,6 +37,36 @@ ui.mount(root, 0xffffff, (dt: number) => {
 });
 P
 want='start r0 | enter r0 | leave r0 | enter r1 | drop on r1 bottom | start r0 | enter r0 | leave r0 | enter r3 | scrolled yes | drop on r3 bottom'
-got=$(ZINC_HEADLESS=1 ZINC_FRAMES=34 "$ZINC" run "$tmp/p.ts" 2>&1 | tail -1)
+got=$(ZINC_HEADLESS=1 ZINC_FRAMES=34 timeout 20 "$ZINC" run "$tmp/p.ts" 2>&1 | tail -1)
 [ "$got" = "$want" ] || { echo "dnd: want '$want'"; echo "     got  '$got'"; exit 1; }
+
+# Cancellation and callback failure both release the shared lifecycle before a later pointer release.
+cat > "$tmp/cancel.ts" <<'P'
+import * as ui from 'zinc:ui';
+import * as dnd from 'zinc:ui/dnd';
+const root = ui.createNode(ui.VIEW), source = ui.createNode(ui.VIEW), target = ui.createNode(ui.VIEW);
+ui.setClass(root, 'flex-col w-full h-full'); ui.setClass(source, 'h-10 w-40'); ui.setClass(target, 'h-20 w-40');
+ui.insert(root, source, -1); ui.insert(root, target, -1);
+let leaves = 0, drops = 0, frame = 0;
+dnd.draggable(source, { data: 'source' });
+dnd.dropTarget(target, { onDragLeave: (e: dnd.DragInfo) => { leaves++; }, onDrop: (e: dnd.DragInfo) => { drops++; throw new Error('drop callback'); } });
+ui.mount(root, 0xffffff, (dt: number) => {
+  frame++;
+  if (frame === 2) { ui.pointerAt(20, 10, true); ui.pointerAt(20, 20, true); ui.pointerAt(20, 70, true); }
+  if (frame === 3) {
+    if (!dnd.cancelDrag()) throw new Error('cancel did not find drag');
+    ui.pointerAt(20, 70, false);
+    if (dnd.currentDrag() !== null || leaves !== 1 || drops !== 0 || dnd.cancelDrag()) throw new Error('cancel retained lifecycle or drop');
+  }
+  if (frame === 4) { ui.pointerAt(20, 10, true); ui.pointerAt(20, 20, true); ui.pointerAt(20, 70, true); }
+  if (frame === 5) {
+    let threw = false;
+    try { ui.pointerAt(20, 70, false); } catch (error) { threw = error.message === 'drop callback'; }
+    if (!threw || dnd.currentDrag() !== null || drops !== 1) throw new Error('throw retained drag lifecycle');
+    console.log('dnd cancel: ok');
+  }
+});
+P
+got=$(ZINC_HEADLESS=1 ZINC_FRAMES=7 timeout 20 "$ZINC" run --interp "$tmp/cancel.ts" 2>&1 | tail -1)
+[ "$got" = 'dnd cancel: ok' ] || { echo "dnd cancellation: $got"; exit 1; }
 echo "ui dnd: ok"

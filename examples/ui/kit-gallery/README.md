@@ -22,7 +22,7 @@ Controls: click or tap; arrow keys / Tab move the focus, Space or Enter presses;
 
 | File | Role |
 | --- | --- |
-| `src/main.tsx` | page layout: header with the theme switch, four labelled sections in a scroll view |
+| `src/main.tsx` | page layout: Quiet family previews, a theme switch and labelled sections in a scroll view |
 | `src/state.ts` | the signals the controls read and write, the theme toggle, the static sample upload value |
 | `src/sections/buttons.tsx` | `Button` variants and sizes, a `Kbd` inside a button, a live click counter |
 | `src/sections/settings.tsx` | `Tabs` switching two panels with an inline `{cond ? <A/> : <B/>}`, `Switch`, `Slider`, `Progress` |
@@ -38,3 +38,8 @@ The Actions family uses the Quiet theme. `GALLERY=actions` shows only Actions; `
 palette for documentation, and `GALLERY_DARK=1` starts dark. The copy action reports success in place, holding
 Space/Enter or the pointer archives once, and Left/Right changes the segmented calendar view. `src/sections/actions.tsx`
 contains the family composition. Nothing animates at rest.
+
+`GALLERY=chrome` focuses the App chrome workspace (`src/sections/chrome.tsx`). F10 and Alt+F/V enter its menus;
+document tabs select/close/reorder from the keyboard. Drag panel tabs into groups or to edges, or use “Panel actions”
+to dock by keyboard; Escape cancels a drag. Dividers take pointer drags and arrow keys. Save/Restore layout use a
+single gallery storage key only on request, report errors in the status bar and preserve the current layout on failure.

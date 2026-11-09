@@ -24,9 +24,11 @@ import { look } from '../platform/index';
 export function keyLabel(stroke: string): string {
   const parts = stroke.split('-');
   let out = '';
-  for (let i = 0; i < parts.length; i++) {
-    const p = parts[i].toLowerCase();
-    const last = i === parts.length - 1;
+  let end = parts.length - 1, key = parts[end];
+  if (key.length === 0 && parts.length >= 2) { key = '-'; end--; }
+  for (let i = 0; i <= end; i++) {
+    const p = (i === end ? key : parts[i]).toLowerCase();
+    const last = i === end;
     if (!last && (p === 'mod' || p === 'cmd' || p === 'meta')) out += '⌘';
     else if (!last && p === 'ctrl') out += '⌃';
     else if (!last && (p === 'alt' || p === 'option')) out += '⌥';

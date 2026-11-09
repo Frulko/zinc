@@ -47,24 +47,34 @@ export interface MonitorOptions {
   onDrop?: (d: DragInfo) => void;
 }
 
-class Source { node: i32; o: DraggableOptions; constructor(node: i32, o: DraggableOptions) { this.node = node; this.o = o; } }
-class Target { node: i32; o: DropTargetOptions; constructor(node: i32, o: DropTargetOptions) { this.node = node; this.o = o; } }
+class Source { node: i32; serial: i32; o: DraggableOptions; constructor(node: i32, o: DraggableOptions) { this.node = node; this.serial = ui.nodeSerial(node); this.o = o; } }
+class Target { node: i32; serial: i32; o: DropTargetOptions; constructor(node: i32, o: DropTargetOptions) { this.node = node; this.serial = ui.nodeSerial(node); this.o = o; } }
 
 const sources = new Map<i32, Source>();
 const targets = new Map<i32, Target>();
 const monitors: MonitorOptions[] = [];
 const scrollers: i32[] = [];
+enum DragPhase { Idle, Dragging, Finishing }
+let phase: DragPhase = DragPhase.Idle;
 let active: DragInfo | null = null;
 let activeSource: Source | null = null;
+
+function transition(next: DragPhase): void {
+  if ((next === DragPhase.Dragging && phase !== DragPhase.Idle) ||
+      (next === DragPhase.Finishing && phase !== DragPhase.Dragging) ||
+      (next === DragPhase.Idle && phase !== DragPhase.Finishing)) throw new Error('Invalid drag transition');
+  phase = next;
+  if (next === DragPhase.Idle) { active = null; activeSource = null; ui.removeStepper(scrollStep); }
+}
 
 function call(f: ((d: DragInfo) => void) | undefined, d: DragInfo): void { if (f !== undefined) f(d); }
 function callTarget(r: DropRecord, kind: i32, d: DragInfo): void {
   const t = targets.get(r.node);
-  if (t === undefined) return;
+  if (t === undefined || ui.nodeSerial(t.node) !== t.serial) return;
   d.self = r;
   const o = t.o;
-  call(kind === 0 ? o.onDragEnter : kind === 1 ? o.onDragLeave : kind === 2 ? o.onDrag : o.onDrop, d);
-  d.self = null;
+  try { call(kind === 0 ? o.onDragEnter : kind === 1 ? o.onDragLeave : kind === 2 ? o.onDrag : o.onDrop, d); }
+  finally { d.self = null; }
 }
 
 function closestEdge(h: i32, edges: i32, x: number, y: number): i32 {
@@ -82,7 +92,7 @@ function targetsAt(d: DragInfo): DropRecord[] {
   const out: DropRecord[] = [];
   for (let h = ui.nodeAt(d.x, d.y); h >= 0; h = ui.parentOf(h)) {
     const t = targets.get(h);
-    if (t === undefined) continue;
+    if (t === undefined || ui.nodeSerial(t.node) !== t.serial) continue;
     const can = t.o.canDrop;
     if (can !== undefined && !can(d)) continue;
     out.push(new DropRecord(h, t.o.data !== undefined ? t.o.data as string : '', closestEdge(h, t.o.edges !== undefined ? t.o.edges as i32 : EDGE_NONE, d.x, d.y)));
@@ -131,32 +141,53 @@ function scrollStep(): void {
 
 function onGesture(s: Source, e: ui.PointerEvent): void {
   if (e.phase === 0) {
+    if (phase !== DragPhase.Idle || ui.nodeSerial(s.node) !== s.serial) return;
     const can = s.o.canDrag;
     if (can !== undefined && !can()) return;
     const d = new DragInfo();
     d.source = s.node; d.data = s.o.data !== undefined ? s.o.data as string : '';
     d.x = e.gx; d.y = e.gy;
-    active = d; activeSource = s;
-    d.targets = targetsAt(d);
-    call(s.o.onDragStart, d);
-    for (const m of monitors) call(m.onDragStart, d);
-    for (const r of d.targets) callTarget(r, 0, d);
-    if (scrollers.length > 0) ui.addStepper(scrollStep);
+    active = d; activeSource = s; transition(DragPhase.Dragging);
+    try {
+      d.targets = targetsAt(d);
+      call(s.o.onDragStart, d);
+      if (phase !== DragPhase.Dragging) return;
+      for (const m of monitors) { call(m.onDragStart, d); if (phase !== DragPhase.Dragging) return; }
+      for (const r of d.targets) { callTarget(r, 0, d); if (phase !== DragPhase.Dragging) return; }
+      if (scrollers.length > 0) ui.addStepper(scrollStep);
+    } catch (error) {
+      if (phase === DragPhase.Dragging) transition(DragPhase.Finishing);
+      if (phase === DragPhase.Finishing) transition(DragPhase.Idle);
+      throw error;
+    }
     return;
   }
   const d = active;
-  if (d === null || activeSource !== s) return;
+  if (phase !== DragPhase.Dragging || d === null || activeSource !== s) return;
   const info = d as DragInfo;
   info.x = e.gx; info.y = e.gy; info.dx = e.dx; info.dy = e.dy;
-  if (e.phase === 1) { update(info); return; }
-  // 2 dropped, 3 cancelled (Pragmatic: a cancel is a drop on nothing)
-  if (e.phase === 3) { info.previous = info.targets; info.targets = []; }
-  else update(info);
-  for (const r of info.targets) callTarget(r, 3, info);
-  call(s.o.onDrop, info);
-  for (const m of monitors) call(m.onDrop, info);
-  active = null; activeSource = null;
-  ui.removeStepper(scrollStep);
+  if (e.phase === 1) { try { update(info); } catch (error) { cancelDrag(); throw error; } return; }
+  transition(DragPhase.Finishing);
+  try {
+    // Cancel is a drop on nothing; leave notifications also clear the caller's preview.
+    if (e.phase === 3) {
+      info.previous = info.targets; info.targets = [];
+      for (const r of info.previous) callTarget(r, 1, info);
+      for (const m of monitors) call(m.onDropTargetChange, info);
+    } else update(info);
+    for (const r of info.targets) callTarget(r, 3, info);
+    call(s.o.onDrop, info);
+    for (const m of monitors) call(m.onDrop, info);
+  } finally { transition(DragPhase.Idle); }
+}
+
+/** Cancels the current drag (Escape); later moves/releases of that press cannot drop it. */
+export function cancelDrag(): boolean {
+  if (phase !== DragPhase.Dragging || activeSource === null || active === null) return false;
+  const e = new ui.PointerEvent();
+  e.phase = 3; e.gx = active.x; e.gy = active.y; e.dx = active.dx; e.dy = active.dy;
+  onGesture(activeSource, e);
+  return true;
 }
 
 /** Makes a node draggable; returns the function that undoes it. */
@@ -167,7 +198,7 @@ export function draggable(node: i32, o: DraggableOptions): () => void {
   ui.setNumber(handle, 'dragThreshold', o.threshold !== undefined ? o.threshold as number : 3);
   ui.onPointer(handle, ui.PDRAG, (e: ui.PointerEvent) => { const cur = sources.get(handle); if (cur !== undefined) onGesture(cur, e); });
   // ponytail: the gesture handler stays on the handle (zinc:ui has no removal); it does nothing once unregistered
-  return () => { if (sources.get(handle) === s) sources.delete(handle); };
+  return () => { if (activeSource === s) cancelDrag(); if (sources.get(handle) === s) sources.delete(handle); };
 }
 /** Makes a node a place to drop on; returns the function that undoes it. */
 export function dropTarget(node: i32, o: DropTargetOptions): () => void {

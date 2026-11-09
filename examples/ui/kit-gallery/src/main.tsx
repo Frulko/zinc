@@ -2,6 +2,7 @@
 // The switch in the header flips the whole page between the light and the dark theme.
 import { env } from 'zinc:sys';
 import { ActionsSection } from './sections/actions';
+import { ChromeSection } from './sections/chrome';
 import { render } from 'zinc:ui/solid';
 import { Switch, heading, leadText, theme, useQuietTheme } from 'zinc:ui/kit';
 import { darkMode, setDarkMode } from './state';
@@ -35,7 +36,8 @@ function App(): i32 {
   return <ScrollView className={`h-full bg-${theme().background}`}>
     <View className="flex-col gap-8 p-8">
       <Header />
-      <ActionsSection />
+      <Show when={env('GALLERY') !== 'chrome'}><ActionsSection /></Show>
+      <Show when={env('GALLERY') === '' || env('GALLERY') === 'chrome'}><ChromeSection /></Show>
       <Show when={env('GALLERY') === ''}>
       <Section title="Metrics"><StatsRow /></Section>
       <Section title="Controls">

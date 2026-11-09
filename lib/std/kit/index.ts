@@ -32,3 +32,4 @@ export { ZoomView, ZoomViewProps, zoomViewDraws } from './zoomview';
 export { ViewerItem, ViewerOptions, openImageViewer, closeImageViewer, imageViewerOpen, imageViewerState } from './imageviewer';
 
 export { IconButton, ButtonGroup, SplitButton, ToggleGroup, SegmentedControl, CopyButton, HoldToConfirm, CommandPalette, ActionOption, CommandItem } from './actions';
+export { Toolbar, ToolbarItem, StatusBar, StatusItem, DocumentTabs, DocumentTabsProps, DocumentTab, DockLayout, DockLayoutProps, DockLayoutState, DockNode, DockPanel, saveDockLayout, parseDockLayout, moveDockPanel, setDockPanelOpen } from './app-chrome';
