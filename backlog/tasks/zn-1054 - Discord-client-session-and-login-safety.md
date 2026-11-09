@@ -2,7 +2,8 @@
 id: ZN-1054
 title: 'Discord client: session and login safety'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:40'
 labels:
   - discord

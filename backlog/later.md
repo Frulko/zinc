@@ -640,6 +640,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.30: draw the missing gfx rows in `targets/wasm/glue/worker.mjs` (SetTransform, ResetTransform, Clip, Unclip, Border, Shadow, Stroke, Path, Gradient) so stage and UI lessons draw as natively; add lucide's icon nodes to std.json once `zinc:svg` works in the page.
 - ZN-774.30: run /play/ in Firefox and Safari without JSPI (an Asyncify vm-web.wasm, +27% gzip, or when they ship JSPI); a dark CodeMirror theme; warn above ~8 KB of link and offer the zip (with ZN-774.31).
 - ZN-437: `zinc assets check --json` for CI annotations and Atelier; an optional `--fail-on-growth <KB|%>` for `report --diff`; copy `report.json` beside the wasm, esp32, android and ios exports too (native only today).
+- ZN-278: when blur, backdrop-blur and the filters land (ST-16), add their tokens and the painter's fallback to `styleTokenTier`; stop alphas (`from-x/50`) and stop positions inside `bg-[linear-gradient(..)]` also collapse at T0-T1 at run time but are not flagged at build time.
+- ZN-278: a forced render tier (`ZINC_TIER` over zinc:platform's `TIER` and the renderer) for per-tier goldens of the B10 feature-matrix scene (ZN-278 #4).
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -834,3 +836,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-291: measure the rn (Yoga) layout on wasm (size), rpi1 and ps2 and set `ui.layout.rn` in `targets/capabilities.json` from the results (commands in the task notes).
 - ZN-1012: time the 1.6 MB `zinc doc --std` search index (302 KB gzip) on the Pi and an old tablet; split it per section if slow.
 - ZN-1073: Mojave Mac (`mowmow@192.168.2.215`): AppKit `Switch` falls back to a check box on macOS 10.14; one short run.
+- ZN-278: install ESP-IDF's Python env (`idf5.5_py3.15_env`), then record the `size` of core.bin and app.bin from `zinc export --target esp32` for a zinc:ui app without extended keys (ZN-278 #1; there is no hero-lite example).

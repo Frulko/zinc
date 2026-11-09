@@ -2,8 +2,7 @@
 id: ZN-278
 title: 'Style levels: warning on ignored properties'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-07 12:58'
 updated_date: '2026-11-09 05:34'
 labels:

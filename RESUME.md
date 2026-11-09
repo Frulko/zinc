@@ -24,10 +24,12 @@
 - Integrated: Hamlet ZN-971 (Done): `recordLog`/`replayLog` replay a 2000-frame village to the same hash on three engines, corrupt lines refused at their number; undo, orders, priority, unlimited and progression are commands now.
 - Integrated: ZN-437 (Done, D244): `zinc assets check` (exit 1 naming the budget broken), `zinc assets report [--diff old.json]`, `zinc assets clean`.
 - Integrated: Hamlet ZN-973 (Done): bread chain run through commands (`breadhash` on three engines), level-2 houses eat bread, no orphan resource in the chain report.
+- Integrated: ZN-278 (Review, D245): U0005 warns at build when a style is drawn simpler on the target profile (`"ui": {"style": "strict"}` makes it an error); `zinc doctor` shows the style level and the last build's simplified styles. #1 needs ESP-IDF's Python env, #4 a forced tier.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-278 (since 2b28873e4): `tests/run --only style_level` (5 s); `tools/style-neutrality` at the next UI milestone (no pixel change).
 - ZN-973 (since f02eb5c27): `tests/run --only hamlet` (T1, rules on three engines with `breadhash`, 3 min).
 - ZN-437 (since b677f1c19): `zinc assets check examples/<a game with groups> --target rpi1` (the default budgets on a real project, 10 s).
 - ZN-971 (since 8861f2f06): `tests/t1/hamlet.sh` now also compares `replayhash` and checks orders and priority go through commands; proposed T0 `hamlet_replay` (20 s).
