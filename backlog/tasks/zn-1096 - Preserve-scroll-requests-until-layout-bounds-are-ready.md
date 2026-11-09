@@ -2,8 +2,7 @@
 id: ZN-1096
 title: Preserve scroll requests until layout bounds are ready
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 19:06'
 updated_date: '2026-11-09 21:03'
 labels:

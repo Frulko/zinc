@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated1096 pending-scroll0ee881168 +originalcallerclosure1d9e56589, releasedDone;22sessiontasksDone. Rootclean scroll_request PASS all3/classicYoga; actualWheel/Ruler/hiddenTimePickerQJSpass. Stashrestoreconflict resolvedpreservingowner'svRowH innewrowhelper; externalWIP42/19ui,12/0main,15/0perfunchanged,indexclean. Extraowner-sourceoverlayfailsPREEXISTINGunfinishedprependRowsmapmigration, leftownerWIPalone;cleandevelopPASS. Corecontinues1097/98/99. Dataexpandedprivate direct-familydiagnosticall3×bothmodelsPASS;originalbarrelstill1098blocked, noDoneclaim.
+
 - Corrective1093 integrated0ae64e937, clean tree rebuilt and expanded exactjsx_idPASS. Archived completed1088coreproofs to.logs/archive-core-1088/core-proof; removed completedworktree/branch after checking replacement and notifyingworkers. No extra app/process.
 
 - Created/claimed1099 nullable cleanup callback returns in Dyn-enabled graphs, confirmed by strict tsc and original Picker source. Sole corebatch nowexactlyfive1093 correction/1096/1097/1098/1099; no sixth. Root rebuilt1093 correctiveintegration and exactjsx_id replayinprogress. Fresh UIworkers add originalcallerfocused assertions and fixtheir ownfixturetargeting, no checkerworkaround.
