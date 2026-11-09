@@ -1549,3 +1549,7 @@ Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` 
 - Export size, hello for macOS, permissions []: binary 6,304,720 → 5,177,184 B; .app 6168 → 5064 KB; zip 2,899,375 → 2,370,332 B. Tauri row: 4888 KB installed, 2069 KB zipped; Zinc is 176 KB above it installed and 300 KB zipped. No Mbed TLS or llhttp in the binary, 7 system frameworks no longer loaded.
 - Threads: idle hello runs 14 (main, 7 raster bands, "zinc render", NSEventThread, 3-4 GCD); the bands now start on the first large frame, so `ZINC_RENDERER=metal` runs 7.
 - Memory owners of the 29 MB footprint: IOSurface 8 MB (window double buffer), IOAccelerator 4.6 MB (uploaded frame texture), malloc 9.5 MB (framebuffer rows, glyph atlas, font tables, UI tree, interpreter arenas), AppKit and system data 5.4 MB.
+
+## 2026-11-09 — ZN-567, WebGL binding on the M1 Pro (`bench/webgl_binding.js --engine quickjs`, load 3)
+
+- uniform4fv(Float32Array) 140-144 ns (target 200); bufferSubData(Float32Array) 130-131 ns (250); drawArrays 220-227 ns (250); drawElements 60k indices 4.4-5.6 µs waiting for the GPU, 202-279 ns submit only (target 3 µs). The waited figure grows with the index count (232 ns for 3, 499 ns for 6,000): it is the GPU walking the indices, not the binding; the index scan alone was 19 µs before ZN-567.
