@@ -4,7 +4,8 @@ title: >-
   zinc dev loop: save-to-frame under 200 ms, side-effect imports, red box keeps
   state
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:36'
 updated_date: '2026-11-08 23:23'
 labels:
