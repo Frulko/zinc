@@ -1,0 +1,64 @@
+---
+title: A spinning cube in three.js
+description: The classic three.js first scene, unchanged except for the window object.
+order: 1
+---
+
+If you have written three.js before, this is the program you know.
+
+<Steps>
+  <Step title="Make a project">
+    <Command>zinc new game cube</Command>
+  </Step>
+  <Step title="Scene, camera, renderer">
+    A `Scene`, a `PerspectiveCamera(fov, aspect, near, far)` and a `WebGLRenderer`. In Zinc the size comes from
+    `window` (imported from `three`) because there is no DOM.
+  </Step>
+  <Step title="Lights and a mesh">
+    An ambient light and a directional light, and a `Mesh` of a `BoxGeometry` with a `MeshStandardMaterial`.
+  </Step>
+  <Step title="Loop">
+    `renderer.setAnimationLoop((time) => ...)` runs once per frame, `time` in milliseconds, as in the browser.
+  </Step>
+</Steps>
+
+<Example title="src/main.ts" screenshot="img/showcase-three.jpg">
+```ts
+import * as THREE from 'three';
+import { window } from 'three';
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 2, 6);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+sun.position.set(3, 5, 4);
+scene.add(sun);
+
+const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x2a9d8f }));
+scene.add(cube);
+
+renderer.setAnimationLoop((time: number) => {
+  cube.rotation.x = time / 1000;
+  cube.rotation.y = time / 800;
+  renderer.render(scene, camera);
+});
+```
+</Example>
+
+<Command>zinc run cube</Command>
+
+## Load a model
+
+`import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'` and `OrbitControls` from `three/addons/controls/OrbitControls.js` work
+with the usual three.js calls; `examples/three/gltf-viewer` is a small viewer built on both.
+
+<Callout type="tip" title="No three.js yet?">
+  Start with `zinc:3d` ([your first 3D scene](https://github.com/Frulko/zinc/blob/main/plugins/3d/docs/01-first-scene.mdx)): it has fewer concepts, and three.js is built on it.
+</Callout>

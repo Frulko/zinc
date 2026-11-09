@@ -1,0 +1,53 @@
+---
+title: Animate a box with a timeline
+description: Move and grow a square with one GSAP timeline, driven by the frame clock.
+order: 1
+---
+
+<Steps>
+  <Step title="Make a project">
+    <Command>zinc new game tween</Command>
+  </Step>
+  <Step title="Animate a plain object">
+    A tween changes the numeric fields of any object. Here the object is `{ x, y, scale }`; the program draws the square from those
+    three numbers.
+  </Step>
+  <Step title="Chain it in a timeline">
+    `gsap.timeline({ repeat: -1, yoyo: true, defaults: { ease: 'back.out(1.7)' } })` repeats forever and plays back and forth.
+    `.to(box, { x: 600, duration: 1.2 })` moves it; the second `.to` starts `0.2` seconds after the previous one starts, because of the
+    position parameter `'<0.2'`.
+  </Step>
+  <Step title="Give GSAP the clock">
+    GSAP does not own a timer in Zinc: the program does. Call `gsap.ticker.tick(dt)` once a frame with the frame's time in seconds,
+    then draw.
+  </Step>
+</Steps>
+
+<Example title="src/main.ts" screenshot="img/gsap-example.png">
+```ts
+import gsap from 'gsap';
+import { onFrame, clear, rect } from 'zinc:gfx';
+
+const box = { x: 40, y: 200, scale: 1 };
+
+const tl = gsap.timeline({ repeat: -1, yoyo: true, defaults: { ease: 'back.out(1.7)' } });
+tl.to(box, { x: 600, duration: 1.2 })
+  .to(box, { scale: 2, duration: 0.4 }, '<0.2');
+
+onFrame((dt: number) => {
+  gsap.ticker.tick(dt);
+  clear(0x10131a);
+  const s = 60 * box.scale;
+  rect(box.x, box.y - s / 2, s, s, 0xe76f51);
+});
+```
+</Example>
+
+<Command>zinc run tween</Command>
+
+## Other things to try
+
+- `ease: 'elastic.out(1, 0.3)'`, `'bounce.out'`, `'power3.inOut'`.
+- `stagger: { each: 0.1, from: 'center' }` on a tween of several targets.
+- `tl.addLabel('end')` and `tl.call(() => console.log('there'), 'end')`.
+- `tl.pause()`, `tl.reverse()`, `tl.timeScale(2)`.

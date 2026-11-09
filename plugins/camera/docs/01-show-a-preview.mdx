@@ -1,0 +1,54 @@
+---
+title: Show a camera preview
+description: Ask for permission, open the first camera and draw it mirrored, like a selfie view.
+order: 1
+---
+
+<Steps>
+  <Step title="Make a project">
+    <Command>zinc new game mirror</Command>
+  </Step>
+  <Step title="Ask for access">
+    `requestPermission()` returns a promise. On macOS the system asks the person once for the app; elsewhere it resolves `'granted'`.
+    Stop when the answer is anything else.
+  </Step>
+  <Step title="Open a camera">
+    `devices()` lists them; `Camera.open(id, { width, height, fps })` opens one and resolves when it runs. Without a camera, Zinc
+    offers a fake one, so this step works on any machine.
+  </Step>
+  <Step title="Draw the frames">
+    `cam.image` is the runtime image with the newest frame. Draw it with `gfx.drawImage` in `onFrame`, or give it to an `<Image>` in a
+    `zinc:ui` screen. `cam.setOption('mirror', 1)` flips it like a mirror.
+  </Step>
+</Steps>
+
+<Example title="src/main.ts" screenshot="img/camera-remote.png">
+```ts
+import * as gfx from 'zinc:gfx';
+import { devices, requestPermission, Camera } from 'zinc:camera';
+
+async function main(): Promise<void> {
+  if ((await requestPermission()) !== 'granted') throw new Error('no camera access');
+  const list = await devices();
+  const cam = await Camera.open(list[0].id, { width: 640, height: 480, fps: 30 });
+  cam.setOption('mirror', 1);
+  gfx.onFrame(() => {
+    gfx.clear(0x000000);
+    gfx.drawImage(cam.image, 0, 0, cam.width, cam.height, 255, 0);
+  });
+}
+main();
+```
+</Example>
+
+<Command>zinc run mirror</Command>
+
+## Take a photo
+
+`cam.encodePng()` encodes the frame on screen on a thread of its own and resolves the PNG bytes; write them with `zinc:fs`:
+`cam.encodePng().then((png) => writeBytes('photo.png', png))`.
+
+<Callout type="warning" title="A camera can be refused">
+  `zinc.json` can refuse the `camera` permission; `devices()` then rejects and `requestPermission()` resolves `'denied'`. Handle both
+  paths in an app you ship.
+</Callout>

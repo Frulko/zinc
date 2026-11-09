@@ -1,0 +1,50 @@
+---
+title: Draw a scalable badge
+description: Write an SVG in a string and draw it larger and smaller, always sharp.
+order: 1
+---
+
+<Steps>
+  <Step title="Make a project">
+    <Command>zinc new game badge</Command>
+  </Step>
+  <Step title="Write the SVG">
+    The document can be a string in the program, a file you read with `readText` from `zinc:fs`, or an asset. Here it is a template
+    literal: a circle and a check mark drawn with a stroke.
+  </Step>
+  <Step title="Parse it once">
+    `new Svg(text)` parses it. Check `badge.ok`; when it is false, `badge.error` says what the parser did not understand.
+  </Step>
+  <Step title="Draw it at a changing size">
+    `badge.draw(x, y, w, h, alpha)` draws the document inside the box, `alpha` going from 0 to 255. Nothing is parsed again, so
+    drawing at a new size every frame is cheap.
+  </Step>
+</Steps>
+
+<Example title="src/main.ts" screenshot="img/svg-gallery.png">
+```ts
+import { Svg } from 'zinc:svg';
+import { onFrame, clear, width, height } from 'zinc:gfx';
+
+const badge = new Svg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="45" fill="#2a9d8f"/>
+  <path d="M30 52 L45 67 L72 36" fill="none" stroke="#ffffff" stroke-width="10"/>
+</svg>`);
+if (!badge.ok) console.error(badge.error);
+
+let t = 0;
+onFrame((dt: number) => {
+  t += dt;
+  clear(0xf4f1ea);
+  const size = 160 + 60 * Math.sin(t);
+  badge.draw((width() - size) / 2, (height() - size) / 2, size, size, 255);
+});
+```
+</Example>
+
+<Command>zinc run badge</Command>
+
+<Callout type="tip" title="Big documents">
+  Each frame copies the transformed outlines into the frame's point pool (the plugin raises it to 256k floats). A very large document
+  can drop shapes when the pool is full: simplify the drawing, or draw it once into an image.
+</Callout>

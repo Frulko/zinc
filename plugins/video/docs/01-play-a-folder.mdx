@@ -1,0 +1,55 @@
+---
+title: Play a folder of videos
+description: A looping playlist that fills the window, with a counter and the time.
+order: 1
+---
+
+<Steps>
+  <Step title="Install the decoder">
+    On macOS, `brew install ffmpeg`; `zinc doctor` tells you what is missing.
+    <Command>zinc doctor</Command>
+  </Step>
+  <Step title="Make a project and add videos">
+    <Command>zinc new game player</Command>
+    Create a `player/media/` folder and put a few `.mp4`, `.mov` or `.mkv` files in it.
+  </Step>
+  <Step title="Create the player">
+    `new Player(w, h)` sets the size of the picture (`0, 0` takes the size of the first video). `addFolder('media', EXTENSIONS)` adds
+    every video of a folder; `add('clip.mp4')` adds one file. `order` is `SEQUENTIAL`, `RANDOM` or `RANDOM_UNIQUE`, and `repeat` is
+    `STOP`, `LOOP` or `ONE_SHOT`.
+  </Step>
+  <Step title="Start it and draw">
+    `play()` starts the thread. `player.draw(x, y, w, h)` draws the newest picture; `index`, `count` and `position` say where the
+    playlist is.
+  </Step>
+</Steps>
+
+<Example title="src/main.ts" screenshot="img/video-bounce.png">
+```ts
+import * as gfx from 'zinc:gfx';
+import { Player, EXTENSIONS, SEQUENTIAL, LOOP } from 'zinc:video';
+
+const player = new Player(gfx.width(), gfx.height());
+player.addFolder('media', EXTENSIONS);
+player.order = SEQUENTIAL;
+player.repeat = LOOP;
+player.play();
+
+gfx.onFrame(() => {
+  gfx.clear(0x000000);
+  player.draw(0, 0, gfx.width(), gfx.height());
+  gfx.drawText(gfx.font('sans', 12), 8, 8, `${player.index + 1}/${player.count}  ${player.position.toFixed(1)} s`, 0xffffff, 255, 0);
+});
+```
+</Example>
+
+<Command>zinc run player</Command>
+
+## Controls
+
+`pause(true)` and `pause(false)`, `next()`, `previous()`, `jump(i)`, `seek(seconds)` and `rate` (1 is normal speed; pictures are dropped
+or held for the other rates) are all methods and setters of the same `Player`.
+
+<Callout type="note" title="No sound">
+  The player gives pictures, not sound yet. Play a soundtrack with [`zinc:audio`](https://github.com/Frulko/zinc/blob/main/docs/plugins/audio.md) if you need one.
+</Callout>

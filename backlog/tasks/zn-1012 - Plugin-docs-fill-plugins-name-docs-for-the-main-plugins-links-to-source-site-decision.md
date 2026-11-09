@@ -7,6 +7,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:34'
+updated_date: '2026-11-09 01:46'
 labels:
   - docs
   - plugins
@@ -14,7 +15,6 @@ labels:
 milestone: m-19
 dependencies: []
 ordinal: 9700
-updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -33,8 +33,20 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ten plugins have overview, tutorial and screenshot in plugins/<name>/docs
+- [x] #1 ten plugins have overview, tutorial and screenshot in plugins/<name>/docs
 - [ ] #2 links to source files go to the repository when zinc.json names one
-- [ ] #3 the decision on site/ vs zinc doc --std is recorded
+- [x] #3 the decision on site/ vs zinc doc --std is recorded
 - [ ] #4 search index split or measured
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done (docs only, nothing built): plugins/<name>/docs/ with index.md (overview, screenshot, links) and one 01-*.mdx tutorial (Steps, Command, Example, Screenshot, Callout) for ten plugins: 3d, lottie, map, svg, video, camera, gsap, script, three, mapping. Screenshots are the existing ones of docs/img and examples, copied to docs/img of each plugin and captioned as the example's. Every tutorial program was type-checked with zinc check (main tree binary, ZINC_ROOT = worktree); the pages build with zinc doc plugins/<name> and zinc doc --std (302 pages, no warning from the new pages; cross-plugin links use GitHub URLs because other plugins' pages are not in a single-plugin site). Links to source and reference are absolute https://github.com/Frulko/zinc/blob/main/... URLs (the repo is Frulko/zinc), written by hand.
+Web search: Expo, Tauri and Capacitor split a plugin page into overview + install + API (generated from the types) + usage guide; this layout (overview, one tutorial, generated api.html) matches.
+Measured (Mac M1 Pro): zinc doc --std = 302 pages, 9284 symbols, 82 plugins, 295 ms, 19 MB; _zdoc/search-index.js = 1,633,544 bytes (302,328 gzip); one plugin alone (3d) = 27 KB index. site/ uses pagefind (loaded by fragments), not that file. Not measured on an old tablet or a Pi (no browser to time there): AC4 stays open for that.
+AC2 (links from docs to .ts/.tsx source go to the repository when zinc.json names one) is a change of the doc generator in src/, not documentation: left open. Next: in zinc doc a link that leaves the site and points at a file of the checkout becomes <zinc.json repository>/blob/<branch>/<path> instead of losing its link; one T0 test.
+DECISION (site/ vs zinc doc --std), to record as the next D number, refining D176: both stay, with different jobs. site/ (Astro) remains the public website and publishes the curated docs/ guides (learn, start, guide, reference, plugins/*.md, targets: site/docs-map.mjs) with i18n and pagefind search. zinc doc generates the API and plugin pages (plugins/<name>/docs/, api.html, 9284 symbols) and the offline docs a user builds on a machine (zinc doc --std, --serve). The website links to a zinc doc --std build (published as a folder of the site at release time) for the API and the plugin tutorials, instead of Astro re-rendering them: one source per kind of page, no second renderer for MDX components. Revisit if the 1.6 MB search index is too slow on old tablets (then split it per section).
+Proposed tests: none written. zinc doc --std builds in 0.3 s: a T0 that fails on a warning coming from plugins/*/docs would keep the pages honest.
+later.md lines: ZN-1012: zinc doc search index is 1.6 MB (302 KB gzip) for --std: time it on the Pi and an old tablet, split per section if slow. / ZN-1012: tutorials for the other plugins of the audit list, same layout as plugins/3d/docs. / ZN-1012: once plugins/<name>/docs/index.md exists, zinc doc no longer shows the long docs/plugins/<name>.md: move the long reference into the plugin folder or let index.md include it.
+<!-- SECTION:NOTES:END -->

@@ -1,0 +1,73 @@
+---
+title: Your first 3D scene
+description: A lit cube and a torus that turn, drawn with zinc:3d.
+order: 1
+---
+
+You will build a window with two shapes, one light and a camera, then change one thing at a time to see what each part does.
+
+<Steps>
+  <Step title="Make a project">
+    <Command>zinc new game spin3d</Command>
+    Open `spin3d/src/main.ts` and replace what is in it with the program below. Nothing else is needed: `zinc:3d` is part of the engine.
+  </Step>
+  <Step title="Build the scene">
+    A `Scene` holds the nodes and the lights. `scene.add(new Node(mesh, material))` puts a shape in it. `cube(1)` is a mesh one unit
+    wide; `torus(major, minor, segments, sides)` is a ring. `Material(0xRRGGBB)` is the colour.
+  </Step>
+  <Step title="Light it">
+    `new Light(dx, dy, dz, color)` is a light that travels in that direction; `scene.ambient` is what the shadows still get.
+    Without a light the shapes would be black.
+  </Step>
+  <Step title="Place the camera">
+    `new Camera().setPosition(x, y, z).lookAt(x, y, z)`. The torus sits 2 units to the right, so the camera looks a little right of the
+    middle.
+  </Step>
+  <Step title="Draw it each frame">
+    `onFrame` gives the time since the last frame; turn the nodes with `setRotation(x, y, z)` (angles in radians) and call
+    `render(scene, camera, 0, 0, width(), height())`. It returns the number of triangles it drew, which the program prints over the
+    picture with `drawText`.
+  </Step>
+</Steps>
+
+<Example title="src/main.ts">
+```ts
+import { onFrame, width, height, drawText, font } from 'zinc:gfx';
+import { Scene, Camera, Node, Material, Light, cube, torus, render } from 'zinc:3d';
+
+const scene = new Scene();
+scene.background = 0x10131a;
+scene.lights.push(new Light(-0.5, -1, -0.6, 0xffffff));
+scene.ambient = 0x303040;
+
+const box = scene.add(new Node(cube(1), new Material(0x2a9d8f)));
+const ring = scene.add(new Node(torus(0.9, 0.25, 32, 12), new Material(0xe76f51)));
+ring.setPosition(2, 0, 0);
+
+const camera = new Camera().setPosition(0, 1.5, 5).lookAt(0.8, 0, 0);
+let t = 0;
+
+onFrame((dt: number) => {
+  t += dt;
+  box.setRotation(0, t, 0);
+  ring.setRotation(t, 0, 0);
+  const tris = render(scene, camera, 0, 0, width(), height());
+  drawText(font('sans', 12), 8, 8, `${tris} triangles`, 0xffffff, 255, 0);
+});
+```
+</Example>
+
+<Command>zinc run spin3d</Command>
+
+<Screenshot src="img/3d-cubes.png" alt="Textured cubes, a torus and a sphere" caption="The bigger example, examples/3d/cubes: the same calls with textures, a flat-shaded sphere and a floor." />
+
+## Try next
+
+- `material.shading = Shading.Flat` makes the faces visible; `Shading.Unlit` ignores the lights.
+- `crate.texture = image('crate.png')` (from `zinc:gfx`, a picture in `assets/`) wraps a picture round the cube.
+- `loadObj('ship.obj')` replaces `cube(1)` with a model.
+
+<Callout type="note" title="On a small board">
+  The CPU rasterizer is meant for modest machines, but every triangle costs. Watch the triangle count printed in the corner and keep it
+  low on a Raspberry Pi; the reference lists the memory budgets.
+</Callout>

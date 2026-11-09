@@ -1,0 +1,53 @@
+---
+title: Play an animation
+description: Put a Lottie file in a project and play it in a loop.
+order: 1
+---
+
+<Steps>
+  <Step title="Make a project">
+    <Command>zinc new game spinner</Command>
+  </Step>
+  <Step title="Add the animation">
+    Download any `.json` Lottie file (a spinner from LottieFiles, or one you exported) and save it as `spinner/assets/spinner.json`.
+    Files in `assets/` are embedded in the program; `load` also accepts a path on disk.
+  </Step>
+  <Step title="Load it and make a player">
+    `lottie.load('spinner.json')` parses the file and returns a handle (`-1` when the file is not a Lottie animation). A `Player` owns
+    the clock: `play()`, `pause()`, `seek(frame)`, `speed` (negative plays backwards) and `loop`.
+  </Step>
+  <Step title="Advance and draw it every frame">
+    Call `player.update(dt)` with the time since the last frame, then `player.draw(x, y, w, h)`. The animation is fitted into the box,
+    its aspect ratio kept, centred.
+  </Step>
+</Steps>
+
+<Example title="src/main.ts" screenshot="img/lottie-gallery.png">
+```ts
+import * as gfx from 'zinc:gfx';
+import * as lottie from 'zinc:lottie';
+
+const anim = lottie.load('spinner.json');
+const player = new lottie.Player(anim);
+player.loop = true;
+player.play();
+
+gfx.onFrame((dt: number) => {
+  player.update(dt);
+  gfx.clear(0xffffff);
+  player.draw(0, 0, gfx.width(), gfx.height());
+});
+```
+</Example>
+
+<Command>zinc run spinner</Command>
+
+## In a `zinc:ui` screen
+
+The same file is one component: `<Lottie src="spinner.json" loop autoplay className="w-24 h-24" />`. Its `player` prop gives you the
+`Player` when the app must pause or restart the animation.
+
+<Callout type="tip" title="Small looping icons">
+  `player.cache(w, h, bg, maxBytes)` draws every frame once into an image and then copies it, which makes a 48 px icon nearly free on a
+  slow board. It costs `w x h x 4` bytes per frame, so the call is refused above `maxBytes`.
+</Callout>

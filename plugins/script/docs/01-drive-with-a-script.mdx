@@ -1,0 +1,59 @@
+---
+title: Drive a game with a script
+description: Let a JavaScript module move a square and change its colour, with limits on what it can do.
+order: 1
+---
+
+The rule lives in JavaScript and the drawing stays in Zinc. Change the rule and the game behaves differently without a rebuild
+(here the script is a string; a real app loads it from an asset or a file).
+
+<Steps>
+  <Step title="Make a project">
+    <Command>zinc new game mods</Command>
+  </Step>
+  <Step title="Create a sandbox">
+    `new Script({ engine: 'quickjs', memoryLimit, timeLimitMs })`. The limits apply to each call into the script: a loop that never
+    ends is stopped after `timeLimitMs` and the call throws a `ScriptError`.
+  </Step>
+  <Step title="Expose what the script may use">
+    `vm.expose('setColor', fn)` makes `fn` a global function of the script. Annotate the parameters (`i32`, `number`, `string`,
+    `boolean`): the arguments are converted to those types.
+  </Step>
+  <Step title="Load the module and call it each frame">
+    `vm.load('rules.js', source)` runs an ES module; its exports are then reachable with `vm.call('onTick', [dt, x])`, which returns
+    the result as an `unknown` you cast.
+  </Step>
+</Steps>
+
+<Example title="src/main.ts" screenshot="img/script-playground.png">
+```ts
+import { Script } from 'zinc:script';
+import { onFrame, clear, rect } from 'zinc:gfx';
+
+let color = 0x2a9d8f;
+let x = 0;
+
+const vm = new Script({ engine: 'quickjs', memoryLimit: 8 << 20, timeLimitMs: 50 });
+vm.expose('setColor', (r: i32, g: i32, b: i32) => { color = (r << 16) | (g << 8) | b; });
+vm.expose('log', (msg: string) => console.log('[script]', msg));
+vm.load('rules.js', `
+  export function onTick(dt, x) {
+    if (x > 300) setColor(231, 111, 81);
+    return x + dt * 120;
+  }
+`);
+
+onFrame((dt: number) => {
+  x = vm.call('onTick', [dt, x]) as number;
+  clear(0x10131a);
+  rect(x, 200, 80, 80, color);
+});
+```
+</Example>
+
+<Command>zinc run mods</Command>
+
+<Callout type="warning" title="Catch the errors">
+  A script that throws, runs too long or uses too much memory makes `vm.call` throw a `ScriptError` with the file, line and stack of the
+  script. Wrap the call in `try`/`catch` in an app that runs scripts it did not write.
+</Callout>

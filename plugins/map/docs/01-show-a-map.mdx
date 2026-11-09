@@ -1,0 +1,68 @@
+---
+title: Show a map
+description: A pannable, zoomable map of Paris, online first and then from files on disk.
+order: 1
+---
+
+<Steps>
+  <Step title="Make a project">
+    <Command>zinc new game atlas</Command>
+    The program needs the network (`zinc:net`) to fetch tiles, so run it on a desktop or a Pi, not on a microcontroller.
+  </Step>
+  <Step title="Create the view">
+    `new MapView(options)` takes the tile source. `url` is a TileJSON address or a `{z}/{x}/{y}` template, `cache` is a folder where
+    downloaded tiles are kept (an empty string keeps nothing), and `sourceMinZoom` and `sourceMaxZoom` are the zooms the source has
+    (14 for OpenMapTiles). An empty `style` uses the built-in street style.
+  </Step>
+  <Step title="Choose where it looks">
+    `map.setView(lat, lon, zoom)` jumps; `map.flyTo(lat, lon, zoom)` animates.
+  </Step>
+  <Step title="Update and draw">
+    On every frame call `map.update(dt, x, y, w, h)`, which reads the mouse, the touch screen and the keys and loads tiles, then
+    `map.draw(x, y, w, h)` for the same box.
+  </Step>
+</Steps>
+
+<Example title="src/main.ts" screenshot="img/map-explorer.png">
+```ts
+import { MapView } from 'zinc:map';
+import { onFrame, clear, width, height } from 'zinc:gfx';
+
+const map = new MapView({
+  tiles: '',
+  url: 'https://tiles.openfreemap.org/planet',
+  cache: 'tile-cache',
+  sourceMinZoom: 0,
+  sourceMaxZoom: 14,
+  style: '',
+});
+map.setView(48.8566, 2.3522, 14);
+
+onFrame((dt: number) => {
+  map.update(dt, 0, 0, width(), height());
+  clear(0xf2efe9);
+  map.draw(0, 0, width(), height());
+});
+```
+</Example>
+
+<Command>zinc run atlas</Command>
+
+## Offline
+
+For a kiosk or a trip without a network, download a region once with the tool in the repository, then point `tiles` at the folder and
+leave `url` empty:
+
+<Command>node plugins/map/tools/fetch-tiles.mjs --bbox 2.22,48.80,2.47,48.92 --zoom 10-14 --out tiles</Command>
+
+```ts
+const map = new MapView({ tiles: 'tiles', url: '', cache: '', sourceMinZoom: 0, sourceMaxZoom: 14, style: '' });
+```
+
+The tool asks politely (two requests at a time) and refuses more than 400 tiles; `--drop poi,housenumber` removes layers you do not draw,
+which shrinks a dense tile a lot.
+
+<Callout type="warning" title="Respect the tile servers">
+  Public tile servers are free but shared. Keep a `cache` folder so a tile is fetched once, and read the terms of the server you use
+  before shipping an app.
+</Callout>

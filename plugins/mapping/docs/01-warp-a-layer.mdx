@@ -1,0 +1,60 @@
+---
+title: Warp a layer onto a surface
+description: A test card pinned to four corners, a video feeding it, and an OSC server to move it live.
+order: 1
+---
+
+<Steps>
+  <Step title="Make a project for the GPU">
+    <Command>zinc new game facade</Command>
+    In `facade/zinc.json` add `"display": "gl"`: the mapper draws with shaders.
+  </Step>
+  <Step title="Play a video">
+    A `zinc:video` `Player` decodes the film; `player.image` is the picture to map. Put films in `facade/media/`.
+  </Step>
+  <Step title="Add a layer and pin its corners">
+    `mapping.load('mapping.json')` restores a saved setup and returns false the first time. Then `mapping.addLayer('pattern', 'facade')`
+    makes a layer that shows a test card until a video frame arrives, and `mapping.set(layer, 'corners', [...])` pins it: eight
+    numbers, the x and y of the four corners in output coordinates.
+  </Step>
+  <Step title="Listen for OSC and feed the layer">
+    `mapping.listen(9000)` starts the OSC server on UDP port 9000. On every frame, `mapping.setImage(0, player.image)` gives layer 0 the
+    newest picture.
+  </Step>
+</Steps>
+
+<Example title="src/main.ts" screenshot="img/mapper-room.png">
+```ts
+import * as gfx from 'zinc:gfx';
+import * as mapping from 'zinc:mapping';
+import { Player, EXTENSIONS } from 'zinc:video';
+
+const player = new Player(640, 360);
+player.addFolder('media', EXTENSIONS);
+player.play();
+
+if (!mapping.load('mapping.json')) {
+  const layer = mapping.addLayer('pattern', 'facade');
+  mapping.set(layer, 'corners', [0.1, 0.1, 0.9, 0.05, 0.95, 0.9, 0.05, 0.95]);
+}
+mapping.listen(9000);
+
+gfx.onFrame(() => {
+  if (player.image >= 0) mapping.setImage(0, player.image);
+  gfx.clear(0);
+});
+```
+</Example>
+
+<Command>zinc run facade</Command>
+
+## Move it live
+
+Send OSC messages to port 9000 from any controller. The addresses for every layer parameter are listed in the
+[reference](https://github.com/Frulko/zinc/blob/main/docs/plugins/mapping.md); `mapping.save('mapping.json')` writes the setup so the next
+run starts from it.
+
+<Callout type="note" title="Where it runs">
+  Verified on macOS, on Android 4.4 and on a Raspberry Pi 3B+ (as a follower of a Mac). Pi 1 and Zero, the ESP32 and the web are not
+  supported.
+</Callout>
