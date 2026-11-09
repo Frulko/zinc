@@ -2,8 +2,7 @@
 id: ZN-1074
 title: 'examples/appkit-tour: the Finder-like milestone app'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-08 21:44'
 updated_date: '2026-11-09 04:06'
 labels:

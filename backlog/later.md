@@ -622,6 +622,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-364.01: `animate()` translate and opacity on the compositor, as class transitions now are; colour bindings, loops beyond one and per-frame listeners (RN's onAnimatedValueUpdate) played natively.
 - ZN-364.01: feed `ui.alarm` deadlines to gfxIdleDue (an unbound native value in an idle window may end up to 100 ms late); exact opacity rounding when translucent layers nest (1/255).
 - ZN-364.01: the frame trace hook `zn_frame_trace` has no installer.
+- ZN-1074: the AppKit native first frame takes 120-150 ms against 6 ms drawn, half of it layout: profile AppKit's measure on first use and cache cells per font size.
+- ZN-1074: zinc:appkit's drawn fallbacks hard-code light colours (Table, Outline, Checkbox, PopUpButton, DatePicker, SearchField, overlays): use the kit's scheme variables; kit fields send the theme's text colour, dark text on a dark NSTextField under the host.
+- ZN-1074: the AppKit host flattens a labelled layout-only View and loses its accessibility label; keep a view when it has a label. `appkit.drive(table, 7, rows)` past the row count silently selects nothing.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.

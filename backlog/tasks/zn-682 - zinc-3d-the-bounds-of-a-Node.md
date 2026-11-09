@@ -2,7 +2,8 @@
 id: ZN-682
 title: 'zinc:3d: the bounds of a Node'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 19:36'
 labels:
   - 3d

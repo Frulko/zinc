@@ -1568,3 +1568,8 @@ Open, in `backlog/later.md`: compact element storage for `u8[]`/`i32[]`/`f32[]` 
 
 - `tests/t1/busy_native.sh` (program busy-waits 1 s): longest screen gap 28 ms with 54 compositor ticks on the native driver, against 1000 ms when the program drives the animation.
 - Frames painted by the program: animated-native golden 8 with the compositor vs 45 without; transition-slots golden 4 vs 28 (framehash identical with the compositor on and off).
+
+## 2026-11-09 — ZN-1074, examples/appkit-tour native vs drawn (M1 Pro, 1100x700, headless; the drawn run rasterizes nothing, so its time and memory are not comparable)
+
+- First-frame work: native 119 ms on the interpreter (layout 58, commit 61), 148 ms AOT (layout 78, commit 70); drawn 5.7 / 5.9 ms.
+- Built app, 60 frames: 0.43 s native, 0.03 s drawn; max RSS 50 MB / 18 MB; footprint 25 MB / 10 MB. 300 idle frames paint nothing in both.

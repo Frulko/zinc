@@ -52,3 +52,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: ZN-1062 (Done, D234), ZN-1073 (Done, D235). Workers: ZN-1075 custom native components and ZN-364.01 animated native driver.
 - Integrated: ZN-1075 (Done, D236). Worker: ZN-1074 appkit-tour (with the AOT native-measure check), beside ZN-364.01.
 - Integrated: ZN-364.01 (Backlog, D237). Worker: ZN-798 five frontend defects, beside ZN-1074.
+- Integrated: ZN-1074 (Review, D238). Worker: ZN-682 zinc:3d node bounds, beside ZN-798.

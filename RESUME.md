@@ -14,10 +14,12 @@
 - Integrated: ZN-1062 tabular figures (Done, D234): `tabular-nums`, `tabularFont`, Musique's clock without the digit-by-digit workaround. ZN-1073 AppKit controls and overlays (Done, D235): kit, nuxt and react-native Button, Switch, Slider, Select... become AppKit controls; `alert`, `sheet`, `popover` without `runModal`.
 - Integrated: ZN-1075 plugin views (Done, D236): a plugin spec declares a native component, `zinc native-gen --views` writes the glue, zinc:appkit mounts it (`examples/native-view`, `plugins/levels`).
 - Integrated: ZN-364.01 #1-#4 (Backlog, D237): `useNativeDriver: true` and class transitions of opacity/transform play on the compositor while the program is busy; #5's scroll half (D182 step 7) left with a handover.
+- Integrated: ZN-1074 `examples/appkit-tour` (Review, D238): Finder-like app native on three engines and a built binary, and drawn; VoiceOver tree verified by an AX dump, needs a person to listen (#3). AppKit text measure kept in built AOT apps; the Edit menu reaches native fields.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- ZN-1074 (since bf0134323): by hand, listen to appkit-tour with VoiceOver (sidebar, table, form) and Cmd-Z in a native field; proposed `tests/t1/appkit_tour.sh` (scripted session, 40 s), a windowed AX dump golden (15 s, Accessibility permission), a drawn `ui.inspect()` golden (5 s); measures: one typed character's commit, time to show the 10,000-row window, `tools/window-memory` native vs drawn, dropped frames flinging the table at 120 Hz.
 - ZN-364.01 (since the feat(ui) compositor commits after f40a02975): T1 `animated` (both modes), `busy_native` alone on a real clock, `ui_transition`, `compositor`; T0 `animated_native` on AOT (40 s, 1 GB); a windowed run of tests/data/busy_native; rn-showcase and rn-tester sessions; the kit keyboard and toast flows (`animate()` Promises now resolve when replaced).
 - ZN-1075 (since f40a02975): `tests/run --only native_gen` (10 s), `ui_appkit_views` (30 s).
 - ZN-1062 (since 1d1a40640): `text_tabular` on AOT (`zinc build tests/data/text_tabular`, 40 s, 1 GB); a frame hash of Musique's digital clock at 11:11 and 00:00; a GL replay pixel check of tabular text.
