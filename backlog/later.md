@@ -714,6 +714,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1102: measure typed collection adapter allocation/runtime overhead and replay supported collection boundaries on future device engines; raw JavaScript/package/Script native behavior must remain unchanged.
 - ZN-1107: long-lived keyboard/virtual-row/owner churn after the live-getter correction, retaining transaction/resource ownership and raw React snapshot semantics.
 
+- ZN-1078.14: fix arbitrary percentage inset classes in rn: left-[50%] currently becomes50px (leftPercent=-1), while object style left:'50%' gives400px in800px parent. Preserve ZN-382's documented classic limit; reduced rn/classic sources/logs archived under .logs/blockers/percent-insets, no corrected-engine claim.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
