@@ -343,6 +343,22 @@ Made under `RULES.md` from the four parity audits in `docs/reports/parity/` (01 
 
 | D269 | UI work evidence extends the existing zbench artifacts (ZN-1084) | **Keep zbench/1 and zbench-report/1; optional ui_work records scenario version, wiring/model, rows, creation/settled/disposal work, correctness and unavailable memory as null.** Both baseline and candidate must have successful oracles and compatible provenance before comparison. Counters count visits, not changed nodes; unmeasured Yoga/style/DOM internals stay explicit. | No framework replacement or ranking inferred from a third-party benchmark. Existing profiler/report paths suffice; revisit traversal with the new structural evidence. |
 
+## D270 — Stable layout IDs and allocation-aware inlining (ZN-1088)
+
+Keep live layout IDs stable and tombstone unreachable metadata; charge the existing `kAllocs` effects against the unchanged inline budget. Hot/debug keep their metadata. Scores in RULES order (fit/performance/size/maintainability/licence/portability/effort): this approach 5/3/5/4/5/5/4 =61; retain loaded metadata and cheap allocation estimates 3/3/1/4/5/5/5 =48. Performance scores express design judgement; runtime speed is unmeasured. Exact `layout_reachability` proves live native/worker/reflection classes, shared allocating helpers and inlined arithmetic. Combined AOT gate is59,472 bytes/component. Revisit with measured call-heavy regressions or hot ABI failures.
+
+## D271 — Conservative plugin system-host requirements (ZN-1088)
+
+`native.systemHost` defaults to `full`; only audited implementations opt into `lite`. Legacy/unknown cached values remain full, and reached Script/network requirements override lighter linking. Scores: audited capability 5/4/5/4/5/5/4 =64; always full 4/3/1/5/5/5/5 =53. Runtime image wrappers reuse the bounded16MP codec without importing the64MP CLI baker or changing its callback ABI. Evidence: exact `plugin_system_host`, `codec_test`, `script_images`, and current aarch64 Linux Script+SVG executable returning42 on the paired Pi. Revisit when a new native capability or embedder changes archive requirements.
+
+## D272 — Canonical neutral JSX ownership (ZN-1095)
+
+The standard kit and Nuxt host module identities opt into named/keyed component helpers; custom helper modules keep their two-argument ABI. Logical Show/For owners and generation-checked virtual rows retain state and dispose once without hidden UI nodes. Scores: canonical helpers 5/4/4/4/5/5/4 =62; widget-local ownership fixes 2/3/3/2/5/5/3 =43. Exact `neutral_ownership` covers both models/three engines, exceptions, reentrant cleanup, stale hosts, virtual parent rendering and imperative toasts. Original Picker/Data caller ACs remain open. Revisit on fast-refresh or new reconciliation evidence.
+
+## D273 — Reached library icons and shared SVG wrappers (ZN-1090)
+
+Use surviving typed literals to infer pinned icon names, retaining the explicit-declaration fallback for unsupported arbitrary JavaScript and runtime-only names. Share identical SVG wrappers while preserving every selected geometry and alias. Scores: reached assets 5/3/5/4/5/5/4 =61; declarations only 3/4/5/4/5/5/4 =58. Exact `library_icons` covers defaults, workers, stages, offline bundles, aliases and parsed output on three engines. The41-document provider saves7,409 minified bytes; final unchanged JS gate is4,068 bytes/component with249 bytes total headroom. Matching ordinary literals can conservatively retain extra icons; runtime concatenation cost is unmeasured. Revisit on measured cache-miss cost or supported inference gaps.
+
 ## D154 follow-up — 2026-10-31, idle memory
 
 The macOS software presenter now keeps an immutable IOSurface at rest and restores the existing Metal path during sustained repainting. Always-Metal measured about60 MiB idle; always-snapshot cut idle memory but cost15.6% versus3.3% CPU in the moving-rectangle probe. The adaptive choice keeps about29 MiB idle and Metal's steady animation cost, with explicit view/transaction lifetime cleanup. Other platforms keep their own presentation contracts. Evidence, thresholds, limits and proof: [engine-memory-hal-2026-10-31.md](engine-memory-hal-2026-10-31.md).

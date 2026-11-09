@@ -706,6 +706,10 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-1078.09: isolate the reported interpreter heading() font hierarchy mismatch (body-sized heading versus correct QuickJS capture); source unchanged, no rendering workaround. Keep outside unrelated tasks until a minimal reproduction confirms the resource/first-frame cause.
 
+- ZN-1094: Contextually type array literals as tuple members in mixed scalar/tuple return unions; the current checker rejects an inline conditional branch with Z0103 although an already-typed tuple works.
+- ZN-1088: Classify relative `lib/std/...` imports consistently with absolute engine-library imports; the same physical module can otherwise get different font baking.
+- ZN-1078.09: Investigate the interpreter heading-size discrepancy in the shared kit gallery after typed library font reachability changes; QuickJS captures are correct.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).

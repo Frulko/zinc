@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated1088/1093/1094/1095/1090 through41c30e3ac;1088/1090Done, original consumerAC3 on1093/94/95 remains open. D270–273/provenance recorded. Restored external WIP numstats unchanged (ui42/19,main12/0,perf15/0), index contains only coordinator block. Clean retained engine rebuilt; root unchangedkit_sizePASS. Fresh workers Pickers/Data/core1096 running. Real callers found1093 composed-IDZ0107, constructor iterable inferenceZ0109 and guarded optionalcallbackZ0105; solecore fixes1093 first, no UI workaround. Pi final42/exit0, no remote process. Final JS4068/component (249B total headroom), AOT59472; no speed claim.
+
 - Core warm build and exact layout/plugin/Script/ID/flatMap checks pass; neutral ownership, actual kit_inputs/overlays and original gallery smoke pass. Unchanged combined size gate passes at57,640B/component (direct5,308,712/index5,358,240/ten5,877,008), no runtime speed claim. Read-only review found/fixed recycled-row insertion and imperative toast owner leaks; shared host helpers transferred to core. Pi reachable through paired zinc-player despite SSH-agent auth blocker; one bounded cross proof is in progress.
 - Created/claimed1096 after an actual3frame interpreter repro proves pre-layout scrollTo(0,200) becomes0. RN/Flutter primary research supports preserving pending intent. A fresh sole core worker takes it after the current five-task batch; do not append a sixth task. Picker checkpointb1b945b19 and Dataf048a55bf are private Backlog/allACopen, ready for fresh proof workers after core integration. Code13 reuse research saved in its unclaimed task.
 

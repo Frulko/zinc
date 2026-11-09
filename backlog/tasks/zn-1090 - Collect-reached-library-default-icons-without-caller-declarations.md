@@ -2,8 +2,7 @@
 id: ZN-1090
 title: Collect reached library default icons without caller declarations
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 14:36'
 labels:
   - ui

@@ -2,8 +2,7 @@
 id: ZN-1088
 title: Restore kit size budgets without unused type retention
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 14:36'
 updated_date: '2026-11-09 16:34'
 labels:
