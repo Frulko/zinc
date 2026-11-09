@@ -40,3 +40,4 @@ Each iteration (a wake-up or an agent's notification):
 - Integrated: layout chain ZN-1022 (Review), ZN-263.02 (Review), ZN-291 (moved to the cross pass) (D223). Skipped for agents: ZN-203.06 (needs the WebGL conformance run), ZN-713 (a measurement alone on a quiet machine), ZN-1067 (needs the Pi shell).
 - Integrated: WebGL and gestures chain ZN-567, ZN-684 (perf line logged).
 - Worker: ZN-796 (typed numbers on QuickJS) and ZN-1052 (iPod at 10k songs) (claimed 2d936c319), beside the layout chain.
+- Worker: compiler chain ZN-376, ZN-667, ZN-1030 (claimed e2775db81), beside ZN-796/ZN-1052.
