@@ -19,7 +19,9 @@ export class Inline {
   runs: i32[];
   /** The links' targets, in order. */
   links: string[];
-  constructor(text: string, runs: i32[], links: string[]) { this.text = text; this.runs = runs; this.links = links; }
+  /** [start, end] pairs in plain text, one per target. */
+  linkRanges: i32[];
+  constructor(text: string, runs: i32[], links: string[], linkRanges: i32[] = []) { this.text = text; this.runs = runs; this.links = links; this.linkRanges = linkRanges; }
   /** True when every run is plain: the text needs no runs. */
   plain(): boolean {
     for (let k = 1; k < this.runs.length; k += 3) if (this.runs[k] !== 0 || this.runs[k + 1] !== R_TEXT) return false;
@@ -32,6 +34,7 @@ export class Block {
   /** B_HEADING: 1..6; B_ITEM: the nesting depth (0 = top). */
   level: i32 = 0;
   /** B_ITEM: '•' or the number written ('3.'). */
+  task: i32 = -1; taskOffset: i32 = -1;
   marker: string = '';
   /** B_CODE: the fence's language. */
   lang: string = '';
@@ -41,6 +44,8 @@ export class Block {
   inline: Inline = new Inline('', [], []);
   /** B_TABLE: the header row, then the body rows, each cell parsed. */
   rows: Inline[][] = [];
+  alignments: i32[] = [];
+  blocks: Block[] = [];
   constructor(kind: i32) { this.kind = kind; }
 }
 
@@ -163,7 +168,7 @@ function cells(row: string): Inline[] {
 export function inline(s: string): Inline {
   let text = '';
   const runs: i32[] = [];
-  const links: string[] = [];
+  const links: string[] = [], linkRanges: i32[] = [];
   let style = 0;
   let runStart = 0, runStyle = 0, runRole = R_TEXT;
   const cut = (nextStyle: i32, nextRole: i32): void => {   // ends the current run where the text is now
@@ -190,7 +195,9 @@ export function inline(s: string): Inline {
       const end = s.indexOf('](', i + 1), close = end > 0 ? s.indexOf(')', end + 2) : -1;
       if (end > 0 && close > 0 && s.slice(i + 1, end).indexOf('[') < 0) {
         cut(style | S_UNDERLINE, R_LINK);
+        linkRanges.push(text.length);
         text += s.slice(i + 1, end);
+        linkRanges.push(text.length);
         cut(style, R_TEXT);
         links.push(s.slice(end + 2, close));
         i = close + 1;
@@ -210,7 +217,7 @@ export function inline(s: string): Inline {
     i++;
   }
   cut(0, R_TEXT);
-  return new Inline(text, runs, links);
+  return new Inline(text, runs, links, linkRanges);
 }
 
 /** A `*`/`_` mark of `n` characters at i opens (when the next character is not a space and a closing mark follows) or

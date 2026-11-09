@@ -580,3 +580,35 @@ confirms them.
 ![The scoped filesystem browser drawn by Zinc](img/kit-data-files.png)
 ![The file opening dialog drawn by Zinc](img/kit-data-open.png)
 ![The save-path dialog drawn by Zinc](img/kit-data-save.png)
+
+## Quiet Code
+
+`GALLERY=code zinc run examples/ui/kit-gallery` shows all five controls. `CODE_VIEW=block`, `editor`, `diff`,
+`markdown` or `json` isolates one; `GALLERY_DARK=1` selects the dark scheme.
+
+| Component | Contract and useful options |
+|---|---|
+| `CodeBlock` | `code`, optional `language`, `title`, `lineNumbers`, 1-based `emphasizedLines`, `height`, `copy` (true), `className`. Text remains selectable; Copy code copies the original source. |
+| `CodeEditor` | `label`, controlled `value: () => string` / `onChange(value)`; optional `language`, `title`, `height` (220), `readOnly`, `placeholder`, `lineNumbers` (true), `indent` (two spaces; one tab or up to eight spaces), `wrap`, `className`. Reuses `zinc:editor`'s document, cursor and undo history. Each instance owns its theme, assistant, edit callback and pending jump. |
+| `DiffViewer` | `before`, `after`, optional `language`, `title`, `mode` (`split` or `inline`), `context` (3; negative shows all lines), `height` (240), `className`. Split pairs removed and added runs and falls back to inline below 560 px. Unchanged runs can be opened; Previous/Next change and F7/Shift-F7 navigate change groups. |
+| `MarkdownView` | `source`, optional `compact`, `height`, `className`, `onLink(href)` and `onTask(nextSource, byteOffset, checked)`. Uses the existing md4c CommonMark/GitHub parser and the standard selectable Markdown view, including tables and fenced code. Raw HTML is disabled. Inline links retain their labels; callbacks decide navigation. Tasks return a new source string; the caller owns the source. |
+| `JsonViewer` | `source`, optional `label`, `expandDepth` (2, capped at 64), `height` (220), `className`. Objects and arrays show counts; primitive roots and visible parse errors are supported. Each viewer owns its folds. Paths use escaped JSON Pointers, so `/`, `~` and empty member names stay distinct. |
+
+![Highlighted code with an emphasized range, drawn by Zinc](img/kit-code-block.png)
+![Editable source and a read-only preview, drawn by Zinc](img/kit-code-editor.png)
+![Paired changes with context folds, drawn by Zinc](img/kit-code-diff.png)
+![CommonMark text, tasks, links, table and code fence, drawn by Zinc](img/kit-code-markdown.png)
+![Counted JSON trees, a primitive root and a visible error, drawn by Zinc](img/kit-code-json.png)
+![The editor in Quiet dark](img/kit-code-editor-dark.png)
+![The inline diff at 360 px](img/kit-code-diff-narrow.png)
+![JSON at 360 px in Quiet dark](img/kit-code-json-dark-narrow.png)
+
+The editor supports Command/Ctrl-F, Command/Ctrl-G, F3/Shift-F3, indentation, multi-cursor editing, undo and redo.
+Escape leaves editing so Tab can reach the surrounding controls. A linked paragraph takes Tab, arrows/Home/End choose its link, and Enter/Space activates the named destination. JSON trees use arrows, Home/End and Enter/Space;
+only visible JSON and diff rows are mounted. These controls have no decorative animation; reduced motion keeps their
+immediate feedback.
+
+Diff inputs are cached until they change. Lines are interned with the standard string Map once per input change; anchor search checks at most 64 nearby
+positions and spends at most 131,072 integer probes, then keeps a coarse replacement; there is no quadratic matrix. Changed ranges within paired
+lines are bounded to 2,000 characters. Syntax comes from the existing editor registry (TS/JS/TSX, JSON, Markdown,
+CSS); other language labels render as plain text.

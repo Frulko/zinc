@@ -4,6 +4,7 @@
 // tree whose objects and arrays fold. The grid stays inside its pane: wider than it, it scrolls sideways with its header; its rows are a
 // virtual list, so a big page costs only the rows in view.
 import { createSignal, createMemo, createNodeRef, onMount, NodeRef } from 'zinc:ui/solid';
+import { JsonLine as JLine, jsonValueLines, parseJsonDocument, JsonStatus } from '../../lib/std/json-tree';
 import * as ui from 'zinc:ui';
 
 export const TEXT: i32 = 0;
@@ -183,48 +184,16 @@ export function GridView(p: { g: Grid }): i32 {
 
 // ---- the JSON tree
 /** A line of the tree: a key and a value (a leaf), or an object / array with its preview, open or folded. */
-export class JLine { depth: i32 = 0; path: string = ''; key: string = ''; text: string = ''; kind: i32 = TEXT; fold: i32 = 0; }   // fold: 0 leaf, 1 open, 2 folded
-export const [folds, setFolds] = createSignal<string[]>([]);   // the paths whose default (open to depth 1) is toggled
-function isOpen(path: string, depth: i32): boolean { return (depth < 2) !== (folds().indexOf(path) >= 0); }
+export { JsonLine as JLine } from '../../lib/std/json-tree';
+export const [folds, setFolds] = createSignal<string[]>([]);
 export function toggleFold(path: string): void {
   const f = folds().filter((x: string) => x !== path);
   if (f.length === folds().length) f.push(path);
   setFolds(f);
 }
-function leaf(v: any): Cell {
-  if (v === null) return cell('null', NULL);
-  if (typeof v === 'number' || typeof v === 'boolean') return cell(JSON.stringify(v), NUM);
-  return cell(JSON.stringify(v), TEXT);
-}
-/** Chrome's preview of a folded object or array: {a: 1, b: "x"} / Array(3), cut at 80 characters. */
-function preview(v: any): string {
-  if (Array.isArray(v)) return 'Array(' + v.length + ')';
-  const ks = Object.keys(v);
-  const parts: string[] = [];
-  for (const k of ks) parts.push(k + ': ' + (v[k] !== null && typeof v[k] === 'object' ? (Array.isArray(v[k]) ? '[…]' : '{…}') : JSON.stringify(v[k])));
-  const s = '{' + parts.join(', ') + '}';
-  return s.length > 80 ? s.slice(0, 79) + '…' : s;
-}
-function walk(v: any, key: string, path: string, depth: i32, out: JLine[]): void {
-  const l = new JLine();
-  l.depth = depth; l.path = path; l.key = key;
-  out.push(l);
-  if (v === null || typeof v !== 'object') { const c = leaf(v); l.text = c.text; l.kind = c.kind; return; }
-  l.text = preview(v);
-  const open = isOpen(path, depth);
-  l.fold = open ? 1 : 2;
-  if (!open) return;
-  if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) walk(v[i], '' + i, path + '/' + i, depth + 1, out); return; }
-  for (const k of Object.keys(v)) walk(v[k], k, path + '/' + k, depth + 1, out);
-}
-/** The lines of a value's tree; [] when it is not a JSON object or array. */
 export function jsonLines(text: string): JLine[] {
-  let v: any = null;
-  try { v = JSON.parse(text); } catch (e) { return []; }
-  if (v === null || typeof v !== 'object') return [];
-  const out: JLine[] = [];
-  walk(v, '', '', 0, out);
-  return out;
+  const doc = parseJsonDocument(text);
+  return doc.status === JsonStatus.Invalid ? [] : jsonValueLines(doc.value, folds());
 }
 /** A line of the tree as the dump prints it. */
 export function lineText(l: JLine): string {
@@ -235,7 +204,7 @@ function JRow(p: { l: JLine }): i32 {
     onPointerDown={(e: ui.PointerEvent) => { if (p.l.fold > 0) toggleFold(p.l.path); }}>
     <Text className="w-3 text-[9px] text-slate-500">{p.l.fold === 1 ? '▼' : p.l.fold === 2 ? '▶' : ''}</Text>
     {p.l.key.length > 0 ? <Text className="text-xs font-mono text-purple-800">{p.l.key + ': '}</Text> : <View />}
-    <Text className={'flex-1 min-w-0 text-xs font-mono break-all ' + (p.l.fold > 0 ? 'text-slate-600' : p.l.kind === TEXT ? 'text-red-700' : cellColor(p.l.kind))}>{p.l.text}</Text>
+    <Text className={'flex-1 min-w-0 text-xs font-mono break-all ' + (p.l.kind === 'object' || p.l.kind === 'array' ? 'text-slate-600' : p.l.kind === 'string' ? 'text-red-700' : p.l.kind === 'null' ? cellColor(NULL) : cellColor(NUM))}>{p.l.text}</Text>
   </View>;
 }
 export function JsonTree(p: { text: string }): i32 {

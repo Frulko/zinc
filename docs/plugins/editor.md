@@ -130,3 +130,16 @@ modes. With the canvas render the whole page is drawn that way. With `--render d
 at the caret holds the focus. Keys, typed text, IME composition, dead keys and paste go through it to zinc:ui's own editing, and clicks, drags and the
 wheel go to zinc:ui's pointer input, so selections, several cursors and undo work as on the desktop, without a browser focus ring. This is how Monaco
 and Google Docs take text. Other text fields stay native elements.
+
+
+## Independent embedded editors
+
+`EditorState` accepts per-instance `appearance: () => Theme`, `assistant: Assist`, `onEdited(state)`, `indent`
+and `menuKeys` fields. When absent, existing global theme/assistant/edit hooks and menu behavior remain the defaults.
+Selections, pending jumps and decoration caches belong to the state; a new node generation rebuilds its marks.
+`Doc.setLanguage(id)` invalidates cached tokens when the same text changes language.
+
+`CodeEditor` also accepts `readOnly`, `placeholder` and `lineNumbers`. `CodeView` accepts `appearance`, 1-based
+`emphasizedLines`, and an existing `document` plus `offset` for highlighting virtual rows without losing multiline
+syntax state; `emphasizedRange` is a local `[start,end]` range and `tabIndex` controls its tab stop. Theme/caret signals
+and the default assistant initialize on first use. Existing `LIGHT`, `DARK`, `ONE_LIGHT` and `ONE_DARK` exports are unchanged.

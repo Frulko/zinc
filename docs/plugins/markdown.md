@@ -25,3 +25,8 @@ const ticked = md.setTask(src, li.taskOffset, true);    // the source with that 
 
 Native code: `native/markdown.host.cpp` writes md4c's events as one string that `index.ts` reads back (one boundary crossing per
 document). Targets: macOS, Linux (and the reMarkable's prebuilt), Windows, `rmpp`. No web or ESP32 build yet.
+
+
+`viewBlocks(parse(source))` adapts the same md4c tree to `lib/std/markdown-view.tsx`'s selectable blocks. It preserves
+nested list/quote structure, table alignment, fenced languages, task byte offsets and exact inline link ranges. The
+adapter does not parse Markdown again. The kit's `MarkdownView` uses it with `FLAG_NO_HTML` and owns link/task callbacks.

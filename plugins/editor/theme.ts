@@ -100,11 +100,13 @@ function oneLight(): Theme {
   return t;
 }
 
-export const LIGHT: Theme = atelierLight();
-export const DARK: Theme = atelierDark();
-export const ONE_DARK: Theme = oneDark();
-export const ONE_LIGHT: Theme = oneLight();
-export const [theme, setTheme] = createSignal<Theme>(ONE_DARK);
+export const LIGHT: Theme = /* @__PURE__ */ atelierLight();
+export const DARK: Theme = /* @__PURE__ */ atelierDark();
+export const ONE_DARK: Theme = /* @__PURE__ */ oneDark();
+export const ONE_LIGHT: Theme = /* @__PURE__ */ oneLight();
+let themeSignal: [() => Theme, (value: Theme) => void] | null = null;
+export function theme(): Theme { if (themeSignal === null) themeSignal = createSignal<Theme>(ONE_DARK); return themeSignal[0](); }
+export function setTheme(value: Theme): void { if (themeSignal === null) themeSignal = createSignal<Theme>(value); else themeSignal[1](value); }
 let lightOne: Theme = ONE_LIGHT, darkOne: Theme = ONE_DARK;
 /** The light and dark themes of the app; the current one becomes `start` (the dark one when `startDark`). */
 export function useThemes(l: Theme, d: Theme, startDark: boolean): void { lightOne = l; darkOne = d; setTheme(startDark ? d : l); }

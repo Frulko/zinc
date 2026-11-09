@@ -15,6 +15,7 @@ import { ButtonsCard } from './sections/buttons';
 import { SettingsCard } from './sections/settings';
 import { StatsRow, BadgesCard, AlertsColumn, TeamList } from './sections/display';
 import { OverlaysCard } from './sections/overlays';
+import { CodeSection } from './sections/code';
 import { DataSection } from './sections/data';
 
 useQuietTheme();
@@ -51,6 +52,7 @@ function App(): i32 {
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'inputs'}><InputsSection /></Show>
       <Show when={env('GALLERY') === 'feedback'}><Section title="Feedback"><FeedbackSection /></Section></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'data'}><DataSection /></Show>
+      <Show when={env('GALLERY') === '' || env('GALLERY') === 'code'}><CodeSection /></Show>
       <Show when={env('GALLERY') === ''}>
       <Section title="Metrics"><StatsRow /></Section>
       <Section title="Controls">

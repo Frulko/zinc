@@ -34,6 +34,10 @@ export class Doc {
   private runs: i32[][] = [];          // token runs of line i (known for i < runs.length)
   constructor(lang: i32) { this.lang = lang; }
 
+  setLanguage(lang: i32): void {
+    if (lang === this.lang) return;
+    this.lang = lang; this.states = [S_NORMAL]; this.runs = [];
+  }
   setText(t: string): void {
     if (t === this.text) return;
     this.text = t;

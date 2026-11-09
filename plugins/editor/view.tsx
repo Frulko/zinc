@@ -1,10 +1,12 @@
+/** @jsxHelpers zinc:ui/kit/host */
 // The views of zinc:editor. `CodeEditor` is one editable text field on an EditorState: highlighted by its Doc, coloured
 // by the theme, its keys and pointer routed through cursors.ts (several cursors, undo, the assistant). `stepEditor` runs
 // once a frame on the active editor: it rebuilds its decorations (current line, the other selections, the other places
 // of the selected word, search matches, matching brackets, diagnostics) when one of their inputs changed. `drawCursors`
 // draws the carets beside the field's own, on a canvas the app lays over its editors. `Minimap` is the tiny coloured
 // outline of the file beside it, `CodeView` a read-only highlighted snippet (a code block of a chat, of a document).
-import { createSignal, createEffect, createNodeRef } from 'zinc:ui/solid';
+import { createSignal, createNodeRef } from 'zinc:ui/solid';
+import { componentEffect } from 'zinc:ui/kit/host';
 import * as ui from 'zinc:ui';
 import { rrect, font, textWidth, clip, unclip } from 'zinc:gfx';
 import { theme, bg, fg, bd, Theme } from './theme';
@@ -36,44 +38,60 @@ export interface CodeEditorProps {
   padTop?: number;
   fontPx?: () => number;
   wrap?: () => boolean;
+  readOnly?: boolean;
+  placeholder?: string;
+  lineNumbers?: boolean;
   /** The app's keys first (switch tabs...): true when it took the key. */
   onKey?: (e: ui.KeyEvent) => boolean;
   /** Escape with one cursor and no popup (close the find bar). */
   onEscape?: () => void;
 }
 
+function followAppearance(node: i32, appearance: () => Theme, apply: (t: Theme) => void): () => void {
+  let previous: Theme | null = null;
+  const serial = ui.nodeSerial(node);
+  const colors = (): void => {
+    if (ui.nodeSerial(node) !== serial) return;
+    const t = appearance();
+    if (t === previous) return;
+    previous = t; apply(t);
+  };
+  colors(); ui.addWatcher(colors);
+  return () => ui.removeWatcher(colors);
+}
+
 /** One editor on `state`. */
 export function CodeEditor(props: CodeEditorProps): i32 {
   const b = props.state;
+  const appearance = (): Theme => b.appearance !== null ? b.appearance() : theme();
   const cls = props.className ?? ((): string => EDITOR_CLASSES);
   const wrap = props.wrap ?? ((): boolean => false);
   b.padLeft = props.padLeft ?? 14; b.padTop = props.padTop ?? 10;
   if (props.fontPx !== undefined) b.fontPx = props.fontPx as () => number;
   const appKey = props.onKey, escape = props.onEscape ?? (() => {});
   const node = <TextArea ref={b.ref}
-    className={`border-slate-600 absolute inset-0 font-mono rounded-none border-0 ${cls()} ${bg(theme().bg)} ${fg(theme().text)} focus:${bd(theme().bg)}`}
+    className={`border-slate-600 absolute inset-0 font-mono rounded-none border-0 ${cls()} ${bg(appearance().bg)} ${fg(appearance().text)} focus:${bd(appearance().bg)}`}
     style={{ hidden: props.visible() ? 0 : 1 }}
-    lineNumbers wrap={wrap()} value={b.text()} onInput={(v: string) => nativeInput(b, v)}
+    readOnly={props.readOnly ?? false} placeholder={props.placeholder ?? ''} lineNumbers={props.lineNumbers ?? true} wrap={wrap()} value={b.text()} onInput={(v: string) => nativeInput(b, v)}
     onKeyDown={(e: ui.KeyEvent) => {
       if (appKey !== undefined && (appKey as (e: ui.KeyEvent) => boolean)(e)) e.preventDefault();
-      else if (editorKey(b, e, escape)) e.preventDefault();
+      else if (props.readOnly !== true && editorKey(b, e, escape)) e.preventDefault();
     }}
     onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) editorPress(b, e.alt, e.meta); }}
-    onPointerMove={(e: ui.PointerEvent) => getAssist().pointerOver(b, nameAt(b, e.x, e.y))}
-    onPointerLeave={(e: ui.PointerEvent) => getAssist().pointerOver(b, -1)} />;
-  ui.setHighlightAt(node, (line: string, start: i32) => b.doc.rowColors(line, start, theme()));
-  createEffect(() => {
-    const t = theme();
+    onPointerMove={(e: ui.PointerEvent) => getAssist(b).pointerOver(b, nameAt(b, e.x, e.y))}
+    onPointerLeave={(e: ui.PointerEvent) => getAssist(b).pointerOver(b, -1)} />;
+  ui.setHighlightAt(node, (line: string, start: i32) => b.doc.rowColors(line, start, appearance()));
+  componentEffect(() => followAppearance(node, appearance, (t: Theme) => {
     ui.setEditColors(node, [t.lineNumber, t.lineNumberActive, -2, t.selection, t.caret, t.indentGuide]);
-  });
+  }));
   return node;
 }
 
 // ---- decorations of the active editor, rebuilt when something they depend on changed
-let lastBuf: EditorState | null = null, lastCaret: i32 = -1, lastText: string = '', lastMatches: i32[] = [], lastCur: i32 = -1;
-let lastTheme: Theme | null = null, lastTop: i32 = -1, lastDiag: Diagnostic[] = [], lastSels: i32[] = [];
 /** [line, column, selected characters, cursors] of the active editor, for a status line. */
-export const [caretInfo, setCaretInfo] = createSignal<i32[]>([1, 1, 0, 1]);
+let caretSignal: [() => i32[], (value: i32[]) => void] | null = null;
+export function caretInfo(): i32[] { if (caretSignal === null) caretSignal = createSignal<i32[]>([1, 1, 0, 1]); return caretSignal[0](); }
+export function setCaretInfo(value: i32[]): void { if (caretSignal === null) caretSignal = createSignal<i32[]>(value); else caretSignal[1](value); }
 
 /** Column where the word starting at column i of `s` ends; from another character (a quote, an operator), where the run up to the next space, comma or semicolon ends. */
 function diagEnd(s: string, i: i32): i32 {
@@ -85,7 +103,7 @@ function diagEnd(s: string, i: i32): i32 {
 }
 
 function decorate(b: EditorState, caret: i32, top: i32, rows: i32, m: i32[], q: i32, cur: i32): void {
-  const t = theme(), h = b.node(), doc = b.doc;
+  const t = b.appearance !== null ? b.appearance() : theme(), h = b.node(), doc = b.doc;
   const marks: i32[] = [];
   const line = doc.lineOf(caret);
   const sel = ui.selectedText(h).length;
@@ -126,14 +144,14 @@ function decorate(b: EditorState, caret: i32, top: i32, rows: i32, m: i32[], q: 
  *  one; [] when the find bar is closed): its decorations and caretInfo. */
 export function stepEditor(b: EditorState | null, matches: i32[], queryLength: i32, current: i32): void {
   if (b === null || (b as EditorState).node() < 0) return;
-  const buf = b as EditorState, h = buf.node();
-  const caret = ui.caretOf(h), v = ui.editView(h);
+  const buf = b as EditorState, h = buf.node(), cache = buf.decorations;
+  const caret = ui.caretOf(h), v = ui.editView(h), serial = ui.nodeSerial(h);
   const top: i32 = Math.floor(v[1] / v[4]), rows: i32 = Math.ceil(v[3] / v[4]);
   const text = buf.text(), diag = buf.diagnostics();
   // the scroll matters to the marks that are limited to the visible lines (search matches, occurrences)
-  const scrolled = Math.abs(top - lastTop) > 10;
-  if (buf === lastBuf && caret === lastCaret && text === lastText && matches === lastMatches && current === lastCur && theme() === lastTheme && !scrolled && diag === lastDiag && buf.sels === lastSels) return;
-  lastBuf = buf; lastCaret = caret; lastText = text; lastMatches = matches; lastCur = current; lastTheme = theme(); lastTop = top; lastDiag = diag; lastSels = buf.sels;
+  const scrolled = Math.abs(top - cache.top) > 10;
+  if (serial === cache.serial && queryLength === cache.queryLength && caret === cache.caret && text === cache.text && matches === cache.matches && current === cache.current && (buf.appearance !== null ? buf.appearance() : theme()) === cache.appearance && !scrolled && diag === cache.diagnostics && buf.sels === cache.selections) return;
+  cache.serial = serial; cache.queryLength = queryLength; cache.caret = caret; cache.text = text; cache.matches = matches; cache.current = current; cache.appearance = buf.appearance !== null ? buf.appearance() : theme(); cache.top = top; cache.diagnostics = diag; cache.selections = buf.sels;
   decorate(buf, caret, top, rows, matches, queryLength, current);
 }
 
@@ -143,7 +161,7 @@ export function stepEditor(b: EditorState | null, matches: i32[], queryLength: i
 /** Draws the carets of `b` beside its main one, on a canvas laid over the editor (x, y, w, h: the canvas's onDraw box). */
 export function drawCursors(a: EditorState | null, x: i32, y: i32, w: i32, h: i32): void {
   if (a === null || (a as EditorState).node() < 0 || (a as EditorState).sels.length <= 2) return;
-  const b = a as EditorState, v = ui.editView(b.node()), doc = b.doc, f = font('mono', b.fontPx()), t = theme();
+  const b = a as EditorState, v = ui.editView(b.node()), doc = b.doc, f = font('mono', b.fontPx()), t = b.appearance !== null ? b.appearance() : theme();
   const k = h / (v[3] + b.padTop), left = b.padLeft + v[6];
   clip(x + left * k, y, w - left * k, h);
   for (let i = 0; i + 1 < b.sels.length; i += 2) {
@@ -233,18 +251,32 @@ export interface CodeViewProps {
   /** Size, line height, padding and corner classes (default 13 px mono on 20 px lines); a background or border class here wins over the theme's. */
   className?: string;
   lineNumbers?: boolean;
+  appearance?: () => Theme;
+  emphasizedLines?: i32[];
+  document?: Doc;
+  offset?: i32;
+  emphasizedRange?: i32[];
+  tabIndex?: i32;
 }
 /** Highlighted code that can be selected and copied, as tall as its lines (a long line scrolls sideways). */
 export function CodeView(props: CodeViewProps): i32 {
-  const doc = new Doc(langNamed(props.lang ?? ''));
+  const appearance = props.appearance ?? theme;
+  const doc = props.document ?? new Doc(langNamed(props.lang ?? ''));
   const code = props.code.endsWith('\n') ? props.code.slice(0, props.code.length - 1) : props.code;
-  doc.setText(code);
-  const node = <TextArea readOnly rows={0} wrap={false} lineNumbers={props.lineNumbers ?? false} value={code}
-    className={`border-slate-600 font-mono border-0 ${bg(theme().bg)} ${fg(theme().text)} focus:${bd(theme().bg)} ${props.className ?? 'text-[13px] leading-[20] px-3 py-2 rounded-md'}`} />;
-  ui.setHighlightAt(node, (line: string, start: i32) => doc.rowColors(line, start, theme()));
-  createEffect(() => {
-    const t = theme();
+  if (props.document === undefined) doc.setText(code);
+  const node = <TextArea readOnly tabIndex={props.tabIndex ?? 0} rows={0} wrap={false} lineNumbers={props.lineNumbers ?? false} value={code}
+    className={`border-slate-600 font-mono border-0 ${bg(appearance().bg)} ${fg(appearance().text)} focus:${bd(appearance().bg)} ${props.className ?? 'text-[13px] leading-[20] px-3 py-2 rounded-md'}`} />;
+  ui.setHighlightAt(node, (line: string, start: i32) => doc.rowColors(line, start + (props.offset ?? 0), appearance()));
+  componentEffect(() => followAppearance(node, appearance, (t: Theme) => {
     ui.setEditColors(node, [t.lineNumber, t.lineNumber, -2, t.selection, t.caret, -1]);
-  });
+    const marks: i32[] = [];
+    for (const line of props.emphasizedLines ?? []) {
+      if (line < 1 || line > doc.lineCount()) continue;
+      marks.push(doc.starts[line - 1]); marks.push(doc.lineEnd(line - 1)); marks.push(t.lineHighlight); marks.push(ui.MARK_LINE);
+    }
+    const range = props.emphasizedRange ?? [];
+    if (range.length === 2 && range[1] > range[0]) { marks.push(range[0]); marks.push(range[1]); marks.push(t.match); marks.push(ui.MARK_STRONG); }
+    ui.setMarks(node, marks);
+  }));
   return node;
 }

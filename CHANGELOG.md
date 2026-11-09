@@ -164,6 +164,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Quiet data controls add sortable tables, virtual grids with row selection and editing, lazy trees, disclosures, path and filter bars, and file browsing with open/save path dialogs.
 
 - `ui.textOffsetAt(handle, x, y)` finds a glyph's original text offset from local pointer coordinates, including wrapped styled text, so inline links can be clicked in their paragraph.
+- Quiet code controls add selectable code blocks, an editor with find and go-to-line, responsive diffs, CommonMark documents with link/task callbacks, and independent JSON trees with counts and visible errors.
 
 #### Changed
 

@@ -9,9 +9,9 @@ export type Tokenizer = (line: string, state: i32, out: i32[]) => i32;
 
 export const L_PLAIN: i32 = 0, L_TS: i32 = 1, L_JSON: i32 = 2, L_MD: i32 = 3, L_CSS: i32 = 4;
 /** The name of each registered language, by id. */
-export const LANG_NAMES: string[] = [];
-const LANG_EXTS: string[][] = [];
-const TOKENIZERS: Tokenizer[] = [];
+export const LANG_NAMES: string[] = ['Plain Text', 'TypeScript', 'JSON', 'Markdown', 'CSS'];
+const LANG_EXTS: string[][] = [['txt', 'text'], ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'mts', 'cts', 'typescript', 'javascript'], ['json', 'jsonc'], ['md', 'markdown'], ['css']];
+const TOKENIZERS: Tokenizer[] = [plainLine, tsLine, jsonTok, mdLine, cssLine];
 
 /** Token kinds; Theme has a colour for each (tokenColor in document.ts). */
 export const T_TEXT: i32 = 0, T_KEYWORD: i32 = 1, T_STRING: i32 = 2, T_NUMBER: i32 = 3, T_COMMENT: i32 = 4, T_FN: i32 = 5,
@@ -248,8 +248,3 @@ function cssLine(s: string, state: i32, out: i32[]): i32 {
 
 function plainLine(s: string, state: i32, out: i32[]): i32 { push(out, s.length, T_TEXT); return S_NORMAL; }
 function jsonTok(s: string, state: i32, out: i32[]): i32 { jsonLine(s, out); return S_NORMAL; }
-registerLanguage('Plain Text', ['txt', 'text'], plainLine);
-registerLanguage('TypeScript', ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'mts', 'cts', 'typescript', 'javascript'], tsLine);
-registerLanguage('JSON', ['json', 'jsonc'], jsonTok);
-registerLanguage('Markdown', ['md', 'markdown'], mdLine);
-registerLanguage('CSS', ['css'], cssLine);

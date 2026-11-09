@@ -40,3 +40,5 @@ export { Banner, BannerProps, Meter, MeterProps, Skeleton, SkeletonProps, EmptyS
 
 export { Calendar, CalendarProps, CalendarOptions, RangeCalendar, RangeCalendarProps, DatePicker, DatePickerProps, DateRangePicker, DateRangePickerProps, TimePicker, TimePickerProps, TimeDial, TimeDialProps, WheelPicker, WheelPickerProps, ColorPicker, ColorPickerProps, EmojiPicker, EmojiPickerProps, EmojiEntry, RulerSlider, RulerSliderProps, HistogramSlider, HistogramSliderProps, Knob, KnobProps, Fader, FaderProps } from './pickers';
 export { Table, TableProps, DataGrid, DataGridProps, DataColumn, DataRow, DataSort, DataCursor, dataRows, selectDataRows, TreeTable, TreeTableProps, Tree, TreeProps, TreeItem, flattenTree, PathBar, PathBarProps, PathSegment, Accordion, AccordionProps, AccordionItem, FilterBar, FilterBarProps, DataFilter, FileBrowser, FileBrowserProps, FileEntry, FileLister, readFileEntries, fileMatches, filePathSegments, OpenFileDialog, SaveFileDialog, FileDialogProps } from './data';
+
+export { CodeBlock, CodeBlockProps, CodeEditor, CodeEditorProps, DiffViewer, DiffViewerProps, MarkdownView, MarkdownViewProps, JsonViewer, JsonViewerProps } from './code';

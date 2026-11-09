@@ -8,37 +8,20 @@
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import { clipboardText, setClipboardText } from 'zinc:gfx';
-import { EditorState as Buffer, edited } from './state';
+import { EditorState as Buffer, edited, Assist, SideEdit } from './state';
 import { Ed, one, typeText, paste, copyText, erase, eraseTo, complete, replaceAt, newline, indent, outdent, toggleComment, deleteLines, duplicateLines, moveLines,
   single, addSel, setMain, selectNext, addCursorV, move, M_LEFT, M_RIGHT, M_WORD_LEFT, M_WORD_RIGHT, M_HOME, M_END, M_UP, M_DOWN, M_TOP, M_BOTTOM } from './edit';
 
-/** An edit that comes with a completion, elsewhere in the file (the import of the name accepted): its range by line and UTF-16 column. */
-export class SideEdit { line: i32 = 0; ch: i32 = 0; endLine: i32 = 0; endCh: i32 = 0; text: string = ''; }
-/** What the editor asks of an assistant (completion, signature, hover, definition). The default does nothing. */
-export class Assist {
-  /** One character (or a paste) was typed in `b`. */
-  typed: (b: Buffer, s: string) => void = (b: Buffer, s: string) => {};
-  /** Ctrl+Space: open the completion list at the caret. */
-  suggest: (b: Buffer) => void = (b: Buffer) => {};
-  /** A key while the popup shows: 0 not for it, 1 done, 2 accept the selected row (`accepted`). */
-  popupKey: (key: string, plain: boolean) => i32 = (key: string, plain: boolean): i32 => 0;
-  /** The label of the selected row ('' for none) and whether it completes an import's module name. */
-  accepted: () => string = (): string => '';
-  /** The edit the selected row brings beside its name (null: none). */
-  acceptedEdit: () => SideEdit | null = (): SideEdit | null => null;
-  popupSpec: () => boolean = (): boolean => false;
-  closePopup: () => void = () => {};
-  hideHover: () => void = () => {};
-  /** Go to where the name at `off` is declared. */
-  definition: (b: Buffer, off: i32) => void = (b: Buffer, off: i32) => {};
-  /** The pointer is over the name that starts at `off` (-1: over none). */
-  pointerOver: (b: Buffer, off: i32) => void = (b: Buffer, off: i32) => {};
-}
-let assist: Assist = new Assist();
+export { SideEdit, Assist } from './state';
+let assist: Assist | null = null;
 export function setAssist(a: Assist): void { assist = a; }
-export function getAssist(): Assist { return assist; }
-function closePopup(): void { assist.closePopup(); }
-function hideHover(): void { assist.hideHover(); }
+export function getAssist(b: Buffer | null = null): Assist {
+  if (b !== null && b.assistant !== null) return b.assistant;
+  if (assist === null) assist = new Assist();
+  return assist;
+}
+function closePopup(b: Buffer): void { getAssist(b).closePopup(); }
+function hideHover(b: Buffer): void { getAssist(b).hideHover(); }
 
 /** True when the desktop menu takes the shortcuts of its items (macOS): the editor then leaves them to it, else each would run twice. */
 let menuKeys = false;
@@ -66,18 +49,16 @@ export function sync(b: Buffer): void {
   b.sels = r.sels; b.main = r.main;
   b.addNext = false; b.collapse = false; b.hist.typing = false;
   b.goal = [];
-  closePopup();
+  closePopup(b);
   ui.repaint();
 }
 
-let keepPopup = false;   // the edit being shown is typing or Backspace: the completion popup follows it; any other closes it
-let vertical = false;    // the edit being shown is a move up or down: the columns the cursors aim at are kept
 /** Shows a state in the field and keeps it in the buffer; `before` (when the text changed) goes to the undo history. */
 function show(b: Buffer, r: Ed, before: Ed | null, typing: boolean): void {
   const h = b.node();
-  if (!keepPopup) closePopup();
-  if (!vertical) b.goal = [];
-  keepPopup = false; vertical = false;
+  if (!b.keepPopup) closePopup(b);
+  if (!b.vertical) b.goal = [];
+  b.keepPopup = false; b.vertical = false;
   if (before !== null && r.text !== (before as Ed).text) b.hist.record(before as Ed, typing); else if (!typing) b.hist.typing = false;
   b.sels = r.sels; b.main = r.main;
   if (h >= 0) {
@@ -101,9 +82,9 @@ export function nativeInput(b: Buffer, v: string): void {
     r = typeText(before, s, typing);
   } else r = one(v, caret, caret);
   b.collapse = false; b.addNext = false;
-  keepPopup = typing;
+  b.keepPopup = typing;
   show(b, r, before, typing);
-  if (typing) assist.typed(b, v.slice(m0, caret));
+  if (typing) getAssist(b).typed(b, v.slice(m0, caret));
 }
 
 /** Replaces the whole text of a buffer as one edit that undo takes back (a library's import line). */
@@ -123,8 +104,8 @@ export function editCommand(b: Buffer | null, id: string): boolean {
   const st = state(buf);
   let r: Ed;
   if (id === 'comment') r = toggleComment(st);
-  else if (id === 'indent') r = indent(st);
-  else if (id === 'outdent') r = outdent(st);
+  else if (id === 'indent') r = indent(st, buf.indent);
+  else if (id === 'outdent') r = outdent(st, buf.indent);
   else if (id === 'select-next') r = selectNext(st);
   else if (id === 'cursor-above') r = addCursorV(st, -1);
   else if (id === 'cursor-below') r = addCursorV(st, 1);
@@ -141,10 +122,10 @@ export function editCommand(b: Buffer | null, id: string): boolean {
 
 /** The selected row of the completion popup replaces the name being typed, at every cursor; the import it brings is added once. */
 export function acceptCompletion(b: Buffer): void {
-  const label = assist.accepted(), side = assist.acceptedEdit();
+  const label = getAssist(b).accepted(), side = getAssist(b).acceptedEdit();
   if (label === '') return;
   const st = state(b);
-  let r = complete(st, label, assist.popupSpec());
+  let r = complete(st, label, getAssist(b).popupSpec());
   if (side !== null) { const s = side as SideEdit; r = replaceAt(r, s.line, s.ch, s.endLine, s.endCh, s.text); }
   show(b, r, st, false);
 }
@@ -170,36 +151,36 @@ export function editorKey(b: Buffer, e: ui.KeyEvent, escape: () => void): boolea
   sawKey(e);
   sync(b);
   const st = state(b), multi = st.count() > 1, k = e.key, cmd = e.primary, plain = !cmd && !e.alt && !e.ctrl;
-  hideHover();
+  hideHover(b);
   // the completion popup first: arrows choose, Enter and Tab accept at every cursor, Escape closes
-  const pk = assist.popupKey(k, plain && !e.shift);
+  const pk = getAssist(b).popupKey(k, plain && !e.shift);
   if (pk === 1) return true;
   if (pk === 2) { acceptCompletion(b); return true; }
-  if (e.ctrl && k === ' ') { assist.suggest(b); return true; }
+  if (e.ctrl && k === ' ') { getAssist(b).suggest(b); return true; }
   const c = menuCommand(e);
   if (c !== '') {
     // undo and redo are the buffer's, never the field's; the others are the menu's on macOS
-    if (c === 'undo' || c === 'redo' || !menuKeys) editCommand(b, c);
+    if (c === 'undo' || c === 'redo' || !(b.menuKeys ?? menuKeys)) editCommand(b, c);
     return true;
   }
   let r: Ed | null = null;
-  if (k === 'Tab' && plain) r = e.shift ? outdent(st) : indent(st);
-  else if (k === 'Enter' && plain) r = newline(st);
+  if (k === 'Tab' && plain) r = e.shift ? outdent(st, b.indent) : indent(st, b.indent);
+  else if (k === 'Enter' && plain) r = newline(st, b.indent);
   else if (k === 'Backspace' || k === 'Delete') {
     const fwd = k === 'Delete';
     if (e.meta) r = eraseTo(st, fwd ? M_END : M_HOME);                        // to the start / end of the line
     else if (e.alt || e.ctrl) r = eraseTo(st, fwd ? M_WORD_RIGHT : M_WORD_LEFT);   // a word
-    else { keepPopup = !fwd; r = erase(st, fwd); }
+    else { b.keepPopup = !fwd; r = erase(st, fwd); }
   }
   else if (k === 'Escape') { if (multi) r = single(st); else { escape(); return true; } }
   // up and down are the buffer's, with one cursor too: the field keeps a column of its own that the edits made here do not reset
-  else if ((k === 'ArrowUp' || k === 'ArrowDown') && !e.meta && !e.alt && !e.ctrl) { vertical = true; r = move(st, k === 'ArrowUp' ? M_UP : M_DOWN, e.shift, b.goal); }
+  else if ((k === 'ArrowUp' || k === 'ArrowDown') && !e.meta && !e.alt && !e.ctrl) { b.vertical = true; r = move(st, k === 'ArrowUp' ? M_UP : M_DOWN, e.shift, b.goal); }
   else if (multi) {
     const byWord = e.alt, byLine = e.meta;
     if (k === 'ArrowLeft') r = move(st, byLine ? M_HOME : byWord ? M_WORD_LEFT : M_LEFT, e.shift);
     else if (k === 'ArrowRight') r = move(st, byLine ? M_END : byWord ? M_WORD_RIGHT : M_RIGHT, e.shift);
-    else if (k === 'ArrowUp') { vertical = !byLine; r = move(st, byLine ? M_TOP : M_UP, e.shift, b.goal); }
-    else if (k === 'ArrowDown') { vertical = !byLine; r = move(st, byLine ? M_BOTTOM : M_DOWN, e.shift, b.goal); }
+    else if (k === 'ArrowUp') { b.vertical = !byLine; r = move(st, byLine ? M_TOP : M_UP, e.shift, b.goal); }
+    else if (k === 'ArrowDown') { b.vertical = !byLine; r = move(st, byLine ? M_BOTTOM : M_DOWN, e.shift, b.goal); }
     else if (k === 'Home') r = move(st, M_HOME, e.shift);
     else if (k === 'End') r = move(st, M_END, e.shift);
     else if (cmd && (k === 'c' || k === 'x')) { const t = copyText(st); if (t !== '') setClipboardText(t); r = k === 'x' ? typeText(st, '', false) : st; }
@@ -212,37 +193,35 @@ export function editorKey(b: Buffer, e: ui.KeyEvent, escape: () => void): boolea
 
 /** The pointer goes down in the editor: with Alt the selection it makes is one more cursor, else it is the only one. */
 export function editorPress(b: Buffer, alt: boolean, meta: boolean = false): void {
-  hideHover();
-  defNext = meta && !alt;
+  hideHover(b);
+  b.definitionPending = meta && !alt;
   if (alt) { b.addNext = true; b.dragAdd = true; } else { b.collapse = b.sels.length > 2; b.dragAdd = false; }
 }
 
-let defNext = false;   // the press under way is a Cmd+click: once the field has put its caret there, go to the definition
 /** F12: goes to where the name at the caret is declared. */
 export function goDefinition(b: Buffer | null): void {
   if (b === null || (b as Buffer).node() < 0) return;
   sync(b as Buffer);
-  assist.definition(b as Buffer, (b as Buffer).caret());
+  getAssist(b).definition(b as Buffer, (b as Buffer).caret());
 }
 
 /** Puts the caret at a line and column (1-based) of a buffer, once its field exists: a click on an error, a diagnostic. */
-let jumpBuf: Buffer | null = null, jumpLine: i32 = 0, jumpCol: i32 = 0;
-export function jumpTo(b: Buffer, line: i32, col: i32): void { jumpBuf = b; jumpLine = line; jumpCol = col; }
+export function jumpTo(b: Buffer, line: i32, col: i32): void { b.jump = [line, col]; }
 
 /** Once per frame, with the active editor: follows its field and makes the jump asked. */
 export function stepCursors(a: Buffer | null): void {
   if (a === null || (a as Buffer).node() < 0) return;
   const b = a as Buffer;
-  if (jumpBuf === b) {
-    const l: i32 = Math.max(0, Math.min(b.doc.lineCount() - 1, jumpLine - 1));
-    const p: i32 = Math.min(b.doc.lineEnd(l), b.doc.starts[l] + Math.max(0, jumpCol - 1));
-    jumpBuf = null;
+  if (b.jump.length > 0) {
+    const l: i32 = Math.max(0, Math.min(b.doc.lineCount() - 1, b.jump[0] - 1));
+    const p: i32 = Math.min(b.doc.lineEnd(l), b.doc.starts[l] + Math.max(0, b.jump[1] - 1));
+    b.jump = [];
     show(b, one(b.text(), p, p), null, false);
     ui.focusNode(b.node());
     return;
   }
   sync(b);
-  if (defNext) { defNext = false; assist.definition(b, b.caret()); }
+  if (b.definitionPending) { b.definitionPending = false; getAssist(b).definition(b, b.caret()); }
 }
 
 // ---------------------------------------------------------------- the Edit menu's standard items and their keys

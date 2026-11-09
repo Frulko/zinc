@@ -172,14 +172,14 @@ export function erase(e: Ed, fwd: boolean): Ed {
 }
 
 /** Enter: the new line keeps the indent of the current one, one level more after an opening bracket (whose closing one goes a line further). */
-export function newline(e: Ed): Ed {
+export function newline(e: Ed, unit: string = UNIT): Ed {
   const a: i32[] = [], b: i32[] = [], s: string[] = [], c: i32[] = [], t = e.text;
   for (let i = 0; i < e.count(); i++) {
     const l = e.lo(i), h = e.hi(i), ls = lineStart(t, l), ind = t.slice(ls, imin(textStart(t, ls), l));
     let k = l - 1;
     while (k >= ls && isSpace(t.charCodeAt(k))) k--;
     const o = k >= ls ? OPEN.indexOf(at(t, k)) : -1;
-    let ins = '\n' + ind + (o >= 0 ? UNIT : '');
+    let ins = '\n' + ind + (o >= 0 ? unit : '');
     const caret: i32 = ins.length;
     if (o >= 0 && at(t, h) === CLOSE.slice(o, o + 1)) ins += '\n' + ind;
     a.push(l); b.push(h); s.push(ins); c.push(caret);
@@ -189,25 +189,25 @@ export function newline(e: Ed): Ed {
 
 // ---------------------------------------------------------------- lines
 /** Tab: with a selection, every line it touches gets one indent level; with cursors only, spaces up to the next indent stop. */
-export function indent(e: Ed): Ed {
+export function indent(e: Ed, unit: string = UNIT): Ed {
   let any = false;
   for (let i = 0; i < e.count(); i++) if (e.hi(i) > e.lo(i)) any = true;
   const t = e.text;
   if (!any) {
     const parts: string[] = [];
-    for (let i = 0; i < e.count(); i++) parts.push(' '.repeat(UNIT.length - (e.lo(i) - lineStart(t, e.lo(i))) % UNIT.length));
+    for (let i = 0; i < e.count(); i++) parts.push(unit === '\t' ? '\t' : ' '.repeat(unit.length - (e.lo(i) - lineStart(t, e.lo(i))) % unit.length));
     return typeEach(e, parts, false);
   }
   const ea: i32[] = [], es: string[] = [];
-  for (const ls of touched(e)) if (lineEnd(t, ls) > ls) { ea.push(ls); es.push(UNIT); }
+  for (const ls of touched(e)) if (lineEnd(t, ls) > ls) { ea.push(ls); es.push(unit); }
   return applyEdits(e, ea, ea, es, false);
 }
 /** Shift+Tab: every touched line (the cursor's line when nothing is selected) loses one indent level. */
-export function outdent(e: Ed): Ed {
+export function outdent(e: Ed, unit: string = UNIT): Ed {
   const ea: i32[] = [], eb: i32[] = [], es: string[] = [], t = e.text;
   for (const ls of touched(e)) {
     let k: i32 = 0;
-    if (at(t, ls) === '\t') k = 1; else while (k < UNIT.length && at(t, ls + k) === ' ') k++;
+    if (at(t, ls) === '\t') k = 1; else while (k < unit.length && at(t, ls + k) === ' ') k++;
     if (k > 0) { ea.push(ls); eb.push(ls + k); es.push(''); }
   }
   return applyEdits(e, ea, eb, es, false);

@@ -1,0 +1,194 @@
+{
+  "task": "ZN-1078.13",
+  "branch": "work/1078-code",
+  "base": "896b304616abc0d6b8f23f100bd54c17f170fdcd",
+  "source_root": "/Users/mowmow/Lab/zinc/.worktrees/1078-code",
+  "source_files": {
+    "examples/ui/kit-gallery/src/sections/code.tsx": "6a6b03802bfe9b4488efd0c7eabe0466399843c92e75e08abbee18121bedee67",
+    "lib/std/json-tree.ts": "1279f608df4488ea8fa65bb2fc2ae4c427495a3a3a2e45e2da57813048534dc4",
+    "lib/std/kit/code-diff.ts": "2a675214da45ccf8d1e434ac07bed261f40579e5309a65755b6614a82c91aa8a",
+    "lib/std/kit/code.tsx": "9bb3c79068b1a9f21ee8e9aa04ed641951accac58ec99c29cc502880e979b2cf",
+    "plugins/markdown/blocks.ts": "5d9bf773b3c4694881ca736c1e4f06a6ae329828c034ae9cbd507d1e2ab23924",
+    "plugins/markdown/model.ts": "b19c9c0128c88c394e6a3bfccc6e319a070a2269e690c92d75c24ef4c8106842",
+    "tests/golden/kit-code-react/main.tsx": "22b73c2484e0c650783f9f1e39e36eb1eb7c3c79425931976c3d3bad7af69bf6",
+    "tests/golden/kit-code-react/zinc.json": "a3b10c8242e533af3264944683deeb4fbe1adc64a941c73459b5d07e0996bb9e",
+    "tests/golden/kit-code/main.tsx": "3056c5fbab107c37d573ec12f508a44baae7fdf6f3a3a8611665a12bcdf9f86b",
+    "tests/golden/kit-code/model.ts": "90abbc85f8bf292537400a5702841ec33ac6e05ffd9f57e6bbe519ba5414e471",
+    "tests/golden/kit-code/zinc.json": "b242f346df4d74726d1c188c935f2544cfa916984719b6d4281956311dd3257a",
+    "tests/t0/kit_code.sh": "9e40d67dedb045680b0b6ba739fe5b76867cce7af1d5168f4aa644998000992c",
+    "app/inspector/table.tsx": "687090553f13a240f6d4ab257c882970ac0513236fe4e4db8e4d085644544be1",
+    "examples/ui/kit-gallery/src/main.tsx": "29ae461649393ee7bce603d06f383bb2f5c997a24e059bfd1bbb18df5de0cae8",
+    "lib/std/kit/index.ts": "3ad0f66bf7e0c793a5b3ce732067244a2fd7b14abe21675a67941fb53a68fe27",
+    "lib/std/markdown-theme.ts": "8712be23f55370a309635659970f494816285f100fcb156ecc3d3902bf8cac4d",
+    "lib/std/markdown-view.tsx": "4fe027274d2f541beb0f9b8e0136f7478e383be69549a29dece1e55d411c87c5",
+    "lib/std/markdown.ts": "23103cf4e5ef34200e97e099c023d75feb7cf794582a958dd3379d348bd65675",
+    "plugins/editor/cursors.ts": "cddae5df542a0b3f1819d1433d048c34d331c842ef09b1e1bb233d4b304b9b39",
+    "plugins/editor/document.ts": "19ef0f4bb3d9a5de5d70b8d763728b087f7edcfdcef12f20efbbe58468ed093c",
+    "plugins/editor/edit.ts": "cae29fac9ca2b24c4f2395465445293cf0f1eabbdaa3600367273063e551ed5d",
+    "plugins/editor/state.ts": "01998d3a819accb74e4512748eb01fcec2517f2ed7a1cfabcac907fe0265ee19",
+    "plugins/editor/syntax.ts": "44b1470907aba1b650fff06c21da8dd53d36b4b1ebad2b4880a05357173f5243",
+    "plugins/editor/theme.ts": "d43eea78184b9208defdcca8b4e5da496e947ed6b2cb3bf686dd35f957d64078",
+    "plugins/editor/view.tsx": "e8c81bacc7c55d128f5898847a3237819d9028c4cf653e0629b1d71f05748561",
+    "plugins/markdown/index.ts": "040176ab973ddcce35056e85baa5eb806156c421bff9085ef2d0691b2fa831f6",
+    "tests/affected.json": "d5768913e9b1a1186e642c4444396d315beee8aded24621f6775839d52523d8e"
+  },
+  "binary": {
+    "path": "/Users/mowmow/Lab/zinc/.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc",
+    "sha256": "85f6d02a26948c1755090b0c06b3a926cad5cefa6df1799ce01d737a13e28f68"
+  },
+  "proofs": {
+    "static": {
+      "command": "tools/work-run 100 env ZINC_ROOT=$PWD ZINC=<binary> sh .logs/kit-code/final-static.sh",
+      "results": [
+        "ok : tests/golden/kit-code/main.tsx et ses imports v\u00e9rifi\u00e9s (2 fichiers), aucune erreur",
+        "ok : tests/golden/kit-code-react/main.tsx et ses imports v\u00e9rifi\u00e9s (2 fichiers), aucune erreur",
+        "ok : examples/ui/kit-gallery/src/main.tsx et ses imports v\u00e9rifi\u00e9s (22 fichiers), aucune erreur",
+        "ok : app/atelier/main.tsx et ses imports v\u00e9rifi\u00e9s (28 fichiers), aucune erreur",
+        "ok : examples/zed-editor/src/main.tsx et ses imports v\u00e9rifi\u00e9s (18 fichiers), aucune erreur",
+        "ok : examples/discord/src/main.tsx et ses imports v\u00e9rifi\u00e9s (52 fichiers), aucune erreur",
+        "ok : app/inspector/main.tsx et ses imports v\u00e9rifi\u00e9s (15 fichiers), aucune erreur"
+      ],
+      "log": ".logs/kit-code/final-static.log"
+    },
+    "feature": {
+      "command": "tools/work-run 180 env ZINC_ROOT=$PWD ZINC=<binary> PATH=$PWD/tools/compat:$PATH tests/run --only kit_code",
+      "runner_output": "PASS kit_code\n1 passed, 0 failed\n",
+      "six_results": [
+        "kit-code (interp): ok",
+        "kit-code-react (interp): ok",
+        "kit-code (native): ok",
+        "kit-code-react (native): ok",
+        "kit-code (quickjs): ok",
+        "kit-code-react (quickjs): ok",
+        "kit code: ok"
+      ],
+      "frames": 17,
+      "size": "700x1000",
+      "log": ".logs/kit-code/t0-six-results.log",
+      "coverage": [
+        "wrapped accented adjacent inline link pointer hit",
+        "Home/Enter/Right/Space link targets in one event turn",
+        "drag/background cancellation",
+        "Markdown task source callback",
+        "JSON keyboard fold, instance isolation and active descendant after normal paint",
+        "code editor indentation/read-only/find/go-to-line/Escape/remount",
+        "diff fold Enter and change navigation",
+        "input cache invalidation",
+        "pure model regression checks"
+      ]
+    },
+    "size": {
+      "command": "tools/work-run 180 env ZINC_ROOT=$PWD ZINC=<binary> PATH=$PWD/tools/compat:$PATH tests/run --only kit_size",
+      "status": "fail",
+      "raw_output": "=== kit_size\nbundle: Button 235962 B, through the index 239442 B (+3480 for 34 unused families, budget 8704), ten 276318 B (+4097 per component)\nbundle: one more component costs 4097 bytes, more than 4096\naot: Button 5325320 B, through the index 5440960 B (+115640 for 34 unused families, budget 139264), ten 5976224 B (+59473 per component)\naot, Button through the index links the plugins: editor\n",
+      "budgets_modified": false,
+      "bundle": {
+        "direct": 235962,
+        "index": 239442,
+        "ten": 276318,
+        "unused": 3480,
+        "unused_budget": 8704,
+        "used": 36876,
+        "used_budget": 36864,
+        "strict_over_by": 12
+      },
+      "aot": {
+        "direct": 5325320,
+        "index": 5440960,
+        "ten": 5976224,
+        "unused": 115640,
+        "unused_budget": 139264,
+        "used": 535264,
+        "used_budget": 589824
+      }
+    },
+    "pictures": [
+      {
+        "path": "docs/img/kit-code-block.png",
+        "sha256": "87257a728e95600d920a7f45a7a4ddc28c1285f26db16caa5ef02e53687d1ede",
+        "source": "examples/ui/kit-gallery",
+        "engine": "interpreter",
+        "frames": 3,
+        "inspected": true
+      },
+      {
+        "path": "docs/img/kit-code-diff-narrow.png",
+        "sha256": "824bc31f26a100c4e5c3e0a144ad6f0c6c624533c1d4ea717732ca28de802a6e",
+        "source": "examples/ui/kit-gallery",
+        "engine": "interpreter",
+        "frames": 3,
+        "inspected": true
+      },
+      {
+        "path": "docs/img/kit-code-diff.png",
+        "sha256": "48864ab78c5f6e5d4fe08fb0960d25336e43aedd69fd1d29bebfb342d09c7eed",
+        "source": "examples/ui/kit-gallery",
+        "engine": "interpreter",
+        "frames": 3,
+        "inspected": true
+      },
+      {
+        "path": "docs/img/kit-code-editor-dark.png",
+        "sha256": "47413a55ee13571c3a27e2fb4c7040b55cf0dfabe2903ccd3fa1aa5ec9796d75",
+        "source": "examples/ui/kit-gallery",
+        "engine": "interpreter",
+        "frames": 3,
+        "inspected": true
+      },
+      {
+        "path": "docs/img/kit-code-editor.png",
+        "sha256": "3fce01c516d25f77f54d1e31b6a95372c42e94221e01f7bc7f15e5f01a4ad82f",
+        "source": "examples/ui/kit-gallery",
+        "engine": "interpreter",
+        "frames": 3,
+        "inspected": true
+      },
+      {
+        "path": "docs/img/kit-code-json-dark-narrow.png",
+        "sha256": "d11a9382cb3a3ddbed5c4573349553ec096f6fd4457048e689cb16d146dfd531",
+        "source": "examples/ui/kit-gallery",
+        "engine": "interpreter",
+        "frames": 3,
+        "inspected": true
+      },
+      {
+        "path": "docs/img/kit-code-json.png",
+        "sha256": "6edebb89da2d4d055cf46ddf45bedbb909400530cb413b766278c847f8e5c39a",
+        "source": "examples/ui/kit-gallery",
+        "engine": "interpreter",
+        "frames": 3,
+        "inspected": true
+      },
+      {
+        "path": "docs/img/kit-code-markdown.png",
+        "sha256": "dd2a939bdcb0b36d073f98ebeb588ff0ddca2edf19a6f6489a3973ce21e876ec",
+        "source": "examples/ui/kit-gallery",
+        "engine": "interpreter",
+        "frames": 3,
+        "inspected": true
+      }
+    ]
+  },
+  "date": "2026-11-10",
+  "engine_source_ref": "da7ca0360",
+  "shared_sources": {
+    "lib/std/ui.ts": "ebb8069543b6a6aefd2a29cb0fc07be650b22f366746317792f97791921c5196",
+    "lib/ui.d.ts": "6e4a54801e491f8394937b680b85dfdf6c9f3c1a0ee8fd4f9c827dbe70317ca3",
+    "lib/std/kit/host.ts": "7ea69c699df3857d7276c41ba97a22d60115eef63c3eef30d7f80eec0c8d53c4",
+    "lib/std/react.ts": "a7cbc04c258beab089fe9c91de14a638aefd3e959c8a9b825ad850ea853ece20"
+  },
+  "acceptance": {
+    "1": "complete",
+    "2": "complete",
+    "3": "open: strict used-JS gate exceeds budget by 12 bytes"
+  },
+  "limits": [
+    "Bounded nearby-anchor diff can produce a nonminimal alignment for distant reorders.",
+    "No T1/T2/suite/pixel comparison/benchmark or physical/native-host/VoiceOver session was run.",
+    "No performance or memory ranking is claimed."
+  ],
+  "proposed_tests": [
+    "Physical keyboard/pointer/touch/VoiceOver and native-host replay: links/tasks, find/go-to-line, diff/JSON navigation; minutes, one bounded window.",
+    "Owner-selected quiet-machine large-file scrolling, idle and repeated unmount memory checks, then device coverage."
+  ]
+}
