@@ -1,0 +1,43 @@
+#!/bin/bash
+# tools/codex-loop [lanes]: the backlog loop with Codex (the zn-coordinate skill), the counterpart of Claude Code's /loop.
+# Each lane repeats: claim a chain (codex, main tree, under a lock) -> work it (codex in its own worktree) -> integrate it (codex, main
+# tree, under the lock). One fresh `codex exec` per step, so no context grows ("Fresh contexts" in AGENTS.md). Stops when `.paused`
+# exists or nothing is left. Only one coordinator at a time: stop the Claude Code /loop before starting this.
+# Environment: ZN_LANES (default 2: two building trees, AGENTS.md "Spare the machine"), ZN_CODEX_SANDBOX (default workspace-write;
+# danger-full-access if the sandbox blocks the builds, the Pi or the web), ZN_WORKER_TIMEOUT (default 3h), ZN_CODEX_MODEL (optional).
+set -u
+cd "$(dirname "$0")/.." || exit 2
+ROOT=$PWD
+LOG=$ROOT/.logs/codex-loop; mkdir -p "$LOG" "$ROOT/.worktrees"
+LANES=${1:-${ZN_LANES:-2}}
+SANDBOX=${ZN_CODEX_SANDBOX:-workspace-write}
+codex_run() {   # codex_run <timeout> <dir> <last-message file> <prompt>
+  local t=$1; shift
+  local args=(exec -C "$1" -s "$SANDBOX" -o "$2" -c sandbox_workspace_write.network_access=true
+              --add-dir "$HOME/.zinc" --add-dir "$HOME/Library/Caches/ccache" --add-dir "$ROOT")   # $ROOT: a worktree commits into the main .git
+  [ -n "${ZN_CODEX_MODEL:-}" ] && args+=(-m "$ZN_CODEX_MODEL")
+  timeout "$t" codex "${args[@]}" "$3"
+}
+lock() { until mkdir "$LOG/lock" 2>/dev/null; do sleep 5; done; }
+unlock() { rmdir "$LOG/lock"; }
+lane() {
+  local n=$1 i=0
+  while [ ! -f "$ROOT/.paused" ]; do
+    i=$((i + 1)); local tag="lane$n-$(date +%Y%m%d-%H%M%S)"
+    lock
+    codex_run 1200 "$ROOT" "$LOG/$tag.claim" "Use the zn-coordinate skill, section 'Choose and claim', for ONE worker lane: choose one chain that can run beside the chains already claimed (tools/next-task, git worktree list), claim it with tools/next-task --claim and commit the task files. Do not brief or start any worker. End your answer with one line 'CLAIMED: ZN-a ZN-b' (the ids in order) or 'CLAIMED: none'." > "$LOG/$tag.claim.log" 2>&1
+    unlock
+    local ids; ids=$(grep -o 'CLAIMED: .*' "$LOG/$tag.claim" 2>/dev/null | tail -1 | sed 's/CLAIMED: //')
+    if [ -z "$ids" ] || [ "$ids" = none ]; then echo "lane $n: nothing to claim, stopping"; return; fi
+    local first; first=$(printf %s "${ids%% *}" | tr A-Z a-z); local wt=$ROOT/.worktrees/$first-$tag br=work/$first-$tag
+    git worktree add -q -b "$br" "$wt" develop || return 1
+    echo "lane $n: $ids in $wt"
+    codex_run "${ZN_WORKER_TIMEOUT:-3h}" "$wt" "$LOG/$tag.report" "You are a worker agent of the Zinc backlog team in your own git worktree ($wt, branch $br). Follow the rules of the zn-coordinate skill, section 'Brief', as your brief. First run: git reset --hard develop; git config core.hooksPath .githooks. Then work these tasks in order with the zn-start skill, one commit per task: $ids. End with the final report that section asks for." > "$LOG/$tag.worker.log" 2>&1
+    lock
+    codex_run 2400 "$ROOT" "$LOG/$tag.integrate" "Use the zn-coordinate skill, section 'Integrate', for the branch $br (worktree $wt). The worker's final report is in $LOG/$tag.report (if it is missing the worker timed out or failed: read its log $LOG/$tag.worker.log and the branch, integrate what is committed, put unfinished tasks back with a handover note). Do not claim or start anything else." > "$LOG/$tag.integrate.log" 2>&1
+    unlock
+  done
+}
+trap 'rmdir "$LOG/lock" 2>/dev/null' EXIT
+for n in $(seq 1 "$LANES"); do lane "$n" & sleep 120; done   # stagger the claims
+wait

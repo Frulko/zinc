@@ -1,0 +1,43 @@
+#!/bin/bash
+# tools/integrate <branch>: put a worker's branch on develop (AGENTS.md "Several tasks at once"), whatever agent made it.
+# Cherry-picks develop..<branch> in order (linear history) in the main tree, keeping the uncommitted work of other sessions:
+# the files both touch are stashed under a unique tag first and restored after. CHANGELOG.md and tests/affected.json conflicts
+# keep both sides (each side adds lines); any other conflict stops with the cherry-pick left open and says which stash holds the work.
+# Prints the new commits and INTEGRATED, or CONFLICT / STASH POP FAILED with what to do.
+set -u
+cd "$(dirname "$0")/.." || exit 2
+B=${1:?usage: tools/integrate <branch>}
+git rev-parse -q --verify "$B" >/dev/null || { echo "no branch $B"; exit 2; }
+[ "$(git branch --show-current)" = develop ] || { echo "the main tree is not on develop"; exit 2; }
+both() { python3 - "$@" <<'PY'
+import re, sys
+for p in sys.argv[1:]:
+    s = open(p).read()
+    s = re.sub(r'<<<<<<< [^\n]*\n(.*?)=======\n(.*?)>>>>>>> [^\n]*\n', lambda m: m.group(1).rstrip('\n') + '\n' + ('\n' if p.endswith('.md') else '') + m.group(2), s, flags=re.S)
+    open(p, 'w').write(s)
+PY
+}
+mergeable() { for f in "$@"; do case "$f" in CHANGELOG.md|tests/affected.json) ;; *) return 1;; esac; done; return 0; }
+tag="WIP kept during integration of $B $(date +%s)"
+ov=$(comm -12 <(git diff --name-only develop..."$B" | sort) <(git status --porcelain | awk '{print $NF}' | sort))
+if [ -n "$ov" ]; then git stash push -q -m "$tag" -- $ov || exit 1; fi
+stash_ref() { git stash list --format='%gd %gs' | grep -F "$tag" | cut -d' ' -f1; }
+n=0
+for c in $(git rev-list --reverse develop.."$B"); do
+  if ! git cherry-pick "$c" >/dev/null 2>&1; then
+    u=$(git diff --name-only --diff-filter=U)
+    if mergeable $u; then both $u && git add $u && GIT_EDITOR=true git cherry-pick --continue >/dev/null || exit 1
+    else echo "CONFLICT in $u at $c: resolve, git cherry-pick --continue, then git stash apply $(stash_ref) (the other sessions' work)"; exit 1; fi
+  fi
+  n=$((n + 1))
+done
+if [ -n "$ov" ]; then
+  ref=$(stash_ref)
+  if ! git stash apply -q "$ref" 2>/dev/null; then
+    u=$(git diff --name-only --diff-filter=U)
+    if [ -n "$u" ] && mergeable $u; then both $u && git reset -q -- $ov   # the restored work stays uncommitted, as it was
+    else echo "STASH POP FAILED in ${u:-?}: the other sessions' work is in $ref; resolve, git reset -q -- <files>, git stash drop $ref"; exit 1; fi
+  fi
+  git stash drop -q "$(stash_ref)"
+fi
+git log --oneline -"$n"; echo INTEGRATED

@@ -1,5 +1,7 @@
 # Coordinator loop, 2026-11-07 (owner: close as many tasks as possible by tomorrow, in full autonomy)
 
+The method now lives in the skill `.agents/skills/zn-coordinate/SKILL.md` (shared by Claude Code and Codex, integration through `tools/integrate`); the steps below are the 2026-11-07 original. This file keeps the State log.
+
 Each iteration (a wake-up or an agent's notification):
 
 1. `.paused` exists: stop the loop.

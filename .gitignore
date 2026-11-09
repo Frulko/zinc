@@ -41,3 +41,4 @@ __pycache__/
 # Local data of running apps
 app/web-relay/web-relay-data/
 discord-call.log
+/.worktrees/

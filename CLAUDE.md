@@ -2,6 +2,7 @@
 
 ## Claude Code
 
+- The procedures live in `.agents/skills/` (zn-start, zn-end, zn-coordinate, zn-pause, zn-resume), shared with Codex (`tools/codex-loop`); the commands of `.claude/commands/` point at them. Never run a Claude coordinator and `tools/codex-loop` at the same time.
 - `/loop /zn-start` runs the backlog on its own: one batch per iteration (up to five tasks of one module), `/zn-end` closes it and names the next one. `/zn-start <id>` works one given task. Both are in `.claude/commands/`.
 - Each backlog task starts with a short web search by a sonnet sub-agent (ideas, solutions, optimisations, libraries, with links; AGENTS.md "Search the web before each task"); the useful findings go in the task notes.
 - Use sub-agents for research and independent investigations (several at once when the questions are independent) and keep their findings in `docs/reports/`; read a delegated result instead of redoing the search.
