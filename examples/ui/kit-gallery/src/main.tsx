@@ -2,6 +2,7 @@
 // The switch in the header flips the whole page between the light and the dark theme.
 import { env } from 'zinc:sys';
 import { ActionsSection } from './sections/actions';
+import { NavigationSection } from './sections/navigation';
 import { ChromeSection } from './sections/chrome';
 import { SelectionSection } from './sections/selection';
 import { InputsSection } from './sections/inputs';
@@ -39,6 +40,7 @@ function App(): i32 {
     <View className="flex-col gap-8 p-8">
       <Header />
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'actions' || env('GALLERY') === 'palette'}><ActionsSection /></Show>
+      <Show when={env('GALLERY') === '' || env('GALLERY') === 'navigation'}><NavigationSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'chrome'}><ChromeSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'selection'}><SelectionSection /></Show>
       <Show when={env('GALLERY') === 'overlays'}><Section title="Overlays"><OverlaysCard /></Section></Show>

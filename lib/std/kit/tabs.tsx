@@ -1,40 +1,60 @@
 /** @jsxHelpers ./host */
-// zinc:ui/kit — Tabs: a segmented row of triggers on a muted track; the selected one is raised. The panels are
-// yours to switch (`<Show when={tab() === 1}>`), which keeps each panel's state alive or not as you choose.
-//
-//   <Tabs items={['Overview', 'Settings']} selected={tab} onSelect={setTab} />
+// Basic controlled tabs; NavigationTabs adds icons and a moving indicator without charging this API for them.
+import * as ui from 'zinc:ui';
+import { createNodeRef } from 'zinc:ui/solid';
 import { theme } from './theme';
 import { look, selectionFeedback } from '../platform/index';
-import { nativeControl } from './host';
+import { nativeControl, onCleanup } from './host';
 
 export interface TabsProps {
   items: string[];
   selected: () => i32;
   onSelect: (index: i32) => void;
-  className?: string;      // 'w-full' stretches the triggers
+  label?: string;
+  variant?: string; // pill (default) or underline
+  disabled?: i32[];
+  className?: string;
 }
-
-function triggerClass(active: boolean): string {
-  const t = theme(), L = look();
-  if (L.name !== 'neutral') return active ? `${L.segOn} focus:${L.segOn.split(' ')[0]}` : 'bg-transparent';
-  if (active) return `bg-${t.card} shadow-sm focus:bg-${t.card}`;
-  return `bg-transparent focus:bg-${t.muted}`;
+export function tabNodes(root: i32, out: i32[]): void {
+  const n = ui.inspectNode(root);
+  if (n === null) return;
+  if (n.role === 'tab') { out.push(root); return; }
+  for (const child of n.children) tabNodes(child, out);
 }
-
-function labelClass(active: boolean): string {
-  const t = theme();
-  return `${look().segLabel} text-${active ? t.foreground : t.mutedForeground}`;
+export function tabStop(p: TabsProps): i32 {
+  if (p.selected() >= 0 && p.selected() < p.items.length && (p.disabled === undefined || p.disabled.indexOf(p.selected()) < 0)) return p.selected();
+  return p.items.findIndex((label: string, i: i32) => p.disabled === undefined || p.disabled.indexOf(i) < 0);
 }
-
-export function Tabs(props: TabsProps): i32 {
-  const L = look();
-  const h = <View role="tablist" className={`flex-row ${L.segTrack} ${L.name === 'neutral' ? 'bg-' + theme().muted : ''} ${props.className ?? ''}`}>
-    {props.items.map((label: string, i: i32) =>
-      <View role="tab" aria-selected={String(props.selected() === i)} className={`grow flex-row items-center justify-center ${L.segItem} transition-colors ${triggerClass(props.selected() === i)}`}
-        onClick={() => { if (props.selected() !== i) selectionFeedback(); props.onSelect(i); }}>
-        <Text className={labelClass(props.selected() === i)}>{label}</Text>
-      </View>)}
-  </View>;
-  // a native host's segmented control
-  return nativeControl(h, 'segmented', () => ['items', props.items.join('\n'), 'value', '' + props.selected()], (v: string) => { props.onSelect(parseInt(v) as i32); });
+export function tabKey(root: i32, p: TabsProps, e: ui.KeyEvent): void {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') return;
+  const enabled: i32[] = [];
+  for (let i = 0; i < p.items.length; i++) if (p.disabled === undefined || p.disabled.indexOf(i) < 0) enabled.push(i);
+  if (enabled.length === 0) return;
+  const from = enabled.indexOf(tabStop(p));
+  const to = e.key === 'Home' ? 0 : e.key === 'End' ? enabled.length - 1 : (from + (e.key === 'ArrowLeft' ? enabled.length - 1 : 1)) % enabled.length;
+  const nodes: i32[] = []; tabNodes(root, nodes);
+  if (enabled[to] < nodes.length) ui.focusNode(nodes[enabled[to]]);
+  if (p.selected() !== enabled[to]) selectionFeedback();
+  p.onSelect(enabled[to]); e.preventDefault();
+}
+/** Reveals the current tab after keyboard, pointer or application-controlled selection. */
+export function revealTab(root: i32, selected: i32): void {
+  const nodes: i32[] = []; tabNodes(root, nodes);
+  if (selected < 0 || selected >= nodes.length) return;
+  const box = ui.screenBox(nodes[selected]), track = ui.screenBox(root), offset = ui.scrollLeft(root), x = box[0] - track[0] + offset;
+  if (x < offset) ui.scrollTo(root, x, 0, !ui.prefersReducedMotion());
+  else if (x + box[2] > offset + track[2]) ui.scrollTo(root, x + box[2] - track[2], 0, !ui.prefersReducedMotion());
+}
+export function Tabs(p: TabsProps): i32 {
+  const root = createNodeRef(), L = look();
+  const node = <ScrollView ref={root} role="tablist" aria-label={p.label ?? 'Tabs'} onKeyDown={(e: ui.KeyEvent) => tabKey(root.node, p, e)}
+    className={`flex-row shrink-0 ${p.variant === 'underline' ? 'border-b border-' + theme().border : L.segTrack + ' ' + (L.name === 'neutral' || L.name === 'quiet' ? 'bg-' + theme().muted : '')} ${p.className ?? ''}`}>
+    {p.items.map((label: string, i: i32) => <Button role="tab" aria-label={label} aria-selected={String(p.selected() === i)} tabIndex={tabStop(p) === i ? 0 : -1} disabled={p.disabled !== undefined && p.disabled.indexOf(i) >= 0}
+      onClick={() => { if (p.selected() !== i) selectionFeedback(); p.onSelect(i); }} className={`grow flex-row items-center justify-center ${L.segItem} shrink-0 ${p.variant === 'underline' ? 'border-b-2 border-' + (p.selected() === i ? theme().accent : 'transparent') : L.name === 'quiet' || L.name === 'neutral' ? 'rounded-[10px] ' + (p.selected() === i ? 'bg-' + theme().card : '') : p.selected() === i ? L.segOn : 'bg-transparent'} ${p.disabled !== undefined && p.disabled.indexOf(i) >= 0 ? 'opacity-45' : ''}`}>
+      <Text className={`${L.segLabel} whitespace-nowrap text-${p.selected() === i ? theme().foreground : theme().mutedForeground}`}>{label}</Text>
+    </Button>)}
+  </ScrollView>;
+  const follow = (): void => revealTab(root.node, p.selected());
+  ui.addWatcher(follow); onCleanup(() => ui.removeWatcher(follow));
+  return nativeControl(node, 'segmented', () => ['items', p.items.join('\n'), 'value', '' + p.selected()], (value: string) => { const i = parseInt(value) as i32; if (i >= 0 && i < p.items.length && (p.disabled === undefined || p.disabled.indexOf(i) < 0)) p.onSelect(i); });
 }

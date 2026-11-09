@@ -55,3 +55,8 @@ the rich card; Tab/Enter provides the same path. Toast hover/focus expands and p
 
 
 `GALLERY=inputs` shows the text, numeric, token, selection and shortcut fields. Their values belong to the gallery; every example is editable from the keyboard. `GALLERY_DARK=1` selects Quiet dark.
+
+`GALLERY=navigation` shows all eight Navigation controls: a grouped sidebar, overflow breadcrumbs, scrollable tabs,
+pagination, a release stepper, a document with a following contents rail, a named dock and a compact tab bar.
+Collapse the sidebar, open its groups, switch pages, or choose a contents entry; Tab/Shift-Tab, arrows, Home/End and
+Enter/Space reach the same actions. `GALLERY_DARK=1` starts in Quiet dark.

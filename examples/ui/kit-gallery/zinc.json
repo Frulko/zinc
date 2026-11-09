@@ -35,6 +35,12 @@
     "users",
     "star",
     "search",
-    "chevron-down"
+    "chevron-down",
+    "mail",
+    "folder",
+    "archive",
+    "settings",
+    "chevron-right",
+    "circle"
   ]
 }

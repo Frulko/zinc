@@ -265,6 +265,49 @@ ZINC_SHOT=docs/img/kit-selection.png zinc run examples/ui/kit-gallery --engine q
 Add `GALLERY_DARK=1` to inspect dark mode. The Selection implementations are in `selection.tsx`, with the
 existing switch and slider providers kept in their own modules; importing one family performs no registration.
 
+## Quiet Navigation
+
+The Navigation family uses the Quiet roles in light and dark. Selection markers move with a spring and take their
+final position immediately with reduced motion. Panels and destinations stay under application control.
+
+![Tabs, sidebar, breadcrumb, pagination, stepper, table of contents, dock and tab bar drawn by Zinc](img/kit-navigation.png)
+
+![The same navigation controls in Quiet dark, drawn by Zinc](img/kit-navigation-dark.png)
+
+| Component | State and options | Keyboard |
+|---|---|---|
+| `Tabs` | Existing `items: string[]`, `selected`, `onSelect`; `variant="pill"` or `"underline"`, disabled indices, accessible label. Long labels scroll into view. | One tab stop; Left/Right skip disabled tabs, Home/End select the ends. |
+| `NavigationTabs` | Named items `{ id, label, icon?, badge?, disabled? }`, selected id and `onSelect`; animated pill or underline. Icons and animation live here so plain Tabs stays small. | The same as Tabs. |
+| `Sidebar` | Labelled groups of named items with icons, badges and disabled links; controlled `collapsed`, `closedGroups` and `onGroupToggle`. One highlight follows selection. | Arrows and Home/End move through enabled links and disclosures; Enter/Space act. Collapsed icons keep tooltips. |
+| `Breadcrumb` | Labelled ancestors with `onSelect`; `maxItems` retains the root and recent ancestors and puts the rest in an accessible menu. The final entry marks the current page. | Tab or arrows reach links; Enter/Space open the overflow menu and choose an ancestor. |
+| `Pagination` | Zero-based `page`, `pages`, `onChange`, optional `siblings`. First/last pages, gaps, Previous/Next and disabled boundaries. | Left/Right change page, Home/End reach the ends; Tab and Enter/Space activate page buttons. |
+| `Stepper` | Label, description, optional `status="complete"` or `"error"`; controlled `current`, optional `onSelect`, `linear` and `vertical`. Without `onSelect`, it reports progress. | Arrows and Home/End move among available steps; Enter/Space select. Linear mode refuses later steps. |
+| `TableOfContents` | A `scroll` handle accessor and `{ label, anchor: () => handle, level? }` entries. The rail follows the section in view; choosing one scrolls to it. Accessors work with both Solid and React refs. | Arrows and Home/End move among entries; Enter/Space scroll. |
+| `Dock` | Named icon actions, running dots, notification counts, separators and disabled actions. `onSelect` receives the id. Icons remain the same size, following the Quiet rule against decorative hover growth. | Tab, arrows and Home/End move through actions; Enter/Space activate; tooltips name icons. |
+| `TabBar` | Compact navigation from the same named items and controlled selected id as NavigationTabs; a moving pill, icons and optional badges. | One tab stop; Left/Right and Home/End select. |
+
+```tsx
+const [tab, setTab] = createSignal<i32>(0);
+<Tabs items={['Overview', 'Files']} selected={tab} onSelect={setTab} />
+
+const scroll = createNodeRef(), install = createNodeRef();
+<View className="flex-row gap-6">
+  <ScrollView ref={scroll} className="h-[240px] grow">
+    <View ref={install}><Text>Install Zinc</Text></View>
+  </ScrollView>
+  <TableOfContents scroll={() => scroll.node}
+    items={[{ label: 'Install', anchor: () => install.node }]} />
+</View>
+```
+
+Register the icon names you choose in the project's `zinc.json` `icons` list. The family uses the existing icon
+provider and loads no icons or handlers at import time. Document tabs and resizable panel docking remain the
+[App chrome](#quiet-app-chrome) controls; the Dock here launches destinations.
+
+Run `GALLERY=navigation zinc run examples/ui/kit-gallery`. Recreate either picture with `ZINC_HEADLESS=1
+ZINC_SIZE=1100x1020 ZINC_FRAMES=3 ZINC_SHOT=<absolute-path> zinc run examples/ui/kit-gallery --engine quickjs`;
+add `GALLERY=navigation` and, for dark, `GALLERY_DARK=1`.
+
 ## How it works
 
 Each kit file starts with `/** @jsxHelpers ./host */`: the JSX compiler lowers that file against

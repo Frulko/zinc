@@ -342,6 +342,7 @@
     {"paths": ["lib/std/animated.ts", "tests/golden/animated/"], "tests": ["animated", "animated_native", "rn_showcase", "pan_responder"]},
     {"paths": ["tests/golden/animated-native/", "tests/golden/transition-slots/", "tests/t0/animated_native.sh", "runtime/gfx.cpp", "include/zn/ease.h"], "tests": ["animated_native"]},
     {"paths": ["tests/data/busy_native/", "tests/t1/busy_native.sh"], "tests": ["busy_native"]},
+    {"paths": ["lib/std/kit/tabs.tsx", "lib/std/kit/navigation.tsx", "lib/std/pagination.ts", "lib/std/nuxt/navigation.tsx", "tests/golden/kit-navigation/", "tests/golden/kit-navigation-react/", "tests/t0/kit_navigation.sh"], "tests": ["kit_navigation", "kit_size"]},
     {"paths": ["lib/std/icons.tsx", "third_party/lucide/", "tests/golden/icons/", "tests/golden/icons-all/"], "tests": ["icons", "rn_showcase"]},
     {"paths": ["lib/std/icons.tsx", "third_party/lucide/", "src/frontend/modules.cpp", "src/frontend/jsx.cpp", "lib/std/ui.ts", "tests/t0/ui_say_what.sh"], "tests": ["ui_say_what"]},
     {"paths": ["src/frontend/style_level.cpp", "src/frontend/style_level.h", "src/frontend/modules.cpp", "src/frontend/project.cpp", "targets/capabilities.json", "lib/std/ui.ts", "tests/t0/style_level.sh"], "tests": ["style_level"]},
