@@ -65,14 +65,18 @@ static const char* const FS_HEAD =
   "void main() {\n"
   "  vec2 p = mp(v_pos.xy), c = mp(v_box.xy), h = mp(v_box.zw);\n"
   "  float r = mp(v_par.x), mode = v_par.z, grad = v_par.w;\n"
-  "  if (mode > 15.5) { mode -= 16.0; p = v_pos.zw; }\n"   // a box drawn through a matrix (XFORM, ZN-263.01): the pixel in the box's own coordinates
+  "  float xf = 0.0;\n"
+  "  if (mode > 15.5) { mode -= 16.0; p = v_pos.zw; xf = 1.0; }\n"   // a box drawn through a matrix (XFORM, ZN-263.01): the pixel in the box's own coordinates
   "  vec3 col = v_c1.rgb; float cov = 1.0, a = v_c1.a;\n";
 // IMAGE: baked RGBA / runtime 0x00RRGGBB (grad 1: 0xAARRGGBB), times the sprite's tint in c1 (white: none, ZN-581); grad 2: premultiplied
 // texels (a compressed texture, ZN-439)
 // ImageFlag.Smooth (v_par.y 1, ZN-746): the cubic B-spline of raster.cpp draw_smooth in four linear taps; v_box.zw is then the texture's size
+// Through a matrix (xf, ZN-678: gl_replay.cpp draw_image): p from the image box's origin, the rectangle in c, h, the image box's size in
+// K = (v_par.y, r), all in the box's units times the matrix's scale; the texel at p clamped into the rectangle, the edges of both smooth
 static const char* const FS_IMAGE =
-  "    vec4 t;\n"
-  "    if (v_par.y > 0.5) {\n"
+  "    vec4 t; vec2 K = vec2(v_par.y, r);\n"
+  "    if (xf > 0.5) t = texture2D(u_tex, clamp(p, c - h * 0.9998, c + h * 0.9998) / K);\n"
+  "    else if (v_par.y > 0.5) {\n"
   "      vec2 ts = v_box.zw, st = v_pos.zw * ts - 0.5, i = floor(st), f = st - i, f2 = f * f, f3 = f2 * f;\n"
   "      vec2 w0 = (1.0 - 3.0 * f + 3.0 * f2 - f3) / 6.0, w1 = (4.0 - 6.0 * f2 + 3.0 * f3) / 6.0, w2 = (1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3) / 6.0, w3 = f3 / 6.0;\n"
   "      vec2 g0 = w0 + w1, g1 = w2 + w3, h0 = (i - 0.5 + w1 / g0) / ts, h1 = (i + 1.5 + w3 / g1) / ts;\n"
@@ -80,7 +84,8 @@ static const char* const FS_IMAGE =
   "    } else t = texture2D(u_tex, v_pos.zw);\n"
   "    if (grad > 1.5 && t.a > 0.0) t.rgb /= t.a;\n"
   "    col = (mode < 3.5 ? t.rgb : t.bgr) * v_c1.rgb; cov = mode < 3.5 || grad > 0.5 ? t.a : 1.0;\n"
-  "    if (r > 0.0) cov *= cover(p, c, h, r);\n";
+  "    if (xf > 0.5) cov *= min(cover(p, c, h, 0.0), cover(p, K * 0.5, abs(K) * 0.5, 0.0));\n"
+  "    else if (r > 0.0) cov *= cover(p, c, h, r);\n";
 // A block sets the coverage of the pixel, and its colour when that is not the vertex's.
 static const char* const FS_MODE[MODES] = {
   // FILL: rounded box, gradients

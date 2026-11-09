@@ -729,9 +729,10 @@ static void quad(const Q& q, bool divide_clip = true) {
                      (q.full || (q.r <= 0 && q.bw > 0 && q.bh > 0 && q.bx - q.bw == floorf(q.bx - q.bw) && q.by - q.bh == floorf(q.by - q.bh) && q.bx + q.bw == floorf(q.bx + q.bw) && q.by + q.bh == floorf(q.by + q.bh)));
   static const bool whole_translucent = getenv("ZINC_GL_WHOLE_TRANSLUCENT") && atoi(getenv("ZINC_GL_WHOLE_TRANSLUCENT")) != 0;
   const bool opaque = whole && q.alpha >= 255;
-  const bool plain_texture = (m15 == IMAGE_RGBA) && q.r <= 0 && q.grad == 2 && q.p1 == 0 && q.c1 == 0xffffff && q.alpha == 255;
+  const bool turned_image = mode > 15 && (m15 == IMAGE_RGBA || m15 == IMAGE_BGR);   // the general program's (draw_image under a matrix)
+  const bool plain_texture = (m15 == IMAGE_RGBA) && !turned_image && q.r <= 0 && q.grad == 2 && q.p1 == 0 && q.c1 == 0xffffff && q.alpha == 255;
   if (only < 0 && !paint_on && plain_texture) lean = q.cached && caps.frag_highp ? LEAN_CACHED : LEAN_TEXTURE;
-  else if (lean_on && only < 0 && !paint_on) {
+  else if (lean_on && only < 0 && !paint_on && !turned_image) {
     if (whole && (m15 == FILL || m15 == SOLID) && (opaque || whole_translucent)) lean = LEAN_FILLSQ;   // a translucent one measured slower than LEAN_FILL on a Tegra 3 (16 fps against 22 for eight screens)
     else if (m15 == FILL) lean = q.grad <= 2 ? LEAN_FILL : q.grad == 3 ? LEAN_RADIAL : -1;
     else if (m15 == BORDER_M) lean = LEAN_BORDER;
@@ -1072,7 +1073,8 @@ static Tex2* dyn_tex(int32_t id) {
   return t;
 }
 // The texture coordinates come from the image's box (zrt_raster.h image_box: the painted rectangle itself, or the box of a drawImageRect,
-// whose negative size mirrors), the filter from raster.cpp's rules: draw_dyn's for a whole opaque runtime image, draw_boxed's otherwise.
+// whose negative size mirrors), the filter from raster.cpp's rules: draw_dyn's for a whole opaque runtime image, draw_boxed's otherwise,
+// draw_xform's through a matrix (linear unless ImageFlag.Nearest).
 static void draw_image(const Cmd& c) {
   if (!(c.w > 0 && c.h > 0 && c.w < 1e30f && c.h < 1e30f && c.x - c.x == 0 && c.y - c.y == 0)) return;
   const Box m = image_box(c);
@@ -1093,7 +1095,7 @@ static void draw_image(const Cmd& c) {
     t = last.t;
     alpha = last.alpha;
     int32_t sx = f2i((float)w / c.w * 65536), sy = f2i((float)h / c.h * 65536);
-    nearest = c.grad == 1 || (sx == 65536 && sy == 65536);
+    nearest = c.grad == 1 || (!xf_on && sx == 65536 && sy == 65536);   // through a matrix the raster samples linearly unless asked (draw_xform)
     mode = t && t->cmp ? IMAGE_RGBA : IMAGE_BGR;   // blocks decode to RGBA, the pixels are 0xAARRGGBB
   } else {
     if (c.res < 0 || c.res >= image_count) return;
@@ -1101,7 +1103,7 @@ static void draw_image(const Cmd& c) {
     if (!((float)im.w / mw < 1e6f && (float)im.h / mh < 1e6f)) return;
     t = &baked[c.res];
     if (!t->id) { GLR_TRACE("baked image %d, %dx%d\n", c.res, im.w, im.h); t->id = make_tex(im.w, im.h, GL_RGBA, GL_RGBA, im.rgba, false); t->bytes = (uint64_t)im.w * im.h * 4; t->nearest = 0; t->w = im.w; t->h = im.h; }
-    nearest = false; mode = IMAGE_RGBA;
+    nearest = xf_on && c.grad == 1; mode = IMAGE_RGBA;
   }
   if (!t || !t->id) return;
   Rect b = bounds(c.x, c.y, c.w, c.h, HUGE_R);
@@ -1114,7 +1116,7 @@ static void draw_image(const Cmd& c) {
     nearest = c.grad == 1 || copy;
     b = isect(b, bounds(mx0, my0, mw, mh, HUGE_R));   // nothing is painted outside the image
   }
-  const bool smooth = c.grad == 2 && !copy && !alpha && c.res >= DYN_BASE;   // ImageFlag.Smooth: the spline of the image shader on linear taps (opaque pictures, as the CPU)
+  const bool smooth = c.grad == 2 && !copy && !alpha && !xf_on && c.res >= DYN_BASE;   // ImageFlag.Smooth: the spline of the image shader on linear taps (opaque pictures, as the CPU)
   if (smooth) nearest = false;
   if (b.x0 >= b.x1 || b.y0 >= b.y1) return;
   // a copy samples texel centres, where both filters give the texel: the texture keeps its filter, so the frames of an atlas page drawn
@@ -1122,10 +1124,24 @@ static void draw_image(const Cmd& c) {
   if (!copy) set_filter(*t, nearest);
   use_tex(t->id);
   Q q = box_q(c, b, mode);
-  if (boxed && xf_on) {   // through a matrix the quad is the rectangle itself, not the pixels it touches: no texel of the frame beside it at its edges
-    q.x0 = c.x > mx0 ? c.x : mx0; q.y0 = c.y > my0 ? c.y : my0;
-    q.x1 = c.x + c.w < mx0 + mw ? c.x + c.w : mx0 + mw; q.y1 = c.y + c.h < my0 + mh ? c.y + c.h : my0 + mh;
-    if (q.x0 >= q.x1 || q.y0 >= q.y1) return;
+  if (xf_on) {
+    // Through a matrix (ZN-678), as raster.cpp draw_xform: the rectangle (and the image's box) with smooth edges, coverage 0.5 - d sc for
+    // the distance d to each in the box's own units (sc: the matrix's scale, sqrt |det|), the texel read at the pixel's position clamped
+    // into the rectangle (no texel of the frame beside it). The quad is the rectangle grown by a pixel; the fragment works in the box's
+    // units times sc from the image box's origin (mode + 16: v_pos.zw), the rectangle in v_box, the image box's size times sc in (p1, r).
+    // ponytail: no rounded corners on a turned image (r carries the box), a tint has none anyway
+    const float sc = sqrtf(fabsf(xf_m[0] * xf_m[3] - xf_m[1] * xf_m[2])), e = 1 / sc;
+    const float x0 = c.x > mx0 ? c.x : mx0, y0 = c.y > my0 ? c.y : my0;
+    const float x1 = c.x + c.w < mx0 + mw ? c.x + c.w : mx0 + mw, y1 = c.y + c.h < my0 + mh ? c.y + c.h : my0 + mh;
+    if (!(x0 < x1 && y0 < y1 && e < 1e6f)) return;
+    q.x0 = x0 - e; q.y0 = y0 - e; q.x1 = x1 + e; q.y1 = y1 + e;
+    q.u0 = (q.x0 - m.x) * sc; q.u1 = (q.x1 - m.x) * sc; q.v0 = (q.y0 - m.y) * sc; q.v1 = (q.y1 - m.y) * sc;
+    q.bx = (c.x + c.w * 0.5f - m.x) * sc; q.by = (c.y + c.h * 0.5f - m.y) * sc; q.bw = c.w * 0.5f * sc; q.bh = c.h * 0.5f * sc;
+    q.p1 = m.w * sc; q.r = m.h * sc;
+    q.mode = mode + 16; q.c1 = image_tint(c);
+    q.grad = t->cmp == 2 ? 2 : alpha;
+    quad(q);
+    return;
   }
   const float rad = image_radius(c);
   q.r = rad > 0 ? rad : 0;   // the CPU does not clamp an image's radius
@@ -1779,7 +1795,7 @@ static void draw_xform(const Cmd& c, const float* p, const char* text, const flo
       Q q = box_q(in, bounds(in.x - blur - 1, in.y - blur - 1, in.w + 2 * blur + 2, in.h + 2 * blur + 2, HUGE_R), SHADOW_M);
       q.p1 = blur; quad(q); break;
     }
-    case IMAGE: if (!(in.pad & kImageTint)) in.r = 0; draw_image(in); break;   // ponytail: no rounded corners on a turned image (r: or a tint)
+    case IMAGE: draw_image(in); break;
     case TEXT:
       flush();
       atlas_filter(GL_LINEAR);

@@ -3,8 +3,8 @@
 # coordinates, mirrors, nearest and linear filters on baked and decoded images, alpha of a decoded image) against the software frame rendered at the density of the
 # GL window, pixel for pixel: no more than 0.5% of the pixels more than 24 away in a channel and a mean error under 1 (display-gl's tolerance, gl_renderer.sh, is 5%
 # and 3; a sprite mirrored the wrong way is 1.4% of this frame). The nearest sprites of the GL frame are also checked against the sheet (check.py).
-# Through setTransform (xform.ts: sprites turned, stretched, mirrored): the same comparison with 1% and 1 (the raster smooths a turned edge, the GPU cuts it), and
-# the inside of the texels of the GL frame is the sheet's (xform_check.py).
+# Through setTransform (xform.ts: sprites turned, stretched, mirrored): the same comparison with 0.05% and 1 (both smooth a turned edge and sample linearly
+# unless asked, ZN-678), and the inside of the texels of the GL frame is the sheet's (xform_check.py).
 # Sprites (ZN-581, sprite.ts: turned, tinted, the four blend modes): the same comparison with 1% and 1, and the tinted and blended nearest sprites
 # of the GL frame are the formulas' (sprite_check.py, 2 of slack: the GPU blends in floats).
 # Opens a window: skipped (77) where there is none.
@@ -34,7 +34,7 @@ out=$(both main.ts sprites 0.5); rc=$?
 [ $rc -eq 77 ] && { echo "skipped: no GL window here ($(head -c 200 "$tmp/sprites.log"))"; exit 77; }
 [ $rc -eq 0 ] || { echo "image_rect_gl: main.ts: $out"; fail=1; }
 python3 $d/check.py "$tmp/sprites.bmp" $d/assets/sheet.png 2 || { echo "image_rect_gl: the sprites of the GL frame are not the sheet's"; fail=1; }
-xout=$(both xform.ts xform 1) || { echo "image_rect_gl: xform.ts: $xout"; fail=1; }
+xout=$(both xform.ts xform 0.05) || { echo "image_rect_gl: xform.ts: $xout"; fail=1; }
 python3 $d/xform_check.py "$tmp/xform.bmp" $d/assets/sheet.png 2 >"$tmp/xcheck.log" || { cat "$tmp/xcheck.log"; echo "image_rect_gl: through setTransform the sprites of the GL frame are not the sheet's"; fail=1; }
 sout=$(both sprite.ts sprite 1) || { echo "image_rect_gl: sprite.ts: $sout"; fail=1; }
 python3 $d/sprite_check.py "$tmp/sprite.bmp" $d/assets/sheet.png 2 || { echo "image_rect_gl: the tinted and blended sprites of the GL frame are not the formulas'"; fail=1; }
