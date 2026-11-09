@@ -1,9 +1,8 @@
 ---
 id: ZN-1091
 title: Release native aspect lock when UI switches to fill
-status: Backlog
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-11-09 14:41'
 updated_date: '2026-11-09 14:43'
 labels:
@@ -29,7 +28,7 @@ Preserve fixed-aspect/contain modes when requested and correctly release/reapply
 <!-- AC:BEGIN -->
 - [x] #1 Switching a lazily initialized window from fixed aspect to fill clears its native aspect constraint; switching back preserves documented fixed-aspect behavior
 - [x] #2 A narrow regression and bounded background native resize proof show ordinary UI requests360x800 with correct surface/window sizes without ZINC_RESIZE workaround
-- [ ] #3 Original design gallery responsive interaction passes default parameters across representative widths; targeted build and relevant interpreter/AOT/QuickJS smoke pass, limitations documented
+- [x] #3 Original design gallery responsive interaction passes default parameters across representative widths; targeted build and relevant interpreter/AOT/QuickJS smoke pass, limitations documented
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -45,3 +44,5 @@ Preserve fixed-aspect/contain modes when requested and correctly release/reapply
 
 - After the independent layout blocker: rerun `/tmp/1087-proof/main.tsx` for90 background frames with this HAL and noZINC_RESIZE; it checks360/768/1024/1440 widths plus scrolling/keyboard/touch interactions (roughly2seconds, one window).
 - At the chosen host milestone: existing window_live_resize and multiwindow feature sessions; manual window-manager constraint/drag checks on other SDL platforms remain unproven.
+
+- Coordinator closure: after1092 integration414861c46, the corrected outer-vertical-scroll proof passed all assertions on ordinary native defaults at360/768/1024/1440, including finalMinGW visibility, horizontalbounds, pointer reveal/edit/focus andEnter/Space. Proofworker closure5bd6649c3 records commands/captures; noZINC_RESIZE workaround. Clean window_resize_policy, ui_animation_reset, ui_nested_wrap, layout_css andkit_inputs all passed. AC3 complete.

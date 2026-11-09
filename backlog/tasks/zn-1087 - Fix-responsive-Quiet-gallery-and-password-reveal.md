@@ -2,8 +2,7 @@
 id: ZN-1087
 title: Fix responsive Quiet gallery and password reveal
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 14:28'
 updated_date: '2026-11-09 14:58'
 labels:

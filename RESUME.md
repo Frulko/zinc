@@ -4,16 +4,18 @@
 
 - Continue zn-coordinate until the main repository `.paused` exists or nothing can start. Never ask the owner a question. One coordinator: this root session; state log is [COORDINATOR.md](docs/reports/backlog-review-2026-11-07/COORDINATOR.md).
 - Three workers: sole core, owner gallery proof, Feedback. Every command runs in its own worktree; source and ownership below. They use zn-start, no suites, no push.
-- This session closed13 tasks: ZN-1078.03/.04/.05/.08/.10 and ZN-1079/1080/1081/1082/1083/1084/1085/1086. Full integration history and older unresolved handovers/tests remain in [the archived resume](docs/reports/session-handover-2026-11-09.md); read only the relevant topic.
+- This session closed17 tasks: ZN-1078.03/.04/.05/.08/.10 and ZN-1079/1080/1081/1082/1083/1084/1085/1086/1087/1089/1091/1092. Full integration history and older unresolved handovers/tests remain in [the archived resume](docs/reports/session-handover-2026-11-09.md); read only the relevant topic.
 
 | Worker | Branch/worktree | State and next step |
 | --- | --- | --- |
-| Core | work/1089-core, .worktrees/1089-core | 1089 integrated cf0b4c9e0; 1091 aspect fix integrated b189f5bab, AC3 waits1092. Now1092 nestedwrap, then1088 size attribution and1090 library default icons. Sole shared core writer. |
-| Gallery proof | work/1087-gallery-proof, .worktrees/1087-gallery-proof | Owner screenshot fixes integrated c59fa16fa: real aligned password eye/pointer/keyboard, responsive app source. AC1 waits1091/1092; fresh worker verifies defaults/resize/scroll and closes criteria. |
-| Feedback | work/1078-overlays-resume, .worktrees/1078-overlays-resume | .11 feature checks green across3engines after1089; owns feedback/spinner/progress and sole host.componentEffect. Final generic icon/size proofs wait1090/1088. |
+| Core handoff | work/1088-resume, .worktrees/1088-resume | Restore unintegrated checkpoint e020951cc with cherry-pick -n; complete1088 then1090. Prior Astra tree1088-astra and old1089-core are read-only evidence. No active old writer. |
+| Size review | work/1088-size-review, .worktrees/1088-size-review | Read-only native-code attribution for remaining60,992B used-budget excess; no edits/builds/tests or task claim. |
+| Feedback parked | .worktrees/1078-feedback-astra | b088d2952 source integrated, no active worker. Cleanup patch .logs/feedback-astra-handover.patch +notes, BacklogAC2 only; finish after1088/1090. |
 
-- Inputs progress0a8c0b141 and Navigation progress3dde12a02 are integrated with functional proofs green, size AC3 open and dependency1088. Their old worktrees/artifacts remain read-only for core attribution. .07Pickers unstarted. Metadata alone may not explain used-code growth; core measures both.
-- Owner screenshot app is docs/img/design/src (PICTURE=gallery), not the kit-gallery app. No ZINC_RESIZE workaround:1091 clears SDL startup aspect lock;1092 fixes confirmed nestedwrap parentheight/scroll overlap. Repros/probes /tmp/1087-proof/; preserve original worker tree until absolute imports retargeted.
+- Owner requested Astra Fast then `on rebascule`: new workers inherit the coordinator/configured previous model. Launchers keep Fast and optional ZN_CODEX_MODEL override; no global model change. Astra work is preserved, not discarded.
+- 1088 latest e020951cc is NOT integrated: stable-ID layout pruning +allocationinlinecost40 +native.systemHost opt-in(defaultfull,auditedsvg lite). Finalrawgate5390968/5423984/6074800B: unused33016passes, used72312>65536 (60,992B total stillneeded). Fullhost mistakenlyretainednetworking added1.13MB; thatcausefixedincheckpoint. NoUI/budgetcuts. Finalcandidate regressions/cache assertion/gallerysmoke needrerun. Runtimeperformanceunmeasured.
+- Inputs0a8c0b141 and Navigation3dde12a02 progress integrated, functionalproofsgreen, AC3dependency1088. Oldtrees/artifacts retained for attribution. .07Pickers untouched. Defaultlibraryicons1090 remains unstarted; research references in coordinator messages and task.
+- Owner gallery1087 is DONE: c59fa16fa app/password, b189f5bab aspect,414861c46 nestedwrap,5bd6649c3 fullproof. 360/768/1024/1440 defaultnative resize/bounds/scroll/reveal/edit/focus/keys pass. Rootexacttests green, screenshots persisted under docs/img/design. No app workaround, nooursremaining.
 
 ## Safe engine and machine
 

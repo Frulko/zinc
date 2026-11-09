@@ -2,8 +2,7 @@
 id: ZN-1089
 title: Reset animated values even when cached base style matches
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 14:36'
 updated_date: '2026-11-09 14:38'
 labels:

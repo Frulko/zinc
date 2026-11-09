@@ -99,6 +99,15 @@ In classes: `bg-${theme().card}`, `text-${theme().mutedForeground}`, `border-${t
 
 ![Do: Tab shows a ring, the icon button has a name. Don't: focus you cannot see](img/design/keyboard.png)
 
+## Responsive gallery
+
+`PICTURE=gallery zinc run docs/img/design/src` opens the interactive component gallery. Its columns wrap with the
+window, every card stays reachable by scrolling, and the password eye works by pointer, Enter or Space.
+
+![The gallery at768px, with wrapping cards](img/design/gallery-responsive.png)
+
+![The password field at360px, revealed and still focused](img/design/password-reveal.png)
+
 ## What generic looks like
 
 Defaults nobody chose read as generic. Screens built with Zinc stay clear of them:

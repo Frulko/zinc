@@ -2,8 +2,7 @@
 id: ZN-1092
 title: Measure nested wrapping columns before placing outer lines
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 14:44'
 updated_date: '2026-11-09 14:48'
 labels:
