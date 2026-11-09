@@ -3737,6 +3737,22 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     }
     if (lineMain > main) main = lineMain;
     cross += lineCross;
+    // Wrapped rows must size each child at its allocated width before their line heights are known.
+    if (n.row && n.wrap) {
+      cross = 0;
+      let start: i32 = 0;
+      while (start < kids.length) {
+        let end = start, used: number = 0;
+        while (end < kids.length) {
+          const cm = flowMain(kids[end], n, inner);
+          if (end > start && used + gm + cm > inner) break;
+          used += (end > start ? gm : 0) + cm;
+          end++;
+        }
+        cross += measureRowCross(n, kids, start, end, inner, innerH, used) + (start > 0 ? gc : 0);
+        start = end;
+      }
+    }
     // a row with flex-1 or w-full children: CSS's flexible lengths give each child its width, and the ones that end narrower than their content are
     // measured again there (cssFlex); the row keeps its content width where they grow
     const css = n.row && !n.wrap && !aspects && cssLine(kids, 0, kids.length, true);
@@ -3854,6 +3870,29 @@ function growWithLimits(n: UiNode, kids: UiNode[], start: i32, end: i32, free: n
     if (!clamped || total <= 0) break;
   }
   return size;
+}
+/** Measure one wrapped row at the same flexible widths place() assigns, retaining its bases for line formation. */
+function measureRowCross(n: UiNode, kids: UiNode[], start: i32, end: i32, inner: number, height: number, used: number): number {
+  const bases: number[] = [];
+  let grows: number = 0;
+  for (let i = start; i < end; i++) { const c = kids[i]; bases.push(c.lw); grows += c.grow > 0 ? c.grow : c.fullW ? 1 : 0; }
+  const css = cssLine(kids, start, end, true), free = inner - used;
+  const frozen = !css && grows > 0 && free > 0 ? growWithLimits(n, kids, start, end, free, grows) : null;
+  const shrinks = !css && free < 0 ? shrunk(kids, start, end, inner, gapMain(n)) : null;
+  if (css) cssFlex(n, kids, start, end, inner, height, false);
+  let cross: number = 0;
+  for (let i = start; i < end; i++) {
+    const c = kids[i], k = i - start, g = c.grow > 0 ? c.grow : c.fullW ? 1 : 0;
+    let w: number = c.lw;
+    if (frozen !== null && g > 0) w = (frozen as number[])[k];
+    else if (!css && grows > 0 && free > 0 && g > 0) w += Math.floor(free * g / grows);
+    else if (shrinks !== null) w = (shrinks as number[])[k];
+    constrainSize(c, w, c.lh); w = csW;
+    if (Math.abs(w - c.natW) > 0.5 || c.basisCut) measureAt(c, w, height);
+    if (outerH(c) > cross) cross = outerH(c);
+    c.lw = bases[k];
+  }
+  return cross;
 }
 /** Whether a child is sized as CSS sizes a flex item along its parent's main axis (ZN-1022): Tailwind's flex-1 (`flex: 1 1 0%`) or a 100% size along it
  *  (w-full in a row, h-full in a column). It starts from its flex-basis (0, or 100% of the line), shrinks by default and stops at CSS's automatic minimum

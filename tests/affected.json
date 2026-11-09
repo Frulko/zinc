@@ -366,6 +366,7 @@
     {"paths": ["src/host/layout_host.cpp", "tests/golden/layout-bridge/", "tests/golden/layout-rn/", "src/qjs/qjs.cpp", "src/aot/aot.cpp", "tests/golden/layout-conformance/", "tests/golden/layout-css/", "tools/layout-fixtures"], "tests": ["layout_bridge", "layout_rn", "layout_conformance", "layout_css", "rtl"]},
     {"paths": ["src/frontend/jsx.cpp", "src/frontend/jsx", "tests/golden/jsx/"], "tests": ["jsx", "jsx_banned", "jsx_style", "react_class", "ui_tokens"], "canary": true},
     {"paths": ["tests/golden/jsx/errors/", "tests/t0/jsx_banned.sh", "include/zn/diagnostics.h"], "tests": ["jsx_banned", "migrate"]},
+    {"paths": ["lib/std/ui.ts", "tests/data/ui_nested_wrap/", "tests/t0/ui_nested_wrap.sh"], "tests": ["ui_nested_wrap"]},
     {"paths": ["lib/std/ui.ts", "tests/data/ui_animation_reset/", "tests/t0/ui_animation_reset.sh"], "tests": ["ui_animation_reset"]},
     {"paths": ["lib/std/solid.ts", "lib/std/react.ts", "lib/std/ui.ts", "tests/t0/ui_throw_state.sh"], "tests": ["ui_throw_state"]},
     {"paths": ["lib/std/ui.ts", "lib/std/navigation.tsx", "lib/std/react-native.tsx", "lib/std/kit/keyboard.tsx", "lib/std/kit/imageviewer.ts", "tests/t0/ui_gesture_state.sh"], "tests": ["ui_gesture_state"]},
