@@ -1233,7 +1233,8 @@ export function setNumber(h: i32, key: string, v: number): void {
   if (n.styleKeys === NO_LINES) { n.styleKeys = []; n.styleVals = []; n.styleIds = []; }
   const i = n.styleKeys.indexOf(key);
   const id = i >= 0 ? n.styleIds[i] : propId(key);
-  if (i >= 0) { if (n.styleVals[i] === v) return; n.styleVals[i] = v; } else { n.styleKeys.push(key); n.styleVals.push(v); n.styleIds.push(id); }
+  // A compositor sample changes the evaluated field, not the base style: an explicit reset must reach both.
+  if (i >= 0) { if (n.styleVals[i] === v && (compProp(id) < 0 || propValue(n, id) === v)) return; n.styleVals[i] = v; } else { n.styleKeys.push(key); n.styleVals.push(v); n.styleIds.push(id); }
   if (id === P_ROWS && v === 0 && autoFields.indexOf(h) < 0) autoFields.push(h);   // grows with its content (settleFields)
   applyProp(n, id, key, v);
 }
