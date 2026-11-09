@@ -534,6 +534,7 @@ export function makeDomHost(env) {
     if (n.tag === IMAGE) A('alt', lab || attrOf(n, 'alt'));
     else if (lab && !(n.tag === TEXT && lab === n.text)) A('aria-label', lab); else A('aria-label', null);
     A('aria-hidden', n.ariaHidden ? 'true' : null);
+    A('id', attrOf(n, 'id') || null);
     for (let i = 0; i < n.attrK.length; i++) {
       const k = n.attrK[i];
       if (k.startsWith('aria-') || k.startsWith('data-')) A(k, n.attrV[i]);

@@ -203,6 +203,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - UI windows now resize freely with the default settings after the window opens, instead of keeping the initial proportions and squeezing a portrait view.
 
 - Nested wrapping columns now reserve their full height at the width they receive, keeping cards on the next row from overlapping them when a responsive layout narrows.
+- JSX host elements and `VirtualList` accept reactive `id` attributes, so composite controls can name their active descendant without replacing their node refs.
 
 ### The web
 

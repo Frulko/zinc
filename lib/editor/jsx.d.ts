@@ -6,6 +6,7 @@ type ZincPointerHandler = (e: import('zinc:ui').PointerEvent) => void;
 // className, never class (Z0006); the events with their argument (lib/ui.d.ts); any other attribute is checked by `zinc check`
 type ZincHostProps = {
   [attr: string]: any; class?: never; className?: string; key?: any;
+  id?: string | null;
   onClick?: () => void; onPress?: () => void; onSubmit?: () => void;
   onInput?: (value: string) => void; onChange?: (value: string) => void; onKeyDown?: (e: import('zinc:ui').KeyEvent) => void; onKeyUp?: (e: import('zinc:ui').KeyEvent) => void;
   onPointerDown?: ZincPointerHandler; onPointerMove?: ZincPointerHandler; onPointerUp?: ZincPointerHandler; onPointerCancel?: ZincPointerHandler;
@@ -29,4 +30,4 @@ declare namespace JSX {
 // control-flow tags the JSX compiler lowers itself (usable without an import)
 declare function Show(props: { when: any; fallback?: any; children?: any }): i32;
 declare function For(props: { each: any; children?: any }): i32;
-declare function VirtualList(props: { count: any; itemHeight: number; children?: any }): i32;
+declare function VirtualList(props: { count: any; itemHeight: number; id?: string | null; children?: any }): i32;

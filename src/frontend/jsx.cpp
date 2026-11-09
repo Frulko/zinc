@@ -31,7 +31,7 @@ const std::map<std::string, int> kPointerAttrs = {{"onPointerDown", 0}, {"onPoin
                                                   {"onPointerLeave", 7}, {"onTap", 8}, {"onLongPress", 9}, {"onDrag", 10}, {"onPinch", 11}, {"onPointerCancel", 12}};
 // Hints for the page (web target, `--render dom`; docs/ui.md "Semantic hints"): kept as attributes of the node (setAttr), read by the DOM host to pick the tag and fill the
 // attributes of a real element. Other targets ignore them. htmlFor is written `for` in HTML.
-const std::set<std::string> kWebAttrs = {"as", "href", "target", "rel", "download", "name", "htmlFor", "autoComplete", "required", "pattern", "minLength", "maxLength", "min", "max", "step",
+const std::set<std::string> kWebAttrs = {"as", "href", "target", "rel", "download", "name", "id", "htmlFor", "autoComplete", "required", "pattern", "minLength", "maxLength", "min", "max", "step",
                                          "enterKeyHint", "title", "alt", "lang", "dir", "method", "action", "autoCapitalize", "spellCheck", "autoCorrect", "multiple", "accept", "form", "autoFocus"};
 const std::set<std::string> kFlagAttrs = {"password", "readOnly", "lineNumbers", "wrap", "keepFocus", "disabled", "showsVerticalScrollIndicator", "showsHorizontalScrollIndicator",
                                           "stickToBottom", "dragToScroll"};
@@ -1320,9 +1320,10 @@ struct Lowering {
       else if (name == "accessibilityLabel") push(lit ? "_str(" + v + ", 'label', " + quote(a.lit) + ");" : react ? "_str(" + v + ", 'label', " + expr + ");" : "_dynStr(" + v + ", 'label', () => (" + expr + "));");
       else if (kWebAttrs.count(name) || (name == "type" && !(lit && (a.lit == "password" || a.lit == "text")))) {   // a hint for the page
         const std::string key = quote("attr:" + (name == "htmlFor" ? std::string("for") : name));
+        const std::string text = "String(" + (name == "id" ? "(" + expr + ") ?? ''" : expr) + ")";
         if (a.kind == 0) push("_str(" + v + ", " + key + ", 'true');");
         else if (lit) push("_str(" + v + ", " + key + ", " + quote(a.lit) + ");");
-        else push(react ? "_str(" + v + ", " + key + ", String(" + expr + "));" : "_dynStr(" + v + ", " + key + ", () => String(" + expr + "));");
+        else push(react ? "_str(" + v + ", " + key + ", " + text + ");" : "_dynStr(" + v + ", " + key + ", () => " + text + ");");
       }
       else if (kPointerAttrs.count(name)) push("_ptr(" + v + ", " + num(kPointerAttrs.at(name)) + ", " + expr + ");");
       else if (name == "onKeyDown") push("_key(" + v + ", " + expr + ");");
@@ -1511,15 +1512,18 @@ struct Lowering {
       const Attr* sk = find("scrollKey");   // before the rows: the kept offset is taken at the first layout, so only the rows there are built
       if (sk && sk->kind == 1) out.push_back("_str(" + v + ", 'scrollKey', " + quote(sk->lit) + ");");
       else if (sk) out.push_back(react ? "_str(" + v + ", 'scrollKey', " + valueOf(*sk) + ");" : "_dynStr(" + v + ", 'scrollKey', () => (" + valueOf(*sk) + "));");
-      for (const char* nm : {"aria-label", "role"}) {   // accessible name and role, as on every other element
+      for (const char* nm : {"aria-label", "role", "id"}) {   // semantic identity, as on every other element
         const Attr* x = find(nm);
         if (!x) continue;
-        const std::string key = std::string(nm) == "role" ? "role" : "label";
+        const std::string key = std::string(nm) == "id" ? "attr:id" : std::string(nm) == "role" ? "role" : "label";
         if (x->kind == 1) out.push_back("_str(" + v + ", '" + key + "', " + quote(x->lit) + ");");
-        else out.push_back(react ? "_str(" + v + ", '" + key + "', " + valueOf(*x) + ");" : "_dynStr(" + v + ", '" + key + "', () => (" + valueOf(*x) + "));");
+        else {
+          const std::string value = std::string(nm) == "id" ? "String((" + valueOf(*x) + ") ?? '')" : valueOf(*x);
+          out.push_back(react ? "_str(" + v + ", '" + key + "', " + value + ");" : "_dynStr(" + v + ", '" + key + "', () => (" + value + "));");
+        }
       }
       for (const Attr& a : e.attrs) {   // the scroll flags of a ScrollView (stickToBottom: a chat's history); anything else is refused, not dropped
-        if (a.name == "count" || a.name == "itemHeight" || a.name == "estimatedItemHeight" || a.name == "className" || a.name == "ref" || a.name == "scrollKey" || a.name == "key" || a.name == "aria-label" || a.name == "role") continue;
+        if (a.name == "count" || a.name == "itemHeight" || a.name == "estimatedItemHeight" || a.name == "className" || a.name == "ref" || a.name == "scrollKey" || a.name == "key" || a.name == "aria-label" || a.name == "role" || a.name == "id") continue;
         if (!kFlagAttrs.count(a.name)) fail(a.tok, "unknown attribute '" + a.name + "' on <VirtualList>");
         const std::string x = a.kind == 2 ? valueOf(a) : "";
         if (a.kind != 2 || x == "true" || x == "false") out.push_back("_num(" + v + ", '" + a.name + "', " + (x == "false" ? "0" : "1") + ");");
