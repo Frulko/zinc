@@ -4,7 +4,8 @@ title: >-
   plugins/gestures: fingers owned per target and a manipulate gesture (drag,
   pinch, turn)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 19:37'
 labels:
   - touch

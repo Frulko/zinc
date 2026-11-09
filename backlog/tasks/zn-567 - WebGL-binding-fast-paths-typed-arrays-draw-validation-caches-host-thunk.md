@@ -2,7 +2,8 @@
 id: ZN-567
 title: 'WebGL binding fast paths (typed arrays, draw validation caches, host thunk)'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:11'
 updated_date: '2026-11-07 18:30'
 labels:
