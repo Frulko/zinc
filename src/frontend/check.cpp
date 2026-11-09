@@ -5673,18 +5673,26 @@ struct Checker {
         for (std::size_t i = 0; ok && i < k; ++i) if (usesThis(body[i])) ok = false;
         if (!ok) diag(kZBadSuperCall, ctorNode, "a derived class constructor must call super(...) at its top level, and the statements before it must not use 'this'");
       }
-      // strictPropertyInitialization: an instance field without initializer must be assigned at the top level of the constructor
+      // strictPropertyInitialization: an instance field without initializer must be assigned by the constructor, at its top level, in a
+      // block, or in both branches of an if/else (a branch that throws needs none), as tsc's control flow sees it
       for (std::uint32_t m : mems) {
         const Node& mn = n(m);
         if (mn.kind != N::Field || mn.kids[1] != kNone || (mn.flags & (frontend::kFlagStatic | frontend::kFlagDefinite)) || out.objs[objIdx].isRecord) continue;
-        bool assigned = false;
-        if (ctorNode != kNone && n(ctorNode).kids[1] != kNone)
-          for (std::uint32_t st : n(n(ctorNode).kids[1]).kids) {
-            const Node& sn = n(st);
-            if (sn.kind != N::ExprStmt) continue;
-            const Node& as = n(sn.kids[0]);
-            if (as.kind == N::Assign && as.text == "=" && n(as.kids[0]).kind == N::Member && n(as.kids[0]).text == mn.text && n(n(as.kids[0]).kids[0]).kind == N::This) assigned = true;
+        std::function<bool(std::uint32_t)> assigns = [&](std::uint32_t st) {
+          if (st == kNone) return false;
+          const Node& sn = n(st);
+          switch (sn.kind) {
+            case N::ExprStmt: {
+              const Node& as = n(sn.kids[0]);
+              return as.kind == N::Assign && as.text == "=" && n(as.kids[0]).kind == N::Member && n(as.kids[0]).text == mn.text && n(n(as.kids[0]).kids[0]).kind == N::This;
+            }
+            case N::Throw: return true;
+            case N::Block: for (std::uint32_t k : sn.kids) if (assigns(k)) return true; return false;
+            case N::If: return sn.kids[2] != kNone && assigns(sn.kids[1]) && assigns(sn.kids[2]);
+            default: return false;
           }
+        };
+        bool assigned = ctorNode != kNone && n(ctorNode).kids[1] != kNone && assigns(n(ctorNode).kids[1]);
         if (!assigned) diag(kZUninitializedField, m, "'" + std::string(mn.text) + "'");
       }
     }

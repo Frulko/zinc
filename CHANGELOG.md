@@ -192,6 +192,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A value of a record or interface type used where a wider record type is expected (`const r: Named = hasName`) stays the same object, as in TypeScript: a write through either name, an added optional field included, is seen through the other instead of going to a copy.
 - `zinc:mqtt` works on `--engine quickjs`: connecting, subscribing, publishing and closing were missing there.
 - Compiler fixes: a local variable no longer stops the narrowing of a top-level one of the same name in other functions (nor does a function written above the top-level declaration), the errors inside a lambda that initialises a class field are reported, a `catch` callback that only rethrows keeps the promise's type, and a union the engine cannot hold yet is an error instead of a crash.
+- A field, `readonly` or not, that the constructor assigns in both branches of an `if`/`else` (or in one branch, the other throwing) counts as initialized, as in TypeScript, instead of failing with Z0111.
 
 ### Developer tools
 

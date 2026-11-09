@@ -159,9 +159,15 @@ export class Mesh {
     const h = opened ? R.assetMesh(at) : part ? R.meshLoad(zmesh, at) : R.meshCreate(positions, normals, uvs, colors, indices);
     if (h < 0) throw new RangeError(part ? `zinc:3d: the .zmesh part at byte ${at} is damaged` : 'zinc:3d: a mesh needs 1..65535 vertices');
     this.handle = h;
-    this.vertices = opened ? assetWord(at) : part ? le32(zmesh, at) : positions.length / 3;
-    this.triangles = opened ? assetWord(at + 4) / 3 : part ? le32(zmesh, at + 4) / 3 : indices.length / 3;
-    this.bounds = part ? partBounds(opened ? [] : zmesh, at) : fit(positions);
+    if (part) {
+      this.vertices = opened ? assetWord(at) : le32(zmesh, at);
+      this.triangles = opened ? assetWord(at + 4) / 3 : le32(zmesh, at + 4) / 3;
+      this.bounds = partBounds(opened ? [] : zmesh, at);
+    } else {
+      this.vertices = positions.length / 3;
+      this.triangles = indices.length / 3;
+      this.bounds = fit(positions);
+    }
   }
   dispose(): void { R.meshDestroy(this.handle); }
 }
