@@ -1653,3 +1653,18 @@ A 3600x3600 noise PNG, 51,989,060 bytes baked, `zinc build` on the M1 Pro:
 | generated C++ | 148 MB | 118 KB |
 | max RSS | 2.9 GB | clang -cc1 296 MB, ld 347 MB (208 MB footprint) |
 | zinc peak footprint | 434 MB | 116 MB |
+
+## 2026-11-09: zinc dev save-to-frame (ZN-1024, indicative: load 3-15, other trees building)
+
+hero under `zinc dev`, one save to the frame on screen: 1150-1370 ms (develop f92f001de) to 448-595 ms (4a27f7905).
+
+| Step | Before | After |
+|---|---|---|
+| check of the dev entry (`zinc:devtools` + hero) | 515 ms | 70 ms (quadratic object-type lookup fixed) |
+| check, plain entry | 66 ms | 49 ms (types interned by hash) |
+| emit + verify | 84 ms | 45 ms (several threads) |
+| devirtualise | 12 ms | 3 ms |
+| reference counting | 96 ms | 78 ms (worklist) |
+| read and parse | 73 ms | 48 ms |
+
+Recompile of the dev entry by thread count: 709 ms (1), ~530 (2), ~470 (4), ~410 (6), ~390 (8). A save now: parse 48-70, check 70-75, lower 100-125 (one thread), optimise 123-139, rc 78-85, emit 44-60, bake 3, swap 3 ms, plus ~60 ms of settle and frame wait.

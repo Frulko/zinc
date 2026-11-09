@@ -693,6 +693,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1078.02: icon names passed through a variable are not compiled in (U0001); the error could name zinc.json `"icons"`.
 - ZN-1078.03: `zinc:ui/platform` runs code at load (`readAccent`, `defineVars`, `applyFont`), so importing the kit applies the platform look; make it lazy.
 - ZN-1078.03: replace the kit_size line scanner with an esbuild check that bundles "import everything, use nothing" and expects an empty output, once the platform module is lazy.
+- ZN-1024: a check-time budget test for the program `zinc dev` compiles (`zinc:devtools` plus hero): the quadratic object-type lookup made it 10x slower and nobody noticed.
+- ZN-1024: `Checker::fnMentionsIn` looks names up in its locals with a linear scan (about 5% of the check).
+- ZN-1024: allocations are about a quarter of the compile's samples (`Inst`'s vectors, per-pass copies); measure mimalloc for the compiler against D67's launch cost.
+- ZN-1024: `zinc dev` polls the project every 40 ms, so a save waits 0-40 ms before it is seen; FSEvents or kqueue would remove it.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -897,3 +901,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1047: PSP pictures under 8 px are padded and clamped, so repeating uvs read black padding: tile small pictures up to 8 px at upload (`targets/psp/gu_psp.cpp`); run the World shadows switch on the 3DS (Azahar or the New 3DS: Tokyo Settings > Shadows off/on twice).
 - ZN-703: `tests/run --only math_ieee754` on the Intel Mac and the Pi 3B+ (same bits without FMA and on Linux ARM; only proven by x86_64 Node under Rosetta matching the arm64 build).
 - ZN-429: run a `zinc build --target aarch64-linux` drawing program on the Pi for one frame (the .incbin cross builds were linked and their bytes checked, not run).
+- ZN-1024: measure the compile on the Pi with 3 threads against 2 (D267 thread count).
