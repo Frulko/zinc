@@ -2,8 +2,7 @@
 id: ZN-1067
 title: 'zinc:shell: touch routing, lazy listen, ABI check'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:43'
 labels:
   - shell
