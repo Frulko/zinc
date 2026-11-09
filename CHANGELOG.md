@@ -183,6 +183,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `ui.onFocusWithin` returns an unsubscribe function, so a component can replace its focus handler when it renders again while keeping its view.
 - Replacing a focus handler while its view is focused still reports the later blur, including after a pointer press; registration sends no artificial focus event.
 - Resetting an animated transform or opacity to its original style now updates what the view shows, including when reduced motion stops a spinning view.
+||||||| parent of 8864a5ce8 (fix(kit): align password reveal and adapt the Quiet gallery)
+
+- Password fields have a centred eye button inside the field that preserves editing focus and works with the pointer, Enter and Space.
+
 
 ### The web
 

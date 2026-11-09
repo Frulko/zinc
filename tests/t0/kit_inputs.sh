@@ -2,7 +2,7 @@
 # Quiet Inputs: real keyboard/edit paths, bounded numbers, tags, code paste and selection dismiss/record/restart.
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/src"
-echo '{"name":"inputs","entry":"src/main.tsx","icons":["search","chevron-down","check"],"app":{"window":{"width":800,"height":1400}}}' > "$tmp/zinc.json"
+echo '{"name":"inputs","entry":"src/main.tsx","icons":["eye","search","chevron-down","check"],"app":{"window":{"width":800,"height":1400}}}' > "$tmp/zinc.json"
 cat > "$tmp/src/main.tsx" <<'P'
 import * as ui from 'zinc:ui';
 import { render, createSignal } from 'zinc:ui/solid';
@@ -23,6 +23,7 @@ function App(): i32 {
   return <View className="w-[700px] flex-col gap-2">
     <Input label="Name" value={value} onInput={setValue} clearable={true} onSubmit={() => { submits++; }} />
     <PasswordField label="Secret" value={value} onInput={setValue} />
+    <PasswordField label="Small secret" size="sm" value={() => 'small'} />
     <SearchField label="Search" value={value} onInput={setValue} />
     <Textarea label="Notes" onSubmit={() => { submits++; }} />
     <NumberField label="Seats" value={n} onChange={setN} min={1} max={12} />
@@ -51,8 +52,18 @@ render(App, 0xffffff, (dt: number) => {
   if (frame === 2) {
     equal(ui.getValue(find('Budget')), '-1,249.50');
     equal(ui.fieldMode(find('Search')), 6); equal(ui.fieldMode(find('Verification code')), 1);
-    ui.click(find('Show or hide password')); equal(ui.getNumber(find('Secret'), 'password'), 0);
-    ui.click(find('Show or hide password')); equal(ui.getNumber(find('Secret'), 'password'), 1);
+    const small = find('Small secret'), smallInput = ui.screenBox(small);
+    const smallEye = ui.screenBox(named(ui.inspectNode(small)!.parent, 'Show or hide password'));
+    ok(smallEye[0] >= smallInput[0] && smallEye[0] + smallEye[2] <= smallInput[0] + smallInput[2], 'small eye outside field width');
+    ok(smallEye[1] >= smallInput[1] && smallEye[1] + smallEye[3] <= smallInput[1] + smallInput[3], 'small eye outside field height');
+    const eye = find('Show or hide password'), secret = find('Secret');
+    const b = ui.screenBox(eye), input = ui.screenBox(secret);
+    ok(b[0] >= input[0] && b[0] + b[2] <= input[0] + input[2] + 1, 'eye outside field');
+    ok(Math.abs(b[1] + b[3] / 2 - input[1] - input[3] / 2) <= 1, 'eye not centred');
+    ui.pointerAt(b[0] + b[2] / 2, b[1] + b[3] / 2, true); ui.pointerAt(b[0] + b[2] / 2, b[1] + b[3] / 2, false);
+    equal(ui.getNumber(secret, 'password'), 0); equal(ui.focused(), secret);
+    const toggle = ui.inspectNode(eye)!; equal(toggle.attrV[toggle.attrK.indexOf('aria-pressed')], 'true');
+    ui.click(eye); equal(ui.getNumber(secret, 'password'), 1);
     ui.click(find('Clear')); equal(value(), ''); ui.keyDown(find('Name'), 'z', ui.CTRL); equal(value(), 'Ada');
     ui.focusNode(find('Budget')); ui.select(find('Budget'), 0, 100); ui.typeText(-1, 'xx23.456'); equal(money(), 23.45);
     ui.keyDown(find('Name'), 'Enter'); equal(submits, 1);
@@ -87,11 +98,21 @@ render(App, 0xffffff, (dt: number) => {
     ui.keyDown(-1, 'Enter'); ui.systemSignal('focus 0'); ui.systemSignal('focus 1'); ui.keyDown(-1, 's', ui.CTRL); equal(shortcut(), 'meta-k');
     ui.systemSignal('reducemotion 1'); ui.keyDown(find('Country'), 'ArrowDown'); ui.keyDown(-1, 'Escape');
   }
-  if (frame === 10) console.log('inputs: ok');
+  if (frame === 10) ui.keyDown(find('Show or hide password'), 'Enter');
+  if (frame === 11) {
+    equal(ui.getNumber(find('Secret'), 'password'), 0, 'Enter did not reveal'); equal(ui.focused(), find('Secret'));
+    ui.keyUp('Enter'); ui.keyDown(find('Show or hide password'), ' ');
+  }
+  if (frame === 12) {
+    ui.keyUp(' '); equal(ui.getNumber(find('Secret'), 'password'), 1, 'Space did not hide');
+    const eye = ui.inspectNode(find('Show or hide password'))!;
+    equal(eye.attrV[eye.attrK.indexOf('aria-pressed')], 'false'); equal(ui.getValue(find('Secret')), value());
+    console.log('inputs: ok');
+  }
 });
 P
 log="$tmp/run.log"
-ZINC_HEADLESS=1 ZINC_FRAMES=12 ZINC_SCALE=1 timeout 30 "$ZINC" run "$tmp" > "$log" 2>&1 || { cat "$log"; exit 1; }
+ZINC_HEADLESS=1 ZINC_FRAMES=14 ZINC_SCALE=1 timeout 30 "$ZINC" run "$tmp" > "$log" 2>&1 || { cat "$log"; exit 1; }
 grep -q '^inputs: ok$' "$log" || { cat "$log"; exit 1; }
 
 # React parent renders must retain password visibility and an active scrub session.
@@ -168,7 +189,7 @@ render(App, 0xffffff, (dt: number) => {
   if (frame === 21) { equal(ui.getValue(find('Budget')), '2,345.67', 'focus subscription lost blur after parent render'); console.log('inputs React state: ok'); }
 });
 P
-echo '{"name":"inputs","entry":"src/react.tsx","icons":["chevron-down","check"],"app":{"window":{"width":800,"height":600}}}' > "$tmp/zinc.json"
+echo '{"name":"inputs","entry":"src/react.tsx","icons":["eye","chevron-down","check"],"app":{"window":{"width":800,"height":600}}}' > "$tmp/zinc.json"
 for engine in interp quickjs; do
   case "$engine" in interp) set -- --interp;; quickjs) set -- --engine quickjs;; esac
   ZINC_HEADLESS=1 ZINC_FRAMES=23 ZINC_SCALE=1 timeout 30 "$ZINC" run "$tmp" "$@" > "$log" 2>&1 || { cat "$log"; exit 1; }

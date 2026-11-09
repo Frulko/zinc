@@ -8,7 +8,7 @@ const ROLES: MenuItem[] = [{ label: 'Required' }, { label: 'Optional' }];
 function Reviewer(props: { name: string; email: string; role: string }): i32 {
   return <View className="flex-row items-center gap-3">
     <Avatar name={props.name} />
-    <View className="flex-col grow">
+    <View className="flex-col grow min-w-0">
       <Label text={props.name} className="text-[14px]" />
       <Muted text={props.email} />
     </View>
@@ -38,7 +38,7 @@ export function ReleaseCard(): i32 {
     <CardHeader title="Release candidate" description="Builds for all three platforms, signed." />
     <CardContent className="gap-4">
       <View className="flex-row items-center gap-3">
-        <Input value={() => link()} onInput={setLink} className="grow" />
+        <Input value={() => link()} onInput={setLink} className="grow min-w-0" />
         <Button variant="ghost" size="icon"><RoleIcon name="copy" /></Button>
       </View>
       <Tabs items={['Public', 'Team only']} selected={audience} onSelect={setAudience} className="w-full" />
@@ -56,7 +56,7 @@ export function CoverageCard(): i32 {
           <ProgressRing value={() => 76} size={84} strokeWidth={1.7} color={() => themeColor('primary')} track={() => themeColor('secondary')} />
           <View className="absolute inset-0 items-center justify-center"><Text className={`text-[20px] font-medium tabular-nums text-${theme().foreground}`}>76%</Text></View>
         </View>
-        <View className="flex-col gap-1 grow">
+        <View className="flex-col gap-1 grow min-w-0">
           <Label text="Line coverage" className="text-[15px]" />
           <Muted text="76.3% on main, 3,912 of 5,127 lines." />
         </View>

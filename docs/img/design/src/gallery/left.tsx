@@ -1,6 +1,6 @@
 // The gallery's left column: a form, notification switches, a usage bar.
 import { createSignal } from 'zinc:ui/solid';
-import { Card, CardHeader, CardContent, Tabs, Input, Button, Switch, Progress, heading, theme } from 'zinc:ui/kit';
+import { Card, CardHeader, CardContent, Tabs, Input, PasswordField, Button, Switch, Progress, heading, theme } from 'zinc:ui/kit';
 import { Label, Muted, AffixField, RoleIcon } from './parts';
 
 const [platformTab, setPlatformTab] = createSignal<i32>(0);
@@ -22,14 +22,7 @@ export function RunnerCard(): i32 {
       <Tabs items={['Linux', 'macOS', 'Windows']} selected={platformTab} onSelect={setPlatformTab} className="w-full" />
       <Field label="Name"><Input value={() => runnerName()} onInput={setRunnerName} /></Field>
       <Field label="Address"><AffixField prefix="ssh://" value="10.0.4.17" suffix=":22" /></Field>
-      <View className="flex-col gap-[6px]">
-        <Label text="Registration token" />
-        <View className="flex-row items-center">
-          <Input type="password" value={() => token()} onInput={setToken} className="grow pr-9" />
-          <View className="absolute right-3"><RoleIcon name="eye" role="mutedForeground" /></View>
-        </View>
-        <Muted text="Shown once. Store it with the runner." small={true} />
-      </View>
+      <PasswordField label="Registration token" value={token} onInput={setToken} hint="Shown once. Store it with the runner." />
       <Button label="Add runner" className="w-full" />
     </CardContent>
   </Card>;

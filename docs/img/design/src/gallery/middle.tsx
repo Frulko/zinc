@@ -27,7 +27,7 @@ function Sparkline(props: { values: number[]; color: () => i32 }): i32 {
 /** A metric: what it measures, the value, the change with its baseline (green when it is good news), the trend. */
 function StatCard(props: { icon: string; label: string; value: string; delta: string; good: boolean; values: number[] }): i32 {
   const t = theme();
-  return <Surface className="grow basis-0 gap-2 pb-4">
+  return <Surface className="grow basis-[190px] min-w-0 gap-2 pb-4">
     <View className="flex-row items-center gap-2"><RoleIcon name={props.icon} role="mutedForeground" /><Muted text={props.label} /></View>
     <View className="flex-row items-center gap-2">
       <Text className={`text-[28px] font-medium tabular-nums text-${t.foreground}`}>{props.value}</Text>
@@ -39,7 +39,7 @@ function StatCard(props: { icon: string; label: string; value: string; delta: st
 }
 
 export function StatsRow(): i32 {
-  return <View className="flex-row gap-[21px]">
+  return <View className="flex-row flex-wrap gap-[21px]">
     <StatCard icon="clock" label="Median build, 30 days" value="3m 42s" delta="-17.6%" good={true} values={[9, 7.2, 8, 6.4, 6.6, 5.4, 5, 4.2, 4.6, 3.3]} />
     <StatCard icon="triangle-alert" label="Flaky tests" value="7" delta="+2 this week" good={false} values={[2, 3, 2.1, 4, 3.1, 5, 4.2, 5.2, 6, 6]} />
   </View>;
@@ -63,23 +63,23 @@ function Day(props: { day: i32 }): i32 {
   const t = theme(), inMonth = props.day > 0, on = (): boolean => picked() === props.day;
   const ring = inMonth && props.day === TODAY ? `border border-${t.input}` : '';
   return <View role="button" focusable onClick={() => { if (inMonth) setPicked(props.day); }}
-    className={`w-[36px] h-[36px] items-center justify-center rounded-full ${ring} ${on() ? 'bg-' + t.primary : ''}`}>
+    className={`grow basis-0 min-w-0 h-[36px] items-center justify-center rounded-full ${ring} ${on() ? 'bg-' + t.primary : ''}`}>
     <Text className={`text-[13px] tabular-nums text-${on() ? t.primaryForeground : inMonth ? t.foreground : t.mutedForeground}`}>{'' + Math.abs(props.day)}</Text>
   </View>;
 }
 
 export function CalendarCard(): i32 {
-  return <Surface className="flex-row gap-6 px-7">
-    <View className="flex-col">
+  return <Surface className="flex-row flex-wrap gap-6">
+    <View className="flex-col grow basis-[252px] min-w-0">
       <View className="flex-row items-center h-[36px] pr-1">
         <Label text="November 2026" className="grow text-[15px]" />
         <Button variant="ghost" size="icon" className="w-[30px] h-[30px]"><RoleIcon name="chevron-left" /></Button>
         <Button variant="ghost" size="icon" className="w-[30px] h-[30px]"><RoleIcon name="chevron-right" /></Button>
       </View>
-      <View className="flex-row">{WEEKDAYS.map((w: string) => <Muted text={w} className="w-[36px] text-center" />)}</View>
+      <View className="flex-row">{WEEKDAYS.map((w: string) => <Muted text={w} className="grow basis-0 min-w-0 text-center" />)}</View>
       {WEEKS.map((wk: i32) => <View className="flex-row">{DAYS.slice(wk * 7, wk * 7 + 7).map((d: i32) => <Day day={d} />)}</View>)}
     </View>
-    <View className="flex-col gap-3 grow basis-0 pt-2">
+    <View className="flex-col gap-3 grow basis-[140px] min-w-0 pt-2">
       <Label text="Release 2.4" className="text-[15px]" />
       <Muted text="Pick a window while the on-call team is in." />
       <View className="flex-col gap-2 pt-3">
@@ -113,12 +113,12 @@ export function ChartCard(): i32 {
         <View className="flex-col justify-between w-[36px] h-[192px] -mt-[6px]">
           {TICKS.map((v: number) => <Muted text={'' + v} small={true} className="tabular-nums" />)}
         </View>
-        <View className="grow">
+        <View className="grow min-w-0">
           {TICKS.map((v: number, i: i32) => <View className={`absolute left-0 right-0 h-px bg-${t.border} top-[${Math.round(i * PLOT_H / 6)}px]`} />)}
           <View className={`flex-row h-[${PLOT_H}px] items-end`}>
-            {DAY_NAMES.map((d: string, i: i32) => <View className="flex-row grow basis-0 items-end justify-center gap-[6px]">
-              <View className={`w-[18px] rounded-t-[3px] bg-${hex(series(0))} h-[${Math.round(LINUX[i] / 600 * PLOT_H)}px]`} />
-              <View className={`w-[18px] rounded-t-[3px] bg-${hex(series(1))} h-[${Math.round(WINDOWS[i] / 600 * PLOT_H)}px]`} />
+            {DAY_NAMES.map((d: string, i: i32) => <View className="flex-row grow basis-0 min-w-0 items-end justify-center gap-1">
+              <View className={`grow basis-0 min-w-0 max-w-[18px] rounded-t-[3px] bg-${hex(series(0))} h-[${Math.round(LINUX[i] / 600 * PLOT_H)}px]`} />
+              <View className={`grow basis-0 min-w-0 max-w-[18px] rounded-t-[3px] bg-${hex(series(1))} h-[${Math.round(WINDOWS[i] / 600 * PLOT_H)}px]`} />
             </View>)}
           </View>
           <View className="flex-row pt-2">{DAY_NAMES.map((d: string) => <Muted text={d} className="grow basis-0 text-center" />)}</View>

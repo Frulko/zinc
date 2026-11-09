@@ -47,22 +47,28 @@ function fieldFrame(p: { label?: string; hint?: string; error?: string; classNam
 
 function buildTextField(p: InputProps, ref: NodeRef, trailing: (() => i32) | undefined): i32 {
   const h = p.size === 'sm' ? 'h-[30px]' : p.size === 'lg' ? 'h-[44px]' : look().fieldHeight;
-  const field = <Input ref={ref} className={`grow min-w-0 ${h} py-1 ${fieldClass(p.disabled === true)}`}
+  const field = <Input ref={ref} className={`grow min-w-0 ${h} py-1 ${fieldClass(p.disabled === true)} ${trailing !== undefined ? 'pr-11' : ''}`}
     value={p.value !== undefined ? p.value() : ''} placeholder={p.placeholder ?? ''} name={p.name ?? ''}
     aria-label={p.label ?? p.placeholder ?? ''} aria-invalid={(p.error ?? '') !== ''}
     password={p.type === 'password'} readOnly={p.readOnly === true} disabled={p.disabled === true}
     inputMode={p.type === 'search' ? 'search' : p.type === 'number' ? 'decimal' : p.type === 'email' ? 'email' : 'text'}
     onInput={(v: string) => { if (p.onInput !== undefined) p.onInput(v); }} />;
-  const node = fieldFrame(p, <View className="flex-row items-center gap-2">
+  let editor = field;
+  if (trailing !== undefined) {
+    editor = <View className="flex-row grow min-w-0" />;
+    ui.insert(editor, field, -1);
+    ui.insert(editor, trailing(), -1);
+  }
+  const row = <View className="flex-row items-center gap-2">
     <Show when={p.icon !== undefined}>{renderSlot(p.icon)}</Show>
     <Show when={p.prefix !== undefined}><Text className={`text-[13px] text-${theme().mutedForeground}`}>{p.prefix ?? ''}</Text></Show>
-    {field}
     <Show when={p.suffix !== undefined}><Text className={`text-[13px] text-${theme().mutedForeground}`}>{p.suffix ?? ''}</Text></Show>
-    {renderSlot(trailing)}
     <Show when={p.clearable === true && p.readOnly !== true && (p.value !== undefined && p.value() !== '')}>
       <KitButton label="Clear" size="sm" variant="ghost" disabled={p.disabled} onClick={() => { ui.focusNode(ref.node); ui.select(ref.node, 0, ui.getValue(ref.node).length); ui.insertText(''); }} />
     </Show>
-  </View>);
+  </View>;
+  ui.insert(row, editor, ui.childAt(row, 2));
+  const node = fieldFrame(p, row);
   if (p.onSubmit !== undefined) ui.onSubmit(ref.node, p.onSubmit);
   if (p.autofocus === true) ui.focusNode(ref.node);
   return node;
@@ -71,16 +77,23 @@ function TextField(props?: InputProps): i32 { return buildTextField(props ?? {},
 export { TextField as Input };
 
 export function PasswordField(p: InputProps): i32 {
-  const field = createNodeRef(), caption = createNodeRef(), revealed = componentRef(false);
+  const field = createNodeRef(), revealed = componentRef(false);
+  let revealButton: i32 = -1;
   return buildTextField({ value: p.value, onInput: p.onInput, onSubmit: p.onSubmit, label: p.label ?? 'Password', hint: p.hint, error: p.error,
     placeholder: p.placeholder, type: revealed.current ? 'text' : 'password', name: p.name, icon: p.icon, prefix: p.prefix, suffix: p.suffix,
     clearable: p.clearable, disabled: p.disabled, readOnly: p.readOnly, autofocus: p.autofocus, size: p.size, className: p.className }, field,
-    () => <KitButton ariaLabel="Show or hide password" size="sm" variant="ghost" disabled={p.disabled} onClick={() => {
-      revealed.current = !revealed.current;
-      ui.setNumber(field.node, 'password', revealed.current ? 0 : 1);
-      ui.setText(caption.node, revealed.current ? 'Hide' : 'Show');
-      ui.focusNode(field.node);
-    }}><Text ref={caption} className={`text-[13px] text-${theme().foreground}`}>{revealed.current ? 'Hide' : 'Show'}</Text></KitButton>);
+    () => {
+      // Keep the button handle itself; a JSX component expression adds a fragment.
+      revealButton = KitButton({ ariaLabel: 'Show or hide password', size: 'icon', variant: 'ghost', className: p.size === 'sm' ? 'h-[30px] w-[30px]' : '', pressed: revealed.current, disabled: p.disabled, onClick: () => {
+        revealed.current = !revealed.current;
+        ui.setNumber(field.node, 'password', revealed.current ? 0 : 1);
+        ui.setAttr(revealButton, 'aria-pressed', String(revealed.current));
+        ui.focusNode(field.node);
+      }, children: () => <Icon name="eye" size={16} color={() => themeColor('mutedForeground')} /> });
+      const overlay = <View className="absolute right-0 top-0 bottom-0 justify-center" />;
+      ui.insert(overlay, revealButton, -1);
+      return overlay;
+    });
 }
 export function SearchField(p: InputProps): i32 {
   return <TextField value={p.value} onInput={p.onInput} onSubmit={p.onSubmit} label={p.label} hint={p.hint} error={p.error}
