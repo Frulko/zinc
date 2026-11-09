@@ -234,13 +234,14 @@ struct Rc {
   }
 
   void block(BlockId b) {
-    const std::vector<Inst> src = f.blocks[b].insts;
+    const std::vector<Inst> src = std::move(f.blocks[b].insts);   // rebuilt into `out` below (a copy of every block was 3% of reference counting)
     const std::vector<ValueId> params = f.blocks[b].params;
     const std::size_t n = src.size();
     // per tracked value, by its bit: the last instruction using it (the terminator counts its edge arguments), and whether this block has it by now
     // (live in, parameters, results so far)
     std::vector<long> lastIdx(valueOf.size(), -1);
-    std::vector<char> avail(valueOf.size(), 0);
+    std::vector<std::uint64_t> availSet(words, 0);   // a bit per tracked value: a throwing call looks only at what the block has, not at every tracked value
+    auto have = [&](ValueId v) { availSet[bit[v] >> 6] |= std::uint64_t{1} << (bit[v] & 63); };
     auto last = [&](ValueId v) -> long& { return lastIdx[bit[v]]; };
     for (std::size_t p = 0; p < n; ++p) {
       for (ValueId a : src[p].args) { if (isTracked(a)) last(a) = static_cast<long>(p); if (anchorOf(a) != kNoValue) last(anchorOf(a)) = static_cast<long>(p); }
@@ -248,8 +249,8 @@ struct Rc {
     }
     auto usedAfter = [&](ValueId v, std::size_t p) { return liveOutAt(b, v) || last(v) > static_cast<long>(p); };
     std::vector<Inst> out;
-    eachBit(liveIn.data() + b * words, [&](ValueId v) { avail[bit[v]] = 1; });
-    for (ValueId p : params) if (isTracked(p)) avail[bit[p]] = 1;
+    eachBit(liveIn.data() + b * words, [&](ValueId v) { have(v); });
+    for (ValueId p : params) if (isTracked(p)) have(p);
     for (ValueId p : params) if (isTracked(p) && !liveOutAt(b, p) && last(p) < 0) out.push_back(op(IrOp::Release, p));
     for (std::size_t p = 0; p + 1 < n; ++p) {
       Inst inst = src[p];
@@ -270,15 +271,15 @@ struct Rc {
         // What this frame still owns when the call unwinds and the handler has no use for is released first, on a path of its own.
         BlockId handler = inst.edges.empty() ? kNoBlockRc : inst.edges[0].to;
         std::vector<ValueId> rel;
-        for (ValueId v : valueOf) {
-          if (!avail[bit[v]] || v == res) continue;
-          if (handler != kNoBlockRc && liveInAt(handler, v)) continue;
+        eachBit(availSet.data(), [&](ValueId v) {   // in ascending value order, as valueOf
+          if (v == res) return;
+          if (handler != kNoBlockRc && liveInAt(handler, v)) return;
           auto cb = counts.find(v);
           bool diesHere = cb != counts.end() && !liveOutAt(b, v) && last(v) == static_cast<long>(p);
           bool consumedHere = diesHere && cb->second.first > 0;
           bool owned = usedAfter(v, p) || (diesHere && cb->second.first == 0);
           if (owned && !consumedHere) rel.push_back(v);
-        }
+        });
         if (!rel.empty()) {
           Block pad;
           TypeId et = handler != kNoBlockRc ? f.valueTypes[f.blocks[handler].params[0]] : errorRefType();
@@ -297,7 +298,7 @@ struct Rc {
       }
       out.push_back(std::move(inst));
       if (res != kNoValue && isTracked(res)) {
-        avail[bit[res]] = 1;
+        have(res);
         bool used = usedAfter(res, p);
         if (resultBorrowed(src[p])) { if (used) out.push_back(op(IrOp::Retain, res)); }  // before the lender can be released
         else if (!used) out.push_back(op(IrOp::Release, res));
@@ -350,33 +351,46 @@ struct Rc {
 }  // namespace
 
 namespace {
-// Per vtable slot: whether a concrete class's method in it can raise an exception.
-std::vector<char> throwingSlots(const Module& m, const std::vector<char>& thr) {
-  std::vector<char> slots;
+// The least fixed point of a property of functions that spreads to their callers: a function has it when `has` says so on its own, when it
+// calls one that has it, or makes a virtual call through a slot one of whose concrete methods has it; a call of a function past the table or
+// through a slot past every vtable has it when `unknown` is set. Returns the functions and, per slot, whether one of its methods has it. A
+// worklist over the reversed call graph: scanning every function again until nothing changed was a tenth of reference counting (ZN-1024).
+struct Spread { std::vector<char> fns, slots; };
+Spread spread(const Module& m, std::vector<char> has, bool unknown) {
+  const std::size_t nf = m.functions.size();
+  std::size_t ns = 0;
+  for (const Class& c : m.classes) if (!c.isInterface && !c.isAbstract) ns = std::max(ns, c.vtable.size());
+  std::vector<std::vector<std::uint32_t>> callers(nf), vcallers(ns), fnSlots(nf);
+  for (std::uint32_t fi = 0; fi < nf; ++fi)
+    for (const Block& b : m.functions[fi].blocks)
+      for (const Inst& i : b.insts) {
+        if (i.op == IrOp::Call) { if (i.sym < nf) callers[i.sym].push_back(fi); else if (unknown) has[fi] = 1; }
+        else if (i.op == IrOp::CallVirt) { if (i.sym < ns) vcallers[i.sym].push_back(fi); else if (unknown) has[fi] = 1; }
+      }
   for (const Class& c : m.classes) {
     if (c.isInterface || c.isAbstract) continue;
-    if (slots.size() < c.vtable.size()) slots.resize(c.vtable.size(), 0);
-    for (std::size_t k = 0; k < c.vtable.size(); ++k) if (c.vtable[k] < m.functions.size() && thr[c.vtable[k]]) slots[k] = 1;
+    for (std::size_t k = 0; k < c.vtable.size(); ++k) if (c.vtable[k] < nf) fnSlots[c.vtable[k]].push_back(static_cast<std::uint32_t>(k));
   }
-  return slots;
+  Spread r{std::move(has), std::vector<char>(ns, 0)};
+  std::vector<std::uint32_t> work;
+  for (std::uint32_t fi = 0; fi < nf; ++fi) if (r.fns[fi]) work.push_back(fi);
+  auto mark = [&](std::uint32_t f) { if (!r.fns[f]) { r.fns[f] = 1; work.push_back(f); } };
+  while (!work.empty()) {
+    const std::uint32_t g = work.back();
+    work.pop_back();
+    for (std::uint32_t c : callers[g]) mark(c);
+    for (std::uint32_t k : fnSlots[g]) if (!r.slots[k]) { r.slots[k] = 1; for (std::uint32_t c : vcallers[k]) mark(c); }
+  }
+  return r;
 }
 
-// Functions that can raise an exception: they throw, or call (or may dispatch to) one that can.
-std::vector<char> throwingFunctions(const Module& m) {
-  std::vector<char> thr(m.functions.size(), 0);
-  for (bool changed = true; changed;) {
-    changed = false;
-    std::vector<char> slots = throwingSlots(m, thr);
-    for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {
-      if (thr[fi]) continue;
-      for (const Block& b : m.functions[fi].blocks)
-        for (const Inst& i : b.insts) {
-          bool t = i.op == IrOp::Throw || (i.op == IrOp::Call && thr[i.sym]) || (i.op == IrOp::CallVirt && i.sym < slots.size() && slots[i.sym]);
-          if (t) { thr[fi] = 1; changed = true; break; }
-        }
-    }
-  }
-  return thr;
+// Functions that can raise an exception (they throw, or call or may dispatch to one that can), and the vtable slots one of whose methods can.
+Spread throwing(const Module& m) {
+  std::vector<char> own(m.functions.size(), 0);
+  for (std::size_t fi = 0; fi < m.functions.size(); ++fi)
+    for (const Block& b : m.functions[fi].blocks)
+      for (const Inst& i : b.insts) if (i.op == IrOp::Throw) own[fi] = 1;
+  return spread(m, std::move(own), false);
 }
 }  // namespace
 
@@ -434,33 +448,18 @@ static Convention borrowedParams(const Module& m) {
 }
 
 void insertRc(Module& m) {
-  std::vector<char> thr = throwingFunctions(m);
-  std::vector<char> slots = throwingSlots(m, thr);
+  const Spread thrown = throwing(m);
+  const std::vector<char>& thr = thrown.fns;
+  const std::vector<char>& slots = thrown.slots;
   const Convention conv = borrowedParams(m);
   // per function and per slot: may store a reference (directly, or through a call): a call of one that may not keeps lent loads lent
-  std::vector<char> writes(m.functions.size(), std::getenv("ZN_NO_BORROW") ? 1 : 0), swrites;
-  auto slotsOf = [&] {
-    std::vector<char> sw;
-    for (const Class& cl : m.classes) {
-      if (cl.isInterface || cl.isAbstract) continue;
-      if (sw.size() < cl.vtable.size()) sw.resize(cl.vtable.size(), 0);
-      for (std::size_t k = 0; k < cl.vtable.size(); ++k) if (cl.vtable[k] < writes.size() && writes[cl.vtable[k]]) sw[k] = 1;
-    }
-    return sw;
-  };
-  for (bool changed = true; changed;) {
-    changed = false;
-    swrites = slotsOf();
-    for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {
-      if (writes[fi]) continue;
-      for (const Block& b : m.functions[fi].blocks) {
-        for (const Inst& i : b.insts)
-          if ((i.op == IrOp::Call && (i.sym >= writes.size() || writes[i.sym])) || (i.op == IrOp::CallVirt && (i.sym >= swrites.size() || swrites[i.sym])) || storesRef(m, m.functions[fi], i)) { writes[fi] = 1; break; }
-        if (writes[fi]) { changed = true; break; }
-      }
-    }
-  }
-  swrites = slotsOf();
+  std::vector<char> own(m.functions.size(), std::getenv("ZN_NO_BORROW") ? 1 : 0);
+  for (std::size_t fi = 0; fi < m.functions.size(); ++fi)
+    for (const Block& b : m.functions[fi].blocks)
+      for (const Inst& i : b.insts) if (!own[fi] && storesRef(m, m.functions[fi], i)) own[fi] = 1;
+  const Spread written = spread(m, std::move(own), true);
+  const std::vector<char>& writes = written.fns;
+  const std::vector<char>& swrites = written.slots;
   // each function on its own, on a few threads (ZN-1024): Rc changes only its function, and the only types it interns are interned here first,
   // so the workers read m.types and never grow it (the output does not depend on the order)
   m.voidT();

@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:36'
-updated_date: '2026-11-09 10:11'
+updated_date: '2026-11-09 10:13'
 labels:
   - dev
   - perf
@@ -112,4 +112,6 @@ Step 12 (perf(frontend): find an object's type without scanning every type): zin
 Step 13 (perf(ir): devirtualise each class and selector once): devirtualize scanned every class (isSubtype each) for every virtual call, four times per compile (once, then after each inline round); the answer depends only on the static class and the selector, so it is kept per pair for the pass. The dev entry of hero (load ~7.5): devirtualise 12 -> 3.3 ms, inline round 1 (which devirtualises after it) 54 -> 37 ms, optimise 164 -> 139 ms. Same bytes (hot_recompile, the four examples, the dev entry).
 
 Step 14 (perf(dev): take a save once two snapshots agree): zinc dev waited a fixed 30 ms after it saw a change before reading the files (an editor writes in steps); it now reads them again every 8 ms until two snapshots agree (at most 40 ms): a save in one write costs 8 ms. zinc dev of hero, four saves of a comment in Icon.tsx, load ~7: 614-626 ms after the save (662-720 before, steps 13-14).
+
+Step 15 (perf(ir): spread the throw and store facts over a worklist): which functions may throw and which may store a reference were fixed points that scanned every function again until nothing changed (on one thread, before the per-function work); one worklist over the reversed call graph and the vtable slots gives the same least fixed point. Rc::block moves its block's instructions instead of copying them, and a call that may throw looks only at the values the block holds (a bit set), not at every tracked value of the function. The dev entry of hero, load ~6: reference counting 96 -> 78 ms; a recompile of the dev entry 1210-1227 ms with the binary before step 10 -> 547-558 ms now. Same bytes (hot_recompile, the four examples, the dev entry, hero with ZN_NO_BORROW=1); tests/run --only rc_borrow, rc_lend, rc_refcast pass.
 <!-- SECTION:NOTES:END -->
