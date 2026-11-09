@@ -760,12 +760,15 @@ is installed, `setHost` returns false and the app is drawn as before.
 
 On macOS the host is `zinc:appkit` ([its page](plugins/appkit.md)): `import 'zinc:appkit';` once, and under `render: "native"` the tree shows as
 AppKit views (`View` and `Pressable` as flipped views that draw their background and border, `Text` as labels, `Image`, `ScrollView` as an
-NSScrollView, `TextInput` as NSTextField or NSSecureTextField, `TextArea` as an NSTextView); a View with no background, border, opacity or hiding
-gets no NSView (React Native's view flattening). A native render lays out with Yoga (the `rn` layout) unless `ui.layout` says otherwise. Presses,
+NSScrollView, `TextInput` as NSTextField or NSSecureTextField, `TextArea` as an NSTextView); a View with no background, border, opacity, hiding
+or focus gets no NSView (React Native's view flattening). Its `Window`, `Toolbar`, `ToolbarItem`, `SplitView` and `Sidebar` components are the
+window's own chrome there and draw a plain equivalent elsewhere: a component is a node with a native kind (`ui.setNativeKind(h, kind)`, sent as
+`c ID KIND`) and string attributes (`ui.setNativeAttr(h, name, value)`, sent as `a ID NAME TEXT`). Tab and Shift-Tab stay zinc:ui's focus walk,
+in native fields too, and the host moves the first responder after it. A native render lays out with Yoga (the `rn` layout) unless `ui.layout` says otherwise. Presses,
 hover and drags go through the views to zinc:ui's own hit testing, so handlers fire as in the drawn UI; fields and scroll views report typing,
 Enter, focus and scrolling. Under a native host zinc:ui starts no text input of its own, and keys pressed in a native field reach only the
 program's key handlers. The buffer also carries a field's value and an image's asset (`t`), the placeholder (`a ID placeholder TEXT`), `secure`
-(a password field) and the focus (`o ID`); `ui.hostMounted(h)` tells a host whether a late event's handle still holds the node it was about.
+(a password field), `focusable`, and the focus (`o ID K`, K 1 when the keyboard put it there); `ui.hostMounted(h)` tells a host whether a late event's handle still holds the node it was about.
 
 ## Tests
 

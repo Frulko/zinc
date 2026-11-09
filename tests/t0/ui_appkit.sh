@@ -1,6 +1,6 @@
 #!/bin/sh
 # The AppKit host (D210, ZN-1070): zinc:appkit shows tests/golden/ui-appkit with real NSViews in a window that is never shown (headless) and dumps
-# them: views, a flattened Pressable, labels measured by AppKit, an image, fields, a text area, a scroll view; a press that goes through the views to
+# them: views, a flattened row, a focusable Pressable, labels measured by AppKit, an image, fields, a text area, a scroll view; a press that goes through the views to
 # zinc:ui, typing, Enter and scrolling through AppKit coming back as the drawn UI's events; an update and a recycled handle. The interpreter is
 # compared with the golden, QuickJS and the AOT with the interpreter. macOS only. The widths AppKit measures follow the system font: a new macOS
 # may move them (ZN_UPDATE_GOLDEN=1 writes the golden again).

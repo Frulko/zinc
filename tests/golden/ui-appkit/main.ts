@@ -1,7 +1,7 @@
 // The AppKit host (D210, ZN-1070, tests/t0/ui_appkit.sh): zinc:appkit shows this tree with real NSViews, headless (a window never shown) and dumps them.
-// A view, a text, an image, a scroll view with rows, a field, a secure field, a text area and a Pressable that holds a text (flattened: no NSView of
-// its own). Then the events: a press goes through the views to zinc:ui (onClick), typing and Enter in the field come back as onInput, onChange and
-// onSubmit, scrolling as onScroll; then an update, and a removal with a recycled handle.
+// A view, a text, an image, a scroll view with rows, a field, a secure field, a text area and a Pressable that holds a text (a view of its own, as it
+// takes the focus; the layout-only row is flattened). Then the events: a press goes through the views to zinc:ui (onClick), typing and Enter in the
+// field come back as onInput, onChange and onSubmit, scrolling as onScroll; then an update, and a removal with a recycled handle.
 import * as ui from 'zinc:ui';
 import * as appkit from 'zinc:appkit';
 import { quit } from 'zinc:gfx';
@@ -15,7 +15,7 @@ const row = make(ui.VIEW, 'flex-row gap-[4px] h-[30px]', root);   // layout only
 const box = make(ui.VIEW, 'w-[50px] h-[30px] bg-[#ff0000] rounded-[6px] border-[2px] border-[#0000ff]', row);
 const pic = make(ui.IMAGE, 'w-[30px] h-[30px]', row);
 ui.setImage(pic, 'dot.png');
-const press = make(ui.VIEW, 'w-[80px] h-[30px] justify-center', row);   // a Pressable with no look of its own: flattened, its press goes to zinc:ui
+const press = make(ui.VIEW, 'w-[80px] h-[30px] justify-center', row);   // a Pressable: a view (it takes the focus), its press goes through to zinc:ui
 ui.listen(press, () => { console.log('pressed'); });
 text('Press', 'h-[18px] text-[#336699]', press);
 const field = make(ui.INPUT, 'h-[24px]', root);

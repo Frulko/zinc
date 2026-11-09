@@ -494,6 +494,7 @@ export class UiNode {
   lines: string[] = NO_LINES; lineW: number[] = NO_LINEW;   // shared empties until the text is laid out
   img: i32 = -1;
   src: string = '';   // the asset name of an <Image> (the DOM host sets an <img> from it)
+  nk: string = ''; nkv: string[] = NO_LINES;   // a native host's component kind and its string attributes, name then value (setNativeKind, setNativeAttr: zinc:appkit's Window, SplitView...)
   focusable: boolean = false;
   styleKeys: string[] = NO_LINES; styleVals: number[] = NO_LINEW; styleIds: i32[] = NO_IDS;   // shared empties until the first style number
   sheets: Style[] = NO_SHEETS; sheetKeys: string[] = NO_LINES; sheetVals: number[] = NO_LINEW; sheetIds: i32[] = NO_IDS;   // shared empties until the first style sheet (they are replaced, never changed in place when empty)
@@ -4076,7 +4077,7 @@ function rnValue(n: UiNode, p: i32): number {
   if (p === 40) return (n.mAuto & 4) !== 0 ? UNSET : n.mt; if (p === 41) return (n.mAuto & 2) !== 0 ? UNSET : n.mr;   // UNSET: auto
   if (p === 42) return (n.mAuto & 8) !== 0 ? UNSET : n.mb; if (p === 43) return (n.mAuto & 1) !== 0 ? UNSET : n.ml;
   if (p === 44) return n.grow;
-  if (p === 1009) return n.shrink;
+  if (p === 1009) return n.shrink < 0 && n.flex1 ? 1 : n.shrink;   // flex-1 shrinks (flex: 1 1 0%, as the classic layout and React Native's flex: 1)
   if (p === 45) return n.gap;
   if (p === 1013) return n.gapX;
   if (p === 1014) return n.gapY;
@@ -6765,7 +6766,7 @@ function inputFrame(): void {
     if (kind === KeyKind.Text) { if (dropText) dropText = false; else typeInto(focus, keyName(i)); }
     else if (kind === KeyKind.Down || kind === KeyKind.Repeat) {
       // a native host's field edits itself (SDL still reports its keys): the program's key handlers only, as the DOM host's keys
-      if (hostCommit !== null && focus >= 0 && nodes[focus].ed !== null) domKey(keyName(i), keyMods(i), kind === KeyKind.Repeat);
+      if (hostKeys()) hostKey(keyName(i), keyMods(i), kind === KeyKind.Repeat);
       else dispatchKey(keyName(i), keyMods(i), kind === KeyKind.Repeat);
     }
     else if (kind === KeyKind.Up) dispatchKeyUp(keyName(i), keyMods(i));
@@ -7312,7 +7313,7 @@ export function keyDown(h: i32, key: string, mods: i32 = 0): boolean {
   if (h >= 0) setFocusTo(h);
   if (layoutDirty) layout();
   if (overlays.length > 0 || restoreTo >= 0) flushOverlays();
-  return dispatchKey(key, mods, false).handled;
+  return hostKeys() ? hostKey(key, mods, false) : dispatchKey(key, mods, false).handled;
 }
 // ---- virtual keyboards (lib/std/kit/keyboard.tsx): the same path as the physical keyboard, not the test hooks
 /** Types `s` into the focused text field (replacing the selection), like typed text. */
@@ -8198,32 +8199,35 @@ export function domOutside(t: i32, gx: number, gy: number, button: i32): void {
 // through zn::host::setNativeMeasure (src/host/layout.h). The buffer is text, one record per line, fields separated by one space; a string is the last field,
 // with backslashes and newlines escaped (\\ and \n):
 //   d ID              the node is gone: the host drops its view (its children have their own d, or move under another node with a k record)
-//   c ID KIND         a new node; KIND is its tag (TAG_NAMES: view, text, button, image, scroll, canvas, fragment, input, textarea)
+//   c ID KIND         a new node; KIND is its tag (TAG_NAMES: view, text, button, image, scroll, canvas, fragment, input, textarea), or the kind of a native
+//                     component the program made it (setNativeKind: window, toolbar, split...), which the host builds as its own control
 //   f ID X Y W H      its box, relative to its parent's (a root's: to the window)
 //   t ID TEXT         the text of a text node, the value of a field (input, textarea), the asset name of an image
 //   p ID NAME VALUE   a style property of HOST_PROPS: colours 0xRRGGBB as numbers (-1: none, fg -1: inherited), opacity 0..1, sizes in px, bold and hidden 0 or 1;
 //                     a new node starts with HOST_DEFAULTS and is sent only the properties that differ
-//   a ID NAME TEXT    a string attribute: placeholder (of a field)
+//   a ID NAME TEXT    a string attribute: placeholder (of a field), and the attributes of a native component (setNativeAttr)
 //   k ID CHILD...     its children in order, after an insert, a move or a removal under it: the host makes its subviews this list
 //   r ID...           the roots, bottom first: the tree's root, then the layers shown (dialogs, popovers, menus)
-//   o ID              the node that has the keyboard focus (-1: none), when it changed: the host moves its first responder there
+//   o ID K            the node that has the focus (-1: none) and whether the keyboard put it there (K 1: Tab, so a focus ring shows), when one
+//                     changed: the host moves its first responder there
 // In each buffer the deletes come first (a recycled handle is deleted, then created again), then the creates and updates in tree order, then the child
 // lists, then the roots, then the focus. A host installed later, or again, gets the whole tree. Its events name a node by handle: hostMounted(h) tells whether
 // the node the host was told about under h is still that one, so a late event never drives a node made since on a recycled handle.
 const RENDER: string = env('ZINC_RENDER') !== '' ? env('ZINC_RENDER') : UI_RENDER;
-const HOST_PROPS: string[] = ['bg', 'bgAlpha', 'fg', 'opacity', 'radius', 'border', 'borderColor', 'fontSize', 'bold', 'hidden', 'secure'];
-const HOST_DEFAULTS: number[] = [-1, 255, -1, 1, 0, 0, BORDER_DEFAULT, DEFAULT_TEXT, 0, 0, 0];
+const HOST_PROPS: string[] = ['bg', 'bgAlpha', 'fg', 'opacity', 'radius', 'border', 'borderColor', 'fontSize', 'bold', 'hidden', 'secure', 'focusable'];
+const HOST_DEFAULTS: number[] = [-1, 255, -1, 1, 0, 0, BORDER_DEFAULT, DEFAULT_TEXT, 0, 0, 0, 0];
 class Mounted {   // what the host was last told about one node
   n: UiNode;
   seen: i32 = 0;   // the commit that last found it in the tree
   x: number = 0; y: number = 0; w: number = 0; h: number = 0;
-  text: string = ''; kids: string = ''; ph: string = '';
+  text: string = ''; kids: string = ''; ph: string = ''; kind: string;
+  attrs: string[] = [];   // the native attributes sent (name, value)
   props: number[];
-  constructor(n: UiNode) { this.n = n; this.props = HOST_DEFAULTS.slice(); }
+  constructor(n: UiNode, kind: string) { this.n = n; this.kind = kind; this.props = HOST_DEFAULTS.slice(); }
 }
 let hostCommit: ((changes: string) => void) | null = null;
 let mounted: (Mounted | null)[] = [], hostIds: i32[] = [], hostNow: i32[] = [], hostGen: i32 = 0, hostCommits: i32 = 0;
-let hostRoots = '', hostDel = '', hostBody = '', hostKids = '', hostFocus: i32 = -1;
+let hostRoots = '', hostDel = '', hostBody = '', hostKids = '', hostFocus: string = '-1 0';
 const hostVals: number[] = [];
 /**
  * Installs the native host that shows the tree (D210): `commit` gets the changes of each frame that changed something, the first time the whole tree,
@@ -8233,8 +8237,31 @@ const hostVals: number[] = [];
 export function setHost(commit: ((changes: string) => void) | null): boolean {
   if (commit !== null && RENDER !== 'native') return false;
   hostCommit = commit;
-  mounted = []; hostIds = []; hostRoots = ''; hostFocus = -1;   // a new host starts from nothing: the next commit mounts the whole tree
+  mounted = []; hostIds = []; hostRoots = ''; hostFocus = '-1 0';   // a new host starts from nothing: the next commit mounts the whole tree
   paintDirty = true;
+  return true;
+}
+/**
+ * Makes h a native component of the host (zinc:appkit's Window, Toolbar, SplitView...): the host is told `c ID KIND` with this kind instead of
+ * the tag and builds its own control for it. Drawn, and without a host, the node stays what its tag and classes say (the component's fallback).
+ */
+export function setNativeKind(h: i32, kind: string): void { const n = node(h); if (n.nk !== kind) { n.nk = kind; paintDirty = true; } }
+/** A string attribute of a native component (a window's title, a toolbar item's symbol), sent to the host as an `a` record when it changes. */
+export function setNativeAttr(h: i32, name: string, value: string): void {
+  const n = node(h);
+  if (n.nkv === NO_LINES) n.nkv = [];
+  for (let i = 0; i < n.nkv.length; i += 2) if (n.nkv[i] === name) { if (n.nkv[i + 1] !== value) { n.nkv[i + 1] = value; paintDirty = true; } return; }
+  n.nkv.push(name); n.nkv.push(value);
+  paintDirty = true;
+}
+/** Whether the keys of the HAL go to hostKey: a native host shows the tree and one of its fields has the focus (it edits itself). */
+function hostKeys(): boolean { return hostCommit !== null && focus >= 0 && nodes[focus].ed !== null; }
+/** A key pressed while a native field has the focus: the field does the editing (SDL still reports its keys), so only the program's key handlers
+ *  get it, as the DOM host's keys; Tab and Shift-Tab, when the program leaves them, move the focus as in the drawn UI (the host's fields do not). */
+function hostKey(key: string, mods: i32, repeat: boolean): boolean {
+  if (domKey(key, mods, repeat)) return true;
+  if (key !== 'Tab' || (mods & ~SHIFT) !== 0) return false;
+  focusStep((mods & SHIFT) !== 0);
   return true;
 }
 /** Whether the program asked for the native render (zinc.json "ui": {"render": "native"}, or ZINC_RENDER=native); whether a host shows it is hostActive(). */
@@ -8251,18 +8278,20 @@ function hostProps(n: UiNode): void {
   hostVals.push(n.bg); hostVals.push(n.bgAlpha); hostVals.push(n.fg); hostVals.push(n.opacity * n.fade); hostVals.push(n.radius);
   hostVals.push(n.borderW); hostVals.push(n.borderColor); hostVals.push(n.size); hostVals.push(n.bold ? 1 : 0); hostVals.push(n.hidden ? 1 : 0);
   hostVals.push(n.ed !== null && (n.ed as Edit).password ? 1 : 0);
+  hostVals.push(n.focusable && (n.hs === null || (n.hs as Handlers).tabIndex >= 0) ? 1 : 0);
 }
 /** Sends what changed in node h and its subtree since the last commit; true when h is new to the host. */
 function hostWalk(h: i32, parent: i32): boolean {
   const n = nodes[h];
   let m: Mounted | null = h < mounted.length ? mounted[h] : null;
-  if (m !== null && (m as Mounted).n !== n) { hostDel += 'd ' + h + '\n'; m = null; }   // the handle was recycled: its old node is gone
+  const kind = n.nk !== '' ? n.nk : TAG_NAMES[n.tag];
+  if (m !== null && ((m as Mounted).n !== n || (m as Mounted).kind !== kind)) { hostDel += 'd ' + h + '\n'; m = null; }   // the handle was recycled (its old node is gone), or the node became another component
   const fresh = m === null;
   if (m === null) {
-    m = new Mounted(n);
+    m = new Mounted(n, kind);
     while (mounted.length <= h) mounted.push(null);
     mounted[h] = m;
-    hostBody += 'c ' + h + ' ' + TAG_NAMES[n.tag] + '\n';
+    hostBody += 'c ' + h + ' ' + kind + '\n';
   }
   const s = m as Mounted;
   s.seen = hostGen; hostNow.push(h);
@@ -8274,6 +8303,12 @@ function hostWalk(h: i32, parent: i32): boolean {
     if (v !== s.text) { s.text = v; hostBody += 't ' + h + ' ' + hostEsc(v) + '\n'; }
     const ph = n.ed !== null ? (n.ed as Edit).placeholder : '';
     if (ph !== s.ph) { s.ph = ph; hostBody += 'a ' + h + ' placeholder ' + hostEsc(ph) + '\n'; }
+  }
+  for (let i = 0; i < n.nkv.length; i += 2) {
+    if (i + 1 < s.attrs.length && s.attrs[i] === n.nkv[i] && s.attrs[i + 1] === n.nkv[i + 1]) continue;
+    while (s.attrs.length < i + 2) s.attrs.push('');
+    s.attrs[i] = n.nkv[i]; s.attrs[i + 1] = n.nkv[i + 1];
+    hostBody += 'a ' + h + ' ' + n.nkv[i] + ' ' + hostEsc(n.nkv[i + 1]) + '\n';
   }
   hostProps(n);
   for (let i = 0; i < hostVals.length; i++) if (s.props[i] !== hostVals[i]) { s.props[i] = hostVals[i]; hostBody += 'p ' + h + ' ' + HOST_PROPS[i] + ' ' + hostVals[i] + '\n'; }
@@ -8300,7 +8335,7 @@ function commitHost(): void {
   hostIds = hostNow;
   let out = hostDel + hostBody + hostKids;
   if (added || roots !== hostRoots) { hostRoots = roots; out += 'r' + (roots === '' ? '' : ' ' + roots) + '\n'; }
-  const fo: i32 = hostMounted(focus) ? focus : -1;
+  const fo = hostMounted(focus) ? '' + focus + (keyboardFocus ? ' 1' : ' 0') : '-1 0';
   if (fo !== hostFocus) { hostFocus = fo; out += 'o ' + fo + '\n'; }
   hostDel = ''; hostBody = ''; hostKids = '';
   const f = hostCommit;

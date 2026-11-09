@@ -1215,4 +1215,8 @@ declare module 'zinc:ui' {
   export function hostCommitCount(): i32;
   /** Whether h is still the node the native host was last told about under that handle (alive, not deleted, not recycled since): a host event for h applies only then. */
   export function hostMounted(h: i32): boolean;
+  /** Makes h a native component of the host (zinc:appkit's Window, Toolbar, SplitView...): the host builds its own control for this kind; drawn, the node stays what its tag and classes say. */
+  export function setNativeKind(h: i32, kind: string): void;
+  /** A string attribute of a native component (a window's title, a toolbar item's symbol), sent to the host when it changes. */
+  export function setNativeAttr(h: i32, name: string, value: string): void;
 }

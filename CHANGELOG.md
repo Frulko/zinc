@@ -90,6 +90,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A rotated, skewed or scaled view turns around a transform origin: React Native's `transformOrigin` (`'top left'`, `'10px 20%'`) or an `origin-*` class (`origin-top-left`, `origin-[25%_75%]`); touches follow it.
 - A project can ask for native views with `"ui": { "render": "native" }` in `zinc.json` (or `ZINC_RENDER=native` for one run): a plugin that installs a host with `ui.setHost` then shows the tree with the platform's own views, and everywhere else the app is drawn as before.
 - On macOS, `import 'zinc:appkit'` in a project with `"render": "native"` shows its `View`, `Text`, `Image`, `ScrollView`, `TextInput`, `TextArea` and `Pressable` as real AppKit views, measured by AppKit, in the system's colours and dark mode, with native typing and scrolling; presses reach your handlers as before. `appkit.dump()` prints the native tree for tests.
+- `zinc:appkit` has the window's chrome: `Window` (title, toolbar style, full-size content), `Toolbar` with `ToolbarItem`s (SF Symbols or your own content, such as a search field), and `SplitView` with a `Sidebar` whose divider you drag; Tab and Shift-Tab move between the native fields and buttons. Without the AppKit host the same components draw a plain window bar, toolbar and sidebar.
 
 #### Changed
 
@@ -115,6 +116,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A canvas drawn with `onDraw`, and an `<Icon>`, now fade with the view they are in (an `opacity-50` card, a screen leaving a navigation stack) instead of staying fully opaque; `zinc:gfx` has `setGlobalAlpha` and `globalAlpha` for the same effect in your own drawing.
 - `onScroll` on a `ScrollView` or a `FlatList` runs once per scroll in a component that renders again: each render used to add another call.
 - A row child with `basis-*` lays its content out at its basis, so a wrapping list inside it takes the height it needs and a scroll area around it scrolls to its end.
+- With the `rn` layout, `flex-1` shrinks as in Tailwind and React Native's `flex: 1`: a pane next to a widened sidebar narrows instead of running past the window.
 
 ### The web
 

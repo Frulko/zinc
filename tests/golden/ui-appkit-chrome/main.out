@@ -1,0 +1,61 @@
+shown true
+-- mounted
+window "Library" toolbar=unified
+toolbar
+  #1 item "Add" symbol
+  #2 item "Search" view 120x22
+    #0 field 0,0 120x22 "" placeholder="Search" size=16 fg=text
+root 320x240
+  #11 split 0,0 320x240
+    #6 sidebar 0,0 100x240
+      #5 label 0,0 100x20 "Folders" size=16 fg=label
+    #7 view 101,0 219x240
+      #8 field 8,8 203x24 "" size=16 fg=text
+      #9 field 8,36 203x24 "" size=16 fg=text
+      #10 view 8,64 203x24 bg=#3366cc radius=6 focusable
+
+typed true
+focus on name true
+field editor tab true
+still on name true
+tab to mail true
+mail key x
+mail key Tab
+tab to go true
+-- focus on the view
+window "Library" toolbar=unified
+toolbar
+  #1 item "Add" symbol
+  #2 item "Search" view 120x22
+    #0 field 0,0 120x22 "" placeholder="Search" size=16 fg=text
+root 320x240
+  #11 split 0,0 320x240
+    #6 sidebar 0,0 100x240
+      #5 label 0,0 100x20 "Folders" size=16 fg=label
+    #7 view 101,0 219x240
+      #8 field 8,8 203x24 "Ann" size=16 fg=text
+      #9 field 8,36 203x24 "" size=16 fg=text
+      #10 view 8,64 203x24 bg=#3366cc radius=6 focusable first
+
+go pressed
+shift-tab to mail true
+toolbar press true
+add pressed
+divider true
+-- divider at 140
+window "Library" toolbar=unified
+toolbar
+  #1 item "Add" symbol
+  #2 item "Search" view 120x22
+    #0 field 0,0 120x22 "" placeholder="Search" size=16 fg=text
+root 320x240
+  #11 split 0,0 320x240
+    #6 sidebar 0,0 140x240
+      #5 label 0,0 140x20 "Folders" size=16 fg=label
+    #7 view 141,0 179x240
+      #8 field 8,8 163x24 "Ann" size=16 fg=text
+      #9 field 8,36 163x24 "" size=16 fg=text first
+      #10 view 8,64 163x24 bg=#3366cc radius=6 focusable
+
+divider true
+held at max: sidebar 0,0 160x240 content 161,0 159x240
