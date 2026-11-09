@@ -42,7 +42,9 @@ REPO = NXT
 ZINC = os.environ.get("ZINC", os.path.join(NXT, "build", "zinc"))
 OUT = os.path.join(REPO, "docs", "reports", "bench")
 SCENES = ["fill_opaque", "fill_blend", "quads_10k", "rounded_shadow", "gradients", "text_static", "text_churn", "clip_nested", "poly", "scroll_list", "image_update", "sprites_5k", "sprites_20k", "sprites_50k", "sprites_20k_mixed", "card_small", "card_big", "card_zoom", "image_fill_only", "image_upload_only", "damage_small",
-          "ui_scroll_fling", "ui_scroll_wheel", "ui_anim_transform", "ui_anim_layout", "ui_list_update"]
+          "ui_scroll_fling", "ui_scroll_wheel", "ui_anim_transform", "ui_anim_layout", "ui_list_update", "ui_noop", "ui_sparse_label", "ui_paint_only", "ui_filter", "ui_lifetime", "ui_retained", "ui_virtual"]
+UI_WORK_SCENES = set(SCENES[-7:])
+WORK_PROVENANCE = ("model", "wiring", "rows", "frames", "scenario_version")
 SUITES = {
     "render": {"project": os.path.join(NXT, "tests", "bench", "render_suite"), "app_id": "dev.zinc.bench.rendersuite", "name": "render_suite", "scenes": SCENES, "devices": ["mac", "android", "webos", "ios", "pi", "agent"]},
     # video: zinc:video has a decoder on macOS (VideoToolbox / FFmpeg) and iOS (AVFoundation); none on Android or webOS yet. The clip is a test pattern made by ffmpeg (nothing committed).
@@ -109,6 +111,10 @@ def parse_sections(text):
         w, h = p["window"]
         out[p["section"]] = {"profile": p, "frame_hash": p.get("frame_hash"), "hash_size": p.get("hash_size"), "scene": p["section"], "size": [w, h]}
         if d: out[p["section"]]["drawn"] = [int(d.group(1)), int(d.group(2))]
+    for m in re.finditer(r"^ZB_UI_WORK (\w+) (\{.*\})$", text, re.M):
+        if m.group(1) in out:
+            try: out[m.group(1)]["profile"]["ui_work"] = json.loads(m.group(2))
+            except ValueError: pass
     return out
 
 
@@ -499,6 +505,11 @@ def summarize(runs, mode):
         try: gpu[k] = round(med([float(v) for v in vals]), 1)
         except ValueError: gpu[k] = vals[0]
     if gpu: s["gpu"] = gpu
+    work = [r["profile"].get("ui_work") for r in good]
+    if any(w is not None for w in work):
+        s["ui_work"] = work[0]
+        s["oracle_pass"] = all(w is not None and w.get("oracle", {}).get("pass") is True for w in work)
+        s["work_counts_stable"] = all(w == work[0] for w in work)
     s["window"] = good[0]["profile"].get("window")
     vids = [r["video"] for r in good if "video" in r]
     if vids: s["video"] = {"decoder": vids[0]["decoder"], "frames_decoded": int(med([v["frames"] for v in vids])), "dropped": int(med([v["dropped"] for v in vids])), "dropped_max": max(v["dropped"] for v in vids)}
@@ -511,6 +522,8 @@ def problems(scenes, config):
         if s.get("ok_runs", 0) < s.get("runs", 0): out.append({"scene": sid, "kind": "run_failed", "detail": "%d of %d runs produced no profile (a timeout on a Mac usually means the window was covered or the display asleep: macOS stops drawing it)" % (s["runs"] - s.get("ok_runs", 0), s["runs"])})
         if s.get("retried_runs"): out.append({"scene": sid, "kind": "flaky_launch", "detail": "%d run(s) printed no profile at the first attempt (timeout or crash), the retry worked: see raw[].first_failure" % s["retried_runs"]})
         if s.get("ok_runs", 0) == 0: continue
+        if sid in UI_WORK_SCENES and not s.get("oracle_pass", False): out.append({"scene": sid, "kind": "oracle_failed", "detail": "UI structural oracle failed or is missing"})
+        if s.get("work_counts_stable") is False: out.append({"scene": sid, "kind": "work_counts_unstable", "detail": "UI provenance or structural counts differ between runs"})
         if s.get("drawn") and s.get("window") and not sid.startswith("ui_") and any(d != s["window"] for d in s["drawn"]): out.append({"scene": sid, "kind": "surface_mismatch", "detail": "the scene drew in %s on a %s surface: it did not fill the screen" % (s["drawn"], s["window"])})
         if len(s.get("frame_hashes", [])) > 1: out.append({"scene": sid, "kind": "frame_hash_unstable", "detail": "the last frame differs between runs: " + ", ".join(s["frame_hashes"])})
         if s["frames"] < config["frames"] - config["skip"] - 2: out.append({"scene": sid, "kind": "frames_missing", "detail": "%d frames measured, %d asked" % (s["frames"], config["frames"] - config["skip"])})
@@ -518,6 +531,16 @@ def problems(scenes, config):
         if s["spread"] > 0.10: out.append({"scene": sid, "kind": "noisy", "detail": "run-to-run spread %.0f%% of the median interval" % (s["spread"] * 100)})
         if s["vsync_locked"] and s["late_interval_gt_25"] > 0.02 * s["frames"]: out.append({"scene": sid, "kind": "stutter", "detail": "%d frames longer than 25 ms while paced" % s["late_interval_gt_25"]})
     return out
+
+
+def valid_work(summary):
+    work = summary.get("ui_work")
+    return work is None or (summary.get("oracle_pass") is True and work.get("oracle", {}).get("pass") is True)
+
+
+def same_work(base, new):
+    b, n = base.get("ui_work"), new.get("ui_work")
+    return (not b and not n) or bool(b and n and all(b.get(k) == n.get(k) for k in WORK_PROVENANCE))
 
 
 # ---------------------------------------------------------------- commands
@@ -579,13 +602,17 @@ def cmd_run(a):
                 if m.split("/")[0] == "uncapped": env["ZINC_VSYNC"] = "0"
                 env.update(renv[m.split("/")[1] if "/" in m else "auto"]); env.update(extra)
                 say("run %d/%d  %-15s %s" % (run + 1, a["runs"], sid, m))
+                if sid in UI_WORK_SCENES:
+                    env["ZB_PER"] = str(a["skip"] + a["frames"])
+                    if dev.report_path():
+                        env["ZB_OUT"] = dev.report_path(); env["ZB_RUN"] = "%d-%d" % (time.time(), run)
                 text = dev.launch(env, timeout)
-                r = parse_run(text)
+                r = parse_sections(text).get(sid, {}) if sid in UI_WORK_SCENES else parse_run(text)
                 if "profile" not in r:   # one more try, and the failure stays on record (a launch that sometimes hangs is a finding, not noise to hide)
                     first = text.strip().splitlines()[-6:]
                     say("no profile from %s; trying once more" % sid)
                     text = dev.launch(env, timeout)
-                    r = parse_run(text)
+                    r = parse_sections(text).get(sid, {}) if sid in UI_WORK_SCENES else parse_run(text)
                     r["first_failure"] = first
                     if "profile" not in r: r["raw_tail"] = text.strip().splitlines()[-6:]
                 results[m][sid].append(r)
@@ -605,7 +632,8 @@ def cmd_run(a):
     show([path])
 
 
-def load(path): return json.load(open(path))
+def load(path):
+    with open(path) as f: return json.load(f)
 
 
 def show(paths):
@@ -622,11 +650,18 @@ def show(paths):
             for d in cols:
                 s = d["modes"][mode]["scenes"].get(sid)
                 if not s or "work_p50_us" not in s: row += "%-46s" % "-"; continue
-                ratio = ("x%.1f" % (s["work_p50_us"] / base)) if base and s is not cols[0]["modes"][mode]["scenes"][sid] else ""
+                ratio = ("x%.1f" % (s["work_p50_us"] / base)) if base and s is not cols[0]["modes"][mode]["scenes"][sid] and same_work(cols[0]["modes"][mode]["scenes"][sid], s) and valid_work(cols[0]["modes"][mode]["scenes"][sid]) and valid_work(s) else ""
                 g = s.get("gpu", {})
                 gpu = (" gpu%.2f" % (g["gl_gpu_us"] / 1000)) if g.get("gl_gpu_us") else ""
                 row += "%-46s" % ("w%.2f p%.2f%s | i%.1f/%.1f %3.0ffps L%d ±%.0f%% %s%s" % (s["work_p50_us"] / 1000, s["present_p50_us"] / 1000, gpu, s["interval_p50_us"] / 1000, s["interval_p99_us"] / 1000, s["fps"], s["late_work_gt_16_7"], s["spread"] * 100, "V" if s["vsync_locked"] else "", ratio))
             print(row)
+            for d, n in zip(cols, names):
+                work = d["modes"][mode]["scenes"].get(sid, {}).get("ui_work")
+                if work:
+                    settled = next((p for p in work.get("phases", []) if p["phase"] == "settled"), {})
+                    print("  %s: %s/%s rows=%s oracle=%s settled bindings=%s measure/place=%s/%s paint/host=%s/%s" %
+                          (n, work.get("model"), work.get("wiring"), work.get("rows"), work.get("oracle", {}).get("pass"),
+                           settled.get("binding_evaluations"), settled.get("measure_visits"), settled.get("place_visits"), settled.get("paint_visits"), settled.get("native_host_visits")))
         for d, n in zip(cols, names):
             pr = d["modes"][mode]["problems"]
             if pr:
@@ -648,12 +683,21 @@ def cmd_gate(a):
         for sid, s in new["modes"][mode]["scenes"].items():
             b = base["modes"][mode]["scenes"].get(sid)
             if not b or "work_p50_us" not in s or "work_p50_us" not in b: continue
+            bw, sw = b.get("ui_work"), s.get("ui_work")
+            if bw or sw:
+                if not same_work(b, s):
+                    prob.append((mode, sid, "incompatible UI provenance", bw and {k: bw.get(k) for k in WORK_PROVENANCE}, sw and {k: sw.get(k) for k in WORK_PROVENANCE}))
+                    continue
+                if not valid_work(b) or not valid_work(s): prob.append((mode, sid, "oracle_failed", "base or new UI structural oracle failed or missing", ""))
+            elif sid in UI_WORK_SCENES:
+                prob.append((mode, sid, "oracle_failed", "UI work metadata missing", ""))
+                continue
             floor = max(a["tolerance"], 2 * max(s["spread"], b["spread"]))
             for k in ("work_p50_us", "work_p99_us"):
                 if b[k] > 50 and s[k] > b[k] * (1 + floor): bad.append((mode, sid, k, b[k], s[k], floor))
             if b.get("frame_hashes") and s.get("frame_hashes") and b["frame_hashes"] != s["frame_hashes"]: prob.append((mode, sid, "frame hash changed", b["frame_hashes"], s["frame_hashes"]))
         for p in new["modes"][mode]["problems"]:
-            if p["kind"] in ("run_failed", "frame_hash_unstable", "frames_missing", "flaky_launch"): prob.append((mode, p["scene"], p["kind"], p["detail"], ""))
+            if p["kind"] in ("run_failed", "frame_hash_unstable", "frames_missing", "flaky_launch", "oracle_failed", "work_counts_unstable"): prob.append((mode, p["scene"], p["kind"], p["detail"], ""))
     for m, sid, k, b, n, f in bad: print("SLOWER  %-8s %-15s %-12s %9.0f -> %9.0f us  (+%.0f%%, allowed %.0f%%)" % (m, sid, k, b, n, (n / b - 1) * 100, f * 100))
     for x in prob: print("PROBLEM %-8s %-15s %s %s %s" % x)
     if not bad and not prob: print("ok: no scene is slower than its noise allows, no rendering problem")

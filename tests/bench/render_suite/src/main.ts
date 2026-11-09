@@ -5,6 +5,7 @@
 import { quit, onFrame, clear, rect, rrect, border, shadow, clip, unclip, font, drawText, gradient, line, polygon, width, height, imageFromPixels, updateImage, drawImage, drawImageRect, profSection, setTransform, resetTransform } from 'zinc:gfx';
 import * as sys from 'zinc:sys';
 import { startUi, startUiSequence } from './ui_scenes';
+import { WORK_IDS } from './ui_work';
 import { openReport, closeSection } from './report';
 
 let seed = 12345;
@@ -42,7 +43,7 @@ function geometry(): void {
   for (let i = 0; i < N; i++) { qx.push(rnd(W)); qy.push(rnd(H)); qw.push(20 + rnd(40)); qh.push(20 + rnd(40)); qc.push(0x202020 + rnd(0xdfdfdf)); }
 }
 
-const ids: string[] = ['fill_opaque', 'fill_blend', 'quads_10k', 'rounded_shadow', 'gradients', 'text_static', 'text_churn', 'clip_nested', 'poly', 'scroll_list', 'image_update', 'sprites_5k', 'sprites_20k', 'sprites_50k', 'sprites_20k_mixed', 'card_small', 'card_big', 'card_zoom', 'image_fill_only', 'image_upload_only', 'damage_small', 'ui_scroll_fling', 'ui_scroll_wheel', 'ui_anim_transform', 'ui_anim_layout', 'ui_list_update'];
+const ids: string[] = ['fill_opaque', 'fill_blend', 'quads_10k', 'rounded_shadow', 'gradients', 'text_static', 'text_churn', 'clip_nested', 'poly', 'scroll_list', 'image_update', 'sprites_5k', 'sprites_20k', 'sprites_50k', 'sprites_20k_mixed', 'card_small', 'card_big', 'card_zoom', 'image_fill_only', 'image_upload_only', 'damage_small', 'ui_scroll_fling', 'ui_scroll_wheel', 'ui_anim_transform', 'ui_anim_layout', 'ui_list_update', ...WORK_IDS];
 
 // texture upload: one 256 x 256 image changes every frame (a GPU display uploads only that image), drawn four times
 const pix: u8[] = [];

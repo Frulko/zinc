@@ -845,6 +845,9 @@ declare module 'zinc:ui' {
   export function layoutPasses(): i32;
   /** How many times the layout ran (a paint-only change must not move it). */
   export function layoutCount(): i32;
+  /** Cumulative node visits while gfx profiling is enabled: classic measure/place, paint entry, native host entry.
+   *  These count visits (including culled nodes), not changed nodes; Yoga internals are not measured. */
+  export function profileVisits(): i32[];
   /** Sets an aria-* or data-* attribute (aria-checked = "true", data-state = "open"): variants such as aria-checked: and data-[state=open]: follow it, paint only. */
   export function setAttr(h: i32, name: string, value: string): void;
   export function setClass(h: i32, cls: string): void;

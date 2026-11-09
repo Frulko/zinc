@@ -129,4 +129,89 @@ class BenchmarkHarness(unittest.TestCase):
         self.assertTrue(any(not v["pass"] for v in doc["thresholds"]))
 
 
+
+class RenderHarness(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.zb = runpy.run_path(str(ROOT / "tools/zbench"))
+
+    def profile(self, work=None):
+        p = {"section": "ui_noop", "window": [240, 160], "frames": 8,
+             "phases": {k: {"p50": 100, "p99": 120} for k in ("work", "interval", "raster", "present")},
+             "late": {"work_gt_16_7": 0, "interval_gt_25": 0}}
+        if work is not None: p["ui_work"] = work
+        return p
+
+    def work(self):
+        return {"model": "retained-solid-signals", "wiring": "fine", "rows": 16,
+                "frames": 8, "scenario_version": 1, "oracle": {"pass": True, "failures": []},
+                "phases": [{"phase": "disposal", "memory": {"rss_bytes": None, "heap_bytes": None}}]}
+
+    def summary(self, work=None):
+        p = self.profile(work)
+        report = {"schema": "zbench-report/1", "surface": "240x160", "sections": [p]}
+        runs = self.zb["parse_sections"](json.dumps(report))
+        self.assertEqual(runs["ui_noop"]["profile"], p)
+        return self.zb["summarize"]([runs["ui_noop"]], "uncapped")
+
+    def gate(self, base, new):
+        with tempfile.TemporaryDirectory() as temp:
+            paths = [str(Path(temp) / name) for name in ("base.json", "new.json")]
+            for path, summary in zip(paths, (base, new)):
+                Path(path).write_text(json.dumps({"schema": "zbench/1", "modes": {"uncapped": {
+                    "scenes": {"ui_noop": summary}, "problems": []}}}))
+            with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exit:
+                self.zb["cmd_gate"]({"files": paths, "tolerance": .15})
+            return exit.exception.code
+
+    def test_old_report_and_gate_still_work(self):
+        summary = self.summary()
+        self.assertNotIn("ui_work", summary)
+        # Historic scenes have no structural-work extension.
+        self.zb["UI_WORK_SCENES"].remove("ui_noop")
+        try: self.assertEqual(self.gate(summary, summary), 0)
+        finally: self.zb["UI_WORK_SCENES"].add("ui_noop")
+
+    def test_work_metadata_and_unavailable_memory_survive(self):
+        summary = self.summary(self.work())
+        self.assertTrue(summary["oracle_pass"])
+        self.assertIsNone(summary["ui_work"]["phases"][0]["memory"]["rss_bytes"])
+        self.assertEqual(self.gate(summary, summary), 0)
+
+    def test_wrong_fast_work_fails_gate_even_without_problem_list(self):
+        base = self.summary(self.work())
+        bad = self.work(); bad["oracle"]["pass"] = False
+        new = self.summary(bad); new["work_p50_us"] = 1
+        self.assertEqual(self.gate(base, new), 4)
+        new["oracle_pass"] = True
+        self.assertEqual(self.gate(base, new), 4)
+
+    def test_wrong_fast_baseline_cannot_win(self):
+        bad = self.work(); bad["oracle"]["pass"] = False
+        base, new = self.summary(bad), self.summary(self.work())
+        self.assertFalse(self.zb["valid_work"](base))
+        self.assertTrue(self.zb["valid_work"](new))
+        self.assertEqual(self.gate(base, new), 4)
+        base["oracle_pass"] = True
+        self.assertFalse(self.zb["valid_work"](base))
+        self.assertEqual(self.gate(base, new), 4)
+
+    def test_missing_oracle_fails(self):
+        summary = self.summary()
+        self.assertEqual(self.gate(summary, summary), 4)
+        problems = self.zb["problems"]({"ui_noop": summary}, {"frames": 8, "skip": 0})
+        self.assertIn("oracle_failed", [p["kind"] for p in problems])
+
+    def test_different_rows_or_wiring_cannot_win(self):
+        base = self.summary(self.work())
+        for key, value in (("rows", 64), ("wiring", "coarse"), ("frames", 12)):
+            new = self.work(); new[key] = value
+            self.assertEqual(self.gate(base, self.summary(new)), 4)
+
+    def test_log_fallback_keeps_extended_profile(self):
+        p = self.profile(self.work())
+        work = p.pop("ui_work")
+        parsed = self.zb["parse_sections"]("zinc profile json: " + json.dumps(p) + "\nZB_UI_WORK ui_noop " + json.dumps(work))
+        self.assertEqual(parsed["ui_noop"]["profile"]["ui_work"], self.work())
+
 unittest.main()

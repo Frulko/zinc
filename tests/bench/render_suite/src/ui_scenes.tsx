@@ -1,7 +1,9 @@
 // The zinc:ui scenes of the render suite (tools/zbench): what a screen of an app does, not the renderer's raw commands. Each one is deterministic: the
 // gestures are injected by the program itself (ui.pointerAt, ui.wheelAt) at fixed frames, the tweens start at fixed frames, nothing reads the clock.
 import { createNodeRef, createSignal, render, NodeRef, Show } from 'zinc:ui/solid';
-import { closeSection } from './report';
+import { closeSection, openReport } from './report';
+import { width, height } from 'zinc:gfx';
+import { WORK_IDS, WorkApp, beginWork, tickWork, workResult } from './ui_work';
 import * as ui from 'zinc:ui';
 
 const ROWS = 400;
@@ -77,6 +79,7 @@ function UpdateApp(): i32 {
 function listUpdate(f: number): void { for (let i = 0; i < 100; i++) setters[i](f * 7 + i); }
 
 export function startUi(id: string): void {
+  if (WORK_IDS.indexOf(id) >= 0) { startUiSequence([id], 12, 12, () => {}); return; }
   if (id === 'ui_scroll_fling') render(ScrollApp, 0xffffff, (dt: number) => { frame++; scrollFling(frame); });
   else if (id === 'ui_scroll_wheel') render(ScrollApp, 0xffffff, (dt: number) => { frame++; scrollWheel(frame); });
   else if (id === 'ui_anim_transform') render(TransformApp, 0x111827, (dt: number) => { frame++; animTransform(frame); });
@@ -93,11 +96,13 @@ function AllApp(): i32 {
     <Show when={cur() === 2}><TransformApp /></Show>
     <Show when={cur() === 3}><LayoutApp /></Show>
     <Show when={cur() === 4}><UpdateApp /></Show>
+    <Show when={cur() >= 5}><WorkApp /></Show>
   </View>;
 }
-const UI_IDS: string[] = ['ui_scroll_fling', 'ui_scroll_wheel', 'ui_anim_transform', 'ui_anim_layout', 'ui_list_update'];
+const UI_IDS: string[] = ['ui_scroll_fling', 'ui_scroll_wheel', 'ui_anim_transform', 'ui_anim_layout', 'ui_list_update', ...WORK_IDS];
 /** Runs the named scenes one after the other, `per` frames each (the warm-up included), closing a profile section after each; `done` runs after the last. */
 export function startUiSequence(wanted: string[], per: number, maxs: number, done: () => void): void {
+  openReport(width() + 'x' + height());
   const idx: number[] = [];
   for (let i = 0; i < wanted.length; i++) idx.push(UI_IDS.indexOf(wanted[i]));
   let k = 0;
@@ -106,16 +111,18 @@ export function startUiSequence(wanted: string[], per: number, maxs: number, don
   render(AllApp, 0xffffff, (dt: number) => {
     if (k >= idx.length) return;
     const sc = idx[k];
-    if (f === 0) setCur(sc);
+    if (f === 0) { if (sc >= 5) { if (per < 8) throw new Error('UI work scenes need at least 8 frames'); beginWork(wanted[k]); } setCur(sc); }
     if (f === 0) el = performance.now();
     f++;
     if (sc === 0) scrollFling(f);
     else if (sc === 1) scrollWheel(f);
     else if (sc === 2) animTransform(f);
     else if (sc === 3) animLayout(f);
-    else listUpdate(f);
+    else if (sc === 4) listUpdate(f);
+    else tickWork(f, per);
     if (f === per || (f >= 8 && performance.now() - el > maxs * 1000)) {
-      closeSection(wanted[k], k + 1 >= idx.length);
+      closeSection(wanted[k], k + 1 >= idx.length, sc >= 5 ? workResult() : '');
+      setCur(-1);
       k++;
       f = 0;
       if (k >= idx.length) done();

@@ -2615,6 +2615,11 @@ function settleContainers(): void {
 let layoutRuns: i32 = 0;
 /** How many times the layout ran (a paint-only change must not move it). */
 export function layoutCount(): i32 { return layoutRuns; }
+let profileVisitsEnabled = false;
+let profileMeasure: i32 = 0, profilePlace: i32 = 0, profilePaint: i32 = 0, profileHost: i32 = 0;
+/** Cumulative node visits while gfx profiling is enabled: classic measure/place, paint entry, native host entry.
+ *  These count visits (including culled nodes), not changed nodes; Yoga internals are not measured. */
+export function profileVisits(): i32[] { return [profileMeasure, profilePlace, profilePaint, profileHost]; }
 const statefuls: i32[] = [];
 const attrSlots: string[] = [];   // "aria-checked=true", "data-state=open": the conditions of the attribute variants, slot i is state bit 10 + i
 /** The value of an aria-* or data-* attribute of a node ("" when unset). */
@@ -3651,6 +3656,7 @@ function inB(n: UiNode): number { return n.pb + bwOf(n, n.bd.bB); }
 function inL(n: UiNode): number { return n.pl + bwOf(n, n.bd.bL); }
 let pctBase: number = -1;   // the width a percent width is taken of: the container's content width, whatever margins the child has (CSS)
 function measure(n: UiNode, maxW: number, maxH: number): void {
+  if (profileVisitsEnabled) profileMeasure++;
   let ownW: number = n.w >= 0 ? n.w : n.wFrac > 0 ? Math.round((pctBase >= 0 ? pctBase : maxW) * n.wFrac) : -1;
   pctBase = -1;
   if (n.maxW >= 0) { if (maxW > n.maxW) maxW = n.maxW; if (ownW > n.maxW) ownW = n.maxW; }   // a box with a max-width never ends wider: what wraps in it is measured for that width, not for the one offered (ZN-737)
@@ -3986,6 +3992,7 @@ function cssFlex(n: UiNode, kids: UiNode[], start: i32, end: i32, inner: number,
   }
 }
 function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
+  if (profileVisitsEnabled) profilePlace++;
   if (n.rel || (RN_STYLE && !n.abs && !n.stat)) { x += n.left !== UNSET ? n.left : n.right !== UNSET ? -n.right : 0; y += n.top !== UNSET ? n.top : n.bottom !== UNSET ? -n.bottom : 0; }   // position: relative: shifted, the layout around it is not
   n.x = x; n.y = y; n.lw = vw; n.lh = vh;
   if (n.tag === TEXT) {
@@ -5025,6 +5032,7 @@ function paintCa(h: i32, n: UiNode, ox: number, oy: number, k: number, alpha: nu
   }
 }
 function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
+  if (profileVisitsEnabled) profilePaint++;
   const n = node(h);
   if (n.hidden || n.invisible || (n.layer && h !== layerPass)) return;
   if (n.ca && caPass !== h) { paintCa(h, n, ox, oy, k, alpha); return; }
@@ -7100,6 +7108,7 @@ function stepPress(): void {
 export function frame(dt: number, background: i32): void {
   if (root < 0) return;
   const prof = profiling();
+  profileVisitsEnabled = prof;
   if (prof) profMark(PROF_APP);
   const first = gfxFrame() !== steppedAt;   // the clock, animations and scrolls step once per frame of the engine, whatever the windows (ZN-663)
   steppedAt = gfxFrame();
@@ -8575,6 +8584,7 @@ function hostProps(n: UiNode): void {
 }
 /** Sends what changed in node h and its subtree since the last commit; true when h is new to the host. */
 function hostWalk(h: i32, parent: i32): boolean {
+  if (profileVisitsEnabled) profileHost++;
   const n = nodes[h];
   let m: Mounted | null = h < mounted.length ? mounted[h] : null;
   const kind = n.nk !== '' ? n.nk : TAG_NAMES[n.tag];

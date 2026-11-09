@@ -29,6 +29,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - On the 2D canvas of a JavaScript program, `CanvasPattern.setTransform` places a pattern, and a pattern drawn larger is smoothed as Chrome smooths it, or kept sharp with `imageSmoothingEnabled = false`.
 - `imageFromBytes` reads GIF pictures (the first frame of an animated one) as well as PNG, JPEG and WebP.
 - A font rule `"as": "font"` in `zinc.json` keeps only the characters you name: `"charset": ["latin-1", "i18n/*.json"]` adds every string of your translation files. With `"sdf": "msdf"` it also makes a distance-field atlas, and `MsdfFont` of `zinc:gfx/msdf` draws text from it that stays sharp at any size, zoomed or turned.
+- `tools/zbench` measures equal writes, sparse labels, paint-only updates, filtering, cleanup and virtual lists at configurable sizes; reports separate binding work from UI visits and reject failed correctness checks.
 
 #### Faster
 

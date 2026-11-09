@@ -22,8 +22,9 @@ function save(done: boolean): void {
 }
 
 /** Closes the engine's profile section `id`, keeps its numbers in the report and writes the file (done: the last scene). */
-export function closeSection(id: string, last: boolean): void {
+export function closeSection(id: string, last: boolean, work: string = ''): void {
   const j: string = profSection(id);
-  if (j.length > 0) parts.push(j);
+  if (j.length > 0) parts.push(work.length > 0 ? j.substring(0, j.length - 1) + ',"ui_work":' + work + '}' : j);
+  if (work.length > 0) console.log('ZB_UI_WORK ' + id + ' ' + work);
   save(last);
 }
