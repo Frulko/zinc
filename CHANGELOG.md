@@ -76,6 +76,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `navigator.mediaDevices.getUserMedia` asks for the camera or the microphone first, as a browser does, instead of failing with `NotAllowedError` on a Mac where access was never asked.
 - With `ZINC_NATIVE=sim`, `--engine quickjs` runs a plugin's simulated stand-in like the other engines, instead of its native library (the iPod demo no longer looks for a real iPod).
 - A JavaScript program that makes sound on a machine where the audio plugin cannot be built goes on in silence after one line that says why, instead of stopping with an error.
+- Quit in the app menu (Cmd+Q) runs the program's close handlers first, as the window's close button does, so a program can save its work, ask, or keep its state before it ends.
 
 ### UI
 

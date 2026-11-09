@@ -52,14 +52,23 @@ function listen(): void {
     const e = JSON.parse(json);
     const closing = e.type === 'window' && e.args[0] === 'close-requested';
     if (closing) closePrevented = false;
-    const i = names.indexOf(e.type);
-    if (i >= 0) {
-      const list = handlers[i];
-      for (let k = 0; k < list.length; k++) list[k](e.args);
-    }
+    dispatch(e.type, e.args);
     // the HAL kept the window open while the handlers ran: unless one of them vetoed, the close goes through now
     if (closing && !closePrevented) call('window.confirmClose', {});
   });
+}
+function dispatch(type: string, args: string[]): void {
+  const i = names.indexOf(type);
+  if (i < 0) return;
+  const list = handlers[i];
+  for (let k = 0; k < list.length; k++) list[k](args);
+}
+/** Runs the 'window' close-requested handlers as the close button would; true when none vetoed (preventClose). Quit of the app menu goes
+ *  through it, as Cmd+Q without a menu of the program's own does (the HAL's quit event): the program saves or asks before it ends. */
+export function requestClose(): boolean {
+  closePrevented = false;
+  dispatch('window', ['close-requested']);
+  return !closePrevented;
 }
 /** Subscribes to an event: 'menu-click', 'tray-click', 'notification-click', 'shortcut', 'drop', 'open-url', 'second-instance', 'power', 'appearance', 'window'... `args` are the event's words. */
 export function on(type: string, handler: (args: string[]) => void): void {
