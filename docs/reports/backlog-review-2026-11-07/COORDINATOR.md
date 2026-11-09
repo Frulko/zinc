@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserved Tool panels14 for short primary-reference/provider research in a separate read-only worktree, then a fresh family worker. Code13 is implementing independent provider-backed controls; no second core writer. Feedback progress c9be3d26a integrated AC1/2 complete/AC3 size pending.1101 cwd and1104 reader fixes integrated; root rebuilt clean902 and8c, exactproject_cwd PASS, library_icons integration proof pending. Core1103 implemented prototype and reports actual unchanged combined JS4076/AOT61308 pass; final caller proof/commit pending.
+
 - Claimed Code13 for a fresh independent family worker after the read-only1103 reviewer returned. Existing provider/CUI research is already in task notes; reuse editor/Markdown/inspector providers, no shared core edits or engine build. Current core handles1101/1104/1103/1102; Feedback finishes defaults/captures, Data source is integrated Backlog pending common gallery/size proof. This fills three worker slots without another coordinator or overlapping core writer.
 
 - Data progress8f8478bd5 integrated, Backlog AC2complete; root merged publickit_data12-runPASSall3inclrealFS with1101candidate. Candidatefreeze releasedforCLInegativecase validation; no sourceworkaround. Reserved1103actualcombinedsizegate +1104full-AppQuickJSiconprobe fallback. Coreorder1101→1104→1103→1102, fourtasks. Feedback fullgalleryinterpreterpasses; unusedfullAppbody stilltriggersQuickJSfallback, simplebodydoesnot. Read-onlysizelead:100d-onlySVGpaths inprior41documents, privateconstructorreuse worthactualmeasurement. NoUIcut/budgetraise.
