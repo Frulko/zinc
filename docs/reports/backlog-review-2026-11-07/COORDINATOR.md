@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-10: Integrated1107 live getters4399fedce and1106 nullable numeric payload conversion da7ca0360; actual Code all six and Data twelve proofs pass.1105 AC3 complete. Root clean final rebuild/proofs queued; Code13 and Tool14 continue. Reserve Charts15 for a fresh inherited-model worker, TS-only, no second core writer. Owner added OptiPlex Intel Linux16GB: LAN mowmow@192.168.2.228 and Tailscale100.66.7.14 verified by SSH, no development tools/Zinc installed; build on Mac and deploy under owned ~/zn/name.
+
 - Integrated1105 tested source-hit ed5150388 AC1/2, AC3Reactcaller waits1107. Reserved1107 shared componentSignal live-getter contract after originalCodeJson/link same-frame actions exposed React snapshot read; rawuseState unchanged. Fresh core order1105→1107→1106, three tasks, onlyown1106build canceled cleanly to unblockTSproof. Accidental main ui.d.ts generation was inspected/backedup/restored toknowncleanHEAD; later correct1105 dts integrated, external sparseMap nevercommitted. No owner source/index changes. CodeSolidall3 links pass; neutral exact1107all6 passes, originalReactproofpending.
 
 -1101/1104/1103 integrated902de09c0/8c31f5cb7/20fc72043; root clean rebuilds and exactproject_cwd/library_icons PASS.1103 actual combined gate JS4076/AOT61308,172strictBheadroom; noUI/icon/budgetcut. Data/Feedback finalroot family/gate proof pending. Core1102 readyab4d4dd61; oldbatch ends after4, fresh1105/1106 handles text glyph/source-hit and accepted nullable numeric widening, no sixth task. Code13 source/provider/model proof advances; real inline links wait1105. Tool14 primary research complete, taskclaimed, nextfresh implementation worker. RESUME history archived then rewritten compactly.
@@ -134,6 +136,7 @@ Each iteration (a wake-up or an agent's notification):
 
 ## Test machines (owner, 2026-11-07)
 
+- Additional machine (owner2026-11-10): OptiPlex Fedora45 x86_64, i3-7100T,16GB; `mowmow@192.168.2.228` or Tailscale `mowmow@100.66.7.14` / `optiplex.tail80b63.ts.net`. SSH verified both routes. No compiler/build tools/Zinc initially installed; cross-built bounded programs in owned directories first.
 - Cross lane open: the Pi 3B+ player spark@192.168.2.31 and the Mojave Intel Mac mowmow@192.168.2.215 (AGENTS.md "The test machines"). One worker lane may take cross tasks these machines can prove; cross builds count as a building tree.
 - Integrated: devtools chain ZN-1031, ZN-640, ZN-1020 (D211) and export chain ZN-797, ZN-816, ZN-817 (D212), smoke tests pass in a clean worktree with ZINC_ROOT.
 - Integrated: runtime chain ZN-643, ZN-1015 (Review), ZN-1005 (D213) and tools chain ZN-1063, ZN-774.25, ZN-774.18 (D214). AOT smoke tests run from the main tree (not with ZINC_ROOT: rt.h WIP mismatch).

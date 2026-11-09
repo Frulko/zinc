@@ -81,9 +81,9 @@ Never ask the owner to choose, confirm or approve a design or technical decision
 - Pick the best option (score it as `RULES.md` §4 says when it matters), write the choice and why in the task notes or a decision record, and go on. A reversible choice is made at once.
 - Only an irreversible or outward-facing step (publishing, pushing, deleting data, spending money, sending a message) waits for the owner: do everything up to it and leave the exact command in the task notes.
 
-## Development platform first; the cross-platform work advances on two test machines (owner, 2026-10-10, revised 2026-11-07)
+## Development platform first; the cross-platform work advances on three test machines (owner, 2026-10-10, revised 2026-11-10)
 
-The engine is built on the development Mac. Since 2026-11-07 the cross-platform work advances too, cross builds included, proven on the two test machines of "The test machines" below (a Raspberry Pi 3B+ with the player, an Intel Mac on Mojave).
+The engine is built on the development Mac. Cross-platform work advances too, cross builds included, proven on the test machines below: a Raspberry Pi 3B+ with the player, an Intel Mac on Mojave, and an Intel Linux OptiPlex added by the owner on 2026-11-10.
 
 - Cross builds (`zinc build --target`, `zinc export --target rpi`, the pinned zig) run on the development Mac, one at a time: a cross build counts as a building tree ("Spare the machine").
 - Prove a cross change with a short run on the test machine (deploy, a few frames or one command, `timeout` on it), as for any task; long runs and measurements there are listed under "Tests to run" in `RESUME.md`.
@@ -230,14 +230,15 @@ How it reads (owner, 2026-10-31): well-written Markdown that a person reads with
 
 An Apple M1 Pro Mac (arm64, 10 cores: 8 performance and 2 efficiency, 16 GB, macOS 15; until 2026-10 it was an Intel i7-9750H, and the build times and heat figures of older reports were measured there): builds through `tools/build`; ccache is `/opt/homebrew/bin/ccache` (Homebrew, reinstalled 2026-11-08); Homebrew lives in `/opt/homebrew`; Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. 16 GB is the limit when several trees build: keep to the two building trees and the one heavy process of "Spare the machine". Known machine-specific test failures are listed in `RESUME.md`.
 
-## The test machines (owner, 2026-11-07)
+## The test machines (owner, 2026-11-07, updated 2026-11-10)
 
 | Machine | Reach | What it is for |
 |---|---|---|
 | Raspberry Pi 3B+ (aarch64, 1 GB, Debian 13 trixie, the Zinc player image: `zinc-agent`, `zinc-shell`, `zinc-power-guard`) | `ssh spark@192.168.2.31` (hostname `zinc-player`); `zinc device` pairs with its agent | Linux ARM: cross builds and exports for `rpi`, the player and the shell, `zinc device` deploy, GPU and memory limits of a small board |
 | Intel MacBook Pro (i5-4288U, 8 GB, macOS 10.14.6 Mojave, x86_64) | `ssh mowmow@192.168.2.215` | Older and Intel macOS: the x86_64 build, the oldest supported macOS, packages and `.app` bundles on it |
+| OptiPlex (i3-7100T, 2 cores/4 threads, 16 GB, Fedora Linux 45 KDE, x86_64) | `ssh mowmow@192.168.2.228`; Tailscale `mowmow@100.66.7.14` / `optiplex.tail80b63.ts.net` | Linux Intel: cross-built programs, packages and desktop/backend parity. LAN and Tailscale SSH verified 2026-11-10; the same host key can be checked over Tailscale with `-o HostKeyAlias=192.168.2.228`. No compiler, build tools or Zinc executable installed when inventoried; use bounded cross-built programs in an owned directory first. |
 
-Both are shared with the owner: deploy under a directory of your own (`~/zn/<name>/` on the Pi), never touch what is already in the home directories, never restart the Pi's `zinc-shell` or agent unless the task is about them, and leave no process running. The Pi has 1 GB: one Zinc program at a time on it.
+All are shared with the owner: deploy under a directory of your own (`~/zn/<name>/`), never touch what is already in the home directories, never restart the Pi's `zinc-shell` or agent unless the task is about them, and leave no process running. The Pi has 1 GB: one Zinc program at a time on it. Every remote run is bounded with `timeout`; availability of a desktop session or GPU is verified before claiming a windowed proof.
 
 ## App and demo authoring skills
 
