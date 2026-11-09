@@ -50,6 +50,7 @@ class lambda12 implements "fn (i32) => i32" {}
   sel .call -> @lambda12
 class "fnref sq" implements "fn (i32) => i32" {}
   sel .call -> @"fnref sq$call"
+global @@"fnref sq": ref "fnref sq"
 global @@acc: i32
 func @main() -> void {
 bb0:
@@ -75,7 +76,7 @@ bb0:
   %14: i32 = const 3
   %15: i32 = callvirt .call(%13, %14)
   %16: i32 = callvirt .call#3(%4)
-  %17: ref "fnref sq" = new "fnref sq"
+  %17: ref "fnref sq" = call @"fnref sq$get"()
   %18: ref "fn (i32) => i32" = refcast %17
   %19: ref "fn (i32) => i32" = call @twice(%18)
   %20: i32 = const 3
@@ -296,4 +297,17 @@ func @"fnref sq$call"(%0: ref "fnref sq", %1: i32) -> i32 {
 bb0:
   %2: i32 = call @sq(%1)
   ret %2
+}
+func @"fnref sq$get"() -> ref "fnref sq" {
+bb0:
+  %0: ref "fnref sq" = getglobal @@"fnref sq"
+  %1: ref "fnref sq" = const null
+  %2: bool = eq %0, %1
+  condbr %2, bb1, bb2
+bb1:
+  %3: ref "fnref sq" = new "fnref sq"
+  setglobal @@"fnref sq" %3
+  ret %3
+bb2:
+  ret %0
 }

@@ -39,6 +39,7 @@ class "lambda7:addTo" implements "fn (i32) => void" {}
   sel .call#2 -> @"lambda7:addTo"
 class "fnref double" implements "fn (i32) => i32" {}
   sel .call#1 -> @"fnref double$call"
+global @@"fnref double": ref "fnref double"
 global @@k: i32
 global @@__tdz_k: bool
 global @@total: i32
@@ -69,7 +70,7 @@ bb0:
   %19: ref "fn (i32) => i32" = call @compose(%6, %18)
   %20: i32 = const 1
   %21: i32 = callvirt .call#1(%19, %20)
-  %22: ref "fnref double" = new "fnref double"
+  %22: ref "fnref double" = call @"fnref double$get"()
   %23: ref "fn (i32) => i32" = refcast %22
   %24: i32 = const 3
   %25: ref "fn (i32) => i32" = call @makeAdder(%24)
@@ -285,4 +286,17 @@ func @"fnref double$call"(%0: ref "fnref double", %1: i32) -> i32 {
 bb0:
   %2: i32 = call @double(%1)
   ret %2
+}
+func @"fnref double$get"() -> ref "fnref double" {
+bb0:
+  %0: ref "fnref double" = getglobal @@"fnref double"
+  %1: ref "fnref double" = const null
+  %2: bool = eq %0, %1
+  condbr %2, bb1, bb2
+bb1:
+  %3: ref "fnref double" = new "fnref double"
+  setglobal @@"fnref double" %3
+  ret %3
+bb2:
+  ret %0
 }
