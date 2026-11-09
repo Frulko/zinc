@@ -130,9 +130,7 @@ function editTransition(edit: GridEdit, phase: EditPhase, row: string = '', colu
 export function DataGrid(p: DataGridProps): i32 {
   const root = solid.createNodeRef(), viewport = solid.createNodeRef(), horizontal = solid.createNodeRef();
   const [cursor, setCursor] = componentSignal<DataCursor>({ row: '', column: '' });
-  const [edit, publishEdit] = componentSignal(new GridEdit());
-  const editOwner = componentRef(new GridEdit());
-  const setEdit = (next: GridEdit): void => { editOwner.current = next; publishEdit(next); };
+  const [edit, setEdit] = componentSignal(new GridEdit());
   const anchor = componentRef('');
   const visible = componentMemo(() => dataRows(p.rows(), p.columns, p.search !== undefined ? p.search() : '', p.sort !== undefined ? p.sort() : { column: '', descending: false }, p.filter), [] as DataRow[]);
   const columns = (): DataColumn[] => p.columns.filter((c: DataColumn) => c.hidden !== true);
@@ -165,7 +163,7 @@ export function DataGrid(p: DataGridProps): i32 {
     ui.focusNode(root.node);
   };
   const finish = (commit: boolean): void => {
-    const value = editOwner.current;
+    const value = edit();
     if (value.phase !== EditPhase.Editing) return;
     setEdit(editTransition(value, EditPhase.Idle));
     if (commit && p.onEdit !== undefined) p.onEdit(value.row, value.column, value.value);
@@ -175,7 +173,7 @@ export function DataGrid(p: DataGridProps): i32 {
     if (p.onEdit === undefined) return;
     const value = target ?? current(), row = visible().find((r: DataRow) => r.id === value.row), col = p.columns.findIndex((c: DataColumn) => c.id === value.column);
     if (row === undefined || row.disabled === true || col < 0) return;
-    setEdit(editTransition(editOwner.current, EditPhase.Editing, row.id, value.column, cellText(row, col)));
+    setEdit(editTransition(edit(), EditPhase.Editing, row.id, value.column, cellText(row, col)));
   };
   const keys = (e: ui.KeyEvent): void => {
     if (edit().phase === EditPhase.Editing) { if (e.key === 'Escape') { finish(false); e.preventDefault(); } else if (e.key === 'Enter') { finish(true); e.preventDefault(); } return; }
@@ -274,8 +272,7 @@ function branchTransition(branch: TreeBranch, next: BranchPhase): void {
 export function TreeTable(p: TreeTableProps): i32 {
   const branches = componentRef(new Map<string, TreeBranch>());
   const [revision, setRevision] = componentSignal(0);
-  const changes = componentRef(0);
-  const publish = (): void => { changes.current++; setRevision(changes.current); };
+  const publish = (): void => { setRevision(revision() + 1); };
   componentEffect(() => () => { for (const branch of branches.current.values()) { branch.generation++; branchTransition(branch, BranchPhase.Closed); } }, []);
   const rows = componentMemo(() => {
     revision();
@@ -319,11 +316,9 @@ export interface PathSegment { label: string; path: string; children?: { label: 
 export interface PathBarProps { path: () => string; segments: () => PathSegment[]; onNavigate: (path: string) => void; editable?: boolean; label?: string; className?: string }
 export function PathBar(p: PathBarProps): i32 {
   const root = solid.createNodeRef();
-  const [editing, setEditing] = componentSignal(false), [draft, publishDraft] = componentSignal('');
-  const draftOwner = componentRef('');
-  const setDraft = (value: string): void => { draftOwner.current = value; publishDraft(value); };
+  const [editing, setEditing] = componentSignal(false), [draft, setDraft] = componentSignal('');
   const close = (): void => { ui.focusNode(root.node); setEditing(false); };
-  const submit = (): void => { const value = draftOwner.current.trim(); if (value !== '') { p.onNavigate(value); close(); } };
+  const submit = (): void => { const value = draft().trim(); if (value !== '') { p.onNavigate(value); close(); } };
   return <View ref={root} tabIndex={-1} role="group" aria-label={p.label ?? 'Location'} onKeyDown={(e: ui.KeyEvent) => { if (editing() && e.key === 'Escape') { close(); e.preventDefault(); } else if (p.editable !== false && e.primary && e.key === 'l') { setDraft(p.path()); setEditing(true); e.preventDefault(); } }} className={`flex-row gap-1 items-center min-w-0 ${ringClass()} ${p.className ?? ''}`}>
     <Show when={editing()} fallback={<View className="flex-row items-center grow min-w-0"><Breadcrumb label={p.label ?? 'Location'} items={p.segments().map((s: PathSegment) => ({ label: s.label, onSelect: () => p.onNavigate(s.path) }))} /><Show when={p.segments().some((s: PathSegment) => (s.children ?? []).length > 0)}><DropdownMenu label="Locations" variant="ghost" items={p.segments().flatMap((s: PathSegment) => (s.children ?? []).map((c: { label: string; path: string }) => ({ label: s.label + ' / ' + c.label, onSelect: () => p.onNavigate(c.path) })))} /></Show><Show when={p.editable !== false}><KitButton label="Edit path" size="sm" variant="ghost" onClick={() => { setDraft(p.path()); setEditing(true); }} /></Show></View>}>
       <KitInput label={p.label ?? 'Location'} value={draft} onInput={setDraft} autofocus={true} onSubmit={submit} className="grow min-w-0" />

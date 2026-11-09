@@ -172,6 +172,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### Fixed
 
+- Shared kit controls read their latest state during a React event, so several keyboard or pointer actions in the same frame use the current selection.
+
 - The Feedback gallery keeps its columns and collaborator row inside narrow windows.
 - Library default icons, including Alert, Spinner, checkboxes and password fields, render without callers listing their internal names in `zinc.json`.
 - Nested kit and Nuxt components keep their own React state and cleanup; editing a virtual row preserves its focused field when the parent updates.

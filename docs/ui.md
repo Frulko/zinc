@@ -95,6 +95,14 @@ code that walks the value of a large field should do the same (`value.split('\n'
 A newline in a `<Text>` starts a line, as in React Native: `{'Shopping\n- milk'}` shows two lines, wrapped each at the box's width (a
 note, an address, a log). Only `whitespace-nowrap` and `truncate` keep one line (`tests/t1/ui_text_newline.sh`).
 
+## State in shared kit components
+
+`componentSignal(initial)` from `zinc:ui/kit/host` returns a getter and setter in either UI model. The getter reads the
+latest write immediately, including two updates in one pointer or keyboard callback. React keeps that live value in a
+component-owned ref and schedules its usual render; a retained getter follows later writes across renders. Raw React
+`useState` values still remain snapshots of the render that created their callback. Unmounting keeps the existing owner
+and node-generation checks, so an old setter cannot render into a recycled node.
+
 ## Conditional children
 
 `<Show when={condition} fallback={<Text>Empty</Text>}>...</Show>` mounts its complete child body in Solid (and kit components consumed by React): one node,

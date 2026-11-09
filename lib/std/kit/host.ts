@@ -127,11 +127,12 @@ export function componentEffect(fn: () => (() => void) | undefined, deps: number
   else react.useEffect(fn, deps);
 }
 
-/** Component-local values update their owning UI model. */
+/** Component-local getters read the latest write immediately; React state still schedules the owning render. */
 export function componentSignal<T>(initial: T): [() => T, (value: T) => void] {
   if (fineGrained()) return solid.createSignal(initial);
   const [value, setValue] = react.useState(initial);
-  return [() => value, setValue];
+  const current = react.useRef(value);
+  return [() => current.current, (next: T): void => { current.current = next; setValue(next); }];
 }
 
 /** Tracks a derived value under Solid and computes it once per React render. */
