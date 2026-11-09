@@ -352,4 +352,6 @@ void holdClock(bool on) {
   gClockHeld = on;
 }
 void stepClock(double ms) { if (gClockHeld) gHeldAt += ms; }
+// what ends an idle wait (src/host/loop.cpp on the desktop): a console's loop never sleeps idle, so nothing to wake
+void (*idleWake)(void) = nullptr;
 }

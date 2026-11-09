@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>   // strncasecmp (newlib declares it only here: the PSP core)
 
 #include "hal.h"
 #include "hal_window.h"
