@@ -2,7 +2,8 @@
 id: ZN-971
 title: 'Hamlet: command log recorder and replay'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 13:10'
 labels:
   - hamlet

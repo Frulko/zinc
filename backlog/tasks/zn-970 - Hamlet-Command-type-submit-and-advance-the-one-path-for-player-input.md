@@ -2,8 +2,7 @@
 id: ZN-970
 title: 'Hamlet: Command type, submit and advance: the one path for player input'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-01 13:09'
 updated_date: '2026-11-09 04:54'
 labels:

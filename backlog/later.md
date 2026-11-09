@@ -764,6 +764,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: Discord voice AEC: replace the `isHeadphones` name guess with the device type or transport that miniaudio/CoreAudio reports; add a T1 loopback with a simulated room in the fake microphone path.
 - ZN-707: boot tests for Babylon 9, LittleJS and Kaplay (vendored or pinned in tools/test-lib), with Kaplay text() and onGamepadButtonPress and LittleJS overlay text against headless Chrome: left by ZN-570 and ZN-574 when ZN-707 kept PixiJS, Phaser and p5.
 - ZN-700: a shared kit for the editors written in Zinc (the pinball and museum editors repeat panels, lists and inspectors); worth it when a third editor appears.
+- ZN-946: Hamlet should save and hash people's positions and jobs and the deer, so a restored run continues exactly like an uninterrupted one (the hash holds but the resumed run diverges); server repair by snapshot needs it.
+- ZN-970: Hamlet's Ctrl+Z, storage orders, labour priority and the debug tick still change the village outside the command log; make them commands. A multi-player queue sorts by tick, then player, then arrival (arrival only today).
 
 ## Cross-platform pass
 

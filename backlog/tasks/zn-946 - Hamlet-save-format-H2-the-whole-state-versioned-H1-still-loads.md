@@ -2,8 +2,7 @@
 id: ZN-946
 title: 'Hamlet save: refuse future versions, storage-free snapshot'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-01 13:00'
 updated_date: '2026-11-09 04:46'
 labels:
