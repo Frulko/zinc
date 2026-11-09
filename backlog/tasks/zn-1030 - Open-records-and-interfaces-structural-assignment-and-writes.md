@@ -2,8 +2,7 @@
 id: ZN-1030
 title: 'Open records and interfaces: structural assignment and writes'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:37'
 updated_date: '2026-11-09 02:34'
 labels:
