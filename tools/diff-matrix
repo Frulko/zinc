@@ -2,12 +2,14 @@
 # Differential runner (ZN-023): every program of the corpus runs interpreted and compiled (AOT) and both outputs are compared with
 # the frozen expected output (what the current native toolchain printed). Prints one line per program,
 #   <program> interp=ok|DIFF aot=ok|DIFF|BUILD
-# and a summary; the exit code is non-zero if any cell differs. Usage: tools/diff-matrix [-j N] [name ...]   (env ZINC, default build/zinc)
+# and a summary; the exit code is non-zero if any cell differs. Usage: tools/diff-matrix [-j N] [--qjs] [name ...]   (env ZINC, default build/zinc)
+# --qjs adds a third cell, qjs=ok|DIFF: the program on --engine quickjs (ZN-796), e.g. tools/diff-matrix --qjs run:typed_numbers
 cd "$(dirname "$0")/.." || exit 2
 ZINC=${ZINC:-$PWD/build/zinc}; export ZINC
 export ZINC_STEPS=0   # no step lines on stderr: they are not program output
 jobs=4
 if [ "$1" = "-j" ]; then jobs=$2; shift 2; fi
+MATRIX_QJS=0; if [ "$1" = "--qjs" ]; then MATRIX_QJS=1; shift; fi; export MATRIX_QJS
 tmp=$(mktemp -d); export tmp; trap 'rm -rf "$tmp"' EXIT
 list=$tmp/list
 if [ $# -gt 0 ]; then for n in "$@"; do echo "$n"; done > "$list"; else
@@ -39,7 +41,12 @@ if "$ZINC" build "$src" -o "$tmp/$name.bin" >"$tmp/$name.build" 2>&1; then
   [ "$kind" = conf ] && { sed 's/^\[exit 101\] //' "$tmp/$name.a" > "$tmp/$name.a2"; mv "$tmp/$name.a2" "$tmp/$name.a"; }
   if diff -q "$tmp/$name.a" "$tmp/$name.exp" >/dev/null; then a=ok; else a=DIFF; fi
 else a=BUILD; fi
-echo "$name interp=$i aot=$a"
+if [ "$MATRIX_QJS" = 1 ]; then
+  exec_one "$ZINC" run --engine quickjs "$src" > "$tmp/$name.q"
+  [ "$kind" = conf ] && { sed 's/^\[exit 101\] //' "$tmp/$name.q" > "$tmp/$name.q2"; mv "$tmp/$name.q2" "$tmp/$name.q"; }
+  if diff -q "$tmp/$name.q" "$tmp/$name.exp" >/dev/null; then q=" qjs=ok"; else q=" qjs=DIFF"; fi
+fi
+echo "$name interp=$i aot=$a${q:-}"
 ONE
 chmod +x "$tmp/one"
 export ROOT=$PWD

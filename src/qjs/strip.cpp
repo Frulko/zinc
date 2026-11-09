@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <unordered_set>
@@ -353,6 +354,498 @@ std::string dynCopiesForJs(const std::string& text, const std::string& file) {
   return out;
 }
 
+// ---- typed numbers on QuickJS (ZN-796): the machine kinds the typed engines compute with (i32 and u32 wrap, u8/i8/u16/i16 wrap on store, f32
+// rounds, an integer store truncates) written into the JavaScript before the types are erased, with the checker's rules (check.cpp `arith`, `assignable`):
+// `a + 1` of an i32 is `((a + 1)|0)`, `a * b` is `Math.imul(a, b)`, `z = 7 / 2` into an i32 is `z = ((7 / 2)|0)`, `c += 10` of a u8 is
+// `c = ((c + (10))&255)`, an f32 sum `Math.fround(f + g)`. The kinds are found syntactically: annotated variables, parameters, returns, fields read
+// through `this`, arrays `T[]`, the functions and `this` methods of the file, and unannotated variables initialised from those.
+// ponytail: a value of another object's field, an imported function or a method of another object is unknown (no wrap); i32/u32 `++`/`--` are left
+// as they are (they wrap only past 2^31 and stay QuickJS's fast increment); a compound assignment to a target with side effects is left alone;
+// out-of-range doubles (1e20, Infinity) convert as JavaScript's ToInt32, where the interpreter's conversion saturates.
+enum class NK : std::uint8_t { None, Lit, F64, F32, I8, I16, I32, U8, U16, U32 };   // None: not a number the pass knows (treated as f64)
+
+struct NumWraps {
+  struct Bind { NK k = NK::None; bool arr = false, fn = false; NK ret = NK::None; std::vector<NK> params; };
+  struct Cls { std::unordered_map<std::string_view, Bind> fields, methods; };
+  struct Wrap { std::uint32_t from, to; int prio; std::string pre, post; };   // prio: 0 an operation's own wrap, 1 a conversion around it
+  struct Rep { std::uint32_t from, to; std::string text; };
+
+  std::string_view s;
+  const Ast& a;
+  std::vector<std::unordered_map<std::string_view, Bind>> scopes;
+  std::vector<const Cls*> self;   // the class `this` is, nullptr in a function or a static member
+  std::vector<NK> rets;
+  std::vector<std::unique_ptr<Cls>> classes;
+  std::vector<NK> kinds, pending;   // per node: its kind; the conversion its own operation wants, None when emitted or not needed
+  std::vector<bool> coerced;        // per node: an integer store converts it, so its own i32/u32 wrap can go
+  std::vector<Wrap> wraps;
+  std::vector<Rep> reps;
+
+  NumWraps(std::string_view src, const Ast& ast) : s(src), a(ast), kinds(ast.nodes.size(), NK::None), pending(ast.nodes.size(), NK::None), coerced(ast.nodes.size()) {}
+  const Node& n(std::uint32_t i) const { return a.nodes[i]; }
+  bool space(std::uint32_t i) const { return i < s.size() && std::isspace(static_cast<unsigned char>(s[i])); }
+  static bool isInt(NK k) { return k >= NK::I8; }
+  static bool wide(NK k) { return k == NK::I32 || k == NK::U32; }
+
+  static NK named(std::string_view t) {
+    if (t == "i32") return NK::I32; if (t == "u32") return NK::U32; if (t == "u8") return NK::U8; if (t == "i8") return NK::I8;
+    if (t == "u16") return NK::U16; if (t == "i16") return NK::I16; if (t == "f32") return NK::F32; if (t == "f64" || t == "number") return NK::F64;
+    return NK::None;
+  }
+  Bind typeOf(std::uint32_t t) const {
+    Bind b;
+    if (t == kNone) return b;
+    if (n(t).kind == N::TypeRef && n(t).kids.empty()) b.k = named(n(t).text);
+    else if (n(t).kind == N::TypeArray && n(n(t).kids[0]).kind == N::TypeRef && n(n(t).kids[0]).kids.empty()) { b.k = named(n(n(t).kids[0]).text); b.arr = b.k != NK::None; }
+    return b;
+  }
+  NK scalar(std::uint32_t t) const { const Bind b = typeOf(t); return b.arr ? NK::None : b.k; }   // the kind a store into a slot of type `t` converts to
+  // an integer literal (with its sign): its value
+  bool intLit(std::uint32_t i, double& v) const {
+    const Node& x = n(i);
+    if (x.kind == N::Unary && x.text == "-" && intLit(x.kids[0], v)) { v = -v; return true; }
+    if (x.kind != N::Number) return false;
+    std::string t;
+    for (char c : x.text) if (c != '_') t += c;
+    if (t.size() > 2 && t[0] == '0' && std::isalpha(static_cast<unsigned char>(t[1]))) {
+      const int base = (t[1] == 'x' || t[1] == 'X') ? 16 : (t[1] == 'b' || t[1] == 'B') ? 2 : 8;
+      v = static_cast<double>(std::strtoull(t.c_str() + 2, nullptr, base));
+      return true;
+    }
+    if (t.find_first_of(".eEn") != std::string::npos) return false;
+    v = std::strtod(t.c_str(), nullptr);
+    return true;
+  }
+  static bool fits(double v, NK k) {
+    switch (k) {
+      case NK::I8: return v >= -128 && v <= 127;
+      case NK::I16: return v >= -32768 && v <= 32767;
+      case NK::I32: return v >= -2147483648.0 && v <= 2147483647.0;
+      case NK::U8: return v >= 0 && v <= 255;
+      case NK::U16: return v >= 0 && v <= 65535;
+      case NK::U32: return v >= 0 && v <= 4294967295.0;
+      case NK::F32: return v >= -16777216.0 && v <= 16777216.0;
+      default: return true;
+    }
+  }
+  // check.cpp `arith`: a literal takes the other operand's integer kind when it fits it; narrow kinds compute as i32
+  NK arith(std::string_view op, std::uint32_t le, NK l, std::uint32_t re, NK r) const {
+    double v = 0;
+    NK x = l == NK::Lit ? (isInt(r) && intLit(le, v) && fits(v, r) ? r : NK::F64) : l == NK::None ? NK::F64 : l;
+    NK y = r == NK::Lit ? (isInt(l) && intLit(re, v) && fits(v, l) ? l : NK::F64) : r == NK::None ? NK::F64 : r;
+    if (x == NK::F64 || y == NK::F64) return NK::F64;
+    if (x == NK::F32 || y == NK::F32) return NK::F32;
+    if (op == "/" || op == "**") return NK::F64;
+    auto w = [](NK k) { return k == NK::U32 ? NK::U32 : NK::I32; };
+    return w(x) == w(y) ? w(x) : NK::F64;
+  }
+  static std::pair<std::string, std::string> conv(NK k) {
+    switch (k) {
+      case NK::I32: return {"((", ")|0)"};
+      case NK::U32: return {"((", ")>>>0)"};
+      case NK::U8: return {"((", ")&255)"};
+      case NK::U16: return {"((", ")&65535)"};
+      case NK::I8: return {"((", ")<<24>>24)"};
+      case NK::I16: return {"((", ")<<16>>16)"};
+      case NK::F32: return {"Math.fround(", ")"};
+      default: return {"", ""};
+    }
+  }
+
+  // The source range of an expression with the parentheses of its own leftmost and rightmost operands (the parser keeps no node for them):
+  // `(a + b) * c` starts at the `(`.
+  std::uint32_t lo(std::uint32_t i) const {
+    const Node& x = n(i);
+    const bool left = x.kind == N::Binary || x.kind == N::Assign || x.kind == N::Cond || x.kind == N::Call || x.kind == N::Member || x.kind == N::Index ||
+                      x.kind == N::UpdatePost || x.kind == N::As || x.kind == N::NonNull;
+    if (!left || x.kids.empty() || x.kids[0] == kNone || n(x.kids[0]).start != x.start) return x.start;
+    std::uint32_t st = lo(x.kids[0]), p = hi(x.kids[0]);
+    int k = 0;
+    for (;;) { while (space(p)) p++; if (p < s.size() && s[p] == ')') { k++; p++; } else break; }
+    for (; k > 0; --k) { std::uint32_t q = st; while (q > 0 && space(q - 1)) q--; if (q == 0 || s[q - 1] != '(') break; st = q - 1; }
+    return st;
+  }
+  std::uint32_t hi(std::uint32_t i) const {
+    const Node& x = n(i);
+    std::uint32_t r = kNone;
+    if (x.kind == N::Binary || x.kind == N::Assign) r = x.kids[1];
+    else if (x.kind == N::Cond) r = x.kids[2];
+    else if (x.kind == N::Unary || x.kind == N::UpdatePre) r = x.kids[0];
+    if (r == kNone || n(r).end != x.end) return x.end;
+    std::uint32_t e = hi(r), q = lo(r);
+    int k = 0;
+    for (;;) { while (q > 0 && space(q - 1)) q--; if (q > 0 && s[q - 1] == '(') { k++; q--; } else break; }
+    for (; k > 0; --k) { std::uint32_t p = e; while (space(p)) p++; if (p >= s.size() || s[p] != ')') break; e = p + 1; }
+    return e;
+  }
+  void wrap(std::uint32_t i, int prio, std::pair<std::string, std::string> pp) {
+    if (n(i).flags & kFlagSynthetic) return;
+    wraps.push_back({lo(i), hi(i), prio, std::move(pp.first), std::move(pp.second)});
+  }
+  // the operator between two operands: its position (only `)`, `(`, spaces and the operator lie between them)
+  std::uint32_t opAt(std::uint32_t l, std::uint32_t r, std::string_view op) const {
+    for (std::uint32_t p = hi(l), e = lo(r); p + op.size() <= e; ++p)
+      if (s.substr(p, op.size()) == op && (op != "*" || (s[p + 1] != '*' && s[p + 1] != '/' && (p == 0 || s[p - 1] != '/')))) return p;
+    return kNone;
+  }
+  // a store of node `v` (of kind `k`) into a slot of kind `slot`: the conversion the typed engines make
+  void store(std::uint32_t v, NK k, NK slot) {
+    if (v == kNone || !(isInt(slot) || slot == NK::F32) || k == slot) return;
+    double lit = 0;
+    if (k == NK::Lit && intLit(v, lit) && fits(lit, slot)) return;
+    auto in = [&](std::initializer_list<NK> ks) { return std::find(ks.begin(), ks.end(), k) != ks.end(); };   // widening: always in range
+    if ((slot == NK::I32 && in({NK::I8, NK::I16, NK::U8, NK::U16})) || (slot == NK::U32 && in({NK::U8, NK::U16})) || (slot == NK::I16 && in({NK::I8, NK::U8})) ||
+        (slot == NK::U16 && k == NK::U8) || (slot == NK::F32 && in({NK::I8, NK::I16, NK::U8, NK::U16})))
+      return;
+    if (isInt(slot)) coerced[v] = true;
+    wrap(v, 1, conv(slot));
+  }
+
+  const Bind* lookup(std::string_view name) const {
+    for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) { auto f = it->find(name); if (f != it->end()) return &f->second; }
+    return nullptr;
+  }
+  void declare(std::string_view name, Bind b) { if (!name.empty() && !scopes.empty()) scopes.back()[name] = std::move(b); }
+  void declarePattern(std::uint32_t p) {   // every name a destructuring pattern binds: unknown kinds
+    if (p == kNone) return;
+    if (n(p).kind == N::Ident) { declare(n(p).text, {}); return; }
+    for (std::uint32_t k : n(p).kids) if (k != kNone && n(k).kind != N::TypeRef) declarePattern(k);
+  }
+  // the slot a target names: a variable, `this.field`, an element of a `T[]` variable or field
+  Bind slotOf(std::uint32_t t) const {
+    const Node& x = n(t);
+    if (x.kind == N::Ident) { const Bind* b = lookup(x.text); return b && !b->fn ? *b : Bind{}; }
+    if (x.kind == N::Member && n(x.kids[0]).kind == N::This && !self.empty() && self.back()) {
+      auto f = self.back()->fields.find(x.text);
+      if (f != self.back()->fields.end()) return f->second;
+    }
+    if (x.kind == N::Index) { Bind o = slotOf(x.kids[0]); if (o.arr) { o.arr = false; return o; } }
+    return {};
+  }
+  // a target the pass may write twice (`c = c + v`): names, `this.f`, `a.b`, `a[i]` with a name or a literal index, on one line
+  bool simple(std::uint32_t t) const {
+    const Node& x = n(t);
+    if (x.kind == N::Ident || x.kind == N::This) return true;
+    if (x.kind == N::Member) return !(x.flags & kFlagOptional) && simple(x.kids[0]);
+    if (x.kind == N::Index) return simple(x.kids[0]) && (n(x.kids[1]).kind == N::Ident || n(x.kids[1]).kind == N::Number);
+    return false;
+  }
+  std::string textOf(std::uint32_t t) const { return std::string(s.substr(lo(t), hi(t) - lo(t))); }
+
+  Bind fnOf(const Node& f) const {   // Function, FuncExpr, Method: [returnType, body, Param...]
+    Bind b;
+    b.fn = true;
+    b.ret = scalar(f.kids[0]);
+    for (std::size_t k = 2; k < f.kids.size(); ++k) b.params.push_back((n(f.kids[k]).flags & kFlagRest) ? NK::None : scalar(n(f.kids[k]).kids[0]));
+    return b;
+  }
+  void function(const Node& f, const Cls* thisCls) {
+    scopes.emplace_back();
+    self.push_back(thisCls);
+    rets.push_back(scalar(f.kids[0]));
+    for (std::size_t k = 2; k < f.kids.size(); ++k) {
+      const Node& p = n(f.kids[k]);
+      if (p.kids.size() > 1 && p.kids[1] != kNone) store(p.kids[1], visit(p.kids[1]), scalar(p.kids[0]));
+      if (p.kids.size() > 2 && p.kids[2] != kNone) declarePattern(p.kids[2]);
+      else declare(p.text, (p.flags & kFlagRest) ? Bind{} : typeOf(p.kids[0]));
+    }
+    if (f.kids[1] != kNone) visit(f.kids[1]);
+    rets.pop_back();
+    self.pop_back();
+    scopes.pop_back();
+  }
+  void hoist(const Node& block) {   // function declarations are visible from the start of their block
+    for (std::uint32_t k : block.kids) {
+      std::uint32_t d = k;
+      if (d != kNone && n(d).kind == N::Export && !n(d).kids.empty()) d = n(d).kids[0];
+      if (d == kNone) continue;
+      if (n(d).kind == N::Function) declare(n(d).text, fnOf(n(d)));
+      else if (n(d).kind == N::Class) declare(n(d).text, {});
+    }
+  }
+  void classDecl(const Node& c) {
+    auto cls = std::make_unique<Cls>();
+    for (std::size_t k = kClassMembersFrom; k < c.kids.size(); ++k) {
+      const Node& m = n(c.kids[k]);
+      if (m.flags & kFlagStatic) continue;
+      if (m.kind == N::Field) cls->fields[m.text] = typeOf(m.kids[0]);
+      else if (m.kind == N::Method && !(m.flags & kFlagGetter)) {
+        cls->methods[m.text] = fnOf(m);
+        if (m.text == "constructor")
+          for (std::size_t q = 2; q < m.kids.size(); ++q)
+            if (n(m.kids[q]).flags & (kFlagPublic | kFlagPrivate | kFlagProtected | kFlagReadonly)) cls->fields[n(m.kids[q]).text] = typeOf(n(m.kids[q]).kids[0]);
+      }
+    }
+    for (std::size_t k = kClassMembersFrom; k < c.kids.size(); ++k) {
+      const Node& m = n(c.kids[k]);
+      const Cls* me = (m.flags & kFlagStatic) ? nullptr : cls.get();
+      if (m.kind == N::Field && m.kids[1] != kNone) {
+        self.push_back(me);
+        store(m.kids[1], visit(m.kids[1]), scalar(m.kids[0]));
+        self.pop_back();
+      } else if (m.kind == N::Method) function(m, me);
+    }
+    classes.push_back(std::move(cls));
+  }
+
+  // `c += v`, `c++` of a narrow kind or an f32: `c = conv(c op (v))`
+  void compound(const Node& x, NK slot) {
+    const std::uint32_t t = x.kids[0], v = x.kids[1];
+    const std::string op(x.text.substr(0, x.text.size() - 1));
+    if (op == "&&" || op == "||" || op == "??" || !simple(t)) return;
+    const std::string tt = textOf(t);
+    if (tt.find('\n') != std::string::npos) return;
+    const NK vk = kinds[v];
+    NK r = (op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>") ? NK::I32 : op == ">>>" ? NK::U32 : arith(op, t, slot, v, vk);
+    if (r == slot && op != "+" && op != "-" && op != "*" && op != "%" && !(slot == NK::F32 && op == "/")) return;   // already the slot's kind
+    const std::uint32_t at = opAt(t, v, x.text);
+    if (at == kNone) return;
+    std::string pre, post;
+    if (op == "*" && wide(slot) && r == slot) {
+      pre = "Math.imul(" + tt + ", (";
+      post = slot == NK::U32 ? "))>>>0)" : "))";
+      if (slot == NK::U32) pre = "(" + pre;
+    } else {
+      auto [cp, cs] = conv(slot);
+      pre = cp + tt + " " + op + " (";
+      post = ")" + cs;
+    }
+    reps.push_back({at, at + static_cast<std::uint32_t>(x.text.size()), "= " + pre});
+    wraps.push_back({lo(v), hi(v), 2, "", post});
+  }
+  void update(std::uint32_t i, const Node& x, NK k, bool used) {
+    const std::uint32_t t = x.kids[0];
+    if (wide(k) || !(isInt(k) || k == NK::F32) || (used && k == NK::F32) || !simple(t) || (x.flags & kFlagSynthetic)) return;
+    const std::string tt = textOf(t), op = x.text == "++" ? "+" : "-", back = x.text == "++" ? "-" : "+";
+    if (tt.find('\n') != std::string::npos) return;
+    auto [cp, cs] = conv(k);
+    std::string r = "(" + tt + " = " + cp + tt + " " + op + " 1" + cs + ")";
+    if (used && x.kind == N::UpdatePost) r = cp + r + " " + back + " 1" + cs;   // the old value: the new one stepped back in the same kind
+    reps.push_back({lo(i), hi(i), r});
+  }
+
+  NK visit(std::uint32_t i, bool used = true) {
+    if (i == kNone) return NK::None;
+    const Node& x = n(i);
+    if (x.flags & kFlagSynthetic) return NK::None;
+    NK k = NK::None;
+    switch (x.kind) {
+      case N::Program: case N::Block:
+        scopes.emplace_back();
+        hoist(x);
+        for (std::uint32_t c : x.kids) visit(c, false);
+        scopes.pop_back();
+        return NK::None;
+      case N::Declarator: {
+        Bind b = typeOf(x.kids[0]);
+        const std::uint32_t init = x.kids.size() > 1 ? x.kids[1] : kNone;
+        NK v = visit(init);
+        if (x.kids[0] != kNone && b.arr && init != kNone && n(init).kind == N::Array) {   // `const a: u8[] = [300, 7 / 2]`: each element is a store
+          for (std::uint32_t e : n(init).kids) if (n(e).kind != N::Spread && n(e).kind != N::Empty) store(e, kinds[e], b.k);
+        } else if (x.kids[0] != kNone) store(init, v, b.arr ? NK::None : b.k);
+        else if (init != kNone && n(init).kind == N::FuncExpr) b = fnOf(n(init));   // `const f = (v: i32): i32 => ...`: called like a function
+        else if (init != kNone) { b = {}; b.k = v == NK::Lit ? NK::F64 : v; }
+        if (x.kids.size() > 2 && x.kids[2] != kNone) declarePattern(x.kids[2]);
+        else declare(x.text, b);
+        break;
+      }
+      case N::Function: function(x, nullptr); break;
+      case N::FuncExpr: function(x, (x.flags & kFlagArrow) && !self.empty() ? self.back() : nullptr); break;
+      case N::Class: classDecl(x); break;
+      case N::For: case N::ForOf: case N::ForIn:
+        scopes.emplace_back();
+        if (x.kind == N::For) { visit(x.kids[0], false); visit(x.kids[1]); visit(x.kids[2], false); visit(x.kids[3], false); }
+        else {
+          const NK it = visit(x.kids[1]);
+          (void)it;
+          const Node& d = n(n(x.kids[0]).kind == N::VarDecl ? n(x.kids[0]).kids[0] : x.kids[0]);
+          Bind e;
+          if (x.kind == N::ForOf && n(x.kids[1]).kind == N::Ident) { const Bind* ab = lookup(n(x.kids[1]).text); if (ab && ab->arr) e.k = ab->k; }
+          if (d.kind == N::Declarator) { if (d.kids.size() > 2 && d.kids[2] != kNone) declarePattern(d.kids[2]); else declare(d.text, e); }
+          visit(x.kids[2], false);
+        }
+        scopes.pop_back();
+        return NK::None;
+      case N::Try:
+        visit(x.kids[0], false);
+        scopes.emplace_back();
+        if (x.kids[1] != kNone) declarePattern(x.kids[1]);
+        visit(x.kids[2], false);
+        scopes.pop_back();
+        visit(x.kids[3], false);
+        return NK::None;
+      case N::Return:
+        if (!x.kids.empty() && x.kids[0] != kNone) store(x.kids[0], visit(x.kids[0]), rets.empty() ? NK::None : rets.back());
+        break;
+      case N::ExprStmt: visit(x.kids[0], false); break;
+      case N::Interface: case N::TypeAlias: case N::Import: case N::ExportList: case N::ExportAll: case N::Enum: case N::Empty:
+        return NK::None;
+      case N::Number: { double v; k = intLit(i, v) ? NK::Lit : NK::F64; break; }
+      case N::Ident: { const Bind* b = lookup(x.text); k = b && !b->fn && !b->arr ? b->k : NK::None; break; }
+      case N::Unary: {
+        NK o = visit(x.kids[0]);
+        if (x.text == "~") k = NK::I32;
+        else if (x.text == "+") k = o == NK::Lit ? NK::F64 : o;
+        else if (x.text == "-") {
+          k = o;
+          if (isInt(o)) pending[i] = o;   // -x of an integer kind wraps in its kind (-(-2147483648), -u8)
+        }
+        break;
+      }
+      case N::Binary: {
+        const std::string_view op = x.text;
+        const NK l = visit(x.kids[0], op != ","), r = visit(x.kids[1], op == "," ? used : true);
+        if (op == ",") k = r;
+        else if (op == "&" || op == "|" || op == "^" || op == "<<" || op == ">>") k = NK::I32;
+        else if (op == ">>>") k = NK::U32;
+        else if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "**") {
+          k = arith(op, x.kids[0], l, x.kids[1], r);
+          if (k == NK::F32) wrap(i, 0, conv(NK::F32));
+          else if (wide(k) && op == "*") {
+            const std::uint32_t at = opAt(x.kids[0], x.kids[1], "*");
+            if (at != kNone && !(x.flags & kFlagSynthetic)) {
+              reps.push_back({at, at + 1, ","});
+              wrap(i, 0, k == NK::U32 ? std::pair<std::string, std::string>{"(Math.imul(", ")>>>0)"} : std::pair<std::string, std::string>{"Math.imul(", ")"});
+            }
+          } else if (wide(k)) pending[i] = k;
+        }
+        break;
+      }
+      case N::Assign: {
+        const std::uint32_t t = x.kids[0], v = x.kids[1];
+        if (n(t).kind == N::Member || n(t).kind == N::Index) for (std::uint32_t c : n(t).kids) visit(c);
+        else if (n(t).kind != N::Ident) visit(t);
+        const NK vk = visit(v);
+        const Bind slot = slotOf(t);
+        const NK sk = slot.arr ? NK::None : slot.k;
+        if (x.text == "=") store(v, vk, sk);
+        else if (isInt(sk) || sk == NK::F32) compound(x, sk);
+        k = (isInt(sk) || sk == NK::F32) ? sk : x.text == "=" ? vk : NK::None;
+        break;
+      }
+      case N::UpdatePre: case N::UpdatePost: {
+        const Bind slot = slotOf(x.kids[0]);
+        if (n(x.kids[0]).kind != N::Ident) visit(x.kids[0]);
+        k = slot.arr ? NK::None : slot.k;
+        update(i, x, k, used);
+        break;
+      }
+      case N::Cond: {
+        visit(x.kids[0]);
+        const NK t = visit(x.kids[1]), e = visit(x.kids[2]);
+        k = t == e ? t : (t == NK::Lit && isInt(e)) ? e : (e == NK::Lit && isInt(t)) ? t : NK::None;
+        break;
+      }
+      case N::Call: {
+        const std::uint32_t callee = x.kids[0];
+        const Bind* fb = nullptr;
+        Bind method;
+        if (n(callee).kind == N::Ident) { const Bind* b = lookup(n(callee).text); if (b && b->fn) fb = b; }
+        else {
+          visit(callee);
+          const Node& c = n(callee);
+          if (c.kind == N::Member && n(c.kids[0]).kind == N::This && !self.empty() && self.back()) {
+            auto m = self.back()->methods.find(c.text);
+            if (m != self.back()->methods.end()) { method = m->second; fb = &method; }
+          } else if (c.kind == N::Member && n(c.kids[0]).kind == N::Ident && n(c.kids[0]).text == "Math" && !lookup("Math"))
+            k = c.text == "imul" ? NK::I32 : c.text == "fround" ? NK::F32 : NK::None;
+        }
+        for (std::size_t a1 = 1; a1 < x.kids.size(); ++a1) {
+          const NK ak = visit(x.kids[a1]);
+          if (fb && a1 - 1 < fb->params.size() && n(x.kids[a1]).kind != N::Spread) store(x.kids[a1], ak, fb->params[a1 - 1]);
+        }
+        if (fb) k = fb->ret;
+        break;
+      }
+      case N::Member:
+        visit(x.kids[0]);
+        if (n(x.kids[0]).kind == N::This) { Bind b = slotOf(i); k = b.arr ? NK::None : b.k; }
+        break;
+      case N::Index: {
+        visit(x.kids[0]);
+        visit(x.kids[1]);
+        const Bind b = slotOf(i);
+        k = b.arr ? NK::None : b.k;
+        break;
+      }
+      case N::As: {
+        const NK e = visit(x.kids[0]);
+        const Bind b = typeOf(x.kids[1]);
+        if (!b.arr && (isInt(b.k) || b.k == NK::F32)) { store(x.kids[0], e, b.k); k = b.k; }
+        else k = b.k == NK::F64 ? NK::F64 : NK::None;
+        break;
+      }
+      case N::NonNull: k = visit(x.kids[0]); break;
+      case N::Prop: if (!x.kids.empty()) { visit(x.kids[0]); if (x.kids.size() > 1) visit(x.kids[1]); } break;
+      default:
+        if (x.kind >= N::TypeRef && x.kind <= N::TypeParam) return NK::None;
+        if (x.kind == N::TypeObject || x.kind == N::TypeOther) return NK::None;
+        for (std::uint32_t c : x.kids) visit(c);
+        break;
+    }
+    // the i32/u32 wraps of the operands: dropped where this node converts them again (a bitwise operator, an i32 `+`/`-` that wraps itself,
+    // Math.imul, an integer store), emitted otherwise
+    const bool bitwise = x.kind == N::Binary && (x.text == "&" || x.text == "|" || x.text == "^" || x.text == "<<" || x.text == ">>" || x.text == ">>>");
+    const bool chain = x.kind == N::Binary && pending[i] != NK::None && (x.text == "+" || x.text == "-");
+    const bool imul = x.kind == N::Binary && x.text == "*" && wide(k);
+    for (std::uint32_t c : x.kids) {
+      if (c == kNone || pending[c] == NK::None) continue;
+      const bool drop = wide(pending[c]) && (bitwise || imul || coerced[c] || (chain && pending[c] == pending[i]));
+      if (!drop) wrap(c, 0, conv(pending[c]));
+      pending[c] = NK::None;
+    }
+    kinds[i] = k;
+    return k;
+  }
+
+  std::string run() {
+    visit(a.root, false);
+    if (wraps.empty() && reps.empty()) return std::string(s);
+    // events by position: closings (the inner first), openings (the outer first), then a replacement (an operator, or a `c++` the openings enclose)
+    struct Ev { std::uint32_t at; int phase; std::int64_t order; const std::string* text; std::uint32_t skip; };
+    std::vector<Ev> ev;
+    for (const Wrap& w : wraps) {
+      const std::int64_t span = static_cast<std::int64_t>(w.to - w.from) * 4;
+      if (!w.post.empty()) ev.push_back({w.to, 0, span + w.prio, &w.post, 0});
+      if (!w.pre.empty()) ev.push_back({w.from, 1, -(span + w.prio), &w.pre, 0});
+    }
+    for (const Rep& r : reps) ev.push_back({r.from, 2, 0, &r.text, r.to - r.from});
+    std::stable_sort(ev.begin(), ev.end(), [](const Ev& p, const Ev& q) { return p.at != q.at ? p.at < q.at : p.phase != q.phase ? p.phase < q.phase : p.order < q.order; });
+    std::string out;
+    out.reserve(s.size() + ev.size() * 8);
+    std::uint32_t at = 0;
+    for (const Ev& e : ev) {
+      if (e.at < at) continue;   // inside a replaced range
+      out.append(s.substr(at, e.at - at));
+      out += *e.text;
+      at = e.at + e.skip;
+    }
+    out.append(s.substr(at));
+    return out;
+  }
+};
+
+// Only a file that names a machine number kind runs the pass.
+bool namesNumberKind(std::string_view t) {
+  for (std::size_t p = t.find_first_of("iuf"); p != std::string_view::npos; p = t.find_first_of("iuf", p + 1)) {
+    if (p > 0 && (std::isalnum(static_cast<unsigned char>(t[p - 1])) || t[p - 1] == '_' || t[p - 1] == '$')) continue;
+    std::size_t e = p + 1;
+    while (e < t.size() && std::isdigit(static_cast<unsigned char>(t[e]))) e++;
+    if (e < t.size() && (std::isalnum(static_cast<unsigned char>(t[e])) || t[e] == '_' || t[e] == '$')) continue;
+    const std::string_view w = t.substr(p, e - p);
+    if (w == "i8" || w == "i16" || w == "i32" || w == "u8" || w == "u16" || w == "u32" || w == "f32") return true;
+  }
+  return false;
+}
+
+std::string numberKindsForJs(const std::string& text) {
+  if (!namesNumberKind(text)) return text;
+  ParseResult pr = parse(text);
+  if (pr.ast.root == kNone || !pr.diags.empty()) return text;
+  NumWraps w(text, pr.ast);
+  return w.run();
+}
+
 }  // namespace
 
 bool stripTypes(std::string_view src, const std::string& file, std::string& out, std::string& err) {
@@ -429,6 +922,7 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
     const bool onWeb = cur && std::string_view(cur->name) == "web";   // the browser has fetch, URL, TextEncoder...: no import makes them the polyfills
     if (!onWeb && pr.diags.empty() && pr.ast.root != kNone) text += webImportsOf(pr.ast);
   }
+  text = numberKindsForJs(text);   // i32 wraps, f32 rounding and integer stores, while the types are still there (ZN-796)
   return stripTypes(text, file, out, err);
 }
 

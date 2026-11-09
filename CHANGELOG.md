@@ -165,6 +165,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A function declared inside another one can use a `const` or `let` written below it, as in JavaScript, and may share its name with a top-level function, class or constant; such programs stopped with an internal error.
 - Writing an optional field through a record type adds it to a class instance that lacks it, as JavaScript does, instead of throwing "object is not extensible"; `console.log` and `JSON.stringify` show it once set, and an optional field left out of an object literal is no longer printed as `note: undefined`.
 
+- On `--engine quickjs`, typed numbers compute as on the Zinc engines: `i32` and `u32` arithmetic wraps, a `u8` or `i16` wraps when stored, `f32` rounds, and a division stored in an `i32` truncates (`z = 7 / 2` is 3).
+
 ### Developer tools
 
 #### New

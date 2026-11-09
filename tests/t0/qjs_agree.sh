@@ -2,7 +2,7 @@
 # QuickJS agrees with the interpreter and AOT (ZN-1009): one program on the three engines, the same output. JSON.parse into an interface is
 # D179's checked copy (extras dropped, a missing or wrong field a TypeError), Map.get of a missing key is undefined. Then the host events reach
 # a QuickJS program: assets.onReload (zinc dev's asset socket, fed on stdin through ZINC_DEV_FD) and a zinc:sys signal.
-# (i32 arithmetic on QuickJS is ZN-796.)
+# (i32 arithmetic on QuickJS: qjs_numbers.sh.)
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 cat > "$tmp/types.ts" <<'TS'
