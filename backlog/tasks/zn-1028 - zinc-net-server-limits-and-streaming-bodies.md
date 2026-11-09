@@ -2,7 +2,8 @@
 id: ZN-1028
 title: 'zinc:net server limits and streaming bodies'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:37'
 labels:
   - net
