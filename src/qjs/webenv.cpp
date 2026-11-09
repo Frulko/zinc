@@ -172,9 +172,9 @@ std::string tooLarge(int w, int h) {
 }
 // The pixels of an image file: true with px filled; false with `error` empty when the bytes are no picture, or naming why it was refused
 bool decodePicture(const uint8_t* p, std::size_t n, int& w, int& h, std::vector<uint8_t>& px, std::string& error) {
-  if (!zn::res::imageSize(p, n, w, h) || w <= 0 || h <= 0) return false;
+  if (!zn::res::imageSizeRuntime(p, n, w, h) || w <= 0 || h <= 0) return false;
   if (static_cast<std::int64_t>(w) * h > kMaxImagePixels) { error = tooLarge(w, h); return false; }
-  return zn::res::decodeRgba(p, n, w, h, px) && px.size() == static_cast<std::size_t>(w) * h * 4;
+  return zn::res::decodeRgbaRuntime(p, n, w, h, px) && px.size() == static_cast<std::size_t>(w) * h * 4;
 }
 bool readWhole(const std::string& path, std::vector<uint8_t>& out) {   // one fread of the file's size
   struct stat st;
@@ -317,7 +317,7 @@ napi_value pictureValue(napi_env c, std::vector<uint8_t>* px, int w, int h) {   
 // when it is larger than kMaxImagePixels.
 napi_value startBytes(napi_env c, Inbox& in, const std::shared_ptr<Inbox>& to, const uint8_t* p, std::size_t n, std::vector<uint8_t>* owned, napi_value lend = nullptr) {
   int w = 0, h = 0;
-  if (!zn::res::imageSize(p, n, w, h) || w <= 0 || h <= 0) return nullptr;
+  if (!zn::res::imageSizeRuntime(p, n, w, h) || w <= 0 || h <= 0) return nullptr;
   if (static_cast<std::int64_t>(w) * h > kMaxImagePixels) return throwRange(c, tooLarge(w, h));
   if (static_cast<std::int64_t>(w) * h <= kInlinePixels) {
     auto* px = new std::vector<uint8_t>();

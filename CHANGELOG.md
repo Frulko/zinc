@@ -54,6 +54,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A JavaScript program run with `--engine quickjs` calls `zinc:gfx` and the other engine functions that take numbers in about half the time (`gfx.width()` 53 to 27 ns, a call with six numbers 72 to 43 ns on an M1 Pro).
 - Importing a component from `zinc:ui/kit` no longer links unused native plugins or bakes unused families' font atlases: a Button through the kit index adds about 66 KB instead of 1.88 MB to an AOT build.
 - Compiled apps share the error code for reads before a variable is initialized, keeping UI components smaller while preserving the same checks and errors.
+- Compiled apps retain less unused type metadata and share allocation-heavy helpers.
 
 #### Fixed
 
@@ -87,6 +88,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Faster
 
 - The first run of a project that uses several native plugins builds them at the same time instead of one after the other (the iPod example's five plugins: 34 s down to 18 s), sharing the cores and backing off when the machine is busy.
+- Native plugins can declare `native.systemHost: "lite"`; SVG no longer pulls in unused networking services.
 
 #### Fixed
 
@@ -94,6 +96,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Plugins that do their slow work on a worker thread, such as `zinc:ipod`, answer again after the program's frame loop has ended instead of never settling.
 - On macOS 13 and later, `autostart.enable()` in an exported app adds the app itself to Login Items under its own name and icon, instead of a background item named after its id; an app that started at login before moves over by itself.
 - An installed zinc builds a plugin whose options a project sets in `zinc.json` (`zinc:3d`, `zinc:video`, the display drivers...): the release ships those plugins' sources beside their prebuilt library, and an install that lacks them says so instead of "no native source".
+- Compiled apps that embed `zinc:script` link its shared image support correctly, including Linux exports.
 
 - `navigator.mediaDevices.getUserMedia` asks for the camera or the microphone first, as a browser does, instead of failing with `NotAllowedError` on a Mac where access was never asked.
 - With `ZINC_NATIVE=sim`, `--engine quickjs` runs a plugin's simulated stand-in like the other engines, instead of its native library (the iPod demo no longer looks for a real iPod).

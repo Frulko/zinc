@@ -10,8 +10,11 @@ namespace zn::res {
 std::vector<uint8_t> encodePng(const uint8_t* px, int w, int h, int comp);
 std::vector<uint8_t> encodeJpeg(const uint8_t* px, int w, int h, int comp, int quality = 90);
 std::vector<uint8_t> encodeBmp(const uint8_t* px, int w, int h, int comp);
-// Decodes a PNG or a JPEG file to w*h RGBA pixels (malloc: free() them); null for anything else and for more than 2^24 pixels.
+// Decodes PNG, JPEG, BMP, GIF (first frame), WebP or fast-image bytes (malloc: free() them); null above the runtime pixel cap.
 uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h);
+// Runtime vector/header helpers; programs link these without the CLI resource/font baker.
+bool decodeRgbaRuntime(const uint8_t* data, size_t size, int& w, int& h, std::vector<uint8_t>& rgba);
+bool imageSizeRuntime(const uint8_t* data, size_t size, int& w, int& h);
 
 // The fast-load container zinc pack makes of a large PNG ("ZNI1": size and zstd planes of the RGBA pixels, decoded at memory speed):
 // lossless and deterministic; decodeRgbaAlloc and decodeRgba read it as they read a PNG.

@@ -2,6 +2,7 @@
   "name": "svg",
   "kind": "module",
   "deterministic": true,
+  "native": { "systemHost": "lite" },
   "module": "zinc:svg",
   "entry": "index.ts",
   "description": "Runtime SVG rendering (paths, shapes, transforms, gradients, CSS classes) on the vector rasterizer",

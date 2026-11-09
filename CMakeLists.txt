@@ -381,7 +381,7 @@ target_include_directories(zn_hb_subset PUBLIC third_party/harfbuzz/src)
 set_target_properties(zn_hb_subset PROPERTIES CXX_STANDARD 17 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_hb_subset PRIVATE -w -O2 -fno-exceptions -fno-rtti -DHB_NO_MT)
 target_link_libraries(zn_hb_subset PUBLIC zn_harfbuzz)
-target_link_libraries(zn_res PUBLIC zn_webp zn_rt zn_hb_subset)   # zn::uni (case maps of the baked glyphs)
+target_link_libraries(zn_res PUBLIC zn_webp zn_codec zn_rt zn_hb_subset)   # zn::uni (case maps of the baked glyphs)
 
 add_library(zn_dev STATIC src/dev/core.cpp src/dev/client.cpp)
 target_include_directories(zn_dev PUBLIC include src)
@@ -607,8 +607,9 @@ target_include_directories(zn_script PUBLIC include)
 add_library(zn_qjs STATIC src/qjs/qjs.cpp src/qjs/bundle.cpp src/qjs/strip.cpp src/qjs/prelude.cpp src/qjs/native_js.cpp src/qjs/webenv.cpp src/qjs/canvas2d.cpp src/qjs/worker_js.cpp)
 target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend zn_qjs_ext zn_native)
 target_compile_definitions(zn_qjs PRIVATE ZN_NAPI_INLINE)
-target_link_libraries(zn_qjs PRIVATE zn_text)   # canvas2d.cpp: the web environment's Canvas 2D shapes its text with the text tier (ZN-570)
+target_link_libraries(zn_qjs PRIVATE zn_text zn_codec)   # canvas2d.cpp: the web environment's Canvas 2D shapes its text with the text tier (ZN-570)
 target_include_directories(zn_qjs PUBLIC include src)
+target_link_libraries(zn_script PUBLIC zn_qjs)   # shared image shims and context decode accounting
 
 # zinc lint and zinc migrate (docs/reports/zinc-lint-migrate.md): rules and codemods on the frontend's lexer and loader
 add_library(zn_lint STATIC src/lint/lint.cpp src/lint/migrate.cpp)

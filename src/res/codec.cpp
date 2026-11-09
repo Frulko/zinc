@@ -9,6 +9,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_ONLY_JPEG
+#define STBI_ONLY_BMP
 #define STBI_ONLY_GIF
 #define STBI_NO_STDIO
 #include "stb_image.h"
@@ -51,7 +52,7 @@ uint8_t* decodeFastImage(const uint8_t* d, size_t n, int* w, int* h) {
   if (!isFastImage(d, n)) return nullptr;
   uint32_t W = 0, H = 0;
   for (int k = 0; k < 4; k++) { W |= static_cast<uint32_t>(d[4 + k]) << (8 * k); H |= static_cast<uint32_t>(d[8 + k]) << (8 * k); }
-  if (!W || !H || static_cast<uint64_t>(W) * H > (1u << 24)) return nullptr;
+  if (!W || !H || static_cast<uint64_t>(W) * H > zn::kDecodedImageMaxPixels) return nullptr;
   const size_t px = static_cast<size_t>(W) * H;
   uint8_t* planes = static_cast<uint8_t*>(malloc(px * 4));
   uint8_t* out = static_cast<uint8_t*>(malloc(px * 4));
@@ -73,6 +74,21 @@ uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h) {
   if (size > 0x7fffffff || !stbi_info_from_memory(data, static_cast<int>(size), w, h, &comp) || static_cast<uint64_t>(*w) * static_cast<uint64_t>(*h) > zn::kDecodedImageMaxPixels) return nullptr;
   return stbi_load_from_memory(data, static_cast<int>(size), w, h, &comp, 4);   // stb's allocator is malloc
 }
+bool decodeRgbaRuntime(const uint8_t* data, size_t size, int& w, int& h, std::vector<uint8_t>& rgba) {
+  uint8_t* pixels = decodeRgbaAlloc(data, size, &w, &h);
+  if (!pixels) return false;
+  rgba.assign(pixels, pixels + static_cast<size_t>(w) * h * 4);
+  free(pixels);
+  return true;
+}
+bool imageSizeRuntime(const uint8_t* data, size_t size, int& w, int& h) {
+  if (size > 0x7fffffffu) return false;   // the decoders count a file's bytes in an int
+  if ((size >= 12 && !std::memcmp(data, "RIFF", 4) && !std::memcmp(data + 8, "WEBP", 4))) return WebPGetInfo(data, size, &w, &h) != 0;
+  int n = 0;
+  return stbi_info_from_memory(data, static_cast<int>(size), &w, &h, &n) != 0;
+}
+
+
 std::vector<uint8_t> encodeJpeg(const uint8_t* px, int w, int h, int comp, int quality) {
   std::vector<uint8_t> out;
   if (!stbi_write_jpg_to_func(sink, &out, w, h, comp, px, quality)) out.clear();

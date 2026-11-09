@@ -5,6 +5,8 @@ uses them. The core stays small (`runtime/`, `lib/`); the toolbox grows in `plug
 
 `zinc plugins [project]` lists every plugin visible from a project with the targets it supports.
 
+Native plugins may declare `"native": { "systemHost": "lite" }` when **every implementation and linked dependency** avoids the engine’s network, crypto and pack-writing host rows, including indirect runtime dispatch. This lets compiled apps omit those host services when their Zinc code does not use them either. The default is `"full"`; unknown plugins and old cache records stay conservative. This is a native dependency declaration, not a permission grant.
+
 ## Kinds
 
 - **module**: imported like any module (`import { play } from 'zinc:video'`). The plugin's `index.ts` is Zinc code

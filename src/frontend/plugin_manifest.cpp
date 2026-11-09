@@ -184,6 +184,10 @@ bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string
   if (yyjson_val* x = yyjson_obj_get(root, "native")) {
     if (!yyjson_is_obj(x)) { err = "\"native\" must be an object"; return false; }
     if (!str(x, "spec", out.nativeSpec, err) || !str(x, "name", out.nativeName, err)) return false;
+    std::string systemHost = "full";
+    if (!str(x, "systemHost", systemHost, err)) return false;
+    if (systemHost != "full" && systemHost != "lite") { err = "\"native.systemHost\" must be full or lite"; return false; }
+    out.fullSystemHost = systemHost == "full";
     if (yyjson_val* im = yyjson_obj_get(x, "impl")) { size_t i2, n2; yyjson_val *ik, *iv; if (yyjson_is_obj(im)) yyjson_obj_foreach(im, i2, n2, ik, iv) if (yyjson_is_str(iv)) out.nativeImpl[yyjson_get_str(ik)] = yyjson_get_str(iv); }
   }
   if (!str(root, "sim", out.sim, err) || !str(root, "license", out.license, err) || !str(root, "link", out.link, err)) return false;

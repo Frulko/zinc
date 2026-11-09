@@ -2,7 +2,9 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["src/frontend/plugin_manifest", "src/tc/plugin_build", "src/main.cpp", "plugins/svg/plugin.json", "tests/t0/plugin_system_host.sh"], "tests": ["plugin_system_host"]},
     {"paths": ["tools/integrate", "tests/t0/integrate_merge.sh"], "tests": ["integrate_merge"]},
+    {"paths": ["src/ir/opt.cpp", "tests/data/layout_reachability/", "tests/t0/layout_reachability.sh"], "tests": ["layout_reachability"]},
     {"paths": ["tools/work-run", "tests/t0/work_run.sh"], "tests": ["work_run"]},
     {"paths": ["src/frontend/jsx.cpp", "tests/data/jsx_show/", "tests/t0/jsx_show.sh"], "tests": ["jsx_show"]},
     {"paths": ["src/frontend/jsx.cpp", "tests/data/jsx_grab/", "tests/t0/jsx_grab.sh"], "tests": ["jsx_grab"]},
@@ -517,7 +519,7 @@
     {"paths": ["runtime/include/hal.h", "targets/macos/hal_sdl.cpp", "src/host/hal_dispatch.cpp", "src/host/gfx_host.cpp", "tests/t1/webenv_gamepad.sh"], "tests": ["webenv_gamepad"]},
     {"paths": ["src/qjs/canvas2d.cpp", "third_party/canvas_ity/", "src/text/layout.cpp", "tools/canvas2d-ref", "third_party/phaser/"], "tests": ["webenv_canvas2d", "webenv_canvas2d_libs", "webenv_canvas2d_full"]},
     {"paths": ["src/gl/"], "tests": ["webenv_canvas", "webenv_pixi", "webgl_js", "webenv_image", "webenv_phaser"]},
-    {"paths": ["src/res/"], "tests": ["codec", "webenv_image"]},
+    {"paths": ["src/res/", "tests/native/codec_test.cpp"], "tests": ["codec", "webenv_image"]},
     {"paths": ["src/qjs/strip.cpp"], "tests": ["qjs", "quickjs", "webenv"]},
     {"paths": ["src/qjs/webenv.cpp", "src/qjs/script_native.cpp", "src/gl/webgl_js.cpp", "tests/data/script-images/", "tests/t0/script_images.sh"], "tests": ["script_images"]},
     {"paths": ["src/qjs/bundle.cpp", "src/qjs/strip.cpp", "src/qjs/qjs.cpp", "src/qjs/qjs.h", "src/frontend/jsx.cpp", "src/tc/tc.cpp", "lib/std/", "tests/t0/qjs_bundle.sh", "tests/golden/jsx/"], "tests": ["qjs_bundle"]},

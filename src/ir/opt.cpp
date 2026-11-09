@@ -29,6 +29,13 @@ std::size_t size(const Function& f) {
   return n;
 }
 
+// Allocation also brings initialization, tracking and error cleanup; counting it as one arithmetic instruction clones large bodies.
+std::size_t inlineCost(const Module& m, const Function& f) {
+  std::size_t cost = 0;
+  for (const Block& b : f.blocks) for (const Inst& i : b.insts) cost += (effects(m, i) & kAllocs) ? kInlineMaxInsts : 1;
+  return cost;
+}
+
 bool returns(const Function& f) {  // a callee that never returns would leave the continuation unreachable
   for (const Block& b : f.blocks) if (b.insts.back().op == IrOp::Ret) return true;
   return false;
@@ -153,7 +160,7 @@ bool inlineRound(Module& m) {
   const std::vector<Function>& fs = m.functions;
   std::vector<bool> ok(fs.size());
   const std::vector<bool> cyclic = mutuallyRecursive(fs);
-  for (std::size_t g = 1; g < fs.size(); ++g) ok[g] = !fs[g].entry && size(fs[g]) <= kInlineMaxInsts && returns(fs[g]) && !callsItself(fs[g], static_cast<std::uint32_t>(g)) && !cyclic[g];
+  for (std::size_t g = 1; g < fs.size(); ++g) ok[g] = !fs[g].entry && inlineCost(m, fs[g]) <= kInlineMaxInsts && returns(fs[g]) && !callsItself(fs[g], static_cast<std::uint32_t>(g)) && !cyclic[g];
   // the callees as they were at the start of the round: only those that can be inlined (a copy of every function was a fifth of the optimiser, ZN-1024)
   std::vector<Function> snap(fs.size());
   for (std::size_t g = 1; g < fs.size(); ++g) if (ok[g]) snap[g] = fs[g];
@@ -629,6 +636,59 @@ void removeUnreachable(Module& m) {
       for (Inst& i : b.insts) if (i.op == IrOp::Call) i.sym = to[i.sym];
 }
 
+// Metadata follows surviving code and signatures, not the untrimmed interned type table. Class IDs stay stable because
+// typed worker layouts also carry them in string constants; unused rows become empty abstract placeholders.
+void removeUnusedLayouts(Module& m) {
+  if (m.hot || m.debug) return;   // reload ABI and debugger type inspection keep every declaration
+  std::vector<char> classes(m.classes.size(), 0), types(m.types.size(), 0), selectors(m.selectors.size(), 0);
+  std::vector<std::uint32_t> work;
+  auto reachClass = [&](std::uint32_t c) { if (c < classes.size() && !classes[c]) { classes[c] = 1; work.push_back(c); } };
+  std::function<void(TypeId)> reachType = [&](TypeId id) {
+    if (id >= types.size() || types[id]) return;
+    types[id] = 1;
+    const Type& t = m.types[id];
+    if (t.k == Type::K::Ref) reachClass(t.aux);
+    else if (t.k == Type::K::Array || t.k == Type::K::Set) reachType(t.aux);
+    else if (t.k == Type::K::Map) { reachType(t.aux); reachType(t.aux2); }
+  };
+  auto reachSelector = [&](std::uint32_t s) {
+    if (s >= selectors.size() || selectors[s]) return;
+    selectors[s] = 1;
+    for (TypeId t : m.selectors[s].params) reachType(t);
+    reachType(m.selectors[s].ret);
+  };
+  for (const Global& g : m.globals) reachType(g.type);
+  for (const Function& f : m.functions) {
+    reachType(f.ret);
+    for (ValueId v : f.params) reachType(f.valueTypes[v]);
+    for (const Block& b : f.blocks) {
+      for (ValueId v : b.params) reachType(f.valueTypes[v]);
+      for (const Inst& i : b.insts) {
+        reachType(i.ty);
+        for (ValueId v : i.args) reachType(f.valueTypes[v]);
+        if (i.op == IrOp::New || i.op == IrOp::InstOf) reachClass(i.sym);
+        else if (i.op == IrOp::CallVirt) reachSelector(i.sym);
+      }
+    }
+  }
+  // The runtime creates Dyn values without New instructions; RC uses Error for unwind temporaries.
+  for (std::uint32_t c = 0; c < m.classes.size(); ++c) {
+    const std::string& n = m.classes[c].name;
+    if (n == "Error" || n == "DynNum" || n == "DynStr" || n == "DynBool" || n == "DynArr" || n == "DynObj" || n == "DynUndef" || n == "DynNull") reachClass(c);
+  }
+  while (!work.empty()) {
+    const Class& c = m.classes[work.back()]; work.pop_back();
+    reachClass(c.parent);
+    for (std::uint32_t i : c.implements) reachClass(i);
+    for (const Field& f : c.fields) reachType(f.type);
+    for (std::uint32_t s : c.selectors) reachSelector(s);
+  }
+  for (std::size_t c = 0; c < classes.size(); ++c) if (!classes[c]) {
+    m.classes[c] = Class{};
+    m.classes[c].isAbstract = true;
+  }
+}
+
 // Declarations and string literals in dead functions must not retain native libraries or constant data.
 void removeUnusedData(Module& m) {
   if (m.hot) return;   // Fast Refresh compares the native ABI table between edits
@@ -678,7 +738,7 @@ void optimize(Module& m, bool deviceCore) {
   { Phase p("build", "optimise: thread branches", zn::log::Debug); threadBranches(m); }  // after inlining: an inlined `a && b` joins like a written one
   { Phase p("build", "optimise: cse", zn::log::Debug); cse(m); }
   { Phase p("build", "optimise: hoist constants", zn::log::Debug); hoistConsts(m); }     // the constants the inlined bodies brought are loaded once too
-  if (!std::getenv("ZN_KEEP_UNREACHABLE")) { Phase p("build", "optimise: unreachable", zn::log::Debug); removeUnreachable(m); removeUnusedData(m); }   // last: inlining leaves more functions without callers
+  if (!std::getenv("ZN_KEEP_UNREACHABLE")) { Phase p("build", "optimise: unreachable", zn::log::Debug); removeUnreachable(m); removeUnusedData(m); removeUnusedLayouts(m); }   // last: inlining leaves more functions without callers
 }
 
 }  // namespace zn::ir

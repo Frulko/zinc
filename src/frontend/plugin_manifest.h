@@ -52,6 +52,7 @@ struct PluginManifest {
   int abi = 1;                           // the native-module ABI the native part targets
   std::string nativeSpec, nativeName;    // `native`: the spec file and the module name (default: native/<x>.spec.ts by convention)
   std::map<std::string, std::string> nativeImpl;  // `native.impl`: target -> source (default: <x>.<target>.cpp, else <x>.host.cpp)
+  bool fullSystemHost = true;           // native.systemHost: opaque native code keeps every system host row unless it opts into lite
   std::string sim;                       // a Zinc stand-in for the native part
   bool deterministic = false, threads = false;
   bool live = false;   // "live": the plugin's stand-in only serves deterministic runs; anywhere else its native code wins even over an x.next.ts (video: real decoding)

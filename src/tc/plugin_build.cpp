@@ -438,6 +438,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   const frontend::PluginManifest& m = p.manifest;
   out = PluginLib{};
   out.plugin = m.name;
+  out.fullSystemHost = m.fullSystemHost;
   bool known = false;
   for (const std::string& t : m.targets) known = known || t == target;
   if (!known) { err = "plugin '" + m.name + "' is not available on target '" + target + "'"; return false; }
@@ -818,6 +819,7 @@ std::vector<std::string> stampInputs(const frontend::FoundPlugin& p, const std::
 }
 void writeStamp(const std::string& path, const PluginLib& out, const std::vector<std::string>& inputs) {
   std::string t = "zinc-plugin-stamp 1\nmodule " + out.module + "\nflags " + (out.display ? "1" : "0") + (out.prebuilt ? "1" : "0") + (out.fetched ? "1" : "0") + "\nkey " + out.key + "\n";
+  t += std::string("system-host ") + (out.fullSystemHost ? "full\n" : "lite\n");
   for (const auto& [kind, f] : {std::pair<const char*, const std::string*>{"shared", &out.shared}, {"archive", &out.archive}, {"vendor", &out.vendor}}) {
     if (f->empty()) continue;
     const std::string st = statLine(*f, true);
@@ -848,6 +850,7 @@ bool readStamp(const std::string& path, PluginLib& out) {
     const std::string tag = line.substr(0, sp), rest = sp == std::string::npos ? "" : line.substr(sp + 1);
     if (tag == "module") r.module = rest;
     else if (tag == "flags" && rest.size() == 3) { r.display = rest[0] == '1'; r.prebuilt = rest[1] == '1'; r.fetched = rest[2] == '1'; }
+    else if (tag == "system-host") r.fullSystemHost = rest != "lite";
     else if (tag == "key") r.key = rest;
     else if (tag == "link") r.linkArgs.push_back(rest);
     else if (tag == "lib" || tag == "in") {   // lib <kind> <ino> <size> <time> <path> / in <ino> <size> <time> <path>

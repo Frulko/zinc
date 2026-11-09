@@ -324,6 +324,7 @@ static void installNativeProvider(const char* entry) {
     if (std::getenv("ZN_AOT_CPP_ONLY") && gProfile) {   // the C++ for another machine (zinc export to a phone): the export compiles the plugin there from its sources
       // (and refuses one whose plugin.json has no entry for it); nothing is built or loaded here
       lib.plugin = p->manifest.name;
+      lib.fullSystemHost = p->manifest.fullSystemHost;
       lib.module = module;
       gPlugins.push_back(lib);
       gPluginDirs.push_back(p->dir);
@@ -1345,10 +1346,10 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
     return 0;
   }
-  bool usesScript = false;
-  for (const auto& nt : zm.natives) usesScript = usesScript || nt.module == "QuickJS" || nt.module == "QuickJSFast";
-  std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_qjs_ext.a").string() + "' '" + (libs / "libzn_napi_qjs.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
+  const bool usesScript = zn::aot::usesNative(zm, "QuickJS") || zn::aot::usesNative(zm, "QuickJSFast");
+  std::string nativeLibs = usesScript ? " '" + (libs / "libzn_script.a").string() + "' '" + (libs / "libzn_qjs.a").string() + "' '" + (libs / "libzn_qjs_ext.a").string() + "' '" + (libs / "libzn_napi_qjs.a").string() + "' '" + (libs / "libzn_quickjs.a").string() + "'" : std::string();  // the plugins' native code that the program calls: their static archives and the libraries they need (and the host library, for zrt)
   nativeLibs += shapedLibs;
+  if (usesScript && shapedLibs.empty()) for (const char* l : {"libzn_text.a", "libzn_harfbuzz.a", "libzn_sheenbidi.a", "libzn_unibreak.a"}) nativeLibs += " '" + (libs / l).string() + "'";   // the script image environment shares Canvas 2D's text dependency
   for (const zn::tc::PluginLib& pl : gPlugins) {
     if (pl.display) {   // a display driver registers from a static constructor: link its objects whole, nothing refers to them
 #ifdef __APPLE__
@@ -1407,8 +1408,8 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   const bool separateWindow = fs::exists(libs / "libzn_host_window.a");
   const bool window = !separateWindow || drawsOf(zm) || zn::aot::usesGl(zm) || !nativeLibs.empty();
   // no network and no pack writing (ZN-805): the system host without them, linked first, so Mbed TLS, llhttp and the compressors stay out;
-  // a plugin's archive or the QuickJS engine may call into the network code itself, so a program with either keeps the whole host
-  const bool liteHost = !zn::aot::usesNet(zm) && gPlugins.empty() && !usesScript && fs::exists(libs / "libzn_host_sys_lite.a");
+  // opaque plugins and the QuickJS engine keep every row; audited native plugins can explicitly require only the lite system host
+  const bool liteHost = !zn::aot::usesNet(zm) && std::none_of(gPlugins.begin(), gPlugins.end(), [](const auto& p) { return p.fullSystemHost; }) && !usesScript && fs::exists(libs / "libzn_host_sys_lite.a");
   std::string cmd = std::string(cxx ? cxx : "c++") + cflags + ldflags + inputs + " '" + (libs / "libzn_rt.a").string() + "' '" + (zm.heapBytes && fs::exists(libs / "libzn_rt_new.a") ? (libs / "libzn_rt_new.a").string() + "' '" : std::string()) + (libs / "libzn_mimalloc.a").string() + "' '" +
                     (libs / "libzn_zbc.a").string() + "' '" + (libs / "libzn_ir.a").string() + "' '" + (libs / "libzn_frontend.a").string() + "'" + (fs::exists(libs / "libzn_regexp.a") ? " '" + (libs / "libzn_regexp.a").string() + "'" : std::string()) + " '" + (libs / "libzn_native.a").string() + "'" + (zn::aot::usesNative(zm, "Fixture") && fs::exists(libs / "libzn_native_fixture.a") ? " '" + (libs / "libzn_native_fixture.a").string() + "'" : std::string()) +   // the native registry; libunicode: the string runtime needs it
                     (!nativeLibs.empty() ? nativeLibs : std::string()) +
@@ -3665,10 +3666,11 @@ int main(int argc, char** argv) {
         if (!pl.vendor.empty()) cmd += " '" + pl.vendor + "'";
         for (const std::string& a : pl.linkArgs) cmd += " " + a;
       }
-      const bool liteHost = !zn::aot::usesNet(zm) && crossPlugins.empty() && fs::exists(L + "libzn_host_sys_lite.a");   // no network (ZN-805), as buildNative
-      for (const char* lib : {"zn_script", "zn_qjs_ext", "zn_napi_qjs", "zn_quickjs", "zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_sys_lite", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_webp_dec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_zpk", "zn_lz4", "zn_zstd", "zn_sha256", "zn_yyjson"})
+      const bool usesScript = zn::aot::usesNative(zm, "QuickJS") || zn::aot::usesNative(zm, "QuickJSFast");
+      const bool liteHost = !zn::aot::usesNet(zm) && !usesScript && std::none_of(crossPlugins.begin(), crossPlugins.end(), [](const auto& p) { return p.fullSystemHost; }) && fs::exists(L + "libzn_host_sys_lite.a");   // no network or opaque script (ZN-805), as buildNative
+      for (const char* lib : {"zn_script", "zn_qjs", "zn_qjs_ext", "zn_napi_qjs", "zn_quickjs", "zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_sys_lite", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_webp_dec", "zn_text", "zn_harfbuzz", "zn_sheenbidi", "zn_unibreak", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_zpk", "zn_lz4", "zn_zstd", "zn_sha256", "zn_i18n", "zn_yyjson"})
         if (fs::exists(L + "lib" + lib + ".a") && (liteHost ? std::strcmp(lib, "zn_llhttp") && std::strcmp(lib, "zn_mbedtls") : std::strcmp(lib, "zn_host_sys_lite"))) cmd += " '" + L + "lib" + lib + ".a'";
-      cmd += " -lpthread -Wl,-S -o '" + std::string(argv[6]) + "'";   // -S: no debug sections (40 of museum-table's 130 MB), the symbols kept for crash traces
+      cmd += " -lpthread -ldl -Wl,-S -o '" + std::string(argv[6]) + "'";   // -S: no debug sections (40 of museum-table's 130 MB), the symbols kept for crash traces
       writeComponents(std::string(argv[6]) + ".components", cmd, crossPlugins);   // ZN-323
       zn::log::Phase ph("build", "cross compile and link", "native", "zig c++ for " + std::string(target->name) + ", compile and link");
       ok = std::system(cmd.c_str()) == 0;
