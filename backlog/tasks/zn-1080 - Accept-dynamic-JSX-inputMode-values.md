@@ -2,8 +2,7 @@
 id: ZN-1080
 title: Accept dynamic JSX inputMode values
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 11:23'
 updated_date: '2026-11-09 11:52'
 labels:
@@ -49,4 +48,5 @@ Proposed tests: original Inputs component/gallery short run on all three engines
 Original feature proof (Inputs worker after rebase fc75c5744, 2026-11-09): production Inputs computed inputMode remains unchanged. With binary /Users/mowmow/Lab/zinc/.worktrees/1080-inputmode/build/zinc and ZINC_ROOT=$PWD, timeout15 zinc check examples/ui/kit-gallery PASS (9 files); GALLERY=inputs ZINC_HEADLESS=1 ZINC_FRAMES=3 ZINC_SIZE=1120x900 timeout20 zinc run examples/ui/kit-gallery --interp PASS, and the same short run --engine quickjs PASS. Explicit native AOT full gallery including Inputs also PASS: ZINC_ROOT=$PWD ZINC_HEADLESS=1 ZINC_FRAMES=3 ZINC_SIZE=1120x900 timeout25 zinc run examples/ui/kit-gallery --native (11.1 s native build, indicative, not a benchmark). No production workaround or leftover process. The Inputs worker separately investigates its authored event-fixture array-bounds failure in ZN-1078.06; this mode check and original gallery proof pass.
 
 Rebase safety: explicit 1080 WIP saved in a00d1a27c30b834bab9a11422fd490209da87ae6, rebased to integrated Actions/App chrome fc75c5744, reapplied; CHANGELOG conflict resolved retaining both lines, docs table/affected mapping merged. No C++ source changed upstream, so the already-built engine remained valid. No shared RESUME/priority/keys/decision/perf changes. usage: n/a.
+Coordinator integration: 1ccc941a7 on develop; retained clean smoke binary rebuilt, jsx_input_mode and solid fixture check passed. Original Inputs component proof passed all three engines before completion.
 <!-- SECTION:NOTES:END -->

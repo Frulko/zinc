@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Integrated ZN-1080 (1ccc941a7, Done), only c7d77cdfb after clean branch reset/rebase;1081 was not duplicated. Clean retained tree rebuilt, jsx_input_mode PASS Solid/React×interpreter/nativeAOT/QuickJS, solid fixture check PASS. Original Inputs production source all3 proofs green; .06 authored interaction checks still being corrected. Core worker clean/no processes; remove completed work/1080-inputmode. Next chain Selection/Navigation .08-.09 beside Inputs/Pickers.
+
 - 2026-11-09: Integrated ZN-1078.04 (fed3600d1) and .05 (fc75c5744), Done. Clean retained tree kit_actions, kit_chrome, ui_dnd and kit_size PASS; short chrome run exits0 and documentation pictures inspected. No C++ rebuild. Inputs/core workers rebased to these APIs;1080 ready c7d77cdfb with all3 original Inputs proofs, separate authored event bounds failure remains .06. Actions worker clean, no processes; remove its finished tree/branch.
 
 - 2026-11-09: Integrated ZN-1081 (1b8b79f99, Done), ui_focus_dispose PASS on clean develop across all3 engines, original same-frame Dock cancel/repeat drag green. TS-only, no engine rebuild. External Virtual/Fenwick WIP restored. Retain work/1080-inputmode for active worker; clean reset to develop required before1080 so its old1081 commit is not cherry-picked twice. Actions rebases/finalizes .05; Inputs waits Button APIs and1080.
