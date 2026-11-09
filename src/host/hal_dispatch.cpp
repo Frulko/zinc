@@ -63,7 +63,8 @@ static void hold() {
 //   keyboard HEIGHT (0 hidden) | back | forward | backstart EDGE | backprogress P | backcancel | orientation portrait|landscape | compose "TEXT" | commit "TEXT" |
 //   imedelete BEFORE AFTER | imeselect START END | imeaction NAME (an input connection's calls on the focused field) |
 //   a11y 0|1 (a screen reader listens) | a11yactivate ID | a11yfocus ID | a11yscroll ID 1|-1 (it pressed, moved to or scrolled a node of
-//   zinc:ui's tree, ZN-630) | background | foreground (home and return: zinc:ui stops drawing between them) | safe-area T R B L (safearea's other
+//   zinc:ui's tree, ZN-630) | background | foreground (home and return: zinc:ui stops drawing between them) | focus 0|1 (the window loses or gets
+//   the keyboard focus, as the window HAL says it) | safe-area T R B L (safearea's other
 //   spelling) | rotate (the headless surface turns a quarter: its width and height swap, a resize, and the orientation signal follows; the safe
 //   area of the new side is the script's next safe-area line, as the OS sends it)
 // The events reach zinc:gfx exactly as a window's would (pointer position and buttons, button events, keys, typed text, wheel, touch points:
@@ -91,7 +92,7 @@ extern "C" const char* zn_hal_text_traits(void) { return textTraits.c_str(); }
 // the phone's glue sets it when the app starts (src/app/android_glue.cpp, src/app/ios_glue.mm); null on a desktop
 extern "C" { const char* (*zn_mobile_command)(const char* q, const char* a) = nullptr; }
 static bool isSignal(const std::string& k) {
-  static const char* kinds[] = {"safearea", "theme", "fontscale", "reducemotion", "keyboard", "back", "forward", "backstart", "backprogress", "backcancel", "orientation", "background", "foreground", "compose", "commit", "imedelete", "imeselect", "imeaction", "a11y", "a11yactivate", "a11yfocus", "a11yscroll"};
+  static const char* kinds[] = {"safearea", "theme", "fontscale", "reducemotion", "keyboard", "back", "forward", "backstart", "backprogress", "backcancel", "orientation", "background", "foreground", "focus", "compose", "commit", "imedelete", "imeselect", "imeaction", "a11y", "a11yactivate", "a11yfocus", "a11yscroll"};
   for (const char* x : kinds) if (k == x) return true;
   return false;
 }

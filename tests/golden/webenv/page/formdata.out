@@ -1,0 +1,8 @@
+get Ada 1200 string null true a,b
+file true save.json application/json 11 blob
+after set player,score,tag,save,raw,quote"name c
+forEach player=Ada tag=c save=File(save.json) raw=File(blob) quote"name=line1\nline2
+entries 5 player=Ada Ada
+content-type multipart/form-data; boundary=<boundary> true
+urlencoded application/x-www-form-urlencoded;charset=UTF-8
+"--<boundary>\r\nContent-Disposition: form-data; name=\"player\"\r\n\r\nAda\r\n--<boundary>\r\nContent-Disposition: form-data; name=\"tag\"\r\n\r\nc\r\n--<boundary>\r\nContent-Disposition: form-data; name=\"save\"; filename=\"save.json\"\r\nContent-Type: application/json\r\n\r\n{\"level\":3}\r\n--<boundary>\r\nContent-Disposition: form-data; name=\"raw\"; filename=\"blob\"\r\nContent-Type: application/octet-stream\r\n\r\nxy\r\n--<boundary>\r\nContent-Disposition: form-data; name=\"quote%22name\"\r\n\r\nline1\r\nline2\r\n--<boundary>--\r\n"

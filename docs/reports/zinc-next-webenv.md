@@ -38,13 +38,21 @@ What a program finds:
   objects, `on<type>` handlers. Each frame the host's input (the window's, or a `ZINC_INPUT` script's) becomes pointer, mouse, wheel, keyboard
   and touch events, dispatched once at their target (the canvas under the pointer, the capturing element, the focused element) and left to
   bubble: PixiJS's listeners on the document and the window and Phaser's on the window are reached without a table per library.
+  A finger is a pointer of its own (`pointerType` `touch`, its own `pointerId`, the first finger `isPrimary`) and also a `TouchEvent`.
+  Shift, Control, Alt and Meta pressed or released alone are `keydown` / `keyup` events of their own (`ShiftLeft`, keyCode 16...), from
+  the change of the held modifiers the host reports (ZN-705); every key and pointer event carries the held ones.
+- **Focus and visibility** (ZN-705): the system's signals (zinc:gfx `signalCount` / `signalNext`, as zinc:ui reads them: the window HAL's
+  `focus 1|0`, `background` / `foreground` for a window minimised or hidden and shown again, or a `ZINC_INPUT` script's lines) are the
+  window's `focus` and `blur` and the document's `visibilitychange`, with `document.hidden`, `visibilityState` and `hasFocus()`. A hidden
+  page runs no animation frame, as a browser's background tab; its callbacks run when it shows again.
 - **Frames and time**: `requestAnimationFrame` on the engine's frame loop with `performance.now()` timestamps. A deterministic run
   (`ZINC_DETERMINISTIC`) reads the virtual clock through `performance.now` too (steps of 16.67 ms), a real run the real one. Timers are the
   engine's (virtual clock, advanced by the frame time).
 - **Network and storage**: `fetch`, `Request`, `Response`, `Headers`, `XMLHttpRequest` over project files (through the host's file row, so
   permissions hold; a missing file is a 404), `data:` and `blob:` URLs, and http(s) through `zinc:net`'s rows with the body as its bytes; `URL` and
-  `URLSearchParams` (the typed engine's WHATWG parser, `lib/std/web.ts`, loaded at the first URL made), `Blob`, `File`; `localStorage` over
-  `zinc:storage`, `sessionStorage` in memory.
+  `URLSearchParams` (the typed engine's WHATWG parser, `lib/std/web.ts`, loaded at the first URL made), `Blob`, `File`, `FormData` (sent as
+  `multipart/form-data` with its boundary; a `URLSearchParams` or string body brings its Content-Type too, ZN-705); `localStorage` over
+  `zinc:storage`, `sessionStorage` in memory, both by their methods and as properties (`localStorage.best = 3`, `delete`, `Object.keys`).
 - **XML** (ZN-706): `DOMParser` and `XMLSerializer` are `@xmldom/xmldom` 0.9.12 (`third_party/xmldom`, MIT, unmodified), its CommonJS files
   read by the engine (`native.xmldom`, from `lib/std/../../third_party`, in the repository and in share/zinc) at the first parse: a program
   that parses nothing reads none of it (`ZINC_WEB=trace` prints `web: loaded @xmldom/xmldom (N ms)`). A bitmap font and an SVG give the
@@ -91,8 +99,8 @@ What a program finds:
   three.js and Phaser load pictures through image elements, unmodified (measured: the notes of ZN-569). Nothing is decoded off the main
   thread; SVG and animated pictures are not images here. **Audio** (ZN-573): media elements play nothing; no `AudioContext`.
   **Gamepads** (ZN-574): `navigator.getGamepads()` is empty.
-- `innerHTML` with markup (kept as text), `FormData`, streams, cookies, `Worker`, the window's `focus` / `blur` /
-  `visibilitychange`, `toDataURL` of a WebGL canvas.
+- `innerHTML` with markup (kept as text), a `FormData` of a form element (there are no form controls), a binary body over http (sent
+  as UTF-8 text), streams, cookies, `Worker`, `toDataURL` of a WebGL canvas, the web environment in a `zinc:script` sandbox.
 
 ## Libraries (2026-10-11, unmodified builds, no shim in the test)
 
@@ -107,7 +115,8 @@ What a program finds:
 ## Tests
 
 `tests/t0/webenv.sh` (globals, tree, events, frames and input, files, `data:` and `blob:` URLs, http against a local server, storage, scripts,
-the trace, image elements), `tests/t0/webenv_domparser.sh` (XML against Chrome's DOMParser, loaded at the first use), `tests/t1/webenv_canvas.sh` (the canvas on WebGL and in the window), `tests/t1/webenv_image.sh`
+the trace, image elements), `tests/t0/webenv_domparser.sh` (XML against Chrome's DOMParser, loaded at the first use), `tests/t0/webenv_page.sh` (focus and visibility, modifier keys, FormData, storage
+properties, each on a page of `tests/golden/webenv/page`), `tests/t0/webenv_touch.sh` (fingers as pointers), `tests/t1/webenv_canvas.sh` (the canvas on WebGL and in the window), `tests/t1/webenv_image.sh`
 (images as textures, read back against a picture of known colours), `tests/t1/webgl_libs.sh` (the binding defects libraries
 found, ZN-565) and one T1 test per library above. Their programs and goldens are in `tests/golden/webenv/`. PixiJS, three.js and Phaser (MIT)
 are test data in `third_party/pixi`, `third_party/three` and `third_party/phaser`. p5.js is LGPL-2.1, which

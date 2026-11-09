@@ -1,0 +1,9 @@
+frame 0: start hidden=false state=visible focus=true
+frame 3: window blur (FocusEvent, target is window: true) hidden=false state=visible focus=false
+frame 3: onblur handler hidden=false state=visible focus=false
+frame 5: window focus hidden=false state=visible focus=true
+frame 7: visibilitychange (bubbles: true) hidden=true state=hidden focus=true
+frame 7: window blur (FocusEvent, target is window: true) hidden=true state=hidden focus=false
+frame 7: onblur handler hidden=true state=hidden focus=false
+frame 7: visibilitychange (bubbles: true) hidden=false state=visible focus=false
+frame 7: window focus hidden=false state=visible focus=true

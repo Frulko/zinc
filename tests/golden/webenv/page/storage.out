@@ -1,0 +1,6 @@
+read 3 string 3 Ada 7 undefined null
+keys best,player name,level 3 true false {"best":"3","player name":"Ada","level":"7"}
+deleted null 2 player name,level
+member function x number true 3 getItem,level,player name
+spread {"player name":"Ada","level":"7"}
+session 2 1 turn

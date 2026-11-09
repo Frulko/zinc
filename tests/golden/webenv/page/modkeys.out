@@ -1,0 +1,7 @@
+frame 2: keydown key=Shift code=ShiftLeft keyCode=16 location=1 mods=shiftKey Shift=true Control=false
+frame 3: keydown key=A code=KeyA keyCode=65 location=0 mods=shiftKey Shift=true Control=false
+frame 4: keydown key=Control code=ControlLeft keyCode=17 location=1 mods=shiftKey+ctrlKey Shift=true Control=true
+frame 6: keyup key=Shift code=ShiftLeft keyCode=16 location=1 mods=ctrlKey Shift=false Control=true
+frame 6: pointerdown mods=ctrlKey
+frame 7: pointerup mods=ctrlKey
+frame 8: keyup key=Control code=ControlLeft keyCode=17 location=1 mods=none Shift=false Control=false

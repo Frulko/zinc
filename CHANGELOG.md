@@ -159,6 +159,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc dev --target web` watches the workspace packages your app imports (npm, pnpm, yarn and bun workspaces, `npm link`): a save in one bundles the packages again and reloads the page.
 - The site has a playground at `/play/`: edit a Zinc program, see the checker's problems as you type (each code opens its explanation), run it in the page and share it, since the link carries the program. It starts from any `zinc new` template (`/play/new/<template>/`) or lesson (the lesson pages get an Edit and run button), and Export as project downloads a folder that `zinc run` opens. Running needs Chrome or Edge 137 or later; checking works in every browser.
 - JavaScript libraries run with `"web": true` can use `DOMParser` and `XMLSerializer`, so bitmap fonts, SVG files and tile maps in XML load as in a browser; a program that parses no XML pays nothing for it.
+- The web environment tells a page when its window loses or gets the focus (`blur`, `focus`, `document.hasFocus()`) and when it is minimised or shown again (`visibilitychange`, `document.hidden`); a hidden page runs no animation frame, as a background tab in a browser.
+- Shift, Control, Alt and Meta pressed alone reach a page as `keydown` and `keyup` events, so a game's Shift key works; `FormData` sends forms and files as `multipart/form-data`, and `localStorage.best = 3`, `delete localStorage.best` and `Object.keys(localStorage)` work as in a browser.
 
 #### Faster
 
