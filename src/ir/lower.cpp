@@ -593,6 +593,9 @@ struct Lowering {
     return r;
   }
   void computeClosureFns() {
+    for (const auto& [node, caps] : c.captures)   // ZN-667: `function f() { return LIMIT; } const LIMIT = 100;` inside a function
+      for (std::uint32_t sy : caps)
+        if (c.syms[sy].kind == SymKind::Var && !c.syms[sy].isGlobal && c.syms[sy].decl != kNil && n(c.syms[sy].decl).start > n(node).start) lateCells.insert(sy);
     for (bool changed = true; changed;) {
       changed = false;
       for (const auto& [node, caps] : c.captures) {
@@ -616,7 +619,8 @@ struct Lowering {
   std::unordered_map<std::string, std::pair<std::uint32_t, std::uint32_t>> thunkOfStatic;  // "obj:name" of a static method used as a value -> {class, function}
   std::unordered_map<std::uint32_t, std::pair<std::uint32_t, std::uint32_t>> thunkGetter;  // thunk class -> {getter function, global}: one object per function, so `f === f`
   std::unordered_map<TypeId, std::uint32_t> cellOfType;
-  bool isCell(std::uint32_t s) const { return c.syms[s].captured && c.syms[s].reassigned && !c.syms[s].isGlobal; }
+  std::unordered_set<std::uint32_t> lateCells;   // variables captured by a function written above their declaration (a hoisted nested function): a cell, so it sees the value stored later
+  bool isCell(std::uint32_t s) const { return c.syms[s].captured && (c.syms[s].reassigned || lateCells.count(s)) && !c.syms[s].isGlobal; }
 
   bool typeHasParam(frontend::TypeId t) const {
     const frontend::Type& x = c.types[t];
@@ -1592,7 +1596,18 @@ struct Lowering::FnLower {
       TypeId ft = L.irType(c.syms[sym].type, st);
       declSym(sym, emit(IrOp::Const, ft, {}, ty(ft).builtinRef() ? ir::kNullConst : 0));
     }
+    for (std::uint32_t st : list) {   // and the cells of the variables a function above captures (Lowering::lateCells), which their declaration fills
+      if (n(st).kind != N::VarDecl) continue;
+      for (std::uint32_t d : n(st).kids) {
+        std::uint32_t sym = c.nodeSym[d];
+        if ((n(d).kids.size() > 2 && n(d).kids[2] != kNil) || sym == kNil || L.global[sym] || !L.lateCells.count(sym) || !L.isCell(sym)) continue;
+        TypeId t = L.irType(c.syms[sym].type, d);
+        declSym(sym, emit(IrOp::Const, t, {}, ty(t).builtinRef() ? ir::kNullConst : 0));
+        preCelled.insert(sym);
+      }
+    }
   }
+  std::unordered_set<std::uint32_t> preCelled;   // variables whose cell declareClosureFns made: their declaration writes it
   void stmtsFrom(const std::vector<std::uint32_t>& list, std::size_t from) {
     if (from == 0) declareClosureFns(list);
     for (std::size_t i = from; i < list.size(); ++i) {
@@ -2653,6 +2668,7 @@ struct Lowering::FnLower {
     std::uint32_t s = c.nodeSym[d];
     if (c.types[c.syms[s].type].k == frontend::TK::Void) { expr(x.kids[1]); return; }   // `const r = untrack(() => {...})`: T = void, nothing to store
     TypeId t = L.irType(c.syms[s].type, d);
+    if (preCelled.count(s)) { writeSym(s, exprTo(x.kids[1], t)); return; }
     if (L.isCell(s) && (n(x.kids[1]).kind == N::FuncExpr || mentions(x.kids[1], s))) {  // the cell exists before the initializer runs: a closure made in it (`const f = () => f()`, `const sub = on(() => sub.remove())`) captures the cell
       declSym(s, emit(IrOp::Const, t, {}, ty(t).builtinRef() ? ir::kNullConst : 0));
       writeSym(s, exprTo(x.kids[1], t));

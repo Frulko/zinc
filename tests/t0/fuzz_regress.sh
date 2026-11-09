@@ -19,4 +19,7 @@ done
 out=$(timeout 20 "$ZINC" run --interp tests/fuzz/regress/check-void-call-value.ts 2>&1 | tr '\n' ' ')
 [ "$out" = "undefined undefined " ] || { echo "check-void-call-value.ts: '$out', expected undefined twice"; fail=1; }
 timeout 20 "$ZINC" run --interp tests/fuzz/regress/check-void-call-element.ts 2>&1 | grep -q "Z0005.*returns nothing" || { echo "check-void-call-element.ts: no Z0005 for the void element"; fail=1; }
+# nested declarations with the names of top-level ones (ZN-667: the lowering made invalid IR): the output of JavaScript
+out=$(timeout 20 "$ZINC" run --interp tests/fuzz/regress/check-dup-names-invalid-ir.ts 2>&1 | tr '\n' ' ')
+[ "$out" = "104 1 104 1 " ] || { echo "check-dup-names-invalid-ir.ts: '$out', expected 104 1 104 1"; fail=1; }
 exit $fail
