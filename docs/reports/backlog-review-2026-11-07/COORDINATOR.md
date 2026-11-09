@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 2026-11-09: Created/claimed ZN-1080 (blocks Inputs/kit-gallery): literal-only inputMode lowering rejects dynamic JSX. Short primary-source research completed by coordinator research agent; new frontend worker .worktrees/1080-inputmode, beside two non-building kit workers. At most one engine tree builds; main held UI/runtime modules remain excluded.
+
 - 2026-11-09: Claimed Inputs/Pickers chain ZN-1078.06-.07, new .worktrees/1078-inputs, no engine build. Actions/App chrome worker owns button, menus, dnd and gallery shared wiring until its report; Inputs worker owns input/picker modules and separate gallery sections, shared docs/exports require coordination. Both use retained clean smoke binary with explicit ZINC_ROOT.
 
 - 2026-11-09: Integrated ZN-1079 (4004c3b7e, Done). Clean smoke rebuilt; jsx_map_local passes Solid/React on interpreter/QuickJS, original Save/Export scene inspected. Worker proved original repro on native AOT; Actions original palette proof passes. Actions isolated kit_size passed; .04 commit then .05 proof ongoing. Next chain: Inputs/Pickers ZN-1078.06-.07.
