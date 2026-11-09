@@ -41,6 +41,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - An exported app that uses no network is about 1.1 MB smaller (5.1 MB for a hello app on macOS, 2.4 MB zipped): it carries no TLS or HTTP code and loads no system framework it does not use.
 - Opacity, translate and rotate transitions of classes (`transition duration-300 opacity-40 translate-x-16`) are played by the engine's compositor: your app draws the view once instead of at every frame of the transition, and it keeps moving while your code is busy.
 - WebGL's `uniform*fv` and `uniformMatrix*fv` read a `Float32Array` or `Int32Array` in place instead of copying it, about 20% faster per call on QuickJS (the matrices three.js uploads for every mesh).
+- A JavaScript program run with `--engine quickjs` calls `zinc:gfx` and the other engine functions that take numbers in about half the time (`gfx.width()` 53 to 27 ns, a call with six numbers 72 to 43 ns on an M1 Pro).
 
 #### Fixed
 

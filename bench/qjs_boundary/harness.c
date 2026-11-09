@@ -139,6 +139,21 @@ static JSValue m_hostStack(JSContext* c, JSValueConst t, int argc, JSValueConst*
   be4(&gState, 0, (float)a[0], (float)a[1], (float)a[2], (float)a[3]); return JS_UNDEFINED;
 }
 
+// typed fast calls (ZN-596, patches/0004-fast-calls): the same backends, the arguments unboxed by the interpreter
+#ifdef JS_FAST_MAX_ARGS
+static bool f_vec4(void* op, const JSFastValue* a, JSFastValue* r, int magic) { (void)r; (void)magic; be4(op, 0, (float)a[0].f64, (float)a[1].f64, (float)a[2].f64, (float)a[3].f64); return true; }
+static bool f_bind(void* op, const JSFastValue* a, JSFastValue* r, int magic) { (void)r; (void)magic; be1(op, (int)a[0].u32); return true; }
+static bool f_upload(void* op, const JSFastValue* a, JSFastValue* r, int magic) { (void)r; (void)magic; beV(op, a[0].i32, (const float*)a[1].buf.data, a[1].buf.len / 4); return true; }
+static bool f_host(void* op, const JSFastValue* a, JSFastValue* r, int magic) { (void)op; (void)r; (void)magic; be4(&gState, 0, (float)a[0].f64, (float)a[1].f64, (float)a[2].f64, (float)a[3].f64); return true; }
+static JSValue s_vec4(JSContext* c, JSValueConst t, int argc, JSValueConst* argv, int magic) { (void)magic; return m_vec4(c, t, argc, argv); }
+static JSValue s_bind(JSContext* c, JSValueConst t, int argc, JSValueConst* argv, int magic) { (void)magic; return m_bind(c, t, argc, argv); }
+static JSValue s_upload(JSContext* c, JSValueConst t, int argc, JSValueConst* argv, int magic) { (void)magic; return m_upload(c, t, argc, argv); }
+static JSCFunctionFastDef gVec4F = {f_vec4, s_vec4, 0, 0, JS_FAST_VOID, 4, {JS_FAST_F64, JS_FAST_F64, JS_FAST_F64, JS_FAST_F64}};
+static JSCFunctionFastDef gBindF = {f_bind, s_bind, 0, 0, JS_FAST_VOID, 1, {JS_FAST_U32}};
+static JSCFunctionFastDef gUploadF = {f_upload, s_upload, 0, 0, JS_FAST_VOID, 2, {JS_FAST_I32, JS_FAST_BUFFER}};
+static const JSCFunctionFastDef gHostF = {f_host, m_hostStack, 0, 0, JS_FAST_VOID, 4, {JS_FAST_F64, JS_FAST_F64, JS_FAST_F64, JS_FAST_F64}};
+#endif
+
 // ---- globals
 static JSValue js_print(JSContext* c, JSValueConst t, int argc, JSValueConst* argv) {
   (void)t;
@@ -194,6 +209,12 @@ int main(int argc, char** argv) {
     char direct[64]; snprintf(direct, sizeof direct, "%sD", kFns[k].name);
     JS_SetPropertyStr(c, proto, direct, JS_NewCFunction(c, kFns[k].fn, direct, kFns[k].len));
   }
+#ifdef JS_FAST_MAX_ARGS
+  gVec4F.this_class = gBindF.this_class = gUploadF.this_class = gGlClass;
+  JS_SetPropertyStr(c, proto, "vec4F", JS_NewCFunctionFast(c, &gVec4F, "vec4F", 4));
+  JS_SetPropertyStr(c, proto, "bindF", JS_NewCFunctionFast(c, &gBindF, "bindF", 1));
+  JS_SetPropertyStr(c, proto, "uploadF", JS_NewCFunctionFast(c, &gUploadF, "uploadF", 2));
+#endif
   for (int k = 0; k < 600; ++k) { char nm[32]; snprintf(nm, sizeof nm, "CONST_%d", k); JS_SetPropertyStr(c, proto, nm, JS_NewInt32(c, k)); }   // WebGL's ~600 constants on the prototype
   JS_SetClassProto(c, gGlClass, proto);
   JSValue g = JS_GetGlobalObject(c);
@@ -202,6 +223,9 @@ int main(int argc, char** argv) {
   DEF("hypotG", m_hypotGeneric, 2);
   JS_SetPropertyStr(c, g, "hostHeap", JS_NewCFunctionMagic(c, m_hostHeap, "hostHeap", 4, JS_CFUNC_generic_magic, 0));
   JS_SetPropertyStr(c, g, "hostStack", JS_NewCFunctionMagic(c, m_hostStack, "hostStack", 4, JS_CFUNC_generic_magic, 0));
+#ifdef JS_FAST_MAX_ARGS
+  JS_SetPropertyStr(c, g, "hostFast", JS_NewCFunctionFast(c, &gHostF, "hostFast", 4));
+#endif
   JSCFunctionType ff = {.f_f_f = hypot2};
   JS_SetPropertyStr(c, g, "hypotFF", JS_NewCFunction2(c, ff.generic, "hypotFF", 2, JS_CFUNC_f_f_f, 0));
   JS_FreeValue(c, g);

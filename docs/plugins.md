@@ -329,6 +329,12 @@ the report [QuickJS: AOT, JIT and the native boundary](reports/quickjs-aot-jit-a
 | No command buffers recorded in JavaScript on QuickJS: build the batch natively | 300-430 ns per recorded command against 45 ns for the direct call (an interpreted typed-array store costs 40-50 ns) |
 | Calling JavaScript from native is cheap: `JS_Call` | ~14 ns plus the callee; reuse event objects instead of building one per event |
 
+A hot call that takes only numbers, booleans or a buffer can be a typed fast function (`JS_NewCFunctionFast`, from the patch
+`third_party/quickjs-ng/patches/0004-fast-calls.patch`, ZN-596): the interpreter unboxes the arguments and calls it without a
+stack frame, and any other call goes to its generic twin. The engine's `__host_*` rows of numbers are bound this way
+(`__host_gfxWidth()` 53 -> 27 ns, a 4-double call 43 -> 34 ns). As with V8's fast API calls, a fast function allocates no JS
+value, throws nothing and never calls into JavaScript; it returns false to hand the call to the generic one.
+
 Strings cost 32 ns through `JS_ToCStringLen` (37-41 with a `std::string` copy); a pointer into a view is valid until JavaScript
 runs again (a buffer can be detached or resized).
 

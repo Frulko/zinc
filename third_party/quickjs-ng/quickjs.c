@@ -6580,6 +6580,18 @@ JSValue JS_NewCFunction2(JSContext *ctx, JSCFunction *func,
                             ctx->function_proto, 0);
 }
 
+JSValue JS_NewCFunctionFast(JSContext *ctx, const JSCFunctionFastDef *def,
+                            const char *name, int length)
+{
+    JSCFunctionType ft;
+
+    if (def->argc > JS_FAST_MAX_ARGS)
+        return JS_ThrowRangeError(ctx, "too many fast arguments");
+    ft.fast = def;
+    return JS_NewCFunction3(ctx, ft.generic, name, length, JS_CFUNC_fast,
+                            def->magic, ctx->function_proto, 0);
+}
+
 typedef struct JSCFunctionDataRecord {
     JSCFunctionData *func;
     uint8_t length;
@@ -17866,6 +17878,123 @@ static void close_lexical_var(JSContext *ctx, JSFunctionBytecode *b,
 #define JS_CALL_FLAG_COPY_ARGV   (1 << 1)
 #define JS_CALL_FLAG_GENERATOR   (1 << 2)
 
+/* JS_CFUNC_fast: one argument unboxed as 'type' says, false when its tag
+   does not match (the generic function then converts it) */
+static bool js_fast_arg(JSValueConst v, int type, JSFastValue *a)
+{
+    int tag = JS_VALUE_GET_TAG(v);
+    double d;
+
+    switch(type) {
+    case JS_FAST_F64:
+        if (tag == JS_TAG_INT) {
+            a->f64 = JS_VALUE_GET_INT(v);
+            return true;
+        }
+        if (JS_TAG_IS_FLOAT64(tag)) {
+            a->f64 = JS_VALUE_GET_FLOAT64(v);
+            return true;
+        }
+        return false;
+    case JS_FAST_I32:
+    case JS_FAST_U32:
+        if (tag == JS_TAG_INT) {
+            a->i32 = JS_VALUE_GET_INT(v);
+            return true;
+        }
+        if (JS_TAG_IS_FLOAT64(tag)) {
+            /* ToInt32 / ToUint32: truncate, then modulo 2^32 */
+            d = JS_VALUE_GET_FLOAT64(v);
+            if (!(d > -9007199254740992.0 && d < 9007199254740992.0))
+                return false;
+            a->u32 = (uint32_t)(int64_t)d;
+            return true;
+        }
+        return false;
+    case JS_FAST_BOOL:
+        if (tag == JS_TAG_BOOL) {
+            a->b = JS_VALUE_GET_BOOL(v);
+            return true;
+        }
+        return false;
+    case JS_FAST_BUFFER:
+        return JS_GetBufferData(v, &a->buf.data, &a->buf.len, NULL) == 0;
+    default:
+        return false;
+    }
+}
+
+/* the call of a JS_CFUNC_fast function by the interpreter: JS_UNINITIALIZED
+   when an argument or 'this' does not match, or 'fast' declines; the caller
+   then makes the generic call */
+static no_inline JSValue js_call_fast(JSObject *p, JSValueConst this_obj,
+                                      int argc, JSValueConst *argv)
+{
+    const JSCFunctionFastDef *def = p->u.cfunc.c_function.fast;
+    JSFastValue args[JS_FAST_MAX_ARGS], ret;
+    void *opaque = NULL;
+    JSObject *t;
+    int i, tag, type;
+
+    if (argc < def->argc)
+        return JS_UNINITIALIZED;
+    if (def->this_class) {
+        if (JS_VALUE_GET_TAG(this_obj) != JS_TAG_OBJECT)
+            return JS_UNINITIALIZED;
+        t = JS_VALUE_GET_OBJ(this_obj);
+        if (t->class_id != def->this_class)
+            return JS_UNINITIALIZED;
+        opaque = t->u.opaque;
+    }
+    for(i = 0; i < def->argc; i++) {
+        /* the common cases first, without the switch */
+        tag = JS_VALUE_GET_TAG(argv[i]);
+        type = def->args[i];
+        if (type == JS_FAST_F64 && JS_TAG_IS_FLOAT64(tag)) {
+            args[i].f64 = JS_VALUE_GET_FLOAT64(argv[i]);
+        } else if (tag == JS_TAG_INT && type <= JS_FAST_U32) {
+            if (type == JS_FAST_F64)
+                args[i].f64 = JS_VALUE_GET_INT(argv[i]);
+            else
+                args[i].i32 = JS_VALUE_GET_INT(argv[i]);
+        } else if (!js_fast_arg(argv[i], type, &args[i])) {
+            return JS_UNINITIALIZED;
+        }
+    }
+    ret.f64 = 0;
+    if (!def->fast(opaque, args, &ret, def->magic))
+        return JS_UNINITIALIZED;
+    switch(def->ret) {
+    case JS_FAST_F64:
+        return js_number(ret.f64);
+    case JS_FAST_I32:
+        return js_int32(ret.i32);
+    case JS_FAST_U32:
+        return js_uint32(ret.u32);
+    case JS_FAST_BOOL:
+        return js_bool(ret.b);
+    default:
+        return JS_UNDEFINED;
+    }
+}
+
+/* JS_UNINITIALIZED unless func_obj is a JS_CFUNC_fast function whose fast
+   path takes this call */
+static inline JSValue js_call_fast_try(JSValueConst func_obj,
+                                       JSValueConst this_obj, int argc,
+                                       JSValueConst *argv)
+{
+    JSObject *p;
+
+    if (JS_VALUE_GET_TAG(func_obj) != JS_TAG_OBJECT)
+        return JS_UNINITIALIZED;
+    p = JS_VALUE_GET_OBJ(func_obj);
+    if (likely(p->class_id != JS_CLASS_C_FUNCTION ||
+               p->u.cfunc.cproto != JS_CFUNC_fast))
+        return JS_UNINITIALIZED;
+    return js_call_fast(p, this_obj, argc, argv);
+}
+
 static JSValue js_call_c_function(JSContext *ctx, JSValueConst func_obj,
                                   JSValueConst this_obj,
                                   int argc, JSValueConst *argv, int flags)
@@ -17978,6 +18107,9 @@ static JSValue js_call_c_function(JSContext *ctx, JSValueConst func_obj,
             }
             ret_val = js_number(func.f_f_f(d1, d2));
         }
+        break;
+    case JS_CFUNC_fast:
+        ret_val = func.fast->slow(ctx, this_obj, argc, arg_buf, func.fast->magic);
         break;
     case JS_CFUNC_iterator_next:
         {
@@ -18587,9 +18719,12 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             has_call_argc:
                 call_argv = sp - call_argc;
                 sf->cur_pc = pc;
-                ret_val = JS_CallInternal(ctx, call_argv[-1], JS_UNDEFINED,
-                                          JS_UNDEFINED, call_argc,
-                                          vc(call_argv), 0);
+                ret_val = js_call_fast_try(call_argv[-1], JS_UNDEFINED,
+                                           call_argc, vc(call_argv));
+                if (JS_VALUE_GET_TAG(ret_val) == JS_TAG_UNINITIALIZED)
+                    ret_val = JS_CallInternal(ctx, call_argv[-1], JS_UNDEFINED,
+                                              JS_UNDEFINED, call_argc,
+                                              vc(call_argv), 0);
                 if (unlikely(JS_IsException(ret_val)))
                     goto exception;
                 if (opcode == OP_tail_call)
@@ -18624,9 +18759,12 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                 pc += 2;
                 call_argv = sp - call_argc;
                 sf->cur_pc = pc;
-                ret_val = JS_CallInternal(ctx, call_argv[-1], call_argv[-2],
-                                          JS_UNDEFINED, call_argc,
-                                          vc(call_argv), 0);
+                ret_val = js_call_fast_try(call_argv[-1], call_argv[-2],
+                                           call_argc, vc(call_argv));
+                if (JS_VALUE_GET_TAG(ret_val) == JS_TAG_UNINITIALIZED)
+                    ret_val = JS_CallInternal(ctx, call_argv[-1], call_argv[-2],
+                                              JS_UNDEFINED, call_argc,
+                                              vc(call_argv), 0);
                 if (unlikely(JS_IsException(ret_val)))
                     goto exception;
                 if (opcode == OP_tail_call_method)
@@ -62450,6 +62588,53 @@ int JS_GetTypedArrayType(JSValueConst obj)
         return class_id - JS_CLASS_UINT8C_ARRAY;
     else
         return -1;
+}
+
+int JS_GetBufferData(JSValueConst obj, uint8_t **pdata, size_t *pbyte_length,
+                     size_t *pelem_size)
+{
+    JSObject *p;
+    JSArrayBuffer *abuf;
+    JSTypedArray *ta;
+    int size_log2;
+
+    if (JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT)
+        return -1;
+    p = JS_VALUE_GET_OBJ(obj);
+    if (p->class_id == JS_CLASS_ARRAY_BUFFER ||
+        p->class_id == JS_CLASS_SHARED_ARRAY_BUFFER) {
+        abuf = p->u.array_buffer;
+        if (abuf->detached)
+            return -1;
+        *pdata = abuf->data;
+        *pbyte_length = abuf->byte_length;
+        size_log2 = 0;
+    } else if (is_typed_array(p->class_id)) {
+        if (typed_array_is_oob(p))
+            return -1;
+        ta = p->u.typed_array;
+        size_log2 = typed_array_size_log2(p->class_id);
+        *pdata = ta->buffer->u.array_buffer->data + ta->offset;
+        *pbyte_length = (size_t)p->u.array.count << size_log2;
+    } else if (p->class_id == JS_CLASS_DATAVIEW) {
+        if (dataview_is_oob(p))
+            return -1;
+        ta = p->u.typed_array;
+        abuf = ta->buffer->u.array_buffer;
+        *pdata = abuf->data + ta->offset;
+        *pbyte_length = ta->track_rab ? abuf->byte_length - ta->offset : ta->length;
+        size_log2 = 0;
+    } else {
+        return -1;
+    }
+    if (pelem_size)
+        *pelem_size = (size_t)1 << size_log2;
+    return 0;
+}
+
+bool JS_GetFastArray(JSValueConst obj, JSValue **pvalues, uint32_t *plen)
+{
+    return js_get_fast_array(NULL, unsafe_unconst(obj), pvalues, plen);
 }
 
 /* Atomics */

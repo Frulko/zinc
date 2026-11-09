@@ -172,14 +172,80 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
   }
 }
 
-void installHost(JSContext* ctx) {
+// The rows of numbers and booleans as typed fast functions (ZN-596, third_party/quickjs-ng/patches/0004): the interpreter calls hostFast
+// with the arguments unboxed when they are numbers and booleans, hostFn for anything else (a string, an object, call/apply), so both
+// give the same result. Not the rows that exit, flush the output or wait on the loop: they stay on hostFn.
+bool fastRow(zn::Rt id) {
+  const zn::RtInfo& ri = zn::rtInfo(id);
+  for (unsigned k = 0; k < zn::rtParamCount(ri); ++k)
+    if (!std::strchr("diub", zn::rtParam(ri, k))) return false;
+  return std::strchr("ndib", zn::rtRet(ri)) && id != zn::Rt::HostSysExit && !zn::flushesOutBefore(id);
+}
+bool hostFast(void*, const JSFastValue* a, JSFastValue* r, int magic) {
+  const auto id = static_cast<zn::Rt>(magic);
+  const zn::RtInfo& ri = zn::rtInfo(id);
+  zn::host::HostCall call = zn::isLayoutRow(id) ? zn::host::hostLayout : zn::isSysRow(id) ? zn::host::hostSys : zn::host::hostGfx;
+  if (!call) return false;   // hostFn says which module this build lacks
+  alignas(HostArg) unsigned char raw[sizeof(HostArg) * zn::kMaxHostParams];   // only the row's parameters are made: 16 zeroed HostArgs cost more than the call
+  auto* args = reinterpret_cast<HostArg*>(raw);
+  HostArg res;
+  const unsigned np = zn::rtParamCount(ri);
+  for (unsigned k = 0; k < np; ++k) {
+    new (&args[k]) HostArg();
+    switch (zn::rtParam(ri, k)) {
+      case 'd': args[k].d = a[k].f64; break;
+      case 'u': args[k].i = a[k].u32; break;
+      case 'b': args[k].i = a[k].b ? 1 : 0; break;
+      default: args[k].i = a[k].i32; break;
+    }
+  }
+  call(magic, args, &res);
+  switch (zn::rtRet(ri)) {
+    case 'd': r->f64 = res.d; break;
+    case 'i': r->i32 = static_cast<int32_t>(res.i); break;
+    case 'b': r->b = res.i != 0; break;
+    default: break;
+  }
+  return true;
+}
+std::uint8_t fastType(char letter) {
+  switch (letter) {
+    case 'd': return JS_FAST_F64;
+    case 'u': return JS_FAST_U32;
+    case 'b': return JS_FAST_BOOL;
+    case 'n': return JS_FAST_VOID;
+    default: return JS_FAST_I32;
+  }
+}
+// one descriptor per row, made once for the process: QuickJS keeps a pointer to it
+const JSCFunctionFastDef* fastDef(zn::Rt id) {
+  static const std::vector<JSCFunctionFastDef> defs = [] {
+    std::vector<JSCFunctionFastDef> d(static_cast<std::size_t>(zn::Rt::Count));
+    for (unsigned i = 0; i < d.size(); ++i) {
+      const zn::RtInfo& ri = zn::kRtInfo[i];
+      JSCFunctionFastDef& f = d[i];
+      f.fast = hostFast; f.slow = hostFn; f.magic = static_cast<int>(i); f.this_class = 0;
+      f.ret = fastType(zn::rtRet(ri));
+      f.argc = static_cast<std::uint8_t>(zn::rtParamCount(ri));
+      for (unsigned k = 0; k < f.argc; ++k) f.args[k] = fastType(zn::rtParam(ri, k));
+    }
+    return d;
+  }();
+  return &defs[static_cast<std::size_t>(id)];
+}
+
+void installHost(JSContext* ctx, bool worker) {
   JSValue g = JS_GetGlobalObject(ctx);
   for (unsigned i = static_cast<unsigned>(zn::Rt::HostGfxFrames); i < static_cast<unsigned>(zn::Rt::Count); ++i) {
     const bool loop = i >= static_cast<unsigned>(zn::Rt::HostLoopWait) && i <= static_cast<unsigned>(zn::Rt::HostLoopNow);   // the loader stage waits for its first jobs (ZN-447)
     if (i >= static_cast<unsigned>(zn::Rt::HostHostLast) && !loop && !zn::isLayoutRow(static_cast<zn::Rt>(i)) && !zn::isGfxTailRow(static_cast<zn::Rt>(i)) && !zn::isSysTailRow(static_cast<zn::Rt>(i))) continue;   // the rows past the host block that are host calls too: the layout engine (ZN-284.01), the zinc:gfx rows appended since (commands, resize, transform, sprites)
     const zn::RtInfo& ri = zn::kRtInfo[i];
+    const auto id = static_cast<zn::Rt>(i);
     std::string name = std::string("__host_") + zn::rtMember(ri);
-    JS_SetPropertyStr(ctx, g, name.c_str(), JS_NewCFunctionMagic(ctx, hostFn, name.c_str(), static_cast<int>(zn::rtParamCount(ri)), JS_CFUNC_generic_magic, static_cast<int>(i)));
+    const int len = static_cast<int>(zn::rtParamCount(ri));
+    JSValue fn = !worker && fastRow(id) ? JS_NewCFunctionFast(ctx, fastDef(id), name.c_str(), len)   // a worker keeps hostFn: it refuses the drawing rows there
+                                        : JS_NewCFunctionMagic(ctx, hostFn, name.c_str(), len, JS_CFUNC_generic_magic, static_cast<int>(i));
+    JS_SetPropertyStr(ctx, g, name.c_str(), fn);
   }
   JS_FreeValue(ctx, g);
 }
@@ -912,7 +978,7 @@ bool context(Engine& e, const std::string& mainDir) {
   if (const std::size_t n = stackBudget()) JS_SetMaxStackSize(e.rt, n);
   JS_SetHostPromiseRejectionTracker(e.rt, trackRejection, &e);
   JS_SetModuleLoaderFunc(e.rt, normalizeName, loadModule, &e);
-  installHost(e.ctx);
+  installHost(e.ctx, e.worker);
   installWorker(e.ctx, mainDir);
   if (!e.worker) {
     installNative(zn::qjs::napiEnv(e.ctx));

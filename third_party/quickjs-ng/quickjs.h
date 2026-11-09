@@ -1127,6 +1127,18 @@ JS_EXTERN JSValue JS_NewUint8Array(JSContext *ctx, uint8_t *buf, size_t len,
                                    void *opaque, bool is_shared);
 /* returns -1 if not a typed array otherwise return a JSTypedArrayEnum value */
 JS_EXTERN int JS_GetTypedArrayType(JSValueConst obj);
+/* The bytes of an ArrayBuffer, SharedArrayBuffer, typed array or DataView,
+   borrowed: no exception, no reference taken. Returns 0, or -1 for any other
+   value and for a detached or out-of-bounds buffer. pelem_size (can be NULL)
+   gets the element size: 1 for an ArrayBuffer or DataView. WARNING: any JS
+   call can detach or resize the buffer and render the pointer invalid. */
+JS_EXTERN int JS_GetBufferData(JSValueConst obj, uint8_t **pdata,
+                               size_t *pbyte_length, size_t *pelem_size);
+/* The elements of a fast Array (dense, no holes), borrowed: returns false for
+   any other value. Read them, do not free them. WARNING: any JS call can
+   change or free them. */
+JS_EXTERN bool JS_GetFastArray(JSValueConst obj, JSValue **pvalues,
+                               uint32_t *plen);
 JS_EXTERN JSValue JS_NewUint8ArrayCopy(JSContext *ctx, const uint8_t *buf, size_t len);
 typedef struct {
     void *(*sab_alloc)(void *opaque, size_t size);
@@ -1309,6 +1321,7 @@ typedef enum JSCFunctionEnum {  /* XXX: should rename for namespace isolation */
     JS_CFUNC_getter_magic,
     JS_CFUNC_setter_magic,
     JS_CFUNC_iterator_next,
+    JS_CFUNC_fast, /* JS_NewCFunctionFast */
 } JSCFunctionEnum;
 
 typedef union JSCFunctionType {
@@ -1325,7 +1338,61 @@ typedef union JSCFunctionType {
     JSValue (*setter_magic)(JSContext *ctx, JSValueConst this_val, JSValueConst val, int magic);
     JSValue (*iterator_next)(JSContext *ctx, JSValueConst this_val,
                              int argc, JSValueConst *argv, int *pdone, int magic);
+    const struct JSCFunctionFastDef *fast;
 } JSCFunctionType;
+
+/* Typed fast C functions. When the interpreter calls one (f(...) or
+   o.f(...)) with arguments of the declared types, it unboxes them and calls
+   'fast' directly: no stack frame, no conversion call. Every other call
+   (another type, too few arguments, a 'this' of another class,
+   Function.prototype.call or apply, JS_Call from C) goes to 'slow', the
+   generic function, which must give the same result. Like V8's fast API
+   calls, 'fast' must not allocate JS values, throw or call into JavaScript;
+   it returns false to have 'slow' called instead with the same arguments.
+   A JS_FAST_BUFFER pointer is valid until 'fast' returns. */
+#define JS_FAST_MAX_ARGS 16
+
+typedef enum JSFastType {
+    JS_FAST_VOID,   /* return type only: undefined */
+    JS_FAST_F64,    /* a number */
+    JS_FAST_I32,    /* a number, as ToInt32: an int, or a float64 within +-2^53 */
+    JS_FAST_U32,    /* a number, as ToUint32: an int, or a float64 within +-2^53 */
+    JS_FAST_BOOL,   /* a boolean */
+    JS_FAST_BUFFER, /* an ArrayBuffer, SharedArrayBuffer, typed array or DataView,
+                       neither detached nor out of bounds: its bytes, borrowed */
+} JSFastType;
+
+typedef union JSFastValue {
+    double f64;
+    int32_t i32;
+    uint32_t u32;
+    bool b;
+    struct {
+        uint8_t *data;
+        size_t len; /* in bytes */
+    } buf;
+} JSFastValue;
+
+typedef bool JSFastCFunction(void *opaque, const JSFastValue *args,
+                             JSFastValue *ret, int magic);
+
+typedef struct JSCFunctionFastDef {
+    JSFastCFunction *fast;
+    JSValue (*slow)(JSContext *ctx, JSValueConst this_val, int argc,
+                    JSValueConst *argv, int magic);
+    int magic;
+    JSClassID this_class; /* 0: 'this' is not looked at and opaque is NULL;
+                             else 'this' must be an object of this class and
+                             'fast' gets its opaque */
+    uint8_t ret;          /* a JSFastType: VOID, F64, I32, U32 or BOOL */
+    uint8_t argc;         /* at most JS_FAST_MAX_ARGS */
+    uint8_t args[JS_FAST_MAX_ARGS]; /* the JSFastType of each argument */
+} JSCFunctionFastDef;
+
+/* 'def' must stay valid as long as the function exists */
+JS_EXTERN JSValue JS_NewCFunctionFast(JSContext *ctx,
+                                      const JSCFunctionFastDef *def,
+                                      const char *name, int length);
 
 JS_EXTERN JSValue JS_NewCFunction2(JSContext *ctx, JSCFunction *func,
                                    const char *name,
