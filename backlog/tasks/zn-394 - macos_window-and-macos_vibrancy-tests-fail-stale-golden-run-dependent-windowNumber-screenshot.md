@@ -2,7 +2,8 @@
 id: ZN-394
 title: 'macos_window: do not compare the fullscreen button position (display dependent)'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 00:33'
 updated_date: '2026-11-07 18:30'
 labels:

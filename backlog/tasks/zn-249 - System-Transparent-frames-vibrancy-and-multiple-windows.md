@@ -2,7 +2,8 @@
 id: ZN-249
 title: 'System: Transparent frames, vibrancy and multiple windows'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-07 12:21'
 updated_date: '2026-11-07 18:30'
 labels:
