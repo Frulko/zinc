@@ -55,6 +55,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Importing a component from `zinc:ui/kit` no longer links unused native plugins or bakes unused families' font atlases: a Button through the kit index adds about 66 KB instead of 1.88 MB to an AOT build.
 - Compiled apps share the error code for reads before a variable is initialized, keeping UI components smaller while preserving the same checks and errors.
 - Compiled apps retain less unused type metadata and share allocation-heavy helpers.
+- Apps with Lucide icons share repeated SVG path markup, keeping combined UI kit imports within their existing size budget.
 
 #### Fixed
 
