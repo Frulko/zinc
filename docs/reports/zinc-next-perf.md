@@ -1626,3 +1626,19 @@ ns per call, `bench/qjs_boundary` (generic → fast): vec4 method 49.3 → 40.4,
 ## 2026-11-09: web environment pictures decoded off the frame (ZN-569, M1 Pro, realtime headless, machine busy)
 
 A 4096² PNG (33.6 MiB decoded): setting `Image.src` 17-62 ms → 0.45-0.61 ms; longest frame gap 282-314 ms → 19-21 ms (20-21 ms with no picture); longest timer task 0.04-0.13 ms. Lending 32 MiB of bytes to the decode thread: 0.01 ms, copying 3-4 ms. WebGL conformance image pages run by name: 9 of 24 pass (5 of 13 that stopped at "no image decoder").
+
+## 2026-11-09: deterministic Math (ZN-703; M1 Pro, load 8-15: indicative)
+
+ns per call, `bench/math.ts` (2M calls), platform libm → V8 fdlibm / CORE-MATH pow:
+
+| Function | AOT | Interpreter | QuickJS |
+|---|---|---|---|
+| sin | 10-12 → 12-14 | 43 → 54 | 69 → 79 |
+| cos | 8-9 → 12 | 43 → 54 | 68 → 78 |
+| tan | 8 → 17 | 41 → 58 | 63 → 77 |
+| exp | 4-5 → 7 | 32 → 49 | 61 → 62 |
+| log | 5 → 7 | 27 → 29 | 92 → 97 |
+| pow | 13 → 19 | 40 → 46 | 106 → 110 |
+| atan2 | 11 → 11 | 37 → 39 | 84 → 83 |
+
+zinc grows by 51 KB. Object statics (ZN-161.01) on a 455 KB AOT program: freeze and getOwnPropertyNames +0, assign, fromEntries, defineProperty +16.5 KB each (page-rounded); unused, +0.

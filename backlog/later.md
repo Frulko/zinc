@@ -681,6 +681,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-569: WebGL texture pages: the conformance shim lacks fetch, `createImageBitmap`, canvas `toDataURL`, video (`canPlayType`) and SVG pictures (about 10 pages); tex-image-with-format-and-type fails 8 premultiply checks with image sources (look at UNPACK_PREMULTIPLY_ALPHA for images); 16-bit PNGs decode to 8 bits (tex-image-10bpc); JPEG EXIF orientation is not applied.
 - ZN-569: one decode thread: a pool of 2-4 would load picture-heavy pages faster (measure on the Pi first).
 - ZN-1013: translate the onboarding docs set into Portuguese (`docs/i18n/pt/`, 26 pages) and add `pt` queries to `site/search-check.mjs`; "On this page" and Previous/Next strings once the docs page has a table of contents or page navigation; ZN-774.28 (the explain-fix comment lines) still open.
+- ZN-703: `include/zn/ease.h` and `runtime/zrt.h` `math::` (host easing, gfx rotation, the prototype Dyn's pow) still call the platform libm: route them through `zn_js_*`; asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh, cbrt, log2, log10, log1p, expm1, hypot still use it too (`ieee754.cc` has all but hypot); `Number.prototype.toPrecision` is missing on the Zinc engines.
+- ZN-703: three_3d can compare exactly again (D82) once its goldens are re-recorded with the new Math.
+- ZN-161.01: `Object.freeze` of an `any` array freezes nothing; `Object.keys/entries/values` of typed records are refused (`ownKeysHelper` makes them a few lines); `Partial<C>` of a class is refused (blocks `Object.assign(this, init)`); assign from a string or array source is a diagnostic; `isFrozen`, `isExtensible`, `preventExtensions`, `seal`, `getOwnPropertyDescriptor` missing.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
@@ -883,3 +886,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-249: show transparent windows on a compositing Linux session (X11 ARGB visual or Wayland) over a known wallpaper; the Pi player has no compositor.
 - ZN-444: run `shader_assets.sh` on Linux (`libzn_webgl.so`) and a build with `ZN_WEBGL` off; ZN-678: the turned-image GL path on a real GLES 2 device (Pi).
 - ZN-1047: PSP pictures under 8 px are padded and clamped, so repeating uvs read black padding: tile small pictures up to 8 px at upload (`targets/psp/gu_psp.cpp`); run the World shadows switch on the 3DS (Azahar or the New 3DS: Tokyo Settings > Shadows off/on twice).
+- ZN-703: `tests/run --only math_ieee754` on the Intel Mac and the Pi 3B+ (same bits without FMA and on Linux ARM; only proven by x86_64 Node under Rosetta matching the arm64 build).

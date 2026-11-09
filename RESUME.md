@@ -43,10 +43,12 @@
 - Integrated: ZN-1013 (Done): 16 stale translated pages restamped (fr, es, it, de), Portuguese site strings, the search string in six languages; `i18n_docs` reports nothing stale. The site was not built to look at it.
 - Owner 2026-11-09: CUI parity, parent ZN-1078 (M32, 29 subtasks: design doc, Quiet theme, size gate, 16 component families, 9 demos, side-by-side measure), first in the order; the Design rules are in AGENTS.md, CLAUDE.md, examples/GUIDELINES.md and both skills.
 - Integrated: ZN-1040 (Review, D261): museum table fits cards at large text sizes, staff week/month, shared meshes in the attract loop, editor descriptions, group drag, menus, cues; engine: an optional chain short-circuits as a whole (`m?.get(k) ?? d` crashed). #5 is the museum_editor T1, the owner's.
+- Integrated: ZN-703, ZN-161.01 (Done, D262, D263): Math is Node 24's bits on every engine (V8 fdlibm, CORE-MATH pow, QuickJS patch 0005); Object.assign/freeze/fromEntries/getOwnPropertyNames/defineProperty on records and any. Stash-pop conflict in tests/affected.json resolved keeping the other session's lines.
 - New tasks for the owner: ZN-1002 (full TypeScript parity, parked), ZN-1018 (React, Vue, Svelte, ordinal 40000).
 
 ## Tests to run (the owner picks)
 
+- Math (since 14f12f075): `math_ieee754` on the Intel Mac and the Pi (5 s); three_3d with exact compare (pngdiff without `--tol`, both Macs); `bench/math.ts --native/--interp/--engine quickjs` before and after on a quiet machine.
 - Museum (since 2bae71460): `tests/run --tier demo --only museum_editor` (closes ZN-1040 #5; regenerate table-*.png and sound-112.png for the cues, 1-2 min, 600 MB); `museum_editor_views/_sound/_tools`; `museum_stats` and `museum_access` (regenerate: tabs, card fit); `museum_visit` with the ZN-695 story golden.
 - Docs site (since 0d21116d4): build the site (`pnpm` in `site/`) and look at the search placeholder and the Portuguese switcher.
 - Web pictures (since 85f870edb): `tests/run --tier t1 --only webgl_studio` (10 s); `webenv_image,webenv_pixi,webenv_phaser,webenv_three` (1 min; phaser page.out lines 5-7 already differ); the 24 conformance image pages by name (9 pass, 2 min); a frame-gap check of a 4096² PNG under `ZINC_REALTIME` (alone, 5 s).

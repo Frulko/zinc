@@ -2,8 +2,7 @@
 id: ZN-703
 title: 'Math functions give the same bits on every CPU and libc, as the sim'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 22:04'
 labels:
   - runtime
