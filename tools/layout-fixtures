@@ -7,7 +7,9 @@
 #   tools/layout-fixtures /tmp/yoga
 # `tools/layout-fixtures --report <rn run> <classic run>` writes the feature x engine matrix of two runner outputs (tests/t1/layout_conformance.sh) to
 # docs/reports/layout-conformance.md.
-import json, os, re, subprocess, sys
+# `tools/layout-fixtures --chrome <dir>` lays the JSX tree of <dir>/main.tsx out in headless Chrome (tools/cdp.py) and prints each `ref` box the way the
+# program prints it (`name: x,y wxh`): the expected output of a probe of fixed boxes and Tailwind classes (tests/golden/layout-css, ZN-1022).
+import json, os, re, subprocess, sys, time
 
 YOGA_TAG = 'v3.2.1'
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tests', 'golden', 'layout-conformance', 'cases.json')
@@ -168,8 +170,44 @@ def report(rn_out, classic_out):
     print('wrote ' + os.path.normpath(doc))
 
 
+# The Tailwind subset of the probes, and zinc:ui's defaults: every View is a flex column that stretches its children (CSS keeps flex-shrink 1).
+PAGE = '''<!doctype html><style>body{margin:0}div{display:flex;flex-direction:column;position:relative;box-sizing:border-box}</style><body>%s<script>
+for (const e of document.querySelectorAll('div')) for (const c of e.classList) {
+  const m = /^(w|h|basis|min-w|min-h|max-w|max-h)-(\\[(\\d+)px\\]|(\\d+)|full)$/.exec(c), s = e.style;
+  if (m) { const v = m[2] === 'full' ? '100%%' : m[3] ? m[3] + 'px' : (+m[4] * 4) + 'px';
+    s[{w: 'width', h: 'height', basis: 'flexBasis', 'min-w': 'minWidth', 'min-h': 'minHeight', 'max-w': 'maxWidth', 'max-h': 'maxHeight'}[m[1]]] = v; continue; }
+  const k = {'flex-row': ['flexDirection', 'row'], 'flex-col': ['flexDirection', 'column'], 'flex-wrap': ['flexWrap', 'wrap'], 'flex-1': ['flex', '1 1 0%%'],
+    'grow': ['flexGrow', '1'], 'shrink': ['flexShrink', '1'], 'shrink-0': ['flexShrink', '0'], 'overflow-hidden': ['overflow', 'hidden'], 'items-start': ['alignItems', 'flex-start'],
+    'items-center': ['alignItems', 'center'], 'items-end': ['alignItems', 'flex-end']}[c];
+  if (!k) throw new Error('class ' + c); s[k[0]] = k[1];
+}
+</script>'''
+
+
+def chrome(d):
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from cdp import Chrome
+    src = open(os.path.join(d, 'main.tsx')).read()
+    names = dict(re.findall(r"const (\w+) = r\('([^']+)'\)", src.replace(', ', ';const ')))
+    order = re.findall(r"r\('([^']+)'\)", src)
+    jsx = src[src.index('return <View') + 7:src.rindex('</View>') + 7]
+    html = re.sub(r'ref=\{(\w+)\}', lambda m: 'data-name="' + names[m.group(1)] + '"', jsx)
+    html = re.sub(r'<View([^>]*?)\s*/>', r'<div\1></div>', html).replace('<View', '<div').replace('</View>', '</div>').replace('className=', 'class=')
+    import tempfile
+    with tempfile.NamedTemporaryFile('w', suffix='.html', delete=False) as f: f.write(PAGE % html)
+    with Chrome() as c:
+        c.open('file://' + f.name); time.sleep(0.5)
+        boxes = c.eval("JSON.stringify(Object.fromEntries([...document.querySelectorAll('[data-name]')].map(e => { const b = e.getBoundingClientRect(); return [e.dataset.name, [b.x, b.y, b.width, b.height]]; })))")
+    os.unlink(f.name)
+    boxes = json.loads(boxes if isinstance(boxes, str) else boxes['result']['value'])
+    for n in order:
+        x, y, w, h = boxes[n]
+        print(f'{n}: {round(x)},{round(y)} {round(w)}x{round(h)}')
+
+
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == '--report': return report(sys.argv[2], sys.argv[3])
+    if len(sys.argv) == 3 and sys.argv[1] == '--chrome': return chrome(sys.argv[2])
     if len(sys.argv) != 2: sys.exit('usage: tools/layout-fixtures <yoga checkout at ' + YOGA_TAG + '>')
     root = sys.argv[1]
     commit = subprocess.run(['git', '-C', root, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()

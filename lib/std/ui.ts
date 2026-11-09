@@ -411,6 +411,7 @@ export class UiNode {
   align: i32 = 3;     // 0 start, 1 center, 2 end, 3 stretch
   grow: number = 0;   // flex-grow, fractional
   shrink: number = -1; basis: number = -1; basisFrac: number = 0; order: i32 = 0; selfAlign: i32 = -1; alignContent: i32 = -1; reverse: boolean = false; wrapRev: boolean = false;   // flex-shrink (-1: legacy, never shrinks), flex-basis, order, align-self (-1: auto), align-content (-1: start), row-reverse / col-reverse
+  flex1: boolean = false;   // Tailwind's flex-1, CSS's `flex: 1 1 0%` (classic layout, cssFlex)
   pt: i32 = 0; pr: i32 = 0; pb: i32 = 0; pl: i32 = 0;
   mt: i32 = 0; mr: i32 = 0; mb: i32 = 0; ml: i32 = 0;
   gap: i32 = 0; gapX: i32 = -1; gapY: i32 = -1;   // gap-x (between columns) and gap-y (between rows) override `gap` when set
@@ -2702,7 +2703,8 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'overflow-auto' || tok === 'overflow-scroll') { n.overflow = true; n.scroll = 3; return true; }
   if (tok === 'overflow-y-auto' || tok === 'overflow-y-scroll') { n.overflow = true; n.scroll = n.scroll | 1; return true; }
   if (tok === 'overflow-x-auto' || tok === 'overflow-x-scroll') { n.overflow = true; n.scroll = n.scroll | 2; return true; }
-  if (tok === 'grow' || tok === 'flex-1') { n.grow = 1; return true; }
+  if (tok === 'grow') { n.grow = 1; return true; }
+  if (tok === 'flex-1') { n.grow = 1; n.flex1 = true; return true; }   // flex: 1 1 0%: grows from 0, shrinks, stops at its content's minimum (cssFlex)
   if (tok === 'grow-0') { n.grow = 0; return true; }
   if (tok.startsWith('grow-') || tok.startsWith('shrink')) {   // grow-2, grow-[0.5], shrink, shrink-0, shrink-[0.5]
     const isGrow = tok.startsWith('grow-'), rest = isGrow ? tok.slice(5) : tok.slice(7);
@@ -2712,9 +2714,9 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     if (isGrow) n.grow = v; else n.shrink = v;
     return true;
   }
-  if (tok === 'flex-none') { n.grow = 0; n.shrink = 0; n.basis = -1; n.basisFrac = 0; return true; }
-  if (tok === 'flex-auto') { n.grow = 1; n.shrink = 1; n.basis = -1; n.basisFrac = 0; return true; }
-  if (tok === 'flex-initial') { n.grow = 0; n.shrink = 1; n.basis = -1; n.basisFrac = 0; return true; }
+  if (tok === 'flex-none') { n.grow = 0; n.shrink = 0; n.basis = -1; n.basisFrac = 0; n.flex1 = false; return true; }
+  if (tok === 'flex-auto') { n.grow = 1; n.shrink = 1; n.basis = -1; n.basisFrac = 0; n.flex1 = false; return true; }
+  if (tok === 'flex-initial') { n.grow = 0; n.shrink = 1; n.basis = -1; n.basisFrac = 0; n.flex1 = false; return true; }
   if (tok === 'flex-row-reverse') { n.row = true; n.reverse = true; return true; }
   if (tok === 'flex-col-reverse') { n.row = false; n.reverse = true; return true; }
   if (tok.startsWith('basis-')) {   // basis-0, basis-32, basis-1/2, basis-full, basis-auto, basis-[120px]
@@ -2746,8 +2748,8 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     n.alignContent = i;
     return true;
   }
-  if (tok === 'w-full') { n.fullW = true; return true; }
-  if (tok === 'h-full') { n.fullH = true; return true; }
+  if (tok === 'w-full') { n.fullW = true; n.w = -1; n.wFrac = 0; return true; }
+  if (tok === 'h-full') { n.fullH = true; n.h = -1; n.hFrac = 0; return true; }
   if (tok.startsWith('inset-')) {   // inset-0, inset-4, inset-x-2, inset-y-0, inset-[10px]: an absolute box
     const k = tok.slice(6), ax = k.startsWith('x-'), ay = k.startsWith('y-');
     const fv = num(ax || ay ? k.slice(2) : k);
@@ -2976,8 +2978,8 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok.startsWith('left-')) { const v = num(tok.slice(5)); if (v !== v) return false; n.left = Math.round(v); return true; }
   if (tok.startsWith('right-')) { const v = num(tok.slice(6)); if (v !== v) return false; n.right = Math.round(v); return true; }
   if (tok.startsWith('bottom-')) { const v = num(tok.slice(7)); if (v !== v) return false; n.bottom = Math.round(v); return true; }
-  if (tok.startsWith('w-')) { const k = tok.slice(2); const f = k.startsWith('[') && k.endsWith('%]') ? parseFloat(k.slice(1, k.length - 2)) / 100 : k.indexOf('/') > 0 ? num(k) : -1, v = f >= 0 || f !== f ? f : num(k); if (v !== v) return false; if (f >= 0) n.wFrac = f; else n.w = Math.round(v); return true; }
-  if (tok.startsWith('h-')) { const k = tok.slice(2); const f = k.startsWith('[') && k.endsWith('%]') ? parseFloat(k.slice(1, k.length - 2)) / 100 : k.indexOf('/') > 0 ? num(k) : -1, v = f >= 0 || f !== f ? f : num(k); if (v !== v) return false; if (f >= 0) n.hFrac = f; else n.h = Math.round(v); return true; }
+  if (tok.startsWith('w-')) { const k = tok.slice(2); const f = k.startsWith('[') && k.endsWith('%]') ? parseFloat(k.slice(1, k.length - 2)) / 100 : k.indexOf('/') > 0 ? num(k) : -1, v = f >= 0 || f !== f ? f : num(k); if (v !== v) return false; if (f >= 0) { n.wFrac = f; n.w = -1; } else { n.w = Math.round(v); n.wFrac = 0; } n.fullW = false; return true; }   // the last width class wins (w-full w-[280px]: 280)
+  if (tok.startsWith('h-')) { const k = tok.slice(2); const f = k.startsWith('[') && k.endsWith('%]') ? parseFloat(k.slice(1, k.length - 2)) / 100 : k.indexOf('/') > 0 ? num(k) : -1, v = f >= 0 || f !== f ? f : num(k); if (v !== v) return false; if (f >= 0) { n.hFrac = f; n.h = -1; } else { n.h = Math.round(v); n.hFrac = 0; } n.fullH = false; return true; }
   // negative margins: -m-2, -mt-4, -mx-1; auto margins: m-auto, mx-auto, ml-auto...
   const neg = tok.startsWith('-');
   const body = neg ? tok.slice(1) : tok;
@@ -3015,7 +3017,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
 function resetStyle(n: UiNode): void {
   n.media = 0; n.container = false; n.ov = null;
   const button = n.tag === BUTTON;   // the defaults() of each tag, as constants
-  n.row = false; n.wrap = false; n.justify = button ? 1 : 0; n.align = button ? 1 : 3; n.grow = 0; n.shrink = -1; n.basis = -1; n.basisFrac = 0; n.order = 0; n.selfAlign = -1; n.alignContent = -1; n.reverse = false; n.wrapRev = false;
+  n.row = false; n.wrap = false; n.justify = button ? 1 : 0; n.align = button ? 1 : 3; n.grow = 0; n.shrink = -1; n.basis = -1; n.basisFrac = 0; n.order = 0; n.selfAlign = -1; n.alignContent = -1; n.reverse = false; n.wrapRev = false; n.flex1 = false;
   n.pt = 0; n.pr = 0; n.pb = 0; n.pl = 0; n.mt = 0; n.mr = 0; n.mb = 0; n.ml = 0; n.gap = 0; n.gapX = -1; n.gapY = -1; n.mAuto = 0;
   n.w = -1; n.h = -1; n.wFrac = 0; n.hFrac = 0; n.fullW = false; n.fullH = false; n.minW = -1; n.maxW = -1; n.minH = -1; n.maxH = -1; n.aspect = 0;
   n.abs = false; n.top = UNSET; n.left = UNSET; n.right = UNSET; n.bottom = UNSET; n.hidden = false; n.contents = false; n.pct = null; n.overflow = n.tag === SCROLL || n.ed !== null; n.scroll = n.tag === SCROLL ? 1 : 0;
@@ -3549,13 +3551,15 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
       c.natW = c.lw;
       applyBasis(c, n.row, mainAvail);
       if (c.basisCut || (n.row && c.lw < c.natW - 0.5)) n.basisCut = true;
+      // a flex-basis below the width it was measured at: it is measured again at its basis, so what wraps in it wraps there and its height follows (ZN-1022)
+      if (n.row && c.lw < c.natW - 0.5 && c.grow <= 0) { const b = c.lw; measureAt(c, b, innerH); c.lw = b; }
       if (aspects && c.aspect > 0 && c.h < 0 && c.hFrac === 0 && !c.fullH) {
         const g: number = c.grow > 0 ? c.grow : c.fullW ? 1 : 0;
         const fw: number = n.row ? c.lw + (growSum > 0 ? growFree * g / growSum : 0) : (c.w < 0 && c.wFrac === 0 && (n.align === 3 || c.fullW) ? inner - c.ml - c.mr : c.lw);
         constrainSize(c, Math.round(fw), c.lh);
         c.lh = csH;
       }
-      const cm = n.row ? outerW(c) : outerH(c), cc = n.row ? outerH(c) : outerW(c);
+      const cm = flowMain(c, n, mainAvail), cc = n.row ? outerH(c) : outerW(c);
       if (n.wrap && count > 0 && lineMain + gm + cm > mainAvail) {
         if (lineMain > main) main = lineMain;
         cross += lineCross + gc;
@@ -3569,9 +3573,17 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     }
     if (lineMain > main) main = lineMain;
     cross += lineCross;
+    // a row with flex-1 or w-full children: CSS's flexible lengths give each child its width, and the ones that end narrower than their content are
+    // measured again there (cssFlex); the row keeps its content width where they grow
+    const css = n.row && !n.wrap && !aspects && cssLine(kids, 0, kids.length, true);
+    if (css) {
+      cssFlex(n, kids, 0, kids.length, inner, innerH, true);
+      main = 0; cross = 0;
+      for (let i = 0; i < kids.length; i++) { const c = kids[i]; main += (i > 0 ? gm : 0) + outerW(c); if (outerH(c) > cross) cross = outerH(c); }
+    }
     // a row too narrow for its children: the ones with flex-shrink are measured again at the width they will get, so that what wraps in them wraps
     // there and the row takes the height that gives (each child was offered the whole row above)
-    if (n.row && !n.wrap && main > inner + 0.5) {
+    if (!css && n.row && !n.wrap && main > inner + 0.5) {
       const t = shrunk(kids, 0, kids.length, inner, gm);
       if (t !== null) {
         main = 0; cross = 0;
@@ -3586,7 +3598,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     // a row with room left: the children that grow get it, and one that gets less than the width it was measured at (a flex-basis below
     // its content, here or in a box inside it) is measured again at that width, so that what wraps in it wraps there and the row takes
     // the height that gives
-    if (n.row && !n.wrap && !aspects && main < inner - 0.5) {
+    if (!css && n.row && !n.wrap && !aspects && main < inner - 0.5) {
       let gs: number = 0;
       for (const c of kids) if (c.grow > 0) gs += c.grow;
       if (gs > 0) {
@@ -3622,7 +3634,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
 /** A child's flex-shrink along its parent's main axis. Shrinking is opt-in in classic (-1: never), but `min-w-0` in a row (`min-h-0` in a column)
  *  gives the CSS default back, flex-shrink 1, as Tailwind's `flex-1 min-w-0` means: the item may get narrower than its content (a pane beside
  *  fixed panels, a text that wraps or truncates), down to 0. An explicit shrink class wins. */
-function shrinkOf(c: UiNode, row: boolean): number { return c.shrink >= 0 ? c.shrink : (row ? c.minW : c.minH) === 0 ? 1 : 0; }
+function shrinkOf(c: UiNode, row: boolean): number { return c.shrink >= 0 ? c.shrink : cssItem(c, row) || (row ? c.minW : c.minH) === 0 ? 1 : 0; }
 /** The widths flex-shrink leaves kids[start, end) in a row of `inner` px, CSS's loop: an item that reaches its min-width (0 without one) is frozen
  *  there and the others share the rest of the overflow, weighted by shrink x width. null when nothing shrinks. */
 function shrunk(kids: UiNode[], start: i32, end: i32, inner: number, gm: number): number[] | null {
@@ -3679,6 +3691,143 @@ function growWithLimits(n: UiNode, kids: UiNode[], start: i32, end: i32, free: n
   }
   return size;
 }
+/** Whether a child is sized as CSS sizes a flex item along its parent's main axis (ZN-1022): Tailwind's flex-1 (`flex: 1 1 0%`) or a 100% size along it
+ *  (w-full in a row, h-full in a column). It starts from its flex-basis (0, or 100% of the line), shrinks by default and stops at CSS's automatic minimum
+ *  size (`min-width: auto`: its content's minimum, at most its specified size; 0 for a scroll, overflow-hidden or truncated box). The other children of the line keep
+ *  classic's rules (no shrink unless asked, grow from the content), and a line without such a child is laid out as before. */
+function cssItem(c: UiNode, row: boolean): boolean { return c.flex1 || (row ? c.fullW : c.fullH); }
+function cssLine(kids: UiNode[], start: i32, end: i32, row: boolean): boolean {
+  for (let i = start; i < end; i++) if (cssItem(kids[i], row)) return true;
+  return false;
+}
+/** The size along the main axis a child takes in a wrapped line: a 100% size is a whole line, as in CSS. */
+function flowMain(c: UiNode, n: UiNode, innerMain: number): number {
+  if (n.wrap && (n.row ? c.fullW : c.fullH)) return innerMain;
+  return n.row ? outerW(c) : outerH(c);
+}
+/** A row child measured at a width it is given rather than one it was offered: its own width (or percent) is set aside, as a flex item is laid out at its
+ *  flex size (`flex-1 w-0`, `w-full`). */
+function measureAt(c: UiNode, w: number, cross: number): void {
+  const ow = c.w, of = c.wFrac;
+  c.w = -1; c.wFrac = 0;
+  measure(c, w, cross);
+  c.w = ow; c.wFrac = of;
+}
+// Per item of cssFlex: flex base size, target, minimum (NaN: not looked up yet), frozen, measured at 0 (for its minimum), size it was measured at, violation.
+const F_BASE: i32 = 0, F_TGT: i32 = 1, F_MIN: i32 = 2, F_FRZ: i32 = 3, F_M0: i32 = 4, F_ORIG: i32 = 5, F_VIO: i32 = 6, F_N: i32 = 7;
+const fPool: number[][] = [];
+let fDepth: i32 = 0;
+/** CSS's automatic minimum of item k (a[k * F_N]), looked up once: an explicit min-width wins; a classic child has none (0); a CSS item has its content's
+ *  minimum (a row child is measured at width 0 for it, so it is measured again at its final width), at most its specified size. */
+function flexMin(a: number[], k: i32, c: UiNode, row: boolean, inner: number, cross: number): number {
+  const o = k * F_N;
+  const cached = a[o + F_MIN];
+  if (cached === cached) return cached;
+  const lo = row ? c.minW : c.minH;
+  let v: number = 0;
+  if (lo >= 0) v = lo;
+  else if (cssItem(c, row) && c.scroll === 0 && !c.overflow && !c.ellipsis) {   // truncate is overflow-hidden in Tailwind: no content minimum
+    if (row) { measureAt(c, 0, cross); v = c.lw; a[o + F_M0] = 1; } else v = a[o + F_ORIG];
+    const spec: number = row ? (c.w >= 0 ? c.w : c.fullW ? inner - c.ml - c.mr : c.wFrac > 0 ? Math.round(inner * c.wFrac) : -1)
+      : (c.h >= 0 ? c.h : c.fullH ? inner - c.mt - c.mb : c.hFrac > 0 ? Math.round(inner * c.hFrac) : -1);
+    if (spec >= 0 && spec < v) v = spec;
+  }
+  a[o + F_MIN] = v;
+  return v;
+}
+/** An item's target inside its max and its minimum. The minimum is looked up only below the size the item was measured at: the automatic minimum
+ *  never exceeds the content, so a line with room (the usual flex-1 row) measures nothing more. */
+function flexClamp(a: number[], k: i32, c: UiNode, row: boolean, inner: number, cross: number, v: number): number {
+  const hi = row ? c.maxW : c.maxH;
+  if (hi >= 0 && v > hi) v = hi;
+  if (v < a[k * F_N + F_ORIG] - 0.5 || (row ? c.minW : c.minH) >= 0) { const m = flexMin(a, k, c, row, inner, cross); if (v < m) v = m; }
+  return v < 0 ? 0 : v;
+}
+/** CSS's "resolve flexible lengths" (Flexbox 1, 9.7) for one line holding a CSS item (cssItem): flex base sizes, grow or shrink by the sum of the
+ *  hypothetical sizes, then rounds that freeze the items their min or max clamps. The sizes are rounded so that neighbours touch and written to the
+ *  children (lw in a row, lh in a column); a row child that ends narrower than it was measured at is measured again there, so its text wraps at its width.
+ *  In measure() (`measuring`) a child keeps its content width when it grows: only the room it lacks changes the row's size. */
+function cssFlex(n: UiNode, kids: UiNode[], start: i32, end: i32, inner: number, cross: number, measuring: boolean): void {
+  const row = n.row, cnt = end - start;
+  if (fPool.length <= fDepth) fPool.push([]);
+  const a = fPool[fDepth];
+  fDepth++;
+  try {
+    a.length = 0;
+    let room: number = inner - gapMain(n) * (cnt - 1), lowSum: number = 0, highSum: number = 0;
+    for (let i = start; i < end; i++) {
+      const c = kids[i];
+      room -= row ? c.ml + c.mr : c.mt + c.mb;
+      const orig: number = row ? c.lw : c.lh;
+      const basis = c.basis >= 0 || c.basisFrac > 0;   // applied by measure() already
+      const base: number = basis ? orig : c.flex1 ? 0 : row ? (c.fullW ? inner - c.ml - c.mr : orig) : (c.fullH ? inner - c.mt - c.mb : orig);
+      a.push(base); a.push(base); a.push(NaN); a.push(0); a.push(0); a.push(orig); a.push(0);
+      const hi = row ? c.maxW : c.maxH, lo = row ? c.minW : c.minH;
+      let low: number = base;
+      if (hi >= 0 && low > hi) low = hi;
+      if (lo >= 0 && low < lo) low = lo;
+      lowSum += low;
+      highSum += cssItem(c, row) && low < orig ? (hi >= 0 && orig > hi ? hi : orig) : low;
+    }
+    // grow or shrink: by the sum of the hypothetical sizes (base inside min and max), bounded first without looking up a minimum
+    let growing = highSum < room;
+    if (!growing && lowSum < room) {
+      let hypSum: number = 0;
+      for (let i = start; i < end; i++) { const k = i - start; hypSum += flexClamp(a, k, kids[i], row, inner, cross, a[k * F_N + F_BASE]); }
+      growing = hypSum < room;
+    }
+    let initFree: number = room;
+    for (let i = start; i < end; i++) {
+      const c = kids[i], k = i - start, o = k * F_N, base = a[o + F_BASE];
+      // inflexible: no factor, or its hypothetical size is on the wrong side of its base (a max cuts a growing item, a min holds a shrinking one)
+      const f: number = growing ? c.grow : shrinkOf(c, row), hi = row ? c.maxW : c.maxH;
+      let frozen = f <= 0, hyp: number = base;
+      if (frozen) hyp = flexClamp(a, k, c, row, inner, cross, base);
+      else if (growing) { if (hi >= 0 && base > hi) { frozen = true; hyp = hi; } }
+      else { hyp = flexClamp(a, k, c, row, inner, cross, base); frozen = base < hyp; }
+      if (frozen) { a[o + F_FRZ] = 1; a[o + F_TGT] = hyp; initFree -= hyp; } else initFree -= base;
+    }
+    for (let round = 0; round <= cnt; round++) {
+      let free: number = room, factors: number = 0, open = false;
+      for (let i = start; i < end; i++) {
+        const c = kids[i], o = (i - start) * F_N;
+        if (a[o + F_FRZ] !== 0) { free -= a[o + F_TGT]; continue; }
+        free -= a[o + F_BASE]; open = true;
+        factors += growing ? c.grow : shrinkOf(c, row) * a[o + F_BASE];
+      }
+      if (!open) break;
+      if (growing && factors < 1 && Math.abs(initFree * factors) < Math.abs(free)) free = initFree * factors;   // flex factors under 1 take that part of the room only
+      let total: number = 0;
+      for (let i = start; i < end; i++) {
+        const c = kids[i], k = i - start, o = k * F_N;
+        if (a[o + F_FRZ] !== 0) continue;
+        const base = a[o + F_BASE];
+        const t: number = factors <= 0 ? base : base + free * (growing ? c.grow : shrinkOf(c, row) * base) / factors;
+        const v = flexClamp(a, k, c, row, inner, cross, t);
+        a[o + F_TGT] = v; a[o + F_VIO] = v - t; total += v - t;
+      }
+      for (let i = start; i < end; i++) {
+        const o = (i - start) * F_N;
+        if (a[o + F_FRZ] !== 0) continue;
+        const vio = a[o + F_VIO];
+        if (Math.abs(total) < 0.01 || (total > 0 && vio > 0) || (total < 0 && vio < 0)) a[o + F_FRZ] = 1;
+      }
+    }
+    // rounded so that neighbours touch (Yoga's pixel grid), then written to the children
+    let acc: number = 0;
+    for (let i = start; i < end; i++) {
+      const c = kids[i], o = (i - start) * F_N, t = a[o + F_TGT], orig = a[o + F_ORIG], m0 = a[o + F_M0] !== 0;
+      const size: number = Math.round(acc + t) - Math.round(acc);
+      acc += t;
+      if (!row) { if (!measuring) c.lh = size; continue; }
+      if (size < orig - 0.5) { if (cssItem(c, row)) measureAt(c, size, cross); else measure(c, size, cross); c.lw = size; }
+      else if (measuring) { if (m0) measureAt(c, orig, cross); c.lw = orig; }
+      else { if (m0) measureAt(c, size, cross); c.lw = size; }
+    }
+  } finally {
+    fDepth--;
+  }
+}
 function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   if (n.rel || (RN_STYLE && !n.abs && !n.stat)) { x += n.left !== UNSET ? n.left : n.right !== UNSET ? -n.right : 0; y += n.top !== UNSET ? n.top : n.bottom !== UNSET ? -n.bottom : 0; }   // position: relative: shifted, the layout around it is not
   n.x = x; n.y = y; n.lw = vw; n.lh = vh;
@@ -3714,7 +3863,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     while (s0 < kids.length) {
       let e0: i32 = s0, u0: number = 0, c0: number = 0;
       while (e0 < kids.length) {
-        const cm0 = n.row ? outerW(kids[e0]) : outerH(kids[e0]);
+        const cm0 = flowMain(kids[e0], n, innerMain);
         if (e0 > s0 && u0 + gm + cm0 > innerMain) break;
         u0 += (e0 > s0 ? gm : 0) + cm0;
         const cc0 = n.row ? outerH(kids[e0]) : outerW(kids[e0]);
@@ -3742,7 +3891,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     let end: i32 = start;
     let used: number = 0;
     while (end < kids.length) {
-      const cm = n.row ? outerW(kids[end]) : outerH(kids[end]);
+      const cm = flowMain(kids[end], n, innerMain);
       if (n.wrap && end > start && used + gm + cm > innerMain) break;
       used += (end > start ? gm : 0) + cm;
       end++;
@@ -3752,7 +3901,8 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     // whole width, and a pane beside two panels kept the lines of that width, clipped at its edge.
     let hyp0: number = used;   // the same line at its hypothetical sizes (hypMain)
     if (n.row) { hyp0 = 0; for (let i = start; i < end; i++) hyp0 += (i > start ? gm : 0) + hypMain(kids[i], true) + kids[i].ml + kids[i].mr; }
-    if (n.row && innerMain - Math.max(used, hyp0) < -0.5) {
+    const css = cssLine(kids, start, end, n.row);   // a line with flex-1, w-full or h-full children: CSS's flexible lengths size it (cssFlex) after the cross-axis pass
+    if (!css && n.row && innerMain - Math.max(used, hyp0) < -0.5) {
       const t = shrunk(kids, start, end, innerMain, gm);
       if (t !== null) {
         for (let i = start; i < end; i++) { const c = kids[i]; if (t[i - start] < c.lw - 0.5) { measure(c, t[i - start], ih); c.lw = t[i - start]; } }
@@ -3767,23 +3917,28 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       used = 0;
       for (let i = start; i < end; i++) used += (i > start ? gm : 0) + outerH(kids[i]);
     }
+    if (css) {
+      cssFlex(n, kids, start, end, innerMain, n.row ? ih : iw, false);
+      used = 0;
+      for (let i = start; i < end; i++) used += (i > start ? gm : 0) + (n.row ? outerW(kids[i]) : outerH(kids[i]));
+    }
     let lineCross: number = 0;
     let grows: number = 0;
     for (let i = start; i < end; i++) {
       const c = kids[i];
       const cc = n.row ? outerH(c) : outerW(c);
       if (cc > lineCross) lineCross = cc;
-      grows += c.grow > 0 ? c.grow : (n.row ? c.fullW : c.fullH) ? 1 : 0;
+      if (!css) grows += c.grow > 0 ? c.grow : (n.row ? c.fullW : c.fullH) ? 1 : 0;   // a CSS line has its final sizes already
     }
     if (!n.wrap) lineCross = innerCross;
     lineCross += acStretch;
     let usedHyp: number = 0;   // the line at its hypothetical sizes (min/max applied): when they overflow it, the shrinking children make the room
     for (let i = start; i < end; i++) usedHyp += (i > start ? gm : 0) + hypMain(kids[i], n.row) + (n.row ? kids[i].ml + kids[i].mr : kids[i].mt + kids[i].mb);
-    const free = usedHyp > innerMain + 0.5 ? innerMain - usedHyp : innerMain - used;
+    const free = !css && usedHyp > innerMain + 0.5 ? innerMain - usedHyp : innerMain - used;
     const count = end - start;
     // flex-shrink (opt-in: a child without it never shrinks): the overflow is taken from the children that have it, weighted by shrink x size
     let shrinkTotal: number = 0;
-    if (free < 0) for (let i = start; i < end; i++) { const c = kids[i], k = shrinkOf(c, n.row); if (k > 0) shrinkTotal += k * (n.row ? c.lw : c.lh); }
+    if (free < 0 && !css) for (let i = start; i < end; i++) { const c = kids[i], k = shrinkOf(c, n.row); if (k > 0) shrinkTotal += k * (n.row ? c.lw : c.lh); }
     let pos: number = 0, between: number = gm;
     // auto margins on the main axis take the free space of the line (they win over justify-content, like CSS)
     let autos: i32 = 0;

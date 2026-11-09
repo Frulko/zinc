@@ -1,0 +1,19 @@
+h-full tall content: 0,48 320x240
+h-full overflow-hidden: 0,288 320x192
+w-full wide content: 100,480 320x20
+w-full a: 0,500 160x20
+w-full b: 160,500 160x20
+basis row: 0,520 320x60
+basis-200 wrap: 0,520 200x60
+flex-1 wrap beside a bar: 100,580 220x40
+flex-1 a: 0,620 100x30
+flex-1 b: 100,620 100x30
+flex-1 c: 200,620 100x30
+flex-1 min-content: 0,650 200x20
+flex-1 beside min-content: 200,650 100x20
+flex-1 min-w-0 a: 0,670 150x20
+flex-1 min-w-0 b: 150,670 150x20
+auto column flex-1 a: 0,690 300x30
+auto column flex-1 b: 0,720 300x50
+column flex-1 a: 0,770 300x80
+column flex-1 b: 0,850 300x20

@@ -88,6 +88,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Several windows: `win.open({ x, y, ... })` places a window as it opens, `onClosed(cb)` runs once after a window closes (`win.get(0).onClosed(quit)` ends the app with its main window), `onWindowClosed` of `zinc:gfx` reports any window, and a `port.handle` answer may be `async`: the reply leaves when its Promise settles, from the program or from a worker.
 
+#### Changed
+
+- The default layout sizes `flex-1`, `w-full` and `h-full` as a browser does: `flex-1` items share a row or a column equally whatever their content, but never get narrower than their content unless they have `min-w-0`, `overflow-hidden` or `truncate`; a `w-full` or `h-full` box along the row or column stays inside its parent instead of growing with its content; and the last width or height class wins (`w-full w-[280px]` is 280 px wide).
+
 #### Fixed
 
 - One error no longer freezes a reactive app: a throw inside `batch`, `untrack` or an effect used to hold every later signal update back, and a render caught by its parent (an error boundary) stopped reordered children from moving.
@@ -107,6 +111,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `a?.b !== undefined` now tells the checker that `a` and `a.b` are set, as TypeScript does, inside JSX too.
 - A canvas drawn with `onDraw`, and an `<Icon>`, now fade with the view they are in (an `opacity-50` card, a screen leaving a navigation stack) instead of staying fully opaque; `zinc:gfx` has `setGlobalAlpha` and `globalAlpha` for the same effect in your own drawing.
 - `onScroll` on a `ScrollView` or a `FlatList` runs once per scroll in a component that renders again: each render used to add another call.
+- A row child with `basis-*` lays its content out at its basis, so a wrapping list inside it takes the height it needs and a scroll area around it scrolls to its end.
 
 ### The web
 
