@@ -7,7 +7,7 @@ status: In Progress
 assignee:
   - '@parallel'
 created_date: '2026-10-24 23:55'
-updated_date: '2026-11-09 00:17'
+updated_date: '2026-11-09 00:20'
 labels:
   - size-L
 milestone: m-21
@@ -32,7 +32,7 @@ From backlog/later.md, promoted by the review of 2026-10-25 (docs/reports/backlo
 <!-- AC:BEGIN -->
 - [x] #1 A UI-only export with permissions [] links no TLS, libuv, llhttp or unused SDL3 subsystems; size compared with the Tauri row
 - [x] #2 An app with no animation or input sleeps until an event (idle hello below 1% CPU)
-- [ ] #3 Report names what holds the 25-90 MB RSS (atlas, fonts, tree, arenas) and the 14 threads; unused ones start lazily
+- [x] #3 Report names what holds the 25-90 MB RSS (atlas, fonts, tree, arenas) and the 14 threads; unused ones start lazily
 - [ ] #4 Numbers logged in docs/reports/zinc-next-perf.md
 <!-- AC:END -->
 
@@ -57,4 +57,14 @@ Part 2, link pruning (2026-11-09). sys_host.cpp is compiled a second time with Z
 Hello export, UI-only, permissions [] (measured while another tree built; sizes are exact, not timing): binary 6,304,720 -> 5,177,184 B; .app 6168 -> 5064 KB; zip 2,899,375 -> 2,370,332 B; 115 -> 0 Mbed TLS strings; frameworks dropped: Cocoa umbrella, CoreMedia, AudioToolbox, AVFoundation, CoreAudio, CoreBluetooth, CoreMotion. Tauri row: 4888 KB installed, 2069 KB zipped: Zinc is 176 KB above it installed, 300 KB zipped. A fetch program still links TLS and runs (tests/t0/lite_host.sh).
 What is left in the hello binary (link map): SDL3 1.36 MB (joystick, gamepad, HIDAPI 366 KB; render, blit, surface 614 KB), HarfBuzz 739 KB, zstd compressor + lz4hc when a pack is read ~400 KB, libwebp decoder 172 KB, libuv 65 KB.
 Decisions (for the coordinator to record): libuv stays in every program: it is the event loop, the worker pool (asset decode, fs async) and the worker wake of UI apps too, 65 KB, 1% of the binary; the criterion's 'no libuv' assumed a UI app does not use it. SDL3 joystick and gamepad stay: gamepads are a feature of every program (ZN-574). With those two recorded, criterion 1 holds for TLS, llhttp and the unused frameworks.
+
+Part 3, threads and memory (2026-11-09, idle hello window, interpreter, M1 Pro, CPU raster; measured while another tree built: indicative).
+Threads, 14 (sample): main; 7 'zinc band' raster workers (now named; 'ps' showed them unnamed); 'zinc render' (runtime/gfx.cpp present thread); com.apple.NSEventThread (AppKit); 3-4 GCD workqueue threads (system, parked in __workq_kernreturn). Lazy already: the libuv pool (first uv_queue_work), the image decoder (first decode), gamepads (SDL_INIT_GAMEPAD at the second poll). Made lazy now: the band workers start on the first frame whose damage is at least two stripes tall, so a window presented on the GPU (ZINC_RENDERER=metal) runs 7 threads instead of 14; with the CPU raster they start on the first full frame, as before, and park on a condition variable at no CPU cost (a few stack pages each, 416 KB of stack in all).
+Memory: ps RSS (135 MB here; the 25-90 MB of the task) counts the shared system libraries (282 MB of dyld-cache __TEXT resident, shared by every app); the cost of the app is the physical footprint, 29-30 MB:
+- IOSurface 8.0 MB: the window's two backing surfaces (Core Animation double buffer at the pixel size);
+- IOAccelerator (graphics) 4.2 MB + 0.4 MB: the frame texture the raster uploads, and Metal's own buffers;
+- malloc 9.5 MB (nano 3.0, small 3.0, tiny 1.7, medium 1.3, metadata 0.5): the framebuffer rows, the glyph atlas, the font tables HarfBuzz reads, the UI tree and the interpreter's arenas; font files themselves are mapped clean (11 MB mapped file, not counted);
+- __DATA/__DATA_DIRTY/__AUTH 3.6 MB, CoreUI image data 1.0 MB, ColorSync 0.5 MB, CoreAnimation 0.3 MB: AppKit and the system frameworks, the same in any Cocoa app;
+- stack 0.4 MB, page table 0.75 MB.
+The earlier breakdowns (docs/reports/engine-memory-cpu-2026-10-31.md, engine-memory-hal-2026-10-31.md) give the same owners; the levers left are the double buffer (ZINC_PRESENT=auto, opt-in) and the upload texture, both in the HAL.
 <!-- SECTION:NOTES:END -->

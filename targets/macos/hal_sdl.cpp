@@ -14,9 +14,11 @@ extern "C" __attribute__((weak)) void zrt_prof_info(const char* key, const char*
 #include <algorithm>
 #include <atomic>
 #include <thread>
+#ifndef _WIN32
+#include <pthread.h>
+#endif
 #include <vector>
 
-extern "C" { static void start_workers(); }   // parallel rasterization (hal_present); defined inside the extern "C" block below (GCC wants the same linkage)
 static SDL_Window* win;
 static SDL_Renderer* ren;
 static SDL_Texture* tex;
@@ -703,7 +705,6 @@ void hal_init(const HalConfig* cfg) {
     zrt_prof_info("vsync", vs ? "on" : "off");
     publish_refresh();
   }
-  start_workers();
   if (full) { show_main(); shown = true; set_fullscreen(true); SDL_SyncWindow(win); }   // fullscreen applies to a shown window: no wait on a hidden one
   if (kiosk) { SDL_HideCursor(); SDL_SetWindowAlwaysOnTop(win, true); }
   // HiDPI: frames are rasterized at the window's pixel size, so text and shapes stay sharp (ZINC_SCALE overrides)
@@ -1345,13 +1346,21 @@ static void start_workers() {
   if (getenv("ZN_USB_DEBUG")) fprintf(stderr, "start_workers n=%d stripe=%d\n", n, kStripe);
   for (int i = 1; i < n; i++) SDL_DetachThread(SDL_CreateThread([](void* p) -> int { band_worker(static_cast<int>((size_t)p)); return 0; }, "zinc-band", (void*)(size_t)i));
 #else
-  for (int i = 1; i < n; i++) std::thread(band_worker, i).detach();
+  for (int i = 1; i < n; i++) std::thread([i] {
+#ifdef __APPLE__
+    pthread_setname_np("zinc band");   // named in a sample or a crash report (ZN-805)
+#else
+    pthread_setname_np(pthread_self(), "zinc band");
+#endif
+    band_worker(i);
+  }).detach();
 #endif
   workers = n > 1 ? n - 1 : 0;
 }
 static void render_rows_parallel(void (*fn)(uint32_t*, int32_t, int32_t), int32_t y0, int32_t y1, uint32_t* px = nullptr) {
   band_prof = zrt_profiling() != 0;
   band_px = px ? px : fb;
+  if (y1 - y0 >= 2 * kStripe) start_workers();   // lazily (ZN-805): a window presented on the GPU, or one that only redraws small boxes, starts no band thread
   if (workers == 0 || y1 - y0 < 2 * kStripe) {
     if (band_swap || band_opaque) { band_fn = fn; band_y0 = y0; band_y1 = y1; band_next.store(0, std::memory_order_relaxed); run_band(0); return; }
     uint64_t t0 = band_prof ? hal_time_us() : 0;
