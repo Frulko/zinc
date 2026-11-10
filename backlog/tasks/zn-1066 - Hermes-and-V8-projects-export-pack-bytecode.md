@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:43'
-updated_date: '2026-11-10 10:33'
+updated_date: '2026-11-10 11:07'
 labels:
   - engine
   - size-M
@@ -36,7 +36,7 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 - [x] #1 zinc export (--dmg, --key, SBOM) and zinc pack/fuse accept jsc, v8 and hermes projects
 - [x] #2 zinc build --engine hermes precompiles .hbc
 - [ ] #3 Export prefers the downloaded pack to the source-built module; Hermes handle scope growth checked on a long program
-- [ ] #4 Hermes DevTools reports hit breakpoints
+- [x] #4 Hermes DevTools reports hit breakpoints
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -59,4 +59,23 @@ Proposed decisions (coordinator, no number allocated): keep portable exports on 
 Proposed later lines: ZN-1066: a truly standalone fused alternative-engine app needs a trusted engine descriptor anchored to the signed toolchain index, not archive-controlled native entries; current fuse intentionally requires an installed engine. ZN-1066: run the existing signed-update export proof with alternative engines before claiming portable self-updating V8/Hermes exports.
 
 Proposed tests: tests/run --only engine_export (exact regression, about 5 s, under 200 MiB); tests/run --only engine_pack (signed-index install/update/ABI/tamper and package portability, about 30 s, under 300 MiB); strict Hermes hitBreakpoints DevTools proof after its native SDK fix (about 30 s, under 300 MiB); owner-selected bounded long Hermes frame/host-call program plus quiet debugger-on/off CPU comparison (10 min, stop at a few GiB if growing). These longer checks were not run. Usage: n/a.
+
+
+2026-11-10 native CDP checkpoint (work/1066, base 5bd31d2b0).
+
+AC4 implemented and proven in the native SDK bridge. The existing zinc-embed.patch now fills Debugger.paused.hitBreakpoints by matching ProgramState.getBreakpoint() against the agent's existing CDP-to-Hermes breakpoint map, only for a native PauseReason::Breakpoint. Other pauses carry an empty list. No source-location inference, JavaScript metadata, URL wrapper, protocol schema or engine ABI was added. URL and location breakpoints retain the exact IDs returned by their CDP set requests. The existing inspector regression now requires that exact returned ID instead of accepting a line-only stop; it was written, not run.
+
+Primary research: https://github.com/facebook/hermes/blob/e760a68ab717963f82757983c75ec7fd63910d77/API/hermes/cdp/DebuggerDomainAgent.cpp and https://github.com/facebook/hermes/blob/e760a68ab717963f82757983c75ec7fd63910d77/API/hermes/DebuggerAPI.h (the VM's pause callback records its reason and native breakpoint together); https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#event-paused (hit breakpoint IDs). The installed source matches the official pinned CDP source byte-for-byte, SHA256 b70d46e82a89f52326e315752ac4a4f3a7902dd05451a45322becb989c87c044. Pinned source archive SHA256 aeaa126193ae20ea012f9a4681f6f421183a97a5b96f530689471e417965f932. No new dependency.
+
+Bounded proof, with coordinator-reviewed isolation: reused the installed SDK build-e760a68ab717963f82757983c75ec7fd63910d77 compile_commands.json flags and existing dylib link.txt closure. Compiled only a private DebuggerDomainAgent.cpp.o, warning-free, against read-only original/generated headers. Replaced that object in private copies of libhermesapi.a and libhermesvm_a.a (the latter force-load already embeds it); retained the original link order and all other read-only archives. Ad-hoc signed only the private diagnostic libhermesvm.dylib. No whole SDK/module/engine build, installed SDK edit, cache replacement or publication. Before/after hashes of 21 recorded SDK source/link/archive/library inputs match. Commands, input/output hashes, compiler/link logs and patch-application proof are in this tree's .logs/hermes-cdp-1066/. Private diagnostic dylib SHA256 cd35f89b25d6f15f25d3c0f5c4ba4643c8997717e0c432a2a5a20cc53bfe650c.
+
+The new native in-memory ctypes CDP regression fails against the old installed SDK because hitBreakpoints is absent. It passes against the private patched dylib: pending URL breakpoint, exact returned URL ID, exact returned location ID, step with no false hit, removed breakpoints staying removed, debugger statement with no hit, exception with no hit, resume and scope close. Final exact T0: HERMES_CDP_LIBRARY=<private dylib> ZINC=<read-only common zinc> tests/run --only hermes_cdp PASS. Each compile/link/probe went through tools/work-run 60; no port, server, Chrome UI or Zinc app was started, and no owned process remains. The complete existing SDK patch applies cleanly to pinned original files and produces the compiled CDP source exactly. Python syntax, affected-test JSON and git diff checks pass.
+
+SDK/pack caller audit: tools/hermes-pack already hashes all patch files in .zinc-patches and reapplies changed patches to fresh pinned sources. Its pack version advances to 2026.11.10 while its upstream commit stays fixed; tools/engine-pack reads that version file and carries the SDK libraries into a relocatable pack. CMake's Hermes module links that SDK dylib. tc/engines continues to select/install signed-index packs; no previously published pack is rewritten. The installed SDK and published packs still contain the old implementation until an explicit rebuild and owner publication. The unsigned .zapp source guard, HBC version check and all packaging paths are untouched.
+
+AC3 stays open: portable-pack preference was proven in the earlier checkpoint; long-program Hermes handle-scope growth remains unmeasured. Keep status Backlog. This checkpoint proves native protocol metadata, not Chrome's full breakpoint UI or possible-breakpoint enumeration. No long run, quiet CPU comparison, T1/T2 suite, benchmark, fuzz, conformance, CI or cross-platform proof was run. Usage: n/a.
+
+Proposed decision (coordinator, no number allocated): report the native paused breakpoint through Hermes's existing ID map; this preserves conditional/native semantics and excludes step/location false positives.
+
+Proposed tests: tools/hermes-pack --out <isolated SDK> --jobs 1, then HERMES_CDP_LIBRARY=<isolated SDK>/current/lib/libhermesvm.dylib tests/run --only hermes_cdp (full SDK recipe validation, minutes, build memory bounded/observed); owner-selected tests/run --only hermes_inspect with the rebuilt SDK module (complete Zinc transport/DevTools regression, about 30 s, under 300 MiB expected); actual Chrome breakpoint UI after the rebuilt pack is published (about 1 min); owner-selected bounded long Hermes frame/host-call run for AC3 (10 min, stop if memory keeps growing past a few GiB). No new later line beyond the existing long-run/UI checks.
 <!-- SECTION:NOTES:END -->

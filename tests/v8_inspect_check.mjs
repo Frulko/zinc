@@ -48,8 +48,7 @@ const bp = await send('Debugger.setBreakpoint', { location: { scriptId: frame.lo
 check(bp.result?.breakpointId !== undefined, `a breakpoint on the next line: ${JSON.stringify(bp.result ?? bp.error)}`);
 await send('Debugger.resume');
 const hit = await wait('Debugger.paused');
-// Hermes's agent sends no hitBreakpoints: the line is the proof there
-check(hit.callFrames[0].location.lineNumber === line + 1 && (hit.hitBreakpoints ?? [1]).length === 1, `stopped at the breakpoint, line ${hit.callFrames[0].location.lineNumber} (${hit.hitBreakpoints ?? 'no hitBreakpoints'})`);
+check(hit.callFrames[0].location.lineNumber === line + 1 && hit.hitBreakpoints?.length === 1 && hit.hitBreakpoints[0] === bp.result.breakpointId, `stopped at the breakpoint, line ${hit.callFrames[0].location.lineNumber} (${hit.hitBreakpoints ?? 'no hitBreakpoints'})`);
 await send('Debugger.stepOver');
 const step = await wait('Debugger.paused');
 const to = step.callFrames[0];

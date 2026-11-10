@@ -363,3 +363,26 @@ diff --color -ruN a/lib/InternalJavaScript/01-Promise.js b/lib/InternalJavaScrip
      var id = 0;
      var displayId = 0;
      var rejections = {};
+--- a/API/hermes/cdp/DebuggerDomainAgent.cpp
++++ b/API/hermes/cdp/DebuggerDomainAgent.cpp
+@@ -648,6 +648,18 @@
+       note.reason = "other";
+   }
+-  note.callFrames = m::debugger::makeCallFrames(
+-      runtime_.getDebugger().getProgramState(), *objTable_, runtime_);
++  const auto &programState = runtime_.getDebugger().getProgramState();
++  note.hitBreakpoints.emplace();
++  if (programState.getPauseReason() == debugger::PauseReason::Breakpoint) {
++    for (const auto &[cdpID, breakpoint] : cdpBreakpoints_) {
++      for (const auto &nativeBreakpoint : breakpoint.hermesBreakpoints) {
++        if (nativeBreakpoint.breakpointID == programState.getBreakpoint()) {
++          note.hitBreakpoints->push_back(std::to_string(cdpID));
++          break;
++        }
++      }
++    }
++  }
++  note.callFrames =
++      m::debugger::makeCallFrames(programState, *objTable_, runtime_);
+   sendNotificationToClient(note);
+ }

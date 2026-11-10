@@ -14,7 +14,7 @@ tools/engine-pack then makes the pack users download, src/tc/engines.h):
 The sources and the build stay beside it (<out>/src-<commit>, its archive <out>/src-<commit>.tar.gz, <out>/build-<commit>), out of the
 repository: shermes compiles against the build's headers and libraries (paths it was built with). The patches of tools/hermes-patches/*.patch
 are applied to a fresh copy of the sources whenever they change (their SHA-256 is kept in <src>/.zinc-patches); zinc-embed.patch: the
-embedder's entry points of src/engine/hermes.cpp, the Chrome DevTools agent behind them, a compile to bytecode, and a rejection tracker that
+embedder's entry points of src/engine/hermes.cpp, the Chrome DevTools agent with native breakpoint hit IDs, a compile to bytecode, and a rejection tracker that
 reports at once. Hermes is built with its debugger (HERMES_ENABLE_DEBUGGER: what zinc run --inspect needs).
 
 usage: tools/hermes-pack [--out DIR] [--commit SHA] [--jobs N]     (DIR: ~/.zinc/sdk/hermes; N: 4, the machine is shared)
@@ -23,7 +23,7 @@ ponytail: macOS arm64 only (where the Hermes JIT exists); Linux and Windows buil
 import hashlib, os, platform, shutil, subprocess, sys, tarfile, urllib.request
 
 COMMIT = "e760a68ab717963f82757983c75ec7fd63910d77"   # static_h, 2026-10-21
-VERSION = "2026.10.21"   # the pack's version (tools/engine-pack): the pinned commit's date, so a newer pin makes a newer pack
+VERSION = "2026.11.10"   # the pack's version also advances when Zinc's SDK patches change
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # the third-party code linked into libhermesvm (external/: llvh, dtoa, zip, asmjit for the JIT, boost.context, the dragonbox and fast_float
 # headers), as <name>, <file in the sources>, <lines kept: the notice at the head of a source file, or all>

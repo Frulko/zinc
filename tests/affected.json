@@ -610,6 +610,7 @@
     {"paths": ["src/qjs/qjs.cpp", "tests/native/qjs_fastcall.c", "tests/t0/qjs_fastcall.sh"], "tests": ["qjs_fastcall"]},
     {"paths": ["src/qjs/qjs.cpp", "src/gl/webgl_js.cpp", "tests/data/qjs_binding_rules.py", "tests/t0/qjs_binding_rules.sh", "tools/bench", "bench/qjs_boundary/"], "tests": ["qjs_binding_rules"]},
     {"paths": ["third_party/node-api/", "src/qjs/napi_util.h", "src/qjs/ext.cpp", "tests/native/napi_test.cpp", "tests/t0/napi.sh"], "tests": ["napi", "qjs_native", "segment", "webenv_canvas2d", "webenv_image", "script", "jsc", "v8"]},
+    {"paths": ["tools/hermes-patches/", "tools/hermes-pack", "tests/hermes_cdp_check.py", "tests/t0/hermes_cdp.sh"], "tests": ["hermes_cdp"]},
     {"paths": ["src/engine/", "include/zn/engine.h", "tests/t0/jsc.sh", "tests/t0/v8.sh", "tests/t0/hermes.sh", "tools/hermes-pack", "tools/hermes-patches/", "targets/macos/zinc.entitlements", "tests/v8_inspect_check.mjs", "tests/t1/v8_inspect.sh", "tests/t1/hermes_inspect.sh", "tests/data/v8_inspect/", "src/dbg/ws.cpp", "src/dbg/ws.h"], "tests": ["jsc", "v8", "hermes", "v8_inspect", "hermes_inspect"]},
     {"paths": ["src/gl/"], "tests": ["webgl_conformance"]},
     {"paths": ["tools/webgl-conformance", "tests/golden/webgl/"], "tests": ["webgl_conformance"]},

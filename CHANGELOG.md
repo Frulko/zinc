@@ -469,6 +469,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - JavaScriptCore, V8 and Hermes exports now include an SBOM, support `--dmg` and sign a disk image or ZIP with `--key`. V8 and Hermes exports carry a portable engine pack; exported apps retain and enforce their declared permissions.
 - `zinc build --engine hermes` produces `.hbc` bytecode for a file or overrides a project’s engine; unsigned archives keep executing their verified source.
+- Hermes SDK builds report the breakpoint that paused a program to DevTools; steps, exceptions and `debugger` statements carry no false breakpoint hits.
 
 ### Apps and examples
 
