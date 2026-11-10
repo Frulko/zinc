@@ -5,8 +5,8 @@
 # window, both in the capture phase). PixiJS 8.22.0 runs the same page of its API (await app.init, a Graphics square): it needs a WebGL 2
 # context that is not `instanceof WebGLRenderingContext` and shaders that say `#define in attribute` (ZN-565).
 # A picture from a file (ZN-569), picture.js in both versions: `await Assets.load(url)` with no preference set by the page, a Sprite of it,
-# and the pixels read back inside its blocks are the file's own colours (tests/data/images/fixture.png). PixiJS loads it through an image
-# element: the environment has no createImageBitmap while it has no Worker, which PixiJS would otherwise make without looking for one.
+# and the pixels read back inside its blocks are the file's own colours (tests/data/images/fixture.png). PixiJS loads it through
+# a Worker and transfers an ImageBitmap back to the page.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

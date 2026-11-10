@@ -55,6 +55,7 @@
 #include <fstream>
 #include <array>
 #include <map>
+#include <mutex>
 #include <random>
 #include <sstream>
 #include <string>
@@ -699,10 +700,12 @@ const char* codeOf(int e) {
 void fail(const char* op, const std::string& path, int e = errno) { gFailed = true; gError = std::string(codeOf(e)) + ": " + op + " " + path; }
 
 // The fs scope (ZN-239, zinc.json "scopes": {"fs": "user-picked"}): once on, only files the user picked in a dialog (and what is under a picked directory) can be read, written or listed.
+std::mutex gFsScopeMu;   // precedes permissions.cpp's mutex; permission checks never acquire this lock
 bool gScopeOn = false;
 std::vector<std::string> gGrants;
 std::string absPath(const std::string& p) { char b[4096]; if (realpath(p.c_str(), b)) return b; char cwd[4096]; return (p.rfind("/", 0) == 0 || !getcwd(cwd, sizeof cwd)) ? p : std::string(cwd) + "/" + p; }
 bool scopeAllows(const std::string& path) {
+  std::lock_guard<std::mutex> lock(gFsScopeMu);
   if (!gScopeOn) return true;
   std::string a = absPath(path);
   for (const std::string& g : gGrants) if (a == g || (a.size() > g.size() && a.compare(0, g.size(), g) == 0 && a[g.size()] == '/')) return true;
@@ -711,6 +714,7 @@ bool scopeAllows(const std::string& path) {
 // zinc.json "permissions" (ZN-322): fs:read / fs:write with their roots; a refusal is an EACCES error naming the permission.
 std::string assetsDir();
 bool denyByPermission(const char* feature, const std::string& path) {
+  std::lock_guard<std::mutex> lock(gFsScopeMu);
   if (gScopeOn) return false;   // "scopes": {"fs": "user-picked"} is stricter than the manifest: it decides (denyByScope)
   const std::string a = assetsDir();
   // reading the app's own assets needs no permission (a ".." leaves them: checked as any path); writing there does (ZN-646: a program allowed to
@@ -1662,7 +1666,7 @@ void installSys() {
 }
 
 // Called by the system plugin (zinc.json scopes and the dialogs): the fs scope switch and a path the user picked.
-extern "C" void zn_host_fs_scope(int userPickedOnly) { gScopeOn = userPickedOnly != 0; }
+extern "C" void zn_host_fs_scope(int userPickedOnly) { std::lock_guard<std::mutex> lock(gFsScopeMu); gScopeOn = userPickedOnly != 0; }
 // zinc:gfx loadFont (ZN-669): a font file of the assets that the program names at run time, read whole and added to the rasterizer's files
 // (the baker embeds only the files it saw). An absolute path (ZN-650.14) is a file outside the assets, an editor's project folder: it is read
 // as zinc:fs reads it and no wider, so the fs:read permission of zinc.json and the fs scope decide, and a refusal is said on stderr.
@@ -1812,7 +1816,11 @@ extern "C" void zn_asset_unview(const unsigned char* p) {
 void assets::imageReloaded(const std::string& name) {
   if (auto it = gPackImages.find(name); it != gPackImages.end()) packImage(name, it->second);
 }
-extern "C" void zn_host_fs_grant(const char* path) { gGrants.push_back(absPath(path)); }
+extern "C" void zn_host_fs_grant(const char* path) {
+  const std::string absolute = absPath(path);
+  std::lock_guard<std::mutex> lock(gFsScopeMu);
+  gGrants.push_back(absolute);
+}
 // App updates (ZN-324.03) are the engine's (src/main.cpp defines the real one, which wins); a compiled program has none: the system plugin says "unsupported".
 extern "C" __attribute__((weak)) int zn_host_update(const char*, const char*, char*, int) { return 0; }
 

@@ -15,4 +15,4 @@ a data: URL with no comma: error complete true natural 0 decode() EncodingError
 a picture larger than the environment takes: error 0
 src set twice: load 2
 src removed: true 0 ""
-createImageBitmap undefined ImageBitmap undefined Worker undefined
+createImageBitmap function ImageBitmap function Worker function

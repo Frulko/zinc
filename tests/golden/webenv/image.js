@@ -61,6 +61,5 @@ log('src set twice:', seen.join(', '));
 twice.removeAttribute('src');
 log('src removed:', twice.complete, twice.naturalWidth, JSON.stringify(twice.src));
 
-// createImageBitmap is absent as long as Worker is: the two come together in a browser, and PixiJS 7 and 8, finding the first, load every
-// picture through a Worker they do not look for. Whoever adds one adds the other (ZN-569's notes).
+// Worker and ImageBitmap are available together for worker texture loaders.
 log('createImageBitmap', typeof createImageBitmap, 'ImageBitmap', typeof ImageBitmap, 'Worker', typeof Worker);

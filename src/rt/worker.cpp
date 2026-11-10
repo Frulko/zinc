@@ -38,10 +38,12 @@ struct W {
   std::string entry, sIn, sOut;
   std::shared_ptr<const zbc::Module> mod;
   int (*const* natives)(Machine&, Slot*) = nullptr;   // a compiled program: the worker's functions
-  bool (*runner)(const std::string&, std::string&) = nullptr;   // another engine's program (QuickJS): run instead of `mod`
+  zn::host::WorkerSource source;
+  bool (*runner)(const std::string&, const zn::host::WorkerSource&, std::string&) = nullptr;   // another engine's program (QuickJS): run instead of `mod`
   std::size_t nativeCount = 0;
   std::mutex mu;                                    // guards the queues, the wake-ups and the end
   std::deque<std::vector<std::uint8_t>> toWorker, toMain;
+  std::size_t queuedWorkerBytes = 0, queuedMainBytes = 0;
   bool ended = false, endTaken = false, terminated = false, closedSelf = false;
   bool notifiedMain = false, notifiedWorker = false;   // an event of kind 70 waits in that loop: no second one until the program drained it
   std::string error;
@@ -457,7 +459,7 @@ void* body(void* arg) {
   };
   const bool hooked = machineHook != nullptr;
   Result r;
-  if (w->runner) { r.ok = w->runner(w->entry, r.error); }   // its engine prints as it goes (QuickJS)
+  if (w->runner) { r.ok = w->runner(w->entry, w->source, r.error); }   // its engine prints as it goes (QuickJS)
   else r = runModuleHooked(*w->mod, out, false, w->natives || hooked ? +bind : nullptr, w.get(), hooked ? +done : nullptr, w.get(), 0, 0, true);
   w->cpuMs.store(threadCpuMs(), std::memory_order_relaxed);
   if (!out.empty()) { std::lock_guard<std::mutex> g(gOutMu); std::fwrite(out.data(), 1, out.size(), stdout); std::fflush(stdout); }
@@ -543,7 +545,9 @@ void join(W& w) {
     std::lock_guard<std::mutex> g(w.mu);
     decltype(w.toWorker)().swap(w.toWorker);
     decltype(w.toMain)().swap(w.toMain);
+    w.queuedWorkerBytes = w.queuedMainBytes = 0;
     w.mod.reset();
+    w.source = {};
   }
   std::lock_guard<std::mutex> g(gRegMu);
   for (std::size_t i = 0; i < gAll.size(); ++i) if (gAll[i].get() == &w) { gAll.erase(gAll.begin() + static_cast<std::ptrdiff_t>(i)); break; }
@@ -554,7 +558,8 @@ void terminate(W& w) {
     std::lock_guard<std::mutex> g(w.mu);
     if (w.terminated) return;
     w.terminated = true;
-    w.toMain.clear();   // its pending messages are dropped, as on the web
+    w.toMain.clear(); w.toWorker.clear();   // termination drops pending messages in both directions
+    w.queuedWorkerBytes = w.queuedMainBytes = 0;
     if (!w.endTaken) { w.endTaken = true; finishOwn(w); }
     w.stop = true;
     wake(w.wakeWorker);   // under the lock: the worker's thread closes its loop (and this wake-up) once it set wakeWorker to null
@@ -580,7 +585,9 @@ const char* post(Slot h, std::vector<std::uint8_t>&& b) {   // a message's bytes
     W* w = tSelf();
     if (!w) return "postMessage: this program is not a worker (use a Worker's postMessage)";
     void* wm;
-    { std::lock_guard<std::mutex> g(w->mu); if (w->terminated) return nullptr; w->toMain.push_back(std::move(b)); wm = w->wakeMain; }
+    { std::lock_guard<std::mutex> g(w->mu); if (w->terminated) return nullptr;
+      if (w->toMain.size() >= zn::host::WorkerBridge::kQueueMessages || n > zn::host::WorkerBridge::kQueueBytes - w->queuedMainBytes) return "postMessage: worker queue capacity exceeded";
+      w->queuedMainBytes += n; w->toMain.push_back(std::move(b)); wm = w->wakeMain; }
     w->out.fetch_add(1, std::memory_order_relaxed);
     trace(PostToMain, *w, n);
     wake(wm);
@@ -591,7 +598,9 @@ const char* post(Slot h, std::vector<std::uint8_t>&& b) {   // a message's bytes
   {
     std::lock_guard<std::mutex> g(w->mu);
     if (w->terminated || w->ended) return nullptr;   // a message to a worker that is gone is dropped, as on the web
+    if (w->toWorker.size() >= zn::host::WorkerBridge::kQueueMessages || n > zn::host::WorkerBridge::kQueueBytes - w->queuedWorkerBytes) return "postMessage: worker queue capacity exceeded";
     w->idle.store(false, std::memory_order_relaxed);
+    w->queuedWorkerBytes += n;
     w->toWorker.push_back(std::move(b));
     wake(w->wakeWorker);   // under the lock, as terminate()
   }
@@ -608,7 +617,10 @@ bool nextBytes(std::int64_t h, std::vector<std::uint8_t>& out) {   // Rt::HostWo
   if (w) {
     std::lock_guard<std::mutex> g(w->mu);
     auto& q = h == 0 ? w->toWorker : w->toMain;
-    if (!q.empty()) { out = std::move(q.front()); q.pop_front(); got = true; }
+    if (!q.empty()) {
+      (h == 0 ? w->queuedWorkerBytes : w->queuedMainBytes) -= q.front().size();
+      out = std::move(q.front()); q.pop_front(); got = true;
+    }
     else if (h == 0) w->notifiedWorker = false;
     else w->notifiedMain = false;
   }
@@ -630,13 +642,13 @@ void markHandler(std::int64_t h, int phase) {   // onmessage begins (1) or ends 
   W* w = h == 0 ? tSelf() : owned(static_cast<Slot>(h));
   if (w) trace(phase == 1 ? HandlerBegin : HandlerEnd, *w);
 }
-int startRunner(const std::string& entry, const std::string& sIn, const std::string& sOut, bool (*run)(const std::string&, std::string&), std::string& err) {
+int startRunner(const std::string& entry, const std::string& sIn, const std::string& sOut, const zn::host::WorkerSource& source, bool (*run)(const std::string&, const zn::host::WorkerSource&, std::string&), std::string& err) {
   tStartError().clear();
   if (tSelf()) err = "a worker cannot start another worker yet (start it from the main program)";
   else if (!loopBridge.wakeNew) err = "workers need the system host (an event loop) in this build";
   else {
     auto w = std::make_shared<W>();
-    w->entry = entry; w->sIn = sIn; w->sOut = sOut; w->runner = run;
+    w->entry = entry; w->sIn = sIn; w->sOut = sOut; w->source = source; w->runner = run;
     if (spawn(w, err)) return w->id;
   }
   tStartError() = err;

@@ -8,6 +8,8 @@ struct JSRuntime;
 struct JSContext;
 typedef struct napi_env__* napi_env;
 
+namespace zn::host { struct WorkerSource; }
+
 namespace zn::qjs {
 
 struct Options {
@@ -74,6 +76,7 @@ extern const char* kNativeModule;
 // src/qjs/webenv.cpp: the web environment (window, document, events, storage, network: lib/std/webenv.js), installed when the program asks for it
 // (ZINC_WEB=1, or "web" in its zinc.json); nothing otherwise. False with the error printed.
 bool webEnv(JSContext* ctx, const std::string& stdRoot, const std::string& entry);
+bool webWorkerEnv(JSContext* ctx, const std::string& stdRoot, const std::string& base);
 // The same over Node-API, for every engine: `mode` and `base` as webMode and webBase give them, `services` adds the engine's structuredClone and
 // module(name) to the bindings object. webMode: "" when the program does not ask for the environment, else "1" or "trace".
 bool webEnv(napi_env env, const std::string& stdRoot, const std::string& mode, const std::string& base, void (*services)(napi_env env, struct napi_value__* web));
@@ -92,7 +95,7 @@ extern const char* kImageShims;
 void installWorker(JSContext* ctx, const std::string& mainDir);
 extern const char* kWorkerSelfJs;
 // src/qjs/qjs.cpp: a worker's program on the calling thread, in its own runtime and context, to its end; false with the error onerror receives.
-bool runWorker(const std::string& entry, std::string& error);
+bool runWorker(const std::string& entry, const zn::host::WorkerSource& source, std::string& error);
 
 extern const char* kPrelude;
 void deterministicZone();   // src/qjs/prelude.cpp: TZ=UTC in a deterministic run that names no zone, before an engine starts

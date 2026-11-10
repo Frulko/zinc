@@ -111,6 +111,26 @@ Checked against the web-platform-tests data (the other WPT runs belong to the co
 
   The parity report lists them with effort estimates: [txiki-elsa-parity](../reports/txiki-elsa-parity.md).
 
+## Web Workers in QuickJS pages
+
+With `ZINC_WEB=1` or `"web": true`, JavaScript libraries can use global `Worker` with a local
+`file:` URL or a live `Blob` URL. Both classic scripts and `{ type: 'module' }` are supported;
+module files use the normal module resolver. The worker has its own QuickJS runtime, timers,
+events, `fetch` and `createImageBitmap`, without a document or drawing surface.
+
+`postMessage` clones cyclic objects, arrays, Map, Set, Date, RegExp, errors (including `cause`),
+ArrayBuffers, typed arrays, Blobs and ImageBitmaps. Functions and unsupported objects throw
+`DataCloneError`. Transfer lists accept ArrayBuffers and ImageBitmaps; successful posting
+detaches buffers and closes sender bitmaps. A rejected clone or full queue leaves them usable.
+Each direction accepts up to 256 queued messages and 16 MiB of encoded data; overflow throws
+`RangeError`. `terminate()` drops queued messages, and a worker failure fires its `error` event
+while the main program continues.
+
+Network worker script URLs, nested workers, `importScripts`, MessagePort transfer and
+OffscreenCanvas transfer are not supported. Uncaught worker exceptions end the worker and
+report to its parent; worker-global error interception is not implemented. This worker message codec is separate from the
+portable `zinc:web` `structuredClone` described above.
+
 ## Checking against Node
 
 `web.ts`, `fetch_web.ts` and `path.ts` in `tests/conformance/` run unchanged on Node 24, whose Web APIs are

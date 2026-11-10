@@ -63,7 +63,9 @@ struct Engine {
   struct Rejection { JSValue promise, reason; };
   std::vector<Rejection> rejected;   // promises rejected with no handler yet: reported once the jobs have drained, when nobody caught them (ZN-566)
   void* entryPromise = nullptr;      // the entry module's own promise: its rejection is the program's uncaught exception
-  bool worker = false;               // a zinc:worker program (runWorker): no native modules, frames or web environment
+  enum class Scope { Main, TypedWorker, WebWorker };
+  Scope scope = Scope::Main;
+  bool worker() const { return scope != Scope::Main; }
 };
 
 bool readFile(const std::string& path, std::string& out) {
@@ -492,7 +494,7 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
     else if (name == "zinc:gfx") src = gfxSource();
     else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
     else if (name == "zinc:icons/lucide") {
-      e.icons = discoverIcons(e.entry, e.stdRoot, !e.worker);
+      e.icons = discoverIcons(e.entry, e.stdRoot, !e.worker());
       src = zn::frontend::lucideModule(e.entry, e.stdRoot + "/../../third_party/lucide/icon-nodes.json", &e.icons);
     }
     else if (const char* b = zn::frontend::builtinModuleSource(name)) src = b;
@@ -763,7 +765,13 @@ bool nativeTurn(Engine& e) {
   const bool ok = callFn(e, poll, JS_UNDEFINED, false);
   JS_FreeValue(e.ctx, poll);
   if (!ok) return false;
-  if (e.worker) return true;   // the native registry is the main program's (D183)
+  if (e.scope == Engine::Scope::WebWorker && imagesLive(napiEnv(e.ctx))) {
+    JSValue pump = global(e, "__zincImagesPump");
+    const bool pumped = callFn(e, pump, JS_UNDEFINED, false);
+    JS_FreeValue(e.ctx, pump);
+    if (!pumped) return false;
+  }
+  if (e.worker()) return true;   // the native registry is the main program's (D183)
   zn_native_poll(0);
   return zn_native_drain() == 0 || drain(e);
 }
@@ -882,17 +890,17 @@ bool timerLoop(Engine& e) {
   auto wall = [&] { return clock0 + std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(); };
   while (ok && !wantsFrames(e)) {
     std::fflush(stdout);   // as in the frame loop
-    if (e.worker && zn::host::workerBridge.stopping()) break;   // terminate()
+    if (e.worker() && zn::host::workerBridge.stopping()) break;   // terminate()
     if (!nativeTurn(e)) { ok = false; break; }
     JSValue fn;
     if (real) {
-      const bool busy = (!e.worker && zn_native_pending() > 0) || zn::loop::active();
+      const bool busy = (!e.worker() && zn_native_pending() > 0) || zn::loop::active();
       double at = -1;
       { JSValue a = JS_Call(e.ctx, nextAt, JS_UNDEFINED, 0, nullptr); JS_ToFloat64(e.ctx, &at, a); JS_FreeValue(e.ctx, a); }
       if (at < 0 && !busy) break;   // nothing left to wait for
       double now = wall();
       if (at < 0 || at > now) {   // wait: 1 ms at a time while native work may answer, else until the timer (a second at most)
-        if (e.worker) zn::host::workerBridge.idleWait();
+        if (e.worker()) zn::host::workerBridge.idleWait();
         const double ms = busy || at < 0 ? 1 : std::min(at - now, 1000.0);
         std::this_thread::sleep_for(std::chrono::microseconds((long long)(ms * 1000)));
         now = wall();
@@ -901,7 +909,7 @@ bool timerLoop(Engine& e) {
       JS_FreeValue(e.ctx, JS_Call(e.ctx, setClock, JS_UNDEFINED, 1, &cv));
       fn = JS_Call(e.ctx, due, JS_UNDEFINED, 1, &cv);
       if (JS_IsNull(fn)) continue;
-    } else if ((!e.worker && zn_native_pending() > 0) || zn::loop::active()) {   // a native operation or a host one (a server listening, a fetch) is in flight: the clock follows the wall clock, so its answer comes before a later timer
+    } else if ((!e.worker() && zn_native_pending() > 0) || zn::loop::active()) {   // a native operation or a host one (a server listening, a fetch) is in flight: the clock follows the wall clock, so its answer comes before a later timer
       double clock = 0;
       JSValue c = JS_Call(e.ctx, clockFn, JS_UNDEFINED, 0, nullptr);
       JS_ToFloat64(e.ctx, &clock, c);
@@ -910,7 +918,7 @@ bool timerLoop(Engine& e) {
       fn = JS_Call(e.ctx, due, JS_UNDEFINED, 1, &now);
       if (JS_IsNull(fn)) {
         const double t0 = zn::loop::nowMs();
-        if (e.worker) {
+        if (e.worker()) {
           zn::host::workerBridge.idleWait();   // nothing to do: a deterministic parent may go on (src/rt/worker.cpp)
           std::this_thread::sleep_for(std::chrono::milliseconds(1));
         } else zn::loop::wait(1);   // a millisecond, or less when the host loop has an event (a request): a sleep made a server wait for it (ZN-892)
@@ -1041,9 +1049,9 @@ bool context(Engine& e, const std::string& mainDir) {
   if (const std::size_t n = stackBudget()) JS_SetMaxStackSize(e.rt, n);
   JS_SetHostPromiseRejectionTracker(e.rt, trackRejection, &e);
   JS_SetModuleLoaderFunc(e.rt, normalizeName, loadModule, &e);
-  installHost(e.ctx, e.worker);
+  installHost(e.ctx, e.worker());
   installWorker(e.ctx, mainDir);
-  if (!e.worker) {
+  if (!e.worker()) {
     installNative(zn::qjs::napiEnv(e.ctx));
     zn::qjs::runContextHooks(zn::qjs::napiEnv(e.ctx));   // native classes of other modules (WebGL), ZN-203.03
   }
@@ -1069,26 +1077,35 @@ const Engine* gMain = nullptr;   // the main program's engine: a worker loads it
 
 }  // namespace
 
-bool runWorker(const std::string& entry, std::string& error) {
+bool runWorker(const std::string& entry, const zn::host::WorkerSource& source, std::string& error) {
   Engine e;
-  e.worker = true;
+  using Kind = zn::host::WorkerSource::Kind;
+  e.scope = source.kind == Kind::Typed ? Engine::Scope::TypedWorker : Engine::Scope::WebWorker;
   if (gMain) { e.stdRoot = e.res.stdRoot = gMain->stdRoot; e.cacheDir = gMain->cacheDir; e.imports = gMain->imports; e.modules = gMain->modules; }
   e.entry = entry;
   tWorkerError = &error;
   e.rt = JS_NewRuntime();
   JS_SetInterruptHandler(e.rt, [](JSRuntime*, void*) { return zn::host::workerBridge.stopping() ? 1 : 0; }, nullptr);   // terminate() stops a busy loop too
   bool ok = context(e, "");
+  if (ok && e.scope == Engine::Scope::WebWorker) ok = webWorkerEnv(e.ctx, e.stdRoot, source.base) && drain(e);
+  if (!ok && JS_HasException(e.ctx)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); }
   JSValue res = JS_UNDEFINED;
   if (ok) {
     std::string js, err;
-    if (!moduleText(e, entry, js, err)) { error = err; ok = false; }
+    const bool inlineSource = source.kind == Kind::ClassicSource || source.kind == Kind::ModuleSource;
+    const bool classic = source.kind == Kind::ClassicSource || source.kind == Kind::ClassicFile;
+    if (inlineSource) js = source.text;
+    if (!inlineSource && !(classic ? readFile(entry, js) : moduleText(e, entry, js, err))) { error = err; ok = false; }
     else {
-      JSValue mod = JS_Eval(e.ctx, js.data(), js.size(), entry.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-      if (!JS_IsException(mod)) setMeta(e.ctx, static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(mod)), entry);
-      res = JS_IsException(mod) ? mod : JS_EvalFunction(e.ctx, mod);
+      if (classic) res = JS_Eval(e.ctx, js.data(), js.size(), entry.c_str(), JS_EVAL_TYPE_GLOBAL);
+      else {
+        JSValue mod = JS_Eval(e.ctx, js.data(), js.size(), entry.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+        if (!JS_IsException(mod)) setMeta(e.ctx, static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(mod)), entry);
+        res = JS_IsException(mod) ? mod : JS_EvalFunction(e.ctx, mod);
+      }
       if (JS_IsException(res)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); ok = false; }
       else {
-        e.entryPromise = JS_VALUE_GET_PTR(res);
+        if (!classic) e.entryPromise = JS_VALUE_GET_PTR(res);
         ok = drain(e) && timerLoop(e);
       }
     }

@@ -546,6 +546,7 @@
     {"paths": ["src/frontend/resolve.cpp", "src/frontend/resolve.h", "src/frontend/modules.cpp", "src/qjs/qjs.cpp", "src/cli_mqjs.cpp", "tests/t0/module_resolution.sh", "tests/data/resolve/"], "tests": ["module_resolution"]},
     {"paths": ["src/frontend/resolve.cpp", "src/frontend/resolve.h"], "tests": ["modules", "platform_files", "tsconfig", "qjs", "qjs_symlinks", "qjs_bundle", "qjs_npm"]},
     {"paths": ["plugins/sqlite/", "tests/data/sqlite/", "tests/t0/sqlite_fts.sh", "tests/t0/sqlite_statements.sh"], "tests": ["sqlite_fts", "sqlite_statements"]},
+    {"paths": ["lib/std/webworker.js", "lib/std/webenv.js", "include/zn/worker_bridge.h", "src/qjs/worker_js.cpp", "src/qjs/qjs.cpp", "src/qjs/webenv.cpp", "src/rt/worker.cpp", "src/host/permissions.cpp", "src/host/sys_host.cpp", "tests/golden/web_worker/", "tests/t0/web_worker.sh", "tests/unit/host_permissions_test.cpp"], "tests": ["web_worker"]},
     {"paths": ["lib/std/webenv.js", "tests/data/webenv-pixelated/", "tests/t0/webenv_pixelated.sh"], "tests": ["webenv_pixelated"]},
     {"paths": ["lib/std/webenv.js", "plugins/audio/", "tests/data/webenv-audio-silent/", "tests/t0/webenv_audio_silent.sh"], "tests": ["webenv_audio_silent"]},
     {"paths": ["lib/std/webenv.js", "src/qjs/canvas2d.cpp", "third_party/canvas_ity/", "tests/data/webenv-canvas-fidelity/", "tests/t0/webenv_canvas_fidelity.sh"], "tests": ["webenv_canvas_fidelity"]},

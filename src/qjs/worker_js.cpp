@@ -4,6 +4,7 @@
 // written into the program by the transform (strip.cpp workerTypesForJs); the receiver decodes by the sender's schema into its own type
 // (fields matched by name, i32 and u32 truncated, defaults for the fields the sender lacks), as src/rt/worker.cpp does. A type the schema text
 // cannot name (a generic one: Envelope<T> of workerPort) gives '' on both sides, and the message is QuickJS's own structured clone instead.
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <deque>
@@ -235,7 +236,7 @@ JSValue recPost(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
   std::vector<std::uint8_t> bytes;
   if (text.empty()) {   // untyped: QuickJS's structured clone
     size_t n = 0;
-    std::uint8_t* p = JS_WriteObject(ctx, &n, argv[1], 0);
+    std::uint8_t* p = JS_WriteObject(ctx, &n, argv[1], JS_WRITE_OBJ_REFERENCE);
     if (!p) return JS_EXCEPTION;
     bytes.assign(p, p + n);
     js_free(ctx, p);
@@ -251,13 +252,42 @@ JSValue recPost(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
   return JS_UNDEFINED;
 }
 
+// Web transfers validate and serialize before queue acceptance; a refusal leaves every sender buffer attached.
+JSValue webPost(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+  if (argc < 3 || !JS_IsArray(argv[2])) return JS_ThrowTypeError(ctx, "postMessage: transfer must be an array");
+  std::vector<JSValue> transfer;
+  auto drop = [&] { for (JSValue v : transfer) JS_FreeValue(ctx, v); };
+  int64_t count = 0, h = 0;
+  if (JS_GetLength(ctx, argv[2], &count) || JS_ToInt64(ctx, &h, argv[0])) return JS_EXCEPTION;
+  for (int64_t i = 0; i < count; ++i) {
+    JSValue v = JS_GetPropertyInt64(ctx, argv[2], i);
+    size_t size = 0;
+    const bool duplicate = std::any_of(transfer.begin(), transfer.end(), [&](JSValue x) { return JS_VALUE_GET_PTR(x) == JS_VALUE_GET_PTR(v); });
+    if (!JS_IsArrayBuffer(v) || duplicate || !JS_GetArrayBuffer(ctx, &size, v)) {
+      JS_FreeValue(ctx, v); drop();
+      if (JS_HasException(ctx)) JS_FreeValue(ctx, JS_GetException(ctx));
+      return JS_ThrowTypeError(ctx, "postMessage: invalid, detached or duplicate transferable ArrayBuffer");
+    }
+    transfer.push_back(v);
+  }
+  size_t n = 0;
+  uint8_t* p = JS_WriteObject(ctx, &n, argv[1], JS_WRITE_OBJ_REFERENCE);
+  if (!p) { drop(); return JS_EXCEPTION; }
+  std::vector<uint8_t> bytes(p, p + n);
+  js_free(ctx, p);
+  const char* error = workerBridge.post(h, std::move(bytes));
+  if (!error) for (JSValue v : transfer) JS_DetachArrayBuffer(ctx, v);
+  drop();
+  return error ? JS_ThrowRangeError(ctx, "%s", error) : JS_UNDEFINED;
+}
+
 // __recRead(schema, target?): the current message, sent by `schema`, as a value of `target` (the receiver's own type; '' or absent: the same)
 JSValue recRead(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
   const std::string text = argc > 0 ? str(ctx, argv[0]) : std::string();
   std::string target = argc > 1 && JS_IsString(argv[1]) ? str(ctx, argv[1]) : std::string();
   std::vector<std::uint8_t> bytes;
   bytes.swap(tCurrent);   // its bytes are not kept past the read
-  if (text.empty()) return JS_ReadObject(ctx, bytes.data(), bytes.size(), 0);
+  if (text.empty()) return JS_ReadObject(ctx, bytes.data(), bytes.size(), JS_READ_OBJ_REFERENCE);
   const rec::Schema* w = schemaOf(text);
   const rec::Schema* t = target.empty() ? w : schemaOf(target);
   if (!w || !t) return JS_ThrowTypeError(ctx, "onmessage: a schema this engine cannot read");
@@ -295,8 +325,21 @@ JSValue workerStart(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) 
   if (entry.rfind("file://", 0) == 0) entry = entry.substr(7);
   if (!entry.empty() && entry[0] != '/' && !(entry.size() > 1 && entry[1] == ':')) entry = gMainDir + "/" + entry;
   std::string err;
-  const int h = workerBridge.start(entry, argc > 1 ? str(ctx, argv[1]) : "", argc > 2 ? str(ctx, argv[2]) : "", runWorker, err);
+  const int h = workerBridge.start(entry, argc > 1 ? str(ctx, argv[1]) : "", argc > 2 ? str(ctx, argv[2]) : "", {}, runWorker, err);
   return JS_NewInt32(ctx, h);
+}
+JSValue webWorkerStart(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+  if (argc < 4) return JS_ThrowTypeError(ctx, "Worker: missing source metadata");
+  using Source = zn::host::WorkerSource;
+  Source source;
+  const bool module = str(ctx, argv[2]) == "module";
+  source.kind = JS_IsUndefined(argv[1]) ? (module ? Source::Kind::ModuleFile : Source::Kind::ClassicFile)
+                                      : (module ? Source::Kind::ModuleSource : Source::Kind::ClassicSource);
+  if (!JS_IsUndefined(argv[1])) source.text = str(ctx, argv[1]);
+  source.base = str(ctx, argv[3]);
+  std::string error;
+  const int h = workerBridge.start(str(ctx, argv[0]), "", "", source, runWorker, error);
+  return h ? JS_NewInt32(ctx, h) : JS_ThrowTypeError(ctx, "%s", error.c_str());
 }
 JSValue workerNext(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
   int64_t h = 0;
@@ -350,6 +393,8 @@ void installWorker(JSContext* ctx, const std::string& mainDir) {
   auto fn = [&](const char* name, JSCFunction* f, int n) { JS_SetPropertyStr(ctx, g, name, JS_NewCFunction(ctx, f, name, n)); };
   fn("__recPost", recPost, 3);
   fn("__recRead", recRead, 2);
+  fn("__webWorkerPost", webPost, 3);
+  fn("__webWorkerStart", webWorkerStart, 4);
   fn("__recTypes", recTypes, 3);
   fn("__recSchemaOf", recSchemaOf, 0);
   fn("__recAs", recAs, 2);

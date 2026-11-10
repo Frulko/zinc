@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <set>
+#include <mutex>
 #include <unistd.h>
 #ifdef _WIN32
 #include "posix_shims.h"   // realpath through _fullpath; PATH_MAX comes below
@@ -14,6 +15,7 @@
 
 namespace zn::host::perm {
 namespace {
+std::mutex gPermissionMu;
 std::vector<std::string> gEntries;
 bool gDeclared = false, gEnforce = false;
 std::string gRoot;
@@ -51,14 +53,16 @@ bool covers(const std::string& entry, const std::string& feature, const std::str
 }  // namespace
 
 void configure(const std::vector<std::string>& entries, bool declared, bool enforce, const std::string& projectDir) {
+  std::lock_guard<std::mutex> lock(gPermissionMu);
   gEntries = entries; gDeclared = declared; gEnforce = enforce; gWarned.clear();
   char b[PATH_MAX];
   gRoot = realpath(projectDir.empty() ? "." : projectDir.c_str(), b) ? b : projectDir;
 }
 
-bool enforced() { return gDeclared && gEnforce; }
+bool enforced() { std::lock_guard<std::mutex> lock(gPermissionMu); return gDeclared && gEnforce; }
 
 std::string check(const std::string& feature, const std::string& detail) {
+  std::lock_guard<std::mutex> lock(gPermissionMu);
   if (!gDeclared) return "";
   for (const std::string& e : gEntries) if (covers(e, feature, detail)) return "";
   const std::string need = feature == "net" ? "net:" + detail : feature;

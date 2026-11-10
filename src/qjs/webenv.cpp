@@ -530,6 +530,7 @@ const char* kImageShims = R"JS((g => {
 
   const waiting = new Map();   // decode id -> what settles its promise
   Object.defineProperty(g, '__zincImagesPump', { value: () => {
+    if (!waiting.size) return;
     for (let r = images.take(images.deterministic ? -1 : 0); r !== undefined; r = images.take(0)) {
       const settle = waiting.get(r.id);
       waiting.delete(r.id);
@@ -537,7 +538,7 @@ const char* kImageShims = R"JS((g => {
     }
   }, configurable: true });
   const picture = d => ({ data: new Uint8ClampedArray(d.data), width: d.width, height: d.height });
-  const decode = bytes => new Promise((resolve, reject) => {   // a picture of the bytes, null for none
+  const decode = bytes => g.__zincDecodeImage ? g.__zincDecodeImage(bytes) : new Promise((resolve, reject) => {   // a picture of the bytes, null for none
     let r;
     try { r = images.start(bytes.buffer, bytes.byteOffset, bytes.byteLength, true); } catch (err) { return reject(err); }   // lent: a Blob's own bytes, or a copy of them
     if (r === undefined || r === null) return resolve(null);
@@ -580,6 +581,10 @@ const char* kImageShims = R"JS((g => {
       return new ImageBitmap(made, px, !!px.flipY !== (options.imageOrientation === 'flipY'), options.premultiplyAlpha !== 'none');
     });
   }
+  Object.defineProperty(g, '__zincBitmapRestore', { value: (bitmap, px) => {
+    Object.setPrototypeOf(bitmap, ImageBitmap.prototype);
+    Object.defineProperty(bitmap, '_px', { value: { px, flipY: !!px.flipY, premultiply: !!px.premultiply }, writable: true, configurable: true });
+  }, configurable: true });
   g.ImageBitmap = ImageBitmap;
   g.createImageBitmap = createImageBitmap;
 })(globalThis);
@@ -656,14 +661,63 @@ bool webEnv(napi_env env, const std::string& stdRoot, const std::string& mode, c
 }
 
 #ifndef ZN_ENGINE_MODULE
+namespace {
+bool workerScripts(JSContext* ctx, const std::string& stdRoot) {
+  std::string script;
+  if (!readText(stdRoot + "/webworker.js", script)) return false;
+  for (const auto& [name, text] : std::initializer_list<std::pair<const char*, std::string>>{{"<image-shims>", kImageShims}, {"<web-worker>", script}}) {
+    JSValue value = JS_Eval(ctx, text.data(), text.size(), name, JS_EVAL_TYPE_GLOBAL);
+    const bool ok = !JS_IsException(value);
+    JS_FreeValue(ctx, value);
+    if (!ok) return false;
+  }
+  return true;
+}
+}
+
+bool webWorkerEnv(JSContext* ctx, const std::string& stdRoot, const std::string& base) {
+  napi_env env = napiEnv(ctx);
+  napi_value global, scope;
+  napi_get_global(env, &global);
+  napi_create_object(env, &scope);
+  set(env, scope, "base", string(env, base));
+  set(env, global, "__zincWorkerScope", scope);
+  method(env, global, "__zincWorkerRead", js_read);
+  imagesHook(env);
+  const char* boot = R"JS(
+import { Blob as BytesBlob, URL, URLSearchParams, Event, EventTarget, MessageEvent, ErrorEvent, DOMException, TextEncoder, TextDecoder, atob, btoa } from 'zinc:web';
+import { fetch as request, Response, Request, Headers } from 'zinc:web/fetch';
+Object.assign(globalThis, { URL, URLSearchParams, Event, EventTarget, MessageEvent, ErrorEvent, DOMException, TextEncoder, TextDecoder, atob, btoa, Response, Request, Headers });
+globalThis.location = new URL(__zincWorkerScope.base);
+globalThis.fetch = async (input, init) => {
+  const url = new URL(String(input && input.url || input), location.href);
+  let response;
+  if (url.protocol === 'file:') {
+    const bytes = __zincWorkerRead(decodeURIComponent(url.pathname));
+    if (bytes === undefined) throw new TypeError('Failed to fetch ' + url.href);
+    response = new Response(BytesBlob.fromBytes(Array.from(new Uint8Array(bytes))));
+  } else response = await request(url.href, init);
+  const bytes = response.bytes.bind(response);
+  response.arrayBuffer = async () => Uint8Array.from(await bytes()).buffer;
+  response.blob = async () => new Blob([Uint8Array.from(await bytes())], { type: response.headers.get('content-type') || '' });
+  return response;
+};
+)JS";
+  JSValue value = JS_Eval(ctx, boot, std::strlen(boot), "<worker-globals>", JS_EVAL_TYPE_MODULE);
+  const bool ok = !JS_IsException(value);
+  JS_FreeValue(ctx, value);
+  return ok && workerScripts(ctx, stdRoot);
+}
+
 bool webEnv(JSContext* ctx, const std::string& stdRoot, const std::string& entry) {
   const std::string mode = webMode(entry);
   if (mode.empty()) return true;
-  return webEnv(napiEnv(ctx), stdRoot, mode, webBase(entry), [](napi_env env, napi_value web) {   // QuickJS's serializer and module loader
+  const bool ok = webEnv(napiEnv(ctx), stdRoot, mode, webBase(entry), [](napi_env env, napi_value web) {   // QuickJS's serializer and module loader
     JSContext* c = contextOf(env);
     set(env, web, "structuredClone", zn_napi_inline::push(env, JS_NewCFunction(c, js_structuredClone, "structuredClone", 1)));
     set(env, web, "module", zn_napi_inline::push(env, JS_NewCFunction(c, js_module, "module", 1)));
   });
+  return ok && workerScripts(ctx, stdRoot);
 }
 #endif
 
