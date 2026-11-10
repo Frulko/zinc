@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Notes27 checkpoint integrated (workered03166d4), BacklogAC2true/AC1open depends1114/1115/reopened1112. Real46-step all3+keyboard/pointer/mobile runs pass, hidden desktop and299paint idle repros retained; no app workaround. Reserve Music26 now dependenciesMedia16/Extended19Done. Sole UIchain final rawgatePASS JS235981/246196/283045 (4094/component,15B strict total margin; unused25B), actual probes/T0 pass, final Settings49 proof/commits pending. Current56Done after reopening1112, Settings23Done.
+
 - Assistant28 checkpoint integrated (workerdaaf3e7cb), BacklogAC2true/AC1open depends1114/1115; original all3functions/pass, desktophidden/reducedmotion awaitsharedfix. Reserve1078.29 comparison harness only; no quiet/benchmark runs with concurrent workers. Reuse existing bench tooling read-only, pinned CUI, script/report/proposed quiet run; real numbers unproven remain open. Notes27/UI1114→1115 active, common47a238 unchanged.57Done.
 
 - Settings23 completion integrated (worker11024b2de), Done allAC,57Done; original app unchanged, refreshed captures/new47a238 proofall3/360focus/Avatar56. Reserve sole UIcore chain1114layerreducedmotion→1115responsivehiddenmd:flex. Strict isolated-file carveout only display~2956/layers~8374; external Map/Fenwick639/1074 patch archived/SHA and must remain byte-identical at integration. No C++build. Notes/Assistant continue independent UI proofs.
