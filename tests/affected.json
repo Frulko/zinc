@@ -748,6 +748,7 @@
     {"paths": ["examples/hamlet/src/view/", "tests/data/hamlet/glide.ts", "tests/t0/hamlet_glide.sh"], "tests": ["hamlet_glide"]},
     {"paths": ["examples/hamlet/assets/missions/", "examples/hamlet/src/world/missions.ts", "examples/hamlet/MISSIONS.md", "tests/data/hamlet/missions.ts", "tests/t0/hamlet_missions.sh"], "tests": ["hamlet_missions"]},
     {"paths": ["examples/hamlet/", "tests/data/hamlet/", "tests/t1/hamlet.sh", "tests/t1/hamlet_bot.sh"], "tests": ["hamlet", "hamlet_bot", "hamlet_bounds", "hamlet_ground", "hamlet_snow"]},
+    {"paths": ["examples/hamlet/src/view/actors.ts", "examples/hamlet/src/view/beasts.ts", "examples/hamlet/src/view/frame.ts", "examples/pixel-plays/src/native/renderer.ts", "tests/data/hamlet/atlas.ts", "tests/t0/hamlet_atlas.sh"], "tests": ["hamlet_atlas"]},
     {"paths": ["tests/data/hamlet/bounds.ts", "tests/t0/hamlet_bounds.sh"], "tests": ["hamlet_bounds"]},
     {"paths": ["examples/hamlet/src/engine/wild.ts", "examples/hamlet/src/engine/deer.ts", "examples/hamlet/src/engine/day.ts", "tests/data/hamlet/wild.ts", "tests/t0/hamlet_wild.sh"], "tests": ["hamlet_wild"]},
     {"paths": ["examples/hamlet/src/gen/", "tests/data/hamlet/generation.ts", "tests/t0/hamlet_generation.sh"], "tests": ["hamlet_generation"]},

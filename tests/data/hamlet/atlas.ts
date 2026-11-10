@@ -3,8 +3,9 @@ import { W, H, pix, zb, setView, configureRenderer, beginModel, captureModel, se
 import { Person, Deer } from '../../../examples/hamlet/src/world/world';
 import { useBiomes } from '../../../examples/hamlet/src/view/seasons';
 import * as fs from 'zinc:fs';
-import { drawPerson, drawDeer, actorAtlas } from '../../../examples/hamlet/src/view/actors';
-import { ST_CHOP, ST_AIM, ST_FISH, ST_PICK, ST_IDLE, DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD } from '../../../examples/hamlet/src/constants';
+import { drawPerson, drawDeer, actorAtlas, personBodyOnly } from '../../../examples/hamlet/src/view/actors';
+import { ST_CHOP, ST_AIM, ST_SHOT, ST_FISH, ST_PICK, ST_IDLE, DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD } from '../../../examples/hamlet/src/constants';
+import { addSpriteRect } from '../../../examples/hamlet/src/view/frame';
 import { models, useModels, resetModels } from '../../../examples/hamlet/src/view/models';
 
 useBiomes(fs.readText('examples/hamlet/assets/biomes.json'));
@@ -61,7 +62,8 @@ check('another light re-bakes the models, the first light gives them back', ligh
 
 // the packed arrays round trip exactly, and stamp the same pixels
 const round = CachedModel.fromArrays(models[0].toArrays());
-check('toArrays / fromArrays round trip', same(round, models[0]));
+check('toArrays / fromArrays round trip', same(round, models[0]) && round.bounds.join(',') === models[0].bounds.join(','));
+check('an empty model has empty bounds', new CachedModel(0, 0, 0, 0).bounds.join(',') === '0,0,0,0');
 pix.fill(0); zb.fill(-1e9); models[0].drawAt(1, 2, 0); const a = pix.slice(), az = zb.slice();
 pix.fill(0); zb.fill(-1e9); round.drawAt(1, 2, 0);
 let stamped = true;
@@ -139,5 +141,34 @@ check('deer: stamps equal live deer, ' + deerFrames + ' cases (pixels differing:
 const b0 = Date.now(); const all = actorAtlas(); all.bakeAll(); const bakeAllMs = Date.now() - b0;
 console.log('hamlet atlas: all ' + all.baked + ' people and deer frames baked in ' + bakeAllMs + ' ms');
 check('the whole actor atlas bakes within 6 s', bakeAllMs < 6000);
+
+// Every body frame, not a hand-picked pose: exact extents and dirty coverage after subpixel translation and viewport clipping.
+let boundsOk = true, tight = true, coveredFrames = 0;
+const names = ['person', 'deer', 'rabbit', 'boar', 'wolf'], variants = [104, 6, 2, 2, 6], poses = [18, 23, 17, 17, 24];
+const rect: number[] = [];
+for (let kind = 0; kind < names.length; kind++) for (let v = 0; v < variants[kind]; v++) for (let yaw8 = 0; yaw8 < 8; yaw8++) for (let pose = 0; pose < poses[kind]; pose++) {
+  const frame = all.bake(names[kind], { variant: v, yaw8, pose });
+  if (frame === null) { boundsOk = false; continue; }
+  const a = frame.toArrays(), b = frame.bounds;
+  const x = pose % 2 === 0 ? gx + .037 : -W / 10, y = pose % 2 === 0 ? gy - .061 : W / 10;
+  const at = project(x, y, 0), dx = Math.round(at.sx - a.originX), dy = Math.round(at.sy - a.originY);
+  rect.length = 0; addSpriteRect(rect, frame, x, y);
+  let left = false, top = false, right = false, bottom = false;
+  for (let k = 0; k < a.xs.length; k++) {
+    const rx = a.xs[k] - a.originX, ry = a.ys[k] - a.originY, ix = a.xs[k] + dx, iy = a.ys[k] + dy;
+    if (rx < b[0] || ry < b[1] || rx >= b[2] || ry >= b[3]) boundsOk = false;
+    if (rx === b[0]) left = true; if (ry === b[1]) top = true;
+    if (rx + 1 === b[2]) right = true; if (ry + 1 === b[3]) bottom = true;
+    if (ix >= 0 && ix < W && iy >= 0 && iy < H && (rect.length !== 4 || ix < rect[0] || iy < rect[1] || ix >= rect[2] || iy >= rect[3])) boundsOk = false;
+  }
+  if (a.xs.length > 0 && !(left && top && right && bottom)) tight = false;
+  coveredFrames++;
+}
+check('all ' + coveredFrames + ' actor frames have tight bounds and clipped dirty coverage', boundsOk && tight && coveredFrames === all.baked);
+const props = new Person();
+let propsCovered = personBodyOnly(props);
+for (const state of [ST_AIM, ST_SHOT, ST_FISH]) { props.state = state; if (personBodyOnly(props)) propsCovered = false; }
+props.state = ST_IDLE; props.carry = 1;
+check('live props keep the wider dirty rectangle', propsCovered && !personBodyOnly(props));
 
 console.log(failures === 0 ? 'hamlet atlas: ALL PASS' : 'hamlet atlas: ' + failures + ' FAIL');

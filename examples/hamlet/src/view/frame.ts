@@ -1,9 +1,9 @@
 import {
-  W, H, S, pix, zb, groundZ, kinds, bakedPix, bakedZ, shadowMask, pendingShadows, staticShadow, GRASS,
+  W, H, S, CachedModel, Atlas, pix, zb, groundZ, kinds, bakedPix, bakedZ, shadowMask, pendingShadows, staticShadow, GRASS,
   flushShadows, applyShadows, shadeEdgesRect, setTrackShadows, shadowSpans, rgbColor, rgb, clamp, hash, project, drawDots, haloDots, drawArrow, waterPoint, KIND_GRASS,
 } from '../pixel';
 import { TILE, HOUSE, ROLE_FISHER } from '../constants';
-import { world, tileX, tileY, waterField, Building } from '../world/world';
+import { world, tileX, tileY, waterField, Building, Person } from '../world/world';
 import { TERRAIN_WATER } from '../constants';
 import { economy } from '../world/economy';
 import { lightsOn, drawWeather } from './weather';
@@ -19,7 +19,7 @@ import { drainFx, fxDirty, drawFxBodies, drawFxSparks, drawSmoke, drawGlow } fro
 import { beesDirty, drawBees } from './bees';
 import { wildlifeDirty, drawWildlife } from './wildlife';
 import { fireDirty, drawFire } from './fire';
-import { drawPerson, drawDeer, actorAtlas } from './actors';
+import { drawPerson, drawDeer, actorAtlas, personFrame, personBodyOnly, deerFrame } from './actors';
 import { SP_RABBIT } from '../rules/species';
 
 const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
@@ -108,6 +108,16 @@ function addRect(list: number[], sx: number, sy: number, left: number, up: numbe
   const x0 = Math.max(0, Math.floor(sx - left) - 2), y0 = Math.max(0, Math.floor(sy - up) - 2), x1 = Math.min(W, Math.ceil(sx + right) + 3), y1 = Math.min(H, Math.ceil(sy + down) + 3);
   if (x1 > x0 && y1 > y0) list.push(x0, y0, x1, y1);
 }
+/** Frame bounds include only the lit body; addRect supplies the rounding and edge-filter halo. */
+export function addSpriteRect(list: number[], frame: CachedModel, x: number, y: number): void {
+  const a = project(x, y, 0), b = frame.bounds;
+  addRect(list, a.sx, a.sy, -b[0], -b[1], b[2], b[3]);
+}
+function addPersonRect(list: number[], p: Person, atlas: Atlas | null): void {
+  const frame = atlas !== null && personBodyOnly(p) ? personFrame(p, atlas) : null;
+  if (frame !== null) addSpriteRect(list, frame, p.x, p.y);
+  else { const a = project(p.x, p.y, 0); addRect(list, a.sx, a.sy, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 4.4 * S, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 2.4 * S); }
+}
 /** Overlapping rectangles become one, so no pixel is restored or edged twice. */
 function merge(rects: number[]): number[] {
   const out: number[] = [];
@@ -162,11 +172,13 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   clock.time = time;
   stepSeason();
   if (seenBake !== bakeCount || edgedPix.length !== pix.length) prepare();
-  const dirty: number[] = [], night = lightsOn();
-  for (const p of world.people) { const a = project(p.x, p.y, 0); addRect(dirty, a.sx, a.sy, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 4.4 * S, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 2.4 * S); }
-  for (const p of world.crime.outlaws) { const a = project(p.x, p.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 4.4 * S, 2.2 * S, 2.4 * S); }
+  const dirty: number[] = [], night = lightsOn(), atlas = settings.atlas ? actorAtlas() : null;
+  for (const p of world.people) addPersonRect(dirty, p, atlas);
+  for (const p of world.crime.outlaws) addPersonRect(dirty, p, atlas);
   for (const d of world.deer) {
-    const a = project(d.x, d.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 3.2 * S, 2.2 * S, 1.4 * S);
+    const frame = atlas === null ? null : deerFrame(d, time, atlas);
+    if (frame !== null) addSpriteRect(dirty, frame, d.x, d.y);
+    else { const a = project(d.x, d.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 3.2 * S, 2.2 * S, 1.4 * S); }
     if (d.species === SP_RABBIT && d.home >= 0) { const b = project(tileX(d.home), tileY(d.home), 0); addRect(dirty, b.sx, b.sy, .6 * S, .5 * S, .6 * S, .4 * S); }   // its burrow
   }
   if (settings.fx) for (const b of world.buildings) {
@@ -216,7 +228,6 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   if (settings.shadows) setTrackShadows(true); else { setTrackShadows(false); shadowMask.fill(0); }
   drawTufts(time * settings.wind); drawPond(time * settings.wind); drawStream(time * settings.wind, null);
   const loose: number[] = touched.slice();
-  const atlas = settings.atlas ? actorAtlas() : null;
   for (const d of world.deer) drawDeer(d, time, atlas);
   for (const p of world.people) drawPerson(p, time, atlas);
   for (const p of world.crime.outlaws) drawPerson(p, time, atlas);

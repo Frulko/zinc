@@ -499,6 +499,8 @@ export class CachedModel {
   private ys: number[] = [];
   private depths: number[] = [];
   private colors: u32[] = [];
+  /** Tight pixel extents from the bake origin: x0, y0, x1, y1 (ends excluded). */
+  bounds: number[] = [0, 0, 0, 0];
   private originX: number;
   private originY: number;
   /** Reads the pixels of the buffer inside the box (x0, y0 included, x1, y1 excluded), row by row. */
@@ -511,12 +513,23 @@ export class CachedModel {
       this.xs.push(ix); this.ys.push(iy);
       this.depths.push(zb[i]); this.colors.push(pix[i]);
     }
+    this.measureBounds();
   }
   get count(): number { return this.colors.length; }
+  private measureBounds(): void {
+    if (this.xs.length === 0) return;
+    let x0 = this.xs[0], y0 = this.ys[0], x1 = x0, y1 = y0;
+    for (let k = 1; k < this.xs.length; k++) {
+      x0 = Math.min(x0, this.xs[k]); y0 = Math.min(y0, this.ys[k]);
+      x1 = Math.max(x1, this.xs[k]); y1 = Math.max(y1, this.ys[k]);
+    }
+    this.bounds = [x0 - this.originX, y0 - this.originY, x1 + 1 - this.originX, y1 + 1 - this.originY];
+  }
   toArrays(): ModelArrays { return { originX: this.originX, originY: this.originY, xs: this.xs.slice(), ys: this.ys.slice(), depths: this.depths.slice(), colors: this.colors.slice() }; }
   static fromArrays(a: ModelArrays): CachedModel {
     const m = new CachedModel(0, 0, 0, 0);
     m.originX = a.originX; m.originY = a.originY; m.xs = a.xs.slice(); m.ys = a.ys.slice(); m.depths = a.depths.slice(); m.colors = a.colors.slice();
+    m.measureBounds();
     return m;
   }
   drawAt(x: number, y: number, z: number): void {

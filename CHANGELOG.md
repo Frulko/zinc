@@ -70,6 +70,12 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A screenshot (`ZINC_SHOT`, `zinc capture`) or a frame hash (`ZINC_FRAMEHASH`) of a program that does not paint the whole window shows black where nothing was drawn, the same at every run, instead of leftover memory.
 - On the GPU renderer, an image turned or skewed with `setTransform` has smooth edges and is smoothed the same way as on the CPU (sharp only with `ImageFlag.Nearest`): its edges were jagged and an unscaled picture stayed pixelated.
 
+### Hamlet
+
+#### Changed
+
+- Villagers and wildlife redraw the bounds of their current sprite instead of a large shared rectangle, keeping live tools, carried loads and burrows covered.
+
 ### Plugins
 
 #### New

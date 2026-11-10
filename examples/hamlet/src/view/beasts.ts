@@ -1,4 +1,4 @@
-import { Color, Vec3, capsule, sphere, plot, rgb, castShadow, Atlas, AtlasAxes, AtlasEntry } from '../pixel';
+import { Color, Vec3, capsule, sphere, plot, rgb, castShadow, CachedModel, Atlas, AtlasAxes, AtlasEntry } from '../pixel';
 import { DEER_FLEE, DEER_CHARGE, DEER_DEAD, DEER_GONE, DEER_GRAZE, DEER_DRINK, DEER_REST, DEER_STALK, DEER_CHASE, DEER_EAT, DEER_HOWL } from '../constants';
 import { Deer, tileX, tileY } from '../world/world';
 import { season } from '../rules/season';
@@ -106,6 +106,20 @@ function drawBurrow(d: Deer): void {
   const x = tileX(d.home) + (d.id % 5 - 2) * .1, y = tileY(d.home) + (d.id % 3 - 1) * .1;
   sphere(x, y, -.04, .26, [112, 88, 62], 'solid'); sphere(x + .05, y - .05, .02, .12, [86, 66, 46], 'solid'); plot(x + .12, y - .1, .1, rgb(16, 12, 10));
 }
+function beastAxes(d: Deer, time: number): AtlasAxes {
+  const sp = SPECIES[d.species], wolf = d.species === SP_WOLF;
+  const dead = d.state === DEER_DEAD, flee = d.state === DEER_FLEE || d.state === DEER_CHARGE || d.state === DEER_CHASE, grazing = d.state === DEER_GRAZE || d.state === DEER_DRINK || d.state === DEER_EAT;
+  const crouch = d.state === DEER_STALK, howl = d.state === DEER_HOWL;
+  const mode = dead ? M_DEAD : howl ? M_HOWL : crouch ? M_CROUCH : flee ? M_FLEE : !grazing && d.speed > .05 ? M_WALK : M_STILL;
+  const down = grazing && (d.state === DEER_EAT || Math.sin(time * .9 + d.phase) > .2) ? .8 : 0;
+  const young = d.age < sp.adultDays, alpha = wolf && d.stag, winter = wolf && winterCoat();
+  const yaw8 = stepOf(d.yaw, YAW_STEPS);
+  const pose = mode === M_DEAD ? SLOT_DEAD : mode === M_HOWL ? SLOT_HOWL : mode === M_CROUCH ? SLOT_CROUCH + stepOf(d.phase * .5, CROUCH_FRAMES) : mode === M_FLEE ? SLOT_FLEE + stepOf(d.phase, FLEE_FRAMES) : mode === M_WALK ? stepOf(d.phase, WALK_FRAMES) : SLOT_STILL + (down > 0 ? 1 : 0);
+  return { variant: (young ? 1 : alpha ? 2 : 0) + (winter ? 3 : 0), yaw8, pose };
+}
+function beastName(d: Deer): string { return d.species === SP_WOLF ? 'wolf' : SPECIES[d.species].kind === KIND_HOPPER ? 'rabbit' : 'boar'; }
+export function beastFrame(d: Deer, time: number, atlas: Atlas): CachedModel | null { return atlas.bake(beastName(d), beastAxes(d, time)); }
+
 export function drawBeast(d: Deer, time: number, atlas: Atlas | null): void {
   if (d.state === DEER_GONE) return;
   const sp = SPECIES[d.species], wolf = d.species === SP_WOLF;
@@ -113,16 +127,14 @@ export function drawBeast(d: Deer, time: number, atlas: Atlas | null): void {
     drawBurrow(d);
     if (season() === 3 && d.state === DEER_REST && Math.abs(d.x - tileX(d.home)) + Math.abs(d.y - tileY(d.home)) < 1.6) return;      // in its burrow
   }
-  const dead = d.state === DEER_DEAD, flee = d.state === DEER_FLEE || d.state === DEER_CHARGE || d.state === DEER_CHASE, grazing = d.state === DEER_GRAZE || d.state === DEER_DRINK || d.state === DEER_EAT;
-  const crouch = d.state === DEER_STALK, howl = d.state === DEER_HOWL;
-  const mode = dead ? M_DEAD : howl ? M_HOWL : crouch ? M_CROUCH : flee ? M_FLEE : !grazing && d.speed > .05 ? M_WALK : M_STILL;
-  const down = grazing && (d.state === DEER_EAT || Math.sin(time * .9 + d.phase) > .2) ? .8 : 0, young = d.age < sp.adultDays, hopper = sp.kind === KIND_HOPPER;
-  const alpha = wolf && d.stag, winter = wolf && winterCoat();
-  if (atlas === null) paintBeast(d.species, d.x, d.y, d.yaw, mode, mode === M_CROUCH ? d.phase * .5 : d.phase, down, young, winter, alpha);
+  const young = d.age < sp.adultDays, hopper = sp.kind === KIND_HOPPER;
+  if (atlas !== null) atlas.stamp(beastName(d), beastAxes(d, time), d.x, d.y, 0);
   else {
-    const yaw8 = stepOf(d.yaw, YAW_STEPS), name = wolf ? 'wolf' : hopper ? 'rabbit' : 'boar';
-    const pose = mode === M_DEAD ? SLOT_DEAD : mode === M_HOWL ? SLOT_HOWL : mode === M_CROUCH ? SLOT_CROUCH + stepOf(d.phase * .5, CROUCH_FRAMES) : mode === M_FLEE ? SLOT_FLEE + stepOf(d.phase, FLEE_FRAMES) : mode === M_WALK ? stepOf(d.phase, WALK_FRAMES) : SLOT_STILL + (down > 0 ? 1 : 0);
-    atlas.stamp(name, { variant: (young ? 1 : alpha ? 2 : 0) + (winter ? 3 : 0), yaw8, pose }, d.x, d.y, 0);
+    const dead = d.state === DEER_DEAD, flee = d.state === DEER_FLEE || d.state === DEER_CHARGE || d.state === DEER_CHASE, grazing = d.state === DEER_GRAZE || d.state === DEER_DRINK || d.state === DEER_EAT;
+    const crouch = d.state === DEER_STALK, howl = d.state === DEER_HOWL;
+    const mode = dead ? M_DEAD : howl ? M_HOWL : crouch ? M_CROUCH : flee ? M_FLEE : !grazing && d.speed > .05 ? M_WALK : M_STILL;
+    const down = grazing && (d.state === DEER_EAT || Math.sin(time * .9 + d.phase) > .2) ? .8 : 0;
+    paintBeast(d.species, d.x, d.y, d.yaw, mode, mode === M_CROUCH ? d.phase * .5 : d.phase, down, young, wolf && winterCoat(), wolf && d.stag);
   }
   const r = hopper ? .15 : wolf ? .32 : .4;
   castShadow(d.x, d.y, young ? r * .4 : r * .6, young ? r * .7 : r);
