@@ -434,11 +434,11 @@ bool usesGl(const zbc::Module& mod) {
 }
 
 // Whether the module calls a row the lite system host leaves out (ZN-805, ZN_HOST_LITE in src/host/sys_host.cpp): fetch, the HTTP and WebSocket
-// server, sockets, MQTT, zinc:subtle and writing a pack. Without one the program links libzn_host_sys_lite, and no Mbed TLS, llhttp or compressor.
+// server, sockets, OSC, MQTT, zinc:subtle and writing a pack. Without one the program links libzn_host_sys_lite, and no Mbed TLS, llhttp or compressor.
 bool usesNet(const zbc::Module& mod) {
   auto net = [](zn::Rt r) {
     const char* n = rtInfo(r).name;
-    for (const char* p : {"host.http", "host.ws", "host.sock", "host.mqtt", "host.crypto", "host.hashFile", "host.assetsPack"}) if (std::strncmp(n, p, std::strlen(p)) == 0) return true;
+    for (const char* p : {"host.http", "host.ws", "host.sock", "host.osc", "host.mqtt", "host.crypto", "host.hashFile", "host.assetsPack"}) if (std::strncmp(n, p, std::strlen(p)) == 0) return true;
     return false;
   };
   for (const zbc::Function& fn : mod.functions)

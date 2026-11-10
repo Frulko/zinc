@@ -1,7 +1,9 @@
 // The event loop of the host on libuv (ZN-082), see include/zn/loop.h.
 #include "zn/loop.h"
 #include "netlog.h"
+#ifndef ZN_HOST_LITE
 #include "osc.h"
+#endif
 #include "zn/process_family.h"
 
 #include <uv.h>
@@ -478,6 +480,13 @@ bool nextEvent(Event& out) {
   return true;
 }
 
+namespace { thread_local int gExtra = 0; }
+
+void* uvLoop() { return loop(); }
+void pushEvent(int handle, int kind, std::string data, std::string payload) { gEvents.push_back({handle, kind, std::move(data), std::move(payload)}); }
+void addActive(int delta) { gExtra += delta; }
+
+#ifndef ZN_HOST_LITE
 // ---- zinc:osc (ZN-085): OSC over UDP; a received datagram becomes events of kind 20 (one packed message each)
 namespace {
 uv_udp_t* gOscRx = nullptr;   // one per listen: a closing handle may not be reused
@@ -493,12 +502,7 @@ void onOscRecv(uv_udp_t*, ssize_t n, const uv_buf_t* buf, const sockaddr* from, 
   if (n <= 0 || !from) return;
   for (std::string& m : osc::decode(reinterpret_cast<const uint8_t*>(buf->base), static_cast<size_t>(n))) gEvents.push_back({0, 20, std::move(m)});
 }
-thread_local int gExtra = 0;
 }  // namespace
-
-void* uvLoop() { return loop(); }
-void pushEvent(int handle, int kind, std::string data, std::string payload) { gEvents.push_back({handle, kind, std::move(data), std::move(payload)}); }
-void addActive(int delta) { gExtra += delta; }
 bool resolveHost(const std::string& host, int port, void* out) {
   auto* a4 = static_cast<sockaddr_in*>(out);
   if (uv_ip4_addr(host.c_str(), port, a4) == 0) return true;
@@ -525,11 +529,13 @@ bool oscListen(int port) {
   }
   gOscRx = h;
   gOscRxOpen = true;
+  addActive(1);
   return true;
 }
 void oscClose() {
   if (!gOscRxOpen) return;
   gOscRxOpen = false;
+  addActive(-1);
   uv_udp_recv_stop(gOscRx);
   uv_close(reinterpret_cast<uv_handle_t*>(gOscRx), onOscClosed);
   gOscRx = nullptr;
@@ -542,9 +548,11 @@ bool oscSend(const std::string& host, int port, const std::string& packed) {
   uv_buf_t b = uv_buf_init(data.data(), static_cast<unsigned>(data.size()));
   return uv_udp_try_send(&gOscTx, &b, 1, reinterpret_cast<sockaddr*>(&a)) >= 0;
 }
+#endif
+
 bool active() {
   for (const auto& p : processes().items) if (p->state != Proc::State::Reported) return true;
-  return gWatched > 0 || gStdin || gOscRxOpen || gExtra > 0 || !gEvents.empty();
+  return gWatched > 0 || gStdin || gExtra > 0 || !gEvents.empty();
 }
 bool watchSignal(const std::string& name) {
   const SigName* s = sigByName(name);

@@ -75,6 +75,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Apps with Lucide icons share repeated SVG path markup, keeping combined UI kit imports within their existing size budget.
 - `zinc build` produces smaller executables and C++ source without dropping fonts, images or features.
 - GLES2 devices with `EXT_instanced_arrays` or `ANGLE_instanced_arrays` upload opaque rectangles once per instance, cutting their vertex uploads by 62.5%; `ZINC_GL_STATS=1` reports the bytes.
+- Compiled programs without network calls leave out the OSC codec and DNS lookup code, including programs that use timers, files or child processes.
 
 #### Fixed
 

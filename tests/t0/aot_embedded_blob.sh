@@ -64,6 +64,15 @@ int main() {
   zn::zbc::Module parent;
   parent.workers.push_back({"nested", zn::zbc::encode(module)});
   assert(zn::aot::usesNet(parent));
+  // Classification scans rows, independent of argument/register validation.
+  for (const auto row : {zn::Rt::HostOscListen, zn::Rt::HostOscClose, zn::Rt::HostOscSend}) {
+    network.functions[0].code[0] = zn::encAD(zn::Op::Rt, 0, static_cast<unsigned>(row));
+    assert(zn::aot::usesNet(network));
+    zn::zbc::Module child;
+    child.workers = {{"osc", zn::zbc::encode(network)}};
+    parent.workers = {{"nested", zn::zbc::encode(child)}};
+    assert(zn::aot::usesNet(parent));
+  }
   parent.workers = {{"damaged", {1, 2, 3}}};
   assert(zn::aot::usesNet(parent));
 

@@ -58,3 +58,60 @@ The library archive is 1.2 MB before the linker drops what is not used. `ZN_TLS=
 a profile without a network (or without need of it) keeps the smaller binary. Programs compiled ahead of time link the host library when they use any host module and
 get the same +750 KB until the host rows are split into separately linked parts (open item for ZN-136). The configuration is not trimmed yet: a stripped mbedTLS
 configuration (client and server, ECDHE and RSA verification, AES-GCM and ChaCha20-Poly1305, SHA-2) is expected to save a third of that.
+
+
+## Native host split: partial Mac gate (ZN-164, 2026-11-10)
+
+The existing lite system host already omitted TLS, llhttp and pack writing. It now
+also contains the loop compiled without Zinc OSC/DNS transport callers. OSC rows
+(including a close-only call or calls in nested workers) select the full host.
+Archive names, native plugin host declarations and mobile host source cloning stay
+unchanged. OSC receiver liveness uses the loop's existing active counter.
+
+Same-source native arm64 artifacts, Apple clang 17, normal `-O2` and dead strip,
+with `ZN_KEEP_SYMBOLS=1` in both columns:
+
+| Program | Before | After | Reduction |
+| --- | ---: | ---: | ---: |
+| `console.log('hello')` (no host) | 285,992 B | 285,992 B | 0 B |
+| `Date.now()` and a one-shot timer | 4,797,832 B | 4,778,520 B | 19,312 B |
+| File write/read and child-process output | 4,798,736 B | 4,795,936 B | 2,800 B |
+
+The retained-symbol Mac arm64 gates in `tests/t0/lite_host.sh` are 300,000 B for
+hello and 5,000,000 B for the hosted timer. It checks that Zinc OSC/DNS entry points,
+`uv_getaddrinfo`, llhttp and Mbed TLS are absent; its fetch program retains TLS.
+These are scoped transport-reference gates, **not a socket-free host claim**.
+
+Link maps change `loop.cpp.o` from `libzn_host_gfx.a` to
+`libzn_host_sys_lite.a`; `osc.cpp.o` and libuv's `getaddrinfo.c.o` disappear.
+`nm` confirms the Zinc OSC codec/transport and DNS resolver symbols disappear.
+`otool -L` dependencies are unchanged, including existing graphics frameworks in
+the hosted artifacts. Static dependency removal is not a dynamic-library saving.
+
+AC2 remains open: libuv's `uv_close` in `src/unix/core.c` directly references
+`uv__tcp_close` and `uv__udp_close`; its common stream code references TCP helpers.
+The resulting hosted binaries still contain `uv__tcp_*` and `uv__udp_*` internals,
+including UDP send helpers. Splitting the Zinc objects cannot remove that edge.
+No weak stand-in, alternate scheduler or patched libuv was introduced. Separate
+regexp/crypto/etc. row selection and the no-POSIX-sockets option remain unfinished.
+AC1 remains open: no armv6 or ESP32 build or size gate was run in this Mac pass.
+
+Compatibility proof: the original Hero native executable is 7,978,168 B and its
+57 generated C++ units, shared header and PCH driver total 9,537,290 B, below the
+unchanged 8,000,000/10,000,000 B gates. Its four headless frame hashes match the
+existing reference. Timers and file/process output pass before and after. OSC
+repeated listen on ephemeral port 0, repeated close, DNS send and enforced network
+permission refusal pass on native AOT, interpreter and QuickJS. Fetch still links
+TLS/llhttp and reports refusal from localhost port 1. No timing claim is made.
+
+Baseline: source `0e8bd9b90` (engine sources identical to base `d35a8eef7`),
+read-only common compiler SHA-256
+`3ec59faa23598f799be9caf7f1263cdf7fc52780ced417991d2c50607f50d8d5`.
+Worker evidence: `.logs/164/{before,after}/provenance.json`, maps, nm/size/otool
+outputs and bounded execution logs. The exact `aot_embedded_blob` T0 passes with
+all three OSC rows and nested-worker classification. The expanded `lite_host`
+script is proposed for integration; equivalent artifact checks passed directly.
+
+References: [CMake archive object linking](https://cmake.org/cmake/help/latest/command/target_link_libraries.html#linking-object-libraries),
+[ld64 atom/dead-strip model](https://github.com/apple-oss-distributions/ld64/blob/main/doc/design/linker.html),
+[libuv handle close semantics](https://docs.libuv.org/en/stable/handle.html).

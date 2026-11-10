@@ -81,7 +81,7 @@
 #include "zn/loop.h"
 #include <uv.h>
 // ZN_HOST_LITE (ZN-805): this file compiled a second time without the network (fetch, the HTTP and WebSocket server, sockets, TLS, MQTT,
-// zinc:subtle) and without writing packs (the zstd and lz4 compressors): libzn_host_sys_lite, which zinc build links before libzn_host_gfx
+// OSC, zinc:subtle) and without writing packs (the zstd and lz4 compressors): libzn_host_sys_lite, which zinc build links before libzn_host_gfx
 // for a program that calls none of those rows, so Mbed TLS, llhttp and the compressors stay out of it (src/aot/aot.cpp usesNet).
 #ifndef ZN_HOST_LITE
 #include "mqtt.h"
@@ -1374,9 +1374,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSigWatch: r->i = zn::loop::watchSignal(s(0)) ? 1 : 0; break;
     case Rt::HostSigSend: r->i = zn::loop::sendSignal(n(0), s(1)) + 1; break;   // 0 unknown signal, 1 not delivered, 2 sent
     case Rt::HostStdinRead: zn::loop::readStdin(); break;
+#ifndef ZN_HOST_LITE
     case Rt::HostOscListen: r->i = refused("net", "*") ? -1 : zn::loop::oscListen(n(0)) ? 1 : 0; break;
     case Rt::HostOscClose: zn::loop::oscClose(); break;
-#ifndef ZN_HOST_LITE
     case Rt::HostMqttOpen: r->i = refused("net", s(0)) ? -2 : zn::mqtt::open(s(0), n(1), s(2)); break;   // -2: refused by the permissions (sockError says why)
     case Rt::HostMqttOpenTls: r->i = refused("net", s(0)) ? -2 : zn::mqtt::open(s(0), n(1), s(2), n(3) != 0); break;
     case Rt::HostMqttConnect: r->i = refused("net", s(0)) ? -2 : zn::mqtt::open(s(0), n(1), s(2), n(3) != 0, n(4)); break;
@@ -1493,7 +1493,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSockError: { std::string why = takeRefusal(); ret(r, why.empty() ? zn::sock::error() : why); break; }
 #endif
     case Rt::HostSysBytesToString: ret(r, rawBytes(a[0])); break;
+#ifndef ZN_HOST_LITE
     case Rt::HostOscSend: r->i = refused("net", s(0)) ? -1 : zn::loop::oscSend(s(0), n(1), s(2)) ? 1 : 0; break;
+#endif
     case Rt::HostLoopEpoch: { struct timeval tv; gettimeofday(&tv, nullptr); r->d = static_cast<double>(tv.tv_sec) * 1000.0 + static_cast<double>(tv.tv_usec) / 1000.0; break; }
     case Rt::HostOsCpuModel: {
       std::string model;
