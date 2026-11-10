@@ -37,6 +37,7 @@
     {"paths": ["lib/std/ui.ts", "tests/data/ui_focus_dispose/", "tests/t0/ui_focus_dispose.sh"], "tests": ["ui_focus_dispose"]},
     {"paths": ["lib/std/ui.ts", "tests/data/ui_layer_reduced/", "tests/t0/ui_layer_reduced.sh"], "tests": ["ui_layer_reduced"]},
     {"paths": ["lib/std/ui.ts", "tests/data/ui_display/", "tests/t0/ui_display.sh"], "tests": ["ui_display"]},
+    {"paths": ["lib/std/kit/tabs.tsx", "lib/std/kit/navigation.tsx", "tests/golden/kit-tabs-idle/", "tests/golden/kit-tabs-idle-react/", "tests/t0/kit_tabs_idle.sh"], "tests": ["kit_tabs_idle"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/dyn.cpp", "src/rt/rtcalls.cpp", "tests/golden/run/object_statics.", "tests/t0/object_statics.sh"], "tests": ["object_statics"]},
     {"paths": ["include/zn/jsmath.h", "include/zn/ops.h", "src/rt/jsmath.cpp", "third_party/ieee754/", "third_party/core-math/", "third_party/quickjs-ng/quickjs.c", "tests/golden/math/", "tests/t0/math_ieee754.sh"], "tests": ["math_ieee754"]},
     {"paths": ["examples/murdoku/authoring/analyze_official.py", "examples/murdoku/references/official/", "tests/t0/murdoku_references.sh"], "tests": ["murdoku_references"]},

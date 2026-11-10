@@ -3,7 +3,7 @@
 import * as ui from 'zinc:ui';
 import { createNodeRef } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
-import { TabsProps, tabNodes, tabKey, tabStop, revealTab } from './tabs';
+import { TabsProps, tabShown, tabNodes, tabKey, tabStop, revealTab } from './tabs';
 import { Button as KitButton } from './button';
 import { Tooltip, DropdownMenu } from './overlays';
 import { theme } from './theme';
@@ -29,6 +29,7 @@ export function NavigationTabs(p: NavigationProps): i32 {
     </Button>)}
   </ScrollView>;
   const follow = (): void => {
+    if (!tabShown(root.node)) return;
     const nodes: i32[] = []; tabNodes(root.node, nodes);
     const selected = basic.selected();
     if (selected < 0 || selected >= nodes.length) { ui.setNumber(marker.node, 'hidden', 1); return; }

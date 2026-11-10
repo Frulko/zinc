@@ -257,6 +257,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Tabs reveal the selected tab in narrow windows after keyboard, pointer or app selection, keeping its focus ring inside the padded track.
 - Dialogs, sheets and other shared layers honor reduced motion immediately, including when the system preference changes while they open or close.
 - Responsive regions using `hidden md:flex` appear at desktop widths and hide again when the window narrows.
+- Hidden tab tracks stay idle and reveal the latest selected tab when their section opens again.
 
 ### The web
 

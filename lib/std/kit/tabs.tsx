@@ -15,6 +15,10 @@ export interface TabsProps {
   disabled?: i32[];
   className?: string;
 }
+export function tabShown(h: i32): boolean {
+  const n = ui.inspectNode(h);
+  return n !== null && !n.hidden && (n.parent < 0 || tabShown(n.parent));
+}
 export function tabNodes(root: i32, out: i32[]): void {
   const n = ui.inspectNode(root);
   if (n === null) return;
@@ -39,10 +43,12 @@ export function tabKey(root: i32, p: TabsProps, e: ui.KeyEvent): void {
 }
 /** Reveals the current tab after keyboard, pointer or application-controlled selection. */
 export function revealTab(root: i32, selected: i32): void {
+  if (!tabShown(root)) return;
   const nodes: i32[] = []; tabNodes(root, nodes);
   if (selected < 0 || selected >= nodes.length) return;
   const container = ui.inspectNode(root)!;
   const box = ui.screenBox(nodes[selected]), track = ui.screenBox(root);
+  if (track[2] <= 0 || track[3] <= 0 || box[2] <= 0) return;
   const left = box[0] - track[0] - container.pl;
   const right = box[0] + box[2] - track[0] - track[2] + container.pr;
   const delta = left < 0 ? left : Math.max(0, right);
