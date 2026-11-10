@@ -3604,7 +3604,7 @@ std::string inspectEntry(const std::string& dir, const std::string& entry) {
 }
 
 // ---- zinc dev --lan (ZN-631): the project for Zinc Go players on the network, as `expo start` serves Expo Go
-#ifndef _WIN32
+#if !defined(_WIN32) && defined(ZN_AGENT)
 namespace {
 
 // The first IPv4 address of an interface that is up and not the loopback, en0 (a Mac's Wi-Fi) first; 127.0.0.1 without one
@@ -3856,7 +3856,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   setenv("ZINC_RUN", "interp", 1);   // the restarts interpret: a save restarts in 0.2 s, a compiled run would rebuild (ZN-398)
   std::vector<std::string> own, rest;
   bool noTools = false, lan = false;   // --lan: the project for Zinc Go on the network (ZN-631), no desktop window
-  int lanPort = 8090;
+  [[maybe_unused]] int lanPort = 8090;
   for (std::size_t i = 0; i < args.size(); ++i) {
     if (args[i] == "--") { rest.assign(args.begin() + i, args.end()); break; }
     if (args[i] == "--no-devtools") noTools = true;
@@ -3874,6 +3874,9 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   if (lan) {
 #ifdef _WIN32
     std::fprintf(stderr, "zinc dev: --lan is not on Windows yet\n");
+    return 2;
+#elif !defined(ZN_AGENT)
+    std::fprintf(stderr, "zinc dev: --lan needs a build with the device agent\n");
     return 2;
 #else
     std::signal(SIGINT, onSignal);

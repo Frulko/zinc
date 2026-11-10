@@ -1,25 +1,28 @@
-// zinc without the graphics host (-DZN_HOST_GFX=OFF: the headless build, the first Windows build of docs/reports/zinc-windows-port.md): the entries
-// of src/host that main.cpp and zinc:canvas2d call answer "no host" instead of leaving the link without them. Linked only when zn_host_gfx is not built.
+// The optional graphics and I/O host is absent; QuickJS's language timers still use the real clock.
+#include <chrono>
 #include <cstdint>
 #include <string>
-#include <vector>
+#include <thread>
 
 #include "host/permissions.h"
 #include "zn/host.h"
+#include "zn/loop.h"
 
 namespace zn::host {
 const void* glPresentHooks() { return nullptr; }
-bool installResources(const std::uint8_t*, std::size_t) { return false; }
-bool installResourcesFile(const char*) { return false; }
-bool replayScene(const char*, const char*) { return false; }
-bool benchScene(const char*, int, int, RenderBench&) { return false; }
-int strokeCheck(int) { return -1; }
-bool damageCheck(const char*, const char*, int&, bool&, int*) { return false; }
-bool scrollCheck(const char*, const char*, ScrollCheck&) { return false; }
-namespace perm {
-void configure(const std::vector<std::string>&, bool, bool, const std::string&) {}
-}  // namespace perm
+std::string fsReadRefused(const std::string& path) { return perm::check("fs:read", path); }
 }  // namespace zn::host
+
+namespace zn::loop {
+double nowMs() {
+  static const auto start = std::chrono::steady_clock::now();
+  return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+double programMs() { return nowMs(); }
+void wait(double ms) { if (ms > 0) std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(ms)); }
+bool active() { return false; }   // No host I/O can start without hostSys.
+void (*idleWake)(void) = nullptr;
+}  // namespace zn::loop
 
 namespace zrt::raster {
 void dyn_set_alpha(std::int32_t, bool) {}

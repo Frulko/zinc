@@ -470,7 +470,7 @@ static std::string programInfo(const std::string& entry) {   // before the run m
          ",\"profile\":" + jsonText(gProfile ? gProfile->name : "host") + ",\"facts\":" + programFacts() + ",\"project\":" + project + "}";
 }
 static std::string gInfoEntry;   // the running program's entry, absolute: zn::host::setProgramInfo asks for its info at each request
-static std::string runningProgramInfo() { return programInfo(gInfoEntry); }
+[[maybe_unused]] static std::string runningProgramInfo() { return programInfo(gInfoEntry); }
 static void printPlugins() {
   static bool printed = false;
   if (printed) return;
@@ -1195,7 +1195,7 @@ static void ownEnv(const char* name, const std::string& value) { if (!std::geten
 // zinc:assets for a program run from `entry` (ZN-436): ZINC_ASSETS, the assets beside the entry or above it; ZINC_PACKS, the packs of an
 // unpacked .zapp (packs/ beside its program) or, for a project with asset rules or groups, its dev packs built now (none otherwise: a run of the CLI
 // never takes packs beside the zinc executable); ZINC_ASSET_RAM, the ram budget in force on this machine. A value already set wins.
-static void assetsEnv(const std::string& entry) {
+[[maybe_unused]] static void assetsEnv(const std::string& entry) {
   namespace fs = std::filesystem;
   const fs::path dir = fs::absolute(entry).parent_path();
   std::error_code ec;
@@ -2632,6 +2632,9 @@ int main(int argc, char** argv) {
       return zn::doc::help(cl, gRoot, zn::cli::commandLines(), kVersionText);
     if (argc >= 2 && (!std::strcmp(argv[1], "help") || !std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h"))) { if (!std::strcmp(argv[1], "--help") || !std::strcmp(argv[1], "-h")) cl[1] = "help"; return zn::cli::help(cl); }
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
+#ifndef ZN_HOST_GFX
+    if (argc >= 2 && (!std::strcmp(argv[1], "capture") || !std::strcmp(argv[1], "bench"))) { std::fprintf(stderr, "zinc: this build has no graphics host (ZN_HOST_GFX=OFF)\n"); return 2; }
+#endif
     if (argc >= 2 && (!std::strcmp(argv[1], "init") || !std::strcmp(argv[1], "new"))) return zn::cli::init(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "changelog")) return zn::cli::changelog(cl, gRoot, kVersionText);
     if (argc >= 2 && !std::strcmp(argv[1], "unpack")) return zn::cli::unpackApp(cl, kVersionText);
@@ -2713,7 +2716,11 @@ int main(int argc, char** argv) {
 #endif
     bool details = false;
     for (int k = 2; k < argc; ++k) details = details || !std::strcmp(argv[k], "--details") || !std::strcmp(argv[k], "--full");
+#ifndef ZN_HOST_GFX
+    return zn::cli::doctor(gRoot, std::string("profile ") + hp->name + "\ngpu none (this build has no graphics host)\ntier none\nrenderer none\n", details, kVersionText);
+#else
     return zn::cli::doctor(gRoot, std::string("profile ") + hp->name + "\ngpu " + gpu + note + "\ntier " + tier + "\nrenderer " + (gpu == "none" ? "cpu" : "auto") + "\n", details, kVersionText);
+#endif
   }
   if (argc >= 2 && !std::strcmp(argv[1], "test")) {   // zinc test [--profile P] [dir]: the conformance programs against the goldens of the profile (ZN-122)
     const zn::frontend::Profile* tp = gProfile ? gProfile : zn::frontend::findProfile(
@@ -3372,7 +3379,8 @@ int main(int argc, char** argv) {
     if (compiledAlready || !runcache::wanted()) zn::host::showSplash();
 #endif
     zn::zbc::Module zm;
-    bool fromCache = false, compiled = false;
+    [[maybe_unused]] bool fromCache = false;
+    bool compiled = false;
     // zinc dev's child (Fast Refresh, ZN-742): hot mode and zinc dev's channel; the program runs through dev/hot.cpp, which swaps its code on a save
     const char* hotFd = std::getenv("ZINC_HOT_FD");
     const bool hotRun = hotMode() && hotFd && !gDebug && (path.size() <= 4 || path.substr(path.size() - 4) != ".zbc");
@@ -3626,6 +3634,7 @@ int main(int argc, char** argv) {
     std::fprintf(stderr, "zinc: flashing the core to %s\n", port.c_str());
     return std::system(cmd.c_str()) == 0 ? 0 : 1;
   }
+#ifdef ZN_HOST_GFX
   if (argc == 8 && !std::strcmp(argv[1], "capture") && !std::strcmp(argv[2], "--scene") && !std::strcmp(argv[5], "--bench")) {  // zinc capture --scene <dump> <file> --bench <runs> <threads>: "bench <w>x<h> cmds=N median_us=.. p99_us=.." (ZN-171)
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[4], zm)) return rc;
@@ -3670,6 +3679,7 @@ int main(int argc, char** argv) {
     if (!zn::host::replayScene(argv[3], argv[6])) { std::fprintf(stderr, "zinc: cannot replay %s\n", argv[3]); return 1; }
     return 0;
   }
+#endif
   if (argc == 5 && !std::strcmp(argv[1], "bake") && !std::strcmp(argv[3], "-o")) {  // zinc bake <file> -o <blob>: the baked fonts and images of a program (for inspection and tests)
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;

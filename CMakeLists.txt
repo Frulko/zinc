@@ -181,12 +181,16 @@ else()
 endif()
 option(ZN_HOST_GFX "link the graphics host (zinc:gfx)" ON)
 set(ZN_RUNTIME_DIR ${CMAKE_CURRENT_SOURCE_DIR}/runtime)
+# Permissions also protect hosted console programs; keep them independent of the optional renderer.
+add_library(zn_host_permissions OBJECT src/host/permissions.cpp)
+target_include_directories(zn_host_permissions PRIVATE src)
+set_target_properties(zn_host_permissions PROPERTIES CXX_STANDARD 17 POSITION_INDEPENDENT_CODE ON)
 if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
   set(ZN_HAL_PLATFORM ${CMAKE_CURRENT_SOURCE_DIR}/targets/common/hal_posix.cpp)
   if(WIN32)   # docs/targets/windows.md: targets/windows/hal_windows.cpp, the Win32 stand-in
     set(ZN_HAL_PLATFORM ${CMAKE_CURRENT_SOURCE_DIR}/targets/windows/hal_windows.cpp)
   endif()
-  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/netlog.cpp src/host/http.cpp src/host/tls.cpp src/host/crypto.cpp src/host/ed25519.cpp src/host/regexp.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/assets_host.cpp src/host/permissions.cpp src/host/gfx_host.cpp src/host/image_decode.cpp src/host/ui_log.cpp src/host/render_bench.cpp src/host/backend_sw.cpp src/host/resources.cpp src/host/splash.cpp src/host/mirror.cpp src/host/screencast.cpp
+  add_library(zn_host_gfx STATIC $<TARGET_OBJECTS:zn_host_permissions> src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/netlog.cpp src/host/http.cpp src/host/tls.cpp src/host/crypto.cpp src/host/ed25519.cpp src/host/regexp.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/assets_host.cpp src/host/gfx_host.cpp src/host/image_decode.cpp src/host/ui_log.cpp src/host/render_bench.cpp src/host/backend_sw.cpp src/host/resources.cpp src/host/splash.cpp src/host/mirror.cpp src/host/screencast.cpp
     ${ZN_RUNTIME_DIR}/zrt.cpp ${ZN_RUNTIME_DIR}/host.cpp ${ZN_RUNTIME_DIR}/raster.cpp ${ZN_RUNTIME_DIR}/ttf.cpp ${ZN_RUNTIME_DIR}/gfx.cpp
     src/host/hal_dispatch.cpp ${CMAKE_CURRENT_SOURCE_DIR}/targets/null/hal_null.cpp ${ZN_HAL_PLATFORM})
   # the headless and the window HAL live in one binary: their hal_* functions are renamed, src/host/hal_dispatch.cpp picks one at run time
@@ -662,7 +666,7 @@ if(APPLE)   # but not zinc's own C++ (zn::), harfbuzz's or the libc++ templates 
   target_link_options(zinc PRIVATE "LINKER:-unexported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/tools/zinc-unexported.txt")
   set_property(TARGET zinc APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/zinc-unexported.txt)
 endif()
-target_link_libraries(zinc PRIVATE zn_lint zn_doc zn_sim zn_script zn_qjs zn_assets zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend zn_qrcodegen zn_i18n)
+target_link_libraries(zinc PRIVATE zn_host_permissions zn_lint zn_doc zn_sim zn_script zn_qjs zn_assets zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend zn_qrcodegen zn_i18n)
 if(TARGET zn_rt_new)
   add_dependencies(zinc zn_rt_new)   # not linked into zinc (ZN-592): `zinc build` links it into the programs that have a heap budget
 endif()
@@ -721,6 +725,9 @@ if(TARGET zn_host_gfx)
   endif()
 else()   # no graphics host (-DZN_HOST_GFX=OFF, the first Windows build): its entries that main.cpp and zinc:canvas2d call answer "no host"
   target_sources(zinc PRIVATE src/host/no_host.cpp)
+  if(APPLE)   # Optional weak imports are absent in this build (Mach-O requires them to be named).
+    target_link_options(zinc PRIVATE "LINKER:-U,_zn_window_load" "LINKER:-U,_zn_resource_stats_register")
+  endif()
 endif()
 
 add_executable(platform_test tests/unit/platform_test.cpp)   # tests/t0/platform.sh
@@ -743,7 +750,11 @@ target_include_directories(ops_test PRIVATE include)
 
 add_executable(zbc_test tests/unit/zbc_test.cpp)
 target_link_libraries(zbc_test PRIVATE zn_zbc)
-add_dependencies(zinc zbc_test i18n_test)   # built with zinc: tests/t0/zbc.sh and i18n.sh skip silently without them
+add_executable(host_permissions_test tests/unit/host_permissions_test.cpp)
+target_include_directories(host_permissions_test PRIVATE src)
+target_link_libraries(host_permissions_test PRIVATE zn_host_permissions)
+set_target_properties(host_permissions_test PROPERTIES EXCLUDE_FROM_ALL ON)
+add_dependencies(zinc zbc_test i18n_test host_permissions_test)   # the small standalone checks used by T0
 
 # A test with a module written in C99
 # The text-shaping tier (ZN-114, D11): HarfBuzz + SheenBidi + libunibreak behind src/text/layout.h. Nothing links it by default: only programs that ask for it.

@@ -455,6 +455,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Library-default icons remain available in QuickJS when an imported module shares its name with a directory.
 - JavaScript-engine runs start in the project directory, as interpreter and native runs do, so relative file paths and scoped file permissions agree; `launchDir()` keeps the caller’s directory.
+- Builds with `-DZN_HOST_GFX=OFF` link again and run console programs, including QuickJS timers; capture commands clearly report the missing graphics host.
 
 ### Apps and examples
 
