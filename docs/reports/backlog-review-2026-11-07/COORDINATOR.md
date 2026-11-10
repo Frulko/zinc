@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Assistant28 checkpoint integrated (workerdaaf3e7cb), BacklogAC2true/AC1open depends1114/1115; original all3functions/pass, desktophidden/reducedmotion awaitsharedfix. Reserve1078.29 comparison harness only; no quiet/benchmark runs with concurrent workers. Reuse existing bench tooling read-only, pinned CUI, script/report/proposed quiet run; real numbers unproven remain open. Notes27/UI1114→1115 active, common47a238 unchanged.57Done.
+
 - Settings23 completion integrated (worker11024b2de), Done allAC,57Done; original app unchanged, refreshed captures/new47a238 proofall3/360focus/Avatar56. Reserve sole UIcore chain1114layerreducedmotion→1115responsivehiddenmd:flex. Strict isolated-file carveout only display~2956/layers~8374; external Map/Fenwick639/1074 patch archived/SHA and must remain byte-identical at integration. No C++build. Notes/Assistant continue independent UI proofs.
 
 - Root clean commonfe4b8bee5 SHA47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764 rebuilt; combined typeof_union/return_type/kit_tabs_reveal/unchangedkit_size and originalSettingscheck/interp4PASS. Mail25 partialworker4bfe1e10a integrated, BacklogAC2true/AC1open depends1114; reduced-motion shared-layer gap proven20paintall3, ui.ts WIPprotected so not assigned. Reserve fresh Settings23 completion on repaired common, no layer dialogs in original source. Notes27/Assistant28 continue,56Done unchanged.
