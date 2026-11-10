@@ -1,118 +1,62 @@
 # Resume — Zinc coordinator, 2026-11-10
 
-Continue zn-coordinate until main `.paused` exists or no startable work remains. Never ask the owner; no push. This root is the sole backlog coordinator. Runtime4 = root +3workers. New workers inherit configured model after “on rebascule”; Fast remains launcher option.
+Continue zn-coordinate until main `.paused` exists or no startable work remains. Never ask the owner; no push. This root is the sole coordinator. Owner refocus: engine progress; no new services/demos or production guardian/libnice expansion. Native workers, fresh contexts, one worktree each. Max2 building trees, one heavy process, all heavy commands through absolute tools/work-run.
 
-## Active workers — engine first
+## Active
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|1120 distinct never type/lowering|.worktrees/1120 / work/1120|Sole frontend/IR writer; private lazy uninhabited carrier, existing void returns/Unreachable; exactproof in progress.|
-|1066 alternative-engine packaging|.worktrees/1066 / work/1066|Independent CLI/export/portable-pack/HBC source trust; existing pack/fuse format retained. No new native loader or SDK rebuild.|
+|1030 reference-array sharing|.worktrees/1030 / work/1030|Sole core writer. Source/refusal/raw-defence T0 passes; final guard dedup/ordinary fastpaths and Hero8MB gate in progress. No runtime rows/opcodes/layout changes. AC1 remains open for wider stores/views.|
 
-Root common/build+combined strict Hero/8exactchecks finished PASS. Building slots1120+1066, all through work-run.603d87d08bbd Doneall3AC aftercombinedproof (73Done);668032658ef7 ReviewAC1,1030 record arrays/widerstores still Backlog. No new services/demos, production guardian or libnice expansion.
+Root is idle for builds. Hermes1066 native-CDP phase integratedbcbdd9751; exact private-SDK protocol proof passes. Source SDK patch/version only; installed/published SDK unchanged.1066 ReviewAC3 longscope remains open.
 
-## Integrated state
+Array plan/proof scope: related object-reference arrays share actual ArrObj; scalar/string/Dyn/nested conversions unchanged. Source insertion preflight throws catchable TypeError atomically; raw VM/AOT checks protect bypassing bytecode. Exact array InstanceOf stays exact; compatible Downcast reads existing module metadata. IR InstOf internally targets reference types, no wire change. Shared guards must not bloat ordinary casts/scalar arrays; nativeHero budget is strict8,000,000 B. Full wider stores/member-specific structural views are still unfinished, no AC waiver.
 
-73 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, 445 QuickJS packing/cache,774.31 Share,1119 quoted-key JSON 896 call server,803 asynchronous updates and395 no-graphics engine. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
+## Integrated and verified
 
-- UI chain7ed1b1211/39e7e5e62/5488a7d35, recursive capture063edc9de, Solid ownership0d7163987: root exact tests and original Music feature pass. Mail6dc4c22ca, Notesed5802785, Assistantc280d7fd8 and Music83e6fe6f5 Done with actual all3 action/desktop/mobile/focus/cleanup proofs. Original responsive/password defects fixed.
--445 integrated5acf53be0: local trusted bytecode cache stays fast; unsigned packs execute retained source, with one explicit warning. No unauthenticated bytecode loader. Exact qjs_bytecode and actual Fatty direct/pack proof pass; no startup timing claim.
--895 integrated9ccee370f: pinned Galène1.2.1/Go1.26.10 four reproducible archives plus checksums/licenses/install test. Native -help passes; quiet RSS and remote actual run remain open. Publish command is in task notes and was not executed.
--603 integrated64c0f7158: restore existing advanceUpload export for Hero callers. Hero all3 actual run passes. Native10905448 B and generated C++27205373 B exceed8MB/10MB criteria; no speculative optimization, task Backlog.
--774.31 integrated0889d9c8a: editable sources/assets/PNG cover pack, exclusive safe unpack, short Play link, keyboard/import roundtrips pass. Source code remains integrated, AC1 reopened by916f20798 because final combined binary exposes1118 nested cleanup failure.
--1118 initial566ba1115: pre-reap group ownership, stale handles, finish hooks, Mojave cwd fallback pass their direct tests. Same final Zinc binary creates nested groups that survive root capture group kill. Fresh repair active; no false POSIX family completion claim. Repro .logs/blockers/process-nested-groups/rebased-close.py; all surviving proof PIDs were cleaned.
+74 currently Done since1078.03:26 kit/demo leaves03–28,39 compiler fixes1079–1117,445 cache trust,774.31 Share,1119 quoted JSON,896 call server,803 async updates,395 no-graphics,587 webWorker,603 AOTsize,1120 Never. Partial/research/Review tasks are excluded.
 
--1068 integrated78c1d970a: exact deer already matches all3 with common engine; tight body bounds and17,776-frame coverage pass. Root tier-t0/real QuickJS proof queued. Quiet24/64/96 numbers remain open. An accidental duplicate-basename T1 completed and is disclosed in notes; no process remains.
+-603d87d08bbd Doneall3AC: originalHero native7,995,032 B (4,968 B margin), all57CPP/header/PCH source~9.53MB, defaultO2/jobs3 full observed19.16s/0of57 reused objects on4f198+603. Original2,660 functions/assets retained. Resource and metadata bytes lossless, no feature/budget cuts. Table temporary418,786 B retained through program run; raw export/cross/bundle paths unchanged. D283.
+-1120903f17ed4 Done: Never distinct from Null, existing void/Unreachable returns, lazy uninhabited REF storage, proper closure/virtual adapters. Exact3 runtimefixtures/all3+11negatives and original namespace source pass. No runtime/VM/AOT/ABI changes. Assertions/projections remain explicit unsupported boundaries; standalone null/undefined and catch(void) generic gaps pre-exist. D285.
+-668032658ef7 ReviewAC1: immutable recursive closure uses own receiver, preserving outer/mutable cells and nested callbacks. Original2 objects/48B leaked ->zero; fullfixture44alloc/44free. Call-path timing unmeasured. D284.
+-1030 checkpoints4f0b3b889/44457803a/4f198e9c1: correct dynamic method receiver/identity/defaults, optionalDyn null/undefined observers and synthesized defaults, borrowed scalar/Dyn methods, separate type namespace. Original unknown-valued fixture restored. Arrays/wider stores/unsupported borrowed families still BacklogAC1open. D231 follow-up.
+-1066401426c8a: all3 source/pack/export/relocated/signature/codesign/SBOM proofs, portable verified packs, explicit build--enginehermes HBC, unsignedHBC retained-source guard. SDK dependencies absent in relocated runtime. Fused alternative-engine programs still need installed packs. SBOM/licences outside signedZIP/DMG explicitly documented. D286.
+-1066bcbdd9751: exact native breakpoint ID mapping in pinned Hermes SDKpatch, version2026.11.10. OldSDK fails/privatepatched passes URL/location and step/debugger/exception/removal negatives. No globalSDK change. D287; future explicitSDK/pack rebuild and ownerUI/longscope checks remain.
+-58797af370e3 Done: real pinnedPixi8.22 worker texture pixels andTone15.1.22 worker ticks, clone/transfer/termination, bounded256messages/16MiB queues and locked permission providers. Exactroot proof passes. D282.
+-395a025e2882 Done: real OFF build/permissions/timers and noGUI dependencies; root defaultgraphics/permissions/capture pass.
+-8033a87af69a Done: async signed update + caller validation beforeatomicstage, hostedengine exports/sealedapp.zapp. check/download nowPromises. RawAOT unsupported; normalquit canwait135s network+localchecks. D281.
 
--575 integrated43af3d75d Review: frame-boundary allocation-pressure GC, RAII thresholds and stable append-compatible profile phase. Exact GC/cache T0 and real Fatty pass on worker95d46b9f. Full scans indivisible, no4ms/p99/startup claim. Original probes use top-level loop/loadScript, so performance AC remain open.
--1118 nested58ee758c8: stable macOS original-parent identities plus atomic audit-token signals cover normal nested groups and leader _exit. Final candidateee200909 actual same-binary Atelier close passes; bounded walk/vanished intermediate/native API limitations keepAC1open. Root combined3T0/Fatty/same-binary Atelier close PASS; final proof archived .logs/integration-2026-11-10/process-close-final.
+## Read-only common engine
 
-## Common engine and final kit gate
+`.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc`, compiled source07ed10bd0, SHA2565b9fea69cf548255f44f9f5167cc7a1bd20026ab112c25759cda4a76383ed0af. Adjacent archives/modules required. Announce before replacing; never build main externalWIP. Source-only SDKpatch tests use this compiler plus an explicit private library.
 
-Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, source97af370e3, SHA256f34fc9e9f863c4883f3a115f429fbe4bdc788c42ece10d71f0dbdc5619c95c0f. Adjacent AOT archives required. Includes current nested macOS repair and QuickJS GC/profile. Announce before replacing. Never build main external WIP.
+Root latest `.logs/integration-2026-11-10/never-export/summary.json`: never_return/open_record_methods/recursive_self/aot_native_args/engine_export PASS; raw kit gate PASS; originalHero build and all3 historicalfourhashes PASS. Native7,995,032B SHA32a190522528a2f79c83fbfe5606d32c16d1451b9c17142a5cf67774cb820eb4, generated9,527,518B inclusive60BPCH. No new cold/quiet timing claim. Hermes protocol root `.logs/integration-2026-11-10/hermes-cdp-smoke.log` PASS using private DLL SHAcd35f89b25d6f15f25d3c0f5c4ba4643c8997717e0c432a2a5a20cc53bfe650c.
 
-Older proofs keep their real hashes:037a922f9/29ffb93a19627fb7dc465badc12c9c292ffaa55bf1db76d458b81837f4b48155;fe4b8bee5/47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Mixed process proof was insufficient and is superseded by reopened combined repro.
+Latest raw kit: JS236192/246407/283256B; unused10215B (25B margin),4094/component,15B strict aggregate headroom. AOT5210216/5276320/5795072B; unused66104B,57639/component. Nativeeditor still links from barrelButton; no zero-unused-cost claim. Provenance `docs/reports/bench/kit-integration-2026-11-10.json`.
 
-Final unchanged kit gate passes: JS236192/246407/283256 B (unused10215,25 B margin;4094/component,15 B strict aggregate headroom). AOT5325336/5474000/6025776 B (unused148664;61308/component). No icon/feature/budget cuts. Detailed task provenance and docs/reports/bench/kit-integration-2026-11-10.json; root .logs/integration-2026-11-10. Root latest combined galene_toolchain/project_link/zapp_share/qjs_bytecode and original Hero check/interpreter4 PASS; no nested cleanup success claim. D278 records standalone Galène, D279 unsigned QuickJS source fallback. D280 records honest boundary GC scheduling; D281 hosted update exports. D231 now records correct dynamic method receiver/extraction semantics and remaining structural gaps.
+## Other open work and durable proof
 
-Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail1078.25-20261110/completed, .logs/share-774.31-20261110, .logs/galene-895-20261110, .logs/hero-603-20261110. Notes/Assistant final proofs and CUI artifacts are archived in .logs/archive-completed-workers-20261110/<id>-final. Eighteen completed clean worktrees removed in this cleanup series;575/1068/old1118/nested1118/ownership1118/774.31 final logs and bundles are in their -final archives.
+-1118 Backlog: normal nested ownership/macOS PID-generation fix passes; vanished/reaped intermediate still breaks ancestry. Fork-only monitor rejected for retained COW heaps. Self-exec native scratch prototype proved without inherited heaps, but production guardian deferred after ownerrefocus. No worker active.
+-897 BacklogAC1only: production Galeneclient and minimal native shutdown integratedc918514de. Syntheticlocalmedia/rejoin/cleanup pass; twoZinc+Chrome and true5second ICErestart remain open. No productionlibnice/vendor change.
+-575 ReviewAC2: honest frame-boundary GC phase, no hard4ms/p99/startup proof (D280).1068 Review: Hamlet geometry correct/tighter rectangles, no speed claim.895 Review: four reproducible Galenearchives/localinstall; publicassets unpublished, remote/RSS unproven.1078.29 Review: CUIharness built/offscreen only, unmatchedworkloads cannotrank.
+-774.31 Share Done after finalsame-binary capturedgroup cleanup proof, broader1118 separate.445 unsignedpack/fusedQuickJS executes retainedsource; trustedlocalcache unchanged (D279).896 localserver/browser/token/restart/stop proven; remoteTLS/TURN/physical capacity notclaimed.
 
--896 integrated386125005 Done: actual Chrome join/revoked/expired refusal, forced child restart, SIGTERM/no leftover, and CLI setup/start/stop all3 PASS. Source assets portable;5,849,592 B AOT app. Galène archive still unpublished, TLS/TURN/remote/capacity unproven. Root short startup proof passes on common f33ea427d; completed896 and1119 logs/checkpoints are archived.
+Completed source checkpoints/logs/bundles live under `.logs/archive-completed-workers-20261110/`; private proofs0700.31 completed source-worker trees removed through603/668, plus read-only research checkpoints. Current1120 and1066-CDP completed trees remain until archival; active1030 neverremove. Hero durable `.logs/hero-603-engine-20261110/last-combined/provenance.json` SHA1b046cd09d07072c599bfcd5f0b638514fd060014cf1d278defc1c671b457181. EarlierCode/Gallery immutable recovery stashes retained.
 
--803 integrated3a87af69a Done: native async signed check/download, caller validation before atomic stage, persistent-host cache eligibility, host engine-carrying exports and signed.app promotion. check/download are Promises (await migration documented). RawAOT unsupported; normal quit may wait bounded135s plus local checks. No new updater work after owner engine refocus.
+## Protect external work
 
--395a025e2882: real no-graphics build links with libc++/libSystem only; permissions remain real and language timers work, unavailable graphics/IO fail explicitly. Worker exactT0/original abstract program pass; combined default graphics build, real permissions target and existing bouncing-ball capture passed.
--1030 method checkpoint integrated: receiver-before-args, unbound extraction, declaration identity/inheritance/default arity, typed JSON method omission. Focused all3/original regression passes. Remaining array identity/wider writes/structural receiver/null-vs-undefined stay Backlog with committed repros, no unsafe partial widening.
+Main WIP: ui.ts42add19del sparseMap/Fenwick639/1074 (known incompleteprependRows, do notinvestigate), main.cpp12/0 display, rt.h137/1 allocator/StrObj/ArrObj0–300 STRICTOFFLIMITS, rtcalls30/17, machine3/2, worker1/1, perf15/0, LVGL/runtime/HAL/host/CHANGELOG/affected anduntrackedLVGL/skills. Never reset/build/stage mainWIP. Preserve added/deleted payload hash from `.logs/blockers/core-1030/external-changed-lines.json`, independent of diffindex/line offsets.
 
-## Ownership1118 research checkpoint
+1030 carveouts: later RT ophelpers only, array runtimecases, findComparator, VM/AOTrelatedcasts andIRfrontend contracts. No earlyheader fields/layout/allocator/HAL/UI/main. tools/integrate stashes overlaps uniquely/restores; checkall10 protected payloads. Perf append stagesHEAD+ownedblock viahash-object/update-index, nevermixedfile. Unknown old1078-data/pickers/feedback-astra andotherownerworktrees remain untouched.
 
-Integrated72908db66. Exact real-Zinc repro on9a23: Python reaps an intermediate Zinc before ancestor cleanup, leaving a normal Zinc-owned subgroup alive. Survivor cleaned atomically; no process remains. Durable .logs/archive-completed-workers-20261110/1118-owner-final/logs/process1118-owner/repro-result.json. Fork-only guardian scratch proved lifecycle/FD/initialized-libuv cases (b5dfc6e87), but is rejected for retaining full owner COW heaps. No production implementation. Next try same-executable exec-reset guard via early CLI/AOT mode, clearing VM pages and inherited atfork state; inspect existing helper/bootstrap patterns first. Must isolate guardian from ancestor group kills, keep owner-only CLOEXEC writer, retain executable PID before reap and preserve public PID/status. Two-fork/libuv-atfork descriptor ordering and retained COW memory are unresolved. No source implementation after owner engine refocus; bounded self-exec prototype is archived and production deferred.1118 BacklogAC1open/AC2checked, all guardian workers finished and archived; no active production guardian worker.
+## Machine and tests
 
-## Preserve external work and machine limits
+Every app/test bounded; headless orbackground; no leftover. No suites/T1/T2/demo/pixelcompare/conformance/fuzz/bench/CI. Only exactsecondsT0 and shortfeature proofs. Max2building trees globally; oneheavy process, work-runqueue. No syntheticload. Call-path/quiet/long tests require ownermilestone; listingneverstopsloop.
 
-Main external WIP stays untouched: ui.ts sparse Map/Fenwick42add19del near639/1074 (known incomplete prependRows, do not investigate), main.cpp12/0 display, rt.h137/1 allocator, rtcalls30/17,machine3/2,worker1/1,perf15/0, LVGL/runtime/HAL/host/CHANGELOG/affected and untracked LVGL/skills files. Never build/reset/stage main WIP.
+Tests to run (owner picks):
+-603/668/1120: corpus diff-matrix (~10min/<1GB), originalHero/novideo keyboard/upload (~20s/engine), quiet closurecall-path measurement (seconds–minutes/<100MB estimate), broader Never/method/exception cases.
+-1066: full isolated patchedHermes SDK/pack build+nativeprobe, strictHermesInspector UI (~30s/<300MB), engine_pack install/tamper/portability (~30s/<300MB), boundedlong handle-scope and quietdebuggerCPU (10min, stop atgrowingfewGiB). Installed/publishedSDKold.
+-803: maintained app_update_api T1 (~5–15s), museum_update demo (~15–30s), exportedQJSapp/AOTpromise variants, slowearlyquit/refresh (up to135s+localchecks).
+-575GCp99/startup,1068quietHamlet24/64/96, CUI matchedquiet/window/RSS,895remote/RSS, physicalkeyboard/touch/VoiceOver and longresource/idlechurn allremainproposed.
 
-Completed UIchain carveout changed display token near2956/layers8374 and kitTabs. Current803 carveout is updater/fused metadata/export dispatch in main.cpp and CLI, outside the12line external display hunk.575 clean runtime/gfx.cpp profiler carveout is integrated. 587 alone has a narrow worker.cpp queue-budget carveout in post/next/terminate/join and accounting, outside the protected owner hunk near286. No other rt/runtime/UI/HAL change authorized. External virtualization hunk payload MUST remain identical; diff blob IDs/line offsets may change when HEAD changes. Preservation JSON and archived patches record normalized hashes. tools/integrate stashes overlaps uniquely/restores; verify ui.ts diff SHA, affected JSON, conflict markers, stash preservation. Perf owned append stage via HEAD+block/hash-object/update-index, never mixed working file.
-
-Every heavy command through absolute tools/work-run SECONDS COMMAND ARGS, one pending per worker. Max2 building trees globally, one app/test/link; bound every run, headless or ZINC_BACKGROUND=1, no leftover children. No suites/T1/T2/tests-demo/pixelcompare/conformance/fuzz/benchmarks/CI. Harness may build and prove startup only; quiet measurements owner's.
-
-Completed logs/checkpoints archived .logs/archive-completed-workers-20261110. Core1111/old1112 and final completed UI/app/compiler/tool trees were removed after archival; original sources remain on develop. Original old1078-data/pickers/feedback-astra contain unknown WIP, never reset/delete. Immutable Code stash a1c0db6f7469c18237690a4bf68a9de25d782bf5 and Gallery recovery stash eb2f5dffde05f0065d3cdb764fb00f4b1b3cbbe7 retained. Frozen diagnostic1108/1109 package under .logs/frozen-engines; executable alone cannot do AOT.
-
-## Devices and proposed milestones
-
-Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow@192.168.2.228; Tailscale100.66.7.14 / optiplex.tail80b63.ts.net, HostKeyAlias192.168.2.228 verifies same key. Initially no compiler/build tools. Actual unchanged nullable_numeric cross-built x86_64-linux on Mac, deployed ~/zn/codex-1106-20261110-da7ca, timeout15/headless via Tailscale PASS, SHA7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No process left; GPU/desktop/native build unproven. Pi spark@192.168.2.31 and Mojave mowmow@192.168.2.215 remain. Own directories only, no machines/daemon restart/QEMU.
-
--774.31 capture regression is now closed on final combined same-binary root proof; task Done.1118 broader vanished-intermediate ownership gap remains independently open.1119 quoted-key JSON fix integrated1b8ecadb5; original unchanged group check/all3 PASS. Historical candidate38e22ed7035d08782e9293b57987ab76d4f95b3227bcd8e47b1b4131e018c6ab proofs are archived with1119/896; their completed trees are removed after common-engine migration. Root exact json_quoted and unchanged kit_size PASS again on current common f33ea427d; app_update_async/qjs_bytecode/webrtc_shutdown/open_record_methods, permissions and all four original feature smokes also PASS. Log .logs/integration-2026-11-10/core-engine-smoke.log; server-short.log. Frozen1030 remains read-only for the active structural worker;1119 historical proof logs/checkpoint are archived, readers migrated to common. Last raw size figures predate1119; no new numeric size claim from the quiet runner output.
-
-## Tests to run (the owner picks)
-
-- Sinced87d08bbd: tools/diff-matrix corpus at milestone (~10min/<1GB) and originalHero/novideo keyboard/upload session (~20s/engine,<1GB estimate), native packing on real Linux/Mojave. Exact AOT and4frame parity already pass.
-- Since032658ef7: matched quiet recursive-closure call-path measurement (seconds to minutes,<100MB estimate) for668AC2; semantics/leaks already pass.
-
-
-- Since97af370e3: maintained webenv_pixi T1 (seconds; both pinned rendering/event paths) and bounded long transfer/decode/terminate churn plus Pi/Mojave/OptiPlex worker scheduling; no TSAN or runtime-speed result implied.
-
-
-- Since3a87af69a: maintained app_update_api T1 (~5–15s), museum_update demo (~15–30s), AOT process promises/QuickJS exported.app update (~5–15s), and slow-transfer early-quit/refresh teardown (up to135s plus local checks); memory unmeasured.
-- Since4f0b3b889: broader records/classes tools/diff-matrix at a milestone (earlier estimate~10min/<1GB); committed focused all3 method regression already passes.
-- Sincec918514de: two Zinc clients plus Chrome and genuine5-second ICE loss/recovery remain open task criteria; no extra native dependency authorized now.
-
-
-- Since78c1d970a: Hamlet matched before/after AOT/interpreter idle-view24/64/96 and windowed Metal/QuickJS fluidity; exact geometry passes, speed benefit unproven.
-
-- Since5acf53be0: Phaser/Babylon cached startup and QuickJS GC p99 on a quiet machine;575 implements remaining scheduling/profile first.
-- Since9ccee370f: Galène real Pi/OptiPlex execution and quiet RSS before publication; recent optional SSH attempts timed out/Pi agent refused signature. Do not claim remote server proof.
-- Since64c0f7158: Hero attribution is complete;603 active size changes still require final-source gates. No quiet compile-time/startup claim.
-
-- Physical keyboard/touch/VoiceOver/device/browser passes, long remount/decode/resource/idle-energy churn: exact commands/durations in each task/README (families14–19, demos21–28). No physical or quiet-machine claims.
-- Sincec0813bdd5/428d48c1b/fe4b8bee5/3e540bbe9: long Settings/theme/forms/scroll churn and native accessibility; current exact all3/360focus/Avatar56 proof passes.
-- CUI comparison1078.29: real matched phase/window/RSS/idle CPU on M1Pro/Pi remains owner-picked quiet run; unmatched CUIOrbit/ZincFieldwork forbids ranking.
-- Shared gate very tight: cold SVG/adapter cost, unused editor native reachability, full Gallery offscreen scaling unmeasured/later.md. No long benchmark now.
-
-Owner original responsive/password docs/img/design/src is fixed; pictures gallery-responsive.png/password-reveal.png. Kit examples/ui/kit-gallery GALLERY selects family; all demo README run commands are present. Agent runs bounded/background. No questions or outward publication.
-
-Owner steering: prioritize engine tasks1030/395/603. No guardian production or libnice dependency expansion now. Runtime carveout baseline .logs/blockers/core-1030/external-wip.patch + changed-lines hashes; StrObj/allocator region0–300 is off limits.
-
-Cleanup:25 completed clean worktrees archived/removed in the full series; latest seven are803/395/897/1118-guard/1118-exec/896/1119 (following the earlier18 checkpoints). Private proof archives remain0700; frozen1030 stays for its active reader. No owned app/server was left running.
-
-Integrated:44457803a preserves optional Dyn null/undefined across value observers, narrowing, JSON and synthesized optional defaults. Focused T0/original optional-null repro all3 PASS7s on0b39abe87069cc9f88cdccc1dcadca27590ca09ef2c37d6c516da0dd7fc68ef2.1030 BacklogAC1open, no unsafe array/store waiver. Latest frozen baseline .worktrees/1030-views/build/zinc retained for newplan reader; earlier1030 tree archived/removed (26 total).
-
-Integrated:58797af370e3 Doneall4AC; actual pinned Pixi/Tone/typed-worker proofs pass, queues256messages/16MiB per direction, cloned transfers and thread-safe permission providers. D282 records contract/limits.72Done; no native remote/performance claim. Common refreshed source97af370e3 SHA f34fc9e9f863c4883f3a115f429fbe4bdc788c42ece10d71f0dbdc5619c95c0f; root exactweb_worker/system_drop_scope/open_record_methods/json_quoted plus actualpinnedPixi/Tone PASS. Building slots603+1030borrowed-method; rootidle. Completed587 archived/removed (27total); logs .logs/integration-2026-11-10/worker-optional-smoke.log.
-
-Next independent preparation:668 recursive closure ownership reserved for read-only research/minimalrepro/plan while1030 owns frontendcore. No runtime/IR/header edits or build until explicit release; allocator/StrObj0–300 and owner machine/worker/runtime hunks remain protected. AC2 call-path measurement remains owner-selected, no benchmark inferred.
-
-Integrated:1030 borrowedscalar/Dyn methods and proper type-namespace lookup4f198e9c1; original unknown fixture restoredall3, unusedalias/cycle diagnostics preserved. BacklogAC1open for structural arrays/widerstores/unsupportedborrowedfamilies. Final compilerf027a923 and exactT0 PASS9s; namespace-only never-return fixture remains unchangedcheck-only with IRgap documented.668 research proves2objects/48B self-arrow cycle, existing1080 receiverbinding canfiximmutableFuncExpr inlower.cpp only; freshimplementation owns solecore after1030freeze.603 rechecks tightHero gate against4f198 beforefinalDone.
-
-Engine blocker1120 created under New-task blocks exception: valid unused never-returning function checks/QuickJS passes, interpreter IR Z0005. Original unchanged namespace fixture remains, gap not hidden by a source rewrite. Repro .logs/blockers/never-return oncommonf34fc9.1120 priority8901 after1030, reservedresearchonly while668owns lower.cpp; implementrightafterits corecheckpoint.
-
-Integrated:668032658ef7 fixes immutable self-reference leaks viaexistingclosure receiver, ReviewAC1checked/AC2measurementopen. Originalfactorial2alloc/0free ->2alloc/2free; fullfixture44alloc/44free/0leaks oninterp+AOT andQJSoutputsame; source61f99ec4.1120 researchproves Never=tNull rootcause; freshimplementation willdistinguishbottomtype anduseexistingIRvoid/Unreachable, no newVM/AOT/ABI.603 final4f198proof7,995,032B/9,527,337B/19.16sfull observed; rootcombined668+603sizegatepending.
-
-Next independent engine chain1066 export/pack/bytecode reserved. Higher available tasks are owner-milestone benchmarks, protected HAL/UI/allocator work or shared core held by1120;1066 CLI/alternativeJS backends are independent. Start research/caller audit only until rootcombined build/proof frees one of2building slots. No longHermes handles/debugger benchmark or publication.
-
-Integrated:603d87d08bbd+668+1030 final cleancommon source d87d08bbd SHAb996304da89c455d22c018e2a83b7cd62cf840924fe400e35622f1c48c27b018. Root7exactT0+rawkitgate and originalHero check/build/all3fourhashes PASS. Native7,995,032 B; source9,527,457 B plus60B cachedPCH; originalworkerfullcold19.16s on4f198+603, no quietclaim. KitrawJS236192/246407/283256, AOT5210216/5276320/5795072 (unused66104,57639/component);15B JS strictheadroom remains. D283/D284/D231 followup recorded, provenanceupdated.
-
-1120 integrated903f17ed4 Doneall3AC (74Done subjectto rootcombinedproof); finalengine909dd32f all3never/unchangednamespace/elevennegativecasesPASS, no runtime/VM/AOT/ABIchange. Sourcecorefree afterNevercheckpoint. Reserve1030 next array-alias phase: initialcaller/representationdesign only, existingD231 checkedstore boundaries remain, no unsafewiderstores/latecasts or protectedallocator edits.1066 CLI independentlyfinalizing.
-
-1066 integrated401426c8a BacklogAC1/2checked, AC3longscope/AC4breakpointnative open. All3 exports/packed/relocated/signature/codesign/SBOM prove; literalHermesHBCflag and unsignedsourceguard exactT0PASS. Rootcommonbuild/proof nowgroups1120+1066. Fresh1030arrayimplementation approved no-row design with reusable staticfamilyguards plusrawopdefence; no actualclass/ArrObjlayout changes andprotectedfirst300 untouched. Researcharchive1030-array-research/design.md.
-
-Rootcombined1120+1066 PASS source07ed10bd0/engine5b9fea69cf548255f44f9f5167cc7a1bd20026ab112c25759cda4a76383ed0af: fiveexactT0inclengine_export+never, rawkitgate, originalHeroall3fourhashes; native7,995,032B unchanged, source9,527,518BinclusivePCH.74Doneconfirmed. Commonnowstable.1066exportcheckpointarchived; fresh1066CDP research/prototype next (SDKpatch onlyifboundedproofpossible, no wholeSDKrebuild/globalmutation/fixedport/UI).1030arrayguard solecorewriter.
+Devices: OptiPlexmowmow@192.168.2.228 Fedora45/x86_64/16GB, Tailscale100.66.7.14 oroptiplex.tail80b63.ts.net withHostKeyAlias=192.168.2.228 (neverdisablechecking); Pi spark@192.168.2.31, Mojave mowmow@192.168.2.215. Initial unchangednullable_numeric realOptiPlexTailscalePASS SHA7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a; noGPU/nativecompilerinstall proof. LaterLANtimeouts/Piagentrefusal, retryonlyforactualfeature. NoQEMU/reboot/globalinstall/daemonrestart.
