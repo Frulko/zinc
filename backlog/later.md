@@ -742,6 +742,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-668: measure immutable recursive closure call-path cost on a quiet machine; exact zero-leak semantics pass, AC2 remains open.
 - ZN-1030: same-scope type/value declaration coexistence still needs separate namespace storage; outer type lookup no longer mistakes a shadowing value for the type.
 
+- ZN-1120: give standalone null/undefined returns and generic storage a coherent representation; real():null and Promise<never>.catch(void) already failed before the Never fix.
+- ZN-1066: a standalone fused alternative-engine app needs a trusted engine descriptor anchored to the signed toolchain index; current fuse requires an installed engine.
+- ZN-1066: prove signed-update exports on alternative engines before claiming portable self-updating V8/Hermes bundles.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).

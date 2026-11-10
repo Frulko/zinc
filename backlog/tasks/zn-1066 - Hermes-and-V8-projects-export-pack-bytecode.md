@@ -1,9 +1,8 @@
 ---
 id: ZN-1066
 title: 'Hermes and V8 projects: export, pack, bytecode'
-status: Backlog
-assignee:
-  - '@parallel'
+status: Review
+assignee: []
 created_date: '2026-11-07 16:43'
 updated_date: '2026-11-10 11:07'
 labels:
@@ -78,4 +77,5 @@ AC3 stays open: portable-pack preference was proven in the earlier checkpoint; l
 Proposed decision (coordinator, no number allocated): report the native paused breakpoint through Hermes's existing ID map; this preserves conditional/native semantics and excludes step/location false positives.
 
 Proposed tests: tools/hermes-pack --out <isolated SDK> --jobs 1, then HERMES_CDP_LIBRARY=<isolated SDK>/current/lib/libhermesvm.dylib tests/run --only hermes_cdp (full SDK recipe validation, minutes, build memory bounded/observed); owner-selected tests/run --only hermes_inspect with the rebuilt SDK module (complete Zinc transport/DevTools regression, about 30 s, under 300 MiB expected); actual Chrome breakpoint UI after the rebuilt pack is published (about 1 min); owner-selected bounded long Hermes frame/host-call run for AC3 (10 min, stop if memory keeps growing past a few GiB). No new later line beyond the existing long-run/UI checks.
+Coordinator: after export/bytecode and native CDP checkpoints, implementation criteria1/2/4 pass on their recorded candidates. Status Review: AC3 long-program handle-scope check and future full SDK/pack/UI validation remain owner-selected. Installed/published SDK has not been mutated. Root exact hermes_cdp against the private patched dylib passes.
 <!-- SECTION:NOTES:END -->

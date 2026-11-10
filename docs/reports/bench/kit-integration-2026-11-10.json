@@ -695,5 +695,35 @@
       "native off-Mac packing",
       "visible video pixels on black historical headless Canvas"
     ]
+  },
+  "never_export_integration": {
+    "source_commit": "07ed10bd0a4cb2d0fed3fb8d07e28112c0d8e282",
+    "engine_sha256": "5b9fea69cf548255f44f9f5167cc7a1bd20026ab112c25759cda4a76383ed0af",
+    "native_bytes": 7995032,
+    "native_sha256": "32a190522528a2f79c83fbfe5606d32c16d1451b9c17142a5cf67774cb820eb4",
+    "generated_cpp_and_header_bytes": 9527458,
+    "generated_inclusive_60byte_pch_wrapper": 9527518,
+    "exact_t0": [
+      "never_return",
+      "open_record_methods",
+      "recursive_self",
+      "aot_native_args",
+      "engine_export"
+    ],
+    "kit_raw_output": "bundle: Button 236192 B, through the index 246407 B (+10215 for 40 unused families, budget 10240), ten 283256 B (+4094 per component)\naot: Button 5210216 B, through the index 5276320 B (+66104 for 40 unused families, budget 163840), ten 5795072 B (+57639 per component)\naot, Button through the index links the plugins: editor\n",
+    "hero_four_hashes_all3": "PASS",
+    "done_count": 74,
+    "quiet_or_cold_timing_claim": false
+  },
+  "hermes_native_cdp": {
+    "source_commit": "bcbdd9751",
+    "private_dylib_sha256": "cd35f89b25d6f15f25d3c0f5c4ba4643c8997717e0c432a2a5a20cc53bfe650c",
+    "root_exact_t0": "PASS",
+    "input_files_unchanged": 21,
+    "probe": "native in-memory CDP; URL/location hits and negative pauses; old SDK fails missing field",
+    "installed_sdk_mutated": false,
+    "full_sdk_recipe_ui_long_scope_proven": false,
+    "log": ".logs/integration-2026-11-10/hermes-cdp-smoke.log",
+    "task_status": "ReviewAC3open"
   }
 }

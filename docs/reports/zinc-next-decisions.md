@@ -446,3 +446,28 @@ Exact source4f198e9c1 plus24a330e92: Hero7,995,032 bytes, all generated source9,
 Extend the existing recursive-function declaration binding to direct const function initializers and named function-expression self bindings. Exclude only that closure's own immutable binding from captures and read its actual receiver. Keep outer cells, hoisted sibling captures, nested callback ownership and mutable bindings intact. This removes the closure→cell→closure cycle without weak references or a collector.
 
 Worker design scores are70/70 for existing receiver binding,44/70 for generic weak capture and39/70 for a collector; these are judgements, not call-path measurements. Exact interpreter/AOT ownership proof changes the original factorial from two leaked objects/48 bytes to zero, and the full fixture has44 allocations/44 frees. QuickJS output matches. Mutable/mutual/object cycles remain strongly owned. Revisit for those distinct graphs; a new collector is not needed for this static immutable binding. Task668 stays Review until its owner-selected call-path measurement. Integrated032658ef7; root recursive_self passes on combinedb996304d.
+
+
+## D285 — Never is distinct from null; nonreturning calls reuse existing IR (ZN-1120)
+
+Append a distinct frontend Never without shifting fixed primitive IDs0–6. A never-returning function has an existing void IR return; a known-never call preserves exceptional unwind and ends only its normal continuation with Unreachable. Valued closure and virtual signatures use existing adapters ending Unreachable, not invented return values. A demanded unreachable SSA id lives only in a predecessor-free dead block removed by existing cleanup.
+
+Uninhabited storage uses a lazy private empty __Never REF class, separate from __Void, with no constructor, instances or source binding. Programs needing only throwing calls emit no carrier. Assertions/projections that would materialize a never value diagnose their current unsupported boundary. Real null is not erased to void; existing standalone null/undefined and catch(void) generic gaps remain separate.
+
+Scores in RULES order: distinct frontend type plus existing IR5/4/5/4/5/5/4 =64/70; new bottom opcode/runtime representation5/3/3/2/5/2/1 =47/70. These are design judgements; aliasing null is ineligible because it accepts invalid returns and breaks real null signatures. Exact all3 checks cover direct/closure/virtual/base/interface/fewer-argument calls, exceptions/finally, typed joins, generic rejection paths and eleven invalid cases. No VM, AOT emitter, ABI or opcode change. Integrated903f17ed4; root exact Never and original record/namespace regressions pass on07ed10/5b9fea69. Revisit inhabited projections and real null representation as their own coherent extension.
+
+## D286 — Alternative engines share export finalization and verified portable packs (ZN-1066)
+
+Reuse the existing macOS artifact, SBOM, codesign, DMG and Ed25519 pipeline for JSC/V8/Hermes. V8/Hermes exports use signed-index-installed/downloaded relocatable packs, ignoring development SDK overrides and failing clearly offline. JSC keeps its system framework. Exported manifests/assets relocate and declared permissions remain enforced. The existing source-based pack/fuse format stays; a fused alternative-engine app still needs an installed engine pack, with no archive-controlled native loader.
+
+Scores in RULES order: verified engine packs5/4/4/5/5/4/4 =63/70; carrying the development SDK4/4/1/2/4/3/3 =44/70, design judgements rather than speed measurements. --key without --dmg signs an external name-version.zip containing the sealed .app; --key --dmg signs the DMG. Combined SBOM/licence reports ship adjacent, outside that signed archive; external engine licences also live inside the bundle. This retains zinc verify and leaves the code seal intact.
+
+Explicit build --engine hermes reuses the existing HBC compiler for files/project overrides. Unsigned packages force retained verified source instead of adjacent HBC; trusted local build/export HBC remains usable. All3 source/packed/export/relocated/signature/codesign/SBOM proofs and recursive dependency inspection found no development SDK paths. Root exact engine_export passes. Integrated401426c8a. Revisit standalone fuse only with a native descriptor anchored to trusted toolchain metadata, and self-updates only after their actual alternative-engine proof.
+
+## D287 — Hermes breakpoint hits come from the native debugger state (ZN-1066)
+
+When native ProgramState reports a breakpoint pause, map its actual getBreakpoint id through the existing CDP breakpoint map into hitBreakpoints. Never infer a hit from a source location, a step, debugger statement or exception. Keep the current native bridge, CDP identifiers and SDK patch mechanism.
+
+Pinned sourcee760a68ab717963f82757983c75ec7fd63910d77 plus the existing patch reproduces the compiled fix. One private object replacement in copied API/VM archives and the exact original dylib link closure prove the change without mutating SDK inputs. Old SDK fails for missing hits; private patched library passes returned URL/location IDs and step/debugger/exception/removal negatives. Root exact hermes_cdp passes against private SHAcd35f89b25d6f15f25d3c0f5c4ba4643c8997717e0c432a2a5a20cc53bfe650c; all21 read-only SDK inputs remain identical. SDK pack version2026.11.10 invalidates future builds.
+
+Integratedbcbdd9751. The installed/published SDK is still old; a future explicit SDK/pack rebuild delivers the change. Full recipe, Chrome UI and long handle-scope checks remain owner-selected;1066 stays Review with AC3 open. Revisit only if native breakpoint identity or mapping ownership changes.
