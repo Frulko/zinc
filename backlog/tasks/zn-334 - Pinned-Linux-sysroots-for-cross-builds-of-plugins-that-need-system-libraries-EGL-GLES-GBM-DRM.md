@@ -2,8 +2,7 @@
 id: ZN-334
 title: Cross builds fetch the pinned Linux sysroot by themselves
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-08 14:34'
 updated_date: '2026-11-10 21:24'
 labels:

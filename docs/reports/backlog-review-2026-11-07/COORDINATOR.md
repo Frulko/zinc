@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated334c0bb1ba9e/D298, closed513all5AC,88Done. Rootexactlinux_sysroot/sourcehashes+5ELFartifacts verified; freshGLARM64/32/UIexport and bothunchangedHero ARMv7 builds pass. Archive334 (52sourcecheckpoints; cross.a outputs/provenance retained). Commonffec frozenIntlbaseline, refreshnext. Userperformancepriority:597researchready, no finalFPSclaim or unchosenbenchmark.
+
 - Integrated1121 d3fc22b57/D297,86Done. Rootexactprocess_family compilescurrentheader/hostsource PASS; crosslinks no newer cwd-symbol/appfork dependency. Archive1121 (51sourcecheckpoints), commonffec frozenIntlbaseline.334 resumes2ndbuildslot and actualUIexport nowpasses on1121base; HeroARMv7 next. Ownerasksbetterperfs: next597nativeThreeCPUaccelerators, primaryresearchstarted; no unchosenquietbenchmark claim.
 
 - Newblocking1121: actual334AArch64UIexport final link requires addchdir_np newerthan glibc2.28. Claimfreshplatformworker, reusevendoredlibuvoptional symbols+existingasync-safefallback; retainiOS/app nofork. 334actualGLARM64/32+videoARMv7 buildpass, goesread-only while1121usessecondbuildslot besideIntl. No targetfloor/fixture workaround.

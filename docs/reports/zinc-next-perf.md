@@ -1833,3 +1833,8 @@ Sourcee74f0e5e9, compiler3199b9a9cc97ab7240e8493f51632e833d814a87d05a388ef1eaa60
 ### 2026-11-10 — ZN-513 profile defaults and literal ARM build aliases
 
 Source8c2f1ee82/compilerffec2b6ecbe90bed688d2464728c0e09b1e5faf1a31769f4ee0edd7911c39755. Rootall3SCREEN defaults720x576/480x272 and no-profile320x240, chip_profiles/tc_cache PASS; worker27overridecases PASS. ActualCHIP Hello10506576B SHAe1722df3e64381c72c08f0834b19ee3eab7635394a67ca7aa2e3eea622d8c049; Pocket10506596B SHA398e646a9bf3aeb28bf7a131585523f0a0c58bbd6e4276e9f50547b041f02124. Root verified hashes and ARMv7/VFPv3/NEON/hardfloat ELF metadata. Neitherexecuted. BothHerocrossbuilds stopatmissingvideo/libavformat sysroot. No speed/RSS/physicalgraphics claim; taskAC1open. Proof .logs/integration-2026-11-10/profile513/summary.json; archives513-screen-final.
+
+
+### 2026-11-10 — ZN-334/513 cross-build feature artifacts
+
+Integratedc0bb1ba9e, workercompiler191d941bb299477c3fb99d2ce68cd7ad85631cde0e3b976218a9ce63b3400786, canonical51-package/arch lockSHA7d815afb81d8e242763bfce950a4cb5734ad0c11f2b0ce968871358e8db56b77. GLARM64.so491112B, ARMhf.so589304B; actualUIexportARM64ELF5721152B. BothunchangedHeroCHIP/Pocket11006600B SHA26360e2733e93d6081e2efb813885bc51e4ad97f1b60feff70db51ae0eb5aa6e. Rootverifiedsource/hash/ELFmachine for5artifacts; no targetexecution, speed/RSS or GPUclaim. Coldcompilation times indicativeonly. Proof .logs/integration-2026-11-10/sysroot334/summary.json; archive334-final retainslogs/SDKs/crossstaticarchives without copyingunprovenmainlibraries.

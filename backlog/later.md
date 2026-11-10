@@ -753,6 +753,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-161.02: audit unreachable generated globals/layout roots before pruning; unused Symbol is0 nativebytes but4491 generated-sourcebytes, without broad optimizer change inthisfeature.
 - ZN-161.02: fulltarget rebuild exposes unchanged NanoSVG signed-size comparison warning (nanosvg.h3211); record separately from Symbol semantics/size proof.
 
+- ZN-334: safelypruneobsolete managedsysroot generations after preservingmanualadditions; currentpublication intentionallyretainsoldroots.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).

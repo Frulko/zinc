@@ -1153,5 +1153,123 @@
     "done_count": 85,
     "protected_payloads": 10,
     "ARM_execution": false
+  },
+  "linux_sysroot_integration": {
+    "base": "d3fc22b57",
+    "branch": "work/334",
+    "compiler_sha256": "191d941bb299477c3fb99d2ce68cd7ad85631cde0e3b976218a9ce63b3400786",
+    "canonical_lock_sha256": "7d815afb81d8e242763bfce950a4cb5734ad0c11f2b0ce968871358e8db56b77",
+    "snapshot": "20261001T000000Z",
+    "packages_per_arch": 51,
+    "source_sha256": {
+      "src/tc/tc.cpp": "2ba8379e42735dc57184064aedd2969f2f5a218414a2fc543e65c6c3c39a92f4",
+      "src/tc/tc.h": "f26a78d1ac37268139ee3a6c71c63e18c14b242c5ae8dbc74dc888d4504f2cf1",
+      "src/tc/plugin_build.cpp": "6881c1a65e019a31f8d20b6d074c20be99245212e64add59eccda6707783ddbf",
+      "src/cli_core.cpp": "d0a999dec4380f8bbab8d347f43524bca3004df0336f191e34e587cd645c034a",
+      "src/tc/linux-sysroot.lock": "7d815afb81d8e242763bfce950a4cb5734ad0c11f2b0ce968871358e8db56b77",
+      "tools/linux-sysroot": "fa2a8ccbf8c0859e38e2333e18e66182c3c11f84fa36fbe1349edc7a97d6fd08",
+      "tools/package": "258ceccbdcf72475809ff7f580ce4a3f56640673e0ad8b38d3deb02c3c26581d",
+      "tests/data/linux_sysroot.py": "2945dc571a241c1effa7e9a63d5ba91772c2ebd804968ac7f0ef4ec4eca653a3",
+      "tests/t0/linux_sysroot.sh": "90e1bf21accb21edf5dc868dd7f42ea9feaae428459163f0cc65d9de063e9f1d",
+      "include/zn/process_family.h": "dab7fbff5dc817428fa2afd7ce8c74f1d0085e2f785b16562fa7e48dc07be337",
+      "examples/hero/src/app/art.ts": "dac1de2fddba4cb926253dd401bac1488b540ceaf364016e989ac2f607304e11",
+      "examples/hero/src/app/clock.ts": "72b3e9c4f6ccc16f726aefebfbd0b2df5c60fa7084a8e28a965ec5626cc838b4",
+      "examples/hero/src/app/commands.ts": "686c7bf224b75d9b9a3f391d915a65bbbbd1b3277e505da72362d4be7df3dbe5",
+      "examples/hero/src/app/motion.ts": "66d11be7209ece8c7ea46f43131900c70fa175a77ab2296477f38de02fc9de7d",
+      "examples/hero/src/app/overlays.ts": "ae2b203fbb566bd34a30318179d64b3636e554f409b602ad64975b68f1d21c87",
+      "examples/hero/src/app/physics.ts": "080ae44c339eed66d76e55fe64705e6f3ef1dcc705ce1c7b600555b2d8467835",
+      "examples/hero/src/app/prefs.ts": "da8b1279e69cf33c12e81fcc730f9344dbf9584230e1b110ac6612fd0e68abb6",
+      "examples/hero/src/app/router.ts": "1037040bff06c37b098ad459cc43de22c5a9dbda6b5436518553870096a38972",
+      "examples/hero/src/app/tasks.ts": "d4774b68e4f1723dfb671f7903dc78ea77d5e888f81be80eab1d51293c215d3a",
+      "examples/hero/src/components/Icon.tsx": "8d25325c2f684e285c8173f0a2ce204652e563bc129665ba95d79082bfcdad2e",
+      "examples/hero/src/components/Overlays.tsx": "6b0c1f9adc1928beb8bf3d6013ab064170a67799b3384d5319ebd091edac8bc8",
+      "examples/hero/src/components/Shell.tsx": "9e57e06bf247b735941dd03573a38323c336467fe36d6840054e1835f5752fc7",
+      "examples/hero/src/components/charts.ts": "21a8cbbfe3c04b5ba309776b3c75f5e150c057514e720a8f938365ea524cb0a2",
+      "examples/hero/src/components/icons.ts": "4814b9c990098b2fb954943e47ed403bb0c7f189c7b8147d92b0d330a543b0fc",
+      "examples/hero/src/main.tsx": "9b45c1717ad01b766a6162bd3d4ed0fccccd6760d69b316b8139fc58d73290cf",
+      "examples/hero/src/screens/Detail.tsx": "02c7f88ff3b31e5984be1e1e89653ef0746ccd176dbcdbf091fa4bfd6864d54c",
+      "examples/hero/src/screens/Forms.tsx": "2c66a9a7f79de436df3ca13049f16ce02ee071d12715b0ea7b8c89e0245e0302",
+      "examples/hero/src/screens/Gallery.tsx": "7a69bd4818e9397e3e9141760b10a0253a477a00816d02702dd07a2c1971bccc",
+      "examples/hero/src/screens/Home.tsx": "a24194a447159248945ef4a1d2ddfcfcba31ee7c36bcfbbc63e3caa823da2d2e",
+      "examples/hero/src/screens/Intro.tsx": "757b73bdf249698e582b9cff71a27ff809fa4ac6b6351bab8c929442ac62fac2",
+      "examples/hero/src/screens/Kit.tsx": "d9c975a7fd3910a157e2c875960cea5e6482523a8d8b254f034ff40d12647bf2",
+      "examples/hero/src/screens/Navigation.tsx": "d1e2ac6ff9849afc4316705b8f954f963c26abc8bc515ac50f16d81aa02beedb",
+      "examples/hero/src/screens/Playground.tsx": "4b20c4d4c72afb4b1fe8f70cd2e5503a51b89642931f615c716df381ad10361e",
+      "examples/hero/src/screens/Settings.tsx": "332a2813d44e8e177b10e91e532391deee2901c9ee63942a3b0111bad653e890",
+      "examples/hero/src/screens/Tasks.tsx": "e951a5d6039e7bbf3e77d2341d854d6e7b076947262503f5bca7f67a473e90e9",
+      "examples/hero/src/screens/Video.tsx": "154c1f6b06857a626d90fc6f1532367c1e51ce9522e47348697006e95d4dd328",
+      "examples/hero/zinc.json": "0c6491bd8801b3add4fcda46511be5b95bec7eb9f06bc33f9a66461ff771ee55"
+    },
+    "outputs": {
+      "display-gl-aarch64": {
+        "path": "/Users/mowmow/Lab/zinc/.worktrees/334/.logs/sysroot-334/final-home/cache/aarch64-linux/plugins/display-gl-180165b5fcc18fff/plugin.so",
+        "bytes": 491112,
+        "sha256": "aea9f91126b0b4c911ebd43d9717a5c0284c1c72399721d436396cca2514dfc8",
+        "ELF_machine": 183,
+        "executed": false,
+        "independently_verified": true
+      },
+      "display-gl-armhf": {
+        "path": "/Users/mowmow/Lab/zinc/.worktrees/334/.logs/sysroot-334/final-home/cache/armhf-linux/plugins/display-gl-2f1973243e3c416b/plugin.so",
+        "bytes": 589304,
+        "sha256": "bcdf468647ad85ff543eb2ba76d3b54fe1aec49152d91d323316cf860f060ac9",
+        "ELF_machine": 40,
+        "executed": false,
+        "independently_verified": true
+      },
+      "export-rpi": {
+        "path": "/Users/mowmow/Lab/zinc/.worktrees/334/.logs/sysroot-334/final-export-rpi/sysroot-ui",
+        "bytes": 5721152,
+        "sha256": "b9ab8aa53581752801e1893b964a724886db13e7961a4aece10aae1e922801cd",
+        "ELF_machine": 183,
+        "executed": false,
+        "independently_verified": true
+      },
+      "hero-chip": {
+        "path": "/Users/mowmow/Lab/zinc/.worktrees/334/.logs/sysroot-334/hero-chip",
+        "bytes": 11006600,
+        "sha256": "26360e2733e93d6081e2efb813885bc51e4ad97f1b60feff70db51ae0eb5aa6e",
+        "ELF_machine": 40,
+        "executed": false,
+        "independently_verified": true
+      },
+      "hero-pocketchip": {
+        "path": "/Users/mowmow/Lab/zinc/.worktrees/334/.logs/sysroot-334/hero-pocketchip",
+        "bytes": 11006600,
+        "sha256": "26360e2733e93d6081e2efb813885bc51e4ad97f1b60feff70db51ae0eb5aa6e",
+        "ELF_machine": 40,
+        "executed": false,
+        "independently_verified": true
+      }
+    },
+    "acceptance": {
+      "AC1": true,
+      "AC2": true,
+      "AC3": true
+    },
+    "hero_unchanged": true,
+    "host_prerequisites": [
+      "macOS",
+      "Python3",
+      "pkg-config"
+    ],
+    "literal_bare_OS_bootstrap": false,
+    "hardware_execution": false,
+    "full_suite_or_benchmark": false,
+    "timings": "indicative feature compilation only; final-results.json",
+    "package_proof": "package-inventory.log and package-refusal.log; script/lock still byte-identical to actual staged payload",
+    "snapshot_indexes": {
+      "Packages-arm64.xz": "2ddb1737692e8c45c53e8d57c0ce4cd21c78c5703b830c3226b1423566a06c00",
+      "Packages-armhf.xz": "2352d9caa6e740390e3cb2d26c0a63b3ce3a91bddae7df6af5e3832339d41d7b",
+      "Packages-i386.xz": "900739f3ad35b689d23f4a97ee2dc7943bebb3763c7c41f9a03072d639444e4d",
+      "Packages-amd64.xz": "9e0b5aabb2465b3d2e7a7fe27f9913846277833f7a2826e7767acccff5b588c5"
+    },
+    "commit": "d12be47c4ea468a1c27c92a2b23c0f3fd525e5c6",
+    "integrated_commit": "c0bb1ba9e",
+    "root_exact_T0": "linux_sysroot PASS in clean current-source tree",
+    "common_compiler_refresh_pending": "Intl baseline frozen ffec",
+    "protected_payloads": 10,
+    "done_count": 88,
+    "ZN_513": "Done all five criteria; no board execution"
   }
 }
