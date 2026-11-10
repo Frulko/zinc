@@ -62,14 +62,14 @@ narrow(); narrow(null); narrow(2); narrow('abc'); narrow(false); narrow(child);
 
 // Optional unknown already supports Dyn's toString; null still stops the chain.
 type Unknown = { value?: unknown };
-const unknownView: Unknown = new Empty();
+const unknown: Unknown = new Empty();
 let reads = 0;
-function receiver(): Unknown { reads++; return unknownView; }
+function receiver(): Unknown { reads++; return unknown; }
 function chain(): void { console.log(receiver().value?.toString().length, reads); }
-chain(); unknownView.value = null; chain(); unknownView.value = false; chain();
-unknownView.value = 0; chain(); unknownView.value = ''; chain(); unknownView.value = undefined; chain();
+chain(); unknown.value = null; chain(); unknown.value = false; chain();
+unknown.value = 0; chain(); unknown.value = ''; chain(); unknown.value = undefined; chain();
 const dynamic: any = null;
-unknownView.value = dynamic; chain();
+unknown.value = dynamic; chain();
 
 // Ordinary typed optionals keep their existing storage and branch behaviour.
 function typed(value?: string): void { console.log(typeof value, value === undefined, value ?? 'typed'); }

@@ -623,6 +623,15 @@ struct Checker {
     for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) { auto f = (*it)->find(nm); if (f != (*it)->end()) return f->second; }
     return kNone;
   }
+  std::uint32_t lookupType(std::string_view nm) const {
+    for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) {
+      auto found = (*it)->find(nm);
+      if (found == (*it)->end()) continue;
+      const SymKind k = out.syms[found->second].kind;
+      if (k == SymKind::Class || k == SymKind::GenericClass || k == SymKind::TypeAlias || k == SymKind::GenericAlias || k == SymKind::Enum) return found->second;
+    }
+    return kNone;
+  }
 
   void builtins() {
     push();
@@ -728,21 +737,24 @@ struct Checker {
         Num m;
         if (x.kids.empty() && numFromName(x.text, m)) r = num(false && m == gNumber && x.text == "number" && builtinModuleNode(t) ? Num::f64 : m);   // the library (Date, JSON, the Error classes) keeps `number` = f64 under any profile
         else if (x.kids.empty() && x.text == "boolean") r = tBool;
-        else if (x.kids.empty() && x.text == "never" && lookup("never") == kNone) r = tNull;  // no value has it: a position of type never holds null (T = never as a default says "unused")
+        else if (x.kids.empty() && x.text == "never" && lookupType("never") == kNone) r = tNull;  // no value has it: a position of type never holds null (T = never as a default says "unused")
         else if (x.kids.empty() && x.text == "string") r = tStr;
         else if (x.kids.empty() && x.text == "void") r = tVoid;
         else if (x.kids.empty() && x.text == "null") r = tNull;
-        else if (x.kids.empty() && x.text == "undefined" && lookup("undefined") == kNone) r = tNull;   // a file with Dyn values keeps its `undefined` (modules.cpp): as a type it is still the null of `T | undefined`
-        else if (x.kids.empty() && x.text == "any" && lookup("any") == kNone) { r = tDyn; if (a.strict && !rawDyn() && !inPrelude && !generating && !libraryNode(t)) diag(kZDynInStrict, t, "`any`"); }
-        else if (x.kids.empty() && x.text == "unknown" && lookup("unknown") == kNone && dynObjOf() != kNone) r = objType(dynObj);
+        else if (x.kids.empty() && x.text == "undefined" && lookupType("undefined") == kNone) r = tNull;   // a file with Dyn values keeps its `undefined` (modules.cpp): as a type it is still the null of `T | undefined`
+        else if (x.kids.empty() && x.text == "any" && lookupType("any") == kNone) { r = tDyn; if (a.strict && !rawDyn() && !inPrelude && !generating && !libraryNode(t)) diag(kZDynInStrict, t, "`any`"); }
+        else if (x.kids.empty() && x.text == "unknown" && lookupType("unknown") == kNone && dynObjOf() != kNone) r = objType(dynObj);
         else if (x.text == "Array" && x.kids.size() == 1) r = arrayOf(annotation(x.kids[0]));
-        else if (x.kids.empty() && x.text == "TemplateStringsArray" && lookup(x.text) == kNone) r = arrayOf(tStr);  // the strings of a tagged template (the parser makes the call)
-        else if (x.text == "Map" && x.kids.size() == 2 && lookup(x.text) == kNone) { TypeId k0 = annotation(x.kids[0]), v0 = annotation(x.kids[1]); r = mapOf(k0, v0); }
-        else if (x.text == "Set" && x.kids.size() == 1 && lookup(x.text) == kNone) r = setOf(annotation(x.kids[0]));
-        else if (lookup(x.text) == kNone && utilityType(x, t, r)) {}
+        else if (x.kids.empty() && x.text == "TemplateStringsArray" && lookupType(x.text) == kNone) r = arrayOf(tStr);  // the strings of a tagged template (the parser makes the call)
+        else if (x.text == "Map" && x.kids.size() == 2 && lookupType(x.text) == kNone) { TypeId k0 = annotation(x.kids[0]), v0 = annotation(x.kids[1]); r = mapOf(k0, v0); }
+        else if (x.text == "Set" && x.kids.size() == 1 && lookupType(x.text) == kNone) r = setOf(annotation(x.kids[0]));
+        else if (lookupType(x.text) == kNone && utilityType(x, t, r)) {}
         else {
-          std::uint32_t s = lookup(x.text);
-          if (s == kNone) diag(kZCannotFindName, t, "'" + std::string(x.text) + "'");
+          std::uint32_t s = lookupType(x.text);
+          if (s == kNone) {
+            if (lookup(x.text) != kNone) diag(kZCannotFindName, t, "diag.detail.notAType", {{"name", std::string(x.text)}});
+            else diag(kZCannotFindName, t, "'" + std::string(x.text) + "'");
+          }
           else if (out.syms[s].kind == SymKind::Enum && x.kids.empty()) r = out.syms[s].type;
           else if (out.syms[s].kind == SymKind::TypeAlias && x.kids.empty()) r = out.syms[s].type != kNoType ? out.syms[s].type : resolveAlias(s);
           else if (out.syms[s].kind == SymKind::GenericAlias) {
@@ -902,7 +914,7 @@ struct Checker {
     if (x.kind == N::TypeLit && x.text.size() >= 2 && (x.text[0] == '\'' || x.text[0] == '"')) { keys.emplace_back(x.text.substr(1, x.text.size() - 2)); return true; }
     if (x.kind == N::TypeUnion) { for (std::uint32_t c : std::vector<std::uint32_t>(x.kids)) if (!literalKeys(c, keys)) return false; return true; }
     if (x.kind == N::TypeRef && x.kids.empty() && !(x.flags & kFlagTypeQuery)) {
-      const std::uint32_t s = lookup(x.text);
+      const std::uint32_t s = lookupType(x.text);
       if (s == kNone || out.syms[s].kind != SymKind::TypeAlias) return false;
       auto g = generics.find(s);
       return g != generics.end() && g->second.node != kNone && literalKeys(n(g->second.node).kids[0], keys);
@@ -1423,6 +1435,117 @@ struct Checker {
     return sym;
   }
   // ---- Dyn conversions: __dynTo<t> (a typed value into a Dyn) and __dynFrom<t> (a checked conversion back), generated per type
+  struct PristineMethod {
+    Ast tree;
+    std::uint32_t root;
+    std::vector<std::shared_ptr<Scope>> scopes;
+  };
+  std::map<std::uint32_t, PristineMethod> pristineMethods;
+  std::map<std::uint32_t, std::string> borrowedHelpers;
+
+  void rememberMethod(const Member& m) {
+    if (inPrelude || generating || inspectMode || pristineMethods.count(m.decl) || m.decl == kNone || m.access != 0 || m.isStatic || m.getter || m.isAbstract || m.name == "constructor" || m.name.rfind("__", 0) == 0 ||
+        out.objs[m.owner].genericSym != kNone || out.objs[m.owner].isTemplate || !fnStack.empty() || !usesThis(m.decl)) return;
+    const Type f = ty(m.type);
+    if (f.rest || (ty(f.elem).k != TK::Void && !dynConvertible(out, f.elem))) return;
+    for (TypeId p : f.params) if (!dynConvertible(out, p)) return;
+    std::function<bool(TypeId)> scalar = [&](TypeId t) {
+      if (isDyn(t) || isDynFamily(t) || ty(t).k == TK::Num || ty(t).k == TK::Bool || ty(t).k == TK::Str || ty(t).k == TK::Null || ty(t).k == TK::Void) return true;
+      if (ty(t).k != TK::Union) return false;
+      for (TypeId part : ty(t).params) if (!scalar(part)) return false;
+      return true;
+    };
+    // Keep the existing checked path for bodies whose receiver needs a home class or a property Dyn cannot represent.
+    std::function<bool(std::uint32_t)> supported = [&](std::uint32_t id) {
+      if (id == kNone) return true;
+      const Node& x = n(id);
+      if (x.kind == N::Class || x.kind == N::Function || (x.kind == N::FuncExpr && !(x.flags & kFlagArrow))) return true;
+      if (x.kind == N::Super || (x.flags & (kFlagAsync | kFlagGenerator))) return false;
+      if (x.kind == N::Index) return false;
+      if (x.kind == N::Member) {
+        const Member* field = lookupMember(m.owner, x.text, false);
+        if ((!x.text.empty() && x.text.front() == '#') || (field && (field->access != 0 || field->getter || (ty(field->type).k == TK::Func && !field->method)))) return false;
+        if (field && !field->method && !scalar(field->type)) return false;
+        if (field && field->method) {
+          const Type sig = ty(field->type);
+          if (sig.rest || !scalar(sig.elem)) return false;
+          for (TypeId p : sig.params) if (!scalar(p)) return false;
+        }
+      }
+      for (std::uint32_t k : x.kids) if (!supported(k)) return false;
+      return true;
+    };
+    if (!supported(m.decl)) return;
+    PristineMethod raw{{}, kNone, scopes};
+    std::function<std::uint32_t(std::uint32_t)> copy = [&](std::uint32_t id) {
+      if (id == kNone) return kNone;
+      Node x = n(id);
+      for (auto& k : x.kids) k = copy(k);
+      const auto dst = static_cast<std::uint32_t>(raw.tree.nodes.size());
+      raw.tree.nodes.push_back(std::move(x));
+      for (auto maps : {std::pair{&a.tparams, &raw.tree.tparams}, std::pair{&a.targs, &raw.tree.targs}})
+        if (auto it = maps.first->find(id); it != maps.first->end()) for (std::uint32_t k : it->second) (*maps.second)[dst].push_back(copy(k));
+      return dst;
+    };
+    raw.root = copy(m.decl);
+    pristineMethods.emplace(m.decl, std::move(raw));
+  }
+
+  std::string borrowedMethod(const Member& m) {
+    if (auto it = borrowedHelpers.find(m.decl); it != borrowedHelpers.end()) return it->second;
+    auto it = pristineMethods.find(m.decl);
+    if (it == pristineMethods.end()) return {};
+    const PristineMethod& raw = it->second;
+    const std::string name = "__g" + std::to_string(genCounter++);
+    std::string receiver = name + "_self";
+    while (std::any_of(raw.tree.nodes.begin(), raw.tree.nodes.end(), [&](const Node& x) { return x.text == receiver; })) receiver += '_';
+    const std::string_view selfName = keep(receiver);
+    std::function<std::uint32_t(std::uint32_t, bool)> copy = [&](std::uint32_t id, bool lexical) {
+      if (id == kNone) return kNone;
+      Node x = raw.tree.nodes[id];
+      if (lexical && x.kind == N::This) { x.kind = N::Ident; x.text = selfName; }
+      if (x.kind == N::Class || x.kind == N::Function || (x.kind == N::FuncExpr && !(x.flags & kFlagArrow))) lexical = false;
+      for (auto& k : x.kids) k = copy(k, lexical);
+      const auto dst = static_cast<std::uint32_t>(a.nodes.size());
+      a.nodes.push_back(std::move(x));
+      genAt.resize(a.nodes.size(), kNone);
+      out.nodeType.push_back(kNoType);
+      out.nodeSym.push_back(kNone);
+      for (auto maps : {std::pair{&raw.tree.tparams, &a.tparams}, std::pair{&raw.tree.targs, &a.targs}})
+        if (auto mt = maps.first->find(id); mt != maps.first->end()) for (std::uint32_t k : mt->second) (*maps.second)[dst].push_back(copy(k, lexical));
+      return dst;
+    };
+    const std::uint32_t fn = copy(raw.root, true);
+    const std::uint32_t self = newNode(N::Param, selfName, {kNone, kNone}, m.decl);
+    a.nodes[fn].kind = N::Function;
+    a.nodes[fn].text = keep(name);
+    a.nodes[fn].flags = 0;
+    a.nodes[fn].kids.insert(a.nodes[fn].kids.begin() + 2, self);
+    std::vector<std::uint32_t> ps(n(fn).kids.begin() + 2, n(fn).kids.end());
+    const Type original = ty(m.type);
+    std::vector<TypeId> types{tDyn};
+    types.insert(types.end(), original.params.begin(), original.params.end());
+    const TypeId sig = func(types, original.elem, original.minArgs + 1);
+    for (std::size_t k = 0; k < ps.size(); ++k) out.nodeType[ps[k]] = types[k];
+    {
+      CtxGuard restore(*this);
+      enterGenerated();
+      out.nodeType[fn] = sig;
+      out.nodeSym[fn] = declare(SymKind::Func, n(fn).text, sig, fn, true, fn);
+      out.instances.push_back(fn);
+      out.nodeNames[fn] = name;
+    }
+    borrowedHelpers.emplace(m.decl, name);
+    auto lexicalScopes = raw.scopes;
+    lexicalScopes.push_back(genScope);
+    defer->push_back([this, fn, sig, ps, lexicalScopes, owner = m.owner]() {
+      CtxGuard restore(*this);
+      scopes = lexicalScopes; curClass = owner; curCtor = kNoObj; curStatic = false; inspectMode = false;
+      checkBody(fn, sig, ps, false);
+    });
+    return name;
+  }
+
   std::map<std::pair<TypeId, bool>, std::uint32_t> dynSyms;
   std::set<std::pair<TypeId, bool>> dynDeclared;
   std::uint32_t dynSym(TypeId t, bool to, std::uint32_t at) {
@@ -1437,7 +1560,7 @@ struct Checker {
       if (dynDeclared.count(u) || std::find(closure.begin(), closure.end(), u) != closure.end()) continue;
       closure.push_back(u);
       std::vector<std::pair<TypeId, bool>> deps;
-      text += dynConverter(a, out, u.first, u.second, deps, formatters);
+      text += dynConverter(a, out, u.first, u.second, deps, formatters, [this](const Member& m) { return borrowedMethod(m); });
       for (auto& d : deps) todo.push_back(d);
     }
     std::vector<TypeId> alias;
@@ -3750,7 +3873,7 @@ struct Checker {
     if (s == kNone || (out.syms[s].kind != SymKind::Var && out.syms[s].kind != SymKind::Param) || out.syms[s].decl == kNone || n(out.syms[s].decl).kids.empty()) return lits;
     const std::uint32_t ann = n(out.syms[s].decl).kids[0];
     if (ann == kNone || n(ann).kind != N::TypeRef || !n(ann).kids.empty()) return lits;
-    const std::uint32_t al = lookup(n(ann).text);
+    const std::uint32_t al = lookupType(n(ann).text);
     if (al == kNone || out.syms[al].kind != SymKind::TypeAlias || out.syms[al].decl == kNone || n(out.syms[al].decl).kind != N::TypeAlias) return lits;
     const Node& u = n(n(out.syms[al].decl).kids[0]);
     if (u.kind != N::TypeUnion) return lits;
@@ -5109,7 +5232,7 @@ struct Checker {
         bool peer = false;
         for (std::uint32_t p : *peers) if (n(p).kind == N::Interface && n(p).text == n(r).text && p != iface) { found = isRecordDecl(p, peers, depth + 1); peer = true; break; }
         if (!peer) {   // a record imported from another module
-          const std::uint32_t sy = lookup(n(r).text);
+          const std::uint32_t sy = lookupType(n(r).text);
           found = sy != kNone && out.syms[sy].kind == SymKind::Class && ty(out.syms[sy].type).k == TK::Object && out.objs[ty(out.syms[sy].type).obj].isRecord;
         }
         if (!found) return false;
@@ -5460,6 +5583,13 @@ struct Checker {
     std::vector<std::uint32_t> fnStack;
   };
   struct PendingFn { std::uint32_t node; std::vector<std::uint32_t> params; std::vector<TypeId> paramTypes; std::uint32_t minArgs; Ctx ctx; };
+  struct CtxGuard {
+    Checker& checker;
+    Ctx saved;
+    bool mode;
+    explicit CtxGuard(Checker& c) : checker(c), saved(c.saveCtx()), mode(c.inspectMode) {}
+    ~CtxGuard() { checker.restoreCtx(saved); checker.inspectMode = mode; }
+  };
   std::map<std::uint32_t, PendingFn> pendingFns;  // functions whose return type is still to be found, by symbol
   Ctx saveCtx() const { return {scopes, curRet, curClass, curCtor, curStatic, immediate, pendingExempt, loops, ctorStmts, ctorPending, narrowing, fnStack}; }
   void restoreCtx(const Ctx& c) {
@@ -5698,7 +5828,7 @@ struct Checker {
     const Node& cn = n(s);
     auto resolve = [&](std::uint32_t refNode, bool wantInterface) -> std::uint32_t {
       const Node& rn = n(refNode);
-      std::uint32_t sy = lookup(rn.text);
+      std::uint32_t sy = wantInterface ? lookupType(rn.text) : lookup(rn.text);
       if (sy == kNone) { diag(kZCannotFindName, refNode, "'" + std::string(rn.text) + "'"); return kNoObj; }
       std::uint32_t o = kNoObj;
       if (out.syms[sy].kind == SymKind::GenericClass) {
@@ -6012,7 +6142,7 @@ struct Checker {
     }
     if (out.objs[objIdx].isRecord && c.kind == N::Interface && c.kids[0] != kNone) {  // a record carries the fields of the records it extends
       for (std::uint32_t r : n(c.kids[0]).kids) {
-        std::uint32_t ps = lookup(n(r).text);
+        std::uint32_t ps = lookupType(n(r).text);
         if (ps == kNone || out.syms[ps].kind != SymKind::Class) continue;
         std::uint32_t po = ty(out.syms[ps].type).obj;
         ensureBuilt(po);
@@ -6094,6 +6224,7 @@ struct Checker {
       } else if (!par && (fl & frontend::kFlagOverride)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' overrides nothing");
       out.objs[objIdx].members.push_back(std::move(mem));
     }
+    for (const Member& m : out.objs[objIdx].members) if (m.method) rememberMethod(m);
     if (!isIface && par != kNoObj && out.objs[par].ctorAccess == 2) diag(kZNotAccessible, cls, "cannot extend '" + out.objs[par].name + "': its constructor is private");
     if (!isIface) {      // a derived class without a constructor takes its base class's parameters
       if (ctorNode == kNone && par != kNoObj && out.objs[par].ctor != kNoType) out.objs[objIdx].ctor = func(ty(out.objs[par].ctor).params, self, ty(out.objs[par].ctor).minArgs, false, ty(out.objs[par].ctor).rest);
@@ -6351,7 +6482,6 @@ struct Checker {
       }
       defer->push_back([this, s, sig, ps]() { checkBody(s, sig, ps, false); });
     }
-    for (std::uint32_t as : aliasSyms) if (out.syms[as].kind == SymKind::TypeAlias) resolveAlias(as);  // report errors even in unused aliases
     for (std::uint32_t gs : genericSyms) {  // check every template once, over its own type parameters
       GenericDecl& g = generics[gs];
       ensureSelf(g);
@@ -6391,6 +6521,8 @@ struct Checker {
         }
       }
     }
+    // Unused aliases can query a local value declared in this list; actual type uses still resolve them lazily.
+    for (std::uint32_t as : aliasSyms) if (out.syms[as].kind == SymKind::TypeAlias) resolveAlias(as);
     for (std::size_t di = 0; di < mine.size(); ++di) { auto f = mine[di]; f(); }  // closures may add more closures
     defer = saved;
   }
@@ -6654,6 +6786,14 @@ Num numberAlias() { return gNumber; }
 Checked check(Ast& ast) {
   Checker c(ast);
   if (ast.root != kNone) c.run();
+  if (std::getenv("ZN_DUMP_GEN")) {
+    std::size_t nodes = 0, bytes = 0;
+    for (const auto& [id, raw] : c.pristineMethods) {
+      (void)id;
+      for (const Node& n : raw.tree.nodes) { ++nodes; bytes += sizeof(Node) + n.kids.size() * sizeof(std::uint32_t); }
+    }
+    std::fprintf(stderr, "borrowed method cache: %zu methods, %zu nodes, %zu payload bytes; %zu emitted helpers\n", c.pristineMethods.size(), nodes, bytes, c.borrowedHelpers.size());
+  }
   c.settleAutoVars();
   auto isFn = [&](std::uint32_t k) { return k != kNone && ast.nodes[k].kind == N::FuncExpr; };
   for (std::uint32_t i = 0; i < ast.nodes.size(); ++i) {  // name inference for function expressions, as JavaScript does

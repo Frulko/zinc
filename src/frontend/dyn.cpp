@@ -71,8 +71,9 @@ bool dynConvertible(const Checked& c, TypeId t) {
   return convertibleRec(c, t, seen);
 }
 
-std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, std::vector<std::pair<TypeId, bool>>& deps, std::vector<TypeId>& formatters) {
-  const Type& x = c.types[t];
+std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, std::vector<std::pair<TypeId, bool>>& deps, std::vector<TypeId>& formatters,
+                         const std::function<std::string(const Member&)>& methodHelper) {
+  const Type x = c.types[t];
   std::string A = inspectAliasName(t);
   auto toCall = [&](TypeId ct, const std::string& v) { deps.push_back({ct, true}); return dynToName(ct) + "(" + v + ")"; };
   auto fromCall = [&](TypeId ct, const std::string& v) { deps.push_back({ct, false}); return dynFromName(ct) + "(" + v + ")"; };
@@ -152,12 +153,13 @@ std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, st
             };
             const bool receiver = m.decl != kNone && usesThis(m.decl);
             const TypeId owner = typeOfObject(c, m.owner);
-            // shortcut: borrowed methods require their declaring class; structural receiver views must handle unrelated objects.
-            const std::string object = receiver ? fromExpr(owner, "self") : "v";
+            const std::string helper = receiver ? methodHelper(m) : "";
+            // shortcut: super/private-brand and unsupported method bodies keep the checked declaring-class receiver.
+            const std::string object = receiver && helper.empty() ? fromExpr(owner, "self") : "v";
             std::string invoke = "(self: unknown, a: unknown[]): unknown => {\n";
             auto call = [&](std::size_t argc) {
-              std::string text = "(" + object + ")." + m.name + "(";
-              for (std::size_t k = 0; k < argc; ++k) text += (k ? ", " : "") + fromExpr(f.params[k], "__dynArg(a, " + std::to_string(k) + ")");
+              std::string text = helper.empty() ? "(" + object + ")." + m.name + "(" : helper + "(self";
+              for (std::size_t k = 0; k < argc; ++k) text += (k || !helper.empty() ? ", " : "") + fromExpr(f.params[k], "__dynArg(a, " + std::to_string(k) + ")");
               text += ")";
               return isVoid ? text + "; return __undef;" : "return " + toExpr(f.elem, text) + ";";
             };

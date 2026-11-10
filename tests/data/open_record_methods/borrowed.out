@@ -1,0 +1,15 @@
+true false true
+module:target explicit:target
+changed:target
+target/target! first/first! a/b
+target target/inner
+renamed renamed source
+renamed/undefined renamed/undefined renamed/object
+renamed
+unbound true
+changed:plain changed:source
+once:renamed 1
+a/b ab
+changed:typed shared shared source
+2 2
+private getter base
