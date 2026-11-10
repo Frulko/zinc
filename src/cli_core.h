@@ -8,8 +8,12 @@
 
 namespace zn::frontend { struct Project; struct LoaderStage; }
 namespace zn::assets { struct Splash; }
+namespace zn::tc { struct BundleSpec; }
 
 namespace zn::cli {
+
+/** Bundle metadata shared by native builds and update-enabled fused exports. */
+zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& project, const std::string& projectDir);
 
 /** `zinc run|build|check` with no entry (or only options): the project of the working directory supplies it (zinc.json "entry", else src/main.ts[x]).
  *  Rewrites `args` in place to the form the compiler commands take; false with `err` set when there is no project. Other commands are left alone. */

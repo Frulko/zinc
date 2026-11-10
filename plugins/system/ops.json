@@ -704,16 +704,47 @@
   {
    "op": "update.check",
    "permission": "update",
-   "params": {},
-   "returns": "{available: boolean; version: string; notes: string}",
-   "sim": "{\"available\":false,\"version\":\"\",\"notes\":\"\"}"
+   "params": {
+    "url": "string?"
+   },
+   "returns": "{job: number}",
+   "sim": "{\"job\":0}"
   },
   {
    "op": "update.download",
    "permission": "update",
-   "params": {},
-   "returns": "{version: string; path: string}",
-   "sim": "{\"version\":\"\",\"path\":\"\"}"
+   "params": {
+    "url": "string?"
+   },
+   "returns": "{job: number}",
+   "sim": "{\"job\":0}"
+  },
+  {
+   "op": "update.poll",
+   "permission": "update",
+   "params": {
+    "job": "number"
+   },
+   "returns": "{pending: boolean; available: boolean; version: string; notes: string; dir: string}",
+   "sim": "{\"pending\":false,\"available\":false,\"version\":\"\",\"notes\":\"\",\"dir\":\"\"}"
+  },
+  {
+   "op": "update.stage",
+   "permission": "update",
+   "params": {
+    "job": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
+  },
+  {
+   "op": "update.discard",
+   "permission": "update",
+   "params": {
+    "job": "number"
+   },
+   "returns": "{}",
+   "sim": "{}"
   },
   {
    "op": "update.restart",

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -1004,7 +1005,7 @@ std::string publicKeyOf(const std::string& seedHex) {
 bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err) { return fetchManifest(manifestUrl, info, err, trustedUpdateKeys()); }
 bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string& err, const std::vector<std::string>& keys, bool allowUnsigned, double maxSeconds) {
   fs::path tmp = fs::temp_directory_path() / ("zinc-manifest-" + std::to_string(::getpid()) + "-" + std::to_string(std::rand()));
-  std::string cmd = "curl -fL -sS " + (maxSeconds > 0 ? "--max-time " + std::to_string(maxSeconds) + " -o " : std::string("--retry 2 -o ")) + quote(tmp.string()) + " " + quote(manifestUrl) + (maxSeconds > 0 ? " 2>/dev/null" : "");
+  std::string cmd = "curl -fL -sS --max-filesize 1048576 --connect-timeout 5 --max-time " + std::to_string(maxSeconds > 0 ? maxSeconds : 15) + " -o " + quote(tmp.string()) + " " + quote(manifestUrl) + (maxSeconds > 0 ? " 2>/dev/null" : "");
   if (!run(cmd, err, "fetching the update manifest")) { std::error_code ec0; fs::remove(tmp, ec0); return false; }
   std::string text;
   { std::ifstream f(tmp, std::ios::binary); std::stringstream ss; ss << f.rdbuf(); text = ss.str(); }
@@ -1022,7 +1023,7 @@ bool fetchManifest(const std::string& manifestUrl, UpdateInfo& info, std::string
   }
   std::error_code ec;
   fs::remove(tmp, ec);
-  if (info.version.empty() || info.url.empty() || info.sha256.size() != 64) { err = "the update manifest needs version, url and a 64 digit sha256"; return false; }
+  if (info.version.empty() || info.url.empty() || info.sha256.size() != 64 || !std::all_of(info.sha256.begin(), info.sha256.end(), [](unsigned char c) { return std::isxdigit(c); })) { err = "the update manifest needs version, url and a 64 digit sha256"; return false; }
   if (info.url.find("://") == std::string::npos) {   // a file beside the manifest
     const std::size_t slash = manifestUrl.rfind('/');
     info.url = (slash == std::string::npos ? std::string() : manifestUrl.substr(0, slash + 1)) + info.url;
@@ -1035,8 +1036,8 @@ bool downloadUpdate(const UpdateInfo& info, const std::string& dir, std::string&
   fs::create_directories(dir, ec);
   std::string name = fs::path(info.url).filename().string();
   if (name.empty()) name = "zinc-update-" + info.version;
-  fs::path part = fs::path(dir) / (name + ".part"), done = fs::path(dir) / name;
-  if (!run("curl -fL --retry 3 -sS -o " + quote(part.string()) + " " + quote(info.url), err, "the download")) return false;
+  fs::path part = fs::path(dir) / (name + ".part-" + std::to_string(::getpid()) + "-" + std::to_string(std::rand())), done = fs::path(dir) / name;
+  if (!run("curl -fL --connect-timeout 5 --max-time 120 -sS -o " + quote(part.string()) + " " + quote(info.url), err, "the download")) { fs::remove(part, ec); return false; }
   std::string got = sha256File(part.string());
   if (got != info.sha256) {
     fs::remove(part, ec);

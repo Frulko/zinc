@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <cstring>
 #include <fstream>
+#include <limits>
 #include <iomanip>
 #include <iterator>
 #include <map>
@@ -158,6 +159,7 @@ static std::string gProjectDir = ".";
 static std::string qjsCacheDir() { return zn::tc::home() + "/cache/qjs/" + std::to_string(std::hash<std::string>{}(zn::cli::engineBuild())); }
 static std::string gWindowSize;   // "WxH" of a desktop window when the project names no size for the target
 static std::string gBakedSize;   // "WxH" of the board, for the main of a program zinc build writes
+static zn::frontend::Project gUpdProject;   // the hosted updater is required even when a source run has a native cache
 static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
 // the target whose zinc.json adjustments ("targets.<name>.permissions") a run uses: the profile's, else this machine's OS
 static std::string runTarget() { return gProfile ? gProfile->name : zn::tc::pluginTarget(); }
@@ -654,7 +656,7 @@ static bool gHint = false;    // after the diagnostics, the line that says what 
 // zinc.json "permissions" at run time (ZN-322), for every engine: warned while developing, refused when enforced (exported apps, ZINC_PERMISSIONS=enforce)
 static void runPermissions(const zn::frontend::Project* p, const std::string& projectDir) {
   const char* mode = std::getenv("ZINC_PERMISSIONS");
-  zn::host::perm::configure(p ? zn::frontend::permissionsFor(*p, runTarget()) : std::vector<std::string>{}, p && p->permissionsDeclared, mode && !std::strcmp(mode, "enforce"), projectDir.empty() ? "." : projectDir);
+  zn::host::perm::configure(p ? zn::frontend::permissionsFor(*p, runTarget()) : std::vector<std::string>{}, p && p->permissionsDeclared, gFusedApp || (mode && !std::strcmp(mode, "enforce")), projectDir.empty() ? "." : projectDir);
 }
 
 // The system permissions of the zinc.json that governs `path`, for the compile (an import of zinc:system/<feature> needs its id); a manifest rule that fails stops the command.
@@ -1089,29 +1091,6 @@ extern "C" const ZnModule* zn_module_QuickJSFast(void);   // the same file: zinc
 extern "C" const ZnModule* fixture_module(void);
 #endif
 
-// The BundleSpec of a zinc.json `app` (icon made absolute against the project directory).
-static zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std::string& projectDir) {
-  zn::tc::BundleSpec b;
-  b.id = p.app.id; b.name = p.app.name.empty() ? p.name : p.app.name; b.exeName = zn::tc::bundleExeName(b.name); b.version = p.app.version; b.category = p.app.category; b.copyright = p.app.copyright;
-  b.dock = p.app.dock; b.urlSchemes = p.app.urlSchemes; b.fileTypes = p.app.fileTypes;
-  if (!p.app.icon.empty()) b.icon = (std::filesystem::path(projectDir) / p.app.icon).lexically_normal().string();
-  b.assets = (std::filesystem::path(projectDir) / "assets").lexically_normal().string();   // copied into the .app when it exists (ZN-645)
-  b.identity = !p.signIdentity.empty() ? p.signIdentity : std::getenv("ZINC_SIGN_IDENTITY") ? std::getenv("ZINC_SIGN_IDENTITY") : "-";   // ZN-321
-  b.keychain = !p.signKeychain.empty() ? (std::filesystem::path(projectDir) / p.signKeychain).lexically_normal().string() : std::getenv("ZINC_SIGN_KEYCHAIN") ? std::getenv("ZINC_SIGN_KEYCHAIN") : "";
-  for (const std::string& e : zn::frontend::permissionsFor(p, "macos")) {   // what the hardened runtime (and a sandbox) lets the app ask for
-    const std::string f = e.substr(0, e.find(':'));
-    auto add = [&](const char* k) { if (std::find(b.entitlements.begin(), b.entitlements.end(), k) == b.entitlements.end()) b.entitlements.push_back(k); };
-    if (f == "camera") add("com.apple.security.device.camera");
-    else if (f == "microphone") add("com.apple.security.device.audio-input");
-    else if (f == "location") add("com.apple.security.personal-information.location");
-    else if (f == "photos" || f == "photos-add") add("com.apple.security.personal-information.photos-library");
-    else if (f == "bluetooth") add("com.apple.security.device.bluetooth");
-    else if (f == "net") { add("com.apple.security.network.client"); if (e == "net" || e == "net:*") add("com.apple.security.network.server"); }   // listening needs "net" or "net:*"
-  }
-  // macOS asks the user with these strings (zinc.json "permissionStrings", else a default); without them the request fails (ZN-322.03)
-  b.usage = zn::frontend::usageStrings(p, "macos", b.name.empty() ? "This app" : b.name);
-  return b;
-}
 // zinc.json "permissions" (ZN-322.03): the generated main of a program that calls the host enforces them from its first instruction.
 static void injectPermissions(const std::string& cpp, const char* entry, const std::string& target) {
   std::string pf = zn::frontend::findProjectFile(entry);
@@ -1682,6 +1661,7 @@ static std::string signature(const std::string& entry) {
   return inputs::signature(entry, {libs / "libzn_rt.a", libs / "libzn_host_gfx.a", libs / "libzn_host_window.a"});
 }
 static bool wanted() {
+  if (!gUpdProject.updateKey.empty()) return false;   // cached AOT executables have no hosted update service
   const char* mode = std::getenv("ZINC_RUN");
   if (mode && !std::strcmp(mode, "interp")) return false;
   if (!(mode && !std::strcmp(mode, "native")) && (std::getenv("ZINC_DETERMINISTIC") || std::getenv("ZINC_HEADLESS") || std::getenv("ZINC_DEVAPP"))) return false;
@@ -1928,6 +1908,11 @@ static bool fusedArchive(std::uint64_t& at, std::uint64_t& size) {   // where th
   gFusedModuleAt = static_cast<std::uint64_t>(end) - 24 - n - m; gFusedModuleSize = m;
   return static_cast<bool>(f);
 }
+static std::string bundledAppArchive() {
+  const auto path = (std::filesystem::path(zn::tc::executablePath()).parent_path() / "../Resources/app.zapp").lexically_normal();
+  std::error_code ec;
+  return std::filesystem::is_regular_file(path, ec) ? path.string() : std::string();
+}
 /** The window module of this fused executable, written once into the cache (keyed by its content): its path, or "" when it has none. */
 std::string fusedWindowModule() {
   namespace fs = std::filesystem;
@@ -1968,9 +1953,9 @@ static void promoteTrial() {   // from the 5 s thread, update.healthy or the exi
   fs::remove(gTrialDir + "/trial", ec);
 }
 static void failTrial(int code) { if (code != 0) gOnTrial = false; }   // a non-zero exit leaves `trial` for the next launch to roll back
-static std::string chooseAppVersion(const std::string& zbc) {
+static std::string chooseAppVersion(const std::string& zbc, std::string* engine = nullptr) {
   namespace fs = std::filesystem;
-  std::ifstream pf(fs::path(zbc).parent_path() / "zinc.json");
+  std::ifstream pf((fs::is_directory(zbc) ? fs::path(zbc) : fs::path(zbc).parent_path()) / "zinc.json");
   std::stringstream ps; ps << pf.rdbuf();
   zn::frontend::Project proj; std::string err;
   if (!pf || !zn::frontend::parseProject(ps.str(), proj, err) || proj.app.id.empty() || proj.updateKey.empty()) return zbc;
@@ -1978,9 +1963,11 @@ static std::string chooseAppVersion(const std::string& zbc) {
   const std::string base = proj.app.version.empty() ? "0.0.0" : proj.app.version;
   std::error_code ec;
   auto line = [](const std::string& f) { std::ifstream in(f); std::string l; std::getline(in, l); return l; };
+  std::string candidateEngine;
   auto versionOf = [&](const std::string& zappPath, std::string& out) {   // unpacked (and checked) with its own manifest's version
-    if (!unpackZapp(zappPath, 0, 0, out, err)) return std::string();
-    std::ifstream jf(fs::path(out).parent_path() / "zinc.json"); std::stringstream js; js << jf.rdbuf();
+    candidateEngine.clear();
+    if (!unpackZapp(zappPath, 0, 0, out, err, &candidateEngine)) return std::string();
+    std::ifstream jf((candidateEngine.empty() ? fs::path(out).parent_path() : fs::path(out)) / "zinc.json"); std::stringstream js; js << jf.rdbuf();
     zn::frontend::Project p2; std::string e2;
     return zn::frontend::parseProject(js.str(), p2, e2) && p2.app.id == proj.app.id ? (p2.app.version.empty() ? "0.0.0" : p2.app.version) : std::string();
   };
@@ -1994,16 +1981,16 @@ static std::string chooseAppVersion(const std::string& zbc) {
   struct Release { int fd; ~Release() { if (fd >= 0 && !gOnTrial) ::close(fd); } } release{lock};   // a trial keeps its lock until the process ends
   if (!mine) {   // another launch runs an update on trial: this one runs the version in use and leaves the trial to it
     std::string z; const std::string current = line(dir + "/current");
-    if (!current.empty()) { std::string v = versionOf(current, z); if (!v.empty() && zn::tc::newerVersion(v, base)) return z; }
+    if (!current.empty()) { std::string v = versionOf(current, z); if (!v.empty() && zn::tc::newerVersion(v, base)) { if (engine) *engine = candidateEngine; return z; } }
     return zbc;
   }
   if (fs::exists(dir + "/trial", ec)) {   // the update on trial did not make it: back to the previous version
     std::fprintf(stderr, "zinc: the update %s of %s failed to start; it was rolled back\n", line(dir + "/staged").c_str(), proj.app.id.c_str());
     fs::remove(dir + "/trial", ec); fs::remove(dir + "/staged", ec);
   }
-  std::string run = zbc, best = base, z;
+  std::string run = zbc, best = base, z, runEngine = engine ? *engine : "";
   const std::string current = line(dir + "/current");
-  if (!current.empty()) { std::string v = versionOf(current, z); if (!v.empty() && zn::tc::newerVersion(v, best)) { run = z; best = v; } }
+  if (!current.empty()) { std::string v = versionOf(current, z); if (!v.empty() && zn::tc::newerVersion(v, best)) { run = z; best = v; runEngine = candidateEngine; } }
   const std::string staged = line(dir + "/staged");
   if (!staged.empty()) {
     std::string v = versionOf(staged, z);
@@ -2011,48 +1998,152 @@ static std::string chooseAppVersion(const std::string& zbc) {
       std::ofstream(dir + "/trial") << v << "\n";
       gTrialDir = dir; gTrialZapp = staged; gOnTrial = true;
       std::atexit(promoteTrial); zn::rt::gOnExit = failTrial;
+      if (engine) *engine = candidateEngine;
       return z;
     }
     fs::remove(dir + "/staged", ec);   // not newer than what runs (or unreadable): nothing to try
   }
+  if (engine) *engine = runEngine;
   return run;
 }
 // The app API of updates (ZN-324.03), called by the system plugin (zinc:system/update) through this weak symbol: the running app's zinc.json
 // update block (set by `zinc run`), the launch arguments for a restart.
-static zn::frontend::Project gUpdProject;
 static std::vector<std::string> gLaunchArgs;   // argv as the process got it, before a fused app or a .zapp rewrote it
 static std::string* gRunOut = nullptr;          // what the running program printed so far (the VM writes it out at the end): a restart prints it first
 static int updateReply(char* out, int cap, const std::string& json) { std::snprintf(out, static_cast<std::size_t>(cap), "%s", json.c_str()); return 1; }
+// A prepared candidate has passed the channel, archive and app identity checks; the app validates its own content before committing it.
+struct AppUpdateResult {
+  zn::tc::UpdateInfo info;
+  std::string path, dir, error;
+  bool available = false;
+};
+static bool prepareAppUpdate(const zn::frontend::Project& p, const zn::tc::UpdateInfo& info, AppUpdateResult& r) {
+  namespace fs = std::filesystem;
+  r.info = info;
+  const std::string dir = zn::tc::home() + "/apps/" + (p.app.id.empty() ? p.name : p.app.id);
+  if (!zn::tc::downloadUpdate(info, dir + "/updates/" + info.sha256, r.path, r.error)) return false;
+  std::string program, engine;
+  if (!unpackZapp(r.path, 0, 0, program, r.error, &engine)) return false;
+  r.dir = engine.empty() ? fs::path(program).parent_path().string() : program;
+  zn::frontend::Project candidate;
+  std::string text;
+  if (!readFile(r.dir + "/zinc.json", text) || !zn::frontend::parseProject(text, candidate, r.error)) {
+    r.error = "the update has no readable zinc.json: " + r.error; return false;
+  }
+  if (candidate.app.id != p.app.id || candidate.app.version != info.version || candidate.updateKey != p.updateKey) {
+    r.error = "the update's app id, version or public key does not match its channel"; return false;
+  }
+  if (engine.empty()) {
+    std::ifstream in(program, std::ios::binary);
+    std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    zn::zbc::Module module;
+    if (!zn::zbc::decode(bytes, module, r.error) || !zn::zbc::verify(module).empty()) {
+      r.error = "the update's program is invalid: " + r.error; return false;
+    }
+  }
+  return true;
+}
+static bool stageAppUpdate(const zn::frontend::Project& p, const std::string& path, std::string& err) {
+  namespace fs = std::filesystem;
+  const std::string dir = zn::tc::home() + "/apps/" + (p.app.id.empty() ? p.name : p.app.id);
+#ifdef _WIN32
+  (void)path; err = "atomic app update staging is unavailable on Windows"; return false;
+#else
+  const int fd = ::open((dir + "/update.lock").c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+  struct Close { int fd; ~Close() { if (fd >= 0) ::close(fd); } } close{fd};
+  if (fd < 0 || ::flock(fd, LOCK_EX | LOCK_NB) != 0) { err = "cannot lock the app's updates"; return false; }
+  const std::string tmp = dir + "/staged." + std::to_string(::getpid());
+  { std::ofstream out(tmp); out << path << "\n"; out.close(); if (!out) { err = "cannot write the staged update"; return false; } }
+  std::error_code ec;
+  fs::rename(tmp, dir + "/staged", ec);
+  if (ec) { std::error_code ignored; fs::remove(tmp, ignored); err = "cannot stage the update: " + ec.message(); return false; }
+  return true;
+#endif
+}
+struct AppUpdateJob {
+  enum class State { Idle, Running, Prepared };
+  State state = State::Idle;
+  int id = 0;
+  bool download = false;
+  std::future<AppUpdateResult> work;
+  AppUpdateResult result;
+  void transition(State next) {
+    if (!((state == State::Idle && next == State::Running) ||
+          (state == State::Running && (next == State::Idle || next == State::Prepared)) ||
+          (state == State::Prepared && next == State::Idle))) std::abort();
+    state = next;
+  }
+};
+static std::mutex gUpdateMu;
+static AppUpdateJob gUpdateJob;
 extern "C" int zn_host_update(const char* op, const char* args, char* out, int cap) {
-  (void)args;
+  std::lock_guard<std::mutex> lock(gUpdateMu);
   const zn::frontend::Project& p = gUpdProject;
   const std::string what = op ? op : "";
-  auto failed = [&](const std::string& m) { return updateReply(out, cap, "{\"error\":{\"code\":\"failed\",\"message\":" + jsonText(m) + "}}"); };
+  auto failed = [&](const std::string& m) { return updateReply(out, cap, "{\"error\":{\"code\":\"failed\",\"message\":" + jsonText(m.substr(0, 512)) + "}}"); };
   if (what == "update.healthy") { promoteTrial(); return updateReply(out, cap, "{}"); }
   if (what == "update.restart") {
+    if (gUpdateJob.state != AppUpdateJob::State::Idle) return failed("an update operation is still active");
     if (gRunOut) { std::fwrite(gRunOut->data(), 1, gRunOut->size(), stdout); gRunOut->clear(); }
     std::fflush(stdout); std::fflush(stderr);
     std::string exe = zn::tc::executablePath();
-    for (const std::string& name : gOwnEnv) unsetenv(name.c_str());   // the new version's assets and packs, not this one's
+    for (const std::string& name : gOwnEnv) unsetenv(name.c_str());
     zn::plat::replaceProcess(exe, gLaunchArgs);
     return failed(std::string("cannot restart: ") + std::strerror(errno));
   }
-  if (p.updateKey.empty() || p.updateUrl.empty()) return failed("zinc.json has no \"update\": { \"url\", \"publicKey\" }");
-  const std::string channel = p.updateChannel.empty() ? "stable" : p.updateChannel, version = p.app.version.empty() ? "0.0.0" : p.app.version;
-  const std::string url = p.updateUrl.size() > 9 && p.updateUrl.compare(p.updateUrl.size() - 9, 9, ".manifest") == 0 ? p.updateUrl : p.updateUrl + (p.updateUrl.back() == '/' ? "" : "/") + channel + ".manifest";
-  zn::tc::UpdateInfo info; std::string err;
-  if (!zn::tc::fetchManifest(url, info, err, {p.updateKey})) return failed(err);
-  const bool newer = zn::tc::newerVersion(info.version, version);
-  if (what == "update.check") return updateReply(out, cap, std::string("{\"available\":") + (newer ? "true" : "false") + ",\"version\":" + jsonText(info.version) + ",\"notes\":" + jsonText(info.notes) + "}");
-  if (what == "update.download") {
-    if (!newer) return failed("no newer version on the " + channel + " channel (" + info.version + ", this is " + version + ")");
-    const std::string dir = zn::tc::home() + "/apps/" + (p.app.id.empty() ? p.name : p.app.id);
-    std::string path;
-    if (!zn::tc::downloadUpdate(info, dir + "/updates", path, err)) return failed(err);
-    std::ofstream(dir + "/staged") << path << "\n";
-    return updateReply(out, cap, "{\"version\":" + jsonText(info.version) + ",\"path\":" + jsonText(path) + "}");
+  yyjson_doc* doc = yyjson_read(args ? args : "{}", args ? std::strlen(args) : 2, 0);
+  struct Free { yyjson_doc* doc; ~Free() { if (doc) yyjson_doc_free(doc); } } free{doc};
+  yyjson_val* a = doc ? yyjson_doc_get_root(doc) : nullptr;
+  auto& job = gUpdateJob;
+  if (what == "update.poll" || what == "update.stage" || what == "update.discard") {
+    if (job.state == AppUpdateJob::State::Idle || yyjson_get_int(yyjson_obj_get(a, "job")) != job.id) return failed("stale update operation");
+    if (what == "update.poll") {
+      if (job.state != AppUpdateJob::State::Running) return failed("the update was already prepared");
+      if (job.work.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return updateReply(out, cap, "{\"pending\":true,\"available\":false,\"version\":\"\",\"notes\":\"\",\"dir\":\"\"}");
+      try { job.result = job.work.get(); }
+      catch (const std::exception& e) { job.transition(AppUpdateJob::State::Idle); return failed(e.what()); }
+      const auto& r = job.result;
+      job.transition(job.download && r.error.empty() ? AppUpdateJob::State::Prepared : AppUpdateJob::State::Idle);
+      if (!r.error.empty()) return failed(r.error);
+      const std::string response = std::string("{\"pending\":false,\"available\":") + (r.available ? "true" : "false") + ",\"version\":" + jsonText(r.info.version) + ",\"notes\":" + jsonText(r.info.notes) + ",\"dir\":" + jsonText(r.dir) + "}";
+      if (response.size() >= static_cast<std::size_t>(cap)) {
+        if (job.state == AppUpdateJob::State::Prepared) job.transition(AppUpdateJob::State::Idle);
+        return failed("the update response is too large");
+      }
+      return updateReply(out, cap, response);
+    }
+    if (job.state != AppUpdateJob::State::Prepared) return failed("the update is not prepared");
+    std::string err;
+    const bool ok = what == "update.discard" || stageAppUpdate(p, job.result.path, err);
+    job.transition(AppUpdateJob::State::Idle);
+    job.result = {};
+    return ok ? updateReply(out, cap, "{}") : failed(err);
   }
-  return 0;
+  if (what != "update.check" && what != "update.download") return 0;
+  if (job.state != AppUpdateJob::State::Idle) return failed("an update operation is still active");
+  zn::frontend::Project project = p;
+  if (const char* url = yyjson_get_str(yyjson_obj_get(a, "url")); url && *url) project.updateUrl = url;
+  if (project.updateKey.empty() || project.updateUrl.empty()) return failed("zinc.json has no \"update\": { \"url\", \"publicKey\" }");
+  if (job.id == std::numeric_limits<int>::max()) return failed("too many update operations");
+  job.download = what == "update.download";
+  const bool download = job.download;
+  try { job.work = std::async(std::launch::async, [project, download] {
+    AppUpdateResult r;
+    const std::string channel = project.updateChannel.empty() ? "stable" : project.updateChannel;
+    const std::string version = project.app.version.empty() ? "0.0.0" : project.app.version;
+    const std::string& base = project.updateUrl;
+    const std::string url = base.size() > 9 && base.compare(base.size() - 9, 9, ".manifest") == 0 ? base : base + (base.back() == '/' ? "" : "/") + channel + ".manifest";
+    if (!zn::tc::fetchManifest(url, r.info, r.error, {project.updateKey})) return r;
+    r.available = zn::tc::newerVersion(r.info.version, version);
+    if (download) {
+      if (!r.available) r.error = "no newer version on the " + channel + " channel (" + r.info.version + ", this is " + version + ")";
+      else prepareAppUpdate(project, r.info, r);
+    }
+    return r;
+  }); } catch (const std::exception& e) { return failed(e.what()); }
+  job.transition(AppUpdateJob::State::Running);
+  ++job.id;
+  return updateReply(out, cap, "{\"job\":" + std::to_string(job.id) + "}");
 }
 static std::vector<std::string> gFusedArgs;
 static std::vector<char*> gFusedArgv;
@@ -2065,7 +2156,7 @@ static void launchDevBundle(const zn::frontend::Project& project, const std::str
     std::string engine = zn::tc::executablePath(), app, berr;
     bool refreshed = false;
     auto t0 = std::chrono::steady_clock::now();
-    const zn::tc::BundleSpec spec = bundleSpecOf(project, projectDir);
+    const zn::tc::BundleSpec spec = zn::cli::bundleSpecOf(project, projectDir);
     if (!engine.empty() && zn::tc::ensureDevBundle(spec, engine, zn::tc::home() + "/cache/macos/devapp", app, refreshed, berr)) {
       if (std::getenv("ZINC_DEVAPP_SELFTEST")) std::fprintf(stderr, "devapp: %s %s in %.1f ms\n", refreshed ? "refreshed" : "up to date", app.c_str(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
       setenv("ZINC_DEVAPP", app.c_str(), 1);
@@ -2349,14 +2440,15 @@ int main(int argc, char** argv) {
   setenv("ZINC_ENGINE_ZBC", std::to_string(zn::kZbcVersion).c_str(), 1);
   setenv("ZINC_ENGINE_RT", std::to_string(static_cast<unsigned>(zn::Rt::Count)).c_str(), 1);
   setenv("ZINC_ENGINE_VERSION", kVersionText, 1);   // with its commit (0.9.1+708.gbace6c038): what the Pi player shows
-  {   // a fused app: every argument is the app's; it runs as `zinc run <its program> -- args`
+  {   // a fused app: update-app stays an engine command; the other arguments go to its program
     std::string zbc, err;
     std::uint64_t at = 0, size = 0;
-    if (fusedArchive(at, size)) {
+    const std::string bundled = bundledAppArchive();
+    if ((fusedArchive(at, size) || !bundled.empty()) && !(argc >= 2 && !std::strcmp(argv[1], "update-app"))) {
       gFusedApp = gPackedApp = true;
       std::string engine;
-      if (!unpackZapp(zn::tc::executablePath(), at, size, zbc, err, &engine)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
-      if (engine.empty()) zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
+      if (!unpackZapp(bundled.empty() ? zn::tc::executablePath() : bundled, at, size, zbc, err, &engine)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
+      zbc = chooseAppVersion(zbc, &engine);   // a newer version staged or in use (ZN-324.02)
       gFusedArgs = engine.empty() ? std::vector<std::string>{argv[0], "run", zbc, "--"} : std::vector<std::string>{argv[0], "run", zbc, "--engine", engine, "--"};
       for (int k = 1; k < argc; ++k) gFusedArgs.push_back(argv[k]);
       for (std::string& a : gFusedArgs) gFusedArgv.push_back(a.data());
@@ -2381,13 +2473,15 @@ int main(int argc, char** argv) {
     }
   }
   const bool unsignedPack = gFusedApp || (argc >= 3 && !std::strcmp(argv[1], "run") && std::filesystem::path(argv[2]).extension() == ".zapp");
-  if (argc >= 3 && !std::strcmp(argv[1], "run") && (argc == 3 || !std::strcmp(argv[3], "--"))) {   // a .zapp of a project on a JavaScript engine: its sources on that engine
+  if (argc >= 3 && !std::strcmp(argv[1], "run") && (argc == 3 || !std::strcmp(argv[3], "--"))) {   // select the staged typed or JavaScript program before engine dispatch
     const std::string path = argv[2];
     std::string dir, engine, err;
-    if (path.size() > 5 && path.compare(path.size() - 5, 5, ".zapp") == 0 && std::ifstream(path, std::ios::binary) && unpackZapp(path, 0, 0, dir, err, &engine) && !engine.empty()) {
+    if (path.size() > 5 && path.compare(path.size() - 5, 5, ".zapp") == 0 && std::ifstream(path, std::ios::binary) && unpackZapp(path, 0, 0, dir, err, &engine)) {
+      dir = chooseAppVersion(dir, &engine);
+      gPackedApp = true;
       static std::vector<std::string> args;
       static std::vector<char*> ptrs;
-      args = {argv[0], "run", dir, "--engine", engine, "--"};
+      args = engine.empty() ? std::vector<std::string>{argv[0], "run", dir, "--"} : std::vector<std::string>{argv[0], "run", dir, "--engine", engine, "--"};
       for (int k = 4; k < argc; ++k) args.push_back(argv[k]);
       for (std::string& a : args) ptrs.push_back(a.data());
       ptrs.push_back(nullptr);
@@ -2762,6 +2856,7 @@ int main(int argc, char** argv) {
       std::string text, perr;
       { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
       const bool have = !pf.empty() && zn::frontend::parseProject(text, rp, perr);
+      if (have) gUpdProject = rp;
       runPermissions(have ? &rp : nullptr, pf.empty() ? std::string() : std::filesystem::path(pf).parent_path().string());
     }
     installDisplayDrivers("", argv[2]);   // zinc.json "display" (display-gl for zinc:mapping), before the window opens, as for the typed engines
@@ -2817,7 +2912,10 @@ int main(int argc, char** argv) {
     gInfoEntry = std::filesystem::absolute(argv[2]).string(); zn::host::setProgramInfo(runningProgramInfo);   // the inspector's Info view
 #endif
     if (std::getenv("ZINC_INSPECT") && engine == "quickjs") std::fprintf(stderr, "zinc: --inspect: an inspector attaches to --engine v8 or hermes (Chrome DevTools) or jsc (Safari) programs; zinc debug --cdp for a Zinc program\n");
-    return engine == "quickjs" ? zn::qjs::run(qo) : runEngineModule(engine, qo);
+    if (gOnTrial) std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(5)); promoteTrial(); }).detach();
+    const int code = engine == "quickjs" ? zn::qjs::run(qo) : runEngineModule(engine, qo);
+    if (code == 0) promoteTrial(); else failTrial(code);
+    return code;
   }
   if (argc >= 2 && (!std::strcmp(argv[1], "bundle") || (!std::strcmp(argv[1], "check") && argc >= 4 && !std::strcmp(argv[2], "--engine") && !std::strcmp(argv[3], "quickjs")))) {
     // zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]; zinc check --engine quickjs [entry|dir] is its --check
@@ -3149,6 +3247,13 @@ int main(int argc, char** argv) {
     if (!out) { std::fprintf(stderr, "zinc fuse: cannot write %s\n", outPath.c_str()); return 1; }
     out.close();
     fs::permissions(outPath, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, fs::perm_options::replace);
+    if (std::getenv("ZINC_COMPONENTS")) {
+      writeComponents(outPath + ".components", "zn_host_gfx zn_mbedtls zn_yoga zn_harfbuzz zn_quickjs zn_frontend", {});
+      std::set<std::string> plugins;
+      for (const auto& file : files) if (file.first.rfind("native/", 0) == 0) plugins.insert(fs::path(file.first).parent_path().filename().string());
+      std::ofstream components(outPath + ".components", std::ios::app);
+      for (const auto& plugin : plugins) components << "plugin:" << plugin << "\n";
+    }
     std::printf("fused %s (%s, %zu bytes: engine %zu + app %zu)\n", outPath.c_str(), host, engine.size() + archive.size() + 16, engine.size(), archive.size());
     return 0;
   }
@@ -3742,7 +3847,7 @@ int main(int argc, char** argv) {
       std::string perr;
       if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); if (!zn::frontend::parseProject(ss.str(), proj, perr)) { std::fprintf(stderr, "zinc: %s: %s\n", pf.c_str(), perr.c_str()); return 2; } }
       if (proj.app.id.empty()) { std::fprintf(stderr, "zinc: --bundle needs \"app\": { \"id\": ... } in zinc.json\n"); return 2; }
-      gBundleSpec = bundleSpecOf(proj, pf.empty() ? "." : std::filesystem::path(pf).parent_path().string());
+      gBundleSpec = zn::cli::bundleSpecOf(proj, pf.empty() ? "." : std::filesystem::path(pf).parent_path().string());
       if (proj.engine == "quickjs" || proj.engine == "jsc" || proj.engine == "v8" || proj.engine == "hermes") return buildEngineApp(proj.engine, argv[2], gBundleOut, gBundleSpec);   // JavaScript on an engine module (ZN-773.04)
       std::error_code mk;
       std::filesystem::create_directories(std::filesystem::path(gBundleOut) / "Contents/MacOS", mk);
@@ -3772,7 +3877,7 @@ int main(int argc, char** argv) {
       const std::string pf = zn::frontend::findProjectFile(argv[2]);
       if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
       if (proj.app.id.empty()) { zn::log::step("app", "no .app: it needs \"app\": { \"id\": \"com.example." + proj.name + "\" } in zinc.json"); return 0; }
-      const zn::tc::BundleSpec spec = bundleSpecOf(proj, fs::path(pf).parent_path().string());
+      const zn::tc::BundleSpec spec = zn::cli::bundleSpecOf(proj, fs::path(pf).parent_path().string());
       std::string berr;
       if (!zn::tc::writeBundle(spec, argv[4], app, berr)) { std::fprintf(stderr, "zinc: bundle: %s\n", berr.c_str()); return 1; }
       std::error_code ec;
@@ -4033,6 +4138,15 @@ int main(int argc, char** argv) {
     namespace fs = std::filesystem;
     const bool publish = !std::strcmp(argv[1], "publish");
     std::string dir = ".", key, channel, notes, outDir, urlArg, hub, hubToken, pubTarget;
+    if (!publish) {
+      std::uint64_t at = 0, size = 0;
+      const std::string bundled = bundledAppArchive();
+      if (fusedArchive(at, size) || !bundled.empty()) {
+        std::string program, engine, err;
+        if (!unpackZapp(bundled.empty() ? zn::tc::executablePath() : bundled, at, size, program, err, &engine)) { std::fprintf(stderr, "zinc update-app: %s\n", err.c_str()); return 1; }
+        dir = engine.empty() ? fs::path(program).parent_path().string() : program;
+      }
+    }
     bool checkOnly = false, asExport = false;
     for (int k = 2; k < argc; ++k) {
       if (!std::strcmp(argv[k], "--key") && k + 1 < argc) key = argv[++k];
@@ -4142,10 +4256,11 @@ int main(int argc, char** argv) {
     }
     std::printf("%s %s is available (this is %s)%s%s\n", name.c_str(), info.version.c_str(), version.c_str(), info.notes.empty() ? "" : ": ", info.notes.c_str());
     if (checkOnly) return 10;
-    std::string path;
-    if (!zn::tc::downloadUpdate(info, zn::tc::home() + "/apps/" + (proj.app.id.empty() ? name : proj.app.id) + "/updates", path, err)) { std::fprintf(stderr, "zinc update-app: %s\n", err.c_str()); return 1; }
-    { std::ofstream(zn::tc::home() + "/apps/" + (proj.app.id.empty() ? name : proj.app.id) + "/staged") << path << "\n"; }   // the next launch tries it (ZN-324.02)
-    std::printf("downloaded and verified: %s\n", path.c_str());
+    AppUpdateResult candidate;
+    if (!prepareAppUpdate(proj, info, candidate) || !stageAppUpdate(proj, candidate.path, err)) {
+      std::fprintf(stderr, "zinc update-app: %s\n", candidate.error.empty() ? err.c_str() : candidate.error.c_str()); return 1;
+    }
+    std::printf("downloaded and verified: %s\n", candidate.path.c_str());
     return 0;
   }
   if (argc >= 2 && !std::strcmp(argv[1], "engine")) return zn::tc::engines::command(std::vector<std::string>(argv + 2, argv + argc), gRoot, ZN_ENGINE_ABI);   // engine packs (ZN-773.04)

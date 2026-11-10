@@ -59,6 +59,7 @@
 #include "zapp.h"
 #include "yyjson.h"
 #include "tc/engines.h"
+#include "tc/bundle.h"
 #include "tc/tc.h"
 #include "tc/plugin_build.h"
 #include "zpk/zpk.h"
@@ -74,6 +75,30 @@
 namespace fs = std::filesystem;
 
 namespace zn::cli {
+
+// The BundleSpec of a zinc.json `app` (icon made absolute against the project directory).
+zn::tc::BundleSpec bundleSpecOf(const zn::frontend::Project& p, const std::string& projectDir) {
+  zn::tc::BundleSpec b;
+  b.id = p.app.id; b.name = p.app.name.empty() ? p.name : p.app.name; b.exeName = zn::tc::bundleExeName(b.name); b.version = p.app.version; b.category = p.app.category; b.copyright = p.app.copyright;
+  b.dock = p.app.dock; b.urlSchemes = p.app.urlSchemes; b.fileTypes = p.app.fileTypes;
+  if (!p.app.icon.empty()) b.icon = (std::filesystem::path(projectDir) / p.app.icon).lexically_normal().string();
+  b.assets = (std::filesystem::path(projectDir) / "assets").lexically_normal().string();   // copied into the .app when it exists (ZN-645)
+  b.identity = !p.signIdentity.empty() ? p.signIdentity : std::getenv("ZINC_SIGN_IDENTITY") ? std::getenv("ZINC_SIGN_IDENTITY") : "-";   // ZN-321
+  b.keychain = !p.signKeychain.empty() ? (std::filesystem::path(projectDir) / p.signKeychain).lexically_normal().string() : std::getenv("ZINC_SIGN_KEYCHAIN") ? std::getenv("ZINC_SIGN_KEYCHAIN") : "";
+  for (const std::string& e : zn::frontend::permissionsFor(p, "macos")) {   // what the hardened runtime (and a sandbox) lets the app ask for
+    const std::string f = e.substr(0, e.find(':'));
+    auto add = [&](const char* k) { if (std::find(b.entitlements.begin(), b.entitlements.end(), k) == b.entitlements.end()) b.entitlements.push_back(k); };
+    if (f == "camera") add("com.apple.security.device.camera");
+    else if (f == "microphone") add("com.apple.security.device.audio-input");
+    else if (f == "location") add("com.apple.security.personal-information.location");
+    else if (f == "photos" || f == "photos-add") add("com.apple.security.personal-information.photos-library");
+    else if (f == "bluetooth") add("com.apple.security.device.bluetooth");
+    else if (f == "net") { add("com.apple.security.network.client"); if (e == "net" || e == "net:*") add("com.apple.security.network.server"); }   // listening needs "net" or "net:*"
+  }
+  // macOS asks the user with these strings (zinc.json "permissionStrings", else a default); without them the request fails (ZN-322.03)
+  b.usage = zn::frontend::usageStrings(p, "macos", b.name.empty() ? "This app" : b.name);
+  return b;
+}
 
 bool enterRunDirectory(const std::string& projectDir, std::string& err) {
   if (projectDir.empty()) return true;
@@ -2317,6 +2342,18 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   const std::string title = p.name;   // what a person reads (the page's title); p.name becomes the file name below
   p.name = fileName(p);
   const std::string target = o.v.count("--target") ? o.v["--target"] : zn::plat::osName();
+  zn::frontend::Project updateProject;
+  std::string projectText;
+  { std::ifstream in(fs::path(p.dir) / "zinc.json"); std::stringstream text; text << in.rdbuf(); projectText = text.str(); }
+  const bool fusedUpdates = zn::frontend::parseProject(projectText, updateProject, err) && !updateProject.updateKey.empty();
+  const std::string hostOs = zn::plat::osName();
+  const bool nativeUpdateTarget = (target == "macos" && hostOs == "macos") ||
+      (hostOs == "linux" && zigTargetFor(target) == zn::tc::hostName());
+  if (fusedUpdates && !nativeUpdateTarget) {
+    std::fprintf(stderr, "zinc export: self-updating exports carry this machine's %s engine; choose a matching target, export on that machine or deploy a signed package with zinc device deploy\n", zn::tc::hostName().c_str()); return 2;
+  }
+  if (fusedUpdates && has(o, "--no-embed")) { std::fprintf(stderr, "zinc export: an update-enabled export carries its resources in its package; --no-embed is unavailable\n"); return 2; }
+
   if (zn::log::steps()) { const std::string d = zn::log::shortPath(fs::absolute(p.dir).lexically_normal().string()); std::fprintf(stderr, "zinc export %s for %s\n", d.empty() || d == "/" ? "." : d.c_str(), target.c_str()); }
   if (target == "web") {   // the program as JavaScript on the browser's own engine (docs/targets/web.md)
     WebArgs w;
@@ -2352,7 +2389,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (target == "ios") return exportIos(p, out, engineRoot, has(o, "--print"), pack);
   // JavaScript on an engine module (ZN-773.04): an .app of zinc, the program bundled for it and the engine's pack; on QuickJS (zinc's own, ZN-773.09)
   // the bundle and its bytecode, for macos (the other targets still build the program ahead of time)
-  if (p.engine == "jsc" || p.engine == "v8" || p.engine == "hermes" || p.engine == "quickjs") {
+  if (!fusedUpdates && (p.engine == "jsc" || p.engine == "v8" || p.engine == "hermes" || p.engine == "quickjs")) {
     if (target != "macos") { std::fprintf(stderr, "zinc export: a native export on the %s engine supports macos only for now; use zinc device deploy <project> to run it with a Raspberry Pi's installed engine\n", p.engine.c_str()); return 2; }
     const fs::path app = out / (p.name + ".app");
     if (const int rc = status(std::system((q(self()) + " build --bundle " + q(p.entry) + " -o " + q(app.string())).c_str()))) { std::fprintf(stderr, "zinc export: the .app could not be made\n"); return rc; }
@@ -2417,7 +2454,36 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
       }
     }
   }
-  int rc = status(std::system(cmd.c_str()));
+  int rc = 0;
+  if (fusedUpdates) {
+    const std::string archive = (out / (p.name + ".zapp")).string(), exe = (out / p.name).string();
+    zn::plat::SpawnOptions options;
+    options.env = {{"ZINC_COMPONENTS", "1"}};
+    std::fprintf(stderr, "zinc export: updates enabled: carrying the engine and signed-channel player (larger than an AOT export)\n");
+    rc = zn::plat::run({self(), "pack", p.dir, "-o", archive}, options);
+    if (!rc) rc = zn::plat::run({self(), "fuse", archive, "-o", exe}, options);
+    if (!rc && target == "macos" && !updateProject.app.id.empty()) {
+      const fs::path app = out / (p.name + ".app"), macos = app / "Contents/MacOS";
+      const auto spec = bundleSpecOf(updateProject, p.dir);
+      fs::create_directories(app / "Contents/Resources", ec);
+      fs::create_directories(macos, ec);
+      fs::copy_file(archive, app / "Contents/Resources/app.zapp", fs::copy_options::overwrite_existing, ec);
+      if (ec) { std::fprintf(stderr, "zinc export: cannot copy the app package: %s\n", ec.message().c_str()); return 1; }
+      for (const char* name : {"libzn_window.dylib", "libzn_webgl.dylib"}) {
+        const fs::path module = fs::path(self()).parent_path() / name;
+        if (!fs::exists(module, ec)) continue;
+        fs::copy_file(module, macos / name, fs::copy_options::overwrite_existing, ec);
+        if (ec) { std::fprintf(stderr, "zinc export: cannot copy %s: %s\n", name, ec.message().c_str()); return 1; }
+        std::vector<std::string> sign = {"codesign", "--force", "--sign", spec.identity.empty() ? "-" : spec.identity};
+        if (!spec.keychain.empty()) sign.insert(sign.end(), {"--keychain", spec.keychain});
+        if (spec.identity != "-" && !spec.identity.empty()) sign.insert(sign.end(), {"--options", "runtime", "--timestamp"});
+        sign.push_back((macos / name).string());
+        if (zn::plat::run(sign) != 0) { std::fprintf(stderr, "zinc export: cannot sign %s\n", name); return 1; }
+      }
+      if (!zn::tc::writeBundle(spec, self(), app.string(), err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
+    }
+    fs::remove(archive, ec);
+  } else rc = status(std::system(cmd.c_str()));
   if (rc != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return rc; }
   if (fs::exists(fs::path(p.dir) / "assets")) fs::copy(fs::path(p.dir) / "assets", out / "assets", fs::copy_options::recursive, ec);
   writeFile(out / "run.sh", "#!/bin/sh\ncd \"$(dirname \"$0\")\" || exit 1\nexec ./" + p.name + " \"$@\"\n");

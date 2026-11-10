@@ -79,8 +79,11 @@ export interface OpArgs {
   'clipboard.writeFiles': { paths: string[] };
   'clipboard.readFiles': {  };
   'window.setVibrancy': { material: '' | 'sidebar' | 'menu' | 'hud' | 'under-window'; radius: number? };
-  'update.check': {  };
-  'update.download': {  };
+  'update.check': { url: string? };
+  'update.download': { url: string? };
+  'update.poll': { job: number };
+  'update.stage': { job: number };
+  'update.discard': { job: number };
   'update.restart': {  };
   'update.healthy': {  };
   'media.setMetadata': { title?: string; artist?: string; album?: string; artwork?: string };
@@ -169,8 +172,11 @@ export interface OpResult {
   'clipboard.writeFiles': {};
   'clipboard.readFiles': {paths: string[]};
   'window.setVibrancy': {};
-  'update.check': {available: boolean; version: string; notes: string};
-  'update.download': {version: string; path: string};
+  'update.check': {job: number};
+  'update.download': {job: number};
+  'update.poll': {pending: boolean; available: boolean; version: string; notes: string; dir: string};
+  'update.stage': {};
+  'update.discard': {};
   'update.restart': {};
   'update.healthy': {};
   'media.setMetadata': {};

@@ -2,6 +2,7 @@
 // for pipes and globs); its output arrives on the event loop as lines (onStdout / onStderr) and raw chunks (onData);
 // run() collects everything for short commands. Native side: native/process.spec.ts.
 import P from './native/process.spec';
+import { env, poll } from 'zinc:sys';
 
 const SEP = '\u001f';
 
@@ -107,5 +108,8 @@ export function run(cmd: string, args: string[], opts: SpawnOptions): Promise<Re
     p.closeStdin();
     p.onData((s: string, stderr: boolean) => { if (stderr) err += s; else out += s; });
     p.onExit((code: i32) => { resolve(new Result(code, out, err)); });
+    // A deterministic frame must see the completed short command before its clock advances.
+    const deterministic = env('ZINC_DETERMINISTIC');
+    if (deterministic !== '' && deterministic !== '0') while (p.running) poll(5);
   });
 }

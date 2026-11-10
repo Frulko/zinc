@@ -47,10 +47,8 @@ table v2 1.1.0 wave "http://127.0.0.1:$port/"
 "$Z" publish "$tmp/v2" --key "$k_seed" -o "$tmp/www" > "$tmp/pack.log" 2>&1 || { echo "museum_update: publish failed: $(tail -3 "$tmp/pack.log")"; exit 1; }
 cp "$tmp/www/stable.manifest" "$tmp/good.manifest"; cp "$tmp/www/museum-table-1.1.0.zapp" "$tmp/good.zapp"
 for i in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null "http://127.0.0.1:$port/stable.manifest" && break; sleep 0.3; done
-# a finger down from the second frame to frame 8000, in a corner where nothing is. The frames of a headless run do not wait for the clock
-# and the download does: the visit lasts several times what the check and the package need (it is there near frame 1200 on the
-# development Mac; a refusal near frame 700)
-printf '2 touch 1 20.0 20.0\n8000 touchup 1\n' > "$tmp/visit.input"
+# The first frame starts the visit before checking. Deterministic process/update promises settle before the next frame.
+printf '1 touch 1 20.0 20.0\n4 touchup 1\n' > "$tmp/visit.input"
 fail=0
 play() {  # frames, then the environment of the run: the story in $tmp/story, the error output in $tmp/err
   : > "$tmp/requests"; rm -rf "$ZINC_HOME/apps"
@@ -69,7 +67,7 @@ kept() {  # what: version 1 played to the end and nothing was staged
 mkdir "$tmp/quiet"; for f in "$tmp/v1/assets"/*; do ln -s "$f" "$tmp/quiet/"; done
 rm "$tmp/quiet/project.json"; sed 's|, "updateUrl": "[^"]*"||' "$tmp/v1/assets/project.json" > "$tmp/quiet/project.json"
 grep -q updateUrl "$tmp/quiet/project.json" && { echo "museum_update: the project without an address still has one"; exit 2; }
-play 600 ZINC_ASSETS="$tmp/quiet" ZINC_HAR="$tmp/har"
+play 4 ZINC_ASSETS="$tmp/quiet" ZINC_HAR="$tmp/har"
 kept "no address"
 [ -s "$tmp/requests" ] && { echo "museum_update (no address): the server was asked: $(head -2 "$tmp/requests")"; fail=1; }
 grep -q '"entries": *\[\]' "$tmp/har" || grep -q '"entries":\[\]' "$tmp/har" || { echo "museum_update (no address): the network log is not empty: $(head -c 300 "$tmp/har")"; fail=1; }
@@ -77,7 +75,7 @@ grep -q ' update' "$tmp/story" && { echo "museum_update (no address): the table 
 
 # a channel edited after it was signed
 sed 's/^version=1\.1\.0$/version=1.2.0/' "$tmp/good.manifest" > "$tmp/www/stable.manifest"
-play 4200
+play 4
 kept "signature"
 grep ' update: ' "$tmp/story" | grep -q -i 'signature' || { echo "museum_update (signature): the refusal is not in the story: $(grep ' update' "$tmp/story" | head -3)"; fail=1; }
 grep -q 'museum-table: update: .*[Ss]ignature' "$tmp/err" || { echo "museum_update (signature): the refusal is not written for the staff"; fail=1; }
@@ -85,14 +83,14 @@ grep -q 'museum-table: update: .*[Ss]ignature' "$tmp/err" || { echo "museum_upda
 # a package cut short
 cp "$tmp/good.manifest" "$tmp/www/stable.manifest"
 head -c $(($(wc -c < "$tmp/good.zapp") / 2)) "$tmp/good.zapp" > "$tmp/www/museum-table-1.1.0.zapp"
-play 4200
+play 4
 kept "cut short"
 grep ' update: ' "$tmp/story" | grep -q -i -E 'sha-?256|checksum' || { echo "museum_update (cut short): the refusal is not in the story: $(grep ' update' "$tmp/story" | head -3)"; fail=1; }
 grep -q 'museum-table-1.1.0.zapp' "$tmp/requests" || { echo "museum_update (cut short): the package was not asked for"; fail=1; }
 
 # the update: downloaded under a visit, taken at the reset that follows it
 cp "$tmp/good.zapp" "$tmp/www/museum-table-1.1.0.zapp"
-play 8200 ZINC_INPUT="$tmp/visit.input"
+play 160 ZINC_INPUT="$tmp/visit.input"
 old=$(at ' sequence ukiyo-e'); visit=$(at ' visit start'); got=$(at ' update: downloaded and verified'); end=$(at ' visit end')
 reset=$(at ' reset: '); again=$(at ' update: the table is idle'); new=$(at ' sequence wave'); last=$(at ' update: museum-table 1.1.0 is up to date')
 if [ -z "$old" ] || [ -z "$visit" ] || [ -z "$got" ] || [ -z "$end" ] || [ -z "$reset" ] || [ -z "$again" ] || [ -z "$new" ] || [ -z "$last" ]; then

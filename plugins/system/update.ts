@@ -1,20 +1,38 @@
-// zinc:system/update: the app updates itself from its channel (zinc.json "update": url, channel, publicKey; ZN-324). The engine fetches the
-// channel's signed manifest and checks it with the app's key, downloads the newer .zapp with its SHA-256 and stages it; restart() starts the app
-// again, which runs the staged version on trial (it is kept once healthy() is called, after 5 s, or at a normal exit; a crash rolls it back).
+// Signed app updates. Check and download run on the engine's worker; only a validated candidate is staged.
 import { call } from './core';
+import { env, poll } from 'zinc:sys';
 
 export class UpdateInfo { available: boolean = false; version: string = ''; notes: string = ''; }
+interface PreparedUpdate { pending: boolean; available: boolean; version: string; notes: string; dir: string }
 
-/** Whether the channel offers a newer version. Throws SystemError('failed') when the manifest cannot be fetched or its signature is wrong. */
-export function check(): UpdateInfo {
-  const r = call('update.check', {}) as { available: boolean; version: string; notes: string };
+async function result(job: i32): Promise<PreparedUpdate> {
+  const deterministic = env('ZINC_DETERMINISTIC');
+  for (;;) {
+    const r = call('update.poll', { job }) as PreparedUpdate;
+    if (!r.pending) return r;
+    // The virtual clock must not overtake external work. Real apps yield to frames and input between polls.
+    if (deterministic !== '' && deterministic !== '0') poll(5);
+    else await new Promise<void>(resolve => { setTimeout(() => resolve(), 10); });
+  }
+}
+/** Checks the signed channel off the frame. An optional URL overrides zinc.json update.url. */
+export async function check(url: string = ''): Promise<UpdateInfo> {
+  const start = call('update.check', { url }) as { job: i32 };
+  const r = await result(start.job);
   const u = new UpdateInfo();
   u.available = r.available; u.version = r.version; u.notes = r.notes;
   return u;
 }
-/** Downloads the newer version, checks it and stages it for the next start; resolves with its version. */
-export function download(): string { const r = call('update.download', {}) as { version: string; path: string }; return r.version; }
-/** Starts the app again (same arguments): the staged version runs. */
+/** Downloads and verifies off the frame. `validate` reads the unpacked candidate directory and throws to refuse its content before staging. */
+export async function download(url: string = '', validate: ((dir: string) => void) | null = null): Promise<string> {
+  const start = call('update.download', { url }) as { job: i32 };
+  const r = await result(start.job);
+  try { if (validate !== null) validate(r.dir); }
+  catch (e) { call('update.discard', { job: start.job }); throw e; }
+  call('update.stage', { job: start.job });
+  return r.version;
+}
+/** Starts the app again with the same arguments; the staged version runs on trial. */
 export function restart(): void { call('update.restart', {}); }
-/** The version on trial works: keep it now (otherwise after 5 s or at a normal exit). */
+/** Keeps the version on trial now (otherwise after 5 s or at a normal exit). */
 export function healthy(): void { call('update.healthy', {}); }

@@ -235,10 +235,10 @@ struct Sim : NativeSystem, zrt::Poller {
         int n = snprintf(buf, sizeof buf, "{\"error\":{\"code\":\"denied\",\"message\":\"%s needs the permission %s (zinc.json \\\"permissions\\\")\"}}", name, o.permission);
         return zrt::String::from(buf, (uint32_t)n);
       }
-      log("[system] ", name, " ", args);
+      if (strcmp(name, "update.poll")) log("[system] ", name, " ", args);
       if (!strncmp(name, "update.", 7)) {   // the engine knows the app's channel and key, and how to restart it: live and in the simulator alike
         static char ubuf[4096];
-        if (!zn_host_update || !zn_host_update(name, args, ubuf, sizeof ubuf)) return reply("{\"error\":{\"code\":\"unsupported\",\"message\":\"this engine has no app updates\"}}");
+        if (!zn_host_update || !zn_host_update(name, args, ubuf, sizeof ubuf)) return reply("{\"error\":{\"code\":\"unsupported\",\"message\":\"this engine has no app updates; use an update-enabled desktop export or zinc fuse\"}}");
         return reply(ubuf);
       }
       if (!strcmp(name, "opener.last")) { char b[500] = "{\"text\":"; appendJson(b, sizeof b, lastOpen); strcat(b, "}"); return reply(b); }

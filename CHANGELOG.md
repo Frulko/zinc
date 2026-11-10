@@ -10,6 +10,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 This version is about staying solid when things go wrong: gestures, navigation, reactive updates and app updates now recover cleanly from interruptions and errors instead of getting stuck. A window that is covered stops drawing and costs almost nothing, Sidecar can be driven from the Mac's mouse and keyboard, and Riffle joins the apps as a window switcher for macOS.
 
+### Breaking changes
+
+- `zinc:system/update.check()` and `download()` now return promises: await them before reading the result or restarting.
+- Fused desktop apps enforce their declared `zinc.json` permissions, as native exports do; declare every capability the app uses.
+
 ### Video mapper
 
 #### New
@@ -481,6 +486,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Zinc Atelier's Settings page shows a project whose `zinc.json` has comments or a byte order mark, and edits it, instead of calling it a plain sketch.
 - In Hamlet, Ctrl+Z after razing trees with the demolish tool no longer lays a road where they stood.
 - Hero and Hero without video run again after the UI kit gallery update, with their sample upload advancing as before.
+- Museum tables check for signed updates in the background, refuse unreadable projects before staging, and update from fused and host desktop exports.
 
 
 ### Docs and learning

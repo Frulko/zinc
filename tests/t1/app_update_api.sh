@@ -21,14 +21,17 @@ json.dump(d, open(p, 'w'))
 PY
 }
 make v1 1.0.0 "import * as update from 'zinc:system/update';
+async function main(): Promise<void> {
 console.log('version 1');
-const u = update.check();
+const u = await update.check();
 console.log('available ' + u.available + ' ' + u.version + ' ' + u.notes);
-if (u.available) { console.log('downloaded ' + update.download()); update.restart(); }"
+if (u.available) { console.log('downloaded ' + await update.download()); update.restart(); }
+}
+main();"
 make v2 1.1.0 "import * as update from 'zinc:system/update';
 console.log('version 2');
 update.healthy();
-console.log('available ' + update.check().available);"
+update.check().then((u: update.UpdateInfo) => { console.log('available ' + u.available); });"
 "$Z" pack "$tmp/v1" -o "$tmp/A.zapp" >/dev/null || { echo "pack failed"; exit 1; }
 for i in 1 2 3 4 5 6 7 8 9 10; do curl -s "http://127.0.0.1:$port/" >/dev/null && break; sleep 0.3; done
 "$Z" publish "$tmp/v2" --key "$k_seed" --notes "better" -o "$tmp/www" >/dev/null || { echo "publish failed"; exit 1; }

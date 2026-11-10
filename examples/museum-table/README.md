@@ -163,7 +163,7 @@ the last 7 or 30 days instead, and a touch anywhere else closes them. Without `-
 
 A project that names an address (`kiosk.updateUrl`) makes the table look there for a newer version of itself, signed with the museum's key:
 it is downloaded and checked beside the visit, and the table starts again with it once nobody is there. A bad signature or a download cut
-short changes nothing. Without the address the table makes no request. The steps are in the
+short, or a project this player cannot parse, changes nothing. The check and download run in the background with timeouts; a fused or host desktop exported table uses the same service. Without the address the table makes no request. The steps are in the
 [reference](../../docs/museum-table-format.md#replacing-the-content-of-a-table) ([`src/update.ts`](src/update.ts)).
 
 ## The storyboard editor

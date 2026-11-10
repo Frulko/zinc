@@ -362,11 +362,11 @@ to the table.
 
 | | |
 | --- | --- |
-| once | `zinc update-keygen` gives a seed (kept by the museum) and a public key. The table's `zinc.json` gets `"app": { "id": "org.museum.table", "version": "1.0.0" }` and `"update": { "publicKey": "<public key>" }`; its project gets `kiosk.updateUrl`. The table is installed as `zinc pack` writes it and started with `zinc run table.zapp` |
+| once | `zinc update-keygen` gives a seed (kept by the museum) and a public key. The table's `zinc.json` gets `"app": { "id": "org.museum.table", "version": "1.0.0" }` and `"update": { "publicKey": "<public key>" }`; its project gets `kiosk.updateUrl`. The table is installed as `zinc pack` writes it and started with `zinc run table.zapp`, `zinc fuse`, or a host desktop `zinc export` |
 | to publish | A higher `app.version` in `zinc.json`, then `zinc publish --key <seed> -o <directory>`: the package and `stable.manifest`, signed, to put at the address |
-| the table | Looks at the address when it starts and every hour, in a process of its own: a visitor never waits for the network. A newer version is downloaded, its signature and its SHA-256 checked, and it is set aside; nothing changes under a visit |
+| the table | Looks at the address when it starts and every hour, on the engine's background worker: a visitor never waits for the network. A newer version is downloaded, its signature and its SHA-256 checked, and its project parsed by this player before it is set aside; nothing changes under a visit |
 | the switch | When nobody is at the table and no visit is kept (the reset of `kiosk.resetAfter`, or a table nobody touched), the table starts again with the new version. A version that does not start is dropped at the next launch and the previous one plays |
-| a fault | A channel that is not signed by the museum's key, a package cut short or changed, a server that does not answer: nothing is set aside and the table plays on. The reason is written on the error output (`museum-table: update: ...`) and in the story (`--story`) |
+| a fault | A channel that is not signed by the museum's key, a package cut short or changed, an unreadable project, a server that does not answer within the bounded check/download: nothing is set aside and the table plays on. The reason is written on the error output (`museum-table: update: ...`) and in the story (`--story`) |
 
 The address is the project's, so a new version may name another one; the key is the table's, and a package signed by another key is
 never taken.

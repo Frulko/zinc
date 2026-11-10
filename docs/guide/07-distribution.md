@@ -354,20 +354,35 @@ directory to `update.url`. `zinc update-app [--check]` fetches `<url>/<channel>.
 `update.publicKey`, refuses a version older than the app's, downloads the archive and checks its SHA-256 into `~/.zinc/apps/<id>/updates/`.
 The seed never leaves the publishing machine; a manifest altered after signing, or one signed with another key, is refused.
 
-`zinc update-app` also stages the download. The next launch of the app (`zinc run app.zapp`, or its fused executable) runs the staged
-version on trial: once it has run 5 seconds or exited normally it becomes the version in use (`~/.zinc/apps/<id>/current`). If it crashes
-before that, the launch after drops it ("failed to start; it was rolled back") and runs the previous version. Nothing is overwritten.
+`zinc update-app` also stages the download. The next launch of the app (`zinc run app.zapp`, a fused executable or an update-enabled export)
+runs the staged version on trial: once it has run 5 seconds or exited normally it becomes the version in use (`~/.zinc/apps/<id>/current`).
+If it crashes first, the next launch drops it ("failed to start; it was rolled back") and runs the previous version. Nothing is overwritten.
+
+A fused app accepts `./app update-app [--check] [--url URL]` using its embedded project. A host desktop export with `update.publicKey` carries
+the engine and the same update path, so it is larger than an AOT export. On macOS the signed bundle keeps the package in
+`Contents/Resources/app.zapp`, beside a signable engine executable. Bundle metadata, signing, assets and licence output are retained.
+Fused apps enforce their declared permissions like native exports.
+
+Hosted source runs with this key retain the updater when a native cache exists. Raw `zinc build` AOT executables have no updater bridge;
+use `export` or `fuse` for a self-updating app. Update-enabled exports require a target matching the host CPU and OS, and refuse `--no-embed`.
+Use `zinc device deploy` for another machine; a Mac engine is never shipped as a Linux executable.
 
 The app does the same itself with `zinc:system/update` (permission `"update"`):
 
 ```ts
 import * as update from 'zinc:system/update';
-const u = update.check();                 // { available, version, notes }: the signed manifest checked by the engine with the app's key
-if (u.available) { update.download(); update.restart(); }   // staged, then the app starts again into it
+const u = await update.check();           // { available, version, notes }; use inside an async function
+if (u.available) { await update.download(); update.restart(); }   // verified and staged before restarting
 update.healthy();                         // in the new version: keep it now (else after 5 s or at a normal exit)
 ```
 
-Updates apply to apps run as a `.zapp` or a fused executable; a natively compiled app (`zinc build`, `zinc export`) says "unsupported".
+`check()` and `download()` return promises and leave frames and input running. Both accept an optional channel URL.
+`download(url, validate)` calls `validate(unpackedDirectory)` before staging: throw if the candidate's content cannot be read by this player.
+The signature, SHA-256, app id, version, public key and packaged program are checked by the engine first. A refused candidate leaves the previous staged version alone. The generic CLI checks the package and its program; an app's own content schema is checked by its `download` validator, as the Museum player does with its project parser.
+Connections time out after 5 seconds; a manifest takes at most 15 seconds and a package at most 120 seconds.
+
+Staged replacements apply to package launches (`.zapp`, fused or update-enabled exports). Hosted source runs can check and download,
+but continue launching their local sources.
 
 ## Mirrors, proxies and offline
 
