@@ -2,7 +2,8 @@
 id: ZN-895
 title: Galène media server as a pinned tool of zinc toolchain
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 22:57'
 labels:
   - net

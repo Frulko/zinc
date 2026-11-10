@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Assistant28 final proof integrated (worker047778b3e), all three last demosDone with Music83e6fe6f5/Mail6dc4c22ca/Notesed5802785:65currentlyDone. Comparison29Review honest unmatched/quiet metrics unproven. Choose next independent chains774.31 Atelier share (TS),603 Hero AOT size (first measure existing artifact, one AOT core writer),895 pinned Galène tool (toolchain/buildscript), at most2compiling/onequeuedheavy. Skip owner-selected conformance/bench-only work and protected runtime/HAL/ui/allocator modules. Primary references MakeCode share/Apple dead_strip/Galène passed in briefs.
+
 - UI fixes7ed1b1211/39e7e5e62/5488a7d35, recursive capture063edc9de, Solid ownership0d7163987 and Music83e6fe6f5 integrated Done:62currentlyDone. External ui.ts WIP hunk bytes identical; only diff index blob ids changed (preservation.json records normalized SHA). Common rebuilt037a922f9 SHA29ffb93a19627fb7dc465badc12c9c292ffaa55bf1db76d458b81837f4b48155; root combined Music/core proofs queued. CUI harness82798810d integrated Review, root5unitchecksPASS, no benchmark. Mail25/Notes27 completion all3 pass; reserve freshAssistant28 completion.
 
 - Root common47a238 proofs/provenance and Settings completion source3e540bbe9 persisted.56currentlyDone after1112reopen; UIchain final gatePASS4094JS/component/15Bstrictheadroom, proofsall3 pass, commits/rebase pending. Active Music26/comparison29/UIchain. All completed worker logs/checkpoints archived; preserve external virtualization patch SHA at integration.
