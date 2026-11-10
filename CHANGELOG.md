@@ -437,6 +437,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The Changes of Zinc Inspector write `className=` and fold an edited `padding: 12px` into `p-[12px]` (or `px-`/`py-`, margins alike) instead of four classes.
 - The Elements panel of Chrome DevTools shows the nodes as JSX writes them, `<View className="...">`, `<Text>`, `<ScrollView>`, instead of `<view class="...">`, and a class is edited through the `className` attribute.
 - Backlog workers queue bounded commands with `tools/work-run SECONDS COMMAND`, sharing one lock across worktrees. New `tools/codex-live` sessions allow up to five workers while retaining the two-building-tree limit.
+- `zinc build --target armv7-linux` enables NEON and VFPv3 on Cortex-A8 and newer cores; cached runtime objects rebuild when compiler flags change.
 
 
 #### Faster

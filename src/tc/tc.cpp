@@ -205,7 +205,7 @@ const std::vector<Target>& targets() {
       // ARMv6 with VFPv2, no NEON: the first Pi and the Pi Zero, and every later Pi on a 32-bit OS (slower there: armv7-linux)
       {"armhf-linux", "arm-linux-gnueabihf.2.28", " -mcpu=arm1176jzf_s", "every 32-bit Raspberry Pi OS, the Pi 1 and Zero included (ARMv6); glibc 2.28 and newer"},
       // ARMv7-A with NEON and VFPv3: the Cortex-A8 of the NTC CHIP is the oldest core, so no VFPv4 instruction reaches it; the Pi 2 (A7) and Pi 3 (A53) run it
-      {"armv7-linux", "arm-linux-gnueabihf.2.28", " -mcpu=cortex_a8", "Raspberry Pi 2 and 3 on a 32-bit OS, NTC CHIP and PocketCHIP (ARMv7 with NEON); glibc 2.28 and newer"},
+      {"armv7-linux", "arm-linux-gnueabihf.2.28", " -mcpu=cortex_a8+neon", "Raspberry Pi 2 and 3 on a 32-bit OS, NTC CHIP and PocketCHIP (ARMv7 with NEON); glibc 2.28 and newer"},
       // webOS 3 on the HP TouchPad: glibc 2.8, and the soft-float calling convention its GL and system libraries were built with (hp-touchpad-webos.md).
       // softfp: the FPU and NEON are used, numbers are passed in the integer registers. zig 0.15.2 turns VFPv2 off for a gnueabi target and leaves
       // VFPv3 and NEON on, and LLVM's ARM backend then dies on NEON intrinsics ("Do not know how to split this operator's operand", zstd and
@@ -799,7 +799,7 @@ bool crossBuild(const std::string& zig, const std::string& root, const std::stri
   std::string objs;
   for (const Src& s : srcs) {
     std::string src = root + "/" + s.path;
-    std::string key = sha256File(src).substr(0, 16);
+    std::string key = sha256Hex(sha256File(src) + flags).substr(0, 16);
     // a header change must rebuild too: the key covers the headers of include/ and src/ through their combined size and time
     std::string headers;
     for (const char* dir : {"include/zn", "src/rt", "src/zbc"})

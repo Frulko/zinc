@@ -9,7 +9,8 @@ zinc build --target aarch64-linux prog.ts -o prog   # another machine: the pinne
 zinc toolchain targets | install | path | sha256 <file>
 ```
 
-Targets: `aarch64-linux`, `armhf-linux` (32-bit Raspberry Pi OS, `-mcpu=arm1176jzf_s`, so it runs on the first Pi too), `x86_64-linux`,
+Targets: `aarch64-linux`, `armhf-linux` (32-bit Raspberry Pi OS, `-mcpu=arm1176jzf_s`, so it runs on the first Pi too), `armv7-linux`
+(`-mcpu=cortex_a8+neon`, ARMv7, NEON and VFPv3, hard-float calls), `x86_64-linux`,
 `aarch64-macos`, `x86_64-macos`. The program is linked dynamically against the glibc of the target (zig brings the headers and stubs).
 
 ## How the download is trusted
@@ -22,7 +23,11 @@ Targets: `aarch64-linux`, `armhf-linux` (32-bit Raspberry Pi OS, `-mcpu=arm1176j
    to the binary in `SHA256`.
 
 The runtime for the target (`src/rt`, `src/zbc`, mimalloc) is compiled by that zig and cached as objects in `~/.zinc/cache/<target>/`,
-keyed by the hash of each source and the sizes of the headers: the first build of a target takes about 20 s, later ones are the program only.
+keyed by each source hash, compiler flags and the sizes of the headers: changing a target's CPU features rebuilds its runtime objects.
+Zig 0.15.2's [NEON feature depends on VFPv3](https://github.com/ziglang/zig/blob/0.15.2/lib/std/Target/arm.zig#L867-L873), so `+vfp3` is redundant.
+The deferred `cross_linux` check uses GNU `readelf -A` (`READELF` selects its path) to verify ARMv7, VFPv3 and NEONv1,
+and `-h` for the executable's EABI5 hard-float flag. LLD can omit `Tag_ABI_VFP_args` from linked output;
+on objects, `Tag_ABI_VFP_args: VFP registers` identifies the hard-float calling convention.
 
 Environment: `ZINC_HOME` (default `~/.zinc`), `ZINC_ZIG` (a zig of your own, for development), `ZINC_TC_MIRROR` (a base URL or `file://`
 directory for the downloads: an offline mirror, or the test).
