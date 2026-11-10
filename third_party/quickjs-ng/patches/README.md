@@ -4,6 +4,8 @@
 
 `tools/quickjs-patches check` proves it offline (`tests/t0/quickjs_patches.sh`): every patch must reverse, last to first, onto a copy of the tree, and each file must then have the release's hash. A change made in the tree without a patch fails the check.
 
+0006-allocator-size exposes the existing allocator byte counter in constant time for frame-boundary cycle collection; it does not change the collector.
+
 ## Adding a patch
 
 1. Change the files in `third_party/quickjs-ng`, then write the change as a unified diff against the previous state: `NNNN-short-name.patch`, the next number, paths `a/<file>` and `b/<file>` relative to `third_party/quickjs-ng` (applied with `patch -p1`).

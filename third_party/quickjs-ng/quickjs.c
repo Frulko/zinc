@@ -2480,6 +2480,11 @@ size_t JS_GetGCThreshold(JSRuntime *rt) {
     return rt->malloc_gc_threshold;
 }
 
+size_t JS_ZnMallocSize(JSRuntime *rt)
+{
+    return rt->malloc_state.malloc_size;
+}
+
 /* use -1 to disable automatic GC */
 void JS_SetGCThreshold(JSRuntime *rt, size_t gc_threshold)
 {

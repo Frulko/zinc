@@ -1,0 +1,29 @@
+Purpose: expose the existing allocator byte counter in constant time so Zinc can schedule cycle scans at frame boundaries without walking the heap to decide.
+Measured: behaviour, tests/t0/qjs_gc.sh (threshold restore, bounded deferral, frame profile and trace).
+Upstream: not upstreamable: Zinc-specific API naming; the getter can be proposed as a general memory-counter API separately.
+
+--- a/quickjs.h
++++ b/quickjs.h
+@@ -513,6 +513,8 @@
+ JS_EXTERN void JS_SetDumpFlags(JSRuntime *rt, uint64_t flags);
+ JS_EXTERN uint64_t JS_GetDumpFlags(JSRuntime *rt);
+ JS_EXTERN size_t JS_GetGCThreshold(JSRuntime *rt);
++/* Zinc: constant-time allocator bytes, for frame-boundary GC scheduling. */
++JS_EXTERN size_t JS_ZnMallocSize(JSRuntime *rt);
+ JS_EXTERN void JS_SetGCThreshold(JSRuntime *rt, size_t gc_threshold);
+ /* use 0 to disable maximum stack size check */
+ JS_EXTERN void JS_SetMaxStackSize(JSRuntime *rt, size_t stack_size);
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -2478,6 +2478,11 @@
+ 
+ size_t JS_GetGCThreshold(JSRuntime *rt) {
+     return rt->malloc_gc_threshold;
++}
++
++size_t JS_ZnMallocSize(JSRuntime *rt)
++{
++    return rt->malloc_state.malloc_size;
+ }
+ 
+ /* use -1 to disable automatic GC */

@@ -41,6 +41,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc toolchain install galene` installs the checksum-verified Galène 1.2.1 media server for Apple Silicon and Linux ARM or Intel; `tools/build-galene --verify` reproduces its release archives with a pinned Go compiler.
 - `tools/zbench` measures equal writes, sparse labels, paint-only updates, filtering, cleanup and virtual lists at configurable sizes; reports separate binding work from UI visits and reject failed correctness checks.
 - `tools/cui-compare` builds the pinned CUI tracker alongside Zinc’s tracker and records artifact sizes and optional frame, memory and idle CPU samples with their workload limitations.
+- QuickJS schedules cycle collection between frame callbacks and reports those pauses as `gc` in `ZINC_PROFILE`, frame traces and the performance panel; memory pressure can still trigger an automatic collection.
 
 #### Faster
 

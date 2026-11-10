@@ -2,6 +2,7 @@
 // one; only the damaged rectangle is rasterized and presented (UI-09), so static screens cost almost nothing.
 #include "zrt.h"
 #include "zrt_raster.h"
+#include "zn/frame_profile.h"
 
 #ifndef ZRT_MAX_DRAW_CMDS
 #define ZRT_MAX_DRAW_CMDS 8192
@@ -573,8 +574,8 @@ extern "C" void zrt_host_close(void* f);
 namespace zrt {
 namespace gfx {
 namespace prof {
-enum { APP, INPUT, ANIM, LAYOUT, PAINT, EFFECTS, DIFF, RASTER, PRESENT, N };
-static const char* const NAMES[N] = {"app", "input", "anim", "layout", "paint", "effects", "diff", "raster", "present"};
+using namespace zn::frame_profile;
+static const char* const NAMES[N] = {"app", "input", "anim", "layout", "paint", "effects", "diff", "raster", "present", "gc"};
 #define ZRT_PROF_FRAMES 4096
 #define ZRT_PROF_SPANS 32768
 #define ZRT_PROF_BANDS 8
@@ -628,7 +629,7 @@ static void stat_line(StrBuilder& sb, int32_t col) {
   if (!v) return;
   for (uint32_t i = 0; i < n; i++) {
     uint32_t s = 0;
-    if (col < N) s = st->us[i][col]; else for (int32_t p = 0; p < PRESENT; p++) s += st->us[i][p];
+    if (col < N) s = st->us[i][col]; else for (int32_t p = 0; p < N; p++) if (p != PRESENT) s += st->us[i][p];
     v[i] = s;
   }
   for (uint32_t gap = n / 2; gap > 0; gap /= 2)   // shell sort: no libc
@@ -653,7 +654,7 @@ static void json_col(StrBuilder& sb, int32_t col) {
   uint64_t sum = 0;
   for (uint32_t i = 0; i < n; i++) {
     uint32_t x = 0;
-    if (col == N + 2) x = st->presented[i]; else if (col == N + 1) x = st->interval[i]; else if (col < N) x = st->us[i][col]; else for (int32_t p = 0; p < PRESENT; p++) x += st->us[i][p];
+    if (col == N + 2) x = st->presented[i]; else if (col == N + 1) x = st->interval[i]; else if (col < N) x = st->us[i][col]; else for (int32_t p = 0; p < N; p++) if (p != PRESENT) x += st->us[i][p];
     v[i] = x; sum += x;
   }
   sort_us(v, n);
@@ -668,7 +669,7 @@ static uint32_t over(int32_t col, uint32_t us) {
   uint32_t n = st->nframes < ZRT_PROF_FRAMES ? st->nframes : ZRT_PROF_FRAMES, k = 0;
   for (uint32_t i = 0; i < n; i++) {
     uint32_t x = 0;
-    if (col == N + 2) x = st->presented[i]; else if (col == N + 1) x = st->interval[i]; else for (int32_t p = 0; p < PRESENT; p++) x += st->us[i][p];
+    if (col == N + 2) x = st->presented[i]; else if (col == N + 1) x = st->interval[i]; else for (int32_t p = 0; p < N; p++) if (p != PRESENT) x += st->us[i][p];
     if (x > us) k++;
   }
   return k;
@@ -854,7 +855,7 @@ extern "C" void zrt_prof_info(const char* key, const char* val) {
 const char* (*thread_trace)(int32_t op, size_t* n) = nullptr;
 const char* (*hud_info)() = nullptr;   // a line from the host: the engine and its counters (Zinc Next: objects, allocations per frame)
 namespace hud {
-enum { W = 248, H = 140, GRAPH_Y = 88, GRAPH_H = 48, FRAMES = 120, BADGE_W = 72, BADGE_H = 14 };   // in logical pixels
+enum { W = 248, H = 150, GRAPH_Y = 98, GRAPH_H = 48, FRAMES = 120, BADGE_W = 72, BADGE_H = 14 };   // in logical pixels
 static int32_t state = -1;   // -1: the environment not read yet, 0 hidden, 1 shown
 static bool collapsed = false, dragging = false, moved = false, on_button = false, was_down = false;   // was_down: the real button (the program's is hidden)
 static float x = -1, y = 0, gx = 0, gy = 0;   // top-left corner (physical pixels; -1: not placed yet), grab offset
@@ -864,8 +865,8 @@ static uint32_t nstarts = 0, dropped = 0, stat_at = 0, p50 = 0, p99 = 0, frames_
 static uint64_t built_at = 0;     // when the panel was last rebuilt: 10 times a second, and every frame while it is dragged
 static bool relayout = true;      // shown, hidden, collapsed or expanded since the last rebuild
 static uint32_t* sorted = nullptr;   // ZRT_PROF_FRAMES values for the percentiles
-static const uint32_t COLORS[prof::N] = {0x60a5fa, 0xa78bfa, 0xf472b6, 0xfbbf24, 0x34d399, 0x94a3b8, 0x64748b, 0xf87171, 0x475569};
-static const char* const SHORT[prof::N] = {"app", "inp", "anim", "lay", "pnt", "fx", "diff", "ras", "pre"};
+static const uint32_t COLORS[prof::N] = {0x60a5fa, 0xa78bfa, 0xf472b6, 0xfbbf24, 0x34d399, 0x94a3b8, 0x64748b, 0xf87171, 0x475569, 0xc084fc};
+static const char* const SHORT[prof::N] = {"app", "inp", "anim", "lay", "pnt", "fx", "diff", "ras", "pre", "gc"};
 
 static bool show() {
   zrt_render_idle();
@@ -894,7 +895,7 @@ static void hide() {
 /** p50 / p99 of the work (every phase but present) over the frames the profiler holds: the numbers of ZINC_PROFILE's summary. */
 static void percentiles() {
   uint32_t n = prof::st->nframes < ZRT_PROF_FRAMES ? prof::st->nframes : ZRT_PROF_FRAMES;
-  for (uint32_t i = 0; i < n; i++) { uint32_t s = 0; for (int32_t p = 0; p < prof::PRESENT; p++) s += prof::st->us[i][p]; sorted[i] = s; }
+  for (uint32_t i = 0; i < n; i++) { uint32_t s = 0; for (int32_t p = 0; p < prof::N; p++) if (p != prof::PRESENT) s += prof::st->us[i][p]; sorted[i] = s; }
   for (uint32_t gap = n / 2; gap > 0; gap /= 2)
     for (uint32_t i = gap; i < n; i++) for (uint32_t j = i; j >= gap && sorted[j - gap] > sorted[j]; j -= gap) { uint32_t t = sorted[j]; sorted[j] = sorted[j - gap]; sorted[j - gap] = t; }
   p50 = n ? sorted[(n - 1) * 50 / 100] : 0;

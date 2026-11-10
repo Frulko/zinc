@@ -312,6 +312,7 @@ Every frame is split into phases, timed on the logic thread (`runtime/gfx.cpp`, 
 | `diff` | logical → physical pixels, the frame diff into damage rectangles |
 | `raster` | rasterizing the damaged rows: the span of the bands (SDL HAL; other HALs count it in `present`) |
 | `present` | the rest of the HAL present (texture upload, vsync) |
+| `gc` | QuickJS cycle scans scheduled at the end of the frame callback; included in `work` and trace spans |
 
 - `ZINC_PROFILE=1`: at exit, p50 / p99 / max per phase on stderr, plus `work` (every phase but `present`):
   `zinc profile: frames=600 work p50=1.44 p99=7.92 max=10.80 ms`, then one line per phase (the last 4096 frames).
@@ -325,6 +326,8 @@ Every frame is split into phases, timed on the logic thread (`runtime/gfx.cpp`, 
   in Chrome's Performance panel or `chrome://tracing`. The inspector's `Tracing` domain gives the same events live.
 - `zinc bench` (or `zinc test --bench`): see [testing](guide/06-testing.md#benchmarks).
 - Off (the default), a mark costs one test; buffers (~700 KiB) are allocated only when profiling.
+
+QuickJS checks allocator growth at frame boundaries: after 8 MiB it starts a cycle scan when the previous pause estimate fits the remaining 16.7 ms, and after 32 MiB it collects regardless. Scans are synchronous and indivisible, so this is a scheduling heuristic, not a pause limit. The automatic collector remains a memory-pressure fallback during a callback; those pauses stay in the phase that triggered them. Loading has 16 MiB of initial headroom and remains automatically collected. The `gc` phase covers boundary scans only, not loading, worker or `zinc:script` collections.
 
 ### Run and build progress
 

@@ -2,6 +2,8 @@
 #include <map>
 #include <set>
 #include "qjs/qjs.h"
+#include "qjs/gc.h"
+#include "zn/frame_profile.h"
 #include "zn/js_ext.h"
 #include "zn/log.h"
 #include "zn/loop.h"
@@ -784,6 +786,7 @@ void hostCall(zn::Rt id, HostArg* r, const HostArg* a = nullptr) { (zn::isLayout
 
 // the frame loop of a zinc:gfx program: poll, clock, due timers, begin, the callback, end (what the typed engine's __gfxLoop does)
 bool frameLoop(Engine& e) {
+  FrameGc gc(e.rt);
   HostArg r;
   hostCall(zn::Rt::HostGfxFrames, &r);
   const long frames = static_cast<long>(r.i);
@@ -796,12 +799,14 @@ bool frameLoop(Engine& e) {
   // loop in a live resize (zn::host::redraw, armed for the poll only): they are this same step, one level down.
   static std::function<bool()>* redrawStep = nullptr;
   std::function<bool()> step = [&]() -> bool {
+    gc.arm();
     HostArg r;
     std::fflush(stdout);   // what the program printed reaches a file or a pipe at each turn, as on the typed engine (ZN-638)
     std::function<bool()>* saved = redrawStep;
     redrawStep = &step;
     zn::host::redraw = [] { if (std::function<bool()>* s = redrawStep) { redrawStep = nullptr; (*s)(); redrawStep = s; } };
     hostCall(zn::Rt::HostGfxPoll, &r);
+    const auto frameStart = std::chrono::steady_clock::now();
     redrawStep = saved;
     if (!ok || !nativeTurn(e)) return false;
     HostArg paused;
@@ -838,6 +843,17 @@ bool frameLoop(Engine& e) {
       JS_ToFloat64(e.ctx, &at, a); JS_FreeValue(e.ctx, a);
       HostArg in[1]; in[0].d = at < 0 ? -1 : at > clock ? at - clock : 0;
       hostCall(zn::Rt::HostGfxIdleDue, &r, in);
+    }
+    const auto beforeGc = std::chrono::steady_clock::now();
+    if (gc.due(std::chrono::duration<double, std::milli>(beforeGc - frameStart).count())) {
+      HostArg phase[1]; phase[0].i = zn::frame_profile::APP;
+      hostCall(zn::Rt::HostGfxProfMark, &r, phase);
+      const auto startGc = std::chrono::steady_clock::now();
+      JS_RunGC(e.rt);
+      const auto endGc = std::chrono::steady_clock::now();
+      phase[0].i = zn::frame_profile::GC;
+      hostCall(zn::Rt::HostGfxProfMark, &r, phase);
+      gc.collected(std::chrono::duration<double, std::milli>(endGc - startGc).count());
     }
     hostCall(zn::Rt::HostGfxEnd, &r);
     JSValue g = JS_GetGlobalObject(e.ctx);
@@ -1100,6 +1116,7 @@ int run(const Options& o) {
   std::string entry = o.entry;
   if (!entry.empty() && !pathAbs(entry)) { char b[4096]; if (getcwd(b, sizeof b)) entry = normalize(std::string(b) + "/" + entry); }
   if (!context(e, dirOf(entry))) return 101;
+  JS_SetGCThreshold(e.rt, std::max(JS_GetGCThreshold(e.rt), JS_ZnMallocSize(e.rt) + 16 * 1024 * 1024));
   static ZnResourceStatsRegistration heap("js.heap", [](void* rt) {   // the inspector's Info view, as the other engines' (src/engine)
     JSMemoryUsage u;
     JS_ComputeMemoryUsage(static_cast<JSRuntime*>(rt), &u);
