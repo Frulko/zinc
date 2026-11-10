@@ -723,15 +723,19 @@ struct Lowering {
     return false;
   }
 
+  std::size_t argumentEnd(std::size_t begin, std::size_t end) const {
+    return end > begin && isP(end - 1, ",") ? end - 1 : end;
+  }
   // [a, b) is `list.map(f)` with one argument, an arrow or a function (of this file or imported) that returns JSX: rows to mount, not text
   bool listAt(std::size_t a, std::size_t b) {
     const std::size_t open = callParen(a, b);
     if (!open) return false;
     const std::string callee = calleeText(a, open);
     if (callee.size() <= 4 || callee.compare(callee.size() - 4, 4, ".map") != 0) return false;
-    if (!returnsJsx(open + 1, b - 1) && !(b == open + 3 && t[open + 1].kind == Tok::Ident && jsxFunctions().count(tx(open + 1)))) return false;
+    const std::size_t end = argumentEnd(open + 1, b - 1);
+    if (!returnsJsx(open + 1, end) && !(end == open + 2 && t[open + 1].kind == Tok::Ident && jsxFunctions().count(tx(open + 1)))) return false;
     bool oneArg = true;
-    scan(open + 1, b - 1, [&](std::size_t, const std::string& x) { if (x == ",") oneArg = false; });
+    scan(open + 1, end, [&](std::size_t, const std::string& x) { if (x == ",") oneArg = false; });
     return oneArg;
   }
   // a conditional as an expression: a fragment that shows its branch (react: the branch itself)
@@ -780,6 +784,7 @@ struct Lowering {
   // `wrap(() => <Text/>)`: a call handed a function that returns JSX gives the node it makes (not a list: `.map` is listAt's)
   bool passesRender(const std::string& callee, std::size_t open, std::size_t close) {
     if (callee.size() > 4 && callee.compare(callee.size() - 4, 4, ".map") == 0) return false;
+    close = argumentEnd(open + 1, close);
     bool one = true;
     scan(open + 1, close, [&](std::size_t, const std::string& x) { if (x == ",") one = false; });
     return one && arrowAt(open + 1, close) && returnsJsx(open + 1, close);
@@ -1433,7 +1438,7 @@ struct Lowering {
         std::size_t q = 0, colon = 0;
         const bool isTernary = ternary(a, b, q, colon);   // `c ? x : xs.map(...)` ends with a call too: not a list
         if (!isTernary && listAt(a, b)) {
-          std::string list = rw(a, open - 2), fn = rw(open + 1, b - 1);
+          std::string list = rw(a, open - 2), fn = rw(open + 1, argumentEnd(open + 1, b - 1));
           if (react) out.push_back("for (const __c of " + rw(a, b) + ") _append(" + parent + ", __c);");
           else {
             bool indexed = false;

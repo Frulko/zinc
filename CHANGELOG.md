@@ -229,6 +229,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Scrub fields without explicit bounds accept negative and large values, while bounded fields keep their drag sensitivity.
 - The full-screen image viewer opens from React callbacks, ignores late sharper-image replies after closing and releases its controls when its owner is destroyed.
+- JSX lists and render callbacks keep their children when a formatter adds a trailing call comma, including nested calendars.
+
 
 ### The web
 

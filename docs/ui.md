@@ -108,6 +108,7 @@ and node-generation checks, so an old setter cannot render into a recycled node.
 `<Show when={condition} fallback={<Text>Empty</Text>}>...</Show>` mounts its complete child body in Solid (and kit components consumed by React): one node,
 several siblings, or a map returning JSX nodes. Changing the condition removes the old branch and its owned effects.
 Its expressions follow ordinary child rules: a map returning numbers and a numeric array such as `{[7, 8]}` remain text (`7,8`).
+A trailing call comma in `{rows.map(row => <Text>{row}</Text>,)}` keeps the same children as the call without it, including nested maps and named or imported JSX callbacks.
 
 ## Styled runs inside one text
 
