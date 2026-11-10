@@ -1828,3 +1828,8 @@ Integrated80c0c0ad2, compiler54114 unchanged. Mac plugin1728176B, SHAe0aeff0f3dd
 ### 2026-11-10 — ZN-161.02 Symbols and iteration integrated size proof
 
 Sourcee74f0e5e9, compiler3199b9a9cc97ab7240e8493f51632e833d814a87d05a388ef1eaa60365034cf9. OriginalHero native7978168B unchanged, SHA d07dc94820d26379bd7486bf4cebc1e9b37e8a3c89996a00c18dd327576aeb5d; generatedCPP/header9539917+60PCH=9539977B. All3/four historical hashes PASS. RawkitJS236192/246407/283256B unchanged, unused10215B/25Bmargin, aggregate15Bmargin; AOT5193448/5259552/5778208B, unused66104B,57628/component. No speed/RSS claim. Pairedtinyworker baseline54114/featureae411814: unusedSymbol0native/+4491CPP; usedSymbol+200512native. Table120B(+8), MapObj136B, sidecar32B+1024B for128IDs; cursor16B payload+40B header/allocatorrounding. RootexactT0s/threeAOTfixtures/leaks/patchqueue pass. .logs/integration-2026-11-10/symbols/summary.json; workerarchived161-symbol-final.
+
+
+### 2026-11-10 — ZN-513 profile defaults and literal ARM build aliases
+
+Source8c2f1ee82/compilerffec2b6ecbe90bed688d2464728c0e09b1e5faf1a31769f4ee0edd7911c39755. Rootall3SCREEN defaults720x576/480x272 and no-profile320x240, chip_profiles/tc_cache PASS; worker27overridecases PASS. ActualCHIP Hello10506576B SHAe1722df3e64381c72c08f0834b19ee3eab7635394a67ca7aa2e3eea622d8c049; Pocket10506596B SHA398e646a9bf3aeb28bf7a131585523f0a0c58bbd6e4276e9f50547b041f02124. Root verified hashes and ARMv7/VFPv3/NEON/hardfloat ELF metadata. Neitherexecuted. BothHerocrossbuilds stopatmissingvideo/libavformat sysroot. No speed/RSS/physicalgraphics claim; taskAC1open. Proof .logs/integration-2026-11-10/profile513/summary.json; archives513-screen-final.

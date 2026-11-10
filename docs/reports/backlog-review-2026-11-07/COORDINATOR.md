@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated513 screen/aliases8c2f1ee82; rootcommonffec2b6e exactchip_profiles/tc_cache +all3defaults/actualHelloELFmetadata PASS, all10payloads preserved. Worker27all3cases/bothHello built; bothactualHero targets fail video/libavformat missing. BacklogAC1open,85Doneunchanged. Archive513-screen (50sourcecheckpoints). 334researchcomplete; newTCworkerownsautofetch, existingpinslackFFmpeg.
+
 - Re-reserve513 in fresh tree for sharedplatform SCREENdefaults gap. Existing platformModuleSource has currentProfile but initializes320x240; useprofile width/height unless explicitsize. Source/helper regression all3, no main/HAL/UI/RT edits. Currentcommon stable3199b9a9/e74f0e5e9. No widenedAC/metadata workaround; crosshello/Hero criterion staysopenunlessactualproof.
 
 - Integrated161.02 1a717097f/D296 +513tables e74f0e5e9. Root commoncompiler3199b9a9, exactsymbols/qjsbytecode/chipprofiles +AOT3fixtures/patchqueue/rawkit +originalHeroall3 fourhashes/7978168B PASS;85Done. Archive161/513 (49sourcecheckpoints), all10 payloads preserved. ExistingNanoSVGwarning recorded. Next solecore513 runtimeSCREEN defaultgap, no envworkaround; literalAC1/AC2 stayopen. Parent541 native/noopAC3/4 nowchecked, physicalAC1/2 remainopen.

@@ -1078,5 +1078,80 @@
     "done_count": 85,
     "quiet_or_cold_timing_claim": false,
     "chip_status": "Backlog AC1/AC2 open; screen default bug not hidden"
+  },
+  "profile_screen_integration": {
+    "source": "8c2f1ee8229db4cea1c09d26adb465872b8b629b",
+    "compiler_sha256": "ffec2b6ecbe90bed688d2464728c0e09b1e5faf1a31769f4ee0edd7911c39755",
+    "checks": [
+      "chip_profiles",
+      "tc_cache"
+    ],
+    "all3_defaults": [
+      [
+        "chip",
+        "interp",
+        "chip 720 576 true true true true"
+      ],
+      [
+        "chip",
+        "quickjs",
+        "chip 720 576 true true true true"
+      ],
+      [
+        "chip",
+        "aot",
+        "chip 720 576 true true true true"
+      ],
+      [
+        "pocketchip",
+        "interp",
+        "pocketchip 480 272 true true true true"
+      ],
+      [
+        "pocketchip",
+        "quickjs",
+        "pocketchip 480 272 true true true true"
+      ],
+      [
+        "pocketchip",
+        "aot",
+        "pocketchip 480 272 true true true true"
+      ],
+      [
+        "host",
+        "interp",
+        "320 240"
+      ],
+      [
+        "host",
+        "quickjs",
+        "320 240"
+      ],
+      [
+        "host",
+        "aot",
+        "320 240"
+      ]
+    ],
+    "worker_27_override_cases": "PASS",
+    "cross_Hello_verified": [
+      {
+        "target": "chip",
+        "bytes": 10506576,
+        "sha256": "e1722df3e64381c72c08f0834b19ee3eab7635394a67ca7aa2e3eea622d8c049",
+        "executed": false
+      },
+      {
+        "target": "pocketchip",
+        "bytes": 10506596,
+        "sha256": "398e646a9bf3aeb28bf7a131585523f0a0c58bbd6e4276e9f50547b041f02124",
+        "executed": false
+      }
+    ],
+    "hero_blocker": "both targets video/libavformat absent in ARMv7 sysroot",
+    "status": "Backlog AC1 open; AC2\u20135 checked",
+    "done_count": 85,
+    "protected_payloads": 10,
+    "ARM_execution": false
   }
 }
