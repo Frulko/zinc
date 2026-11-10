@@ -2,7 +2,13 @@
 id: ZN-1115
 title: Restore flex display for responsive hidden regions
 status: Backlog
-assignee: []
+ordinal: 1259
+milestone: m-32
+labels:
+  - ui
+  - size-S
+assignee:
+  - '@parallel'
 created_date: '2026-11-10 02:53'
 labels: []
 dependencies: []

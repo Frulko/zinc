@@ -9,9 +9,9 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 | ZN-1112 narrow Tabs | .worktrees/1112 / work/1112 | Fresh kit Tabs/reveal worker; actual End selects Account but label/focus clipped at360px all3, no caller workaround. |
 | ZN-1078.27 Notes | .worktrees/1078.27 / work/1078.27 | Fresh local notes demo: search/tags/edit/Markdown and responsive navigation, existing kit only. |
 | ZN-1078.28 Assistant | .worktrees/1078.28 / work/1078.28 | Fresh local scripted assistant demo, existing AI components, no backend/model call. |
-| ZN-1078.23 Settings completion | .worktrees/1078.23 / work/1078.23 | Fresh worker revalidates original app/captures on repaired common after1111/1112; no new feature or workaround. |
+| ZN-1114 →1115 UI core | .worktrees/1114 / work/1114 | Sole UI core chain: layer reduced motion then hidden md:flex. Only layer/display token regions; external Map/Fenwick patch protected/archived by SHA. No engine C++ build. |
 
-Core chain1111/1113 and Tabs1112 integrated and released, no active core writer. Common rebuild and combined exact proofs PASS on47a238…; announce future changes. Finish reported integration before filling the next slot. Notes27/Assistant28 now reserved. Settings23 fresh completion after common rebuild and combined proofs; Mail25 reduced-motion layer evidence pending, shared ui.ts remains protected. Read current task/dependencies and search primary references before claiming.
+Core chain1111/1113 and Tabs1112 integrated and released, 1114/1115 sole active UIcore writer. Common rebuild and combined exact proofs PASS on47a238…; announce future changes. Finish reported integration before filling the next slot. Notes27/Assistant28 now reserved. Settings23 fresh completion after common rebuild and combined proofs; Mail25 reduced-motion layer evidence pending, shared ui.ts remains protected. Read current task/dependencies and search primary references before claiming.
 
 ## Integrated
 
@@ -25,7 +25,7 @@ Core chain1111/1113 and Tabs1112 integrated and released, no active core writer.
 
 - Dashboard22 1d67788cf Done: actual all3 entry+actions, nine inspected pictures light/dark/360px, local kit build desk. Root check/interp4 PASS; root inspected native light and narrow form, responsive/password eye aligned. Provenance kit-integration JSON dashboard_integration. Title differs visually across original captures; standalone canonical and import-only App cases report correct28px, no confirmed engine defect. No override.
 
-56 distinct Done since1078.03: twenty-one ZN-1078 leaves (.03–.22,.24), plus1079–1113. Current feature sourcefe4b8bee5 (1111c0813bdd5,1113428d48c1b,1112fe4b8bee5); Settings remains checkpointBacklog pending fresh final app proof. Earlier history and proposed tests: session-handover-2026-11-09.md and session-handover-2026-11-10.md.
+57 distinct Done since1078.03: twenty-two ZN-1078 leaves (.03–.24), plus1079–1113. Current feature sourcefe4b8bee5 (1111c0813bdd5,1113428d48c1b,1112fe4b8bee5); Settings remains checkpointBacklog pending fresh final app proof. Earlier history and proposed tests: session-handover-2026-11-09.md and session-handover-2026-11-10.md.
 
 - JSX1110 ebe53adf2: valid trailing commas in JSX map callbacks preserve nodes, ordering and evaluation across engines. Exact jsx_map_trailing passes. Planning b4edca089 completes normally formatted source; BoardCard key fixes actual React keyboard-drop focus. kit_planning all3/both models and six refreshed pictures pass.1110AC3 closed.
 - AI18 90b24121b: nine controls, seven inspected pictures; models/interactions both UI models/all3. Native Textarea maxRows/onKeyDown preserve IME/caret/shortcuts. Root kit_ai, original composerQJS4frames and unchanged gate pass. docs/reports/kit-ai-proof.md.
