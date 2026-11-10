@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Lossless circle generator7774708ca integrated, Code13 Done on actual unchanged candidate gate: JS235962/241206/277973,4085/component,97B strict headroom; SVG extended oracle all3 byte-identical, cold cost unmeasured. Root clean final rebuild now running to combine1108/1109/Charts/circles before closing Charts. CodeSize agent ended; reserve Planning17 for fresh TS-only worker beside Media16/Tool14. Reuse dnd, picker-date, existing Calendar and Kanban example; no core overlap.
+
 -1109 integrated51188abb0; original Tool models all3 and30/30 UI routes pass on b96e6cb7,1108 AC3 closed.41Done, both released. Core1108 agent finished; CodeSize now sole core generator writer, lossless circle prototype saves109B and preserves SVG bytes/metadata, actual oracle/gate pending. Reserve Media16 for fresh TS-only worker, reuse ImageViewer/image-cache and existing image providers; no runtime/core overlap. Common rebuild grouped with SVG correction, current85f6 and frozen candidate packages explicitly identified.
 
 - Charts15 checkpoint e85f33a65 integrated/released Backlog AC1/2 complete, AC3 same12B strict shared excess with Code; all15 types/geometry all3/both-model UI and seven inspected pictures proven. Reserved fresh Code13 completion for shared size analysis; core access read-only until sole core1109 finishes. Existing lossless Lucide generator src/frontend/modules.cpp1537 is a lead (6459 d-only paths/540 standard circles catalog-wide), not permission to trim icons or hand-minify. Frozen1108 AOT bundle repaired with58 immutable archive clones from source-identical runtime build; Panels can finish its own gate without mutable artifacts.
