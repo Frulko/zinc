@@ -989,5 +989,28 @@
       },
       "commit": "1204e3ff0813d1e6c7e3cad2b2313d7d28106904"
     }
+  },
+  "cook_geometry_integration": {
+    "source_commit": "b7c0d7b4c85956e79a867fd966060a59fafeb969",
+    "engine_sha256": "54114b62024f586d835630c7964bfa7e037f93c989b8d9464961b04beea46a9b",
+    "actual_linked_cooker": "PASS four profiles/determinism/budget/LOD/PSP integer vertices/independent XYZ error",
+    "exact_t0": "cook PASS",
+    "done_count": 81,
+    "performance_or_hardware_claim": false,
+    "worker": {
+      "compiler_sha256": "0523dc12d32233b0891970a1c5906afac1c483c53e9a1090d760036e20a342ac",
+      "source_fixture": "tests/data/cook/two-triangles.gltf",
+      "fixture_bytes": 1049,
+      "pack_bytes": 93,
+      "pack_sha256": "86517c21f2f34d64a04278d8137c438d61e1f25dc499b627501c7f1e7acc6ae0",
+      "old_error": 0,
+      "new_error": 6.9066e-06,
+      "old_receipt_bytes": 219,
+      "new_receipt_bytes": 228,
+      "pack_unchanged": true,
+      "budgets": "all four: triangles 2 > 1 rejected naming cell default section; budget 2 accepted",
+      "native_helper_warning_free": true,
+      "independent_mean_xyz_error": 6.9065981446157634e-06
+    }
   }
 }

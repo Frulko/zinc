@@ -14,11 +14,12 @@ Array plan/proof scope: related object-reference arrays share actual ArrObj; sca
 
 ## Integrated and verified
 
-80 currently Done since1078.03:26 kit/demo leaves03–28,39 compiler fixes1079–1117,445 cache trust,774.31 Share,1119 quoted JSON,896 call server,803 async updates,395 no-graphics,587 webWorker,603 AOTsize,1120 Never,683 visibility,184 instancing,653 audio storage,391 desktop archives,449 wasm loading,707 library boot coverage. Partial/research/Review tasks are excluded.
+81 currently Done since1078.03:26 kit/demo leaves03–28,39 compiler fixes1079–1117,445 cache trust,774.31 Share,1119 quoted JSON,896 call server,803 async updates,395 no-graphics,587 webWorker,603 AOTsize,1120 Never,683 visibility,184 instancing,653 audio storage,391 desktop archives,449 wasm loading,707 library boot coverage,489 cooker contracts. Partial/research/Review tasks are excluded.
 
 -603d87d08bbd Doneall3AC: originalHero native7,995,032 B (4,968 B margin), all57CPP/header/PCH source~9.53MB, defaultO2/jobs3 full observed19.16s/0of57 reused objects on4f198+603. Original2,660 functions/assets retained. Resource and metadata bytes lossless, no feature/budget cuts. Table temporary418,786 B retained through program run; raw export/cross/bundle paths unchanged. D283.
 -1120903f17ed4 Done: Never distinct from Null, existing void/Unreachable returns, lazy uninhabited REF storage, proper closure/virtual adapters. Exact3 runtimefixtures/all3+11negatives and original namespace source pass. No runtime/VM/AOT/ABI changes. Assertions/projections remain explicit unsupported boundaries; standalone null/undefined and catch(void) generic gaps pre-exist. D285.
 -668032658ef7 ReviewAC1: immutable recursive closure uses own receiver, preserving outer/mutable cells and nested callbacks. Original2 objects/48B leaked ->zero; fullfixture44alloc/44free. Call-path timing unmeasured. D284.
+-489b7c0d7b4c Done: all4profile deterministic packs/receipts, LOD/budget/PSP integer-layout checks pass. quantError now measures mean Euclidean error from emitted XYZ; tiny93B pack unchanged, old0→6.9066e-06 model units. Root linkedCLI exactcook passes; no performance/hardware claim.
 -164369121d52 Backlog, bothACopen: existing lite host now removes Zinc OSC/DNS transport. Hosted timer retained-symbol binary4,797,832→4,778,520B; FS/process4,798,736→4,795,936B; purehello unchanged285,992B. Generic libuv sockets remain, no zero-network claim. Root exactlite_host/aot_embedded_blob, actualOSC and Heroall3 pass. D293.
 -5122d1bb151e ReviewAC2/5: Cortex-A8+NEON impliesVFPv3, runtime object cache hashes compileflags. ExactCLI cache11cold/0warm/11changed passes. Real10,486,940B dynamic hardfloat ARMv7 ELF and objects show propermetadata; no ARM execution/staticmusl/Hero cross claim. Reviewed oldcriteria remain unticked.
 -3911abd3ad0d Done: native packaged AppKit launcher receives cold/two warm archive events and registered UTI/viewer mapping; no default-handler change, all children end. Linux package/install/AppImage metadata and hostile argv paths validate with official tools. Old-release installer preserved. D291; no Linux desktop session/full package claim.
@@ -37,9 +38,9 @@ Array plan/proof scope: related object-reference arrays share actual ArrObj; sca
 
 ## Read-only common engine
 
-`.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc`, compiled source2d1bb151e, SHA2560523dc12d32233b0891970a1c5906afac1c483c53e9a1090d760036e20a342ac. Adjacent archives/modules required. Announce before replacing; never build main externalWIP. Source-only SDKpatch tests use this compiler plus an explicit private library.
+`.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc`, compiled sourceb7c0d7b4c, SHA25654114b62024f586d835630c7964bfa7e037f93c989b8d9464961b04beea46a9b. Adjacent archives/modules required. Announce before replacing; never build main externalWIP. Source-only SDKpatch tests use this compiler plus an explicit private library.
 
-Root latest `.logs/integration-2026-11-10/host-lite/summary.json`: source369121d52/compiler3a42c19f, exactaot_embedded_blob/lite_host, actualOSC repeatedclose/DNS and originalHero all3 fourhashes PASS. Native7,978,168B SHA f38694527aa8b505db0ccd38408da9781675d002c62fff8d1337c1bb5c577807, source9,537,379B inclusivePCH. `.logs/integration-2026-11-10/arm512/summary.json`: common2d1bb151e/compiler0523dc12, exactcache and independently re-read/hashed actualARM object/ELF metadata PASS.80Done unchanged;164/512 partials excluded. Prior wasm-common/zapp/phaser-common proofs remain valid. No new timing/RSS/physical claims.
+Root latest `.logs/integration-2026-11-10/cook/summary.json`: rebuilt linkedCLI exactcook PASS,81Done. Prior `.logs/integration-2026-11-10/host-lite/summary.json`: source369121d52/compiler3a42c19f, exactaot_embedded_blob/lite_host, actualOSC repeatedclose/DNS and originalHero all3 fourhashes PASS. Native7,978,168B SHA f38694527aa8b505db0ccd38408da9781675d002c62fff8d1337c1bb5c577807, source9,537,379B inclusivePCH. `.logs/integration-2026-11-10/arm512/summary.json`: common2d1bb151e/compiler0523dc12, exactcache and independently re-read/hashed actualARM object/ELF metadata PASS.81Done;164/512 partials excluded. Prior wasm-common/zapp/phaser-common proofs remain valid. No new timing/RSS/physical claims.
 
 Latest raw kit: JS236192/246407/283256B; unused10215B (25B margin),4094/component,15B strict aggregate headroom. AOT5210216/5276320/5795072B; unused66104B,57639/component. Nativeeditor still links from barrelButton; no zero-unused-cost claim. Provenance `docs/reports/bench/kit-integration-2026-11-10.json`.
 
@@ -50,7 +51,7 @@ Latest raw kit: JS236192/246407/283256B; unused10215B (25B margin),4094/componen
 -575 ReviewAC2: honest frame-boundary GC phase, no hard4ms/p99/startup proof (D280).1068 Review: Hamlet geometry correct/tighter rectangles, no speed claim.895 Review: four reproducible Galenearchives/localinstall; publicassets unpublished, remote/RSS unproven.1078.29 Review: CUIharness built/offscreen only, unmatchedworkloads cannotrank.
 -774.31 Share Done after finalsame-binary capturedgroup cleanup proof, broader1118 separate.445 unsignedpack/fusedQuickJS executes retainedsource; trustedlocalcache unchanged (D279).896 localserver/browser/token/restart/stop proven; remoteTLS/TURN/physical capacity notclaimed.
 
-Completed source checkpoints/logs/bundles live under `.logs/archive-completed-workers-20261110/`; private proofs0700.44 completed source-worker trees removed through1120/1066-export/1066-CDP/1030-array/683/184/653/391/449/707-p5/707-frame/164/512, plus read-only research checkpoints. Active161.02 stays. Hero durable `.logs/hero-603-engine-20261110/last-combined/provenance.json` SHA1b046cd09d07072c599bfcd5f0b638514fd060014cf1d278defc1c671b457181. EarlierCode/Gallery immutable recovery stashes retained.
+Completed source checkpoints/logs/bundles live under `.logs/archive-completed-workers-20261110/`; private proofs0700.45 completed source-worker trees removed through1120/1066-export/1066-CDP/1030-array/683/184/653/391/449/707-p5/707-frame/164/512/489, plus read-only research checkpoints. Active161.02 stays. Hero durable `.logs/hero-603-engine-20261110/last-combined/provenance.json` SHA1b046cd09d07072c599bfcd5f0b638514fd060014cf1d278defc1c671b457181. EarlierCode/Gallery immutable recovery stashes retained.
 
 ## Protect external work
 
@@ -63,6 +64,7 @@ Main WIP: ui.ts42add19del sparseMap/Fenwick639/1074 (known incompleteprependRows
 Every app/test bounded; headless orbackground; no leftover. No suites/T1/T2/demo/pixelcompare/conformance/fuzz/bench/CI. Only exactsecondsT0 and shortfeature proofs. Max2building trees globally; oneheavy process, work-runqueue. No syntheticload. Call-path/quiet/long tests require ownermilestone; listingneverstopsloop.
 
 Tests to run (owner picks):
+-489 sinceb7c0d7b4c: broader real-world/degenerate-axis/LOD cook fixtures; current4profile deterministic/budget/layout/XYZ proof already passes. No new benchmark or hardware test.
 -164 since369121d52: broader OSC workers/restarts and host-family linking; armv6/ESP32 gates and actual socket-free host remain in the open task. Exactlite_host and originalHero already pass; no benchmark.
 -512 since2d1bb151e: cross_linux with GNU READELF (minutes cold), graphics linking/realARM execution; no QEMU and no static-musl claim. Exactcache and actualELF metadata pass.
 -391 since1abd3ad0d: full package/install_nocompiler/macOS+Linux desktop session checks (minutes, memory unmeasured). Cold/warm and official validators already passed; default associations unchanged.

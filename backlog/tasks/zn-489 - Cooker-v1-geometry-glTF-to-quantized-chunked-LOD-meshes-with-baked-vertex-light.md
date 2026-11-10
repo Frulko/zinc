@@ -3,11 +3,10 @@ id: ZN-489
 title: >-
   Cooker v1 geometry: glTF to quantized, chunked, LOD meshes with baked vertex
   light
-status: In Progress
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-10-09 07:39'
-updated_date: '2026-11-10 14:56'
+updated_date: '2026-11-10 15:29'
 labels:
   - handheld
   - pocketjs
@@ -42,7 +41,6 @@ Done: cook module + CLI 'zinc assets cook' + T0 test (cook.sh, byte-identical). 
 Review 2026-10-25: reopened. Cooker works but three of four criteria have no test. Add a T0 test over the four profiles: byte-identical, over-budget failure names cell and section, receipt carries quantization error and LOD counts, psp output has no float positions.
 Review 2026-11-07: rewrite. Cooker exists (zinc assets cook, tests/t0/cook.sh); only the missing tests remain, all on the Mac. Evidence: src/assets/cook.cpp; tests/t0/cook.sh (byte-identical and receipt only)
 
-
 2026-11-10 worker implementation (work/489):
 
 - Scope follows the 2026-11-07 review: cooker contracts only. Existing CLI presets remain unchanged; no new flag, renderer, demo, chunking or runtime LOD work. Callers/readers inspected: CLI assets cook/view; no consumer uses quantErr.
@@ -65,4 +63,5 @@ Proposed tests:
 - `ZINC=<integrated-build>/zinc ZINC_ROOT=<integrated-tree> tests/run --only cook`: prove all four contracts and repaired linked CLI after integration; seconds, memory unmeasured (small fixture + one native compile).
 - Hardware profile consumption belongs to the later cross-platform pass; this task proves host-side cooking only. No new later.md line or decision number proposed.
 
+Coordinator linked-CLI proof passes on source b7c0d7b4c, compiler 54114b62024f586d835630c7964bfa7e037f93c989b8d9464961b04beea46a9b: tools/build zinc and exact cook T0 cover four profiles, deterministic pack/receipt bytes, tiny budget boundary, integer PSP positions and independent XYZ error. Durable proof: .logs/archive-completed-workers-20261110/489-final; root .logs/integration-2026-11-10/cook/summary.json. No performance or hardware claim.
 <!-- SECTION:NOTES:END -->

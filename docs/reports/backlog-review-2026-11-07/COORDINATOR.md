@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+-489b7c0d7b4c linkedCLI/compiler54114b62 exactcook PASS, Done81. True storedXYZ meanerror fixes oldzero report, same93B tinyPSP pack; all4profile/budget/integer/LOD contracts proven. Archive489 (45completedsourcecheckpoints).161.02 remains solecore writer, broad semantic/Node/QJS/native/size verification underway; common frozen at asset-only54114 baseline.
+
 - Reserve489 independent asset-cooker verification beside161.02. Primary research found a real receipt bug: quantError reconstructs unrounded X/65535 while output truncates XYZ/32767. Worker may repair that exact metric and add four-profile deterministic/budget/integer-position regressions; no new CLI option or huge stress fixture. Starts non-building on common0523dc12, second build slot only if cook.cpp repair needs it.
 
 - D293/root host-lite369121d52 and TC2d1bb151e proofs recorded; commoncompiler0523dc12 stable.80Done unchanged,164 Backlog/512 Review excluded. Archive164/512 (44completedsourcecheckpoints cleaned).161.02 solecorewriter has actualSymbol/custom/livecollection proofs; Table-only lazy metadata carve-out allowed after inspecting WIP, allocator/ArrObj/other payloads still protected. No benchmark/suite/hardware claims.

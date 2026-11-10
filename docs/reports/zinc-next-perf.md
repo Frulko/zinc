@@ -1807,3 +1807,9 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 
 -164 same-source retained-symbol native artifacts: purehello285,992→285,992B, timer4,797,832→4,778,520B (-19,312), FS/process4,798,736→4,795,936B (-2,800). Maps/nm remove Zinc OSC/DNS/getaddrinfo implementation; genericlibuv TCP/UDP and existingGUI dylibs remain. No socket-free or runtime-speed claim. Root369121d52/compiler3a42c19f Hero7,978,168B SHA f38694527aa8b505db0ccd38408da9781675d002c62fff8d1337c1bb5c577807, generated9,537,319B+60B PCH; all3 historicalhashes pass.
 -512 real dynamic Cortex-A8 ARMv7 hardfloat console ELF10,486,940B SHA3c2b635abe6125802ab2bc92e8eda8dfd8b28ef5e990a3f85be1ee9c23dccb59. Tiny/runtime objects proveVFPregister args; linkedELF proves hardfloat flags andv7/VFPv3/NEON attributes. No execution/staticmusl/thumb/graphics/performance claim. Cache exactregression11cold/0warm/11changed-flags compilations. Root2d1bb151e/compiler0523dc12 independently verifies attributes/hashes. Proof host-lite/summary.json and arm512/summary.json under .logs/integration-2026-11-10.80Done excludes these open tasks.
+
+
+## Geometry cooker receipt correctness — 2026-11-10
+
+-489b7c0d7b4c: tinyPSP geometry remains byte-identical93B SHA86517c21f2f34d64a04278d8137c438d61e1f25dc499b627501c7f1e7acc6ae0; receipt219→228B. Reported meanEuclidean storedXYZ error0→6.9066e-06 model units, independently reconstructed6.9065981446157634e-06. This corrects metadata, not geometry compression or speed.
+-Root linkedCLI/compiler54114b62024f586d835630c7964bfa7e037f93c989b8d9464961b04beea46a9b exactcook passes all4profiles/twocook bytes, budgets/LOD/PSP integer vertices and independentXYZ error. No hardware, latency or RSS claim. Proof .logs/integration-2026-11-10/cook/summary.json and archived489-final/logs/cook-proof/summary.json.81Done.
