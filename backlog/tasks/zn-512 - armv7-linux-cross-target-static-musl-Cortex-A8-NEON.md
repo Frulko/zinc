@@ -2,7 +2,8 @@
 id: ZN-512
 title: 'armv7-linux: NEON in -mcpu and its checks'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:40'
 labels:
   - chip

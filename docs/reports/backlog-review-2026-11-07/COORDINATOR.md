@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve512 independent toolchain lane: Cortex-A8+NEON impliesVFPv3 in pinnedZig; crossruntime cache must hash flags or reuse oldCPU objects. Worker owns tc.cpp target/cachekey only and deferredcross T2 row, separate from164. Bound tinyELF attributes and consolehello proof; noHero/sysroot/fullT2/QEMU/benchmark run. Reviewed narrow scope is explicit, obsolete crosscriteria not claimed proven.
+
 - Recorded D291/D292: root80Done, native+wasm/common3ec59f on0e8bd9b90 builds and actualChrome3AC/Heroall3/nativebudgets PASS; root391mapping/defaults and707generic/Phaser exact PASS. Archive391/449/707-frame;42 completedsourcecheckpoints cleaned. Current164 solecorewriter;512 research complete for next independent toolchain lane. All10 protected WIP payloads preserved. No suites/benchmark/physical claims.
 
 - Reserve164 native host split/size gate after primary research: lite dispatch still retainsOSC; genericlibuv close/stream references also retain socket internals. Freshworker must prove real dependency reduction, not claim zero-network from source moves alone. One core writer, clean sys_host/loop/AOT/CMake; main display and allocator/HAL/UI WIP protected. Mac proof first perNov7review; cross/benchmark criteria stay open.
