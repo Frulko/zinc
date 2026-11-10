@@ -60,3 +60,7 @@ headset when you turn it on in a room call.
 Test hooks: `CALL_DEMO=1` runs a scripted session (call, mute, video off, the camera again, hang up, quit), `CALL_LOG=1` prints what happens
 (`tests/t1/webrtc_call.sh`), `CALL_DEMO=shot` waits for the picture and the numbers then quits (the screenshots), `CALL_MODE=room`
 starts on the room tab, `CALL_SIGNAL=ws://host:port` names the signalling server, `ZINC_SCHEME=dark` the dark scheme.
+
+## Self-hosting
+
+The [call server](server/README.md) configures and supervises the pinned Galène server and creates expiring browser invitations with QR codes.

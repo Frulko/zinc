@@ -1,0 +1,6 @@
+:root{color-scheme:light dark;font:17px system-ui;background:Canvas;color:CanvasText}
+body{max-width:32rem;margin:15vh auto;padding:2rem}h1{font-size:2rem;letter-spacing:-.04em}
+a{display:inline-block;padding:.8rem 1.1rem;border:1px solid GrayText;border-radius:.5rem;color:inherit;text-decoration:none}
+#browser{background:Highlight;color:HighlightText;border-color:Highlight}
+a[hidden]{display:none}
+a:focus-visible{outline:3px solid Highlight;outline-offset:3px}p{line-height:1.6;color:GrayText}

@@ -121,6 +121,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### New
 
 - `serve` listens on the address in the `ZINC_BIND` environment variable when the program names no `hostname`: `ZINC_BIND=127.0.0.1` keeps a service behind a reverse proxy without a rebuild.
+- `examples/webrtc-call/server` sets up and supervises a pinned Galène call server, creates expiring browser invitations with QR codes, and revokes them through Galène's administration API.
 
 #### Changed
 

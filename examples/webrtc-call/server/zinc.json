@@ -1,0 +1,6 @@
+{
+  "name": "webrtc-call-server",
+  "entry": "src/main.ts",
+  "app": { "id": "dev.zinc.webrtc-call-server", "version": "0.1.0" },
+  "permissions": ["net", "fs", "process", "instance"]
+}
