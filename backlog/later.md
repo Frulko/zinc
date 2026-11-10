@@ -979,3 +979,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-512: run cross_linux with GNU READELF at the owner-chosen milestone; local Cortex-A8 CPU/ABI metadata is proven, graphics linking and real ARM execution remain unproven.
 
 - ZN-541: after538/540, repeat split/material-merge fixtures on actualPi and prove the parent diorama/FPS; Mac T2-profile render is not VC4 hardware proof.
+
+- ZN-541.03: verify actualPi ETC1 upload/transfer/alpha and packaged source rebuild at the cross-platform/package pass; native ETC1 blocks and Mac RGBA renderer fallback already pass.

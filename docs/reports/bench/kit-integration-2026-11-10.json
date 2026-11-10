@@ -1030,5 +1030,33 @@
     "done_count": 83,
     "physical_Pi_FPS_browser_claim": false,
     "common_rebuilt": false
+  },
+  "native_ktx2_integration": {
+    "checkout": "80c0c0ad28bc60f8cd4ab2b780a56bf222c0ac11",
+    "compiled_source": "b7c0d7b4c",
+    "compiler_sha256": "54114b62024f586d835630c7964bfa7e037f93c989b8d9464961b04beea46a9b",
+    "checks": {
+      "exact-three-pi-ktx2": 0,
+      "check-ktx2": 0,
+      "check-ktx2-render": 0,
+      "render186-final": 0,
+      "render162-final": 0,
+      "packaged_basis_license_pin_and_28_checksums": 0,
+      "offline-linux": 0,
+      "offline-macos": 0,
+      "offline_T3_T4_no_native_or_toolchain": 0,
+      "threadsafe_static_guards_linked": 0
+    },
+    "T0": "PASS three_pi_ktx2; exact-three-pi-ktx2.log",
+    "done_count": 84,
+    "ETC1_bytes": 56,
+    "ETC1_exact_blocks": 7,
+    "RGBA_all_mips_bytes": 340,
+    "large_RGBA_bytes": 66564,
+    "native_plugin": "/Users/mowmow/.zinc/cache/macos/plugins/three-pi-6a1cce28ac3d14e0/plugin.dylib",
+    "native_plugin_bytes": 1728176,
+    "native_plugin_sha256": "e0aeff0f3ddb59e6693fc183f1e06459d0b820498e490e7a09a834f8a199b84e",
+    "physical_Pi_or_ETC1_GPU_or_FPS_claim": false,
+    "memory_measured": false
   }
 }

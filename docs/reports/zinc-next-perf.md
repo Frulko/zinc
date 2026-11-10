@@ -1818,3 +1818,8 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 ### 2026-11-10 — ZN-541.01/.02 real-three helper feature proof
 
 Integrated75ececd94/5009c9bd6; no engine build or performance benchmark. Exact fixture120000 indices compact to3 referenced vertices; split outputs cap65535 vertices/index65534. Actual r186WebGL2/r162WebGL1 Mac renders show2 eligible static planes merged to1 mesh with both expected red positions preserved. Root exactT0/checks and four directrender variants pass using compiler54114b62024f586d835630c7964bfa7e037f93c989b8d9464961b04beea46a9b. Counts/data semantics only, no FPS/RSS/physicalPi/browser claim. Durable .logs/integration-2026-11-10/three541/summary.json.
+
+
+### 2026-11-10 — ZN-541.03 native KTX2 feature and size
+
+Integrated80c0c0ad2, compiler54114 unchanged. Mac plugin1728176B, SHAe0aeff0f3ddb59e6693fc183f1e06459d0b820498e490e7a09a834f8a199b84e; independently rebuilt identicalbytes. NativeETC1 fixture7blocks/56B across4mips; RGBA340B, large typedresult66564B. Root realr162WebGL1/r186WebGL2 glTF+gamma/premul and exactT0 pass. Coldworker build observed~11s is indicative, not quiettiming; memoryunmeasured. Actualhost usesRGBAfallback, no ETC1GPU/Pi/FPS/browser/fullpackage claim. .logs/integration-2026-11-10/ktx541/summary.json.

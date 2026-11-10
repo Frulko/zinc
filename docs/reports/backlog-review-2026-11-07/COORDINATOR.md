@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated541.03 80c0c0ad2, D295,84Done. Root native/exactT0/checks/realr162+r186glTF+gamma+alpha/selectedpackage28checksums/freshofflineT3T4 PASS, no enginebuild/common54114 frozen. Archive541-KTX2 (47completedsourcecheckpoints). ParentPi/ETC1GPU/FPS/browser/fullpackage remainopen. 513 research ready; profile/data/docs-only next, literalcrossHero criterion staysopen untilproven.
+
 - Reserve541.03 for fresh native-plugin worker after541.01/.02 integration. Reuse existingBasis2.50; local synchronous boundedtranscoder, ETC1compressed when supported/RGBA32 fallback preservesalpha, no WASM/workers or sharedcore edit. Package existing vendor for installedsourcebuild. Existing real-three ABI/importmap; native proof onMac, parentPi/FPS remainopen. Secondbuildingtree only through work-run; common54114 frozen.
 
 - Integrated541.02/541.01 75ececd94/5009c9bd6, D294,83Done. Root exactthree_pi/checks and actualMac r186WebGL2/r162WebGL1 split+texturedmerge PASS; no engine build, compiler54114 frozen. All10 externalpayloads preserved. ParentPi/FPS/KTX2/browser proofs remain open. Next nativeKTX2 .03 reuses existingBasis vendor; research complete. Archive541-final (46completed sourcecheckpoints). Cumulative usage snapshot1655710in/178738579cached/569170out,823turns; not this batch cost.
