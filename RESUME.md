@@ -6,6 +6,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
+|597 native Three CPU math|.worktrees/597 / work/597|Initially plan/purekernels only whileIntl owns sharedcore; then extension/QuickJS guards afterhandoff. Performancegate remainsproposed.|
 |161.03 Intl number/date subset|.worktrees/161.03 / work/161.03|Solecorewriter; enUS+hostlocale/example needs, reuseOSformatters; all3/default/validation/unused-size proof, no ICUvendor/formatterregistry.|
 
 Root common ffec/source8c2f1ee82 remains frozen for Intl paired baseline; newer1121/334 are integrated and tested from their clean feature trees, compiler refresh pending.88Done. Both unchangedHero cross builds close513 completely. OnlyIntl161.03 worker active; next performance priority597 nativeThreeCPU accelerators, delegatedresearch .logs/research-597.txt. No quiet benchmark/fuzz milestone authorized; do not claim final FPS gains from prototype numbers.

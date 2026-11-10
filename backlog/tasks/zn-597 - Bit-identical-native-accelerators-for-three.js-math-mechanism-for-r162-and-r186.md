@@ -4,7 +4,8 @@ title: >-
   Bit-identical native accelerators for three.js math (mechanism for r162 and
   r186)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 09:28'
 labels:
   - perf
