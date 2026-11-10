@@ -192,6 +192,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
   a multiline composer and working stop/retry controls in Quiet light and dark.
 
 - `examples/ui/notes` is a Quiet notes workspace with Markdown editing and preview, searchable tags, pinned notes and confirmed deletion; sample notes reset when the window closes.
+- Atelier shares editable `.zapp` sketches with a captured cover and opens them as new copies. Copy a `/play/` link to share a small program without uploading it; `zinc pack --sources` and `zinc unpack` offer the same file roundtrip from the terminal.
 
 #### Changed
 

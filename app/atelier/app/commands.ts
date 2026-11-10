@@ -12,13 +12,14 @@ import { openFind } from './search';
 import { toggleTheme } from 'zinc:editor';
 import { openProject, projectOpen, setProjectOpen, publishApp } from './project';
 import * as fs from 'zinc:fs';
-import { spawnZinc, pack, run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, loadHelp, helpName, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady, reference } from './tools';
+import { spawnZinc, run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, loadHelp, helpName, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady, reference } from './tools';
 import { openDevices, closeDevices, devicesOpen } from './devices';
 import { startTour } from './tour';
 import { showWhatsNew } from '../components/WhatsNew';
 import { editCommand, setText, menuKey, goDefinition } from 'zinc:editor';
 import { suggest } from 'zinc:editor-lsp';
 import { t } from './text';
+import { chooseShareFile, copyPlayLink, chooseSharedFile, openShared } from './share';
 
 export class Command {
   id: string; menu: string; keys: string; run: () => void;
@@ -150,7 +151,7 @@ add('file', 'new', 'CmdOrCtrl+N', () => { setStartOpen(false); newSketch(); });
 /** Open Sketch…: the system's own folder dialog in a real window; the one-line prompt where there is none (a scripted or headless run, a desktop without dialogs). */
 function chooseSketch(): void {
   const from = sketchDir() === '' ? sketchbook() : sketchDir();
-  if (!dialog.isSupported() || sys.env('ZINC_HEADLESS') !== '' || sys.env('ZINC_DETERMINISTIC') !== '') { ask(t('atelier.sketch.open_prompt'), from, (v: string) => { if (openSketch(v)) setStartOpen(false); }); return; }
+  if (!dialog.isSupported() || sys.env('ZINC_HEADLESS') !== '' || sys.env('ZINC_DETERMINISTIC') !== '') { ask(t('atelier.sketch.open_prompt'), from, (v: string) => { if (v.indexOf('#files-json/') >= 0 || v.endsWith('.zapp')) openShared(v, (ok: boolean) => { if (ok) setStartOpen(false); }); else if (openSketch(v)) setStartOpen(false); }); return; }
   const o = new dialog.OpenOptions();
   o.title = t('atelier.sketch.open_title'); o.directory = true; o.defaultPath = from;
   const abort = sys.env('ZINC_ATELIER_DIALOG_MS');   // a test: the dialog closes by itself after that long
@@ -188,7 +189,9 @@ for (let i = 0; i < ENGINE_IDS.length; i++) add('sketch', 'engine-' + ENGINE_IDS
 add('sketch', 'devices', '', () => go('devices'));
 add('sketch', 'project', 'CmdOrCtrl+Comma', () => go('settings'), true);
 add('sketch', 'build', '', () => build());
-add('sketch', 'pack', '', () => pack());
+add('sketch', 'pack', '', chooseShareFile);
+add('sketch', 'copy-play-link', '', copyPlayLink);
+add('file', 'open-shared', '', () => chooseSharedFile((ok: boolean) => { if (ok) go('code'); }));
 add('sketch', 'publish', '', () => publishApp());
 add('sketch', 'share', '', () => go('share'));
 add('sketch', 'add-file', 'CmdOrCtrl+T', () => { if (sketchDir() !== '') ask(t('atelier.file.new_prompt'), '', (v: string) => newFile(v)); }, true);

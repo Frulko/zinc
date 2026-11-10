@@ -67,6 +67,9 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
 /** `zinc changelog [version]`: the CHANGELOG.md section of this version (a dev build: Unreleased) or of the one named. */
 int changelog(const std::vector<std::string>& args, const std::string& engineRoot, const std::string& version);
 
+/** `zinc unpack <app.zapp> --out <new-directory>`: verified editable copy, without running it. */
+int unpackApp(const std::vector<std::string>& args, const std::string& version);
+
 /** `zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir]`: the program headless and deterministic, its frames as PNG files. (`capture --scene` is the scene replay.) */
 int capture(const std::vector<std::string>& args);
 /** `zinc bench [entry|dir] [--frames n]`: the frame timings (p50 / p99 / max per phase) of a program run headless. */

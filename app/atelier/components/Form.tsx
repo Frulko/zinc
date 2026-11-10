@@ -1,11 +1,12 @@
 // The parts of the pages of the sidebar (Settings, Devices, Share), after macOS's System Settings: a title, then groups of rows
 // on a white card with hairlines between them, the label on the left and its control on the right.
 import * as ui from 'zinc:ui';
+import { Button as KitButton, theme as kitTheme } from 'zinc:ui/kit';
 import { theme, bg, fg, bd } from 'zinc:editor';
 
 /** A page over the content area, shown while `shown` says so: a title, a line under it, and its groups in one centred column. */
 export function Page(props: { shown: () => boolean; title: () => string; subtitle?: () => string; children: () => i32 }): i32 {
-  return <View className={`absolute inset-0 ${bg(theme().dark ? theme().bg : theme().sidebar)}`} style={{ hidden: props.shown() ? 0 : 1 }}>
+  const node = <View className={`absolute inset-0 ${bg(theme().dark ? theme().bg : theme().sidebar)}`} style={{ hidden: props.shown() ? 0 : 1 }}>
     <ScrollView className="grow flex-col items-center px-8 pt-7 pb-10">
       <View className="flex-col w-full max-w-[640] gap-1">
         <Text className={`text-[22px] font-bold ${fg(theme().text)}`}>{props.title()}</Text>
@@ -14,6 +15,8 @@ export function Page(props: { shown: () => boolean; title: () => string; subtitl
       </View>
     </ScrollView>
   </View>;
+  ui.focusScope(node, { trap: true, restore: true, autoFocus: true });
+  return node;
 }
 
 /** Rows on one card, a caption above it and a note under it. */
@@ -48,11 +51,7 @@ export function Field(props: { value: () => string; width: string; hint?: string
 
 /** A push button: the accent one for the main action of a group, else a bordered one. */
 export function Button(props: { label: () => string; primary?: boolean; onPress: () => void }): i32 {
-  const primary = props.primary === true;
-  return <View className={`flex-row items-center h-[26] px-3 rounded-[6] cursor-pointer active:opacity-80 ${primary ? bg(theme().accent) : `border ${bg(theme().bg)} ${bd(theme().border)} hover:${bg(theme().hover)}`}`}
-    onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) props.onPress(); }}>
-    <Text className={`text-[12px] ${primary ? 'font-semibold' : ''} ${fg(primary ? theme().onAccent : theme().text)}`}>{props.label()}</Text>
-  </View>;
+  return <KitButton label={props.label()} variant={props.primary === true ? 'default' : 'outline'} size="sm" className={`shadow-none focus-visible:ring-2 focus-visible:ring-${kitTheme().accent} focus-visible:ring-offset-2`} onClick={props.onPress} />;
 }
 
 /** A segmented control: one choice of a few, the chosen one raised. */

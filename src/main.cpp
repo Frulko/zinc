@@ -2540,6 +2540,7 @@ int main(int argc, char** argv) {
     if (argc >= 3 && (!std::strcmp(argv[argc - 1], "--help") || !std::strcmp(argv[argc - 1], "-h"))) return zn::cli::help({cl[0], "help", cl[1]});
     if (argc >= 2 && (!std::strcmp(argv[1], "init") || !std::strcmp(argv[1], "new"))) return zn::cli::init(cl, gRoot);
     if (argc >= 2 && !std::strcmp(argv[1], "changelog")) return zn::cli::changelog(cl, gRoot, kVersionText);
+    if (argc >= 2 && !std::strcmp(argv[1], "unpack")) return zn::cli::unpackApp(cl, kVersionText);
     if (argc >= 2 && !std::strcmp(argv[1], "config")) return zn::cli::config(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "tour")) return zn::cli::tour(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "learn")) return zn::cli::learn(cl, gRoot);
@@ -2876,16 +2877,19 @@ int main(int argc, char** argv) {
   if (argc >= 2 && !std::strcmp(argv[1], "pack")) {   // zinc pack [dir] [-o app.zapp]: the program, its baked resources, assets and zinc.json in one file (ZN-318)
     namespace fs = std::filesystem;
     setenv("ZINC_NATIVE_REQUIRED", "1", 0);   // a plugin that does not build stops the pack (ZN-1027, loadChecked)
-    std::string dir = ".", outPath, packTarget;
+    std::string dir = ".", outPath, packTarget, cover;
+    bool sources = false;
     bool inspect = false;   // the program with the inspector in front, as zinc dev runs it (zinc device deploy --inspect)
     AssetOptimizer optimizer;
     for (int k = 2; k < argc; ++k) {
-      if (!std::strcmp(argv[k], "--no-optimize")) optimizer.on = false;
+      if (!std::strcmp(argv[k], "--sources")) sources = true;
+      else if (!std::strcmp(argv[k], "--cover") && k + 1 < argc) { cover = argv[++k]; sources = true; }
+      else if (!std::strcmp(argv[k], "--no-optimize")) optimizer.on = false;
       else if (!std::strcmp(argv[k], "-o") && k + 1 < argc) outPath = argv[++k];
       else if (!std::strcmp(argv[k], "--inspect")) inspect = true;
       else if (!std::strcmp(argv[k], "--target") && k + 1 < argc) packTarget = argv[++k];
       else if (argv[k][0] != '-') dir = argv[k];
-      else { std::fprintf(stderr, "zinc pack: unknown option %s\nusage: zinc pack [dir] [-o app.zapp] [--inspect] [--no-optimize] [--target <linux target>]\n", argv[k]); return 2; }
+      else { std::fprintf(stderr, "zinc pack: unknown option %s\nusage: zinc pack [dir] [-o app.zapp] [--sources] [--cover picture.png] [--inspect] [--no-optimize] [--target <linux target>]\n", argv[k]); return 2; }
     }
     // --target: a .zapp for another Linux machine (a Pi): compiled here, its plugins' native code cross-built with the pinned zig as the
     // shared libraries that machine's engine loads (zinc device deploy, as the ESP32's app is built here and its core runs it)
@@ -2984,6 +2988,7 @@ int main(int argc, char** argv) {
       }
       if (have) if (std::string png = zn::cli::appIconPng(projDir, project.app.icon); !png.empty()) files["icon.png"] = std::move(png);   // the launcher tile (zinc-tile, the hub)
       if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
+      if (sources && !zn::zapp::addSources(files, projDir, entry, cover, perr)) { std::fprintf(stderr, "zinc pack: %s\n", perr.c_str()); return 1; }
       const std::string archive = zn::zapp::pack(files, name, kVersionText);
       std::ofstream out(outPath, std::ios::binary);
       out.write(archive.data(), static_cast<std::streamsize>(archive.size()));
@@ -3102,6 +3107,7 @@ int main(int argc, char** argv) {
       for (const auto& e : fs::directory_iterator(fs::path(projDir) / "build" / "assets" / assetTarget, ec))
         if (e.path().extension() == ".zpk") { std::ifstream zf(e.path(), std::ios::binary); std::stringstream zs; zs << zf.rdbuf(); files["packs/" + e.path().filename().string()] = zs.str(); }
     if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
+    if (sources && !zn::zapp::addSources(files, projDir, entry, cover, err)) { std::fprintf(stderr, "zinc pack: %s\n", err.c_str()); return 1; }
     const std::string archive = zn::zapp::pack(files, name, kVersionText, zn::kZbcVersion, zn::aot::rtNeeded(zm));   // needs: any engine with this ZBC and these runtime calls runs it
     std::ofstream out(outPath, std::ios::binary);
     out.write(archive.data(), static_cast<std::streamsize>(archive.size()));

@@ -7,6 +7,7 @@ import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import { EditorState, Diagnostic, edited, langOf } from 'zinc:editor';
 import { t } from './text';
+import { readProject, Project } from '../model';
 export { Diagnostic, edited };
 
 /** An open file: the editor's state (zinc:editor), its path, its tab name and the text last saved. */
@@ -134,8 +135,8 @@ function isSource(name: string): boolean {
 /** "entry" of the sketch's zinc.json, or ''. */
 function entryOf(dir: string): string {
   try {
-    const cfg = fs.readText(dir + '/zinc.json'), k = cfg.indexOf('"entry"');
-    if (k >= 0) { const a = cfg.indexOf('"', cfg.indexOf(':', k) + 1), z = cfg.indexOf('"', a + 1); if (a > 0 && z > a) return cfg.slice(a + 1, z); }
+    const project = readProject(fs.readText(dir + '/zinc.json'));
+    if (project !== null) return (project as Project).entry;
   } catch (e) { }
   return '';
 }

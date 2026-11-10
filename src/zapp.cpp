@@ -4,6 +4,7 @@
 
 #include "platform/platform.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -256,6 +257,90 @@ bool unpackTo(const std::string& path, std::uint64_t offset, std::uint64_t size,
     if (ec) fs::remove_all(tmp, ec);   // another run unpacked it first
   }
   std::ofstream(stamps, std::ios::app) << stamp << "\n";
+  return true;
+}
+
+namespace {
+bool sourceName(const std::filesystem::path& path) {
+  const auto ext = path.extension().string();
+  return ext == ".ts" || ext == ".tsx" || ext == ".js" || ext == ".mjs" || ext == ".json";
+}
+bool sharePath(const std::string& name) {
+  if (name.empty() || name.size() > 240 || name.find_first_of("\\:") != std::string::npos || name.find("..") != std::string::npos || std::any_of(name.begin(), name.end(), [](unsigned char c) { return c < 32 || c == 127; }) || name[0] == '/') return false;
+  for (const auto& part : std::filesystem::path(name)) if (part == "." || part == ".." || part.empty()) return false;
+  const auto cut = name.rfind('/');
+  return cut == std::string::npos ? name.size() <= 100 : cut <= 155 && name.size() - cut - 1 <= 100;
+}
+bool readShareFile(const std::filesystem::path& path, std::string& out, std::string& err, std::size_t limit = 8u << 20) {
+  std::error_code ec;
+  const auto size = std::filesystem::file_size(path, ec);
+  if (ec) { err = "cannot read " + path.string() + ": " + ec.message(); return false; }
+  if (size > limit) { err = "cannot share a file larger than " + std::to_string(limit >> 20) + " MiB: " + path.string(); return false; }
+  std::ifstream in(path, std::ios::binary);
+  out.resize(static_cast<std::size_t>(size) + 1);
+  in.read(out.data(), static_cast<std::streamsize>(out.size()));
+  if (in.bad() || in.gcount() != static_cast<std::streamsize>(size)) { err = "cannot read a stable file: " + path.string(); return false; }
+  out.resize(static_cast<std::size_t>(size)); return true;
+}
+}
+
+bool addSources(std::map<std::string, std::string>& files, const std::string& projectDir, const std::string& entry, const std::string& cover, std::string& err) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  std::size_t size = 0, count = 0;
+  for (auto it = fs::recursive_directory_iterator(projectDir, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (ec) { err = "cannot read the project's sources: " + ec.message(); return false; }
+    const auto name = it->path().filename().string();
+    if (name[0] == '.' || name == "build" || name == "dist" || name == "node_modules") { if (it->is_directory(ec)) it.disable_recursion_pending(); continue; }
+    if (it->is_symlink(ec)) { err = "shared sources cannot be symbolic links: " + it->path().string(); return false; }
+    if (!it->is_regular_file(ec) || !sourceName(it->path())) continue;
+    const auto rel = it->path().lexically_relative(projectDir).generic_string();
+    if (rel == "manifest.json") { err = "manifest.json is reserved by the .zapp archive"; return false; }
+    if (!sharePath(rel)) { err = "cannot share this source path: " + rel; return false; }
+    std::string text;
+    if (!readShareFile(it->path(), text, err)) return false;
+    size += text.size();
+    if (++count > 4096 || size > (32u << 20)) { err = "shared sources exceed 4096 files or 32 MiB"; return false; }
+    files[rel] = std::move(text);
+  }
+  if (ec) { err = "cannot read the project's sources: " + ec.message(); return false; }
+  const auto rel = fs::path(entry).lexically_relative(projectDir).generic_string();
+  if (!sharePath(rel) || !files.count(rel)) { err = "the shared entry must be a source file inside the project"; return false; }
+  if (!files.count("zinc.json")) files["zinc.json"] = "{\n  \"entry\": " + jsonString(rel) + "\n}\n";
+  if (!cover.empty()) {
+    std::string png;
+    if (!readShareFile(cover, png, err)) return false;
+    if (png.size() < 24 || png.compare(0, 8, "\211PNG\r\n\032\n", 8) != 0) { err = "the cover must be a PNG picture"; return false; }
+    files["icon.png"] = std::move(png);
+  }
+  return true;
+}
+
+bool unpackProject(const std::string& archivePath, const std::string& engine, const std::string& destination, std::string& err) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  std::string archive;
+  if (!readShareFile(archivePath, archive, err, 64u << 20)) return false;
+  std::map<std::string, std::string> files;
+  if (!unpack(archive, engine, files, err)) return false;
+  bool sources = false;
+  for (const auto& [name, text] : files) {
+    if (!sharePath(name)) { err = "the archive names an invalid project path: " + name; return false; }
+    const auto ext = fs::path(name).extension().string();
+    sources = sources || ext == ".ts" || ext == ".tsx" || ext == ".js" || ext == ".mjs";
+  }
+  if (!sources) { err = "this archive has no editable sources; share it with zinc pack --sources"; return false; }
+  if (!fs::create_directory(destination, ec)) { err = "choose a new destination directory: " + destination; return false; }
+  struct Cleanup { fs::path path; bool keep = false; ~Cleanup() { if (!keep) { std::error_code ignored; fs::remove_all(path, ignored); } } } cleanup{destination};
+  for (const auto& [name, text] : files) {
+    if (name == "manifest.json" || name == "program.zbc" || name == "program.info" || name == "resources.bin" || name.rfind("native/", 0) == 0) continue;
+    const auto outPath = fs::path(destination) / name;
+    fs::create_directories(outPath.parent_path(), ec);
+    if (ec) { err = "cannot create " + outPath.parent_path().string(); return false; }
+    std::ofstream out(outPath, std::ios::binary); out.write(text.data(), static_cast<std::streamsize>(text.size()));
+    if (!out) { err = "cannot write " + outPath.string(); return false; }
+  }
+  cleanup.keep = true;
   return true;
 }
 

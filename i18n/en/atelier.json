@@ -565,7 +565,7 @@
   "atelier.share.build": "App for this Mac",
   "atelier.share.build_hint": "A .app in dist/, compiled to native code, to open or to send",
   "atelier.share.pack": "Package for any machine",
-  "atelier.share.pack_hint": "A .zapp that runs anywhere: zinc run app.zapp",
+  "atelier.share.pack_hint": "One .zapp with editable sources and a picture. Open it in Atelier or with zinc run.",
   "atelier.share.pack_button": "Pack",
   "atelier.share.device": "A device",
   "atelier.share.no_device": "No device chosen",
@@ -595,5 +595,27 @@
 
   "atelier.cmd.pack": "Pack for Any Machine",
 
-  "atelier.cmd.publish": "Publish to the Hub"
+  "atelier.cmd.publish": "Publish to the Hub",
+  "atelier.cmd.copy-play-link": "Copy Playground Link",
+  "atelier.cmd.open-shared": "Open Shared Sketch…",
+  "atelier.share.link": "Playground link",
+  "atelier.share.link_hint": "Source files only, up to 8,192 URL characters. The fragment holds the program; nothing is uploaded. Share the file for assets and plugins.",
+  "atelier.share.copy_link": "Copy link",
+  "atelier.share.link_copied": "Playground link copied. Anyone with the link can read the program.",
+  "atelier.share.link_large": "The program is too large for a link. Share the .zapp file instead.",
+  "atelier.share.open_file": "Open shared sketch",
+  "atelier.share.open_hint": "A .zapp opens as a new copy in your sketchbook.",
+  "atelier.share.open_button": "Open file…",
+  "atelier.share.extension": "Choose a file ending in .zapp.",
+  "atelier.share.capturing": "Capturing the sketch picture…",
+  "atelier.share.packing": "Packing the sketch and its sources…",
+  "atelier.share.no_picture": "The sketch drew no picture. Run a sketch that draws before sharing.",
+  "atelier.share.failed": "Could not share the sketch. Check the destination and try again.",
+  "atelier.share.saved": "Shared sketch saved: {path}",
+  "atelier.share.archive_large": "The archive is larger than 64 MiB.",
+  "atelier.share.importing": "Checking and opening the shared sketch…",
+  "atelier.share.no_sources": "This archive has no editable sources. Share it with zinc pack --sources.",
+  "atelier.share.opened": "Shared sketch opened as a new copy.",
+  "atelier.share.stopped": "Sharing stopped.",
+  "atelier.share.timeout": "Sharing took longer than 30 seconds and was stopped. Check the sketch and try again."
 }

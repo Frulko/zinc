@@ -48,4 +48,9 @@ bool unpack(const std::string& archive, const std::string& engine, std::map<std:
  *  by member before it runs. The same refusals as unpack(), with its messages. */
 bool unpackTo(const std::string& path, std::uint64_t offset, std::uint64_t size, const std::string& engine, const std::string& cacheRoot, std::string& dir, std::string& err);
 
+/** Add editable project sources and an optional captured PNG as the existing icon.png cover. */
+bool addSources(std::map<std::string, std::string>& files, const std::string& projectDir, const std::string& entry, const std::string& cover, std::string& err);
+/** Verify a share archive and copy its editable files into a new destination; never execute its program. */
+bool unpackProject(const std::string& archivePath, const std::string& engine, const std::string& destination, std::string& err);
+
 }  // namespace zn::zapp

@@ -26,6 +26,8 @@ console.log(stepOf('  compile    4 files, 34 functions                        44
 console.log(stepOf('zinc device: spark does not answer').length, stepOf('installed blink on spark (35 MiB)').length, stepOf('  indented by the program').length, stepOf('').length);
 // zinc.json (ZN-736): what a project says, and edits that change one value and nothing else
 const hero = '{\n  "name": "hero",\n  "app": { "id": "dev.zinc.hero", "version": "1.2.0", "icon": "icon.png" },\n  "entry": "src/main.tsx",\n  "permissions": ["menu", "fs:read:data"],\n  "targets": {\n    "macos": {\n      "width": 1100,\n      "height": 700\n    },\n    "linux": { "width": 800, "height": 480, "display": "fbdev" },\n    "rpi1": { "display": { "driver": "gl", "mode": "1280x720" } }\n  },\n  "requires": ["heap>=8M", "display"]\n}\n';
+const sharedConfig = readProject('// "entry": "../outside.ts"\n{"main":"src/\\u006dain.ts"}') as Project;
+if (sharedConfig.entry !== 'src/main.ts') throw new Error('A shared manifest must ignore comment keys and decode its entry.');
 const pr = readProject(hero) as Project;
 console.log(pr.name, pr.id, pr.version, pr.icon, pr.entry, pr.declared, pr.permissions.join('+'), pr.requires.join('+'));
 console.log(pr.targets.map((t: Target) => `${t.name} ${t.width}x${t.height} ${t.display}`).join(' | '));

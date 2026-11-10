@@ -5,10 +5,11 @@
 import * as sys from 'zinc:sys';
 import * as proc from 'zinc:process';
 import { theme, fg } from 'zinc:editor';
-import { sketchDir, say } from '../app/workspace';
-import { build, pack, made, device, run, phase, IDLE } from '../app/tools';
+import { sketchDir, say, baseName } from '../app/workspace';
+import { build, made, device, run, phase, IDLE } from '../app/tools';
 import { hub, HERE, PUBLISH_TARGETS, publishTarget, setPublishTarget, publishChannel, setPublishChannel, publishMissing, publishApp } from '../app/project';
 import { shareOpen, go } from '../app/commands';
+import { chooseShareFile, copyPlayLink, chooseSharedFile, shareMessage } from '../app/share';
 import { Page, Group, Row, Button, Segmented } from './Form';
 import { t } from '../app/text';
 
@@ -23,9 +24,9 @@ function reveal(rel: string): void {
 /** What `kind` made last, under its row: its path and a way to it. */
 function Made(props: { kind: string }): i32 {
   const shown = (): boolean => made()[0] === props.kind && made()[1] !== '';
-  return <View className="flex-row items-center gap-2" style={{ hidden: shown() ? 0 : 1 }}>
-    <Text className={`text-[11px] font-mono ${fg(theme().success)}`}>{made()[1]}</Text>
-    <Text className={`text-[11px] cursor-pointer ${fg(theme().accent)}`} onPointerDown={() => reveal(made()[1])}>{t('atelier.share.reveal')}</Text>
+  return <View className="flex-row items-center gap-2 shrink max-w-[230]" style={{ hidden: shown() ? 0 : 1 }}>
+    <Text className={`text-[11px] font-mono max-w-[120] shrink truncate ${fg(theme().success)}`}>{baseName(made()[1])}</Text>
+    <Button label={() => t('atelier.share.reveal')} onPress={() => reveal(made()[1])} />
   </View>;
 }
 
@@ -39,9 +40,16 @@ export function SharePage(): i32 {
       </Row>
       <Row label={() => t('atelier.share.pack')} hint={() => t('atelier.share.pack_hint')}>
         <Made kind="pack" />
-        <Button label={() => t('atelier.share.pack_button')} onPress={() => { if (idle()) pack(); }} />
+        <Button label={() => t('atelier.share.pack_button')} onPress={() => { if (idle()) chooseShareFile(); }} />
+      </Row>
+      <Row label={() => t('atelier.share.link')} hint={() => t('atelier.share.link_hint')}>
+        <Button label={() => t('atelier.share.copy_link')} onPress={copyPlayLink} />
+      </Row>
+      <Row label={() => t('atelier.share.open_file')} hint={() => t('atelier.share.open_hint')}>
+        <Button label={() => t('atelier.share.open_button')} onPress={() => chooseSharedFile((ok: boolean) => { if (ok) go('code'); })} />
       </Row>
     </Group>
+    <Text className={`text-[12px] ${fg(theme().muted)}`} aria-live="polite">{shareMessage()}</Text>
     <Group title={t('atelier.share.device')}>
       <Row label={() => device() === '' ? t('atelier.share.no_device') : t('atelier.share.on_device', ['device', device()])} hint={() => t('atelier.share.device_hint')}>
         {device() === ''

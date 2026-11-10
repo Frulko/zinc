@@ -22,6 +22,7 @@ import { quit, clipboardText } from 'zinc:gfx';
 import { stepMotion } from './app/motion';
 import { theme, bg, useThemes, LIGHT, DARK, EditorState } from 'zinc:editor';
 import * as proc from 'zinc:process';
+import { openShared, stopShare } from './app/share';
 import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile, newSketch, sketchDir, saveAll, buffers, active, say } from './app/workspace';
 import { findOpen, closeFind } from './app/search';
 import { COMMANDS, MENUS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer, shareOpen, setShareOpen } from './app/commands';
@@ -148,7 +149,7 @@ ui.onKey((e: ui.KeyEvent) => {
 
 // ---- the way out: the running sketch, its inspector and the language server end with Atelier, whether it is Quit of the app
 // menu (⌘Q) or the window's close button (the system plugin then closes the window and ends the app by itself)
-function leave(): void { stopAll(); stopLsp(); }
+function leave(): void { stopShare(); stopAll(); stopLsp(); }
 menu.onClick('role:quit', (source: string) => { leave(); system.quit(); });
 system.on('window', (a: string[]) => { if (a.length > 0 && a[0] === 'close-requested') leave(); });
 
@@ -173,10 +174,12 @@ useThemes(LIGHT, DARK, sys.env('ZINC_ATELIER_THEME') === 'dark');
 
 const args = sys.args();
 let opened = false;
-if (args.length > 0 && args[0] !== '') opened = openSketch(args[0].startsWith('/') ? args[0] : sys.launchDir() + '/' + args[0]);
-if (!opened) { const last = lastSketch(); if (last !== '') opened = openSketch(last); }
+const shared = args.length > 0 && (args[0].endsWith('.zapp') || args[0].indexOf('#files-json/') >= 0);
+if (shared) openShared(args[0].indexOf('#files-json/') >= 0 || args[0].startsWith('/') ? args[0] : sys.launchDir() + '/' + args[0], (ok: boolean) => { opened = ok; if (ok) { setStartOpen(false); check(); } });
+else if (args.length > 0 && args[0] !== '') opened = openSketch(args[0].startsWith('/') ? args[0] : sys.launchDir() + '/' + args[0]);
+if (!opened && !shared) { const last = lastSketch(); if (last !== '') opened = openSketch(last); }
 if (opened) check(); else setStartOpen(true);
-if (!opened && tourWanted()) startTour(true);   // a first launch: the language, then the tour
+if (!opened && !shared && tourWanted()) startTour(true);   // a first launch: the language, then the tour
 checkWhatsNew();   // after an update: this version's lines of the changelog, once
 refresh('', '0');   // the paired devices, for the menu of the run control: read from a file, no network
 

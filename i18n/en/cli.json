@@ -277,5 +277,6 @@
   "cli.learn.lesson_done": "✓ {title}: lesson done.",
   "cli.learn.next": "Next: {cmd} ({title}).",
   "cli.learn.hint": "Hint: {hint}",
-  "cli.learn.solution": "The solution of step {step}:"
+  "cli.learn.solution": "The solution of step {step}:",
+  "cli.cmd.unpack": "Open the editable sources of a shared .zapp in a new folder"
 }

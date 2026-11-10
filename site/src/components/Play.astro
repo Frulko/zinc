@@ -63,6 +63,7 @@ const data = JSON.stringify({ starter, explain, base: b });
   import { lintGutter, setDiagnostics, type Diagnostic } from '@codemirror/lint';
   import LZString from 'lz-string';
   import { zipSync, strToU8 } from 'fflate';
+  import { projectFiles, projectLinkFiles, PROJECT_SOURCE_LIMIT, PROJECT_LINK_LIMIT } from '../../../lib/std/project-link';
 
   type Files = Record<string, string>;
   type Diag = { file: string; line: number; col: number; len: number; severity: 'error' | 'warning'; code: string; message: string };
@@ -75,11 +76,17 @@ const data = JSON.stringify({ starter, explain, base: b });
 
   // The program: from the address when it carries one, else the starter
   const fromHash = (): Files | null => {
+    if (location.hash.startsWith('#files-json/')) return projectLinkFiles(location.href);
     const m = location.hash.match(/^#files\/(.+)$/);
     if (!m) return null;
-    try { const f = JSON.parse(LZString.decompressFromEncodedURIComponent(m[1]) || 'null'); return f && typeof f === 'object' ? f : null; } catch { return null; }
+    if (m[1].length > PROJECT_LINK_LIMIT) throw new Error('The project link is too large.');
+    const text = LZString.decompressFromEncodedURIComponent(m[1]);
+    if (!text || text.length > PROJECT_SOURCE_LIMIT) throw new Error('Invalid project link.');
+    return projectFiles(JSON.parse(text));
   };
-  let files: Files = fromHash() ?? { ...starter.files };
+  let files: Files = { ...starter.files };
+  let linkError = '';
+  try { files = fromHash() ?? files; } catch (e) { linkError = String(e); status(linkError); };
   const sources = () => Object.keys(files).filter((f) => /\.tsx?$/.test(f));
   let cur = sources()[0];
   const project = () => { try { return JSON.parse(files['zinc.json'] ?? '{}'); } catch { return {}; } };
@@ -114,7 +121,7 @@ const data = JSON.stringify({ starter, explain, base: b });
   const waiting = new Map<number, (r: any) => void>();
   compiler.onmessage = (e) => {
     const m = e.data;
-    if (m.ready) { compilerReady = true; status('Ready.'); check(); return; }
+    if (m.ready) { compilerReady = true; if (linkError) status(linkError); else { status('Ready.'); check(); } return; }
     if (m.error) { status(`The compiler did not load (${m.error}). On a checkout: tools/build-wasm compiler, then build the site again.`); return; }
     waiting.get(m.id)?.(m); waiting.delete(m.id);
   };
@@ -190,6 +197,7 @@ const data = JSON.stringify({ starter, explain, base: b });
   const stop = () => { vm?.terminate(); vm = null; };
   async function run() {
     stop();
+    if (linkError) { status(linkError + ' Press Reset to use the starter.'); return; }
     $('play-out').textContent = '';
     status('Compiling…');
     clearTimeout(timer);
@@ -225,7 +233,7 @@ const data = JSON.stringify({ starter, explain, base: b });
   }
   $('play-run').onclick = run;
   $('play-reset').onclick = () => {
-    stop();
+    stop(); linkError = '';
     files = { ...starter.files }; cur = sources()[0];
     history.replaceState(null, '', location.pathname + location.search);
     open(cur); $('play-out').textContent = '';

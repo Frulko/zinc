@@ -25,6 +25,7 @@ export function zinc(args: string[], cwd: string, env: string[] = []): proc.Proc
   for (const v of SCRUB) { a.push('-u'); a.push(v); }
   a.push('ZINC_LANG=' + (SPOKEN.indexOf(args[0]) >= 0 ? lang() : 'en'));
   a.push('ZINC_STEPS=' + (args[0] === 'run' || args[0] === 'dev' || args[0] === 'export' || args[0] === 'pack' || args[0] === 'publish' || args.indexOf('deploy') > 0 ? '1' : '0'));   // the steps of a build are what the console shows; a check or a list is read whole
+  for (const value of env) a.push(value);
   a.push(ZINC);
   return proc.spawn('/usr/bin/env', a.concat(args), { cwd: cwd, env: env });
 }

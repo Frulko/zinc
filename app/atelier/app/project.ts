@@ -54,8 +54,8 @@ export function projectTitle(): string {
 /** The path of the app's icon, '' when zinc.json names none (or the file is not there). */
 export function iconPath(): string {
   const p = project();
-  if (p === null || (p as Project).icon === '') return '';
-  const path = sketchDir() + '/' + (p as Project).icon;
+  const icon = p === null || (p as Project).icon === '' ? 'icon.png' : (p as Project).icon;
+  const path = sketchDir() + '/' + icon;
   return fs.exists(path) ? path : '';
 }
 export function sizeHere(): Target | null {

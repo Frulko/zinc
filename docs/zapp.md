@@ -6,7 +6,21 @@
 zinc pack                  # build/<name>.zapp from the project in the current directory
 zinc pack my-game -o game.zapp
 zinc run game.zapp         # checks the archive, unpacks it once into ~/.zinc/cache/zapp/, runs it
+zinc pack my-game --sources --cover picture.png -o shared.zapp
+zinc unpack shared.zapp --out my-copy  # a new editable folder; never overwrites one
 ```
+
+In Atelier, **Share → Pack** asks where to save a `.zapp`, captures the first frame as its cover, and includes the sketch's sources.
+**Open shared sketch** (also in File) opens a fresh copy in the sketchbook; `zinc run app/atelier -- shared.zapp` opens it too.
+The cover is the existing `icon.png` archive member. The original project and its icon are unchanged.
+A command-line share uses `--sources` and optionally `--cover picture.png`. Ordinary packs keep their existing contents.
+Editable copies refuse archives over 64 MiB and verify all hashes and paths before writing. Source sharing refuses symbolic links,
+more than 4,096 source files, a source file over 8 MiB, more than 32 MiB of sources, or the reserved root name `manifest.json`. Archives without sources still run; they cannot be edited.
+
+**Copy link** puts the source files in a `/play/#files-json/…` URL fragment, without an upload or an account. Anyone with the URL can read
+and edit the sources. Links are limited to 8,192 URL characters; assets and native plugins travel in the `.zapp` instead. The playground
+keeps reading its existing compressed `#files/…` links. Atelier accepts its own source links as a startup argument or in the Open Sketch
+prompt when desktop dialogs are unavailable. Every import creates a new copy.
 
 The archive is a POSIX ustar written deterministically (names sorted, time 0, owner 0, mode 0644): two packs of the same project are
 byte-identical, and `tar tf game.zapp` lists it.
