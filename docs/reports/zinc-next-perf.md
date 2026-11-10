@@ -1782,3 +1782,9 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 
 - Root source4a822ba89/compiler3c618d3: originalHero native7,995,048B (4,952B decimal8MB margin), generatedCPP/header9,537,322B plus60B PCH=9,537,382B. All3 historical fourframe hashes pass. Exact array/never/records/recursive/nativeargs and rawkit pass; kit sizes unchanged from the previous block. Artifact sizes only, no new timing. Proof .logs/integration-2026-11-10/array-final/summary.json.
 -683 adds one64B saved projection per camera target; software uses existing depth and macOSGPU reads one synchronous pixel. Actual concave-torus/lifecycle checks pass. No latency, throughput, FPS or remote-GPU measurement; readback can stall. Proof .logs/integration-2026-11-10/visibility-smoke.log.
+
+
+## GLES2 solid rectangle instancing — 2026-11-10
+
+-8ac26e714 on actualGLES2 ANGLE2.1.28524/Metal AppleM1Pro:260 solid/occlusion rectangles, dynamicuploads16,640→6,240B (62.5% less), staticcornerbuffer32B once excluded. Both advertisedEXT/ANGLE give identical16,384B frame/hash94bd6acb523798e6 and independentexpectedpixels; resetdivisors+subsequentexpanded draw pass. This is an uploadbyte measure, not FPS or totalapplication traffic.
+-Rootf8e61be28/compiler17ffede27: Hero7,994,920B native (5,080B decimal8MB margin), generated9,537,320B+60B PCH. All3 historicalfourframehashes pass; rawkit unchanged sincepriorphase andnotrerun. No quiettiming, Pi/Linuxdriver or energy claim. Proof .logs/integration-2026-11-10/instancing/summary.json.

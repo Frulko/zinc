@@ -756,5 +756,31 @@
     "done_count": 75,
     "status": "Done",
     "gpu_stall_or_other_platform_performance_claim": false
+  },
+  "gles_instancing_integration": {
+    "source_commit": "f8e61be28e8703d333d844aa4ea79c694931fb64",
+    "engine_sha256": "17ffede27ec51d37cee17c44bd0aa1bd9ca1553f390c1df1472d72daeaf09538",
+    "native_bytes": 7994920,
+    "native_sha256": "fdc04db7c05f30003fe5e7e4fe0941e141eb0b91a40d98283cf65990ea3e6727",
+    "generated_cpp_and_header_bytes": 9537320,
+    "generated_inclusive_60byte_pch_wrapper": 9537380,
+    "exact_t0": [
+      "gl_caps"
+    ],
+    "real_gles2_ext_and_angle": "PASS",
+    "rectangle_upload_bytes": [
+      16640,
+      6240
+    ],
+    "hero_four_hashes_all3": "PASS",
+    "done_count": 76,
+    "quiet_or_cold_timing_claim": false,
+    "commit": "8ac26e714",
+    "driver": "ANGLE2.1.28524ab0c317c3e36 Metal AppleM1Pro GLES2.0",
+    "fixed_frame_hash": "94bd6acb523798e6",
+    "static_corner_bytes_once": 32,
+    "log_directory": ".logs/integration-2026-11-10/instancing",
+    "fps_claim": false,
+    "remote_driver_proven": false
   }
 }

@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Rootf8e61be28/compiler17ffede27 actualGLES2EXT+ANGLE/caps/Heroall3PASS,76Done;7,994,920Bnative/9,537,380Bsource. D289 anduploadbytesrecorded,184archive/removal follows. Builders653audio+449wasm; rootidle. Protectedpayloadsunchanged.
+
 -184 integrated8ac26e714 Done; actualGLES2 ANGLEMetal EXT+ANGLE identicalframe and62.5% fewer soliduploadbytes. Rootcommonrefresh/proofqueued. Reserve449 wasm browser loading asnextenginechain; research identifies missing validatedpack mounting/KTX2 path. Freshworker reads/plans first, no thirdbuildingtree while root+653authorized; wasm-onlyvendor adapter, no mainWIPworkaround.
 
 - Reserve653 independent audio memory check while184 owns GLreplay. Review asks verify upstream nonfloat tail; if fixed, preserve all480frames and halve sample storage; if unfixed, record/drop per existing task review without counting a completed engine feature. Audio plugin/vendor only, no allocator/QJS/host/HAL/sharedruntime edits. No long audio test or new demo.
