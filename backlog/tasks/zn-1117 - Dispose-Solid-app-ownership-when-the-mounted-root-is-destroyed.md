@@ -2,8 +2,7 @@
 id: ZN-1117
 title: Dispose Solid app ownership when the mounted root is destroyed
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 03:24'
 updated_date: '2026-11-10 03:34'
 labels:
