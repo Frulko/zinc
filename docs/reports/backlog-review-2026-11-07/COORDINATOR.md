@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Root common47a238 proofs/provenance and Settings completion source3e540bbe9 persisted.56currentlyDone after1112reopen; UIchain final gatePASS4094JS/component/15Bstrictheadroom, proofsall3 pass, commits/rebase pending. Active Music26/comparison29/UIchain. All completed worker logs/checkpoints archived; preserve external virtualization patch SHA at integration.
+
 - Notes27 checkpoint integrated (workered03166d4), BacklogAC2true/AC1open depends1114/1115/reopened1112. Real46-step all3+keyboard/pointer/mobile runs pass, hidden desktop and299paint idle repros retained; no app workaround. Reserve Music26 now dependenciesMedia16/Extended19Done. Sole UIchain final rawgatePASS JS235981/246196/283045 (4094/component,15B strict total margin; unused25B), actual probes/T0 pass, final Settings49 proof/commits pending. Current56Done after reopening1112, Settings23Done.
 
 - Assistant28 checkpoint integrated (workerdaaf3e7cb), BacklogAC2true/AC1open depends1114/1115; original all3functions/pass, desktophidden/reducedmotion awaitsharedfix. Reserve1078.29 comparison harness only; no quiet/benchmark runs with concurrent workers. Reuse existing bench tooling read-only, pinned CUI, script/report/proposed quiet run; real numbers unproven remain open. Notes27/UI1114→1115 active, common47a238 unchanged.57Done.

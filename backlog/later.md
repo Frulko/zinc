@@ -869,6 +869,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-1078.20: study first layout and offscreen drawing cost of the exhaustive gallery; final QuickJS smoke about37s under shared activity, finite/stable footprint, no quiet-machine benchmark claim. Existing growDrawCommands is enabled so no family is silently omitted.
 
+- ZN-1078.23: physical keyboard/touch/VoiceOver and native accessibility/long edit-save-discard/theme/scroll churn; current unchanged app all3 and360px focus/Avatar56 proof passes on common47a238.
+
 ## Cross-platform pass
 
 - ZN-1027: an export with a broken plugin to a Linux target fails as on the Mac.

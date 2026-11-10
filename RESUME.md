@@ -1,62 +1,60 @@
 # Resume — Zinc coordinator, 2026-11-10
 
-Continue zn-coordinate until main `.paused` exists or no startable work remains. Never ask the owner; no push. This root is the sole backlog coordinator. New workers inherit the configured model after “on rebascule”. Fast remains a launcher option. Current runtime: root + three workers.
+Continue zn-coordinate until main `.paused` exists or no startable work remains. Never ask the owner; no push. This root is the sole backlog coordinator. Runtime4 = root +3workers. New workers inherit configured model after “on rebascule”; Fast remains launcher option.
 
-## Active work
+## Active workers
 
-| Task | Worktree / branch | State |
+| Task | Tree / branch | State |
 | --- | --- | --- |
-| ZN-1112 narrow Tabs | .worktrees/1112 / work/1112 | Fresh kit Tabs/reveal worker; actual End selects Account but label/focus clipped at360px all3, no caller workaround. |
-| ZN-1078.27 Notes | .worktrees/1078.27 / work/1078.27 | Fresh local notes demo: search/tags/edit/Markdown and responsive navigation, existing kit only. |
-| ZN-1078.28 Assistant | .worktrees/1078.28 / work/1078.28 | Fresh local scripted assistant demo, existing AI components, no backend/model call. |
-| ZN-1114 →1115 UI core | .worktrees/1114 / work/1114 | Sole UI core chain: layer reduced motion then hidden md:flex. Only layer/display token regions; external Map/Fenwick patch protected/archived by SHA. No engine C++ build. |
+|1114→1115→1112|.worktrees/1114 / work/1114|Sole UIcore chain: reduced-motion layers, hidden md:flex, reopened hidden Tabs idle loop. All exact tests/original Mail/Notes/Assistant/Settings probes and combined raw gate pass; three commits + final rebase/metadata resolution underway. No C++build.|
+|1078.26 Music|.worktrees/1078.26 / work/1078.26|Fresh real local audio player, existing NowPlaying/Waveform/audio provider, six tiny owned generated previews. Muted agent proof only, no app framework/shared edits.|
+|1078.29 comparison harness|.worktrees/1078.29 / work/1078.29|tools/cui-compare + pinned public CUI tracker driver/build/report. No benchmark/quiet/idle-window run while others work. Real unmatched/unavailable numbers stay open/Review; no speed ranking.|
 
-Core chain1111/1113 and Tabs1112 integrated and released, 1114/1115 sole active UIcore writer. Common rebuild and combined exact proofs PASS on47a238…; announce future changes. Finish reported integration before filling the next slot. Notes27/Assistant28 now reserved. Settings23 fresh completion after common rebuild and combined proofs; Mail25 reduced-motion layer evidence pending, shared ui.ts remains protected. Read current task/dependencies and search primary references before claiming.
+Fill reported integrations first. After UIchain: fresh Mail25, Notes27 and Assistant28 completion workers, using existing source/proof checkpoints, no new features. No more work in finished contexts.
 
-## Integrated
+## Integrated state
 
--1111c0813bdd5 +1113428d48c1b: exact typeof_union/return_type all3, original Avatar/Settings56 and Mail shape/actions pass on final candidate5ec63ede27ea650917f80d20763d521763582eb89a107b34cea5821fec55e6f7. Candidate full artifacts in .worktrees/1111/build are frozen READONLY for new workers while root rebuilds common. Keep core tree until all switch.
--1112fe4b8bee5: existing horizontal overflow enabled for Tabs/NavigationTabs, shared reveal padding/offset from exported node (same data as old accessors), actual all3/bothmodels/T0/Settings49frames pass. Unchanged gate JS235962/246177/282868,4076/component, unused25B margin; AOT passes61306/component. Root combined proof pending rebuild.
+56 currently Done since1078.03:22kit/demo leaves(.03–.24),34compiler/fix tasks1079–1113 excluding reopened1112. Settings23 closed3e540bbe9 on original unchanged app with new all3/360px proof and pictures.1112 was briefly Done then reopened on a genuine idle regression; do not count it until final fix.
 
-- Gallery20 8678d8c6d Done: complete defaultall inclExtended,33landmarks, persistent accessible Jump and real Form/ResizeHandle, all3/narrowrotation/theme. Existing growDrawCommands avoids fixed draw pool saturation. Root full check/defaultall interp2 PASS without draw-pool warning; QJS37s indicative slowfirstlayout, not benchmark.
-- Settings23 checkpoint worker04826c88f integrated, Backlog AC2true/AC1open. Complete local app and all3/actions/7pictures, but original Avatar56 is40compiled and last Tabs focus clipped360px. Resume unchanged UI after1111+1112, no workaround. Durable repro/provenance .logs/settings-1078.23-20261110.
+- Compiler1111c0813bdd5 typeof mixed unions and1113428d48c1b ReturnType: exact all3 positive/negative tests pass, original Avatar/Settings56px and Mail model/actual actions pass. No caller workaround/runtime change.
+- Initial Tabs1112fe4b8bee5: horizontal overflow and padded reveal fixed, actual narrow focus/keyboard/controlled/remount all3/bothmodels pass. Notes later exposed hidden ancestor ->299paints/300ticks. Reopened1112 claimed by UIchain, no new task; deterministic short paint-count test, not benchmark.
+- Gallery20 8678d8c6d Done: defaultall inclExtended/33landmarks/late Jump+focus/Form+ResizeHandle/theme/360rotation all3. Existing growDrawCommands prevents fixed draw pool omission. Root check/defaultall interp2 PASS12.7s; QJS37s indicative slowfirstlayout, no ranking. Later.md records offscreen cost.
+- Finance24 9abd4be3f Done:74frame actual inputs/all3, grid/candle/donut/search/filter/sort/details/multiple selection and narrow grid keyboard; root check/QJS4 PASS. Dashboard22 1d67788cf, Tracker21d950a9460 Done, root original checks/runs pass.
+- Extended19 720f15378/becf01193 Done:15controls, real selected-drop filesystem grant, single disposable System dispatcher/lazy native factory (no unused System linking),12pictures. Root12 model/API/UI paths all3/native scope/originalQJS4 PASS. Secondary-window HAL gap recorded later, not claimed.
+- Media16e70c008e2, Tool14 23cdd66a0 and earlier families/proofs recorded in kit-integration JSON/task notes. D277 remains last decision; routine fixes need no new number.
 
-- Finance24 9abd4be3f Done: actual all3 74frame interactions/captures, real DataGrid/candle/donut, accounts/month/search/category/numeric sort/details,360px grid keyboard and multiple selection. Root check/QJS4PASS; provenance .logs/finance1078.24-20261110.
+Open app checkpoints (all functional original entry/actions pass all3, keep AC1 open for shared defects):
+- Mail25 71368c236: BacklogAC2true/AC1open depends1114; actual compose layers ignore reduced motion,20paint repro all3. Durable .logs/mail1078.25-20261110, archived worker1078.25.
+- Notes27 489712523: BacklogAC2true/AC1open depends1114/1115/1112;46step all3/mobile/keyboard/pointer pass, hidden desktop and idle repro. Archived worker1078.27/logs/notes-proof.
+- Assistant28 c8d2dfe40: BacklogAC2true/AC1open depends1114/1115; all3 actual input/stale stop/retry/unmount pass, desktop sidebar hidden. Archived worker1078.28/logs/assistant-proof.
 
-- Dashboard22 1d67788cf Done: actual all3 entry+actions, nine inspected pictures light/dark/360px, local kit build desk. Root check/interp4 PASS; root inspected native light and narrow form, responsive/password eye aligned. Provenance kit-integration JSON dashboard_integration. Title differs visually across original captures; standalone canonical and import-only App cases report correct28px, no confirmed engine defect. No override.
+## Common engine and current final gate
 
-57 distinct Done since1078.03: twenty-two ZN-1078 leaves (.03–.24), plus1079–1113. Current feature sourcefe4b8bee5 (1111c0813bdd5,1113428d48c1b,1112fe4b8bee5); Settings remains checkpointBacklog pending fresh final app proof. Earlier history and proposed tests: session-handover-2026-11-09.md and session-handover-2026-11-10.md.
+Read-only .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, compiler/sourcefe4b8bee5, SHA25647a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Adjacent AOT archives required. All active workers switched; older397865/c7643/5ec63 proofs retain their original hashes. Announce before replacing common. Every worker uses ZINC_ROOT=$its_tree. No C++rebuild needed for current TS-only UIchain; reset clean smoke tree to latest develop after integration.
 
-- JSX1110 ebe53adf2: valid trailing commas in JSX map callbacks preserve nodes, ordering and evaluation across engines. Exact jsx_map_trailing passes. Planning b4edca089 completes normally formatted source; BoardCard key fixes actual React keyboard-drop focus. kit_planning all3/both models and six refreshed pictures pass.1110AC3 closed.
-- AI18 90b24121b: nine controls, seven inspected pictures; models/interactions both UI models/all3. Native Textarea maxRows/onKeyDown preserve IME/caret/shortcuts. Root kit_ai, original composerQJS4frames and unchanged gate pass. docs/reports/kit-ai-proof.md.
-- Tracker21 d950a9460: local issue app, real search/filter/sort/forms/comments/theme/keyboard all3, eight inspected pictures incl360px. Root check/interp4frames pass. No new demo tests committed.
-- Media16 e70c008e2: four controls, shared modal geometry/owned sharper and Tooltip cleanup. Root nine model/UI programs all3/check/cropQJS4frames pass; eight inspected pictures. Source/raw provenance kit-media-2026-11-10.json.
-- Tool14 23cdd66a0: ten controls, actual keyboard/pointer both models/all3, ten inspected pictures. Root models/shared kit_inputs/gallery check/graphQJS4frames pass.
-- Shared size gate unchanged. Final Planning JS235962/245066/281771B, unused9104<9984,4078/component (159B strict total headroom). AOT5325320/5474000/6025760B, unused148680<159744,61306/component. Extended combined gate PASS: JS235962/246177/282882, unused10215<10240 (25B margin); AOT5325320/5474000/6025760. Root exact twelve kit_extended paths, native system_drop_scope and original QJS4 PASS. Root inspected capture360px/dark social. Raw source/gate manifests in kit-integration JSON after_extended. No option/icon/control/budget cuts. Detailed source hashes/root checks: docs/reports/bench/kit-integration-2026-11-10.json. Last decision D277; routine reuse needs no new number.
+Root common exact typeof_union/return_type/kit_tabs_reveal/unchangedkit_size and originalSettingscheck/interp4 PASS. Raw initial gate JS235962/246177/282868,4076/component, unused10215<10240; AOT5325320/5474000/6025760,61306/component. UIchain final candidate raw gate PASS JS235981/246196/283045 (4094/component,15B strict total headroom; unused25B), AOT5325320/5474000/6025776,61308/component. Root combined reproof required after branch integrates. No option/icon/feature/budget cuts.
 
-## Engine and machine limits
+Detailed provenance/source hashes: docs/reports/bench/kit-integration-2026-11-10.json, root .logs/integration-2026-11-10. Settings completion .logs/settings-1078.23-20261110/completed/provenance.json SHA b0ff487fd311dfa6c264034f4532d131184b2a89db347713260ac17bf4e25b6e. Root inspected native light and focusedAccount360px. Old handovers session-handover-2026-11-09.md/-2026-11-10.md.
 
-Current common clean sourcefe4b8bee5 rebuilt SHA25647a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Root typeof_union/return_type/kit_tabs_reveal/unchangedkit_size allPASS, Settings originalcheck/interp4PASS. This supersedes397865 below; old worker proofs retain their original hash.
+## Preserve external work and machine limits
 
-Common read-only engine: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, compiler source90b24121b, SHA2563978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af. Clean smoke tree source reset to9abd4be3f (newer changes TS-only). Workers use ZINC_ROOT=$their_tree. Announce before replacing binary and preserve adjacent AOT archives; moving only executable breaks native builds.
+Main external WIP stays untouched: ui.ts sparse Map/Fenwick42add19del near639/1074 (known incomplete prependRows, do not investigate), main.cpp12/0 display, rt.h137/1 allocator, rtcalls30/17,machine3/2,worker1/1,perf15/0, LVGL/runtime/HAL/host/CHANGELOG/affected and untracked LVGL/skills files. Never build/reset/stage main WIP.
 
-Every heavy command uses absolute tools/work-run SECONDS COMMAND ARGS; one pending per worker. At most two building trees globally, one app/test, timeout on every run, headless or ZINC_BACKGROUND=1. No suites/T1/T2/tests-demo/pixelcompare/conformance/fuzz/benchmarks/CI. No processes left by completed workers.
+Only UIchain carveout: isolated clean worktree changes display token near2956 and layers near8374, plus kitTabs. External virtualization patch .logs/blockers/responsive-display/external-virtualization-wip.patch/SHA MUST be byte-identical after integration. tools/integrate stashes overlaps uniquely/restores; verify ui.ts diff SHA, affected JSON, conflict markers, stash preservation. Perf owned append stage via HEAD+block/hash-object/update-index, never mixed working file.
 
-Main external WIP: sparse Map/Fenwick ui.ts42add19del (known incomplete prependRows, do not reinvestigate), main.cpp display12/0, rt.h allocator137/1, rtcalls30/17,machine3/2,worker1/1,perf15/0, LVGL/runtime/HAL/host/CHANGELOG/affected and untracked LVGL/skills files. Never build/reset/stage those. tools/integrate preserves overlaps; validate affected JSON and markers. Stage owned perf appends via HEAD+block/hash-object/update-index only.
+Every heavy command through absolute tools/work-run SECONDS COMMAND ARGS, one pending per worker. Max2 building trees globally, one app/test/link; bound every run, headless or ZINC_BACKGROUND=1, no leftover children. No suites/T1/T2/tests-demo/pixelcompare/conformance/fuzz/benchmarks/CI. Harness may build and prove startup only; quiet measurements owner's.
 
-Completed clean worker logs/checkpoints archived .logs/archive-completed-workers-20261110; removed branches/trees. Original1078-data/1078-pickers/1078-feedback-astra may contain unknown WIP: do not reset/delete. Immutable Code backup stash a1c0db6f7469c18237690a4bf68a9de25d782bf5 retained. Frozen1108/1109 binaries +90 adjacent archive manifest in .logs/frozen-engines (diagnostics only).
+Completed logs/checkpoints archived .logs/archive-completed-workers-20261110. Core1111/old1112 and completed23/25/27/28 trees are clean/archived; remove when UIchain no longer needs original paths (copies already exist/rootdevelop includes all). Original old1078-data/pickers/feedback-astra contain unknown WIP, never reset/delete. Immutable Code stash a1c0db6f7469c18237690a4bf68a9de25d782bf5 and Gallery recovery stash eb2f5dffde05f0065d3cdb764fb00f4b1b3cbbe7 retained. Frozen diagnostic1108/1109 package under .logs/frozen-engines; executable alone cannot do AOT.
 
-## Test machines
+## Devices and proposed milestones
 
-OptiPlex added by owner: Fedora45KDE x86_64, i3-7100T2cores/4threads,16GB. SSH mowmow@192.168.2.228, Tailscale100.66.7.14 / optiplex.tail80b63.ts.net; use HostKeyAlias=192.168.2.228 for same verified key. No native compiler/build tools initially. Actual unchanged nullable_numeric cross-built x86_64-linux on Mac, deployed ~/zn/codex-1106-20261110-da7ca, timeout15/headless via Tailscale PASS/exit0, SHA2567c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No remaining process. Desktop/GPU/native build unproven. Pi spark@192.168.2.31 and Mojave mowmow@192.168.2.215 remain available. Own remote directories only; no machine/daemon restarts.
+Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow@192.168.2.228; Tailscale100.66.7.14 / optiplex.tail80b63.ts.net, HostKeyAlias192.168.2.228 verifies same key. Initially no compiler/build tools. Actual unchanged nullable_numeric cross-built x86_64-linux on Mac, deployed ~/zn/codex-1106-20261110-da7ca, timeout15/headless via Tailscale PASS, SHA7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No process left; GPU/desktop/native build unproven. Pi spark@192.168.2.31 and Mojave mowmow@192.168.2.215 remain. Own directories only, no machines/daemon restart/QEMU.
 
 ## Tests to run (the owner picks)
 
-- Since90b24121b/b4edca089: physical keyboard/touch/VoiceOver, AI/Planning long update/remount churn and idle-energy/device checks; exact commands/durations in tasks17/18.
-- Sinced950a9460: Tracker long session, persistence expectations and physical/device navigation; README and task21 proposed tests. Current demo data intentionally in memory.
-- Sincee70c008e2: Media physical touch/GPU/sharper decode replay, proposed commands in task16/report. No physical performance claim.
-- Since23cdd66a0: Tool native pointer/keyboard/device checks and long animation/meter idle; task14 proposed tests.
-- Shared gate near JS limit: cold SVG initialization/adapter cost, unused editor AOT reachability and quiet-machine scaling remain unmeasured, recorded later.md. No statistical timing ranking.
-- Extended primary-window drop proof only; secondary SDL window route lacks drop cases/coordinates in existing HAL. Record exact later.md limitation in later.md; do not widen protected HAL in this widget task.
+- Physical keyboard/touch/VoiceOver/device/browser passes, long remount/decode/resource/idle-energy churn: exact commands/durations in each task/README (families14–19, demos21–28). No physical or quiet-machine claims.
+- Sincec0813bdd5/428d48c1b/fe4b8bee5/3e540bbe9: long Settings/theme/forms/scroll churn and native accessibility; current exact all3/360focus/Avatar56 proof passes.
+- CUI comparison1078.29: real matched phase/window/RSS/idle CPU on M1Pro/Pi remains owner-picked quiet run; unmatched CUIOrbit/ZincFieldwork forbids ranking.
+- Shared gate very tight: cold SVG/adapter cost, unused editor native reachability, full Gallery offscreen scaling unmeasured/later.md. No long benchmark now.
 
-Owner responsive/password source docs/img/design/src is fixed; pictures gallery-responsive.png/password-reveal.png. From clean tree: ZINC_ROOT="$PWD" build/zinc run examples/ui/kit-gallery --interp (GALLERY selects family). Agent runs bounded/background. No new tasks for the owner.
+Owner original responsive/password docs/img/design/src is fixed; pictures gallery-responsive.png/password-reveal.png. Kit examples/ui/kit-gallery GALLERY selects family; all demo README run commands are present. Agent runs bounded/background. No questions or outward publication.

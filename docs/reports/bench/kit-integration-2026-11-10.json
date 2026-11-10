@@ -349,5 +349,79 @@
       "physical/device/long idle unproven"
     ],
     "configuration": "existing growDrawCommands enabled for exhaustive page"
+  },
+  "after_union_return_tabs": {
+    "source": "fe4b8bee5",
+    "engine_sha256": "47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764",
+    "integrated": {
+      "1111": "c0813bdd5",
+      "1113": "428d48c1b",
+      "1112_initial": "fe4b8bee5"
+    },
+    "root_checks": [
+      "typeof_union all3 PASS",
+      "return_type all3/negative shapes PASS",
+      "kit_tabs_reveal bothmodels/all3 PASS",
+      "unchanged kit_size PASS",
+      "original Settings check/interp4 PASS"
+    ],
+    "raw_gate": {
+      "JS": [
+        235962,
+        246177,
+        282868
+      ],
+      "AOT": [
+        5325320,
+        5474000,
+        6025760
+      ],
+      "JS_unused": 10215,
+      "JS_unused_budget": 10240,
+      "JS_per_component": 4076,
+      "AOT_per_component": 61306,
+      "unused_plugins": [
+        "editor"
+      ]
+    },
+    "source_sha256": {
+      "src/frontend/check.cpp": "c08727788259376c41dd5b46f9b09cd081f384d4b694d7bdf88419067fb5bdd0",
+      "src/frontend/modules.cpp": "8ab7054d9b830dd4353f4330f4e62b45fd778f6480d9a11bde106acdfe4ce2ee",
+      "lib/zinc.d.ts": "119c87b6e6fe1158de8601477736712103bdbc470e1a90419a8233629d146165",
+      "lib/std/kit/tabs.tsx": "30e22efe5e866f897dd1cc240596d12fc498543c8e7142b0de9fb0c34dfbade8",
+      "lib/std/kit/navigation.tsx": "f06190b15c831ae7d5b9190689e19001510ee7e5295c3ff703ee809862f241ea",
+      "tests/t0/typeof_union.sh": "24cd08d779ae7667a80fab8914b122c032212af8e86480840ce2deb889cbf2f8",
+      "tests/t0/return_type.sh": "ef396c63d1f54d26b817ca0c10fba24ff501ad463655f02c93b4de4cf3993470",
+      "tests/t0/kit_tabs_reveal.sh": "85acd80fc41ac5432b58e5ab005dc8af6053c7b823ed0e3c97d699ea54cad91d",
+      "tests/t0/kit_size.sh": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed"
+    },
+    "root_log": ".logs/integration-2026-11-10/union-return-tabs-final.log",
+    "build_log": ".logs/integration-2026-11-10/union-return-tabs-build.log",
+    "later_regression": "1112 reopened: hidden Tabs paint loop .logs/blockers/hidden-tabs-idle; correction in UI1114 chain"
+  },
+  "settings_completion": {
+    "commit": "3e540bbe9",
+    "worker_commit": "11024b2de3a6ea29d765017e6d6eebe335266ad9",
+    "engine_sha256": "47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764",
+    "app_source": "unchanged since e5ffa9f27",
+    "checks": [
+      "original light/dark all3",
+      "actualUI25frames/all3",
+      "360x78049frames/all3"
+    ],
+    "geometry": [
+      "Avatar56x56",
+      "Account[265,133,76,30],track[16,130,328,36],sx19,ringpadding2"
+    ],
+    "provenance": ".logs/settings-1078.23-20261110/completed/provenance.json",
+    "provenance_sha256": "b0ff487fd311dfa6c264034f4532d131184b2a89db347713260ac17bf4e25b6e",
+    "root_inspected": [
+      ".logs/settings-1078.23-20261110/completed/narrow-quickjs.png",
+      "examples/ui/settings/pictures/light-native.png"
+    ],
+    "unproven": [
+      "physical/VoiceOver/touch/device",
+      "long idle memory/energy"
+    ]
   }
 }

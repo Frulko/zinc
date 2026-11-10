@@ -1750,3 +1750,9 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 
 - Full Gallery8678d8c6d with all families/33landmarks passes all3 and root unchanged check/interp2. Indicative finite full-page runtime about12.7s interpreter or37s QuickJS under shared activity, different proof frame counts; no engine throughput comparison. Existing growDrawCommands removes fixed draw-command capacity warning. Offscreen/first-layout optimization remains later.
 - Finance9abd4be3f passes actual74frame interactions all3, root check/QJS4, nine inspected light/dark/narrow pictures. Native tool reported rounded7.4MB and7.2s first build on busy host; diagnostic only, not a benchmark. Long memory/idle-energy/device tests remain proposed. Source/raw provenance kit-integration JSON and .logs/finance1078.24-20261110.
+
+
+## 2026-11-10 — Mixed union, ReturnType and tab reveal integration
+
+- Clean common sourcefe4b8bee5 rebuilt SHA25647a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Root exact typeof_union/return_type/kit_tabs_reveal and originalSettingscheck/interp4 PASS. Unchanged gate JS235962/246177/282868B; unused10215<10240 (25B margin),4076/component. AOT5325320/5474000/6025760B,unused148680<163840,61306/component; editor only unused plugin.
+- Settings unchanged source now renders56pxAvatar all3 and fully revealed focusedAccount360px; new25/49frame interactions/seven pictures pass. Notes later isolated hidden Tabs watcher regression (1112reopened):299paints/300ticks without app timer. Source/provenance in kit-integration JSON after_union_return_tabs/settings_completion and .logs/blockers/hidden-tabs-idle; no CPU/energy/quiet-machine ranking.
