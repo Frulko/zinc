@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Root minimal valid never-return source confirmed check0/interpZ0005/QuickJS0 onf34fc9. Create/reserve1120 blocker of unchangedtype-namespace runtime, ordinal8901 after1030, no source workaround; researchonlyuntil668lower.cpp freezes. New-task blocks exception, no unrelated task expansion.
+
 - Integrated1030 borrowedscalar/type-namespace4f198e9c1, all3exactPASS9s, taskBacklogAC1open. Restoredfixtureunknownname, no test-source workaround.668 baseline selfarrow2leakedobjects/48B interp+AOT; preserve mutable/outercells and extend1080 ownbinding inlower.cpp only. Fresh668implementation next, researcharchive retained.603 mustrecountagainst4f198 tight8MB margin; rootcombinedrefresh pending.
 
 - Reserve668 recursive closure leak RESEARCHONLY, one bounded small repro and source/caller audit; no runtime/IR/header writes/build while1030core active. Currentcommon f34fc9 readonly baseline; no call-path benchmark authorization.603 strictHero size gates pass7,995,032B/9,527,337B, finalcommit pending.
