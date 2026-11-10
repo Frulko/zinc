@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Finance24 integrated9abd4be3f Done,52Done. Real74frame input/all3/captures, narrowgridkeyboard/multi-selection pass; root check/QJS4queued. Reserve fresh Mail25, pinned CUI mail.c researched. Settings23 investigates minimal numeric Avatar/typeof discrepancy and narrow Tabs reveal, leaves AC1open if confirmed; no workaround. Gallery20 final narrow corrections/reproof.
+
 - Dashboard root check/original interp4 PASS; light native and360px form inspected, token eye aligned. Provenance dashboard_integration recorded, worker scratch/source hashes archived.51Done. Active Gallery20/Settings23/Finance24 on397865, no core writer.
 
 - Dashboard22 integrated1d67788cf Done,51Done; local build desk uses existing kit, actual all3 actions and9 inspected light/dark/narrow pictures pass, root check/interp4queued. Minimal heading parity case passes; original title visual difference recorded without override. Reserve Finance24 fresh worker, dependencies Charts/Data Done, pinned CUI finance.c researched; Gallery20/Settings23 continue.
