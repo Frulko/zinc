@@ -1,6 +1,5 @@
 // Shared hint behavior for JSX and imperative controls. Timers use UI time, so deterministic runs and unmounts agree.
 import * as ui from 'zinc:ui';
-import { onCleanup } from './host';
 import { theme } from './theme';
 import { springTo, SPRING_SMOOTH } from './motion';
 
@@ -19,8 +18,9 @@ function describe(h: i32, id: string, owned: i32[]): void {
   for (const child of n.children) describe(child, id, owned);
 }
 
-/** A noninteractive hint: focus stays on the trigger, Escape dismisses, nearby hints open without a second dwell. */
-export function attachTooltip(host: i32, label: string, placement: string = 'bottom', delay: number = 500, memory: TooltipSession = new TooltipSession()): void {
+/** The caller owns the returned cleanup (component onCleanup or host-node onDestroy).
+ * A noninteractive hint: focus stays on the trigger, Escape dismisses, nearby hints open without a second dwell. */
+export function attachTooltip(host: i32, label: string, placement: string = 'bottom', delay: number = 500, memory: TooltipSession = new TooltipSession()): () => void {
   const tip = ui.createNode(ui.VIEW), text = ui.createNode(ui.TEXT);
   const serial = ui.nodeSerial(host), tipSerial = ui.nodeSerial(tip);
   ui.setClass(tip, `flex-row items-center px-2 py-1 rounded-[10px] shadow-lg bg-${theme().primary} pointer-events-none`);
@@ -74,7 +74,8 @@ export function attachTooltip(host: i32, label: string, placement: string = 'bot
   });
   ui.onDismiss(tip, () => transition(HintState.Hidden));
   if (state === HintState.Waiting || state === HintState.Transient) { const pending = state; timer = ui.alarm(memory.deadline, () => transition(pending === HintState.Waiting ? HintState.Visible : HintState.Hidden)); }
-  onCleanup(() => {
+  return () => {
+    if (state === HintState.Disposed) return;
     releaseFocus(); transition(HintState.Disposed);
     for (let i = 0; i < described.length; i += 2) {
       const h = described[i], n = ui.inspectNode(h);
@@ -83,5 +84,5 @@ export function attachTooltip(host: i32, label: string, placement: string = 'bot
       if (at >= 0) ui.setAttr(h, 'aria-describedby', n.attrV[at].split(' ').filter((value: string) => value !== id).join(' '));
     }
     if (ui.nodeSerial(tip) === tipSerial) ui.destroy(tip);
-  });
+  };
 }

@@ -62,7 +62,7 @@ export function Tooltip(props: TooltipProps): i32 {
   const hint = componentRef(new TooltipSession()).current;
   const keys = shortcutOf(props.action);
   const node = <View ref={wrap} className={`flex-col ${props.className ?? ''}`}>{props.children()}</View>;
-  attachTooltip(wrap.node, props.label + (keys.length > 0 ? '  ' + keys : ''), props.placement ?? 'top', props.delay ?? 500, hint);
+  onCleanup(attachTooltip(wrap.node, props.label + (keys.length > 0 ? '  ' + keys : ''), props.placement ?? 'top', props.delay ?? 500, hint));
   return node;
 }
 

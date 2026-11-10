@@ -1,0 +1,102 @@
+{
+  "task": "ZN-1078.16",
+  "base": "e19f83056226ce9283da931cef1c284d7755e80c",
+  "engine_source": "7774708ca",
+  "engine_path": "/Users/mowmow/Lab/zinc/.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc",
+  "engine_sha256": "f561c4cc76172c731e4109cd9161b5a7092ffda9553260f25351a0a1e329fce1",
+  "files": {
+    "lib/std/kit/media-model.ts": "8e2d022d287fbb0d37aa8bc6f0b698be4e2ae4e8936b9fdb7b4b9f2cb620222b",
+    "lib/std/kit/media.tsx": "42c729532c1003d175828211dae6d42626d1a6ec350d951adf5fe4217605b62d",
+    "lib/std/kit/imageviewer.ts": "02bb24805bd27d956809e728e3e6d0d38ad3068567f2ff384a283fba330a2ae6",
+    "lib/std/kit/tooltip.ts": "dc9817a59084d21b4beabc9cfe45f2159ccea9062c6a35733609ddd75523a4d3",
+    "lib/std/kit/overlays.tsx": "8a694f0acb1a9c7dfbf35ad3d7975ac6147502b6db47078a625bd24c553b4b99",
+    "lib/std/kit/index.ts": "84c92988a303fa14900641e99c33940b30b2f702120660dfe2dd1cd71c268ef9",
+    "examples/ui/kit-gallery/src/main.tsx": "2e6bf5321b510eb93e30fa25e4a83ccb750108e91148ec11ff852d8596b66fac",
+    "examples/ui/kit-gallery/src/sections/media.tsx": "f4ae92788feea0f122200d427d343282fe8dc332c7686e3d834da00081d02ef1",
+    "tests/data/kit_media/model.ts": "d4d7767c98eb3c92d4a9509256d8ad902b36fdfa9130222a25f0649e346c370d",
+    "tests/data/kit_media/body.tsx": "291934a95697eafbe53330e59fa50e4de3d8f28a4a9399868b813537f22ecf6b",
+    "tests/t0/kit_media.sh": "d2805dcb98ad2fb4cda60b82dba448f57e0ae44f5138bac149e2733a4367a30b",
+    "tests/t0/kit_size.sh": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed",
+    "examples/ui/kit-gallery/src/media/Compare.tsx": "0aa5d5708e09b6b7b43a62029bf718482ff6147030946f524a58714517d7fec2",
+    "examples/ui/kit-gallery/src/media/Crop.tsx": "2c76384ab4528db087d94db4aa8be67d44e2d6a91eec2b62054a5eefbb44b937",
+    "examples/ui/kit-gallery/src/media/Slides.tsx": "ee9438c3501e1173b08a0db7fee8d60fb7c5822c171f1bd75e87346c480373f7",
+    "examples/ui/kit-gallery/src/media/Viewer.tsx": "d3e44cd6d08d03b3671c15991fa17a220b1fea33652fd77a09a0cc75945a3c29",
+    "examples/ui/kit-gallery/src/media/Pictures.ts": "3ca57956ba9ea99a675ffe339b32509ee9a970ae8c749e962ec4bbb9d176acdc"
+  },
+  "checks": {
+    "kit_media": {
+      "exit": 0,
+      "models": [
+        "geometry",
+        "Solid UI",
+        "React UI"
+      ],
+      "engines": [
+        "interpreter",
+        "AOT",
+        "QuickJS"
+      ],
+      "stdout": "media models (--interp): ok\nmedia solid (--interp): ok\nmedia react (--interp): ok\nmedia models (--native): ok\nmedia solid (--native): ok\nmedia react (--native): ok\nmedia models (--engine quickjs): ok\nmedia solid (--engine quickjs): ok\nmedia react (--engine quickjs): ok\nkit media: ok\n",
+      "source_base": "ef8631df9b9478a938b5ac5c5e18bf16997e4f3b"
+    },
+    "kit_overlays": {
+      "exit": 0,
+      "engines": [
+        "interpreter",
+        "QuickJS"
+      ],
+      "ui_models": [
+        "Solid",
+        "React"
+      ]
+    },
+    "gallery_check": {
+      "exit": 0,
+      "files": 38
+    },
+    "discord_check": {
+      "exit": 0,
+      "files": 52
+    },
+    "captures": {
+      "exit": 0,
+      "engine": "interpreter",
+      "headless": true,
+      "frames": 5,
+      "sizes": [
+        "960x800",
+        "360x800"
+      ],
+      "log_sha256": "e333d4279578ba327436dd0c2ea00a7b429d5daf7d7d97b1647d1950d4bdb08f"
+    },
+    "kit_size": {
+      "exit": 0,
+      "unchanged": true,
+      "stdout": "bundle: Button 235962 B, through the index 243827 B (+7865 for 37 unused families, budget 9472), ten 280594 B (+4085 per component)\naot: Button 5325320 B, through the index 5457488 B (+132168 for 37 unused families, budget 151552), ten 6009248 B (+61306 per component)\naot, Button through the index links the plugins: editor\n",
+      "source_base": "e19f83056226ce9283da931cef1c284d7755e80c"
+    }
+  },
+  "captures": {
+    "docs/img/kit-media-carousel-narrow.png": "a0a6ee3e34d6d5e6d663a7d3581361ddaa1cde149b08af98655a0b9f6adee6b8",
+    "docs/img/kit-media-carousel.png": "2fe0a80a7c24865d540c1f21911a5d63406ad060b5df9d93ec3d3ddbe5d38a1b",
+    "docs/img/kit-media-compare-dark.png": "fb2d36c290b7c25b0d852e7506ecee8f1bd913523497773fe4997c46905bea60",
+    "docs/img/kit-media-compare.png": "6b73a59ab5b1b80bf2d7db6322ead84d1c684922d683ba145da30ed6aba3c28e",
+    "docs/img/kit-media-crop-narrow.png": "d03dc07db90b2c7df2206a57bb3241bdb0e475a8f9644307d7f3a6eed9e8819b",
+    "docs/img/kit-media-crop.png": "f00d10b6193fa344d1620eef73563cfbc987b503eb27780f46fa6ef63957b3fe",
+    "docs/img/kit-media-viewer-narrow.png": "8e56370f79fb57d5dc12316d34e824eb4d78e29e12fcdaf1e82b03d5f9f72b1d",
+    "docs/img/kit-media-viewer.png": "d1339d102b25157852b32f1a8e1163f0bd37aa8fb81de7f852ae2a70c1566baf"
+  },
+  "acceptance": {
+    "1": true,
+    "2": true,
+    "3": true
+  },
+  "not_proven": [
+    "physical multi-touch and VoiceOver",
+    "cross-device/GPU rendering",
+    "broad suites",
+    "quiet-machine performance or memory"
+  ],
+  "owned_processes": "none after completion",
+  "rebase": "e19f83056 changes coordinator notes only; all tested source and capture hashes match after rebase"
+}

@@ -751,6 +751,7 @@
     {"paths": ["lib/std/kit/pickers.tsx", "lib/std/kit/picker-date.ts", "lib/std/kit/picker-emoji.ts", "tools/gen-picker-emoji", "third_party/unicode-emoji-17/", "lib/std/kit/host.ts", "tests/golden/kit-pickers/", "tests/golden/kit-pickers-react/", "tests/t0/kit_pickers.sh"], "tests": ["kit_pickers"]},
     {"paths": ["lib/std/kit/feedback.tsx", "lib/std/kit/host.ts", "lib/std/kit/alert.tsx", "lib/std/kit/badge.tsx", "lib/std/kit/avatar.tsx", "lib/std/kit/progress.tsx", "lib/std/kit/spinner.tsx", "tests/golden/kit-feedback/", "tests/golden/kit-feedback-react/", "tests/t0/kit_feedback.sh"], "tests": ["kit_feedback"]},
     {"paths": ["lib/std/kit/code.tsx", "lib/std/kit/code-diff.ts", "lib/std/json-tree.ts", "lib/std/markdown-view.tsx", "lib/std/markdown-theme.ts", "plugins/editor/", "plugins/markdown/blocks.ts", "plugins/markdown/model.ts", "plugins/markdown/index.ts", "tests/golden/kit-code/", "tests/golden/kit-code-react/", "tests/t0/kit_code.sh"], "tests": ["kit_code"]},
+    {"paths": ["lib/std/kit/media.tsx", "lib/std/kit/media-model.ts", "lib/std/kit/imageviewer.ts", "lib/std/kit/tooltip.ts", "tests/data/kit_media/", "tests/t0/kit_media.sh"], "tests": ["kit_media"]},
     {"paths": ["runtime/gfx.cpp", "tests/t0/framehash_corner.sh", "tests/data/framehash_corner/"], "tests": ["framehash_corner"]}
   ]
 }

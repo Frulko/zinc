@@ -698,3 +698,69 @@ no CUI code or third-party parser was copied.
 ![Tool panels in Quiet dark, drawn by Zinc](img/kit-tools-graph-dark.png)
 ![The property inspector stacked at 360 px, drawn by Zinc](img/kit-tools-inspector-narrow.png)
 ![The byte grid adapted at 360 px, drawn by Zinc](img/kit-tools-binary-narrow.png)
+## Quiet Media
+
+`ImageViewer`, `ImageCropper`, `ImageCompare` and `Carousel` share Quiet surfaces, visible keyboard focus and
+controlled accessors in Solid and React. Import them from `zinc:ui/kit`; the family starts no image loading, timers or
+registration at import time. Try each with `GALLERY=media-viewer`, `media-crop`, `media-compare` or `media-carousel`
+when running `examples/ui/kit-gallery` (`GALLERY_DARK=1` selects dark).
+
+| Component | Required props | Options and interaction |
+| --- | --- | --- |
+| `ImageViewer` | `image`, `label`, `view: () => ImageView`, `onChange` | `imageWidth?`, `imageHeight?`, `height?` (300), `maxZoom?` (16), `noToolbar?`, `checkerboard?`, `className?`. Wheel/pinch zoom about the pointer; drag pans. Double click alternates fit and actual pixels. `+` / `−` zoom, `0` / Home fits, `1` shows actual pixels, arrows pan (Shift: larger steps). |
+| `ImageCropper` | `image`, `label`, `crop: () => MediaRect`, `onChange` | `imageWidth?`, `imageHeight?`, `height?` (300), `aspect?` (free), `round?` (forces square geometry with a circular preview), `minSize?` (16 source pixels), `className?`. Drag inside to move, an edge/corner to resize, or outside to draw. Arrows move one source pixel, Shift moves ten; Home resets. |
+| `ImageCompare` | `before`, `after`, `label`, `position: () => number`, `onChange` | `height?` (260), `aspect?` (image ratio), `beforeLabel?`, `afterLabel?`, `className?`. The divider is clamped to 0–1; pointer/drag or arrows change it, Shift moves 10%, Home/End selects an endpoint. Both images cover the same aspect rectangle. |
+| `Carousel` | `label`, `count: () => i32`, `index: () => i32`, `onChange`, `renderSlide` | `height?` (240), `gap?` (12), `loop?`, `autoAdvance?` (seconds, off by default), `noArrows?`, `noDots?`, `className?`. Accepts arbitrary slide content. Swipe/flick or horizontal wheel selects a slide; arrows, Home/End, buttons and numbered indicators work from the keyboard. |
+
+### View and crop geometry
+
+`new ImageView()` fits and centres the picture. A positive `zoom` is screen points per source pixel (`1` means
+actual pixels); `cx` and `cy` are the source pixel at the viewport centre. Zoom is bounded by fit/actual size and
+`maxZoom`, and pan stops at the image edge. Resize and image changes recompute the fitted geometry. Dragging
+tracks the pointer directly; other changes spring to the target and become immediate under reduced motion.
+
+`new MediaRect()` requests the largest centred square crop (or the requested `aspect`). Subsequent values are
+`x`, `y`, `width`, `height` in **source pixels**, bounded to the source image. `onChange` returns useful geometry
+for an application to export with its existing image pipeline. The control does not create a new bitmap or pretend
+to save one. A tiny image uses its available pixels when the minimum cannot fit.
+
+```tsx
+import { createSignal } from 'zinc:ui/solid';
+import { ImageViewer, ImageView, ImageCropper, MediaRect } from 'zinc:ui/kit';
+const [view, setView] = createSignal(new ImageView());
+const [crop, setCrop] = createSignal(new MediaRect());
+// photo is an image handle owned by this application.
+const Preview = () => <View className="flex-col gap-4">
+  <ImageViewer image={photo} label="Reference" view={view} onChange={setView}/>
+  <ImageCropper image={photo} label="Cover" crop={crop} onChange={setCrop} aspect={1.5}/>
+</View>;
+```
+
+![Image viewer drawn by Zinc](img/kit-media-viewer.png)
+![Image cropper drawn by Zinc](img/kit-media-crop.png)
+![Image comparison drawn by Zinc](img/kit-media-compare.png)
+![Carousel drawn by Zinc](img/kit-media-carousel.png)
+
+### Rotation and ownership
+
+The carousel stops automatic rotation when **any** control receives focus, including pointer focus. Rotation stays
+stopped until the person activates Start rotation. Hover pauses a running carousel until the pointer leaves;
+reduced motion suppresses automatic rotation and snaps transitions. Inactive slides are hidden from accessibility
+and disabled so their descendants cannot take focus. A live announcement is polite only while rotation is stopped.
+The component mounts at most 256 slides; larger collections should supply a bounded window. Cleanup cancels the
+owned alarm and animation, with a generation check rejecting stale callbacks.
+
+Images remain caller-owned. The inline controls reserve handles with the shared image cache while mounted and
+release those reservations on cleanup. Keep mutable image surfaces alive until their controls have unmounted.
+The imperative `openImageViewer({ items, index, origin?, onClose?, labels? })` remains available for a modal,
+thumbnail-to-full-screen viewer, with copy/save callbacks, navigation and optional asynchronous `sharper` images.
+Each `sharper` result transfers a fresh image to the viewer; late replies are destroyed after close/navigation,
+while the original thumbnails remain borrowed. `closeImageViewer(true)` closes synchronously before an owner
+releases its thumbnails; an ordinary close keeps its resources through the exit animation. External destruction
+also releases the viewer exactly once, and a fresh viewer may be opened afterwards.
+
+![Dark media comparison](img/kit-media-compare-dark.png)
+![Media at 360 pixels](img/kit-media-carousel-narrow.png)
+
+![Image viewport at 360 pixels](img/kit-media-viewer-narrow.png)
+![Crop selection at 360 pixels](img/kit-media-crop-narrow.png)

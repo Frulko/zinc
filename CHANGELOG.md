@@ -169,6 +169,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Quiet code controls add selectable code blocks, an editor with find and go-to-line, responsive diffs, CommonMark documents with link/task callbacks, and independent JSON trees with counts and visible errors.
 
 - The Quiet kit adds interactive line, area, bar, circular, matrix and flow charts, plus zoomable candlesticks and spring-driven gauges, with keyboard inspection and focused gallery views.
+- The Quiet kit adds a zoomable image viewport, pixel-based crop geometry, an image comparison slider and a keyboard/swipe carousel; automatic rotation pauses for reading and stops at keyboard or pointer focus.
 
 #### Changed
 
@@ -227,6 +228,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Custom popover triggers use the Quiet accent for their keyboard focus ring.
 
 - Scrub fields without explicit bounds accept negative and large values, while bounded fields keep their drag sensitivity.
+- The full-screen image viewer opens from React callbacks, ignores late sharper-image replies after closing and releases its controls when its owner is destroyed.
 
 ### The web
 
