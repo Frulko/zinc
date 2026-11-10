@@ -2,17 +2,19 @@
 
 Continue zn-coordinate until main `.paused` exists or no startable work remains. Never ask the owner; no push. This root is the sole backlog coordinator. Runtime4 = root +3workers. New workers inherit configured model after “on rebascule”; Fast remains launcher option.
 
-## Active workers
+## Active workers — owner refocus: engine first
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|1118 exec-reset guardian|.worktrees/1118-exec / work/1118-exec|Fresh scratch proof; fork-only monitor rejected for retained VM heaps. Main/AOT production edits wait803 integration.|
-|897 Galène client|.worktrees/897 / work/897|Reserved: protocol/native media client. Start with TS/research; native gaps require coordinator ownership and build slot.|
-|803 Museum updates|.worktrees/803 / work/803|Native async/validate-before-stage + update-enabled host export packaging; isolated main/CLI edits authorized, no loop/runtime change.|
+|1030 open record sharing|.worktrees/1030 / work/1030|Reserved sole core frontend/IR/runtime writer; clean isolated runtime regions only, owner string/allocator WIP protected.|
+|395 no-graphics engine|.worktrees/395 / work/395|Reserved CMake/CLI build capability fix; no runtime/HAL/UI edits.|
+|603 AOT size|.worktrees/603 / work/603|Reserved read-only attribution first, no build until one of the other building slots frees; no IR/runtime or emitter edit during1030.|
+
+897 finishes only already-authorized minimal native shutdown and commits Backlog; no production libnice switch, UI expansion or extra call features. Source checkpoint6544ed568 ready to integrate.1118 self-exec prototype checkpoint ready, no production implementation; defer to engine priority. No new services/demos chosen. Root finishes pending exact integration smoke, then these engine chains continue.
 
 ## Integrated state
 
-69 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, 445 QuickJS packing/cache,774.31 Share,1119 quoted-key JSON and896 call server. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
+70 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, 445 QuickJS packing/cache,774.31 Share,1119 quoted-key JSON 896 call server and803 asynchronous updates. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
 
 - UI chain7ed1b1211/39e7e5e62/5488a7d35, recursive capture063edc9de, Solid ownership0d7163987: root exact tests and original Music feature pass. Mail6dc4c22ca, Notesed5802785, Assistantc280d7fd8 and Music83e6fe6f5 Done with actual all3 action/desktop/mobile/focus/cleanup proofs. Original responsive/password defects fixed.
 -445 integrated5acf53be0: local trusted bytecode cache stays fast; unsigned packs execute retained source, with one explicit warning. No unauthenticated bytecode loader. Exact qjs_bytecode and actual Fatty direct/pack proof pass; no startup timing claim.
@@ -28,7 +30,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 ## Common engine and final kit gate
 
-Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, source58ee758c8, SHA2569a23bc25acdf4fdd00316ded0d6efddd0673475b007b1ef2f5bfa43e84e24579. Adjacent AOT archives required. Includes current nested macOS repair and QuickJS GC/profile. Announce before replacing. Never build main external WIP.
+Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, source3a87af69a, SHA2565917d26a7226ab2897827c4b697c0ff4ec368eb02f7752105dccafb91746e361. Adjacent AOT archives required. Includes current nested macOS repair and QuickJS GC/profile. Announce before replacing. Never build main external WIP.
 
 Older proofs keep their real hashes:037a922f9/29ffb93a19627fb7dc465badc12c9c292ffaa55bf1db76d458b81837f4b48155;fe4b8bee5/47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Mixed process proof was insufficient and is superseded by reopened combined repro.
 
@@ -37,6 +39,8 @@ Final unchanged kit gate passes: JS236192/246407/283256 B (unused10215,25 B marg
 Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail1078.25-20261110/completed, .logs/share-774.31-20261110, .logs/galene-895-20261110, .logs/hero-603-20261110. Notes/Assistant final proofs and CUI artifacts are archived in .logs/archive-completed-workers-20261110/<id>-final. Eighteen completed clean worktrees removed in this cleanup series;575/1068/old1118/nested1118/ownership1118/774.31 final logs and bundles are in their -final archives.
 
 -896 integrated386125005 Done: actual Chrome join/revoked/expired refusal, forced child restart, SIGTERM/no leftover, and CLI setup/start/stop all3 PASS. Source assets portable;5,849,592 B AOT app. Galène archive still unpublished, TLS/TURN/remote/capacity unproven. Frozen1119 remains until common build and root short startup proof.
+
+-803 integrated3a87af69a Done: native async signed check/download, caller validation before atomic stage, persistent-host cache eligibility, host engine-carrying exports and signed.app promotion. check/download are Promises (await migration documented). RawAOT unsupported; normal quit may wait bounded135s plus local checks. No new updater work after owner engine refocus.
 
 ## Ownership1118 research checkpoint
 
@@ -56,7 +60,7 @@ Completed logs/checkpoints archived .logs/archive-completed-workers-20261110. Co
 
 Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow@192.168.2.228; Tailscale100.66.7.14 / optiplex.tail80b63.ts.net, HostKeyAlias192.168.2.228 verifies same key. Initially no compiler/build tools. Actual unchanged nullable_numeric cross-built x86_64-linux on Mac, deployed ~/zn/codex-1106-20261110-da7ca, timeout15/headless via Tailscale PASS, SHA7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No process left; GPU/desktop/native build unproven. Pi spark@192.168.2.31 and Mojave mowmow@192.168.2.215 remain. Own directories only, no machines/daemon restart/QEMU.
 
--774.31 capture regression is now closed on final combined same-binary root proof; task Done.1118 broader vanished-intermediate ownership gap remains independently open.1119 quoted-key JSON fix integrated1b8ecadb5; original unchanged group check/all3 PASS. Frozen candidate38e22ed7035d08782e9293b57987ab76d4f95b3227bcd8e47b1b4131e018c6ab at .worktrees/1119/build/zinc (adjacent AOT libs) is in use by896; do not rebuild/remove it. Root exact json_quoted and unchanged kit_size PASS against integrated source with frozen candidate; common integration build deferred until803 returns. Last raw size figures predate1119; no new numeric size claim from the quiet runner output.
+-774.31 capture regression is now closed on final combined same-binary root proof; task Done.1118 broader vanished-intermediate ownership gap remains independently open.1119 quoted-key JSON fix integrated1b8ecadb5; original unchanged group check/all3 PASS. Frozen candidate38e22ed7035d08782e9293b57987ab76d4f95b3227bcd8e47b1b4131e018c6ab at .worktrees/1119/build/zinc (adjacent AOT libs) is in use by896; do not rebuild/remove it. Root exact json_quoted and unchanged kit_size PASS against integrated source with frozen candidate; common combined build now complete; final exact integration smoke pending. Last raw size figures predate1119; no new numeric size claim from the quiet runner output.
 
 ## Tests to run (the owner picks)
 
@@ -72,3 +76,5 @@ Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow
 - Shared gate very tight: cold SVG/adapter cost, unused editor native reachability, full Gallery offscreen scaling unmeasured/later.md. No long benchmark now.
 
 Owner original responsive/password docs/img/design/src is fixed; pictures gallery-responsive.png/password-reveal.png. Kit examples/ui/kit-gallery GALLERY selects family; all demo README run commands are present. Agent runs bounded/background. No questions or outward publication.
+
+Owner steering: prioritize engine tasks1030/395/603. No guardian production or libnice dependency expansion now. Runtime carveout baseline .logs/blockers/core-1030/external-wip.patch + changed-lines hashes; StrObj/allocator region0–300 is off limits.

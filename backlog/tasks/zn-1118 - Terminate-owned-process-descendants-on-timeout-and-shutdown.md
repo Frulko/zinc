@@ -2,8 +2,7 @@
 id: ZN-1118
 title: Terminate owned process descendants on timeout and shutdown
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 04:14'
 updated_date: '2026-11-10 07:03'
 labels:

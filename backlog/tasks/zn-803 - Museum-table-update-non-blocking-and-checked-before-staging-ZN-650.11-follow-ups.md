@@ -4,8 +4,7 @@ title: >-
   Museum table update: non-blocking and checked before staging (ZN-650.11
   follow-ups)
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-24 23:55'
 updated_date: '2026-11-10 06:27'
 labels:

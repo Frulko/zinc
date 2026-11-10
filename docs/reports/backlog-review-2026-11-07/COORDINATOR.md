@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Owner refocus: engine progress, stop service/RTC/guardian scope expansion.8033a87af69a integrated Done,70currentlyDone; combined common5917d26a rebuilt. Finish897 minimal native cleanup checkpoint only;1118 exec prototype recorded, no production. Reserve1030 sole core structural-record/runtime chain,395 headless CMake/CLI,603 attribution-only phase (no third build/core writer). Earlier performance-only/protected-module tasks remain skipped; no benchmark authorization inferred. Protected runtime payload baseline archived for narrow carveout.
+
 -896 server386125005 Done and1119 exactroot/json+kit gatePASS:69currentlyDone. Original browser/refusal/restart/stop and all3CLI server proofs pass on frozen38e22; common rebuild groups with803. Integrated guardian researchb5dfc6e87: fork-only scratch works but retaining owner COW heaps is rejected. Fresh1118-exec will prove self-exec monitor before main/AOT production ownership; reserve897 protocol client for independent TS/research/native API assessment.
 
 - Integrated1119 quoted-key serializer1b8ecadb5, original group/all3/exactT0 PASS on frozen38e22ed7.896 uses candidate read-only; root exact json_quoted and unchanged kit_size queued because shared JSON codegen can affect the15B gate margin. Defer common full build to group with803. Reserve fresh1118 guardian prototype from research72908db66; provider ownership free, no production implementation before safe fork/lifetime proof.

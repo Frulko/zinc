@@ -2,7 +2,8 @@
 id: ZN-395
 title: zinc links with ZN_HOST_GFX=OFF again
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 03:40'
 labels:
   - build
