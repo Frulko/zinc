@@ -35,40 +35,43 @@ function newRoot(scope: Computation | null): Computation { const po = owner; own
 function rendered(root: Computation, fn: () => i32): i32 {
   const po = owner, pc = current;
   owner = root; current = null;
-  const n = fn();
-  owner = po; current = pc;
-  return n;
+  try { return fn(); } finally { owner = po; current = pc; }
 }
 /** Disposes everything `c` owns (the list is detached first: children leaving it would disturb the loop). */
 function disposeOwned(c: Computation): void {
   const list = c.owned;
   c.owned = NO_OWN;
-  for (const k of list) { k.parent = null; dispose(k); }
+  let failure: Error | null = null;
+  for (const k of list) { k.parent = null; try { dispose(k); } catch (e) { if (failure === null) failure = e; } }
+  if (failure !== null) throw failure;
 }
 /** Runs a computation's cleanups untracked, as Solid does: a signal a cleanup reads does not subscribe the effect running
  *  then (a list row's cleanup reads under the list's effect, which a set in that cleanup would run again mid-run). */
 function cleanUp(c: Computation): void {
   if (c.cleanups.length === 0) return;
-  const prev = current;
-  current = null;
-  for (const f of c.cleanups) f();
-  current = prev;
+  const list = c.cleanups, prev = current;
   c.cleanups = NO_CLN;
+  current = null;
+  let failure: Error | null = null;
+  try {
+    for (const f of list) { try { f(); } catch (e) { if (failure === null) failure = e; } }
+  } finally { current = prev; }
+  if (failure !== null) throw failure;
 }
 function dispose(c: Computation): void {
+  if (c.slot < 0) return;
+  // Leave the live list before callbacks: cleanup can dispose this owner again.
+  const last = all.pop();
+  if (last !== c) { all[c.slot] = last; last.slot = c.slot; }
+  c.slot = -1;
   const p = c.parent;
   if (p !== null) { const i = p.owned.indexOf(c); if (i >= 0) p.owned.splice(i, 1); c.parent = null; }
-  disposeOwned(c);
-  for (const s of c.sources) s.unsubscribe(c);
-  c.sources = NO_SRC;
-  cleanUp(c);
   c.fn = NOOP;
-  // leave the exit list (swap-remove): a disposed computation holds nothing, and keeping it would grow the heap by
-  // every Show branch or list row ever mounted
-  if (c.slot >= 0) {
-    const last = all.pop();
-    if (last !== c) { all[c.slot] = last; last.slot = c.slot; }
-    c.slot = -1;
+  try { disposeOwned(c); }
+  finally {
+    for (const s of c.sources) s.unsubscribe(c);
+    c.sources = NO_SRC;
+    cleanUp(c);
   }
 }
 /** Live computations, for __dispose at exit. */
@@ -97,6 +100,8 @@ function track(s: Source): void {
   c.sources.push(s);
 }
 function run(c: Computation): void {
+  let p: Computation | null = c;
+  while (p !== null) { if (p.slot < 0) return; p = p.parent; }
   disposeOwned(c);
   for (const s of c.sources) s.unsubscribe(c);
   c.sources = NO_SRC;
@@ -302,8 +307,7 @@ export function _hotC(file: string, make: () => i32): i32 {
   const scope = owner;
   let root = newRoot(scope);
   owner = root;
-  ui.insert(frag, make(), -1);   // tracked as the plain call is: `_comp` reads the props in its effect
-  owner = scope;
+  try { ui.insert(frag, make(), -1); } finally { owner = scope; }   // props stay tracked as in the plain component call
   if (import.meta.hot) {
     const hot = import.meta.hot;
     let gone = false, stale = false;
@@ -329,29 +333,31 @@ export function _hotC(file: string, make: () => i32): i32 {
   }
   return frag;
 }
-/** Hot mode only: unmounts the tree render() mounted last. */
-let hotTree: (() => void) | null = null;
+/** Unmounts the tree render() mounted last, including when the entry runs again in hot mode. */
+let mountedTree: (() => void) | null = null;
 /** Mounts the app on the screen; `onTick` runs every frame (games put their update there). */
 export function render(app: () => i32, background: i32, onTick: ((dt: number) => void) | null): void {
-  const root = ui.createNode(ui.VIEW);
-  if (import.meta.hot) {   // zinc dev: the tree renders under an owner, so the entry running again replaces it instead of mounting a second one
-    const last = hotTree;
-    if (last !== null) last();
-    const tree = newRoot(null);
-    hotTree = () => { dispose(tree); ui.destroy(root); };
+  const last = mountedTree;
+  if (last !== null) last();
+  const root = ui.createNode(ui.VIEW), tree = newRoot(null);
+  mountedTree = () => ui.destroy(root);
+  ui.onDestroy(root, () => { mountedTree = null; dispose(tree); });
+  try {
     ui.insert(root, rendered(tree, app), -1);
     ui.mount(root, background, onTick);
-    return;
-  }
-  ui.insert(root, app(), -1);
-  ui.mount(root, background, onTick);
+  } catch (e) { ui.destroy(root); throw e; }
 }
 /** Renders `app` in a window of its own beside the main one (ZN-663), with the same signals and state: returns the window's id, -1 when it
  *  cannot open. */
 export function renderWindow(title: string, w: i32, h: i32, app: () => i32, background: i32): i32 {
-  const root = ui.createNode(ui.VIEW);
-  ui.insert(root, app(), -1);
-  return ui.mountWindow(title, w, h, root, background);
+  const root = ui.createNode(ui.VIEW), tree = newRoot(null);
+  ui.onDestroy(root, () => dispose(tree));
+  try {
+    ui.insert(root, rendered(tree, app), -1);
+    const id = ui.mountWindow(title, w, h, root, background);
+    if (id < 0) ui.destroy(root);
+    return id;
+  } catch (e) { ui.destroy(root); throw e; }
 }
 /** Markers for `import { Show, For } from 'zinc:ui/solid'`: the JSX lowering compiles these tags itself. */
 export const Show: i32 = 0, For: i32 = 1;
