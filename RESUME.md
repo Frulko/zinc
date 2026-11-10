@@ -4,13 +4,13 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 ## Active work
 
-Core1108→1109 active in .worktrees/1108/work/1108, fresh sole core worker; optional-chain helper guard correction building, method receiver defaults next.
+Core1108→1109 active in .worktrees/1108/work/1108, fresh sole core worker; 1108 checkpoint integratedb805f4819 (exact all3/check original gallery PASS, runtime AC3 waits1109); method receiver defaults now active. Group root rebuild after1109.
 
 | Work | Location | State |
 | --- | --- | --- |
-| Code13 | integrated8bbf8a245, released Backlog | Five controls implemented via existing editor/Markdown/inspector providers. Original both-model/all3 interactions pass with integrated1105/1107. Final caches, all6 root replay, gallery check/run and pictures pass; D277. No active worker. AC3 stays open: JS235962/239442/276318,12B strict used-budget excess; unused/AOT pass. Next free slot goes core1108/1109. No core edits. |
-| Tool panels14 | work/1078-panels, .worktrees/1078-panels | Fresh implementation worker active, ten controls, caller-owned state and existing providers. Owns minimal ScrubField default-bounds correction; prior caller has explicit bounds. QJS model/gallery passes independently; original optional-find/default-this code waits1108/1109. Numeric control geometry is the portable path under documented ZN-382 classic percent-inset limit; separate rn class-parser defect is in later.md. Rebase before final delivery to omit duplicate1107 cherry-pick. |
-| Charts15 | work/1078.15, .worktrees/1078.15 | Claimed896b30461, fresh inherited-model TS-only worker. All listed charts, actual interactions, gallery/pictures and unchanged gate. Avoids Code/panels/input providers. |
+| Code13 | integrated8bbf8a245, fresh work/1078.13 | Five controls implemented via existing editor/Markdown/inspector providers. Original both-model/all3 interactions pass with integrated1105/1107. Final caches, all6 root replay, gallery check/run and pictures pass; D277. Fresh completion worker performs shared size analysis, core read-only until1109 finishes. AC3 stays open: JS235962/239442/276318,12B strict used-budget excess; unused/AOT pass. Next free slot goes core1108/1109. No core edits. |
+| Tool panels14 | work/1078-panels, .worktrees/1078-panels | Fresh implementation worker active, ten controls, caller-owned state and existing providers. Owns minimal ScrubField default-bounds correction; prior caller has explicit bounds. QJS model and ten actual interaction routes (five groups×both models) pass independently; original optional-find/default-this code waits1108/1109. Numeric control geometry is the portable path under documented ZN-382 classic percent-inset limit; separate rn class-parser defect is in later.md. Rebase before final delivery to omit duplicate1107 cherry-pick. |
+| Charts15 | integratede85f33a65, released Backlog | All fifteen charts, pure geometry all3 and interactions both models/all3 pass. Seven inspected pictures. AC3 open: combined Code+Charts JS235962/241206/278082, same12B strict excess; unused/AOT pass. |
 | Data12 | integrated8f8478bd5 | Done: original twelve runs and root final combined gate pass on da7ca0360. Eight inspected pictures. |
 | Feedback11 | integratedc9be3d26a | Done: root exact behavior/defaults and final combined gate pass; original light/dark/action/360px pictures inspected. |
 
@@ -34,7 +34,7 @@ Root final targeted checks PASS on the rebuilt clean binary: collection_results,
 
 First OptiPlex proof PASS: unchanged nullable_numeric fixture cross-built on Mac for x86_64-linux, deployed under ~/zn/codex-1106-20261110-da7ca, ran headless with timeout15 via Tailscale, exit0/nullable numeric: pass. SHA2567c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No process left; desktop/GPU and native Linux compiler build remain unproven. Provenance in kit-integration JSON.
 
-Archived nine clean completed trees (1101,1105,1100,1096,size review,panels research and three family proof trees) under .logs/archive-completed-workers-20261110 before removal. The common retained binary remains; all active workers were told its new hash. Original old family checkpoint trees remain separate from active workers.
+Archived ten clean completed trees (1101,1105,1100,1096,size review,panels research,three family proof trees and Code13) under .logs/archive-completed-workers-20261110 before removal. The common retained binary remains; all active workers were told its new hash. Original old family checkpoint trees remain separate from active workers.
 
 ## Machines and clean binaries
 
@@ -49,3 +49,5 @@ Archived nine clean completed trees (1101,1105,1100,1096,size review,panels rese
 Physical keyboard/VoiceOver/touch, Pi/Mojave/Linux glyphs and window behavior, long virtual-scroll/churn/RC/energy, quiet-machine UI-work scaling and cold SVG/adapter cost remain proposed in task notes/archived handover. No suites/T1/T2/demo/pixelcompare/fuzz/fullbench. Earlier paired Pi Script+SVG aarch6410391584B proof returned42/exit0; no remote process.
 
 Owner responsive/password gallery is Done; pictures docs/img/design/gallery-responsive.png and password-reveal.png. Run from retained clean tree: PICTURE=gallery ZINC_SIZE=1280x900 ZINC_ROOT="$PWD" build/zinc run docs/img/design/src --interp. Kit: ZINC_ROOT="$PWD" build/zinc run examples/ui/kit-gallery --interp; GALLERY chooses the family. Agent runs stay bounded/background.
+
+Frozen1108 proof package: .logs/frozen-engines/zinc-1108-7316bee (SHA7316bee69a330eb5fb0a921bc342951b59950b734b84c4f24ab406935c7d2e26), adjacent58 .a archives and 1108-archives.json. AOT requires sibling archives; the initial binary-only snapshot failed setup, not the source gate. Runtime/archive sources da7ca→b805 identical; copied from clean common build, no mutable core archive used.

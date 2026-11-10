@@ -19,6 +19,10 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Charts15 checkpoint e85f33a65 integrated/released Backlog AC1/2 complete, AC3 same12B strict shared excess with Code; all15 types/geometry all3/both-model UI and seven inspected pictures proven. Reserved fresh Code13 completion for shared size analysis; core access read-only until sole core1109 finishes. Existing lossless Lucide generator src/frontend/modules.cpp1537 is a lead (6459 d-only paths/540 standard circles catalog-wide), not permission to trim icons or hand-minify. Frozen1108 AOT bundle repaired with58 immutable archive clones from source-identical runtime build; Panels can finish its own gate without mutable artifacts.
+
+-1108 checkpointb805f4819 integrated AC1/2, exact optional_collection all3/memory and original full gallery check27files PASS; runtime AC3 waits1109. Root rebuild grouped after1109 to keep the core lane moving; common85f6 binary remains frozen. Panels ten actual QJS routes pass; Charts final all3/both models pass and is capturing before combined gate. Code13 tree removed after archiving logs/checkpoint/stash patch under .logs/archive-completed-workers-20261110/1078-code; immutable backup stash retained safely, no shared reflog race.
+
 - Code13 checkpoint8bbf8a245 integrated/released Backlog AC1/2 complete, AC3 open12 strict JS bytes; root exact all6/gallery check/3frame QJS original editor PASS. D277/provenance recorded. Fresh core1108→1109 started in work/1108, sole core writer, beside Tool14/Charts15.39Done unchanged; no UI/budget cut. Code completed tree logs/stash will be archived before removal.
 
 - Reserved1109 after confirmed original Tool14 Terminal default-this regression: six lines fail RC verification on clean da7ca, source/log archived, ordinary method receiver/default semantics researched from ECMAScript. Fresh sole core chain1108→1109 next free slot; no control workaround. Code13 finishes truthful checkpoint AC1/2, AC3 open for12 strict JS bytes; other size gates and exact all6 pass.
