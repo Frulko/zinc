@@ -8,13 +8,15 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 | --- | --- | --- |
 | ZN-1078.23 Settings | .worktrees/1078.23 / work/1078.23 | Fresh demo worker: profile/notifications/appearance/account, actual save/discard and keyboard controls, CUI reference, no new widgets/services. |
 | ZN-1078.20 Gallery | .worktrees/1078.20 / work/1078.20 | All actual public kit controls on one scrollable light/dark page; focused GALLERY modes preserved. Must include Extended after integration. First all/default QJS3frames exits0 in34.9s, stable<150MB: indicative slow first layout, not a hang. Investigating navigation/narrow proof. |
-| ZN-1078.22 Dashboard | .worktrees/1078.22 / work/1078.22 | Seven source files; desktop interp/AOT/check pass. Final actual controls/all3/light-dark/360px proof underway. Local build-health data, kit only, original docs/img/design dashboard reused. |
+| ZN-1078.24 Finance | .worktrees/1078.24 / work/1078.24 | Fresh local finance demo: accounts, transaction grid, candlestick/spending charts using existing kit. |
 
-No active shared-core writer. Finish reported integration before filling the next slot. Next startable family: ZN-1078.24 Finance, then Mail/Notes/Assistant. Read current task/dependencies and search primary references before claiming.
+No active shared-core writer. Finish reported integration before filling the next slot. Next startable family: ZN-1078.25 Mail, then Notes/Assistant. Read current task/dependencies and search primary references before claiming.
 
 ## Integrated
 
-50 distinct Done since1078.03: eighteen ZN-1078 leaves (.03–.19 and.21), plus1079–1110. Current feature source becf01193. Earlier history and proposed tests: session-handover-2026-11-09.md and session-handover-2026-11-10.md.
+- Dashboard22 1d67788cf Done: actual all3 entry+actions, nine inspected pictures light/dark/360px, local kit build desk. Root check/interp4queued. Title differs visually across original captures; standalone canonical and import-only App cases report correct28px, no confirmed engine defect. No override.
+
+51 distinct Done since1078.03: nineteen ZN-1078 leaves (.03–.19 and.21–.22), plus1079–1110. Current feature source1d67788cf. Earlier history and proposed tests: session-handover-2026-11-09.md and session-handover-2026-11-10.md.
 
 - JSX1110 ebe53adf2: valid trailing commas in JSX map callbacks preserve nodes, ordering and evaluation across engines. Exact jsx_map_trailing passes. Planning b4edca089 completes normally formatted source; BoardCard key fixes actual React keyboard-drop focus. kit_planning all3/both models and six refreshed pictures pass.1110AC3 closed.
 - AI18 90b24121b: nine controls, seven inspected pictures; models/interactions both UI models/all3. Native Textarea maxRows/onKeyDown preserve IME/caret/shortcuts. Root kit_ai, original composerQJS4frames and unchanged gate pass. docs/reports/kit-ai-proof.md.
@@ -25,7 +27,7 @@ No active shared-core writer. Finish reported integration before filling the nex
 
 ## Engine and machine limits
 
-Common read-only engine: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, compiler source90b24121b, SHA2563978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af. Clean smoke tree source reset to becf01193 (newer changes TS-only). Workers use ZINC_ROOT=$their_tree. Announce before replacing binary and preserve adjacent AOT archives; moving only executable breaks native builds.
+Common read-only engine: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, compiler source90b24121b, SHA2563978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af. Clean smoke tree source reset to1d67788cf (newer changes TS-only). Workers use ZINC_ROOT=$their_tree. Announce before replacing binary and preserve adjacent AOT archives; moving only executable breaks native builds.
 
 Every heavy command uses absolute tools/work-run SECONDS COMMAND ARGS; one pending per worker. At most two building trees globally, one app/test, timeout on every run, headless or ZINC_BACKGROUND=1. No suites/T1/T2/tests-demo/pixelcompare/conformance/fuzz/benchmarks/CI. No processes left by completed workers.
 

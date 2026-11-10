@@ -865,6 +865,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-1078.16: real touch/VoiceOver, GPU/device image interaction and Discord sharper-decode replay; current geometry/lifetime/controller proof covers all3 headless engines, no physical-performance claim.
 
+- ZN-1078.22: investigate original Dashboard heading visual difference interp/AOT versus QuickJS; minimal canonical heading(2) and import-only App both report28px, no confirmed engine defect. Repro diagnostics archived with Dashboard logs; keep original source unchanged.
+
 ## Cross-platform pass
 
 - ZN-1027: an export with a broken plugin to a Linux target fails as on the Mac.

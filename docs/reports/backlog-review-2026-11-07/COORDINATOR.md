@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Dashboard22 integrated1d67788cf Done,51Done; local build desk uses existing kit, actual all3 actions and9 inspected light/dark/narrow pictures pass, root check/interp4queued. Minimal heading parity case passes; original title visual difference recorded without override. Reserve Finance24 fresh worker, dependencies Charts/Data Done, pinned CUI finance.c researched; Gallery20/Settings23 continue.
+
 - Root Extended integration PASS:12 exact model/API/UI paths all3, production native drop scope and original QJS4frames; capture360/dark social inspected. Provenance after_extended,50Done. Settings23 active with Gallery20/Dashboard22; engine397865 remains unchanged. Completed Extended logs/checkpoint archived before tree removal.
 
 - Extended19 integrated720f15378/becf01193 Done,50Done; final combined unchanged gate JS235962/246177/282882, unused10215<10240(25B margin),4078/component; AOT5325320/5474000/6025760. Lazy native System factory removes unused plugin, selected native drop scope proved; secondary-window HAL gap remains later. Root exact integration proof queued. Reserve fresh Settings23 (reference CUI pinned settings.c inspected), beside Gallery20/Dashboard22.
