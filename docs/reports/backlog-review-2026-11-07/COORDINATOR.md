@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve161.02 as next solecore feature: genuine Symbol values/keys and iterator protocol, preserving D275 snapshot-array collection methods. Primary research completed; full natural scope includes live Map/Set and close semantics, so freshworker must propose coherent representation before broad edits, no token demo/AC waiver. Owner rt.h0–300 and existing runtime hunks remain protected.164partial/512Review integrated; root final512proof running, no other core writer.
+
 - Reserve512 independent toolchain lane: Cortex-A8+NEON impliesVFPv3 in pinnedZig; crossruntime cache must hash flags or reuse oldCPU objects. Worker owns tc.cpp target/cachekey only and deferredcross T2 row, separate from164. Bound tinyELF attributes and consolehello proof; noHero/sysroot/fullT2/QEMU/benchmark run. Reviewed narrow scope is explicit, obsolete crosscriteria not claimed proven.
 
 - Recorded D291/D292: root80Done, native+wasm/common3ec59f on0e8bd9b90 builds and actualChrome3AC/Heroall3/nativebudgets PASS; root391mapping/defaults and707generic/Phaser exact PASS. Archive391/449/707-frame;42 completedsourcecheckpoints cleaned. Current164 solecorewriter;512 research complete for next independent toolchain lane. All10 protected WIP payloads preserved. No suites/benchmark/physical claims.
