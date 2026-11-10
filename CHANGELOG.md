@@ -384,6 +384,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `JSON.stringify` accepts quoted object fields such as `'max-clients'` and preserves escaped property names, nested arrays, zero and false on every engine.
 
 
+- Optional `any` and `unknown` fields keep `null` distinct from missing values in comparisons and JSON; truthiness and supported optional chains follow the stored value.
+
 ### Developer tools
 
 #### New

@@ -203,7 +203,10 @@ struct Parser {
       std::uint32_t nul = mk(N::TypeRef, startOf(ty), prevEnd(), "null");
       r.ast.nodes[nul].flags |= kFlagUndefined;  // `x?: T` is `T | undefined`
       ty = mk(N::TypeUnion, startOf(ty), prevEnd(), {}, {ty, nul});  // spans the written type, so a type stripper finds its colon
-      if (!inType && def == kNone) def = mk(N::Literal, st, prevEnd(), "null");
+      if (!inType && def == kNone) {
+        def = mk(N::Literal, st, prevEnd(), "null");
+        r.ast.nodes[def].flags |= kFlagUndefined;
+      }
     }
     std::uint32_t id = mk(N::Param, st, prevEnd(), name, {ty, def});
     r.ast.nodes[id].flags = pflags | (optional ? kFlagOptional : 0) | (rest ? kFlagRest : 0);  // `x?: T`: left out is null (a function type counts its required parameters from it)

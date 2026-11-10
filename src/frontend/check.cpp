@@ -264,6 +264,7 @@ struct Checker {
   std::uint32_t dynObjOf() { if (dynObj == kNone) { std::uint32_t s = lookup("Dyn"); if (s != kNone && out.syms[s].kind == SymKind::Class) dynObj = ty(out.syms[s].type).obj; } return dynObj; }
   bool isDynFamily(TypeId t) { if (t == kNoType || ty(t).k != TK::Object || dynObjOf() == kNone) return false; for (std::uint32_t o = ty(t).obj; o != kNoObj; o = out.objs[o].parent) if (o == dynObj) return true; return false; }
   bool isDyn(TypeId t) { return t == tDyn || (t != kNoType && ty(t).k == TK::Object && dynObjOf() != kNone && ty(t).obj == dynObj); }  // any or unknown
+  bool optionalDyn(TypeId t) { return t != kNoType && !bad(t) && ty(t).k == TK::Union && hasNull(t) && isDyn(withoutNull(t)); }
   // A union the IR has no type of its own for (`boolean | Cam`, `string | number`): its value is held as a Dyn, converted where a typed value
   // meets it and where a narrowing or an `as` takes a member out; its members are those a Dyn converts (the lowering's irType agrees)
   bool dynBacked(TypeId t) {
@@ -1080,7 +1081,7 @@ struct Checker {
     if (cond) { condNodes.insert(le); condNodes.insert(re); }
     if (op == "in") {
       TypeId rt0 = expr(re);
-      if (!rawDyn() && isDyn(rt0) && replaceWith(i, "__dynIn(__H0, __H1)", {{le}, {re}})) return expr0(i, expected0);
+      if (!rawDyn() && (isDyn(rt0) || optionalDyn(rt0)) && replaceWith(i, "__dynIn(__H0, __H1)", {{le}, {re}})) return expr0(i, expected0);
       diag(kZInOperator, i, "");
       return tError;
     }
@@ -1089,7 +1090,7 @@ struct Checker {
         std::uint32_t u = side ? re : le, o = side ? le : re;
         if (n(u).kind != N::Ident || n(u).text != "undefined" || lookup("undefined") != kNone || !pureCallee(o)) continue;
         TypeId ot = expr(o);
-        if (!bad(ot) && !isDyn(ot) && hasNull(ot)) { a.nodes[u].kind = N::Literal; a.nodes[u].text = "null"; }
+        if (!bad(ot) && !isDyn(ot) && !optionalDyn(ot) && hasNull(ot)) { a.nodes[u].kind = N::Literal; a.nodes[u].text = "null"; }
         break;
       }
     }
@@ -1097,7 +1098,7 @@ struct Checker {
       nullishLeft = le;
       TypeId l0 = expr(le);
       nullishLeft = kNone;
-      if (!rawDyn() && isDyn(l0) && replaceWith(i, "__dynNullish(__H0, (): any => __H1)", {{le}, {re}})) return expr0(i, expected0);
+      if (!rawDyn() && (isDyn(l0) || optionalDyn(l0)) && replaceWith(i, "__dynNullish(__H0, (): any => __H1)", {{le}, {re}})) return expr0(i, expected0);
       TypeId base = l0;
       if (!bad(l0) && !isMapGet(le)) {
         if (!hasNull(l0) && pathSymOf(le) != kNone && hasNull(out.syms[pathSymOf(le)].type)) { expr(re); return l0; }  // a property known not to be null here
@@ -1138,7 +1139,7 @@ struct Checker {
       out.nodeSym[re] = rs;
       out.nodeType[re] = out.syms[rs].type;
       if (usedBeforeDeclaration(rs, re)) diag(kZCannotFindName, re, "diag.detail.beforeDeclaration", {{"name", std::string(rn.text)}});
-      if (isDyn(lt)) {  // a Dyn holds a typed object as a view: the view knows the classes it answers to
+      if (isDyn(lt) || optionalDyn(lt)) {  // a Dyn holds a typed object as a view: the view knows the classes it answers to
         TypeId ct = out.syms[rs].type;
         if (!rawDyn() && !isDynFamily(ct) && replaceWith(i, "__dynIsTag(__H0, " + std::to_string(ct) + ")", {{le}})) return expr0(i, kNoType);
         return tBool;
@@ -1169,11 +1170,10 @@ struct Checker {
     if (!rawDyn() && op == "+" && ((l == tStr && isDyn(r)) || (isDyn(l) && r == tStr))) {   // '' + any is a string, as in TypeScript (the Dyn helper's own concatenation)
       if (replaceWith(i, l == tStr ? "__H0 + __dynString(__dynPrim(__H1))" : "__dynString(__dynPrim(__H0)) + __H1", {{le}, {re}})) return expr0(i, expected0);
     }
-    // an operand is any or unknown (an optional one too, `unknown | undefined`, unless it is tested against null or undefined, a plain null
-    // test): the operation is a call of the Dyn helper
+    // Optional Dyn slots normalize their absent reference before using JavaScript value semantics.
     const bool eqOp0 = op == "===" || op == "!==" || op == "==" || op == "!=";   // a Dyn-backed union is compared by the Dyn helper; other operators need it narrowed
     auto nullTest = [&]() { for (std::uint32_t k : {le, re}) if ((n(k).kind == N::Literal && n(k).text == "null") || (n(k).kind == N::Ident && n(k).text == "__undef")) return true; return false; };
-    auto dynish = [&](TypeId t) { return isDyn(t) || (!bad(t) && ty(t).k == TK::Union && hasNull(t) && isDyn(withoutNull(t)) && !nullTest()) || (eqOp0 && dynBacked(t) && !nullTest()); };
+    auto dynish = [&](TypeId t) { return isDyn(t) || optionalDyn(t) || (eqOp0 && dynBacked(t) && !nullTest()); };
     if (!rawDyn() && (dynish(l) || dynish(r)) && !bad(l) && !bad(r)) {
       auto isLit = [&](std::uint32_t k, const char* text) { return n(k).kind == N::Literal && n(k).text == text; };
       auto isUndef = [&](std::uint32_t k) { return n(k).kind == N::Ident && n(k).text == "__undef"; };
@@ -1562,7 +1562,18 @@ struct Checker {
     if (outOfUnion && isDyn(to) && hasNull(from)) wrapNode(node, dynSym(unionOf({objType(dynObjOf()), tNull}, ty(from).undef), true, node));
     else if (intoUnion && isDyn(from) && hasNull(to)) { if (std::uint32_t s = lookup("__dynOpt"); s != kNone) wrapNode(node, s); }
     if (intoUnion || outOfUnion) return;
-    if (hasDynMember(to) && !isDyn(from) && from != tNull && ty(from).k != TK::Union) { convertDyn(from, tDyn, node); return; }   // a value into `unknown | null` becomes a Dyn first  // (tAny, console.log's anything, takes a Dyn as it is)
+    if (optionalDyn(from) && optionalDyn(to) && ty(from).undef != ty(to).undef) {
+      convertDyn(from, tDyn, node);
+      convertDyn(tDyn, to, node);
+      return;
+    }
+    if (optionalDyn(from) && !hasDynMember(to) && !isDyn(to) && !isDynFamily(to) && to != tNull) {
+      convertDyn(from, tDyn, node);
+      convertDyn(tDyn, to, node);
+      return;
+    }
+    const bool optionalNull = optionalDyn(to) && ty(to).undef && !rawDyn() && from == tNull && !(n(node).flags & kFlagUndefined);
+    if (hasDynMember(to) && !isDyn(from) && (from != tNull || optionalNull) && ty(from).k != TK::Union) { convertDyn(from, tDyn, node); return; }   // a value into `unknown | null` becomes a Dyn first  // (tAny, console.log's anything, takes a Dyn as it is)
     if (isDyn(to) && !isDyn(from) && !isDynFamily(from)) {
       if (from == tNull) {   // `undefined` written in a file without Dyn values is a null literal flagged undefined (modules.cpp): into a Dyn it is the Dyn undefined
         const bool undef = n(node).kind == N::Literal && (n(node).flags & frontend::kFlagUndefined) && lookup("__undef") != kNone;
@@ -2343,19 +2354,19 @@ struct Checker {
       const Type t = ty(at);
       bool num_ = t.k == TK::Num, str = t.k == TK::Str, bl = at == tBool, arr = t.k == TK::Array;
       if (nm == "String") {
-        if (!rawDyn() && isDyn(at)) return rewrite("__dynString(__H0)", {{args[0]}});
+        if (!rawDyn() && (isDyn(at) || optionalDyn(at))) return rewrite("__dynString(__H0)", {{args[0]}});
         if (str) return rewrite("__H0", {{args[0]}});
         if (num_ || bl) return rewrite("`${__H0}`", {{args[0]}});
         if (arr) return rewrite("__H0.join(',')", {{args[0]}});
-        if (!rawDyn() && isDyn(at)) return rewrite("__dynString(__H0)", {{args[0]}});
         if (at == tNull) return rewrite((n(args[0]).flags & kFlagUndefined) ? "'undefined'" : "'null'", {});
         if (t.k == TK::Union && hasNull(at)) return rewrite("`${__H0}`", {{args[0]}});  // a nullable number, boolean or string: its text, or null / undefined
       } else if (nm == "Number") {
         if (str) return rewrite("__toNumber(__H0)", {{args[0]}});
         if (num_) return rewrite("__H0", {{args[0]}});
         if (bl) return rewrite("(__H0 ? 1 : 0)", {{args[0]}});
-        if (!rawDyn() && isDyn(at)) return rewrite("__dynNumber(__H0)", {{args[0]}});   // as JavaScript: null 0, undefined NaN, a string parsed
+        if (!rawDyn() && (isDyn(at) || optionalDyn(at))) return rewrite("__dynNumber(__H0)", {{args[0]}});   // as JavaScript: null 0, undefined NaN, a string parsed
       } else {
+        if (!rawDyn() && (isDyn(at) || optionalDyn(at))) return rewrite("__dynTruthy(__H0)", {{args[0]}});
         if (str) return rewrite("(__H0.length > 0)", {{args[0]}});
         if (bl) return rewrite("__H0", {{args[0]}});
         if (num_) {
@@ -3080,7 +3091,7 @@ struct Checker {
           if (g != genScope->end()) s = g->second;
         }
         if (s == kNone && x.text == "undefined" && lookup("__undef") != kNone) {
-          if (expected != kNoType && !bad(expected) && !isDyn(expected) && hasNull(expected)) {
+          if (expected != kNoType && !bad(expected) && !isDyn(expected) && hasNull(expected) && (!optionalDyn(expected) || ty(expected).undef)) {
             a.nodes[i].kind = N::Literal; a.nodes[i].text = "null"; a.nodes[i].flags |= kFlagUndefined;
             return tNull;   // a typed optional slot keeps its null ABI even when another module enabled Dyn
           }
@@ -3116,7 +3127,7 @@ struct Checker {
         if (out.syms[s].kind == SymKind::Func && i != calleeNode) out.funcValueUses.push_back(i);
         if (trackable(s)) {
           TypeId cur = currentType(s);
-          if ((isDyn(out.syms[s].type) || dynBacked(out.syms[s].type)) && cur != out.syms[s].type && !isDyn(cur) && !isDynFamily(cur) && !dynBacked(cur) && !pendingExempt && !rawDyn()) convertDyn(out.syms[s].type, cur, i);  // narrowed by typeof or instanceof: the typed value
+          if ((isDyn(out.syms[s].type) || optionalDyn(out.syms[s].type) || dynBacked(out.syms[s].type)) && cur != out.syms[s].type && !isDyn(cur) && !isDynFamily(cur) && !dynBacked(cur) && !pendingExempt && !rawDyn()) convertDyn(out.syms[s].type, cur, i);  // narrowed by typeof or instanceof: the typed value
           return cur;
         }
         return out.syms[s].type;
@@ -3137,7 +3148,7 @@ struct Checker {
         asOperand = x.kids[0];
         TypeId vt = expr(x.kids[0], target);
         asOperand = savedAs;
-        if (!bad(vt) && !rawDyn() && ((isDyn(vt) && !isDyn(target) && !isDynFamily(target)) || (isDyn(target) && !isDyn(vt) && !isDynFamily(vt)) || (dynBacked(vt) && !dynBacked(target) && !isDyn(target)))) {  // a checked conversion from or to a Dyn
+        if (!bad(vt) && !rawDyn() && (((isDyn(vt) || optionalDyn(vt)) && !isDyn(target) && !isDynFamily(target)) || (isDyn(target) && !isDyn(vt) && !isDynFamily(vt)) || (dynBacked(vt) && !dynBacked(target) && !isDyn(target)))) {  // a checked conversion from or to a Dyn
           std::uint32_t operand = x.kids[0];
           convertDyn(vt, target, operand);
           a.nodes[i] = a.nodes[operand];
@@ -3229,7 +3240,7 @@ struct Checker {
         }
         if (op == "!") condNodes.insert(x.kids[0]);
         TypeId t = expr(x.kids[0]);
-        if (!rawDyn() && isDyn(t) && (op == "!" || op == "-" || op == "+")) {
+        if (!rawDyn() && (isDyn(t) || optionalDyn(t)) && (op == "!" || op == "-" || op == "+")) {
           const char* call = op == "!" ? "!__dynTruthy(__H0)" : op == "-" ? "__dynNeg(__H0)" : "__dynPos(__H0)";
           if (replaceWith(i, call, {{x.kids[0]}})) return expr0(i, expected);
         }
@@ -3240,7 +3251,7 @@ struct Checker {
         if (op == "typeof") {
           if (rawDyn()) return tStr;
           std::string lit;
-          if (isDyn(t) || dynBacked(t)) { if (replaceWith(i, "__dynTypeof(__H0)", {{x.kids[0]}})) return expr0(i, expected); return tStr; }
+          if (isDyn(t) || optionalDyn(t) || dynBacked(t)) { if (replaceWith(i, "__dynTypeof(__H0)", {{x.kids[0]}})) return expr0(i, expected); return tStr; }
           if (ty(t).k == TK::Union && hasNull(t)) {  // T | null: undefined or null when absent, else the typeof of the rest (a generated test: the operand may be a call)
             TypeId inner = withoutNull(t);
             std::string it = inner == tStr ? "'string'" : (inner != kNoType && isNum(inner)) ? "'number'" : inner == tBool ? "'boolean'" : (inner != kNoType && isDyn(inner)) ? "__dynTypeof(v)" : "'object'";   // (`unknown | undefined`: the Dyn's own)
@@ -3383,12 +3394,13 @@ struct Checker {
         if (op == "=") {
           TypeId vt = expr(value, tt);
           if (ok) require(vt, tt, value);
-          if (tsym != kNone && trackable(tsym) && ty(tt).k == TK::Union && !bad(vt) && assignable(vt, tt, kNone)) narrowing.push_back({tsym, vt});  // known after the assignment
+          const TypeId known = optionalDyn(tt) && vt == tNull ? tt : vt;
+          if (tsym != kNone && trackable(tsym) && ty(tt).k == TK::Union && !bad(vt) && assignable(vt, tt, kNone)) narrowing.push_back({tsym, known});  // known after the assignment
           if (n(target).kind == N::Member || n(target).kind == N::Index) {
             resetBelow(pathKey(target));  // what was known of the fields and elements of the old value
             if (!bad(vt) && assignable(vt, tt, kNone) && ty(tt).k == TK::Union) {  // node.left = x: what x was is known
               std::uint32_t ps = pathSymFor2(target, tt);
-              if (ps != kNone) narrowing.push_back({ps, vt});
+              if (ps != kNone) narrowing.push_back({ps, known});
             }
           }
           return tt;
@@ -3569,6 +3581,10 @@ struct Checker {
           else if (!opt && replaceWith(i, "__dynGet(__H0, '" + std::string(x.text) + "')", {{x.kids[0]}})) return expr0(i, expected);
           else { diag(kZUnsupported, i, "'?.' on an `any`"); return tError; }
         }
+        if (!rawDyn() && opt && (isDyn(ot) || optionalDyn(ot))) {
+          wrapNode(x.kids[0], lookup("__dynChain"));
+          ot = unionOf({objType(dynObjOf()), tNull}, true);
+        }
         if (opt && !hasNull(ot)) a.nodes[i].flags &= ~kFlagOptional;  // on a value that cannot be null `?.` is plain `.`
         if (opt && hasNull(ot)) {
           ot = withoutNull(ot);
@@ -3602,7 +3618,14 @@ struct Checker {
         if ((n(i).flags & kFlagOptional) && !called && mt != tVoid) return chainStop(i, mt);  // a?.b is b, or undefined (a?.b() adds it to the call)
         if (!m->getter && !m->method && ty(mt).k == TK::Union && !pendingExempt) {
           std::uint32_t ps = pathSymFor2(i, mt);
-          if (ps != kNone) return currentType(ps);  // narrowed by an earlier test of this property
+          if (ps != kNone) {
+            const TypeId cur = currentType(ps);
+            if (!rawDyn() && optionalDyn(mt) && cur != mt && !isDyn(cur) && !isDynFamily(cur) && !optionalDyn(cur)) {
+              out.nodeType[i] = mt;
+              convertDyn(mt, cur, i);
+            }
+            return cur;
+          }
         }
         return mt;
       }
@@ -3777,8 +3800,9 @@ struct Checker {
   // `plain`: a condition (if, ?:, !), where a string or a number that cannot be null tests as JavaScript does too ('' and 0 and NaN are false).
   TypeId truthiness(std::uint32_t e, TypeId t, bool plain = false) {
     if (bad(t) || t == tBool) return t;
-    if (plain && !rawDyn() && isDyn(t))  // `if (v)`, `v ? a : b` on an `any`: JavaScript truthiness
+    if (plain && !rawDyn() && (isDyn(t) || optionalDyn(t)))  // `if (v)`, `v ? a : b` on an `any`: JavaScript truthiness
       return replaceWith(e, "__dynTruthy(__H0)", {{cloneNode(e, false)}}) ? expr(e) : t;
+    if (!plain && !rawDyn() && optionalDyn(t)) return t;
     if (!hasNull(t)) {
       if (!plain || (t != tStr && ty(t).k != TK::Num)) return t;
       if (t == tStr) return replaceWith(e, "(__H0.length > 0)", {{cloneNode(e, false)}}) ? expr(e) : t;
@@ -4089,7 +4113,8 @@ struct Checker {
         else if (elseExits && !thenExits) pushFacts(ft);
         else if (!thenExits && !elseExits)
           for (std::size_t k = 0; k < watched.size(); ++k) {
-            TypeId j = thenEnd[k] == elseEnd[k] ? thenEnd[k] : unionOf({thenEnd[k], elseEnd[k]});
+            const TypeId declared = out.syms[watched[k]].type;
+            TypeId j = thenEnd[k] == elseEnd[k] ? thenEnd[k] : optionalDyn(declared) && (thenEnd[k] == declared || elseEnd[k] == declared) ? declared : unionOf({thenEnd[k], elseEnd[k]});
             if (j != out.syms[watched[k]].type && j != kNoType && !bad(j)) narrowing.push_back({watched[k], j});
           }
         break;
@@ -4722,12 +4747,34 @@ struct Checker {
     const Node& x = n(k);
     return x.kind == N::Call && x.kids.size() == 4 && n(x.kids[0]).kind == N::Ident && n(x.kids[0]).text == "__tdzChk" ? x.kids[3] : k;
   }
+  std::uint32_t dynSubject(std::uint32_t node) const {
+    const Node& x = n(node);
+    if (x.kind != N::Call || x.kids.size() != 2) return node;
+    const std::uint32_t sym = out.nodeSym[x.kids[0]];
+    if (sym != kNone) for (const auto& [type, decl] : out.dynTos) {
+      (void)type;
+      if (out.syms[sym].decl == decl) return x.kids[1];
+    }
+    return node;
+  }
   void factsOf(std::uint32_t cond, bool truthy, std::vector<Fact>& fs) {
     const Node& c = n(cond);
     if (c.kind == N::Unary && c.text == "!") { factsOf(c.kids[0], !truthy, fs); return; }
-    if (c.kind == N::Call && c.kids.size() == 3 && n(c.kids[0]).kind == N::Ident && n(c.kids[0]).text == "__dynIsTag" && n(c.kids[1]).kind == N::Ident && n(c.kids[2]).kind == N::Number) {  // x instanceof C on a Dyn
-      std::uint32_t sy = out.nodeSym[c.kids[1]];
-      if (sy != kNone && trackable(sy) && truthy && isDyn(currentType(sy, &fs))) fs.push_back({sy, static_cast<TypeId>(std::stoul(std::string(n(c.kids[2]).text)))});
+    if (c.kind == N::Call && c.kids.size() == 3 && n(c.kids[0]).kind == N::Ident && n(c.kids[0]).text == "__dynIsTag" && n(dynSubject(c.kids[1])).kind == N::Ident && n(c.kids[2]).kind == N::Number) {  // x instanceof C on a Dyn
+      std::uint32_t sy = out.nodeSym[dynSubject(c.kids[1])];
+      if (sy != kNone && trackable(sy) && truthy && (isDyn(currentType(sy, &fs)) || optionalDyn(currentType(sy, &fs)))) fs.push_back({sy, static_cast<TypeId>(std::stoul(std::string(n(c.kids[2]).text)))});
+      return;
+    }
+    if (c.kind == N::Call && c.kids.size() == 2 && n(c.kids[0]).kind == N::Ident) {
+      const auto fn = n(c.kids[0]).text;
+      const std::uint32_t subj = dynSubject(c.kids[1]);
+      const std::uint32_t sy = n(subj).kind == N::Ident ? out.nodeSym[subj] : pathSymOf(subj);
+      if (sy != kNone && trackable(sy) && optionalDyn(currentType(sy, &fs))) {
+        const TypeId cur = currentType(sy, &fs);
+        const bool undef = ty(cur).undef;
+        if ((fn == "__dynIsUndef" && truthy != undef) || (fn == "__dynIsNull" && truthy == undef) || (fn == "__dynIsNullish" && !truthy))
+          fs.push_back({sy, withoutNull(cur)});
+      }
       return;
     }
     if (c.kind != N::Binary) return;
@@ -4737,13 +4784,13 @@ struct Checker {
     if (eq || ne) {
       const std::uint32_t k0 = unTdz(c.kids[0]), k1 = unTdz(c.kids[1]);   // a top-level variable read with its dead-zone check is tested as itself
       // typeof x === 'number' (the typeof of a Dyn has become a call of __dynTypeof)
-      auto isTypeofOf = [&](std::uint32_t k) { return n(k).kind == N::Call && n(n(k).kids[0]).kind == N::Ident && n(n(k).kids[0]).text == "__dynTypeof" && n(n(k).kids[1]).kind == N::Ident; };
+      auto isTypeofOf = [&](std::uint32_t k) { return n(k).kind == N::Call && n(n(k).kids[0]).kind == N::Ident && n(n(k).kids[0]).text == "__dynTypeof" && n(dynSubject(n(k).kids[1])).kind == N::Ident; };
       if ((isTypeofOf(k0) && n(k1).kind == N::String) || (isTypeofOf(k1) && n(k0).kind == N::String)) {
         std::uint32_t tu = isTypeofOf(k0) ? k0 : k1, ls = tu == k0 ? k1 : k0;
-        std::uint32_t sy = out.nodeSym[n(tu).kids[1]];
+        std::uint32_t sy = out.nodeSym[dynSubject(n(tu).kids[1])];
         std::string_view lit = n(ls).text;
         lit = lit.substr(1, lit.size() - 2);
-        if (sy != kNone && trackable(sy) && isDyn(currentType(sy, &fs)) && eq == truthy) {
+        if (sy != kNone && trackable(sy) && (isDyn(currentType(sy, &fs)) || optionalDyn(currentType(sy, &fs))) && eq == truthy) {
           TypeId nt = lit == "number" ? num(gNumber) : lit == "string" ? tStr : lit == "boolean" ? tBool : kNoType;
           if (nt != kNoType) fs.push_back({sy, nt});
         }
@@ -4908,6 +4955,7 @@ struct Checker {
         }
         // Named declarations keep an optional marker for signature(); the real default is now in the body.
         a.nodes[p].kids[1] = keepOptional ? newNode(N::Literal, "null", {}, p) : kNone;
+        if (keepOptional) a.nodes[a.nodes[p].kids[1]].flags |= kFlagUndefined;
       }
       if (required < n(i).kids.size() - 2) lambdaMin = required;  // some parameter is optional (padding for callbacks comes after it and stays required)
       else lambdaMin = static_cast<std::size_t>(-1);

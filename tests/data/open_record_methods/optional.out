@@ -1,0 +1,166 @@
+absent false true true
+false true true true
+true false false undefined true false
+{} {}
+false true undefined {}
+undefined false undefined
+not-null true undefined
+nullish false true
+falsy
+null true false true
+true false true true
+false true false object true false
+{"value":null} {"value":null}
+true false object {"value":null}
+defined true object
+null false object
+nullish true false
+falsy
+undefined false true true
+false true true true
+true false false undefined true false
+{} {}
+false true undefined {}
+undefined false undefined
+not-null true undefined
+nullish false true
+falsy
+false false false false
+false false false false
+true true true boolean true false
+{"value":false} {"value":false}
+false false boolean {"value":false}
+defined false boolean
+not-null false boolean
+present boolean
+falsy
+zero false false false
+false false false false
+true true true number true false
+{"value":0} {"value":0}
+false false number {"value":0}
+defined false number
+not-null false number
+present number
+falsy
+empty false false false
+false false false false
+true true true string true false
+{"value":""} {"value":""}
+false false string {"value":""}
+defined false string
+not-null false string
+present string
+falsy
+text false false false
+false false false false
+true true true string false true
+{"value":"yes"} {"value":"yes"}
+false false string {"value":"yes"}
+defined false string
+not-null false string
+present string
+truthy
+object false false false
+false false false false
+true true true object false true
+{"value":{"name":"parent"}} {"value":{"name":"parent"}}
+false false object {"value":{"name":"parent"}}
+defined false object
+not-null false object
+present object
+truthy
+true true true
+method false false false
+false false false false
+true true true function false true
+{} {}
+false false function {}
+defined false function
+not-null false function
+present function
+truthy
+true
+boxed-null true false true
+true false true true
+false true false object true false
+{"value":null} {"value":null}
+true false object {"value":null}
+defined true object
+null false object
+nullish true false
+falsy
+reset false true true
+false true true true
+true false false undefined true false
+{} {}
+false true undefined {}
+undefined false undefined
+not-null true undefined
+nullish false true
+falsy
+literal true false true
+true false true true
+false true false object true false
+{"value":null} {"value":null}
+true false object {"value":null}
+defined true object
+null false object
+nullish true false
+falsy
+fallback 1
+fallback 2
+0 2
+false 2
+ 2
+ 0
+narrow-chain undefined
+arg true object
+3
+narrow-chain 1
+arg false number
+3
+narrow-chain 3
+arg false string
+true
+narrow-chain 5
+arg false boolean
+parent
+narrow-chain 15
+arg false object
+undefined 1
+undefined 2
+5 3
+1 4
+0 5
+undefined 6
+undefined 7
+undefined true typed
+string false x
+overwrite true false object
+reset-arg false true undefined
+decoded true false {"value":null}
+nullable true false object
+nullable-defined true object
+nullable-optional true false {"value":null}
+nullable false true undefined
+nullable-not-null true undefined
+nullable-optional false true {}
+nullable false false number
+nullable-defined false number
+nullable-not-null false number
+nullable-optional false false {"value":0}
+joined true false object
+joined false true undefined
+string 1
+joined false false string
+number 3
+joined false false number
+undefined true 5
+number false 0
+false true undefined
+true false object
+false true undefined
+false true undefined
+true false object
+false true undefined

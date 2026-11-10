@@ -1,4 +1,4 @@
-// Remaining ZN-1030 gap: an optional dynamic slot conflates explicit null with absence.
+// An optional dynamic slot preserves explicit null as distinct from absence.
 class Empty {}
 type Optional = { value?: any };
 const view: Optional = new Empty();

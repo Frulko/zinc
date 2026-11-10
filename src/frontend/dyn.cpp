@@ -95,7 +95,7 @@ std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, st
       TypeId member = kNoType;
       for (TypeId m : x.params) if (m != 5) member = m;
       if (to) body = "  if (v === null) return " + std::string(x.undef ? "__undef" : "__null") + ";\n  return " + toExpr(member, "v") + ";\n";
-      else body = "  if (d.kind() <= 1) return null;\n  return " + fromExpr(member, "d") + ";\n";
+      else body = "  if (d.kind() " + std::string(isDynT(member) ? (x.undef ? "=== 0" : "=== 1") : "<= 1") + ") return null;\n  return " + fromExpr(member, "d") + ";\n";
       break;
     }
     case TK::Object: {
@@ -360,6 +360,10 @@ function __dynIsUndef(d: Dyn): boolean { return d.kind() === 0; }
 // A Dyn stored into an `unknown | undefined` slot (`b?: unknown`, `x?: unknown`): its undefined is the slot's null, what a missing one holds (ZN-877)
 function __dynOpt(d: Dyn): Dyn | undefined {
   if (d.kind() === 0) return null;
+  return d;
+}
+function __dynChain(d: Dyn | undefined): Dyn | undefined {
+  if (d === null || d.kind() <= 1) return null;
   return d;
 }
 function __dynIsNullish(d: Dyn): boolean { return d.kind() <= 1; }

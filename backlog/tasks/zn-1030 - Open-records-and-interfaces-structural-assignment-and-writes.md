@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:37'
-updated_date: '2026-11-10 08:28'
+updated_date: '2026-11-10 09:12'
 labels:
   - checker
   - records
@@ -109,4 +109,29 @@ Proof/final compiler hash and exact command are appended below. Clean frontend/s
 Proposed tests: `tests/run --tier t0 --only json_quoted` — existing escaped serializers after dynamic omission, expected seconds/<1GB, owner selected; `tests/run --tier t0 --only class_runtime` — shared class/record adapter callers, expected seconds/<1GB, owner selected; `tools/diff-matrix` — broader records/classes corpus, milestone only, earlier estimate ~10min/<1GB. No suite, T1/T2, tests/demo, benchmark, pixel, conformance, fuzz, CI or cross-platform run.
 
 Final proof: `/Users/mowmow/Lab/zinc/tools/work-run 60 env ZINC=<tree>/build/zinc ZINC_TEST_RESULTS=.logs/1030/results-final.txt tests/run --tier t0 --only open_record_methods` PASS, 7 seconds (all3 focused fixture + original caller, two checks, two negative diagnostics). Final build/zinc SHA256 a1f55907e44eedee9d00a2c4ccbba685b481136cee2eb4c7d6d86858549a504f, built from fc26777c6 plus this commit's source changes. Final source unchanged after this proof; final remaining-case all3 log .logs/1030/remaining-candidate.log records the same binary hash. Durable worker logs .worktrees/1030/.logs/1030; coordinator should archive before removing the tree. No throughput, memory, energy or cross-platform claim.
+
+
+2026-11-10 — Fourth pass, work/1030-views on af20bb17b. Scoped optional dynamic value repair; Backlog, AC1 still open. AC2/AC3 keep their prior proofs. No structural-array/view/store criteria changed.
+
+Research: ECMAScript keeps null and undefined distinct under strict equality, treats both as nullish for optional chains, and JSON omits undefined while serializing null (https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html and https://tc39.es/ecma262/multipage/structured-data.html). TypeScript describes the absent-versus-undefined optional property boundary (https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-4.html). No dependency added; research done directly because the coordinator's three worker slots were occupied.
+
+Reproduced the original remaining-optional-any.ts on frozen compiler a1f55907: interpreter printed {}, QuickJS printed {"value":null}. Broader baseline observers also made an absent optional any compare strictly equal to null, and factsOf narrowed an undefined branch to bare null (typeof object). Logs: .logs/1030-views/value-{interp,qjs}.log.
+
+Changed frontend/check.cpp, dyn.cpp and parser.cpp only:
+- Keep the existing optional Dyn slot ABI: a raw null reference is undefined for an undefined-marked union, null for a nullable union; explicit null in an optional dynamic slot uses the existing DynNull object. Dynamic union conversions preserve the other nullish kind, including any -> optional -> any and nullable -> optional boundaries.
+- Normalize optional Dyn operands before strict/loose comparisons, truthiness, Boolean/String/Number, nullish fallback, typeof, in and instanceof. Ordinary typed optional values keep their existing ABI and observers. Dynamic null-test facts exclude a raw sentinel only when the tested kind actually excludes it; they never manufacture a bare-null fact for a boxed value.
+- Rejoin narrowed primitive branches into the declared optional Dyn representation, and use the existing checked Dyn conversion when a property read has narrowed to a typed value (its receiver is evaluated once). Nullish assignments retain the declared optional type so later comparisons inspect the actual stored value.
+- Supported unknown optional chains normalize boxed null/undefined to the existing absent receiver sentinel with a small __dynChain helper; receivers still evaluate once and the rest of a chain short-circuits. Existing any optional-call and unknown-call restrictions stay diagnosed by the original negative fixtures.
+- Mark parser-synthesized optional argument defaults and nested-function optional markers with the existing undefined flag, so omitted arguments remain undefined rather than becoming boxed null.
+
+Regression: existing open_record_methods T0 now includes optional.ts/.out and the original remaining-optional-any.ts/.out. The fixture covers both operand orders, strict/loose null/undefined, absent/null/undefined/false/zero/empty string/text/object/method, reset and overwrite, any round trips, required nullable Dyn, JSON conversion, typeof and both branch orders, inherited instanceof, supported unknown chains with a receiver counter, nested and arrow optional defaults, and ordinary string/number optional baselines. Original methods/quoted JSON and open_record_writes fixtures remain unchanged.
+
+Final proof: tools/build zinc succeeds; the changed frontend compiles without warnings (the fresh dependency build had existing third-party/assets/agent warnings). `/Users/mowmow/Lab/zinc/tools/work-run 90 env ZINC=/Users/mowmow/Lab/zinc/.worktrees/1030-views/build/zinc ZINC_TEST_RESULTS=.logs/1030-views/results-final.txt tests/run --tier t0 --only open_record_methods` PASS, 7s: all three engines on all four fixtures, their zinc checks, and the two negative diagnostics. Final build/zinc SHA256 0b39abe87069cc9f88cdccc1dcadca27590ca09ef2c37d6c516da0dd7fc68ef2. Final source unchanged after this proof. Logs .logs/1030-views; no process left running. usage: n/a.
+
+Still open: structural array sharing/identity, wider-class stores with common-member reads through the original alias, and borrowed methods on unrelated structural receivers. No unchecked cast, copied view, early downcast, runtime/IR/AOT migration, AC waiver or new decision introduced. Next: design member-specific structural views against remaining-array.ts, remaining-array-alias.ts, remaining-store.ts and remaining-borrowed.ts before changing their representation.
+
+Proposed tests: tests/run --tier t0 --only optional_unknown_undef (Request.init and existing optional unknown callers, seconds/<1GB); tests/run --tier t0 --only class_runtime (structural and dynamic adapter callers, seconds/<1GB); tools/diff-matrix (records/arrays/classes corpus, milestone only). No suite, T1/T2, demo, benchmark, pixel, fuzz, conformance, CI or cross-platform run.
+
+Additional coordinator later.md candidate: built-in unknown type lookup is shadowed by a value named unknown inside nested declarations; observed while authoring the new fixture, outside this representation repair. No task created.
+
 <!-- SECTION:NOTES:END -->
