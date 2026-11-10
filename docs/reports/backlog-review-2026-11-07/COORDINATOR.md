@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+-391 integrated1abd3ad0d and root actualcold/warm/LSmapping/defaultpreservation+officialmetadata T0 PASS (78Done).449 integrated03f33ed9c, root native/wasm/browser commonproofnext.707 p5pin/coverage integrated2e6e09454, BacklogAC1 because preservedPhaser scene-inputgolden differs oneframe; AC2Pixi passes. Archivefirst707phase and give remainingtimingcontract review to fresh707worker, initially no builds or known-failure reruns. No golden waiver.
+
 - Reserve707 as a non-building library compatibility worker beside449/391. Primary review finds existingPixi8+Phaser fixtures/goldens, missingp5v2 pin/coverage only. Prove short original library frames directly on commoncompilere520; author harness changes but run noT1/suite. No monkeypatching library source or engine-gap workarounds; report a blocker if realboot fails.
 
 - Root3e0925d48/compilere5206875 rebuilt sharedminiaudio importer; exactaudio_storage/public480frame/nativeWAV→QOA PASS.77Done; D290 andPCM-only halfallocation recorded.653 archived/removed (38completedsourcecheckpoints). Builders449wasm+391packagedopenevents, rootidle. No userdefaults/globalinstall changes authorized by this coordination.
