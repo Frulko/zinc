@@ -4,7 +4,8 @@ title: >-
   Web environment: boot tests for Phaser, PixiJS 8, p5 2, Babylon, LittleJS and
   Kaplay
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 22:50'
 labels:
   - js
