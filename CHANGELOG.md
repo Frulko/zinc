@@ -434,6 +434,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc pack` includes a QuickJS project's bundled source and bytecode alongside its original sources. Unsigned packs run from source with one explanation; local bytecode that is older, damaged or from another engine build falls back with one warning.
 
 - Open `.zapp` archives with Zinc from Finder on macOS or a Linux file manager; Linux installation adds the file type even without `--atelier`.
+- The `chip` and `pocketchip` profiles declare their GLES2, GPIO, power and input capabilities, so incompatible project requirements are refused before a build.
 
 #### Changed
 

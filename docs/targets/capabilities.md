@@ -13,6 +13,8 @@ modules and tests declare what they need.
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | macos / linux | 512M | f64 | – / optional | yes | yes | optional | optional | – | yes | yes | yes | yes | yes |
 | rpi1 | 64M | f64 | optional | optional | optional | – | optional | – | yes | yes | yes | yes | – |
+| [chip](chip.md) | 128M | f64 | optional | optional | optional | – | optional | – | yes | yes | yes | yes | – |
+| [pocketchip](chip.md) | 128M | f64 | yes | – | yes | – | optional | – | yes | yes | yes | yes | – |
 | rmpp | 256M | f64 | yes | – | optional | yes | – | yes | yes | yes | yes | yes | – |
 | esp32 | 160K | f32 | plugin | – | – | – | – | plugin | yes | yes | – | – | – |
 | ps1 | 256K | fx12, no FPU | – | – | – | – | yes | – | – | – | – | – | – |
@@ -35,6 +37,7 @@ modules and tests declare what they need.
   false elsewhere until a backend exists (MPRIS on Linux, SMTC on Windows); there the calls do nothing ([system plugin](../plugins/system.md)).
 - **`dynlib`**: loading shared libraries at run time with `dlopen`. It is used by `zinc:ffi`, and it is off for static
   binaries (rmpp) and for 32-bit ARM (rpi1). The sim emulates a few libc functions for it.
+- **CHIP and PocketCHIP** use tier T2 and GLES2, with GPIO and power hardware. Bare CHIP inputs are optional; PocketCHIP has touch and a keyboard, with no pointer. These declarations guide builds; board backends still need hardware validation ([setup and limits](chip.md)). `dynlib: false` is profile policy, not a guarantee that the executable is statically linked.
 - **Phones and tablets** (`android`, `ios`, `ios-sim`, ZN-618): an app starts no child process and loads no library (D59, `docs/reports/zinc-next-mobile-core.md`), and has none of the desktop keys (tray, menubar, dialogs, windows, autostart...). The plugins whose `requires` say `process` for "an OS" (socket, osc, sonos, spotify) are refused there until their manifests name what they use.
 
 The `ui` group of each profile holds build settings of `zinc:ui` rather than hardware flags: `layout` (the engine `"ui": {"layout": "auto"}` picks), `rn` (whether the Yoga engine may be built for the profile) and `why` (the reason when it may not: esp32, ps1). They are read as `ui.layout`, `ui.rn`, `ui.why` and are not `zinc:platform` constants; `UI_LAYOUT` gives the result (ZN-285).
@@ -94,4 +97,4 @@ const rows = HEAP_BYTES < 512 * 1024 ? 50 : 5000;
 
 `zinc:platform` is generated for each build. It exports `TARGET`, `PROFILE`, `HEAP_BYTES`, `NUMBERS`, `SCREEN_W`,
 `SCREEN_H`, and one boolean per capability (`TOUCH`, `POINTER`, `KEYBOARD`, `PEN`, `GAMEPAD`, `EINK`, `NET`, `FS`,
-`THREADS`, `FPU`, `AUDIO`, `GPU`, `GPIO`, `DISPLAY`, `PROCESS`, `DYNLIB`).
+`THREADS`, `FPU`, `AUDIO`, `GPU`, `GPIO`, `DISPLAY`, `PROCESS`, `DYNLIB`, `POWER`).

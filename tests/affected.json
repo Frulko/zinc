@@ -206,6 +206,7 @@
     {"paths": ["src/cli_core.cpp", "src/cli_web.cpp", "src/frontend/project.cpp", "src/cli_examples.cpp", "tests/t0/cli_polish.sh"], "tests": ["cli_polish"]},
     {"paths": ["targets/capabilities.json", "src/frontend/profile.cpp", "src/frontend/project.cpp", "src/tc/tc.cpp", "tests/t0/mobile_profiles.sh"], "tests": ["mobile_profiles"]},
     {"paths": ["targets/capabilities.json", "src/frontend/profile.cpp", "src/frontend/capabilities.cpp", "tests/t0/handheld_profiles.sh"], "tests": ["handheld_profiles"]},
+    {"paths": ["targets/capabilities.json", "src/frontend/profile.cpp", "src/frontend/capabilities.cpp", "src/frontend/modules.cpp", "tests/t0/chip_profiles.sh"], "tests": ["chip_profiles"]},
     {"paths": ["targets/console/host_console.cpp", "tests/native/console_clock.cpp", "tests/t0/console_clock.sh"], "tests": ["console_clock"]},
     {"paths": ["targets/console/", "src/rt/alloc.cpp", "tests/t0/console_host.sh"], "tests": ["console_host", "console_core"]},
     {"paths": ["targets/console/core_main.cpp", "targets/console/CMakeLists.txt", "targets/console/embed.cmake", "src/aot/aot.cpp", "tools/build-console-core", "tests/t1/console_aot.sh"], "tests": ["console_aot"]},
