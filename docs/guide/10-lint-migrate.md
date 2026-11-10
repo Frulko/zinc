@@ -49,7 +49,7 @@ The language server (`zinc lsp`) shows the target rules in the editor too, for a
 - **A program on a JavaScript engine** (a `.js` or `.mjs` entry, or `zinc.json` `"engine": "quickjs"`, `"jsc"`, `"v8"` or `"hermes"`): the
   QuickJS loader reads it instead of the typed loader, as `zinc check` does. A module that does not load (a syntax error, an import that
   does not resolve, `node_modules` resolved as at run time) is a `compile` error, and a global or API QuickJS-ng lacks (`Temporal`,
-  `Intl.Segmenter`...) is a `quickjs` warning. The target rules on `zinc.json` and the assets still apply.
+  `Intl.Collator`...) is a `quickjs` warning. The target rules on `zinc.json` and the assets still apply.
 
 The exit code is 1 only for an error on the source or on a target in force (`--target`, else the targets of `zinc.json`): a refusal of a
 target the project never named shows in the matrix without failing the command.

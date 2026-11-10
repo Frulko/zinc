@@ -14,6 +14,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - `zinc:system/update.check()` and `download()` now return promises: await them before reading the result or restarting.
 - Fused desktop apps enforce their declared `zinc.json` permissions, as native exports do; declare every capability the app uses.
+- Zinc and QuickJS locale formatting reject options outside the [documented Intl subset](docs/intl.md), instead of silently ignoring them; fraction digits are limited to 0 through 20.
 
 ### Video mapper
 
@@ -341,7 +342,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `await` at the top level of a program or test file works on every engine; an `async` arrow function or object method no longer needs its `Promise<T>` written out (`const load = async () => 1`), and a generic function's return type is inferred from its arguments (`function id<T>(x: T) { return x; }`).
 - Plain JavaScript programs have the browser's `URL`, `URLSearchParams` and `WebSocket` globals, so `new URL('./worker.js', import.meta.url)` and libraries that open a `WebSocket` work without an adapter.
 - `value instanceof Promise` (or any generic class) narrows a `T | Promise<T>`, as TypeScript does.
-- `n.toLocaleString()` formats numbers with thousands separators on every engine, with the `minimumFractionDigits`, `maximumFractionDigits` and `useGrouping` options (in the US English format for now), and `JSON.stringify(value, replacer)` takes a replacer function, with or without an indent.
+- `n.toLocaleString()` formats numbers with thousands separators on every engine, with the `minimumFractionDigits`, `maximumFractionDigits` and `useGrouping` options, and `JSON.stringify(value, replacer)` takes a replacer function, with or without an indent.
 - On an `any` value the array and string methods work as in TypeScript: `d.items.push(x)`, `.splice`, `.sort()`, `.reduce`, `d.name.trim().toUpperCase()`, `.split`, `.replace`... and a change made through `d` is seen in the data it holds, not in a copy.
 - More npm packages run on `--engine quickjs` and in `zinc bundle`: the browser build of a package is picked (nanoid, qs), CommonJS and UMD packages such as dayjs load with named imports too, and packages find `crypto`, `fetch`, `URL`, `TextEncoder` and the other Web globals Node and Deno have (uuid).
 - `fs.writeBytesAt(path, bytes, offset)` writes bytes in place inside a file (made when missing, never cut), and a `zinc:net` reply can carry its body as bytes with `bytes: u8[]`, so a picture made in memory is served without a temporary file.
@@ -356,6 +357,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `Symbol()` creates unique primitive values and property keys, with `description`, `Symbol.for`, `Symbol.keyFor` and symbol-key reflection and copying.
 - Custom iterables work with `for...of`, spread, destructuring, collection construction and `Array.from`; built-in iterators stay live during collection changes and strings advance by Unicode code point.
 
+
+- `Intl.NumberFormat` and `Intl.DateTimeFormat` format decimal numbers and common date fields on every engine. On macOS they use the OS for French and host-language dates, including PhotoSorter's months; portable builds keep a small US English/UTC subset.
 
 #### Changed
 
@@ -414,6 +417,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A public method read through `any` can use an unrelated object as its receiver when it reads and writes dynamic properties; borrowed calls preserve defaults and the method's lexical variables.
 - Values named `unknown`, `Map` or other type names no longer hide type annotations inside nested functions.
 - Recursive closures assigned directly to a `const`, and named function expressions, release their memory after use, including when nested callbacks keep them alive.
+- Callbacks with default values can accept dynamic arguments and run their fallback only when an argument is omitted.
+- Arrays inferred from dynamic values mixed with strings or numbers serialize without an internal compiler error, preserving evaluation order.
+- A getter on a typed object still runs when the object is read through `any`, instead of disappearing.
 
 ### Developer tools
 

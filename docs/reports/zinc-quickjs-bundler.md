@@ -14,7 +14,7 @@ time insensitive to minification, bytecode as the startup lever).
 | Syntax | ES2023 and most of ES2024-26: class fields, `#private`, `#x in o`, static blocks, `?.`, `??=`, top-level await, hashbang, `using` / `await using`, dynamic `import()` with attributes, tail calls. No decorators (the strip stage removes Zinc's `@weak` / `@pooled`). |
 | RegExp | `v`, `d`, lookbehind, Unicode properties, duplicate named groups, modifiers `(?i:)`, `RegExp.escape` |
 | Builtins | Proxy, Reflect, BigInt, WeakRef, FinalizationRegistry, AggregateError, `cause`, `Array.fromAsync`, `groupBy`, `Promise.withResolvers` / `try`, change-by-copy arrays, resizable ArrayBuffer, Float16Array, `Math.sumPrecise`, iterator helpers, Set methods, `Error.captureStackTrace` / `prepareStackTrace` |
-| Missing | `Intl` (Zinc adds `Intl.Segmenter` only), `Temporal`, `WebAssembly`, `Atomics.waitAsync`; `structuredClone`, TextEncoder/Decoder, AbortController come from Zinc (`src/qjs/webenv.cpp`, `prelude.cpp`) |
+| Missing | `Intl` beyond Segmenter and the [NumberFormat/DateTimeFormat subset](../intl.md), `Temporal`, `WebAssembly`, `Atomics.waitAsync`; `structuredClone`, TextEncoder/Decoder, AbortController come from Zinc (`src/qjs/webenv.cpp`, `prelude.cpp`) |
 | Modules | ESM through the host's loader; `import.meta` empty unless the host fills it (Zinc now sets `url`); JSON modules are the host's job (not done) |
 | Debug | Stack traces with line and column; no source maps (Zinc maps them, below); no async stack traces |
 | Bytecode | `JS_WriteObject` / `JS_ReadObject` of a module (qjsc's way); `BC_VERSION` 28 with a checksum: same build only; `STRIP_SOURCE` / `STRIP_DEBUG` |

@@ -164,9 +164,15 @@ std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, st
         std::set<std::string> seenM;
         for (std::uint32_t o = x.obj; o != 0xFFFFFFFFu; o = c.objs[o].parent)
           for (const Member& m : c.objs[o].members) {
-            if (!m.method || m.getter || m.isStatic || m.access != 0 || !isIdentName(m.name) || m.name.rfind("__", 0) == 0 || m.name == "constructor") continue;
+            if (!m.method || m.isStatic || m.access != 0 || !isIdentName(m.name) || m.name.rfind("__", 0) == 0 || m.name == "constructor") continue;
             if (!seenM.insert(m.name).second || c.types[m.type].k != TK::Func) continue;
             const Type f = c.types[m.type];
+            if (m.getter) {
+              if (!dynConvertible(c, f.elem)) continue;
+              get += "      case '" + m.name + "': return " + toExpr(f.elem, "v." + m.name) + ";\n";
+              hasExpr += (hasExpr.empty() ? "" : " || ") + std::string("n === '") + m.name + "'";
+              continue;
+            }
             const bool isVoid = c.types[f.elem].k == TK::Void;
             bool ok = !f.rest && (isVoid || dynConvertible(c, f.elem));
             for (TypeId p : f.params) ok = ok && dynConvertible(c, p);

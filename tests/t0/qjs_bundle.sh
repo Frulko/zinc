@@ -42,7 +42,7 @@ got=$("$ZINC" run "$tmp/p/main.ts" --engine quickjs 2>&1)
 # zinc check --engine quickjs: the transform's diagnostics and the QuickJS lint
 printf "const a = <View class=\"p-2\" />;\n" > "$tmp/cls.tsx"
 printf "const a = <view />;\n" > "$tmp/low.tsx"
-printf "const d = Temporal.Now.instant();\nconst f = new Intl.NumberFormat('fr');\nconst ok = new Intl.Segmenter();\nconst o = { Temporal: 1 }.Temporal;\n" > "$tmp/lint.ts"
+printf "const d = Temporal.Now.instant();\nconst f = new Intl.Collator('fr');\nconst ok = new Intl.Segmenter();\nconst o = { Temporal: 1 }.Temporal;\n" > "$tmp/lint.ts"
 "$ZINC" check --engine quickjs "$tmp/cls.tsx" 2>&1 | grep -q "Z0006" || { echo "class= is not Z0006 under check --engine quickjs"; fail=1; }
 "$ZINC" check --engine quickjs "$tmp/low.tsx" 2>&1 | grep -q "Z0007" || { echo "<view> is not Z0007 under check --engine quickjs"; fail=1; }
 out=$("$ZINC" check --engine quickjs "$tmp/lint.ts" 2>&1); rc=$?

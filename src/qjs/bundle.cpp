@@ -143,7 +143,7 @@ std::vector<std::string> quickjsLint(const std::string& js, const std::string& f
     if (e + 1 < js.size() && js[e] == '.') { std::size_t m = e + 1; while (m < js.size() && isIdChar(js[m])) m++; member = js.substr(e + 1, m - e - 1); }
     if (id == "Temporal") warn(b, "Temporal is not in QuickJS-ng 0.17: use Date, or bundle a Temporal polyfill package");
     else if (id == "WebAssembly") warn(b, "WebAssembly is not in QuickJS-ng: it comes from the wasm pack (zinc engine install wasm)");
-    else if (id == "Intl" && !member.empty() && member != "Segmenter") warn(b, "Intl." + member + " is not in QuickJS-ng (no Intl; Zinc adds Intl.Segmenter only): format by hand or bundle a polyfill");
+    else if (id == "Intl" && !member.empty() && member != "Segmenter" && member != "NumberFormat" && member != "DateTimeFormat") warn(b, "Intl." + member + " is not in QuickJS-ng (Zinc provides Segmenter and a NumberFormat/DateTimeFormat subset): format by hand or bundle a polyfill");
     else if (id == "Atomics" && member == "waitAsync") warn(b, "Atomics.waitAsync is not in QuickJS-ng 0.17");
   });
   return out;

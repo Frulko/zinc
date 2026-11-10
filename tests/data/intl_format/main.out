@@ -1,0 +1,52 @@
+["0.00","0,00","0,00"]
+["-0.00","-0,00","-0,00"]
+["NaN","NaN","NaN"]
+["∞","∞","∞"]
+["-∞","-∞","-∞"]
+["1.01","1,01","1,01"]
+["-1.01","-1,01","-1,01"]
+["1.26","1,26","1,26"]
+["1,000.00","1 000,00","1 000,00"]
+["1,000,000,000,000,000,000,000.00","1 000 000 000 000 000 000 000,00","1 000 000 000 000 000 000 000,00"]
+["0.00","0,00","0,00"]
+["1,234,567.89","1 234 567,89","1 234 567,89"]
+["1,234.5","1234.6","1.2000"]
+["1.3",true]
+["en-US","latn","decimal",1,2,2,"auto","standard","auto","halfExpand","auto",1,"auto"]
+false
+["fr-FR","en-US"]
+"fr-FR"
+"en-US"
+["janvier","January"]
+["1/2/2024","3:04:05 PM","1/2/2024, 3:04:05 PM"]
+["2 janvier 2024","Tuesday, January 2, 2024"]
+["1/2/2024","janvier"]
+"01/02/2024, 15:04:05"
+["en-US","gregory","latn","UTC","numeric","2-digit","2-digit","2-digit","2-digit","2-digit",false,"h23"]
+["janvier",true]
+["Invalid Date","Invalid Date","Invalid Date"]
+["7:00 AM","8:00 AM"]
+["fr-FR","en-US"]
+["RangeError","RangeError","RangeError","RangeError","RangeError"]
+[7,0,4,1]
+["Invalid Date","janvier","RangeError"]
+["03 PM","2-digit"]
+["4","numeric"]
+["fr","3 PM"]
+[null,1,4,2]
+["Tue (month: 01)","short"]
+["en-US","1,234.50","janvier"]
+["before","en-US",null,7]
+["A",3,7]
+"acb"
+"1"
+"nlo"
+"RangeError"
+"nl"
+["RangeError","RangeError","TypeError","RangeError","RangeError","RangeError","RangeError"]
+["RangeError","UTC"]
+["en-US","en-US",[]]
+"1/2/1970"
+"January"
+2764800000
+["RangeError","RangeError"]

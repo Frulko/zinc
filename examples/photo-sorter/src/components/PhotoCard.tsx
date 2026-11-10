@@ -3,8 +3,7 @@ import { createSignal, onCleanup, Show } from 'zinc:ui/solid';
 import { destroyImage } from 'zinc:gfx';
 import { Icon } from 'zinc:icons';
 import { thumbnail, cancel } from 'zinc:imageio';
-import { THEME } from 'zinc:trieur';
-import { t } from '../i18n';
+import { THEME, language } from 'zinc:trieur';
 import { infoOf, takenAt, cameraName, type Photo } from '../library';
 
 export const CARD_W = 340, CARD_H = 420;
@@ -16,8 +15,7 @@ export function PhotoCard(p: { photo: Photo }): any {
   thumbnail(ph.path, 720).then((h) => { if (alive) setImg(h); else destroyImage(h); }).catch(() => { /* not a picture after all */ });
   onCleanup(() => { alive = false; cancel(ph.path); if (img()) destroyImage(img()); });
   const when = takenAt(ph);
-  // ponytail: toLocaleDateString ignores the language on QuickJS (no Intl yet): the months come from the app's words
-  const date = () => t.date(when.getDate(), when.getMonth(), when.getFullYear());
+  const date = () => when.toLocaleDateString(language() === 'fr' ? 'fr-FR' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const camera = i ? cameraName(i) : '';
   const chip = (icon: string, text: string) => <View className="h-[24] px-2 rounded-full flex-row items-center gap-1" style={{ backgroundColor: 0x000000, opacity: 0.55 }}>
     <Icon name={icon} size={12} color={() => 0xffffff} />

@@ -2530,54 +2530,22 @@ struct Checker {
       std::uint32_t recv = cn.kids[0];
       TypeId rt = expr(recv);
       if (!bad(rt) && ty(rt).k == TK::Num) {
-        // ponytail: every locale formats as en-US, the digits are toFixed's (exact binary value, ICU rounds the shortest decimal: 1.005 to 2 digits) and >= 1e21 keeps the exponent; real ICU data if a demo needs another locale
-        std::uint32_t opt[3] = {kNone, kNone, kNone};   // minimumFractionDigits, maximumFractionDigits, useGrouping
-        if (args.size() >= 1) expr(args[0]);
-        if (args.size() == 2 && !(n(args[1]).kind == N::Ident && n(args[1]).text == "undefined") && !(n(args[1]).kind == N::Literal && n(args[1]).text == "null")) {
-          if (n(args[1]).kind != N::ObjectLit) { diag(kZUnsupported, args[1], "toLocaleString options that are not an object literal"); return tError; }
-          for (std::uint32_t p : n(args[1]).kids) {
-            const std::string_view k = n(p).text;
-            const int slot = k == "minimumFractionDigits" ? 0 : k == "maximumFractionDigits" ? 1 : k == "useGrouping" ? 2 : -1;
-            if (n(p).kind != N::Prop || n(p).kids.empty()) { diag(kZUnsupported, p, "this toLocaleString option"); return tError; }
-            if (slot < 0) { expr(n(p).kids[0]); continue; }   // style, currency...: not formatted (the number prints in decimal)
-            TypeId vt = expr(n(p).kids[0]);
-            if (bad(vt) || !require(vt, slot == 2 ? tBool : num(Num::f64), n(p).kids[0])) return tError;
-            opt[slot] = n(p).kids[0];
-          }
-        }
-        for (int s = 0; s < 3; ++s) if (opt[s] == kNone) {   // absent: 101 (above ECMA-402's 100) for the digits, true for the grouping
-          opt[s] = s == 2 ? newNode(N::Literal, "true", {}, i) : newNode(N::Number, "101", {}, i);
-          out.nodeType[opt[s]] = s == 2 ? tBool : num(Num::f64);
-        }
-        std::uint32_t sym = helper("numToLocale", R"ZN(function $F(x: f64, minF: f64, maxF: f64, grp: boolean): string {
-  if (x !== x) return 'NaN';
-  if (x - x !== 0) return x > 0 ? '∞' : '-∞';
-  let lo: i32 = minF > 100 ? 0 : Math.floor(minF) as i32;
-  const hi: i32 = maxF > 100 ? (lo > 3 ? lo : 3) : Math.floor(maxF) as i32;
-  if (minF > 100 && hi < lo) lo = hi;
-  let s = x.toFixed(hi);
-  const neg = s.charAt(0) === '-';
-  if (neg) s = s.slice(1);
-  const dot = s.indexOf('.');
-  let ip = dot < 0 ? s : s.slice(0, dot);
-  let fp = dot < 0 ? '' : s.slice(dot + 1);
-  while (fp.length > lo && fp.charAt(fp.length - 1) === '0') fp = fp.slice(0, fp.length - 1);
-  if (grp) {
-    let g = '';
-    let k: i32 = ip.length;
-    while (k > 3) { g = ',' + ip.slice(k - 3, k) + g; k = k - 3; }
-    ip = ip.slice(0, k) + g;
-  }
-  return (neg ? '-' : '') + ip + (fp.length > 0 ? '.' + fp : '');
-}
-)ZN", {}, i);
-        std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
-        out.nodeSym[id] = sym;
-        out.nodeType[id] = out.syms[sym].type;
-        a.nodes[i].kids = {id, recv, opt[0], opt[1], opt[2]};
-        rewritten.insert(i);
-        out.nodeType[i] = tStr;
-        return tStr;
+        std::vector<std::vector<std::uint32_t>> holes = {{recv}};
+        std::string call = "__intlNumberLocale(__H0";
+        if (!args.empty()) { call += ", __H1"; holes.push_back({args[0]}); }
+        if (args.size() > 1) { call += ", __H2"; holes.push_back({args[1]}); }
+        return rewrite(call + ")", holes);
+      }
+    }
+    if (cn.kind == N::Member && (cn.text == "toLocaleDateString" || cn.text == "toLocaleTimeString" || cn.text == "toLocaleString") && args.size() <= 2 && !rawDyn()) {
+      const auto recv = cn.kids[0]; const auto rt = expr(recv);
+      if (!bad(rt) && ty(rt).k == TK::Object && out.objs[ty(rt).obj].name == "Date") {
+        std::vector<std::vector<std::uint32_t>> holes{{recv}};
+        std::string call = "__intlDateLocaleDyn(__H0, ";
+        if (args.empty()) call += "__undef"; else { call += "__H1"; holes.push_back({args[0]}); }
+        call += ", ";
+        if (args.size() < 2) call += "__undef"; else { call += "__H2"; holes.push_back({args[1]}); }
+        return rewrite(call + ", '" + (cn.text == "toLocaleDateString" ? "date" : cn.text == "toLocaleTimeString" ? "time" : "all") + "')", holes);
       }
     }
     if (cn.kind == N::Index && args.empty() && lookup("DynSymbol") != kNone) {
@@ -3534,11 +3502,13 @@ struct Checker {
           if (el != kNoType) require(t, el, e);
           else if (t == tNull) sawNull = true;
           else if (first == kNoType) first = t;
-          else if (!assignable(t, first, e)) { diag(kZNotAssignable, e, "diag.detail.assign", {{"from", name(t)}, {"to", name(first)}}); }
+          else if (isDyn(t)) first = tDyn;
         }
         if (el != kNoType) return arrayOf(el);
         if (first == kNoType) { diag(kZCannotInfer, i, "array of only null"); return tError; }
-        return arrayOf(sawNull && !bad(first) ? unionOf({first, tNull}) : first);
+        const TypeId inferred = sawNull && !bad(first) && !isDyn(first) ? unionOf({first, tNull}) : first;
+        for (const auto e : std::vector<std::uint32_t>(n(i).kids)) require(out.nodeType[e], inferred, e);
+        return arrayOf(inferred);
       }
       case N::Binary: return binaryExpr(i, x, expected);
       case N::Unary: {
@@ -5347,7 +5317,7 @@ struct Checker {
     return nestedFuncs.count(node) != 0;
   }
   std::size_t prepareClosureDefaults(std::uint32_t i, bool keepOptional) {
-    // Defaults on closure parameters: the parameter takes `T | null` (an argument left out is null) and the body starts by replacing null with the default
+    // Defaults on closure parameters: only an absent argument selects the lazy default; initialize the local directly so Dyn and unions work too.
     std::size_t lambdaMin = static_cast<std::size_t>(-1);
     {
       std::vector<std::uint32_t> prologue;
@@ -5361,13 +5331,14 @@ struct Checker {
           std::uint32_t ann = n(p).kids[0];
           if (ann == kNone) { diag(kZCannotInfer, p, "diag.detail.fnExprParam", {{"name", std::string(n(p).text)}}); continue; }
           std::uint32_t nul = newNode(N::TypeRef, "null", {}, p), own = cloneNode(ann, false);
+          a.nodes[nul].flags |= kFlagUndefined;
           a.nodes[p].kids[0] = newNode(N::TypeUnion, {}, {ann, nul}, p);
           // the body sees a variable of the declared type (`let x: T`), not the parameter `T | null` narrowed: a closure of the body (an
           // async lambda's own body, a callback) captures it with its type, where a narrowing would not reach
           std::string nm(n(p).text);
           a.generated.push_back("__dp_" + nm);
           a.nodes[p].text = a.generated.back();
-          std::vector<std::uint32_t> st = snippet(a, "let " + nm + ": __H1; if (__dp_" + nm + " !== null) { " + nm + " = __dp_" + nm + "; } else { " + nm + " = __H0; }", {{d}, {own}}, p);
+          std::vector<std::uint32_t> st = snippet(a, "let " + nm + ": __H1 = __dp_" + nm + " !== " + (lookup("__undef") != kNone ? "undefined" : "null") + " ? __dp_" + nm + " : __H0;", {{d}, {own}}, p);
           out.nodeType.resize(a.nodes.size(), kNoType);
           out.nodeSym.resize(a.nodes.size(), kNone);
           for (std::uint32_t s : st) prologue.push_back(s);

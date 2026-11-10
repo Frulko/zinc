@@ -24,7 +24,6 @@ const en = {
   again: 'Sort more',
   moveHint: 'Moved into album folders: the sources are left with what you did not sort.',
   copyHint: 'Copied into album folders: the sources stay as they are.',
-  date: (d: number, m: number, y: number) => `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m]} ${d}, ${y}`,
 };
 type Words = typeof en;
 const fr: Words = {
@@ -50,7 +49,6 @@ const fr: Words = {
   again: 'Trier encore',
   moveHint: 'Déplacées dans des dossiers d’albums : il ne reste dans les sources que ce qui n’est pas trié.',
   copyHint: 'Copiées dans des dossiers d’albums : les sources restent intactes.',
-  date: (d, m, y) => `${d === 1 ? '1er' : d} ${['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'][m]} ${y}`,
 };
 /** Reads the words of the language shown: what reads them follows a change. */
 export const t = {} as Words;

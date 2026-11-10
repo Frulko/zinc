@@ -79,7 +79,7 @@ interface ClassDecoratorContext<Class = unknown> { readonly kind: 'class'; reado
 interface ClassFieldDecoratorContext<This = unknown, Value = unknown> { readonly kind: 'field'; readonly name: string | symbol; readonly static: boolean; readonly private: boolean; }
 
 // ---- Number ----
-interface Number { toFixed(digits?: i32): string; toString(radix?: number): string; }
+interface Number { toFixed(digits?: i32): string; toString(radix?: number): string; toLocaleString(locales?: string | string[], options?: NumberFormatOptions): string; }
 interface NumberConstructor {
   /** ToNumber of a number, boolean, string or Dyn (f64 profiles). */
   (value?: unknown): number;
@@ -341,8 +341,37 @@ declare function pooled(n: i32): (target: Function, ctx: ClassDecoratorContext) 
 /** LNG-10: value class (copied, no header). */
 declare function value(target: Function, ctx: ClassDecoratorContext): void;
 declare var console: Console;
-interface DateFormatOptions { timeZone?: string }
-/** Zinc Next: a time value in UTC milliseconds; the local zone is the host's (UTC in a deterministic run unless TZ is set). The locale argument of toLocale*String is ignored (en-US). */
+interface NumberFormatOptions {
+  minimumFractionDigits?: number; maximumFractionDigits?: number; useGrouping?: boolean;
+  style?: string; currency?: string; currencyDisplay?: string; currencySign?: string;
+  notation?: string; compactDisplay?: string; signDisplay?: string; unit?: string; unitDisplay?: string;
+  minimumIntegerDigits?: number; minimumSignificantDigits?: number; maximumSignificantDigits?: number;
+  numberingSystem?: string; localeMatcher?: string; roundingMode?: string; roundingPriority?: string;
+  roundingIncrement?: number; trailingZeroDisplay?: string;
+}
+interface DateFormatOptions {
+  year?: string; month?: string; day?: string; weekday?: string; hour?: string; minute?: string; second?: string;
+  hour12?: boolean; timeZone?: string; calendar?: string; numberingSystem?: string; localeMatcher?: string;
+  dateStyle?: string; timeStyle?: string; era?: string; timeZoneName?: string; hourCycle?: string;
+  fractionalSecondDigits?: number; dayPeriod?: string; formatMatcher?: string;
+}
+/** Decimal and Gregorian OS formatting subset; see docs/intl.md for supported options and portable limits. */
+declare namespace Intl {
+  class NumberFormat {
+    constructor(locales?: string | string[], options?: NumberFormatOptions);
+    readonly format: (value: number) => string;
+    resolvedOptions(): { locale: string; numberingSystem: string; style: string; minimumIntegerDigits: number; minimumFractionDigits: number; maximumFractionDigits: number; useGrouping: string | boolean; notation: string; signDisplay: string; roundingMode: string; roundingPriority: string; roundingIncrement: number; trailingZeroDisplay: string };
+    static supportedLocalesOf(locales?: string | string[], options?: {localeMatcher?: string}): string[];
+  }
+  class DateTimeFormat {
+    constructor(locales?: string | string[], options?: DateFormatOptions);
+    readonly format: (value?: number | Date) => string;
+    resolvedOptions(): {locale: string; calendar: string; numberingSystem: string; timeZone: string; year?: string; month?: string; day?: string; weekday?: string; hour?: string; minute?: string; second?: string; hour12?: boolean; hourCycle?: string};
+    static supportedLocalesOf(locales?: string | string[], options?: {localeMatcher?: string}): string[];
+  }
+}
+
+/** Zinc Next: a time value in UTC milliseconds; the local zone is the host's (UTC in a deterministic run unless TZ is set). Locale formatting shares Intl's documented OS subset. */
 interface Date {
   getTime(): number; valueOf(): number; setTime(v: number): number;
   getTimezoneOffset(): number;
@@ -355,7 +384,7 @@ interface Date {
   setUTCFullYear(y: number, month?: number, day?: number): number; setUTCMonth(month: number, day?: number): number; setUTCDate(day: number): number;
   setUTCHours(h: number, m?: number, s?: number, ms?: number): number; setUTCMinutes(m: number, s?: number, ms?: number): number; setUTCSeconds(s: number, ms?: number): number; setUTCMilliseconds(ms: number): number;
   toISOString(): string; toJSON(): string | null; toString(): string; toDateString(): string; toTimeString(): string; toUTCString(): string; toGMTString(): string;
-  toLocaleString(locale?: string, options?: DateFormatOptions): string; toLocaleDateString(locale?: string, options?: DateFormatOptions): string; toLocaleTimeString(locale?: string, options?: DateFormatOptions): string;
+  toLocaleString(locale?: string | string[], options?: DateFormatOptions): string; toLocaleDateString(locale?: string | string[], options?: DateFormatOptions): string; toLocaleTimeString(locale?: string | string[], options?: DateFormatOptions): string;
 }
 interface DateConstructor {
   new (): Date; new (ms: number): Date; new (value: string): Date; new (value: Date): Date;

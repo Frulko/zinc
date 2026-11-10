@@ -147,6 +147,8 @@ void dyn_update(int32_t id, const uint32_t* px, int32_t stride);
 void dyn_destroy(int32_t id);
 void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, bool premultiplied);
 }
+#include "intl_format.h"
+
 namespace zn::host {
 std::string programInfoJson();   // below: Zinc.getProgramInfo
 std::string screencastFrame(const std::string& arg);   // screencast.cpp
@@ -1062,6 +1064,11 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysCwd: { char b[4096]; ret(r, getcwd(b, sizeof b) ? b : ""); break; }
     case Rt::HostSysLaunchDir: { const char* d = getenv("ZINC_LAUNCH_DIR"); ret(r, d && *d ? std::string(d) : startDir()); break; }   // zinc run sets it before entering the project
     case Rt::HostSysLocale: ret(r, systemLocale()); break;
+    case Rt::HostIntlLocale: ret(r, intl::locale(s(0), a[1].i != 0, systemLocale())); break;
+    case Rt::HostIntlZone: ret(r, intl::zone(s(0))); break;
+    case Rt::HostIntlNumber: ret(r, intl::number(s(0), a[1].d, a[2].d, a[3].d, a[4].i != 0)); break;
+    case Rt::HostIntlDate: ret(r, intl::date(s(0), s(1), s(2), a[3].d)); break;
+    case Rt::HostIntlDateResolved: ret(r, intl::resolved(s(0), s(1), s(2))); break;
     case Rt::HostSysExecPath: ret(r, execPath()); break;
     case Rt::HostSysChdir: startDir(); r->i = chdir(s(0).c_str()) == 0; break;
     case Rt::HostSysSetEnv: setenv(s(0).c_str(), s(1).c_str(), 1); break;

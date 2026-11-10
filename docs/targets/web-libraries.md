@@ -49,8 +49,8 @@ The export of these thirteen libraries together is 879 KB of JavaScript before c
 - **Web target.** Everything that is plain JavaScript or runs on the browser's own APIs worked, in both modes, with the same result; the differences between dev and export are only `process.env.NODE_ENV` and
   size. The cases that do not work are libraries that need React or the DOM tree as their UI, Node built-ins, and the `three` plugin conflict above.
 - **Native QuickJS path.** `zinc bundle` links packages (ES, CommonJS and UMD), and the program runs with `zinc run bundle.js --engine quickjs`; pure-JS libraries such as the state, schema, format and data ones above
-  work the same way as in the browser. What QuickJS-ng lacks is the line between the two paths: `Intl` and `Temporal` are missing, and `WebAssembly` comes from the `wasm` pack (`zinc engine install wasm`) (a package that calls them gets the Q0001 warning when it is bundled:
-  `bundle.js: warning Q0001: Intl.NumberFormat is not in QuickJS-ng ... (in the bundled packages; a package may guard it)`, the lint scanning the linked text), the Web globals are not given to packages, Node built-ins
+  work the same way as in the browser. What QuickJS-ng lacks is the line between the two paths: `Intl` beyond the [formatting subset](../intl.md) and `Temporal` are missing, and `WebAssembly` comes from the `wasm` pack (`zinc engine install wasm`) (a package that calls them gets the Q0001 warning when it is bundled:
+  `bundle.js: warning Q0001: Intl.Collator is not in QuickJS-ng ... (in the bundled packages; a package may guard it)`, the lint scanning the linked text), the Web globals are not given to packages, Node built-ins
   stop the link, and the resolution is `module`, then `main` (no `browser` field). `zinc run x.ts --engine quickjs` without bundling loads ES-module packages only (a CommonJS package such as dayjs says `Could not find
   export 'default'`): bundle first.
 - **Dates on the native path.** `Date.prototype.getHours`, `getDate` and the other local getters return the UTC fields on QuickJS in Zinc (`src/qjs/prelude.cpp`: "no time zones, like the typed engine"), while the constructor

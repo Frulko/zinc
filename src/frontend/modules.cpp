@@ -1,4 +1,5 @@
 #include "frontend/modules.h"
+#include "frontend/intl_prelude.h"
 #include "frontend/profile.h"
 #include "frontend/capabilities.h"
 #include "frontend/project.h"
@@ -3244,30 +3245,10 @@ class Date {
     return __dDays[this.field(3, false)] + ', ' + __dPad(this.field(2, false), 2) + ' ' + __dMonths[this.field(1, false)] + ' ' + (y < 0 ? '-' + __dPad(-y, 6) : __dPad(y, 4)) + ' ' + __dPad(this.field(4, false), 2) + ':' + __dPad(this.field(5, false), 2) + ':' + __dPad(this.field(6, false), 2) + ' GMT';
   }
   toGMTString(): string { return this.toUTCString(); }
-  // en-US: M/D/YYYY, h:mm:ss AM. `timeZone` of the options: 'UTC' or an IANA name; the locale argument is accepted and ignored.
-  toLocaleDateString(locale: string = 'en-US', options: DateFormatOptions = {}): string {
-    if (!(this.t - this.t === 0)) return 'Invalid Date';
-    const z = options.timeZone === null ? '' : options.timeZone as string;
-    const utc = z === 'UTC' || z === 'GMT';
-    const off = z.length > 0 && !utc ? __host_tzOffsetIn(z, this.t) : 0;
-    const d = new Date(this.t - (z.length > 0 ? (utc ? 0 : off) : __dTzAt(this.t)) * 60000);
-    return `${d.field(1, false) + 1}/${d.field(2, false)}/${d.field(0, false)}`;
-  }
-  toLocaleTimeString(locale: string = 'en-US', options: DateFormatOptions = {}): string {
-    if (!(this.t - this.t === 0)) return 'Invalid Date';
-    const z = options.timeZone === null ? '' : options.timeZone as string;
-    const utc = z === 'UTC' || z === 'GMT';
-    const off = z.length > 0 && !utc ? __host_tzOffsetIn(z, this.t) : 0;
-    const d = new Date(this.t - (z.length > 0 ? (utc ? 0 : off) : __dTzAt(this.t)) * 60000);
-    const h = d.field(4, false);
-    return `${h % 12 === 0 ? 12 : h % 12}:${__dPad(d.field(5, false), 2)}:${__dPad(d.field(6, false), 2)} ${h < 12 ? 'AM' : 'PM'}`;
-  }
-  toLocaleString(locale: string = 'en-US', options: DateFormatOptions = {}): string {
-    if (!(this.t - this.t === 0)) return 'Invalid Date';
-    return this.toLocaleDateString(locale, options) + ', ' + this.toLocaleTimeString(locale, options);
-  }
+  toLocaleDateString(locale: string | null = null, options: __DateLocaleOptions = {}): string { return __intlDateLocale(this.t, locale, options, 'date'); }
+  toLocaleTimeString(locale: string | null = null, options: __DateLocaleOptions = {}): string { return __intlDateLocale(this.t, locale, options, 'time'); }
+  toLocaleString(locale: string | null = null, options: __DateLocaleOptions = {}): string { return __intlDateLocale(this.t, locale, options, 'all'); }
 }
-interface DateFormatOptions { timeZone?: string }
 // Date.parse: the ISO 8601 profile of ECMAScript (a date alone is UTC, a date with a time and no offset is local) and a tolerant reader of the formats engines accept besides
 // (RFC 2822 `Tue, 15 Nov 1994 08:12:31 GMT`, `Jan 15, 2020 10:00:00`, `15 January 2020`, `1/15/2020`, `2020/01/15`, what toString prints).
 function __dDigits(s: string, i: i32, n: i32): f64 {
@@ -4266,10 +4247,19 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
       x.kind = N::Ident; x.kids.clear();
       x.text = nm == "count" ? "__consoleCount" : nm == "countReset" ? "__consoleCountReset" : nm == "assert" ? "__consoleAssert" : nm == "time" ? "__consoleTime" : nm == "timeEnd" ? "__consoleTimeEnd" : "__consoleTimeLog";  // literals: the text is a view
     }
-  bool async = p.diags.empty() && (usesGfx || consoleT || needsAsync(p.ast));
+  bool intl = false;
+  for (Node& x : p.ast.nodes) {
+    if (x.kind == N::TypeRef && x.text == "DateFormatOptions") intl = true;
+    if (x.kind == N::TypeRef && (x.text == "Intl.NumberFormat" || x.text == "Intl.DateTimeFormat")) { x.text = x.text == "Intl.NumberFormat" ? "__IntlNumberFormat" : "__IntlDateTimeFormat"; intl = true; }
+    if (x.kind == N::Member && !x.kids.empty() && p.ast.nodes[x.kids[0]].kind == N::Ident && p.ast.nodes[x.kids[0]].text == "Intl" && (x.text == "NumberFormat" || x.text == "DateTimeFormat")) {
+      x.kind = N::Ident; x.text = x.text == "NumberFormat" ? "__IntlNumberFormat" : "__IntlDateTimeFormat"; x.kids.clear(); intl = true;
+    }
+    if (x.kind == N::Member && (x.text == "toLocaleString" || x.text == "toLocaleDateString" || x.text == "toLocaleTimeString")) intl = true;
+  }
+  bool async = p.diags.empty() && (usesGfx || consoleT || intl || needsAsync(p.ast));
   bool symbols = p.diags.empty() && needsSymbols(p.ast);
   bool iterators = p.diags.empty() && (symbols || needsIterators(p.ast) || needsArrayFrom(p.ast));
-  bool json = p.diags.empty() && (symbols || needsJson(p.ast));
+  bool json = p.diags.empty() && (symbols || intl || needsJson(p.ast));
   bool arena = p.diags.empty() && needsArena(p.ast);
   bool random = p.diags.empty() && needsRandom(p.ast);
   bool arrayFrom = p.diags.empty() && needsArrayFrom(p.ast);
@@ -4283,7 +4273,7 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   if (!p.diags.empty()) return p;
   if (p.diags.empty() && (async || json || iterators || arena || random || arrayFrom || regexp || consoleX || needsErrors(p.ast) || needsTdz(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    std::string preludeText = std::string(kErrorPrelude) + (iterators ? iteratorPrelude() : "") + (needsTdz(p.ast) ? kTdzPrelude : "") + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude(symbols) + (iterators ? iteratorDynPrelude(symbols) : "") : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (regexp ? kRegExpPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "");
+    std::string preludeText = std::string(kErrorPrelude) + (iterators ? iteratorPrelude() : "") + (needsTdz(p.ast) ? kTdzPrelude : "") + (async ? std::string(kAsyncPrelude) + kIntlCommon : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude(symbols) + (iterators ? iteratorDynPrelude(symbols) : "") : std::string()) + (intl ? kIntlConstructors : "") + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (regexp ? kRegExpPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "");
     if (const char* dump = std::getenv("ZN_DUMP_PRELUDE")) { if (FILE* df = std::fopen(dump, "w")) { std::fputs(preludeText.c_str(), df); std::fclose(df); } }   // the text that diagnostics of <prelude> point into
     p.files.push_back({"<prelude>", preludeText, {}, {}});
     ParseResult pr = parseKept(p.files[fi].text);

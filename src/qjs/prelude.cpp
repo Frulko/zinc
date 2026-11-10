@@ -17,23 +17,6 @@ const char* kPrelude = R"JS(
     const c = Math.min(to - from, n - off), block = src === this ? src.slice(from, from + c) : src, base = src === this ? 0 : from;
     for (let i = 0; i < c; i++) this[off + i] = block[base + i];
   } });
-  // Number.prototype.toLocaleString without Intl (QuickJS): en-US digits as the typed engine prints them (check.cpp numToLocale); an engine with Intl keeps its own
-  if ((1234.5).toLocaleString() !== '1,234.5') Object.defineProperty(Number.prototype, 'toLocaleString', { writable: true, configurable: true, value: function toLocaleString(locale, o) {
-    const x = Number(this);
-    if (x !== x) return 'NaN';
-    if (x - x !== 0) return x > 0 ? '∞' : '-∞';
-    o = o || {};
-    let lo = o.minimumFractionDigits === undefined ? 0 : Math.floor(o.minimumFractionDigits);
-    const hi = o.maximumFractionDigits === undefined ? Math.max(lo, 3) : Math.floor(o.maximumFractionDigits);
-    if (o.minimumFractionDigits === undefined && hi < lo) lo = hi;
-    let s = x.toFixed(hi);
-    const neg = s[0] === '-';
-    if (neg) s = s.slice(1);
-    let [ip, fp = ''] = s.split('.');
-    while (fp.length > lo && fp.endsWith('0')) fp = fp.slice(0, -1);
-    if (o.useGrouping !== false) ip = ip.replace(/\B(?=(\d{3})+$)/g, ',');
-    return (neg ? '-' : '') + ip + (fp ? '.' + fp : '');
-  } });
   // zinc:worker (D181): QuickJS installs its own (src/qjs/worker_js.cpp); the engines that share this prelude (JavaScriptCore, V8, Hermes) have none yet
   if (!g.__recSchemaOf) g.__recSchemaOf = function () { throw new Error('zinc:worker runs on the Zinc engine and QuickJS; this engine has no workers yet'); };
   function quote(s) {
@@ -259,6 +242,34 @@ const char* kPrelude = R"JS(
   }
   g.__dynAs = (schema, v) => { let f = dynConv.get(schema); if (!f) { f = dynCompile(schema); dynConv.set(schema, f); } return f(v); };
   g.process = { argv: ['zinc', 'main'], env: {}, exit: c => g.__host_sysExit(c | 0), platform: 'zinc', stdout: { write: s => write(String(s)) }, stderr: { write: s => writeErr(String(s)) } };
+})(globalThis);
+)JS"
+R"JS(
+(function (g) {
+  const needNumber = !g.Intl || !g.Intl.NumberFormat, needDate = !g.Intl || !g.Intl.DateTimeFormat;
+  if (!needNumber && !needDate) return;
+)JS"
+#include "intl_js.h"
+R"JS(
+  if (!g.Intl) g.Intl = {};
+  const validate = (o, names) => { if (o === null) throw new TypeError('Intl options cannot be null'); for (const k of Object.keys(o || {})) if (!names.includes(k)) throw new RangeError('Unsupported Intl option: ' + k); };
+  if (needNumber) {
+    class NumberFormat extends __IntlNumberFormat {
+      constructor(locales, options) {
+        validate(options, ['minimumFractionDigits','maximumFractionDigits','useGrouping','style','currency','currencyDisplay','currencySign','notation','compactDisplay','signDisplay','unit','unitDisplay','minimumIntegerDigits','minimumSignificantDigits','maximumSignificantDigits','numberingSystem','localeMatcher','roundingMode','roundingPriority','roundingIncrement','trailingZeroDisplay']);
+        if (options && options.useGrouping !== undefined && typeof options.useGrouping !== 'boolean') throw new RangeError('Intl useGrouping must be boolean');
+        super(locales, options);
+      }
+    }
+    g.Intl.NumberFormat = NumberFormat;
+    Object.defineProperty(Number.prototype, 'toLocaleString', { configurable: true, writable: true, value: function(locales, options) { return new NumberFormat(locales, options).format(Number(this)); } });
+  }
+  if (needDate) {
+    const names = ['year','month','day','weekday','hour','minute','second','hour12','timeZone','calendar','numberingSystem','localeMatcher','dateStyle','timeStyle','era','timeZoneName','hourCycle','fractionalSecondDigits','dayPeriod','formatMatcher'];
+    class DateTimeFormat extends __IntlDateTimeFormat { constructor(locales, options) { validate(options, names); super(locales, options); } }
+    g.Intl.DateTimeFormat = DateTimeFormat;
+    for (const [method, defaults] of [['toLocaleDateString','date'], ['toLocaleTimeString','time'], ['toLocaleString','all']]) Object.defineProperty(Date.prototype, method, { configurable: true, writable: true, value: function(locales, options) { return __intlDateLocaleDyn(this, locales, options, defaults); } });
+  }
 })(globalThis);
 )JS";
 
