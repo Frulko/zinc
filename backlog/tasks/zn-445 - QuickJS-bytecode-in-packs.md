@@ -2,8 +2,7 @@
 id: ZN-445
 title: 'QuickJS bytecode: log line on version mismatch, bytecode in packs'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:36'
 updated_date: '2026-11-10 04:43'
 labels:
