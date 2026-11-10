@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+"""Pinned CUI / Zinc tracker build and measurement harness. See docs/reports/cui-compare.md.
+
+build: fetch checked MIT reference and build both apps plus an offscreen CUI driver.
+run: owner-selected quiet-machine measurements; never runs as part of build.
+show: print the saved metrics without launching anything.
+"""
+import argparse
+import datetime
+import hashlib
+import runpy
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import signal
+import statistics
+import subprocess
+import sys
+import tarfile
+import time
+import urllib.request
+
+ROOT = Path(__file__).resolve().parent.parent
+PIN = 'f70a1d3d095cafd67814b23bdd82c2dfba28efe0'
+ARCHIVE_SHA256 = '142cca2f01cbd3ddea9454739382cb6f4918fb177b6b444187e6a552391c5f00'
+URL = f'https://codeload.github.com/yappologistic/CUI/tar.gz/{PIN}'
+# Reuse the profiler parser; zbench's device runners and corpus are not involved.
+parse_zinc_run = runpy.run_path(str(ROOT / 'tools/zbench'))['parse_run']
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def command(args, log, seconds=600, env=None, cwd=ROOT):
+    """Bound the entire process group, including compilers and linker children."""
+    with log.open('w') as output:
+        p = subprocess.Popen([str(a) for a in args], stdout=output, stderr=subprocess.STDOUT,
+                             env=env, cwd=cwd, start_new_session=True)
+        try:
+            code = p.wait(timeout=seconds)
+        finally:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            p.wait()
+    if code:
+        raise RuntimeError(f'command failed ({code}): {log}')
+
+
+def fetch(out):
+    archive = out / 'cui.tar.gz'
+    if not archive.exists():
+        with urllib.request.urlopen(URL, timeout=45) as response, archive.open('wb') as target:
+            while chunk := response.read(1024 * 1024):
+                target.write(chunk)
+    if digest(archive) != ARCHIVE_SHA256:
+        raise RuntimeError(f'reference archive checksum mismatch: remove {archive} and retry')
+    source = out / ('CUI-' + PIN)
+    if source.exists():
+        raise RuntimeError(f'build uses a fresh output directory; source already exists: {source}')
+    with tarfile.open(archive) as tar:
+        # The checked archive is still confined to this output directory; links are unnecessary.
+        for member in tar.getmembers():
+            if member.issym() or member.islnk() or not (out / member.name).resolve().is_relative_to(out):
+                raise RuntimeError('unsafe reference archive entry')
+        tar.extractall(out)
+    if 'MIT License' not in (source / 'LICENSE').read_text():
+        raise RuntimeError('unexpected reference licence')
+    # Only window activation changes; tracker.c and its callback remain byte-for-byte upstream.
+    cocoa = source / 'src/platform/cui_app_cocoa.m'
+    text = cocoa.read_text()
+    before = '[p.window makeKeyAndOrderFront:nil];\n    [NSApp activateIgnoringOtherApps:YES];'
+    after = 'if (getenv("CUI_COMPARE_BACKGROUND")) [p.window orderBack:nil];\n    else { ' + before + ' }'
+    if text.count(before) != 1:
+        raise RuntimeError('Cocoa background patch no longer matches pin')
+    text = text.replace(before, after)
+    before = '[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];'
+    after = '[NSApp setActivationPolicy:getenv("CUI_COMPARE_BACKGROUND") ? NSApplicationActivationPolicyAccessory : NSApplicationActivationPolicyRegular];'
+    if text.count(before) != 1:
+        raise RuntimeError('Cocoa activation-policy patch no longer matches pin')
+    cocoa.write_text(text.replace(before, after))
+    x11 = source / 'src/platform/cui_app_x11.c'
+    text = x11.read_text()
+    before = 'XMapWindow(x->dpy, x->win);'
+    after = '''if (getenv("CUI_COMPARE_BACKGROUND")) {
+        XWMHints background = {0}; background.flags = InputHint; background.input = False;
+        XSetWMHints(x->dpy, x->win, &background);
+    }
+    XMapWindow(x->dpy, x->win);'''
+    if text.count(before) != 1:
+        raise RuntimeError('X11 background patch no longer matches pin')
+    x11.write_text(text.replace(before, after))
+    return source
+
+
+def git(*args):
+    return subprocess.check_output(['git', '-C', str(ROOT), *args], text=True, timeout=10).strip()
+
+
+def inputs():
+    h = hashlib.sha256()
+    for folder in ['examples/ui/tracker', 'lib', 'plugins']:
+        path = ROOT / folder
+        for file in sorted(path.rglob('*')) if path.is_dir() else [path]:
+            if file.is_file() and not {'build', 'dist', '.cache', '__pycache__'}.intersection(file.relative_to(ROOT).parts) and file.suffix in ['.ts', '.tsx', '.json', '.ttf', '.svg']:
+                h.update(str(file.relative_to(ROOT)).encode())
+                h.update(bytes.fromhex(digest(file)))
+    return h.hexdigest()
+
+
+def build(args):
+    out = args.out
+    out.mkdir(parents=True, exist_ok=True)
+    if (out / 'build.json').exists():
+        raise RuntimeError('choose a fresh --out for a fresh build (no destructive clean)')
+    source = fetch(out)
+    cmake = out / 'driver'
+    cmake.mkdir()
+    # Bracket arguments preserve literal paths, including spaces.
+    (cmake / 'CMakeLists.txt').write_text(f'''cmake_minimum_required(VERSION 3.14)
+project(cui_tracker_compare C)
+set(CUI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(CUI_BUILD_EXAMPLES ON CACHE BOOL "" FORCE)
+add_subdirectory([=[{source}]=] reference)
+add_executable(cui_compare_frame [=[{ROOT / 'tools/cui_compare_frame.c'}]=])
+target_include_directories(cui_compare_frame PRIVATE [=[{source / 'examples'}]=])
+target_link_libraries(cui_compare_frame PRIVATE cui::cui)
+''')
+    fingerprint = inputs()
+    env = dict(os.environ, ZINC_ROOT=str(ROOT), ZINC_BACKGROUND='1', ZINC_STEPS='0')
+    data = {'schema': 'cui-compare-build/1', 'created_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'zinc_rev': git('rev-parse', 'HEAD'), 'zinc_dirty': bool(git('status', '--porcelain', '--', 'src', 'runtime', 'lib', 'examples/ui/tracker')),
+            'zinc_source_sha256': fingerprint, 'cui_pin': PIN, 'archive_sha256': ARCHIVE_SHA256,
+            'tracker_sha256': digest(source / 'examples/tracker.c'), 'driver_sha256': digest(ROOT / 'tools/cui_compare_frame.c'),
+            'host': platform.platform(), 'machine': platform.machine(), 'build_wall_s': {},
+            'fonts_sha256': {str(p.relative_to(base)): digest(p) for base in [ROOT, source]
+                             for p in (base / ('lib/fonts' if base == ROOT else 'assets/fonts')).glob('Inter-*.ttf')}}
+    command(['cmake', '-S', cmake, '-B', out / 'cmake', '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON'], out / 'configure.log', env=env)
+    zinc = Path(os.environ.get('ZINC', ROOT / 'build/zinc')).resolve()
+    data['zinc_compiler_sha256'] = digest(zinc)
+    for name, cmd in [('cui', ['cmake', '--build', out / 'cmake', '--target', 'tracker', 'cui_compare_frame', '--parallel', '1']),
+                      ('zinc', [zinc, 'build', ROOT / 'examples/ui/tracker', '-o', out / 'zinc-tracker'])]:
+        start = time.monotonic()
+        command(cmd, out / ('build-' + name + '.log'), env=env)
+        data['build_wall_s'][name] = time.monotonic() - start
+    if inputs() != fingerprint or digest(ROOT / 'tools/cui_compare_frame.c') != data['driver_sha256']:
+        raise RuntimeError('Zinc source changed during build; discard these outputs and use a fresh --out')
+    data['artifacts'] = {}
+    for name, path in [('cui', out / 'cmake/reference/examples/tracker'), ('cui_frame_driver', out / 'cmake/cui_compare_frame'), ('zinc', out / 'zinc-tracker')]:
+        data['artifacts'][name] = {'path': str(path), 'bytes': path.stat().st_size, 'sha256': digest(path)}
+    (out / 'build.json').write_text(json.dumps(data, indent=2) + '\n')
+    print('Built CUI and Zinc; build wall time includes tool/cache effects, not runtime frame work.')
+    show(out)
+
+
+def verify(out):
+    data = json.loads((out / 'build.json').read_text())
+    if data['cui_pin'] != PIN:
+        raise RuntimeError('unexpected CUI revision')
+    for artifact in data['artifacts'].values():
+        if digest(artifact['path']) != artifact['sha256']:
+            raise RuntimeError('artifact changed since build: ' + artifact['path'])
+    return data
+
+
+def cpu_seconds(pid):
+    if platform.system() == 'Linux':
+        fields = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()
+        return (int(fields[11]) + int(fields[12])) / os.sysconf('SC_CLK_TCK')
+    text = subprocess.check_output(['ps', '-o', 'time=', '-p', str(pid)], text=True, timeout=2).strip()
+    parts = [float(v) for v in text.split(':')]
+    return sum(value * 60 ** index for index, value in enumerate(reversed(parts)))
+
+
+def idle(path, log, env, warmup, seconds):
+    # Sample the app process itself. OS compositors, shared pages and GPU memory are excluded.
+    with log.open('w') as output:
+        p = subprocess.Popen([path], env=env, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
+        try:
+            time.sleep(warmup)
+            if p.poll() is not None:
+                raise RuntimeError(f'idle app exited during warmup: {log}')
+            start_cpu, start = cpu_seconds(p.pid), time.monotonic()
+            samples = []
+            while time.monotonic() - start < seconds:
+                text = subprocess.check_output(['ps', '-o', 'rss=', '-p', str(p.pid)], text=True, timeout=2)
+                samples.append(int(text.strip()) / 1024)
+                time.sleep(0.2)
+            cpu, wall = cpu_seconds(p.pid) - start_cpu, time.monotonic() - start
+            return {'rss_mib_median': statistics.median(samples), 'rss_mib_peak_sampled': max(samples),
+                    'cpu_percent_one_core': 100 * cpu / wall, 'cpu_s': cpu, 'wall_s': wall, 'samples': len(samples)}
+        finally:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            p.wait()
+
+
+def run(args):
+    data = verify(args.out)
+    result = {'schema': 'cui-compare-run/1', 'host': platform.platform(), 'machine': platform.machine(),
+              'load_before': os.getloadavg(), 'frames': args.frames, 'skip': args.skip,
+              'comparable': False, 'reason': 'same tracker screen family; different content, controls and rendering phase boundaries',
+              'frame': {}, 'window_idle': None}
+    env = {key: value for key, value in os.environ.items() if not key.startswith(('ZINC_', 'CUI_', 'TRACKER_'))}
+    env.update(ZINC_BACKGROUND='1', ZINC_ROOT=str(ROOT), TRACKER_DARK='1', ZINC_SIZE='1440x900', ZINC_SCALE='1',
+               ZINC_HEADLESS='1', ZINC_RENDERER='cpu', ZINC_DETERMINISTIC='1', ZINC_PROFILE='json',
+               ZINC_PROFILE_SKIP=str(args.skip), ZINC_FRAMES=str(args.frames),
+               CUI_COMPARE_FRAMES=str(args.frames), CUI_COMPARE_SKIP=str(args.skip))
+    for name, artifact in [('cui', 'cui_frame_driver'), ('zinc', 'zinc')]:
+        log = args.out / ('frame-' + name + '.log')
+        command([data['artifacts'][artifact]['path']], log, seconds=120, env=env)
+        text = log.read_text()
+        if name == 'cui':
+            match = re.search(r'^cui compare json: (.*)$', text, re.M)
+            if not match:
+                raise RuntimeError('CUI frame report missing: ' + str(log))
+            report = json.loads(match[1])
+            if len(report['frames']) != args.frames - args.skip:
+                raise RuntimeError('CUI frame count mismatch')
+            result['frame']['cui'] = {'build_layout_paint_p50_us': statistics.median(f[0] for f in report['frames']),
+                                      'raster_p50_us': statistics.median(f[1] for f in report['frames']), 'raw': report}
+        else:
+            report = parse_zinc_run(text).get('profile')
+            if not report or report['frames'] < args.frames - args.skip or report['window'] != [1440, 900]:
+                raise RuntimeError('Zinc frame report missing, incomplete or wrong size: ' + str(log))
+            result['frame']['zinc'] = report
+    if args.window_idle:
+        env = {key: value for key, value in env.items() if not key.startswith(('ZINC_', 'CUI_'))}
+        env.update(ZINC_BACKGROUND='1', ZINC_ROOT=str(ROOT), ZINC_SIZE='1440x900', ZINC_RENDERER='cpu',
+                   CUI_COMPARE_BACKGROUND='1', CUI_THEME='dark', CUI_RENDERER='software')
+        result['window_idle'] = {}
+        for name in ['cui', 'zinc']:
+            result['window_idle'][name] = idle(data['artifacts'][name]['path'], args.out / ('idle-' + name + '.log'), env, args.warmup, args.seconds)
+    result['load_after'] = os.getloadavg()
+    saved = json.dumps(result, indent=2) + '\n'
+    (args.out / ('run-' + datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + '.json')).write_text(saved)
+    (args.out / 'run.json').write_text(saved)
+    show(args.out)
+
+
+def show(out):
+    build = json.loads((out / 'build.json').read_text())
+    result = json.loads((out / 'run.json').read_text()) if (out / 'run.json').exists() else {}
+    print('variant  executable bytes  build wall s  frame work us  window RSS MiB  idle CPU %')
+    for name in ['cui', 'zinc']:
+        frame = result.get('frame', {}).get(name, {})
+        work = frame.get('build_layout_paint_p50_us') if name == 'cui' else None
+        resource = (result.get('window_idle') or {}).get(name, {})
+        def fmt(value):
+            return 'unavailable' if value is None else f'{value:.3f}'
+        print(f"{name:7} {build['artifacts'][name]['bytes']:16} {build['build_wall_s'][name]:13.3f} {fmt(work):>14} {fmt(resource.get('rss_mib_median')):>15} {fmt(resource.get('cpu_percent_one_core')):>11}")
+        if name == 'zinc' and frame:
+            print('  Zinc p50 us (separate phases): ' + ', '.join(f'{key}={frame["phases"][key]["p50"]}' for key in ['app', 'layout', 'paint', 'raster']))
+    print('Unmatched content/phase boundaries: no speed ratio. Null/unavailable means unmeasured, never zero.')
+    print('Raw provenance and logs: ' + str(out))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['build', 'run', 'show'])
+    parser.add_argument('--out', type=lambda value: Path(value).resolve(), required=True)
+    parser.add_argument('--frames', type=int, default=120)
+    parser.add_argument('--skip', type=int, default=30)
+    parser.add_argument('--window-idle', action='store_true', help='also launch native background windows, only on an owner-selected quiet machine')
+    parser.add_argument('--warmup', type=float, default=3)
+    parser.add_argument('--seconds', type=float, default=10)
+    args = parser.parse_args()
+    if not 0 <= args.skip < args.frames <= 4096 or not 0 < args.warmup <= 30 or not 0 < args.seconds <= 30:
+        parser.error('need 0 <= skip < frames <= 4096 and 0 < warmup, seconds <= 30')
+    {'build': build, 'run': run, 'show': lambda a: show(a.out)}[args.action](args)
+
+
+if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
+    try:
+        main()
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        sys.exit('cui-compare: ' + str(error))

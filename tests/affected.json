@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["tools/cui-compare", "tools/cui_compare_frame.c", "tests/data/cui_compare.py", "tests/t0/cui_compare.sh"], "tests": ["cui_compare"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/modules.cpp", "lib/zinc.d.ts", "tests/data/return_type/", "tests/t0/return_type.sh"], "tests": ["return_type"]},
     {"paths": ["src/frontend/check.cpp", "tests/data/typeof_union/", "tests/t0/typeof_union.sh"], "tests": ["typeof_union"]},
     {"paths": ["lib/std/kit/ai.tsx", "lib/std/kit/ai-model.ts", "lib/std/kit/input.tsx", "tests/data/kit_ai/", "tests/t0/kit_ai.sh"], "tests": ["kit_ai"]},
