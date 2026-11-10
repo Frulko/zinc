@@ -2,8 +2,7 @@
 id: ZN-683
 title: 'zinc:3d: a depth or visibility query, so a marker hides behind any shape'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 19:36'
 updated_date: '2026-11-10 12:04'
 labels:

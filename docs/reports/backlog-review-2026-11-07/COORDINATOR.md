@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Finalarraycommon4a822/3c618d3 verified5exact/rawkit/Heroall3PASS7,995,048Bnative/9,537,382Bsource.68318aa3967c Done+rootactualSW/GPUtorusPASS,75Done. Reserve184EXT/ANGLEinstancing cleanGLreplay-only; ownerdisplay_gl.cpp/HALWIPforbidden. Feature-firstonecriterion+uploadbytes, no suite/benchmark/fullSDK.
+
 -1030ca3455856 integratedBacklogAC1open, checkedrelatedrefarrayaliases/nativeatomicrefusal/rawVM+AOTdefence; nativeHero7,995,048B (+16) andsource9,537,301Binclusive pass. OneotherWIPfillconflictresolvedkeepingguard+ownerSlot/packedloop, all10payloadsidentical andstagedWIPreset. Rootcommonproofnext. Reserve683 renderer-independent3Dvisibilityquery, directengineAPI/noMuseumappscope; root+683buildslots.
 
 - Root07ed10/5b9fea69 combinedNever+exportexact5/rawkit/Heroall3PASS,7,995,032Bnative and9,527,518Binclusive source;74Doneconfirmed. Archive1066exportphase, reservefreshCDPmetadata-onlyresearch/prototype independentof1030core; boundedSDKpartialproofrequired, no wholeSDKrebuild/ports/UI/benchmark. Rootbuildslotfree.
