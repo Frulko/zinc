@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Root clean commonfe4b8bee5 SHA47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764 rebuilt; combined typeof_union/return_type/kit_tabs_reveal/unchangedkit_size and originalSettingscheck/interp4PASS. Mail25 partialworker4bfe1e10a integrated, BacklogAC2true/AC1open depends1114; reduced-motion shared-layer gap proven20paintall3, ui.ts WIPprotected so not assigned. Reserve fresh Settings23 completion on repaired common, no layer dialogs in original source. Notes27/Assistant28 continue,56Done unchanged.
+
 - Integrated/released1111c0813bdd5,1113428d48c1b,1112fe4b8bee5 Done,56Done. Source exactall3/probes pass, common rebuild queued; frozen5ec63 candidate plus archives in1111tree staysreadonly for new workers. Reserve Notes27+Assistant28 fresh independent TS-only chains. Mail25 all3app/actions pass but checks possible reduced-motion layer gap across real paints, no protected ui.ts edit; Settings23 final completion after common proof.
 
 -1111 complete workerfe56d1947, exactT0/originalAvatar and unchanged Settings numeric size56 all3 PASS oncandidatec7643c50, no UI/runtime edit. Worker rebases then works1113 in same warm frontend chain before grouped integration. Settings23 actual dependencies1111/1112 recorded to prevent premature reclaim; checkpoint tree archived/removed, original sources remain on develop. Common397865 frozen for otherworkers.

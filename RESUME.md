@@ -9,9 +9,9 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 | ZN-1112 narrow Tabs | .worktrees/1112 / work/1112 | Fresh kit Tabs/reveal worker; actual End selects Account but label/focus clipped at360px all3, no caller workaround. |
 | ZN-1078.27 Notes | .worktrees/1078.27 / work/1078.27 | Fresh local notes demo: search/tags/edit/Markdown and responsive navigation, existing kit only. |
 | ZN-1078.28 Assistant | .worktrees/1078.28 / work/1078.28 | Fresh local scripted assistant demo, existing AI components, no backend/model call. |
-| ZN-1078.25 Mail | .worktrees/1078.25 / work/1078.25 | Actual all3 check/actions/captures pass on candidate5ec63; investigating reduced-motion layer behavior before closure, no UI workaround. |
+| ZN-1078.23 Settings completion | .worktrees/1078.23 / work/1078.23 | Fresh worker revalidates original app/captures on repaired common after1111/1112; no new feature or workaround. |
 
-Core chain1111/1113 and Tabs1112 integrated and released, no active core writer. Common rebuild underway, do not use/replace its artifacts midbuild. Finish reported integration before filling the next slot. Notes27/Assistant28 now reserved. Settings23 fresh completion after common rebuild and combined proofs; Mail25 reduced-motion layer evidence pending, shared ui.ts remains protected. Read current task/dependencies and search primary references before claiming.
+Core chain1111/1113 and Tabs1112 integrated and released, no active core writer. Common rebuild and combined exact proofs PASS on47a238…; announce future changes. Finish reported integration before filling the next slot. Notes27/Assistant28 now reserved. Settings23 fresh completion after common rebuild and combined proofs; Mail25 reduced-motion layer evidence pending, shared ui.ts remains protected. Read current task/dependencies and search primary references before claiming.
 
 ## Integrated
 
@@ -35,6 +35,8 @@ Core chain1111/1113 and Tabs1112 integrated and released, no active core writer.
 - Shared size gate unchanged. Final Planning JS235962/245066/281771B, unused9104<9984,4078/component (159B strict total headroom). AOT5325320/5474000/6025760B, unused148680<159744,61306/component. Extended combined gate PASS: JS235962/246177/282882, unused10215<10240 (25B margin); AOT5325320/5474000/6025760. Root exact twelve kit_extended paths, native system_drop_scope and original QJS4 PASS. Root inspected capture360px/dark social. Raw source/gate manifests in kit-integration JSON after_extended. No option/icon/control/budget cuts. Detailed source hashes/root checks: docs/reports/bench/kit-integration-2026-11-10.json. Last decision D277; routine reuse needs no new number.
 
 ## Engine and machine limits
+
+Current common clean sourcefe4b8bee5 rebuilt SHA25647a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Root typeof_union/return_type/kit_tabs_reveal/unchangedkit_size allPASS, Settings originalcheck/interp4PASS. This supersedes397865 below; old worker proofs retain their original hash.
 
 Common read-only engine: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, compiler source90b24121b, SHA2563978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af. Clean smoke tree source reset to9abd4be3f (newer changes TS-only). Workers use ZINC_ROOT=$their_tree. Announce before replacing binary and preserve adjacent AOT archives; moving only executable breaks native builds.
 
