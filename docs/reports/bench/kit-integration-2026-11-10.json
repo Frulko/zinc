@@ -826,5 +826,65 @@
     },
     "log_directory": ".logs/integration-2026-11-10/audio",
     "archive": ".logs/archive-completed-workers-20261110/653-final"
+  },
+  "archive_open_integration": {
+    "checkout": "1abd3ad0dcac0546cd275e465e00f12b9c024e52",
+    "compiled_source": "3e0925d48",
+    "compiler_sha256": "e5206875f798939a9c36115ef6d8df44be782b8e1e32aaef2dafe5439eae3461",
+    "exact_t0": "zapp_desktop PASS with official validators",
+    "actual": "cold and two warm real archive events plus registered UTI/viewer mapping PASS",
+    "default_handler": {
+      "before": "<none>",
+      "after": "<none>"
+    },
+    "done_count": 78,
+    "linux_desktop_or_full_package_claim": false
+  },
+  "wasm_loading_integration": {
+    "source_commit": "0e8bd9b90bd20754936367c843e4a11633ac07cb",
+    "engine_sha256": "3ec59faa23598f799be9caf7f1263cdf7fc52780ced417991d2c50607f50d8d5",
+    "native_bytes": 7994920,
+    "native_sha256": "aa2e13650c8b775723dc40900f546ae1ecb10dafb6b68bddda0963c2d06b97d3",
+    "generated_cpp_and_header_bytes": 9537321,
+    "generated_inclusive_60byte_pch_wrapper": 9537381,
+    "exact_t0": [
+      "wasm_loading"
+    ],
+    "browser_three_criteria": {
+      "splashBeforeWasm": true,
+      "firstPackRequests": 1,
+      "secondPackRequests": 0,
+      "ktx2PremulAndStraightPixels": [
+        [
+          120,
+          40,
+          20
+        ],
+        [
+          119,
+          40,
+          20
+        ]
+      ],
+      "log": "math NaN -0 5e-324 NaN -0\nbefore false\nloaded 760 760\nimages 8 8 true\nexit 0, 43 frames"
+    },
+    "p5_v2_golden": "PASS",
+    "wasm_artifact_bytes": {
+      "vm.wasm": 681438,
+      "vm-web.wasm": 755134,
+      "ktx2-web.wasm": 1271721
+    },
+    "hero_four_hashes_all3": "PASS",
+    "done_count": 79,
+    "quiet_or_cold_timing_claim": false
+  },
+  "library_boot_integration": {
+    "checkout": "05bdbca32935c0c3d9069b3873c29cb94db88ecc",
+    "compiled_source": "0e8bd9b90",
+    "compiler_sha256": "3ec59faa23598f799be9caf7f1263cdf7fc52780ced417991d2c50607f50d8d5",
+    "generic_input_order": "PASS",
+    "phaser_exact_golden": "PASS",
+    "runtime_changed": false,
+    "done_count": 80
   }
 }

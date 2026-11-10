@@ -4,8 +4,7 @@ title: >-
   Web environment: boot tests for Phaser, PixiJS 8, p5 2, Babylon, LittleJS and
   Kaplay
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 22:50'
 updated_date: '2026-11-10 13:28'
 labels:
@@ -38,6 +37,8 @@ ordinal: 20700
 
 <!-- SECTION:NOTES:BEGIN -->
 Review 2026-11-07: rewrite. Six library boot tests is a lot; do PixiJS 8, Phaser and p5 first (one test each), the rest as later lines; Kaplay waits for AudioContext (ZN-573).
+Coordinator root source05bdbca32/compiler3ec59faa passes exact original generic frame and Phaser programs against their goldens. Earlier root p5v2 exact and worker Pixi8/p5v1/p5v2 proofs complete AC1/2;80Done. No runtime/library/input scheduling changes. Durable .logs/archive-completed-workers-20261110/707-frame-final.
+
 <!-- SECTION:NOTES:END -->
 
 

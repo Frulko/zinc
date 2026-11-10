@@ -2,8 +2,7 @@
 id: ZN-449
 title: 'Browser loading path: streaming compile, group packs, Cache Storage, KTX2'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:36'
 updated_date: '2026-11-10 13:14'
 labels:
@@ -63,4 +62,6 @@ Proposed tests (owner chooses; not run):
 
 No suites/T1/T2/demo/pixel compare/benchmark/conformance/fuzz/CI runs. No runtime core, main.cpp, UI, renderer/HAL or other protected changes touched. No processes left running. Suggested later line: ZN-449: verify optional compressed GPU uploads when the browser renderer supports them; current supported path decodes RGBA32 for Canvas2D.
 usage: n/a
+Coordinator root common0e8bd9b90/compiler3ec59faa independently rebuilds identical wasm hashes and passes exactwasm_loading, actualChrome3AC/empty stale-pack exclusion/plainWASI. Hero7,994,920B/source9,537,381B inclusive and all3fourhashes pass. D292; durable .logs/archive-completed-workers-20261110/449-final.
+
 <!-- SECTION:NOTES:END -->

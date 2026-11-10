@@ -2,8 +2,7 @@
 id: ZN-391
 title: Open .zapp files with zinc by double-click (macOS and Linux)
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-08 23:55'
 updated_date: '2026-11-10 13:10'
 labels:
@@ -45,4 +44,6 @@ Proposed tests:
 - macOS document open while a live archive is terminated and malformed/multiple archives are opened: broader event/quit coverage; ~10s, estimated <100MB.
 
 Final compatibility review: desktop installation is conditional on both metadata files, because the current installer may fetch a release made before ZN-391 ships. The exact T0 also installs a metadata-free old archive with --atelier and verifies the Atelier menu entry still appears. Final exact T0 with official validators PASS.
+Coordinator root actual cold/two warm archive events, registered UTI/viewer and unchanged default handler plus exact zapp_desktop with official validators PASS. D291; durable .logs/archive-completed-workers-20261110/391-final. Root source1abd3ad0d with compiler e520 from3e0925d48; no engine rebuild needed for packaging-only changes.
+
 <!-- SECTION:NOTES:END -->
