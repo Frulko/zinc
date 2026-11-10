@@ -2953,7 +2953,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     n.z = Math.round(neg ? -zv : zv);
     return true;
   }
-  if (tok === 'flex') return true;
+  if (tok === 'flex') { n.hidden = false; return true; }
   if (tok === 'flex-row') { n.row = true; return true; }
   if (tok.startsWith('origin-')) { const k = tok.slice(7); return setOrigin(n, k.startsWith('[') && k.endsWith(']') ? k.slice(1, k.length - 1).split('_').join(' ') : k.split('-').join(' ')); }   // origin-top-left, origin-[25%_75%]
   if (tok === 'flex-col') { n.row = false; return true; }

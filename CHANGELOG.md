@@ -256,6 +256,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - JSX lists and render callbacks keep their children when a formatter adds a trailing call comma, including nested calendars.
 - Tabs reveal the selected tab in narrow windows after keyboard, pointer or app selection, keeping its focus ring inside the padded track.
 - Dialogs, sheets and other shared layers honor reduced motion immediately, including when the system preference changes while they open or close.
+- Responsive regions using `hidden md:flex` appear at desktop widths and hide again when the window narrows.
 
 ### The web
 
