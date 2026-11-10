@@ -7,7 +7,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 | Task | Worktree / branch | State |
 | --- | --- | --- |
 | ZN-1112 narrow Tabs | .worktrees/1112 / work/1112 | Fresh kit Tabs/reveal worker; actual End selects Account but label/focus clipped at360px all3, no caller workaround. |
-| ZN-1111 typeof union | .worktrees/1111 / work/1111 | Solecore frontend fix: dynBacked union omitted by typeof lowering. Candidate c7643c50 build/exact T0 all3 and original Avatar56 pass, Settings original proof underway. Then same warm tree1113 ReturnType Mail blocker. Common397865 frozen. |
+| ZN-1111 typeof union | .worktrees/1111 / work/1111 | Solecore frontend fix: dynBacked union omitted by typeof lowering. 1111 fe56d1947 complete on branch, rebase pending: candidatec7643c50 exactT0 and unchanged Avatar56/Settings56 all3 pass. Then same warm tree1113 ReturnType Mail blocker. Common397865 frozen. |
 | ZN-1078.25 Mail | .worktrees/1078.25 / work/1078.25 | Fresh local mail demo: responsive three panes, search, read/star/archive and compose, no external sending. |
 
 1111→1113 is the sole shared-core chain (typeof union then ReturnType);1112 owns kit tabs only. Finish reported integration before filling the next slot. Next startable family: ZN-1078.27 Notes then Assistant, after filling reported integrations. Settings23 awaits1111/1112; Mail25 checker/interp/AOT await1113, QuickJS actual entry works. Read current task/dependencies and search primary references before claiming.
@@ -21,7 +21,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 - Dashboard22 1d67788cf Done: actual all3 entry+actions, nine inspected pictures light/dark/360px, local kit build desk. Root check/interp4 PASS; root inspected native light and narrow form, responsive/password eye aligned. Provenance kit-integration JSON dashboard_integration. Title differs visually across original captures; standalone canonical and import-only App cases report correct28px, no confirmed engine defect. No override.
 
-53 distinct Done since1078.03: twenty-one ZN-1078 leaves (.03–.22,.24), plus1079–1110. Current feature source9abd4be3f. Earlier history and proposed tests: session-handover-2026-11-09.md and session-handover-2026-11-10.md.
+53 distinct Done since1078.03: twenty-one ZN-1078 leaves (.03–.22,.24), plus1079–1110. Current feature sourcee5ffa9f27 (Settings checkpoint), plus Gallery8678d8c6d and Finance9abd4be3f. Earlier history and proposed tests: session-handover-2026-11-09.md and session-handover-2026-11-10.md.
 
 - JSX1110 ebe53adf2: valid trailing commas in JSX map callbacks preserve nodes, ordering and evaluation across engines. Exact jsx_map_trailing passes. Planning b4edca089 completes normally formatted source; BoardCard key fixes actual React keyboard-drop focus. kit_planning all3/both models and six refreshed pictures pass.1110AC3 closed.
 - AI18 90b24121b: nine controls, seven inspected pictures; models/interactions both UI models/all3. Native Textarea maxRows/onKeyDown preserve IME/caret/shortcuts. Root kit_ai, original composerQJS4frames and unchanged gate pass. docs/reports/kit-ai-proof.md.
