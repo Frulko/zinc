@@ -188,6 +188,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `examples/ui/assistant` adds a local scripted chat with reasoning, tool details, a plan, public source cards,
   a multiline composer and working stop/retry controls in Quiet light and dark.
 
+- `examples/ui/notes` is a Quiet notes workspace with Markdown editing and preview, searchable tags, pinned notes and confirmed deletion; sample notes reset when the window closes.
+
 #### Changed
 
 - The kit gallery keeps light/dark and family navigation visible while scrolling, with keyboard focus transfer and layouts that fit narrow windows.

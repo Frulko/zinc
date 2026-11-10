@@ -1,0 +1,11 @@
+{
+  "name": "notes", "entry": "src/main.tsx",
+  "app": { "name": "Fieldnotes", "id": "dev.zinc.demo.notes", "version": "1.0.0", "icon": "assets/icon.svg", "orientation": "any" },
+  "permissions": [], "icons": ["search", "x", "chevron-down", "check", "folder-open"],
+  "targets": {
+    "macos": { "width": 1080, "height": 760, "resize": "fill" },
+    "linux": { "width": 1080, "height": 760, "resize": "fill" },
+    "wasm": { "width": 1080, "height": 760 },
+    "sim": { "width": 1080, "height": 760 }
+  }
+}
