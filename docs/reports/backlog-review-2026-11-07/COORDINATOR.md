@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Archived/removed seven more completed clean trees after common migration (803/395/897/1118-guard/1118-exec/896/1119),25 in this cleanup series. Private logs0700/checkpoint bundles retained;1030 frozen reader stays.603+1030views now building slots,587 holds builds/runtime edits while doing pureQJS checks.
+
 - Combined core engine sourceaf20bb17b SHA f33ea427d default build, six exactT0s (updates/quotedJSON/cache/media shutdown/methods/unchangedkitgate), permissions target and original Museum3/capture/Callshot PASS. Actual production call-server startup/HTTP/TERM/no-child PASS. D231 method semantics amended, D281 hosted updates recorded. Active603 native table/resource packing,587 QJSWorker,1030views coherent optionalDyn frontend patch (build pending; no third builder). No services/guardian/ICE production expansion.
 
 - Engine phase:395a025e2882 Done,71currentlyDone; realOFF build/clock/permissions/diagnostics pass.1030 method checkpoint integrated Backlog, no RT/IR edits.603 actual source9,965,252B including302,442Bheader (was27,205,373), native9,811,528B (was10,905,448); original configuration retained,8MB native still open. Shared header/copy cleanup/lite-host approved; existing-codec bounded native resource packing authorized, no asset cuts. Reserve587 webWorker and fresh1030 view/null research; no new service/nativeICE/guardian production.

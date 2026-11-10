@@ -1763,3 +1763,9 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 - Hero603: native10905448 B and generated C++27205373 B in57 units, resource payload1879059 B. Original all3 feature runs pass;8MB/10MB criteria do not. Build18.85s and RSS292585472 B were collected during other work and are indicative only. Provenance .logs/hero-603-20261110; no size optimization credited.
 - Galène895 binary bytes darwin-arm64=12166626, linux-arm64=11862178, linux-armv7=12058786, linux-amd64=12812450; archive bytes4775137/4595643/4819905/5110858. Each complete archive reproduced from two source paths with shared cache. No idle RSS, call quality or remote execution proof.
 - Root combined source a4d6d50de / engine286072a337fc84ee28375d9bc529a2afcb2d69b0ed9b37d0013cf7da9816cc7a: exact four tool/pack/link/cache stages and original Hero check/interpreter4 PASS. Nested process cleanup FAILS combined parent/child binary;1118/774.31 reopened rather than crediting mixed-binary proof.
+
+
+## Integrated engine feature proofs — 2026-11-10
+
+- Common source af20bb17b, executable SHA256 f33ea427d97eee5cb11284366c19cd691f141f0ba81c4a75edfbc20200c8f4df: default graphics build, real permissions target, six exact T0s, original Museum3/capture/Callshot and production call-server startup/HTTP/TERM/no-child pass. Unchanged kit_size passes; the raw size figures in the earlier UI section remain historical, not newly measured numbers. No quiet timing, memory or speed claim. Logs: .logs/integration-2026-11-10/core-engine-smoke.log and server-short.log.
+- ZN-896 production CLI native artifact measured by its worker:5,849,592 bytes, SHA2566358dc2df20a37f98ba6639f6c486d03a02415bac21166c1dc46c27abbf190f8; observed build2.9s is indicative under shared work. Local server/browser/lifecycle behavior is proven; no remote capacity or idle RSS inference. Durable evidence: .logs/archive-completed-workers-20261110/896-final/logs/896.
