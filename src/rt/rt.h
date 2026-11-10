@@ -392,10 +392,40 @@ inline const Func* virtualTarget(const Slot* r, unsigned a, unsigned sel, const 
 }
 // Whether the C++ stack of the running thread is nearly used up (the recursion of compiled functions; no store, one compare).
 inline bool stackLow(const Machine& m) { return static_cast<char*>(__builtin_frame_address(0)) < m.cLimit; }
-inline const char* downcast(const Slot* r, unsigned a, unsigned cls) {
-  auto* o = reinterpret_cast<const Obj*>(r[a]);
-  return o && !isSubclassRT(o->cls, cls) ? "invalid cast" : nullptr;
+#if defined(_MSC_VER)
+#define ZN_ARRAY_NOINLINE __declspec(noinline)
+#else
+#define ZN_ARRAY_NOINLINE [[gnu::noinline]]
+#endif
+// Keep checks shared across generated units without changing the ordinary cast fast path.
+ZN_ARRAY_NOINLINE inline bool arrayCastCompatible(const Machine& m, unsigned fromClass, unsigned toClass) {
+  if (!m.mod || fromClass >= m.mod->classes.size() || toClass >= m.mod->classes.size()) return false;
+  const auto from = m.mod->classes[fromClass].elem, to = m.mod->classes[toClass].elem;
+  if (from.cls != zbc::Cls::R || to.cls != zbc::Cls::R || from.ref >= m.classes.size() || to.ref >= m.classes.size()) return false;
+  return m.mod->classes[from.ref].kind == zbc::CKind::Object && m.mod->classes[to.ref].kind == zbc::CKind::Object &&
+      isSubclassRT(&m.classes[from.ref], to.ref);
 }
+template <bool arrayTarget = true>
+inline const char* downcast(const Machine& m, const Slot* r, unsigned a, unsigned cls) {
+  auto* o = reinterpret_cast<const Obj*>(r[a]);
+  if (!o || isSubclassRT(o->cls, cls)) return nullptr;
+  if constexpr (arrayTarget) {
+    if (cls >= m.classes.size()) return "invalid cast";
+    const auto& to = m.classes[cls];
+    if (o->cls->kind == zbc::CKind::Array && o->cls->elemRef && to.kind == zbc::CKind::Array && to.elemRef &&
+        arrayCastCompatible(m, o->cls->id, cls)) return nullptr;
+  }
+  return "invalid cast";
+}
+ZN_ARRAY_NOINLINE inline bool arrayAccepts(const Machine& m, const ArrObj* o, Slot value) {
+  if (!o->cls->elemRef || !value) return true;
+  if (o->cls->elemKind == KeyKind::Str) return reinterpret_cast<const Obj*>(value)->cls->kind == zbc::CKind::String;
+  if (!m.mod || o->cls->id >= m.mod->classes.size()) return false;
+  const auto elem = m.mod->classes[o->cls->id].elem;
+  if (elem.cls != zbc::Cls::R || elem.ref >= m.classes.size()) return false;
+  return isSubclassRT(reinterpret_cast<const Obj*>(value)->cls, elem.ref);
+}
+#undef ZN_ARRAY_NOINLINE
 inline Slot instanceOf(Slot v, unsigned cls) {
   auto* o = reinterpret_cast<const Obj*>(v);
   return Slot{o && isSubclassRT(o->cls, cls)};
@@ -432,6 +462,12 @@ inline const char* arrSet(Machine& m, Slot* r, unsigned a, unsigned b, unsigned 
   else { Slot old = o->v[i]; o->v[i] = r[c]; if (o->cls->elemRef) m.releaseSlot(old); }
   return nullptr;
 }
+template <bool checkStore>
+inline const char* arrSet(Machine& m, Slot* r, unsigned a, unsigned b, unsigned c) {
+  auto* o = static_cast<const ArrObj*>(reinterpret_cast<const Obj*>(r[a]));
+  if constexpr (checkStore) if (o && __builtin_expect(o->cls->elemKind == KeyKind::Ref && !arrayAccepts(m, o, r[c]), 0)) return "invalid array store";
+  return arrSet(m, r, a, b, c);
+}
 inline const char* arrLen(Slot* r, unsigned a, unsigned b) {
   auto* o = static_cast<ArrObj*>(reinterpret_cast<Obj*>(r[b]));
   if (__builtin_expect(!o, 0)) return kNullRef;
@@ -445,6 +481,11 @@ inline const char* arrPush(Slot* r, unsigned a, unsigned b, unsigned c) {
   o->v.push_back(r[c]);
   r[a] = o->v.size();
   return nullptr;
+}
+inline const char* arrPush(Machine& m, Slot* r, unsigned a, unsigned b, unsigned c) {
+  auto* o = static_cast<const ArrObj*>(reinterpret_cast<const Obj*>(r[b]));
+  if (o && __builtin_expect(o->cls->elemKind == KeyKind::Ref && !arrayAccepts(m, o, r[c]), 0)) return "invalid array store";
+  return arrPush(r, a, b, c);
 }
 inline const char* logStr(Machine& m, Slot v) {
   auto* s = reinterpret_cast<StrObj*>(v);

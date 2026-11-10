@@ -120,6 +120,8 @@ std::string verify(const Module& m, void (*forEach)(std::size_t n, const std::fu
 std::vector<std::vector<std::uint16_t>> registerTypes(const Module& m, std::size_t fn, bool tablesChecked = false);
 // Empty when the module's tables (classes, selectors, globals, natives...) are well formed: the part of verify() that is not per function.
 std::string verifyTables(const Module& m);
+// Related object-reference array classes can share narrower storage through a checked Downcast.
+bool relatedReferenceArrays(const Module& m, std::uint32_t a, std::uint32_t b);
 // Run-length packing of an encoded module (ZN-603): zero and 0xFF runs (the dense vtables of ZBC 7 were mostly 0xFF). Tokens are varints:
 // an even one 2n is followed by n literal bytes, an odd one 2n+1 by one byte repeated n times. unpackRuns fails on a truncated stream.
 std::vector<std::uint8_t> packRuns(const std::vector<std::uint8_t>& in);

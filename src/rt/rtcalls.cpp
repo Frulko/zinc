@@ -1846,6 +1846,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       NN(o);
       const std::int64_t n = static_cast<std::int64_t>(o->v.size()), from = clampRel(I(a[2]), n), to = clampRel(I(a[3]), n);
       if (to > from) {
+        if (o->cls->elemKind == KeyKind::Ref && !op::arrayAccepts(m, o, a[1])) return "invalid array store";
         if (o->cls->elemRef) for (std::int64_t k = from; k < to; ++k) { m.retain(reinterpret_cast<Obj*>(a[1])); m.release(reinterpret_cast<Obj*>(o->v[k])); o->v[k] = a[1]; }
         else std::fill(o->v.begin() + from, o->v.begin() + to, a[1]);
       }
@@ -1860,6 +1861,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       std::int64_t n = static_cast<std::int64_t>(o->v.size()), sn = static_cast<std::int64_t>(src->v.size());
       std::int64_t off = clampRel(I(a[2]), n), from = clampRel(I(a[3]), sn), to = clampRel(I(a[4]), sn), cnt = std::min(to - from, n - off);
       if (cnt > 0) {
+        if (o->cls->elemKind == KeyKind::Ref) for (std::int64_t k = 0; k < cnt; ++k) if (!op::arrayAccepts(m, o, src->v[from + k])) return "invalid array store";
         if (o->cls->elemRef) {
           std::vector<Slot> block(src->v.begin() + from, src->v.begin() + from + cnt);     // a copy: the source may be the receiver
           for (std::int64_t k = 0; k < cnt; ++k) { m.retain(reinterpret_cast<Obj*>(block[k])); m.release(reinterpret_cast<Obj*>(o->v[off + k])); o->v[off + k] = block[k]; }

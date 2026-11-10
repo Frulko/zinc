@@ -224,7 +224,7 @@ int main() {
       ValueId eq = B::val(f, b.boolT);
       B::add(f, 0, IrOp::Eq, b.boolT, {o, nl}, eq);
       ValueId is = B::val(f, b.boolT);
-      B::add(f, 0, IrOp::InstOf, b.boolT, {o}, is, 0, 1);
+      B::add(f, 0, IrOp::InstOf, b.boolT, {o}, is, 0, b.m.refT(1));
       b.ret(f, 0);
     }), "");
     expect("a reference constant other than null", classModule([](B& b, Function& f) {
@@ -233,7 +233,7 @@ int main() {
     }), "null");
     expect("instof of an integer", classModule([](B& b, Function& f) {
       ValueId x = b.cst(f, 0, b.i32);
-      B::add(f, 0, IrOp::InstOf, b.boolT, {x}, B::val(f, b.boolT), 0, 1);
+      B::add(f, 0, IrOp::InstOf, b.boolT, {x}, B::val(f, b.boolT), 0, b.m.refT(1));
       b.ret(f, 0);
     }), "instof");
     expect("field offset moved in a subclass", classModule([](B& b, Function& f) {

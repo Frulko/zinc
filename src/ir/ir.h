@@ -49,7 +49,7 @@ enum class IrOp : std::uint8_t {
   Eq, Ne, Lt, Le, Gt, Ge,                                   // result bool; operands of one type
   Conv,                                                     // numeric kind conversion
   RefCast,                                                  // reference to a related class or interface (checked at run time when it is a downcast)
-  InstOf,                                                   // sym = class; bool, false for null
+  InstOf,                                                   // sym = reference TypeId (arrays test exact class); bool, false for null
   Call,                                                     // sym = function; optional edges[0] = unwind
   CallVirt,                                                 // args[0] = receiver, sym = selector; dispatches through the receiver's vtable
   Builtin,                                                  // sym = Builtin
@@ -96,6 +96,7 @@ struct Function {
   TypeId ret = 0;
   std::vector<Block> blocks;     // blocks[0] is the entry
   std::vector<TypeId> valueTypes;
+  bool noInline = false;        // shared preflight guards keep one class chain per array-view family
   bool library = false;          // code of the engine's own modules (<prelude>, zinc:*): exempt from the fixed-point check, it counts in f64
   bool entry = false;            // hot mode: called by the host (a module's init, zinc:hot's hooks), so never inlined nor dropped
   std::string key;               // hot mode (ZN-742): the stable key, see `Module::hot`

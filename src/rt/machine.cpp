@@ -434,7 +434,12 @@ const Func* Machine::findComparator(const Obj* fn, zbc::VType elem) const {
   const ClassRT& c = *fn->cls;
   for (std::uint32_t sel : mod->classes[c.id].selectors) {
     const zbc::SelInfo& si = mod->selectors[sel];
-    if (si.name == "call" && si.params.size() == 2 && si.params[0] == elem && si.params[1] == elem && si.ret.cls == zbc::Cls::D && c.method(sel)) return c.method(sel);
+    auto accepts = [&](zbc::VType p) {
+      return p == elem || (p.cls == zbc::Cls::R && elem.cls == zbc::Cls::R &&
+          mod->classes[p.ref].kind == zbc::CKind::Object && mod->classes[elem.ref].kind == zbc::CKind::Object &&
+          isSubclassRT(&classes[elem.ref], p.ref));
+    };
+    if (si.name == "call" && si.params.size() == 2 && accepts(si.params[0]) && accepts(si.params[1]) && si.ret.cls == zbc::Cls::D && c.method(sel)) return c.method(sel);
   }
   return nullptr;
 }

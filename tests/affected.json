@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["src/frontend/check.cpp", "src/ir/", "src/zbc/emit.cpp", "src/rt/rt.h", "src/rt/rtcalls.cpp", "src/rt/machine.cpp", "src/vm/vm.cpp", "src/aot/aot.cpp", "tests/data/array_sharing/", "tests/t0/array_sharing.sh"], "tests": ["array_sharing"]},
     {"paths": ["plugins/webrtc/native/webrtc.host.cpp", "tests/data/webrtc_shutdown.ts", "tests/t0/webrtc_shutdown.sh"], "tests": ["webrtc_shutdown"]},
     {"paths": ["CMakeLists.txt", "src/host/no_host.cpp", "src/host/permissions.cpp", "src/main.cpp", "src/cli_core.cpp", "tests/unit/host_permissions_test.cpp", "tests/t0/no_graphics_host.sh"], "tests": ["no_graphics_host"]},
     {"paths": ["src/frontend/check.h", "src/frontend/check.cpp", "src/ir/lower.cpp", "tests/data/never_return/", "tests/data/open_record_methods/type-namespace.ts", "tests/t0/never_return.sh"], "tests": ["never_return"]},

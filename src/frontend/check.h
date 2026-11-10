@@ -125,6 +125,9 @@ struct Checked {
   // A record a class instance was assigned to (TypeScript's structural typing: `const l: Labeled = new Tag()`) -> those classes. The lowering
   // makes such a record an interface over its literal class and these classes, so reads and writes reach the instance's own fields.
   std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> openRecords;
+  std::vector<std::pair<TypeId, TypeId>> arrayViews;  // narrow -> shared wider reference array, compile-time only
+  // Generated bulk helper declaration -> insertion parameters (parameter index, array of items rather than one item).
+  std::unordered_map<std::uint32_t, std::vector<std::pair<unsigned, bool>>> arrayInsertions;
   // A __fmtSub<t>, __jsSub<t> or __dynSub<t> declaration node of a record t -> t: the lowering turns its calls into the formatter, serialiser or
   // `any` view of the class an instance shared as t has (openRecords), null (undefined) for t's own literals. And the declaration nodes of the
   // generated __fmt<t> and __js<t> of each class type, which it calls.

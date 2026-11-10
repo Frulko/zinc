@@ -32,7 +32,7 @@ inst      = [ "%" N ":" type "=" ] op operands
 - **Values** are `%N`, numbered per function; every value is defined once (a result, a function or block parameter). Control flow passes arguments to block parameters:
   an edge is `bbN` or `bbN(%a, %b)`.
 - **Operands by op**: `const` null, a quoted string, `true`/`false`, an integer or a float (`%.17g`); `call @f(args) [unwind edge]`; `callvirt .sel(args) [unwind edge]`;
-  `builtin name(args)`; `rt owner.member(args)` (a row of the runtime table, `include/zn/runtime.h`); `new C`; `instof C %x`; `getfield .N %o`; `setfield .N %o, %v`;
+  `builtin name(args)`; `rt owner.member(args)` (a row of the runtime table, `include/zn/runtime.h`); `new C`; `instof C %x` (object) or `instof ref C[] %x` (exact array class); `getfield .N %o`; `setfield .N %o, %v`;
   `getglobal @@g`; `setglobal @@g %v`; `arrnew T`; `br edge`; `condbr %c, edge, edge`; `ret [%v]`; `throw %v`; `unreachable`; every other op is `op %a, %b`.
   The op names are `ir::opName`, the builtin names `zn/builtins.h`, the runtime names the `name` column of the table.
 - Layout (`getfield .N`, class order, selector ids, function indexes, the order of the blocks) is part of the text: it is the order of the declarations.

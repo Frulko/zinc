@@ -623,6 +623,14 @@ std::string constText(const Const& c) {
 
 std::string verifyTables(const Module& m) { return checkTables(m); }
 
+bool relatedReferenceArrays(const Module& m, std::uint32_t a, std::uint32_t b) {
+  if (a >= m.classes.size() || b >= m.classes.size()) return false;
+  const auto &x = m.classes[a], &y = m.classes[b];
+  if (x.kind != CKind::Array || y.kind != CKind::Array || x.elem.cls != Cls::R || y.elem.cls != Cls::R || x.elem.ref == y.elem.ref ||
+      x.elem.ref >= m.classes.size() || y.elem.ref >= m.classes.size() || m.classes[x.elem.ref].kind != CKind::Object || m.classes[y.elem.ref].kind != CKind::Object) return false;
+  return isSub(m, x.elem.ref, y.elem.ref) || isSub(m, y.elem.ref, x.elem.ref);
+}
+
 std::vector<std::vector<std::uint16_t>> registerTypes(const Module& m, std::size_t fn, bool tablesChecked) {
   std::vector<std::vector<std::uint16_t>> out;
   if (fn >= m.functions.size() || (!tablesChecked && !checkTables(m).empty())) return {};

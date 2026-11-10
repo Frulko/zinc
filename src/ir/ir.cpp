@@ -212,7 +212,8 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
     case IrOp::Call: s += " @" + nameText(m.functions[i.sym].name); break;
     case IrOp::CallVirt: s += " ." + selText(m, i.sym); break;
     case IrOp::Builtin: s += std::string(" ") + builtinName(static_cast<Builtin>(i.sym)); break;
-    case IrOp::New: case IrOp::InstOf: s += " " + nameText(m.classes[i.sym].name); break;
+    case IrOp::New: s += " " + nameText(m.classes[i.sym].name); break;
+    case IrOp::InstOf: s += " " + (m.types[i.sym].k == Type::K::Ref ? nameText(m.classes[m.types[i.sym].aux].name) : typeName(m, i.sym)); break;
     case IrOp::GetField: case IrOp::SetField: s += " ." + std::to_string(i.sym); break;
     case IrOp::GetGlobal: case IrOp::SetGlobal: s += " @@" + nameText(m.globals[i.sym].name); break;
     case IrOp::ArrNew: s += " " + typeName(m, i.ty); break;
@@ -454,13 +455,18 @@ struct Verifier {
         break;
       }
       case IrOp::RefCast: {
-        if (!arity(1) || m.types[i.ty].k != Type::K::Ref || m.types[tyOf(i.args[0])].k != Type::K::Ref) return err.empty() ? fail(b, ii, "refcast needs references") : false;
-        std::uint32_t from = m.types[tyOf(i.args[0])].aux, to = m.types[i.ty].aux;
+        if (!arity(1)) return false;
+        Type fromT = m.types[tyOf(i.args[0])], toT = m.types[i.ty];
+        if (fromT.k == Type::K::Array && toT.k == Type::K::Array) { fromT = m.types[fromT.aux]; toT = m.types[toT.aux]; }
+        if (fromT.k != Type::K::Ref || toT.k != Type::K::Ref) return fail(b, ii, "refcast needs related object references or object-reference arrays");
+        std::uint32_t from = fromT.aux, to = toT.aux;
         if (!m.isSubtype(from, to) && !m.isSubtype(to, from)) return fail(b, ii, "refcast between unrelated classes " + m.classes[from].name + " and " + m.classes[to].name);
         break;
       }
       case IrOp::InstOf:
-        if (!arity(1) || i.sym >= m.classes.size() || m.types[i.ty].k != Type::K::Bool || m.types[tyOf(i.args[0])].k != Type::K::Ref) return err.empty() ? fail(b, ii, "instof needs a reference and a class") : false;
+        if (!arity(1) || i.sym >= m.types.size() || m.types[i.ty].k != Type::K::Bool) return err.empty() ? fail(b, ii, "instof needs a reference type") : false;
+        if (!((m.types[i.sym].k == Type::K::Ref && m.types[tyOf(i.args[0])].k == Type::K::Ref) ||
+              (m.types[i.sym].k == Type::K::Array && m.types[tyOf(i.args[0])].k == Type::K::Array))) return fail(b, ii, "instof reference kinds differ");
         break;
       case IrOp::CallVirt: {
         if (i.sym >= m.selectors.size()) return fail(b, ii, "callvirt of a missing selector");

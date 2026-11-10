@@ -324,7 +324,17 @@ struct Checker {
   static constexpr std::uint32_t kNoObj = 0xFFFFFFFFu;
   bool isSubclass(std::uint32_t a, std::uint32_t b) const { return frontend::isSubclass(out, a, b); }
   const Member* lookupMember(std::uint32_t obj, std::string_view nm, bool wantStatic) const { return frontend::lookupMember(out, obj, nm, wantStatic); }
-  bool objAssignable(std::uint32_t a, std::uint32_t b) const { return frontend::objAssignable(out, a, b); }
+  bool objAssignable(std::uint32_t a, std::uint32_t b) {
+    if (out.objs[b].isInterface && arrayIfaceBusy.insert({a, b}).second) {
+      for (const Member& im : out.objs[b].members) {
+        const Member* field = lookupMember(a, im.name, false);
+        if (im.getter && field && !field->method && !field->isStatic && field->access == 0) shareArray(field->type, ty(im.type).elem);
+      }
+      arrayIfaceBusy.erase({a, b});
+    }
+    return frontend::objAssignable(out, a, b);
+  }
+  std::set<std::pair<std::uint32_t, std::uint32_t>> arrayIfaceBusy;
   // A class is not available before its declaration runs (TypeScript: used before its declaration).
   bool usedBeforeDeclaration(std::uint32_t sym, std::uint32_t useNode) const {
     return immediate && out.syms[sym].decl != kNone && n(useNode).file == n(out.syms[sym].decl).file && n(useNode).start < n(out.syms[sym].decl).start;
@@ -356,6 +366,7 @@ struct Checker {
       if (node != kNone && isNumLit(a, node)) return isIntLit(a, node) || isFloat(t.num);  // literals adapt to the target kind
       return widens(f.num, t.num) || (!isFx(f.num) && !isFx(t.num));  // machine numbers convert among themselves (truncating), like the number type they alias
     }
+    if (f.k == TK::Array && t.k == TK::Array && shareArray(from, to)) return true;
     if (f.k == TK::Object && t.k == TK::Object) return objAssignable(f.obj, t.obj) || classToRecord(f.obj, t.obj);
     // a function whose last parameters are optional where one that takes them all is expected (`Button(props?: P)` as a `(p: P | null) => i32`):
     // its callers pass every argument
@@ -371,6 +382,17 @@ struct Checker {
       return same(f.elem, t.elem);
     }
     return false;
+  }
+  bool shareArray(TypeId from, TypeId to) {
+    if (from == to || bad(from) || bad(to) || ty(from).k != TK::Array || ty(to).k != TK::Array) return false;
+    const TypeId fe = ty(from).elem, te = ty(to).elem;
+    if (bad(fe) || bad(te) || ty(fe).k != TK::Object || ty(te).k != TK::Object) return false;
+    if (!(objAssignable(ty(fe).obj, ty(te).obj) || classToRecord(ty(fe).obj, ty(te).obj))) return false;
+    if (!out.objs[ty(fe).obj].isTemplate && !out.objs[ty(te).obj].isTemplate) {
+      const auto pair = std::make_pair(from, to);
+      if (std::find(out.arrayViews.begin(), out.arrayViews.end(), pair) == out.arrayViews.end()) out.arrayViews.push_back(pair);
+    }
+    return true;
   }
   // An instance of class `a` (or a value of interface or record `a`) where record `b` is expected, as TypeScript's structural typing allows: the
   // object is shared; the record is remembered so the lowering reads its fields through the object's own class (a record: its literal class).
@@ -1094,6 +1116,7 @@ struct Checker {
     if (l == r || (isNum(l) && isNum(r)) || bad(l) || bad(r) || l == tNull || r == tNull) return true;  // anything may be compared with null
     if (ty(l).k == TK::Union) { for (TypeId m : ty(l).params) if (comparable(m, r)) return true; return false; }
     if (ty(r).k == TK::Union) { for (TypeId m : ty(r).params) if (comparable(l, m)) return true; return false; }
+    if (shareArray(l, r) || shareArray(r, l)) return true;
     return ty(l).k == TK::Object && ty(r).k == TK::Object && (objAssignable(ty(l).obj, ty(r).obj) || objAssignable(ty(r).obj, ty(l).obj));
   }
 
@@ -1620,7 +1643,7 @@ struct Checker {
     defer = &late;
     bool hasTypeError = false;   // the error classes come with the prelude a program that names none of them does not have: it then traps
     { Ctx sv = saveCtx(); enterGenerated(); hasTypeError = lookup("TypeError") != kNone; restoreCtx(sv); }
-    if ((typeErrorAt != kNone || !out.openRecords.empty()) && out.typeErrorFn == kNone && hasTypeError)
+    if ((typeErrorAt != kNone || !out.openRecords.empty() || !out.arrayViews.empty()) && out.typeErrorFn == kNone && hasTypeError)
       out.typeErrorFn = out.syms[helper("typeError", "function $F(msg: string): void {\n  throw new TypeError(msg);\n}\n", {}, typeErrorAt != kNone ? typeErrorAt : a.root)].decl;
     // the classes an object can have: the subclasses of a class; the classes shared as an open record (its formatter and serialiser too)
     auto under = [&](TypeId t) { return out.objs[ty(t).obj].isRecord ? openClasses(out, ty(t).obj) : implementations(out, ty(t).obj); };
@@ -1925,6 +1948,7 @@ struct Checker {
       }
       std::string key = m + "," + std::to_string(at);
       std::uint32_t sym = helper(key, "function $F" + sig + " {\n" + body + "}\n", aliases, i);
+      if (m == "splice+") out.arrayInsertions[out.syms[sym].decl] = {{3, true}};
       std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
       out.nodeSym[id] = sym;
       out.nodeType[id] = out.syms[sym].type;
@@ -2528,6 +2552,7 @@ struct Checker {
         if (!require(et, rt, e)) return tError;
         const std::string A = inspectAliasName(rt);
         const std::uint32_t sym = helper("pushAll," + std::to_string(rt), "function $F(a: " + A + ", b: " + A + "): i32 {\n  const n: i32 = b.length;\n  for (let i: i32 = 0; i < n; i++) a.push(b[i]);\n  return a.length;\n}\n", {rt}, i);
+        out.arrayInsertions[out.syms[sym].decl] = {{1, true}};
         const std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
         out.nodeSym[id] = sym;
         out.nodeType[id] = out.syms[sym].type;
@@ -2550,6 +2575,8 @@ struct Checker {
         const std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
         out.nodeSym[id] = sym;
         out.nodeType[id] = out.syms[sym].type;
+        out.arrayInsertions[out.syms[sym].decl].clear();
+        for (unsigned j = 1; j <= args.size(); ++j) out.arrayInsertions[out.syms[sym].decl].push_back({j, false});
         std::vector<std::uint32_t> ks{id, cn.kids[0]};
         ks.insert(ks.end(), args.begin(), args.end());
         a.nodes[i].kids = ks;
@@ -6264,7 +6291,7 @@ struct Checker {
           for (const Member& im : out.objs[io].members) {
             if (im.ifaceSetter) continue;
             const Member* m = lookupMember(objIdx, im.name, false);
-            if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && ty(im.type).elem == m->type) continue;  // a property satisfied by a field
+            if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && (ty(im.type).elem == m->type || shareArray(m->type, ty(im.type).elem))) continue;  // a property satisfied by a field
             if (!m || !m->method || (m->type != im.type && !fewerParams(out, m->type, im.type)) || m->access != 0) diag(kZMissingInterfaceMember, r, "'" + im.name + "' of '" + out.objs[io].name + "'");
           }
         }
@@ -6764,7 +6791,7 @@ static bool structuralMatch(const Checked& c, std::uint32_t obj, std::uint32_t i
   for (const Member& im : c.objs[iface].members) {
     if (im.isStatic || im.ifaceSetter) continue;
     const Member* m = lookupMember(c, obj, im.name, false);
-    if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && c.types[im.type].elem == m->type) continue;  // a property satisfied by a field
+    if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && (c.types[im.type].elem == m->type || std::find(c.arrayViews.begin(), c.arrayViews.end(), std::make_pair(m->type, c.types[im.type].elem)) != c.arrayViews.end())) continue;  // a property satisfied by a field
     if (!m || !m->method || (m->type != im.type && !fewerParams(c, m->type, im.type)) || m->access != 0) return false;
   }
   return true;

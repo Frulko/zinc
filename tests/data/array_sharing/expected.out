@@ -1,0 +1,12 @@
+identity true
+mutations 4 4 c!
+boundaries true true
+field true
+replace true replacement!
+sort a!
+slice 3 4 false
+reorder b 3 d!
+destructure d 3 3
+observe 3 [{"name":"d"},{"name":"c"},{"name":"b"}]
+records true changed 2
+clock true

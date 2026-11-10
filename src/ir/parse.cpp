@@ -193,7 +193,17 @@ struct Parser {
         args(c, i, true);
         return i;
       }
-      case IrOp::New: case IrOp::InstOf: i.sym = lookup(classIdx, c.name(), "class"); args(c, i, false); return i;
+      case IrOp::New: i.sym = lookup(classIdx, c.name(), "class"); args(c, i, false); return i;
+      case IrOp::InstOf: {
+        // Object-only dumps from zir 1 omit the ref prefix; new array tests use the full reference type.
+        Cur saved = c;
+        auto name = c.name();
+        const bool object = classIdx.count(name) && c.peek('%');
+        c = saved;
+        if (object) i.sym = m.refT(lookup(classIdx, c.name(), "class"));
+        else i.sym = type(c);
+        args(c, i, false); return i;
+      }
       case IrOp::GetField: case IrOp::SetField: c.need('.'); i.sym = static_cast<std::uint32_t>(c.integer()); args(c, i, false); return i;
       case IrOp::GetGlobal: case IrOp::SetGlobal: c.needStr("@@"); i.sym = lookup(globalIdx, c.name(), "global"); args(c, i, false); return i;
       case IrOp::ArrNew: type(c); args(c, i, false); return i;
@@ -225,15 +235,19 @@ struct Parser {
       try { v = c.integer(); } catch (const Bad&) { throw Bad("line 1: malformed version line"); }
       if (v != kTextVersion) throw Bad("line 1: IR text version " + std::to_string(v) + " is not supported (this build reads version " + std::to_string(kTextVersion) + ")");
     }
-    // pass 1: the names (classes, functions, selectors and globals may be used before they are declared)
+    auto declare = [](auto& table, const std::string& name, const char* kind) {
+      const auto id = static_cast<std::uint32_t>(table.size());
+      if (!table.emplace(name, id).second) throw Bad(std::string("duplicate ") + kind + " '" + name + "'");
+    };
+    // pass 1: reject duplicate names before sizing the declaration tables.
     for (std::size_t n = 1; n < lines.size(); ++n) {
       line = static_cast<int>(n + 1);
       Cur c{lines[n]};
       try {
-        if (c.eatWord("selector")) { c.need('.'); selIdx[c.selName()] = static_cast<std::uint32_t>(selIdx.size()); }
-        else if (c.eatWord("class") || c.eatWord("interface") || (c.eatWord("abstract") && c.eatWord("class"))) { std::string nm = c.name(); classIdx[nm] = static_cast<std::uint32_t>(classIdx.size()); }
-        else if (c.eatWord("global")) { c.needStr("@@"); globalIdx[c.name()] = static_cast<std::uint32_t>(globalIdx.size()); }
-        else if (c.eatWord("func")) { c.need('@'); funcIdx[c.name()] = static_cast<std::uint32_t>(funcIdx.size()); }
+        if (c.eatWord("selector")) { c.need('.'); declare(selIdx, c.selName(), "selector"); }
+        else if (c.eatWord("class") || c.eatWord("interface") || (c.eatWord("abstract") && c.eatWord("class"))) { declare(classIdx, c.name(), "class"); }
+        else if (c.eatWord("global")) { c.needStr("@@"); declare(globalIdx, c.name(), "global"); }
+        else if (c.eatWord("func")) { c.need('@'); declare(funcIdx, c.name(), "function"); }
       } catch (const Bad& e) { throw Bad("line " + std::to_string(line) + ": " + e.what()); }
     }
     m.classes.resize(classIdx.size());

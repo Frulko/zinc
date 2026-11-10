@@ -169,7 +169,7 @@ L_CallVirt: {
   code = callee->code; pc = code;
   NEXT();
 }
-L_Downcast: { if (const char* e = op::downcast(r, A, dOf(w))) TRAP(e); NEXT(); }
+L_Downcast: { if (const char* e = op::downcast(*this, r, A, dOf(w))) TRAP(e); NEXT(); }
 L_LoadNull: r[A] = 0; NEXT();
 L_InstanceOf: r[A] = op::instanceOf(r[A], dOf(w)); NEXT();
 L_EqR: r[A] = Slot{r[B] == r[C]}; NEXT();
@@ -180,9 +180,9 @@ L_Retain: retain(reinterpret_cast<Obj*>(r[A])); NEXT();
 L_Release: if (const char* e = op::release(*this, r[A])) TRAP(e); NEXT();
 L_LoadStr: r[A] = reinterpret_cast<Slot>(strConsts[dOf(w)]); NEXT();
 L_ArrGet: { if (const char* e = op::arrGet(r, A, B, C)) TRAP(e); NEXT(); }
-L_ArrSet: { if (const char* e = op::arrSet(*this, r, A, B, C)) TRAP(e); NEXT(); }
+L_ArrSet: { if (const char* e = op::arrSet<true>(*this, r, A, B, C)) TRAP(e); NEXT(); }
 L_ArrLen: { if (const char* e = op::arrLen(r, A, B)) TRAP(e); NEXT(); }
-L_ArrPush: { if (const char* e = op::arrPush(r, A, B, C)) TRAP(e); NEXT(); }
+L_ArrPush: { if (const char* e = op::arrPush(*this, r, A, B, C)) TRAP(e); NEXT(); }
 L_Rt: {
   const char* e = rtCall(*this, static_cast<Rt>(dOf(w)), r + A, r + fn->nregs);
   if (__builtin_expect(e != nullptr, 0)) { if (e != error.c_str()) error = e; if (__builtin_expect(trapTrace, 0)) error += " (in @" + mod->functions[static_cast<std::size_t>(fn - funcs.data())].name + " at word " + std::to_string(pc - code - 1) + ", runtime call " + zn::rtInfo(static_cast<Rt>(dOf(w))).name + ")"; return false; }

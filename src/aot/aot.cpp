@@ -49,6 +49,17 @@ std::string fname(const zbc::Module& m, char kind, std::size_t i) {
   return n + kind + std::to_string(i);
 }
 
+// Type presence is conservative: an unobserved related array class still keeps its family's raw-store checks.
+std::vector<char> checkedArrayFamilies(const zbc::Module& m, bool tablesOk) {
+  std::vector<char> checked(m.classes.size(), tablesOk ? 0 : 1);
+  if (!tablesOk) return checked;
+  std::vector<std::uint32_t> arrays;
+  for (std::uint32_t c = 0; c < m.classes.size(); ++c) if (m.classes[c].kind == zbc::CKind::Array) arrays.push_back(c);
+  for (std::size_t a = 0; a < arrays.size(); ++a) for (std::size_t b = a + 1; b < arrays.size(); ++b)
+    if (zbc::relatedReferenceArrays(m, arrays[a], arrays[b])) checked[arrays[a]] = checked[arrays[b]] = 1;
+  return checked;
+}
+
 struct FnEmitter {
   const zbc::Module& m;
   const zbc::Function& f;
@@ -59,11 +70,12 @@ struct FnEmitter {
   const std::set<std::string>& arith;
   const std::set<std::string>& divs;
   const std::vector<char>& typedFn;   // per function: compiled as a C function with typed parameters (ZN-144)
+  const std::vector<char>& checkedArrays;
   bool tablesOk;                       // zbc::verifyTables(m) is empty, checked once per module
   bool typed = false;                  // this one is
 
-  FnEmitter(const zbc::Module& mod, const zbc::Function& fn, std::size_t i, const std::set<std::string>& a, const std::set<std::string>& d, const std::vector<char>& tf, bool tok)
-      : m(mod), f(fn), index(i), arith(a), divs(d), typedFn(tf), tablesOk(tok) {}
+  FnEmitter(const zbc::Module& mod, const zbc::Function& fn, std::size_t i, const std::set<std::string>& a, const std::set<std::string>& d, const std::vector<char>& tf, bool tok, const std::vector<char>& ca)
+      : m(mod), f(fn), index(i), arith(a), divs(d), typedFn(tf), checkedArrays(ca), tablesOk(tok) {}
 
   std::string r(unsigned k) { return typed ? "r" + std::to_string(k) : "r[" + std::to_string(k) + "]"; }
   // The verifier's register classes before each instruction (ZN-409): a field access on a register of a known object class goes through that
@@ -74,6 +86,11 @@ struct FnEmitter {
     const unsigned c = types[pc][reg] - 4u;
     if (c >= m.classes.size() || !hasStruct(m.classes[c]) || field >= m.classes[c].fields.size()) return -1;
     return static_cast<int>(c);
+  }
+  bool arrayStoreCheck(unsigned reg, std::size_t pc) const {
+    if (pc >= types.size() || reg >= types[pc].size() || types[pc][reg] < 4) return true;
+    const unsigned cls = types[pc][reg] - 4u;
+    return cls >= checkedArrays.size() || m.classes[cls].kind != zbc::CKind::Array || checkedArrays[cls];
   }
   static bool hasStruct(const zbc::ClassInfo& c) { return c.kind == zbc::CKind::Object && !c.isInterface && !c.fields.empty(); }
   std::string num(std::int64_t v) { return std::to_string(v); }
@@ -257,7 +274,11 @@ struct FnEmitter {
       }
       else if (nm == "GetField") line("{ Obj* o = reinterpret_cast<Obj*>(" + r(B) + "); " + nullGuard("o") + r(A) + " = o->fields()[" + std::to_string(C) + "]; }");
       else if (nm == "SetField") line("{ Obj* o = reinterpret_cast<Obj*>(" + r(A) + "); " + nullGuard("o") + "Slot old = o->fields()[" + std::to_string(C) + "]; o->fields()[" + std::to_string(C) + "] = " + r(B) + "; if (o->cls->fieldRef[" + std::to_string(C) + "]) op::dropC(m, old); }");
-      else if (nm == "Downcast") line("{ Slot t = " + r(A) + "; " + checked("op::downcast(&t, 0, " + std::to_string(D) + ")") + " }");
+      else if (nm == "Downcast") {
+        const auto& target = m.classes[D];
+        const bool arrayTarget = target.kind == zbc::CKind::Array && target.elem.cls == zbc::Cls::R && m.classes[target.elem.ref].kind == zbc::CKind::Object;
+        line("{ Slot t = " + r(A) + "; " + checked(std::string("op::downcast") + (arrayTarget ? "" : "<false>") + "(m, &t, 0, " + std::to_string(D) + ")") + " }");
+      }
       else if (nm == "EqR") line(r(A) + " = Slot{" + r(B) + " == " + r(C) + "};");
       else if (nm == "NeR") line(r(A) + " = Slot{" + r(B) + " != " + r(C) + "};");
       else if (nm == "LoadNull") line(r(A) + " = 0;");
@@ -270,9 +291,9 @@ struct FnEmitter {
       else if (nm == "Release") line(typed ? checked("op::releaseC(m, " + r(A) + ")") : (usedTrap = true, "ZRELEASE(" + r(A) + ")"));
       else if (nm == "LoadStr") line(r(A) + " = ZSTR(" + std::to_string(D) + ");");
       else if (nm == "ArrGet") line("{ Slot t[3] = {0, " + r(B) + ", " + r(C) + "}; " + checked("op::arrGet(t, 0, 1, 2)") + " " + r(A) + " = t[0]; }");
-      else if (nm == "ArrSet") line("{ Slot t[3] = {" + r(A) + ", " + r(B) + ", " + r(C) + "}; " + checked("op::arrSet(m, t, 0, 1, 2)") + " }");
+      else if (nm == "ArrSet") line("{ Slot t[3] = {" + r(A) + ", " + r(B) + ", " + r(C) + "}; " + checked(std::string("op::arrSet") + (arrayStoreCheck(A, pc) ? "<true>" : "") + "(m, t, 0, 1, 2)") + " }");
       else if (nm == "ArrLen") line("{ Slot t[2] = {0, " + r(B) + "}; " + checked("op::arrLen(t, 0, 1)") + " " + r(A) + " = t[0]; }");
-      else if (nm == "ArrPush") line("{ Slot t[3] = {0, " + r(B) + ", " + r(C) + "}; " + checked("op::arrPush(t, 0, 1, 2)") + " " + r(A) + " = t[0]; }");
+      else if (nm == "ArrPush") line("{ Slot t[3] = {0, " + r(B) + ", " + r(C) + "}; " + checked(std::string("op::arrPush(") + (arrayStoreCheck(B, pc) ? "m, " : "") + "t, 0, 1, 2)") + " " + r(A) + " = t[0]; }");
       else if (nm == "Rt" && (D == static_cast<unsigned>(zn::Rt::HostGfxWidth) || D == static_cast<unsigned>(zn::Rt::HostGfxHeight)))   // what width() / height() return, without a call (ZN-399)
         line("if (!zn::host::gfxStarted) zn::host::startGfx(); " + r(A) + " = static_cast<Slot>(static_cast<std::int64_t>(zrt::" + (D == static_cast<unsigned>(zn::Rt::HostGfxWidth) ? "surf_w" : "surf_h") + "));");
       else if (nm == "Rt" && ((D >= static_cast<unsigned>(zn::Rt::HostGfxFrames) && D < static_cast<unsigned>(zn::Rt::HostSysFirst)) || isGlRow(static_cast<zn::Rt>(D))))   // a graphics or zinc:gl row: its direct entry when the host has one (ZN-397, ZN-562.03)
@@ -525,8 +546,9 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
   std::vector<std::string> bodies(mod.functions.size());
   std::size_t total = 0;
   const bool tablesOk = zbc::verifyTables(mod).empty();
+  const auto checkedArrays = checkedArrayFamilies(mod, tablesOk);
   for (std::size_t i = 0; i < mod.functions.size(); ++i) {
-    FnEmitter fe(mod, mod.functions[i], i, arith, divs, typedFn, tablesOk);
+    FnEmitter fe(mod, mod.functions[i], i, arith, divs, typedFn, tablesOk, checkedArrays);
     fe.emit();
     bodies[i] = std::move(fe.out);
     total += bodies[i].size();
@@ -557,7 +579,8 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
     const std::string ns = "zw" + std::to_string(w);
     s += "#include \"rt/worker.h\"\nnamespace " + ns + " {   // the worker '" + mod.workers[w].first + "'\n" + declarations(wm, wt);
     const bool wok = zbc::verifyTables(wm).empty();   // the worker's own tables, checked once as the program's are
-    for (std::size_t i = 0; i < wm.functions.size(); ++i) { FnEmitter fe(wm, wm.functions[i], i, arith, divs, wt, wok); fe.emit(); s += fe.out; }
+    const auto wc = checkedArrayFamilies(wm, wok);
+    for (std::size_t i = 0; i < wm.functions.size(); ++i) { FnEmitter fe(wm, wm.functions[i], i, arith, divs, wt, wok, wc); fe.emit(); s += fe.out; }
     auto wb = tableBytes(wm);
     s += "static const char kModule[] = \n  ";
     appendBytes(s, wb.data(), wb.size());

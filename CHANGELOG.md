@@ -347,6 +347,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### Fixed
 
+- Widening a related object array (`Dog[]` to `Animal[]`), including through a record field, preserves its identity and shared mutations. Native engines reject incompatible insertions with a catchable `TypeError` before changing the array.
+
 - Throwing functions annotated `never` now compile on the interpreter and native engine, including closures and methods; calls preserve caught errors and `finally` blocks.
 
 - Method parameter defaults read the correct `this` and earlier arguments, including nested calls and explicit `undefined`; arguments run in the usual order.

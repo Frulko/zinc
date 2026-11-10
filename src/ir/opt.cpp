@@ -160,7 +160,7 @@ bool inlineRound(Module& m) {
   const std::vector<Function>& fs = m.functions;
   std::vector<bool> ok(fs.size());
   const std::vector<bool> cyclic = mutuallyRecursive(fs);
-  for (std::size_t g = 1; g < fs.size(); ++g) ok[g] = !fs[g].entry && inlineCost(m, fs[g]) <= kInlineMaxInsts && returns(fs[g]) && !callsItself(fs[g], static_cast<std::uint32_t>(g)) && !cyclic[g];
+  for (std::size_t g = 1; g < fs.size(); ++g) ok[g] = !fs[g].entry && !fs[g].noInline && inlineCost(m, fs[g]) <= kInlineMaxInsts && returns(fs[g]) && !callsItself(fs[g], static_cast<std::uint32_t>(g)) && !cyclic[g];
   // the callees as they were at the start of the round: only those that can be inlined (a copy of every function was a fifth of the optimiser, ZN-1024)
   std::vector<Function> snap(fs.size());
   for (std::size_t g = 1; g < fs.size(); ++g) if (ok[g]) snap[g] = fs[g];
@@ -666,7 +666,8 @@ void removeUnusedLayouts(Module& m) {
       for (const Inst& i : b.insts) {
         reachType(i.ty);
         for (ValueId v : i.args) reachType(f.valueTypes[v]);
-        if (i.op == IrOp::New || i.op == IrOp::InstOf) reachClass(i.sym);
+        if (i.op == IrOp::New) reachClass(i.sym);
+        else if (i.op == IrOp::InstOf) reachType(i.sym);
         else if (i.op == IrOp::CallVirt) reachSelector(i.sym);
       }
     }

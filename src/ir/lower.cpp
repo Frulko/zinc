@@ -400,9 +400,11 @@ struct Lowering {
     const TypeId ft = fi == kNil ? want : irType(layoutOf(obj)[fi].second);
     auto convertible = [&](TypeId a, TypeId b) {
       const Type &x = m.types[a], &y = m.types[b];
-      return a == b || (x.k == Type::K::Num && y.k == Type::K::Num) || (x.k == Type::K::Ref && y.k == Type::K::Ref);
+      return a == b || (x.k == Type::K::Num && y.k == Type::K::Num) || (x.k == Type::K::Ref && y.k == Type::K::Ref) ||
+          (x.k == Type::K::Array && y.k == Type::K::Array && m.types[x.aux].k == Type::K::Ref && m.types[y.aux].k == Type::K::Ref);
     };
     if (!convertible(ft, want)) return kNil;
+    const std::uint32_t castFn = set && ft != want && m.types[ft].k == Type::K::Array ? arrayCastFunction(want, ft) : kNil;
     const std::uint32_t fn = set ? addFunction(m.classes[cls].name + ".set " + name, {m.refT(cls), want}, m.voidT())
                                  : addFunction(m.classes[cls].name + ".get " + name, {m.refT(cls)}, want);
     Function& f = m.functions[fn];
@@ -415,7 +417,10 @@ struct Lowering {
       f.blocks[0].insts.push_back(std::move(i));
       return f.blocks[0].insts.back().res;
     };
-    auto conv = [&](ValueId v, TypeId from, TypeId to) { return from == to ? v : add(m.types[to].k == Type::K::Num ? IrOp::Conv : IrOp::RefCast, to, {v}); };
+    auto conv = [&](ValueId v, TypeId from, TypeId to) {
+      if (castFn != kNil) return add(IrOp::Call, to, {v}, 0, castFn);
+      return from == to ? v : add(m.types[to].k == Type::K::Num ? IrOp::Conv : IrOp::RefCast, to, {v});
+    };
     IrOp end = IrOp::Ret;
     std::vector<ValueId> result;
     if (!set) result = {conv(add(IrOp::GetField, ft, {f.params[0]}, 0, fi), ft, want)};
@@ -1047,6 +1052,29 @@ struct Lowering {
 
   // ---- function bodies
   struct FnLower;
+  std::map<TypeId, std::pair<std::uint32_t, std::vector<TypeId>>> arrayGuards;
+  std::map<std::pair<TypeId, TypeId>, std::uint32_t> arrayCasts;
+  std::uint32_t arrayCastFunction(TypeId from, TypeId to) {
+    auto key = std::make_pair(from, to);
+    if (auto it = arrayCasts.find(key); it != arrayCasts.end()) return it->second;
+    auto fn = addFunction("__arrayCast" + std::to_string(from) + "_" + std::to_string(to), {from}, to);
+    arrayCasts[key] = fn; return fn;
+  }
+  void prepareArrayGuards() {
+    std::vector<TypeId> actuals, views;
+    for (auto [a, b] : c.arrayViews) { actuals.push_back(irType(a)); views.push_back(irType(b)); }
+    std::vector<TypeId> all = actuals; all.insert(all.end(), views.begin(), views.end());
+    for (TypeId from : all) for (TypeId to : all)
+      if (from != to && !m.isSubtype(m.types[m.types[from].aux].aux, m.types[m.types[to].aux].aux) &&
+          m.isSubtype(m.types[m.types[to].aux].aux, m.types[m.types[from].aux].aux)) arrayCastFunction(from, to);
+    for (TypeId view : views) {
+      if (arrayGuards.count(view)) continue;
+      std::vector<TypeId> narrow;
+      for (TypeId a : actuals)
+        if (a != view && m.isSubtype(m.types[m.types[a].aux].aux, m.types[m.types[view].aux].aux) && std::find(narrow.begin(), narrow.end(), a) == narrow.end()) narrow.push_back(a);
+      if (!narrow.empty()) arrayGuards[view] = {addFunction("__arrayStore" + std::to_string(view), {view, m.types[view].aux}, m.voidT()), narrow};
+    }
+  }
   void lowerAll();
   void run() {
     collectClasses();
@@ -1070,6 +1098,7 @@ struct Lowering {
     analyze();
     buildVtables();
     finishClosureClasses();
+    prepareArrayGuards();
     lowerAll();
     for (Class& cl : m.classes)  // selectors may have appeared since a vtable was filled
       if (!cl.isInterface && !cl.isAbstract) cl.vtable.resize(m.selectors.size(), kNil);
@@ -1187,6 +1216,11 @@ struct Lowering::FnLower {
       unsupported(exprAt.back(), "the value of a call that returns nothing (void): call it on its own line, or make it return a value");
       a = constBool(false);
     }
+    if (op == IrOp::ArrSet || op == IrOp::ArrPush) arrayStoreCheck(args[0], args[op == IrOp::ArrSet ? 2 : 1]);
+    if (op == IrOp::Rt) {
+      auto id = static_cast<zn::Rt>(sym); arrayRuntimeCheck(id, args);
+      if (id == zn::Rt::ArrSlice && L.arrayGuards.count(tv(args[0]))) return arraySlice(args, t);
+    }
     Inst i;
     i.op = op; i.ty = t; i.args = std::move(args); i.imm = imm; i.fimm = fimm; i.sym = sym;
     if (ty(t).k != Type::K::Void) i.res = newValue(t);
@@ -1241,7 +1275,7 @@ struct Lowering::FnLower {
     for (std::size_t k = 0; k < cands.size(); ++k) {
       if (last && k + 1 == cands.size()) { br(join, {constStr(nameOf(cands[k]))}); break; }
       BlockId hit = newBlock(), next = newBlock();
-      condbr(emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, L.classOfObj[cands[k]]), hit, next);
+      condbr(emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, m.refT(L.classOfObj[cands[k]])), hit, next);
       sealed[hit] = sealed[next] = 1;
       cur = hit;
       br(join, {constStr(nameOf(cands[k]))});
@@ -1264,7 +1298,7 @@ struct Lowering::FnLower {
       if (k + 1 < shapes.size()) {
         BlockId hit = newBlock();
         next = newBlock();
-        condbr(emit(IrOp::InstOf, m.boolT(), {obj}, 0, 0, cls), hit, next);
+        condbr(emit(IrOp::InstOf, m.boolT(), {obj}, 0, 0, m.refT(cls)), hit, next);
         sealed[hit] = sealed[next] = 1;
         cur = hit;
       }
@@ -1280,7 +1314,7 @@ struct Lowering::FnLower {
           condbr(emit(IrOp::Eq, m.boolT(), {w, nullConst(tv(w))}), store, test);
           sealed[test] = 1;
           cur = test;
-          condbr(emit(IrOp::InstOf, m.boolT(), {w}, 0, 0, ty(ft).aux), store, refuse);
+          condbr(emit(IrOp::InstOf, m.boolT(), {w}, 0, 0, m.refT(ty(ft).aux)), store, refuse);
           sealed[store] = sealed[refuse] = 1;
           cur = store;
           emit(IrOp::SetField, m.voidT(), {o, emit(IrOp::RefCast, ft, {w})}, 0, 0, fi);
@@ -1346,8 +1380,108 @@ struct Lowering::FnLower {
       }
     }
     if (toPrim && ty(tv(v)).k == Type::K::Ref && L.primOfBox.count(ty(tv(v)).aux)) return coerce(emit(IrOp::GetField, L.primOfBox[ty(tv(v)).aux], {v}, 0, 0, 0), to);  // narrowed to the value
-    if (ty(tv(v)).k == Type::K::Ref && ty(to).k == Type::K::Ref) return emit(IrOp::RefCast, to, {v});  // subtype (or closed-world proven) cast
+    if (auto cast = L.arrayCasts.find({tv(v), to}); cast != L.arrayCasts.end()) return emit(IrOp::Call, to, {v}, 0, 0, cast->second);
+    if ((ty(tv(v)).k == Type::K::Ref && ty(to).k == Type::K::Ref) || (ty(tv(v)).k == Type::K::Array && ty(to).k == Type::K::Array)) return emit(IrOp::RefCast, to, {v});  // subtype (or closed-world proven) cast
     return v;
+  }
+
+  void arrayStoreCheck(ValueId array, ValueId value) {
+    auto g = L.arrayGuards.find(tv(array));
+    if (g != L.arrayGuards.end()) emit(IrOp::Call, m.voidT(), {array, value}, 0, 0, g->second.first);
+  }
+  void arrayRangeCheck(ValueId array, ValueId src, ValueId from, ValueId to) {
+    if (!L.arrayGuards.count(tv(array))) return;
+    const TypeId i32 = m.numT(NumK::i32);
+    const std::uint32_t index = nextVar++;
+    varType[index] = i32; writeVar(index, from);
+    BlockId test = newBlock(), body = newBlock(), done = newBlock();
+    br(test); cur = test;
+    ValueId k = readVar(index, cur);
+    condbr(emit(IrOp::Lt, m.boolT(), {k, to}), body, done);
+    sealed[body] = 1; cur = body;
+    arrayStoreCheck(array, emit(IrOp::ArrGet, ty(tv(src)).aux, {src, k}));
+    writeVar(index, emit(IrOp::Add, i32, {k, constNum(i32, 1)})); br(test);
+    seal(test); sealed[done] = 1; cur = done;
+  }
+  ValueId clampIndex(ValueId value, ValueId length) {
+    const TypeId i32 = m.numT(NumK::i32);
+    auto choose = [&](ValueId condition, ValueId yes, ValueId no) {
+      BlockId a = newBlock(), b = newBlock(), join = newBlock();
+      ValueId p = newValue(i32); f.blocks[join].params.push_back(p);
+      condbr(condition, a, b); sealed[a] = sealed[b] = 1;
+      cur = a; br(join, {yes}); cur = b; br(join, {no}); seal(join); cur = join; return p;
+    };
+    ValueId zero = constNum(i32, 0);
+    ValueId relative = choose(emit(IrOp::Lt, m.boolT(), {value, zero}), emit(IrOp::Add, i32, {value, length}), value);
+    ValueId positive = choose(emit(IrOp::Lt, m.boolT(), {relative, zero}), zero, relative);
+    return choose(emit(IrOp::Gt, m.boolT(), {positive, length}), length, positive);
+  }
+  void arrayRuntimeCheck(zn::Rt id, const std::vector<ValueId>& vs) {
+    if (id != zn::Rt::ArrFillRange && id != zn::Rt::ArrSet) return;
+    if (!L.arrayGuards.count(tv(vs[0]))) return;
+    ValueId n = emit(IrOp::ArrLen, m.numT(NumK::i32), {vs[0]});
+    if (id == zn::Rt::ArrFillRange) {
+      ValueId from = clampIndex(vs[2], n), to = clampIndex(vs[3], n);
+      BlockId fill = newBlock(), done = newBlock();
+      condbr(emit(IrOp::Lt, m.boolT(), {from, to}), fill, done); sealed[fill] = 1; cur = fill;
+      arrayStoreCheck(vs[0], vs[1]); br(done); seal(done); cur = done;
+    } else {
+      ValueId off = clampIndex(vs[2], n), sn = emit(IrOp::ArrLen, m.numT(NumK::i32), {vs[1]});
+      ValueId from = clampIndex(vs[3], sn), to = clampIndex(vs[4], sn);
+      const TypeId i32 = m.numT(NumK::i32);
+      ValueId available = emit(IrOp::Sub, i32, {n, off}), count = emit(IrOp::Sub, i32, {to, from});
+      BlockId clipped = newBlock(), full = newBlock(), join = newBlock();
+      ValueId end = newValue(i32); f.blocks[join].params.push_back(end);
+      condbr(emit(IrOp::Lt, m.boolT(), {available, count}), clipped, full); sealed[clipped] = sealed[full] = 1;
+      cur = clipped; br(join, {emit(IrOp::Add, i32, {from, available})}); cur = full; br(join, {to}); seal(join); cur = join; to = end;
+      arrayRangeCheck(vs[0], vs[1], from, to);
+    }
+  }
+  ValueId arraySlice(const std::vector<ValueId>& vs, TypeId resultType) {
+    const TypeId i32 = m.numT(NumK::i32), elem = ty(resultType).aux;
+    ValueId n = emit(IrOp::ArrLen, i32, {vs[0]});
+    ValueId from = clampIndex(vs[1], n), to = clampIndex(vs[2], n), result = emit(IrOp::ArrNew, resultType);
+    const std::uint32_t index = nextVar++; varType[index] = i32; writeVar(index, from);
+    BlockId test = newBlock(), body = newBlock(), done = newBlock(); br(test); cur = test;
+    ValueId k = readVar(index, cur); condbr(emit(IrOp::Lt, m.boolT(), {k, to}), body, done);
+    sealed[body] = 1; cur = body;
+    emit(IrOp::ArrPush, i32, {result, emit(IrOp::ArrGet, elem, {vs[0], k})});
+    writeVar(index, emit(IrOp::Add, i32, {k, constNum(i32, 1)})); br(test);
+    seal(test); sealed[done] = 1; cur = done; return result;
+  }
+  void runArrayCast(TypeId to) {
+    cur = newBlock(); sealed[cur] = 1; f.blocks[cur].params = f.params;
+    BlockId done = newBlock(), test = newBlock();
+    condbr(emit(IrOp::Eq, m.boolT(), {f.params[0], nullConst(tv(f.params[0]))}), done, test);
+    sealed[test] = 1; cur = test;
+    std::vector<TypeId> candidates{to};
+    for (auto [a, b] : c.arrayViews) { (void)b; TypeId t = L.irType(a); if (std::find(candidates.begin(), candidates.end(), t) == candidates.end()) candidates.push_back(t); }
+    for (TypeId actual : candidates) {
+      if (!m.isSubtype(ty(ty(actual).aux).aux, ty(ty(to).aux).aux)) continue;
+      BlockId next = newBlock();
+      condbr(emit(IrOp::InstOf, m.boolT(), {f.params[0]}, 0, 0, actual), done, next);
+      sealed[next] = 1; cur = next;
+    }
+    throwTypeError("Cannot replace a narrower array field with this array");
+    seal(done); cur = done; terminate(IrOp::Ret, {emit(IrOp::RefCast, to, {f.params[0]})}, {});
+    removeUnreachable(); simplifyParams(); compact(); f.library = true; f.noInline = true;
+  }
+  void runArrayGuard(const std::vector<TypeId>& narrow) {
+    cur = newBlock(); sealed[cur] = 1; f.blocks[cur].params = f.params;
+    BlockId done = newBlock();
+    BlockId test = newBlock();
+    condbr(emit(IrOp::Eq, m.boolT(), {f.params[1], nullConst(tv(f.params[1]))}), done, test);
+    sealed[test] = 1; cur = test;
+    for (TypeId a : narrow) {
+      BlockId hit = newBlock(), next = newBlock(), refuse = newBlock();
+      condbr(emit(IrOp::InstOf, m.boolT(), {f.params[0]}, 0, 0, a), hit, next);
+      sealed[hit] = sealed[next] = 1; cur = hit;
+      condbr(emit(IrOp::InstOf, m.boolT(), {f.params[1]}, 0, 0, ty(a).aux), done, refuse);
+      sealed[refuse] = 1; cur = refuse; throwTypeError("Cannot store this value in an array with a narrower element type");
+      cur = next;
+    }
+    br(done); seal(done); cur = done; terminate(IrOp::Ret, {}, {});
+    removeUnreachable(); simplifyParams(); compact(); f.library = true; f.noInline = true;
   }
 
   // ---- SSA construction
@@ -1724,6 +1858,8 @@ struct Lowering::FnLower {
     bool lLit = numLit(n(le), a, dv), rLit = numLit(n(re), a, dv);
     TypeId lt = natural(le), rt = natural(re), common;
     if (isNumTy(lt) && isNumTy(rt)) common = lLit && !rLit ? rt : rLit && !lLit ? lt : commonNum(lt, rt);
+    else if (ty(lt).k == Type::K::Array && ty(rt).k == Type::K::Array && ty(ty(lt).aux).k == Type::K::Ref && ty(ty(rt).aux).k == Type::K::Ref)
+      common = m.isSubtype(ty(ty(lt).aux).aux, ty(ty(rt).aux).aux) ? rt : lt;
     else common = lt;
     ValueId l = exprTo(le, common), r = exprTo(re, common);
     std::string_view o = x.text;
@@ -1905,7 +2041,7 @@ struct Lowering::FnLower {
         if (o == "instanceof") {
           ValueId v = expr(x.kids[0]);
           std::uint32_t cls = L.classOfObj[c.types[c.nodeType[x.kids[1]]].obj];
-          return emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, cls);
+          return emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, m.refT(cls));
         }
         if (o == "??") return nullish(i, x);
         if ((o == "&&" || o == "||") && ty(natural(i)).k != Type::K::Bool) return valueShortCircuit(i, x, o == "&&");
@@ -2218,7 +2354,7 @@ struct Lowering::FnLower {
       if (decl == kNil || cls == kNil || !L.funcOfNode.count(decl)) continue;
       const std::uint32_t fn = L.funcOfNode[decl];
       BlockId hit = newBlock(), next = newBlock();
-      condbr(emit(IrOp::InstOf, m.boolT(), {args[0]}, 0, 0, cls), hit, next);
+      condbr(emit(IrOp::InstOf, m.boolT(), {args[0]}, 0, 0, m.refT(cls)), hit, next);
       sealed[hit] = sealed[next] = 1;
       cur = hit;
       std::vector<ValueId> vs{emit(IrOp::RefCast, m.refT(cls), {args[0]})};
@@ -2246,7 +2382,7 @@ struct Lowering::FnLower {
       if (to == c.dynTos.end() || cls == kNil || !L.funcOfNode.count(to->second)) continue;
       const std::uint32_t fn = L.funcOfNode[to->second];
       BlockId hit = newBlock(), next = newBlock();
-      condbr(emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, cls), hit, next);
+      condbr(emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, m.refT(cls)), hit, next);
       sealed[hit] = sealed[next] = 1;
       cur = hit;
       br(join, {coerce(emit(IrOp::Call, m.functions[fn].ret, {emit(IrOp::RefCast, m.refT(cls), {v})}, 0, 0, fn), ret)});
@@ -2275,7 +2411,7 @@ struct Lowering::FnLower {
       if (view == kNil) continue;
       const std::uint32_t cls = L.classOfObj[view], fi = L.fieldIndex(view, "o");
       BlockId hit = newBlock(), next = newBlock();
-      condbr(emit(IrOp::InstOf, m.boolT(), {d}, 0, 0, cls), hit, next);
+      condbr(emit(IrOp::InstOf, m.boolT(), {d}, 0, 0, m.refT(cls)), hit, next);
       sealed[hit] = sealed[next] = 1;
       cur = hit;
       br(join, {coerce(emit(IrOp::GetField, m.classes[cls].fields[fi].type, {emit(IrOp::RefCast, m.refT(cls), {d})}, 0, 0, fi), ret)});
@@ -3115,6 +3251,13 @@ struct Lowering::FnLower {
         emit(IrOp::SetField, m.voidT(), {readThis(), exprTo(mn.kids[1], ft)}, 0, 0, fi);
       }
     }
+    if (auto ins = c.arrayInsertions.find(job.node); ins != c.arrayInsertions.end()) {
+      for (auto [parameter, bulk] : ins->second) {
+        ValueId value = f.params[parameter];
+        if (bulk) arrayRangeCheck(f.params[0], value, constNum(m.numT(NumK::i32), 0), emit(IrOp::ArrLen, m.numT(NumK::i32), {value}));
+        else arrayStoreCheck(f.params[0], value);
+      }
+    }
     if (body) stmtsFrom(*body, idx);
     if (m.hot && job.fn == 0) {   // hot mode: main runs the prelude, then each module's init, then the event loop
       for (std::uint32_t init : L.initFn) emit(IrOp::Call, m.voidT(), {}, 0, 0, init);
@@ -3140,6 +3283,14 @@ void Lowering::lowerAll() {
     fl.dbg = m.debug && (file == kNil || !notProgram(file)) && m.functions[j.fn].name.rfind("__", 0) != 0;   // the engine's own code runs without stops
     fl.run();
     m.functions[j.fn].library = libraryFile(file) || m.functions[j.fn].name.rfind("__", 0) == 0;   // the checker's generated helpers (__group, __jsonNum...) are named __*
+  }
+  for (const auto& [types, fn] : arrayCasts) {
+    FnLower fl(*this, {fn, kNil, kNil, false, kNil}); fl.runArrayCast(types.second);
+  }
+  for (const auto& [view, guard] : arrayGuards) {
+    (void)view;
+    FnLower fl(*this, {guard.first, kNil, kNil, false, kNil});
+    fl.runArrayGuard(guard.second);
   }
 }
 

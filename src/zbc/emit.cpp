@@ -609,7 +609,7 @@ struct FnEmitter {
         if (ty(i.ty).k == ir::Type::K::Ref) { put(encAD(Op::LoadNull, d, ty(i.ty).aux)); return true; }
         loadConst(d, i);
         return true;
-      case IrOp::InstOf: mv(d, R(i.args[0])); put(encAD(Op::InstanceOf, d, i.sym)); return true;
+      case IrOp::InstOf: mv(d, R(i.args[0])); put(encAD(Op::InstanceOf, d, vtOf(i.sym).ref)); return true;
       case IrOp::Add: case IrOp::Sub: case IrOp::Mul: case IrOp::Div: case IrOp::Rem: {
         NumK n = numOf(i.res);
         if (kform[i.res].on) {
@@ -743,9 +743,9 @@ struct FnEmitter {
       case IrOp::GetField: put(encABC(Op::GetField, d, R(i.args[0]), i.sym)); return true;
       case IrOp::SetField: put(encABC(Op::SetField, R(i.args[0]), R(i.args[1]), i.sym)); return true;
       case IrOp::RefCast: {
-        std::uint32_t from = ty(f.valueTypes[i.args[0]]).aux, to = ty(i.ty).aux;
+        std::uint32_t from = vtOf(f.valueTypes[i.args[0]]).ref, to = vtOf(i.ty).ref;
         mv(d, R(i.args[0]));
-        if (!im.isSubtype(from, to)) put(encAD(Op::Downcast, d, to));  // checked at run time; upcasts need nothing
+        if (ty(i.ty).k == ir::Type::K::Array || !im.isSubtype(from, to)) put(encAD(Op::Downcast, d, to));  // checked at run time; upcasts need nothing
         return true;
       }
       case IrOp::Builtin: {

@@ -1,5 +1,4 @@
-// Arrays are covariant, as in TypeScript: records with more fields where records with fewer are expected (a new array of the
-// copies, as one record is copied), and subclass objects where base class objects are expected (a new array of the same objects).
+// Related reference arrays share their allocation; the elements remain valid for its original element type.
 interface Song { title: string }
 interface Big { title: string; extra: i32 }
 const big: Big[] = [{ title: 'a', extra: 1 }, { title: 'b', extra: 2 }];
