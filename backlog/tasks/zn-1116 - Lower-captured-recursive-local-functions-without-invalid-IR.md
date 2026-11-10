@@ -2,8 +2,7 @@
 id: ZN-1116
 title: Lower captured recursive local functions without invalid IR
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 03:18'
 updated_date: '2026-11-10 03:23'
 labels:
