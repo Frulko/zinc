@@ -6,7 +6,6 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|1121 glibc2.28 cwdspawn|.worktrees/1121 / work/1121|Blocking334export; platformhelper only, reuseexistingfallback/libuv optional symbols. 2ndbuildslot while334read-only.|
 |161.03 Intl number/date subset|.worktrees/161.03 / work/161.03|Solecorewriter; enUS+hostlocale/example needs, reuseOSformatters; all3/default/validation/unused-size proof, no ICUvendor/formatterregistry.|
 |334 Linux sysroot autofetch|.worktrees/334 / work/334|IndependentTC/script/doctor/package worker, reusepins, atomicstate; neededvideoFFmpeg pins for513realHeroblocker. Maxsecondbuildingtree.|
 
@@ -15,6 +14,8 @@ Root common source8c2f1ee82/compilerffec2b6e is stable after513 screen-default/a
 Array plan/proof scope: related object-reference arrays share actual ArrObj; scalar/string/Dyn/nested conversions unchanged. Source insertion preflight throws catchable TypeError atomically; raw VM/AOT checks protect bypassing bytecode. Exact array InstanceOf stays exact; compatible Downcast reads existing module metadata. IR InstOf internally targets reference types, no wire change. Shared guards must not bloat ordinary casts/scalar arrays; nativeHero budget is strict8,000,000 B. Full wider stores/member-specific structural views are still unfinished, no AC waiver.
 
 ## Integrated and verified
+
+-1121 d3fc22b57 Done/D297: optionalcwdaction lookup + existingdesktopfallback keepsglibc2.28 linkable; rootexactprocess_family/currentheader+hostsource PASS, bothtinycrosslinks/cwd/error/app-nofork checks pass. No targetexecution; commonffecfrozenforIntlbaseline.334actualexportretry follows.
 
 -513 8c2f1ee82 BacklogAC1only: sharedplatform defaults now useprofile dimensions, explicitsize wins; CLI build acceptsCHIP/Pocket aliases. Root chip_profiles/tc_cache +nineall3defaultcases PASS; worker27overridecases PASS. BothHelloARMv7/VFPv3/NEONhardfloat ELF hashes/metadata independentlyverified; bothHero failatmissinglibavformat, no sourceworkaround.
 
@@ -25,7 +26,7 @@ Array plan/proof scope: related object-reference arrays share actual ArrObj; sca
 
 -541.01/.02 75ececd94/5009c9bd6 Done, D294: real-three T2 split/warmup/material/static merge; root exactT0, checks and actualr186WebGL2/r162WebGL1 split+texturedmerge PASS. Original index stream/groups preserved; unsupported/order-sensitive merges stay intact. No engine build, parentPi/FPS/KTX2/browser criteria remain open.
 
-85 currently Done since1078.03:26 kit/demo leaves03–28,39 compiler fixes1079–1117,445 cache trust,774.31 Share,1119 quoted JSON,896 call server,803 async updates,395 no-graphics,587 webWorker,603 AOTsize,1120 Never,683 visibility,184 instancing,653 audio storage,391 desktop archives,449 wasm loading,707 library boot coverage,489 cooker contracts,541.01 material/static merge and541.02 split/warmup,541.03 nativeKTX2,161.02 Symbols/iteration. Partial/research/Review tasks are excluded.
+86 currently Done since1078.03:26 kit/demo leaves03–28,39 compiler fixes1079–1117,445 cache trust,774.31 Share,1119 quoted JSON,896 call server,803 async updates,395 no-graphics,587 webWorker,603 AOTsize,1120 Never,683 visibility,184 instancing,653 audio storage,391 desktop archives,449 wasm loading,707 library boot coverage,489 cooker contracts,541.01 material/static merge and541.02 split/warmup,541.03 nativeKTX2,161.02 Symbols/iteration,1121 glibcspawn. Partial/research/Review tasks are excluded.
 
 -603d87d08bbd Doneall3AC: originalHero native7,995,032 B (4,968 B margin), all57CPP/header/PCH source~9.53MB, defaultO2/jobs3 full observed19.16s/0of57 reused objects on4f198+603. Original2,660 functions/assets retained. Resource and metadata bytes lossless, no feature/budget cuts. Table temporary418,786 B retained through program run; raw export/cross/bundle paths unchanged. D283.
 -1120903f17ed4 Done: Never distinct from Null, existing void/Unreachable returns, lazy uninhabited REF storage, proper closure/virtual adapters. Exact3 runtimefixtures/all3+11negatives and original namespace source pass. No runtime/VM/AOT/ABI changes. Assertions/projections remain explicit unsupported boundaries; standalone null/undefined and catch(void) generic gaps pre-exist. D285.
@@ -62,7 +63,7 @@ Latest raw kit: JS236192/246407/283256B; unused10215B (25B margin),4094/componen
 -575 ReviewAC2: honest frame-boundary GC phase, no hard4ms/p99/startup proof (D280).1068 Review: Hamlet geometry correct/tighter rectangles, no speed claim.895 Review: four reproducible Galenearchives/localinstall; publicassets unpublished, remote/RSS unproven.1078.29 Review: CUIharness built/offscreen only, unmatchedworkloads cannotrank.
 -774.31 Share Done after finalsame-binary capturedgroup cleanup proof, broader1118 separate.445 unsignedpack/fusedQuickJS executes retainedsource; trustedlocalcache unchanged (D279).896 localserver/browser/token/restart/stop proven; remoteTLS/TURN/physical capacity notclaimed.
 
-Completed source checkpoints/logs/bundles live under `.logs/archive-completed-workers-20261110/`; private proofs0700.50 completed source-worker trees removed through1120/1066-export/1066-CDP/1030-array/683/184/653/391/449/707-p5/707-frame/164/512/489, plus read-only research checkpoints. 161.02,513 tables and513 screen phases archived;334 andIntl next. Hero durable `.logs/hero-603-engine-20261110/last-combined/provenance.json` SHA1b046cd09d07072c599bfcd5f0b638514fd060014cf1d278defc1c671b457181. EarlierCode/Gallery immutable recovery stashes retained.
+Completed source checkpoints/logs/bundles live under `.logs/archive-completed-workers-20261110/`; private proofs0700.51 completed source-worker trees removed through1120/1066-export/1066-CDP/1030-array/683/184/653/391/449/707-p5/707-frame/164/512/489, plus read-only research checkpoints. 161.02,513 tables and513 screen phases archived;334 andIntl next. Hero durable `.logs/hero-603-engine-20261110/last-combined/provenance.json` SHA1b046cd09d07072c599bfcd5f0b638514fd060014cf1d278defc1c671b457181. EarlierCode/Gallery immutable recovery stashes retained.
 
 ## Protect external work
 
@@ -75,6 +76,7 @@ Main WIP: ui.ts42add19del sparseMap/Fenwick639/1074 (known incompleteprependRows
 Every app/test bounded; headless orbackground; no leftover. No suites/T1/T2/demo/pixelcompare/conformance/fuzz/bench/CI. Only exactsecondsT0 and shortfeature proofs. Max2building trees globally; oneheavy process, work-runqueue. No syntheticload. Call-path/quiet/long tests require ownermilestone; listingneverstopsloop.
 
 Tests to run (owner picks):
+-1121 sinced3fc22b57: actualoldglibcLinux/Pi/Mojave cwdspawn (seconds, memoryunmeasured), no emulator; rootexacthelper+crosslink already pass.
 -161.02 since1a717097f: crossprofile/optionalJSCV8Hermes and broaderclone parity (seconds–minutes, unmeasured); exactsymbols/qjs_bytecode/all3semantic fixtures, leakcheck/rawkit/Hero already pass. Source-metadata pruning needs audit.
 -513 since8c2f1ee82: bothHerocrossbuilds afterFFmpeg sysroot is pinned/fetched (minutescold; memoryunmeasured); actualboard display/input/GPIO/power (seconds; notproven). SCREEN/all3+literalHello builds and ELFmetadata pass.
 -541.03 since80c0c0ad2: actualPi ETC1GPU/transfer/alpha+glTF (seconds, tinyfixtureexpected<100MiB/unmeasured), browserordinary-loader path (seconds), fullpackage/relocatednative-sourcebuild (minutes/unmeasured). Parent100mesh/45fps unchangedopen; native/actualMacRGBA/exactT0 already pass.

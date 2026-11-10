@@ -2,8 +2,7 @@
 id: ZN-1121
 title: Keep POSIX cwd spawning linkable on glibc 2.28
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 20:53'
 updated_date: '2026-11-10 21:13'
 labels:

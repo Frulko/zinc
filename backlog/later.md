@@ -989,3 +989,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-513: actualCHIP/PocketCHIP graphics/input/power and crosshello+Hero remainunproven; capabilities/profile tests do not certify hardware.
 
 - ZN-513: after334 pins/fetches video dependencies, repeat literalCHIP/PocketCHIP Hero builds; both currentcommands reach libavformat missing in armv7sysroot, not a frontend/layout failure.
+
+- ZN-1121: repeat cwdspawn on actualoldglibcLinux/Pi andMojave; currentdesktophelper/ELFcrosslink proofs pass, no targetexecution claimed.

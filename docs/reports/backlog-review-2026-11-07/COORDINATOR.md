@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated1121 d3fc22b57/D297,86Done. Rootexactprocess_family compilescurrentheader/hostsource PASS; crosslinks no newer cwd-symbol/appfork dependency. Archive1121 (51sourcecheckpoints), commonffec frozenIntlbaseline.334 resumes2ndbuildslot and actualUIexport nowpasses on1121base; HeroARMv7 next. Ownerasksbetterperfs: next597nativeThreeCPUaccelerators, primaryresearchstarted; no unchosenquietbenchmark claim.
+
 - Newblocking1121: actual334AArch64UIexport final link requires addchdir_np newerthan glibc2.28. Claimfreshplatformworker, reusevendoredlibuvoptional symbols+existingasync-safefallback; retainiOS/app nofork. 334actualGLARM64/32+videoARMv7 buildpass, goesread-only while1121usessecondbuildslot besideIntl. No targetfloor/fixture workaround.
 
 - Reserve161.03 as solecorechain beside334TC. Delegatedresearch .logs/research-16103.txt; parent rejectsICU4C, enUS+hostOSformatter foractualapp/webneeds. Number/Date constructors+sharedlocale methods, preserve nativeIntl onoptionalJSengines, no formatterhandleregistry or callbackRCcycle. Strictunused/Hero/kit budgets retained, fixPhotoSorter workaroundonlywhenfeatureworks. Commonffec8cstable, ownerpayloadprotected.
