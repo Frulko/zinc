@@ -5,7 +5,11 @@ a three-step plan, messages, citations, source cards, a script picker, local tex
 size and a multiline composer. **There is no AI model, backend, API key or network
 request.** Any question plays the fixed answer for the selected topic.
 
-![Fieldnotes in Quiet dark at 360 px](images/dark360.png)
+![Fieldnotes in Quiet light at 1100 px](images/light.png)
+
+![Fieldnotes in Quiet dark at 1100 px](images/dark.png)
+
+[Light at 360 px](images/light360.png) · [Dark at 360 px](images/dark360.png)
 
 ```sh
 build/zinc run examples/ui/assistant --engine quickjs
@@ -27,9 +31,8 @@ or New chat clears the current draft and exchange. The demo keeps one current
 exchange, in memory. All edits disappear on exit. Source actions reveal the real
 public URL and its summary; Copy source URL copies it for opening elsewhere.
 
-The wide sidebar currently awaits the shared `hidden md:flex` engine fix
-(ZN-1115). The mobile capture above is from the implementation before that fix;
-the task remains open until the full responsive path has been proved.
+The sidebar occupies 250 px at desktop widths. Below 768 px, Chats opens the
+local list and leaves room for the conversation and composer.
 
 ## Code and reuse
 
@@ -47,10 +50,15 @@ the task remains open until the full responsive path has been proved.
   copied or added.
 
 Desktop, Linux, web and simulator presets describe layout intentions. Only the
-development Mac's headless interpreter, AOT and QuickJS entries were smoke-run;
-hardware input, browser export, touch and screen-reader use remain unvalidated.
-The shared overlay reduced-motion defect (ZN-1114) also remains outside this
-demo; no local animation override hides it.
+development Mac's headless interpreter, AOT and QuickJS entries were smoke-run.
+The unchanged app was checked at 1100 × 1000 and 360 × 800, in both themes.
+Actual pointer/keyboard handlers exercised suggestions, multiline and duplicate
+Enter, Send/Stop/Retry, New chat, script choice, tool details, source selection
+and theme switching. Model and citation layers snap on their first visible paint
+with reduced motion; citation dismissal restores its trigger focus. Cancellation
+and root destruction were checked after the pending reply deadline. These are
+short deterministic proofs; hardware input, browser export, touch and
+screen-reader use remain unvalidated.
 
 ## Reference
 
@@ -77,5 +85,5 @@ practical suggestion, not a quoted performance result.
   New chat during playback, stale callback rejection and unmount; about 30
   seconds plus AOT compilation, estimated under 400 MB runtime, unmeasured.
 - `ZINC_BACKGROUND=1 timeout 120 build/zinc run examples/ui/assistant --native`:
-  OS reduced-motion and VoiceOver walkthrough after ZN-1114/1115, including
+  OS reduced-motion and VoiceOver walkthrough, including
   citation overlays and focus restoration; about 2 minutes, memory unmeasured.
