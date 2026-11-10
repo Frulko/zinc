@@ -109,6 +109,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - The first run of a project that uses several native plugins builds them at the same time instead of one after the other (the iPod example's five plugins: 34 s down to 18 s), sharing the cores and backing off when the machine is busy.
 - Native plugins can declare `native.systemHost: "lite"`; SVG no longer pulls in unused networking services.
+- `zinc:audio` keeps 16-bit WAV and QOA sound buffers in half the memory, including very short clips through their final sample.
 
 #### Fixed
 

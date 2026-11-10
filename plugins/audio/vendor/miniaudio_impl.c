@@ -1,4 +1,4 @@
-/* The one translation unit of miniaudio 0.11.25, with Vorbis decoding through stb_vorbis 1.22 and QOA through qoa.h (commit 93b0680 of
+/* The one translation unit of miniaudio 0.11.26, with Vorbis decoding through stb_vorbis 1.22 and QOA through qoa.h (commit 93b0680 of
    phoboslab/qoa); PIN has the checksums.
    The order is the one miniaudio's documentation asks for: stb_vorbis's declarations, miniaudio, then stb_vorbis's code.
    The plugin build keys the compiled archive on this file alone: change the versions above when a vendored file is replaced. */

@@ -2,7 +2,7 @@
 
 This plugin plays sound effects and music: a game rings a coin over its music, an app beeps.
 
-- **Native.** [miniaudio](https://miniaud.io) 0.11.25 (public domain or MIT-0) is compiled into the program:
+- **Native.** [miniaudio](https://miniaud.io) 0.11.26 (public domain or MIT-0) is compiled into the program:
   `plugins/audio/vendor/`. It opens the default output, mixes up to 32 sounds at once and decodes WAV, FLAC, MP3 and
   Ogg Vorbis (the last through stb_vorbis 1.22). It adds about 0.55 MiB to a program that draws (550 KiB on the
   `game-2d` template, x86_64 macOS).
@@ -92,8 +92,10 @@ built (a line says so while it compiles); when it cannot be, one line says why a
 
 - **Voices.** 32 voices play at once. When all are busy, a new `play()` replaces the oldest one-shot sound; a looping
   sound (the music) gives way only when every voice loops.
-- **Memory.** A sound is decoded whole when it loads and kept as 32-bit float samples at the file's own rate and channel
-  count: 8 bytes per stereo frame, 21 MiB per minute at 44.1 kHz. Effects are small. A long compressed file (256 KB or more, not WAV) is decoded on a background thread:
+- **Memory.** A sound is decoded whole when it loads and kept at the file's own rate and channel
+  count. Native 16-bit sources (16-bit WAV and QOA) use 4 bytes per stereo frame, about 10 MiB per minute at 44.1 kHz.
+  Other sources, including higher-precision WAV, FLAC, MP3 and Vorbis, keep the existing 32-bit float conversion, as do
+  `tone()` and `fromSamples()`. Effects are small. A long compressed file (256 KB or more, not WAV) is decoded on a background thread:
   `load()` returns at once, `play()` works at once and the sound plays as it is decoded (silence only if playback outruns the decoder); for music that
   should not stay in memory, use `loadMusic()` (an asset) or `openMusic()` (a file on disk). Up to 256 sounds are loaded at once: `unload()` the ones a level no longer needs.
 - **Rates and channels.** The mix is 48 kHz stereo. A file at another rate is resampled while it plays (linear), mono

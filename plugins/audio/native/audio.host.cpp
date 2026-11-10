@@ -21,9 +21,10 @@
 namespace {
 const int MAXSOUND = 256, MAXVOICE = 32;
 const ma_uint32 RATE = 48000;
-// float samples. A long compressed file (load) is decoded on a thread into pcm, sized from the file's length: `filled` frames are ready while
+// Native 16-bit sources stay 16-bit; all others stay float. A long compressed file (load) is decoded on a thread into pcm,
+// sized from the file's length: `filled` frames are ready while
 // `pending`; a voice plays what is there (Prog below) and waits for the rest, so load() returns at once and play() works at once.
-struct Clip { void* pcm; ma_uint64 frames; ma_uint32 channels, rate; ma_uint64 filled; int pending, quit; pthread_t th; ma_decoder* dec; void* file; };
+struct Clip { void* pcm; ma_uint64 frames; ma_uint32 channels, rate; ma_format format; ma_uint64 filled; int pending, quit; pthread_t th; ma_decoder* dec; void* file; };
 // a clip as a data source: the frames decoded so far, silence (the cursor waiting) for the ones not yet there
 struct Prog { ma_data_source_base base; Clip* clip; ma_uint64 cursor; };
 // A voice's lifecycle (ZN-697, ZN-695): a free slot, a voice that plays (or waits for its `from`), one whose end is set (a stop time, faded or
@@ -97,17 +98,17 @@ ma_result prog_read(ma_data_source* ds, void* out, ma_uint64 frames, ma_uint64* 
   const ma_uint64 avail = pending ? __atomic_load_n(&c->filled, __ATOMIC_ACQUIRE) : c->frames;
   ma_uint64 n = avail > p->cursor ? avail - p->cursor : 0;
   if (n > frames) n = frames;
-  const size_t fb = (size_t)c->channels * sizeof(float);
+  const size_t fb = ma_get_bytes_per_frame(c->format, c->channels);
   if (n) memcpy(out, (const char*)c->pcm + (size_t)p->cursor * fb, (size_t)n * fb);
   p->cursor += n;
-  if (n < frames && pending) { memset((char*)out + (size_t)n * fb, 0, (size_t)(frames - n) * fb); n = frames; }   // still decoding: silence, the cursor waits
+  if (n < frames && pending) { ma_silence_pcm_frames((char*)out + (size_t)n * fb, frames - n, c->format, c->channels); n = frames; }   // still decoding: silence, the cursor waits
   if (read) *read = n;
   return n == 0 ? MA_AT_END : MA_SUCCESS;
 }
 ma_result prog_seek(ma_data_source* ds, ma_uint64 f) { ((Prog*)ds)->cursor = f; return MA_SUCCESS; }
 ma_result prog_format(ma_data_source* ds, ma_format* f, ma_uint32* ch, ma_uint32* rate, ma_channel* map, size_t cap) {
   Clip* c = ((Prog*)ds)->clip;
-  if (f) *f = ma_format_f32;
+  if (f) *f = c->format;
   if (ch) *ch = c->channels;
   if (rate) *rate = c->rate;
   if (map) ma_channel_map_init_standard(ma_standard_channel_map_default, map, cap, c->channels);
@@ -197,11 +198,12 @@ ma_decoder_config decoding(ma_uint32 channels, ma_uint32 rate) {
 // the decoding thread of a long file: chunks of 4096 frames, `filled` published after each; the decoder and the file's copy go when it ends
 void* decode_thread(void* arg) {
   Clip* c = (Clip*)arg;
-  float* out = (float*)c->pcm;
+  char* out = (char*)c->pcm;
+  const size_t fb = ma_get_bytes_per_frame(c->format, c->channels);
   ma_uint64 done = 0;
   while (done < c->frames && !__atomic_load_n(&c->quit, __ATOMIC_RELAXED)) {
     ma_uint64 want = c->frames - done < 4096 ? c->frames - done : 4096, got = 0;
-    ma_decoder_read_pcm_frames(c->dec, out + (size_t)done * c->channels, want, &got);
+    ma_decoder_read_pcm_frames(c->dec, out + (size_t)done * fb, want, &got);
     if (!got) break;
     done += got;
     __atomic_store_n(&c->filled, done, __ATOMIC_RELEASE);
@@ -572,21 +574,25 @@ struct HostAudio : NativeAudio {
     if (h < 0) return -1;
     if (!bytes.a || bytes.a->len <= 0) return fail("the file is empty");
     engine();   // a program loads its sounds as it starts: the output opens now, not at the first play()
-    // The file's own rate and channels (converted while it plays), but always float samples: miniaudio 0.11.25 drops the
-    // end of a sound in any other format (ma_engine_node_process_pcm_frames__sound marks the sound ended while the last
-    // converted frames, up to 512, still wait in its cache), so a 16-bit clip under 11 ms would never be heard.
-    // ponytail: 8 bytes per stereo frame in memory, 21 MB per minute at 44.1 kHz (a long file is decoded on a thread, see Clip; openMusic never keeps it)
+    // Ask the decoder for its native format; keep other sources' existing float conversion and precision.
     ma_decoder_config dc = decoding(0, 0);
+    ma_decoder_config probeConfig = dc;
+    probeConfig.format = ma_format_unknown;
+    ma_decoder probe;
+    if (ma_decoder_init_memory(bytes.a->data, (size_t)bytes.a->len, &probeConfig, &probe) == MA_SUCCESS) {
+      if (probe.outputFormat == ma_format_s16) dc.format = ma_format_s16;
+      ma_decoder_uninit(&probe);
+    }
     if (bytes.a->len >= 262144 && memcmp(bytes.a->data, "RIFF", 4)) {   // a long compressed file: its decode (15 s of a 4 MB MP3 on a Pi 3) is not waited for
       void* file = malloc((size_t)bytes.a->len);   // the program's array may go once load() returns
       ma_decoder* d = (ma_decoder*)malloc(sizeof(ma_decoder));
       ma_uint64 len = 0;
       if (file && d) memcpy(file, bytes.a->data, (size_t)bytes.a->len);
       if (file && d && ma_decoder_init_memory(file, (size_t)bytes.a->len, &dc, d) == MA_SUCCESS) {
-        if (ma_decoder_get_length_in_pcm_frames(d, &len) == MA_SUCCESS && len > 0 && len < ((ma_uint64)1 << 31) / d->outputChannels / 4) {
-          void* pcm = ma_malloc((size_t)(len * d->outputChannels) * sizeof(float), nullptr);
+        if (ma_decoder_get_length_in_pcm_frames(d, &len) == MA_SUCCESS && len > 0 && len < ((ma_uint64)1 << 31) / ma_get_bytes_per_frame(d->outputFormat, d->outputChannels)) {
+          void* pcm = ma_malloc((size_t)len * ma_get_bytes_per_frame(d->outputFormat, d->outputChannels), nullptr);
           if (pcm) {
-            clips[h] = Clip{pcm, len, d->outputChannels, d->outputSampleRate, 0, 1, 0, 0, d, file};
+            clips[h] = Clip{pcm, len, d->outputChannels, d->outputSampleRate, d->outputFormat, 0, 1, 0, 0, d, file};
             if (pthread_create(&clips[h].th, nullptr, decode_thread, &clips[h]) == 0) return h;
             ma_free(pcm, nullptr);
             clips[h] = Clip{};
@@ -596,7 +602,6 @@ struct HostAudio : NativeAudio {
       }
       free(file);
       free(d);
-      dc = decoding(0, 0);   // anything else: decoded whole, as a short file is
     }
     ma_uint64 frames = 0;
     void* pcm = nullptr;
@@ -605,7 +610,7 @@ struct HostAudio : NativeAudio {
       if (pcm) ma_free(pcm, nullptr);
       return fail(r == MA_OUT_OF_MEMORY ? "out of memory" : "not a WAV, FLAC, MP3, Ogg Vorbis or QOA file");
     }
-    clips[h] = Clip{pcm, frames, dc.channels, dc.sampleRate};
+    clips[h] = Clip{pcm, frames, dc.channels, dc.sampleRate, dc.format};
     return h;
   }
   int32_t tone(int32_t wave, double hz, double seconds) override {
@@ -633,7 +638,7 @@ struct HostAudio : NativeAudio {
     ma_uint64 fade = RATE / 200;   // 5 ms in and out: a wave cut at full level clicks
     if (fade > frames / 2) fade = frames / 2;
     for (ma_uint64 i = 0; i < fade; i++) { const float g = (float)i / (float)fade; pcm[i] *= g; pcm[frames - 1 - i] *= g; }
-    clips[h] = Clip{pcm, frames, 1, RATE};
+    clips[h] = Clip{pcm, frames, 1, RATE, ma_format_f32};
     return h;
   }
   zrt::String error() override { return str(err_msg); }
@@ -669,7 +674,7 @@ struct HostAudio : NativeAudio {
       if (ma_data_source_init(&pc, &v->prog.base) != MA_SUCCESS) return 0;
       src = &v->prog.base;
     } else {
-      ma_audio_buffer_ref_init(ma_format_f32, c->channels, c->pcm, c->frames, &v->src);
+      ma_audio_buffer_ref_init(c->format, c->channels, c->pcm, c->frames, &v->src);
       v->src.sampleRate = c->rate;   // miniaudio 0.11 leaves it at 0, which would play the clip at the mixer's rate
     }
     // a 2D mix: no 3D position, and a resampler only for a voice played at another rate (ZN-656): a clip at the mixer's
@@ -745,7 +750,7 @@ struct HostAudio : NativeAudio {
     float* pcm = (float*)ma_malloc((size_t)(frames * channels) * sizeof(float), nullptr);
     if (!pcm) return fail("out of memory");
     for (int64_t i = 0; i < frames * channels; i++) pcm[i] = (float)samples.a->data[i];
-    clips[h] = Clip{pcm, (ma_uint64)frames, (ma_uint32)channels, (ma_uint32)rate};
+    clips[h] = Clip{pcm, (ma_uint64)frames, (ma_uint32)channels, (ma_uint32)rate, ma_format_f32};
     return h;
   }
   int32_t channels(int32_t h) override { Clip* c = clip_at(h); return c ? (int32_t)c->channels : 0; }
@@ -756,8 +761,10 @@ struct HostAudio : NativeAudio {
     settle(c, false);
     const int32_t n = (int32_t)c->frames;
     zrt::Array<double> r = zrt::Array<double>::with_cap(n);
-    const float* p = (const float*)c->pcm + channel;
-    for (int32_t i = 0; i < n; i++) r.a->data[i] = p[(size_t)i * c->channels];
+    for (int32_t i = 0; i < n; i++) {
+      const size_t at = (size_t)i * c->channels + channel;
+      r.a->data[i] = c->format == ma_format_s16 ? (double)((const ma_int16*)c->pcm)[at] / 32768.0 : ((const float*)c->pcm)[at];
+    }
     r.a->len = n;
     return r;
   }

@@ -7,7 +7,7 @@ export interface Spec extends NativeModule {
    *  (ZINC_HEADLESS, ZINC_DETERMINISTIC, ZINC_AUDIO=null, or no playback device). The output opens in the background
    *  from the first load() or tone(); this call waits until it is known. */
   backend(): string;
-  /** Decodes a whole WAV, FLAC, MP3, Ogg Vorbis or QOA file into memory (float samples). A sound handle, or -1 (see error()). */
+  /** Decodes a whole WAV, FLAC, MP3, Ogg Vorbis or QOA file into memory (16-bit for native 16-bit sources, otherwise float). A sound handle, or -1 (see error()). */
   load(bytes: u8[]): i32;
   /** A generated sound: wave 0 sine, 1 square, 2 triangle, 3 sawtooth, 4 white noise; peak 0.5, with a 5 ms fade at
    *  both ends so it does not click. A sound handle, or -1 (see error()). */
