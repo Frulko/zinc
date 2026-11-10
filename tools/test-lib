@@ -21,7 +21,7 @@ case "${1:-}" in
     url=https://registry.npmjs.org/three/-/three-0.162.0.tgz   # archive sha256: f810fd7615dad5e6a25ae962a2dcfb520a9ddce2ca24f59b10cf68f278cae13f
     member=package/build/three.module.js
     sha=ec3ddc3897ec75288b5502057456c471c2eb7d6e7cf36140d0a5224e94a1984b
-    more="BufferGeometryUtils.js package/examples/jsm/utils/BufferGeometryUtils.js b0c64fe6f3b9907262921b73fafc4ade874c07ba6b4876e164c87a830c2c2113" ;;
+    more="BufferGeometryUtils.js package/examples/jsm/utils/BufferGeometryUtils.js b0c64fe6f3b9907262921b73fafc4ade874c07ba6b4876e164c87a830c2c2113 loaders/GLTFLoader.js package/examples/jsm/loaders/GLTFLoader.js d073b438e6a07e1359741dd5d6c76c953420cc0d4fd84eb1bdde94315540e6a3 utils/BufferGeometryUtils.js package/examples/jsm/utils/BufferGeometryUtils.js b0c64fe6f3b9907262921b73fafc4ade874c07ba6b4876e164c87a830c2c2113" ;;
   p5-1.11.13)
     file=p5.min.js
     url=https://registry.npmjs.org/p5/-/p5-1.11.13.tgz   # the archive's own sha256: 8f2c1e0e07b006c967d085154a6b92fd80906a9743373243944e4ea6cc737ec3
@@ -60,6 +60,7 @@ trap 'rm -rf "$tmp"' EXIT
 curl -fsSL --max-time 120 -o "$tmp/archive" "$url" 2>"$tmp/err" || { echo "test-lib: $1 is not cached and cannot be downloaded from $url ($(head -c 120 "$tmp/err"))" >&2; exit 1; }
 name=$1
 take() {   # take <file> <member> <sha256>: one member, to a file of our own (nothing of the archive chooses a path), kept only with its pinned hash
+  mkdir -p "$(dirname "$tmp/$1")" "$(dirname "$dir/$1")" || return 1
   tar -xzOf "$tmp/archive" "$2" > "$tmp/$1" 2>/dev/null || { echo "test-lib: $2 is not in the archive of $url" >&2; exit 1; }
   got=$(sum "$tmp/$1")
   [ "$got" = "$3" ] || { echo "test-lib: $name ($1) from $url has sha256 $got, not the pinned $3: not kept" >&2; exit 1; }

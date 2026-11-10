@@ -5,5 +5,9 @@
   "entry": "index.js",
   "deterministic": true,
   "description": "Opt-in T2 helpers for real three.js (QuickJS)",
-  "targets": { "macos": {}, "linux": {}, "rpi1": {} }
+  "targets": {
+    "macos": { "flags": ["-fno-strict-aliasing", "-fthreadsafe-statics"] },
+    "linux": { "flags": ["-fno-strict-aliasing", "-fthreadsafe-statics"] },
+    "rpi1": { "flags": ["-fno-strict-aliasing", "-fthreadsafe-statics"] }
+  }
 }

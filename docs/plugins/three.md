@@ -223,7 +223,7 @@ A changed light/environment/material configuration needs another warm-up.
 The exact `three_pi` T0 checks real r186 plus external checksum-pinned r162 data
 semantics and T3/T4 identity. A short direct renderer fixture is
 `tests/data/three-pi/render.js`; Mac WebGL1/r162 and WebGL2/r186 readback do not prove
-VC4 support, Pi frame rates or KTX2 decoding.
+VC4 support or Pi frame rates. Native KTX2 decoding has its own focused proof below.
 
 `downgradeMaterials(scene)` replaces built-in Standard/Physical mesh materials with
 Lambert. A map local to that call preserves material sharing, including repeated
@@ -263,3 +263,48 @@ three.js release as `three`; `examples/js-three` already maps the addon prefix.
 Both r162/WebGL1 and r186/WebGL2 have a short textured Lambert/static merge renderer
 fixture at `tests/data/three-pi/material-render.js`. This Mac proof does not certify
 Pi shaders, driver limits or speed.
+
+### Native ETC1S KTX2 textures
+
+`createKTX2Loader(renderer, ordinaryLoader)` returns a synchronous native adapter on
+T2 and the exact supplied loader on T3/T4. Use a loader and addons from the same
+three.js release as your renderer. The native adapter inherits `Loader`, including
+`loadAsync`, path, request headers, credentials and `LoadingManager`; it supports
+`load(url, onLoad, onProgress, onError)`, `parse(buffer, onLoad, onError)`,
+`detectSupport(renderer)` and `dispose()`. The factory copies the supplied loader's
+manager, path, headers and credentials. No transcoder path or worker configuration
+is needed. Native compilation/loading occurs on the first decode only; importing
+the helper and calling the factory on T3/T4 needs neither a native cache nor a
+toolchain.
+
+```js
+import { createKTX2Loader } from 'zinc:three-pi';
+const textures = createKTX2Loader(renderer, ordinaryKTX2Loader);
+const gltfLoader = new GLTFLoader(textures.manager).setKTX2Loader(textures);
+const model = await gltfLoader.loadAsync('scene.glb');
+```
+
+The adapter uses the engine's Apache-2.0 Basis Universal 2.50 pin, synchronously on
+the calling thread, without WASM or workers. It accepts ordinary 2D ETC1S textures
+up to 4096 pixels per side, 64 MiB input and 128 MiB total decoded mip bytes. Arrays,
+cubemaps, video and other codecs fail through the loader's error callback. Every
+supplied mip is transcoded. An incomplete pyramid is accepted and uses linear
+filtering; the loader never generates missing mipmaps.
+
+Opaque images become `CompressedTexture` with `RGB_ETC1_Format` when the renderer
+reports `WEBGL_compressed_texture_etc1`; otherwise they become RGBA32 `DataTexture`.
+Alpha images always use RGBA32, retaining their alpha. The DFD transfer function,
+color primaries and flags are retained in `texture.userData.ktx2`; BT.709 sRGB and
+linear map to the corresponding three.js color spaces, other primaries use
+`NoColorSpace`. Premultiplication is retained in the bytes and texture flag, not
+applied again by the native decoder. Texture filtering, flip, update and mip flags
+follow the three.js KTX2 contract. Applications still choose material blending,
+and GLTFLoader applies glTF's color-space and sampler rules.
+
+`tests/run --only three_pi_ktx2` proves actual ETC1 block bytes, RGBA/alpha at every
+mip, typed native results above 65,536 bytes, bounds, malformed-data recovery and
+T3/T4 identity. The short `tests/data/three-pi/ktx2-render.js` fixture proves real
+r162/WebGL1 and r186/WebGL2 GLTFLoader embedded blob loading, manager success/error
+completion, sampled opaque/alpha colors, mid-tone sRGB/linear transfer and preserved
+premultiplied RGB. The development Mac uses RGBA fallback; this does not claim an
+ETC1 GPU upload on VC4, a Pi run, frame rates or browser export.

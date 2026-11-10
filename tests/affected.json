@@ -2,7 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
-    {"paths": ["plugins/three-pi/", "tests/data/three-pi/", "tests/t0/three_pi.sh"], "tests": ["three_pi"]},
+    {"paths": ["plugins/three-pi/", "tests/data/three-pi/", "tests/t0/three_pi.sh", "tests/t0/three_pi_ktx2.sh"], "tests": ["three_pi", "three_pi_ktx2"]},
     {"paths": ["src/assets/cook.cpp", "src/assets/cook.h", "tests/t0/cook.sh", "tests/native/cook.cpp", "tests/data/cook/"], "tests": ["cook"]},
     {"paths": ["targets/wasm/", "tools/build-wasm", "src/assets/texture.cpp", "third_party/basis_universal/", "tests/wasm/loading.mjs", "tests/wasm/loading_export.sh", "tools/wasm-loading-test", "tests/data/wasm_loading/", "tests/t0/wasm_loading.sh"], "tests": ["wasm_loading"]},
     {"paths": ["src/frontend/check.cpp", "src/ir/", "src/zbc/emit.cpp", "src/rt/rt.h", "src/rt/rtcalls.cpp", "src/rt/machine.cpp", "src/vm/vm.cpp", "src/aot/aot.cpp", "tests/data/array_sharing/", "tests/t0/array_sharing.sh"], "tests": ["array_sharing"]},

@@ -2,6 +2,13 @@ import { TIER } from 'zinc:platform';
 import { BufferAttribute, BufferGeometry, Uint16BufferAttribute, Float32BufferAttribute, Material,
   Mesh, Object3D, MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, MeshStandardMaterial, MeshPhysicalMaterial, NormalBlending } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { NativeKTX2Loader } from './ktx2-loader.js';
+
+export function createKTX2Loader(renderer, ordinaryLoader) {
+  if (TIER !== 2) return ordinaryLoader;
+  return new NativeKTX2Loader(ordinaryLoader.manager).setPath(ordinaryLoader.path)
+    .setRequestHeader(ordinaryLoader.requestHeader).setWithCredentials(ordinaryLoader.withCredentials).detectSupport(renderer);
+}
 
 const LIMIT = 65535;
 const invalid = message => { throw new Error('zinc:three-pi: ' + message); };

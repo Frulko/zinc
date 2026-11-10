@@ -52,6 +52,7 @@ def payload(share):
     copy_tree(os.path.join(NEXT, "third_party", "macos-shim"), os.path.join(nx, "third_party", "macos-shim"))
     mo = os.path.join(NEXT, "third_party", "meshoptimizer")   # the meshopt decoder the three plugin compiles in (ZN-441)
     copy_tree(mo, os.path.join(nx, "third_party", "meshoptimizer"), lambda r: r in ("vertexcodec.cpp", "indexcodec.cpp", "vertexfilter.cpp", "meshoptimizer.h", "LICENSE.md"))
+    copy_tree(os.path.join(NEXT, "third_party", "basis_universal"), os.path.join(nx, "third_party", "basis_universal"), lambda r: r.startswith("transcoder/") or r in ("LICENSE", "NOTICE", "PIN", "SHA256SUMS"))   # native KTX2 decoder of zinc:three-pi; reuse the browser decoder's pin
     copy_tree(os.path.join(NEXT, "third_party", "lucide"), os.path.join(nx, "third_party", "lucide"), lambda r: r in ("icon-nodes.json", "aliases.json", "LICENSE"))   # zinc:icons reads it (src/frontend/modules.cpp)
     copy_tree(os.path.join(NEXT, "third_party", "xmldom"), os.path.join(nx, "third_party", "xmldom"), lambda r: r.startswith("lib/") or r in ("LICENSE", "PIN"))   # DOMParser of the web environment (src/qjs/webenv.cpp: lib/std/../../third_party)
     # zinc:link compiles ../../src/net/dnssd.cpp and src/host/tls.cpp where it has no prebuilt library (a Pi): their headers
