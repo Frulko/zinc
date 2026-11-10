@@ -181,6 +181,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - `examples/ui/dashboard` is a local release desk with build metrics, interactive charts, a release calendar, runner registration and preferences, in light and dark at desktop and phone widths.
 
+- `examples/ui/finance` adds fictional accounts, month-filtered cash flow, candlestick and spending charts, and searchable transactions with keyboard selection and numeric sorting.
+
 #### Changed
 
 - The default layout sizes `flex-1`, `w-full` and `h-full` as a browser does: `flex-1` items share a row or a column equally whatever their content, but never get narrower than their content unless they have `min-w-0`, `overflow-hidden` or `truncate`; a `w-full` or `h-full` box along the row or column stays inside its parent instead of growing with its content; and the last width or height class wins (`w-full w-[280px]` is 280 px wide).
