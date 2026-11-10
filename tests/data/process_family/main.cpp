@@ -12,8 +12,23 @@ namespace zrt { bool idle_frame = false; void at_finish(void (*f)()); void finis
 namespace zn::netlog { void tick(double) {} }   // unrelated HAR logging is off
 
 static void require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
-static int helper(const std::string& mode) {
+static int helper(const std::string& mode, const char* exe) {
   alarm(8);
+  if (mode == "nested" || mode == "nested-exit") {
+    int h = zn::loop::spawnProcess({exe, "--helper", "wait"}, "", {});
+    if (h <= 0) return 2;
+    std::string out;
+    for (;;) {
+      zn::loop::wait(5);
+      zn::loop::Event event;
+      while (zn::loop::nextEvent(event)) if (event.kind == 0) out += event.data;
+      if (!out.empty()) break;
+    }
+    std::printf("%d %d\n", zn::loop::pidOf(h), std::atoi(out.c_str()));
+    std::fflush(stdout);
+    if (mode == "nested-exit") _exit(23);   // bypass local shutdown: the ancestor must discover the orphaned group
+    for (;;) zn::loop::wait(50);
+  }
   if (mode == "moved") {
     if (setpgid(0, getpgid(getppid())) != 0) return 2;
     std::printf("%d\n", static_cast<int>(getpid()));
@@ -43,6 +58,7 @@ static int helper(const std::string& mode) {
 }
 struct Family {
   int h, leader, child = 0, code = -1;
+  int nested = 0;
   std::string output;
 };
 static std::vector<Family> families;
@@ -51,7 +67,7 @@ static void events() {
   while (zn::loop::nextEvent(e)) for (auto& f : families) if (e.handle == f.h) {
     if (e.kind == 0) f.output += e.data;
     if (e.kind == 2) f.code = std::stoi(e.data);
-    if (!f.output.empty()) f.child = std::atoi(f.output.c_str());
+    if (!f.output.empty()) std::sscanf(f.output.c_str(), "%d %d", &f.child, &f.nested);
   }
 }
 template<class F> static void until(F condition, const char* message) {
@@ -80,9 +96,57 @@ static size_t start(const char* exe, bool exits = false) {
   return i;
 }
 int main(int argc, char** argv) {
-  if (argc > 1 && std::string(argv[1]) == "--helper") return helper(argv[2]);
+  if (argc > 1 && std::string(argv[1]) == "--helper") return helper(argv[2], argv[0]);
   signal(SIGPIPE, SIG_IGN);
   try {
+#ifdef __APPLE__
+    require(zn::plat::familySignal() != nullptr, "native identity signal API missing");
+    zn::plat::FamilyInfo self{};
+    require(zn::plat::familyInfo(getpid(), self), "native identity lookup failed");
+    zn::plat::FamilyMember identity(self);
+    require(identity.signal(SIGCONT) == 0, "current audit token refused");
+    ++identity.token.val[7];
+    require(zn::plat::familySignal()(&identity.token, SIGCONT) == ESRCH, "stale audit token accepted");
+    auto resumed = start(argv[0]);
+    zn::plat::FamilyInfo original{};
+    require(zn::plat::familyInfo(families[resumed].leader, original), "freeze identity missing");
+    try {
+      zn::plat::FrozenFamily frozen;
+      require(frozen.stop(original, std::chrono::steady_clock::now() + std::chrono::milliseconds(250)), "freeze failed");
+      throw 1;
+    } catch (int) {}
+    until([&] {
+      zn::plat::FamilyInfo current{};
+      return zn::plat::familyInfo(families[resumed].leader, current) && current.bsd.pbi_status != SSTOP;
+    }, "exception left owned child stopped");
+    zn::loop::signalProcess(families[resumed].h, SIGKILL);
+    ended(resumed, 137);
+    auto stopped = start(argv[0]);
+    zn::loop::signalProcess(families[stopped].h, SIGSTOP);
+    until([&] { return zn::plat::familyInfo(families[stopped].leader, original) && original.bsd.pbi_status == SSTOP; }, "external stop failed");
+    {
+      zn::plat::FrozenFamily frozen;
+      require(frozen.stop(original, std::chrono::steady_clock::now() + std::chrono::milliseconds(250)), "pre-stopped capture failed");
+    }
+    require(zn::plat::familyInfo(families[stopped].leader, original) && original.bsd.pbi_status == SSTOP, "capture resumed an external stop");
+    zn::loop::signalProcess(families[stopped].h, SIGKILL);
+    ended(stopped, 137);
+    for (int mode = 0; mode < 3; ++mode) {
+      int h = zn::loop::spawnProcess({argv[0], "--helper", mode == 2 ? "nested-exit" : "nested"}, "", {});
+      require(h > 0, "nested owner spawn failed");
+      families.push_back({h, zn::loop::pidOf(h)});
+      size_t index = families.size() - 1;
+      until([&] { return families[index].nested > 0; }, "nested family not ready");
+      auto nested = families[index];
+      if (mode != 2) require(getpgid(nested.child) == nested.child && getpgid(nested.child) != nested.leader, "nested group was not isolated");
+      if (mode == 1) zn::loop::shutdownProcesses();
+      else if (!mode) zn::loop::signalProcess(h, SIGTERM);
+      if (mode != 1) ended(index, mode == 2 ? 23 : 143);
+      until([&] { return gone(nested.child) && gone(nested.nested); }, "nested groups survived owner cleanup");
+      int status;
+      require(waitpid(nested.leader, &status, WNOHANG) == -1 && errno == ECHILD, "nested leader not reaped");
+    }
+#endif
     auto a = start(argv[0]), b = start(argv[0]);
     zn::loop::signalProcess(families[a].h, SIGTERM);
     ended(a, 143);   // grandchild ignores TERM; final cleanup must still stop it

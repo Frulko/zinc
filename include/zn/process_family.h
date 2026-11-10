@@ -10,8 +10,12 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <algorithm>
 #ifdef __APPLE__
 #include <dlfcn.h>
+#include <libproc.h>
+#include <sys/proc.h>
+#include <chrono>
 #endif
 
 namespace zn::plat {
@@ -149,38 +153,138 @@ inline int spawnFamily(char* const argv[], char* const env[], const char* cwd, p
   }
   return rc;
 }
-inline bool signalFamily(pid_t pid, int signal) {
+// These libproc identity records have a fixed ABI in Apple's proc_info_private.h.
+#ifdef __APPLE__
+struct FamilyIdentity {
+  unsigned char uuid[16];
+  uint64_t unique, parent;
+  int32_t version, parentVersion;
+  uint64_t reserved[2];
+};
+static_assert(sizeof(FamilyIdentity) == 56);
+struct FamilyInfo { proc_bsdinfo bsd; FamilyIdentity identity; };
+using FamilySignal = int (*)(audit_token_t*, int);
+inline FamilySignal familySignal() {
+  static const auto signal = reinterpret_cast<FamilySignal>(dlsym(RTLD_DEFAULT, "proc_signal_with_audittoken"));
+  return signal;
+}
+inline bool familyInfo(pid_t pid, FamilyInfo& info) {
+  return proc_pidinfo(pid, 18 /* PROC_PIDT_BSDINFOWITHUNIQID */, 1, &info, sizeof info) == sizeof info;
+}
+struct FamilyMember {
+  audit_token_t token{};
+  uint64_t unique;
+  bool resume;
+  explicit FamilyMember(const FamilyInfo& info) : unique(info.identity.unique), resume(info.bsd.pbi_status != SSTOP) {
+    token.val[5] = info.bsd.pbi_pid;
+    token.val[7] = static_cast<uint32_t>(info.identity.version);
+  }
+  int signal(int value) {
+    FamilyInfo current{};
+    if (!familyInfo(static_cast<pid_t>(token.val[5]), current) || current.identity.unique != unique) return ESRCH;
+    token.val[7] = static_cast<uint32_t>(current.identity.version);
+    return familySignal()(&token, value);
+  }
+};
+#endif
+struct FamilyTree {
+#ifdef __APPLE__
+  std::vector<FamilyMember> members;
+#endif
+};
+#ifdef __APPLE__
+// Stop before discovering children: ordinary forks cannot race the walk. Always undo our temporary stops.
+struct FrozenFamily {
+  std::vector<FamilyMember> members;
+  ~FrozenFamily() { for (auto& member : members) if (member.resume) member.signal(SIGCONT); }
+  bool stop(const FamilyInfo& info, std::chrono::steady_clock::time_point deadline) {
+    members.emplace_back(info);
+    auto& member = members.back();
+    if (member.signal(SIGSTOP)) { members.pop_back(); return false; }
+    for (;;) {
+      FamilyInfo current{};
+      if (!familyInfo(info.bsd.pbi_pid, current) || current.identity.unique != member.unique) return false;
+      if (current.bsd.pbi_status == SSTOP) return true;
+      if (std::chrono::steady_clock::now() >= deadline) return false;
+      usleep(1000);
+    }
+  }
+  // shortcut: a vanished intermediate identity breaks ancestry; track ownership at spawn to bridge it.
+  void capture(pid_t pid, FamilyTree& tree) {
+    if (!familySignal()) return;   // shortcut: group-only on older hosts; add a stable native identity backend there
+    constexpr size_t limit = 4096;
+    tree.members.erase(std::remove_if(tree.members.begin(), tree.members.end(), [](const FamilyMember& member) {
+      FamilyInfo current{};
+      return !familyInfo(static_cast<pid_t>(member.token.val[5]), current) || current.identity.unique != member.unique;
+    }), tree.members.end());
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
+    FamilyInfo root{};
+    if (!familyInfo(pid, root) || (root.bsd.pbi_status != SZOMB && !stop(root, deadline))) return;
+    std::vector<FamilyInfo> parents{root};
+    for (size_t index = 0; index < parents.size() && parents.size() < limit; ++index) {
+      const auto parent = parents[index];
+      int count = proc_listallpids(nullptr, 0);
+      if (count <= 0 || count > static_cast<int>(limit)) continue;
+      std::vector<pid_t> children(static_cast<size_t>(count) + 16);
+      count = proc_listallpids(children.data(), static_cast<int>(children.size() * sizeof(pid_t)));
+      for (int n = 0; n < count && parents.size() < limit && std::chrono::steady_clock::now() < deadline; ++n) {
+        FamilyInfo child{};
+        // p_puniqueid is the original parent identity, retained even after reparenting to init.
+        if (!familyInfo(children[n], child) || child.identity.parent != parent.identity.unique) continue;
+        if (child.bsd.pbi_status != SZOMB && !stop(child, deadline)) continue;
+        parents.push_back(child);
+        bool known = false;
+        for (const auto& old : tree.members) if (old.unique == child.identity.unique) { known = true; break; }
+        if (!known && tree.members.size() < limit) tree.members.emplace_back(child);
+      }
+      if (std::chrono::steady_clock::now() >= deadline) break;
+    }
+  }
+};
+#endif
+inline bool signalFamily(pid_t pid, int signal, FamilyTree* tree = nullptr) {
   if (pid <= 0) return false;
   siginfo_t info{};
   int rc;
   do { rc = waitid(P_PID, static_cast<id_t>(pid), &info, WEXITED | WNOHANG | WNOWAIT); } while (rc < 0 && errno == EINTR);
   if (rc != 0) return false;
+#ifdef __APPLE__
+  FamilyTree local;
+  if (!tree) tree = &local;
+  FrozenFamily frozen;
+  if (signal == SIGTERM || signal == SIGKILL || signal == SIGINT || signal == SIGHUP || signal == SIGQUIT) {
+    frozen.capture(pid, *tree);
+    for (auto& member : tree->members) member.signal(signal);
+  }
+#else
+  (void)tree;
+#endif
   int group = ::kill(-pid, signal);
   // A leader can leave its group; its reserved PID is still owned, its new group is not.
   if (getpgid(pid) != pid) return ::kill(pid, signal) == 0 || group == 0;
   return group == 0;
 }
-inline int reapFamily(pid_t pid) {
+inline int reapFamily(pid_t pid, FamilyTree* tree = nullptr) {
   // waitid verifies the child still reserves this PID, including when it already exited.
   siginfo_t info{};
   int rc;
   do { rc = waitid(P_PID, static_cast<id_t>(pid), &info, WEXITED | WNOHANG | WNOWAIT); } while (rc < 0 && errno == EINTR);
   if (rc < 0) return -1;
-  ::kill(-pid, SIGKILL);
-  ::kill(pid, SIGKILL);   // the owned leader may have left its original group
+  signalFamily(pid, SIGKILL, tree);
   int status = 0;
   pid_t got;
   do { got = waitpid(pid, &status, 0); } while (got < 0 && errno == EINTR);
+  if (tree) *tree = FamilyTree{};
   return got < 0 ? -1 : WIFEXITED(status) ? WEXITSTATUS(status) : WIFSIGNALED(status) ? 128 + WTERMSIG(status) : -1;
 }
-inline bool pollFamily(pid_t pid, int& code) {
+inline bool pollFamily(pid_t pid, int& code, FamilyTree* tree = nullptr) {
   siginfo_t info{};
   int rc;
   do { rc = waitid(P_PID, static_cast<id_t>(pid), &info, WEXITED | WNOHANG | WNOWAIT); } while (rc < 0 && errno == EINTR);
   if (!rc && !info.si_pid) return false;
   // A stolen/reaped PID is no longer ours: never signal it or its possible replacement group.
   if (rc < 0) { if (errno != ECHILD) return false; code = -1; return true; }
-  code = reapFamily(pid);
+  code = reapFamily(pid, tree);
   return true;
 }
 }  // namespace zn::plat

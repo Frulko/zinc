@@ -207,6 +207,7 @@ struct Proc {
   uv_process_t proc;
 #ifndef _WIN32
   uv_signal_t watch;
+  zn::plat::FamilyTree family;
 #endif
   uv_pipe_t in, out, err;
   int handle = 0, pid = 0;
@@ -257,7 +258,7 @@ void onProcExit(uv_process_t* h, int64_t status, int signal) {
 #else
 void onProcPoll(uv_signal_t* h, int) {
   auto* p = static_cast<Proc*>(h->data);
-  if (p->state != Proc::State::Running || !zn::plat::pollFamily(p->pid, p->code)) return;
+  if (p->state != Proc::State::Running || !zn::plat::pollFamily(p->pid, p->code, &p->family)) return;
   p->transition(Proc::State::Exited);
   uv_close(reinterpret_cast<uv_handle_t*>(h), onClose);
   closeStdin(p->handle);
@@ -377,7 +378,7 @@ int spawnProcess(const std::vector<std::string>& argvIn, const std::string& cwd,
       int opened = uv_pipe_open(pipes[k], fds[k]);
       if (opened) { close(fds[k]); if (!rc) rc = opened; }
     }
-    if (rc) zn::plat::reapFamily(pid);
+    if (rc) zn::plat::reapFamily(pid, &p->family);
   }
 #endif
   if (rc != 0) {
@@ -394,7 +395,7 @@ int spawnProcess(const std::vector<std::string>& argvIn, const std::string& cwd,
   rc = uv_signal_start(&p->watch, onProcPoll, SIGCHLD);
   if (rc) {
     gError = argvIn[0] + ": " + uv_strerror(rc);
-    zn::plat::reapFamily(p->pid);
+    zn::plat::reapFamily(p->pid, &p->family);
     uv_close(reinterpret_cast<uv_handle_t*>(&p->watch), onClose);
     for (uv_pipe_t* s : {&p->in, &p->out, &p->err}) uv_close(reinterpret_cast<uv_handle_t*>(s), onClose);
     uv_run(loop(), UV_RUN_NOWAIT);
@@ -438,14 +439,14 @@ void signalProcess(int h, int signal) {
 #ifdef _WIN32
   uv_process_kill(&p->proc, signal);
 #else
-  zn::plat::signalFamily(p->pid, signal);
+  zn::plat::signalFamily(p->pid, signal, &p->family);
 #endif
 }
 void shutdownProcesses() {
 #ifndef _WIN32
   for (auto& p : processes().items) {
     if (p->state == Proc::State::Running) {
-      p->code = zn::plat::reapFamily(p->pid);
+      p->code = zn::plat::reapFamily(p->pid, &p->family);
       p->transition(Proc::State::Exited);
       uv_close(reinterpret_cast<uv_handle_t*>(&p->watch), onClose);
     }

@@ -47,6 +47,18 @@ and buffered output retain their ordering: the exit event follows the child's la
 `p.kill()` signals that owned group, including descendants which inherited it. If the leader exits first, the
 remaining group is killed before the exit is reported, so a descendant holding the output pipes cannot leave
 `p.running` stuck. Direct children are reaped; orphaned grandchildren are reaped by the operating system.
+On macOS hosts with `proc_signal_with_audittoken`, termination also snapshots the still-owned leader's
+nested descendants, including a Zinc child which created further process groups. Each parent is temporarily
+stopped before discovering its children, and an RAII guard resumes only processes this walk stopped.
+The combined native BSD/identity record verifies each original parent relationship, even after a direct
+child is reparented when its leader exits; a bounded all-process metadata walk discovers those orphans.
+Signals use the kernel's
+PID-version check, including at final cleanup after the original leader exits. The walk is bounded to 4096
+members and 250 ms, with retained identities bounded to 4096 and cleared at reap. This is a bounded cleanup
+attempt, not containment of a fork bomb or an ancestry chain whose intermediate processes already vanished.
+Other POSIX hosts retain
+the process-group behavior; nested-group support there is still open.
+
 Old or invalid process handles cannot signal a later child. `zinc:sys`'s separate PID-based signal API retains
 its direct PID semantics.
 
@@ -72,8 +84,9 @@ cleanup when they do not call the graphics finish hook.
 - The program ignores `SIGPIPE` once the plugin is used (writing to a child that closed its stdin returns `false`
   instead of killing the program); children start with the default `SIGPIPE` behaviour.
 
-- **Containment limits.** This is process ownership, not a sandbox. POSIX descendants which explicitly leave the
-  group (`setsid`/`setpgid`) are outside its cleanup. The legacy Node simulator and Windows provider still signal
+- **Containment limits.** This is process ownership, not a sandbox. Descendants whose intermediate ancestor identities have already vanished,
+  hosts without the identity signal API, or a tree exceeding the cleanup bounds can escape nested cleanup.
+  On hosts using only process groups, descendants which leave the group (`setsid`/`setpgid`) escape it. The legacy Node simulator and Windows provider still signal
   the direct child only; Windows needs assignment to a Job Object before execution for equivalent family cleanup.
 
 ## Security

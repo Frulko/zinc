@@ -29,6 +29,7 @@ struct Proc {
   State state = State::Free;
   int handle = -1;
   pid_t pid;
+  zn::plat::FamilyTree family;
   int in;
   Stream out[2];
   int code;
@@ -127,7 +128,7 @@ struct HostProcess : NativeProcess, zrt::Poller {
     return true;
   }
   void closeStdin(int32_t h) override { Proc* p = at(h); if (p && p->in >= 0) { close(p->in); p->in = -1; } }
-  void kill(int32_t h, int32_t sig) override { Proc* p = at(h); if (p && p->state == Proc::State::Running) zn::plat::signalFamily(p->pid, sig); }
+  void kill(int32_t h, int32_t sig) override { Proc* p = at(h); if (p && p->state == Proc::State::Running) zn::plat::signalFamily(p->pid, sig, &p->family); }
   void onEvent(zrt::Fn<void(int32_t, int32_t, zrt::String)> f) override { cb = f; }
 
   void emit(int32_t h, int32_t kind, const char* s, int n) {
@@ -162,7 +163,7 @@ struct HostProcess : NativeProcess, zrt::Poller {
       if (p.state == Proc::State::Free) continue;
       alive = true;
       drain(h, 0); drain(h, 1);
-      if (p.state == Proc::State::Running && zn::plat::pollFamily(p.pid, p.code)) p.transition(Proc::State::Exited);
+      if (p.state == Proc::State::Running && zn::plat::pollFamily(p.pid, p.code, &p.family)) p.transition(Proc::State::Exited);
       if (p.state != Proc::State::Exited) continue;
       drain(h, 0); drain(h, 1);
       for (Stream& s : p.out) if (s.fd >= 0) { close(s.fd); s.fd = -1; }
@@ -177,7 +178,7 @@ struct HostProcess : NativeProcess, zrt::Poller {
     cb = nullptr;
     for (Proc& p : procs) {
       if (p.state == Proc::State::Free) continue;
-      if (p.state == Proc::State::Running) { p.code = zn::plat::reapFamily(p.pid); p.transition(Proc::State::Exited); }
+      if (p.state == Proc::State::Running) { p.code = zn::plat::reapFamily(p.pid, &p.family); p.transition(Proc::State::Exited); }
       for (Stream& s : p.out) if (s.fd >= 0) close(s.fd);
       if (p.in >= 0) close(p.in);
       p.transition(Proc::State::Free);
