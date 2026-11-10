@@ -2,8 +2,7 @@
 id: ZN-1120
 title: Lower never-returning functions consistently across engines
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 09:51'
 updated_date: '2026-11-10 09:56'
 labels:
