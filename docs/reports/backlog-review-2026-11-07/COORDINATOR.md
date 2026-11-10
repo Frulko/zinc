@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated541.02/541.01 75ececd94/5009c9bd6, D294,83Done. Root exactthree_pi/checks and actualMac r186WebGL2/r162WebGL1 split+texturedmerge PASS; no engine build, compiler54114 frozen. All10 externalpayloads preserved. ParentPi/FPS/KTX2/browser proofs remain open. Next nativeKTX2 .03 reuses existingBasis vendor; research complete. Archive541-final (46completed sourcecheckpoints). Cumulative usage snapshot1655710in/178738579cached/569170out,823turns; not this batch cost.
+
 - Reserve independent Three SDK chain541.02→541.01 in one fresh JS-only worker. Existing TIER supplies default T3/T4 no-op; real-three helpers need split/warmup then material/static merge. Research notes missing538VC4/540r162 selector; verify leaf data/API behavior with pinned test versions and actualMac renderer, never claim parentPi shaders/FPS or add default selection workaround. Parent hardware criteria stay open. No shared core edits while161.02 runs.
 
 -489b7c0d7b4c linkedCLI/compiler54114b62 exactcook PASS, Done81. True storedXYZ meanerror fixes oldzero report, same93B tinyPSP pack; all4profile/budget/integer/LOD contracts proven. Archive489 (45completedsourcecheckpoints).161.02 remains solecore writer, broad semantic/Node/QJS/native/size verification underway; common frozen at asset-only54114 baseline.

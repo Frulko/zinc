@@ -748,6 +748,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1066: a standalone fused alternative-engine app needs a trusted engine descriptor anchored to the signed toolchain index; current fuse requires an installed engine.
 - ZN-1066: prove signed-update exports on alternative engines before claiming portable self-updating V8/Hermes bundles.
 
+- ZN-541: verify browser export and T3 no-op identity with the same-release three/addons import map; native QuickJS helper proofs do not establish browser packaging.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -975,3 +977,5 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-603: prove native embedded packing on real Linux/Mojave; local Mac correctness and sizes do not establish off-Mac footprint or speed.
 - ZN-512: run cross_linux with GNU READELF at the owner-chosen milestone; local Cortex-A8 CPU/ABI metadata is proven, graphics linking and real ARM execution remain unproven.
+
+- ZN-541: after538/540, repeat split/material-merge fixtures on actualPi and prove the parent diorama/FPS; Mac T2-profile render is not VC4 hardware proof.

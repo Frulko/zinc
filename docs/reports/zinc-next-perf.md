@@ -1813,3 +1813,8 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 
 -489b7c0d7b4c: tinyPSP geometry remains byte-identical93B SHA86517c21f2f34d64a04278d8137c438d61e1f25dc499b627501c7f1e7acc6ae0; receipt219→228B. Reported meanEuclidean storedXYZ error0→6.9066e-06 model units, independently reconstructed6.9065981446157634e-06. This corrects metadata, not geometry compression or speed.
 -Root linkedCLI/compiler54114b62024f586d835630c7964bfa7e037f93c989b8d9464961b04beea46a9b exactcook passes all4profiles/twocook bytes, budgets/LOD/PSP integer vertices and independentXYZ error. No hardware, latency or RSS claim. Proof .logs/integration-2026-11-10/cook/summary.json and archived489-final/logs/cook-proof/summary.json.81Done.
+
+
+### 2026-11-10 — ZN-541.01/.02 real-three helper feature proof
+
+Integrated75ececd94/5009c9bd6; no engine build or performance benchmark. Exact fixture120000 indices compact to3 referenced vertices; split outputs cap65535 vertices/index65534. Actual r186WebGL2/r162WebGL1 Mac renders show2 eligible static planes merged to1 mesh with both expected red positions preserved. Root exactT0/checks and four directrender variants pass using compiler54114b62024f586d835630c7964bfa7e037f93c989b8d9464961b04beea46a9b. Counts/data semantics only, no FPS/RSS/physicalPi/browser claim. Durable .logs/integration-2026-11-10/three541/summary.json.

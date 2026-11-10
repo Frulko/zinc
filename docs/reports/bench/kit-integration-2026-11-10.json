@@ -1012,5 +1012,23 @@
       "native_helper_warning_free": true,
       "independent_mean_xyz_error": 6.9065981446157634e-06
     }
+  },
+  "three_helper_integration": {
+    "checkout": "5009c9bd63484ed83fb88b216dd8fcb8586a8053",
+    "compiled_source": "b7c0d7b4c",
+    "compiler_sha256": "54114b62024f586d835630c7964bfa7e037f93c989b8d9464961b04beea46a9b",
+    "checks": {
+      "exact_three_pi": 0,
+      "check_split": 0,
+      "check_material-merge": 0,
+      "r186_render": 0,
+      "r186_material-render": 0,
+      "r162_render": 0,
+      "r162_material-render": 0
+    },
+    "protected_payloads": 10,
+    "done_count": 83,
+    "physical_Pi_FPS_browser_claim": false,
+    "common_rebuilt": false
   }
 }
