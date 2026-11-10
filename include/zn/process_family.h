@@ -11,8 +11,9 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#ifdef __APPLE__
 #include <dlfcn.h>
+#ifdef __APPLE__
+#include <TargetConditionals.h>
 #include <libproc.h>
 #include <sys/proc.h>
 #include <chrono>
@@ -45,8 +46,8 @@ inline std::vector<std::string> familyPaths(const char* cmd, char* const env[]) 
   }
   return paths;
 }
-#if defined(__APPLE__) && !defined(ZN_APP_LIBRARY)
-// Mojave lacks spawn's chdir action. Prepare PATH and descriptors before fork, as libuv's fallback does.
+#if !defined(ZN_APP_LIBRARY) && ((defined(__APPLE__) && !TARGET_OS_IPHONE) || (defined(__linux__) && !defined(__ANDROID__)))
+// Older desktop hosts lack spawn's chdir action. Prepare everything before the async-safe child.
 inline int forkFamily(char* const argv[], char* const env[], const char* cwd, int pipes[3][2], pid_t& pid) {
   const auto paths = familyPaths(argv[0], env);
   std::vector<const char*> candidates;
@@ -99,24 +100,24 @@ inline int spawnFamily(char* const argv[], char* const env[], const char* cwd, p
   int pipes[3][2] = {{-1, -1}, {-1, -1}, {-1, -1}};
   int rc = 0;
   for (auto& p : pipes) if ((rc = familyPipe(p)) != 0) break;
-#ifdef __APPLE__
   using AddChdir = int (*)(posix_spawn_file_actions_t*, const char*);
-  static const auto addChdir = reinterpret_cast<AddChdir>(dlsym(RTLD_DEFAULT, "posix_spawn_file_actions_addchdir_np"));
-#ifndef ZN_APP_LIBRARY
-  if (!rc && *cwd && !addChdir) rc = forkFamily(argv, env, cwd, pipes, pid);
-  else
+  AddChdir addChdir = nullptr;
+  if (!rc && *cwd) {
+    addChdir = reinterpret_cast<AddChdir>(dlsym(RTLD_DEFAULT, "posix_spawn_file_actions_addchdir"));
+    if (!addChdir) addChdir = reinterpret_cast<AddChdir>(dlsym(RTLD_DEFAULT, "posix_spawn_file_actions_addchdir_np"));
+  }
+  if (!rc && *cwd && !addChdir) {
+#if !defined(ZN_APP_LIBRARY) && ((defined(__APPLE__) && !TARGET_OS_IPHONE) || (defined(__linux__) && !defined(__ANDROID__)))
+    rc = forkFamily(argv, env, cwd, pipes, pid);
+#else
+    rc = ENOSYS;
 #endif
-#endif
-  if (!rc) {
+  } else if (!rc) {
     posix_spawn_file_actions_t files;
     rc = posix_spawn_file_actions_init(&files);
     if (!rc) {
       for (int k = 0; k < 3 && !rc; ++k) rc = posix_spawn_file_actions_adddup2(&files, pipes[k][k == 0 ? 0 : 1], k);
-#ifdef __APPLE__
       if (!rc && *cwd) rc = addChdir(&files, cwd);
-#else
-      if (!rc && *cwd) rc = posix_spawn_file_actions_addchdir_np(&files, cwd);
-#endif
 #if defined(__GLIBC__) && (__GLIBC__ > 2 || __GLIBC_MINOR__ >= 34)
       if (!rc) rc = posix_spawn_file_actions_addclosefrom_np(&files, 3);
 #endif

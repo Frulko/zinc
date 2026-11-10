@@ -167,8 +167,8 @@ int main(int argc, char** argv) {
     size_t lookupIndex = families.size() - 1;
     until([&] { return families[lookupIndex].code >= 0; }, "PATH child exit missing");
     require(families[lookupIndex].code == 7 && families[lookupIndex].output == "override", "PATH or environment override changed");
-#ifdef __APPLE__
-    // Exercise the Mojave path directly even though this SDK has spawn's chdir action.
+#if !defined(ZN_APP_LIBRARY) && (defined(__APPLE__) || (defined(__linux__) && !defined(__ANDROID__)))
+    // Exercise the old-host path directly even though this SDK has spawn's chdir action.
     for (int which = 0; which < 3; ++which) {
       int pipes[3][2] = {{-1, -1}, {-1, -1}, {-1, -1}};
       for (auto& pipe : pipes) require(zn::plat::familyPipe(pipe) == 0, "fallback pipe failed");

@@ -140,6 +140,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - On macOS and Linux, stopping a `zinc:process` child or closing its owner also stops descendants in its process group, even if the child has already exited.
 - On supported macOS hosts, stopping a nested Zinc command also stops its discovered child groups; stale process identities are refused during cleanup.
 - Quitting a program with active WebRTC audio or video stops its media workers before native cleanup, preventing a crash on exit.
+- Linux exports that start child processes link on glibc 2.28, including children started in a different working directory.
 
 ### Network
 

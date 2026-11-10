@@ -11,6 +11,28 @@ false without Node and the repository's `node_modules`).
 
 `tests/t2/*.sh` read `ZINC_TEST_HOME` for the directory of the downloaded tools (default `build/tc-home`), so a container or a CI runner does not share the cache of another OS.
 
+## Optional process cwd action (ZN-1121)
+
+`include/zn/process_family.h` resolves `posix_spawn_file_actions_addchdir` and then
+`posix_spawn_file_actions_addchdir_np` at each cwd spawn. No strong reference raises
+the Linux glibc 2.28 floor: the `_np` action [arrived in glibc 2.29](https://sourceware.org/pipermail/glibc-bugs/2018-December/044012.html).
+The lookup order follows [libuv's process implementation](https://github.com/libuv/libuv/blob/v1.x/src/unix/process.c).
+There is no mutable lookup cache or initialization race under `-fno-threadsafe-statics`.
+
+When both actions are missing, desktop macOS and Linux reuse the prepared fork
+fallback: PATH candidates, descriptors and signal configuration are prepared in
+the parent; the child only sets its group/cwd/signals/stdio, closes descriptors
+and calls `execve`, reporting an error through a close-on-exec pipe. Android,
+iOS and `ZN_APP_LIBRARY` builds return `ENOSYS` instead of forking or calling a
+null action. Spawning without a cwd does not need the optional action. Linux
+consumers link `-ldl`, already present in the exported-app link and CMake's libuv
+dependency; the standalone `process_family` T0 links it explicitly as well.
+
+That exact T0 exercises native and forced-absent lookup, cwd, PATH/environment,
+all three stdio pipes, exit status, process-group ownership, failure reaping and
+parent descriptor cleanup. Its tiny header-only helper is also suitable for
+glibc-2.28 AArch64/ARMv7 link checks; target execution still needs a real machine.
+
 ## What is checked on Linux
 
 A container (`ubuntu:24.04`, aarch64) with `build-essential cmake python3 curl xz-utils git libpixman-1-0 libsdl2-2.0-0 libslirp0` (the last three are what Espressif's QEMU links against; `zinc` now names them when they are missing) builds the engine (the window HAL is left out when SDL3 is not installed: the headless host is what runs) and runs the tiers.
