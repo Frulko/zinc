@@ -2,8 +2,7 @@
 id: ZN-1112
 title: Reveal selected tabs inside narrow scroll tracks
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 02:26'
 updated_date: '2026-11-10 03:10'
 labels:

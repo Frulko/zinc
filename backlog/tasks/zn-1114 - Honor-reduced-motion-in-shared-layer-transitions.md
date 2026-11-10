@@ -2,8 +2,7 @@
 id: ZN-1114
 title: Honor reduced motion in shared layer transitions
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 02:48'
 updated_date: '2026-11-10 03:10'
 labels:

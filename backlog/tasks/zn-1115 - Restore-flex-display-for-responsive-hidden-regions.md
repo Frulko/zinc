@@ -2,8 +2,7 @@
 id: ZN-1115
 title: Restore flex display for responsive hidden regions
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 02:53'
 updated_date: '2026-11-10 03:10'
 labels:
