@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve513 independent nonbuilding CHIP/PocketCHIP capabilities+table+docs on frozencommon54114. Primaryresearch complete: existingprofile+genericplatform booleans suffice; glibc2.28 CortexA8NEON, no staticmusl/Jessie/physicalGPU claim. LiteralAC1 crosshello+Hero staysopen unlessproven, no waiver from rewrittennotes. No sourcebuild/corefiles.
+
 - Integrated541.03 80c0c0ad2, D295,84Done. Root native/exactT0/checks/realr162+r186glTF+gamma+alpha/selectedpackage28checksums/freshofflineT3T4 PASS, no enginebuild/common54114 frozen. Archive541-KTX2 (47completedsourcecheckpoints). ParentPi/ETC1GPU/FPS/browser/fullpackage remainopen. 513 research ready; profile/data/docs-only next, literalcrossHero criterion staysopen untilproven.
 
 - Reserve541.03 for fresh native-plugin worker after541.01/.02 integration. Reuse existingBasis2.50; local synchronous boundedtranscoder, ETC1compressed when supported/RGBA32 fallback preservesalpha, no WASM/workers or sharedcore edit. Package existing vendor for installedsourcebuild. Existing real-three ABI/importmap; native proof onMac, parentPi/FPS remainopen. Secondbuildingtree only through work-run; common54114 frozen.

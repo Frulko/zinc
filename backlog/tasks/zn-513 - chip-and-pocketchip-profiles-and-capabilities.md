@@ -2,7 +2,8 @@
 id: ZN-513
 title: 'chip and pocketchip: capabilities rows and docs'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:40'
 updated_date: '2026-11-07 18:30'
 labels:
