@@ -41,14 +41,17 @@ export function tabKey(root: i32, p: TabsProps, e: ui.KeyEvent): void {
 export function revealTab(root: i32, selected: i32): void {
   const nodes: i32[] = []; tabNodes(root, nodes);
   if (selected < 0 || selected >= nodes.length) return;
-  const box = ui.screenBox(nodes[selected]), track = ui.screenBox(root), offset = ui.scrollLeft(root), x = box[0] - track[0] + offset;
-  if (x < offset) ui.scrollTo(root, x, 0, !ui.prefersReducedMotion());
-  else if (x + box[2] > offset + track[2]) ui.scrollTo(root, x + box[2] - track[2], 0, !ui.prefersReducedMotion());
+  const container = ui.inspectNode(root)!;
+  const box = ui.screenBox(nodes[selected]), track = ui.screenBox(root);
+  const left = box[0] - track[0] - container.pl;
+  const right = box[0] + box[2] - track[0] - track[2] + container.pr;
+  const delta = left < 0 ? left : Math.max(0, right);
+  if (delta !== 0) ui.scrollTo(root, container.sx + delta, 0, !ui.prefersReducedMotion());
 }
 export function Tabs(p: TabsProps): i32 {
   const root = createNodeRef(), L = look();
   const node = <ScrollView ref={root} role="tablist" aria-label={p.label ?? 'Tabs'} onKeyDown={(e: ui.KeyEvent) => tabKey(root.node, p, e)}
-    className={`flex-row shrink-0 ${p.variant === 'underline' ? 'border-b border-' + theme().border : L.segTrack + ' ' + (L.name === 'neutral' || L.name === 'quiet' ? 'bg-' + theme().muted : '')} ${p.className ?? ''}`}>
+    className={`flex-row shrink-0 overflow-x-auto ${p.variant === 'underline' ? 'border-b border-' + theme().border : L.segTrack + ' ' + (L.name === 'neutral' || L.name === 'quiet' ? 'bg-' + theme().muted : '')} ${p.className ?? ''}`}>
     {p.items.map((label: string, i: i32) => <Button role="tab" aria-label={label} aria-selected={String(p.selected() === i)} tabIndex={tabStop(p) === i ? 0 : -1} disabled={p.disabled !== undefined && p.disabled.indexOf(i) >= 0}
       onClick={() => { if (p.selected() !== i) selectionFeedback(); p.onSelect(i); }} className={`grow flex-row items-center justify-center ${L.segItem} shrink-0 ${p.variant === 'underline' ? 'border-b-2 border-' + (p.selected() === i ? theme().accent : 'transparent') : L.name === 'quiet' || L.name === 'neutral' ? 'rounded-[10px] ' + (p.selected() === i ? 'bg-' + theme().card : '') : p.selected() === i ? L.segOn : 'bg-transparent'} ${p.disabled !== undefined && p.disabled.indexOf(i) >= 0 ? 'opacity-45' : ''}`}>
       <Text className={`${L.segLabel} whitespace-nowrap text-${p.selected() === i ? theme().foreground : theme().mutedForeground}`}>{label}</Text>
