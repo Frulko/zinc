@@ -6,6 +6,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
+|1121 glibc2.28 cwdspawn|.worktrees/1121 / work/1121|Blocking334export; platformhelper only, reuseexistingfallback/libuv optional symbols. 2ndbuildslot while334read-only.|
 |161.03 Intl number/date subset|.worktrees/161.03 / work/161.03|Solecorewriter; enUS+hostlocale/example needs, reuseOSformatters; all3/default/validation/unused-size proof, no ICUvendor/formatterregistry.|
 |334 Linux sysroot autofetch|.worktrees/334 / work/334|IndependentTC/script/doctor/package worker, reusepins, atomicstate; neededvideoFFmpeg pins for513realHeroblocker. Maxsecondbuildingtree.|
 
