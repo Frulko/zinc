@@ -275,12 +275,16 @@ static bool fs_source(unsigned mask, bool paint, char* out, size_t cap) {
 }
 
 // The occlusion pass draws only opaque square rectangles: a program of its own, 24 bytes a rectangle (bounds, colour, depth), one instance
-// each where the API has instancing (desktop GL), else four 16-byte vertices (GLES 2), instead of four 60-byte vertices (ZN-412.01)
+// each where the API has instancing, else four 16-byte vertices, instead of four 60-byte vertices (ZN-412.01)
 static const char* SVS =
   "uniform vec2 u_res; uniform float u_flip; varying vec4 v_col;\n"
   "#ifdef INSTANCED\n"
   "attribute vec4 a_rect; attribute vec4 a_col; attribute float a_z;\n"
-  "void main() { vec2 k = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)); vec2 p = mix(a_rect.xy, a_rect.zw, k);\n"
+  "#ifdef INSTANCE_CORNERS\nattribute vec2 a_pos;\n"
+  "void main() { vec2 k = a_pos;\n"
+  "#else\n"
+  "void main() { vec2 k = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));\n"
+  "#endif\nvec2 p = mix(a_rect.xy, a_rect.zw, k);\n"
   "#else\n"
   "attribute vec2 a_pos; attribute vec4 a_col; attribute float a_z;\n"
   "void main() { vec2 p = a_pos;\n"

@@ -34,6 +34,7 @@ static const int MAXQ = 8192, ATLAS = 1024, CORNER = 32, LEVELS = 16;
 
 #include "gl_replay_shaders.h"   // Mode, VS, FS (the commands), SVS, SFS (the occlusion pass), FVS, FFS (the stencil pass)
 struct SV { float x0, y0, x1, y1; uint8_t c[4]; float z; };   // a rectangle (instanced) or, on GLES 2, x, y, c, z of one corner in its first 16 bytes
+static_assert(sizeof(SV) == 24 && offsetof(SV, c) == 16 && offsetof(SV, z) == 20);
 
 struct Tex2 { GLuint id; int32_t key; uint32_t ver; int32_t w, h; const void* px; int nearest, cmp; uint64_t bytes; uint32_t identity; };   // cmp: level 0 is GPU blocks (1), premultiplied ones (2)
 static Tex2* texs;                  // by runtime image index (id - DYN_BASE), grown on demand (ZN-670: thousands of runtime images)
@@ -115,6 +116,10 @@ static GLint f_res, f_flip;
 static bool stencil_ok;       // this frame: the framebuffer has 8 stencil bits
 static GLint s_res, s_flip, s_rect, s_col, s_z, s_pos;
 static bool instanced;
+#if !GLR_CORE
+static glcaps::Instancing instance_procs{};
+static GLuint instance_corners;
+#endif
 static SV* sverts; static size_t sverts_cap; static int ns;
 static bool occl;            // this frame: opaque square RECTs and CLEARs outside clips drawn first, front to back, the rest depth-tested
 static uint8_t* drawn; static size_t drawn_cap;   // per command of the first list: already drawn by the occlusion pass
@@ -149,7 +154,7 @@ static uint32_t clip_gen = 1;   // changes when the set of open rounded clips do
 static bool rclip_on;
 static bool mask_clip_on;
 static uint32_t warned, unsupported;
-static struct { uint32_t img_ups, img_part; uint64_t img_bytes; double img_us; uint32_t frames, idle, occl_frames, draws, quads, glyphs, ptiles, blocks, decoded, progs, atlas_ups; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes; } st;
+static struct { uint32_t img_ups, img_part; uint64_t img_bytes; double img_us; uint32_t frames, idle, occl_frames, draws, quads, glyphs, ptiles, blocks, decoded, progs, atlas_ups; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes, solid_upload_bytes; } st;
 // GPU time of the replays (ZINC_GL_STATS, ZN-679; ZINC_PROFILE=json publishes it). The sources, in the order they are tried, and the name each publishes as gl_timer_source:
 //   GL_TIME_ELAPSED          desktop core GL (macOS): a timer query per frame, read four frames later so the CPU never waits for the GPU
 //   EXT_disjoint_timer_query GLES 2 and 3 where the driver has the extension (found at run time through eglGetProcAddress): the same, plus the disjoint check
@@ -275,15 +280,13 @@ extern "C" { extern void (*zrt_gl_info_hook)(); }   // runtime/gfx.cpp: ZINC_PRO
 static void gl_info_hook();
 static GLint occl_bits;   // the depth bits of the target the last frame was drawn to (published: the occlusion pass needs 16)
 extern "C" { extern void (*zrt_gl_info_reset_hook)(); }   // runtime/gfx.cpp: a profile section ended (zinc:gfx profSection): the counters start again
-static void gl_info_reset() { st.frames = st.idle = st.occl_frames = st.draws = st.quads = 0; st.us = 0; gpu_us = 0; gpu_n = 0; gpu_lost = 0; }
+static void gl_info_reset() { st.frames = st.idle = st.occl_frames = st.draws = st.quads = 0; st.solid_upload_bytes = 0; st.us = 0; gpu_us = 0; gpu_n = 0; gpu_lost = 0; }
 static glcaps::Caps caps;
 static const char* egl_extensions;
 /** Why init() refused to run the replay (a quirk), empty when it did not: the host prints it in its one line about drawing on the CPU. */
 static char refused[160];
 static void probe() {
-  static bool probed;
-  if (probed) return;
-  probed = true;
+  refused[0] = 0;
   glcaps::Info in{};
   in.vendor = (const char*)glGetString(GL_VENDOR); in.renderer = (const char*)glGetString(GL_RENDERER); in.version = (const char*)glGetString(GL_VERSION);
   in.egl_extensions = egl_extensions;
@@ -303,6 +306,9 @@ static void probe() {
   glGetIntegerv(GL_DEPTH_BITS, &in.depth_bits); glGetIntegerv(GL_STENCIL_BITS, &in.stencil_bits);
 #endif
   glcaps::fill(caps, in);
+#if !GLR_CORE
+  instance_procs = glcaps::load_instancing(caps, in.extensions, gl_proc);
+#endif
   const uint32_t table = caps.quirks;
   char bad[32];
   if (!glcaps::override_quirks(caps, getenv("ZINC_GL_QUIRK"), bad, sizeof bad)) fprintf(stderr, "zinc: ZINC_GL_QUIRK: no quirk named '%s'\n", bad);
@@ -471,11 +477,9 @@ static bool init(int32_t w, int32_t h) {
   tracing = getenv("ZINC_GL_TRACE") != nullptr;
   if (const char* e = getenv("ZINC_GL_STRIPS")) strips = atoi(e) != 0;
   if (!use_prog(key_of(SOLID)).id) return false;
-#if GLR_CORE
-  instanced = true;   // GL 3.3+ core: instanced draws and attribute divisors
-#endif
+  instanced = caps.instancing;
   const double t0 = now_us();
-  sprog = zgl_program(instanced ? "#define INSTANCED 1\n" : "", SVS, SFS);
+  sprog = zgl_program(instanced ? GLR_CORE ? "#define INSTANCED 1\n" : "#define INSTANCED 1\n#define INSTANCE_CORNERS 1\n" : "", SVS, SFS);
   if (!sprog) return false;
   fprog = zgl_program("", FVS, FFS);
   if (!fprog) return false;
@@ -486,6 +490,14 @@ static bool init(int32_t w, int32_t h) {
   s_res = glGetUniformLocation(sprog, "u_res"); s_flip = glGetUniformLocation(sprog, "u_flip");
   s_rect = glGetAttribLocation(sprog, "a_rect"); s_col = glGetAttribLocation(sprog, "a_col"); s_z = glGetAttribLocation(sprog, "a_z"); s_pos = glGetAttribLocation(sprog, "a_pos");
   glGenBuffers(1, &svbo);
+#if !GLR_CORE
+  if (instanced) {   // GLSL ES 1.00 has no gl_VertexID; attribute zero advances for each corner (also required by ANGLE).
+    const float corners[] = {0, 0, 1, 0, 0, 1, 1, 1};
+    glGenBuffers(1, &instance_corners);
+    glBindBuffer(GL_ARRAY_BUFFER, instance_corners);
+    glBufferData(GL_ARRAY_BUFFER, sizeof corners, corners, GL_STATIC_DRAW);
+  }
+#endif
   TW = W > RW ? W : RW; TH = H > RH ? H : RH;
   fbo_tex = make_tex(TW, TH, GL_RGBA, GL_RGBA, nullptr, false);
   glGenFramebuffers(1, &fbo);
@@ -1848,6 +1860,7 @@ static bool clipped_depth() {
 // The occlusion pass: the opaque square RECTs and CLEARs outside any clip, from the last to the first with depth writes, so a pixel under
 // them is shaded once and every later draw behind them fails the depth test early (the GPU side of the raster's tiles, ZN-410).
 struct SV4 { float x, y; uint8_t c[4]; float z; };   // a corner (GLES 2: no instancing)
+static_assert(sizeof(SV4) == 16 && offsetof(SV4, c) == 8 && offsetof(SV4, z) == 12);
 static SV4* sq; static size_t sq_cap;
 static void sflush() {
   if (!ns) return;
@@ -1857,18 +1870,30 @@ static void sflush() {
   glBindBuffer(GL_ARRAY_BUFFER, svbo);
   apply_clip();
   if (instanced) {
-#if GLR_CORE
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)ns * sizeof(SV), sverts, GL_STREAM_DRAW);
+    st.solid_upload_bytes += (size_t)ns * sizeof(SV);
     const GLint at[3] = {s_rect, s_col, s_z};
     glEnableVertexAttribArray(s_rect); glVertexAttribPointer(s_rect, 4, GL_FLOAT, GL_FALSE, sizeof(SV), (void*)0);
     glEnableVertexAttribArray(s_col); glVertexAttribPointer(s_col, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(SV), (void*)16);
     glEnableVertexAttribArray(s_z); glVertexAttribPointer(s_z, 1, GL_FLOAT, GL_FALSE, sizeof(SV), (void*)20);
+#if GLR_CORE
     for (GLint a : at) glVertexAttribDivisor((GLuint)a, 1);
     glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, ns);
     for (GLint a : at) { glVertexAttribDivisor((GLuint)a, 0); glDisableVertexAttribArray((GLuint)a); }
+#else
+    auto divisor = (void (*)(GLuint, GLuint))instance_procs.divisor;
+    auto draw = (void (*)(GLenum, GLint, GLsizei, GLsizei))instance_procs.draw;
+    glBindBuffer(GL_ARRAY_BUFFER, instance_corners);
+    glEnableVertexAttribArray(s_pos); glVertexAttribPointer(s_pos, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+    divisor((GLuint)s_pos, 0);
+    for (GLint a : at) divisor((GLuint)a, 1);
+    draw(GL_TRIANGLE_STRIP, 0, 4, ns);
+    for (GLint a : at) { divisor((GLuint)a, 0); glDisableVertexAttribArray((GLuint)a); }
+    glDisableVertexAttribArray(s_pos);
 #endif
   } else {
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)ns * 4 * sizeof(SV4), sq, GL_STREAM_DRAW);
+    st.solid_upload_bytes += (size_t)ns * 4 * sizeof(SV4);
     glEnableVertexAttribArray(s_pos); glVertexAttribPointer(s_pos, 2, GL_FLOAT, GL_FALSE, sizeof(SV4), (void*)0);
     glEnableVertexAttribArray(s_col); glVertexAttribPointer(s_col, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(SV4), (void*)8);
     glEnableVertexAttribArray(s_z); glVertexAttribPointer(s_z, 1, GL_FLOAT, GL_FALSE, sizeof(SV4), (void*)12);
@@ -2311,7 +2336,7 @@ static void run(const Frame& f, bool first) {
       case CLIP: {
         if (sp >= 16) break;
         flush();
-        RC k = {c.x, c.y, c.w, c.h, c.r, 0, false};
+        RC k = {c.x, c.y, c.w, c.h, c.r, 0, false, false};
         float hw2 = c.w / 2, hh2 = c.h / 2;
         k.R = c.r > 0 ? iceil(c.r < hw2 ? (c.r < hh2 ? c.r : hh2) : (hw2 < hh2 ? hw2 : hh2)) : 0;
         int32_t x0 = ifloor(k.x), y0 = ifloor(k.y), x1 = iceil(k.x + k.w), y1 = iceil(k.y + k.h);
@@ -2697,6 +2722,7 @@ static void gl_info_hook() {
   put("gl_frames_replayed", st.frames, "%.0f"); put("gl_frames_idle", st.idle, "%.0f"); put("gl_draw_calls_per_frame", st.draws / n, "%.1f"); put("gl_quads_per_frame", st.quads / n, "%.0f");
   put("gl_cpu_submit_us", st.us / n, "%.0f"); put("gl_gpu_us", gpu_n ? gpu_us / gpu_n : 0.0, "%.0f"); zrt_prof_info("gl_timer_source", gpu_source); put("gl_gpu_samples", gpu_n, "%.0f"); put("gl_gpu_samples_lost", gpu_lost, "%.0f"); put("gl_programs_built", st.progs, "%.0f"); put("gl_program_build_ms", st.prog_us / 1e3, "%.1f");
   put("gl_occlusion_frames", st.occl_frames, "%.0f"); put("gl_depth_bits", occl_bits, "%.0f");
+  put("gl_solid_upload_bytes_per_frame", st.solid_upload_bytes / n, "%.0f");
   put("gl_glyph_uploads", GLR_CORE ? st.glyphs : st.atlas_ups, "%.0f");
   put("gl_atlas_pages", npages, "%.0f"); put("gl_atlas_glyphs", gcount, "%.0f"); put("gl_atlas_occupancy", atlas_occupancy(), "%.1f"); put("gl_atlas_evictions", aevicts, "%.0f");
   put("gl_image_uploads", st.img_ups, "%.0f"); put("gl_image_upload_bytes_per_frame", st.img_bytes / n, "%.0f"); put("gl_image_upload_us_per_frame", st.img_us / n, "%.0f");
@@ -2710,6 +2736,7 @@ static void report() {
   fprintf(stderr, "display-gl renderer gl: %u command programs, %.0f ms to build them and the two of the occlusion and stencil passes; %u uploads of new glyphs, %.0f ms\n", st.progs, st.prog_us / 1e3, GLR_CORE ? st.glyphs : st.atlas_ups, st.glyph_us / 1e3);
   fprintf(stderr, "display-gl renderer gl: glyph atlas: %d of %d pages of %d px, %d glyphs, %.1f%% of their rows in use, %u pages evicted\n", npages, APAGES, asize, gcount, atlas_occupancy(), aevicts);
   fprintf(stderr, "display-gl renderer gl: %u uploads of runtime images (%u of a rectangle only), %llu bytes, %.2f ms\n", st.img_ups, st.img_part, (unsigned long long)st.img_bytes, st.img_us / 1e3);
+  fprintf(stderr, "display-gl renderer gl: solid rectangles: %.0f upload bytes per frame, instancing %s\n", st.solid_upload_bytes / n, instanced ? "on" : "off");
   if (mst.moves) fprintf(stderr, "display-gl renderer gl: %u scrolls moved on the GPU, %.0f pixels each\n", mst.moves, mst.px / mst.moves);
   fprintf(stderr, "display-gl renderer gl: the fringe quads of POLY cover %.0f pixels per frame in each of their passes (the surface has %d)\n", fringe_px / n, W * H);
 }

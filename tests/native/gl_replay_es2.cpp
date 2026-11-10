@@ -19,8 +19,7 @@ int main() {
   const std::string pre_fs = "#version 100\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n";
   struct Program { std::string name, vs, fs; };
   const std::string rc = "#define ZN_RCLIP 1\n";   // the variants that clip rounded corners in the shader (gl_replay.cpp: key + 64)
-  // GLES 2 has no instancing: the occlusion pass compiles without INSTANCED there (gl_replay.cpp init)
-  std::vector<Program> programs = {{"occlusion", glr::SVS, glr::SFS}, {"stencil", glr::FVS, glr::FFS}};
+  std::vector<Program> programs = {{"occlusion", glr::SVS, glr::SFS}, {"occlusion instanced", "#define INSTANCED 1\n#define INSTANCE_CORNERS 1\n" + std::string(glr::SVS), glr::SFS}, {"stencil", glr::FVS, glr::FFS}};
   static char fs[8192];   // the size gl_replay.cpp gives fs_source
   int bad = 0;
   for (int mode = -1; mode < glr::MODES; mode++)

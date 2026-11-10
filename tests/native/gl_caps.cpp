@@ -6,6 +6,13 @@
 
 static int fails = 0;
 #define CHECK(c) do { if (!(c)) { fprintf(stderr, "gl_caps: %s:%d: %s\n", name, __LINE__, #c); fails++; } } while (0)
+static const char *proc_suffix, *missing_proc;
+static int proc_calls;
+static void* fake_proc(const char* n) {
+  ++proc_calls;
+  if (missing_proc && !strcmp(n, missing_proc)) return nullptr;
+  return strlen(n) >= strlen(proc_suffix) && !strcmp(n + strlen(n) - strlen(proc_suffix), proc_suffix) ? (void*)&proc_calls : nullptr;
+}
 
 int main() {
   {
@@ -109,6 +116,37 @@ int main() {
     CHECK(glcaps::override_quirks(c, nullptr, bad, sizeof bad) && glcaps::override_quirks(c, "", bad, sizeof bad) && c.quirks == glcaps::MASK_CLIP);
     char b[1024];
     CHECK(glcaps::print(c, b, sizeof b) > 0 && strstr(b, "quirks mask-clip\n"));
+  }
+  {
+    const char* name = "instancing procedures";
+    glcaps::Info in{"", "", "OpenGL ES 2.0", nullptr, nullptr, 2048, 23, 10, 24, 8};
+    glcaps::Caps c;
+    auto load = [&](const char* extensions) { glcaps::fill(c, in); return glcaps::load_instancing(c, extensions, fake_proc); };
+    proc_suffix = "EXT";
+    auto p = load("GL_EXT_instanced_arrays");
+    CHECK(c.instancing && p.divisor && p.draw && !strcmp(p.api, "EXT"));
+    missing_proc = "glDrawArraysInstancedEXT";
+    p = load("GL_EXT_instanced_arrays");
+    CHECK(!c.instancing && !p.draw && !p.divisor);
+    missing_proc = "glVertexAttribDivisorEXT";
+    CHECK(!load("GL_EXT_instanced_arrays").draw && !c.instancing);
+    missing_proc = nullptr;
+    proc_suffix = "ANGLE";
+    p = load("GL_EXT_instanced_arrays GL_ANGLE_instanced_arrays");
+    CHECK(c.instancing && !strcmp(p.api, "ANGLE"));
+    proc_calls = 0;
+    p = load("GL_EXT_instanced_arrays_suffix");
+    CHECK(!c.instancing && !p.draw && !p.divisor && proc_calls == 0);   // no stale pointers after a context without the extension
+    proc_suffix = "";
+    proc_calls = 0;
+    CHECK(!load(nullptr).draw && !c.instancing && proc_calls == 0);   // unsupported EGL stubs are not capabilities
+    in.version = "OpenGL ES 3.0";
+    p = load(nullptr);
+    CHECK(c.instancing && !strcmp(p.api, "core"));
+    in.version = "3.2";
+    CHECK(!load(nullptr).draw && !c.instancing);   // vertex divisors entered desktop core in 3.3
+    in.version = "3.3";
+    CHECK(load(nullptr).draw && c.instancing);
   }
   {
     const char* name = "whole words";

@@ -116,7 +116,7 @@ static inline void fill(Caps& c, const Info& in) {
   const bool es3 = c.es && c.major >= 3, gl3 = !c.es && c.major >= 3;
   c.npot = !c.es || es3 || has(e, "GL_OES_texture_npot") || has(e, "GL_ARB_texture_non_power_of_two");
   c.vao = gl3 || es3 || has(e, "GL_OES_vertex_array_object");
-  c.instancing = gl3 || es3 || has(e, "GL_ANGLE_instanced_arrays") || has(e, "GL_EXT_instanced_arrays");
+  c.instancing = es3 || (!c.es && (c.major > 3 || (c.major == 3 && c.minor >= 3))) || has(e, "GL_ANGLE_instanced_arrays") || has(e, "GL_EXT_instanced_arrays");
   c.uint_index = !c.es || es3 || has(e, "GL_OES_element_index_uint");
   c.fb_fetch = has(e, "GL_EXT_shader_framebuffer_fetch") || has(e, "GL_NV_shader_framebuffer_fetch") || has(e, "GL_ARM_shader_framebuffer_fetch");
   c.derivatives = !c.es || es3 || has(e, "GL_OES_standard_derivatives");
@@ -132,6 +132,24 @@ static inline void fill(Caps& c, const Info& in) {
   for (const Tune& t : tune) if (t.family == c.family) { c.tiler = t.tiler; c.lean = t.lean; }
   if (c.family == POWERVR && (contains(in.renderer, "SGX 535") || contains(in.renderer, "SGX535"))) c.lean = true;
   for (const QuirkRow& q : quirk_rows) if (q.family == c.family && (!q.renderer || contains(in.renderer, q.renderer))) c.quirks |= q.quirks;
+}
+
+/** Resolve both operations of an advertised API together: some EGL loaders return nonnull stubs for unsupported entry points. */
+struct Instancing { void* divisor; void* draw; const char* api; };
+static inline Instancing load_instancing(Caps& c, const char* extensions, void* (*proc)(const char*)) {
+  const bool core = c.es ? c.major >= 3 : c.major > 3 || (c.major == 3 && c.minor >= 3);
+  struct API { bool available; const char *divisor, *draw, *name; };
+  const API apis[] = {
+    {core, "glVertexAttribDivisor", "glDrawArraysInstanced", "core"},
+    {has(extensions, "GL_EXT_instanced_arrays"), "glVertexAttribDivisorEXT", "glDrawArraysInstancedEXT", "EXT"},
+    {has(extensions, "GL_ANGLE_instanced_arrays"), "glVertexAttribDivisorANGLE", "glDrawArraysInstancedANGLE", "ANGLE"},
+  };
+  c.instancing = false;
+  for (const API& a : apis) if (a.available) {
+    void* divisor = proc(a.divisor); void* draw = proc(a.draw);
+    if (divisor && draw) { c.instancing = true; return {divisor, draw, a.name}; }
+  }
+  return {nullptr, nullptr, "none"};
 }
 
 /** ZINC_GL_QUIRK: a comma-separated list of quirk names, each turned on, or off with a leading '-'. False when a name is not a quirk: its
