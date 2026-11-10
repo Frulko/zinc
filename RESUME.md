@@ -6,11 +6,11 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|1030 structural views/optional dynamic values|.worktrees/1030-views / work/1030-views|Fresh plan/prototype after method checkpoint; no IR/runtime/AOT implementation without narrow review.|
+|1030 structural arrays/views|.worktrees/1030 / work/1030|Fresh representation plan/prototype after optional-Dyn checkpoint44457803a; no broad IR/runtime/AOT implementation before narrow review.|
 |587 web Worker facade|.worktrees/587 / work/587|Reserved QuickJS/web-environment worker source/blob/clone/transfer support; existing per-thread runtime stays intact.|
 |603 AOT size|.worktrees/603 / work/603|Active emitter/link/resource optimization. Measured source9,965,252 B inclheader, native9,811,528 B; compression next, full8MB criterion still open.|
 
-897 minimal native cleanup/client checkpoint is integratedc918514de Backlog; no libnice/vendor switch.1118 self-exec research is integrated0d50aadd1, no production guardian.395a025e2882 Done and1030 method checkpoint4f0b3b889 Backlog are integrated. Root common default build af20bb17b and exact integration smoke passed (six T0s, permissions, Museum3, real capture, Callshot); original call-server startup/HTTP/TERM/no-child also passed. Three fresh engine workers now active:603 emitter/resources,587 QJS/web worker,1030-views frontend representation research only. No new services/demos chosen.
+897 minimal native cleanup/client checkpoint is integratedc918514de Backlog; no libnice/vendor switch.1118 self-exec research is integrated0d50aadd1, no production guardian.395a025e2882 Done and1030 method checkpoint4f0b3b889 Backlog are integrated. 1030 optional-Dyn checkpoint44457803a integrated with final all3 proof0b39abe8; root common refresh groups with587/603. Previous common default build af20bb17b and exact integration smoke passed (six T0s, permissions, Museum3, real capture, Callshot); original call-server startup/HTTP/TERM/no-child also passed. Three fresh engine workers now active:603 emitter/resources,587 QJS/web worker,1030-views frontend representation research only. No new services/demos chosen.
 
 ## Integrated state
 
@@ -88,3 +88,5 @@ Owner original responsive/password docs/img/design/src is fixed; pictures galler
 Owner steering: prioritize engine tasks1030/395/603. No guardian production or libnice dependency expansion now. Runtime carveout baseline .logs/blockers/core-1030/external-wip.patch + changed-lines hashes; StrObj/allocator region0–300 is off limits.
 
 Cleanup:25 completed clean worktrees archived/removed in the full series; latest seven are803/395/897/1118-guard/1118-exec/896/1119 (following the earlier18 checkpoints). Private proof archives remain0700; frozen1030 stays for its active reader. No owned app/server was left running.
+
+Integrated:44457803a preserves optional Dyn null/undefined across value observers, narrowing, JSON and synthesized optional defaults. Focused T0/original optional-null repro all3 PASS7s on0b39abe87069cc9f88cdccc1dcadca27590ca09ef2c37d6c516da0dd7fc68ef2.1030 BacklogAC1open, no unsafe array/store waiver. Latest frozen baseline .worktrees/1030-views/build/zinc retained for newplan reader; earlier1030 tree archived/removed (26 total).
