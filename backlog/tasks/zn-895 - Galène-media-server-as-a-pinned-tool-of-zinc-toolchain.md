@@ -2,8 +2,7 @@
 id: ZN-895
 title: Galène media server as a pinned tool of zinc toolchain
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-30 22:57'
 updated_date: '2026-11-10 04:10'
 labels:
