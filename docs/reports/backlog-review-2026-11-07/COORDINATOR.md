@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Root3e0925d48/compilere5206875 rebuilt sharedminiaudio importer; exactaudio_storage/public480frame/nativeWAV→QOA PASS.77Done; D290 andPCM-only halfallocation recorded.653 archived/removed (38completedsourcecheckpoints). Builders449wasm+391packagedopenevents, rootidle. No userdefaults/globalinstall changes authorized by this coordination.
+
 -653 integrated3e0925d48 Done, rootcommonrebuild/exactstorage+actual480clip+sharedassetimport queued. Reserve391 independentpackagedarchiveopenevents/MIMEintegration; nativeAppKitlauncher needed, no engine/HAL edits. Freshworker read/editonly untilrootbuildslot released.449wasmadapter+Basisbuild advances; no suite/globalinstall/defaultassociation overwrite.
 
 - Rootf8e61be28/compiler17ffede27 actualGLES2EXT+ANGLE/caps/Heroall3PASS,76Done;7,994,920Bnative/9,537,380Bsource. D289 anduploadbytesrecorded,184archive/removal follows. Builders653audio+449wasm; rootidle. Protectedpayloadsunchanged.

@@ -4,8 +4,7 @@ title: >-
   zinc:audio: 16-bit sounds in memory once miniaudio keeps the end of non-float
   sources
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 17:57'
 updated_date: '2026-11-10 12:50'
 labels:
@@ -59,4 +58,6 @@ usage: n/a (tools/usage).
 - `tests/run --only audio_import`: asset encoder uses the same vendored header, about 5–15 s, under 200 MB estimate.
 - `tests/run --only voice_aec` and `--only discord_echo`: other shared-miniaudio consumers, about 10–30 s each, under 300 MB estimate.
 - The 480-frame public fixture on the Pi/Mojave/OptiPlex and a low-volume physical device check: native playback/cross portability; about 10 s plus one plugin build, memory unmeasured.
+Coordinator root common3e0925d48/compilere5206875 rebuilt sharedaudio importer and passes exactaudio_storage, public480frame clip and actualWAV→QOA import. D290; durable .logs/archive-completed-workers-20261110/653-final. No totalRSS, physical listening or probe-latency claim.
+
 <!-- SECTION:NOTES:END -->

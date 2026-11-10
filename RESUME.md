@@ -6,8 +6,8 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|653 audio storage|.worktrees/653 / work/653|Upstream0.11.26 exact tail fix verified; shortclip and halfPCM allocation proof underway. Keep nativeS16 only, other source precision and float APIs unchanged.|
-|449 wasm loading|.worktrees/449 / work/449|Streaming compile, existing validatedgroup packs, scoped CacheStorage, pinnedBasis KTX2→RGBA32. Initial cleanwasm build probe; no broader JS-native web rewrite.|
+|449 wasm loading|.worktrees/449 / work/449|Streaming compile, validatedgroup packs, scoped CacheStorage, pinnedBasis KTX2→RGBA32. Cleanwasm+adapter builds pass; loader/export/pixelproof underway.|
+|391 archive opening|.worktrees/391 / work/391|Native macOS packaged launcher/open events and Linux MIME/desktop packaging; independent of engine/HAL. Preserve direct CLI behavior and user defaults.|
 
 Root is idle for builds. Hermes1066 native-CDP phase integratedbcbdd9751; exact private-SDK protocol proof passes. Source SDK patch/version only; installed/published SDK unchanged.1066 ReviewAC3 longscope remains open.
 
@@ -15,11 +15,12 @@ Array plan/proof scope: related object-reference arrays share actual ArrObj; sca
 
 ## Integrated and verified
 
-76 currently Done since1078.03:26 kit/demo leaves03–28,39 compiler fixes1079–1117,445 cache trust,774.31 Share,1119 quoted JSON,896 call server,803 async updates,395 no-graphics,587 webWorker,603 AOTsize,1120 Never,683 visibility,184 instancing. Partial/research/Review tasks are excluded.
+77 currently Done since1078.03:26 kit/demo leaves03–28,39 compiler fixes1079–1117,445 cache trust,774.31 Share,1119 quoted JSON,896 call server,803 async updates,395 no-graphics,587 webWorker,603 AOTsize,1120 Never,683 visibility,184 instancing,653 audio storage. Partial/research/Review tasks are excluded.
 
 -603d87d08bbd Doneall3AC: originalHero native7,995,032 B (4,968 B margin), all57CPP/header/PCH source~9.53MB, defaultO2/jobs3 full observed19.16s/0of57 reused objects on4f198+603. Original2,660 functions/assets retained. Resource and metadata bytes lossless, no feature/budget cuts. Table temporary418,786 B retained through program run; raw export/cross/bundle paths unchanged. D283.
 -1120903f17ed4 Done: Never distinct from Null, existing void/Unreachable returns, lazy uninhabited REF storage, proper closure/virtual adapters. Exact3 runtimefixtures/all3+11negatives and original namespace source pass. No runtime/VM/AOT/ABI changes. Assertions/projections remain explicit unsupported boundaries; standalone null/undefined and catch(void) generic gaps pre-exist. D285.
 -668032658ef7 ReviewAC1: immutable recursive closure uses own receiver, preserving outer/mutable cells and nested callbacks. Original2 objects/48B leaked ->zero; fullfixture44alloc/44free. Call-path timing unmeasured. D284.
+-6533e0925d48 Done: upstreamminiaudio0.11.26 preserves shortclip tails; nativeS16 WAV/QOA PCM allocations halve. Higherprecision/fromSamples/tone/music stayfloat. Root productionstorage/480clip/sharedassetimport PASS; extra decoderheader probe unmeasured, no RSS/listening claim. D290.
 -1848ac26e714 Done: realGLES2 ANGLEMetal EXT+ANGLE identical16,384B frame/hash94bd6acb523798e6 and independentexpectedpixels; soliduploads16,640→6,240B (62.5% less), staticcorners32B once. Exactcaps+rootactualdriver+Heroall3PASS; noFPS/Pi/Linux claim. D289.
 -68318aa3967c Done: Camera.isVisible uses saved rendered depth for concave geometry; actual software/macOSGPU and lifecycle checks pass. One64B matrix per target; GPU synchronous pixel read may stall. OtherGPU backends explicitly unsupported. D288.
 -1030ca3455856: related object-reference arrays share storage with atomic catchable source guards and rawVM/AOT defence. Existing scalar/ordinary fast paths preserved; Hero+16B. Wider stores/views remain AC1open; D188/D231 amendment below.
@@ -32,9 +33,9 @@ Array plan/proof scope: related object-reference arrays share actual ArrObj; sca
 
 ## Read-only common engine
 
-`.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc`, compiled sourcef8e61be28, SHA25617ffede27ec51d37cee17c44bd0aa1bd9ca1553f390c1df1472d72daeaf09538. Adjacent archives/modules required. Announce before replacing; never build main externalWIP. Source-only SDKpatch tests use this compiler plus an explicit private library.
+`.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc`, compiled source3e0925d48, SHA256e5206875f798939a9c36115ef6d8df44be782b8e1e32aaef2dafe5439eae3461. Adjacent archives/modules required. Announce before replacing; never build main externalWIP. Source-only SDKpatch tests use this compiler plus an explicit private library.
 
-Root latest `.logs/integration-2026-11-10/instancing/summary.json`: gl_caps, actualGLES2 EXT+ANGLE and originalHero all3 fourhashes PASS. Native7,994,920B SHAfdc04db7c05f30003fe5e7e4fe0941e141eb0b91a40d98283cf65990ea3e6727; source9,537,380B inclusivePCH. Earlier combinedarray proof `.logs/integration-2026-11-10/array-final/summary.json` and683 rootrealSW+GPUtorus remain passing. Hermes privateprotocol rootPASS, archivedDLLSHAcd35f89b25d6f15f25d3c0f5c4ba4643c8997717e0c432a2a5a20cc53bfe650c. No new cold/quiet timing claim.
+Root latest `.logs/integration-2026-11-10/audio/summary.json`: core rebuild (sharedminiaudio asset importer), exactaudio_storage, public480frame clip and actualWAV→QOA import PASS.77Done. No totalRSS or physical listening claim. Previous `.logs/integration-2026-11-10/instancing/summary.json`: gl_caps, actualGLES2 EXT+ANGLE and originalHero all3 fourhashes PASS. Native7,994,920B SHAfdc04db7c05f30003fe5e7e4fe0941e141eb0b91a40d98283cf65990ea3e6727; source9,537,380B inclusivePCH. Earlier combinedarray proof `.logs/integration-2026-11-10/array-final/summary.json` and683 rootrealSW+GPUtorus remain passing. Hermes privateprotocol rootPASS, archivedDLLSHAcd35f89b25d6f15f25d3c0f5c4ba4643c8997717e0c432a2a5a20cc53bfe650c. No new cold/quiet timing claim.
 
 Latest raw kit: JS236192/246407/283256B; unused10215B (25B margin),4094/component,15B strict aggregate headroom. AOT5210216/5276320/5795072B; unused66104B,57639/component. Nativeeditor still links from barrelButton; no zero-unused-cost claim. Provenance `docs/reports/bench/kit-integration-2026-11-10.json`.
 
@@ -45,7 +46,7 @@ Latest raw kit: JS236192/246407/283256B; unused10215B (25B margin),4094/componen
 -575 ReviewAC2: honest frame-boundary GC phase, no hard4ms/p99/startup proof (D280).1068 Review: Hamlet geometry correct/tighter rectangles, no speed claim.895 Review: four reproducible Galenearchives/localinstall; publicassets unpublished, remote/RSS unproven.1078.29 Review: CUIharness built/offscreen only, unmatchedworkloads cannotrank.
 -774.31 Share Done after finalsame-binary capturedgroup cleanup proof, broader1118 separate.445 unsignedpack/fusedQuickJS executes retainedsource; trustedlocalcache unchanged (D279).896 localserver/browser/token/restart/stop proven; remoteTLS/TURN/physical capacity notclaimed.
 
-Completed source checkpoints/logs/bundles live under `.logs/archive-completed-workers-20261110/`; private proofs0700.37 completed source-worker trees removed through1120/1066-export/1066-CDP/1030-array/683/184, plus read-only research checkpoints. Active653/449 stay. Hero durable `.logs/hero-603-engine-20261110/last-combined/provenance.json` SHA1b046cd09d07072c599bfcd5f0b638514fd060014cf1d278defc1c671b457181. EarlierCode/Gallery immutable recovery stashes retained.
+Completed source checkpoints/logs/bundles live under `.logs/archive-completed-workers-20261110/`; private proofs0700.38 completed source-worker trees removed through1120/1066-export/1066-CDP/1030-array/683/184/653, plus read-only research checkpoints. Active449/391 stay. Hero durable `.logs/hero-603-engine-20261110/last-combined/provenance.json` SHA1b046cd09d07072c599bfcd5f0b638514fd060014cf1d278defc1c671b457181. EarlierCode/Gallery immutable recovery stashes retained.
 
 ## Protect external work
 
@@ -58,6 +59,7 @@ Main WIP: ui.ts42add19del sparseMap/Fenwick639/1074 (known incompleteprependRows
 Every app/test bounded; headless orbackground; no leftover. No suites/T1/T2/demo/pixelcompare/conformance/fuzz/bench/CI. Only exactsecondsT0 and shortfeature proofs. Max2building trees globally; oneheavy process, work-runqueue. No syntheticload. Call-path/quiet/long tests require ownermilestone; listingneverstopsloop.
 
 Tests to run (owner picks):
+-653 since3e0925d48: audio, audio_music/audio_stream_pack/audio_import, voice_aec/discord_echo sharedconsumers (~5–30s each, unmeasured<300MB estimate), realPi/Mojave/OptiPlex and physical lowvolume listening. No extra probe timing measured.
 -184 since8ac26e714: gl_replay_es2 GLSL100 variant (seconds); realpbuffer proof Pi/OptiPlex whenreachable; noFPS or remoteproof claimed.
 -1030 sinceca3455856: array_covariance and ir/ir_test (seconds, memory unmeasured), diff-matrix records/arrays (~10min/<1GB estimate), physical/cross insertion/comparator checks.
 -683 since18aa3967c: native_gen (seconds), six visibility fixture engine/renderer combinations (~2s initial native build, memory unmeasured); broad platform readback remains unsupported.

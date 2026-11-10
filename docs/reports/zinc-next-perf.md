@@ -1788,3 +1788,9 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 
 -8ac26e714 on actualGLES2 ANGLE2.1.28524/Metal AppleM1Pro:260 solid/occlusion rectangles, dynamicuploads16,640→6,240B (62.5% less), staticcornerbuffer32B once excluded. Both advertisedEXT/ANGLE give identical16,384B frame/hash94bd6acb523798e6 and independentexpectedpixels; resetdivisors+subsequentexpanded draw pass. This is an uploadbyte measure, not FPS or totalapplication traffic.
 -Rootf8e61be28/compiler17ffede27: Hero7,994,920B native (5,080B decimal8MB margin), generated9,537,320B+60B PCH. All3 historicalfourframehashes pass; rawkit unchanged sincepriorphase andnotrerun. No quiettiming, Pi/Linuxdriver or energy claim. Proof .logs/integration-2026-11-10/instancing/summary.json.
+
+
+## Native 16-bit audio storage — 2026-11-10
+
+-3e0925d48/miniaudio0.11.26 production mixer: complete240/480/960/2000frame mono/stereo tails and progressiveQOA pass, with other precision/formats preserved. Actual requestedPCM allocations16,384→8,192B mono and32,768→16,384B stereo; progressive48,000frameQOA192,000→96,000B. Reductions exclude encoded input, decoder overhead, totalRSS and extra2KiB clip metadata across256slots. Additional decoderheader probe nottimed.
+-Worker publicfixture native5,791,792B SHAbe2d4d559d568ff9448880ca40c5946b7f5c1297fcfab58581ea5dcf72e434f0; plugindylib1,023,040B SHAa12b13d60cdcf8a711e243c7723745fb448993c91202c5f0ac5835966fdf4e5e. Rootcommon3e0925d48/compilere5206875 exactstorage, actual480clip and sharedassetWAV→QOA importer pass. Proof .logs/integration-2026-11-10/audio/summary.json. No physical/crossplatform/timing/RSS claim.

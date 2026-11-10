@@ -782,5 +782,49 @@
     "log_directory": ".logs/integration-2026-11-10/instancing",
     "fps_claim": false,
     "remote_driver_proven": false
+  },
+  "audio_storage_integration": {
+    "source_commit": "3e0925d48b43269f44c23d8bf3056b89b51bcf6c",
+    "engine_sha256": "e5206875f798939a9c36115ef6d8df44be782b8e1e32aaef2dafe5439eae3461",
+    "exact_t0": "audio_storage PASS",
+    "actual_feature": "480-frame public API interpreter PASS",
+    "shared_asset_importer": "480-frame WAV to QOA PASS",
+    "done_count": 77,
+    "physical_or_rss_claim": false,
+    "commit": "3e0925d48",
+    "worker": {
+      "task": "ZN-653",
+      "branch": "work/653",
+      "commit": "ccb66f042",
+      "status": "Done",
+      "acceptance_criteria": [
+        1,
+        2,
+        3
+      ],
+      "compiler_source": "f8e61be28",
+      "compiler_sha256": "17ffede27ec51d37cee17c44bd0aa1bd9ca1553f390c1df1472d72daeaf09538",
+      "native_feature_bytes": 5791792,
+      "native_feature_sha256": "be2d4d559d568ff9448880ca40c5946b7f5c1297fcfab58581ea5dcf72e434f0",
+      "plugin_dylib_bytes": 1023040,
+      "plugin_dylib_sha256": "a12b13d60cdcf8a711e243c7723745fb448993c91202c5f0ac5835966fdf4e5e",
+      "pcm_capacity_bytes": {
+        "mono_float": 16384,
+        "mono_s16": 8192,
+        "stereo_float": 32768,
+        "stereo_s16": 16384,
+        "progressive_qoa_s16": 96000
+      },
+      "pcm_scope": "actual requested allocations; not RSS, encoded bytes, decoder temporaries or total sound memory",
+      "proofs": [
+        "audio_storage PASS",
+        "old 0.11.25 header expected mixed-sample failure",
+        "zinc check PASS",
+        "480-frame public API interpreter/QuickJS/native AOT PASS"
+      ],
+      "leftover_processes": []
+    },
+    "log_directory": ".logs/integration-2026-11-10/audio",
+    "archive": ".logs/archive-completed-workers-20261110/653-final"
   }
 }
