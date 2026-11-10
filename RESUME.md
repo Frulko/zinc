@@ -14,7 +14,7 @@ No active shared-core writer. Finish reported integration before filling the nex
 
 ## Integrated
 
-- Dashboard22 1d67788cf Done: actual all3 entry+actions, nine inspected pictures light/dark/360px, local kit build desk. Root check/interp4queued. Title differs visually across original captures; standalone canonical and import-only App cases report correct28px, no confirmed engine defect. No override.
+- Dashboard22 1d67788cf Done: actual all3 entry+actions, nine inspected pictures light/dark/360px, local kit build desk. Root check/interp4 PASS; root inspected native light and narrow form, responsive/password eye aligned. Provenance kit-integration JSON dashboard_integration. Title differs visually across original captures; standalone canonical and import-only App cases report correct28px, no confirmed engine defect. No override.
 
 51 distinct Done since1078.03: nineteen ZN-1078 leaves (.03–.19 and.21–.22), plus1079–1110. Current feature source1d67788cf. Earlier history and proposed tests: session-handover-2026-11-09.md and session-handover-2026-11-10.md.
 

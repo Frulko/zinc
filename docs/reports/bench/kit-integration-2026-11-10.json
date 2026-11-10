@@ -291,5 +291,32 @@
       "secondary-window drop routing (existing HAL gap)",
       "quiet-machine speed/memory/energy"
     ]
+  },
+  "dashboard_integration": {
+    "commit": "1d67788cf",
+    "worker_commit": "817eb69ee",
+    "engine_sha256": "3978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af",
+    "worker_checks": "actual entry and real App interactions all3; nine pictures inspected",
+    "root_checks": "check and original interpreter4frames PASS",
+    "root_inspected": [
+      "examples/ui/dashboard/pictures/light-native.png",
+      "examples/ui/dashboard/pictures/narrow-form.png"
+    ],
+    "root_log": ".logs/integration-2026-11-10/dashboard-integrated.log",
+    "worker_archive": ".logs/archive-completed-workers-20261110/1078.22/logs/dashboard22",
+    "source_sha256": {
+      "examples/ui/dashboard/src/App.tsx": "4a57ddd4227070f2561ba458fc395f8566a1b6a3c98524306e12786ab1fab531",
+      "examples/ui/dashboard/src/components/BuildChart.tsx": "b57127d8d5bd3c7f23c96b11d559a1c8c3c2357fe1fc5c4eb83db787c99de48a",
+      "examples/ui/dashboard/src/components/Preferences.tsx": "ae8059886a185bfe34cd09dbb8bfe5e2beb1386ce13881878af6aa7d0a6db05e",
+      "examples/ui/dashboard/src/components/ReleaseCalendar.tsx": "8b989811482fe4e4c79f0b06b4d23af89a611e81e3038824ba549ffd0511c884",
+      "examples/ui/dashboard/src/components/RunnerForm.tsx": "a7f93d939f69fcb350c6e3095c44ba1dd32bef93b9b772791995fd777094c43f",
+      "examples/ui/dashboard/src/data.ts": "0585a1ef37d11cbff803dcbbc8ba73aac62a0ee35db271c9364f9c7f28ae762c",
+      "examples/ui/dashboard/src/main.tsx": "23f428fdaf1f68595cc3a9e422ac2793f60b6b5b3b2ecd0e722e5442db824091"
+    },
+    "limits": [
+      "fictional in-memory data",
+      "physical touch/VoiceOver/device/long memory and idle unproven",
+      "original heading visual difference; minimal canonical case passes"
+    ]
   }
 }
