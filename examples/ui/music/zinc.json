@@ -1,0 +1,13 @@
+{
+  "name": "music",
+  "entry": "src/main.tsx",
+  "app": { "name": "Quiet Music", "id": "dev.zinc.demo.music", "version": "1.0.0", "icon": "assets/icon.svg", "orientation": "any" },
+  "permissions": [],
+  "icons": ["search", "x"],
+  "targets": {
+    "macos": { "width": 1280, "height": 900, "resize": "fill" },
+    "linux": { "width": 1280, "height": 900, "resize": "fill" },
+    "wasm": { "width": 1280, "height": 900 },
+    "sim": { "width": 1280, "height": 900 }
+  }
+}

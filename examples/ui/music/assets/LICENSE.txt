@@ -1,0 +1,12 @@
+The six WAV sound sketches and icon.svg in this directory were created for Zinc.
+They contain only generated sine-wave samples and original geometric artwork;
+there are no recordings, third-party samples or external artwork.
+
+To the extent possible under law, the creators waive all copyright and related
+or neighboring rights to these assets under CC0 1.0 Universal.
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio format: mono, 8,000 Hz, 16-bit PCM WAV, 8 seconds each.
+The notes follow semitone offsets 0,4,7,12,7,4,2,7 at two notes per second.
+The six base frequencies start at 164.8138 Hz, one semitone apart. A decaying
+sine wave with a quiet second harmonic and short attack/release shapes each note.

@@ -441,6 +441,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Riffle (`app/riffle`), a window switcher for macOS: hold Cmd and press Tab to go to any window in the order you last used it, minimized, hidden or on another Space included, from a plain list with a menu bar icon and settings.
 - `examples/appkit-tour`, a Finder-like browser made of real AppKit views: a toolbar with a search field, a sidebar of places, a table of 10,000 files you sort and select, an inspector form, an alert, a sheet, the menu bar and dark mode. `ZINC_RENDER=drawn` draws the same program.
+- `examples/ui/music` is a local Quiet music library with six original sound sketches, waveform seeking, volume and an editable play queue.
 
 #### Changed
 
