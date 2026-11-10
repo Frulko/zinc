@@ -2,7 +2,8 @@
 id: ZN-164
 title: Host library split and size gates for Pi 1 and ESP32
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-07 05:33'
 labels:
   - host-modules

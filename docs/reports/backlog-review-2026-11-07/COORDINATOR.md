@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve164 native host split/size gate after primary research: lite dispatch still retainsOSC; genericlibuv close/stream references also retain socket internals. Freshworker must prove real dependency reduction, not claim zero-network from source moves alone. One core writer, clean sys_host/loop/AOT/CMake; main display and allocator/HAL/UI WIP protected. Mac proof first perNov7review; cross/benchmark criteria stay open.
+
 -391 integrated1abd3ad0d and root actualcold/warm/LSmapping/defaultpreservation+officialmetadata T0 PASS (78Done).449 integrated03f33ed9c, root native/wasm/browser commonproofnext.707 p5pin/coverage integrated2e6e09454, BacklogAC1 because preservedPhaser scene-inputgolden differs oneframe; AC2Pixi passes. Archivefirst707phase and give remainingtimingcontract review to fresh707worker, initially no builds or known-failure reruns. No golden waiver.
 
 - Reserve707 as a non-building library compatibility worker beside449/391. Primary review finds existingPixi8+Phaser fixtures/goldens, missingp5v2 pin/coverage only. Prove short original library frames directly on commoncompilere520; author harness changes but run noT1/suite. No monkeypatching library source or engine-gap workarounds; report a blocker if realboot fails.
