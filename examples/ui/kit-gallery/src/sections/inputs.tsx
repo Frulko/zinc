@@ -21,21 +21,21 @@ export function InputsSection(): i32 {
   return <View className="flex-col gap-6">
     <Text className={heading(3)}>Inputs</Text>
     <View className="flex-row flex-wrap items-start gap-8">
-      <View className="w-[300px] flex-col gap-4">
+      <View className="w-full max-w-[300px] flex-col gap-4">
         <Input label="Workspace" value={name} onInput={setName} hint="A name your team will recognise." clearable={true} />
         <PasswordField label="Password" value={password} onInput={setPassword} hint="Show or hide the saved value." />
         <SearchField label="Search projects" value={query} onInput={setQuery} />
         <Textarea label="Notes" value={note} onInput={setNote} rows={3} />
         <Input label="Project URL" value={() => 'fieldwork'} prefix="https://" suffix=".studio" readOnly={true} />
       </View>
-      <View className="w-[300px] flex-col gap-4">
+      <View className="w-full max-w-[300px] flex-col gap-4">
         <NumberField label="Seats" value={seats} onChange={setSeats} min={1} max={100} step={1} decimals={0} />
         <MoneyField label="Budget" value={amount} onChange={setAmount} symbol="$" code="USD" min={0} hint="Grouped at rest, plain while editing." />
         <ScrubField label="Opacity" value={opacity} onChange={setOpacity} min={0} max={100} suffix="%" />
         <TagInput label="Project tags" value={tags} onChange={setTags} />
         <OneTimeCode label="Verification code" value={code} onChange={setCode} />
       </View>
-      <View className="w-[300px] flex-col gap-4">
+      <View className="w-full max-w-[300px] flex-col gap-4">
         <Select label="Country" items={countries} value={country} onChange={setCountry} />
         <Combobox label="Language" items={tools} value={language} onChange={setLanguage} />
         <MultiSelect label="Toolchain" items={tools} value={languages} onChange={setLanguages} searchable={true} maxChips={2} />

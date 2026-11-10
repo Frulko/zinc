@@ -1,28 +1,39 @@
 {
   "name": "kit-gallery",
   "entry": "src/main.tsx",
-  "requires": ["fs"],
-  "permissions": ["dialog", "fs:read:.", "fs:read:../../../lib/std"],
+  "requires": [
+    "fs"
+  ],
+  "permissions": [
+    "dialog",
+    "fs:read:.",
+    "fs:read:../../../lib/std"
+  ],
   "targets": {
     "macos": {
       "width": 960,
-      "height": 800
+      "height": 800,
+      "growDrawCommands": true
     },
     "linux": {
       "width": 960,
-      "height": 800
+      "height": 800,
+      "growDrawCommands": true
     },
     "rpi1": {
       "width": 960,
-      "height": 800
+      "height": 800,
+      "growDrawCommands": true
     },
     "wasm": {
       "width": 960,
-      "height": 800
+      "height": 800,
+      "growDrawCommands": true
     },
     "sim": {
       "width": 960,
-      "height": 800
+      "height": 800,
+      "growDrawCommands": true
     }
   },
   "icons": [

@@ -3,7 +3,7 @@ import { Button, Card, CardHeader, CardContent, CardFooter, Kbd, mutedText } fro
 import { clicks, setClicks } from '../state';
 
 export function ButtonsCard(): i32 {
-  return <Card className="w-[500px]">
+  return <Card className="w-full max-w-[500px]">
     <CardHeader title="Buttons" description="Five variants, four sizes. Arrow keys move the focus." />
     <CardContent>
       <View className="flex-row flex-wrap gap-2">
@@ -13,7 +13,7 @@ export function ButtonsCard(): i32 {
         <Button label="Ghost" variant="ghost" />
         <Button label="Delete" variant="destructive" />
       </View>
-      <View className="flex-row items-center gap-2">
+      <View className="flex-row flex-wrap items-center gap-2">
         <Button label="Small" size="sm" variant="outline" />
         <Button label="Large" size="lg" />
         <Button size="icon" variant="outline"><Text className={mutedText()}>+</Text></Button>

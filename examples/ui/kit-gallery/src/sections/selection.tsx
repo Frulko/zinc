@@ -27,8 +27,8 @@ export function SelectionSection(): i32 {
       <RadioGroup label="Delivery" value={delivery} onChange={setDelivery} items={[{ value: 'standard', label: 'Standard delivery' }, { value: 'express', label: 'Express delivery' }, { value: 'courier', label: 'Courier unavailable', disabled: true }]} />
     </View>
     <RadioCards label="Workspace plan" value={plan} onChange={setPlan} items={[{ value: 'personal', label: 'Personal', description: 'One person, local projects', icon: 'user' }, { value: 'studio', label: 'Studio', description: 'Shared projects for your team', icon: 'users', badge: 'Current plan' }]} />
-    <View className="flex-row items-start gap-8">
-      <View className="flex-col gap-4 w-[340px]">
+    <View className="flex-row flex-wrap items-start gap-8">
+      <View className="flex-col gap-4 w-full max-w-[340px]">
         <Text className={`text-[13px] text-${theme().foreground}`}>Volume</Text>
         <Slider accessibilityLabel="Volume" value={volume} onChange={setVolume} step={5} showValue={true} markers={[0, 50, 100]} format={(value: number) => String(Math.round(value)) + ' %'} />
         <Text className={`text-[13px] text-${theme().foreground}`}>Histogram range</Text>
@@ -37,10 +37,10 @@ export function SelectionSection(): i32 {
       </View>
       <View className="flex-col gap-3"><Text className={`text-[13px] text-${theme().foreground}`}>Logarithmic gain</Text><Slider accessibilityLabel="Gain" value={gain} onChange={setGain} min={1} max={1000} step={1} vertical={true} logarithmic={true} showValue={true} /></View>
     </View>
-    <View className="flex-row gap-4 items-center">
+    <View className="flex-row flex-wrap gap-4 items-center">
       <Chips label="Include media" value={tags} onChange={setTags} items={[{ value: 'photos', label: 'Photos' }, { value: 'audio', label: 'Audio' }, { value: 'video', label: 'Video', disabled: true }]} />
       <Show when={!removed()}><Chip label="Draft" selected={chip} onChange={setChip} onRemove={() => setRemoved(true)} /></Show>
     </View>
-    <View className="flex-row items-center gap-4"><Rating label="Project rating" value={rating} onChange={setRating} /><Text role="status" className={`text-[13px] text-${theme().mutedForeground}`}>{String(rating()) + ' of 5 · click again or Delete to clear'}</Text></View>
+    <View className="flex-row flex-wrap items-center gap-4"><Rating label="Project rating" value={rating} onChange={setRating} /><Text role="status" className={`text-[13px] text-${theme().mutedForeground}`}>{String(rating()) + ' of 5 · click again or Delete to clear'}</Text></View>
   </View>;
 }

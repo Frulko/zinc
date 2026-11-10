@@ -8,12 +8,12 @@ export function StatsRow(): i32 {
     <Stat className="grow w-[200px]" label="Uptime" value={() => '99.98'} unit="%" hint="last 30 days">
       <Badge label="Live" variant="success" />
     </Stat>
-    <Stat className="grow w-[200px]" label="Upload" value={() => `${Math.floor(upload())}`} unit="%" hint="updates every frame" />
+    <Stat className="grow w-[200px]" label="Upload" value={() => `${Math.floor(upload())}`} unit="%" hint="sample upload, paused" />
   </View>;
 }
 
 export function BadgesCard(): i32 {
-  return <Card className="w-[360px]">
+  return <Card className="w-full max-w-[360px]">
     <CardHeader title="Badges and avatars" />
     <CardContent>
       <View className="flex-row flex-wrap gap-2">
@@ -36,7 +36,7 @@ export function BadgesCard(): i32 {
 }
 
 export function AlertsColumn(): i32 {
-  return <View className="flex-col gap-3 w-[420px]">
+  return <View className="flex-col gap-3 w-full max-w-[420px]">
     <Alert title="Heads up!" description="Components are plain functions: the same code runs under Solid and React." />
     <Alert title="Sensor offline" description="No reading from the probe for 30 s." variant="destructive" />
     <Alert title="Firmware up to date" variant="success" />
@@ -44,7 +44,7 @@ export function AlertsColumn(): i32 {
 }
 
 export function TeamList(): i32 {
-  return <List className="w-[360px]">
+  return <List className="w-full max-w-[360px]">
     <ListItem title="Ada Lovelace" description="ada@example.com" leading={() => <Avatar name="Ada Lovelace" size="sm" />}>
       <Badge label="Owner" variant="secondary" />
     </ListItem>

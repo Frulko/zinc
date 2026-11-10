@@ -16,17 +16,17 @@ export function ActionsSection(): i32 {
       <Button label="Ghost" variant="ghost" /><Button label="Delete" variant="destructive" /><Button label="Open help" variant="link" />
       <Button label="Saving document" loading={true} /><Button label="Unavailable" disabled={true} />
     </View>
-    <View className="flex-row items-center gap-4">
+    <View className="flex-row flex-wrap items-center gap-4">
       <ButtonGroup label="History"><IconButton icon="undo" label="Undo edit" /><IconButton icon="redo" label="Redo edit" /></ButtonGroup>
       <SplitButton label="Publish document" onClick={() => setMessage('Document published')} items={menus} />
       <CopyButton text={() => 'https://zinc.dev/document/quiet'} />
       <HoldToConfirm label="Hold to archive" onConfirm={() => setMessage('Document archived')} />
     </View>
-    <View className="flex-row items-center gap-4">
+    <View className="flex-row flex-wrap items-center gap-4">
       <ToggleGroup label="Text style" multiple={true} value={formats} onChange={setFormats} items={[{ value: 'bold', label: 'Bold' }, { value: 'italic', label: 'Italic' }, { value: 'underline', label: 'Underline' }]} />
       <SegmentedControl label="Calendar view" value={view} onChange={setView} items={[{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }]} />
     </View>
-    <View className="flex-row items-center gap-4">
+    <View className="flex-row flex-wrap items-center gap-4">
       <DropdownMenu label="Document actions" items={menus} />
       <Button label="Run a command" variant="outline" onClick={() => setPalette(true)} />
       <ContextMenu items={[{ id: 'rename', label: 'Rename document', onSelect: () => setMessage('Rename selected') }]}><Text className={`text-[13px] text-${theme().mutedForeground}`}>Right click here for document actions</Text></ContextMenu>

@@ -29,7 +29,7 @@ function SyncPanel(): i32 {
 }
 
 export function SettingsCard(): i32 {
-  return <Card className="w-[360px]">
+  return <Card className="w-full max-w-[360px]">
     <CardHeader title="Settings" description="Tabs, switches, a slider and progress." />
     <CardContent>
       <Tabs items={['General', 'Sync']} selected={tab} onSelect={setTab} className="w-full" />
