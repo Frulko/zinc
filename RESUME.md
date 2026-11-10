@@ -6,15 +6,15 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|1030 open record sharing|.worktrees/1030 / work/1030|Reserved sole core frontend/IR/runtime writer; clean isolated runtime regions only, owner string/allocator WIP protected.|
-|395 no-graphics engine|.worktrees/395 / work/395|Reserved CMake/CLI build capability fix; no runtime/HAL/UI edits.|
-|603 AOT size|.worktrees/603 / work/603|Reserved read-only attribution first, no build until one of the other building slots frees; no IR/runtime or emitter edit during1030.|
+|1030 structural views/optional dynamic values|.worktrees/1030-views / work/1030-views|Fresh plan/prototype after method checkpoint; no IR/runtime/AOT implementation without narrow review.|
+|587 web Worker facade|.worktrees/587 / work/587|Reserved QuickJS/web-environment worker source/blob/clone/transfer support; existing per-thread runtime stays intact.|
+|603 AOT size|.worktrees/603 / work/603|Active emitter/link/resource optimization. Measured source9,965,252 B inclheader, native9,811,528 B; compression next, full8MB criterion still open.|
 
-897 finishes only already-authorized minimal native shutdown and commits Backlog; no production libnice switch, UI expansion or extra call features. Source checkpoint6544ed568 ready to integrate.1118 self-exec prototype checkpoint ready, no production implementation; defer to engine priority. No new services/demos chosen. Root finishes pending exact integration smoke, then these engine chains continue.
+897 finishes only already-authorized minimal native shutdown and commits Backlog; no production libnice switch, UI expansion or extra call features. Source checkpoint6544ed568 ready to integrate.1118 self-exec prototype checkpoint ready, no production implementation; defer to engine priority. No new services/demos chosen. 395a025e2882 integrated Done (OFF actual build/timers/permissions/diagnostics pass);1030 method checkpoint integrated Backlog, no RT/IR edits.603 build slot/main emission scope released, no service expansion. Root default combined build and exact integration smoke pending.
 
 ## Integrated state
 
-70 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, 445 QuickJS packing/cache,774.31 Share,1119 quoted-key JSON 896 call server and803 asynchronous updates. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
+71 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, 445 QuickJS packing/cache,774.31 Share,1119 quoted-key JSON 896 call server,803 asynchronous updates and395 no-graphics engine. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
 
 - UI chain7ed1b1211/39e7e5e62/5488a7d35, recursive capture063edc9de, Solid ownership0d7163987: root exact tests and original Music feature pass. Mail6dc4c22ca, Notesed5802785, Assistantc280d7fd8 and Music83e6fe6f5 Done with actual all3 action/desktop/mobile/focus/cleanup proofs. Original responsive/password defects fixed.
 -445 integrated5acf53be0: local trusted bytecode cache stays fast; unsigned packs execute retained source, with one explicit warning. No unauthenticated bytecode loader. Exact qjs_bytecode and actual Fatty direct/pack proof pass; no startup timing claim.
@@ -42,9 +42,12 @@ Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail
 
 -803 integrated3a87af69a Done: native async signed check/download, caller validation before atomic stage, persistent-host cache eligibility, host engine-carrying exports and signed.app promotion. check/download are Promises (await migration documented). RawAOT unsupported; normal quit may wait bounded135s plus local checks. No new updater work after owner engine refocus.
 
+-395a025e2882: real no-graphics build links with libc++/libSystem only; permissions remain real and language timers work, unavailable graphics/IO fail explicitly. Worker exactT0/original abstract program pass; default build needs integration check.
+-1030 method checkpoint integrated: receiver-before-args, unbound extraction, declaration identity/inheritance/default arity, typed JSON method omission. Focused all3/original regression passes. Remaining array identity/wider writes/structural receiver/null-vs-undefined stay Backlog with committed repros, no unsafe partial widening.
+
 ## Ownership1118 research checkpoint
 
-Integrated72908db66. Exact real-Zinc repro on9a23: Python reaps an intermediate Zinc before ancestor cleanup, leaving a normal Zinc-owned subgroup alive. Survivor cleaned atomically; no process remains. Durable .logs/archive-completed-workers-20261110/1118-owner-final/logs/process1118-owner/repro-result.json. Fork-only guardian scratch proved lifecycle/FD/initialized-libuv cases (b5dfc6e87), but is rejected for retaining full owner COW heaps. No production implementation. Next try same-executable exec-reset guard via early CLI/AOT mode, clearing VM pages and inherited atfork state; inspect existing helper/bootstrap patterns first. Must isolate guardian from ancestor group kills, keep owner-only CLOEXEC writer, retain executable PID before reap and preserve public PID/status. Two-fork/libuv-atfork descriptor ordering and retained COW memory are unresolved. Next worker starts with bounded native scratch proof; no source implementation authorized yet.1118 BacklogAC1open/AC2checked, reserved fresh1118-guard for minimal native prototype; no full engine build until coordinator releases a slot.
+Integrated72908db66. Exact real-Zinc repro on9a23: Python reaps an intermediate Zinc before ancestor cleanup, leaving a normal Zinc-owned subgroup alive. Survivor cleaned atomically; no process remains. Durable .logs/archive-completed-workers-20261110/1118-owner-final/logs/process1118-owner/repro-result.json. Fork-only guardian scratch proved lifecycle/FD/initialized-libuv cases (b5dfc6e87), but is rejected for retaining full owner COW heaps. No production implementation. Next try same-executable exec-reset guard via early CLI/AOT mode, clearing VM pages and inherited atfork state; inspect existing helper/bootstrap patterns first. Must isolate guardian from ancestor group kills, keep owner-only CLOEXEC writer, retain executable PID before reap and preserve public PID/status. Two-fork/libuv-atfork descriptor ordering and retained COW memory are unresolved. No source implementation after owner engine refocus; bounded self-exec prototype is archived and production deferred.1118 BacklogAC1open/AC2checked, reserved fresh1118-guard for minimal native prototype; no full engine build until coordinator releases a slot.
 
 ## Preserve external work and machine limits
 

@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Engine phase:395a025e2882 Done,71currentlyDone; realOFF build/clock/permissions/diagnostics pass.1030 method checkpoint integrated Backlog, no RT/IR edits.603 actual source9,965,252B including302,442Bheader (was27,205,373), native9,811,528B (was10,905,448); original configuration retained,8MB native still open. Shared header/copy cleanup/lite-host approved; existing-codec bounded native resource packing authorized, no asset cuts. Reserve587 webWorker and fresh1030 view/null research; no new service/nativeICE/guardian production.
+
 - Owner refocus: engine progress, stop service/RTC/guardian scope expansion.8033a87af69a integrated Done,70currentlyDone; combined common5917d26a rebuilt. Finish897 minimal native cleanup checkpoint only;1118 exec prototype recorded, no production. Reserve1030 sole core structural-record/runtime chain,395 headless CMake/CLI,603 attribution-only phase (no third build/core writer). Earlier performance-only/protected-module tasks remain skipped; no benchmark authorization inferred. Protected runtime payload baseline archived for narrow carveout.
 
 -896 server386125005 Done and1119 exactroot/json+kit gatePASS:69currentlyDone. Original browser/refusal/restart/stop and all3CLI server proofs pass on frozen38e22; common rebuild groups with803. Integrated guardian researchb5dfc6e87: fork-only scratch works but retaining owner COW heaps is rejected. Fresh1118-exec will prove self-exec monitor before main/AOT production ownership; reserve897 protocol client for independent TS/research/native API assessment.

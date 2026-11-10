@@ -4,8 +4,7 @@ title: >-
   webrtc-call: Galène protocol client (join by link, publish, receive, ICE
   restart)
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-30 22:58'
 updated_date: '2026-11-10 07:20'
 labels:

@@ -2,8 +2,7 @@
 id: ZN-395
 title: zinc links with ZN_HOST_GFX=OFF again
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 03:40'
 updated_date: '2026-11-10 08:14'
 labels:

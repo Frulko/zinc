@@ -2,7 +2,8 @@
 id: ZN-587
 title: Worker on a second QuickJS runtime
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:12'
 updated_date: '2026-11-07 18:30'
 labels:
