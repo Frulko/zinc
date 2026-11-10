@@ -1,0 +1,5 @@
+kept kept
+virtualX
+virtualX|kept|first kept
+expected kept
+virtualX|kept|first|before throw

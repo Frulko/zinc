@@ -23,6 +23,25 @@ namespace {
 void sink(void* ctx, void* data, int n) { auto* v = static_cast<std::vector<uint8_t>*>(ctx); v->insert(v->end(), static_cast<uint8_t*>(data), static_cast<uint8_t*>(data) + n); }
 }  // namespace
 
+std::vector<uint8_t> packEmbeddedBlob(const std::vector<uint8_t>& bytes) {
+  if (bytes.empty()) return {};
+  const size_t bound = ZSTD_compressBound(bytes.size());
+  if (ZSTD_isError(bound) || !bound) return {};
+  std::vector<uint8_t> out(bound);
+  const size_t size = ZSTD_compress(out.data(), out.size(), bytes.data(), bytes.size(), 19);
+  if (ZSTD_isError(size)) return {};
+  out.resize(size);
+  return out;
+}
+bool unpackEmbeddedBlob(const uint8_t* data, size_t size, size_t originalSize, std::vector<uint8_t>& bytes) {
+  if (!data || !size || !originalSize || originalSize > bytes.max_size() || ZSTD_getFrameContentSize(data, size) != originalSize) return false;
+  std::vector<uint8_t> out(originalSize);
+  const size_t decoded = ZSTD_decompress(out.data(), out.size(), data, size);
+  if (ZSTD_isError(decoded) || decoded != originalSize) return false;
+  bytes.swap(out);
+  return true;
+}
+
 std::vector<uint8_t> encodePng(const uint8_t* px, int w, int h, int comp) {
   std::vector<uint8_t> out;
   stbi_write_png_compression_level = 9;

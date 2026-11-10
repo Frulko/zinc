@@ -6,6 +6,10 @@
 
 namespace zn::res {
 
+// Native embedded bytes: one zstd frame, decoded only to the original size recorded by the compiler.
+std::vector<uint8_t> packEmbeddedBlob(const std::vector<uint8_t>& bytes);
+bool unpackEmbeddedBlob(const uint8_t* data, size_t size, size_t originalSize, std::vector<uint8_t>& bytes);
+
 // `px` holds w*h pixels of `comp` (3 = RGB, 4 = RGBA) 8-bit channels, rows top to bottom.
 std::vector<uint8_t> encodePng(const uint8_t* px, int w, int h, int comp);
 std::vector<uint8_t> encodeJpeg(const uint8_t* px, int w, int h, int comp, int quality = 90);

@@ -65,6 +65,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Compiled apps share the error code for reads before a variable is initialized, keeping UI components smaller while preserving the same checks and errors.
 - Compiled apps retain less unused type metadata and share allocation-heavy helpers.
 - Apps with Lucide icons share repeated SVG path markup, keeping combined UI kit imports within their existing size budget.
+- `zinc build` produces smaller executables and C++ source without dropping fonts, images or features.
 
 #### Fixed
 

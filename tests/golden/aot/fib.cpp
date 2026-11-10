@@ -33,7 +33,7 @@ ZFN int f0(Machine& m, Slot* win) {
   ZSTACK(1)
   Slot r[1];
   r[0] = zn::ops::sx(32);
-  { win[0] = r[0]; int st = f1(m, win + 0); r[0] = win[0]; ZST }
+  { win[0] = r[0]; int st = f1(m, win + 0); ZST r[0] = win[0];  }
   *m.out += std::to_string(static_cast<std::int64_t>(r[0]));
   *m.out += '\n';
   return 0;

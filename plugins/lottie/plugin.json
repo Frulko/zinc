@@ -4,6 +4,7 @@
   "deterministic": true,
   "module": "zinc:lottie",
   "entry": "index.ts",
+  "native": { "systemHost": "lite" },
   "description": "Lottie (Bodymovin JSON) animations rendered natively: shapes, trims, precomps, Player, <Lottie/> UI node",
   "targets": {
     "macos": { "defines": ["ZRT_POINT_POOL=262144"] },

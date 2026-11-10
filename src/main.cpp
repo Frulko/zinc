@@ -1265,7 +1265,36 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
   bool haveCxx = cxx || std::system("command -v c++ >/dev/null 2>&1") == 0;
   std::vector<fs::path> moreUnits;   // the other translation units of a large program, compiled at once with the first (ZN-604)
   std::string resBin;   // the embedded fonts and images that the first unit assembles by .incbin (ZN-429), removed with the units
-  { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); bool resFailed = false; const std::string resFile = run ? std::string() : writeResourcesFile(out, blob, resFailed); if (!resFile.empty()) blob.clear(); resBin = writeIncbinFile(cpp, blob, cxx, resFailed); if (resFailed) return 1; std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1, resFile, resBin); std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } if (!assetLines.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, assetLines); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; }
+  const bool packNativeBlobs = !std::getenv("ZN_AOT_CPP_ONLY") && gBuildTarget.empty() && gBundleOut.empty() && !gNoEmbed;
+  struct DeclarationsFile {
+    fs::path path;
+    bool keep = std::getenv("ZN_KEEP_CPP") || std::getenv("ZN_AOT_CPP_ONLY");
+    ~DeclarationsFile() { if (!keep && !path.empty()) { std::error_code ec; fs::remove(path, ec); } }
+  } declarations;
+  { zn::log::Phase ph("build", "AOT C++", "C++", "generated"); std::ofstream o(cpp); bool resFailed = false; const std::string resFile = run ? std::string() : writeResourcesFile(out, blob, resFailed); if (!resFile.empty()) blob.clear();
+    std::size_t unpackedResources = 0;
+    if (!blob.empty() && packNativeBlobs) {
+      auto packed = zn::res::packEmbeddedBlob(blob);
+      if (!packed.empty() && packed.size() < blob.size()) { unpackedResources = blob.size(); blob = std::move(packed); }
+    }
+    std::vector<std::uint8_t> packedTables;
+    std::size_t unpackedTables = 0;
+    if (packNativeBlobs && drawsOf(zm)) {
+      auto tables = zn::aot::tableBytes(zm);
+      auto packed = zn::res::packEmbeddedBlob(tables);
+      if (!packed.empty() && packed.size() < tables.size()) { unpackedTables = tables.size(); packedTables = std::move(packed); }
+    }
+    resBin = writeIncbinFile(cpp, blob, cxx, resFailed); if (resFailed) return 1; std::string shared; std::vector<std::string> parts = zn::aot::emitCppParts(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), haveLibs && haveCxx ? 3 : 1, resFile, resBin, &shared, unpackedResources, unpackedTables ? &packedTables : nullptr, unpackedTables);
+    if (!shared.empty()) {
+      const std::string hash = zn::tc::sha256Hex(shared);
+      const std::string name = "zn-aot-" + zn::tc::sha256Hex(cpp.filename().string()).substr(0, 24) + ".hpp";
+      declarations.path = cpp.parent_path() / name;
+      std::ofstream header(declarations.path); header << shared; header.close();
+      if (!header) { std::fprintf(stderr, "cannot write %s\n", declarations.path.string().c_str()); return 2; }
+      // A declaration change invalidates every cached unit, even though the include's filename stays the same.
+      for (std::string& part : parts) part = "// declarations sha256 " + hash + "\n#include \"" + name + "\"\n" + part;
+    }
+    std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } if (!assetLines.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, assetLines); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; }
     for (std::size_t k = 1; k < parts.size(); ++k) { moreUnits.push_back(fs::path(out).string() + ".part" + std::to_string(k) + ".cpp"); std::ofstream u(moreUnits.back()); u << parts[k]; if (!u) { std::fprintf(stderr, "cannot write %s\n", moreUnits.back().string().c_str()); return 2; } } }
   std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
   if (zn::aot::usesHost(zm)) {
