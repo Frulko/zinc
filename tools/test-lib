@@ -16,6 +16,12 @@
 set -u
 more=""   # other files of the same archive the library needs beside it: triples of file, member and sha256
 case "${1:-}" in
+  three-0.162.0)
+    file=three.module.js
+    url=https://registry.npmjs.org/three/-/three-0.162.0.tgz   # archive sha256: f810fd7615dad5e6a25ae962a2dcfb520a9ddce2ca24f59b10cf68f278cae13f
+    member=package/build/three.module.js
+    sha=ec3ddc3897ec75288b5502057456c471c2eb7d6e7cf36140d0a5224e94a1984b
+    more="BufferGeometryUtils.js package/examples/jsm/utils/BufferGeometryUtils.js b0c64fe6f3b9907262921b73fafc4ade874c07ba6b4876e164c87a830c2c2113" ;;
   p5-1.11.13)
     file=p5.min.js
     url=https://registry.npmjs.org/p5/-/p5-1.11.13.tgz   # the archive's own sha256: 8f2c1e0e07b006c967d085154a6b92fd80906a9743373243944e4ea6cc737ec3
@@ -37,7 +43,7 @@ case "${1:-}" in
     member=package/build/runtime.standalone.webgl.js
     sha=acec1fc77e8936899d8d0e015ad7599529815a661179698d9f977656ac18f262
     more="opentype.js package/build/opentype.js d7231cb597a44e3748828e0bfc7acfbf89caac5ef986462c752a465b5e9a6171 howler.js package/build/howler.js ee3778513d97db7a4c51a60cb44672986d73dbb9ccb4390f43e27b6e39c8c894" ;;
-  *) echo "test-lib: unknown library '${1:-}' (p5-1.11.13, p5-2.3.4, gsap-3.15.0, spline-runtime-2.0.98)" >&2; exit 2 ;;
+  *) echo "test-lib: unknown library '${1:-}' (three-0.162.0, p5-1.11.13, p5-2.3.4, gsap-3.15.0, spline-runtime-2.0.98)" >&2; exit 2 ;;
 esac
 sum() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 dir="${ZINC_HOME:-$HOME/.zinc}/cache/test-libs/$1"

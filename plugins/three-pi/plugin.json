@@ -1,0 +1,9 @@
+{
+  "name": "three-pi",
+  "kind": "module",
+  "module": "zinc:three-pi",
+  "entry": "index.js",
+  "deterministic": true,
+  "description": "Opt-in T2 helpers for real three.js (QuickJS)",
+  "targets": { "macos": {}, "linux": {}, "rpi1": {} }
+}

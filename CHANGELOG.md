@@ -57,6 +57,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - `zinc:3d` cameras can test whether a world point is visible after rendering, so markers hide behind concave shapes on the software and macOS GPU renderers.
 
+- `zinc:three-pi` can split real three.js triangle geometry into 16-bit chunks on T2 and warm shaders before rendering; desktop tiers leave the inputs unchanged.
+
 #### Faster
 
 - On macOS a window that nobody sees (covered by other windows, minimized or hidden) stops drawing and slows its loop to 10 frames a second, about a tenth of the CPU it used, and is back at full speed the moment it shows again; `ZINC_UNSEEN=draw` keeps it drawing.

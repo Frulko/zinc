@@ -178,3 +178,46 @@ images at most), the render target is `4 + 4 bytes × w × h × pixelRatio²` (c
 - texture filtering (bilinear) and alpha blending/testing in `zinc:3d`, then `transparent`/`alphaTest`;
 - frustum culling with the bounding boxes; splitting primitives above 65535 vertices;
 - `InstancedMesh`, `Line`/`Points`, `SpotLight`, `Sprite`.
+
+## T2 helpers for real three.js
+
+`zinc:three-pi` is a separate opt-in JavaScript module for real three.js on QuickJS,
+not the typed `zinc:three` subset described above. Map `three` to the actual three.js
+module in the entry's `importmap.json` (as in `examples/js-three`). It does not select
+or vendor a different three.js version. Automatic r162 selection and the VC4 profile
+are still separate unfinished tasks; browser export has not been verified.
+
+```js
+import { splitGeometry, warmUp } from 'zinc:three-pi';
+const chunks = splitGeometry(geometry);
+// Create the meshes explicitly, retaining any skeleton/morph state in your app.
+// Set the final lights/environment before warming up.
+warmUp(renderer, scene, camera);
+```
+
+These helpers act only when `zinc:platform.TIER === 2`; T3/T4 return the same
+geometry (inside a one-element array) or renderer without changing anything.
+`splitGeometry` handles triangle lists, indexed or nonindexed. Chunks have at most
+65,535 distinct referenced vertices and explicit 16-bit indices at most 65,534;
+index counts may exceed that limit. Attributes and morph attributes are remapped
+together, preserving raw normalized/interleaved values, attribute types, usage,
+GPU type and relative-morph flags. The effective draw range and material groups
+become chunk-local ranges. The index stream is retained even for gapped or overlapping groups
+(scalar materials ignore groups); effective group triangles must align with the draw range
+when remapping, or the helper throws. Incomplete trailing triangles are omitted as in a
+triangle draw. Invalid indices, mismatched/CPU-inaccessible attributes and
+instanced geometry throw before any source mutation. Empty effective draws return
+an empty array. Output may deinterleave attributes.
+
+The helper does not replace scene objects, support line/point primitives, or
+release the original geometry/material. In particular, creating replacement
+skinned/morph meshes still requires the application's skeleton and animation
+state. `warmUp` calls synchronous `renderer.compile(scene, camera)`, then sets
+`renderer.debug.checkShaderErrors = false` for production. Keep diagnostics enabled
+while developing and validating materials; a thrown compile keeps that setting.
+A changed light/environment/material configuration needs another warm-up.
+
+The exact `three_pi` T0 checks real r186 plus external checksum-pinned r162 data
+semantics and T3/T4 identity. A short direct renderer fixture is
+`tests/data/three-pi/render.js`; Mac WebGL1/r162 and WebGL2/r186 readback do not prove
+VC4 support, Pi frame rates or KTX2 decoding.

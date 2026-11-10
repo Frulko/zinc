@@ -1,0 +1,21 @@
+// Direct short renderer proof, proposed for manual use (not part of T0).
+import * as T from 'three';
+import { splitGeometry, warmUp } from 'zinc:three-pi';
+const canvas = document.createElement('canvas'); canvas.width = canvas.height = 64;
+const gl = canvas.getContext(T.REVISION === '162' ? 'webgl' : 'webgl2');
+const renderer = new T.WebGLRenderer({ canvas, context: gl });
+renderer.setSize(64, 64, false);
+const scene = new T.Scene(), camera = new T.OrthographicCamera(-1, 1, 1, -1, .1, 10);
+camera.position.z = 2;
+const positions = new Float32Array(65538 * 3).fill(100);
+positions.set([-.8, -.8, 0, .8, -.8, 0, 0, .8, 0], 65535 * 3);
+const geometry = new T.BufferGeometry().setAttribute('position', new T.BufferAttribute(positions, 3));
+const material = new T.MeshLambertMaterial({ color: 0xff0000 });
+scene.add(new T.AmbientLight(0xffffff, Math.PI));
+for (const chunk of splitGeometry(geometry)) scene.add(new T.Mesh(chunk, material));
+warmUp(renderer, scene, camera);
+renderer.render(scene, camera);
+const p = new Uint8Array(4); gl.readPixels(32, 28, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, p);
+if (p[0] < 200 || p[1] > 2 || p[2] > 2 || gl.getError() !== gl.NO_ERROR) throw new Error('split geometry did not render red: ' + p);
+console.log('three-pi render PASS', T.REVISION, gl instanceof WebGLRenderingContext ? 'WebGL1' : 'WebGL2', p.join(','));
+renderer.dispose(); geometry.dispose(); material.dispose();
