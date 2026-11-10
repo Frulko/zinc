@@ -2,7 +2,8 @@
 id: ZN-1068
 title: 'Hamlet follow-ups: atlas test and sprite rects'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:43'
 labels:
   - hamlet

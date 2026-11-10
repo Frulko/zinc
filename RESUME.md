@@ -6,43 +6,36 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|1078.25 Mail completion|.worktrees/1078.25 / work/1078.25|Final all3 actions/focus/reducedmotion pass;4line stable-ID For fixes row destruction and focus restore, captures/notes finalizing.|
-|1078.27 Notes completion|.worktrees/1078.27 / work/1078.27|Original unchanged app all3/46steps/desktop/mobile passes; reducedmotion final and idle1paint/300 pass, report pending.|
-|1078.28 Assistant completion|.worktrees/1078.28 / work/1078.28|Fresh final proof on shared fixes; original app source, complete desktop/mobile and root cleanup. |
-
-Fill reported integrations first. After UIchain: fresh Mail25, Notes27 and Assistant28 completion workers, using existing source/proof checkpoints, no new features. Music26 isDone83e6fe6f5; comparison29 isReview82798810d. No more work in finished contexts.
+|1118 nested process families|.worktrees/1118-nested / work/1118-nested|Initial POSIX groups miss nested Zinc-owned groups. Fresh worker fixes same-binary capture/child/grandchild; both AC reopened.|
+|575 QuickJS GC/profile|.worktrees/575 / work/575|Reserved: scheduling/profile implementation and short exact proof. Quiet pause/startup measurements remain owner-picked.|
+|1068 Hamlet atlas/rects|.worktrees/1068 / work/1068|Reserved: deer stamp correctness and tight coverage. Quiet AOT/interpreter measurements remain owner-picked.|
 
 ## Integrated state
 
-62 currently Done since1078.03:23kit/demo leaves(.03–.24,.26),39compiler/fix tasks1079–1117. Settings23 closed3e540bbe9 on original unchanged app with new all3/360px proof and pictures.1112 was reopened on the hidden idle regression, then fixed5488a7d35 and closed again.
+66 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, and445 QuickJS packing/cache. Comparison1078.29 is Review; Galène895 is Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
 
-- Compiler1111c0813bdd5 typeof mixed unions and1113428d48c1b ReturnType: exact all3 positive/negative tests pass, original Avatar/Settings56px and Mail model/actual actions pass. No caller workaround/runtime change.
-- Initial Tabs1112fe4b8bee5: horizontal overflow and padded reveal fixed, actual narrow focus/keyboard/controlled/remount all3/bothmodels pass. Notes later exposed hidden ancestor ->299paints/300ticks. Reopened1112 claimed by UIchain, no new task; deterministic short paint-count test, not benchmark.
-- Gallery20 8678d8c6d Done: defaultall inclExtended/33landmarks/late Jump+focus/Form+ResizeHandle/theme/360rotation all3. Existing growDrawCommands prevents fixed draw pool omission. Root check/defaultall interp2 PASS12.7s; QJS37s indicative slowfirstlayout, no ranking. Later.md records offscreen cost.
-- Finance24 9abd4be3f Done:74frame actual inputs/all3, grid/candle/donut/search/filter/sort/details/multiple selection and narrow grid keyboard; root check/QJS4 PASS. Dashboard22 1d67788cf, Tracker21d950a9460 Done, root original checks/runs pass.
-- Extended19 720f15378/becf01193 Done:15controls, real selected-drop filesystem grant, single disposable System dispatcher/lazy native factory (no unused System linking),12pictures. Root12 model/API/UI paths all3/native scope/originalQJS4 PASS. Secondary-window HAL gap recorded later, not claimed.
-- Media16e70c008e2, Tool14 23cdd66a0 and earlier families/proofs recorded in kit-integration JSON/task notes. D277 remains last decision; routine fixes need no new number.
+- UI chain7ed1b1211/39e7e5e62/5488a7d35, recursive capture063edc9de, Solid ownership0d7163987: root exact tests and original Music feature pass. Mail6dc4c22ca, Notesed5802785, Assistantc280d7fd8 and Music83e6fe6f5 Done with actual all3 action/desktop/mobile/focus/cleanup proofs. Original responsive/password defects fixed.
+-445 integrated5acf53be0: local trusted bytecode cache stays fast; unsigned packs execute retained source, with one explicit warning. No unauthenticated bytecode loader. Exact qjs_bytecode and actual Fatty direct/pack proof pass; no startup timing claim.
+-895 integrated9ccee370f: pinned Galène1.2.1/Go1.26.10 four reproducible archives plus checksums/licenses/install test. Native -help passes; quiet RSS and remote actual run remain open. Publish command is in task notes and was not executed.
+-603 integrated64c0f7158: restore existing advanceUpload export for Hero callers. Hero all3 actual run passes. Native10905448 B and generated C++27205373 B exceed8MB/10MB criteria; no speculative optimization, task Backlog.
+-774.31 integrated0889d9c8a: editable sources/assets/PNG cover pack, exclusive safe unpack, short Play link, keyboard/import roundtrips pass. Source code remains integrated, AC1 reopened by916f20798 because final combined binary exposes1118 nested cleanup failure.
+-1118 initial566ba1115: pre-reap group ownership, stale handles, finish hooks, Mojave cwd fallback pass their direct tests. Same final Zinc binary creates nested groups that survive root capture group kill. Fresh repair active; no false POSIX family completion claim. Repro .logs/blockers/process-nested-groups/rebased-close.py; all surviving proof PIDs were cleaned.
 
-Open app checkpoints (all functional original entry/actions pass all3, keep AC1 open for shared defects):
-- Mail25 71368c236: BacklogAC2true/AC1open depends1114; actual compose layers ignore reduced motion,20paint repro all3. Durable .logs/mail1078.25-20261110, archived worker1078.25.
-- Notes27 489712523: BacklogAC2true/AC1open depends1114/1115/1112;46step all3/mobile/keyboard/pointer pass, hidden desktop and idle repro. Archived worker1078.27/logs/notes-proof.
-- Assistant28 c8d2dfe40: BacklogAC2true/AC1open depends1114/1115; all3 actual input/stale stop/retry/unmount pass, desktop sidebar hidden. Archived worker1078.28/logs/assistant-proof.
+## Common engine and final kit gate
 
-## Common engine and current final gate
+Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, source a4d6d50de, SHA256286072a337fc84ee28375d9bc529a2afcb2d69b0ed9b37d0013cf7da9816cc7a. Adjacent AOT archives required. Includes all current features and initial1118, not the pending nested repair. Announce before replacing. Never build main external WIP.
 
-CURRENT common rebuilt source037a922f9 SHA25629ffb93a19627fb7dc465badc12c9c292ffaa55bf1db76d458b81837f4b48155. This supersedes47a238 below; retain original hashes for past proofs. FinalSolid08b5941b integrated0d7163987, IR capture063edc9de. Root exact recursive_local/solid_root_cleanup/kit_size+Musiccheck/interp4 queued .logs/integration-2026-11-10/music-core-integrated.log. UIchain root exact4stages/gate+Mailinterp4/NotesQJS4PASS.
+Older proofs keep their real hashes:037a922f9/29ffb93a19627fb7dc465badc12c9c292ffaa55bf1db76d458b81837f4b48155;fe4b8bee5/47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Mixed process proof was insufficient and is superseded by reopened combined repro.
 
-Read-only .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, compiler/sourcefe4b8bee5, SHA25647a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Adjacent AOT archives required. All active workers switched; older397865/c7643/5ec63 proofs retain their original hashes. Announce before replacing common. Every worker uses ZINC_ROOT=$its_tree. No C++rebuild needed for current TS-only UIchain; reset clean smoke tree to latest develop after integration.
+Final unchanged kit gate passes: JS236192/246407/283256 B (unused10215,25 B margin;4094/component,15 B strict aggregate headroom). AOT5325336/5474000/6025776 B (unused148664;61308/component). No icon/feature/budget cuts. Detailed task provenance and docs/reports/bench/kit-integration-2026-11-10.json; root .logs/integration-2026-11-10.
 
-Root common exact typeof_union/return_type/kit_tabs_reveal/unchangedkit_size and originalSettingscheck/interp4 PASS. Raw initial gate JS235962/246177/282868,4076/component, unused10215<10240; AOT5325320/5474000/6025760,61306/component. UIchain final candidate raw gate PASS JS235981/246196/283045 (4094/component,15B strict total headroom; unused25B), AOT5325320/5474000/6025776,61308/component. Root combined reproof required after branch integrates. No option/icon/feature/budget cuts.
-
-Detailed provenance/source hashes: docs/reports/bench/kit-integration-2026-11-10.json, root .logs/integration-2026-11-10. Settings completion .logs/settings-1078.23-20261110/completed/provenance.json SHA b0ff487fd311dfa6c264034f4532d131184b2a89db347713260ac17bf4e25b6e. Root inspected native light and focusedAccount360px. Old handovers session-handover-2026-11-09.md/-2026-11-10.md.
+Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail1078.25-20261110/completed, .logs/share-774.31-20261110, .logs/galene-895-20261110, .logs/hero-603-20261110. Notes/Assistant final proof files still also in their clean completed worktrees; archive before removal.
 
 ## Preserve external work and machine limits
 
 Main external WIP stays untouched: ui.ts sparse Map/Fenwick42add19del near639/1074 (known incomplete prependRows, do not investigate), main.cpp12/0 display, rt.h137/1 allocator, rtcalls30/17,machine3/2,worker1/1,perf15/0, LVGL/runtime/HAL/host/CHANGELOG/affected and untracked LVGL/skills files. Never build/reset/stage main WIP.
 
-Only UIchain carveout: isolated clean worktree changes display token near2956 and layers near8374, plus kitTabs. External virtualization patch .logs/blockers/responsive-display/external-virtualization-wip.patch/SHA MUST be byte-identical after integration. tools/integrate stashes overlaps uniquely/restores; verify ui.ts diff SHA, affected JSON, conflict markers, stash preservation. Perf owned append stage via HEAD+block/hash-object/update-index, never mixed working file.
+Only UIchain carveout: isolated clean worktree changes display token near2956 and layers near8374, plus kitTabs. External virtualization hunk payload MUST remain identical; diff blob IDs/line offsets may change when HEAD changes. Preservation JSON and archived patches record normalized hashes. tools/integrate stashes overlaps uniquely/restores; verify ui.ts diff SHA, affected JSON, conflict markers, stash preservation. Perf owned append stage via HEAD+block/hash-object/update-index, never mixed working file.
 
 Every heavy command through absolute tools/work-run SECONDS COMMAND ARGS, one pending per worker. Max2 building trees globally, one app/test/link; bound every run, headless or ZINC_BACKGROUND=1, no leftover children. No suites/T1/T2/tests-demo/pixelcompare/conformance/fuzz/benchmarks/CI. Harness may build and prove startup only; quiet measurements owner's.
 
@@ -53,6 +46,10 @@ Completed logs/checkpoints archived .logs/archive-completed-workers-20261110. Co
 Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow@192.168.2.228; Tailscale100.66.7.14 / optiplex.tail80b63.ts.net, HostKeyAlias192.168.2.228 verifies same key. Initially no compiler/build tools. Actual unchanged nullable_numeric cross-built x86_64-linux on Mac, deployed ~/zn/codex-1106-20261110-da7ca, timeout15/headless via Tailscale PASS, SHA7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No process left; GPU/desktop/native build unproven. Pi spark@192.168.2.31 and Mojave mowmow@192.168.2.215 remain. Own directories only, no machines/daemon restart/QEMU.
 
 ## Tests to run (the owner picks)
+
+- Since5acf53be0: Phaser/Babylon cached startup and QuickJS GC p99 on a quiet machine;575 implements remaining scheduling/profile first.
+- Since9ccee370f: Galène real Pi/OptiPlex execution and quiet RSS before publication; recent optional SSH attempts timed out/Pi agent refused signature. Do not claim remote server proof.
+- Since64c0f7158: Hero linked-library size attribution with ZN_KEEP_SYMBOLS=1; no8MB/10MB success claim.
 
 - Physical keyboard/touch/VoiceOver/device/browser passes, long remount/decode/resource/idle-energy churn: exact commands/durations in each task/README (families14–19, demos21–28). No physical or quiet-machine claims.
 - Sincec0813bdd5/428d48c1b/fe4b8bee5/3e540bbe9: long Settings/theme/forms/scroll churn and native accessibility; current exact all3/360focus/Avatar56 proof passes.

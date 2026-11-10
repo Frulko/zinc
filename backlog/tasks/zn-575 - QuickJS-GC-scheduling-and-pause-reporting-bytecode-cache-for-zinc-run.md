@@ -2,7 +2,8 @@
 id: ZN-575
 title: QuickJS GC scheduling and pause reporting; bytecode cache for zinc run
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:12'
 labels:
   - games
