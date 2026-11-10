@@ -3205,7 +3205,7 @@ struct Checker {
         if (op == "typeof") {
           if (rawDyn()) return tStr;
           std::string lit;
-          if (isDyn(t)) { if (replaceWith(i, "__dynTypeof(__H0)", {{x.kids[0]}})) return expr0(i, expected); return tStr; }
+          if (isDyn(t) || dynBacked(t)) { if (replaceWith(i, "__dynTypeof(__H0)", {{x.kids[0]}})) return expr0(i, expected); return tStr; }
           if (ty(t).k == TK::Union && hasNull(t)) {  // T | null: undefined or null when absent, else the typeof of the rest (a generated test: the operand may be a call)
             TypeId inner = withoutNull(t);
             std::string it = inner == tStr ? "'string'" : (inner != kNoType && isNum(inner)) ? "'number'" : inner == tBool ? "'boolean'" : (inner != kNoType && isDyn(inner)) ? "__dynTypeof(v)" : "'object'";   // (`unknown | undefined`: the Dyn's own)

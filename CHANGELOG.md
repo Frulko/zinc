@@ -347,6 +347,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - An optional chain stops as a whole, as in TypeScript: `a.b?.items.get(k)`, `a.b?.list[0]` and `a.b?.name().length` are accepted and give `undefined` when `a.b` is null, and `m?.get(k) ?? d` gives `d` when there is no Map instead of a null reference error.
 - Optional cleanup callbacks can return `undefined` even when another imported module uses dynamic values.
 - Nullable string keys now work in `Map` and `Set`, including lookup and deletion after the collection grows; nullable string arrays also accept null in `includes` and `indexOf`.
+- `typeof` reports the actual value of mixed primitive unions, including optional `string | number` component props, so numeric sizes select their intended branch.
 
 
 ### Developer tools
