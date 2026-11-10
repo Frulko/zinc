@@ -242,6 +242,7 @@ const Target* findTarget(const std::string& name) {
       {"windows-x86_64", "x86_64-windows"}, {"windows", "x86_64-windows"},
       {"linux-arm64", "aarch64-linux"}, {"linux-aarch64", "aarch64-linux"}, {"arm64-linux", "aarch64-linux"}, {"linux-armhf", "armhf-linux"},
       {"linux-armv7", "armv7-linux"}, {"arm-linux", "armhf-linux"}, {"linux-x86_64", "x86_64-linux"}, {"linux-amd64", "x86_64-linux"}, {"amd64-linux", "x86_64-linux"},
+      {"chip", "armv7-linux"}, {"pocketchip", "armv7-linux"},
       {"linux-x86", "x86-linux"}, {"linux-i686", "x86-linux"}, {"i686-linux", "x86-linux"}};
   const auto a = alias.find(name);
   const std::string n = a == alias.end() ? name : a->second;

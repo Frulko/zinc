@@ -91,6 +91,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A screenshot (`ZINC_SHOT`, `zinc capture`) or a frame hash (`ZINC_FRAMEHASH`) of a program that does not paint the whole window shows black where nothing was drawn, the same at every run, instead of leftover memory.
 - On the GPU renderer, an image turned or skewed with `setTransform` has smooth edges and is smoothed the same way as on the CPU (sharp only with `ImageFlag.Nearest`): its edges were jagged and an unscaled picture stayed pixelated.
 - `zinc assets cook` receipts report the mean position error from the stored integer XYZ coordinates, in source mesh units.
+- `zinc:platform` uses the selected profile's default `SCREEN_W/H` when no explicit size is given, including CHIP's 720×576 and PocketCHIP's 480×272.
 
 ### Hamlet
 
@@ -494,6 +495,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - JavaScriptCore, V8 and Hermes exports now include an SBOM, support `--dmg` and sign a disk image or ZIP with `--key`. V8 and Hermes exports carry a portable engine pack; exported apps retain and enforce their declared permissions.
 - `zinc build --engine hermes` produces `.hbc` bytecode for a file or overrides a project’s engine; unsigned archives keep executing their verified source.
 - Hermes SDK builds report the breakpoint that paused a program to DevTools; steps, exceptions and `debugger` statements carry no false breakpoint hits.
+
+- `zinc build --target chip` and `--target pocketchip` select the existing ARMv7 hard-float toolchain.
 
 ### Apps and examples
 

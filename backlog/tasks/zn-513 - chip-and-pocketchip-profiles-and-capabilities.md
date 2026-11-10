@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-09 07:40'
-updated_date: '2026-11-10 16:43'
+updated_date: '2026-11-10 17:05'
 labels:
   - chip
 milestone: m-24
@@ -27,7 +27,7 @@ Profile rows in src/frontend/profile.cpp and compiler/src/cli.ts (chip: f64, 720
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 zinc build --target chip and --target pocketchip build hello and hero
-- [ ] #2 zinc:platform exposes PROFILE, SCREEN_W/H, TOUCH, KEYBOARD, GPIO, POWER for both profiles
+- [x] #2 zinc:platform exposes PROFILE, SCREEN_W/H, TOUCH, KEYBOARD, GPIO, POWER for both profiles
 - [x] #3 a zinc.json requires that the profile does not meet is refused with the profile named
 - [x] #4 T0 test of the profile table and the capabilities rows
 - [x] #5 docs/targets/chip.md exists and links this report
@@ -66,5 +66,27 @@ Proposed tests (owner picks):
 - Physical board runs of the built programs, input/display/GPIO/battery checks and asset-budget/Lima-precision checks (short runs, memory unmeasured). No suite, T1/T2, demo, benchmark, pixel comparison, conformance, fuzz or CI was run.
 
 Proposed later.md line for coordinator: - ZN-513: Measure the T2 asset starting budgets and Lima fragment-precision limits on actual CHIP/PocketCHIP; profile declarations are not hardware certification.
+
+
+2026-11-10 — shared screen-default and literal build-target phase:
+- Fixed the root cause once in frontend platformModuleSource: SCREEN_W/H start from currentProfile's existing width/height, with the previous 320x240 fallback when no profile is selected. The existing valid ZINC_SIZE override remains last; invalid/zero sizes retain the profile defaults. Every current Profile row has positive dimensions; no new profile, size parser, target special case or API was added.
+- Read all consumers: frontend module imports feed interpreter/AOT; QuickJS moduleText and bundle capsJson call the same platformModule wrapper. Added runtime screen assertions to chip_profiles, plus valid/invalid/zero overrides and the unprofiled fallback; its existing requirements and capability checks remain intact. CHIP docs and the user changelog now reflect corrected defaults.
+- Found and fixed the next literal AC1 gap: tc::findTarget lacked chip/pocketchip aliases even though export's zigTargetFor knew them. Reused the existing alias table to select armv7-linux. tc_cache now checks both real CLI spellings, ARM hard-float triple/NEON flags and shared warm object-cache reuse. No main.cpp, HAL, UI, runtime or allocator change.
+- AC2 now passes: direct interpreter/AOT/QuickJS proof of PROFILE, SCREEN_W/H, TOUCH, KEYBOARD, GPIO and POWER on both profiles, plus valid/invalid/zero overrides and the unprofiled 320x240 fallback: 27 exact cases. Native AOT executables were built and executed, rather than comparing generated text. The first scratch host check imported GPIO (absent on macos) and was corrected to import only SCREEN_W/H; all final cases pass.
+- Exact tests PASS: chip_profiles and tc_cache, individually through absolute tools/work-run with the own-tree engine and explicit ZINC_ROOT. Own tools/build zinc and subsequent alias-only relink succeeded. Initial cold build reports unchanged V8 SDK unused-parameter warnings, asset/agent initializer warnings, vendored rg_etc1 warnings and the previously recorded NanoSVG signed comparison warning; no warning in the changed frontend or toolchain lines. No warning cleanup outside scope.
+- Literal Hello cross-builds PASS for both targets using installed pinned Zig 0.15.2, an isolated ZINC_HOME and no SDK install/symlink changes. CHIP: 10,506,576 bytes, SHA256 e1722df3e64381c72c08f0834b19ee3eab7635394a67ca7aa2e3eea622d8c049. PocketCHIP: 10,506,596 bytes, SHA256 398e646a9bf3aeb28bf7a131585523f0a0c58bbd6e4276e9f50547b041f02124. GNU readelf independently verifies ELF32 ARMv7, VFPv3, NEONv1, EABI5 hard-float and /lib/ld-linux-armhf.so.3. Neither ARM executable was run; no static-musl claim.
+- Durable proof directory: /Users/mowmow/Lab/zinc/.worktrees/513/.logs/profile-screen-20261110/. summary.json records all 27 cases and compiler SHA256; verify.log, chip-t0.log, tc-cache-t0.log, build.log and build-alias.log hold exact results. cross-hello-summary.json and per-target hello-build/readelf logs retain cross artifacts and metadata. Per-case AOT build/run and interpreter/QuickJS logs are adjacent. Before-alias Hello/Hero command logs prove both target spellings previously returned unknown target.
+- Design choice for coordinator (no new D number needed): use the existing Profile table and target-alias map as the two existing sources of truth; explicit dimensions keep their existing precedence. No lifecycle/state-machine change. Usage: n/a.
+
+
+- AC1 remains open, status Backlog: both literal Hello builds pass, but unchanged examples/hero fails on both targets because plugin video needs libavformat in the absent armv7-linux sysroot. Actual commands: /Users/mowmow/Lab/zinc/tools/work-run 30 env ZINC_ROOT=/Users/mowmow/Lab/zinc/.worktrees/513 ZINC_HOME=/Users/mowmow/Lab/zinc/.worktrees/513/.logs/profile-screen-20261110/cross-home ZINC_ZIG=/Users/mowmow/.zinc/toolchains/zig-aarch64-macos-0.15.2/zig ZINC_HEADLESS=1 ZINC_BACKGROUND=1 build/zinc build --target chip examples/hero -o .logs/profile-screen-20261110/chip-hero (repeat pocketchip). chip-hero-build.log and pocketchip-hero-build.log preserve the exact failure. The first CHIP attempt hit its 120s cold cross-library bound; the PocketCHIP continuation completed those libraries and reached the FFmpeg blocker, then a warm CHIP run reproduced it. No Hero source or plugin was weakened to pass. Next: supply the verified ARMv7 FFmpeg sysroot through existing ZN-334, then rerun these two commands; no new task.
+- All commands were bounded/headless/background through the absolute work-run queue. Own cold graphics cross build briefly had a largest observed process RSS of 597 MiB; this is a safety observation, not a performance result. No ARM execution, simulator, QEMU, remote machine, suite, T1/T2, demo harness, benchmark, pixel comparison, conformance, fuzz or CI run. No child process left running. No shared RESUME/decision/performance/backlog-order files changed.
+
+Proposed tests after this phase (owner picks):
+- Both literal Hero cross-build commands above after ZN-334 supplies FFmpeg (minutes cold, seconds to the current missing-sysroot error warm; memory unmeasured). Inspect ARMv7/NEON/hard-float metadata on both outputs; required for remaining AC1.
+- Real CHIP/PocketCHIP short Hello/Hero and display/touch/keyboard/GPIO/battery checks (seconds each, memory unmeasured); no existing hardware proof is implied.
+- Broader profile screen/default/explicit project-window coverage across the other existing profiles and exported QuickJS bundles (seconds to minutes; memory unmeasured). Current direct all-three-engine CHIP/PocketCHIP checks already pass.
+
+Proposed later.md line: - ZN-513: Validate CHIP/PocketCHIP display/input/GPIO/power and T2 asset budgets on actual boards after the ARMv7 sysroot work; capability rows and ELF metadata do not certify hardware.
 
 <!-- SECTION:NOTES:END -->

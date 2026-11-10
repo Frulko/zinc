@@ -26,19 +26,35 @@ for name in ('chip', 'pocketchip'):
     assert row['modules'] == ['zinc:gfx', 'zinc:gl']
 PY
 cat > "$tmp/platform.ts" <<'TS'
-import { PROFILE, NUMBERS, HEAP_BYTES, TOUCH, KEYBOARD, POINTER, GPIO, POWER, DYNLIB, GPU_API, TIER } from 'zinc:platform';
-console.log(PROFILE + ' ' + NUMBERS + ' ' + HEAP_BYTES);
+import { PROFILE, SCREEN_W, SCREEN_H, NUMBERS, HEAP_BYTES, TOUCH, KEYBOARD, POINTER, GPIO, POWER, DYNLIB, GPU_API, TIER } from 'zinc:platform';
+console.log(PROFILE + ' ' + SCREEN_W + ' ' + SCREEN_H + ' ' + NUMBERS + ' ' + HEAP_BYTES);
 console.log(TOUCH + ' ' + KEYBOARD + ' ' + POINTER + ' ' + GPIO + ' ' + POWER + ' ' + DYNLIB + ' ' + GPU_API + ' ' + TIER);
 const n: number = 16777216;
 console.log(n + 1);
 TS
-for row in 'chip true' 'pocketchip false'; do
+for row in 'chip 720 576 true' 'pocketchip 480 272 false'; do
   set -- $row
   timeout 5 "$Z" check --profile "$1" "$tmp/platform.ts" >"$tmp/check" 2>&1 || { cat "$tmp/check"; fail=1; }
   got=$(timeout 5 "$Z" run --interp --profile "$1" "$tmp/platform.ts" 2>&1 | tr '\n' ' ')
-  expected="$1 f64 134217728 true true $2 true true false gles2 2 16777217 "
+  expected="$1 $2 $3 f64 134217728 true true $4 true true false gles2 2 16777217 "
   [ "$got" = "$expected" ] || { echo "--profile $1: wanted '$expected', got '$got'"; fail=1; }
 done
+cat > "$tmp/screen.ts" <<'TS'
+import { SCREEN_W, SCREEN_H } from 'zinc:platform';
+console.log(SCREEN_W + ' ' + SCREEN_H);
+TS
+for profile in chip pocketchip; do
+  for size in 640x360 invalid 0x0; do
+    expected='640 360'
+    if [ "$size" != 640x360 ]; then
+      case "$profile" in chip) expected='720 576';; pocketchip) expected='480 272';; esac
+    fi
+    got=$(ZINC_SIZE="$size" timeout 5 "$Z" run --interp --profile "$profile" "$tmp/screen.ts" 2>&1)
+    [ "$got" = "$expected" ] || { echo "$profile ZINC_SIZE=$size: wanted '$expected', got '$got'"; fail=1; }
+  done
+done
+got=$(timeout 5 "$Z" run --interp "$tmp/screen.ts" 2>&1)
+[ "$got" = '320 240' ] || { echo "host screen: wanted '320 240', got '$got'"; fail=1; }
 printf 'console.log("hi");\n' > "$tmp/main.ts"
 for row in 'chip 720 576' 'pocketchip 480 272'; do
   set -- $row

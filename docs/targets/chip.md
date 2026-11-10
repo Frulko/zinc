@@ -46,9 +46,9 @@ zinc check --profile chip path/to/project
 zinc check --profile pocketchip path/to/project
 ```
 
-These checks and platform-constant runs work on the host; they do not exercise ARM code. Plain host runs with
-`--profile` currently expose `SCREEN_W/H` as 320×240 instead of the profile defaults above; the requirement
-checks use the correct profile dimensions. The existing cross-build and SSH deployment commands are:
+These checks and platform-constant runs work on the host; they do not exercise ARM code. `SCREEN_W/H` use
+the profile defaults above unless the project or `ZINC_SIZE` supplies an explicit size.
+The existing cross-build and SSH deployment commands are:
 
 ```sh
 zinc build --target chip path/to/project -o dist/chip-app
@@ -58,5 +58,6 @@ zinc deploy path/to/project --target pocketchip --device user@board --print
 
 `--print` previews deployment without copying or starting anything. Once the image, SSH connection and target
 libraries are ready, omit it to export, copy and start the app. Set `ZINC_BACKGROUND=1` when launching a GUI.
-Cross-building Hello and Hero for both profiles, then checking display, touch, keyboard, GPIO and battery on a
-real board, remains unproven by this table change; the profile checks alone do not establish those results.
+Hello cross-builds for both profiles produce ARMv7 hard-float executables. Hero currently stops at its video
+plugin because the ARMv7 sysroot lacks FFmpeg (`libavformat`).
+No ARM executable has been run here. Display, touch, keyboard, GPIO and battery still need a real-board check.
