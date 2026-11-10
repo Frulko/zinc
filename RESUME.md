@@ -6,6 +6,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
+|334 Linux sysroot autofetch|.worktrees/334 / work/334|IndependentTC/script/doctor/package worker, reusepins, atomicstate; neededvideoFFmpeg pins for513realHeroblocker. Maxsecondbuildingtree.|
 
 Root common source8c2f1ee82/compilerffec2b6e is stable after513 screen-default/alias fix.85Done;513 remainsBacklogAC1 because both actualHero crossbuilds reach video/libavformat missing in privateARMv7sysroot. AC2–5 pass. Next334 autofetch/pinnedLinuxsysroots addresses that real dependency; existing lock lacksFFmpeg, so add only needed pinnedpackages rather than changingHero. Intl161.03 research ready in .logs/research-16103.txt for next solecoreworker. All earliercompletedworkers archived.
 

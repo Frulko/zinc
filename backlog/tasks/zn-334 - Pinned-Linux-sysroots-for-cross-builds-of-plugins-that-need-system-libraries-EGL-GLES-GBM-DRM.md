@@ -2,7 +2,8 @@
 id: ZN-334
 title: 'Cross builds fetch the pinned Linux sysroot by themselves'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-08 14:34'
 updated_date: '2026-11-07 18:30'
 labels:
