@@ -178,6 +178,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The Quiet kit adds assistant reasoning, tool details, plans, citations, context, model choices and a multiline chat composer, with caller-owned content and working keyboard actions.
 
 - `examples/ui/tracker` is a local issue tracker with a grouped list, editable tickets, comments, creation and responsive detail sheets in the Quiet light and dark themes.
+- `examples/ui/settings` brings profile validation, notification preferences and live appearance previews to a responsive Quiet app, with working local Save and Discard.
 
 - `examples/ui/dashboard` is a local release desk with build metrics, interactive charts, a release calendar, runner registration and preferences, in light and dark at desktop and phone widths.
 
