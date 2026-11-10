@@ -1,0 +1,24 @@
+function true true true false
+g! g. 5 7 9
+unbound true
+5 11
+g! 1
+g* g#
+reset reset!
+g! loud?
+missing true
+{"name":"reset"}
+{"name":"reset"}
+after 7 shared
+true true
+renamed {"name":"renamed","note":"added"} true
+gtemporary
+5
+released true
+g* loud?
+reset g
+{"n\"ame":"reset","plain":0,"active":false}
+{}
+{}
+{} true
+{"value":null}

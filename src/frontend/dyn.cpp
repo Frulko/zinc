@@ -1,5 +1,6 @@
 #include "frontend/dyn.h"
 
+#include <functional>
 #include <set>
 
 #include "frontend/inspect.h"
@@ -70,7 +71,7 @@ bool dynConvertible(const Checked& c, TypeId t) {
   return convertibleRec(c, t, seen);
 }
 
-std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::pair<TypeId, bool>>& deps, std::vector<TypeId>& formatters) {
+std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, std::vector<std::pair<TypeId, bool>>& deps, std::vector<TypeId>& formatters) {
   const Type& x = c.types[t];
   std::string A = inspectAliasName(t);
   auto toCall = [&](TypeId ct, const std::string& v) { deps.push_back({ct, true}); return dynToName(ct) + "(" + v + ")"; };
@@ -131,8 +132,7 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
           if (!m->readonly) set += "      case '" + m->name + "': v." + m->name + " = " + fromExpr(m->type, "w") + "; break;\n";
           hasExpr += (hasExpr.empty() ? "" : " || ") + std::string("n === '") + m->name + "'";
         }
-        // the public methods (overrides first): a function bound to the object, its arguments converted from the any values, its result boxed
-        // ponytail: every parameter is passed, so a missing argument of a defaulted number parameter throws; per-arity calls if a program needs them
+        // Public methods (overrides first): function identity belongs to the declaration, and the call supplies its receiver.
         std::set<std::string> seenM;
         for (std::uint32_t o = x.obj; o != 0xFFFFFFFFu; o = c.objs[o].parent)
           for (const Member& m : c.objs[o].members) {
@@ -143,11 +143,28 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
             bool ok = !f.rest && (isVoid || dynConvertible(c, f.elem));
             for (TypeId p : f.params) ok = ok && dynConvertible(c, p);
             if (!ok) continue;
-            std::string call = "v." + m.name + "(";
-            for (std::size_t k = 0; k < f.params.size(); ++k) call += (k ? ", " : "") + fromExpr(f.params[k], "__dynArg(a, " + std::to_string(k) + ")");
-            call += ")";
-            get += "      case '" + m.name + "': return new DynFn('" + m.name + "', __identity(o), (a: unknown[]): unknown => " +
-                   (isVoid ? "{ " + call + "; return __undef; }" : toExpr(f.elem, call)) + ");\n";
+            std::function<bool(std::uint32_t)> usesThis = [&](std::uint32_t node) {
+              if (node == kNone) return false;
+              const Node& n = ast.nodes[node];
+              if (n.kind == N::This || n.kind == N::Super) return true;
+              for (std::uint32_t kid : n.kids) if (usesThis(kid)) return true;
+              return false;
+            };
+            const bool receiver = m.decl != kNone && usesThis(m.decl);
+            const TypeId owner = typeOfObject(c, m.owner);
+            // shortcut: borrowed methods require their declaring class; structural receiver views must handle unrelated objects.
+            const std::string object = receiver ? fromExpr(owner, "self") : "v";
+            std::string invoke = "(self: unknown, a: unknown[]): unknown => {\n";
+            auto call = [&](std::size_t argc) {
+              std::string text = "(" + object + ")." + m.name + "(";
+              for (std::size_t k = 0; k < argc; ++k) text += (k ? ", " : "") + fromExpr(f.params[k], "__dynArg(a, " + std::to_string(k) + ")");
+              text += ")";
+              return isVoid ? text + "; return __undef;" : "return " + toExpr(f.elem, text) + ";";
+            };
+            for (std::size_t argc = f.minArgs; argc < f.params.size(); ++argc)
+              invoke += "      if (a.length === " + std::to_string(argc) + ") { " + call(argc) + " }\n";
+            invoke += "      " + call(f.params.size()) + "\n    }";
+            get += "      case '" + m.name + "': return new DynFn('" + m.name + "', " + std::to_string(m.owner) + ", " + invoke + ");\n";
             hasExpr += (hasExpr.empty() ? "" : " || ") + std::string("n === '") + m.name + "'";
           }
         get += "    }\n    return __undef;\n  }";
@@ -240,9 +257,9 @@ class DynObj extends Dyn {
   kind(): i32 { return 6; }
   toString(): string { return '[object Object]'; }
 }
-// A method seen through an any (`(o as any).greet`): bound to its object, called with the arguments as any values
+// A method value has declaration identity; only a member call supplies a receiver.
 class DynFn extends Dyn {
-  constructor(public name: string, public self: i64, public f: (a: unknown[]) => unknown) { super(); }
+  constructor(public name: string, public self: i64, public f: (self: unknown, a: unknown[]) => unknown) { super(); }
   kind(): i32 { return 8; }
   toString(): string { return 'function ' + this.name + '() { [native code] }'; }
 }
@@ -322,8 +339,14 @@ function __dynTypeof(d: Dyn): string {
   return 'object';
 }
 // f(...) or d.m(...) on an any value: the function it holds, called with the arguments as any values (`what` names it in the error)
+function __dynMethod(o: Dyn, key: string): Dyn {
+  const f: Dyn = __dynGet(o, key);
+  if (f instanceof DynFn) return new DynFn(f.name, f.self, (unused: unknown, args: unknown[]): unknown => f.f(o, args));
+  return f;
+}
+function __dynMethodD(o: Dyn, key: Dyn): Dyn { return __dynMethod(o, key.toString()); }
 function __dynCall(f: Dyn, args: unknown[], what: string): unknown {
-  if (f instanceof DynFn) return f.f(args);
+  if (f instanceof DynFn) return f.f(__undef, args);
   throw new TypeError(what + ' is not a function');
 }
 function __dynTruthy(d: Dyn): boolean {
@@ -407,7 +430,7 @@ function __dynLe(a: Dyn, b: Dyn): boolean {
 function __dynGe(a: Dyn, b: Dyn): boolean { return __dynLe(b, a); }
 function __dynSame(a: Dyn, b: Dyn): boolean {
   if (a instanceof DynRef && b instanceof DynRef) return a.identity() === b.identity();
-  if (a instanceof DynFn && b instanceof DynFn) return a.self === b.self && a.name === b.name;   // one method of one object, read twice
+  if (a instanceof DynFn && b instanceof DynFn) return a.self === b.self && a.name === b.name;   // one method declaration, including reads from different instances
   if (a instanceof DynArr && b instanceof DynArr) return __identity(a.items) === __identity(b.items);   // two views of one any[]
   return __identity(a) === __identity(b);
 }
@@ -707,6 +730,7 @@ function __logDyn(d: Dyn): string {
 }
 
 // ---- JSON
+function __dynJsonOmit(d: Dyn): boolean { return d.kind() === 0 || d.kind() === 8; }
 function __dynJson(d: Dyn): string {
   const fast: string = __jsonOut(d);   // the runtime walks the tree; '' when it holds a typed object view
   if (fast.length > 0) return fast;

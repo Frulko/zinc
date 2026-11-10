@@ -35,6 +35,16 @@ std::string property(const std::string& obj, const std::string& key) {
 
 TypeId typeOfObj(const Checked& c, std::uint32_t obj) { return c.typeOfObj(obj); }
 
+bool dynamicJson(const Checked& c, TypeId t) {
+  const Type& x = c.types[t];
+  if (x.k == TK::Any || (x.k == TK::Object && c.objs[x.obj].name == "Dyn")) return true;
+  return x.k == TK::Union && std::any_of(x.params.begin(), x.params.end(), [&](TypeId m) { return dynamicJson(c, m); });
+}
+
+std::string dynamicJsonPresent(const Checked& c, TypeId t) {
+  return c.types[t].k == TK::Union && !c.types[t].undef ? "e === null || !__dynJsonOmit(e)" : "e !== null && !__dynJsonOmit(e)";
+}
+
 int depthOf(const Checked& c, std::uint32_t o) {
   int d = 0;
   for (; o != 0xFFFFFFFFu && d < 1000; o = c.objs[o].parent) ++d;
@@ -242,7 +252,7 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
       }
       const auto added = addedFieldsAll(c, x.obj);
       bool anyOmit = !added.empty();
-      for (const Member* m : fs) anyOmit = anyOmit || (c.types[m->type].k == TK::Union && c.types[m->type].undef);
+      for (const Member* m : fs) anyOmit = anyOmit || dynamicJson(c, m->type) || (c.types[m->type].k == TK::Union && c.types[m->type].undef);
       if (!anyOmit) {   // every field is written: one concatenation, no array and join per object (ZN-654: jsonout's work -14%)
         std::string e, lit = "{";
         for (const Member* m : fs) {
@@ -259,12 +269,15 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
         if (c.types[m->type].k == TK::Func) continue;
         bool omit = c.types[m->type].k == TK::Union && c.types[m->type].undef;  // an undefined field is left out of the text
         const std::string value = property("v", m->name);
-        body += std::string("  ") + (omit ? "if (" + value + " !== null) " : "") + "out.push(" + quoted(quoted(m->name) + ":") + " + " + call(m->type, value) + ");\n";
+        if (dynamicJson(c, m->type)) {
+          body += "  { const e = " + value + ";\n    if (" + dynamicJsonPresent(c, m->type) + ") out.push(" + quoted(quoted(m->name) + ":") + " + " + call(m->type, "e") + ");\n  }\n";
+        } else body += std::string("  ") + (omit ? "if (" + value + " !== null) " : "") + "out.push(" + quoted(quoted(m->name) + ":") + " + " + call(m->type, value) + ");\n";
       }
       for (const auto& [rec, m] : added) {
         const TypeId rt = typeOfObj(c, rec);
         deps.push_back(rt);
-        body += "  { const e = " + property("(v as " + inspectAliasName(rt) + ")", m->name) + ";\n    if (e !== null) out.push(" + quoted(quoted(m->name) + ":") + " + " + call(m->type, "e") + ");\n  }\n";
+        const std::string present = dynamicJson(c, m->type) ? dynamicJsonPresent(c, m->type) : "e !== null";
+        body += "  { const e = " + property("(v as " + inspectAliasName(rt) + ")", m->name) + ";\n    if (" + present + ") out.push(" + quoted(quoted(m->name) + ":") + " + " + call(m->type, "e") + ");\n  }\n";
       }
       body += "  return '{' + out.join(',') + '}';\n";
       break;

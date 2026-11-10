@@ -1437,7 +1437,7 @@ struct Checker {
       if (dynDeclared.count(u) || std::find(closure.begin(), closure.end(), u) != closure.end()) continue;
       closure.push_back(u);
       std::vector<std::pair<TypeId, bool>> deps;
-      text += dynConverter(out, u.first, u.second, deps, formatters);
+      text += dynConverter(a, out, u.first, u.second, deps, formatters);
       for (auto& d : deps) todo.push_back(d);
     }
     std::vector<TypeId> alias;
@@ -2929,10 +2929,20 @@ struct Checker {
         if (m == "sort" && x.kids.size() == 1) call += "__dynSortCmp";
         call += ")";
         return replaceWith(i, call, holes) ? expr0(i, kNoType) : tError;
+      } else if ((cn.kind == N::Member || cn.kind == N::Index) && !rawDyn() && !(cn.flags & kFlagOptional) && !(x.flags & kFlagOptional) && dynReceiver(cn.kids[0]) && out.nodeType[cn.kids[0]] == tDyn) {
+        // Prepare the reference before evaluating arguments, retaining the receiver only for this call.
+        const bool computed = cn.kind == N::Index;
+        const std::string method = computed ? "expression" : std::string(cn.text);
+        std::string call = computed ? "__dynCall(__dynMethodD(__H0, __H1), [" : "__dynCall(__dynMethod(__H0, '" + method + "'), [";
+        std::vector<std::vector<std::uint32_t>> holes{{cn.kids[0]}};
+        if (computed) holes.push_back({cn.kids[1]});
+        for (std::size_t k = 1; k < x.kids.size(); ++k) { call += (k > 1 ? ", " : "") + std::string("__H") + std::to_string(holes.size()); holes.push_back({x.kids[k]}); }
+        call += "], '" + method + "')";
+        return replaceWith(i, call, holes) ? expr0(i, kNoType) : tError;
       } else { calleeNode = callee; ct = expr(callee); calleeNode = kNone; }
       if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) if (!preEvaluated) expr(x.kids[k]); return tError; }
       if (ct == tDyn && !rawDyn() && !(x.flags & kFlagOptional) && !(n(callee).flags & kFlagOptional) && !preEvaluated) {
-        // `d.greet()`, `f(x)` on an any value, as TypeScript allows: the function it holds (a method read through the any is bound), the arguments boxed
+        // `d.greet()`, `f(x)` on an any value, as TypeScript allows: the function it holds, with no receiver, and the arguments boxed
         const Node& c2 = n(callee);
         std::string what = c2.kind == N::Member ? (n(c2.kids[0]).kind == N::Ident ? std::string(n(c2.kids[0]).text) + "." : std::string()) + std::string(c2.text)
                          : c2.kind == N::Ident ? std::string(c2.text) : std::string("expression");
