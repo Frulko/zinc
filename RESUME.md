@@ -7,14 +7,14 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 | Task | Worktree / branch | State |
 | --- | --- | --- |
 | ZN-1112 narrow Tabs | .worktrees/1112 / work/1112 | Fresh kit Tabs/reveal worker; actual End selects Account but label/focus clipped at360px all3, no caller workaround. |
-| ZN-1111 typeof union | .worktrees/1111 / work/1111 | Solecore frontend fix: dynBacked union omitted by typeof lowering. Candidate reuses existing __dynTypeof; build/exact proof underway, common397865 remains frozen. |
+| ZN-1111 typeof union | .worktrees/1111 / work/1111 | Solecore frontend fix: dynBacked union omitted by typeof lowering. Candidate c7643c50 build/exact T0 all3 and original Avatar56 pass, Settings original proof underway. Then same warm tree1113 ReturnType Mail blocker. Common397865 frozen. |
 | ZN-1078.25 Mail | .worktrees/1078.25 / work/1078.25 | Fresh local mail demo: responsive three panes, search, read/star/archive and compose, no external sending. |
 
-1111 is sole active shared-core writer;1112 owns kit tabs only. Finish reported integration before filling the next slot. Next startable family: ZN-1078.27 Notes, then Assistant; Settings minimal Avatar/typeof and narrow Tabs evidence pending, may require a sole core blocker first. Read current task/dependencies and search primary references before claiming.
+1111→1113 is the sole shared-core chain (typeof union then ReturnType);1112 owns kit tabs only. Finish reported integration before filling the next slot. Next startable family: ZN-1078.27 Notes then Assistant, after filling reported integrations. Settings23 awaits1111/1112; Mail25 checker/interp/AOT await1113, QuickJS actual entry works. Read current task/dependencies and search primary references before claiming.
 
 ## Integrated
 
-- Gallery20 8678d8c6d Done: complete defaultall inclExtended,33landmarks, persistent accessible Jump and real Form/ResizeHandle, all3/narrowrotation/theme. Existing growDrawCommands avoids fixed draw pool saturation. Root full defaultall smoke queued; QJS37s indicative slowfirstlayout, not benchmark.
+- Gallery20 8678d8c6d Done: complete defaultall inclExtended,33landmarks, persistent accessible Jump and real Form/ResizeHandle, all3/narrowrotation/theme. Existing growDrawCommands avoids fixed draw pool saturation. Root full check/defaultall interp2 PASS without draw-pool warning; QJS37s indicative slowfirstlayout, not benchmark.
 - Settings23 checkpoint worker04826c88f integrated, Backlog AC2true/AC1open. Complete local app and all3/actions/7pictures, but original Avatar56 is40compiled and last Tabs focus clipped360px. Resume unchanged UI after1111+1112, no workaround. Durable repro/provenance .logs/settings-1078.23-20261110.
 
 - Finance24 9abd4be3f Done: actual all3 74frame interactions/captures, real DataGrid/candle/donut, accounts/month/search/category/numeric sort/details,360px grid keyboard and multiple selection. Root check/QJS4PASS; provenance .logs/finance1078.24-20261110.

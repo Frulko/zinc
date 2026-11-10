@@ -1744,3 +1744,9 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 
 - Planning+Tracker+Extended source720f15378, unchanged engine3978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af. Raw unchanged gate JS235962/246177/282882B; unused10215<10240 (25B margin),4078/component. AOT5325320/5474000/6025760B; unused148680<163840,61306/component. Lazy System native factory removes System from unused Button plugins; editor remains. No budget/option/icon/control cuts.
 - Root12 model/API/UI paths across all3, production-native chosen-path filesystem grant and original Extended QJS4frames pass. Twelve worker pictures; root narrow capture/dark social inspected. Exact source hashes/provenance kit-integration-2026-11-10.json after_extended. No physical gesture/secondary-window/device/VoiceOver/browser or quiet-machine performance/energy claim.
+
+
+## 2026-11-10 — Gallery and Finance demo integration
+
+- Full Gallery8678d8c6d with all families/33landmarks passes all3 and root unchanged check/interp2. Indicative finite full-page runtime about12.7s interpreter or37s QuickJS under shared activity, different proof frame counts; no engine throughput comparison. Existing growDrawCommands removes fixed draw-command capacity warning. Offscreen/first-layout optimization remains later.
+- Finance9abd4be3f passes actual74frame interactions all3, root check/QJS4, nine inspected light/dark/narrow pictures. Native tool reported rounded7.4MB and7.2s first build on busy host; diagnostic only, not a benchmark. Long memory/idle-energy/device tests remain proposed. Source/raw provenance kit-integration JSON and .logs/finance1078.24-20261110.

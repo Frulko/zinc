@@ -318,5 +318,36 @@
       "physical touch/VoiceOver/device/long memory and idle unproven",
       "original heading visual difference; minimal canonical case passes"
     ]
+  },
+  "finance_integration": {
+    "commit": "9abd4be3f",
+    "worker_commit": "b00f395e237b4306bc1b0d688ebc9d80d4310b9a",
+    "engine_sha256": "3978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af",
+    "worker_checks": "74frame actual inputs/assertions all3, light/dark and360px keyboard grid, multiple selection/empty spending",
+    "root_checks": "check and original QuickJS4frames PASS",
+    "root_inspected": [
+      "examples/ui/finance/pictures/light-native.png",
+      "examples/ui/finance/pictures/narrow-grid.png"
+    ],
+    "root_log": ".logs/integration-2026-11-10/finance-integrated.log",
+    "worker_provenance": ".logs/finance1078.24-20261110/provenance.json"
+  },
+  "gallery_integration": {
+    "commit": "8678d8c6d",
+    "worker_commit": "72d70980361f84eb81466224f382d5c3c87ec670",
+    "engine_sha256": "3978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af",
+    "source_manifest_sha256": "57699a1370e53a0c420482a29a8d7a916d808204c6500ae1746454b0b093652a",
+    "worker_checks": "defaultall all3;33landmarks; late Extended Jump/focus; Form Enter and ResizeHandle keyboard; light/dark360px and rotation",
+    "root_checks": "check and unchanged defaultall interpreter2frames PASS, no draw-pool warning",
+    "root_inspected": [
+      "docs/img/kit-gallery-narrow.png"
+    ],
+    "root_log": ".logs/integration-2026-11-10/gallery-all-integrated.log",
+    "worker_archive": ".logs/archive-completed-workers-20261110/1078.20/logs/gallery20",
+    "limits": [
+      "finite slow first full layout, QJS37s indicative under shared activity",
+      "physical/device/long idle unproven"
+    ],
+    "configuration": "existing growDrawCommands enabled for exhaustive page"
   }
 }

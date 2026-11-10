@@ -867,6 +867,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-1078.22: investigate original Dashboard heading visual difference interp/AOT versus QuickJS; minimal canonical heading(2) and import-only App both report28px, no confirmed engine defect. Repro diagnostics archived with Dashboard logs; keep original source unchanged.
 
+- ZN-1078.20: study first layout and offscreen drawing cost of the exhaustive gallery; final QuickJS smoke about37s under shared activity, finite/stable footprint, no quiet-machine benchmark claim. Existing growDrawCommands is enabled so no family is silently omitted.
+
 ## Cross-platform pass
 
 - ZN-1027: an export with a broken plugin to a Linux target fails as on the Mac.
