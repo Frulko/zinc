@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+-184 integrated8ac26e714 Done; actualGLES2 ANGLEMetal EXT+ANGLE identicalframe and62.5% fewer soliduploadbytes. Rootcommonrefresh/proofqueued. Reserve449 wasm browser loading asnextenginechain; research identifies missing validatedpack mounting/KTX2 path. Freshworker reads/plans first, no thirdbuildingtree while root+653authorized; wasm-onlyvendor adapter, no mainWIPworkaround.
+
 - Reserve653 independent audio memory check while184 owns GLreplay. Review asks verify upstream nonfloat tail; if fixed, preserve all480frames and halve sample storage; if unfixed, record/drop per existing task review without counting a completed engine feature. Audio plugin/vendor only, no allocator/QJS/host/HAL/sharedruntime edits. No long audio test or new demo.
 
 - Recorded D288 and D188/D231 array amendment; root combined array/size/kit and real3D visibility proofs PASS.75Done. Completed1030-array/683 worktrees archived and removed;36 completed source checkpoints cleaned.184 remains active; remote SSH timeout, local ANGLE proof explored. All10 protected WIP payloads unchanged.

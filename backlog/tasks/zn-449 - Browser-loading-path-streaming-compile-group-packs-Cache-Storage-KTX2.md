@@ -2,7 +2,8 @@
 id: ZN-449
 title: 'Browser loading path: streaming compile, group packs, Cache Storage, KTX2'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:36'
 labels:
   - games
