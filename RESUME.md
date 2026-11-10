@@ -7,7 +7,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 | Task | Tree / branch | State |
 | --- | --- | --- |
 |1030 structural arrays/views|.worktrees/1030 / work/1030|Fresh representation plan/prototype after optional-Dyn checkpoint44457803a; no broad IR/runtime/AOT implementation before narrow review.|
-|587 web Worker facade|.worktrees/587 / work/587|Done integrated97af370e3; root combined proof pending, archive after caller smoke.|
+|587 web Worker facade|Integrated97af370e3; archived587-final|Done; combined4exact and actualPixi/Tone PASS.|
 |603 AOT size|.worktrees/603 / work/603|Active emitter/link/resource optimization. Measured source9,965,252 B inclheader, native9,811,528 B; compression next, full8MB criterion still open.|
 
 897 minimal native cleanup/client checkpoint is integratedc918514de Backlog; no libnice/vendor switch.1118 self-exec research is integrated0d50aadd1, no production guardian.395a025e2882 Done and1030 method checkpoint4f0b3b889 Backlog are integrated. 1030 optional-Dyn checkpoint44457803a integrated with final all3 proof0b39abe8; root common refresh groups with587/603. Previous common default build af20bb17b and exact integration smoke passed (six T0s, permissions, Museum3, real capture, Callshot); original call-server startup/HTTP/TERM/no-child also passed. Three fresh engine workers now active:603 emitter/resources,587 QJS/web worker,1030-views frontend representation research only. No new services/demos chosen.
@@ -30,7 +30,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 ## Common engine and final kit gate
 
-Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, sourceaf20bb17b, SHA256f33ea427d97eee5cb11284366c19cd691f141f0ba81c4a75edfbc20200c8f4df. Adjacent AOT archives required. Includes current nested macOS repair and QuickJS GC/profile. Announce before replacing. Never build main external WIP.
+Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, source97af370e3, SHA256f34fc9e9f863c4883f3a115f429fbe4bdc788c42ece10d71f0dbdc5619c95c0f. Adjacent AOT archives required. Includes current nested macOS repair and QuickJS GC/profile. Announce before replacing. Never build main external WIP.
 
 Older proofs keep their real hashes:037a922f9/29ffb93a19627fb7dc465badc12c9c292ffaa55bf1db76d458b81837f4b48155;fe4b8bee5/47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Mixed process proof was insufficient and is superseded by reopened combined repro.
 
@@ -94,4 +94,4 @@ Cleanup:25 completed clean worktrees archived/removed in the full series; latest
 
 Integrated:44457803a preserves optional Dyn null/undefined across value observers, narrowing, JSON and synthesized optional defaults. Focused T0/original optional-null repro all3 PASS7s on0b39abe87069cc9f88cdccc1dcadca27590ca09ef2c37d6c516da0dd7fc68ef2.1030 BacklogAC1open, no unsafe array/store waiver. Latest frozen baseline .worktrees/1030-views/build/zinc retained for newplan reader; earlier1030 tree archived/removed (26 total).
 
-Integrated:58797af370e3 Doneall4AC; actual pinned Pixi/Tone/typed-worker proofs pass, queues256messages/16MiB per direction, cloned transfers and thread-safe permission providers. D282 records contract/limits.72Done; no native remote/performance claim. Common refreshed source97af370e3 SHA f34fc9e9f863c4883f3a115f429fbe4bdc788c42ece10d71f0dbdc5619c95c0f; root exact4+actualpinnedcaller smoke running. Building slots root+603,1030borrowed-method codeonly until release.
+Integrated:58797af370e3 Doneall4AC; actual pinned Pixi/Tone/typed-worker proofs pass, queues256messages/16MiB per direction, cloned transfers and thread-safe permission providers. D282 records contract/limits.72Done; no native remote/performance claim. Common refreshed source97af370e3 SHA f34fc9e9f863c4883f3a115f429fbe4bdc788c42ece10d71f0dbdc5619c95c0f; root exactweb_worker/system_drop_scope/open_record_methods/json_quoted plus actualpinnedPixi/Tone PASS. Building slots603+1030borrowed-method; rootidle. Completed587 archived/removed (27total); logs .logs/integration-2026-11-10/worker-optional-smoke.log.

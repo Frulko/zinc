@@ -604,5 +604,31 @@
       "portable genuine ICE restart",
       "production guardian after vanished intermediate"
     ]
+  },
+  "worker_optional_integration": {
+    "source_commit": "97af370e3",
+    "engine_sha256": "f34fc9e9f863c4883f3a115f429fbe4bdc788c42ece10d71f0dbdc5619c95c0f",
+    "exact_t0": {
+      "web_worker": "PASS",
+      "system_drop_scope": "PASS",
+      "open_record_methods": "PASS",
+      "json_quoted": "PASS"
+    },
+    "actual_callers": {
+      "Pixi8.22.0": "preferWorkers created2workers;32x24 decoded redpixel220,30,30,255",
+      "Tone15.1.22": "workerTicker2ticks anddispose"
+    },
+    "status": {
+      "587": "Done",
+      "1030": "BacklogAC1open; optionalDyn fixed"
+    },
+    "done_count": 72,
+    "log": ".logs/integration-2026-11-10/worker-optional-smoke.log",
+    "archive": ".logs/archive-completed-workers-20261110/587-final",
+    "not_proven": [
+      "quiet runtime/startup/energy",
+      "TSAN/hardware/long churn",
+      "full structural array/store/borrowed parity"
+    ]
   }
 }
