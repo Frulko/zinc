@@ -729,6 +729,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1078.19: secondary-window SDL event route lacks DROP_FILE/TEXT cases and the callback lacks window/coordinates. Carry trusted window identity/coordinates through HAL→System before claiming multi-window routing; prove overlapping zones in two windows.
 - ZN-1078.19: physical Finder/file-manager gestures, VoiceOver, browser/device/touch and long idle/remount/decode ownership checks remain proposed; headless primary-window callbacks do not prove these surfaces.
 
+- ZN-445: authenticate pack provenance before enabling QuickJS bytecode loading; archive checksums do not establish sender trust, so unsigned packs currently compile retained source.
+- ZN-445: global flags before `run file.zapp` bypass early pack routing and fail; carry unsigned provenance from successful unpacking when repairing dispatch, never from extension alone.
+- ZN-1117: verify native surface-close delivery destroys a Solid app root before audio/resource cleanup; explicit root disposal is proven, surface close without disposal is not.
+- ZN-603: attribute Hero's remaining linked-library text with retained symbols before optimizing; native 10,905,448 B and generated C++ 27,205,373 B still exceed the task's size limits.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -943,3 +948,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1024: measure the compile on the Pi with 3 threads against 2 (D267 thread count).
 
 - ZN-1105: physical mouse/touch/VoiceOver and mixed-font wrapped glyph/source-hit parity on Pi, Mojave and the new OptiPlex; local-coordinate and clipping proof currently comes from the development Mac.
+
+- ZN-895: execute pinned Galène binaries on Pi/OptiPlex and measure quiet Mac idle RSS before publication; reproducible builds/local install are proven, server startup and call quality are not.

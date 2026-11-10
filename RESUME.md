@@ -27,9 +27,9 @@ Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, source a
 
 Older proofs keep their real hashes:037a922f9/29ffb93a19627fb7dc465badc12c9c292ffaa55bf1db76d458b81837f4b48155;fe4b8bee5/47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Mixed process proof was insufficient and is superseded by reopened combined repro.
 
-Final unchanged kit gate passes: JS236192/246407/283256 B (unused10215,25 B margin;4094/component,15 B strict aggregate headroom). AOT5325336/5474000/6025776 B (unused148664;61308/component). No icon/feature/budget cuts. Detailed task provenance and docs/reports/bench/kit-integration-2026-11-10.json; root .logs/integration-2026-11-10.
+Final unchanged kit gate passes: JS236192/246407/283256 B (unused10215,25 B margin;4094/component,15 B strict aggregate headroom). AOT5325336/5474000/6025776 B (unused148664;61308/component). No icon/feature/budget cuts. Detailed task provenance and docs/reports/bench/kit-integration-2026-11-10.json; root .logs/integration-2026-11-10. Root latest combined galene_toolchain/project_link/zapp_share/qjs_bytecode and original Hero check/interpreter4 PASS; no nested cleanup success claim. D278 records standalone Galène, D279 unsigned QuickJS source fallback.
 
-Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail1078.25-20261110/completed, .logs/share-774.31-20261110, .logs/galene-895-20261110, .logs/hero-603-20261110. Notes/Assistant final proof files still also in their clean completed worktrees; archive before removal.
+Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail1078.25-20261110/completed, .logs/share-774.31-20261110, .logs/galene-895-20261110, .logs/hero-603-20261110. Notes/Assistant final proofs and CUI artifacts are archived in .logs/archive-completed-workers-20261110/<id>-final. Twelve completed clean worktrees were removed;1118/774.31 retained until nested repair completes.
 
 ## Preserve external work and machine limits
 

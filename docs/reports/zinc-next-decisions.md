@@ -377,6 +377,33 @@ The kit's neutral getter/direct-setter contract is live on both UI models. React
 
 The Code family composes the existing editor, md4c/selectable Markdown and extracted Inspector JSON model. Instance options retain legacy callers while isolating editing callbacks, theme, assistant and jumps. Diff alignment interns lines once, searches nearby exact anchors with a131,072-probe budget and linear storage, then emits a coarse replacement; reconstruction remains exact, alignment need not be minimal for distant reorders. Scores in RULES order: bounded anchors 5/4/5/4/5/5/5 =65; full LCS matrix 5/2/1/4/5/5/4 =50; budgeted linear-space Myers 5/4/4/3/5/5/2 =58. Performance scores are judgement, not timing measurements. Exact model/interaction checks pass on both models and all engines, including adversarial reconstruction and input-cache invalidation; legacy callers check unchanged. Revisit budgeted Myers if distant reorder reviews become common. The unchanged size gate remains open by12 strict JS bytes; this decision does not waive that acceptance criterion. Evidence: [kit-code-2026-11-10.json](bench/kit-code-2026-11-10.json).
 
+## D278 — Keep the call SFU outside the engine (ZN-895)
+
+Use Zinc's control plane with Galène as a separate MIT server, following [the self-host design](webrtc-selfhost-design.md). The pinned Galène 1.2.1 / Go 1.26.10 archives reuse the existing checksum-verified tool installer; the Go/Pion implementation adds no engine dependency. Existing invitation/admin JSON and a single server fit small self-hosted groups. [Upstream installation](https://galene.org/galene-install.html) documents the standalone CGO-disabled build. The four stripped binaries are 11,862,178–12,812,450 bytes; two source paths produced identical archives. Local installation and native `-help` pass. Server startup, idle RSS, call quality and native Linux execution remain unproven; ZN-895 remains Review. Public release assets have not been published.
+
+Scores use fit ×3, performance ×3, size ×2, maintenance ×2, licence/supply ×2, portability ×1 and effort ×1. Performance and RSS scores are design judgement, not measurements; artifact sizes are measured.
+
+| Option | Fit | Perf | Size | Maint | Licence/supply | Port | Effort | Total |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Zinc + Galène | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 59 |
+| Zinc + LiveKit | 4 | 5 | 3 | 3 | 5 | 4 | 2 | 55 |
+| Mesh + TURN | 3 | 2 | 5 | 5 | 5 | 5 | 5 | 55 |
+| LiveKit protocol/SDKs | 3 | 5 | 3 | 4 | 5 | 4 | 2 | 54 |
+| SRS | 2 | 4 | 4 | 3 | 5 | 3 | 2 | 47 |
+| mediasoup | 2 | 5 | 2 | 3 | 5 | 3 | 1 | 45 |
+| SFU in Zinc | 3 | 2 | 5 | 2 | 4 | 4 | 1 | 42 |
+| Janus | 3 | 4 | 3 | 3 | 2 | 3 | 2 | 42 |
+| Jitsi | 2 | 4 | 1 | 2 | 5 | 2 | 2 | 38 |
+| ion-sfu (archived) | 2 | 3 | 4 | 1 | 1 | 4 | 2 | 33 |
+
+Revisit if quiet Pi/Mac RSS is excessive, upstream maintenance stops, or transport-cc, RED, TURN/TLS443 or multiple nodes become necessary; compare LiveKit then. Before publishing, run the proposed quiet RSS check and native target proof. Use `--latest=false` on the tool release so it cannot replace Zinc's engine release. Provenance: `.logs/galene-895-20261110/` and ZN-895 task notes.
+
+## D279 — Unauthenticated packs execute source on QuickJS (ZN-445)
+
+QuickJS bytecode is trusted executable input. [QuickJS-ng's developer guide](https://quickjs-ng.github.io/quickjs/developer-guide/intro/) says the bytecode reader does not validate untrusted data. A pack's SHA-256 inventory checks corruption; a sender can replace both data and hashes, so it does not authenticate bytecode. Keep the version/commit-stamped local cache and writer, retain original pack sources, and disable bytecode reads for unsigned unpacked/fused programs. A visible warning explains the source fallback; incompatible local cache entries explain how to rebuild. Native plugin trust flags keep their existing meaning.
+
+Security validation is a hard constraint: unauthenticated bytecode loading is ineligible regardless of speed. Source fallback reuses existing compilation without a signing service or format. Exact tests prove stale/truncated local cache rejection and hostile pack bytecode rejection even after inventory hashes are recomputed; real Fatty direct and packed source runs pass. Revisit packed bytecode acceleration only when provenance is authenticated, with explicit compatibility and trust-boundary tests. Global CLI flags currently miss the early `.zapp` route and fail rather than loading its bytecode; a future route repair must carry provenance from successful unpacking, not infer trust from a filename. Integrated source: `5acf53be0`; quiet startup timings remain owner-picked.
+
 ## D154 follow-up — 2026-10-31, idle memory
 
 The macOS software presenter now keeps an immutable IOSurface at rest and restores the existing Metal path during sustained repainting. Always-Metal measured about60 MiB idle; always-snapshot cut idle memory but cost15.6% versus3.3% CPU in the moving-rectangle probe. The adaptive choice keeps about29 MiB idle and Metal's steady animation cost, with explicit view/transaction lifetime cleanup. Other platforms keep their own presentation contracts. Evidence, thresholds, limits and proof: [engine-memory-hal-2026-10-31.md](engine-memory-hal-2026-10-31.md).

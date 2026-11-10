@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Recorded D278 standalone Galène and D279 unsigned QuickJS source fallback. Root combined exact galene_toolchain/project_link/zapp_share/qjs_bytecode and original Hero check/interpreter4 PASS. Archived full proof logs/checkpoint bundles and removed12 clean completed trees;1118/774.31 kept for nested repair. Final UI/core/app provenance and original source images reviewed; no benchmark, publication or nested-cleanup completion claim.
+
 - 2026-11-10: Combined Share binary exposed nested Zinc-owned process groups surviving capture shutdown. Reopened1118 and774.31;66 currently Done (65 UI/compiler +445). Fresh1118-nested worker repairs exact same-binary parent/child case. Reserve575 QuickJS GC/profile and1068 Hamlet atlas/rects as independent chains; no quiet benchmarks, measurement criteria remain open. Common source a4d6d50de SHA286072a337fc84ee28375d9bc529a2afcb2d69b0ed9b37d0013cf7da9816cc7a includes initial1118, not the nested repair.
 
 - Assistant28 final proof integrated (worker047778b3e), all three last demosDone with Music83e6fe6f5/Mail6dc4c22ca/Notesed5802785:65currentlyDone. Comparison29Review honest unmatched/quiet metrics unproven. Choose next independent chains774.31 Atelier share (TS),603 Hero AOT size (first measure existing artifact, one AOT core writer),895 pinned Galène tool (toolchain/buildscript), at most2compiling/onequeuedheavy. Skip owner-selected conformance/bench-only work and protected runtime/HAL/ui/allocator modules. Primary references MakeCode share/Apple dead_strip/Galène passed in briefs.

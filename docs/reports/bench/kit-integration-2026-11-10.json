@@ -423,5 +423,91 @@
       "physical/VoiceOver/touch/device",
       "long idle memory/energy"
     ]
+  },
+  "final_ui_completion": {
+    "source_commits": {
+      "ui_layers": "7ed1b1211",
+      "ui_display": "39e7e5e62",
+      "tabs_idle": "5488a7d35",
+      "recursive_capture": "063edc9de",
+      "solid_cleanup": "0d7163987",
+      "music": "83e6fe6f5",
+      "mail": "6dc4c22ca",
+      "notes": "ed5802785",
+      "assistant": "c280d7fd8"
+    },
+    "root_checks": [
+      "ui_layer_reduced",
+      "ui_display",
+      "kit_tabs_idle",
+      "kit_tabs_reveal",
+      "recursive_local",
+      "solid_root_cleanup",
+      "kit_size"
+    ],
+    "root_result": "PASS; short original Mail interpreter, Notes QuickJS and Music interpreter feature runs also pass",
+    "root_logs": [
+      ".logs/integration-2026-11-10/ui-chain-integrated.log",
+      ".logs/integration-2026-11-10/music-core-integrated.log"
+    ],
+    "javascript_bytes": {
+      "button": 236192,
+      "index": 246407,
+      "ten": 283256
+    },
+    "aot_bytes": {
+      "button": 5325336,
+      "index": 5474000,
+      "ten": 6025776
+    },
+    "strict_used_javascript_headroom_bytes": 15,
+    "unused_javascript_headroom_bytes": 25,
+    "app_provenance": {
+      "mail": ".logs/mail1078.25-20261110/completed/provenance.json",
+      "notes": ".logs/archive-completed-workers-20261110/1078.27-final/logs/notes-final/provenance.json",
+      "assistant": ".logs/archive-completed-workers-20261110/1078.28-final/logs/assistant-proof/final-provenance.json",
+      "music": ".logs/music1078.26-20261110-bf42e1ffe"
+    },
+    "root_inspected_images": [
+      "examples/ui/music/pictures/light-quickjs.png",
+      "examples/ui/mail/pictures/narrow-reader.png",
+      "examples/ui/notes/assets/notes-desktop-light.png",
+      "examples/ui/assistant/images/light.png"
+    ],
+    "not_proven": [
+      "physical accessibility/input",
+      "quiet speed/memory",
+      "native surface-close without explicit Solid root disposal"
+    ]
+  },
+  "following_integrations": {
+    "common_source": "a4d6d50de",
+    "engine_sha256": "286072a337fc84ee28375d9bc529a2afcb2d69b0ed9b37d0013cf7da9816cc7a",
+    "exact_stages": {
+      "galene_toolchain": "PASS",
+      "project_link": "PASS",
+      "zapp_share": "PASS",
+      "qjs_bytecode": "PASS"
+    },
+    "original_hero": "check and interpreter4 PASS",
+    "log": ".logs/integration-2026-11-10/share-process-qjs-galene-smoke.log",
+    "process_nested": "FAIL on combined binary;1118 and774.31 reopened916f20798. Fresh repair active. No surviving proof PIDs.",
+    "done_count": 66,
+    "review": [
+      "1078.29",
+      "895"
+    ],
+    "backlog": [
+      "603",
+      "1118",
+      "774.31"
+    ],
+    "cui_proof_archive": ".logs/archive-completed-workers-20261110/1078.29-final/cui-proof",
+    "not_proven": [
+      "benchmark rankings",
+      "Galene server RSS/call quality/remote startup",
+      "Hero8MB/10MB limits",
+      "nested process cleanup before pending repair"
+    ]
   }
 }
