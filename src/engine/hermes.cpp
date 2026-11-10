@@ -168,7 +168,8 @@ void drainJobs(napi_env env) {
 void beforeEntry(napi_env env, const zn_engine_args* a, std::string& js) {
   gBundle = a->bundle;
   std::error_code ec;
-  if (const std::string hbc = bytecodeOf(gBundle); !gInspect && std::filesystem::exists(hbc, ec) &&
+  gBytecode.clear();
+  if (const std::string hbc = bytecodeOf(gBundle); on("ZINC_ENGINE_BYTECODE", true) && !gInspect && std::filesystem::exists(hbc, ec) &&
       std::filesystem::last_write_time(hbc, ec) >= std::filesystem::last_write_time(gBundle, ec) && sameVersion(hbc)) {
     gBytecode = hbc;
     traceName(std::filesystem::path(gBundle).filename().string());   // the name zn_engine_compile gave its frames

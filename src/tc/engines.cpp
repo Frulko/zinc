@@ -164,12 +164,22 @@ bool locate(const std::string& engineRoot, const std::string& name, int abi, boo
 #endif
   std::string upper = name;
   for (char& ch : upper) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-  if (const char* env = std::getenv(("ZINC_ENGINE_" + upper).c_str()); env && *env) { path = env; return true; }
+  if (const char* env = std::getenv(("ZINC_ENGINE_" + upper).c_str()); env && *env && (!preferPack || name == "jsc")) { path = env; return true; }
   const fs::path exeDir = fs::path(executablePath()).parent_path();
   std::error_code ec;
   Pack p;
   const bool have = find(name, abi, p);
   if (have && preferPack) { path = p.path(); if (pack) *pack = p; return true; }
+  // SDK modules may load libraries from this machine. A portable V8/Hermes export needs the relocatable, signed-index pack.
+  if (preferPack && name != "jsc") {
+    if (!install(engineRoot, name, "", abi, p, err)) {
+      err = "a portable " + name + " app needs an engine pack: " + err + "\n  connect to the network and run zinc engine install " + name;
+      return false;
+    }
+    path = p.path();
+    if (pack) *pack = p;
+    return true;
+  }
   for (const fs::path& c : {exeDir / file, (exeDir / "../Resources/engines" / name / file).lexically_normal()})
     if (fs::exists(c, ec)) { path = c.string(); return true; }
   if (!have && !install(engineRoot, name, "", abi, p, err)) {

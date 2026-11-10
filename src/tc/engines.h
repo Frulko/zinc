@@ -28,7 +28,8 @@ bool find(const std::string& name, int abi, Pack& out);
 bool install(const std::string& engineRoot, const std::string& name, const std::string& version, int abi, Pack& out, std::string& err);
 // The module of `name` (libzn_engine_<name>.dylib): $ZINC_ENGINE_<NAME> (your own build), beside zinc (built with it: jsc, a source build's v8),
 // Resources/engines/<name>/ of the app the executable is in (an exported app's pack), the newest installed pack, else the pack downloaded now. `preferPack` (zinc export)
-// takes an installed pack before the module beside zinc, whose libraries may be the build machine's. `pack` is set when the module is a pack's.
+// requires an installed or downloaded V8/Hermes pack: SDK modules may load this machine's libraries. JavaScriptCore can use its system
+// framework module. `pack` is set when the module is a pack's.
 bool locate(const std::string& engineRoot, const std::string& name, int abi, bool preferPack, std::string& path, Pack* pack, std::string& err);
 // `zinc engine list [--available] | install <name>[@version] | update [name] | remove <name>[@version]`; `abi` is ZN_ENGINE_ABI of this zinc.
 int command(const std::vector<std::string>& args, const std::string& engineRoot, int abi);

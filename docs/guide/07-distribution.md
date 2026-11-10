@@ -152,6 +152,14 @@ export, publish to itch.io and run `zinc publish --key` again: a copy of 0.1.0 t
 | `zinc update-app [--check] [--url U]` | `~/.zinc/apps/<id>/updates/`: the newer version, checked, staged for the next launch (`--url`: a channel that is not at `update.url`, for an app that keeps the address with its content) |
 | `zinc deploy --target <t> --device user@host` | an export copied with scp and started with ssh (`--print` shows the three commands) |
 
+`zinc pack` and `zinc fuse` also accept JavaScriptCore, V8 and Hermes projects. They retain the verified source, and the machine running the
+archive supplies its engine module (installed with `zinc engine install <engine>`). A fused executable does not embed these engine packs;
+use the macOS `.app` export for a portable bundle. Unsigned archives execute their source rather than archive-supplied Hermes bytecode.
+
+`zinc build main.ts --engine hermes -o build/main` bundles the source into `build/main.js` and precompiles `build/main.hbc` with the installed
+Hermes engine. Run it with `zinc run build/main.hbc`; the adjacent source remains available if the engine's bytecode version changes.
+`--engine` overrides `zinc.json` for this build; JavaScript engine builds run on the current machine and do not combine with `--target`.
+
 ## What `zinc export` writes
 
 `zinc export [dir] --target <t>` builds the program ahead of time (AOT to C++) into `dist/<name>-<t>/` (or `-o dir`) with `run.sh`, `README.txt`
@@ -206,6 +214,11 @@ needs no directory at all. Reading an asset needs no permission; writing in the 
 `zinc export --target macos --dmg` writes `dist/<name>-<version>.dmg` (compressed, HFS+) holding the `.app` and a link to
 `/Applications`, the usual drag-to-install window. hdiutil stamps the image, so two images differ in bytes even when the `.app` does not. A
 Developer ID signs the image as well (the first printed command above) before it is notarized.
+
+Projects with `"engine": "jsc"`, `"v8"` or `"hermes"` use the same disk-image and signing steps. Their macOS export includes
+`sbom.spdx.json` and `THIRD-PARTY-LICENSES.txt` beside the `.app`; these files remain outside the signed archive. V8 and Hermes carry a
+relocatable engine pack from the signed index, using an installed pack or downloading one. A source-built SDK module is used for development,
+not copied into the export. An offline export without a pack reports `zinc engine install <engine>`; JavaScriptCore can use macOS's system framework.
 
 ### Debian packages
 
@@ -316,6 +329,16 @@ should start at boot carries its own systemd unit: the `service` template has a 
 **Signed artifacts (every target).** `zinc export --key <seed-hex>` (or `ZINC_UPDATE_SEED`) writes `<file>.sig`, an Ed25519 signature made
 with the app's key (`zinc update-keygen`), beside the executable and the `.deb` or `.dmg`. `zinc verify <file> [--key <public-hex>]` checks
 it, with zinc.json `update.publicKey` by default; a changed byte or another key fails.
+
+For a macOS JavaScript engine project, `--key` signs the complete disk image when `--dmg` is present. Otherwise it creates and signs
+`dist/<name>-<version>.zip`, containing the `.app`, and prints both paths. For example:
+
+```sh
+zinc export --target macos --key <seed-hex>
+zinc verify dist/my-game-0.1.0.zip --key <public-hex>
+```
+
+The `.sig` stays beside the ZIP or DMG, so the `.app`'s code signature remains sealed.
 
 **macOS.** Apple Silicon refuses to run unsigned code, so `zinc export --target macos` signs the bundle ad hoc by default (`codesign
 --sign -`), which is enough to run it on the Mac that built it. For distribution, give an identity in zinc.json `"signing"` (or

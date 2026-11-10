@@ -467,6 +467,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - JavaScript-engine runs start in the project directory, as interpreter and native runs do, so relative file paths and scoped file permissions agree; `launchDir()` keeps the caller’s directory.
 - Builds with `-DZN_HOST_GFX=OFF` link again and run console programs, including QuickJS timers; capture commands clearly report the missing graphics host.
 
+- JavaScriptCore, V8 and Hermes exports now include an SBOM, support `--dmg` and sign a disk image or ZIP with `--key`. V8 and Hermes exports carry a portable engine pack; exported apps retain and enforce their declared permissions.
+- `zinc build --engine hermes` produces `.hbc` bytecode for a file or overrides a project’s engine; unsigned archives keep executing their verified source.
+
 ### Apps and examples
 
 #### New

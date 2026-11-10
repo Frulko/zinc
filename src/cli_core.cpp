@@ -133,8 +133,8 @@ const Command kCommands[] = {
    "--dap: the Debug Adapter Protocol on standard input and output, the program named by the launch request (VS Code: lib/editor/vscode-zinc-debug).\n"
    "--cdp[=port]: Chrome DevTools' Sources panel on 127.0.0.1:port (9222, in chrome://inspect's default list); the program starts paused when DevTools attaches.\n"
    "A compiled program debugs in lldb: zinc build --debug."},
-  {"build", "zinc build [entry|dir] [-o out] [--target T] [--bundle] [--no-embed] [--debug]", "cli.cmd.build",
-   "Compiles to C++ and builds an executable (out defaults to build/<project name>). --debug: a debug build for lldb (-g -O0, #line to the .ts lines, locals under their names, functions named after the Zinc ones). --target aarch64-linux|armhf-linux|armv7-linux|x86_64-linux|aarch64-macos|x86_64-macos cross builds with the pinned zig (no Docker); --target x86_64-windows builds a console program (-o name.exe; no window or plugin yet); --bundle makes a macOS .app, with the baked fonts and images in Contents/Resources/<name>.res instead of inside the executable. --no-embed: the same for a plain program, <out>.res beside it (it must stay there: the program reads it at start). A project on a JavaScript engine (zinc.json \"engine\": quickjs, jsc, v8 or hermes) is bundled instead: <out>.js, its map, and on QuickJS <out>.qbc, on Hermes <out>.hbc, its bytecode, which zinc run <out>.qbc|.hbc loads without parsing (the source runs when the bytecode is older or from another engine build)."},
+  {"build", "zinc build [entry|dir] [-o out] [--engine zinc|quickjs|jsc|v8|hermes] [--target T] [--bundle] [--no-embed] [--debug]", "cli.cmd.build",
+   "Compiles to C++ and builds an executable (out defaults to build/<project name>). --debug: a debug build for lldb (-g -O0, #line to the .ts lines, locals under their names, functions named after the Zinc ones). --target aarch64-linux|armhf-linux|armv7-linux|x86_64-linux|aarch64-macos|x86_64-macos cross builds with the pinned zig (no Docker); --target x86_64-windows builds a console program (-o name.exe; no window or plugin yet); --bundle makes a macOS .app, with the baked fonts and images in Contents/Resources/<name>.res instead of inside the executable. --no-embed: the same for a plain program, <out>.res beside it (it must stay there: the program reads it at start). A project on a JavaScript engine (zinc.json \"engine\": quickjs, jsc, v8 or hermes, or --engine <name>) is bundled instead: <out>.js, its map, and on QuickJS <out>.qbc, on Hermes <out>.hbc, its bytecode, which zinc run <out>.qbc|.hbc loads without parsing (the source runs when the bytecode is older or from another engine build)."},
   {"bundle", "zinc bundle [entry|dir] [-o out.js] [--minify] [--sourcemap] [--bytecode] [--check] [--watch]", "cli.cmd.bundle",
    "Bundles a program for the QuickJS engine (the role esbuild, Vite or Rollup play for the web): its TypeScript, TSX and JavaScript, the zinc: modules it imports, its plugins and its packages (tsconfig.json paths, node_modules, importmap.json) become one optimised ES module that `zinc run <out.js>` runs on QuickJS. The JSX is lowered as the typed engine does (className and capitalised components, Z0006 and Z0007), the types are stripped, the engine's native modules stay imports the host answers (zinc:native), and __ZINC_ENGINE__, __ZINC_TARGET__, __ZINC_PROFILE__, __ZINC_CAPS__ and process.env.NODE_ENV are folded in. The linking, tree shaking and minifying are esbuild's: the pinned esbuild is downloaded and verified once into ~/.zinc/toolchains (ZINC_ESBUILD names your own). `zinc run --engine quickjs` needs none of it: it runs the same transformed modules without linking them.\n"
    "  -o <file>        the bundle (default: dist/<entry>.js in the project)\n"
@@ -1366,7 +1366,7 @@ static bool writeDeb(const fs::path& exportDir, const std::string& name, const s
 
 // The SBOM (SPDX 2.3 JSON) and the licence texts of what an exported program links (ZN-323): the scopes the build wrote in <exe>.components,
 // matched against third_party/components.json; the program and the Zinc engine are packages too.
-static bool writeSbom(const fs::path& out, const ProjectInfo& p, const std::string& engineRoot, bool icons, std::string& err) {
+static bool writeSbom(const fs::path& out, const ProjectInfo& p, const std::string& engineRoot, bool icons, bool engineApp, std::string& err) {
   const fs::path exe = out / p.name, compFile = exe.string() + ".components";
   std::ifstream cf(compFile);
   if (!cf) { err = "the build wrote no " + compFile.string(); return false; }
@@ -1452,6 +1452,26 @@ static bool writeSbom(const fs::path& out, const ProjectInfo& p, const std::stri
     } else body = slurp(repo / str(c, "licenseFile"));
     if (body.empty()) { yyjson_doc_free(doc); yyjson_mut_doc_free(d); err = "no licence text for " + name + " (third_party/components.json)"; return false; }
     licences += "\n\n==== " + name + (version.empty() ? "" : " " + version) + " (" + lic + ") ====\n\n" + body + (body.back() == '\n' ? "" : "\n");
+  }
+  if (engineApp && (p.engine == "jsc" || p.engine == "v8" || p.engine == "hermes")) {
+    const fs::path engine = out / (p.name + ".app") / "Contents/Resources/engines" / p.engine;
+    yyjson_doc* pack = yyjson_read_file((engine / "pack.json").c_str(), 0, nullptr, nullptr);
+    if (!pack && p.engine != "jsc") { yyjson_doc_free(doc); yyjson_mut_doc_free(d); err = "the exported engine has no pack metadata"; return false; }
+    yyjson_val* metadata = pack ? yyjson_doc_get_root(pack) : nullptr;
+    const std::string name = p.engine == "jsc" ? "JavaScriptCore (system framework)" : p.engine == "v8" ? "V8" : "Hermes";
+    const std::string version = metadata ? str(yyjson_obj_get(metadata, "custom"), "upstream") : "system";
+    pkg("Engine-" + p.engine, name, version, "NOASSERTION", "", "");
+    rel("SPDXRef-App-" + appId, "DEPENDS_ON", "SPDXRef-Engine-" + p.engine);
+    yyjson_doc_free(pack);
+    bool licensed = p.engine == "jsc";
+    for (const auto& file : fs::directory_iterator(engine / "licenses", ec)) {
+      if (!file.is_regular_file()) continue;
+      const std::string body = slurp(file.path());
+      if (body.empty()) { yyjson_doc_free(doc); yyjson_mut_doc_free(d); err = "cannot read engine licence " + file.path().string(); return false; }
+      licences += "\n\n==== " + name + " / " + file.path().filename().string() + " ====\n\n" + body + "\n";
+      licensed = true;
+    }
+    if (!licensed) { yyjson_doc_free(doc); yyjson_mut_doc_free(d); err = "the exported engine has no licence texts"; return false; }
   }
   yyjson_doc_free(doc);
   char* json = yyjson_mut_write(d, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
@@ -2389,16 +2409,23 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (target == "ios") return exportIos(p, out, engineRoot, has(o, "--print"), pack);
   // JavaScript on an engine module (ZN-773.04): an .app of zinc, the program bundled for it and the engine's pack; on QuickJS (zinc's own, ZN-773.09)
   // the bundle and its bytecode, for macos (the other targets still build the program ahead of time)
-  if (!fusedUpdates && (p.engine == "jsc" || p.engine == "v8" || p.engine == "hermes" || p.engine == "quickjs")) {
+  const bool engineApp = !fusedUpdates && (p.engine == "jsc" || p.engine == "v8" || p.engine == "hermes" || p.engine == "quickjs");
+  if (engineApp) {
     if (target != "macos") { std::fprintf(stderr, "zinc export: a native export on the %s engine supports macos only for now; use zinc device deploy <project> to run it with a Raspberry Pi's installed engine\n", p.engine.c_str()); return 2; }
     const fs::path app = out / (p.name + ".app");
-    if (const int rc = status(std::system((q(self()) + " build --bundle " + q(p.entry) + " -o " + q(app.string())).c_str()))) { std::fprintf(stderr, "zinc export: the .app could not be made\n"); return rc; }
+    if (const int rc = status(std::system(("ZINC_COMPONENTS=1 " + q(self()) + " build --bundle " + q(p.entry) + " -o " + q(app.string())).c_str()))) { std::fprintf(stderr, "zinc export: the .app could not be made\n"); return rc; }
     // the executable carries the app's name, which only the bundle knows here
     writeFile(out / "run.sh", "#!/bin/sh\napp=\"$(dirname \"$0\")/" + p.name + ".app\"\nexec \"$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' \"$app/Contents/Info.plist\")\" \"$@\"\n");
     fs::permissions(out / "run.sh", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
-    std::printf("%s\n", out.string().c_str());
-    return 0;
-  }
+    if (!seed.empty() && !has(o, "--dmg")) {
+      const fs::path archive = out.parent_path() / (p.name + "-" + p.version + ".zip");
+      if (runArgv({"ditto", "-c", "-k", "--keepParent", app.string(), archive.string()}, false) != 0) { std::fprintf(stderr, "zinc export: cannot archive %s\n", app.string().c_str()); return 1; }
+      artifacts.push_back(archive);
+      std::printf("%s\n", archive.string().c_str());
+    }
+    fs::copy_file(fs::path(p.dir) / "zinc.json", out / "zinc.json", fs::copy_options::overwrite_existing, ec);
+    writeFile(out / "README.txt", p.name + " " + p.version + " (macos) built with Zinc on " + p.engine + ".\nRun: ./run.sh or open " + p.name + ".app.\n");
+  } else {
   // the argument orders of the two build commands: `build <file> -o <out>` for this machine, `build --target <t> <file> -o <out>` for another
   const std::string embed = has(o, "--no-embed") ? " --no-embed" : "";   // the fonts and images in <name>.res beside the executable
   const std::string appEnv = target == "macos" ? "ZINC_EXPORT_APP=" + q((out / (p.name + ".app")).string()) + " " : "";   // the .app from the same build
@@ -2493,6 +2520,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (!zt.empty() && zt.find("linux") != std::string::npos)
     writeFile(out / (p.name + ".desktop"), "[Desktop Entry]\nType=Application\nName=" + p.name + "\nExec=" + p.name + "\nTerminal=false\nCategories=Utility;\n");
   artifacts.push_back(out / p.name);
+  }
   {   // what the exported app may do (ZN-322.03): zinc.json "permissions", enforced by the app
     std::ifstream pf(fs::path(p.dir) / "zinc.json");
     std::stringstream ps; ps << pf.rdbuf();
@@ -2501,7 +2529,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
     if (!engineRoot.empty() && fs::exists(out / (p.name + ".components"), ec)) {   // what it contains and under which licences (ZN-323)
       bool icons = false;   // zinc.json "icons": Lucide icons baked into the program
       if (yyjson_doc* jd = yyjson_read(ps.str().data(), ps.str().size(), 0)) { yyjson_val* ic = yyjson_obj_get(yyjson_doc_get_root(jd), "icons"); icons = yyjson_is_arr(ic) && yyjson_arr_size(ic) > 0; yyjson_doc_free(jd); }
-      if (!writeSbom(out, p, engineRoot, icons, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
+      if (!writeSbom(out, p, engineRoot, icons, engineApp, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
       std::printf("sbom: %s, %s\n", (out / "sbom.spdx.json").string().c_str(), (out / "THIRD-PARTY-LICENSES.txt").string().c_str());
     }
     // what each asset group costs on the target, beside the SBOM (ZN-437): zinc assets report <dir>/report.json [--diff old.json] reads it
@@ -2540,7 +2568,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
     const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     std::string sig;
     if (!in || !zn::tc::signBytes(bytes, seed, sig, err)) { std::fprintf(stderr, "zinc export: cannot sign %s: %s\n", a.string().c_str(), err.c_str()); return 1; }
-    writeFile(a.string() + ".sig", sig + "\n");
+    if (!writeFile(a.string() + ".sig", sig + "\n")) { std::fprintf(stderr, "zinc export: cannot write %s.sig\n", a.string().c_str()); return 1; }
     std::printf("signature: %s.sig\n", a.string().c_str());
   }
   if (target == "macos") notarizeHint(p, out, artifacts);
