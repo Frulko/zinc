@@ -7,8 +7,9 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 | Task | Tree / branch | State |
 | --- | --- | --- |
 |161.02 Symbol and iterators|.worktrees/161.02 / work/161.02|Sole core writer. Symbol identity/keys and custom/live array/string/Map/Set protocol proofs underway; all-engine/Node and strict unused-size gates pending. Clean Table-owned lazy insertion metadata authorized after exact WIP audit.|
+|541.03 nativeKTX2 loader|.worktrees/541.03 / work/541.03|Independent plugin-only worker, existingBasis vendor, no sharedcore edits; common54114 read-only. Native plugin build is secondbuildingtree only.|
 
-Root is idle for builds; Symbol worker owns the core.512 toolchain phase is integrated Review,164 host phase integrated Backlog. Three541.01/.02 integrated and verified; next independent chain is nativeKTX2 leaf541.03. Hermes1066 native-CDP phase integratedbcbdd9751; exact private-SDK protocol proof passes. Source SDK patch/version only; installed/published SDK unchanged.1066 ReviewAC3 longscope remains open.
+Root is idle for builds; Symbol worker owns the core.512 toolchain phase is integrated Review,164 host phase integrated Backlog. Three541.01/.02 integrated and verified; fresh independent nativeKTX2 worker541.03 active. Hermes1066 native-CDP phase integratedbcbdd9751; exact private-SDK protocol proof passes. Source SDK patch/version only; installed/published SDK unchanged.1066 ReviewAC3 longscope remains open.
 
 Array plan/proof scope: related object-reference arrays share actual ArrObj; scalar/string/Dyn/nested conversions unchanged. Source insertion preflight throws catchable TypeError atomically; raw VM/AOT checks protect bypassing bytecode. Exact array InstanceOf stays exact; compatible Downcast reads existing module metadata. IR InstOf internally targets reference types, no wire change. Shared guards must not bloat ordinary casts/scalar arrays; nativeHero budget is strict8,000,000 B. Full wider stores/member-specific structural views are still unfinished, no AC waiver.
 
