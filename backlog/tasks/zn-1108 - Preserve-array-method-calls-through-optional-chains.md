@@ -4,7 +4,7 @@ title: Preserve array method calls through optional chains
 status: Done
 assignee: []
 created_date: '2026-11-09 23:32'
-updated_date: '2026-11-10 00:10'
+updated_date: '2026-11-10 00:24'
 labels:
   - frontend
   - ir
@@ -37,4 +37,6 @@ Primary semantics: TypeScript3.7 Optional Chaining https://www.typescriptlang.or
 Caller checkpoint: panels worker ran unchanged original kit-gallery check with candidate SHA2567316bee69a330eb5fb0a921bc342951b59950b734b84c4f24ab406935c7d2e26 and its own source root:27files checked, no errors; track()?.keys.find and track()?.clips.find remain unchanged. AC3 stays open until original runtime caller proof after separate1109 method-default receiver correction. Next command after1109: run original Tool gallery/model with candidate on all3; coordinator closes AC3 on that evidence. Source/binary fingerprints and raw logs in .logs/1108/provenance.json, final.log, mem.json; caller log panels/.logs/check-1108.log. Proposed tests: long callback/collection churn and device typed-engine replay at owner-selected milestone, minutes/memory unmeasured; no suite/benchmark/pixels/device run started.
 
 Original Tool14 full UI passes30/30 routes (five families ×Solid/React ×interpreter/native AOT/QuickJS) with1109 candidate b96e6cb7 and unchanged optional method chains. Actual models also pass all3. No guards, delayed events or production rewrites; raw .worktrees/1078-panels/.logs/proof-all-1109.log plus per-route logs. AC3 now proven after shared1109 correction. Coordinator will rebuild/replay the final integrated engine with the shared size correction.
+
+Root final engine7774708ca/f561c4cc replay optional_collection PASS after integration with1109 and circle serialization; exact logs combined-optional_collection.log and final provenance kit-integration-2026-11-10.json.
 <!-- SECTION:NOTES:END -->

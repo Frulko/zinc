@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Final common rebuilt7774708ca SHA256f561c4cc76172c731e4109cd9161b5a7092ffda9553260f25351a0a1e329fce1; root optional_collection/method_defaults/lucide_serialization/kit_charts/gate PASS plus gallery check/3frameQJS. Charts15 closed,43Done. JS4085/component/97B strict headroom; AOT61306/component, native editor stilllinked underbudget/deferred. D274/provenance/perf/later updated. Active Tool14/Media16/Planning17 switched to common; no engine writer. Completed Charts/size/core trees archived, b96 engine retained in frozen complete package for diagnosis. External WIP stats unchanged.
+
 - Lossless circle generator7774708ca integrated, Code13 Done on actual unchanged candidate gate: JS235962/241206/277973,4085/component,97B strict headroom; SVG extended oracle all3 byte-identical, cold cost unmeasured. Root clean final rebuild now running to combine1108/1109/Charts/circles before closing Charts. CodeSize agent ended; reserve Planning17 for fresh TS-only worker beside Media16/Tool14. Reuse dnd, picker-date, existing Calendar and Kanban example; no core overlap.
 
 -1109 integrated51188abb0; original Tool models all3 and30/30 UI routes pass on b96e6cb7,1108 AC3 closed.41Done, both released. Core1108 agent finished; CodeSize now sole core generator writer, lossless circle prototype saves109B and preserves SVG bytes/metadata, actual oracle/gate pending. Reserve Media16 for fresh TS-only worker, reuse ImageViewer/image-cache and existing image providers; no runtime/core overlap. Common rebuild grouped with SVG correction, current85f6 and frozen candidate packages explicitly identified.

@@ -4,7 +4,7 @@ title: Bind method receivers in default parameter expressions
 status: Done
 assignee: []
 created_date: '2026-11-09 23:35'
-updated_date: '2026-11-10 00:08'
+updated_date: '2026-11-10 00:24'
 labels:
   - frontend
   - ir
@@ -37,4 +37,6 @@ Primary research: ECMAScript [[Call]] binds this before OrdinaryCallEvaluateBody
 Final candidate SHA256b96e6cb7b9266f84b13b0361a2cb600f0134fe620fec53855a28c98c46deb93e. Exact method_defaults PASS interpreter/native AOT/QuickJS, unchanged original six-line Buffer.text program PASS all3. Covers distinct instances, supplied zero, omitted/explicit undefined including before another supplied argument, shadowed undefined, prior parameters, nested receiver restoration, default closures capturing this, thrown defaults then another call, virtual receiver/default order, and repeated optional default expressions. Invalid global this stays Z0112 and literal null to number stays Z0103; mem allocs=frees/leaked0. Strict tsc original and fixture with assertion declarations PASS. Combined optional_collection all3 PASS; unchanged nested_defaults/defaults_pack callers pass interp. Existing dependency warnings remain outside edited sources; final checker rebuild emitted none.
 
 Actual caller: panels worker ran original tests/t0/tool_panels.sh on this exact candidate with its source root; tool panels: ok, status0, all3. Original TerminalBuffer.text(last=this.lines.length-1) and FlameIndex.visible(lastDepth=this.levels.length) remain unchanged. Raw log .worktrees/1078-panels/.logs/tool-model-1109.log. The full original UI proof for1108 AC3 is still being completed by panels; do not claim it from the typecheck alone. Source/binary hashes and final raw results .logs/1109/provenance.json, final.log; no owned process remains. Usage: n/a (tools/usage). Proposed tests: longer nested/default callback churn and Pi/Mojave/Linux replay at an owner-selected milestone, minutes/memory unmeasured; broad suites, pixels, benchmarks and devices were not run.
+
+Root final engine7774708ca/f561c4cc replay method_defaults PASS; original Tool model all3 and30UI routes were proven on source-identical lower candidateb96. Shared size/glyph oracle/Charts final checks also pass. Final provenance kit-integration-2026-11-10.json.
 <!-- SECTION:NOTES:END -->

@@ -71,5 +71,52 @@
       "runtime speed/memory measurement"
     ],
     "owned_processes": "none after completion"
+  },
+  "final_combined": {
+    "source_commit": "7774708ca",
+    "engine_sha256": "f561c4cc76172c731e4109cd9161b5a7092ffda9553260f25351a0a1e329fce1",
+    "files_sha256": {
+      "src/frontend/ast.h": "60ebcd4f263fe213dd25dd00ad1495eec455262162a42e88a20b2c71c17f9865",
+      "src/frontend/check.cpp": "e01866610021610f3eca969aa38e07512e2f4c91a2bdc18e0d5bb1f96096f699",
+      "src/frontend/modules.cpp": "3f0963445b00383fd64377d106d9519dc89240d1190c25a0e6170321e4565882",
+      "src/ir/lower.cpp": "93e0017055e5929458c05a130143a0803c235540b94da1f7be9cbef7d7b76b20",
+      "lib/std/kit/code.tsx": "9bb3c79068b1a9f21ee8e9aa04ed641951accac58ec99c29cc502880e979b2cf",
+      "lib/std/kit/charts.tsx": "52546e4ea4c309dea102bc1022c3bccb6428586ec1ff793fa72fe3eb94f7f138",
+      "lib/std/kit/chart-model.ts": "f8113b7b8084e78ca270ba89ef9ac8065551494213b8f532b2f348d2a0c22c2e",
+      "tests/t0/kit_size.sh": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed"
+    },
+    "checks": {
+      "optional_collection": "PASS",
+      "method_defaults": "PASS",
+      "lucide_serialization": "PASS",
+      "kit_charts": "PASS",
+      "kit_size": "PASS"
+    },
+    "raw_size_output": [
+      "bundle: Button 235962 B, through the index 241206 B (+5244 for 35 unused families, budget 8960), ten 277973 B (+4085 per component)",
+      "aot: Button 5325320 B, through the index 5440976 B (+115656 for 35 unused families, budget 143360), ten 5992736 B (+61306 per component)",
+      "aot, Button through the index links the plugins: editor"
+    ],
+    "javascript_bytes": {
+      "button": 235962,
+      "index": 241206,
+      "ten": 277973
+    },
+    "aot_bytes": {
+      "button": 5325320,
+      "index": 5440976,
+      "ten": 5992736
+    },
+    "strict_used_javascript_headroom_bytes": 97,
+    "new_circle_saving_bytes_in_ten": 109,
+    "cold_cost": "unmeasured; up to2 circle helper calls per selected ten-program icon,9 catalog-wide",
+    "aot_barrel_plugins": [
+      "editor"
+    ],
+    "root_inspected_charts": [
+      "docs/img/kit-charts-market-narrow.png",
+      "docs/img/kit-charts-distributions.png"
+    ],
+    "logs": ".logs/integration-2026-11-10/combined-*"
   }
 }

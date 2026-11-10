@@ -1713,3 +1713,9 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 
 - Source8bbf8a245, unchanged engine85f6d02...: raw candidate gate JS235962/239442/276318B; unused3480<=8704 passes, used36876>36864 fails by12 strict total bytes (4097B/component). AOT5325320/5440960/5976224B passes, unused115640<=139264 and used59473B/component. No budget or UI cut. Do not replace this failure with the earlier pre-Code passing gate.
 - Root integrated exact Code both models/all3 and original gallery check/QuickJS3frames pass; eight pictures inspected. Source/capture/gate provenance: docs/reports/bench/kit-code-2026-11-10.json. Speed, memory, long-file/idle and physical accessibility remain unmeasured/proposed. Re-run the combined gate after new family source changes.
+
+
+## 2026-11-10 — Final integrated Code and Charts gate passes
+
+- Source7774708ca rebuilt with1108/1109 and lossless circle construction; engine SHA256f561c4cc76172c731e4109cd9161b5a7092ffda9553260f25351a0a1e329fce1. Raw unchanged kit_size: JS235962/241206/277973B; unused5244<8960 for35families,4085B/component,97B strict total headroom. AOT5325320/5440976/5992736B; unused115656<143360,61306B/component. Barrel Button still links native editor; further reachability work deferred, no zero-unused-cost claim.
+- Exact byte-identical circle construction saves109B in ten versus the failing Code+Charts baseline, with no icon/control/option or budget cut. At most2 added circle helper calls per selected icon (9 catalog-wide); cold allocations/runtime speed unmeasured. Root optional_collection/method_defaults/lucide_serialization/kit_charts all pass; actual Tool model all3 and30UI routes passed candidate1109. Source/hash/raw stdout: docs/reports/bench/kit-integration-2026-11-10.json. No timing ranking or broad suite.
