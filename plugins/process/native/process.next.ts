@@ -1,5 +1,5 @@
-// zinc:process native side for the Zinc Next engine: the Spec of process.spec.ts over the events of the host's loop (libuv, src/host/loop.cpp) instead of
-// posix_spawn and a poller. Output and exit arrive through onEvent, delivered by the event loop (a program with a running child stays alive).
+// zinc:process native side for the Zinc Next engine: the Spec of process.spec.ts over the events of the host's loop (libuv, src/host/loop.cpp) with
+// POSIX process-family ownership and libuv pipes/SIGCHLD (or the native Windows child provider). Output and exit arrive through onEvent, delivered by the event loop (a program with a running child stays alive).
 import * as host from 'zinc:__proc';
 
 export default {

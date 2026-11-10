@@ -2,6 +2,7 @@
 #include "zn/loop.h"
 #include "netlog.h"
 #include "osc.h"
+#include "zn/process_family.h"
 
 #include <uv.h>
 #if __has_include(<mimalloc.h>)
@@ -9,9 +10,11 @@
 #endif
 
 #include <csignal>
+#include <climits>
 #ifdef __APPLE__
 #include <malloc/malloc.h>
 #endif
+#include <algorithm>
 #include <cerrno>
 #include <cstdlib>
 #include <deque>
@@ -24,6 +27,7 @@
 #include "posix_shims.h"   // the signals' numbers the table lists, and ::kill as a TerminateProcess
 #endif
 extern char** environ;
+namespace zrt { void at_finish(void (*f)()); }
 
 namespace zn::loop {
 namespace {
@@ -201,31 +205,65 @@ namespace {
 
 struct Proc {
   uv_process_t proc;
+#ifndef _WIN32
+  uv_signal_t watch;
+#endif
   uv_pipe_t in, out, err;
   int handle = 0, pid = 0;
-  bool procOpen = false, inOpen = false, outOpen = false, errOpen = false, exited = false, reported = false;
+  enum class State { Starting, Running, Exited, Reported };
+  State state = State::Starting;
+  bool inOpen = false, outOpen = false, errOpen = false;
+  void transition(State next) {
+    if (!((state == State::Starting && next == State::Running) ||
+          (state == State::Running && next == State::Exited) ||
+          (state == State::Exited && next == State::Reported))) std::abort();
+    state = next;
+  }
   int code = 0;
 };
-thread_local std::vector<std::unique_ptr<Proc>> gProcs;
 thread_local std::deque<Event> gEvents;   // per thread, as the loop: a worker's events are its own
 thread_local std::string gError;
 thread_local int gWatched = 0;
 thread_local bool gStdin = false;
+struct Processes {
+  std::vector<std::unique_ptr<Proc>> items;
+  ~Processes() {
+#ifndef _WIN32
+    shutdownProcesses();
+#endif
+  }
+};
+Processes& processes() {
+  loop();
+  (void)gEvents;
+  thread_local Processes owner;
+  return owner;
+}
 
 void maybeReport(Proc* p) {  // the exit is reported once the output has been delivered
-  if (p->exited && !p->outOpen && !p->errOpen && !p->reported) {
-    p->reported = true;
+  if (p->state == Proc::State::Exited && !p->outOpen && !p->errOpen) {
+    p->transition(Proc::State::Reported);
     gEvents.push_back({p->handle, 2, std::to_string(p->code)});
   }
 }
+#ifdef _WIN32
 void onProcExit(uv_process_t* h, int64_t status, int signal) {
   auto* p = static_cast<Proc*>(h->data);
   p->code = signal != 0 ? 128 + signal : static_cast<int>(status);
-  p->procOpen = false;
-  p->exited = true;
+  p->transition(Proc::State::Exited);
   uv_close(reinterpret_cast<uv_handle_t*>(h), onClose);
   maybeReport(p);
 }
+#else
+void onProcPoll(uv_signal_t* h, int) {
+  auto* p = static_cast<Proc*>(h->data);
+  if (p->state != Proc::State::Running || !zn::plat::pollFamily(p->pid, p->code)) return;
+  p->transition(Proc::State::Exited);
+  uv_close(reinterpret_cast<uv_handle_t*>(h), onClose);
+  closeStdin(p->handle);
+  maybeReport(p);
+}
+#endif
 // Back-pressure: past kProcQueueCap bytes of child output waiting for the program, the pipes are no longer read until it falls to half;
 // the child then blocks on its full pipe. Without it a child that writes faster than the program reads (a 200 MB tool output on a slow
 // machine) piles up in gEvents, since every look at the queue pumps libuv again.
@@ -235,7 +273,7 @@ thread_local bool gProcPaused = false;
 void onStreamRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf);
 void setProcReading(bool on) {
   gProcPaused = !on;
-  for (auto& p : gProcs) {
+  for (auto& p : processes().items) {
     if (p->outOpen) on ? uv_read_start(reinterpret_cast<uv_stream_t*>(&p->out), onAlloc, onStreamRead) : uv_read_stop(reinterpret_cast<uv_stream_t*>(&p->out));
     if (p->errOpen) on ? uv_read_start(reinterpret_cast<uv_stream_t*>(&p->err), onAlloc, onStreamRead) : uv_read_stop(reinterpret_cast<uv_stream_t*>(&p->err));
   }
@@ -272,7 +310,7 @@ void onStdinRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
   if (n < 0) { gEvents.push_back({0, 12, ""}); gStdin = false; uv_close(reinterpret_cast<uv_handle_t*>(s), onClose); }
 }
 
-Proc* procAt(int h) { return h > 0 && static_cast<size_t>(h) <= gProcs.size() ? gProcs[static_cast<size_t>(h) - 1].get() : nullptr; }
+Proc* procAt(int h) { return h > 0 && static_cast<size_t>(h) <= processes().items.size() ? processes().items[static_cast<size_t>(h) - 1].get() : nullptr; }
 
 }  // namespace
 
@@ -283,6 +321,14 @@ int spawnProcess(const std::vector<std::string>& argvIn, const std::string& cwd,
   gError = argvIn[0] + ": child processes are not available in an app";
   return -1;
 #else
+  (void)processes();   // constructs the loop before its thread-local process owner
+  if (processes().items.size() >= INT_MAX) { gError = "too many process handles"; return -1; }
+#ifndef _WIN32
+  if (std::this_thread::get_id() == kMainThread) {
+    static const bool registered = [] { zrt::at_finish(shutdownProcesses); return true; }();
+    (void)registered;
+  }
+#endif
   auto p = std::make_unique<Proc>();
   std::memset(&p->proc, 0, sizeof p->proc);
   uv_pipe_init(loop(), &p->in, 0); uv_pipe_init(loop(), &p->out, 0); uv_pipe_init(loop(), &p->err, 0);
@@ -302,6 +348,8 @@ int spawnProcess(const std::vector<std::string>& argvIn, const std::string& cwd,
   for (const std::string& kv : env) envStrings.push_back(kv);
   for (std::string& e : envStrings) envp.push_back(const_cast<char*>(e.c_str()));
   envp.push_back(nullptr);
+  int rc;
+#ifdef _WIN32
   uv_stdio_container_t stdio[3];
   stdio[0].flags = static_cast<uv_stdio_flags>(UV_CREATE_PIPE | UV_READABLE_PIPE); stdio[0].data.stream = reinterpret_cast<uv_stream_t*>(&p->in);
   stdio[1].flags = static_cast<uv_stdio_flags>(UV_CREATE_PIPE | UV_WRITABLE_PIPE); stdio[1].data.stream = reinterpret_cast<uv_stream_t*>(&p->out);
@@ -315,20 +363,54 @@ int spawnProcess(const std::vector<std::string>& argvIn, const std::string& cwd,
   o.exit_cb = onProcExit;
   o.stdio_count = 3;
   o.stdio = stdio;
-  int rc = uv_spawn(loop(), &p->proc, &o);
+  rc = uv_spawn(loop(), &p->proc, &o);
+  if (!rc) p->pid = p->proc.pid;
+#else
+  pid_t pid;
+  int fds[3];
+  rc = zn::plat::spawnFamily(args.data(), envp.data(), cwd.c_str(), pid, fds);
+  if (rc) rc = uv_translate_sys_error(rc);
+  if (!rc) {
+    p->pid = pid;
+    uv_pipe_t* pipes[] = {&p->in, &p->out, &p->err};
+    for (int k = 0; k < 3; ++k) {
+      int opened = uv_pipe_open(pipes[k], fds[k]);
+      if (opened) { close(fds[k]); if (!rc) rc = opened; }
+    }
+    if (rc) zn::plat::reapFamily(pid);
+  }
+#endif
   if (rc != 0) {
     gError = argvIn[0] + ": " + uv_strerror(rc);
     for (uv_pipe_t* pp : {&p->in, &p->out, &p->err}) uv_close(reinterpret_cast<uv_handle_t*>(pp), onClose);
     uv_run(loop(), UV_RUN_NOWAIT);
     return -1;
   }
-  p->procOpen = p->inOpen = p->outOpen = p->errOpen = true;
-  p->pid = p->proc.pid;
-  uv_read_start(reinterpret_cast<uv_stream_t*>(&p->out), onAlloc, onStreamRead);
-  uv_read_start(reinterpret_cast<uv_stream_t*>(&p->err), onAlloc, onStreamRead);
-  gProcs.push_back(std::move(p));
-  gProcs.back()->handle = static_cast<int>(gProcs.size());
-  return gProcs.back()->handle;
+  p->transition(Proc::State::Running);
+  p->inOpen = p->outOpen = p->errOpen = true;
+#ifndef _WIN32
+  uv_signal_init(loop(), &p->watch);
+  p->watch.data = p.get();
+  rc = uv_signal_start(&p->watch, onProcPoll, SIGCHLD);
+  if (rc) {
+    gError = argvIn[0] + ": " + uv_strerror(rc);
+    zn::plat::reapFamily(p->pid);
+    uv_close(reinterpret_cast<uv_handle_t*>(&p->watch), onClose);
+    for (uv_pipe_t* s : {&p->in, &p->out, &p->err}) uv_close(reinterpret_cast<uv_handle_t*>(s), onClose);
+    uv_run(loop(), UV_RUN_NOWAIT);
+    return -1;
+  }
+#endif
+  if (!gProcPaused) {
+    uv_read_start(reinterpret_cast<uv_stream_t*>(&p->out), onAlloc, onStreamRead);
+    uv_read_start(reinterpret_cast<uv_stream_t*>(&p->err), onAlloc, onStreamRead);
+  }
+  processes().items.push_back(std::move(p));
+  int handle = processes().items.back()->handle = static_cast<int>(processes().items.size());
+#ifndef _WIN32
+  onProcPoll(&processes().items.back()->watch, 0);   // covers an exit before the SIGCHLD watcher was installed
+#endif
+  return handle;
 #endif
 }
 const std::string& lastError() { return gError; }
@@ -350,7 +432,35 @@ void closeStdin(int h) {
   Proc* p = procAt(h);
   if (p && p->inOpen) { p->inOpen = false; uv_close(reinterpret_cast<uv_handle_t*>(&p->in), onClose); }
 }
-void signalProcess(int h, int signal) { Proc* p = procAt(h); if (p && p->procOpen) uv_process_kill(&p->proc, signal); }
+void signalProcess(int h, int signal) {
+  Proc* p = procAt(h);
+  if (!p || p->state != Proc::State::Running) return;
+#ifdef _WIN32
+  uv_process_kill(&p->proc, signal);
+#else
+  zn::plat::signalFamily(p->pid, signal);
+#endif
+}
+void shutdownProcesses() {
+#ifndef _WIN32
+  for (auto& p : processes().items) {
+    if (p->state == Proc::State::Running) {
+      p->code = zn::plat::reapFamily(p->pid);
+      p->transition(Proc::State::Exited);
+      uv_close(reinterpret_cast<uv_handle_t*>(&p->watch), onClose);
+    }
+    for (uv_pipe_t* s : {&p->in, &p->out, &p->err})
+      if (!uv_is_closing(reinterpret_cast<uv_handle_t*>(s))) uv_close(reinterpret_cast<uv_handle_t*>(s), onClose);
+    p->inOpen = p->outOpen = p->errOpen = false;
+    if (p->state == Proc::State::Exited) p->transition(Proc::State::Reported);
+  }
+  uv_run(loop(), UV_RUN_NOWAIT);   // close callbacks finish before the owner frees any handles
+  gEvents.erase(std::remove_if(gEvents.begin(), gEvents.end(), [](const Event& e) { return e.handle > 0 && e.kind <= 2; }), gEvents.end());
+  gProcQueued = 0;
+  gProcPaused = false;
+#endif
+}
+
 bool eventsQueued() { return !gEvents.empty(); }
 // The queue is read before the loop is polled again: each poll is a kevent/epoll system call, two per event made a busy server spend two
 // thirds of its time in them (ZN-892). Events that wait are taken first; the loop is polled when the queue is empty.
@@ -432,7 +542,7 @@ bool oscSend(const std::string& host, int port, const std::string& packed) {
   return uv_udp_try_send(&gOscTx, &b, 1, reinterpret_cast<sockaddr*>(&a)) >= 0;
 }
 bool active() {
-  for (const auto& p : gProcs) if (p->procOpen || p->outOpen || p->errOpen || (p->exited && !p->reported)) return true;
+  for (const auto& p : processes().items) if (p->state != Proc::State::Reported) return true;
   return gWatched > 0 || gStdin || gOscRxOpen || gExtra > 0 || !gEvents.empty();
 }
 bool watchSignal(const std::string& name) {

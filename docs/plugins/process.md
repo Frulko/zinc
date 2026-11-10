@@ -30,18 +30,31 @@ const code = await p.exited;       // same code as a Promise
 | `p.onData(cb(chunk, stderr))` | raw output as read from the pipes (UTF-8 sequences are never split between chunks) |
 | `p.onExit(cb(code))` / `p.exited: Promise<i32>` | exit code; a process killed by a signal reports `128 + signal` (SIGTERM: 143, SIGKILL: 137) |
 | `p.write(s): boolean` / `p.closeStdin()` | stdin; `write` is false once stdin is closed or the process is gone |
-| `p.kill(signal = 15)` | sends a signal (15 SIGTERM, 9 SIGKILL, 2 SIGINT) |
+| `p.kill(signal = 15)` | signals the owned process group on POSIX (15 SIGTERM, 9 SIGKILL, 2 SIGINT) |
 | `p.pid`, `p.running`, `p.code` | OS pid, still running, exit code (-1 while running) |
 
 Callbacks registered right after `spawn` never miss output: events are only delivered from the event loop.
 
 ## How it works
 
-`posix_spawnp` with three pipes; the parent ends of stdout/stderr are non-blocking and a `zrt::Poller` reads them
-on every event loop iteration (no thread), then reaps the child with `waitpid(WNOHANG)`. The exit event comes after
-the last output of the child: once it is reaped, its pipes are drained and closed. While a child runs, the program
-does not exit (the poller keeps the loop alive, like pending timers). When the program stops (window closed, `zinc
-dev` reload), running children are killed with SIGKILL.
+On POSIX, `posix_spawn` starts each child in its own process group, with three pipes and explicit lookup in the
+child environment's `PATH`. Zinc Next uses libuv to
+read stdout/stderr and watch `SIGCHLD`; the legacy provider uses its poller. Both inspect exit with
+`waitid(WNOWAIT)`, terminate the remaining group, then reap the direct child with `waitpid`. Keeping the child
+unreaped until the final group signal prevents its PID/group ID from being reused during cleanup. Exit codes
+and buffered output retain their ordering: the exit event follows the child's last output.
+
+`p.kill()` signals that owned group, including descendants which inherited it. If the leader exits first, the
+remaining group is killed before the exit is reported, so a descendant holding the output pipes cannot leave
+`p.running` stuck. Direct children are reaped; orphaned grandchildren are reaped by the operating system.
+Old or invalid process handles cannot signal a later child. `zinc:sys`'s separate PID-based signal API retains
+its direct PID semantics.
+
+The graphics run's existing finish hook kills owned groups and closes their pipes; it remains installed across
+successive runs. Explicit provider shutdown also discards queued process events. Worker-thread exit and normal
+process exit have the same POSIX cleanup through the thread-local owner. Fast Refresh's paused VM keeps its
+children until resumed or stopped; this is not a teardown. Nongraphical runs use normal thread/process exit
+cleanup when they do not call the graphics finish hook.
 
 ## Notes
 
@@ -50,13 +63,18 @@ dev` reload), running children are killed with SIGKILL.
 - **Environment.** The child gets the program's environment; `env` entries add variables or replace existing ones
   with the same name. Removing a variable is not supported (set it to an empty value instead).
 - **Working directory.** Relative paths in `cmd` and `args` resolve against `cwd` when given (set with
-  `posix_spawn_file_actions_addchdir_np`: macOS 10.15+, glibc 2.29+, musl 1.1.24+).
+  `posix_spawn_file_actions_addchdir_np` where available; older macOS uses a fork/exec fallback with the same
+  argument, environment, working-directory and spawn-error behavior).
 - **Limits.** 32 concurrent children. `write` blocks until the data is in the pipe: a child that never reads stdin
-  stalls the program once the pipe buffer (64 KiB) is full. Output written by a grandchild after the child exited
-  (`cmd &`) is not reported. Other file descriptors of the program (sockets) are inherited by children unless they
+  stalls the program once the pipe buffer (64 KiB) is full. Grandchildren are stopped when their leader exits;
+  a command launched with `cmd &` cannot outlive its owning child. Other file descriptors of the program (sockets) are inherited by children unless they
   were opened close-on-exec.
 - The program ignores `SIGPIPE` once the plugin is used (writing to a child that closed its stdin returns `false`
   instead of killing the program); children start with the default `SIGPIPE` behaviour.
+
+- **Containment limits.** This is process ownership, not a sandbox. POSIX descendants which explicitly leave the
+  group (`setsid`/`setpgid`) are outside its cleanup. The legacy Node simulator and Windows provider still signal
+  the direct child only; Windows needs assignment to a Job Object before execution for equivalent family cleanup.
 
 ## Security
 

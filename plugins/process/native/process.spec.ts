@@ -1,4 +1,4 @@
-// zinc:process native side. Children are started with posix_spawnp and three non-blocking pipes; a zrt::Poller reads
+// zinc:process native side. Children are started with posix_spawn and three non-blocking pipes; a zrt::Poller reads
 // them on the event loop (no thread) and reaps exits. Lists travel as strings joined with \u001f.
 import { NativeModule, requireNative } from 'zinc:native';
 
@@ -12,7 +12,7 @@ export interface Spec extends NativeModule {
   /** Writes to the child's stdin (blocks until written); false when stdin is closed. */
   write(h: i32, data: string): boolean;
   closeStdin(h: i32): void;
-  /** Sends a signal (15 = SIGTERM, 9 = SIGKILL). */
+  /** Signals the owned POSIX process group (15 = SIGTERM, 9 = SIGKILL); invalid/ended handles do nothing. */
   kill(h: i32, signal: i32): void;
   /** kind 0: stdout chunk, 1: stderr chunk, 2: exit (data = exit code, 128 + signal when killed); the handle is
    *  free after its exit event. */

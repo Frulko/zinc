@@ -42,6 +42,8 @@ int pidOf(int handle);
 bool writeStdin(int handle, const std::string& data);   // blocks until written; false when stdin is closed
 void closeStdin(int handle);
 void signalProcess(int handle, int signal);
+// POSIX: ends owned families, closes pipes and drops their events; old handles stay invalid after restart.
+void shutdownProcesses();
 // The next event that is ready (the loop is pumped first); false when there is none.
 bool nextEvent(Event& out);
 bool eventReady();   // pumps the loop; true when nextEvent would return one (the frame loop asks first: an idle frame allocates nothing)

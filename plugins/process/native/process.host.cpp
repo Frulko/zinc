@@ -1,7 +1,9 @@
 // zinc:process for macos, linux and rpi1 (process.rpi1.cpp includes this file). See docs/plugins/process.md.
-// posix_spawnp + three pipes; the parent ends of stdout/stderr are non-blocking and read by a zrt::Poller on every
+// posix_spawn + three pipes; the parent ends of stdout/stderr are non-blocking and read by a zrt::Poller on every
 // event loop iteration (no thread). Exit is reported once the child is reaped and its pipes are drained.
+#define ZRT_HOSTED_CPP   // process-family PATH preparation uses the standard library
 #include "zinc_native_process.h"
+#include "zn/process_family.h"
 #include <spawn.h>
 #include <signal.h>
 #include <fcntl.h>
@@ -10,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 #include <sys/wait.h>
 #ifdef __APPLE__
 #include <crt_externs.h>
@@ -21,7 +24,21 @@ static char** env_now() { return environ; }
 
 static const int MAXP = 32;
 struct Stream { int fd; char tail[4]; int ntail; };  // tail: bytes of a UTF-8 sequence split across reads
-struct Proc { bool used, reaped; pid_t pid; int in; Stream out[2]; int code; };
+struct Proc {
+  enum class State { Free, Running, Exited };
+  State state = State::Free;
+  int handle = -1;
+  pid_t pid;
+  int in;
+  Stream out[2];
+  int code;
+  void transition(State next) {
+    if (!((state == State::Free && next == State::Running) ||
+          (state == State::Running && next == State::Exited) ||
+          (state == State::Exited && next == State::Free))) abort();
+    state = next;
+  }
+};
 static Proc procs[MAXP];
 static char err_msg[160];
 
@@ -49,14 +66,13 @@ static int utf8_cut(const char* b, int n) {
 
 struct HostProcess : NativeProcess, zrt::Poller {
   zrt::Fn<void(int32_t, int32_t, zrt::String)> cb;
-  bool polling = false;
+  bool registered = false;
 
   int32_t spawn(zrt::String cmd, zrt::String args, zrt::String cwd, zrt::String env) override {
-    // the slot after the last one given, not the lowest free one: a handle is not given again at once, so an event still on its way for the
-    // ended child (the dev bridge of the web target delivers them a little later) never reaches the new one
-    static int next = 0;
+    static int next = 0, nextHandle = 0;
+    if (nextHandle == INT_MAX) { strcpy(err_msg, "too many process handles"); return -1; }
     int h = -1;
-    for (int k = 0; k < MAXP && h < 0; k++) if (!procs[(next + k) % MAXP].used) h = (next + k) % MAXP;
+    for (int k = 0; k < MAXP && h < 0; k++) if (procs[(next + k) % MAXP].state == Proc::State::Free) h = (next + k) % MAXP;
     if (h < 0) { strcpy(err_msg, "too many processes"); return -1; }
     fflush(stdout);   // what the program printed comes before anything the child writes to the same terminal or file (ZN-643)
     next = (h + 1) % MAXP;
@@ -78,51 +94,24 @@ struct HostProcess : NativeProcess, zrt::Poller {
     }
     for (int j = 0; j < nover; j++) envp[k++] = over[j];
 
-    int pin[2], pout[2], perr[2];
-    int rc = -1;
-    if (pipe(pin) == 0) { if (pipe(pout) == 0) { if (pipe(perr) == 0) rc = 0; else { close(pout[0]); close(pout[1]); close(pin[0]); close(pin[1]); } } else { close(pin[0]); close(pin[1]); } }
-    pid_t pid = -1;
-    if (rc == 0) {
-      int all[6] = {pin[0], pin[1], pout[0], pout[1], perr[0], perr[1]};
-      for (int fd : all) fcntl(fd, F_SETFD, FD_CLOEXEC);  // never leak into other children; dup2 below clears it
-      posix_spawn_file_actions_t fa;
-      posix_spawn_file_actions_init(&fa);
-      posix_spawn_file_actions_adddup2(&fa, pin[0], 0);
-      posix_spawn_file_actions_adddup2(&fa, pout[1], 1);
-      posix_spawn_file_actions_adddup2(&fa, perr[1], 2);
-      if (*d) posix_spawn_file_actions_addchdir_np(&fa, d);
-      // the child gets stdin/stdout/stderr only: the program's sockets and files must not leak into it
-#if defined(__GLIBC__) && (__GLIBC__ > 2 || __GLIBC_MINOR__ >= 34)
-      posix_spawn_file_actions_addclosefrom_np(&fa, 3);
-#endif
-      posix_spawnattr_t at;
-      posix_spawnattr_init(&at);
-      sigset_t def; sigemptyset(&def); sigaddset(&def, SIGPIPE);  // the parent ignores SIGPIPE, the child must not
-      posix_spawnattr_setsigdefault(&at, &def);
-#ifdef POSIX_SPAWN_CLOEXEC_DEFAULT
-      posix_spawnattr_setflags(&at, POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_CLOEXEC_DEFAULT);  // macOS: close the rest
-#else
-      posix_spawnattr_setflags(&at, POSIX_SPAWN_SETSIGDEF);
-#endif
-      rc = posix_spawnp(&pid, c, &fa, &at, argv, envp);
-      posix_spawn_file_actions_destroy(&fa);
-      posix_spawnattr_destroy(&at);
-      close(pin[0]); close(pout[1]); close(perr[1]);
-      if (rc != 0) { close(pin[1]); close(pout[0]); close(perr[0]); }
-    } else rc = errno;
+    int parent[3];
+    pid_t pid;
+    int rc = zn::plat::spawnFamily(argv, envp, d, pid, parent);
     if (rc != 0) snprintf(err_msg, sizeof err_msg, "%s: %s", c, strerror(rc));
     free(argv); free(over); free(envp); free(c); free(a); free(d); free(e);
     if (rc != 0) return -1;
-    fcntl(pout[0], F_SETFL, O_NONBLOCK);
-    fcntl(perr[0], F_SETFL, O_NONBLOCK);
+    fcntl(parent[1], F_SETFL, O_NONBLOCK);
+    fcntl(parent[2], F_SETFL, O_NONBLOCK);
     Proc& p = procs[h];
     p = Proc{};
-    p.used = true; p.pid = pid; p.in = pin[1]; p.out[0].fd = pout[0]; p.out[1].fd = perr[0];
-    if (!polling) { polling = true; zrt::add_poller(this); }
-    return h;
+    p.handle = nextHandle++;
+    p.transition(Proc::State::Running);
+    p.pid = pid; p.in = parent[0]; p.out[0].fd = parent[1]; p.out[1].fd = parent[2];
+    if (!registered) { registered = true; zrt::add_poller(this); }
+    return p.handle;
   }
   zrt::String error() override { return zrt::String::from(err_msg, (uint32_t)strlen(err_msg)); }
-  static Proc* at(int32_t h) { return h >= 0 && h < MAXP && procs[h].used ? &procs[h] : nullptr; }
+  static Proc* at(int32_t h) { for (Proc& p : procs) if (p.state != Proc::State::Free && p.handle == h) return &p; return nullptr; }
   int32_t pid(int32_t h) override { Proc* p = at(h); return p ? (int32_t)p->pid : -1; }
   // ponytail: blocking write; a child that never reads stdin stalls the loop once the pipe buffer (64 KiB) is full
   bool write(int32_t h, zrt::String data) override {
@@ -138,13 +127,13 @@ struct HostProcess : NativeProcess, zrt::Poller {
     return true;
   }
   void closeStdin(int32_t h) override { Proc* p = at(h); if (p && p->in >= 0) { close(p->in); p->in = -1; } }
-  void kill(int32_t h, int32_t sig) override { Proc* p = at(h); if (p && !p->reaped) ::kill(p->pid, sig); }
+  void kill(int32_t h, int32_t sig) override { Proc* p = at(h); if (p && p->state == Proc::State::Running) zn::plat::signalFamily(p->pid, sig); }
   void onEvent(zrt::Fn<void(int32_t, int32_t, zrt::String)> f) override { cb = f; }
 
   void emit(int32_t h, int32_t kind, const char* s, int n) {
     if (!cb) return;
     zrt::Fn<void(int32_t, int32_t, zrt::String)> f = cb;
-    f(h, kind, zrt::String::from(s, (uint32_t)n));
+    f(procs[h].handle, kind, zrt::String::from(s, (uint32_t)n));
     zrt::check_uncaught();
   }
   /** Reads what is available; closes the stream at EOF. */
@@ -163,27 +152,22 @@ struct HostProcess : NativeProcess, zrt::Poller {
       st.ntail = total - keep;
       memcpy(st.tail, buf + keep, (size_t)st.ntail);
       if (keep) emit(h, kind, buf, keep);
-      if (!procs[h].used) return;  // ponytail: a callback cannot free a handle, but stay defensive
+      if (procs[h].state == Proc::State::Free) return;  // ponytail: a callback cannot free a handle, but stay defensive
     }
   }
   bool poll() override {
     bool alive = false;
     for (int32_t h = 0; h < MAXP; h++) {
       Proc& p = procs[h];
-      if (!p.used) continue;
+      if (p.state == Proc::State::Free) continue;
       alive = true;
       drain(h, 0); drain(h, 1);
-      int st;
-      if (!p.reaped && waitpid(p.pid, &st, WNOHANG) == p.pid) {
-        p.reaped = true;
-        p.code = WIFEXITED(st) ? WEXITSTATUS(st) : WIFSIGNALED(st) ? 128 + WTERMSIG(st) : -1;
-      }
-      if (!p.reaped) continue;
-      // ponytail: output written by a grandchild after the child exited (`cmd &`) is dropped with the pipes
+      if (p.state == Proc::State::Running && zn::plat::pollFamily(p.pid, p.code)) p.transition(Proc::State::Exited);
+      if (p.state != Proc::State::Exited) continue;
       drain(h, 0); drain(h, 1);
       for (Stream& s : p.out) if (s.fd >= 0) { close(s.fd); s.fd = -1; }
       if (p.in >= 0) { close(p.in); p.in = -1; }
-      p.used = false;
+      p.transition(Proc::State::Free);
       char code[16]; int n = snprintf(code, sizeof code, "%d", p.code);
       emit(h, 2, code, n);
     }
@@ -192,12 +176,13 @@ struct HostProcess : NativeProcess, zrt::Poller {
   void shutdown() override {
     cb = nullptr;
     for (Proc& p : procs) {
-      if (!p.used) continue;
-      if (!p.reaped) { ::kill(p.pid, SIGKILL); waitpid(p.pid, nullptr, 0); }
+      if (p.state == Proc::State::Free) continue;
+      if (p.state == Proc::State::Running) { p.code = zn::plat::reapFamily(p.pid); p.transition(Proc::State::Exited); }
       for (Stream& s : p.out) if (s.fd >= 0) close(s.fd);
       if (p.in >= 0) close(p.in);
-      p.used = false;
+      p.transition(Proc::State::Free);
     }
+
   }
 };
 

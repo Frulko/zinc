@@ -45,7 +45,7 @@ export class Process {
   /** Writes to stdin; false once stdin is closed or the process is gone. */
   write(s: string): boolean { return this.running && P.write(this.handle, s); }
   closeStdin(): void { if (this.running) P.closeStdin(this.handle); }
-  /** Sends a signal: 15 SIGTERM (default), 9 SIGKILL, 2 SIGINT. */
+  /** Signals the owned process group on POSIX: 15 SIGTERM (default), 9 SIGKILL, 2 SIGINT. */
   kill(signal: i32 = 15): void { if (this.running) P.kill(this.handle, signal); }
 
   chunk(k: i32, s: string): void {
