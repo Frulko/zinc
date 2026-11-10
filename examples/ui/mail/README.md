@@ -15,7 +15,7 @@ Choose Inbox, Starred, Sent or Archive. Search the current folder by sender, rec
 
 Compose starts a fresh message. Reply fills the recipient and subject; add your own message. Saving requires one address, a subject and a message, then creates and selects a copy in Sent. The action is explicitly local. Discard, Close and Escape abandon the editor; reopening starts a fresh draft. There are no attachments, remote delivery, account controls or persistence.
 
-Tab and Shift-Tab move focus, Enter or Space activates buttons, and arrows move through folders and message rows. Escape closes the current sheet or dialog and restores focus. The composer also accepts the platform's primary modifier plus Enter. Every action uses a named kit control and visible keyboard focus. Kit overlays supply opening and closing motion. Their reduced-motion behavior awaits a shared engine fix; the app adds no custom animation.
+Tab and Shift-Tab move focus, Enter or Space activates buttons, and arrows move through folders and message rows. Escape closes the current sheet or dialog and restores focus. The composer also accepts the platform's primary modifier plus Enter. Every action uses a named kit control and visible keyboard focus. Kit overlays supply opening and closing motion. With reduced motion enabled, they open and close immediately and restore keyboard focus; the app adds no custom animation.
 
 From 1000 px folders, messages and reading sit side by side. Between 700 and 999 px folders open in a drawer. Below 700 px the list fills the screen and reading opens a full-width sheet with **Back to messages**. Lists and reading content scroll independently. This uses modern `zinc:ui`; old-device display-tree performance is outside the demo's scope.
 
