@@ -216,7 +216,7 @@ const Importer kImporters[] = {
   {"image", 1, Kind::Image, importImage},
   {"sprite", 1, Kind::Image, importSpriteFile},
   {"tilemap", 1, Kind::Data, importTilemapFile},
-  {"texture", 1, Kind::Image, importTextureFile},
+  {"texture", 2, Kind::Image, importTextureFile},
   {"model", 1, Kind::Data, importModelFile},   // a bundle of entries (model.h): the model, its LODs, its textures
   {"scene", 2, Kind::Data, importSceneFile},
   {"world", 1, Kind::Data, importWorldFile},   // a bundle (world.h): the .zworld, its chunks, its provenance, its pictures

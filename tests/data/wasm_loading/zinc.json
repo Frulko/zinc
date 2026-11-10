@@ -1,0 +1,34 @@
+{
+  "name": "wasm-loading",
+  "entry": "main.ts",
+  "targets": {
+    "wasm": {
+      "width": 16,
+      "height": 8
+    }
+  },
+  "assets": {
+    "rules": [
+      {
+        "match": "premul.png",
+        "as": "texture",
+        "format": "ktx2:uastc",
+        "mipmaps": false
+      },
+      {
+        "match": "straight.png",
+        "as": "texture",
+        "format": "ktx2:etc1s",
+        "premultiply": false,
+        "mipmaps": false
+      }
+    ],
+    "groups": {
+      "level": {
+        "include": [
+          "*.png"
+        ]
+      }
+    }
+  }
+}

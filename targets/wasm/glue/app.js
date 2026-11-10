@@ -4,11 +4,16 @@ const q = new URL(location.href).searchParams;
 const zbcUrl = q.get('zbc') || 'app.zbc', wasmUrl = q.get('wasm') || 'app.wasm', maxFrames = Number(q.get('frames') || 0);
 const log = document.getElementById('log');
 const canvas = document.getElementById('c');
-window.addEventListener("error", (e) => { log.textContent += "error: " + e.message + "\n"; });
+window.addEventListener("error", (e) => { document.getElementById('splash')?.remove(); log.textContent += "error: " + e.message + "\n"; });
+window.addEventListener('unhandledrejection', (e) => { log.textContent += 'error: ' + String(e.reason) + '\n'; document.getElementById('splash')?.remove(); });
 if (!crossOriginIsolated) { log.textContent = 'This page needs cross-origin isolation (COOP/COEP headers) for SharedArrayBuffer.'; throw new Error('not isolated'); }
-// app.res: the baked images of the program (zinc export writes it for a project with assets); none is fine
-const [wasm, zbc, res] = await Promise.all([fetch(wasmUrl).then((r) => r.arrayBuffer()), fetch(zbcUrl).then((r) => r.arrayBuffer()),
-  fetch(q.get('res') || 'app.res').then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null)]);
+// A compiled Module is cloneable: compilation overlaps the download on the page, before it reaches the worker.
+const [wasm, zbc, manifest, res] = await Promise.all([
+  WebAssembly.compileStreaming(fetch(wasmUrl)),
+  fetch(zbcUrl).then((r) => { if (!r.ok) throw new Error('cannot download program'); return r.arrayBuffer(); }),
+  q.has('zbc') || q.has('wasm') ? null : fetch('boot.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+  q.has('res') || q.has('zbc') || q.has('wasm') ? fetch(q.get('res') || 'app.res').then(r => r.ok ? r.arrayBuffer() : null).catch(() => null) : null,
+]);
 const sab = new SharedArrayBuffer(64), shared = new Int32Array(sab);
 const worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
 const off = canvas.transferControlToOffscreen();
@@ -24,14 +29,15 @@ addEventListener('pointerup', (e) => pointer(e, false));
 let ticks = 0, done = false;
 worker.onmessage = (e) => {
   const m = e.data;
-  if (m.error) { log.textContent += 'worker error: ' + m.error + '\n'; console.error('worker error: ' + m.error); }
+  if (m.error) { document.getElementById('splash')?.remove(); log.textContent += 'worker error: ' + m.error + '\n'; console.error('worker error: ' + m.error); }
   if (m.out) log.textContent += m.out;   // the program's stdout and stderr
+  if (m.progress) window.__znAssetProgress = m.progress;
   if (m.frames) window.__znFrames = m.frames;
-  if (m.started) { document.title = 'running'; requestAnimationFrame(tick); }   // ticks only count once the program runs
+  if (m.started) { document.getElementById('splash')?.remove(); document.title = 'running'; requestAnimationFrame(tick); }   // ticks only count once the program runs
   if (m.png) { document.title = 'done'; const b64 = btoa(String.fromCharCode(...new Uint8Array(m.png))); const pre = document.createElement('pre'); pre.id = 'png'; pre.textContent = b64; document.body.appendChild(pre); }
   if (m.done) { done = true; log.textContent += 'exit ' + m.rc + ', ' + m.frames + ' frames'; }
 };
-worker.postMessage({ wasm, zbc, res, canvas: off, sab }, [off]);
+worker.postMessage({ wasm, zbc, res, manifest, base: new URL('.', location.href).href, canvas: off, sab }, [off]);
 function tick() {
   if (done) return;
   ticks++; Atomics.add(shared, 0, 1); Atomics.notify(shared, 0);

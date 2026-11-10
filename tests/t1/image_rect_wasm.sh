@@ -1,5 +1,5 @@
 #!/bin/sh
-# zinc:gfx images in the browser (ZN-432): zinc export --target wasm ships the baked images (app.res) and the worker draws them (image, imageWidth, drawImage,
+# zinc:gfx images in the browser (ZN-432): zinc export --target wasm ships validated image group packs and the worker draws them (image, imageWidth, drawImage,
 # drawImageRect). tests/data/image_rect/web.ts, the nearest sprites of a sheet (mirrored, translucent, cut at the image's edge) and a pixel-for-texel copy, is the
 # same frame in headless Chrome as in the interpreter, within 2 a channel (the canvas keeps premultiplied pixels), the interpreter and the AOT build giving one hash;
 # the sprites of the Chrome frame are the sheet's texels (check.py). The game-2d template exported and started (Enter) shows its player and its coins.
@@ -15,7 +15,7 @@ d=tests/data/image_rect
 unset ZINC_ASSETS
 fail=0
 "$Z" export $d/web.ts --target wasm -o "$tmp/web" >/dev/null || { echo "image_rect_wasm: the export failed"; exit 1; }
-[ -s "$tmp/web/app.res" ] || { echo "image_rect_wasm: the export has no app.res"; fail=1; }
+[ -s "$tmp/web/boot.json" ] || { echo "image_rect_wasm: the export has no boot manifest"; fail=1; }
 python3 tools/wasm-export-test "$CHROME" "$tmp/web" 10 "sheet 32 16" "$tmp/chrome.png" >"$tmp/web.log" || { cat "$tmp/web.log"; exit 1; }
 env="ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=480x320 ZINC_FRAMES=2 ZINC_FRAMEHASH=last"
 interp=$(env $env ZINC_SHOT="$tmp/native.png" "$Z" run $d/web.ts 2>&1 | grep framehash | awk '{print $5}')

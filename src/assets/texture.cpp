@@ -250,6 +250,11 @@ bool importTexture(const ToolPath& basisu, const std::string& name, const std::s
     const std::string mips = mipmaps ? std::string(" -mipmap -mip_clamp") + (linear ? " -mip_linear" : " -mip_srgb") : "";
     if (!runTool(quote(tool) + (setting == "etc1s" ? " -etc1s" : " -uastc") + mips + common + " -file " + quote((s.dir / "t.png").string()), s, err)) return false;
     if (!readFile(s.dir / "t.ktx2", out)) { err = "basisu wrote no KTX2 file"; return false; }
+    // KTX2's DFD alpha flag tells the browser whether ImageData needs straight-alpha conversion.
+    if (out.size() < 64) { err = "basisu wrote an invalid KTX2 header"; return false; }
+    const auto dfd = le32(reinterpret_cast<const unsigned char*>(out.data()) + 48);
+    if (dfd > out.size() || out.size() - dfd < 16) { err = "basisu wrote an invalid KTX2 descriptor"; return false; }
+    out[dfd + 15] = static_cast<char>((static_cast<unsigned char>(out[dfd + 15]) & ~1u) | (premultiply ? 1u : 0u));
     return true;
   }
   // each level encoded to UASTC (the quality hub: it transcodes to every block format), then transcoded to the format, one KTX1 file each

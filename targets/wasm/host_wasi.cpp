@@ -9,6 +9,8 @@
 #include "zn/host.h"
 #include "zn/runtime.h"
 
+void (*zn_wasm_assets_host)(int, const zn::host::HostArg*, zn::host::HostArg*) = nullptr;
+
 namespace {
 double gNow = 0;       // virtual milliseconds since the start
 std::string gOut;
@@ -16,6 +18,11 @@ void ret(zn::host::HostArg* r, const std::string& s) { gOut = s; r->p = gOut.dat
 
 void call(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
   using zn::Rt;
+  const auto row = static_cast<Rt>(id);
+  if (zn_wasm_assets_host && ((row >= Rt::HostAssetsExists && row <= Rt::HostAssetsName) ||
+      (row >= Rt::HostAssetsMount && row <= Rt::HostAssetsStat) || row == Rt::HostFsFailed || row == Rt::HostFsError || row == Rt::HostFsByte || row == Rt::HostFsBytes)) {
+    zn_wasm_assets_host(id, a, r); return;
+  }
   switch (static_cast<Rt>(id)) {
     case Rt::HostSysArgsCount: r->i = 0; break;
     case Rt::HostSysArg: ret(r, ""); break;
@@ -30,12 +37,6 @@ void call(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
     case Rt::HostEvReady: r->i = 0; break;
     case Rt::HostEvActive: r->i = 0; break;
     case Rt::HostNativePoll: r->i = 0; break;
-    // asset groups (zinc:assets): the web export bakes what a program draws into app.res, so a group is there from the start: loading one succeeds at once
-    case Rt::HostAssetsLoadGroup: r->i = 1; break;
-    case Rt::HostAssetsGroupState: r->i = 2; break;
-    case Rt::HostAssetsReqState: r->i = 1; break;
-    case Rt::HostAssetsReqDone: case Rt::HostAssetsReqTotal: r->d = 1; break;
-    case Rt::HostAssetsUnloadGroup: case Rt::HostAssetsTurn: case Rt::HostAssetsReqForget: break;
     case Rt::HostFsFailed: r->i = 0; break;
     case Rt::HostFsError: ret(r, ""); break;
     case Rt::HostSysDevice: ret(r, ""); break;

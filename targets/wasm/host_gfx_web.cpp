@@ -14,7 +14,9 @@ __attribute__((export_name("zn_row_count"))) int zn_row_count() { return static_
 __attribute__((export_name("zn_row_arg_size"))) int zn_row_arg_size() { return static_cast<int>(sizeof(zn::host::HostArg)); }
 }
 
+extern void (*zn_wasm_assets_host)(int, const zn::host::HostArg*, zn::host::HostArg*);
+
 namespace {
 void call(int id, const zn::host::HostArg* a, zn::host::HostArg* r) { zn_js_gfx(id, a, r); }
-struct Install { Install() { zn::host::hostGfx = call; } } gInstall;
+struct Install { Install() { zn::host::hostGfx = call; zn_wasm_assets_host = call; } } gInstall;
 }  // namespace

@@ -2268,17 +2268,60 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
   }
   std::error_code ec;
   if (!fs::exists(wasm, ec)) { std::fprintf(stderr, "zinc export: %s is missing\n", wasm.string().c_str()); return 1; }
-  // one compile: the program as ZBC, and the baked images of a program with assets (the blob of zinc bake) that the worker draws zinc:gfx images from (ZN-432)
-  const bool res = fs::exists(fs::path(p.dir) / "assets", ec);
-  if (status(std::system((q(self()) + " --emit=zbc-bin " + q(p.entry) + " " + q((out / "app.zbc").string()) + (res ? " --res " + q((out / "app.res").string()) : "")).c_str())) != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return 1; }
-  fs::copy_file(wasm, out / "app.wasm", fs::copy_options::overwrite_existing, ec);
-  for (const char* f : {"app.js", "worker.mjs", "wasi.mjs"}) fs::copy_file(glue / f, out / f, fs::copy_options::overwrite_existing, ec);
-  if (ec) { std::fprintf(stderr, "zinc export: %s\n", ec.message().c_str()); return 1; }
-  int w = 480, h = 320;   // the canvas: zinc.json targets.wasm width / height
   std::ifstream pf(fs::path(p.dir) / "zinc.json");
   std::stringstream ps; ps << pf.rdbuf();
   zn::frontend::Project proj; std::string perr;
   const bool haveProj = pf && zn::frontend::parseProject(ps.str(), proj, perr);
+  // Packs are already cooked for wasm by exportApp; keep source asset names in the boot index for lazy lookup.
+  if (status(std::system((q(self()) + " --emit=zbc-bin " + q(p.entry) + " " + q((out / "app.zbc").string())).c_str())) != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return 1; }
+  std::string packPath, assetError; std::uint64_t ramBudget = 0;
+  if (!assetRun(p.dir, "wasm", engineRoot, false, packPath, ramBudget, assetError)) { std::fprintf(stderr, "zinc export: %s\n", assetError.c_str()); return 1; }
+  yyjson_mut_doc* manifest = yyjson_mut_doc_new(nullptr);
+  yyjson_mut_val* mr = yyjson_mut_obj(manifest); yyjson_mut_doc_set_root(manifest, mr);
+  yyjson_mut_obj_add_int(manifest, mr, "version", 1);
+  yyjson_mut_obj_add_uint(manifest, mr, "ramBudget", ramBudget);
+  yyjson_mut_val* packs = yyjson_mut_obj_add_arr(manifest, mr, "packs");
+  bool ktx2 = false;
+  const fs::path cooked = fs::path(p.dir) / "build" / "assets" / "wasm";
+  const bool haveAssets = fs::is_directory(fs::path(p.dir) / (haveProj ? proj.assets.dir : "assets"), ec) || (haveProj && splashFor(proj, p.dir, "wasm").on);
+  if (haveAssets && fs::is_directory(cooked, ec)) for (const auto& f : fs::directory_iterator(cooked)) {
+    if (f.path().extension() != ".zpk") continue;
+    std::ifstream input(f.path(), std::ios::binary);
+    const std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    zn::zpk::Reader reader; std::string error;
+    if (!reader.open(bytes.data(), bytes.size(), error)) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: %s\n", error.c_str()); return 1; }
+    const std::string group = f.path().stem().string(), sha = zn::tc::sha256Hex(bytes), file = sha + ".zpk";
+    fs::copy_file(f.path(), out / file, fs::copy_options::overwrite_existing, ec);
+    if (ec) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: %s\n", ec.message().c_str()); return 1; }
+    yyjson_mut_val* pack = yyjson_mut_arr_add_obj(manifest, packs);
+    yyjson_mut_obj_add_strcpy(manifest, pack, "group", group.c_str());
+    yyjson_mut_obj_add_strcpy(manifest, pack, "file", file.c_str());
+    yyjson_mut_obj_add_strcpy(manifest, pack, "sha256", sha.c_str());
+    yyjson_mut_obj_add_uint(manifest, pack, "bytes", bytes.size());
+    yyjson_mut_val* entries = yyjson_mut_obj_add_arr(manifest, pack, "entries");
+    for (std::size_t i = 0; i < reader.count(); ++i) {
+      const auto entry = reader.entry(i);
+      yyjson_mut_val* item = yyjson_mut_arr_add_obj(manifest, entries);
+      yyjson_mut_obj_add_strncpy(manifest, item, "name", entry.name.data(), entry.name.size());
+      yyjson_mut_obj_add_int(manifest, item, "kind", entry.kind);
+      if (entry.kind == zn::assets::Image) {
+        std::string image;
+        if (!reader.read(i, image, error)) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: %s\n", error.c_str()); return 1; }
+        if (image.size() >= 12 && image.compare(0, 12, "\xabKTX 20\xbb\r\n\x1a\n", 12) == 0) ktx2 = true;
+      }
+    }
+  }
+  char* manifestJson = yyjson_mut_write(manifest, YYJSON_WRITE_PRETTY_TWO_SPACES, nullptr);
+  if (!manifestJson) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: cannot write boot manifest\n"); return 1; }
+  writeFile(out / "boot.json", manifestJson); std::free(manifestJson); yyjson_mut_doc_free(manifest);
+  if (ktx2) {
+    fs::copy_file(root / "build-wasm" / "ktx2-web.wasm", out / "ktx2.wasm", fs::copy_options::overwrite_existing, ec);
+    if (ec) { std::fprintf(stderr, "zinc export: %s\n", ec.message().c_str()); return 1; }
+  }
+  fs::copy_file(wasm, out / "app.wasm", fs::copy_options::overwrite_existing, ec);
+  for (const char* f : {"app.js", "worker.mjs", "wasi.mjs", "assets.mjs", "transcoder.mjs"}) fs::copy_file(glue / f, out / f, fs::copy_options::overwrite_existing, ec);
+  if (ec) { std::fprintf(stderr, "zinc export: %s\n", ec.message().c_str()); return 1; }
+  int w = 480, h = 320;   // the canvas: zinc.json targets.wasm width / height
   if (haveProj && proj.targets.count("wasm")) {
     const auto& t = proj.targets.at("wasm");
     if (t.width > 0) w = t.width;
@@ -2294,7 +2337,7 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
     page.replace(page.find("</title>") + 8, 0, "<link rel=\"icon\" href=\"favicon.png\">");
   else page.replace(page.find("</title>") + 8, 0, "<link rel=\"icon\" href=\"data:,\">");   // no icon: an empty one, so the browser does not ask for /favicon.ico
   if (const std::string style = haveProj ? splashStyle(splashFor(proj, p.dir, "wasm")) : std::string(); !style.empty())
-    if (const auto at = page.find("<canvas id=\"c\""); at != std::string::npos) page.insert(at + 14, style);
+    if (const auto at = page.find("<div id=\"splash\""); at != std::string::npos) page.insert(at + 16, style);
   writeFile(out / "index.html", page);
   writeFile(out / "serve.py", "#!/usr/bin/env python3\n# Serves this folder on http://127.0.0.1:8000 with the COOP/COEP headers the page needs (SharedArrayBuffer). Any static host that sends them works too.\n"
             "import http.server, os, sys\nclass H(http.server.SimpleHTTPRequestHandler):\n    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{'.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm'})\n"
@@ -2309,9 +2352,8 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
             "try: srv.serve_forever()\n"
             "except KeyboardInterrupt: pass\n");
   fs::permissions(out / "serve.py", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
-  if (fs::exists(fs::path(p.dir) / "assets")) fs::copy(fs::path(p.dir) / "assets", out / "assets", fs::copy_options::recursive, ec);
   writeFile(out / "README.txt", p.name + " " + p.version + " (wasm) built with Zinc.\nServe this folder with the headers Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy: require-corp\n(./serve.py does, then open the address it prints).\n");
-  zn::log::step("site", "index.html, app.js, app.wasm, app.zbc" + std::string(res ? ", app.res, assets/" : "") + ", serve.py");
+  zn::log::step("site", "index.html, app.js, app.wasm, app.zbc, boot.json, group packs, serve.py");
   zn::log::step("done", zn::log::shortPath(fs::absolute(out).string()), zn::log::since(t0));
   zn::log::step("next", zn::log::shortPath((fs::absolute(out) / "serve.py").string()) + ", then open the address it prints");
   std::printf("%s\n", out.string().c_str());

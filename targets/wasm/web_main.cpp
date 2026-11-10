@@ -13,6 +13,7 @@ static unsigned char gScratch[1 << 16];   // strings the glue returns to the run
 extern "C" {
 __attribute__((export_name("zn_scratch"))) unsigned char* zn_scratch() { return gScratch; }
 __attribute__((export_name("zn_scratch_size"))) int zn_scratch_size() { return static_cast<int>(sizeof gScratch); }
+__attribute__((export_name("zn_free"))) void zn_free(void* p) { std::free(p); }
 __attribute__((export_name("zn_alloc"))) void* zn_alloc(int n) { return std::malloc(static_cast<std::size_t>(n)); }
 __attribute__((export_name("zn_run"))) int zn_run(const std::uint8_t* zbc, int len) {
   std::vector<std::uint8_t> bytes(zbc, zbc + len);

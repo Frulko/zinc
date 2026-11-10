@@ -1,0 +1,7 @@
+basis_universal v2_50 (2.50)
+https://github.com/BinomialLLC/basis_universal
+commit 9bebe16726b3a61c8c213eeee3b7cffb462ef34e
+Apache-2.0; LICENSE and NOTICE retained.
+Unmodified transcoder sources fetched from the pinned commit; Git blob SHA-1 verified against its tree, SHA-256 per file in SHA256SUMS.
+Build-time encoder uses the same tag; its archive SHA256 is 216e49e1f4213d4bfa4afaa07527e16bac28533dddd444197d3aa19230ac130c.
+Local integration file zstd/zstd.h forwards to Zinc's pinned Zstd 1.5.7; upstream files remain unchanged.

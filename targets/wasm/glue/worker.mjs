@@ -6,6 +6,8 @@
 // ({ input: { x, y, down, bits } }, { quit: true }) as messages, which arrive while the program waits. `frames` stops the program after n frames.
 // No cross-origin isolation then; Chrome and Edge 137+ (WebAssembly.Suspending).
 import { wasiImports } from './wasi.mjs';
+import { BrowserAssets, Group, Request } from './assets.mjs';
+import { TextureDecoder } from './transcoder.mjs';
 
 const ARG = 24;   // sizeof(HostArg): double d @0, int64 i @8, void* p @16, uint32 n @20
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
@@ -40,16 +42,17 @@ self.onmessage = async (e) => {
   try { await start(e); } catch (err) { self.postMessage({ error: String(err && err.stack || err) }); }
 };
 async function start(e) {
-  const { wasm, zbc, res, canvas, sab, frames: maxFrames = 0 } = e.data;
-  const jspi = !sab;
-  if (jspi && typeof WebAssembly.Suspending !== 'function') throw new Error('this browser has no WebAssembly JSPI (WebAssembly.Suspending) and the page is not cross-origin isolated');
+  const { wasm, zbc, res, canvas, sab, manifest, base = new URL('.', self.location.href).href, frames: maxFrames = 0 } = e.data;
+  const jspi = !sab || !!manifest?.packs?.length;
+  if (jspi && typeof WebAssembly.Suspending !== 'function') throw new Error('lazy asset packs need WebAssembly JSPI (Chrome/Edge 137 or newer)');
   const images = bakedImages(res);
+  const textures = new TextureDecoder(new URL('ktx2.wasm', base).href);
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
-  const shared = jspi ? input : new Int32Array(sab);
+  const shared = sab ? new Int32Array(sab) : input;
   const nextFrame = () => new Promise((r) => (self.requestAnimationFrame ? self.requestAnimationFrame(() => r()) : setTimeout(r, 16)));
-  const module = await WebAssembly.compile(wasm);
-  let memory;
+  const module = wasm instanceof WebAssembly.Module ? wasm : await WebAssembly.compile(wasm);
+  let memory, assets, returnBuffer = 0, fsBytes = new Uint8Array(), fsError = '', fsFailure = false, listed = [];
   const fonts = [];
   let lastTick = 0, prevBits = 0, frames = 0, ex;
   const dv = () => new DataView(memory.buffer);
@@ -59,6 +62,7 @@ async function start(e) {
   const warned = new Set();
 
   function gfx(id, argsPtr, resPtr) {
+    if (returnBuffer) { ex.zn_free(returnBuffer); returnBuffer = 0; }
     const { name, params, ret } = row(id);
     const v = dv(), a = [];
     for (let k = 0; k < params.length; k++) {
@@ -70,6 +74,33 @@ async function start(e) {
       else a.push(Number(v.getBigInt64(base + 8, true)));
     }
     let out = 0;
+    const result = () => {
+      const rv = dv();
+      if (ret === 'd') rv.setFloat64(resPtr, out, true);
+      else if (ret === 'i' || ret === 'b') rv.setBigInt64(resPtr + 8, BigInt(Math.trunc(out)), true);
+      else if (ret === 's' || ret === 'B') {
+        const bytes = ret === 's' ? new TextEncoder().encode(out || '') : out;
+        const p = bytes.byteLength ? (returnBuffer = ex.zn_alloc(bytes.byteLength)) : ex.zn_scratch();
+        new Uint8Array(memory.buffer, p, bytes.byteLength).set(bytes);
+        dv().setUint32(resPtr + 16, p, true); dv().setUint32(resPtr + 20, bytes.byteLength, true);
+      }
+    };
+    const later = (promise) => promise.then(value => { out = value; result(); }).catch(error => { fsError = String(error.message || error); fsFailure = true; out = ret === 's' ? '' : ret === 'B' ? new Uint8Array() : -1; result(); });
+    const imageId = async (entry) => {
+      if (!entry || entry.kind !== 1) return -1;
+      let id = images.findIndex(i => i?.name === entry.name);
+      if (id >= 0) return id;
+      if (!entry.pixels) {
+        const owner = assets.names.get(entry.name).group, generation = owner.generation;
+        const decoded = await textures.decode(entry.bytes);
+        if (owner.generation !== generation) return -1;   // an unload must not resurrect an image after the decoder arrives
+        assets.checkBudget(decoded.pixels.length); Object.assign(entry, decoded); assets.measure();
+      }
+      const c = new OffscreenCanvas(entry.w, entry.h);
+      c.getContext('2d').putImageData(new ImageData(entry.pixels, entry.w, entry.h), 0, 0);
+      id = images.length; images.push({ name: entry.name, canvas: c, k: entry.scale, w: Math.round(entry.w / entry.scale), h: Math.round(entry.h / entry.scale) });
+      return id;
+    };
     switch (name) {
       case 'host.gfxFrames': out = 2147483647; break;
       case 'host.gfxBegin': case 'host.gfxEnd': case 'host.gfxFinish': case 'host.gfxKeep': case 'host.gfxProfMark': case 'host.gfxSetCursor': case 'host.gfxUnclip': break;
@@ -83,7 +114,48 @@ async function start(e) {
       case 'host.gfxLineHeight': out = Math.round(fonts[a[0]].px * 1.21); break;
       case 'host.gfxTextWidth': { const f = fonts[a[0]]; ctx.font = `${f.px}px ${f.family === 'mono' ? 'monospace' : 'sans-serif'}`; out = ctx.measureText(a[1]).width + a[2] * a[1].length; break; }
       case 'host.gfxDrawText': { const f = fonts[a[0]]; ctx.globalAlpha = a[5] / 255; ctx.fillStyle = hex(a[4]); ctx.font = `${f.px}px ${f.family === 'mono' ? 'monospace' : 'sans-serif'}`; ctx.textBaseline = 'top'; ctx.fillText(a[3], a[1], a[2]); ctx.globalAlpha = 1; break; }
-      case 'host.gfxImage': out = images.findIndex((i) => i.name === a[0]); break;
+      case 'host.gfxImage': {
+        out = images.findIndex(i => i?.name === a[0]);
+        if (out < 0 && assets) return later(assets.ensure(a[0]).then(imageId));
+        break;
+      }
+      case 'host.assetsExists': out = assets?.names.has(a[0]) ? 1 : 0; break;
+      case 'host.assetsReadText': return later(assets ? assets.ensure(a[0]).then(e => { if (!e || e.kind !== 0) throw new Error('no data asset ' + a[0]); fsError = ''; return new TextDecoder().decode(e.bytes); }) : Promise.resolve(''));
+      case 'host.assetsLoad': return later(assets ? assets.ensure(a[0]).then(e => { if (!e || e.kind !== 0) throw new Error('no data asset ' + a[0]); fsBytes = e.bytes; fsError = ''; return fsBytes.length; }) : Promise.resolve(0));
+      case 'host.assetsCount': listed = assets ? [...assets.names].filter(([, e]) => e.kind === 0).map(([n]) => n).sort() : []; out = listed.length; break;
+      case 'host.assetsName': out = listed[a[0]] || ''; break;
+      case 'host.assetsGroupsCount': listed = assets ? [...assets.groups.keys()].sort() : []; out = listed.length; break;
+      case 'host.assetsLoadGroup': try { out = assets?.load(a[0]) || 0; fsError = ''; } catch (error) { fsError = String(error.message); fsFailure = true; out = 0; } break;
+      case 'host.assetsGroupState': { const state = assets?.groups.get(a[0])?.state; out = state === Group.Loaded ? 2 : state === Group.Loading ? 1 : 0; break; }
+      case 'host.assetsUnloadGroup': {
+        assets?.unload(a[0]);
+        for (let i = 0; i < images.length; i++) if (images[i] && assets?.names.get(images[i].name)?.group.group === a[0]) images[i] = null;
+        break;
+      }
+      case 'host.assetsTurn': if (jspi) return later(new Promise(r => setTimeout(() => r(0), 0))); break;
+      case 'host.assetsReqState': out = assets?.requests.get(a[0])?.state ?? Request.Failed; break;
+      case 'host.assetsReqDone': out = assets?.requests.get(a[0])?.done || 0; break;
+      case 'host.assetsReqTotal': out = assets?.requests.get(a[0])?.total || 0; break;
+      case 'host.assetsReqError': out = assets?.requests.get(a[0])?.error ?? 'unknown asset request'; break;
+      case 'host.assetsReqForget': assets?.forget(a[0]); break;
+      case 'host.assetsAcquire': try { out = assets?.acquire(a[0]) || 0; fsError = ''; } catch (error) { fsError = String(error.message); fsFailure = true; } break;
+      case 'host.assetsRelease': assets?.handles.delete(a[0]); break;
+      case 'host.assetsHandleText': out = new TextDecoder().decode(assets?.handles.get(a[0])?.bytes || new Uint8Array()); break;
+      case 'host.assetsHandleLoad': fsBytes = assets?.handles.get(a[0])?.bytes || new Uint8Array(); out = fsBytes.length; break;
+      case 'host.assetsStat': {
+        if (a[0] === 2) out = assets?.budget || 0;
+        else if (a[0] === 3) out = [...(assets?.groups.values() || [])].filter(g => g.state === Group.Loaded).length;
+        else if (a[0] === 4) out = assets?.groups.size || 0;
+        else if (a[0] === 5) out = [...(assets?.groups.values() || [])].filter(g => g.state === Group.Loading).length;
+        else if (a[0] === 0) out = assets?.measure() || 0;
+        else if (a[0] === 1) out = assets?.peak || 0;
+        break;
+      }
+      case 'host.assetsMount': case 'host.assetsUnmount': fsError = 'browser asset mounts are declared in boot.json'; fsFailure = true; out = 0; break;
+      case 'host.fsFailed': out = fsFailure ? 1 : 0; fsFailure = false; break;
+      case 'host.fsError': out = fsError; break;
+      case 'host.fsByte': out = fsBytes[a[0]] || 0; break;
+      case 'host.fsBytes': out = fsBytes; break;
       case 'host.gfxImageWidth': out = images[a[0]] ? images[a[0]].w : 0; break;
       case 'host.gfxImageHeight': out = images[a[0]] ? images[a[0]].h : 0; break;
       case 'host.gfxDrawImage': {   // image, x, y, w, h, alpha, radius
@@ -109,7 +181,7 @@ async function start(e) {
       case 'host.gfxPoll': {   // the frame loop: wait for the page's next tick (JSPI: the next animation frame), then the input of this frame
         frames++; if (frames % 10 === 0) self.postMessage({ frames });
         if (maxFrames && frames >= maxFrames) shared[5] = 1;
-        if (jspi) { v.setFloat64(resPtr, 1 / 60, true); return nextFrame().then(() => { prevBits = this_bits; this_bits = shared[4]; }); }
+        if (jspi) { return nextFrame().then(() => { prevBits = this_bits; this_bits = shared[4]; out = 1 / 60; result(); }); }
         Atomics.wait(shared, 0, lastTick, 200);
         lastTick = Atomics.load(shared, 0);
         prevBits = this_bits; this_bits = Atomics.load(shared, 4);
@@ -130,10 +202,7 @@ async function start(e) {
         if (!warned.has(name)) { warned.add(name); console.warn('zinc wasm: ' + name + ' is not available in the browser'); self.postMessage({ missing: name }); }
         out = name === 'host.gfxImageFromBytes' ? -1 : 0;   // no decoder here yet: not an image, rather than image 0
     }
-    const rv = dv();
-    if (ret === 'd') rv.setFloat64(resPtr, out, true);
-    else if (ret === 'i' || ret === 'b') rv.setBigInt64(resPtr + 8, BigInt(Math.trunc(out)), true);
-    else if (ret === 's') { rv.setUint32(resPtr + 16, ex.zn_scratch(), true); rv.setUint32(resPtr + 20, 0, true); }
+    result();
   }
   let this_bits = 0;
 
@@ -144,6 +213,28 @@ async function start(e) {
   const inst = await WebAssembly.instantiate(module, imports);
   ex = inst.exports; memory = ex.memory;
   if (ex._initialize) ex._initialize();
+  if (manifest) assets = new BrowserAssets(manifest, base, (bytes) => {
+    const p = ex.zn_alloc(bytes.byteLength);
+    if (!p) throw new Error('asset allocation failed');
+    try {
+      new Uint8Array(memory.buffer, p, bytes.byteLength).set(new Uint8Array(bytes));
+      const count = ex.zn_pack_decode(p, bytes.byteLength);
+      if (count < 0) throw new Error(cstr(ex.zn_asset_error()));
+      const entries = [];
+      for (let i = 0; i < count; i++) {
+        const e = { name: cstr(ex.zn_pack_name(i)), kind: ex.zn_pack_kind(i), scale: 1, bytes: new Uint8Array(memory.buffer, ex.zn_pack_data(i), ex.zn_pack_size(i)).slice() };
+        if (e.kind === 1 && ex.zn_pack_width(i)) { e.w = ex.zn_pack_width(i); e.h = ex.zn_pack_height(i); e.scale = ex.zn_pack_scale(i); e.pixels = new Uint8ClampedArray(memory.buffer, ex.zn_pack_pixels(i), e.w * e.h * 4).slice(); }
+        entries.push(e);
+      }
+      return entries;
+    } finally { ex.zn_pack_close(); ex.zn_free(p); }
+  }, progress => self.postMessage({ progress }));
+  // Only boot/default are eager; every other group starts on loadGroup or its first lookup.
+  if (assets) for (const name of ['boot', 'default']) if (assets.groups.has(name)) {
+    const id = assets.load(name); await assets.groups.get(name).promise;
+    const error = assets.requests.get(id)?.error; assets.forget(id);
+    if (error) throw new Error(error);
+  }
   const p = ex.zn_alloc(zbc.byteLength);
   new Uint8Array(memory.buffer, p, zbc.byteLength).set(new Uint8Array(zbc));
   self.postMessage({ started: true });
