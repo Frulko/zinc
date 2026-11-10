@@ -2,8 +2,7 @@
 id: ZN-896
 title: 'examples/webrtc-call/server: one-command self-hosted call server'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-30 22:58'
 updated_date: '2026-11-10 06:11'
 labels:

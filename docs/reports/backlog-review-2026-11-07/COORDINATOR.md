@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+-896 server386125005 Done and1119 exactroot/json+kit gatePASS:69currentlyDone. Original browser/refusal/restart/stop and all3CLI server proofs pass on frozen38e22; common rebuild groups with803. Integrated guardian researchb5dfc6e87: fork-only scratch works but retaining owner COW heaps is rejected. Fresh1118-exec will prove self-exec monitor before main/AOT production ownership; reserve897 protocol client for independent TS/research/native API assessment.
+
 - Integrated1119 quoted-key serializer1b8ecadb5, original group/all3/exactT0 PASS on frozen38e22ed7.896 uses candidate read-only; root exact json_quoted and unchanged kit_size queued because shared JSON codegen can affect the15B gate margin. Defer common full build to group with803. Reserve fresh1118 guardian prototype from research72908db66; provider ownership free, no production implementation before safe fork/lifetime proof.
 
 - Ownership research72908db66 integrated: actual9a23 vanished-intermediate repro confirmed and atomically cleaned, guardian remains unproven due atfork/COW constraints.1118 released for future scratch-proof worker, BacklogAC1open. Fresh1119 frontend worker active in own tree;803 and896 continue, no shared production provider edits. Archived/removed4 clean old process/Share trees after saving complete logs/checkpoint bundles.
