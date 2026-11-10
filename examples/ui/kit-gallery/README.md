@@ -72,3 +72,10 @@ disclosures, editable paths, filters and filesystem navigation. `GALLERY_DATA=ov
 selects one part. The grid supports keyboard range/toggle selection, sorting, column resizing and cell editing.
 `GALLERY_DIALOG=open` or `save` opens the corresponding path dialog in the files view. These examples read the
 repository's gallery folder and return chosen paths; they never write a file. `GALLERY_DARK=1` starts in Quiet dark.
+
+`GALLERY=tools` shows the Tool panels. `GALLERY_TOOLS=inspector`, `streams`, `graph`, `animation` or `binary`
+focuses a page; `GALLERY_DARK=1` selects Quiet dark. `src/tools/` owns the sample data and callbacks. Edit properties,
+append/filter logs, issue terminal commands, connect and move nodes, inspect time spans, edit bytes, share curve keys
+with the timeline, change gradient stops or send meter peaks. The terminal supports `help`, `status`, `clear` and an
+explicit unknown-command reply; it starts no process. Play requests are displayed; the editor owns no playback loop.
+These examples use only public kit controls and create no background service.

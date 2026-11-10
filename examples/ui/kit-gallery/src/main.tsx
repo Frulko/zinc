@@ -18,6 +18,7 @@ import { StatsRow, BadgesCard, AlertsColumn, TeamList } from './sections/display
 import { OverlaysCard } from './sections/overlays';
 import { CodeSection } from './sections/code';
 import { DataSection } from './sections/data';
+import { ToolsSection } from './sections/tools';
 
 useQuietTheme();
 if (env('GALLERY_DARK') === '1') setDarkMode(true);
@@ -56,6 +57,8 @@ function App(): i32 {
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'code'}><CodeSection /></Show>
 
       <Show when={env('GALLERY') === '' || env('GALLERY').startsWith('charts')}><ChartsSection /></Show>
+
+      <Show when={env('GALLERY') === '' || env('GALLERY') === 'tools'}><ToolsSection /></Show>
       <Show when={env('GALLERY') === ''}>
       <Section title="Metrics"><StatsRow /></Section>
       <Section title="Controls">

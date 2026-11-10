@@ -12,6 +12,7 @@ useQuietTheme();
 const [value, setValue] = createSignal('Ada');
 const [n, setN] = createSignal(4);
 const [money, setMoney] = createSignal(-1249.5);
+const [unbounded, setUnbounded] = createSignal(-6);
 const [tags, setTags] = createSignal<string[]>([]);
 const [code, setCode] = createSignal('');
 const [selected, setSelected] = createSignal('a');
@@ -29,6 +30,7 @@ function App(): i32 {
     <NumberField label="Seats" value={n} onChange={setN} min={1} max={12} />
     <MoneyField label="Budget" value={money} onChange={setMoney} />
     <ScrubField label="Opacity" value={n} onChange={setN} min={1} max={12} />
+    <ScrubField label="Unbounded scrub" value={unbounded} onChange={setUnbounded} />
     <TagInput label="Tags" value={tags} onChange={setTags} />
     <OneTimeCode value={code} onChange={setCode} length={4} onComplete={(v: string) => { complete++; }} />
     <Select label="Country" items={options} value={selected} onChange={setSelected} />
@@ -50,6 +52,8 @@ ui.onKey((e: ui.KeyEvent) => { globalKeys++; });
 render(App, 0xffffff, (dt: number) => {
   frame++;
   if (frame === 2) {
+    ui.keyDown(find('Unbounded scrub'), 'ArrowDown'); equal(unbounded(), -7);
+    ui.focusNode(find('Unbounded scrub')); ui.select(find('Unbounded scrub'), 0, 100); ui.typeText(-1, '250'); equal(unbounded(), 250);
     equal(ui.getValue(find('Budget')), '-1,249.50');
     equal(ui.fieldMode(find('Search')), 6); equal(ui.fieldMode(find('Verification code')), 1);
     const small = find('Small secret'), smallInput = ui.screenBox(small);

@@ -658,3 +658,43 @@ Input limits keep layout and hit testing bounded and reject oversized inputs wit
 ![Overview charts in the dark Quiet theme](img/kit-charts-overview-dark.png)
 
 ![Price, scatter and gauges at 360 px](img/kit-charts-market-narrow.png)
+
+## Tool panels
+
+Import this family from `zinc:ui/kit` or `zinc:ui/kit/panels`. Values belong to the caller; the panels create no
+process, profiler, audio device, or playback loop. `GALLERY=tools GALLERY_TOOLS=inspector|streams|graph|animation|binary`
+selects a page of the [interactive gallery](../examples/ui/kit-gallery).
+
+| Component | Values and behaviour |
+|---|---|
+| `PropertyInspector` | `properties: InspectorProperty[]`, optional `label`/`className`. A property has `id`, `label`, `type` (`text`, `float`, `integer`, `boolean`, `enum`, `color`, `vector`, `vector2`, `vector3`, `vector4`), string `value()`/`onChange`, optional `group`, `tooltip`, `disabled`, numeric `min`/`max`/`step`, or enum `options`. Vectors use two, three or four comma-separated numbers. Groups collapse lazily; labels start at 38%, resize with pointer or separator arrows, and stack below 380 px. Numeric scrubbing and exact text entry share the field bounds; omitted bounds permit negative values. |
+| `LogConsole` | `buffer: LogBuffer`, `revision()`, optional `label`, `height` (220), `className`. `append(text,level,source,time)` returns a monotonic record ID; `clear()` retains ID monotonicity. Defaults bound 2,000 records and 262,144 characters including metadata. Search and level filters cache by buffer revision; the virtual DataGrid supplies keyboard selection and copying. Follow scrolls new records into view. After appending, notify the accessor supplied as `revision`. |
+| `Terminal` | `buffer: TerminalBuffer`, `revision()`, `onCommand`, optional `onInterrupt`, `prompt`, `label`, `height` (200), `size` (13), `noInput`, `disabled`, `className`. `write(chunk)` accepts incremental SGR 16/256/RGB colours, bold/dim/underline/inverse/reset, carriage return, line feed, tab, backspace, erase-line and clear-screen; OSC payloads are discarded. Output wraps at the current width; output and history are bounded. Up/Down recall commands, Enter submits, Ctrl+C copies a selection or calls the interrupt callback; Ctrl+L clears output. The output region supports arrows, Shift-selection, Cmd/Ctrl+A/C, copying and follow. This is output plus a prompt; attach your own pipe or remote service. |
+| `NodeEditor` | Caller `nodes()`/`links()`, `onNodesChange`/`onLinksChange`; optional pin `validate`, `label`, `height` (320), `minimap`, `disabled`, `className`. Nodes have stable `id`, `label`, `x`/`y`, optional `width` and real UI `children`, and typed input/output `pins`. Connections replace a single input link and reject mismatched types. Select output then input by pointer or Tab/Enter; titles move selected groups, empty space selects a marquee, middle-button/Space-drag pans, Ctrl/Cmd-wheel zooms, arrows move selection, Alt-arrows pan, +/- zoom, F frames all, Delete removes a selected connection or nodes. The minimap centres a clicked point and supports keyboard pan/fit. |
+| `FlameGraph` | `spans(): FlameSpan[]` (`id`, `label`, `start`, `duration`, `depth`), optional `label`, `height` (220), `start`/`end`, `className`. This is a time-ordered chart. An index by depth/start bounds visible work, and subpixel spans are omitted. Hover/selection reports duration and share; drag pans, Ctrl/Cmd-wheel or +/- zooms, vertical wheel/arrows navigate depths, [ and ] select visible spans, Home restores the view. |
+| `HexViewer` | `bytes(): number[]`, optional immutable-length `onChange`, `label`, address `base`, highlighted `ranges: HexRange[]` (`offset`, `length`, `label`), `columns` (16; adapts to 4/8/16/32), `height` (220), `className`. Virtual rows show addresses, hex and ASCII. Click or arrows select bytes, Shift extends, Home/End and Page Up/Down navigate. Hex digits replace high then low nibbles; focus loss resets the nibble phase. Go-to accepts hexadecimal. Home/End address the current row; Cmd/Ctrl reaches the file ends. Cmd/Ctrl+C copies hex, Shift copies ASCII, bounded to 4 MiB of selected bytes; selections clamp to the buffer. |
+| `CurveEditor` | Caller `keys()`/`onChange`, optional `label`, time/value bounds (0–1), `snap`, `height` (180), `disabled`, `className`. `CurveKey` carries `id`, `time`, `value`, `mode` (`linear`, `step`, `smooth`, `free`) and optional in/out handle time/value. Double click or Insert adds, [ and ] select, arrows move, Delete retains at least two keys; exact fields expose interpolation and free handles. Smooth interpolation preserves monotonic segments; free handle x coordinates stay inside their segment. `evaluateCurve(orderedKeys,time)` is the same evaluator used by the timeline. |
+| `GradientEditor` | Caller `stops()`/`onChange`, optional `label`, `disabled`, `className`. Stops have `id`, `position` (0–1), `color` (`#rrggbb`/`#rrggbbaa`). Sorted stop handles drag or use arrows/Home/End; add samples the current ramp, delete retains two stops. Position and alpha-aware ColorPicker fields expose exact edits. Checkerboard previews alpha; `sampleGradient(stops,position)` interpolates sRGB channels and alpha. |
+| `TimelineEditor` | Caller `tracks()`/`onChange`, `playhead()`/`onPlayheadChange`, `duration`; optional `onPlayRequest`, `playing()`, `label`, `snap`, `height` (220), `disabled`, `className`. Virtual tracks share `CurveKey` and the curve evaluator. Visible keys drag/snap; clips move and trim within neighbouring clips with media offsets preserved. Exact fields expose key time/value and clip in/out. A ruler changes the playhead; arrows step selection, Delete removes, +/- zoom, Space requests play. The caller advances playback. Locked tracks reject edits. |
+| `LevelMeter` | `peaks(): number[]` linear amplitudes (up to eight channels); optional `label`, `minDb` (-60), `maxDb` (+6), `holdMs` (1,500), `decayDb` (20 dB/s), `length` (160), `channelWidth` (6), `horizontal`, `segmented`, `scale` (true), `sampleId()`, `className`. Changed values, or a new stream sample ID for repeated equal peaks, are converted to dBFS. A peak holds then decays, and clipping stays latched until reset. It schedules only while a displayed peak remains above the floor; silence stops the schedule. Blur suspends it, unmount cancels it, and scheduled callbacks carry a generation. |
+
+All panels use Quiet roles in light/dark, visible keyboard focus, and instance-owned state. Static visualisations use lazy
+canvases, and motion is limited to the existing disclosure component with its reduced-motion path. Geometry and drawing
+read current theme colours. No panel imports app singletons or creates a permanent frame callback.
+
+Behaviour was compared with [CUI's tool panels](https://github.com/yappologistic/CUI/tree/f70a1d3d095cafd67814b23bdd82c2dfba28efe0/src)
+(MIT, pinned `f70a1d3d095cafd67814b23bdd82c2dfba28efe0`), [xterm control sequences](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html),
+and [Godot GraphEdit](https://docs.godotengine.org/en/stable/classes/class_graphedit.html). The Zinc implementation is original;
+no CUI code or third-party parser was copied.
+
+
+![Property inspector drawn by Zinc](img/kit-tools-inspector.png)
+![Bounded logs and terminal drawn by Zinc](img/kit-tools-streams.png)
+![Node editor and time-ordered flame graph drawn by Zinc](img/kit-tools-graph.png)
+![Curve, gradient and timeline editors drawn by Zinc](img/kit-tools-animation.png)
+![Hex viewer and audio meters drawn by Zinc](img/kit-tools-binary.png)
+![Logs and ANSI output in Quiet dark, drawn by Zinc](img/kit-tools-streams-dark.png)
+![Hex viewer and meters in Quiet dark, drawn by Zinc](img/kit-tools-binary-dark.png)
+![Tool panels in Quiet dark, drawn by Zinc](img/kit-tools-graph-dark.png)
+![The property inspector stacked at 360 px, drawn by Zinc](img/kit-tools-inspector-narrow.png)
+![The byte grid adapted at 360 px, drawn by Zinc](img/kit-tools-binary-narrow.png)

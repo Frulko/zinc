@@ -163,6 +163,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Quiet data controls add sortable tables, virtual grids with row selection and editing, lazy trees, disclosures, path and filter bars, and file browsing with open/save path dialogs.
 
+- Quiet tool panels add property editing, bounded logs and ANSI output, node graphs, flame charts, hex editing, curves, gradients, timelines and audio peak meters, with caller-owned data and keyboard controls.
+
 - `ui.textOffsetAt(handle, x, y)` finds a glyph's original text offset from local pointer coordinates, including wrapped styled text, so inline links can be clicked in their paragraph.
 - Quiet code controls add selectable code blocks, an editor with find and go-to-line, responsive diffs, CommonMark documents with link/task callbacks, and independent JSON trees with counts and visible errors.
 
@@ -223,6 +225,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Scroll requests made before mounting, while hidden or after content changes keep their requested position until layout is ready; virtual row alignment and animated scrolling follow the same rule.
 - A guarded optional callback can be used inside `String`, `Number` or `Boolean` without a false nullable-call error.
 - Custom popover triggers use the Quiet accent for their keyboard focus ring.
+
+- Scrub fields without explicit bounds accept negative and large values, while bounded fields keep their drag sensitivity.
 
 ### The web
 

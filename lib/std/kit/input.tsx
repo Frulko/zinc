@@ -203,7 +203,7 @@ function onWindowBlur(cancel: () => void): void {
 enum ScrubState { Idle, Pressed, Dragging }
 interface ScrubGesture { state: ScrubState; originX: number; originValue: number }
 export function ScrubField(p: NumberFieldProps): i32 {
-  const min = p.min ?? 0, max = p.max ?? 100, field = createNodeRef();
+  const min = p.min ?? -1e12, max = p.max ?? 1e12, field = createNodeRef();
   const gesture = componentRef<ScrubGesture>({ state: ScrubState.Idle, originX: 0, originValue: 0 });
   const transition = (next: ScrubState): void => {
     if (next === ScrubState.Pressed && gesture.current.state !== ScrubState.Idle) return;
@@ -218,10 +218,10 @@ export function ScrubField(p: NumberFieldProps): i32 {
       onPointerMove={(e: ui.PointerEvent) => {
         if (gesture.current.state === ScrubState.Idle) return;
         if (Math.abs(e.x - gesture.current.originX) > 4) transition(ScrubState.Dragging);
-        if (gesture.current.state === ScrubState.Dragging) update(gesture.current.originValue + (e.x - gesture.current.originX) * (p.step ?? (max - min) / 100) * (e.shift ? 0.1 : 1));
+        if (gesture.current.state === ScrubState.Dragging) update(gesture.current.originValue + (e.x - gesture.current.originX) * (p.step ?? (p.min !== undefined && p.max !== undefined ? (max - min) / 100 : 1)) * (e.shift ? 0.1 : 1));
       }} onPointerUp={(e: ui.PointerEvent) => transition(ScrubState.Idle)} onPointerCancel={(e: ui.PointerEvent) => transition(ScrubState.Idle)}
       onKeyDown={(e: ui.KeyEvent) => numberKey(p, e)} onInput={(v: string) => update(Number(v))} onChange={(v: string) => ui.setValue(field.node, String(p.value()))} />
-    <View className={`h-px bg-${theme().accent} w-${Math.round(100 * (p.value() - min) / Math.max(1, max - min))}/100`} />
+    <Show when={p.min !== undefined && p.max !== undefined}><View className={`h-px bg-${theme().accent} w-${Math.round(100 * (p.value() - min) / Math.max(1, max - min))}/100`} /></Show>
     <Show when={p.suffix !== undefined}><Text className={`text-[12px] text-${theme().mutedForeground}`}>{p.suffix ?? ''}</Text></Show>
   </View>);
 }
