@@ -1725,3 +1725,9 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 
 - Source23cdd66a0 with unchanged common enginef561c4cc...: raw unchanged combined JS235962/242570/279337B, unused6608<9216 for36families,4085/component/97B strict total headroom. AOT5325320/5457488/6009248B, unused132168<147456,61306/component. Native editor still linked by public-barrel Button under budget.
 - Worker models all3,30 keyboard/24 pointer routes across both models/all3,ten inspected Zinc pictures and original gallery interp/AOT/QJS short runs pass. Root exact tool_panels, shared kit_inputs, gallery check and four-frame graph QJS also pass. Provenance/source hashes: kit-integration-2026-11-10.json after_tool_panels. No profiler/stream throughput, physical accessibility, idle/RSS/energy or device performance measured.
+
+
+## 2026-11-10 — Media integrated with Tool, Code and Charts
+
+- Sourcee70c008e2, enginef561c4cc... unchanged: raw gate JS235962/243827/280594B; unused7865<9472,4085/component/97B strict used-total headroom. AOT5325320/5457488/6009248B; unused132168<151552,61306/component. No feature/icon/option removed or threshold changed; cold/runtime/idle costs unmeasured.
+- Root nine geometry/Solid/React programs on all3, gallery check and four-frame crop QJS pass; eight worker-inspected pictures, overlays and Discord compatibility checks pass. Explicitly owned modal/sharper/Tooltip cleanup; no image export pipeline added. Source/capture/raw gate provenance docs/reports/bench/kit-media-2026-11-10.json. Physical touch/VoiceOver/GPU/device and long decode measurements remain proposed.

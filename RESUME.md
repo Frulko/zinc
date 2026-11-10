@@ -8,13 +8,13 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 | --- | --- | --- |
 | AI1078.18 | .worktrees/1078.18 / work/1078.18 | Reserved fresh worker: nine requested assistant UI controls. Primary CUI/provider research already in task notes; reuse Code/Input/Overlay/Feedback leaves, no backend/model/network integration. |
 | Extended1078.19 | .worktrees/1078.19 / work/1078.19 | Reserved fresh worker, fifteen requested widgets; reuse System drop/file/image/Media/Feedback/animation providers, no services or engine build. |
-| Planning1078.17 | .worktrees/1078.17 / work/1078.17 | Fresh worker, Kanban/week/month/Gantt; reuses dnd/picker-date/Calendar/example. Primary reference options in notes, no auto-scheduler. Pure model +one family, no engine edits/build. |
+| Core1110 | .worktrees/1110 / work/1110 | Reserved fresh sole core worker. JSX map(callback,) silently drops rows; patch token argument bounds, exact all3/models and original formatted Planning. No runtime/layout/UI edits. |
 
-Root plus three workers fill runtime4 slots. One queued heavy command per worker. No active engine writer now; root final engine is built. Fresh worker per next batch, never extend a completed context. Next startable family after these is1078.20, but integrate reported work first.
+Root plus three workers fill runtime4 slots. One queued heavy command per worker. Fresh core1110 is next sole engine writer; current common remains f561 until replacement. Fresh worker per next batch, never extend a completed context. Next startable family after these is1078.20, but integrate reported work first.
 
 ## Completed and final proof
 
-- Media16 integratede70c008e2: four controls +legacy modal geometry/lifecycle cleanup, nine all3/model programs, eight pictures, overlays/Discord checks, combined gate4085JS/61306AOT pass. Tooltip returns cleanup to explicit JSX/imperative owner. Root integration smoke underway; no engine rebuild.
+- Media16 integratede70c008e2: four controls +legacy modal geometry/lifecycle cleanup, nine all3/model programs, eight pictures, overlays/Discord checks, combined gate4085JS/61306AOT pass. Tooltip returns cleanup to explicit JSX/imperative owner. Root kit_media all9/gallery check/4frame cropQJS PASS; no engine rebuild.
 
 - Tool14 integrated23cdd66a0: ten controls, exact models all3,30keyboard/24pointer routes bothmodels/all3,ten pictures and actual gallery/check/gate pass. Focus-visible callback is not containment: gesture cleanup uses hasFocusWithin; Hex cell clicks retain root edit focus. Combined Tool gate JS235962/242570/279337,4085/component/97B strict headroom; AOT5325320/5457488/6009248,61306/component. Root model T0 all3/shared kit_inputs/gallery check/4frame graphQJS PASS; TS-only no rebuild.
 
@@ -43,3 +43,5 @@ Owner added OptiPlex Fedora45 KDE x86_64,i3-7100T2cores/4threads,16GB: SSH LAN m
 Owner chooses long milestones: physical keyboard/VoiceOver/touch, device glyph/window parity, long data/theme/virtual churn/RC/idle energy, quiet-machine UI-work scaling and cold SVG/adapter costs. Proposed commands in task notes/archived handover; root listed later.md lines without stopping. Documented ZN-382: percent insets rn styles only; classic ignores them. Portable numeric geometry is valid; rn arbitrary class parse defect and unknown-array erasure identity finding remain later.md.
 
 Owner responsive/password demo is Done: docs/img/design/gallery-responsive.png,password-reveal.png. From retained clean tree: PICTURE=gallery ZINC_SIZE=1280x900 ZINC_ROOT="$PWD" build/zinc run docs/img/design/src --interp. Kit: ZINC_ROOT="$PWD" build/zinc run examples/ui/kit-gallery --interp; GALLERY selects family. Agent runs bounded/background.
+
+Planning17 parked clean branch work/1078.17 checkpoint78c13d3ea5362e86fedfe02508d2a74595e412fb, NOT integrated, all AC open. Four controls/docs/six pictures/old T0 and gate retained, but final formatted source MonthCalendar empty due valid map(callback,) parsing. Minimal tests/data/kit_planning/map-trailing.tsx and .logs; root copies .logs/blockers/jsx-map-trailing. After1110 integrate, start a fresh Planning completion worker from checkpoint, rebase/reprove; no formatting workaround.

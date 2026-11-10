@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Planning17 parked clean checkpoint78c13d3ea, NOT integrated, all AC open: formatter adds valid trailing comma in map callback and JSX rows disappear. Minimal persistent repro/logs and primary ECMAScript/Prettier references recorded; reserve1110 for fresh sole core worker. Keep normal formatted source, no comma-removal workaround. Slot freed by Planning; AI18/Extended19 continue independently on commonf561. System events lazy/disposer change remains plugin TS scope, no core writer conflict.
+
 - Media16 integratede70c008e2 Done/released,45Done: four controls, nine model/UI programs all3, eight inspected pictures, overlays and Discord compatibility checks, unchanged combined gate PASS4085JS/61306AOT. Existing modal kept with shared geometry/owned lifecycle/sharper cleanup; Tooltip disposer ownership fixed once. Root TS-only smoke underway, commonf561 unchanged. Reserve Extended19 fresh worker beside Planning17/AI18; real system drops via existing plugin, controlled UI models/animations, no duplicate services or engine work.
 
 - Root Tool14 integration modelT0 all3, shared kit_inputs, gallery check and4frame graphQJS PASS.44Done persisted; Tool source/gate hashes added to kit-integration after_tool_panels, perf appended without owner hunks. Completed Tool tree archived/removed. Active Media16/Planning17/AI18 all TS-only on commonf561, no engine writer; next family19 when slot free. PropertyInspector duplicate-label polish and typed-unknown identity/percent class findings remain later.md, no new task.
