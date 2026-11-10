@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Rootd87d08/b996304d combinedAOT+668+1030 proof PASS:7exactT0/rawkitgate/originalHero all3historicalhashes, native7,995,032B andsource9,527,457B+60B PCH.603Doneall3AC,73total;668ReviewAC1,1030array/storegapsopen. D283/D284/D231followup/perf/rawprovenance recorded. Building slots1120+1066; rootidle.
+
 - Reserve1066 alternativeengine export/pack/Hermesbytecode asnext independentenginechain afterhighermilestone-only/protected/sharedcore work skipped. Initialresearch/calleraudit only; rootcommon+1120building slots. Existing445unsignedsource/bytecodetrust and803updateexports preserved. No newservice/demo orlongrun/benchmarkauthorization.
 
 -668032658ef7 integratedReviewAC1, exactall3+0leakproof (44alloc=44free; original2/2) PASS; no runtime/header/VM/AOTedits.1120research archived, distinctNever semanticplan approvedforfreshsolecoreimplementation after668freeze.603 current4f198strictgates7,995,032B/9,527,337B andfull19.16s pass, commit/provenancepending; rootfinalcombinedwith668checksneeded.

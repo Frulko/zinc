@@ -2,19 +2,18 @@
 
 Continue zn-coordinate until main `.paused` exists or no startable work remains. Never ask the owner; no push. This root is the sole backlog coordinator. Runtime4 = root +3workers. New workers inherit configured model after “on rebascule”; Fast remains launcher option.
 
-## Active workers — owner refocus: engine first
+## Active workers — engine first
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|1030 structural arrays/views|.worktrees/1030 / work/1030|Fresh representation plan/prototype after optional-Dyn checkpoint44457803a; no broad IR/runtime/AOT implementation before narrow review.|
-|587 web Worker facade|Integrated97af370e3; archived587-final|Done; combined4exact and actualPixi/Tone PASS.|
-|603 AOT size|.worktrees/603 / work/603|Active emitter/link/resource optimization. Measured source9,965,252 B inclheader, native9,811,528 B; compression next, full8MB criterion still open.|
+|1120 distinct never type/lowering|.worktrees/1120 / work/1120|Sole frontend/IR writer; private lazy uninhabited carrier, existing void returns/Unreachable; exactproof in progress.|
+|1066 alternative-engine packaging|.worktrees/1066 / work/1066|Independent CLI/export/portable-pack/HBC source trust; existing pack/fuse format retained. No new native loader or SDK rebuild.|
 
-897 minimal native cleanup/client checkpoint is integratedc918514de Backlog; no libnice/vendor switch.1118 self-exec research is integrated0d50aadd1, no production guardian.395a025e2882 Done and1030 method checkpoint4f0b3b889 Backlog are integrated. 1030 optional-Dyn checkpoint44457803a integrated with final all3 proof0b39abe8; root common refresh groups with587/603. Previous common default build af20bb17b and exact integration smoke passed (six T0s, permissions, Museum3, real capture, Callshot); original call-server startup/HTTP/TERM/no-child also passed. Three fresh engine workers now active:603 emitter/resources,587 QJS/web worker,1030-views frontend representation research only. No new services/demos chosen.
+Root common/build+combined strict Hero/8exactchecks finished PASS. Building slots1120+1066, all through work-run.603d87d08bbd Doneall3AC aftercombinedproof (73Done);668032658ef7 ReviewAC1,1030 record arrays/widerstores still Backlog. No new services/demos, production guardian or libnice expansion.
 
 ## Integrated state
 
-72 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, 445 QuickJS packing/cache,774.31 Share,1119 quoted-key JSON 896 call server,803 asynchronous updates and395 no-graphics engine. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
+73 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, 445 QuickJS packing/cache,774.31 Share,1119 quoted-key JSON 896 call server,803 asynchronous updates and395 no-graphics engine. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
 
 - UI chain7ed1b1211/39e7e5e62/5488a7d35, recursive capture063edc9de, Solid ownership0d7163987: root exact tests and original Music feature pass. Mail6dc4c22ca, Notesed5802785, Assistantc280d7fd8 and Music83e6fe6f5 Done with actual all3 action/desktop/mobile/focus/cleanup proofs. Original responsive/password defects fixed.
 -445 integrated5acf53be0: local trusted bytecode cache stays fast; unsigned packs execute retained source, with one explicit warning. No unauthenticated bytecode loader. Exact qjs_bytecode and actual Fatty direct/pack proof pass; no startup timing claim.
@@ -67,6 +66,10 @@ Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow
 
 ## Tests to run (the owner picks)
 
+- Sinced87d08bbd: tools/diff-matrix corpus at milestone (~10min/<1GB) and originalHero/novideo keyboard/upload session (~20s/engine,<1GB estimate), native packing on real Linux/Mojave. Exact AOT and4frame parity already pass.
+- Since032658ef7: matched quiet recursive-closure call-path measurement (seconds to minutes,<100MB estimate) for668AC2; semantics/leaks already pass.
+
+
 - Since97af370e3: maintained webenv_pixi T1 (seconds; both pinned rendering/event paths) and bounded long transfer/decode/terminate churn plus Pi/Mojave/OptiPlex worker scheduling; no TSAN or runtime-speed result implied.
 
 
@@ -105,3 +108,5 @@ Engine blocker1120 created under New-task blocks exception: valid unused never-r
 Integrated:668032658ef7 fixes immutable self-reference leaks viaexistingclosure receiver, ReviewAC1checked/AC2measurementopen. Originalfactorial2alloc/0free ->2alloc/2free; fullfixture44alloc/44free/0leaks oninterp+AOT andQJSoutputsame; source61f99ec4.1120 researchproves Never=tNull rootcause; freshimplementation willdistinguishbottomtype anduseexistingIRvoid/Unreachable, no newVM/AOT/ABI.603 final4f198proof7,995,032B/9,527,337B/19.16sfull observed; rootcombined668+603sizegatepending.
 
 Next independent engine chain1066 export/pack/bytecode reserved. Higher available tasks are owner-milestone benchmarks, protected HAL/UI/allocator work or shared core held by1120;1066 CLI/alternativeJS backends are independent. Start research/caller audit only until rootcombined build/proof frees one of2building slots. No longHermes handles/debugger benchmark or publication.
+
+Integrated:603d87d08bbd+668+1030 final cleancommon source d87d08bbd SHAb996304da89c455d22c018e2a83b7cd62cf840924fe400e35622f1c48c27b018. Root7exactT0+rawkitgate and originalHero check/build/all3fourhashes PASS. Native7,995,032 B; source9,527,457 B plus60B cachedPCH; originalworkerfullcold19.16s on4f198+603, no quietclaim. KitrawJS236192/246407/283256, AOT5210216/5276320/5795072 (unused66104,57639/component);15B JS strictheadroom remains. D283/D284/D231 followup recorded, provenanceupdated.

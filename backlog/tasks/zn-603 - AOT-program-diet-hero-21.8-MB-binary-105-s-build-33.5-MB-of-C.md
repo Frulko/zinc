@@ -2,8 +2,7 @@
 id: ZN-603
 title: 'AOT program diet: hero 21.8 MB binary, 105 s build, 33.5 MB of C++'
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 09:48'
 updated_date: '2026-11-10 09:59'
 labels:

@@ -630,5 +630,70 @@
       "TSAN/hardware/long churn",
       "full structural array/store/borrowed parity"
     ]
+  },
+  "aot_closure_integration": {
+    "source_commit": "d87d08bbda388e80ef87cf0655cdbd1dfe769371",
+    "engine_sha256": "b996304da89c455d22c018e2a83b7cd62cf840924fe400e35622f1c48c27b018",
+    "native_bytes": 7995032,
+    "native_sha256": "2576de3d01df3552125130de57edcc036ee9761d99cea87572e8e343a64d8d99",
+    "generated_program_cpp_and_header_bytes": 9527457,
+    "generated_cpp_count": 57,
+    "generated_header_count": 1,
+    "source_counting_note": "all retained hero CPP and shared declarations in proof directory; worker inclusive source record additionally includes60B cached PCH wrapper",
+    "features": {
+      "hero-native": "four historical hashes PASS",
+      "hero-interp": "four historical hashes PASS",
+      "hero-quickjs": "four historical hashes PASS"
+    },
+    "tests": [
+      "aot",
+      "aot_native_args",
+      "aot_declarations",
+      "aot_embedded_blob",
+      "aot_blob_routes",
+      "recursive_self",
+      "open_record_methods",
+      "kit_size_raw"
+    ],
+    "runtime_speed_claim": false,
+    "cold_compile_time_claim": false,
+    "generated_source_inclusive_60_byte_pch_wrapper": 9527517,
+    "kit_raw_output": "bundle: Button 236192 B, through the index 246407 B (+10215 for 40 unused families, budget 10240), ten 283256 B (+4094 per component)\naot: Button 5210216 B, through the index 5276320 B (+66104 for 40 unused families, budget 163840), ten 5795072 B (+57639 per component)\naot, Button through the index links the plugins: editor\n",
+    "javascript_bytes": {
+      "direct": 236192,
+      "index": 246407,
+      "ten": 283256,
+      "unused": 10215,
+      "per_component": 4094,
+      "strict_total_headroom": 15
+    },
+    "aot_bytes": {
+      "direct": 5210216,
+      "index": 5276320,
+      "ten": 5795072,
+      "unused": 66104,
+      "per_component": 57639
+    },
+    "done_count": 73,
+    "status": {
+      "603": "Doneall3AC",
+      "668": "ReviewAC1",
+      "1030": "BacklogAC1open"
+    },
+    "cold_observation": {
+      "source": "4f198e9c1+24a330e92",
+      "wall_seconds": 19.16,
+      "reused_objects": 0,
+      "total_objects": 57,
+      "max_reported_rss_bytes": 295796736,
+      "aggregate_rss": false,
+      "quiet_benchmark": false
+    },
+    "not_proven": [
+      "call-path speed for recursive closures",
+      "quiet timing/ranking",
+      "native off-Mac packing",
+      "visible video pixels on black historical headless Canvas"
+    ]
   }
 }
