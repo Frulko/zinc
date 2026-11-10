@@ -1,8 +1,9 @@
 ---
 id: ZN-1112
 title: Reveal selected tabs inside narrow scroll tracks
-status: Done
-assignee: []
+status: Backlog
+assignee:
+  - '@parallel'
 created_date: '2026-11-10 02:26'
 updated_date: '2026-11-10 02:41'
 labels:
@@ -21,8 +22,8 @@ Settings23 narrow page exposes clipped selected/focused tabs. Minimal default Qu
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [x] #1 Existing Tabs and shared reveal callers keep selected and focused tabs within the scroll viewport after keyboard, pointer and controlled selection, with reduced motion and lifecycle cleanup preserved
-- [x] #2 Exact small T0 regression and original unchanged Settings narrow reproduction pass across all three engines; unchanged public kit size thresholds pass
+- [ ] #1 Existing Tabs and shared reveal callers keep selected and focused tabs within the scroll viewport after keyboard, pointer and controlled selection, with reduced motion and lifecycle cleanup preserved
+- [ ] #2 Exact small T0 regression and original unchanged Settings narrow reproduction pass across all three engines; unchanged public kit size thresholds pass
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -42,3 +43,5 @@ Proposed tests:
 - ZINC_BACKGROUND=1 zinc run examples/ui/settings --interp: physical keyboard/touch and screen-reader navigation through narrow tabs, including resize/rotation; about60s, memory not measured.
 - On the available test devices, the same Settings/kit navigation smoke with normal/reduced motion and custom/underline variants; about60s each, memory not measured. No suite, benchmark, conformance or cross-device run started.
 <!-- SECTION:NOTES:END -->
+
+Reopened during original Notes proof: natural Tabs under hidden ancestor issues299 paints in300 ticks on common47a238 with no app timer/framecallback. Minimal .logs/blockers/hidden-tabs-idle/idle-tabs.tsx and log. Shared reveal follows a hidden zero-sized track, repeatedly requests animated scroll. Fix owner reveal scheduling/visibility, test initial-hidden plus hide/reveal/remount and preserve latest selection/focus. No app unmount workaround. Short deterministic paint-count T0 (not benchmark), unchanged kit gate final. Coordinator adds this as third unit in existing UI chain after1114/1115.
