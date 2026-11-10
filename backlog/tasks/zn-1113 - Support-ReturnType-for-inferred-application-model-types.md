@@ -2,8 +2,7 @@
 id: ZN-1113
 title: Support ReturnType for inferred application model types
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 02:29'
 updated_date: '2026-11-10 02:42'
 labels:

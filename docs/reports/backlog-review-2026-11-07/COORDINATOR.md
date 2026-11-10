@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated/released1111c0813bdd5,1113428d48c1b,1112fe4b8bee5 Done,56Done. Source exactall3/probes pass, common rebuild queued; frozen5ec63 candidate plus archives in1111tree staysreadonly for new workers. Reserve Notes27+Assistant28 fresh independent TS-only chains. Mail25 all3app/actions pass but checks possible reduced-motion layer gap across real paints, no protected ui.ts edit; Settings23 final completion after common proof.
+
 -1111 complete workerfe56d1947, exactT0/originalAvatar and unchanged Settings numeric size56 all3 PASS oncandidatec7643c50, no UI/runtime edit. Worker rebases then works1113 in same warm frontend chain before grouped integration. Settings23 actual dependencies1111/1112 recorded to prevent premature reclaim; checkpoint tree archived/removed, original sources remain on develop. Common397865 frozen for otherworkers.
 
 - Root Gallery full defaultall check/interp2 PASS12.7s no draw-pool warning; root Finance check/QJS4PASS and narrowgrid/lightnative inspected.53Done.1111 candidatec7643c50 T0all3/originalAvatar56PASS, then reserved1113 ReturnType in same frontend warm chain; MailQJS entry works unchanged, compiled modes wait1113.1112 provider lead: missing overflow-x-auto disables horizontal scroll despite flex-row, no engine edits.

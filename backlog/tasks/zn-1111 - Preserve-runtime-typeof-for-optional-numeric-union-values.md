@@ -2,8 +2,7 @@
 id: ZN-1111
 title: Preserve runtime typeof for optional numeric union values
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 02:24'
 updated_date: '2026-11-10 02:31'
 labels:
