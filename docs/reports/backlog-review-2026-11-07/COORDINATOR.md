@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Extended19 integrated720f15378/becf01193 Done,50Done; final combined unchanged gate JS235962/246177/282882, unused10215<10240(25B margin),4078/component; AOT5325320/5474000/6025760. Lazy native System factory removes unused plugin, selected native drop scope proved; secondary-window HAL gap remains later. Root exact integration proof queued. Reserve fresh Settings23 (reference CUI pinned settings.c inspected), beside Gallery20/Dashboard22.
+
 - Root integration checks completed: jsx_map_trailing/kit_ai/kit_planning and unchanged gates PASS, original AI composerQJS4/Tracker check+interp4 PASS;49Done. Common397865 frozen, source90b compiler/d950 smoke tree. Extended19 completee31e822f4, short final rebase/combined gate requested; Gallery20/Dashboard22 active. Completed worker archives removed safely; no core writer. Raw provenance after_ai_planning in kit-integration JSON.
 
 - Planning17 integratedb4edca089 Done, correct BoardCard key fixes React focus; actual final T0 all3/bothmodels and six refreshed captures/gate pass, closes1110 AC3. Tracker21 integratedd950a9460 Done: all3 real actions/light-dark/narrow proof, no new demo tests.49Done including1110; root integration smokes underway. Reserve Gallery20 and Dashboard22 fresh TS-only demo workers while Extended19 finalizes. Gallery must include Extended after integration before claiming full coverage; preserve focused screenshot modes. No engine writer, common397865 frozen.

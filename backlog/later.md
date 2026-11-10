@@ -725,6 +725,10 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-1078.17: physical keyboard/touch/VoiceOver and long Kanban/calendar/Gantt churn on devices; current exact all3/both-model proof uses correctly keyed component identities and normal formatted JSX.
 
+- ZN-1078.19: native drop hover is unavailable; current System stream delivers completed drops only. Expose in-progress feedback when the HAL supplies it.
+- ZN-1078.19: secondary-window SDL event route lacks DROP_FILE/TEXT cases and the callback lacks window/coordinates. Carry trusted window identity/coordinates through HAL→System before claiming multi-window routing; prove overlapping zones in two windows.
+- ZN-1078.19: physical Finder/file-manager gestures, VoiceOver, browser/device/touch and long idle/remount/decode ownership checks remain proposed; headless primary-window callbacks do not prove these surfaces.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
