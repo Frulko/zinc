@@ -6,8 +6,9 @@ import { currentScheme, setScheme } from 'zinc:ui';
 import { drawImage, drawImageRect, rect, rrect, drawText, font, textWidth } from 'zinc:gfx';
 import { CameraDevice } from 'zinc:camera';
 import { Icon } from 'zinc:icons';
-import { CallStats, Switch } from 'zinc:ui/kit';
+import { CallStats, Switch, Button, Input as KitInput } from 'zinc:ui/kit';
 import { call, Mode } from './call';
+import GaleneGrid from './GaleneGrid';
 
 const ink = (): i32 => currentScheme() === 'dark' ? 0xE4E4E7 : 0x27272A;
 const white = (): i32 => 0xFFFFFF;
@@ -102,6 +103,7 @@ function Cameras() {
 function status(): string {
   const c = call;
   if (c.why !== '') return c.why;
+  if (c.mode === 'galene') return c.stage === 'live' ? `In group ${c.galene.group} · ${c.galene.users.size} participants` : 'Paste an invite link and press Call.';
   if (c.stage === 'idle') return c.mode === 'local' ? 'Press Call: your camera and microphone go to an echo peer in this window and come back.' : `Press Call to join room "${c.room}".`;
   if (c.stage === 'asking') return 'Asking for the camera and the microphone…';
   if (c.stage === 'connecting') return 'Connecting…';
@@ -125,6 +127,7 @@ export default function App() {
       <View className="flex-row p-1 gap-1 rounded-xl bg-zinc-200 dark:bg-zinc-800">
         <Tab id="local" label="This window" />
         <Tab id="room" label="Room" />
+        <Button label="Invite link" size="sm" variant={c.mode === 'galene' ? 'secondary' : 'ghost'} onClick={() => c.setMode('galene')} />
       </View>
       <View className="flex-1" />
       <View className="w-9 h-9 items-center justify-center rounded-lg active:bg-zinc-200 dark:active:bg-zinc-800" onPress={() => { setScheme(dark ? 'light' : 'dark'); c.changed(); }}
@@ -132,7 +135,7 @@ export default function App() {
     </View>
     <View className="flex-1 flex-col md:flex-row">
       <View className="flex-1 flex-col">
-        <View className="flex-1 relative bg-zinc-950">
+        {c.mode === 'galene' ? <GaleneGrid /> : <View className="flex-1 relative bg-zinc-950">
           <Canvas className="absolute inset-0" onDraw={drawStage} />
           {(c.stage === 'idle' || c.stage === 'ended' || c.stage === 'denied' || c.stage === 'failed') && <View className="absolute inset-0 items-center justify-center p-6">
             <View className="max-w-[420px] items-center gap-3 p-6 rounded-2xl bg-zinc-900/80">
@@ -140,7 +143,7 @@ export default function App() {
               <Text className="text-sm text-center text-zinc-100">{status()}</Text>
             </View>
           </View>}
-        </View>
+        </View>}
         <View className="flex-row flex-wrap items-start justify-center gap-1 md:gap-4 px-2 md:px-4 py-3 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
           <Round icon={c.micOn ? 'mic' : 'mic-off'} label={c.micOn ? 'Mute' : 'Unmute'} on={c.micOn} onPress={() => c.toggleMic()} />
           <Round icon={c.camOn ? 'video' : 'video-off'} label={c.camOn ? 'Stop video' : 'Start video'} on={c.camOn} onPress={() => c.toggleCamera()} />
@@ -154,7 +157,7 @@ export default function App() {
       </View>
       <View className="md:w-72 gap-5 p-4 bg-white dark:bg-zinc-900 border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-800">
         <Text className="text-sm text-zinc-700 dark:text-zinc-300">{status()}</Text>
-        {c.stage === 'live' && c.showStats && <CallStats sample={() => c.quality.last} history={() => c.quality.history}>
+        {c.mode !== 'galene' && c.stage === 'live' && c.showStats && <CallStats sample={() => c.quality.last} history={() => c.quality.history}>
           <View className="gap-2 pt-1">
             <Text className="text-xs text-zinc-500 dark:text-zinc-400">{`${c.numbers.codec === '' ? 'video' : c.numbers.codec} · ${c.numbers.audio === '' ? 'audio' : c.numbers.audio} ${Math.round(c.numbers.audioKbps)} kbit/s`}</Text>
             <Switch checked={() => c.lowData} onChange={(_on: boolean) => { c.toggleLowData(); }} label="Ultra low data" />
@@ -165,11 +168,15 @@ export default function App() {
           <Field label="Signalling server" value={c.server} onInput={(v: string) => { c.server = v; }} />
           <Field label="Room" value={c.room} onInput={(v: string) => { c.room = v; }} />
         </View>}
+        {c.mode === 'galene' && <View className="gap-4">
+          <KitInput label="Invite link" type="password" value={() => c.link} onInput={(value: string) => { c.link = value; }} onSubmit={() => { c.start(); }} hint="From your call server; keep this link private." />
+          <KitInput label="Your name" value={() => c.galene.displayName} onInput={(value: string) => { c.galene.displayName = value; }} onSubmit={() => { c.start(); }} hint="Used when the invite does not already name you." />
+        </View>}
         <View className="gap-2">
           <Text className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Camera</Text>
           <Cameras />
         </View>
-        <Text className="text-xs text-zinc-500 dark:text-zinc-400">{c.speakerOn ? 'Use a headset: there is no echo cancellation.' : 'The speaker is off: in this window your own voice would come back.'}</Text>
+        <Text className="text-xs text-zinc-500 dark:text-zinc-400">{c.speakerOn ? 'Use a headset for a clear call.' : c.mode === 'galene' ? 'The speaker is off. Enable it to hear the call.' : 'The speaker is off: in this window your own voice would come back.'}</Text>
       </View>
     </View>
   </View>;

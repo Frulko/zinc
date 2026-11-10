@@ -66,6 +66,14 @@ std::vector<uint8_t> lastBin;
 std::string err;
 thread_local std::string lastLog;   // libdatachannel's error message for a call that failed on this thread
 std::vector<std::pair<int, std::chrono::steady_clock::time_point>> dying;   // closed connections, deleted a little later (see next())
+enum class Lifecycle { Idle, Running, Stopping };
+std::atomic<Lifecycle> lifecycle{Lifecycle::Idle};
+bool transition(Lifecycle from, Lifecycle to) {
+  const bool legal = (from == Lifecycle::Idle && to == Lifecycle::Running) ||
+    (from == Lifecycle::Running && to == Lifecycle::Stopping) ||
+    (from == Lifecycle::Stopping && to == Lifecycle::Idle);
+  return legal && lifecycle.compare_exchange_strong(from, to);
+}
 
 zrt::String str(const std::string& s) { return zrt::String::from(s.data(), (uint32_t)s.size()); }
 std::string cstr(const zrt::String& s) { return std::string(s.ptr(), s.bytes()); }
@@ -74,8 +82,11 @@ std::string dbl(double v) { char b[40]; snprintf(b, sizeof b, "%.6g", v); return
 // ZINC_WEBRTC_BWE_LOG=1: the video rate control's decisions on stderr (REMB in and out, receiver reports, the ladder's rungs).
 bool bweLog() { static const bool on = getenv("ZINC_WEBRTC_BWE_LOG") && strcmp(getenv("ZINC_WEBRTC_BWE_LOG"), "0") != 0; return on; }
 int64_t nowMs() { return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
-void push(std::string rec, const char* data = nullptr, int size = 0) {
+void push(std::string rec, const char* data = nullptr, int size = 0, int pc = -1, int dc = -1) {
   std::lock_guard<std::mutex> l(mu);
+  if (lifecycle.load() != Lifecycle::Running) return;
+  if (pc >= 0 && counts.find(pc) == counts.end()) return;
+  if (dc >= 0 && owner.find(dc) == owner.end()) return;
   Ev e;
   e.rec = std::move(rec);
   if (data && size > 0) e.bin.assign((const uint8_t*)data, (const uint8_t*)data + size);
@@ -864,19 +875,23 @@ void RTC_API onLog(rtcLogLevel level, const char* message) {
   static const char* show = getenv("ZINC_WEBRTC_LOG");
   if (show && *show) fprintf(stderr, "webrtc: %s\n", message);
 }
-void RTC_API onCandidate(int pc, const char* cand, const char* mid, void*) { push(std::string("cand") + FS + num(pc) + FS + (mid ? mid : "") + FS + cand); }
-void RTC_API onState(int pc, rtcState s, void*) { push(std::string("state") + FS + num(pc) + FS + num(s)); }
-void RTC_API onIce(int pc, rtcIceState s, void*) { push(std::string("ice") + FS + num(pc) + FS + num(s)); }
-void RTC_API onGather(int pc, rtcGatheringState s, void*) { push(std::string("gather") + FS + num(pc) + FS + num(s)); }
-void RTC_API onSignal(int pc, rtcSignalingState s, void*) { push(std::string("signal") + FS + num(pc) + FS + num(s)); }
-void RTC_API onOpen(int dc, void*) { push(std::string("open") + FS + num(dc)); }
-void RTC_API onClosed(int dc, void*) { push(std::string("close") + FS + num(dc)); }
-void RTC_API onError(int dc, const char* e, void*) { push(std::string("error") + FS + num(dc) + FS + (e ? e : "")); }
-void RTC_API onLow(int dc, void*) { push(std::string("low") + FS + num(dc)); }
+void RTC_API onCandidate(int pc, const char* cand, const char* mid, void*) { push(std::string("cand") + FS + num(pc) + FS + (mid ? mid : "") + FS + cand, nullptr, 0, pc); }
+void RTC_API onState(int pc, rtcState s, void*) { push(std::string("state") + FS + num(pc) + FS + num(s), nullptr, 0, pc); }
+void RTC_API onIce(int pc, rtcIceState s, void*) { push(std::string("ice") + FS + num(pc) + FS + num(s), nullptr, 0, pc); }
+void RTC_API onGather(int pc, rtcGatheringState s, void*) { push(std::string("gather") + FS + num(pc) + FS + num(s), nullptr, 0, pc); }
+void RTC_API onSignal(int pc, rtcSignalingState s, void*) { push(std::string("signal") + FS + num(pc) + FS + num(s), nullptr, 0, pc); }
+void RTC_API onOpen(int dc, void*) { push(std::string("open") + FS + num(dc), nullptr, 0, -1, dc); }
+void RTC_API onClosed(int dc, void*) { push(std::string("close") + FS + num(dc), nullptr, 0, -1, dc); }
+void RTC_API onError(int dc, const char* e, void*) { push(std::string("error") + FS + num(dc) + FS + (e ? e : ""), nullptr, 0, -1, dc); }
+void RTC_API onLow(int dc, void*) { push(std::string("low") + FS + num(dc), nullptr, 0, -1, dc); }
 void RTC_API onMessage(int dc, const char* msg, int size, void*) {
   std::lock_guard<std::mutex> l(mu);
+  if (lifecycle.load() != Lifecycle::Running) return;
   auto o = owner.find(dc);
-  Count* c = o == owner.end() ? nullptr : &counts[o->second];
+  if (o == owner.end()) return;
+  auto count = counts.find(o->second);
+  if (count == counts.end()) return;
+  Count* c = &count->second;
   Ev e;
   if (size < 0) { e.rec = std::string("text") + FS + num(dc) + FS + msg; if (c) c->bytesReceived += (long long)strlen(msg); }
   else { e.rec = std::string("binary") + FS + num(dc); e.bin.assign((const uint8_t*)msg, (const uint8_t*)msg + size); if (c) c->bytesReceived += size; }
@@ -889,10 +904,11 @@ void RTC_API onTrack(int pc, int tr, void*) {
   rtcGetTrackMid(tr, mid, sizeof mid);
   rtcSetMessageCallback(tr, onTrackMessage);
   std::lock_guard<std::mutex> l(txMu);
-  pcInfo[pc].pending[mid] = tr;
+  auto owner = pcInfo.find(pc);
+  if (lifecycle.load() == Lifecycle::Running && owner != pcInfo.end()) owner->second.pending[mid] = tr;
 }
 void watch(int dc, int pc) {
-  { std::lock_guard<std::mutex> l(mu); owner[dc] = pc; }
+  { std::lock_guard<std::mutex> l(mu); if (lifecycle.load() != Lifecycle::Running || counts.find(pc) == counts.end()) return; owner[dc] = pc; }
   rtcSetOpenCallback(dc, onOpen);
   rtcSetClosedCallback(dc, onClosed);
   rtcSetErrorCallback(dc, onError);
@@ -901,7 +917,7 @@ void watch(int dc, int pc) {
 }
 void RTC_API onChannel(int pc, int dc, void*) {
   watch(dc, pc);
-  push(std::string("channel") + FS + num(pc) + FS + num(dc));
+  push(std::string("channel") + FS + num(pc) + FS + num(dc), nullptr, 0, pc);
 }
 // A string a C call fills: asks for the size first, and again when it grew in between (a description gains the candidates gathered since).
 template <class F> std::string fetch(F f) {
@@ -930,6 +946,21 @@ zrt::Array<double> nums(const std::vector<double>& v) {
   r.a->len = (int32_t)v.size();
   return r;
 }
+void shutdown() {
+  if (!transition(Lifecycle::Running, Lifecycle::Stopping)) return;
+  std::vector<std::shared_ptr<Tx>> workers;
+  { std::lock_guard<std::mutex> l(txMu); for (const auto& entry : txs) workers.push_back(entry.second); }
+  std::vector<int> peers;
+  { std::lock_guard<std::mutex> l(mu); for (const auto& entry : counts) peers.push_back(entry.first); }
+  // The workers and libdatachannel callbacks take these registries' locks while they stop.
+  for (const auto& worker : workers) endTx(worker);
+  for (int pc : peers) rtcDeletePeerConnection(pc);
+  rtcCleanup();
+  { std::lock_guard<std::mutex> l(txMu); pcInfo.clear(); }
+  { std::lock_guard<std::mutex> l(mu); q.clear(); owner.clear(); counts.clear(); }
+  dying.clear(); lastBin.clear(); err.clear(); lastLog.clear();
+  transition(Lifecycle::Stopping, Lifecycle::Idle);
+}
 }  // namespace
 
 struct HostWebRTC : NativeWebRTC {
@@ -943,6 +974,8 @@ struct HostWebRTC : NativeWebRTC {
     err.clear();
     char why[512];
     if (zn_host_permission && zn_host_permission("net", "*", why, sizeof why)) { err = std::string("webrtc: ") + why; return -1; }   // any peer, and it listens: "net" or "net:*"
+    transition(Lifecycle::Idle, Lifecycle::Running);
+    if (lifecycle.load() != Lifecycle::Running) return fail("WebRTC is stopping"), -1;
     std::vector<std::string> urls;
     std::string all = cstr(servers), line;
     for (size_t i = 0; i <= all.size(); i++)
@@ -1377,5 +1410,7 @@ struct HostWebRTC : NativeWebRTC {
 NativeWebRTC* zinc_create_WebRTC() {
   static HostWebRTC inst;
   inst.rc = zrt::IMMORTAL;
+  static std::once_flag finishHook;
+  std::call_once(finishHook, [] { zrt::at_finish(shutdown); });
   return &inst;
 }

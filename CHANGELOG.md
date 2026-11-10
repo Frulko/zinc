@@ -120,6 +120,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - On Linux, `deeplink.register()` makes the app the handler of its scheme even where xdg-utils is not installed, keeping the other entries of `mimeapps.list`, and a link opened while the app runs reaches `deeplink.onOpen` in the running copy instead of only its second-launch arguments.
 - On macOS and Linux, stopping a `zinc:process` child or closing its owner also stops descendants in its process group, even if the child has already exited.
 - On supported macOS hosts, stopping a nested Zinc command also stops its discovered child groups; stale process identities are refused during cleanup.
+- Quitting a program with active WebRTC audio or video stops its media workers before native cleanup, preventing a crash on exit.
 
 ### Network
 
@@ -462,6 +463,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Riffle (`app/riffle`), a window switcher for macOS: hold Cmd and press Tab to go to any window in the order you last used it, minimized, hidden or on another Space included, from a plain list with a menu bar icon and settings.
 - `examples/appkit-tour`, a Finder-like browser made of real AppKit views: a toolbar with a search field, a sidebar of places, a table of 10,000 files you sort and select, an inspector form, an alert, a sheet, the menu bar and dark mode. `ZINC_RENDER=drawn` draws the same program.
 - `examples/ui/music` is a local Quiet music library with six original sound sketches, waveform seeking, volume and an editable play queue.
+- `examples/webrtc-call` joins a self-hosted Galène call with `CALL_LINK`, showing remote tiles with video-layer controls and publishing the camera and screen separately.
 
 #### Changed
 

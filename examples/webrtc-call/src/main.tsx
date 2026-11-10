@@ -12,8 +12,12 @@ import { env } from 'zinc:sys';
 import App from './App';
 import { call } from './call';
 import { pickerOpen, confirmPicker } from 'zinc:screen-capture/picker';
+import { useQuietTheme } from 'zinc:ui/kit';
+
+useQuietTheme();
 
 ui.onKey((e: ui.KeyEvent): void => {
+  if (ui.focusedField() >= 0) return;
   if (e.primary || e.alt) return;
   const c = call, k = e.key;
   if (k === 'Escape') { if (c.stage === 'live' || c.stage === 'connecting') c.hangUp(); else { c.close(); quit(); } }

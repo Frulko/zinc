@@ -13,9 +13,10 @@ import { pickScreen } from 'zinc:screen-capture/picker';
 import { navigator, MediaStream, MediaStreamTrack, Event } from 'zinc:web';
 import { WebSocket, MessageEvent as WsMessage } from 'zinc:socket';
 import { env } from 'zinc:sys';
+import { Galene, GaleneState } from './galene';
 
 export type Stage = 'idle' | 'asking' | 'denied' | 'connecting' | 'live' | 'ended' | 'failed';
-export type Mode = 'local' | 'room';
+export type Mode = 'local' | 'room' | 'galene';
 
 /** The numbers of the overlay, read once a second from getStats(). */
 export class Numbers {
@@ -26,7 +27,9 @@ export class Numbers {
 }
 
 export class Call {
-  mode: Mode = env('CALL_MODE') === 'room' ? 'room' : 'local';
+  mode: Mode = env('CALL_LINK') !== '' ? 'galene' : env('CALL_MODE') === 'room' ? 'room' : 'local';
+  link: string = env('CALL_LINK');
+  galene: Galene = new Galene();
   stage: Stage = 'idle';
   why: string = '';
   cameras: CameraDevice[] = [];
@@ -55,9 +58,22 @@ export class Call {
   private lastSent: number = 0;
   private lastRecv: number = 0;
   private lastAudio: number = 0;
+  private sharedScreen: MediaStream | null = null;
+  private attempt: number = 0;
+  private measureTimer: i32 = 0;
   private listeners: (() => void)[] = [];
 
-  constructor() { setInterval((): void => { this.measure(); }, 1000); }
+  constructor() {
+    this.galene.onChange = () => {
+      if (this.mode !== 'galene') return;
+      const state = this.galene.state;
+      if (state === GaleneState.Joined) this.stage = 'live';
+      else if (state === GaleneState.Failed) this.stage = 'failed';
+      else if (state !== GaleneState.Closed && state !== GaleneState.Idle) this.stage = 'connecting';
+      this.why = this.galene.why;
+      this.changed();
+    };
+  }
   onChange(f: () => void): void { this.listeners.push(f); }
   changed(): void { for (const f of this.listeners) f(); }
   log(s: string): void { if (env('CALL_LOG') === '1') console.log(s); }
@@ -76,13 +92,16 @@ export class Call {
   peerWidth(): number { const t = this.remoteVideo; return t === null ? 0 : (t.camera as RemoteVideo).width; }
   peerHeight(): number { const t = this.remoteVideo; return t === null ? 0 : (t.camera as RemoteVideo).height; }
 
-  setMode(m: Mode): void { if (m !== this.mode) { this.hangUp(); this.mode = m; this.changed(); } }
+  setMode(m: Mode): void { if (m !== this.mode) { this.close(); this.mode = m; this.changed(); } }
 
   /** Call: asks for the camera and the microphone (once; a background run never asks), opens them, then connects. */
   async start(): Promise<void> {
-    if (this.stage === 'connecting' || this.stage === 'live') return;
+    if (this.stage === 'asking' || this.stage === 'connecting' || this.stage === 'live') return;
+    this.hangUp();
+    const attempt = ++this.attempt;
     this.stage = 'asking'; this.why = ''; this.changed();
     const cam = await askCamera(), mic = await askMicrophone();
+    if (attempt !== this.attempt) return;
     if (cam !== 'granted' || mic !== 'granted') {
       this.stage = 'denied';
       this.why = `${cam !== 'granted' ? 'Camera' : 'Microphone'} access is ${cam === 'denied' || mic === 'denied' ? 'off' : 'not given'}: turn it on for the app that started this one in System Settings › Privacy & Security.`;
@@ -91,16 +110,23 @@ export class Call {
     }
     try {
       this.cameras = await devices();
-      if (this.local === null) await this.openDevices();
+      if (attempt !== this.attempt) return;
+      if (this.local === null) await this.openDevices(attempt);
     } catch (e) { this.fail((e as Error).message); return; }
+    if (attempt !== this.attempt) return;
     this.stage = 'connecting'; this.changed();
+    if (this.mode !== 'galene') this.measureTimer = setInterval((): void => { this.measure(); }, 1000);
     try {
-      if (this.mode === 'local') await this.connectHere(); else this.joinRoom();
+      if (this.mode === 'local') await this.connectHere();
+      else if (this.mode === 'galene') await this.galene.join(this.link, this.local);
+      else this.joinRoom();
     } catch (e) { this.fail((e as Error).message); }
   }
-  private async openDevices(): Promise<void> {
+  private async openDevices(attempt: number): Promise<void> {
     const id = this.which < this.cameras.length ? this.cameras[this.which].id : '';
-    this.local = await navigator.mediaDevices.getUserMedia({ video: id === '' ? { width: 640, height: 480, frameRate: 30 } : { width: 640, height: 480, frameRate: 30, deviceId: id }, audio: true });
+    const local = await navigator.mediaDevices.getUserMedia({ video: id === '' ? { width: 640, height: 480, frameRate: 30 } : { width: 640, height: 480, frameRate: 30, deviceId: id }, audio: true });
+    if (attempt !== this.attempt) { for (const track of local.getTracks()) track.stop(); return; }
+    this.local = local;
     // no headphones: the far end comes out of the speakers into the microphone; the canceller takes it away with what the speakers played
     const mic = this.microphone;
     if (mic !== null) mic.setProcessing({ echoCancellation: true, noiseSuppression: true, autoGainControl: true, reference: played });
@@ -194,6 +220,13 @@ export class Call {
   }
 
   hangUp(): void {
+    ++this.attempt;
+    clearInterval(this.measureTimer); this.measureTimer = 0;
+    this.galene.close();
+    const screen = this.sharedScreen;
+    this.sharedScreen = null;
+    if (screen !== null) for (const track of screen.getTracks()) track.stop();
+    this.sharing = false;
     for (const pc of [this.me, this.echo]) if (pc !== null) (pc as RTCPeerConnection).close();
     this.me = null; this.echo = null; this.videoSender = null;
     const ws = this.socket;
@@ -203,7 +236,7 @@ export class Call {
     this.remoteVideo = null; this.remoteAudio = null;
     this.numbers = new Numbers(); this.lastSent = 0; this.lastRecv = 0; this.lastAudio = 0;
     this.quality.reset(); this.lowData = false;
-    if (this.stage === 'live' || this.stage === 'connecting') this.stage = 'ended';
+    if (this.stage === 'asking' || this.stage === 'live' || this.stage === 'connecting') this.stage = 'ended';
     this.log('hung up');
     this.changed();
   }
@@ -224,7 +257,7 @@ export class Call {
   }
   toggleMic(): void { this.micOn = !this.micOn; this.applyMute(); this.log(`microphone ${this.micOn ? 'on' : 'off'}`); this.changed(); }
   toggleCamera(): void { this.camOn = !this.camOn; this.applyMute(); this.log(`camera ${this.camOn ? 'on' : 'off'}`); this.changed(); }
-  toggleSpeaker(): void { this.speakerOn = !this.speakerOn; this.log(`speaker ${this.speakerOn ? 'on' : 'off'}`); this.changed(); }
+  toggleSpeaker(): void { this.speakerOn = !this.speakerOn; this.galene.speakerOn = this.speakerOn; this.log(`speaker ${this.speakerOn ? 'on' : 'off'}`); this.changed(); }
   toggleStats(): void { this.showStats = !this.showStats; this.changed(); }
   /** The ultra low data mode by hand; switching it off by hand also stops the automatic switch for this call. */
   async toggleLowData(): Promise<void> {
@@ -235,6 +268,7 @@ export class Call {
     const pc = this.me;
     this.lowData = on;
     if (pc !== null) await setLowDataMode(pc as RTCPeerConnection, on);
+    if (this.mode === 'galene') for (const s of this.galene.upStreams()) await setLowDataMode(s.pc, on);
     this.log(`low data ${on ? 'on' : 'off'} (${why})`);
     this.changed();
   }
@@ -244,8 +278,9 @@ export class Call {
     if (this.local === null) { this.changed(); return; }
     const d = this.cameras[i];
     const fresh = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, frameRate: 30, deviceId: d.id } });
-    this.sharing = false;
+    if (this.mode !== 'galene') this.sharing = false;
     await this.sendVideo(fresh.getVideoTracks()[0]);
+    if (this.mode === 'galene') await this.galene.publish('camera', this.local as MediaStream);
     this.log(`camera ${d.name}`);
   }
   /** Screen sharing: the share dialog (zinc:screen-capture/picker: a screen or a window, its quality), then that source replaces the camera
@@ -253,6 +288,7 @@ export class Call {
    *  where to allow it are shown. */
   async toggleShare(): Promise<void> {
     if (this.local === null) return;
+    if (this.mode === 'galene') { await this.toggleGaleneScreen(); return; }
     if (this.sharing) { await this.pickCamera(this.which); return; }
     try {
       const c = await pickScreen({ frameRate: 15 });
@@ -264,6 +300,28 @@ export class Call {
       await this.sendVideo(track);
       this.log(`sharing ${track.getSettings().width}x${track.getSettings().height}`);
     } catch (e) { this.why = (e as Error).message; this.log(`share failed: ${this.why}`); this.changed(); }
+  }
+  private async toggleGaleneScreen(): Promise<void> {
+    const screen = this.sharedScreen;
+    if (screen !== null) {
+      this.galene.unpublish('screenshare');
+      this.sharedScreen = null; this.sharing = false;
+      for (const track of screen.getTracks()) track.stop();
+      this.changed();
+      return;
+    }
+    if (this.galene.state !== GaleneState.Joined) return;
+    const attempt = this.attempt;
+    try {
+      const choice = await pickScreen({ frameRate: 15 });
+      if (choice === null || this.galene.state !== GaleneState.Joined) return;
+      const media = await navigator.mediaDevices.getDisplayMedia({ video: { deviceId: choice.sourceId, width: choice.width, height: choice.height, frameRate: choice.frameRate, cursor: choice.cursor ? 'always' : 'never' } });
+      if (attempt !== this.attempt || this.galene.state !== GaleneState.Joined) { for (const track of media.getTracks()) track.stop(); return; }
+      this.sharedScreen = media; this.sharing = true;
+      for (const track of media.getTracks()) track.addEventListener('ended', (_event: Event) => { if (this.sharedScreen === media) this.toggleGaleneScreen(); });
+      await this.galene.publish('screenshare', media);
+      this.changed();
+    } catch (error) { this.why = (error as Error).message; this.changed(); }
   }
   // a new video track goes out in place of the one sent (the old one stops)
   private async sendVideo(track: MediaStreamTrack): Promise<void> {
