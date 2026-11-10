@@ -64,14 +64,17 @@ symbols for gdb (the binary is then about 190 MB).
 ### The sysroot
 
 zig brings the C library. SDL3's X11 and KMS/DRM backends need the headers of X11, DRM and GBM and the libraries' files (CMake reads
-their sonames; SDL3 then loads them with `dlopen`, nothing is linked). `tools/linux-sysroot --arch <arch>` downloads 41 Debian
-bookworm packages (X11 and its extensions, xkbcommon, libdrm, GBM, EGL, GLES, GL, ALSA, libffi) from snapshot.debian.org at one fixed
-date, checks each against the SHA-256 of `tools/linux-sysroot.lock` (a changed file is refused), and unpacks them into
-`$ZINC_HOME/sysroots/<arch>-linux` (16 to 19 MB; static archives left out). It lays them over what is there: a sysroot filled by hand
-with a device's FFmpeg (`docs/reports/raspberry-pi.md`) keeps it. `zinc build --target` and `zinc plugin-build --target` use the same
-directory for the plugins that need a system library (display-gl's EGL, GBM and DRM, zinc:midi's ALSA, zinc:ffi). `--lock` writes the
-lock again (a maintainer's step, when the snapshot date or the list changes). The packages are under MIT/X11-style licences (their
-copyright files are in `usr/share/doc` of the sysroot), except libasound2 (LGPL-2.1, loaded at run time, never linked statically).
+their sonames; SDL3 then loads them with `dlopen`, nothing is linked). `tools/linux-sysroot --arch <arch>` downloads 51 Debian
+bookworm packages (X11 and its extensions, xkbcommon, libdrm, GBM, EGL, GLES, GL, ALSA, libffi and FFmpeg) from snapshot.debian.org at one fixed
+date, checks each against the SHA-256 of `src/tc/linux-sysroot.lock` (a changed file is refused), and unpacks them into
+`$ZINC_HOME/sysroots/<arch>-linux` (static archives left out). `zinc build --target`, `zinc plugin-build --target` and
+`zinc export --target rpi|rpi1|linux` fetch it automatically when a plugin needs system libraries. Python 3 and `pkg-config` must be on PATH. `zinc doctor --details` lists each target's path, pin and readiness without fetching.
+Installs are locked per architecture, extracted into a sibling generation and published with an atomic link. Old generations and manually
+added files are retained; an existing unmarked root is user-managed and used as supplied. `armv7-linux` uses the armhf packages.
+`--lock` writes the canonical lock again (a maintainer's step, when the snapshot date or package list changes).
+The packages' copyright files ship under `usr/share/doc`; GL/X11 packages use MIT/X11-style licences libasound2 uses LGPL-2.1, and Debian FFmpeg includes GPL/LGPL code.
+FFmpeg is used only by the video plugin; it is not linked into the engine build. The target OS must provide its runtime shared libraries.
+These are target shared libraries; static archives are excluded.
 
 Why a fetched sysroot and not headers vendored in `third_party/`: SDL3's CMake needs the library files too, not only headers (it
 reads the soname of each X11 library), the plugins need the same libraries' `.pc` files, and one pinned list serves both; vendored

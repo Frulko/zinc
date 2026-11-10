@@ -16,7 +16,7 @@ done
 "$ZINC" toolchain targets | grep -q "^x86-linux " || { echo "x86-linux (i686) is not a target"; fail=1; }
 "$ZINC" toolchain targets | grep -- "-linux " | grep -vq "glibc 2.28 and newer" && { echo "a Linux target has no glibc floor: $("$ZINC" toolchain targets)"; fail=1; }
 # the pinned sysroot of the cross builds: the same packages for every architecture, each with its pool path and SHA-256
-python3 - tools/linux-sysroot.lock <<'PY' || { echo "tools/linux-sysroot.lock is malformed"; fail=1; }
+python3 - src/tc/linux-sysroot.lock <<'PY' || { echo "src/tc/linux-sysroot.lock is malformed"; fail=1; }
 import collections, re, sys
 rows = [l.split() for l in open(sys.argv[1]) if l.strip() and not l.startswith("#")]
 by = collections.defaultdict(set)

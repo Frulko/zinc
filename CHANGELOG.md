@@ -438,6 +438,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Open `.zapp` archives with Zinc from Finder on macOS or a Linux file manager; Linux installation adds the file type even without `--atelier`.
 - The `chip` and `pocketchip` profiles declare their GLES2, GPIO, power and input capabilities, so incompatible project requirements are refused before a build.
 
+- Linux cross builds fetch checksum-verified system libraries automatically for plugins such as `display-gl`; `zinc doctor --details` lists their pins and readiness.
+
 #### Changed
 
 - The `"crash"` key of `zinc.json` is gone: it was never acted on, and a panic always ends the program. A project that still has it is refused with a message (`zinc explain J0001`); delete the line, and let systemd restart a service.

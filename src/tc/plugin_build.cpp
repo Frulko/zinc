@@ -120,6 +120,19 @@ struct Cross { std::string name, zigTarget, zig; bool on = false, shared = false
 std::string buildOs();   // the system the code is for: this machine's, "linux" in a cross build
 std::string crossArch() { const Target* t = findTarget(gCross.name); return t ? t->cpuFlags : ""; }
 
+bool hasSystemLibraries(const frontend::PluginTarget& ts) { return !ts.pkg.empty() || !ts.packages.empty(); }
+
+std::string pkgConfig() {
+  if (!gCross.on) return "pkg-config";
+  const std::string sysroot = home() + "/sysroots/" + gCross.name;
+  std::string dirs;
+  std::error_code ec;
+  for (const auto& e : fs::directory_iterator(fs::path(sysroot) / "usr/lib", ec))
+    if (fs::exists(e.path() / "pkgconfig")) dirs += (e.path() / "pkgconfig").string() + ":";
+  return "PKG_CONFIG_PATH= PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 PKG_CONFIG_SYSROOT_DIR=" + q(sysroot) + " PKG_CONFIG_LIBDIR=" +
+         q(dirs + sysroot + "/usr/lib/pkgconfig:" + sysroot + "/usr/share/pkgconfig") + " pkg-config";
+}
+
 // The compilers: $CXX / $CC, else c++ / cc, else the pinned zig (downloaded on first use).
 // The compilers of a plugin (ZN-332): the pinned zig by default, so the cache key names the compiler by its version, not by where it is, and two machines building the same
 // plugin for the same target compute the same key (a prebuilt binary can match). ZINC_PLUGIN_CC=system, or zinc.json "pluginCompiler": "system", uses $CXX / $CC or the
@@ -468,15 +481,8 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   // system libraries: pkg-config must know them; if not, say what to install
   std::vector<std::string> cflags, libs;
   // a cross build asks pkg-config about the target's sysroot, $ZINC_HOME/sysroots/<target> (the usr/ tree of the device's -dev packages), never about this machine.
-  // ponytail: the directory is filled by hand (docs/reports/raspberry-pi.md); ZN-334 makes the toolchain manager fetch a pinned one.
   const std::string sysroot = gCross.on ? home() + "/sysroots/" + gCross.name : "";
-  if (gCross.on && !ts.pkg.empty() && !fs::exists(sysroot)) { err = "plugin '" + m.name + "' needs the system library '" + ts.pkg[0] + "', which a cross build for " + gCross.name + " looks for in the sysroot " + sysroot + " (not there)"; return false; }
-  std::string pc = "pkg-config";
-  if (gCross.on) {
-    std::string dirs;
-    for (const auto& e : fs::directory_iterator(fs::path(sysroot) / "usr/lib", ec)) if (fs::exists(e.path() / "pkgconfig")) dirs += (e.path() / "pkgconfig").string() + ":";   // usr/lib/<multiarch triple>/pkgconfig
-    pc = "PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 PKG_CONFIG_SYSROOT_DIR=" + q(sysroot) + " PKG_CONFIG_LIBDIR=" + q(dirs + sysroot + "/usr/lib/pkgconfig:" + sysroot + "/usr/share/pkgconfig") + " pkg-config";
-  }
+  const std::string pc = pkgConfig();
   std::vector<std::string> packages;
   for (const std::string& pkg : ts.pkg) {
 #ifdef ZN_SDL_INCLUDE
@@ -589,6 +595,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   Hash h, vh;
   for (const std::string& d : defines) { h.add(d); vh.add(d); }
   h.add(keyFlags); vh.add(keyFlags);
+  if (gCross.on && hasSystemLibraries(ts)) { const auto r = linuxSysroot(engineRoot, gCross.name); h.add(r.fingerprint); vh.add(r.fingerprint); }
   if (buildOs() == "macos") h.add("-Wl,-headerpad_max_install_names");
   if (buildOs() == "linux") h.add("-Wl,-S");   // the libraries linked before were not stripped   // a link flag: the libraries linked before it was added are not reused
   for (const std::string& f : ts.vendorFlags) vh.add(f);
@@ -772,6 +779,7 @@ std::string statLine(const std::string& path, bool library) {
 std::string stampPath(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target) {
   const frontend::PluginTarget& ts = p.manifest.targetSettings.at(target);
   Hash h;
+  if (gCross.on && hasSystemLibraries(ts)) h.add(linuxSysroot(engineRoot, gCross.name).fingerprint);
   h.add("stamp 1"); h.add(fs::path(p.dir).lexically_normal().string()); h.add(target); h.add(gCross.on ? gCross.name : ""); if (gCross.shared) h.add("shared");
   for (const std::string& d : buildDefines(p, ts, engineRoot, projectDir, target)) h.add(d);
   const bool system = systemCompiler(projectDir);
@@ -806,10 +814,15 @@ std::vector<std::string> stampInputs(const frontend::FoundPlugin& p, const std::
   { std::vector<std::string> inc; for (const std::string& f : in) if (endsWith(f, ".cpp") || endsWith(f, ".cc") || endsWith(f, ".mm") || endsWith(f, ".h") || endsWith(f, ".inc")) outsideIncludes(f, inc);
     in.insert(in.end(), inc.begin(), inc.end()); }
   if (!ts.cargo.empty()) for (const std::string& f : crateFiles(fs::path(p.dir) / ts.cargo)) in.push_back(f);   // a Rust crate: its sources, Cargo.toml and Cargo.lock
+  if (gCross.on && hasSystemLibraries(ts)) {
+    in.push_back(engineRoot + "/src/tc/linux-sysroot.lock");
+    in.push_back(home() + "/sysroots/" + gCross.name + "/.zinc-sysroot");
+  }
   if (!ts.pkg.empty() && haveCommand("pkg-config")) {   // the .pc files of the packages and of everything they require
     std::string all, o;
-    for (const std::string& pkg : ts.pkg) all += " " + q(pkg);
-    capture("todo='" + all + "'; seen=' '; while [ -n \"$(echo $todo)\" ]; do set -- $todo; x=$1; shift; todo=\"$*\"; case \"$seen\" in *\" $x \"*) continue;; esac; seen=\"$seen$x \"; pkg-config --path \"$x\" 2>/dev/null; todo=\"$todo $(pkg-config --print-requires --print-requires-private \"$x\" 2>/dev/null | awk '{print $1}' | tr '\\n' ' ')\"; done", o);
+    for (const std::string& pkg : ts.pkg) all += " " + pkg;
+    const std::string pc = pkgConfig();
+    capture("todo=" + q(all) + "; seen=' '; while [ -n \"$(echo $todo)\" ]; do set -- $todo; x=$1; shift; todo=\"$*\"; case \"$seen\" in *\" $x \"*) continue;; esac; seen=\"$seen$x \"; " + pc + " --path \"$x\" 2>/dev/null; todo=\"$todo $(" + pc + " --print-requires --print-requires-private \"$x\" 2>/dev/null | awk '{print $1}' | tr '\\n' ' ')\"; done", o);
     std::istringstream ls(o);
     for (std::string line; std::getline(ls, line);) if (!line.empty()) in.push_back(line);
   }
@@ -942,6 +955,10 @@ static std::string stampOf(const frontend::FoundPlugin& p, const std::string& en
 
 bool pluginUpToDate(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out) {
   const auto t0 = std::chrono::steady_clock::now();
+  if (gCross.on && p.manifest.targetSettings.count(target) && hasSystemLibraries(p.manifest.targetSettings.at(target))) {
+    const auto r = linuxSysroot(engineRoot, gCross.name);
+    if (!r.arch.empty() && r.state != SysrootState::Ready && r.state != SysrootState::Unmanaged) return false;
+  }
   const std::string stamp = stampOf(p, engineRoot, projectDir, target);
   if (stamp.empty()) return false;
   out = PluginLib{};
@@ -954,6 +971,7 @@ bool pluginUpToDate(const frontend::FoundPlugin& p, const std::string& engineRoo
 }
 
 bool buildPlugin(const frontend::FoundPlugin& p, const std::string& engineRoot, const std::string& projectDir, const std::string& target, PluginLib& out, std::string& err) {
+  if (gCross.on && p.manifest.targetSettings.count(target) && hasSystemLibraries(p.manifest.targetSettings.at(target)) && !ensureLinuxSysroot(engineRoot, gCross.name, err)) return false;
   if (pluginUpToDate(p, engineRoot, projectDir, target, out)) return true;
   const std::string stamp = stampOf(p, engineRoot, projectDir, target);
   // one build at a time per ZINC_HOME: two programs started together (the examples run in parallel, a test beside an app) would compile

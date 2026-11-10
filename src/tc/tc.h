@@ -130,6 +130,12 @@ bool ensureEmulator(const std::string& name, std::string& path, std::string& err
 // Where it is or would be, and whether it is there, without installing (zinc doctor); `why` says what is missing.
 bool consoleSdkPresent(const ConsoleSdk& s, std::string& where, std::string& why);
 
+// Read-only inventory; existing unmarked roots are user-managed and are never replaced automatically.
+enum class SysrootState { Missing, Unmanaged, Incomplete, Ready };
+struct LinuxSysroot { std::string arch, path, fingerprint; SysrootState state = SysrootState::Missing; };
+LinuxSysroot linuxSysroot(const std::string& engineRoot, const std::string& target);
+bool ensureLinuxSysroot(const std::string& engineRoot, const std::string& target, std::string& err);
+
 // The pinned tools of this machine (zinc doctor): what zinc downloads on first use, where it keeps it, and whether it is there already.
 struct PinnedTool { std::string name, version, archive, sha256, dir; bool present; };
 std::vector<PinnedTool> pinnedTools();

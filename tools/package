@@ -45,6 +45,10 @@ def payload(share):
     nx = share
     copy_tree(os.path.join(NEXT, "include"), os.path.join(nx, "include"))
     copy_tree(os.path.join(NEXT, "src"), os.path.join(nx, "src"), lambda r: r.endswith(('.h', '.cpp')))
+    for rel in ("tools/linux-sysroot", "src/tc/linux-sysroot.lock"):
+        dest = os.path.join(nx, rel)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(os.path.join(NEXT, rel), dest)
     mi = os.path.join(NEXT, "third_party", "mimalloc")
     copy_tree(mi, os.path.join(nx, "third_party", "mimalloc"), lambda r: r.startswith(('src', 'include', 'LICENSE')))
     qj = os.path.join(NEXT, "third_party", "quickjs-ng")

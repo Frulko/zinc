@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """The headers and libraries of a Linux target, for cross builds from this machine (docs/targets/linux.md).
 
-  tools/linux-sysroot [--arch aarch64|armhf|x86_64|x86]...   fetch the packages of tools/linux-sysroot.lock into $ZINC_HOME/sysroots/<arch>-linux
+  tools/linux-sysroot [--arch aarch64|armhf|x86_64|x86]...   fetch the packages of src/tc/linux-sysroot.lock into $ZINC_HOME/sysroots/<arch>-linux
   tools/linux-sysroot --lock                                 write the lock again from the Debian snapshot named below (a maintainer's step)
 
 zig brings the C library; SDL3's X11 and KMS/DRM backends, display-gl, zinc:midi and zinc:ffi also need the headers of X11, DRM, GBM, EGL,
 GLES, ALSA and libffi, and the libraries' files to read their sonames from (SDL3 loads them with dlopen; nothing of them is linked into zinc).
 They come from Debian bookworm's -dev packages, frozen on snapshot.debian.org at one date and pinned by SHA-256: a changed archive is refused.
-Every package is MIT/X11 or similarly permissive (copyright files under usr/share/doc of the sysroot), except libasound2 (LGPL-2.1, loaded at
-run time, never linked statically). armv7 builds use the armhf sysroot (same libraries; armv7-linux is a link to it).
+GL/X11/libffi packages are MIT/X11 or similarly permissive; ALSA is LGPL-2.1 and Debian FFmpeg includes GPL/LGPL code.
+Copyright files stay under usr/share/doc. Only shared target libraries are kept; none is a dependency of the Zinc core build. armv7 builds use the armhf sysroot (same libraries; armv7-linux is a link to it).
 ZINC_SYSROOT_MIRROR replaces both addresses, deb.debian.org and the snapshot's (a directory with the same pool/ paths).
 """
-import argparse, hashlib, io, lzma, os, shutil, subprocess, sys, tarfile, tempfile, time, urllib.error, urllib.request
+import argparse, fcntl, hashlib, io, lzma, os, shutil, subprocess, sys, tarfile, tempfile, time, urllib.error, urllib.request
 
 SNAPSHOT = "20261001T000000Z"
 SUITE = "bookworm"
@@ -26,9 +26,11 @@ PACKAGES = [
     "libglvnd-dev", "libglvnd0", "libglx-dev", "libglx0", "libgles1", "libopengl0",
     # zinc:midi (ALSA), zinc:ffi
     "libasound2-dev", "libasound2", "libffi-dev", "libffi8",
+    # zinc:video: shared FFmpeg libraries, never static archives or core build dependencies
+    "libavformat-dev", "libavformat59", "libavcodec-dev", "libavcodec59", "libavutil-dev", "libavutil57", "libswscale-dev", "libswscale6", "libswresample-dev", "libswresample4",
 ]
 here = os.path.dirname(os.path.abspath(__file__))
-LOCK = os.path.join(here, "linux-sysroot.lock")
+LOCK = os.path.join(here, "..", "src", "tc", "linux-sysroot.lock")
 
 
 def base():
@@ -87,51 +89,102 @@ def data_tar(deb):
     raise ValueError("no data.tar in the .deb")
 
 
+def identity(arch):
+    return hashlib.sha256((hashlib.sha256(open(LOCK, "rb").read()).hexdigest() + arch + "v2").encode()).hexdigest()
+
+
+def ready(root, want):
+    try:
+        with open(os.path.join(root, ".zinc-sysroot")) as f:
+            header = f.readline().strip()
+            files = [p.strip() for p in f]
+            return header == "zinc-sysroot 2 " + want and bool(files) and all(p and not os.path.isabs(p) and ".." not in p.split("/") and os.path.lexists(os.path.join(root, p)) for p in files)
+    except OSError:
+        return False
+
+
+def extract(deb, dest):
+    with data_tar(deb) as t:
+        members = []
+        for m in t.getmembers():
+            if not (m.isfile() or m.issym() or m.isdir()) or m.name.endswith(".a"):
+                continue
+            name = m.name.removeprefix("./")
+            if name in ("", "."):
+                continue
+            if os.path.isabs(name) or ".." in name.split("/"):
+                raise ValueError("unsafe path " + m.name)
+            if name != "usr" and not name.startswith("usr/"):
+                continue
+            if m.issym() and m.linkname.startswith("/"):
+                if not m.linkname.startswith("/usr/"):
+                    raise ValueError("unsafe link " + m.linkname)
+                m.linkname = os.path.relpath(m.linkname.lstrip("/"), os.path.dirname(name))
+            members.append(m)
+        for m in members:
+            # macOS ships Python without extraction filters: check each path after preceding links were created.
+            boundary = os.path.realpath(dest)
+            path = os.path.realpath(os.path.join(dest, m.name))
+            targets = [path]
+            if m.issym():
+                targets.append(os.path.realpath(os.path.join(os.path.realpath(os.path.dirname(os.path.join(dest, m.name))), m.linkname)))
+            if any(os.path.commonpath([boundary, p]) != boundary for p in targets):
+                raise ValueError("archive path or link escapes the sysroot: " + m.name)
+            if hasattr(tarfile, "data_filter"):
+                t.extract(m, dest, filter="data")
+            else:
+                t.extract(m, dest, set_attrs=False)
+
+
 def install(arch, home):
-    root = os.path.join(home, "sysroots", f"{arch}-linux")
+    parent = os.path.join(home, "sysroots")
+    os.makedirs(parent, exist_ok=True)
+    root = os.path.join(parent, f"{arch}-linux")
     rows = [l.split() for l in open(LOCK) if l.strip() and not l.startswith("#")]
     rows = [r for r in rows if r[0] == arch]
-    if not rows: sys.exit(f"linux-sysroot: no package for {arch} in {LOCK}")
-    stamp = os.path.join(root, ".zinc-sysroot")
-    want = hashlib.sha256("\n".join(" ".join(r) for r in rows).encode()).hexdigest()
-    if os.path.exists(stamp) and open(stamp).read().strip() == want:
-        print(f"linux-sysroot: {root} (up to date)")
-        return
-    tmp = tempfile.mkdtemp(prefix="zinc-sysroot-")
-    try:
-        for _, pkg, version, path, sha in rows:
-            deb = package(path)
-            got = hashlib.sha256(deb).hexdigest()
-            if got != sha: sys.exit(f"linux-sysroot: {pkg} {version}: SHA-256 {got}, the lock says {sha}: refused")
-            with data_tar(deb) as t:
-                # no static archive: nothing of the system is linked into a program, and 40% less to keep
-                members = [m for m in t.getmembers() if (m.isfile() or m.issym() or m.isdir()) and not m.name.endswith(".a")]
-                for m in members:   # a sysroot holds usr/ only; no absolute or escaping path is written
-                    if m.name.startswith("/") or ".." in m.name.split("/"): sys.exit(f"linux-sysroot: {pkg}: unsafe path {m.name}")
-                t.extractall(tmp, members=members, filter="tar") if sys.version_info >= (3, 12) else t.extractall(tmp, members=members)
-            print(f"  {pkg} {version}")
-        # Debian's lib*.so links are relative, except a few that name /usr/lib/...: made relative so they resolve inside the sysroot
-        for d, _, files in os.walk(tmp):
-            for n in files:
-                p = os.path.join(d, n)
-                if os.path.islink(p) and os.readlink(p).startswith("/"):
-                    target = os.path.join(tmp, os.readlink(p).lstrip("/"))
-                    os.remove(p); os.symlink(os.path.relpath(target, d), p)
-        # laid over what is there: a sysroot may hold libraries copied from a device by hand (FFmpeg, docs/reports/raspberry-pi.md); copytree
-        # will not write a link over an existing one (an update of the lock), so those go first
-        for d, dirs, files in os.walk(tmp):
-            for n in files + dirs:   # a link to a directory is listed with the directories
-                p = os.path.join(d, n)
-                dest = os.path.join(root, os.path.relpath(p, tmp))
-                if os.path.islink(p) and os.path.lexists(dest): os.remove(dest)
-        shutil.copytree(tmp, root, symlinks=True, dirs_exist_ok=True)
-        open(stamp, "w").write(want + "\n")
-    finally:
-        if os.path.exists(tmp): shutil.rmtree(tmp)
-    if arch == "armhf":   # zinc build --target armv7-linux looks under its own name
-        link = os.path.join(home, "sysroots", "armv7-linux")
-        if not os.path.lexists(link): os.symlink("armhf-linux", link)
-    print(f"linux-sysroot: {root}")
+    if not rows:
+        raise ValueError(f"no package for {arch} in {LOCK}")
+    want = identity(arch)
+    previous = root + ".previous"
+    with open(os.path.join(parent, f".{arch}.lock"), "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not ready(root, want):
+            tmp = tempfile.mkdtemp(prefix=f".{arch}-linux-", dir=parent)
+            try:
+                # Keep manually added libraries and old generations; only the managed link is replaced.
+                source = root if os.path.exists(root) else previous
+                if os.path.exists(source):
+                    shutil.copytree(source, tmp, symlinks=True, dirs_exist_ok=True)
+                for _, pkg, version, path, sha in rows:
+                    deb = package(path)
+                    got = hashlib.sha256(deb).hexdigest()
+                    if got != sha:
+                        raise ValueError(f"{pkg} {version}: SHA-256 {got}, the lock says {sha}: refused")
+                    extract(deb, tmp)
+                    print(f"  {pkg} {version}", flush=True)
+                files = sorted(os.path.relpath(os.path.join(d, n), tmp) for d, dirs, names in os.walk(tmp)
+                               for n in names + [n for n in dirs if os.path.islink(os.path.join(d, n))]
+                               if n != ".zinc-sysroot")
+                with open(os.path.join(tmp, ".zinc-sysroot"), "w") as receipt:
+                    receipt.write("zinc-sysroot 2 " + want + "\n" + "\n".join(files) + "\n")
+                link = tmp + ".link"
+                os.symlink(os.path.basename(tmp), link)
+                if os.path.lexists(root) and not os.path.islink(root):
+                    if os.path.lexists(previous):
+                        raise ValueError("previous root already retained at " + previous)
+                    os.rename(root, previous)
+                os.replace(link, root)
+                tmp = ""
+            finally:
+                if tmp:
+                    if os.path.lexists(tmp + ".link"):
+                        os.unlink(tmp + ".link")
+                    shutil.rmtree(tmp)
+        if arch == "armhf":
+            link = os.path.join(parent, "armv7-linux")
+            if not os.path.lexists(link):
+                os.symlink("armhf-linux", link)
+    print(f"linux-sysroot: {root} (ready)")
 
 
 def main():
@@ -145,4 +198,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (OSError, ValueError, tarfile.TarError) as e:
+        sys.exit(f"linux-sysroot: {e}")

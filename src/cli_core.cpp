@@ -933,6 +933,12 @@ int doctorDetails(const std::string& engineRoot, const std::string& rendererLine
   if (tools.empty()) std::printf("  none pinned for %s: set ZINC_ZIG / ZINC_ESPTOOL / ZINC_QEMU to your own\n", zn::tc::hostName().c_str());
   for (const zn::tc::PinnedTool& t : tools)
     std::printf("  %-20s %-28s %s  %s\n    sha256 %s\n", t.name.c_str(), t.version.c_str(), t.present ? "installed" : "will be downloaded", t.archive.c_str(), t.sha256.c_str());
+  std::printf("\npinned Linux sysroots (fetched on first cross build; Python 3 and pkg-config required)\n");
+  for (const char* target : {"aarch64-linux", "armhf-linux", "armv7-linux", "x86_64-linux", "x86-linux"}) {
+    const auto r = zn::tc::linuxSysroot(engineRoot, target);
+    const char* state = r.state == zn::tc::SysrootState::Ready ? "ready" : r.state == zn::tc::SysrootState::Unmanaged ? "user-managed" : r.state == zn::tc::SysrootState::Incomplete ? "incomplete or old pin" : "will be downloaded";
+    std::printf("  %-15s %s: %s\n    sha256 %s\n", target, state, r.path.c_str(), r.fingerprint.c_str());
+  }
 #if defined(__APPLE__)
   std::printf("\nXcode command line tools: %s\n", zn::tc::xcodeToolsInstalled() ? "installed" : "not installed: run `xcode-select --install`");
   std::printf("  needed for `zinc build` (a native program that draws) and for plugins that link macOS frameworks; `zinc run`, `zinc dev`, `zinc pack` and `zinc fuse` need nothing\n");
@@ -1090,6 +1096,15 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
   for (const zn::tc::PinnedTool& t : zn::tc::pinnedTools()) {
     if (t.name == "zig") line(t.present ? "ok" : "info", tr("cli.doctor.zig", {{"tool", t.name + " " + t.version}}), tr(t.present ? "cli.doctor.tool_ready" : "cli.doctor.zig.later"));
     if (t.name == "esbuild") line(t.present ? "ok" : "info", tr("cli.doctor.esbuild", {{"tool", t.name + " " + t.version}}), tr(t.present ? "cli.doctor.esbuild.ready" : "cli.doctor.esbuild.later"));
+  }
+  {
+    std::string roots;
+    for (const char* target : {"aarch64-linux", "armhf-linux", "x86_64-linux", "x86-linux"}) {
+      const auto r = zn::tc::linuxSysroot(engineRoot, target);
+      if (!roots.empty()) roots += ", ";
+      roots += r.arch + (r.state == zn::tc::SysrootState::Ready ? " ready" : r.state == zn::tc::SysrootState::Unmanaged ? " user-managed" : r.state == zn::tc::SysrootState::Incomplete ? " incomplete" : " on first cross build");
+    }
+    line("info", "Linux sysroots", roots);
   }
   {   // the engine packs (ZN-773.04): downloaded on first use, so none installed is information
     const std::string packs = zn::tc::engines::summary();

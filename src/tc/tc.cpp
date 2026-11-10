@@ -330,6 +330,57 @@ std::string sha256File(const std::string& path) {
   return r;
 }
 
+LinuxSysroot linuxSysroot(const std::string& engineRoot, const std::string& target) {
+  LinuxSysroot r;
+  const Target* t = findTarget(target);
+  if (!t) return r;
+  const std::string name = t->name;
+  if (name == "armv7-linux") r.arch = "armhf";
+  else if (name.size() > 6 && name.substr(name.size() - 6) == "-linux") r.arch = name.substr(0, name.size() - 6);
+  if (r.arch != "aarch64" && r.arch != "armhf" && r.arch != "x86_64" && r.arch != "x86") { r.arch.clear(); return r; }
+  r.path = home() + "/sysroots/" + name;
+  const std::string pin = sha256File(engineRoot + "/src/tc/linux-sysroot.lock");
+  if (!pin.empty()) r.fingerprint = sha256Hex(pin + r.arch + "v2");
+  std::error_code ec;
+  if (!fs::exists(r.path, ec)) return r;
+  std::ifstream receipt(r.path + "/.zinc-sysroot");
+  std::string line;
+  std::getline(receipt, line);
+  if (line.rfind("zinc-sysroot 2 ", 0) != 0) {
+    const bool managed = fs::is_symlink(r.path, ec) && fs::read_symlink(r.path, ec).filename().string().rfind("." + r.arch + "-linux-", 0) == 0;
+    r.state = managed || line.rfind("zinc-sysroot", 0) == 0 ? SysrootState::Incomplete : SysrootState::Unmanaged;
+    return r;
+  }
+  r.state = SysrootState::Incomplete;
+  if (r.fingerprint.empty() || line != "zinc-sysroot 2 " + r.fingerprint) return r;
+  unsigned files = 0;
+  while (std::getline(receipt, line)) {
+    const fs::path p(line);
+    if (line.empty() || p.is_absolute()) return r;
+    for (const auto& part : p) if (part == "..") return r;
+    if (!fs::exists(fs::symlink_status(fs::path(r.path) / p, ec))) return r;
+    ++files;
+  }
+  if (files && receipt.eof()) r.state = SysrootState::Ready;
+  return r;
+}
+
+bool ensureLinuxSysroot(const std::string& engineRoot, const std::string& target, std::string& err) {
+  LinuxSysroot r = linuxSysroot(engineRoot, target);
+  if (r.arch.empty()) return true;   // other platforms retain their own sysroots
+  if (r.state == SysrootState::Unmanaged || r.state == SysrootState::Ready) return true;
+  if (r.fingerprint.empty()) { err = "Linux sysroot pins missing: " + engineRoot + "/src/tc/linux-sysroot.lock"; return false; }
+  const std::string script = engineRoot + "/tools/linux-sysroot";
+  if (!fs::exists(script)) { err = "Linux sysroot fetcher missing: " + script; return false; }
+  if (offline() && !(std::getenv("ZINC_SYSROOT_MIRROR") && std::string(std::getenv("ZINC_SYSROOT_MIRROR")).rfind("file://", 0) == 0)) {
+    err = "Linux sysroot missing or incomplete in offline mode: " + r.path; return false;
+  }
+  std::fprintf(stderr, "zinc: preparing pinned Linux sysroot for %s in %s (Python 3 and pkg-config required)\n", r.arch.c_str(), r.path.c_str());
+  if (!run("python3 " + quote(script) + " --arch " + quote(r.arch), err, "the pinned Linux sysroot download")) return false;
+  if (linuxSysroot(engineRoot, target).state != SysrootState::Ready) { err = "Linux sysroot installation is incomplete: " + r.path; return false; }
+  return true;
+}
+
 bool offline() { const char* o = std::getenv("ZINC_OFFLINE"); return o && *o && std::string(o) != "0"; }
 
 std::vector<std::string> mirrors() {
