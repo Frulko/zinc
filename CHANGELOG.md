@@ -302,6 +302,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `Object.assign`, `Object.freeze`, `Object.fromEntries`, `Object.getOwnPropertyNames` and `Object.defineProperty` work on typed objects and on `any` values on every engine: `Object.assign(this, options)` in a constructor, `Object.assign({}, a, b)` to merge, a frozen or read-only property of an `any` object throws a `TypeError` when written, and a property defined without `enumerable` stays out of `JSON.stringify` and `console.log`.
 - Typed arrays support `flatMap`, including empty and scalar results, one-level flattening, and callbacks that inspect or change the source array.
 - `new Set(items)` and `new Map(entries)` infer their types from iterable arguments, including generators and custom iterators, while keeping explicit type constraints.
+- `ReturnType<typeof createModel>` shares a function's inferred result with component props and other callers, preserving its fields and their types.
 
 
 #### Changed

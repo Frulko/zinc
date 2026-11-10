@@ -714,8 +714,12 @@ struct Checker {
       case N::TypeRef: {
         if (x.flags & kFlagTypeQuery) {   // `typeof x`: the type x was declared with
           const std::uint32_t s = lookup(x.text);
-          if (s != kNone && (out.syms[s].kind == SymKind::Var || out.syms[s].kind == SymKind::Param)) { out.nodeType[t] = out.syms[s].type; return out.syms[s].type; }
-          diag(kZCannotFindName, t, "'" + std::string(x.text) + "' (typeof needs a variable)");
+          if (s != kNone && out.syms[s].kind == SymKind::Func) {
+            if (inferring.count(s)) { diag(kZCannotInfer, t, "return type of '" + std::string(x.text) + "' (it needs itself: annotate it)"); return tError; }
+            resolvePending(s);
+          }
+          if (s != kNone && (out.syms[s].kind == SymKind::Var || out.syms[s].kind == SymKind::Param || out.syms[s].kind == SymKind::Func || out.syms[s].kind == SymKind::Builtin)) { out.nodeType[t] = out.syms[s].type; return out.syms[s].type; }
+          diag(kZCannotFindName, t, "'" + std::string(x.text) + "' (typeof needs a value)");
           return tError;
         }
         if (x.kids.empty() && x.text.rfind("__AsyncT", 0) == 0) if (auto it = asyncT.find(std::string(x.text)); it != asyncT.end()) { out.nodeType[t] = it->second; return it->second; }   // the inferred T of an async function expression
@@ -810,12 +814,11 @@ struct Checker {
     return r;
   }
 
-  // TypeScript's utility types over a record or an interface of data properties: Partial, Required, Readonly, Pick and Omit (keys
-  // given as string literals), and Record with string literal keys. Each is an anonymous record (one per distinct shape).
+  // TypeScript's utility types: callable return types and mapped data records (one anonymous record per distinct shape).
   bool utilityType(const Node& x, std::uint32_t t, TypeId& r) {
     const std::string u(x.text);
     const bool keyed = u == "Pick" || u == "Omit";
-    if (!(u == "Partial" || u == "Required" || u == "Readonly" || keyed || u == "Record")) return false;
+    if (!(u == "Partial" || u == "Required" || u == "Readonly" || keyed || u == "Record" || u == "ReturnType")) return false;
     const std::size_t want = keyed || u == "Record" ? 2 : 1;
     if (x.kids.size() != want) { diag(kZCannotInfer, t, "'" + u + "' needs " + std::to_string(want) + " type argument(s)"); return true; }
     std::vector<std::string> keys;
@@ -831,8 +834,29 @@ struct Checker {
       if (!bad(v)) r = recordOf(shape);
       return true;
     }
-    const TypeId base = annotation(x.kids[0]);
+    TypeId base;
+    const Node& source = n(x.kids[0]);
+    const std::uint32_t generic = u == "ReturnType" && source.kind == N::TypeRef && (source.flags & kFlagTypeQuery) ? lookup(source.text) : kNone;
+    if (generic != kNone && out.syms[generic].kind == SymKind::GenericFunc) {
+      // Without call arguments, a generic return uses each parameter's constraint, or unknown.
+      GenericDecl& g = generics[generic];
+      ensureSelf(g);
+      std::vector<TypeId> args;
+      for (TypeId p : g.selfParams) {
+        TypeId bound = app(p);
+        args.push_back(bad(bound) ? objType(dynObjOf()) : bound);
+      }
+      const std::uint32_t instance = instantiateFunc(generic, args, t);
+      base = instance == kNone ? tError : out.syms[instance].type;
+    } else base = annotation(x.kids[0]);
     if (bad(base)) return true;
+    if (u == "ReturnType") {
+      const TypeId callable = ty(base).k == TK::Param ? app(base) : base;
+      if (callable == tDyn) r = tDyn;
+      else if (!bad(callable) && ty(callable).k == TK::Func) r = ty(callable).elem;
+      else diag(kZNotAssignable, t, "ReturnType<T> requires a function type, not '" + name(base) + "'");
+      return true;
+    }
     const TK bk = ty(base).k;
     if (bk == TK::Param) { r = base; return true; }   // ponytail: inside a generic template the type itself stands for it (templates are checked, never lowered)
     if (u == "Readonly" && bk != TK::Object) { r = base; return true; }   // a readonly array or primitive is the type itself: Zinc has no readonly arrays

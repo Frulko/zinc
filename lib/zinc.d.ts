@@ -65,6 +65,7 @@ type Required<T> = { [P in keyof T]-?: T[P] };
 type Exclude<T, U> = T extends U ? never : T;
 type Pick<T, K extends keyof T> = { [P in K]: T[P] };
 type Omit<T, K extends keyof any> = Pick<T, Exclude<keyof T, K>>;
+type ReturnType<T extends (...args: any) => any> = T extends (...args: any) => infer R ? R : any;
 interface ClassDecoratorContext<Class = unknown> { readonly kind: 'class'; readonly name: string | undefined; }
 interface ClassFieldDecoratorContext<This = unknown, Value = unknown> { readonly kind: 'field'; readonly name: string | symbol; readonly static: boolean; readonly private: boolean; }
 
