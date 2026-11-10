@@ -266,8 +266,34 @@ PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>LSMinimumSystemVersion</key><string>12.0</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>UTExportedTypeDeclarations</key><array><dict>
+<key>UTTypeIdentifier</key><string>dev.zinc.zapp</string>
+<key>UTTypeDescription</key><string>Zinc app</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict>
+<key>public.filename-extension</key><array><string>zapp</string></array>
+<key>public.mime-type</key><string>application/x-zinc-app</string>
+</dict></dict></array>
+<key>CFBundleDocumentTypes</key><array><dict>
+<key>CFBundleTypeName</key><string>Zinc app</string>
+<key>CFBundleTypeRole</key><string>Viewer</string>
+<key>LSHandlerRank</key><string>Owner</string>
+<key>LSItemContentTypes</key><array><string>dev.zinc.zapp</string></array>
+</dict></array>
 </dict></plist>
 """
+
+def build_macos_launcher(output, floor="12.0"):
+    run("xcrun", "clang", "-fobjc-arc", "-Wall", "-Wextra", "-O2", "-mmacosx-version-min=" + floor,
+        os.path.join(NEXT, "src", "app", "atelier_launcher_macos.m"), "-framework", "AppKit", "-o", output)
+
+
+def desktop_linux(share):
+    for name in ("mime/packages", "applications"):
+        os.makedirs(os.path.join(share, name), exist_ok=True)
+    shutil.copy2(os.path.join(HERE, "desktop", "zinc-zapp.xml"), os.path.join(share, "mime", "packages", "zinc-zapp.xml"))
+    shutil.copy2(os.path.join(HERE, "desktop", "zinc-zapp.desktop"), os.path.join(share, "applications", "zinc-zapp.desktop"))
+
 
 def engine_macos(build, bindir, libdir, prefix):
     """zinc and its modules in bindir (WebGL ZN-330.01 and the window host ZN-592.01, loaded by zinc from its own directory), the dylibs it needs in libdir."""
@@ -301,8 +327,7 @@ def package_macos(build, out):
     macos, res = os.path.join(app, "Contents", "MacOS"), os.path.join(app, "Contents", "Resources")
     engine_macos(build, macos, os.path.join(app, "Contents", "Frameworks"), "@executable_path/../Frameworks/")
     shutil.copytree(share, os.path.join(res, "zinc"), symlinks=True)
-    with open(os.path.join(macos, "zinc-atelier"), "w") as f: f.write(LAUNCHER)
-    os.chmod(os.path.join(macos, "zinc-atelier"), 0o755)
+    build_macos_launcher(os.path.join(macos, "zinc-atelier"), floor)
     open(os.path.join(app, "Contents", "Info.plist"), "w").write((PLIST % (VERSION, VERSION)).replace("<string>12.0</string>", "<string>%s</string>" % floor))
     run("codesign", "--force", "--sign", "-", "--deep", "--preserve-metadata=entitlements", app)   # zinc inside keeps its JIT entitlement
     zipped = os.path.join(out, "Zinc-Atelier-%s-macos-%s.zip" % (VERSION, arch))
@@ -340,6 +365,7 @@ def package_linux(build, out, arch=None):
     if shutil.which("patchelf") and not cross:
         run("patchelf", "--set-rpath", "$ORIGIN/lib", os.path.join(root, "bin", "zinc"))
     payload(os.path.join(root, "share", "zinc"))
+    desktop_linux(os.path.join(root, "share"))
     with open(os.path.join(root, "bin", "zinc-atelier"), "w") as f: f.write(LAUNCHER_LINUX)
     os.chmod(os.path.join(root, "bin", "zinc-atelier"), 0o755)
     # cross: the cross-built zinc cannot run here, this machine's builds the plugins for the device's architecture (ZN-823: the Pi compiled five at first run, 20 to 90 s each)

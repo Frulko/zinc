@@ -65,6 +65,8 @@ rm -rf "$dir.old"
 [ ! -e "$dir" ] || mv "$dir" "$dir.old"   # the old engine is put back if the new one cannot take its place
 mv "$inner" "$dir" || { [ ! -e "$dir.old" ] || mv "$dir.old" "$dir"; die "cannot write $dir"; }
 rm -rf "$dir.old"
+dir=$(cd "$dir" && pwd -P)
+bin="$dir/bin/zinc"
 [ -x "$bin" ] || die "the archive holds no zinc program ($bin)"
 printf 'url=%s\nchannel=stable\n' "$url" > "$dir/.zinc-install"   # zinc update replaces this engine from there (and only an engine with this file)
 version=$("$bin" --version 2>/dev/null) || die "$bin does not start on this machine"
@@ -77,9 +79,28 @@ mkdir -p "$bindir"
 ln -sf "$bin" "$bindir/zinc"
 echo "zinc install: $version in $dir, linked as $bindir/zinc"
 
+# Desktop launchers do not inherit a terminal's PATH. Quote the installed path
+# for both the desktop string escape pass and the Exec argument parser.
+desktop_exec() { printf '%s' "$1" | sed -e 's/\\/\\\\\\\\/g' -e 's/["`$]/\\\\&/g' -e 's/%/%%/g'; }
+if [ "$os" = linux ]; then
+  data=${XDG_DATA_HOME:-$HOME/.local/share}
+  if [ -f "$dir/share/mime/packages/zinc-zapp.xml" ] && [ -f "$dir/share/applications/zinc-zapp.desktop" ]; then
+    mkdir -p "$data/mime/packages" "$data/applications"
+    cp "$dir/share/mime/packages/zinc-zapp.xml" "$data/mime/packages/zinc-zapp.xml"
+    while IFS= read -r line; do
+      case "$line" in
+        Exec=*) printf 'Exec="%s" run %%f\n' "$(desktop_exec "$bin")" ;;
+        *) printf '%s\n' "$line" ;;
+      esac
+    done < "$dir/share/applications/zinc-zapp.desktop" > "$data/applications/zinc-zapp.desktop"
+    command -v update-mime-database >/dev/null 2>&1 && update-mime-database "$data/mime" || :
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$data/applications" || :
+  fi
+fi
+
 if [ "$atelier" != 0 ] && [ "$os" = linux ]; then   # an entry of the applications menu (freedesktop), on bin/zinc-atelier of the engine
   [ -x "$dir/bin/zinc-atelier" ] || die "the archive holds no Atelier launcher ($dir/bin/zinc-atelier)"
-  apps=${XDG_DATA_HOME:-$HOME/.local/share}/applications
+  apps=$data/applications
   mkdir -p "$apps"
   printf '[Desktop Entry]\nType=Application\nName=Zinc Atelier\nComment=Make apps and games with Zinc\nExec="%s"\nIcon=%s\nTerminal=false\nCategories=Development;Education;\n' \
     "$dir/bin/zinc-atelier" "$dir/share/zinc/app/atelier/icon.png" > "$apps/zinc-atelier.desktop"

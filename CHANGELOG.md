@@ -419,6 +419,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc assets build` checks the `.vert` and `.frag` shaders of a project's assets with the GLSL ES compiler of the WebGL layer, as GLSL ES 1.00 and 3.00: a shader with an error fails the build with its file and line, and a release build stores shaders without their comments and spaces.
 - `zinc pack` includes a QuickJS project's bundled source and bytecode alongside its original sources. Unsigned packs run from source with one explanation; local bytecode that is older, damaged or from another engine build falls back with one warning.
 
+- Open `.zapp` archives with Zinc from Finder on macOS or a Linux file manager; Linux installation adds the file type even without `--atelier`.
+
 #### Changed
 
 - The `"crash"` key of `zinc.json` is gone: it was never acted on, and a panic always ends the program. A project that still has it is refused with a message (`zinc explain J0001`); delete the line, and let systemd restart a service.

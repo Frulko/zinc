@@ -468,6 +468,11 @@ release; the job is experimental (its failure does not stop the macOS release) a
 Linux keeps its one archive, `zinc-<version>-linux-<arch>.tar.gz`, with the same layout as the macOS CLI (the Linux jobs are off for now). The CLI finds its files beside the binary: `zinc` resolves its own path through symlinks and reads
 `<bin>/../share/zinc` (`tc::sourceRoot`), so the archive works wherever it is unpacked and through a link on the `PATH`.
 
+The macOS app registers `.zapp` as a Zinc app archive. Open an archive with Zinc Atelier in Finder to run it; later archive opens reach the running launcher too. Opening Zinc Atelier itself still opens your project in `~/Zinc` (or `ZINC_PROJECT`).
+
+On Linux, the archive includes `share/mime/packages/zinc-zapp.xml` and `share/applications/zinc-zapp.desktop`.
+`install.sh` installs these in `${XDG_DATA_HOME:-~/.local/share}`, even without `--atelier`, and refreshes the MIME and desktop caches when the system provides those tools. The installed desktop entry names the absolute engine path, so file-manager launches work without a shell profile. Existing choices of default application are preserved. The AppImage also accepts an archive from its desktop entry.
+
 Why the app embeds the engine rather than calling the CLI of the same release: an app started from the Finder gets a bare
 `PATH` (`/usr/bin:/bin:/usr/sbin:/sbin`) and no shell profile, so it cannot count on a `zinc` installed elsewhere, and a
 notarized bundle must hold every file it runs. The cost is one copy of the payload in each download (27.1 MB for the CLI,

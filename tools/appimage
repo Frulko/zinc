@@ -16,6 +16,7 @@ cp -R "$dir"/bin "$dir"/lib "$dir"/share "$app/usr/"
 cat > "$app/AppRun" <<'RUN'
 #!/bin/sh
 here="$(dirname "$(readlink -f "$0")")"
+[ "$#" -eq 0 ] || exec "$here/usr/bin/zinc" run "$@"
 proj="${ZINC_PROJECT:-$HOME/Zinc}"
 mkdir -p "$proj"
 [ -e "$proj/hello.ts" ] || printf 'console.log("hello from Zinc");\n' > "$proj/hello.ts"
@@ -26,7 +27,9 @@ cat > "$app/zinc-atelier.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
 Name=Zinc Atelier
-Exec=AppRun
+Exec=AppRun %f
+MimeType=application/x-zinc-app;
+Terminal=false
 Icon=zinc-atelier
 Categories=Development;
 DESKTOP

@@ -490,6 +490,7 @@
     {"paths": ["examples/remarkable/notes/", "tools/ink-train/make-dataset", "tests/t1/ink_recorder.sh"], "tests": ["ink_recorder"]},
     {"paths": ["app/markdown/", "plugins/markdown/", "tests/t1/markdown_reader.sh", "tests/t1/markdown_reader_notion.py"], "tests": ["markdown_reader"]},
     {"paths": ["src/host/ed25519.cpp", "src/host/crypto.cpp", "lib/std/subtle.ts", "tests/golden/host/subtle"], "tests": ["crypto"]},
+    {"paths": ["src/app/atelier_launcher_macos.m", "tools/desktop/", "tools/package", "tools/install.sh", "tools/appimage", "tests/data/zapp-desktop/", "tests/t0/zapp_desktop.sh"], "tests": ["zapp_desktop"]},
     {"paths": ["tools/package", "tools/sign-macos"], "tests": ["package", "release_workflow", "release_gate_diagnostics"]},
     {"paths": ["tools/package", "tools/build-linux", "src/tc/plugin_build.cpp", "tests/t1/linux_cross_prebuilt.sh"], "tests": ["linux_cross_prebuilt"]},
     {"paths": ["tools/package", "tests/t0/package_app.sh", "examples/museum-table/zinc.json"], "tests": ["package_app"]},

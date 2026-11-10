@@ -20,6 +20,14 @@ headless and takes a frame, builds a program for a Raspberry Pi (`--target aarch
 host in that path), and runs a program on the emulated ESP32 (QEMU downloaded). It passes on macOS arm64 (about 40 s with the downloads). Programs that draw still need a C++ compiler for
 `zinc build` on the machine (the graphics host is built into the engine, not cross compiled), and say so.
 
+## Opening archives (ZN-391)
+
+`tools/package` compiles `src/app/atelier_launcher_macos.m` with the system AppKit and the engine's deployment floor. Its delegate receives `application:openFiles:` and launches the sibling `zinc` with the argument array `run`, archive path. The initial document event suppresses the ordinary Atelier launch; subsequent events launch their archives while the launcher tracks actual `NSTask` objects. One enum controls startup, running and stopping; child completion is handled on the main thread, and application termination stops its children. Direct file arguments and headless Atelier launches use `execv`, preserving exit codes and standard streams. The bundle exports `dev.zinc.zapp` (conforming to `public.data`) and a Viewer/Owner document claim.
+
+Linux packages carry `tools/desktop/zinc-zapp.xml` and `zinc-zapp.desktop`. Installation copies them to the user's XDG data directory independently of `--atelier`, writes an escaped absolute engine path in `Exec`, and runs available cache tools. No default application is overwritten. AppImage's `AppRun` forwards file arguments to its bundled engine.
+
+The exact T0 is `tests/run --only zapp_desktop`: plist/MIME/desktop expectations, a temporary installer release, literal file arguments, native exit codes, invalid transitions and child cleanup. It also uses `xmllint`, `desktop-file-validate` and `update-mime-database` when installed. The bounded macOS feature proof used a disposable bundle with a unique ID, `NSWorkspaceOpenConfiguration.appleEvent` for a cold open, two PID-targeted later events, real packed programs and marker files. LaunchServices resolved the filename UTI and listed the bundle as a Viewer; unregistering it left the previous default unchanged. The disposable bundle must be outside `NSTemporaryDirectory`: macOS delivered events there but excluded it from the handler inventory.
+
 ## Signing, notarization, updates
 
 - `tools/sign-macos [--dry-run] <zip>`: signs the dylibs, the binary and the bundle with the hardened runtime (`ZINC_SIGN_IDENTITY`), submits to Apple and waits (`ZINC_NOTARY_PROFILE`), staples

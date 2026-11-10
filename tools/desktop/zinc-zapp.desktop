@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Zinc app
+Comment=Run a Zinc app archive
+Exec=zinc run %f
+MimeType=application/x-zinc-app;
+Terminal=false
+NoDisplay=true
+Categories=Development;Education;
