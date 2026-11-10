@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve161.03 as solecorechain beside334TC. Delegatedresearch .logs/research-16103.txt; parent rejectsICU4C, enUS+hostOSformatter foractualapp/webneeds. Number/Date constructors+sharedlocale methods, preserve nativeIntl onoptionalJSengines, no formatterhandleregistry or callbackRCcycle. Strictunused/Hero/kit budgets retained, fixPhotoSorter workaroundonlywhenfeatureworks. Commonffec8cstable, ownerpayloadprotected.
+
 - Reserve334 TC/sysroot after513aliasesintegrated8c2f1ee82. Primaryresearch .logs/research-334.txt; reusecanonicalpins/fetcher, targetpkgconfig/cache/doctor/package, locks+atomicpublish/preserveunmanagedroots. Actual513Heroblocker libavformat absent fromexistingGL-onlypins; addneededverifiedFFmpeg systemlibs withinthiscrossbuilddependency scope, no Herorewrite. Commonffecstable; frontend/IR/RT reservedfornextIntlworker.
 
 - Integrated513 screen/aliases8c2f1ee82; rootcommonffec2b6e exactchip_profiles/tc_cache +all3defaults/actualHelloELFmetadata PASS, all10payloads preserved. Worker27all3cases/bothHello built; bothactualHero targets fail video/libavformat missing. BacklogAC1open,85Doneunchanged. Archive513-screen (50sourcecheckpoints). 334researchcomplete; newTCworkerownsautofetch, existingpinslackFFmpeg.
