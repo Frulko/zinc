@@ -7,14 +7,14 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 | Task | Tree / branch | State |
 | --- | --- | --- |
 |1030 structural arrays/views|.worktrees/1030 / work/1030|Fresh representation plan/prototype after optional-Dyn checkpoint44457803a; no broad IR/runtime/AOT implementation before narrow review.|
-|587 web Worker facade|.worktrees/587 / work/587|Reserved QuickJS/web-environment worker source/blob/clone/transfer support; existing per-thread runtime stays intact.|
+|587 web Worker facade|.worktrees/587 / work/587|Done integrated97af370e3; root combined proof pending, archive after caller smoke.|
 |603 AOT size|.worktrees/603 / work/603|Active emitter/link/resource optimization. Measured source9,965,252 B inclheader, native9,811,528 B; compression next, full8MB criterion still open.|
 
 897 minimal native cleanup/client checkpoint is integratedc918514de Backlog; no libnice/vendor switch.1118 self-exec research is integrated0d50aadd1, no production guardian.395a025e2882 Done and1030 method checkpoint4f0b3b889 Backlog are integrated. 1030 optional-Dyn checkpoint44457803a integrated with final all3 proof0b39abe8; root common refresh groups with587/603. Previous common default build af20bb17b and exact integration smoke passed (six T0s, permissions, Museum3, real capture, Callshot); original call-server startup/HTTP/TERM/no-child also passed. Three fresh engine workers now active:603 emitter/resources,587 QJS/web worker,1030-views frontend representation research only. No new services/demos chosen.
 
 ## Integrated state
 
-71 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, 445 QuickJS packing/cache,774.31 Share,1119 quoted-key JSON 896 call server,803 asynchronous updates and395 no-graphics engine. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
+72 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, 445 QuickJS packing/cache,774.31 Share,1119 quoted-key JSON 896 call server,803 asynchronous updates and395 no-graphics engine. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
 
 - UI chain7ed1b1211/39e7e5e62/5488a7d35, recursive capture063edc9de, Solid ownership0d7163987: root exact tests and original Music feature pass. Mail6dc4c22ca, Notesed5802785, Assistantc280d7fd8 and Music83e6fe6f5 Done with actual all3 action/desktop/mobile/focus/cleanup proofs. Original responsive/password defects fixed.
 -445 integrated5acf53be0: local trusted bytecode cache stays fast; unsigned packs execute retained source, with one explicit warning. No unauthenticated bytecode loader. Exact qjs_bytecode and actual Fatty direct/pack proof pass; no startup timing claim.
@@ -67,6 +67,9 @@ Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow
 
 ## Tests to run (the owner picks)
 
+- Since97af370e3: maintained webenv_pixi T1 (seconds; both pinned rendering/event paths) and bounded long transfer/decode/terminate churn plus Pi/Mojave/OptiPlex worker scheduling; no TSAN or runtime-speed result implied.
+
+
 - Since3a87af69a: maintained app_update_api T1 (~5–15s), museum_update demo (~15–30s), AOT process promises/QuickJS exported.app update (~5–15s), and slow-transfer early-quit/refresh teardown (up to135s plus local checks); memory unmeasured.
 - Since4f0b3b889: broader records/classes tools/diff-matrix at a milestone (earlier estimate~10min/<1GB); committed focused all3 method regression already passes.
 - Sincec918514de: two Zinc clients plus Chrome and genuine5-second ICE loss/recovery remain open task criteria; no extra native dependency authorized now.
@@ -90,3 +93,5 @@ Owner steering: prioritize engine tasks1030/395/603. No guardian production or l
 Cleanup:25 completed clean worktrees archived/removed in the full series; latest seven are803/395/897/1118-guard/1118-exec/896/1119 (following the earlier18 checkpoints). Private proof archives remain0700; frozen1030 stays for its active reader. No owned app/server was left running.
 
 Integrated:44457803a preserves optional Dyn null/undefined across value observers, narrowing, JSON and synthesized optional defaults. Focused T0/original optional-null repro all3 PASS7s on0b39abe87069cc9f88cdccc1dcadca27590ca09ef2c37d6c516da0dd7fc68ef2.1030 BacklogAC1open, no unsafe array/store waiver. Latest frozen baseline .worktrees/1030-views/build/zinc retained for newplan reader; earlier1030 tree archived/removed (26 total).
+
+Integrated:58797af370e3 Doneall4AC; actual pinned Pixi/Tone/typed-worker proofs pass, queues256messages/16MiB per direction, cloned transfers and thread-safe permission providers. D282 records contract/limits.72Done; no native remote/performance claim. Common refreshed source97af370e3 SHA f34fc9e9f863c4883f3a115f429fbe4bdc788c42ece10d71f0dbdc5619c95c0f; root exact4+actualpinnedcaller smoke running. Building slots root+603,1030borrowed-method codeonly until release.

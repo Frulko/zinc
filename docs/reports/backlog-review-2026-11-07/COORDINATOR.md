@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated58797af370e3 Done (72total), pinnedPixi/Tone+clone/transfer/typedworkers+providerconcurrency proofs pass. D282 records existing bridge reuse and256message/16MiB queue bound. Common97af/f34fc9 rebuilt; exact4+actualcallers smoke queued.603 resumes finalrebase/classifier/header/blob/Hero gates;1030borrowedmethod frontend-only code, no thirdbuild.
+
 - Integrated44457803a optional-Dyn frontend/parser/default checkpoint, all3 exactT0 PASS7s,1030AC1 still open. Earlier1030 frozen tree archived/removed (26total); fresh1030 structural-array/view plan reserved with no initialbuild (603+587 builders). Skip1024 remaining200ms measurement and protected packed-array allocator/lifetime modules; continue core representation plan. Common final rebuild groups with587/603.
 
 - Archived/removed seven more completed clean trees after common migration (803/395/897/1118-guard/1118-exec/896/1119),25 in this cleanup series. Private logs0700/checkpoint bundles retained;1030 frozen reader stays.603+1030views now building slots,587 holds builds/runtime edits while doing pureQJS checks.

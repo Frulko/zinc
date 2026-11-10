@@ -2,8 +2,7 @@
 id: ZN-587
 title: Worker on a second QuickJS runtime
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 08:12'
 updated_date: '2026-11-10 09:20'
 labels:
