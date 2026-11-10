@@ -183,6 +183,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `examples/ui/dashboard` is a local release desk with build metrics, interactive charts, a release calendar, runner registration and preferences, in light and dark at desktop and phone widths.
 
 - `examples/ui/finance` adds fictional accounts, month-filtered cash flow, candlestick and spending charts, and searchable transactions with keyboard selection and numeric sorting.
+- `examples/ui/mail` adds a responsive local inbox with search, reading, stars, archiving and a composer that saves copies to Sent without sending email.
 
 #### Changed
 

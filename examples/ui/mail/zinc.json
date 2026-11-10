@@ -1,0 +1,13 @@
+{
+  "name": "mail",
+  "entry": "src/main.tsx",
+  "app": { "name": "Quiet Mail", "id": "dev.zinc.demo.mail", "version": "1.0.0", "icon": "assets/icon.svg", "orientation": "any" },
+  "permissions": [],
+  "icons": ["inbox", "star", "send", "archive", "search", "x"],
+  "targets": {
+    "macos": { "width": 1280, "height": 800, "resize": "fill" },
+    "linux": { "width": 1280, "height": 800, "resize": "fill" },
+    "wasm": { "width": 1280, "height": 800 },
+    "sim": { "width": 1280, "height": 800 }
+  }
+}
