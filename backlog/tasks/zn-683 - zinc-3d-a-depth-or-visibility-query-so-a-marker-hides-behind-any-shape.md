@@ -52,3 +52,5 @@ ordinal: 18600
 - `tests/run --only zinc3d_visibility`: exact projection math, ~1 second, small native compiler process; already proved directly.
 - `ZINC_HEADLESS=1 ZINC_FRAMES=2 ZINC_3D=software|gpu ZINC_GL_PRESENT=sync zinc run --interp|--native|--engine quickjs tests/data/zinc3d_visibility/main.ts`: the six real concave-geometry controls and camera lifecycle, subsecond cached per run (~2 seconds first native compilation); memory not sampled. Already proved directly; owner can choose for milestone regression.
 - `tests/run --only native_gen`: complete native API compatibility, seconds, compiler memory not sampled; not run during this task.
+
+Coordinator root exact math/check and original software/GPU torus pass on source18aa3967c with common compiler3c618d3. Decision D288; durable worker proof .logs/archive-completed-workers-20261110/683-final.

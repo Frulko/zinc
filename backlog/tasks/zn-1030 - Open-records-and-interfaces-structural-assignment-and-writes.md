@@ -181,4 +181,6 @@ Strict Hero gate on final runtime/AOT source, O2 and ZINC_JOBS=3: native 7,995,0
 
 Durable worker logs: .logs/array1030/{final-array.log,final-native-args.log,hero-old-entry-build.log,size-result.json,hero-*.hash,remaining-array*-*.out,main.ir,type-pairs-functions.log}. Failed probes were bounded; no owned app/compiler/test/debugger process remains. Coordinator still performs its single combined integration proof and records the proposed D188/D231 follow-up/later line; no shared RESUME/priority/keys/decision/performance files were edited here.
 
+Coordinator combined proof on4a822ba89/compiler3c618d3 passes five exact checks, rawkit and originalHero all3 fourhashes. Native7,995,048B/source9,537,382B inclusive. D188/D231 array amendment recorded; AC1 still open. Durable .logs/archive-completed-workers-20261110/1030-array-final.
+
 <!-- SECTION:NOTES:END -->

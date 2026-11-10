@@ -725,5 +725,36 @@
     "full_sdk_recipe_ui_long_scope_proven": false,
     "log": ".logs/integration-2026-11-10/hermes-cdp-smoke.log",
     "task_status": "ReviewAC3open"
+  },
+  "array_final_integration": {
+    "source_commit": "4a822ba895094897cb3f4a78591b7d5ce093a5e9",
+    "engine_sha256": "3c618d3be76fc2b13aa5f15cd615100eb081bbcf236e740b23dec2ec8a15ee1b",
+    "native_bytes": 7995048,
+    "native_sha256": "6371cb78418cb3b27574d0f680d7cddb79b40ac13bf4baa89bde16f4f5a7799b",
+    "generated_cpp_and_header_bytes": 9537322,
+    "generated_inclusive_60byte_pch_wrapper": 9537382,
+    "exact_t0": [
+      "array_sharing",
+      "never_return",
+      "open_record_methods",
+      "recursive_self",
+      "aot_native_args"
+    ],
+    "kit_raw_output": "bundle: Button 236192 B, through the index 246407 B (+10215 for 40 unused families, budget 10240), ten 283256 B (+4094 per component)\naot: Button 5210216 B, through the index 5276320 B (+66104 for 40 unused families, budget 163840), ten 5795072 B (+57639 per component)\naot, Button through the index links the plugins: editor\n",
+    "hero_four_hashes_all3": "PASS",
+    "done_count": 74,
+    "quiet_or_cold_timing_claim": false,
+    "log_directory": ".logs/integration-2026-11-10/array-final"
+  },
+  "visibility_integration": {
+    "commit": "18aa3967c",
+    "engine_sha256": "3c618d3be76fc2b13aa5f15cd615100eb081bbcf236e740b23dec2ec8a15ee1b",
+    "root_exact_t0": "zinc3d_visibility PASS",
+    "root_actual": "unchanged torus interpreter software+GPU PASS",
+    "worker_actual": "all3 x software/GPU PASS",
+    "log": ".logs/integration-2026-11-10/visibility-smoke.log",
+    "done_count": 75,
+    "status": "Done",
+    "gpu_stall_or_other_platform_performance_claim": false
   }
 }

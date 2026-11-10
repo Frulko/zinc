@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Recorded D288 and D188/D231 array amendment; root combined array/size/kit and real3D visibility proofs PASS.75Done. Completed1030-array/683 worktrees archived and removed;36 completed source checkpoints cleaned.184 remains active; remote SSH timeout, local ANGLE proof explored. All10 protected WIP payloads unchanged.
+
 - Finalarraycommon4a822/3c618d3 verified5exact/rawkit/Heroall3PASS7,995,048Bnative/9,537,382Bsource.68318aa3967c Done+rootactualSW/GPUtorusPASS,75Done. Reserve184EXT/ANGLEinstancing cleanGLreplay-only; ownerdisplay_gl.cpp/HALWIPforbidden. Feature-firstonecriterion+uploadbytes, no suite/benchmark/fullSDK.
 
 -1030ca3455856 integratedBacklogAC1open, checkedrelatedrefarrayaliases/nativeatomicrefusal/rawVM+AOTdefence; nativeHero7,995,048B (+16) andsource9,537,301Binclusive pass. OneotherWIPfillconflictresolvedkeepingguard+ownerSlot/packedloop, all10payloadsidentical andstagedWIPreset. Rootcommonproofnext. Reserve683 renderer-independent3Dvisibilityquery, directengineAPI/noMuseumappscope; root+683buildslots.

@@ -5,6 +5,7 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- ZN-1030: disambiguate pretty-IR names for open-record literal/interface classes and generated helpers; duplicate declarations now fail safely, but full-program text roundtrip remains incomplete.
 - A native spec cannot carry `Promise<...>` through the plugin thunk (Z5011 "no thunk") although docs/guide/05-plugins.md shows one: zinc:monitors uses a callback instead; found by app/lumen.
 
 - Owner audit 2026-10-31: promote proven app/demo primitives (delay, atomic text replacement, key/value config, native token comparison, CLI) and Last.fm/Hub domain services with real consumers; reconcile acceptance, permissions, units and ownership first. Evidence and order: `docs/reports/app-demo-reuse-audit-2026-10-31.md`.
