@@ -1,0 +1,107 @@
+Purpose: Preserve IteratorStep/IteratorValue ordering for array elisions, and reject
+Symbol/unsupported objects at the embedding structured-clone boundary.
+Measured: behaviour, tests/data/symbols/main.ts and clone.ts versus Node 26.
+Upstream: not submitted; candidate conformance fix, also present in upstream v0.17.0.
+Bytecode: version 29 rejects version 28 programs after the new private opcode.
+
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -17164 +17164,2 @@
+-static __exception int js_for_of_next(JSContext *ctx, JSValue *sp, int offset)
++static __exception int js_for_of_next(JSContext *ctx, JSValue *sp, int offset,
++                                      bool read_value)
+@@ -17170 +17171,18 @@
+-        value = JS_IteratorNext(ctx, sp[offset], sp[offset + 1], 0, NULL, &done);
++        if (read_value) {
++            value = JS_IteratorNext(ctx, sp[offset], sp[offset + 1], 0, NULL, &done);
++        } else {
++            /* Elisions perform IteratorStep without IteratorValue. */
++            JSValue result = JS_IteratorNext2(ctx, sp[offset], sp[offset + 1], 0, NULL, &done);
++            if (JS_IsException(result)) {
++                value = result;
++            } else if (done == 2) {
++                JSValue complete = JS_GetProperty(ctx, result, JS_ATOM_done);
++                if (JS_IsException(complete))
++                    value = complete;
++                else
++                    done = JS_ToBoolFree(ctx, complete);
++                JS_FreeValue(ctx, result);
++            } else {
++                JS_FreeValue(ctx, result);
++            }
++        }
+@@ -19504,0 +19523 @@
++        CASE(OP_for_of_next_no_value):
+@@ -19509 +19528 @@
+-                if (js_for_of_next(ctx, sp, offset))
++                if (js_for_of_next(ctx, sp, offset, opcode == OP_for_of_next))
+@@ -27126,2 +27145,2 @@
+-                /* do nothing, skip the value, has_spread is false */
+-                emit_op(s, OP_for_of_next);
++                /* Elision: step without reading value; has_spread is false. */
++                emit_op(s, OP_for_of_next_no_value);
+@@ -38718 +38737 @@
+-#define BC_VERSION 28
++#define BC_VERSION 29
+@@ -38727,0 +38747 @@
++    bool structured_clone;
+@@ -39194,0 +39215,22 @@
++    if (s->structured_clone) {
++        JSPropertyEnum *properties;
++        if (JS_GetOwnPropertyNames(s->ctx, &properties, &prop_count, obj,
++                                   JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) < 0)
++            return -1;
++        bc_put_leb128(s, prop_count);
++        for (i = 0; i < prop_count; i++) {
++            JSValue value = JS_GetProperty(s->ctx, obj, properties[i].atom);
++            int ret = -1;
++            if (!JS_IsException(value)) {
++                bc_put_atom(s, properties[i].atom);
++                ret = JS_WriteObjectRec(s, value);
++            }
++            JS_FreeValue(s->ctx, value);
++            if (ret) {
++                JS_FreePropertyEnum(s->ctx, properties, prop_count);
++                return -1;
++            }
++        }
++        JS_FreePropertyEnum(s->ctx, properties, prop_count);
++        return 0;
++    }
+@@ -39278,0 +39321,16 @@
++
++static void js_write_clone_error(BCWriterState *s, const char *message)
++{
++    if (!s->structured_clone) {
++        JS_ThrowTypeError(s->ctx, "%s", message);
++        return;
++    }
++    JSValue error = JS_NewError(s->ctx);
++    if (JS_IsException(error))
++        return;
++    JS_DefinePropertyValueStr(s->ctx, error, "name", JS_NewString(s->ctx, "DataCloneError"),
++                              JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
++    JS_DefinePropertyValueStr(s->ctx, error, "message", JS_NewString(s->ctx, message),
++                              JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
++    JS_Throw(s->ctx, error);
++}
+@@ -39408 +39466 @@
+-                    JS_ThrowTypeError(s->ctx, "unsupported object class");
++                    js_write_clone_error(s, "unsupported object class");
+@@ -39426,2 +39484,2 @@
+-            if (p->atom_type != JS_ATOM_TYPE_GLOBAL_SYMBOL && p->atom_type != JS_ATOM_TYPE_SYMBOL) {
+-                JS_ThrowTypeError(s->ctx, "unsupported symbol type");
++            if (s->structured_clone || (p->atom_type != JS_ATOM_TYPE_GLOBAL_SYMBOL && p->atom_type != JS_ATOM_TYPE_SYMBOL)) {
++                js_write_clone_error(s, "unsupported symbol type");
+@@ -39508,0 +39567 @@
++    s->structured_clone = ((flags & JS_WRITE_OBJ_STRUCTURED_CLONE) != 0);
+--- a/quickjs-opcode.h
++++ b/quickjs-opcode.h
+@@ -271,0 +272,3 @@
++/* Elisions use IteratorStep without reading the result value. */
++DEF(for_of_next_no_value, 2, 3, 5, u8)
++
+--- a/quickjs.h
++++ b/quickjs.h
+@@ -1280,0 +1281 @@
++#define JS_WRITE_OBJ_STRUCTURED_CLONE (1 << 6) /* reject symbols and report DataCloneError for unsupported values */

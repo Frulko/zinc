@@ -144,6 +144,14 @@ struct ArrObj : Obj {
 // Insertion-ordered hash table; deleted entries stay as tombstones until the next rehash.
 inline std::uint64_t mix(std::uint64_t x) { x ^= x >> 33; x *= 0xff51afd7ed558ccdULL; x ^= x >> 33; x *= 0xc4ceb9fe1a85ec53ULL; x ^= x >> 33; return x; }
 
+struct IterationOrder {
+  static void* operator new(std::size_t n) { return allocRaw(n); }
+  static void operator delete(void* p) { freeRaw(p); }
+  ObjVec<std::uint64_t> sequence;
+  std::uint64_t next = 1;
+  void clear() { ObjVec<std::uint64_t>().swap(sequence); }
+};
+
 struct Table {
   KeyKind kk = KeyKind::Int;
   bool hasVals = false;
@@ -152,7 +160,12 @@ struct Table {
   ObjVec<std::int32_t> index;  // entry numbers, -1 empty; a power-of-two size. Empty up to kLinear entries: find scans the keys
   static constexpr std::size_t kLinear = 8;   // (most objects of a JSON document: no index to allocate, no key to hash)
   std::uint32_t live = 0;
+  std::unique_ptr<IterationOrder> order;  // allocated only when a live iterator first advances
 
+  std::size_t bytes() const {
+    return (keys.capacity() + vals.capacity()) * sizeof(Slot) + dead.capacity() + index.capacity() * sizeof(std::int32_t) +
+           (order ? sizeof(IterationOrder) + order->sequence.capacity() * sizeof(std::uint64_t) : 0);
+  }
   std::uint64_t hash(Slot k) const;
   bool same(Slot a, Slot b) const;
   /** The live entry of `k`, or -1. Keys equal by their bits (integers, references) probe inline, the key compared before the dead flag
@@ -173,7 +186,7 @@ struct Table {
   }
   std::int32_t findSlow(Slot k) const;
   void put(Slot k, Slot v);
-  void putNew(Slot k, Slot v);   // a key find() did not find: inserted without a second search
+  bool putNew(Slot k, Slot v);   // a key find() did not find: inserted without a second search
   bool erase(Slot k);
   void clear();
   void rehash();
@@ -516,14 +529,21 @@ inline const char* mapSet(Machine& m, Slot map, Slot key, Slot val) {   // the k
     o->t.vals[static_cast<std::size_t>(e)] = val;
     if (o->cls->elemRef) m.releaseSlot(old);
     if (o->cls->keyRef) m.releaseSlot(key);
-  } else o->t.putNew(key, val);
+  } else if (!o->t.putNew(key, val)) {
+    if (o->cls->elemRef) m.releaseSlot(val);
+    if (o->cls->keyRef) m.releaseSlot(key);
+    return "RangeError: collection insertion sequence exhausted";
+  }
   m.retain(o);   // the result is a new reference to the same Map
   return nullptr;
 }
 inline const char* setAdd(Machine& m, Slot set, Slot key) {
   MapObj* o = reinterpret_cast<MapObj*>(set);
   if (!o) return kNullRef;
-  if (o->t.find(key) >= 0) { if (o->cls->keyRef) m.releaseSlot(key); } else o->t.putNew(key, 0);
+  if (o->t.find(key) >= 0) { if (o->cls->keyRef) m.releaseSlot(key); } else if (!o->t.putNew(key, 0)) {
+    if (o->cls->keyRef) m.releaseSlot(key);
+    return "RangeError: collection insertion sequence exhausted";
+  }
   m.retain(o);
   return nullptr;
 }

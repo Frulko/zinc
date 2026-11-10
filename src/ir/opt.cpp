@@ -530,6 +530,7 @@ void specializeSort(Module& m) {
         if (d == 0) continue;
         i.sym = static_cast<std::uint32_t>(d > 0 ? zn::Rt::ArrSortAsc : zn::Rt::ArrSortDesc);
         i.args.resize(1);
+        i.edges.clear();  // the proven numeric comparator cannot throw
       }
   }
 }

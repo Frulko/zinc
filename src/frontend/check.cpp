@@ -275,7 +275,7 @@ struct Checker {
       if (m == tNull) continue;
       ++members;
       if (isDyn(m) || ty(m).k == TK::Any || ty(m).k == TK::Param || !dynConvertible(out, m)) return false;
-      scalar = scalar || ty(m).k != TK::Object;
+      scalar = scalar || ty(m).k != TK::Object || isSymbol(m);
     }
     return members >= 2 && scalar;
   }
@@ -367,6 +367,7 @@ struct Checker {
       return widens(f.num, t.num) || (!isFx(f.num) && !isFx(t.num));  // machine numbers convert among themselves (truncating), like the number type they alias
     }
     if (f.k == TK::Array && t.k == TK::Array && shareArray(from, to)) return true;
+    if (isSymbol(from) || isSymbol(to)) return isSymbol(from) && ty(to).k == TK::Object && out.objs[ty(to).obj].name == "Dyn";
     if (f.k == TK::Object && t.k == TK::Object) return objAssignable(f.obj, t.obj) || classToRecord(f.obj, t.obj);
     // a function whose last parameters are optional where one that takes them all is expected (`Button(props?: P)` as a `(p: P | null) => i32`):
     // its callers pass every argument
@@ -712,7 +713,7 @@ struct Checker {
     declare(SymKind::Builtin, "__recPost", func({num(Num::i32), tAny, tStr}, tVoid, 3), kNone, true, 0);   // zinc:worker: post a typed value by its record schema (checked in expr0)
     declare(SymKind::Builtin, "__recRead", func({tStr}, tAny, 1), kNone, true, 0);                         // zinc:worker: the current message as __recRead<T>'s T
     declare(SymKind::Builtin, "__toNumber", func({tStr}, num(gNumber), 1), kNone, true, 0);  // Number(string), for generated code
-    for (const char* nm : {"Boolean", "JSON", "Array", "Object"}) {  // namespaces whose calls the checker rewrites
+    for (const char* nm : {"Boolean", "JSON", "Array", "Object", "Symbol"}) {  // namespaces whose calls the checker rewrites
       ObjInfo o;
       o.name = nm;
       out.objs.push_back(o);
@@ -773,6 +774,7 @@ struct Checker {
         else if (x.kids.empty() && x.text == "boolean") r = tBool;
         else if (x.kids.empty() && x.text == "never" && lookupType("never") == kNone) r = tNever;
         else if (x.kids.empty() && x.text == "string") r = tStr;
+        else if (x.kids.empty() && x.text == "symbol") { const auto sy = lookupType("DynSymbol"); if (sy != kNone) r = out.syms[sy].type; }
         else if (x.kids.empty() && x.text == "void") r = tVoid;
         else if (x.kids.empty() && x.text == "null") r = tNull;
         else if (x.kids.empty() && x.text == "undefined" && lookupType("undefined") == kNone) r = tNull;   // a file with Dyn values keeps its `undefined` (modules.cpp): as a type it is still the null of `T | undefined`
@@ -966,6 +968,7 @@ struct Checker {
     const Type r = recv == kNoType ? Type{} : ty(recv);
     switch (l) {
       case 's': return tStr;
+      case 'x': return tAny;
       case 'i': case 'j': case 'z': return num(Num::i32);
       case 'u': return num(Num::u32);
       case 'D': return arrayOf(num(Num::f64));
@@ -996,7 +999,7 @@ struct Checker {
     const char* owner = x.k == TK::Str ? "string" : x.k == TK::Array ? "Array" : x.k == TK::Map ? "Map" : x.k == TK::Set ? "Set" : nullptr;
     if (!owner) return false;
     for (const RtInfo& r : kRtInfo) {
-      if ((r.flags & 2) || !rtOwnedBy(r, owner) || nm != rtMember(r)) continue;
+      if (((r.flags & 2) && !(r.id >= Rt::MapIterNext && r.id <= Rt::SetIterValue && (inPrelude || generating || inspectMode || (curClass != kNoObj && (out.objs[curClass].name.rfind("__MapIterator<", 0) == 0 || out.objs[curClass].name.rfind("__SetIterator<", 0) == 0))))) || !rtOwnedBy(r, owner) || nm != rtMember(r)) continue;
       if (x.k == TK::Array && r.id == Rt::ArrJoin && x.elem != tStr) return false;  // join is for string arrays
       TypeId ret = rtLetter(rtRet(r), t);
       if (r.flags & 1) { scratch = {std::string(nm), ret, true, false}; return true; }
@@ -1100,7 +1103,9 @@ struct Checker {
   }
 
   // A value `'x' + v` and `${v}` can turn into text: numbers, booleans, strings, and objects with `toString(): string`.
+  bool isSymbol(TypeId t) const { return t != kNoType && ty(t).k == TK::Object && out.objs[ty(t).obj].name == "DynSymbol"; }
   bool stringifiable(TypeId t) {
+    if (isSymbol(t)) return false;
     if (t == tStr || isNum(t) || t == tBool) return true;
     if (ty(t).k != TK::Object) return false;
     const Member* m = lookupMember(ty(t).obj, "toString", false);
@@ -1215,7 +1220,8 @@ struct Checker {
       if ((lo || ro) && replaceWith(i, std::string(lo ? "__H0.valueOf()" : "__H0") + " " + op + " " + (ro ? "__H1.valueOf()" : "__H1"), {{le}, {re}})) return expr0(i, kNoType);
     }
     if (!rawDyn() && op == "+" && ((l == tStr && isDyn(r)) || (isDyn(l) && r == tStr))) {   // '' + any is a string, as in TypeScript (the Dyn helper's own concatenation)
-      if (replaceWith(i, l == tStr ? "__H0 + __dynString(__dynPrim(__H1))" : "__dynString(__dynPrim(__H0)) + __H1", {{le}, {re}})) return expr0(i, expected0);
+      const std::string conversion = lookup("DynSymbol") != kNone ? "__dynToString" : "__dynString";
+      if (replaceWith(i, l == tStr ? "__H0 + " + conversion + "(__dynPrim(__H1))" : conversion + "(__dynPrim(__H0)) + __H1", {{le}, {re}})) return expr0(i, expected0);
     }
     // Optional Dyn slots normalize their absent reference before using JavaScript value semantics.
     const bool eqOp0 = op == "===" || op == "!==" || op == "==" || op == "!=";   // a Dyn-backed union is compared by the Dyn helper; other operators need it narrowed
@@ -1701,6 +1707,10 @@ struct Checker {
     return false;
   }
   void convertDyn(TypeId from, TypeId to, std::uint32_t node) {
+    if (isSymbol(to) && (isDyn(from) || dynBacked(from)) && !rawDyn()) {
+      if (const auto symbol = lookup("__symbolValue"); symbol != kNone) wrapNode(node, symbol);
+      return;
+    }
     if (bad(from) || bad(to) || from == tNever || to == tAny || dynObjOf() == kNone) return;
     const bool intoUnion = dynBacked(to), outOfUnion = dynBacked(from);
     if (intoUnion && !outOfUnion && !isDyn(from) && !isDynFamily(from) && from != tNull && !hasParam(from)) {   // a member into a Dyn-backed union
@@ -1739,7 +1749,6 @@ struct Checker {
       }
       if (hasParam(from)) { out.nodeType[node] = tDyn; return; }   // a template over T: each instance converts its own type (checked per instance, D181's workers)
       if (!dynConvertible(out, from)) { diag(kZUnsupported, node, "conversion of '" + name(from) + "' to Dyn"); return; }
-      if (n(node).kind == N::FuncExpr) { diag(kZUnsupported, node, "a function as an `any` value"); return; }
       wrapNode(node, dynSym(from, true, node));
       out.nodeType[node] = tDyn;
     } else if (isDyn(from) && !isDyn(to) && !isDynFamily(to) && !hasDynMember(to)) {   // (an `unknown | null` already holds a Dyn: nothing to convert)
@@ -1841,10 +1850,12 @@ struct Checker {
     if (bad(lt)) return tError;
     if (ty(lt).k != TK::Func || ty(lt).params.size() > 2) { diag(kZNotAssignable, kids[1], "a function of 0-2 parameter(s) for 'forEach'"); return tError; }
     std::vector<TypeId> aliases{mt, lt, K, V};
-    std::string val = isSet ? "k" : "m.get(k) as " + inspectAliasName(V);
-    std::string call = ty(lt).params.empty() ? "f()" : ty(lt).params.size() == 1 ? "f(" + val + ")" : "f(" + val + ", k)";
-    std::string key = "mapForEach," + std::to_string(mt) + "," + std::to_string(lt);
-    std::uint32_t sym = helper(key, "function $F(m: " + inspectAliasName(mt) + ", f: " + inspectAliasName(lt) + "): void {\n  for (const k of m." + std::string(isSet ? "values" : "keys") + "()) " + call + ";\n}\n", aliases, i);
+    const std::string call = ty(lt).params.empty() ? "f()" : ty(lt).params.size() == 1 ? "f(v)" : "f(v, k)";
+    const std::string key = "mapForEach," + std::to_string(mt) + "," + std::to_string(lt);
+    const std::string body = std::string("  const cursor: u32[] = [0, 0];\n  let index: i32 = m.__iteratorNext(cursor);\n  while (index >= 0) {\n") +
+      "    const k = m." + std::string(isSet ? "__iteratorValue" : "__iteratorKey") + "(index);\n" +
+      (isSet ? "    const v = k;\n" : "    const v = m.__iteratorValue(index);\n") + "    " + call + ";\n    index = m.__iteratorNext(cursor);\n  }\n";
+    std::uint32_t sym = helper(key, "function $F(m: " + inspectAliasName(mt) + ", f: " + inspectAliasName(lt) + "): void {\n" + body + "}\n", aliases, i);
     std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
     out.nodeSym[id] = sym;
     out.nodeType[id] = out.syms[sym].type;
@@ -2169,6 +2180,7 @@ struct Checker {
   }
   TypeId iterableElement(TypeId t, int depth = 0) {
     if (t == kNoType || bad(t) || depth > 16) return kNoType;
+    if (isDyn(t)) return tDyn;
     const Type type = ty(t);
     if (type.k == TK::Array || type.k == TK::Set) return type.elem;
     if (type.k == TK::Map) return tupleOf({type.params[0], type.elem});
@@ -2178,9 +2190,73 @@ struct Checker {
       const Member* value = findMember(t, "value");
       return value && ty(value->type).k == TK::Array ? ty(value->type).elem : kNoType;
     }
+    const std::string iteratorName = name(t);
+    if (iteratorName.rfind("__ArrayIterator<", 0) == 0) return ty(withoutNull(findMember(t, "items")->type)).elem;
+    if (iteratorName.rfind("__SetIterator<", 0) == 0) return ty(withoutNull(findMember(t, "collection")->type)).elem;
+    if (iteratorName.rfind("__MapIterator<", 0) == 0) { const Type collection = ty(withoutNull(findMember(t, "collection")->type)); return tupleOf({collection.params[0], collection.elem}); }
+    if (iteratorName == "__StringIterator") return tStr;
+    const Member* next = findMember(t, "next");
+    if (next && ty(next->type).k == TK::Func) {
+      const TypeId result = ty(next->getter ? ty(next->type).elem : next->type).elem;
+      if (isDyn(result)) return tDyn;
+      const Member* value = ty(result).k == TK::Object ? findMember(result, "value") : nullptr;
+      if (value) return value->getter ? ty(value->type).elem : value->type;
+    }
     const Member* iterator = findMember(t, "[Symbol.iterator]");
     return iterator && ty(iterator->type).k == TK::Func ? iterableElement(ty(iterator->type).elem, depth + 1) : kNoType;
   }
+  bool protocolIterator(TypeId type) const { return type != kNoType && ty(type).k == TK::Object && out.objs[ty(type).obj].name.rfind("__ProtocolIterator<", 0) == 0; }
+  std::uint32_t iteratorRecord(std::uint32_t source, TypeId it, std::uint32_t at) {
+    if (isDyn(it)) {
+      const auto factory = lookup("__dynAcquireIterator");
+      if (factory == kNone) { diag(kZUnsupported, at, "dynamic iterator acquisition is unavailable"); return kNone; }
+      return callGenerated(factory, {source}, at);
+    }
+    const Member* next = findMember(it, "next");
+    const TypeId result = ty(next->getter ? ty(next->type).elem : next->type).elem;
+    const TypeId element = iterableElement(it);
+    if (element == kNoType) { diag(kZUnsupported, at, "iterator next() must return an object with a value field"); return kNone; }
+    const std::string I = inspectAliasName(it), R = inspectAliasName(result), E = inspectAliasName(element);
+    const Member* ret = findMember(it, "return");
+    std::string finish = name(it).rfind("Generator<", 0) == 0 ? "src.close();" : "";
+    if (ret) {
+      const TypeId returned = ty(ret->getter ? ty(ret->type).elem : ret->type).elem;
+      finish = "const returned = src.return(); ";
+      if (isDyn(returned)) finish += "if (!__dynObject(returned)) throw new TypeError('Iterator return result is not an object');";
+      else if (ty(returned).k == TK::Object || ty(returned).k == TK::Array || ty(returned).k == TK::Map || ty(returned).k == TK::Set) { if (isSymbol(returned)) finish += "throw new TypeError('Iterator return result is not an object');"; }
+      else finish += "throw new TypeError('Iterator return result is not an object');";
+    }
+    const bool cachedNext = next->getter || !next->method;
+    const std::string prefix = cachedNext ? "  const next = src.next;\n" : "";
+    const std::string advance = cachedNext ? "next()" : "src.next()";
+    const std::string done = isDyn(result) ? "__dynIteratorDone(r)" : "!!r.done";
+    const std::string value = isDyn(result) ? "__dynGet(r, 'value')" : "(r.value as " + E + ")";
+    const auto factory = helper("protocol," + std::to_string(it), "function $F(src: " + I + "): __ProtocolIterator<" + E + ", " + R + "> {\n"
+      + prefix + "  return new __ProtocolIterator<" + E + ", " + R + ">((): " + R + " => " + advance + ", (r: " + R + "): boolean => " + done + ", (r: " + R + "): " + E + " => " + value + ", (): void => { " + finish + " });\n}\n", {it, result, element}, at);
+    source = callGenerated(factory, {source}, at);
+    return source;
+  }
+  std::uint32_t acquireIterator(std::uint32_t source, TypeId type, std::uint32_t at) {
+    if (protocolIterator(type)) return source;
+    if (isDyn(type)) return iteratorRecord(source, type, at);
+    const Type original = ty(type);
+    if (original.k == TK::Map || original.k == TK::Set || original.k == TK::Str) {
+      const std::string iterator = original.k == TK::Map ? "__MapIterator<" + inspectAliasName(original.params[0]) + ", " + inspectAliasName(original.elem) + ">" : original.k == TK::Set ? "__SetIterator<" + inspectAliasName(original.elem) + ">" : "__StringIterator";
+      std::vector<TypeId> aliases{type};
+      if (original.k == TK::Map) aliases.push_back(original.params[0]);
+      if (original.k != TK::Str) aliases.push_back(original.elem);
+      const auto factory = helper("builtinProtocol," + std::to_string(type), "function $F(src: " + inspectAliasName(type) + "): " + iterator + " { return new " + iterator + "(src); }\n", aliases, at);
+      source = callGenerated(factory, {source}, at); type = out.nodeType[source];
+    }
+    if (ty(type).k == TK::Object && findMember(type, "[Symbol.iterator]")) {
+      const auto member = newNode(N::Member, "[Symbol.iterator]", {source}, at);
+      source = newNode(N::Call, {}, {member}, at); type = expr(source);
+    } else if (name(type).rfind("Generator<", 0) != 0) { diag(kZUnsupported, at, "value is not iterable: missing Symbol.iterator()"); return kNone; }
+    if (isDyn(type)) return iteratorRecord(source, type, at);
+    if (ty(type).k != TK::Object || !findMember(type, "next")) { diag(kZUnsupported, at, "Symbol.iterator() must return an iterator with next()"); return kNone; }
+    return iteratorRecord(source, type, at);
+  }
+
   TypeId collectionArray(std::uint32_t arg, TypeId type) {
     const TypeId elem = iterableElement(type), list = arrayOf(elem);
     const std::string T = inspectAliasName(type), L = inspectAliasName(list);
@@ -2504,12 +2580,52 @@ struct Checker {
         return tStr;
       }
     }
+    if (cn.kind == N::Index && args.empty() && lookup("DynSymbol") != kNone) {
+      const TypeId source = expr(cn.kids[0]), key = expr(cn.kids[1]);
+      if (isSymbol(key) && ty(source).k == TK::Object && !isDyn(source)) {
+        const Member* iterator = findMember(source, "[Symbol.iterator]");
+        const Node keyNode = n(cn.kids[1]);
+        if (iterator && ((keyNode.kind == N::Member && keyNode.text == "iterator" && isBuiltin(keyNode.kids[0], "Symbol")) || (keyNode.kind == N::Ident && keyNode.text == "__symbolIterator") || (keyNode.kind == N::Call && !keyNode.kids.empty() && n(keyNode.kids[0]).kind == N::Ident && n(keyNode.kids[0]).text == "__symbolIterator"))) {
+          a.nodes[kids[0]].kind = N::Member;
+          a.nodes[kids[0]].text = "[Symbol.iterator]";
+          a.nodes[kids[0]].kids = {cn.kids[0]};
+          return callExpr(i, n(i), false);
+        }
+        if (iterator) {
+          const TypeId result = ty(iterator->type).elem;
+          const auto factory = helper("typedIterator," + std::to_string(source), "function $F(src: " + inspectAliasName(source) + ", key: DynSymbol): " + inspectAliasName(result) + " { if (key !== __symbolIterator()) throw new TypeError('Value is not iterable'); return src[Symbol.iterator](); }\n", {source, result}, i);
+          const auto call = callGenerated(factory, {cn.kids[0], cn.kids[1]}, i);
+          a.nodes[i] = n(call); return expr0(i, kNoType);
+        }
+      }
+      if (isSymbol(key) && (ty(source).k == TK::Array || ty(source).k == TK::Map || ty(source).k == TK::Set || source == tStr)) {
+        const std::string A = inspectAliasName(source);
+        const std::string iterator = source == tStr ? "__StringIterator" : ty(source).k == TK::Map ? "__MapIterator<" + inspectAliasName(ty(source).params[0]) + ", " + inspectAliasName(ty(source).elem) + ">" : std::string(ty(source).k == TK::Set ? "__SetIterator<" : "__ArrayIterator<") + inspectAliasName(ty(source).elem) + ">";
+        const auto factory = helper("builtinIterator," + std::to_string(source), "function $F(src: " + A + ", key: DynSymbol): " + iterator + " {\n  if (key !== __symbolIterator()) throw new TypeError('Value is not iterable');\n  return new " + iterator + "(src);\n}\n", source == tStr ? std::vector<TypeId>{source} : ty(source).k == TK::Map ? std::vector<TypeId>{source, ty(source).params[0], ty(source).elem} : std::vector<TypeId>{source, ty(source).elem}, i);
+        const auto call = callGenerated(factory, {cn.kids[0], cn.kids[1]}, i);
+        a.nodes[i] = n(call);
+        return expr0(i, kNoType);
+      }
+    }
+    if (cn.kind == N::Ident && cn.text == "Symbol" && isBuiltin(kids[0], "Symbol")) {
+      if (args.size() > 1) { diag(kZWrongArgCount, i, "Symbol takes zero or one argument"); return tError; }
+      return rewrite(args.empty() ? "__makeSymbol()" : "__makeSymbol(__H0)", args.empty() ? std::vector<std::vector<std::uint32_t>>{} : std::vector<std::vector<std::uint32_t>>{{args[0]}});
+    }
+    if (cn.kind == N::Member && n(cn.kids[0]).kind == N::Ident && isBuiltin(cn.kids[0], "Symbol") && args.size() == 1) {
+      if (cn.text == "for") return rewrite("__symbolFor(__H0)", {{args[0]}});
+      if (cn.text == "keyFor") return rewrite("__symbolKeyFor(__H0)", {{args[0]}});
+    }
     if (cn.kind == N::Ident && (cn.text == "Number" || cn.text == "String" || cn.text == "Boolean") && isBuiltin(kids[0], cn.text)) {
       if (args.size() > 1) { diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", "0-1"}, {"got", std::to_string(args.size())}}); for (std::uint32_t arg : args) expr(arg); return tError; }
       std::string nm(cn.text);
       if (args.empty()) return rewrite(nm == "String" ? "''" : nm == "Number" ? "0" : "false", {});
       TypeId at = expr(args[0]);
       if (bad(at)) return tError;
+      if (isSymbol(at)) {
+        if (nm == "String") return rewrite("__H0.toString()", {{args[0]}});
+        if (nm == "Number") return rewrite("__dynNumber(__H0)", {{args[0]}});
+        return rewrite("__dynTruthy(__H0)", {{args[0]}});
+      }
       const Type t = ty(at);
       bool num_ = t.k == TK::Num, str = t.k == TK::Str, bl = at == tBool, arr = t.k == TK::Array;
       if (nm == "String") {
@@ -2627,11 +2743,11 @@ struct Checker {
       if (on == "Object" && isBuiltin(cn.kids[0], "Object") && m == "keys" && args.size() == 1) {  // the keys of a JSON value, as for...in lists them
         TypeId at = expr(args[0]);
         if (bad(at)) return tError;
-        if (isDyn(at) && !rawDyn()) return rewrite("__dynKeys(__H0)", {{args[0]}});
+        if ((isDyn(at) || isSymbol(at)) && !rawDyn()) return rewrite("__dynKeys(__H0)", {{args[0]}});
         diag(kZUnsupported, args[0], "Object.keys of '" + name(at) + "' (its fields are known from its type; a Map lists its keys with keys())");
         return tError;
       }
-      if (on == "Object" && isBuiltin(cn.kids[0], "Object") && !rawDyn() && (m == "assign" || m == "freeze" || m == "fromEntries" || m == "getOwnPropertyNames" || m == "defineProperty"))
+      if (on == "Object" && isBuiltin(cn.kids[0], "Object") && !rawDyn() && (m == "assign" || m == "freeze" || m == "fromEntries" || m == "getOwnPropertyNames" || m == "getOwnPropertySymbols" || m == "defineProperty"))
         return objectStatic(i, std::string(m), args);
       if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "stringify" && (args.size() == 2 || args.size() == 3) &&
           ((n(args[1]).kind == N::Literal && n(args[1]).text == "null") || (n(args[1]).kind == N::Ident && n(args[1]).text == "undefined"))) {
@@ -2682,6 +2798,7 @@ struct Checker {
         if (args.size() != 1) { diag(kZUnsupported, i, "JSON.stringify with a replacer (an indent is supported: JSON.stringify(value, null, 2))"); for (std::uint32_t arg : args) expr(arg); return tError; }
         TypeId at = expr(args[0]);
         if (bad(at)) return tError;
+        if (isSymbol(at) || (isDyn(at) && lookup("DynSymbol") != kNone)) return rewrite("__symbolJson(__H0)", {{args[0]}});
         if (at == tNull) return rewrite("'null'", {});
         if (hasParam(at)) { out.nodeType[i] = tStr; return tStr; }   // a template over T: each instance serialises its own type
         if (!jsonable(out, at)) { diag(kZUnsupported, args[0], "JSON.stringify of '" + name(at) + "'"); return tError; }
@@ -2860,7 +2977,29 @@ struct Checker {
           return v.kind == N::Number || (v.kind == N::Literal && v.text != "null") || (v.kind == N::Unary && v.text == "-" && n(v.kids[0]).kind == N::Number);
         };
         if (replaceWith(i, literalCallback(x.kids[2]) ? "__arrayFilled(__H0, __H1)" : "__arrayFromLength(__H0, __H1)", {{n(n(src).kids[0]).kids[0]}, {x.kids[2]}})) return expr0(i, myExpected);
-      } else if (x.kids.size() == 2 ? replaceWith(i, "[...__H0]", {{src}}) : replaceWith(i, "[...__H0].map(__H1)", {{src}, {x.kids[2]}})) return expr0(i, myExpected);
+      } else {
+        const TypeId source = expr(src), element = iterableElement(source);
+        if (element != kNoType && x.kids.size() == 3) {
+          TypeId mapper;
+          {
+            struct Restore { bool& flag; bool saved; ~Restore() { flag = saved; } } restore{padCallbacks, padCallbacks};
+            padCallbacks = false;
+            mapper = expr(x.kids[2], func({element, num(Num::i32)}, kNoType, 1));
+          }
+          if (bad(mapper)) return tError;
+          const bool dynamic = isDyn(mapper);
+          if (!dynamic && (ty(mapper).k != TK::Func || ty(mapper).params.size() > 2)) { diag(kZNotAssignable, x.kids[2], "Array.from expects a mapper with zero, one or two parameters"); return tError; }
+          const TypeId value = dynamic ? tDyn : ty(mapper).elem, result = arrayOf(value);
+          if (value == tVoid || bad(value)) { diag(kZUnsupported, i, "Array.from with a void mapper result"); return tError; }
+          const std::string S = inspectAliasName(source), F = inspectAliasName(mapper), R = inspectAliasName(result);
+          const std::string call = dynamic ? "__dynCall(f, [item, index], 'mapper')" : ty(mapper).params.empty() ? "f()" : ty(mapper).params.size() == 1 ? "f(item)" : "f(item, index)";
+          const auto factory = helper("arrayFrom," + std::to_string(source) + "," + std::to_string(mapper), "function $F(src: " + S + ", f: " + F + "): " + R + " {\n" +
+            (dynamic ? "  if (!(f instanceof DynFn)) throw new TypeError('Array.from mapper is not callable');\n" : "") + "  const result: " + R + " = [];\n  let index: i32 = 0;\n  for (const item of src) { result.push(" + call + "); index++; }\n  return result;\n}\n", {source, mapper, element, value, result}, i);
+          const auto callNode = callGenerated(factory, {src, x.kids[2]}, i);
+          a.nodes[i] = n(callNode); return out.nodeType[i] = result;
+        }
+        if (x.kids.size() == 2 ? replaceWith(i, "[...__H0]", {{src}}) : replaceWith(i, "[...__H0].map(__H1)", {{src}, {x.kids[2]}})) return expr0(i, myExpected);
+      }
     }
     if (!isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Member && n(x.kids[0]).text == "table" && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "console") {
       // console.table(rows): the prototype's two columns, `(index)` and `values` (each row as console.log writes it), from a generated function (ZN-155)
@@ -3102,7 +3241,7 @@ struct Checker {
         if (m == "sort" && x.kids.size() == 1) call += "__dynSortCmp";
         call += ")";
         return replaceWith(i, call, holes) ? expr0(i, kNoType) : tError;
-      } else if ((cn.kind == N::Member || cn.kind == N::Index) && !rawDyn() && !(cn.flags & kFlagOptional) && !(x.flags & kFlagOptional) && dynReceiver(cn.kids[0]) && out.nodeType[cn.kids[0]] == tDyn) {
+      } else if ((cn.kind == N::Member || cn.kind == N::Index) && !rawDyn() && !(cn.flags & kFlagOptional) && !(x.flags & kFlagOptional) && dynReceiver(cn.kids[0]) && isDyn(out.nodeType[cn.kids[0]])) {
         // Prepare the reference before evaluating arguments, retaining the receiver only for this call.
         const bool computed = cn.kind == N::Index;
         const std::string method = computed ? "expression" : std::string(cn.text);
@@ -3114,7 +3253,7 @@ struct Checker {
         return replaceWith(i, call, holes) ? expr0(i, kNoType) : tError;
       } else { calleeNode = callee; ct = expr(callee); calleeNode = kNone; }
       if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) if (!preEvaluated) expr(x.kids[k]); return tError; }
-      if (ct == tDyn && !rawDyn() && !(x.flags & kFlagOptional) && !(n(callee).flags & kFlagOptional) && !preEvaluated) {
+      if (isDyn(ct) && !rawDyn() && !(x.flags & kFlagOptional) && !(n(callee).flags & kFlagOptional) && !preEvaluated) {
         // `d.greet()`, `f(x)` on an any value, as TypeScript allows: the function it holds, with no receiver, and the arguments boxed
         const Node& c2 = n(callee);
         std::string what = c2.kind == N::Member ? (n(c2.kids[0]).kind == N::Ident ? std::string(n(c2.kids[0]).text) + "." : std::string()) + std::string(c2.text)
@@ -3207,6 +3346,10 @@ struct Checker {
         for (std::size_t ki = 0; ki < n(i).kids.size(); ++ki) {
           std::uint32_t k = n(i).kids[ki];
           TypeId pt = expr(k);
+          if (ki % 2 == 1 && (isSymbol(pt) || isDyn(pt)) && lookup("DynSymbol") != kNone) {
+            if (replaceWith(k, "__dynToString(__H0)", {{cloneNode(k, false)}})) expr(k);
+            continue;
+          }
           if (!bad(pt) && ty(pt).k == TK::Func) diag(kZNotAssignable, k, "'" + name(pt) + "' to 'string' (call the function)");
           if (pt == tNull && n(k).kind == N::Literal) { a.nodes[k].kind = N::String; a.nodes[k].text = (n(k).flags & kFlagUndefined) ? "'undefined'" : "'null'"; out.nodeType[k] = tStr; continue; }  // ${null}, ${undefined}
           if (!bad(pt) && ty(pt).k == TK::Array && (ty(ty(pt).elem).k == TK::Num || ty(pt).elem == tBool || ty(pt).elem == tStr)) {  // `${[1, 2]}` is the array joined with commas
@@ -3312,7 +3455,7 @@ struct Checker {
         TypeId vt = expr(x.kids[0], target);
         asOperand = savedAs;
         if (vt == tNever && target != tNever && !neverComputation(x.kids[0])) { diag(kZUnsupported, i, "converting an uninhabited never slot to '" + name(target) + "'"); return tError; }
-        if (!bad(vt) && !rawDyn() && (((isDyn(vt) || optionalDyn(vt)) && !isDyn(target) && !isDynFamily(target)) || (isDyn(target) && !isDyn(vt) && !isDynFamily(vt)) || (dynBacked(vt) && !dynBacked(target) && !isDyn(target)))) {  // a checked conversion from or to a Dyn
+        if (!bad(vt) && !rawDyn() && (((isDyn(vt) || optionalDyn(vt)) && !isDyn(target) && (!isDynFamily(target) || isSymbol(target))) || (isDyn(target) && !isDyn(vt) && !isDynFamily(vt)) || (dynBacked(vt) && !dynBacked(target) && !isDyn(target)))) {  // a checked conversion from or to a Dyn
           std::uint32_t operand = x.kids[0];
           convertDyn(vt, target, operand);
           a.nodes[i] = a.nodes[operand];
@@ -3361,7 +3504,9 @@ struct Checker {
             if (n(e).kind == N::Spread) {
               std::uint32_t op = n(e).kids[0];
               TypeId st = expr(op);  // the other iterables spread as the arrays their iterators are here
-              if (!bad(st) && ty(st).k == TK::Object && name(st).rfind("Generator<", 0) == 0) replaceWith(op, "__genToArray(__H0)", {{cloneNode(op, false)}});
+              if (!bad(st) && ty(st).k == TK::Object && iterableElement(st) != kNoType && lookup("__ProtocolIterator") != kNone) collectionArray(op, st);
+              else if (!bad(st) && isDyn(st) && lookup("__ProtocolIterator") != kNone) replaceWith(op, "__dynIter(__H0)", {{cloneNode(op, false)}});
+              else if (!bad(st) && ty(st).k == TK::Object && name(st).rfind("Generator<", 0) == 0) replaceWith(op, "__genToArray(__H0)", {{cloneNode(op, false)}});
               else if (!bad(st) && ty(st).k == TK::Set) replaceWith(op, "__H0.values()", {{cloneNode(op, false)}});
               else if (!bad(st) && ty(st).k == TK::Map) replaceWith(op, "__H0.entries()", {{cloneNode(op, false)}});
               else if (!bad(st) && st == tStr) replaceWith(op, "__H0.__chars()", {{cloneNode(op, false)}});
@@ -3418,7 +3563,7 @@ struct Checker {
           if (isDyn(t) || optionalDyn(t) || dynBacked(t)) { if (replaceWith(i, "__dynTypeof(__H0)", {{x.kids[0]}})) return expr0(i, expected); return tStr; }
           if (ty(t).k == TK::Union && hasNull(t)) {  // T | null: undefined or null when absent, else the typeof of the rest (a generated test: the operand may be a call)
             TypeId inner = withoutNull(t);
-            std::string it = inner == tStr ? "'string'" : (inner != kNoType && isNum(inner)) ? "'number'" : inner == tBool ? "'boolean'" : (inner != kNoType && isDyn(inner)) ? "__dynTypeof(v)" : "'object'";   // (`unknown | undefined`: the Dyn's own)
+            std::string it = isSymbol(inner) ? "'symbol'" : inner == tStr ? "'string'" : (inner != kNoType && isNum(inner)) ? "'number'" : inner == tBool ? "'boolean'" : (inner != kNoType && isDyn(inner)) ? "__dynTypeof(v)" : "'object'";   // (`unknown | undefined`: the Dyn's own)
             std::uint32_t sym = helper("typeofN," + std::to_string(t), "function $F(v: " + inspectAliasName(t) + "): string {\n  return v === null ? " + std::string(ty(t).undef ? "'undefined'" : "'object'") + " : " + it + ";\n}\n", {t}, i);
             wrapNode(x.kids[0], sym);
             std::uint32_t callNode = x.kids[0];
@@ -3427,7 +3572,12 @@ struct Checker {
             rewritten.insert(i);
             return tStr;
           }
-          if (t == tStr) lit = "'string'"; else if (isNum(t)) lit = "'number'"; else if (t == tBool) lit = "'boolean'"; else if (ty(t).k == TK::Func) lit = "'function'"; else if (t == tVoid) lit = "'undefined'"; else lit = "'object'";
+          if (isSymbol(t)) {
+            const auto fn = helper("symbolTypeof", "function $F(value: DynSymbol): string { return 'symbol'; }\n", {}, i);
+            const auto call = callGenerated(fn, {x.kids[0]}, i);
+            a.nodes[i] = n(call); return expr0(i, expected);
+          }
+          if (isSymbol(t)) lit = "'symbol'"; else if (t == tStr) lit = "'string'"; else if (isNum(t)) lit = "'number'"; else if (t == tBool) lit = "'boolean'"; else if (ty(t).k == TK::Func) lit = "'function'"; else if (t == tVoid) lit = "'undefined'"; else lit = "'object'";
           if (replaceWith(i, lit, {})) return expr0(i, expected);
           return tStr;
         }
@@ -3522,6 +3672,19 @@ struct Checker {
             else known = false;
           }
           TypeId vt = expr(value, known ? tupleOf(hint) : kNoType);
+          if (!bad(vt) && ty(vt).k != TK::Array && !isTupleType(vt) && iterableElement(vt) != kNoType && !protocolIterator(vt)) {
+            const auto acquired = acquireIterator(value, vt, i);
+            if (acquired == kNone) return tError;
+            const TypeId record = out.nodeType[acquired], pair = tupleOf({vt, record});
+            const std::string factory(n(n(acquired).kids[0]).text);
+            std::string input = "src";
+            if (ty(vt).k == TK::Map || ty(vt).k == TK::Set || vt == tStr) input = std::string(out.syms[genFuncs.at("builtinProtocol," + std::to_string(vt))].name) + "(src)";
+            else if (!isDyn(vt) && name(vt).rfind("Generator<", 0) != 0) input = "src[Symbol.iterator]()";
+            const auto wrapper = helper("iteratorBinding," + std::to_string(vt), "function $F(src: " + inspectAliasName(vt) + "): " + inspectAliasName(pair) + " { return [src, " + factory + "(" + input + ")]; }\n", {vt, record, pair}, i);
+            a.nodes[i].kids[1] = callGenerated(wrapper, {value}, i);
+            bindPattern(target, record, false, false);
+            return vt;
+          }
           bindPattern(target, vt, false, false);
           return vt;
         }
@@ -3685,6 +3848,10 @@ struct Checker {
       case N::Call: callExpected = expected; return callExpr(i, x, false);
       case N::New: newExpected = expected; return callExpr(i, x, true);
       case N::Member: {
+        if (n(x.kids[0]).kind == N::Ident && isBuiltin(x.kids[0], "Symbol") && (x.text == "iterator" || x.text == "asyncIterator" || x.text == "dispose")) {
+          const std::string value = x.text == "iterator" ? "__symbolIterator" : x.text == "asyncIterator" ? "__symbolAsyncIterator" : "__symbolDispose";
+          if (replaceWith(i, value + "()", {})) return expr0(i, expected);
+        }
         bool opt = (x.flags & kFlagOptional) != 0;  // a?.b: null when a is null
         const bool called = i == calleeNode;   // read before the object: a call inside it (a.join(', ').toUpperCase()) resets calleeNode
         if (isBuiltin(x.kids[0], "Number")) {  // the constants of Number
@@ -3740,7 +3907,7 @@ struct Checker {
         if (bad(ot)) return tError;
         continueChain(i, n(i).kids[0], ot);   // a?.b.c
         opt = (n(i).flags & kFlagOptional) != 0;
-        if (ot == tDyn) {  // a property of an `any`; inside the prelude and generated code `any` is the class Dyn
+        if (isDyn(ot)) {  // a property of an `any`; inside the prelude and generated code `any` is the class Dyn
           if (rawDyn() && dynObjOf() != kNone) ot = objType(dynObj);
           else if (!opt && replaceWith(i, "__dynGet(__H0, '" + std::string(x.text) + "')", {{x.kids[0]}})) return expr0(i, expected);
           else { diag(kZUnsupported, i, "'?.' on an `any`"); return tError; }
@@ -4034,7 +4201,7 @@ struct Checker {
     out.nodeType[lit] = t;
     return t;
   }
-  void bindTarget(std::uint32_t target, TypeId t, bool isDecl, bool isConst) {
+  void bindTarget(std::uint32_t target, TypeId t, bool isDecl, bool isConst, bool elementwise = false) {
     const Node& x = n(target);
     out.nodeType[target] = t;
     if (x.kind == N::ArrayPattern || x.kind == N::ObjectPattern) { bindPattern(target, t, isDecl, isConst); return; }
@@ -4042,7 +4209,10 @@ struct Checker {
     TypeId tt = expr(target);  // assignment to an existing variable, member or element
     if (x.kind == N::Ident && out.nodeSym[target] != kNone && trackable(out.nodeSym[target])) out.syms[out.nodeSym[target]].reassigned = true;
     lvalue(target);
-    require(t, tt, target);
+    if (elementwise && ty(t).k == TK::Array && ty(tt).k == TK::Array) {
+      if (!assignable(ty(t).elem, ty(tt).elem, target)) diag(kZNotAssignable, target, "diag.detail.assign", {{"from", name(ty(t).elem)}, {"to", name(ty(tt).elem)}});
+    }
+    else require(t, tt, target);
   }
   void bindPattern(std::uint32_t pat, TypeId vt, bool isDecl, bool isConst) {
     const Node& p = n(pat);
@@ -4050,6 +4220,30 @@ struct Checker {
     if (bad(vt)) { declareErrorTargets(pat, isDecl, isConst); return; }
     TypeId va = appOrDiag(vt, pat);
     if (bad(va)) { declareErrorTargets(pat, isDecl, isConst); return; }
+    if (p.kind == N::ArrayPattern && protocolIterator(va)) {
+      const TypeId element = ty(findMember(va, "value")->type).elem;
+      for (const auto child : std::vector<std::uint32_t>(p.kids)) {
+        const Node& entry = n(child);
+        if (entry.kind == N::Empty) continue;
+        if (entry.kind == N::Spread) {
+          bindTarget(entry.kids[0], arrayOf(element), isDecl, isConst, true);
+          const auto target = out.nodeType[entry.kids[0]];
+          if (!bad(target) && ty(target).k == TK::Array && isDyn(ty(target).elem) && !isDyn(element) && !isDynFamily(element)) dynSym(element, true, child);
+          continue;
+        }
+        if (entry.kind == N::Assign) {
+          const TypeId binding = hasNull(element) && ty(element).undef ? withoutNull(element) : element;
+          require(expr(entry.kids[1], binding), binding, entry.kids[1]);
+          out.nodeType[child] = element;
+          bindTarget(entry.kids[0], binding, isDecl, isConst);
+        } else {
+          const TypeId binding = hasNull(element) && !ty(element).undef ? tDyn : unionOf({element, tNull}, true);
+          if (isDyn(binding) && !isDyn(element) && !isDynFamily(element)) dynSym(element, true, child);
+          bindTarget(child, binding, isDecl, isConst);
+        }
+      }
+      return;
+    }
     if (p.kind == N::ArrayPattern) {
       bool tup = isTupleType(va), arr = ty(va).k == TK::Array;
       if (!tup && !arr) { diag(kZNotIndexable, pat, "'" + name(vt) + "' cannot be destructured as an array"); declareErrorTargets(pat, isDecl, isConst); return; }
@@ -4132,6 +4326,10 @@ struct Checker {
       else if (ann != kNone) { t = annotation(ann); require(expr(init, t), t, init); }
       else if (n(init).kind == N::Array && n(pat).kind == N::ArrayPattern && !hasRestElement(pat)) t = literalAsTuple(init, pat);  // a literal destructured at once is a tuple (an array when the pattern takes a rest)
       else t = expr(init);
+      if (!bad(t) && n(pat).kind == N::ArrayPattern && ty(t).k != TK::Array && !isTupleType(t) && iterableElement(t) != kNoType && !protocolIterator(t)) {
+        const auto acquired = acquireIterator(init, t, d);
+        if (acquired != kNone) { a.nodes[d].kids[1] = acquired; t = out.nodeType[acquired]; }
+      }
       out.nodeType[d] = t;
       bindPattern(pat, t, true, isConst);
       return;
@@ -4330,8 +4528,18 @@ struct Checker {
         }
         resetAssigned(s);
         TypeId it = expr(x.kids[1]);
-        if (!rawDyn() && isDyn(it) && replaceWith(x.kids[1], "__dynIter(__H0)", {{cloneNode(x.kids[1], false)}})) it = expr0(x.kids[1], kNoType);  // iterate the elements of an array held by a Dyn
-        if (!bad(it) && (ty(it).k == TK::Map || ty(it).k == TK::Set || ty(it).k == TK::Str)) {  // iterate a generated array of the entries, values or characters
+        if (!rawDyn() && isDyn(it) && lookup("DynSymbol") == kNone && replaceWith(x.kids[1], "__dynForOf(__H0)", {{cloneNode(x.kids[1], false)}})) it = expr0(x.kids[1], kNoType);  // iterate the elements of an array held by a Dyn
+        if (!bad(it) && (ty(it).k == TK::Map || ty(it).k == TK::Set) && lookup("__ProtocolIterator") != kNone) {
+          const Type sourceType = ty(it);
+          const std::string iterator = sourceType.k == TK::Map ? "__MapIterator<" + inspectAliasName(sourceType.params[0]) + ", " + inspectAliasName(sourceType.elem) + ">" : sourceType.k == TK::Set ? "__SetIterator<" + inspectAliasName(sourceType.elem) + ">" : "__StringIterator";
+          std::vector<TypeId> aliases{it};
+          if (sourceType.k == TK::Map) aliases.push_back(sourceType.params[0]);
+          if (sourceType.k != TK::Str) aliases.push_back(sourceType.elem);
+          const auto factory = helper("builtinProtocol," + std::to_string(it), "function $F(src: " + inspectAliasName(it) + "): " + iterator + " { return new " + iterator + "(src); }\n", aliases, s);
+          const auto call = callGenerated(factory, {x.kids[1]}, s);
+          a.nodes[s].kids[1] = call; it = out.nodeType[call];
+        }
+        if (!bad(it) && (ty(it).k == TK::Map || ty(it).k == TK::Set)) {  // iterate a generated array of the entries, values or characters
           const Type itt = ty(it);
           TypeId arr = itt.k == TK::Map ? arrayOf(tupleOf({itt.params[0], itt.elem})) : itt.k == TK::Set ? arrayOf(itt.elem) : arrayOf(tStr);
           std::string text = "function $F(m: " + inspectAliasName(it) + "): " + inspectAliasName(arr) + " {\n";
@@ -4342,11 +4550,40 @@ struct Checker {
           a.nodes[s].kids[1] = call;
           it = out.nodeType[call];
         }
+        bool acquiredProtocol = false;
         if (!bad(it) && ty(it).k == TK::Object && name(it).rfind("Generator<", 0) != 0 && lookupMember(ty(it).obj, "[Symbol.iterator]", false)) {  // an object with [Symbol.iterator](): iterate what it returns
           std::uint32_t mem = newNode(N::Member, "[Symbol.iterator]", {x.kids[1]}, s);
           std::uint32_t call = newNode(N::Call, {}, {mem}, s);
           a.nodes[s].kids[1] = call;
           it = expr(call);
+          acquiredProtocol = true;
+          if (!isDyn(it) && (ty(it).k != TK::Object || !findMember(it, "next"))) { diag(kZUnsupported, s, "Symbol.iterator() must return an iterator with next()"); break; }
+        }
+        if (!bad(it) && ty(it).k == TK::Object && findMember(it, "next") && !acquiredProtocol && name(it).rfind("Generator<", 0) != 0) { diag(kZUnsupported, s, "value is not iterable: missing Symbol.iterator()"); break; }
+        if (!bad(it) && (isDyn(it) || (ty(it).k == TK::Object && findMember(it, "next"))) && lookup("__ProtocolIterator") != kNone) {
+          std::string g = "__iterator" + std::to_string(s);
+          while (mentionsIdent(s, g)) g += '_';
+          const auto source = iteratorRecord(x.kids[1], it, s);
+          if (source == kNone) break;
+          const Node& d0 = n(x.kids[0]);
+          const bool pattern = d0.kids.size() > 2 && d0.kids[2] != kNone;
+          const std::string decl = pattern ? g + "Value" : std::string(d0.text);
+          std::vector<std::vector<std::uint32_t>> holes{{source}, {x.kids[2]}};
+
+          const auto rewritten = snippet(a, "{ const " + g + " = __H0; try { while (" + g + ".step()) { " + std::string(x.text) + " " + decl + " = " + g + ".value[0]; __H1; } } catch (__iterationError) { try { " + g + ".close(); } catch (__closeError) {} throw __iterationError; } finally { " + g + ".close(); } }", holes, s);
+          out.nodeType.resize(a.nodes.size(), kNoType); out.nodeSym.resize(a.nodes.size(), kNone);
+          if (rewritten.empty()) break;
+          std::function<void(std::uint32_t)> locate = [&](std::uint32_t node) {
+            if (node == kNone) return;
+            if (n(node).kind == N::While && !out.iteratorLoops.count(s)) out.iteratorLoops[s] = node;
+            if (pattern && n(node).kind == N::Declarator && n(node).text == decl) { a.nodes[node].text = {}; a.nodes[node].kids.push_back(d0.kids[2]); }
+            if (n(node).kind == N::FuncExpr || n(node).kind == N::Function) return;
+            for (auto child : n(node).kids) locate(child);
+          };
+          locate(rewritten[0]);
+          a.nodes[s].kind = N::Block; a.nodes[s].kids = n(rewritten[0]).kids;
+          statement(s);
+          break;
         }
         if (!bad(it) && ty(it).k == TK::Object && name(it).rfind("Generator<", 0) == 0) {  // pull values lazily: while (g.next()) { const x = g.value[0]; ... }
           std::string g = "__g" + std::to_string(s);
@@ -4361,7 +4598,7 @@ struct Checker {
           break;
         }
         TypeId el = tError;
-        if (!bad(it)) { if (ty(it).k == TK::Array) el = ty(it).elem; else diag(kZNotIndexable, x.kids[1], "'" + name(it) + "'"); }
+        if (!bad(it)) { if (ty(it).k == TK::Array) el = ty(it).elem; else if (it == tStr) el = tStr; else diag(kZNotIndexable, x.kids[1], "'" + name(it) + "'"); }
         push();
         const Node& d = n(x.kids[0]);
         out.nodeType[x.kids[0]] = el;
@@ -4523,11 +4760,15 @@ struct Checker {
       diag(kZUnsupported, i, "Object." + m + " with " + std::to_string(args.size()) + " argument" + (args.size() == 1 ? "" : "s"));
       return false;
     };
+    if (m == "getOwnPropertySymbols") {
+      if (!arity(1, 1)) return tError;
+      return rewrite("__dynOwnSymbols(__H0)", {{args[0]}});
+    }
     if (m == "getOwnPropertyNames") {
       if (!arity(1, 1)) return tError;
       TypeId t = expr(args[0]);
       if (bad(t)) return tError;
-      if (isDyn(t)) return rewrite("__dynOwnNames(__H0)", {{args[0]}});
+      if (isDyn(t) || isSymbol(t)) return rewrite("__dynOwnNames(__H0)", {{args[0]}});
       std::uint32_t sym = ownKeysHelper(t, true, i);
       if (sym == kNone) { diag(kZUnsupported, args[0], "Object.getOwnPropertyNames of '" + name(t) + "' (an interface hides which object it is: name its class or record)"); return tError; }
       return callHelper(sym, {args[0]});
@@ -4541,15 +4782,17 @@ struct Checker {
     if (m == "fromEntries") {   // an object made from [key, value] pairs is an any value, as TypeScript's { [k: string]: T }
       if (!arity(1, 1)) return tError;
       const bool lit = n(args[0]).kind == N::Array;
+      if (lit && lookup("DynSymbol") != kNone) return rewrite("__dynFromEntries(__H0)", {{args[0]}});
       TypeId t = expr(args[0], lit ? arrayOf(tupleOf({tStr, tDyn})) : kNoType);
       if (bad(t)) return tError;
       if (isDyn(t)) return rewrite("__dynFromEntries(__H0)", {{args[0]}});
       const Type& tt = ty(t);
-      const bool pairs = tt.k == TK::Array && isTupleType(tt.elem) && out.objs[ty(tt.elem).obj].members.size() >= 2 && out.objs[ty(tt.elem).obj].members[0].type == tStr;
-      const bool map = tt.k == TK::Map && !tt.params.empty() && tt.params[0] == tStr;
+      const TypeId item = iterableElement(t);
+      const bool pairs = item != kNoType && isTupleType(item) && out.objs[ty(item).obj].members.size() >= 2;
+      const bool map = tt.k == TK::Map;
       if (!pairs && !map) { diag(kZUnsupported, args[0], "Object.fromEntries of '" + name(t) + "' (an array of [string, value] pairs or a Map<string, T>)"); return tError; }
       std::uint32_t sym = helper("fromEntries," + std::to_string(t), "function $F(e: " + inspectAliasName(t) + "): any {\n  const o: any = JSON.parse('{}');\n" +
-                                 (map ? "  e.forEach((v, k) => { __dynSet(o, k, v); });\n" : "  for (const p of e) __dynSet(o, p[0], p[1]);\n") + "  return o;\n}\n", {t}, i);
+                                 (map ? "  e.forEach((v, k) => { __dynSetD(o, k, v); });\n" : "  for (const p of e) __dynSetD(o, p[0], p[1]);\n") + "  return o;\n}\n", {t}, i);
       return callHelper(sym, {args[0]});
     }
     if (m == "defineProperty") {   // a data descriptor written as an object literal: value, writable, enumerable, configurable
@@ -4558,7 +4801,7 @@ struct Checker {
       TypeId kt = expr(args[1]);
       if (bad(t) || bad(kt)) return tError;
       if (n(args[2]).kind != N::ObjectLit) { diag(kZUnsupported, args[2], "a property descriptor that is not an object literal ({ value, writable, enumerable, configurable })"); return tError; }
-      std::uint32_t value = kNone, writable = kNone, enumerable = kNone;
+      std::uint32_t value = kNone, writable = kNone, enumerable = kNone, configurable = kNone;
       for (std::uint32_t p : n(args[2]).kids) {
         const Node& pn = n(p);
         if (pn.kind != N::Prop || pn.text.empty() || (pn.flags & (kFlagGetter | kFlagSetter)) || pn.text == "get" || pn.text == "set") {
@@ -4568,16 +4811,17 @@ struct Checker {
         if (pn.text == "value") value = pn.kids[0];
         else if (pn.text == "writable") writable = pn.kids[0];
         else if (pn.text == "enumerable") enumerable = pn.kids[0];
-        else if (pn.text != "configurable") { diag(kZUnsupported, p, "the descriptor key '" + std::string(pn.text) + "'"); return tError; }
+        else if (pn.text == "configurable") configurable = pn.kids[0];
+        else { diag(kZUnsupported, p, "the descriptor key '" + std::string(pn.text) + "'"); return tError; }
       }
       if (isDyn(t)) {
-        if (kt != tStr && ty(kt).k != TK::Num && !isDyn(kt)) { diag(kZUnsupported, args[1], "a property key of type '" + name(kt) + "'"); return tError; }
+        if (kt != tStr && ty(kt).k != TK::Num && !isDyn(kt) && !isSymbol(kt)) { diag(kZUnsupported, args[1], "a property key of type '" + name(kt) + "'"); return tError; }
         std::vector<std::vector<std::uint32_t>> holes{{args[0]}, {args[1]}};
         auto flag = [&](std::uint32_t v) { if (v == kNone) return std::string("-1"); holes.push_back({v}); return "(__H" + std::to_string(holes.size() - 1) + " ? 1 : 0)"; };
         std::string val = "__undef", has = "false";
         if (value != kNone) { holes.push_back({value}); val = "__H" + std::to_string(holes.size() - 1); has = "true"; }
-        const std::string w = flag(writable), e = flag(enumerable);
-        return rewrite("__dynDefine(__H0, '' + __H1, " + val + ", " + has + ", " + w + ", " + e + ")", holes);
+        const std::string w = flag(writable), e = flag(enumerable), c = lookup("DynSymbol") != kNone ? ", " + flag(configurable) : "";
+        return rewrite(std::string(lookup("DynSymbol") != kNone ? "__dynDefineKey(__H0, __H1, " : "__dynDefine(__H0, '' + __H1, ") + val + ", " + has + ", " + w + ", " + e + c + ")", holes);
       }
       // a typed object: its fields are fixed, so only a new value of a declared field, which stays writable and enumerable
       if (!isFields(t)) { diag(kZUnsupported, args[0], "Object.defineProperty on '" + name(t) + "'"); return tError; }
@@ -4602,7 +4846,7 @@ struct Checker {
     std::vector<TypeId> ts;
     for (std::uint32_t x : args) { ts.push_back(expr(x)); if (bad(ts.back())) return tError; }
     bool anyDyn = false;
-    for (TypeId t : ts) anyDyn = anyDyn || isDyn(t);
+    for (TypeId t : ts) anyDyn = anyDyn || isDyn(t) || isSymbol(t);
     const bool fresh = n(args[0]).kind == N::ObjectLit;
     if (fresh && !anyDyn) {   // Object.assign({}, a, b): a new object of the merged fields, as the spread { ...a, ...b } makes it
       std::string text = "({ ";
@@ -4621,7 +4865,7 @@ struct Checker {
       key += "," + std::to_string(s);
       const Node& an = n(args[k]);
       if ((an.kind == N::Literal && an.text == "null") || (an.kind == N::Ident && an.text == "undefined")) { params += ", " + sn + ": any"; continue; }   // skipped, as JavaScript skips them
-      if (isDyn(s)) {
+      if (isDyn(s) || isSymbol(s)) {
         params += ", " + sn + ": any";
         if (isDyn(target)) body += "  __dynAssign(t, " + sn + ");\n";
         else for (const Member& f : tfs) body += "  if (__dynOwnEnum(" + sn + ", '" + f.name + "')) t." + f.name + " = __dynGet(" + sn + ", '" + f.name + "');\n";
@@ -5024,7 +5268,10 @@ struct Checker {
     collectAssigned(node, names);
     for (std::string_view nm : names) {
       std::uint32_t sy = lookup(nm);
-      if (sy != kNone && trackable(sy) && !out.syms[sy].isGlobal) { out.syms[sy].captured = true; out.syms[sy].reassigned = true; }
+      if (sy != kNone && trackable(sy)) {
+        out.handlerVars.insert(sy);
+        if (!out.syms[sy].isGlobal) { out.syms[sy].captured = true; out.syms[sy].reassigned = true; }
+      }
     }
   }
   bool exitsAbruptly(std::uint32_t st) const {
@@ -5044,7 +5291,9 @@ struct Checker {
     auto target = [&](auto&& self, std::uint32_t t) -> void {
       const Node& tn = n(t);
       if (tn.kind == N::Ident) names.push_back(tn.text);
-      else if (tn.kind == N::ArrayPattern) for (std::uint32_t k : tn.kids) self(self, k);
+      else if (tn.kind == N::ArrayPattern || tn.kind == N::Array || tn.kind == N::ObjectPattern || tn.kind == N::ObjectLit) for (std::uint32_t k : tn.kids) self(self, k);
+      else if (tn.kind == N::Spread || tn.kind == N::Assign) self(self, tn.kids[0]);
+      else if (tn.kind == N::Prop) self(self, tn.kids.back());
     };
     if (x.kind == N::Assign) target(target, x.kids[0]);
     else if (x.kind == N::UpdatePre || x.kind == N::UpdatePost) target(target, x.kids[0]);
@@ -5352,21 +5601,25 @@ struct Checker {
     auto hole = [&](std::uint32_t nd) { holes.push_back({nd}); return "__H" + std::to_string(holes.size() - 1); };
     std::string o = hole(obj);
     std::string k = key == kNone ? "'" + std::string(n(tg).text) + "'" : hole(key);
-    std::string v;
-    if (op.empty()) v = hole(valueNode);
-    else {
-      std::string o2 = hole(cloneNode(obj, false));
-      std::string k2 = key == kNone ? k : hole(cloneNode(key, false));
-      std::string cur = "__dynGet" + suffix + "(" + o2 + ", " + k2 + ")";
-      static const std::pair<const char*, const char*> kOps[] = {{"+", "__dynAdd"}, {"-", "__dynSub"}, {"*", "__dynMul"}, {"/", "__dynDiv"}, {"%", "__dynMod"}, {"**", "__dynPow"},
-                                                                {"&", "__dynBitAnd"}, {"|", "__dynBitOr"}, {"^", "__dynBitXor"}, {"<<", "__dynShl"}, {">>", "__dynShr"}, {">>>", "__dynUshr"}};
-      const char* fn = nullptr;
-      for (auto [b, f] : kOps) if (op == b) fn = f;
-      if (!fn) { diag(kZUnsupported, i, "operator '" + op + "=' on a Dyn property"); return true; }
-      v = std::string(fn) + "(" + cur + ", " + (valueNode == kNone ? "1" : hole(valueNode)) + ")";
+    if (valueNode == kNone) {
+      const auto fn = helper("dynUpdate", "function $F(object: Dyn, key: Dyn, delta: number, post: boolean): number {\n  const previous: number = __dynNumber(__dynGetD(object, key));\n  const next: number = previous + delta;\n  __dynSetD(object, key, next);\n  return post ? previous : next;\n}\n", {}, i);
+      return replaceWith(i, std::string(out.syms[fn].name) + "(" + o + ", " + k + ", " + (op == "-" ? "-1" : "1") + ", " + (n(i).kind == N::UpdatePost ? "true" : "false") + ")", holes);
+    }
+    if (op.empty()) {
+      const auto fn = helper("dynStore", "function $F(object: Dyn, key: Dyn, value: any): any { __dynSetD(object, key, value); return value; }\n", {}, i);
+      const std::string value = hole(valueNode);
+      return replaceWith(i, std::string(out.syms[fn].name) + "(" + o + ", " + k + ", " + value + ")", holes);
+    }
+    static const std::pair<const char*, const char*> operations[] = {{"+", "__dynAdd"}, {"-", "__dynSub"}, {"*", "__dynMul"}, {"/", "__dynDiv"}, {"%", "__dynMod"}, {"**", "__dynPow"},
+      {"&", "__dynBitAnd"}, {"|", "__dynBitOr"}, {"^", "__dynBitXor"}, {"<<", "__dynShl"}, {">>", "__dynShr"}, {">>>", "__dynUshr"}};
+    for (auto [operation, function] : operations) if (op == operation) {
+      const auto fn = helper("dynStore," + op, "function $F(object: Dyn, key: Dyn, right: () => any): any {\n  const previous: any = __dynGetD(object, key);\n  const value: any = " + std::string(function) + "(previous, right());\n  __dynSetD(object, key, value);\n  return value;\n}\n", {}, i);
+      const std::string value = hole(valueNode);
+      return replaceWith(i, std::string(out.syms[fn].name) + "(" + o + ", " + k + ", (): any => " + value + ")", holes);
     }
     (void)decrement;
-    return replaceWith(i, "__dynSet" + suffix + "(" + o + ", " + k + ", " + v + ")", holes);
+    diag(kZUnsupported, i, "operator '" + op + "=' on a Dyn property");
+    return true;
   }
 
   // `{ ...a, x: 1 }`: the spread becomes one property per field of `a` (read from the same expression), later entries replacing earlier ones.
@@ -5501,22 +5754,27 @@ struct Checker {
     bool computed = false;
     for (std::uint32_t p : x.kids) computed = computed || (n(p).kind == N::Prop && n(p).kids.size() > 1);
     if (!rawDyn() && isDyn(expected)) { bool simple = true; for (std::uint32_t p : x.kids) simple = simple && n(p).kind == N::Prop; computed = computed || simple; }  // an object literal where an any is expected is a dynamic object
-    if (computed) {  // { a: 1, [k]: v }: an object whose keys are known when it runs: a Dyn
-      std::vector<std::vector<std::uint32_t>> holes{{}, {}};
-      std::string keys = "[", vals = "[";
-      for (std::uint32_t p : std::vector<std::uint32_t>(x.kids)) {
-        if (n(p).kind != N::Prop) { diag(kZUnsupported, p, "spread next to a computed key"); return tError; }
-        std::uint32_t kn = n(p).kids.size() > 1 ? n(p).kids[1] : kNone;
-        std::string sep = holes[0].empty() ? "" : ", ";
-        if (kn == kNone) keys += sep + "'" + std::string(n(p).text) + "'";
-        else { keys += sep + "__H" + std::to_string(2 * holes[0].size()); }
-        holes[0].push_back(kn);
-        vals += sep + "__H" + std::to_string(2 * holes[0].size() - 1);
+    for (const auto property : x.kids) if (n(property).kind == N::Spread && isDyn(expr(n(property).kids[0]))) computed = true;
+    if (computed) {
+      std::vector<std::vector<std::uint32_t>> holes;
+      auto hole = [&](std::uint32_t node) { holes.push_back({node}); return "__H" + std::to_string(holes.size() - 1); };
+      auto quotedKey = [](std::string_view key) {
+        std::string text = "'";
+        for (const char ch : key) { if (ch == '\\' || ch == '\'') text += '\\'; if (ch == '\n') text += "\\n"; else if (ch == '\r') text += "\\r"; else text += ch; }
+        return text + "'";
+      };
+      std::string object = "__objectLiteral" + std::to_string(i);
+      while (mentionsIdent(i, object)) object += '_';
+      std::string text = "((): any => { const " + object + ": any = __dynObjOf([], []); ";
+      for (const auto property : std::vector<std::uint32_t>(x.kids)) {
+        const Node& prop = n(property);
+        if (prop.kind == N::Spread) { text += "Object.assign(" + object + ", " + hole(prop.kids[0]) + "); "; continue; }
+        if (prop.kind != N::Prop) { diag(kZUnsupported, property, "this entry in a computed object literal"); return tError; }
+        const std::string key = prop.kids.size() > 1 ? hole(prop.kids[1]) : quotedKey(prop.text);
+        const std::string value = hole(prop.kids[0]);
+        text += "__dynSetD(" + object + ", " + key + ", " + value + "); ";
       }
-      // holes numbering: even = key expressions (or unused), odd = values
-      std::vector<std::vector<std::uint32_t>> real;
-      for (std::size_t k = 0; k < holes[0].size(); ++k) { real.push_back({holes[0][k] == kNone ? n(x.kids[k]).kids[0] : holes[0][k]}); real.push_back({n(x.kids[k]).kids[0]}); }
-      if (replaceWith(i, "__dynObjOf(" + keys + "], " + vals + "])", real)) return expr0(i, expected);
+      if (replaceWith(i, text + "return " + object + "; })()", holes)) return expr0(i, expected);
       return tError;
     }
     for (std::uint32_t p : x.kids) if (n(p).kind == N::Spread) { expandSpreads(i); break; }
@@ -5653,8 +5911,15 @@ struct Checker {
 
   // zinc:worker (D181): a message type's schema on the record wire (include/zn/rec.h), or "" with `why` when it is not data.
   std::string recSchema(TypeId t, std::string& why, int depth = 0) const {
+    if (isSymbol(t)) { why = "symbol values cannot cross a worker boundary"; return ""; }
     if (depth > 16) { why = "'" + name(t) + "' nests too deep (a record that holds itself has no wire form)"; return ""; }
     const Type& x = ty(t);
+    if (x.k == TK::Object) {
+      const std::string& object = out.objs[x.obj].name;
+      if (object.rfind("__ArrayIterator<", 0) == 0 || object.rfind("__MapIterator<", 0) == 0 || object.rfind("__SetIterator<", 0) == 0 || object == "__StringIterator" || object.rfind("__ProtocolIterator<", 0) == 0) {
+        why = "built-in iterator values cannot cross a worker boundary"; return "";
+      }
+    }
     switch (x.k) {
       case TK::Num:
         switch (x.num) {
@@ -6869,7 +7134,7 @@ std::string typeName(const Checked& c, TypeId t) {
     case TK::Array: return typeName(c, x.elem) + "[]";
     case TK::Map: return "Map<" + typeName(c, x.params[0]) + ", " + typeName(c, x.elem) + ">";
     case TK::Set: return "Set<" + typeName(c, x.elem) + ">";
-    case TK::Object: return c.objs[x.obj].name;
+    case TK::Object: return c.objs[x.obj].name == "DynSymbol" ? "symbol" : c.objs[x.obj].name;
     case TK::Param: return c.tparams[x.obj].name;
     case TK::Union: { std::string u; for (std::size_t i = 0; i < x.params.size(); ++i) u += (i ? " | " : "") + typeName(c, x.params[i]); return u; }
     case TK::Func: {

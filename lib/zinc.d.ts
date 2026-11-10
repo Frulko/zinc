@@ -30,8 +30,17 @@ interface RegExp {
 interface RegExpConstructor { new (pattern: string, flags?: string): RegExp }
 declare var RegExp: RegExpConstructor;
 interface Boolean {}
-interface Symbol {}
-interface SymbolConstructor { readonly iterator: unique symbol; readonly dispose: unique symbol; }
+/** Internal implementation of the typed structured-clone boundary. */
+declare function __dynStructuredClone(value: unknown): unknown;
+interface Symbol { readonly description: string | undefined; toString(): string; }
+interface SymbolConstructor {
+  (description?: string | number): symbol;
+  for(key: string): symbol;
+  keyFor(symbol: symbol): string | undefined;
+  readonly iterator: unique symbol;
+  readonly asyncIterator: unique symbol;
+  readonly dispose: unique symbol;
+}
 declare var Symbol: SymbolConstructor;
 interface IteratorYieldResult<T> { done?: false; value: T; }
 interface IteratorReturnResult<T> { done: true; value: T; }
@@ -269,6 +278,7 @@ declare var JSON: JSON;
 interface ObjectConstructor {
   /** The keys of a JSON value (Dyn) in insertion order, integer-like keys first. */
   keys(o: any): string[];
+  getOwnPropertySymbols(o: any): symbol[];
 }
 declare var Object: ObjectConstructor;
 declare function queueMicrotask(f: () => void): void;

@@ -588,6 +588,7 @@ struct FnEmitter {
     std::vector<std::pair<std::uint32_t, std::uint32_t>> mvs;
     for (std::size_t a = 0; a < i.args.size(); ++a) mvs.push_back({base + static_cast<std::uint32_t>(a), reg[i.args[a]]});
     parallelMoves(mvs);
+    if (!i.edges.empty()) unwinds.push_back({static_cast<std::uint32_t>(zf.code.size()), i.edges[0].to});
     put(encAD(Op::Rt, base, static_cast<std::uint32_t>(id)));
     return true;
   }

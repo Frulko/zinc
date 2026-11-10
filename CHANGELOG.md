@@ -351,6 +351,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Typed arrays support `flatMap`, including empty and scalar results, one-level flattening, and callbacks that inspect or change the source array.
 - `new Set(items)` and `new Map(entries)` infer their types from iterable arguments, including generators and custom iterators, while keeping explicit type constraints.
 - `ReturnType<typeof createModel>` shares a function's inferred result with component props and other callers, preserving its fields and their types.
+- `Symbol()` creates unique primitive values and property keys, with `description`, `Symbol.for`, `Symbol.keyFor` and symbol-key reflection and copying.
+- Custom iterables work with `for...of`, spread, destructuring, collection construction and `Array.from`; built-in iterators stay live during collection changes and strings advance by Unicode code point.
 
 
 #### Changed

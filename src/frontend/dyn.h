@@ -12,7 +12,9 @@
 namespace zn::frontend {
 
 // The classes and helpers every program using `any`, `unknown`, `undefined` or JSON.parse gets.
-const char* dynPrelude();
+std::string dynPrelude(bool symbols = false);
+const char* iteratorPrelude();
+std::string iteratorDynPrelude(bool symbols);
 
 // Names of the generated converters of a type.
 std::string dynToName(TypeId t);    // __dynTo<t>(v: T): any

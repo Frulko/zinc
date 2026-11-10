@@ -37,7 +37,7 @@ TypeId typeOfObj(const Checked& c, std::uint32_t obj) { return c.typeOfObj(obj);
 
 bool dynamicJson(const Checked& c, TypeId t) {
   const Type& x = c.types[t];
-  if (x.k == TK::Any || (x.k == TK::Object && c.objs[x.obj].name == "Dyn")) return true;
+  if (x.k == TK::Any || (x.k == TK::Object && (c.objs[x.obj].name == "Dyn" || c.objs[x.obj].name == "DynSymbol"))) return true;
   return x.k == TK::Union && std::any_of(x.params.begin(), x.params.end(), [&](TypeId m) { return dynamicJson(c, m); });
 }
 
@@ -215,7 +215,7 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
     case TK::Any: body = "  return __dynJson(v);\n"; break;
     case TK::Map: case TK::Set: body = "  return '{}';\n"; break;
     case TK::Array:
-      body = "  const out: string[] = [];\n  for (let i: i32 = 0; i < v.length; i++) out.push(" + call(x.elem, "v[i]") + ");\n  return '[' + out.join(',') + ']';\n";
+      body = std::string("  const out: string[] = [];\n  for (let i: i32 = 0; i < v.length; i++) out.push(") + (dynamicJson(c, x.elem) ? "__dynJsonOmit(v[i]) ? 'null' : " : "") + call(x.elem, "v[i]") + ");\n  return '[' + out.join(',') + ']';\n";
       break;
     case TK::Union: {
       TypeId member = kNoType;
@@ -226,6 +226,7 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
     case TK::Object: {
       const ObjInfo& oi = c.objs[x.obj];
       if (oi.name == "Dyn") { body = "  return __dynJson(v);\n"; break; }
+      if (oi.name == "DynSymbol") { body = "  return 'null';\n"; break; }
       if (const Member* tj = lookupMember(c, x.obj, "toJSON", false); tj && tj->method && c.types[tj->type].params.empty()) {   // like JSON.stringify: toJSON() decides (a string, or null)
         const Type& rt = c.types[c.types[tj->type].elem];
         if (rt.k == TK::Str) { body = "  return __jsonQuote(v.toJSON());\n"; break; }
@@ -347,7 +348,7 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
     }
     case TK::Object: {
       const ObjInfo& oi = c.objs[x.obj];
-      if (oi.name == "Dyn") { body = "  return __fmtDyn(v, c, lvl);\n"; break; }
+      if (oi.name == "Dyn" || oi.name == "DynSymbol") { body = "  return __fmtDyn(v, c, lvl);\n"; break; }
       std::vector<const Member*> fs;
       fieldsOf(c, x.obj, fs);
       std::string cname = oi.name.substr(0, oi.name.find('<'));

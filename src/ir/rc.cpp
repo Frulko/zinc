@@ -100,6 +100,7 @@ struct Rc {
   }
 
   bool throws(const Inst& i) const {
+    if (i.op == IrOp::Rt && i.sym == static_cast<std::uint32_t>(zn::Rt::ArrSort)) return true;
     if (i.op == IrOp::Call) return mayThrow[i.sym];
     return i.op == IrOp::CallVirt && i.sym < slotThrows.size() && slotThrows[i.sym];
   }
@@ -389,7 +390,7 @@ Spread throwing(const Module& m) {
   std::vector<char> own(m.functions.size(), 0);
   for (std::size_t fi = 0; fi < m.functions.size(); ++fi)
     for (const Block& b : m.functions[fi].blocks)
-      for (const Inst& i : b.insts) if (i.op == IrOp::Throw) own[fi] = 1;
+      for (const Inst& i : b.insts) if (i.op == IrOp::Throw || (i.op == IrOp::Rt && i.sym == static_cast<std::uint32_t>(zn::Rt::ArrSort))) own[fi] = 1;
   return spread(m, std::move(own), false);
 }
 }  // namespace

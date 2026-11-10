@@ -4,6 +4,7 @@
   "map": [
     {"paths": ["plugins/three-pi/", "tests/data/three-pi/", "tests/t0/three_pi.sh", "tests/t0/three_pi_ktx2.sh"], "tests": ["three_pi", "three_pi_ktx2"]},
     {"paths": ["src/assets/cook.cpp", "src/assets/cook.h", "tests/t0/cook.sh", "tests/native/cook.cpp", "tests/data/cook/"], "tests": ["cook"]},
+    {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/dyn.cpp", "src/frontend/modules.cpp", "src/frontend/inspect.cpp", "src/ir/", "src/zbc/", "src/rt/rt.h", "src/rt/rtcalls.cpp", "src/rt/machine.cpp", "src/vm/vm.cpp", "src/aot/aot.cpp", "src/qjs/", "third_party/quickjs-ng/", "lib/zinc.d.ts", "lib/std/web.ts", "tests/data/symbols/", "tests/t0/symbols.sh"], "tests": ["symbols"]},
     {"paths": ["targets/wasm/", "tools/build-wasm", "src/assets/texture.cpp", "third_party/basis_universal/", "tests/wasm/loading.mjs", "tests/wasm/loading_export.sh", "tools/wasm-loading-test", "tests/data/wasm_loading/", "tests/t0/wasm_loading.sh"], "tests": ["wasm_loading"]},
     {"paths": ["src/frontend/check.cpp", "src/ir/", "src/zbc/emit.cpp", "src/rt/rt.h", "src/rt/rtcalls.cpp", "src/rt/machine.cpp", "src/vm/vm.cpp", "src/aot/aot.cpp", "tests/data/array_sharing/", "tests/t0/array_sharing.sh"], "tests": ["array_sharing"]},
     {"paths": ["plugins/webrtc/native/webrtc.host.cpp", "tests/data/webrtc_shutdown.ts", "tests/t0/webrtc_shutdown.sh"], "tests": ["webrtc_shutdown"]},

@@ -229,7 +229,7 @@ struct Verifier {
     for (const Handler& h : f.handlers) {
       if (h.at >= f.code.size() || !isStart[h.at]) return fail(h.at, "handler for something that is not an instruction");
       Op hop = static_cast<Op>(opOf(f.code[h.at]));
-      if (hop != Op::Call && hop != Op::CallVirt && hop != Op::Throw) return fail(h.at, "handler for an instruction that cannot throw");
+      if (hop != Op::Call && hop != Op::CallVirt && hop != Op::Throw && !(hop == Op::Rt && dOf(f.code[h.at]) == static_cast<unsigned>(Rt::ArrSort))) return fail(h.at, "handler for an instruction that cannot throw");
       if (hasHandler[h.at]) return fail(h.at, "two handlers for one instruction");
       hasHandler[h.at] = 1;
       if (h.target >= f.code.size() || !isStart[h.target]) return fail(h.at, "handler target is not the start of an instruction");

@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory() as tmp:
     stamp = f"zinc-qbc {version}\n".encode()
     assert valid.startswith(stamp), valid[:100]
     # QuickJS-ng's native bytecode header follows the Zinc build/git stamp.
-    assert valid[len(stamp)] == 28
+    assert valid[len(stamp)] == 29
     bundle.write_text("console.log('source fallback');")
     os.utime(bundle, (1000000000, 1000000000))
     os.utime(qbc, (1000000001, 1000000001))
@@ -69,7 +69,7 @@ with tempfile.TemporaryDirectory() as tmp:
     manifest = json.loads(files["manifest.json"])
     for name in ("main.js", "util.js", ".zinc/app.js", ".zinc/app.js.map", ".zinc/app.qbc"):
         assert hashlib.sha256(files[name]).hexdigest() == manifest["files"][name], name
-    assert files[".zinc/app.qbc"].startswith(stamp) and files[".zinc/app.qbc"][len(stamp)] == 28
+    assert files[".zinc/app.qbc"].startswith(stamp) and files[".zinc/app.qbc"][len(stamp)] == 29
 
     def packed_source():
         p = command("run", archive)

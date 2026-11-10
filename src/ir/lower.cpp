@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cmath>
 #include <map>
+#include <optional>
 #include <unordered_set>
 #include <cstdlib>
 #include <cstring>
@@ -11,6 +12,7 @@
 #include <unordered_map>
 
 #include "frontend/check.h"
+#include "frontend/dyn.h"
 #include "frontend/inspect.h"
 #include "ir/ir.h"
 #include "zn/native_sig.h"
@@ -1042,6 +1044,7 @@ struct Lowering {
       for (std::uint32_t inst : c.instances) walk(inst, 0, false);
     }
     for (std::uint32_t s = 0; s < c.syms.size(); ++s) {
+      if (topLevel[s] && c.handlerVars.count(s)) global[s] = 1;  // handlers cannot read an obsolete SSA copy
       if (m.hot && topLevel[s]) global[s] = 1;   // hot mode: a module's state outlives its init, and the swap keeps it by key
       if (!global[s]) continue;
       m.globals.push_back({std::string(c.syms[s].name), irType(c.syms[s].type)});
@@ -1226,7 +1229,7 @@ struct Lowering::FnLower {
     if (ty(t).k != Type::K::Void) i.res = newValue(t);
     f.blocks[cur].insts.push_back(std::move(i));
     ValueId res = f.blocks[cur].insts.back().res;
-    if ((op == IrOp::Call || op == IrOp::CallVirt) && !handlers.empty()) {  // the call may unwind: it ends its block so the handler sees the variables as they were
+    if ((op == IrOp::Call || op == IrOp::CallVirt || (op == IrOp::Rt && sym == static_cast<std::uint32_t>(zn::Rt::ArrSort))) && !handlers.empty()) {  // the call may unwind: it ends its block so the handler sees the variables as they were
       f.blocks[cur].insts.back().edges = {Edge{handlers.back(), {}}};
       preds[handlers.back()].push_back(cur);
       BlockId next = newBlock();
@@ -2081,6 +2084,12 @@ struct Lowering::FnLower {
       case N::Assign: {
         if (n(x.kids[0]).kind == N::ArrayPattern) {  // [a, b] = value: the value is evaluated before any target is written
           ValueId v = expr(x.kids[1]);
+          const auto& binding = c.types[c.nodeType[x.kids[0]]];
+          if (binding.k == frontend::TK::Object && c.objs[binding.obj].name.rfind("__ProtocolIterator<", 0) == 0 && isTupleObj(c.nodeType[x.kids[1]])) {
+            const auto record = emit(IrOp::GetField, L.irType(c.nodeType[x.kids[0]]), {v}, 0, 0, 1);
+            bindPattern(x.kids[0], record);
+            return emit(IrOp::GetField, natural(i), {v}, 0, 0, 0);
+          }
           bindPattern(x.kids[0], v);
           return v;
         }
@@ -2448,13 +2457,14 @@ struct Lowering::FnLower {
   // recv.member(args) on a string, array, Map or Set: one Rt call; an omitted trailing `j` argument is INT32_MAX.
   ValueId rtMemberCall(const Node& callee, const std::vector<std::uint32_t>& args, ValueId recv, const char* owner) {
     for (const RtInfo& r : kRtInfo) {
-      if ((r.flags & 2) || !rtOwnedBy(r, owner) || callee.text != rtMember(r)) continue;
+      if (((r.flags & 2) && !(r.id >= Rt::MapIterNext && r.id <= Rt::SetIterValue)) || !rtOwnedBy(r, owner) || callee.text != rtMember(r)) continue;
       TypeId rtyp = tv(recv);
       std::vector<ValueId> vs{recv};
       for (unsigned k = 1; k < rtParamCount(r); ++k) {
         char l = rtParam(r, k);
         if (k < args.size()) {
-          if (l == 'c') vs.push_back(coerce(expr(args[k]), L.irType(c.nodeType[args[k]])));  // the comparator keeps its own function type
+          if (l == 'x') vs.push_back(expr(args[k]));
+          else if (l == 'c') vs.push_back(coerce(expr(args[k]), L.irType(c.nodeType[args[k]])));  // the comparator keeps its own function type
           else vs.push_back(exprTo(args[k], rtIrType(l, rtyp)));
         } else if (l == 'w') vs.push_back(constStr(" "));
         else if (l == 'y') vs.push_back(constStr(","));
@@ -2758,10 +2768,102 @@ struct Lowering::FnLower {
     LVal lv = lvalue(node);
     store(lv, val);
   }
+  void bindIteratorPattern(std::uint32_t pat, ValueId iterator, bool isDecl) {
+    const auto object = c.types[c.nodeType[pat]].obj;
+    const auto* items = frontend::lookupMember(c, object, "value", false);
+    const auto element = c.types[items->type].elem;
+    const TypeId elementType = L.irType(element), i32 = m.numT(NumK::i32);
+    auto current = [&]() {
+      const auto array = emit(IrOp::GetField, L.irType(items->type), {iterator}, 0, 0, L.fieldIndex(object, "value"));
+      return emit(IrOp::ArrGet, elementType, {array, constNum(i32, 0)});
+    };
+    auto convert = [&](ValueId value, TypeId target) {
+      if (ty(target).k == Type::K::Ref && m.classes[ty(target).aux].name == "Dyn" && tv(value) != target) {
+        for (const auto& symbol : c.syms) if (symbol.kind == SymKind::Func && symbol.name == frontend::dynToName(element)) {
+          const auto function = L.funcOfNode.at(symbol.decl);
+          return emit(IrOp::Call, m.functions[function].ret, {value}, 0, 0, function);
+        }
+      }
+      return coerce(value, target);
+    };
+    auto absent = [&](TypeId target) {
+      if (ty(target).k == Type::K::Ref && m.classes[ty(target).aux].name == "Dyn") {
+        for (std::uint32_t symbol = 0; symbol < c.syms.size(); ++symbol) if (c.syms[symbol].name == "__undef") return coerce(readSym(symbol), target);
+      }
+      return nullConst(target);
+    };
+    invokeMethod(iterator, object, "begin", {});
+    const auto failure = newHandlerBlock();
+    {
+      struct Restore { std::vector<BlockId>& handlers; std::size_t size; ~Restore() { handlers.resize(size); } } restore{handlers, handlers.size()};
+      handlers.push_back(failure);
+      for (const auto entry : n(pat).kids) {
+        if (n(entry).kind == N::Empty) { invokeMethod(iterator, object, "skip", {}); continue; }
+        const bool rest = n(entry).kind == N::Spread, fallback = n(entry).kind == N::Assign;
+        const auto target = rest || fallback ? n(entry).kids[0] : entry;
+        std::optional<LVal> reference;
+        if (!isDecl && n(target).kind != N::ArrayPattern && n(target).kind != N::ObjectPattern) reference = lvalue(target);
+        const auto targetType = reference ? reference->type : L.irType(c.nodeType[target]);
+        auto assign = [&](ValueId value) { if (reference) store(*reference, value); else assignTarget(target, value, isDecl); };
+        if (rest) {
+          const auto array = emit(IrOp::ArrNew, targetType);
+          const auto test = newBlock(), body = newBlock(), done = newBlock();
+          br(test); cur = test;
+          condbr(invokeMethod(iterator, object, "step", {}), body, done);
+          sealed[body] = 1; cur = body;
+          emit(IrOp::ArrPush, i32, {array, convert(current(), ty(targetType).aux)});
+          br(test); seal(test); seal(done); cur = done;
+          assign(array);
+          continue;
+        }
+        const auto present = newBlock(), missing = newBlock(), join = newBlock();
+        const auto result = newValue(targetType); f.blocks[join].params.push_back(result);
+        condbr(invokeMethod(iterator, object, "step", {}), present, missing);
+        sealed[present] = 1; cur = present;
+        const auto item = current();
+        if (fallback) {
+          const auto& valueType = c.types[element];
+          if (valueType.k == frontend::TK::Union && valueType.undef) {
+            const auto defined = newBlock();
+            condbr(emit(IrOp::Eq, m.boolT(), {item, nullConst(tv(item))}), missing, defined);
+            sealed[defined] = 1; cur = defined;
+          }
+          const auto dynamic = [&](frontend::TypeId type) { return c.types[type].k == frontend::TK::Any || (c.types[type].k == frontend::TK::Object && c.objs[c.types[type].obj].name == "Dyn"); };
+          bool isDynamic = dynamic(element);
+          if (valueType.k == frontend::TK::Union) for (const auto member : valueType.params) isDynamic = isDynamic || dynamic(member);
+          if (isDynamic) for (const auto& symbol : c.syms) if (symbol.kind == SymKind::Func && symbol.name == "__dynIsUndef") {
+            const auto function = L.funcOfNode.at(symbol.decl), defined = newBlock();
+            const auto test = emit(IrOp::Call, m.boolT(), {coerce(item, m.functions[function].valueTypes[m.functions[function].params[0]])}, 0, 0, function);
+            condbr(test, missing, defined); sealed[defined] = 1; cur = defined; break;
+          }
+        }
+        br(join, {convert(item, targetType)});
+        seal(missing); cur = missing;
+        br(join, {fallback ? exprTo(n(entry).kids[1], targetType) : absent(targetType)});
+        seal(join); cur = join;
+        assign(result);
+      }
+    }
+    invokeMethod(iterator, object, "close", {});
+    const auto join = newBlock(); br(join);
+    cur = failure;
+    const auto original = f.blocks[failure].params[0];
+    const auto closeFailure = newHandlerBlock();
+    {
+      struct Restore { std::vector<BlockId>& handlers; std::size_t size; ~Restore() { handlers.resize(size); } } restore{handlers, handlers.size()};
+      handlers.push_back(closeFailure);
+      invokeMethod(iterator, object, "close", {});
+    }
+    rethrow(original);
+    cur = closeFailure; rethrow(original);
+    seal(join); cur = join;
+  }
+
   void bindPattern(std::uint32_t pat, ValueId v, bool isDecl = false) {
     const Node& p = n(pat);
     frontend::TypeId vt = c.nodeType[pat];
     const frontend::Type& ct = c.types[vt];
+    if (p.kind == N::ArrayPattern && ct.k == frontend::TK::Object && c.objs[ct.obj].name.rfind("__ProtocolIterator<", 0) == 0) { bindIteratorPattern(pat, v, isDecl); return; }
     if (p.kind == N::ArrayPattern) {
       bool tup = isTupleObj(vt);
       const TypeId i32 = m.numT(NumK::i32);
@@ -3026,6 +3128,8 @@ struct Lowering::FnLower {
       }
       case N::ForOf: {
         ValueId arr = expr(x.kids[1]);
+        const bool string = ty(tv(arr)).k == Type::K::Str;
+        std::uint32_t stepVar = nextVar++;
         std::uint32_t arrVar = nextVar++, idxVar = nextVar++;
         TypeId i32 = m.numT(NumK::i32);
         writeVar(arrVar, arr);
@@ -3034,18 +3138,28 @@ struct Lowering::FnLower {
         br(header);
         cur = header;
         ValueId idx = readVar(idxVar, cur), a1 = readVar(arrVar, cur);
-        ValueId len = emit(IrOp::ArrLen, i32, {a1});
+        ValueId len = emit(string ? IrOp::StrLen : IrOp::ArrLen, i32, {a1});
         condbr(emit(IrOp::Lt, m.boolT(), {idx, len}), body, exit);
         sealed[body] = 1;
         cur = body;
-        ValueId elem = emit(IrOp::ArrGet, ty(tv(arr)).aux, {readVar(arrVar, cur), readVar(idxVar, cur)});
+        ValueId elem;
+        if (string) {
+          const ValueId point = emit(IrOp::Rt, i32, {readVar(arrVar, cur), readVar(idxVar, cur)}, 0, 0, static_cast<std::uint32_t>(zn::Rt::StrCodePointAt));
+          const BlockId pair = newBlock(), unit = newBlock(), stepped = newBlock();
+          condbr(emit(IrOp::Gt, m.boolT(), {point, constNum(i32, 65535)}), pair, unit);
+          sealed[pair] = sealed[unit] = 1;
+          cur = pair; writeVar(stepVar, constNum(i32, 2)); br(stepped);
+          cur = unit; writeVar(stepVar, constNum(i32, 1)); br(stepped);
+          seal(stepped); cur = stepped;
+          elem = emit(IrOp::Rt, m.strT(), {point}, 0, 0, static_cast<std::uint32_t>(zn::Rt::FromCodePoint));
+        } else elem = emit(IrOp::ArrGet, ty(tv(arr)).aux, {readVar(arrVar, cur), readVar(idxVar, cur)});
         if (n(x.kids[0]).kids.size() > 2 && n(x.kids[0]).kids[2] != kNil) bindPattern(n(x.kids[0]).kids[2], elem, true);
         else declSym(c.nodeSym[x.kids[0]], elem);
         loopBody(x.kids[2], exit, update);
         br(update);
         seal(update);
         cur = update;
-        writeVar(idxVar, emit(IrOp::Add, i32, {readVar(idxVar, cur), constNum(i32, 1)}));
+        writeVar(idxVar, emit(IrOp::Add, i32, {readVar(idxVar, cur), string ? readVar(stepVar, cur) : constNum(i32, 1)}));
         br(header);
         seal(header);
         seal(exit);
@@ -3066,6 +3180,11 @@ struct Lowering::FnLower {
         std::vector<std::string_view> names{x.text};
         std::uint32_t b = x.kids[0];
         while (n(b).kind == N::Labeled) { names.push_back(n(b).text); b = n(b).kids[0]; }
+        if (const auto iterator = c.iteratorLoops.find(b); iterator != c.iteratorLoops.end()) {
+          loopLabels[loopBodyOf(n(iterator->second))] = names;
+          stmt(b);
+          break;
+        }
         if (std::uint32_t body = loopBodyOf(n(b)); body != kNil) {  // a labeled loop: its break and continue blocks are the label's
           loopLabels[body] = names;
           stmt(b);
@@ -3125,7 +3244,7 @@ struct Lowering::FnLower {
       std::vector<char> handlerBlock(f.blocks.size(), 0);
       for (Block& b : f.blocks) for (Inst& i : b.insts) {
         for (Edge& e : i.edges) incoming[e.to].push_back(&e);
-        if (i.op == IrOp::Call || i.op == IrOp::CallVirt) for (Edge& e : i.edges) handlerBlock[e.to] = 1;
+        if (i.op == IrOp::Call || i.op == IrOp::CallVirt || (i.op == IrOp::Rt && i.sym == static_cast<std::uint32_t>(zn::Rt::ArrSort))) for (Edge& e : i.edges) handlerBlock[e.to] = 1;
       }
       std::vector<std::vector<char>> drop(f.blocks.size());
       for (BlockId b = 1; b < f.blocks.size(); ++b) {

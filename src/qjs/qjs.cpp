@@ -1041,6 +1041,18 @@ bool compileBytecode(const std::string& js, const std::string& name, std::string
 
 namespace {
 
+// The typed web module also runs as JavaScript; its clone guard uses the native
+// serializer's scoped clone path, observing each getter once.
+JSValue cloneValue(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+  size_t size = 0;
+  auto* bytes = JS_WriteObject(ctx, &size, argc ? argv[0] : JS_UNDEFINED,
+                               JS_WRITE_OBJ_REFERENCE | JS_WRITE_OBJ_STRUCTURED_CLONE);
+  if (!bytes) return JS_EXCEPTION;
+  JSValue result = JS_ReadObject(ctx, bytes, size, JS_READ_OBJ_REFERENCE);
+  js_free(ctx, bytes);
+  return result;
+}
+
 // A context on e.rt with the host calls, zinc:worker's globals, the native modules (not in a worker), the prelude, the web shims and the defines.
 bool context(Engine& e, const std::string& mainDir) {
   deterministicZone();
@@ -1051,6 +1063,9 @@ bool context(Engine& e, const std::string& mainDir) {
   JS_SetModuleLoaderFunc(e.rt, normalizeName, loadModule, &e);
   installHost(e.ctx, e.worker());
   installWorker(e.ctx, mainDir);
+  JSValue globals = JS_GetGlobalObject(e.ctx);
+  JS_SetPropertyStr(e.ctx, globals, "__dynStructuredClone", JS_NewCFunction(e.ctx, cloneValue, "__dynStructuredClone", 1));
+  JS_FreeValue(e.ctx, globals);
   if (!e.worker()) {
     installNative(zn::qjs::napiEnv(e.ctx));
     zn::qjs::runContextHooks(zn::qjs::napiEnv(e.ctx));   // native classes of other modules (WebGL), ZN-203.03

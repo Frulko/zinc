@@ -440,7 +440,10 @@
   /* false when the compositor does not take it (the script plays it); graphics row, appended */ \
   X(HostGfxLayerSeries, "host.gfxLayerSeries", "iiDdd>i", 2) \
   /* zinc:gfx insetShadow (ZN-260): CSS box-shadow: inset, the shade inside a rounded box around its hole (moved by dx, dy, shrunk by spread); graphics row, appended */ \
-  X(HostGfxInsetShadow, "host.gfxInsetShadow", "dddddddddui>n", 2)
+  X(HostGfxInsetShadow, "host.gfxInsetShadow", "dddddddddui>n", 2) \
+  X(MapIterNext, "Map.__iteratorNext", "mx>i", 2) X(MapIterKey, "Map.__iteratorKey", "mi>k", 2) \
+  X(MapIterValue, "Map.__iteratorValue", "mi>v", 2) X(SetIterNext, "Set.__iteratorNext", "tx>i", 2) \
+  X(SetIterValue, "Set.__iteratorValue", "ti>e", 2)
 
 namespace zn {
 
@@ -491,7 +494,7 @@ inline constexpr bool flushesOutBefore(Rt r) {
   return r == Rt::HostEvReady || r == Rt::HostLoopWait || r == Rt::HostStdinRead || r == Rt::HostProcSpawn || r == Rt::HostProcSpawnEx || r == Rt::HostProcWrite;
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
-inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::ArrCopyWithin || r == Rt::ArrSet || r == Rt::ArrFillRange || r == Rt::RecDecode || r == Rt::RecEncode; }
+inline constexpr bool isCoreTailRow(Rt r) { return (r >= Rt::MapIterNext && r <= Rt::SetIterValue) || r == Rt::StrJsonQuote || r == Rt::ArrCopyWithin || r == Rt::ArrSet || r == Rt::ArrFillRange || r == Rt::RecDecode || r == Rt::RecEncode; }
 // zinc:worker's rows: declared as host functions (__host_worker*), served by the runtime's worker table (src/rt/worker.cpp).
 inline constexpr bool isWorkerRow(Rt r) { return r >= Rt::HostWorkerStart && r <= Rt::HostWorkerRead; }
 inline constexpr bool isHostRow(Rt r) { return ((r >= Rt::HostGfxFrames && r <= Rt::HostHostLast) || r >= Rt::HostLoopWait) && !isCoreTailRow(r); }
@@ -530,7 +533,7 @@ inline bool rtConsumes(Rt id, unsigned paramIndex) {
     default: return false;
   }
 }
-inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
+inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet || id == Rt::MapIterKey || id == Rt::MapIterValue || id == Rt::SetIterValue; }
 // Rows that may drop a reference the program holds or run its code (a comparator, a toString, the event loop): a value a load lends is
 // retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
 // graphics host (numbers, borrowed strings and arrays, no callbacks).
@@ -539,7 +542,8 @@ inline bool rtMayRelease(Rt id) {
   if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
   switch (id) {
     case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:
-    case Rt::SetHas: case Rt::SetValues: case Rt::SetSize: return false;
+    case Rt::SetHas: case Rt::SetValues: case Rt::SetSize:
+    case Rt::MapIterNext: case Rt::MapIterKey: case Rt::MapIterValue: case Rt::SetIterNext: case Rt::SetIterValue: return false;
     default: return true;
   }
 }

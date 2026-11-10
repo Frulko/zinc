@@ -1,0 +1,9 @@
+symbols: pass
+custom iteration: pass
+builtin iteration: pass
+iterator consumers: pass
+protocol ordering: pass
+{ Symbol(visible): 1 }
+symbol spread: pass
+symbol boundaries: pass
+destructuring and lifetime: pass

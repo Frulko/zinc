@@ -69,7 +69,7 @@ bool readText(const std::string& path, std::string& out) {
 // function (a browser's DataCloneError)
 JSValue js_structuredClone(JSContext* c, JSValueConst, int argc, JSValueConst* argv) {
   size_t n = 0;
-  uint8_t* buf = JS_WriteObject(c, &n, argc > 0 ? argv[0] : JS_UNDEFINED, JS_WRITE_OBJ_REFERENCE);
+  uint8_t* buf = JS_WriteObject(c, &n, argc > 0 ? argv[0] : JS_UNDEFINED, JS_WRITE_OBJ_REFERENCE | JS_WRITE_OBJ_STRUCTURED_CLONE);
   if (!buf) return JS_EXCEPTION;
   JSValue v = JS_ReadObject(c, buf, n, JS_READ_OBJ_REFERENCE);
   js_free(c, buf);

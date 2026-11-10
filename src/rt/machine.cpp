@@ -145,7 +145,7 @@ std::size_t Machine::payloadBytes(const Obj* o) const {
     case zbc::CKind::Array: return static_cast<const ArrObj*>(o)->v.capacity() * sizeof(Slot);
     case zbc::CKind::Map: case zbc::CKind::Set: {
       const Table& t = static_cast<const MapObj*>(o)->t;
-      return (t.keys.capacity() + t.vals.capacity()) * sizeof(Slot) + t.dead.capacity() + t.index.capacity() * sizeof(std::int32_t);
+      return t.bytes();
     }
     default: return 0;
   }
@@ -450,7 +450,8 @@ bool Machine::callComparator(const Func* cmp, Obj* fn, Slot a, Slot b, bool refs
   scratch[0] = reinterpret_cast<Slot>(fn);
   scratch[1] = a;
   scratch[2] = b;
-  if (!exec(cmp, scratch)) return false;
+  // Native callbacks propagate their exception object to the enclosing runtime call.
+  if (cmp->native ? cmp->native(*this, scratch) != 0 : !exec(cmp, scratch)) return false;
   result = ops::asD(scratch[0]);
   return true;
 }

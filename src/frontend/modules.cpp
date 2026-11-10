@@ -4125,14 +4125,26 @@ bool needsArena(const Ast& A) {
 }
 
 // Dyn: `any`, `unknown`, `undefined` and JSON.parse bring the classes and helpers of dyn.cpp (with the console.log and JSON helpers they use).
+bool needsIterators(const Ast& A) {
+  for (const Node& x : A.nodes) if (x.kind == N::ForOf || x.kind == N::Spread || x.kind == N::ArrayPattern) return true;
+  return false;
+}
+bool needsSymbols(const Ast& A) {
+  for (const Node& x : A.nodes)
+    if ((x.kind == N::Member && x.text == "getOwnPropertySymbols" && !x.kids.empty() && A.nodes[x.kids[0]].kind == N::Ident && A.nodes[x.kids[0]].text == "Object") || (x.kind == N::Ident && x.text == "Symbol") || (x.kind == N::TypeRef && x.text == "symbol") || (x.kind == N::Method && x.text == "[Symbol.iterator]")) return true;
+  return false;
+}
 bool needsJson(const Ast& A) {
+  const bool pattern = std::any_of(A.nodes.begin(), A.nodes.end(), [](const Node& x) { return x.kind == N::ArrayPattern; });
   for (const Node& x : A.nodes) {
+    if (pattern && x.kind == N::TypeUnion) return true;
+    if (x.kind == N::Prop && x.kids.size() > 1) return true;
     if (x.kind == N::TypeRef && x.text == "ReturnType") return true;   // a generic return can infer unknown without an explicit unknown annotation
     if (x.kind == N::Member && x.text == "flatMap") return true;   // generated callback-result array/scalar inspection uses Dyn, even when its union is inferred
     if ((x.kind == N::TypeRef && (x.text == "any" || x.text == "unknown")) || (x.kind == N::Ident && (x.text == "undefined" || x.text == "__recDec" || x.text == "__recEnc"))) return true;   // __rec*: native records (ZN-850)
     if (x.kind == N::Member && x.text == "parse" && A.nodes[x.kids[0]].kind == N::Ident && A.nodes[x.kids[0]].text == "JSON") return true;
     if (x.kind == N::TypeUnion) {   // `boolean | Cam`, `string | number`: a union of a primitive and another type is held as a Dyn (Checker::dynBacked)
-      static const std::set<std::string_view> prim = {"boolean", "number", "string", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64"};
+      static const std::set<std::string_view> prim = {"boolean", "number", "string", "symbol", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "f32", "f64"};
       std::size_t members = 0;
       bool scalar = false;
       for (std::uint32_t k : x.kids) {
@@ -4255,7 +4267,9 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
       x.text = nm == "count" ? "__consoleCount" : nm == "countReset" ? "__consoleCountReset" : nm == "assert" ? "__consoleAssert" : nm == "time" ? "__consoleTime" : nm == "timeEnd" ? "__consoleTimeEnd" : "__consoleTimeLog";  // literals: the text is a view
     }
   bool async = p.diags.empty() && (usesGfx || consoleT || needsAsync(p.ast));
-  bool json = p.diags.empty() && needsJson(p.ast);
+  bool symbols = p.diags.empty() && needsSymbols(p.ast);
+  bool iterators = p.diags.empty() && (symbols || needsIterators(p.ast) || needsArrayFrom(p.ast));
+  bool json = p.diags.empty() && (symbols || needsJson(p.ast));
   bool arena = p.diags.empty() && needsArena(p.ast);
   bool random = p.diags.empty() && needsRandom(p.ast);
   bool arrayFrom = p.diags.empty() && needsArrayFrom(p.ast);
@@ -4267,9 +4281,9 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
     p.diags.erase(std::remove_if(p.diags.begin() + static_cast<std::ptrdiff_t>(before), p.diags.end(), [&](const Diag& d) { return d.file < p.files.size() && p.files[d.file].typesOnly; }), p.diags.end());
   }
   if (!p.diags.empty()) return p;
-  if (p.diags.empty() && (async || json || arena || random || arrayFrom || regexp || consoleX || needsErrors(p.ast) || needsTdz(p.ast))) {
+  if (p.diags.empty() && (async || json || iterators || arena || random || arrayFrom || regexp || consoleX || needsErrors(p.ast) || needsTdz(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
-    std::string preludeText = std::string(kErrorPrelude) + (needsTdz(p.ast) ? kTdzPrelude : "") + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude() : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (regexp ? kRegExpPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "");
+    std::string preludeText = std::string(kErrorPrelude) + (iterators ? iteratorPrelude() : "") + (needsTdz(p.ast) ? kTdzPrelude : "") + (async ? kAsyncPrelude : "") + (json ? std::string(inspectPrelude()) + jsonPrelude() + dynPrelude(symbols) + (iterators ? iteratorDynPrelude(symbols) : "") : std::string()) + (arena ? kArenaPrelude : "") + (random ? kRandomPrelude : "") + (arrayFrom ? kArrayFromPrelude : "") + (regexp ? kRegExpPrelude : "") + (consoleX ? kConsolePrelude : "") + (consoleT ? kConsoleTimePrelude : "");
     if (const char* dump = std::getenv("ZN_DUMP_PRELUDE")) { if (FILE* df = std::fopen(dump, "w")) { std::fputs(preludeText.c_str(), df); std::fclose(df); } }   // the text that diagnostics of <prelude> point into
     p.files.push_back({"<prelude>", preludeText, {}, {}});
     ParseResult pr = parseKept(p.files[fi].text);

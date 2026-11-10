@@ -75,6 +75,7 @@ bool Machine::execT(const Func* entry, Slot* base) {
   const std::uint32_t* pc = code;
   Slot* r = base;
   std::uint32_t w;
+  Slot exception = 0;
 
 #define NEXT() do { w = *pc++; goto *labels[w & 0xFFu]; } while (0)
 #define A aOf(w)
@@ -140,9 +141,13 @@ L_RetV: {
   NEXT();
 }
 L_Throw: {  // unwind to the nearest handler that takes the object, through the callers if need be
-  Slot exc = r[A];
-  if (!exc) TRAP("null reference");
-  if constexpr (kDebug) { if (throwHook && !throwHook(*this, fn, pc - 1, r, exc)) TRAP("stopped by the debugger"); }   // pause on exceptions
+  exception = r[A];
+  if (!exception) TRAP("null reference");
+  if constexpr (kDebug) { if (throwHook && !throwHook(*this, fn, pc - 1, r, exception)) TRAP("stopped by the debugger"); }   // pause on exceptions
+  goto L_Unwind;
+}
+L_Unwind: {
+  const Slot exc = exception;
   const std::uint32_t* at = pc - 1;  // the throwing instruction
   for (;;) {
     auto idx = static_cast<std::uint32_t>(at - code);
@@ -151,7 +156,11 @@ L_Throw: {  // unwind to the nearest handler that takes the object, through the 
       if (fn->handlers[k].at == idx && isSubclassRT(reinterpret_cast<Obj*>(exc)->cls, fn->handlers[k].cls)) { hit = &fn->handlers[k]; break; }
     if (hit) { r[hit->reg] = exc; pc = code + hit->target; NEXT(); }
     const Frame f = *--fp;
-    if (!f.ret) { error = "panic: Uncaught " + exceptionText(reinterpret_cast<Obj*>(exc)); return false; }
+    if (!f.ret) {
+      if (fp != frames.get()) thrown = reinterpret_cast<Obj*>(exc);  // a callback returns its exception to the enclosing runtime call
+      else error = "panic: Uncaught " + exceptionText(reinterpret_cast<Obj*>(exc));
+      return false;
+    }
     r = f.base; fn = f.fn; if constexpr (kTrack) curFn = fn;
   code = fn->code; at = f.ret - 1;
   }
@@ -185,6 +194,7 @@ L_ArrLen: { if (const char* e = op::arrLen(r, A, B)) TRAP(e); NEXT(); }
 L_ArrPush: { if (const char* e = op::arrPush(*this, r, A, B, C)) TRAP(e); NEXT(); }
 L_Rt: {
   const char* e = rtCall(*this, static_cast<Rt>(dOf(w)), r + A, r + fn->nregs);
+  if (__builtin_expect(thrown != nullptr, 0)) { exception = reinterpret_cast<Slot>(thrown); thrown = nullptr; goto L_Unwind; }
   if (__builtin_expect(e != nullptr, 0)) { if (e != error.c_str()) error = e; if (__builtin_expect(trapTrace, 0)) error += " (in @" + mod->functions[static_cast<std::size_t>(fn - funcs.data())].name + " at word " + std::to_string(pc - code - 1) + ", runtime call " + zn::rtInfo(static_cast<Rt>(dOf(w))).name + ")"; return false; }
   NEXT();
 }

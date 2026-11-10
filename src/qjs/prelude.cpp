@@ -46,7 +46,7 @@ const char* kPrelude = R"JS(
     }
     return r + q;
   }
-  function key(k) { return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k) ? k : quote(k); }
+  function key(k) { return typeof k === 'symbol' ? String(k) : /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k) ? k : quote(k); }
   // util.inspect as Node prints it with the defaults (depth 2, breakLength 80, compact 3), including the grouping of long arrays
   const ctx = { seen: [], indent: 0, curDepth: 0 };
   function groupArray(output, value) {
@@ -114,6 +114,7 @@ const char* kPrelude = R"JS(
     else if (ctor && ctor !== 'Object') prefix = ctor + ' ';
     else if (!v.constructor) prefix = '[Object: null prototype] ';
     const keys = Object.keys(v).filter(k => !(isArr && /^\d+$/.test(k)));
+    if (Object.getOwnPropertySymbols) for (const symbol of Object.getOwnPropertySymbols(v)) if (Object.prototype.propertyIsEnumerable.call(v, symbol)) keys.push(symbol);
     if (recurse > 2) return isArr ? '[Array]' : '[' + (ctor || 'Object') + ']';
     if (keys.length === 0 && (isArr ? v.length === 0 : isMap ? v.size === 0 : isSet ? v.size === 0 : true)) return prefix + open + close;
     ctx.seen.push(v);

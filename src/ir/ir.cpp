@@ -231,7 +231,7 @@ std::string instText(const Module& m, const Function& f, const Inst& i) {
     for (std::size_t k = 0; k < i.args.size(); ++k) s += (k ? ", " : "") + v(i.args[k]);
     if (call) s += ")";
   } else if (i.op == IrOp::Call || i.op == IrOp::CallVirt || i.op == IrOp::Builtin) s += "()";
-  if ((i.op == IrOp::Call || i.op == IrOp::CallVirt) && !i.edges.empty()) s += " unwind " + edgeText(i.edges[0]);
+  if ((i.op == IrOp::Call || i.op == IrOp::CallVirt || (i.op == IrOp::Rt && i.sym == static_cast<std::uint32_t>(zn::Rt::ArrSort))) && !i.edges.empty()) s += " unwind " + edgeText(i.edges[0]);
   return s;
 }
 
@@ -320,7 +320,7 @@ struct Verifier {
       const auto& insts = f.blocks[b].insts;
       if (insts.empty()) return;
       for (const Edge& e : insts.back().edges) if (e.to < n) out.push_back(e.to);
-      for (const Inst& i : insts) if (i.op == IrOp::Call || i.op == IrOp::CallVirt) for (const Edge& e : i.edges) if (e.to < n) out.push_back(e.to);
+      for (const Inst& i : insts) if (i.op == IrOp::Call || i.op == IrOp::CallVirt || (i.op == IrOp::Rt && i.sym == static_cast<std::uint32_t>(zn::Rt::ArrSort))) for (const Edge& e : i.edges) if (e.to < n) out.push_back(e.to);
     };
     std::vector<int> post(n, -1);                 // postorder number of the reachable blocks
     std::vector<BlockId> order;                   // postorder
@@ -583,7 +583,7 @@ struct Verifier {
       case IrOp::Throw: if (!arity(1)) return false; break;
       case IrOp::Unreachable: if (!arity(0)) return false; break;
     }
-    if ((i.op == IrOp::Call || i.op == IrOp::CallVirt) && !i.edges.empty()) {
+    if ((i.op == IrOp::Call || i.op == IrOp::CallVirt || (i.op == IrOp::Rt && i.sym == static_cast<std::uint32_t>(zn::Rt::ArrSort))) && !i.edges.empty()) {
       if (!i.edges[0].args.empty()) return fail(b, ii, "an unwind edge carries no arguments");
       if (i.edges[0].to >= f.blocks.size() || i.edges[0].to == 0) return fail(b, ii, "unwind edge to a missing block");
       const auto& hp = f.blocks[i.edges[0].to].params;

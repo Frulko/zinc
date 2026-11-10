@@ -1,5 +1,6 @@
 #include "frontend/dyn.h"
 
+#include <algorithm>
 #include <functional>
 #include <set>
 
@@ -35,6 +36,12 @@ bool convertibleRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
   const Type& x = c.types[t];
   switch (x.k) {
     case TK::Num: case TK::Bool: case TK::Str: case TK::Any: return true;
+    case TK::Func:
+      if (seen.count(t)) return true;
+      seen.insert(t);
+      if (c.types[x.elem].k != TK::Void && !convertibleRec(c, x.elem, seen)) return false;
+      for (TypeId p : x.params) if (!convertibleRec(c, p, seen)) return false;
+      return !x.rest && !x.variadic;
     case TK::Array: return seen.count(t) || (seen.insert(t), convertibleRec(c, x.elem, seen));
     case TK::Union: {
       std::size_t members = 0;
@@ -86,6 +93,26 @@ std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, st
     case TK::Num: body = to ? "  return new DynNum(v);\n" : "  return __dynToNum(d);\n"; break;
     case TK::Bool: body = to ? "  return new DynBool(v);\n" : "  return __dynToBool(d);\n"; break;
     case TK::Str: body = to ? "  return new DynStr(v);\n" : "  return __dynToStr(d);\n"; break;
+    case TK::Func: {
+      std::string args, params, boxed;
+      for (std::size_t k = 0; k < x.params.size(); ++k) {
+        const auto parameter = x.params[k];
+        args += (k ? ", " : "") + fromExpr(parameter, "__dynArg(a, " + std::to_string(k) + ")");
+        params += (k ? ", " : "") + std::string("p") + std::to_string(k) + ": " + (isDynT(parameter) ? "any" : inspectAliasName(parameter));
+        if (!isDynT(parameter)) deps.push_back({parameter, true});
+        boxed += (k ? ", " : "") + toExpr(parameter, "p" + std::to_string(k));
+      }
+      if (to) {
+        const std::string call = "v(" + args + ")";
+        body = "  return new DynFn(__fnName(__classname(v)), __identity(v), (self: unknown, a: unknown[]): unknown => { " +
+          (c.types[x.elem].k == TK::Void ? call + "; return __undef;" : "return " + toExpr(x.elem, call) + ";") + " });\n";
+      } else {
+        const std::string call = "__dynCall(d, [" + boxed + "], 'value')";
+        body = "  if (!(d instanceof DynFn)) throw new TypeError('value is not callable');\n  return (" + params + "): " + (c.types[x.elem].k == TK::Void ? "void" : isDynT(x.elem) ? "any" : inspectAliasName(x.elem)) + " => { " +
+          (c.types[x.elem].k == TK::Void ? call + ";" : "return " + fromExpr(x.elem, call) + ";") + " };\n";
+      }
+      break;
+    }
     case TK::Array:
       // any[] and a Dyn array share one array, as in JavaScript: a push through either is seen by the other (a copy would break aliasing)
       if (c.types[x.elem].k == TK::Any) body = to ? "  return new DynArr(v);\n" : "  if (d instanceof DynArr) return d.items;\n  throw new TypeError('cannot convert Dyn (' + __dynTypeName(d) + ') to array');\n";
@@ -177,9 +204,29 @@ std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, st
           body = "  const sub: any = " + dynSubName(t) + "(v);\n  if (sub.kind() !== 0) return sub;\n";
           extra = "function " + dynSubName(t) + "(v: " + A + "): any {\n  return __undef;\n}\n";
         }
-        body += "  const o: " + A + " = v;\n  return new DynRefT<" + A + ">(o, " + tagList + ", '" + cname + "', " + get + ", " + set + ", " + has + ",\n    " +
+        const Member* iterator = lookupMember(c, x.obj, "[Symbol.iterator]", false);
+        const bool symbolPrelude = std::any_of(c.objs.begin(), c.objs.end(), [](const ObjInfo& info) { return info.name == "DynSymbol"; });
+        const bool iterable = symbolPrelude && iterator && iterator->method && c.types[iterator->type].k == TK::Func;
+        std::string clone;
+        if (symbolPrelude) {
+          clone = ", (): string => { ";
+          if (cname == "__ArrayIterator" || cname == "__StringIterator" || cname == "__MapIterator" || cname == "__SetIterator" || cname == "__ProtocolIterator")
+            clone += "const error = new Error('Iterator cannot be cloned'); error.name = 'DataCloneError'; throw error; ";
+          else {
+            clone += "const out: string[] = []; ";
+            std::size_t field = 0;
+            for (const Member* member : fs) if (member->access == 0 && c.types[member->type].k != TK::Func && isIdentName(member->name) && dynConvertible(c, member->type)) {
+              const auto value = "v" + std::to_string(field++);
+              clone += "const " + value + ": Dyn = " + toExpr(member->type, "o." + member->name) + "; const e" + value + " = __dynCloneJson(" + value + "); if (!__dynJsonOmit(" + value + ")) out.push(__jsonQuote('" + member->name + "') + ':' + e" + value + "); ";
+            }
+            clone += "return '{' + out.join(',') + '}'; ";
+          }
+          clone += "}";
+        }
+        const std::string iter = iterable ? ", (): any => " + toExpr(c.types[iterator->type].elem, "o[Symbol.iterator]()") : "";
+        body += "  const o: " + A + " = v;\n  return " + std::string(iterable ? "new DynIterableRefT<" : symbolPrelude ? "new DynCloneRefT<" : "new DynRefT<") + A + ">(o, " + tagList + ", '" + cname + "', " + get + ", " + set + ", " + has + ",\n    " +
                (fmtOk ? "(c: i64[], lvl: i32): string => " + inspectFmtName(t) + "(o, c, lvl)" : "(c: i64[], lvl: i32): string => '[Object]'") + ",\n    " +
-               (jsonOk ? "(): string => " + jsonName(t) + "(o)" : "(): string => '{}'") + ");\n";
+               (jsonOk ? "(): string => " + jsonName(t) + "(o)" : "(): string => '{}'") + clone + iter + ");\n";
       } else {
         body = "  if (d instanceof DynRef && d.exact(" + std::to_string(t) + ")) return (d as DynRefT<" + A + ">).o;\n";
         if (oi.isClass && !oi.isTemplate && !(oi.isRecord && fs.empty())) {   // the view of an instance of a subclass (or of a class shared as the record) is that object; a later module may declare its class
@@ -204,8 +251,155 @@ std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, st
   return head + body + "}\n" + extra;
 }
 
-const char* dynPrelude() {
+const char* iteratorPrelude() {
   return R"ZN(
+enum __IteratorPhase { Ready, Body, Closed }
+class __ProtocolIterator<T, R> {
+  state: __IteratorPhase = __IteratorPhase.Ready;
+  value: T[] = [];
+  constructor(public pull: () => R, public done: (r: R) => boolean, public read: (r: R) => T, public finish: () => void) {}
+  transition(next: __IteratorPhase): void {
+    if (this.state === __IteratorPhase.Closed && next !== __IteratorPhase.Closed) throw new TypeError('Iterator is closed');
+    this.state = next;
+    if (next === __IteratorPhase.Closed) this.value = [];
+  }
+  advance(readValue: boolean): boolean {
+    if (this.state === __IteratorPhase.Closed) return false;
+    this.transition(__IteratorPhase.Ready);
+    const result: R = this.pull();
+    if (this.done(result)) { this.transition(__IteratorPhase.Closed); return false; }
+    if (readValue) this.value = [this.read(result)];
+    this.transition(__IteratorPhase.Body);
+    return true;
+  }
+  step(): boolean { return this.advance(true); }
+  skip(): boolean { return this.advance(false); }
+  begin(): void { this.transition(__IteratorPhase.Body); }
+  close(): void {
+    const previous: __IteratorPhase = this.state;
+    this.transition(__IteratorPhase.Closed);
+    if (previous === __IteratorPhase.Body) this.finish();
+  }
+}
+class __SequenceResult<T> {
+  constructor(public done: boolean, public value: T | undefined = null) {}
+}
+class __ArrayIterator<T> {
+  private index: i32 = 0;
+  private state: __IteratorPhase = __IteratorPhase.Ready;
+  private items: T[] | null = null;
+  constructor(items: T[]) { this.items = items; }
+  private transition(next: __IteratorPhase): void {
+    if (this.state === __IteratorPhase.Closed && next !== __IteratorPhase.Closed) throw new TypeError('Iterator is closed');
+    this.state = next;
+    if (next === __IteratorPhase.Closed) this.items = null;
+  }
+  next(): __SequenceResult<T> {
+    if (this.state === __IteratorPhase.Closed) return new __SequenceResult<T>(true);
+    const backing = this.items;
+    if (backing === null) throw new TypeError('Iterator backing is unavailable');
+    if (this.index >= backing.length) { this.transition(__IteratorPhase.Closed); return new __SequenceResult<T>(true); }
+    const value: T = backing[this.index++];
+    return new __SequenceResult<T>(false, value);
+  }
+  [Symbol.iterator](): __ArrayIterator<T> { return this; }
+}
+class __MapIterator<K, V> {
+  private cursor: u32[] = [0, 0];
+  private state: __IteratorPhase = __IteratorPhase.Ready;
+  private collection: Map<K, V> | null = null;
+  constructor(collection: Map<K, V>) { this.collection = collection; }
+  private transition(next: __IteratorPhase): void {
+    if (this.state === __IteratorPhase.Closed && next !== __IteratorPhase.Closed) throw new TypeError('Iterator is closed');
+    this.state = next;
+    if (next === __IteratorPhase.Closed) this.collection = null;
+  }
+  next(): __SequenceResult<[K, V]> {
+    if (this.state === __IteratorPhase.Closed) return new __SequenceResult<[K, V]>(true);
+    const backing = this.collection;
+    if (backing === null) throw new TypeError('Iterator backing is unavailable');
+    const index: i32 = backing.__iteratorNext(this.cursor);
+    if (index < 0) { this.transition(__IteratorPhase.Closed); return new __SequenceResult<[K, V]>(true); }
+    const pair: [K, V] = [backing.__iteratorKey(index), backing.__iteratorValue(index)];
+    return new __SequenceResult<[K, V]>(false, pair);
+  }
+  [Symbol.iterator](): __MapIterator<K, V> { return this; }
+}
+class __SetIterator<T> {
+  private cursor: u32[] = [0, 0];
+  private state: __IteratorPhase = __IteratorPhase.Ready;
+  private collection: Set<T> | null = null;
+  constructor(collection: Set<T>) { this.collection = collection; }
+  private transition(next: __IteratorPhase): void {
+    if (this.state === __IteratorPhase.Closed && next !== __IteratorPhase.Closed) throw new TypeError('Iterator is closed');
+    this.state = next;
+    if (next === __IteratorPhase.Closed) this.collection = null;
+  }
+  next(): __SequenceResult<T> {
+    if (this.state === __IteratorPhase.Closed) return new __SequenceResult<T>(true);
+    const backing = this.collection;
+    if (backing === null) throw new TypeError('Iterator backing is unavailable');
+    const index: i32 = backing.__iteratorNext(this.cursor);
+    if (index < 0) { this.transition(__IteratorPhase.Closed); return new __SequenceResult<T>(true); }
+    return new __SequenceResult<T>(false, backing.__iteratorValue(index));
+  }
+  [Symbol.iterator](): __SetIterator<T> { return this; }
+}
+class __StringIterator {
+  private index: i32 = 0;
+  private state: __IteratorPhase = __IteratorPhase.Ready;
+  private text: string | null = null;
+  constructor(text: string) { this.text = text; }
+  private transition(next: __IteratorPhase): void {
+    if (this.state === __IteratorPhase.Closed && next !== __IteratorPhase.Closed) throw new TypeError('Iterator is closed');
+    this.state = next;
+    if (next === __IteratorPhase.Closed) this.text = null;
+  }
+  next(): __SequenceResult<string> {
+    if (this.state === __IteratorPhase.Closed) return new __SequenceResult<string>(true);
+    const backing = this.text;
+    if (backing === null) throw new TypeError('Iterator backing is unavailable');
+    if (this.index >= backing.length) { this.transition(__IteratorPhase.Closed); return new __SequenceResult<string>(true); }
+    const point: i32 = backing.codePointAt(this.index);
+    this.index += point > 65535 ? 2 : 1;
+    const value: string = String.fromCodePoint(point);
+    return new __SequenceResult<string>(false, value);
+  }
+  [Symbol.iterator](): __StringIterator { return this; }
+}
+)ZN";
+}
+
+std::string iteratorDynPrelude(bool symbols) {
+  return std::string(R"ZN(function __dynIteratorDone(r: Dyn): boolean {
+  if (r.kind() < 5 || r.kind() === 9) throw new TypeError('Iterator result is not an object');
+  return __dynTruthy(__dynGet(r, 'done'));
+}
+function __dynIteratorClose(it: Dyn): void {
+  const method: Dyn = __dynGet(it, 'return');
+  if (method.kind() <= 1) return;
+  if (!(method instanceof DynFn)) throw new TypeError('Iterator return is not callable');
+  const result: Dyn = method.f(it, []);
+  if (result.kind() < 5 || result.kind() === 9) throw new TypeError('Iterator return result is not an object');
+}
+function __dynAcquireIterator(src: Dyn): __ProtocolIterator<Dyn, Dyn> {
+)ZN") + (symbols ? R"ZN(  const method: Dyn = __dynGetD(src, __symbolIterator());
+  if (!(method instanceof DynFn)) throw new TypeError('Value is not iterable');
+  const it: Dyn = method.f(src, []);
+  if (!__dynObject(it)) throw new TypeError('Iterator is not an object');
+)ZN" : R"ZN(  let it: Dyn = __undef;
+  if (src instanceof DynArr) it = new __ArrayIterator<any>(src.items);
+  else if (src instanceof DynStr) it = new __StringIterator(src.v);
+  else throw new TypeError('Value is not iterable');
+)ZN") + R"ZN(  const next: Dyn = __dynGet(it, 'next');
+  if (!(next instanceof DynFn)) throw new TypeError('Iterator next is not callable');
+  return new __ProtocolIterator<Dyn, Dyn>(() => next.f(it, []), __dynIteratorDone, (r: Dyn): Dyn => __dynGet(r, 'value'), (): void => __dynIteratorClose(it));
+}
+)ZN";
+}
+
+std::string dynPrelude(bool symbols) {
+  std::string source = R"ZN(
 abstract class Dyn {
   abstract kind(): i32;
   abstract toString(): string;
@@ -233,6 +427,117 @@ class DynStr extends Dyn {
   kind(): i32 { return 4; }
   toString(): string { return this.v; }
 }
+// SYMBOL_BEGIN
+class DynSymbol extends Dyn {
+  constructor(public readonly description: string | undefined) { super(); }
+  kind(): i32 { return 9; }
+  toString(): string { return 'Symbol(' + (this.description === null ? '' : this.description) + ')'; }
+}
+enum __SymbolPhase { Cold, Ready }
+let __symbolRegistryValue: Map<string, DynSymbol> | null = null;
+let __symbolRegistryPhase: __SymbolPhase = __SymbolPhase.Cold;
+function __symbolRegistryTransition(next: __SymbolPhase): void {
+  if (__symbolRegistryPhase !== __SymbolPhase.Cold || next !== __SymbolPhase.Ready) throw new Error('Invalid symbol initialization');
+  __symbolRegistryPhase = next;
+}
+function __symbolRegistry(): Map<string, DynSymbol> {
+  if (__symbolRegistryPhase === __SymbolPhase.Cold) {
+    __symbolRegistryValue = new Map<string, DynSymbol>();
+    __symbolRegistryTransition(__SymbolPhase.Ready);
+  }
+  return __symbolRegistryValue as Map<string, DynSymbol>;
+}
+let __symbolIteratorValue: DynSymbol | null = null;
+let __symbolIteratorPhase: __SymbolPhase = __SymbolPhase.Cold;
+function __symbolIteratorTransition(next: __SymbolPhase): void {
+  if (__symbolIteratorPhase !== __SymbolPhase.Cold || next !== __SymbolPhase.Ready) throw new Error('Invalid symbol initialization');
+  __symbolIteratorPhase = next;
+}
+function __symbolIterator(): DynSymbol {
+  if (__symbolIteratorPhase === __SymbolPhase.Cold) {
+    __symbolIteratorValue = new DynSymbol('Symbol.iterator');
+    __symbolIteratorTransition(__SymbolPhase.Ready);
+  }
+  return __symbolIteratorValue as DynSymbol;
+}
+let __symbolAsyncIteratorValue: DynSymbol | null = null;
+let __symbolAsyncIteratorPhase: __SymbolPhase = __SymbolPhase.Cold;
+function __symbolAsyncIteratorTransition(next: __SymbolPhase): void {
+  if (__symbolAsyncIteratorPhase !== __SymbolPhase.Cold || next !== __SymbolPhase.Ready) throw new Error('Invalid symbol initialization');
+  __symbolAsyncIteratorPhase = next;
+}
+function __symbolAsyncIterator(): DynSymbol {
+  if (__symbolAsyncIteratorPhase === __SymbolPhase.Cold) {
+    __symbolAsyncIteratorValue = new DynSymbol('Symbol.asyncIterator');
+    __symbolAsyncIteratorTransition(__SymbolPhase.Ready);
+  }
+  return __symbolAsyncIteratorValue as DynSymbol;
+}
+let __symbolDisposeValue: DynSymbol | null = null;
+let __symbolDisposePhase: __SymbolPhase = __SymbolPhase.Cold;
+function __symbolDisposeTransition(next: __SymbolPhase): void {
+  if (__symbolDisposePhase !== __SymbolPhase.Cold || next !== __SymbolPhase.Ready) throw new Error('Invalid symbol initialization');
+  __symbolDisposePhase = next;
+}
+function __symbolDispose(): DynSymbol {
+  if (__symbolDisposePhase === __SymbolPhase.Cold) {
+    __symbolDisposeValue = new DynSymbol('Symbol.dispose');
+    __symbolDisposeTransition(__SymbolPhase.Ready);
+  }
+  return __symbolDisposeValue as DynSymbol;
+}
+function __makeSymbol(description: Dyn = __undef): DynSymbol {
+  if (description.kind() === 0) return new DynSymbol(null);
+  return new DynSymbol(__dynToString(description));
+}
+function __symbolValue(value: Dyn): DynSymbol {
+  if (value instanceof DynSymbol) return value;
+  throw new TypeError('Value is not a symbol');
+}
+function __symbolFor(value: Dyn): DynSymbol {
+  const key: string = __dynToString(value);
+  const old: DynSymbol | undefined = __symbolRegistry().get(key);
+  if (old !== null) return old;
+  const made: DynSymbol = new DynSymbol(key);
+  __symbolRegistry().set(key, made);
+  return made;
+}
+function __symbolKeyFor(value: Dyn): string | undefined {
+  if (!(value instanceof DynSymbol)) throw new TypeError('Symbol.keyFor requires a symbol');
+  if (__symbolRegistryPhase === __SymbolPhase.Cold) return null;
+  for (const key of __symbolRegistry().keys()) if (__symbolRegistry().get(key) === value) return key;
+  return null;
+}
+function __symbolJson(d: Dyn): any {
+  if (__dynJsonOmit(d)) return __undef;
+  return new DynStr(__dynJson(d));
+}
+function __dynToString(d: Dyn): string {
+  if (d.kind() === 9) throw new TypeError('Cannot convert a Symbol value to a string');
+  return __dynString(d);
+}
+function __dynObject(d: Dyn): boolean { return d.kind() >= 5 && d.kind() !== 9; }
+function __dynCloneJson(d: Dyn): string {
+  if (d.kind() === 9) { const error = new Error('Symbol cannot be cloned'); error.name = 'DataCloneError'; throw error; }
+  if (d instanceof DynArr) {
+    const out: string[] = [];
+    for (const value of d.items) { const encoded = __dynCloneJson(value); out.push(__dynJsonOmit(value) ? 'null' : encoded); }
+    return '[' + out.join(',') + ']';
+  }
+  if (d instanceof DynObj) {
+    const out: string[] = [];
+    for (const key of __dynKeys(d)) {
+      const value: Dyn = d.map.get(key) as Dyn;
+      const encoded = __dynCloneJson(value);
+      if (!__dynJsonOmit(value)) out.push(__jsonQuote(key) + ':' + encoded);
+    }
+    return '{' + out.join(',') + '}';
+  }
+  if (d instanceof DynRef) return d.cloneJson();
+  return __dynJson(d);
+}
+function __dynStructuredClone(d: Dyn): Dyn { return __jsonParse(__dynCloneJson(d)); }
+// SYMBOL_END
 class DynArr extends Dyn {
   constructor(public items: any[]) { super(); }
   kind(): i32 { return 5; }
@@ -249,6 +554,12 @@ class DynArr extends Dyn {
 // What Object.freeze and Object.defineProperty set on an any object (ZN-161.01); none until one of them is called. The non-enumerable
 // properties live outside `map`, so keys, JSON and console.log, which walk the map (the runtime too), leave them out.
 class DynAttrs {
+// SYMBOL_BEGIN
+  symbols: Map<DynSymbol, Dyn> = new Map<DynSymbol, Dyn>();
+  symbolHidden: Set<DynSymbol> = new Set<DynSymbol>();
+  symbolFixed: Set<DynSymbol> = new Set<DynSymbol>();
+  symbolSealed: Set<DynSymbol> = new Set<DynSymbol>();
+// SYMBOL_END
   frozen: boolean = false;
   hidden: Map<string, Dyn> = new Map<string, Dyn>();
   fixed: Set<string> = new Set<string>();  // the keys that are not writable
@@ -277,6 +588,11 @@ abstract class DynRef extends Dyn {
   abstract fmt(c: i64[], lvl: i32): string;
   abstract json(): string;
   abstract identity(): i64;
+// SYMBOL_BEGIN
+  iterable(): boolean { return false; }
+  iterate(): any { return __undef; }
+  cloneJson(): string { return this.json(); }
+// SYMBOL_END
 }
 class DynRefT<T> extends DynRef {
   constructor(public o: T, tags: i32[], className: string, public getter: (n: string) => any, public setter: (n: string, v: any) => void,
@@ -288,6 +604,24 @@ class DynRefT<T> extends DynRef {
   json(): string { return this.jsoner(); }
   identity(): i64 { return __identity(this.o); }
 }
+
+// SYMBOL_BEGIN
+class DynCloneRefT<T> extends DynRefT<T> {
+  constructor(o: T, tags: i32[], name: string, get: (n: string) => any, set: (n: string, v: any) => void,
+              has: (n: string) => boolean, fmt: (c: i64[], lvl: i32) => string, json: () => string, public cloner: () => string) {
+    super(o, tags, name, get, set, has, fmt, json);
+  }
+  cloneJson(): string { return this.cloner(); }
+}
+class DynIterableRefT<T> extends DynCloneRefT<T> {
+  constructor(o: T, tags: i32[], name: string, get: (n: string) => any, set: (n: string, v: any) => void,
+              has: (n: string) => boolean, fmt: (c: i64[], lvl: i32) => string, json: () => string, cloner: () => string, public iterator: () => any) {
+    super(o, tags, name, get, set, has, fmt, json, cloner);
+  }
+  iterable(): boolean { return true; }
+  iterate(): any { return this.iterator(); }
+}
+// SYMBOL_END
 
 // DynFunction (zinc:script host functions): any function, called with an array of dynamic arguments. A typed function passed where one is expected gets an
 // adapter from the checker (check.cpp, dynFunctionAdapter): each argument converted JavaScript-style, the result boxed.
@@ -327,12 +661,18 @@ function __dynTypeName(d: Dyn): string {
   if (k === 2) return 'boolean';
   if (k === 3) return 'number';
   if (k === 4) return 'string';
+// SYMBOL_BEGIN
+  if (k === 9) return 'symbol';
+// SYMBOL_END
   if (k === 5) return 'array';
   if (k === 8) return 'function';
   return 'object';
 }
 function __dynTypeof(d: Dyn): string {
   const k: i32 = d.kind();
+// SYMBOL_BEGIN
+  if (k === 9) return 'symbol';
+// SYMBOL_END
   if (k === 0) return 'undefined';
   if (k === 2) return 'boolean';
   if (k === 3) return 'number';
@@ -346,7 +686,11 @@ function __dynMethod(o: Dyn, key: string): Dyn {
   if (f instanceof DynFn) return new DynFn(f.name, f.self, (unused: unknown, args: unknown[]): unknown => f.f(o, args));
   return f;
 }
-function __dynMethodD(o: Dyn, key: Dyn): Dyn { return __dynMethod(o, key.toString()); }
+function __dynMethodD(o: Dyn, key: Dyn): Dyn {
+  const f: Dyn = __dynGetD(o, key);
+  if (f instanceof DynFn) return new DynFn(f.name, f.self, (unused: unknown, args: unknown[]): unknown => f.f(o, args));
+  return f;
+}
 function __dynCall(f: Dyn, args: unknown[], what: string): unknown {
   if (f instanceof DynFn) return f.f(__undef, args);
   throw new TypeError(what + ' is not a function');
@@ -385,8 +729,11 @@ function __dynToStr(d: Dyn): string {
   throw new TypeError('cannot convert Dyn (' + __dynTypeName(d) + ') to string');
 }
 
-function __dynPrim(d: Dyn): any { return d.kind() >= 5 ? new DynStr(d.toString()) : d; }
+function __dynPrim(d: Dyn): any { return d.kind() >= 5 && d.kind() !== 9 ? new DynStr(d.toString()) : d; }
 function __dynNumber(d: Dyn): f64 {
+// SYMBOL_BEGIN
+  if (d.kind() === 9) throw new TypeError('Cannot convert a Symbol value to a number');
+// SYMBOL_END
   if (d instanceof DynNum) return d.v;
   if (d instanceof DynBool) return d.v ? 1 : 0;
   if (d instanceof DynStr) return __toNumber(d.v);
@@ -398,6 +745,9 @@ function __dynNumber(d: Dyn): f64 {
 function __dynAdd(a: Dyn, b: Dyn): any {
   const fast: any = __dynAddFast(a, b);
   if (__identity(fast) !== 0) return fast;
+// SYMBOL_BEGIN
+  if (a.kind() === 9 || b.kind() === 9) throw new TypeError('Cannot convert a Symbol value to a number');
+// SYMBOL_END
   const pa: Dyn = __dynPrim(a);
   const pb: Dyn = __dynPrim(b);
   if (pa instanceof DynStr || pb instanceof DynStr) return new DynStr(pa.toString() + pb.toString());
@@ -449,12 +799,22 @@ function __dynSeq(a: Dyn, b: Dyn): boolean {
   if (k <= 1) return true;
   return __dynSame(a, b);
 }
+function __dynSameValue(a: Dyn, b: Dyn): boolean {
+  if (a instanceof DynNum && b instanceof DynNum) {
+    if (a.v === b.v) return a.v !== 0 || 1 / a.v === 1 / b.v;
+    return a.v !== a.v && b.v !== b.v;
+  }
+  return __dynSeq(a, b);
+}
 function __dynEq(a: Dyn, b: Dyn): boolean {
   const ka: i32 = a.kind();
   const kb: i32 = b.kind();
   if (ka === kb) return __dynSeq(a, b);
   if (ka <= 1 && kb <= 1) return true;
   if (ka <= 1 || kb <= 1) return false;
+// SYMBOL_BEGIN
+  if (ka === 9 || kb === 9) return false;
+// SYMBOL_END
   if (ka >= 5 && kb >= 5) return false;
   if (ka >= 5) return __dynEq(__dynPrim(a), b);
   if (kb >= 5) return __dynEq(a, __dynPrim(b));
@@ -498,10 +858,29 @@ function __dynGet(o: Dyn, k: string): any {
     const i: i32 = __indexOfKey(k);
     return i >= 0 ? __dynGetN(o, i) : __undef;
   }
+// SYMBOL_BEGIN
+  if (o instanceof DynSymbol) {
+    if (k === 'description') return o.description === null ? __undef : new DynStr(o.description);
+    if (k === 'toString') return new DynFn('toString', 0, (self: unknown, args: unknown[]): unknown => new DynStr(o.toString()));
+    return __undef;
+  }
+// SYMBOL_END
   if (o instanceof DynRef) return o.get(k);
   throw new TypeError("Cannot read properties of " + o.toString() + " (reading '" + k + "')");
 }
 function __dynGetD(o: Dyn, key: Dyn): any {
+// SYMBOL_BEGIN
+  if (key instanceof DynSymbol) {
+    if (key === __symbolIterator()) {
+      if (o instanceof DynRef && o.iterable()) return new DynFn('[Symbol.iterator]', 0, (self: unknown, args: unknown[]): unknown => (o as DynRef).iterate());
+      if (o instanceof DynArr) { const items: any[] = o.items; return new DynFn('[Symbol.iterator]', 0, (self: unknown, args: unknown[]): unknown => new __ArrayIterator<any>(items)); }
+      if (o instanceof DynStr) { const text: string = o.v; return new DynFn('[Symbol.iterator]', 0, (self: unknown, args: unknown[]): unknown => new __StringIterator(text)); }
+    }
+    if (o instanceof DynObj && o.attrs !== null) return o.attrs.symbols.get(key) ?? __undef;
+    if (o.kind() <= 1) throw new TypeError('Cannot read properties of null or undefined');
+    return __undef;
+  }
+// SYMBOL_END
   if (key instanceof DynNum) return __dynGetN(o, key.v);
   return __dynGet(o, key.toString());
 }
@@ -536,10 +915,28 @@ function __dynSet(o: Dyn, k: string, v: any): void {
   throw new TypeError("Cannot set properties of " + o.toString() + " (setting '" + k + "')");
 }
 function __dynSetD(o: Dyn, key: Dyn, v: any): void {
+// SYMBOL_BEGIN
+  if (key instanceof DynSymbol) {
+    if (o instanceof DynObj) {
+      const at: DynAttrs = __dynAttrs(o);
+      if (at.symbolFixed.has(key)) throw new TypeError('Cannot assign to read only symbol property');
+      if (!at.symbols.has(key) && at.frozen) throw new TypeError('Cannot add property, object is not extensible');
+      at.symbols.set(key, v);
+      return;
+    }
+    throw new TypeError('Cannot set a symbol property on this value');
+  }
+// SYMBOL_END
   if (key instanceof DynNum) { __dynSetN(o, key.v, v); return; }
   __dynSet(o, key.toString(), v);
 }
 function __dynIn(key: Dyn, o: Dyn): boolean {
+// SYMBOL_BEGIN
+  if (key instanceof DynSymbol) {
+    if (!__dynObject(o)) throw new TypeError("Cannot use 'in' operator on a primitive");
+    return o instanceof DynObj && o.attrs !== null && o.attrs.symbols.has(key);
+  }
+// SYMBOL_END
   const k: string = key.toString();
   if (o instanceof DynObj) { const at: DynAttrs | null = o.attrs; return o.map.has(k) || (at !== null && at.hidden.has(k)); }
   if (o instanceof DynArr) { const i: i32 = __indexOfKey(k); return (i >= 0 && i < o.items.length) || k === 'length'; }
@@ -547,9 +944,16 @@ function __dynIn(key: Dyn, o: Dyn): boolean {
   throw new TypeError("Cannot use 'in' operator to search for '" + k + "' in " + o.toString());
 }
 function __dynIter(d: Dyn): any[] {
-  if (d instanceof DynArr) return d.items.slice();
-  if (d instanceof DynStr) { const r: any[] = []; for (let i: i32 = 0; i < d.v.length; i++) r.push(new DynStr(d.v.charAt(i))); return r; }
-  throw new TypeError(__dynTypeName(d) + ' is not iterable');
+  const it = __dynAcquireIterator(d);
+  const result: any[] = [];
+  try { while (it.step()) result.push(it.value[0]); }
+  catch (error) { try { it.close(); } catch (closeError) {} throw error; }
+  finally { it.close(); }
+  return result;
+}
+function __dynForOf(d: Dyn): any[] {
+  if (d instanceof DynArr) return d.items;
+  return __dynIter(d);
 }
 // d.m(...) on an any value (ZN-1035): the method of the real array or string it holds, so push, splice and sort change the array the any holds
 function __dynItems(d: Dyn, m: string): any[] {
@@ -608,13 +1012,41 @@ function __dynOwnNames(d: Dyn): string[] {
   }
   return r;
 }
-function __dynOwnEnum(d: Dyn, k: string): boolean { return d instanceof DynObj ? d.map.has(k) : d.kind() > 1 && __dynIn(new DynStr(k), d); }
+// SYMBOL_BEGIN
+function __dynOwnSymbols(d: Dyn): DynSymbol[] {
+  if (d.kind() <= 1) throw new TypeError('Cannot convert undefined or null to object');
+  if (d instanceof DynObj && d.attrs !== null) return d.attrs.symbols.keys();
+  return [];
+}
+function __dynDefineKey(o: Dyn, key: Dyn, v: any, hasValue: boolean, w: i32, e: i32, c: i32): any {
+  if (!(key instanceof DynSymbol)) return __dynDefine(o, key.toString(), v, hasValue, w, e);
+  if (!(o instanceof DynObj)) throw new TypeError('Object.defineProperty called on non-object');
+  const at: DynAttrs = __dynAttrs(o);
+  const exists: boolean = at.symbols.has(key);
+  if (!exists && at.frozen) throw new TypeError('Cannot define property, object is not extensible');
+  const cur: Dyn = at.symbols.get(key) ?? __undef;
+  const sealed: boolean = exists && (at.frozen || at.symbolSealed.has(key));
+  if (sealed && (c === 1 || (e !== -1 && (e === 1) === at.symbolHidden.has(key)) ||
+      (at.symbolFixed.has(key) && (w === 1 || (hasValue && !__dynSameValue(cur, v)))))) throw new TypeError('Cannot redefine symbol property');
+  at.symbols.set(key, hasValue ? v : cur);
+  if (e === 0 || (!exists && e === -1)) at.symbolHidden.add(key);
+  else if (e === 1) at.symbolHidden.delete(key);
+  if (w === 0 || (!exists && w === -1)) at.symbolFixed.add(key);
+  else if (w === 1) at.symbolFixed.delete(key);
+  if (c === 0 || (!exists && c === -1)) at.symbolSealed.add(key); else if (c === 1) at.symbolSealed.delete(key);
+  return o;
+}
+// SYMBOL_END
+function __dynOwnEnum(d: Dyn, k: string): boolean { return d instanceof DynObj ? d.map.has(k) : d.kind() > 1 && d.kind() !== 9 && __dynIn(new DynStr(k), d); }
 // ponytail: an array is frozen in its object form only (its own methods, push and splice, still change it); a typed object seen through an
 // any is not frozen either (its type says what may change)
 function __dynFreeze(d: Dyn): any {
   const r: any = d;
   if (d instanceof DynObj) {
     const at: DynAttrs = __dynAttrs(d);
+// SYMBOL_BEGIN
+    for (const key of at.symbols.keys()) at.symbolFixed.add(key);
+// SYMBOL_END
     at.frozen = true;
     for (const k of d.map.keys()) at.fixed.add(k);
     for (const k of at.hidden.keys()) at.fixed.add(k);
@@ -625,14 +1057,20 @@ function __dynAssign(t: Dyn, s: Dyn): void {
   if (s.kind() <= 1) return;
   if (t.kind() <= 1) throw new TypeError('Cannot convert undefined or null to object');
   for (const k of __dynKeys(s)) __dynSet(t, k, __dynGet(s, k));
+// SYMBOL_BEGIN
+  if (s instanceof DynObj && s.attrs !== null) {
+    const at: DynAttrs = s.attrs;
+    for (const key of at.symbols.keys()) if (!at.symbolHidden.has(key)) __dynSetD(t, key, at.symbols.get(key) ?? __undef);
+  }
+// SYMBOL_END
 }
 function __dynFromEntries(d: Dyn): any {
   const o: Dyn = new DynObj(new Map<string, Dyn>());
-  for (const x of __dynIter(d)) {
+  for (const x of d) {
     const it: Dyn = x;
-    if (it.kind() < 5) throw new TypeError('Iterator value ' + it.toString() + ' is not an entry object');
+    if (it.kind() < 5 || it.kind() === 9) throw new TypeError('Iterator value ' + it.toString() + ' is not an entry object');
     const key: Dyn = __dynGetN(it, 0);
-    __dynSet(o, key.toString(), __dynGetN(it, 1));
+    __dynSetD(o, key, __dynGetN(it, 1));
   }
   return o;
 }
@@ -647,7 +1085,7 @@ function __dynDefine(o: Dyn, k: string, v: any, hasValue: boolean, w: i32, e: i3
     const mv: Dyn | undefined = o.map.get(k);
     const cur: Dyn = hv !== undefined ? hv : mv !== undefined ? mv : __undef;
     const val: Dyn = hasValue ? v : cur;
-    if (exists && at.fixed.has(k) && hasValue && !__dynSeq(cur, val)) throw new TypeError('Cannot redefine property: ' + k);
+    if (exists && at.fixed.has(k) && hasValue && !__dynSameValue(cur, val)) throw new TypeError('Cannot redefine property: ' + k);
     const enumerable: boolean = e === 1 || (e === -1 && exists && !at.hidden.has(k));
     const writable: boolean = w === 1 || (w === -1 && exists && !at.fixed.has(k));
     if (enumerable) { at.hidden.delete(k); o.map.set(k, val); } else { o.map.delete(k); at.hidden.set(k, val); }
@@ -655,7 +1093,7 @@ function __dynDefine(o: Dyn, k: string, v: any, hasValue: boolean, w: i32, e: i3
     if (!exists) at.names.push(k);
     return r;
   }
-  if (o.kind() < 5) throw new TypeError('Object.defineProperty called on non-object');
+  if (o.kind() < 5 || o.kind() === 9) throw new TypeError('Object.defineProperty called on non-object');
   if (hasValue) __dynSet(o, k, v);
   return r;
 }
@@ -676,6 +1114,15 @@ function __dynObjOf(keys: string[], vals: any[]): any {
 }
 function __dynArrOf(items: any[]): any { return new DynArr(items); }
 function __dynJoin(d: Dyn): string { return d.kind() <= 1 ? '' : d.toString(); }
+
+// SYMBOL_BEGIN
+function __dynHasSymbolProperties(d: DynObj): boolean {
+  const at: DynAttrs | null = d.attrs;
+  if (at === null) return false;
+  for (const key of at.symbols.keys()) if (!at.symbolHidden.has(key)) return true;
+  return false;
+}
+// SYMBOL_END
 
 // ---- console.log
 function __isIdentName(s: string): boolean {
@@ -723,6 +1170,12 @@ function __fmtDyn(d: Dyn, c: i64[], lvl: i32): string {
     const ks: string[] = __dynKeys(d);
     c[0] += 2;
     for (let i: i32 = 0; i < ks.length; i++) out.push((__isIdentName(ks[i]) ? ks[i] : __q(ks[i])) + ': ' + __fmtDyn(d.map.get(ks[i]) ?? __undef, c, l));
+// SYMBOL_BEGIN
+    if (d.attrs !== null) {
+      const at: DynAttrs = d.attrs;
+      for (const key of at.symbols.keys()) if (!at.symbolHidden.has(key)) out.push(key.toString() + ': ' + __fmtDyn(at.symbols.get(key) ?? __undef, c, l));
+    }
+// SYMBOL_END
     c[0] -= 2;
     return __reduce(c, out, __ref(c, id), '{', '}', l, false, false, false);
   }
@@ -736,19 +1189,22 @@ function __logDyn(d: Dyn): string {
 }
 
 // ---- JSON
-function __dynJsonOmit(d: Dyn): boolean { return d.kind() === 0 || d.kind() === 8; }
+function __dynJsonOmit(d: Dyn): boolean { return d.kind() === 0 || d.kind() === 8 || d.kind() === 9; }
 function __dynJson(d: Dyn): string {
   const fast: string = __jsonOut(d);   // the runtime walks the tree; '' when it holds a typed object view
   if (fast.length > 0) return fast;
   return __dynJsonSlow(d);
 }
 function __dynJsonSlow(d: Dyn): string {
+// SYMBOL_BEGIN
+  if (d.kind() === 9) return '';
+// SYMBOL_END
   if (d instanceof DynNum) return __jsonNum(d.v);
   if (d instanceof DynStr) return __jsonQuote(d.v);
   if (d instanceof DynBool) return d.v ? 'true' : 'false';
   if (d instanceof DynArr) {
     const out: string[] = [];
-    for (let i: i32 = 0; i < d.items.length; i++) out.push(d.items[i].kind() === 0 ? 'null' : __dynJson(d.items[i]));
+    for (let i: i32 = 0; i < d.items.length; i++) out.push(__dynJsonOmit(d.items[i]) ? 'null' : __dynJson(d.items[i]));
     return '[' + out.join(',') + ']';
   }
   if (d instanceof DynObj) {
@@ -756,7 +1212,7 @@ function __dynJsonSlow(d: Dyn): string {
     const ks: string[] = __dynKeys(d);   // array indices first, ascending, as JavaScript orders the keys
     for (let i: i32 = 0; i < ks.length; i++) {
       const v: Dyn = d.map.get(ks[i]) ?? __undef;
-      if (v.kind() !== 0 && v.kind() !== 8) out.push(__jsonQuote(ks[i]) + ':' + __dynJson(v));
+      if (!__dynJsonOmit(v)) out.push(__jsonQuote(ks[i]) + ':' + __dynJson(v));
     }
     return '{' + out.join(',') + '}';
   }
@@ -788,6 +1244,41 @@ function __jsonParse(s: string): any {
   return v;
 }
 )ZN";
+  // Symbol operations are absent from programs that do not name the primitive.
+  for (std::size_t begin = source.find("// SYMBOL_BEGIN\n"); begin != std::string::npos; begin = source.find("// SYMBOL_BEGIN\n")) {
+    const std::size_t end = source.find("// SYMBOL_END\n", begin);
+    if (symbols) { source.erase(end, 14); source.erase(begin, 16); }
+    else source.erase(begin, end + 14 - begin);
+  }
+  if (!symbols) source += "\nfunction __dynStructuredClone(d: Dyn): Dyn { return __jsonParse(__dynJson(d)); }\n";
+  if (symbols) {
+    auto replace = [&](const std::string& from, const std::string& to) {
+      for (std::size_t at = source.find(from); at != std::string::npos; at = source.find(from, at + to.size())) source.replace(at, from.size(), to);
+    };
+    replace("r += it.toString();", "r += __dynToString(it);");
+    replace("const x: string = a.toString();", "const x: string = __dynToString(a);");
+    replace("const y: string = b.toString();", "const y: string = __dynToString(b);");
+    replace("d.v.indexOf(__dynString(x), from)", "d.v.indexOf(__dynToString(x), from)");
+    const std::string emptyObject = "if (d.map.size === 0) return '{}';";
+    const auto empty = source.find(emptyObject);
+    source.replace(empty, emptyObject.size(), "if (d.map.size === 0 && !__dynHasSymbolProperties(d)) return '{}';");
+    const auto join = source.find("function __dynJoin(d: Dyn): string { return d.kind() <= 1 ? '' : d.toString(); }");
+    source.replace(join, 80, "function __dynJoin(d: Dyn): string { return d.kind() <= 1 ? '' : __dynToString(d); }");
+  }
+  if (!symbols) {
+    const auto loop = source.find("for (const x of d) {");
+    source.replace(loop, 20, "for (const x of __dynIter(d)) {");
+    const std::size_t begin = source.find("function __dynIter(d: Dyn): any[] {");
+    const std::size_t end = source.find("// d.m(...)", begin);
+    source.replace(begin, end - begin, R"ZN(function __dynIter(d: Dyn): any[] {
+  if (d instanceof DynArr) return d.items.slice();
+  if (d instanceof DynStr) { const r: any[] = []; for (let i: i32 = 0; i < d.v.length;) { const point: i32 = d.v.codePointAt(i); r.push(new DynStr(String.fromCodePoint(point))); i += point > 65535 ? 2 : 1; } return r; }
+  throw new TypeError(__dynTypeName(d) + ' is not iterable');
+}
+function __dynForOf(d: Dyn): any[] { if (d instanceof DynArr) return d.items; return __dynIter(d); }
+)ZN");
+  }
+  return source;
 }
 
 }  // namespace zn::frontend

@@ -1278,6 +1278,7 @@ typedef struct JSSABTab {
 #define JS_WRITE_OBJ_REFERENCE (1 << 3) /* allow object references to encode arbitrary object graph */
 #define JS_WRITE_OBJ_STRIP_SOURCE  (1 << 4) /* do not write source code information */
 #define JS_WRITE_OBJ_STRIP_DEBUG   (1 << 5) /* do not write debug information */
+#define JS_WRITE_OBJ_STRUCTURED_CLONE (1 << 6) /* reject symbols and report DataCloneError for unsupported values */
 JS_EXTERN uint8_t *JS_WriteObject(JSContext *ctx, size_t *psize, JSValueConst obj, int flags);
 JS_EXTERN uint8_t *JS_WriteObject2(JSContext *ctx, size_t *psize, JSValueConst obj,
                                    int flags, JSSABTab *psab_tab);

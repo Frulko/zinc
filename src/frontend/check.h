@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "frontend/ast.h"
@@ -98,6 +99,8 @@ struct Checked {
   std::vector<TParam> tparams;
   std::vector<ObjInfo> objs;
   std::vector<Symbol> syms;
+  std::unordered_map<std::uint32_t, std::uint32_t> iteratorLoops;  // rewritten for-of -> its while, for labeled break/continue
+  std::unordered_set<std::uint32_t> handlerVars;  // variables assigned in a try: handlers must observe their current storage
   std::vector<TypeId> nodeType;        // per AST node: type of an expression or declared type of a declaration, else kNoType
   std::vector<std::uint32_t> nodeSym;  // per AST node: resolved symbol of an Ident, else kNone
   std::vector<Diag> diags;

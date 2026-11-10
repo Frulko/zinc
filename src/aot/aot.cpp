@@ -302,6 +302,8 @@ struct FnEmitter {
         line("{ const char* e = op::" + std::string(D == static_cast<unsigned>(zn::Rt::MapGet) ? "mapGet(" : "mapHas(") + r(A) + ", " + r(A + 1) + "); " + rtFail() + " }");
       else if (nm == "Rt" && D == static_cast<unsigned>(zn::Rt::MapSet)) line("{ const char* e = op::mapSet(m, " + r(A) + ", " + r(A + 1) + ", " + r(A + 2) + "); " + rtFail() + " }");
       else if (nm == "Rt" && D == static_cast<unsigned>(zn::Rt::SetAdd)) line("{ const char* e = op::setAdd(m, " + r(A) + ", " + r(A + 1) + "); " + rtFail() + " }");
+      else if (nm == "Rt" && D == static_cast<unsigned>(zn::Rt::ArrSort))
+        line("{ " + toWin(A, rtArity(D)) + "const char* e = rtCall(m, (zn::Rt)" + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); if (__builtin_expect(m.thrown != nullptr, 0)) { Obj* exc = m.thrown; " + unwind(P, "exc") + unwindDepth() + "return 1; } " + rtFail() + " " + fromWin(A, true) + " }");
       else if (nm == "Rt") line("{ " + toWin(A, rtArity(D)) + "const char* e = rtCall(m, (zn::Rt)" + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + rtFail() + " " + fromWin(A, rtRet(rtInfo(static_cast<zn::Rt>(D))) != 'n') + " }");
       else if (nm == "CallNative") {
         nsig::Sig sig;

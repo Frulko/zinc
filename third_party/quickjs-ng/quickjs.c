@@ -17161,13 +17161,31 @@ static __exception int js_for_of_start(JSContext *ctx, JSValue *sp,
    objs. If 'done' is true or in case of exception, 'enum_rec' is set
    to undefined. If 'done' is true, 'value' is always set to
    undefined. */
-static __exception int js_for_of_next(JSContext *ctx, JSValue *sp, int offset)
+static __exception int js_for_of_next(JSContext *ctx, JSValue *sp, int offset,
+                                      bool read_value)
 {
     JSValue value = JS_UNDEFINED;
     int done = 1;
 
     if (likely(!JS_IsUndefined(sp[offset]))) {
-        value = JS_IteratorNext(ctx, sp[offset], sp[offset + 1], 0, NULL, &done);
+        if (read_value) {
+            value = JS_IteratorNext(ctx, sp[offset], sp[offset + 1], 0, NULL, &done);
+        } else {
+            /* Elisions perform IteratorStep without IteratorValue. */
+            JSValue result = JS_IteratorNext2(ctx, sp[offset], sp[offset + 1], 0, NULL, &done);
+            if (JS_IsException(result)) {
+                value = result;
+            } else if (done == 2) {
+                JSValue complete = JS_GetProperty(ctx, result, JS_ATOM_done);
+                if (JS_IsException(complete))
+                    value = complete;
+                else
+                    done = JS_ToBoolFree(ctx, complete);
+                JS_FreeValue(ctx, result);
+            } else {
+                JS_FreeValue(ctx, result);
+            }
+        }
         if (JS_IsException(value))
             done = -1;
         if (done) {
@@ -19502,11 +19520,12 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             *sp++ = JS_NewCatchOffset(ctx, 0);
             BREAK;
         CASE(OP_for_of_next):
+        CASE(OP_for_of_next_no_value):
             {
                 int offset = -3 - pc[0];
                 pc += 1;
                 sf->cur_pc = pc;
-                if (js_for_of_next(ctx, sp, offset))
+                if (js_for_of_next(ctx, sp, offset, opcode == OP_for_of_next))
                     goto exception;
                 sp += 2;
             }
@@ -27123,8 +27142,8 @@ static int js_parse_destructuring_element(JSParseState *s, int tok,
                 has_spread = true;
             }
             if (s->token.val == ',') {
-                /* do nothing, skip the value, has_spread is false */
-                emit_op(s, OP_for_of_next);
+                /* Elision: step without reading value; has_spread is false. */
+                emit_op(s, OP_for_of_next_no_value);
                 emit_u8(s, 0);
                 emit_op(s, OP_drop);
                 emit_op(s, OP_drop);
@@ -38715,7 +38734,7 @@ typedef enum BCTagEnum {
     BC_TAG_SYMBOL,
 } BCTagEnum;
 
-#define BC_VERSION 28
+#define BC_VERSION 29
 
 typedef struct BCWriterState {
     JSContext *ctx;
@@ -38725,6 +38744,7 @@ typedef struct BCWriterState {
     bool allow_reference;
     bool allow_source;
     bool allow_debug;
+    bool structured_clone;
     uint32_t first_atom;
     uint32_t *atom_to_idx;
     int atom_to_idx_size;
@@ -39192,6 +39212,28 @@ static int JS_WriteObjectTag(BCWriterState *s, JSValueConst obj)
     JSAtom atom;
 
     bc_put_u8(s, BC_TAG_OBJECT);
+    if (s->structured_clone) {
+        JSPropertyEnum *properties;
+        if (JS_GetOwnPropertyNames(s->ctx, &properties, &prop_count, obj,
+                                   JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) < 0)
+            return -1;
+        bc_put_leb128(s, prop_count);
+        for (i = 0; i < prop_count; i++) {
+            JSValue value = JS_GetProperty(s->ctx, obj, properties[i].atom);
+            int ret = -1;
+            if (!JS_IsException(value)) {
+                bc_put_atom(s, properties[i].atom);
+                ret = JS_WriteObjectRec(s, value);
+            }
+            JS_FreeValue(s->ctx, value);
+            if (ret) {
+                JS_FreePropertyEnum(s->ctx, properties, prop_count);
+                return -1;
+            }
+        }
+        JS_FreePropertyEnum(s->ctx, properties, prop_count);
+        return 0;
+    }
     prop_count = 0;
     sh = p->shape;
     for(pass = 0; pass < 2; pass++) {
@@ -39276,6 +39318,22 @@ static int JS_WriteRegExp(BCWriterState *s, JSRegExp regexp)
 
 static int JS_WriteMap(BCWriterState *s, struct JSMapState *map_state);
 static int JS_WriteSet(BCWriterState *s, struct JSMapState *map_state);
+
+static void js_write_clone_error(BCWriterState *s, const char *message)
+{
+    if (!s->structured_clone) {
+        JS_ThrowTypeError(s->ctx, "%s", message);
+        return;
+    }
+    JSValue error = JS_NewError(s->ctx);
+    if (JS_IsException(error))
+        return;
+    JS_DefinePropertyValueStr(s->ctx, error, "name", JS_NewString(s->ctx, "DataCloneError"),
+                              JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
+    JS_DefinePropertyValueStr(s->ctx, error, "message", JS_NewString(s->ctx, message),
+                              JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
+    JS_Throw(s->ctx, error);
+}
 
 static int JS_WriteObjectRec(BCWriterState *s, JSValueConst obj)
 {
@@ -39405,7 +39463,7 @@ static int JS_WriteObjectRec(BCWriterState *s, JSValueConst obj)
                 if (is_typed_array(p->class_id)) {
                     ret = JS_WriteTypedArray(s, obj);
                 } else {
-                    JS_ThrowTypeError(s->ctx, "unsupported object class");
+                    js_write_clone_error(s, "unsupported object class");
                     ret = -1;
                 }
                 break;
@@ -39423,8 +39481,8 @@ static int JS_WriteObjectRec(BCWriterState *s, JSValueConst obj)
     case JS_TAG_SYMBOL:
         {
             JSAtomStruct *p = JS_VALUE_GET_PTR(obj);
-            if (p->atom_type != JS_ATOM_TYPE_GLOBAL_SYMBOL && p->atom_type != JS_ATOM_TYPE_SYMBOL) {
-                JS_ThrowTypeError(s->ctx, "unsupported symbol type");
+            if (s->structured_clone || (p->atom_type != JS_ATOM_TYPE_GLOBAL_SYMBOL && p->atom_type != JS_ATOM_TYPE_SYMBOL)) {
+                js_write_clone_error(s, "unsupported symbol type");
                 goto fail;
             }
             JSAtom atom = js_get_atom_index(s->ctx->rt, p);
@@ -39506,6 +39564,7 @@ uint8_t *JS_WriteObject2(JSContext *ctx, size_t *psize, JSValueConst obj,
     s->allow_reference = ((flags & JS_WRITE_OBJ_REFERENCE) != 0);
     s->allow_source = ((flags & JS_WRITE_OBJ_STRIP_SOURCE) == 0);
     s->allow_debug = ((flags & JS_WRITE_OBJ_STRIP_DEBUG) == 0);
+    s->structured_clone = ((flags & JS_WRITE_OBJ_STRUCTURED_CLONE) != 0);
     /* XXX: could use a different version when bytecode is included */
     if (s->allow_bytecode)
         s->first_atom = JS_ATOM_END;

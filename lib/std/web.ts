@@ -1333,11 +1333,12 @@ export class FormData {
 }
 
 // ================================================================ HTML: structured clone
-/** Deep copy of plain data (strings, numbers, booleans, null, arrays, plain objects; class instances become plain
- *  objects of their fields, as in the Web). ponytail: through JSON, so no Map / Set / Date / cycles / NaN / undefined
- *  members (DataCloneError on the Web would be silent here); a real serializer when those are needed. */
+/** Deep copy of plain data; class instances become plain objects of their fields. The typed engines retain the
+ *  JSON subset (no Map / Set / Date / cycles / NaN / undefined members); QuickJS uses its native serializer.
+ *  Symbol values and built-in iterators throw DataCloneError, including nested values. */
 export function structuredClone(value: unknown): unknown {
   if (value === undefined || value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof __dynStructuredClone === 'function') return __dynStructuredClone(value);
   const r: unknown = JSON.parse(JSON.stringify(value));
   return r;
 }

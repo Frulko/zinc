@@ -522,10 +522,12 @@ void Table::rehash() {
   for (std::size_t i = 0; i < keys.size(); ++i) {
     if (dead[i]) continue;
     keys[w] = keys[i];
+    if (order) order->sequence[w] = order->sequence[i];
     if (hasVals) vals[w] = vals[i];
     ++w;
   }
   keys.resize(w);
+  if (order) order->sequence.resize(w);
   if (hasVals) vals.resize(w);
   dead.assign(w, 0);
   std::size_t size = 16;
@@ -543,8 +545,10 @@ void Table::put(Slot k, Slot v) {
   if (e >= 0) { if (hasVals) vals[static_cast<std::size_t>(e)] = v; return; }
   putNew(k, v);
 }
-void Table::putNew(Slot k, Slot v) {
+bool Table::putNew(Slot k, Slot v) {
+  if (order && order->next == UINT64_MAX) return false;
   if (index.empty() ? keys.size() >= kLinear : (keys.size() + 1) * 2 > index.size()) rehash();
+  if (order && order->sequence.size() == order->sequence.capacity()) order->sequence.reserve(order->sequence.empty() ? 1 : order->sequence.size() * 2);
   if (!index.empty()) {
     std::size_t h = hash(k) & (index.size() - 1);
     while (index[h] >= 0) h = (h + 1) & (index.size() - 1);
@@ -553,7 +557,9 @@ void Table::putNew(Slot k, Slot v) {
   keys.push_back(k);
   if (hasVals) vals.push_back(v);
   dead.push_back(0);
+  if (order) order->sequence.push_back(order->next++);
   ++live;
+  return true;
 }
 
 bool Table::erase(Slot k) {
@@ -564,7 +570,7 @@ bool Table::erase(Slot k) {
   return true;
 }
 
-void Table::clear() { keys.clear(); vals.clear(); dead.clear(); index.clear(); live = 0; }
+void Table::clear() { if (order) order->sequence.clear(); keys.clear(); vals.clear(); dead.clear(); index.clear(); live = 0; }
 
 
 // JSON.parse into the Dyn classes of the prelude (src/frontend/dyn.cpp): objects, arrays, numbers, strings and booleans are
@@ -1908,11 +1914,40 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       Table old = std::move(o->t);
       o->t = Table();
       o->t.kk = old.kk; o->t.hasVals = old.hasVals;
+      o->t.order = std::move(old.order);
+      if (o->t.order) o->t.order->clear();
       for (std::size_t i = 0; i < old.keys.size(); ++i) {
         if (old.dead[i]) continue;
         if (old.hasVals && o->cls->elemRef) m.releaseSlot(old.vals[i]);
         if (o->cls->keyRef) m.releaseSlot(old.keys[i]);
       }
+      return nullptr;
+    }
+    case Rt::MapIterNext: case Rt::SetIterNext: {
+      MapObj* o = M(a[0]); NN(o);
+      ArrObj* cursor = A(a[1]); NN(cursor);
+      if (cursor->cls->kind != zbc::CKind::Array || cursor->cls->elemKind != KeyKind::Int || cursor->v.size() != 2) return "invalid collection iterator cursor";
+      if (!o->t.order) {
+        auto order = std::make_unique<IterationOrder>();
+        order->sequence.reserve(o->t.keys.size());
+        for (std::size_t i = 0; i < o->t.keys.size(); ++i) order->sequence.push_back(order->next++);
+        o->t.order = std::move(order);
+      }
+      const std::uint64_t previous = static_cast<std::uint32_t>(cursor->v[0]) | (static_cast<std::uint64_t>(static_cast<std::uint32_t>(cursor->v[1])) << 32);
+      const auto& sequence = o->t.order->sequence;
+      std::size_t index = static_cast<std::size_t>(std::upper_bound(sequence.begin(), sequence.end(), previous) - sequence.begin());
+      while (index < sequence.size() && o->t.dead[index]) ++index;
+      if (index == sequence.size()) { a[0] = static_cast<Slot>(-1); return nullptr; }
+      cursor->v[0] = static_cast<std::uint32_t>(sequence[index]);
+      cursor->v[1] = static_cast<std::uint32_t>(sequence[index] >> 32);
+      a[0] = index;
+      return nullptr;
+    }
+    case Rt::MapIterKey: case Rt::MapIterValue: case Rt::SetIterValue: {
+      const MapObj* o = M(a[0]); NN(o);
+      const std::size_t index = static_cast<std::size_t>(a[1]);
+      if (index >= o->t.keys.size() || o->t.dead[index]) return "invalid collection iterator entry";
+      a[0] = id == Rt::MapIterValue ? o->t.vals[index] : o->t.keys[index];
       return nullptr;
     }
     case Rt::MapSize: case Rt::SetSize: { MapObj* o = M(a[0]); NN(o); a[0] = o->t.live; return nullptr; }
