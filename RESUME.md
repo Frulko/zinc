@@ -6,11 +6,11 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-| AI1078.18 | .worktrees/1078.18 / work/1078.18 | Reserved fresh worker: nine requested assistant UI controls. Primary CUI/provider research already in task notes; reuse Code/Input/Overlay/Feedback leaves, no backend/model/network integration. |
+| Tracker demo1078.21 | .worktrees/1078.21 / work/1078.21 | Fresh worker: runnable Quiet issue tracker, sidebar/grouped list/detail using completed Nav/Data/Feedback. No new demo test scripts; short all3/light-dark proof and README/proposed tests. |
 | Extended1078.19 | .worktrees/1078.19 / work/1078.19 | Reserved fresh worker, fifteen requested widgets; reuse System drop/file/image/Media/Feedback/animation providers, no services or engine build. |
-| Core1110 | .worktrees/1110 / work/1110 | Reserved fresh sole core worker. JSX map(callback,) silently drops rows; patch token argument bounds, exact all3/models and original formatted Planning. No runtime/layout/UI edits. |
+| Planning completion1078.17 | .worktrees/1078.17-complete / work/1078.17-complete | Fresh worker restores parked78c13d3ea onto current develop.1110 source integrated, original Month all3 now works; fix/reprove React Kanban drop focus, final captures/gate. |
 
-Root plus three workers fill runtime4 slots. One queued heavy command per worker. Fresh core1110 is next sole engine writer; current common remains f561 until replacement. Fresh worker per next batch, never extend a completed context. Next startable family after these is1078.20, but integrate reported work first.
+Root plus three workers fill runtime4 slots. One queued heavy command per worker. 1110 integratedebe53adf2 (AC3 open), new common rebuild underway; no active core writer. Current f561 remains until announced replacement. Fresh worker per next batch, never extend a completed context. Next startable family after these is1078.20, but integrate reported work first.
 
 ## Completed and final proof
 
@@ -18,7 +18,7 @@ Root plus three workers fill runtime4 slots. One queued heavy command per worker
 
 - Tool14 integrated23cdd66a0: ten controls, exact models all3,30keyboard/24pointer routes bothmodels/all3,ten pictures and actual gallery/check/gate pass. Focus-visible callback is not containment: gesture cleanup uses hasFocusWithin; Hex cell clicks retain root edit focus. Combined Tool gate JS235962/242570/279337,4085/component/97B strict headroom; AOT5325320/5457488/6009248,61306/component. Root model T0 all3/shared kit_inputs/gallery check/4frame graphQJS PASS; TS-only no rebuild.
 
-45 distinct Done tasks since1078.03: fourteen kit subtasks(.03–.16), and1079–1109. Feedback11/Data12/Code13/Charts15 are closed/released on actual final gates; Tool14 is included after its final combined proof. Latest Tool size/proof source23cdd66a0 is recorded as after_tool_panels in kit-integration JSON. Older details/proposed tests archived in docs/reports/session-handover-2026-11-09.md.
+46 distinct Done tasks since1078.03: fifteen kit subtasks(.03–.16 and.18), and1079–1109. Feedback11/Data12/Code13/Charts15 are closed/released on actual final gates; Tool14 is included after its final combined proof. Latest Tool size/proof source23cdd66a0 is recorded as after_tool_panels in kit-integration JSON. Older details/proposed tests archived in docs/reports/session-handover-2026-11-09.md.
 
 -1108 optional collection guards b805f4819: preserve optional receiver/HOF short-circuit via existing access path and RAII.1109 method defaults51188abb0: correct receiver/previous-parameter scope, provided-argument order and literal undefined without widening null. Both exact all3/strict tsc/negatives/mem and original Tool models all3/30 UI routes pass. Root replay on final engine PASS. Both Done/released.
 - Code13 integrated8bbf8a245: five controls through existing editor/Markdown/Inspector providers, all6 interactions/static callers/eight pictures pass. Root replay all6/gallery check/3-frame editor QJS PASS. D277 bounded nearby diff anchors reconstruct exactly but distant reorders can be nonminimal.
@@ -45,3 +45,5 @@ Owner chooses long milestones: physical keyboard/VoiceOver/touch, device glyph/w
 Owner responsive/password demo is Done: docs/img/design/gallery-responsive.png,password-reveal.png. From retained clean tree: PICTURE=gallery ZINC_SIZE=1280x900 ZINC_ROOT="$PWD" build/zinc run docs/img/design/src --interp. Kit: ZINC_ROOT="$PWD" build/zinc run examples/ui/kit-gallery --interp; GALLERY selects family. Agent runs bounded/background.
 
 Planning17 parked clean branch work/1078.17 checkpoint78c13d3ea5362e86fedfe02508d2a74595e412fb, NOT integrated, all AC open. Four controls/docs/six pictures/old T0 and gate retained, but final formatted source MonthCalendar empty due valid map(callback,) parsing. Minimal tests/data/kit_planning/map-trailing.tsx and .logs; root copies .logs/blockers/jsx-map-trailing. After1110 integrate, start a fresh Planning completion worker from checkpoint, rebase/reprove; no formatting workaround.
+
+AI18 integrated90b24121b Done: nine controls, seven inspected pictures, models/interactions bothUI/all3 and gate pass (JS235962/244342/281058,4079/component/148B strict headroom; AOT5325320/5457488/6009248,61306/component). Native Textarea maxRows/onKeyDown added preserving IME/caret/legacy shortcut. Root rebuild/proofs pending with1110.
