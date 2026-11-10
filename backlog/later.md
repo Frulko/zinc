@@ -736,6 +736,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-575: measure original100k cyclic probe and matched full-frame work on a quiet machine; synchronous whole-heap GC cannot guarantee4ms, and loading/worker/script scans are outside the boundary phase.
 
+- ZN-803: make in-flight update transfers cancellable on early quit if their bounded135-second network wait is disruptive; retain validation-before-staging and cleanup.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -954,3 +956,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1105: physical mouse/touch/VoiceOver and mixed-font wrapped glyph/source-hit parity on Pi, Mojave and the new OptiPlex; local-coordinate and clipping proof currently comes from the development Mac.
 
 - ZN-895: execute pinned Galène binaries on Pi/OptiPlex and measure quiet Mac idle RSS before publication; reproducible builds/local install are proven, server startup and call quality are not.
+
+- ZN-395: prove ZN_HOST_GFX=OFF, real permissions and language timers on OptiPlex and Mojave; only development Mac arm64 is proven.
+- ZN-803: prove update-enabled host-native Linux/Pi exports and signing on their actual target; the Mac hosted engine is never cross-shipped.
+- ZN-897: prove native-client TLS/TURN and remote hardware after the remaining portable ICE restart work; local synthetic media does not prove physical or cross-platform behavior.

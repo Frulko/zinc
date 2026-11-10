@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Combined core engine sourceaf20bb17b SHA f33ea427d default build, six exactT0s (updates/quotedJSON/cache/media shutdown/methods/unchangedkitgate), permissions target and original Museum3/capture/Callshot PASS. Actual production call-server startup/HTTP/TERM/no-child PASS. D231 method semantics amended, D281 hosted updates recorded. Active603 native table/resource packing,587 QJSWorker,1030views coherent optionalDyn frontend patch (build pending; no third builder). No services/guardian/ICE production expansion.
+
 - Engine phase:395a025e2882 Done,71currentlyDone; realOFF build/clock/permissions/diagnostics pass.1030 method checkpoint integrated Backlog, no RT/IR edits.603 actual source9,965,252B including302,442Bheader (was27,205,373), native9,811,528B (was10,905,448); original configuration retained,8MB native still open. Shared header/copy cleanup/lite-host approved; existing-codec bounded native resource packing authorized, no asset cuts. Reserve587 webWorker and fresh1030 view/null research; no new service/nativeICE/guardian production.
 
 - Owner refocus: engine progress, stop service/RTC/guardian scope expansion.8033a87af69a integrated Done,70currentlyDone; combined common5917d26a rebuilt. Finish897 minimal native cleanup checkpoint only;1118 exec prototype recorded, no production. Reserve1030 sole core structural-record/runtime chain,395 headless CMake/CLI,603 attribution-only phase (no third build/core writer). Earlier performance-only/protected-module tasks remain skipped; no benchmark authorization inferred. Protected runtime payload baseline archived for narrow carveout.

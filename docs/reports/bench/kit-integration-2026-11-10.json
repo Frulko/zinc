@@ -560,5 +560,49 @@
       "generic portable process ownership after vanished intermediate",
       "native remote/physical browserVM proof"
     ]
+  },
+  "core_engine_integration": {
+    "source_commit": "af20bb17b",
+    "engine_sha256": "f33ea427d97eee5cb11284366c19cd691f141f0ba81c4a75edfbc20200c8f4df",
+    "build": "default graphics tools/build zinc PASS",
+    "exact_t0": {
+      "app_update_async": "PASS",
+      "json_quoted": "PASS",
+      "qjs_bytecode": "PASS",
+      "webrtc_shutdown": "PASS",
+      "open_record_methods": "PASS",
+      "kit_size": "PASS"
+    },
+    "original_features": [
+      "host_permissions_test PASS",
+      "Museum unchanged check/interpreter3 PASS",
+      "bouncing-ball capture frame1 PASS, inspected",
+      "Call unchanged check/real shot normal exit PASS",
+      "call-server actual CLI startup, real group HTTP status, SIGTERM and no child PASS"
+    ],
+    "logs": [
+      ".logs/integration-2026-11-10/core-engine-build.log",
+      ".logs/integration-2026-11-10/core-engine-smoke.log",
+      ".logs/integration-2026-11-10/server-short.log"
+    ],
+    "status": {
+      "1119": "Done",
+      "896": "Done",
+      "803": "Done",
+      "395": "Done",
+      "1030": "BacklogAC1open",
+      "897": "BacklogAC1only",
+      "1118": "BacklogAC1open",
+      "603": "active strict decimal native size open",
+      "587": "active"
+    },
+    "done_count": 71,
+    "raw_kit_gate_note": "Current unchanged kit_size passes; raw sizes above remain historical pre1119 figures, quiet runner removes successful test detail.",
+    "not_proven": [
+      "quiet-machine compile/runtime/startup/energy/physical/cross-platform measurements",
+      "full structural array/store/borrowed receiver parity",
+      "portable genuine ICE restart",
+      "production guardian after vanished intermediate"
+    ]
   }
 }

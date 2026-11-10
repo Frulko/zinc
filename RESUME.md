@@ -10,7 +10,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 |587 web Worker facade|.worktrees/587 / work/587|Reserved QuickJS/web-environment worker source/blob/clone/transfer support; existing per-thread runtime stays intact.|
 |603 AOT size|.worktrees/603 / work/603|Active emitter/link/resource optimization. Measured source9,965,252 B inclheader, native9,811,528 B; compression next, full8MB criterion still open.|
 
-897 finishes only already-authorized minimal native shutdown and commits Backlog; no production libnice switch, UI expansion or extra call features. Source checkpoint6544ed568 ready to integrate.1118 self-exec prototype checkpoint ready, no production implementation; defer to engine priority. No new services/demos chosen. 395a025e2882 integrated Done (OFF actual build/timers/permissions/diagnostics pass);1030 method checkpoint integrated Backlog, no RT/IR edits.603 build slot/main emission scope released, no service expansion. Root default combined build and exact integration smoke pending.
+897 minimal native cleanup/client checkpoint is integratedc918514de Backlog; no libnice/vendor switch.1118 self-exec research is integrated0d50aadd1, no production guardian.395a025e2882 Done and1030 method checkpoint4f0b3b889 Backlog are integrated. Root common default build af20bb17b and exact integration smoke passed (six T0s, permissions, Museum3, real capture, Callshot); original call-server startup/HTTP/TERM/no-child also passed. Three fresh engine workers now active:603 emitter/resources,587 QJS/web worker,1030-views frontend representation research only. No new services/demos chosen.
 
 ## Integrated state
 
@@ -30,19 +30,19 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 ## Common engine and final kit gate
 
-Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, source3a87af69a, SHA2565917d26a7226ab2897827c4b697c0ff4ec368eb02f7752105dccafb91746e361. Adjacent AOT archives required. Includes current nested macOS repair and QuickJS GC/profile. Announce before replacing. Never build main external WIP.
+Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, sourceaf20bb17b, SHA256f33ea427d97eee5cb11284366c19cd691f141f0ba81c4a75edfbc20200c8f4df. Adjacent AOT archives required. Includes current nested macOS repair and QuickJS GC/profile. Announce before replacing. Never build main external WIP.
 
 Older proofs keep their real hashes:037a922f9/29ffb93a19627fb7dc465badc12c9c292ffaa55bf1db76d458b81837f4b48155;fe4b8bee5/47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Mixed process proof was insufficient and is superseded by reopened combined repro.
 
-Final unchanged kit gate passes: JS236192/246407/283256 B (unused10215,25 B margin;4094/component,15 B strict aggregate headroom). AOT5325336/5474000/6025776 B (unused148664;61308/component). No icon/feature/budget cuts. Detailed task provenance and docs/reports/bench/kit-integration-2026-11-10.json; root .logs/integration-2026-11-10. Root latest combined galene_toolchain/project_link/zapp_share/qjs_bytecode and original Hero check/interpreter4 PASS; no nested cleanup success claim. D278 records standalone Galène, D279 unsigned QuickJS source fallback. D280 records honest boundary GC scheduling.
+Final unchanged kit gate passes: JS236192/246407/283256 B (unused10215,25 B margin;4094/component,15 B strict aggregate headroom). AOT5325336/5474000/6025776 B (unused148664;61308/component). No icon/feature/budget cuts. Detailed task provenance and docs/reports/bench/kit-integration-2026-11-10.json; root .logs/integration-2026-11-10. Root latest combined galene_toolchain/project_link/zapp_share/qjs_bytecode and original Hero check/interpreter4 PASS; no nested cleanup success claim. D278 records standalone Galène, D279 unsigned QuickJS source fallback. D280 records honest boundary GC scheduling; D281 hosted update exports. D231 now records correct dynamic method receiver/extraction semantics and remaining structural gaps.
 
 Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail1078.25-20261110/completed, .logs/share-774.31-20261110, .logs/galene-895-20261110, .logs/hero-603-20261110. Notes/Assistant final proofs and CUI artifacts are archived in .logs/archive-completed-workers-20261110/<id>-final. Eighteen completed clean worktrees removed in this cleanup series;575/1068/old1118/nested1118/ownership1118/774.31 final logs and bundles are in their -final archives.
 
--896 integrated386125005 Done: actual Chrome join/revoked/expired refusal, forced child restart, SIGTERM/no leftover, and CLI setup/start/stop all3 PASS. Source assets portable;5,849,592 B AOT app. Galène archive still unpublished, TLS/TURN/remote/capacity unproven. Frozen1119 remains until common build and root short startup proof.
+-896 integrated386125005 Done: actual Chrome join/revoked/expired refusal, forced child restart, SIGTERM/no leftover, and CLI setup/start/stop all3 PASS. Source assets portable;5,849,592 B AOT app. Galène archive still unpublished, TLS/TURN/remote/capacity unproven. Frozen1119 remains until common build and root short startup proof (now PASS on f33ea427d).
 
 -803 integrated3a87af69a Done: native async signed check/download, caller validation before atomic stage, persistent-host cache eligibility, host engine-carrying exports and signed.app promotion. check/download are Promises (await migration documented). RawAOT unsupported; normal quit may wait bounded135s plus local checks. No new updater work after owner engine refocus.
 
--395a025e2882: real no-graphics build links with libc++/libSystem only; permissions remain real and language timers work, unavailable graphics/IO fail explicitly. Worker exactT0/original abstract program pass; default build needs integration check.
+-395a025e2882: real no-graphics build links with libc++/libSystem only; permissions remain real and language timers work, unavailable graphics/IO fail explicitly. Worker exactT0/original abstract program pass; combined default graphics build, real permissions target and existing bouncing-ball capture passed.
 -1030 method checkpoint integrated: receiver-before-args, unbound extraction, declaration identity/inheritance/default arity, typed JSON method omission. Focused all3/original regression passes. Remaining array identity/wider writes/structural receiver/null-vs-undefined stay Backlog with committed repros, no unsafe partial widening.
 
 ## Ownership1118 research checkpoint
@@ -53,7 +53,7 @@ Integrated72908db66. Exact real-Zinc repro on9a23: Python reaps an intermediate 
 
 Main external WIP stays untouched: ui.ts sparse Map/Fenwick42add19del near639/1074 (known incomplete prependRows, do not investigate), main.cpp12/0 display, rt.h137/1 allocator, rtcalls30/17,machine3/2,worker1/1,perf15/0, LVGL/runtime/HAL/host/CHANGELOG/affected and untracked LVGL/skills files. Never build/reset/stage main WIP.
 
-Completed UIchain carveout changed display token near2956/layers8374 and kitTabs. Current803 carveout is updater/fused metadata/export dispatch in main.cpp and CLI, outside the12line external display hunk.575 clean runtime/gfx.cpp profiler carveout is integrated. No other rt/runtime/UI/HAL change authorized. External virtualization hunk payload MUST remain identical; diff blob IDs/line offsets may change when HEAD changes. Preservation JSON and archived patches record normalized hashes. tools/integrate stashes overlaps uniquely/restores; verify ui.ts diff SHA, affected JSON, conflict markers, stash preservation. Perf owned append stage via HEAD+block/hash-object/update-index, never mixed working file.
+Completed UIchain carveout changed display token near2956/layers8374 and kitTabs. Current803 carveout is updater/fused metadata/export dispatch in main.cpp and CLI, outside the12line external display hunk.575 clean runtime/gfx.cpp profiler carveout is integrated. 587 alone has a narrow worker.cpp queue-budget carveout in post/next/terminate/join and accounting, outside the protected owner hunk near286. No other rt/runtime/UI/HAL change authorized. External virtualization hunk payload MUST remain identical; diff blob IDs/line offsets may change when HEAD changes. Preservation JSON and archived patches record normalized hashes. tools/integrate stashes overlaps uniquely/restores; verify ui.ts diff SHA, affected JSON, conflict markers, stash preservation. Perf owned append stage via HEAD+block/hash-object/update-index, never mixed working file.
 
 Every heavy command through absolute tools/work-run SECONDS COMMAND ARGS, one pending per worker. Max2 building trees globally, one app/test/link; bound every run, headless or ZINC_BACKGROUND=1, no leftover children. No suites/T1/T2/tests-demo/pixelcompare/conformance/fuzz/benchmarks/CI. Harness may build and prove startup only; quiet measurements owner's.
 
@@ -63,15 +63,20 @@ Completed logs/checkpoints archived .logs/archive-completed-workers-20261110. Co
 
 Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow@192.168.2.228; Tailscale100.66.7.14 / optiplex.tail80b63.ts.net, HostKeyAlias192.168.2.228 verifies same key. Initially no compiler/build tools. Actual unchanged nullable_numeric cross-built x86_64-linux on Mac, deployed ~/zn/codex-1106-20261110-da7ca, timeout15/headless via Tailscale PASS, SHA7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No process left; GPU/desktop/native build unproven. Pi spark@192.168.2.31 and Mojave mowmow@192.168.2.215 remain. Own directories only, no machines/daemon restart/QEMU.
 
--774.31 capture regression is now closed on final combined same-binary root proof; task Done.1118 broader vanished-intermediate ownership gap remains independently open.1119 quoted-key JSON fix integrated1b8ecadb5; original unchanged group check/all3 PASS. Frozen candidate38e22ed7035d08782e9293b57987ab76d4f95b3227bcd8e47b1b4131e018c6ab at .worktrees/1119/build/zinc (adjacent AOT libs) is in use by896; do not rebuild/remove it. Root exact json_quoted and unchanged kit_size PASS against integrated source with frozen candidate; common combined build now complete; final exact integration smoke pending. Last raw size figures predate1119; no new numeric size claim from the quiet runner output.
+-774.31 capture regression is now closed on final combined same-binary root proof; task Done.1118 broader vanished-intermediate ownership gap remains independently open.1119 quoted-key JSON fix integrated1b8ecadb5; original unchanged group check/all3 PASS. Frozen candidate38e22ed7035d08782e9293b57987ab76d4f95b3227bcd8e47b1b4131e018c6ab at .worktrees/1119/build/zinc (adjacent AOT libs) is in use by896; do not rebuild/remove it. Root exact json_quoted and unchanged kit_size PASS again on current common f33ea427d; app_update_async/qjs_bytecode/webrtc_shutdown/open_record_methods, permissions and all four original feature smokes also PASS. Log .logs/integration-2026-11-10/core-engine-smoke.log; server-short.log. Frozen1119/1030 remain read-only for recorded historical proofs. Last raw size figures predate1119; no new numeric size claim from the quiet runner output.
 
 ## Tests to run (the owner picks)
+
+- Since3a87af69a: maintained app_update_api T1 (~5–15s), museum_update demo (~15–30s), AOT process promises/QuickJS exported.app update (~5–15s), and slow-transfer early-quit/refresh teardown (up to135s plus local checks); memory unmeasured.
+- Since4f0b3b889: broader records/classes tools/diff-matrix at a milestone (earlier estimate~10min/<1GB); committed focused all3 method regression already passes.
+- Sincec918514de: two Zinc clients plus Chrome and genuine5-second ICE loss/recovery remain open task criteria; no extra native dependency authorized now.
+
 
 - Since78c1d970a: Hamlet matched before/after AOT/interpreter idle-view24/64/96 and windowed Metal/QuickJS fluidity; exact geometry passes, speed benefit unproven.
 
 - Since5acf53be0: Phaser/Babylon cached startup and QuickJS GC p99 on a quiet machine;575 implements remaining scheduling/profile first.
 - Since9ccee370f: Galène real Pi/OptiPlex execution and quiet RSS before publication; recent optional SSH attempts timed out/Pi agent refused signature. Do not claim remote server proof.
-- Since64c0f7158: Hero linked-library size attribution with ZN_KEEP_SYMBOLS=1; no8MB/10MB success claim.
+- Since64c0f7158: Hero attribution is complete;603 active size changes still require final-source gates. No quiet compile-time/startup claim.
 
 - Physical keyboard/touch/VoiceOver/device/browser passes, long remount/decode/resource/idle-energy churn: exact commands/durations in each task/README (families14–19, demos21–28). No physical or quiet-machine claims.
 - Sincec0813bdd5/428d48c1b/fe4b8bee5/3e540bbe9: long Settings/theme/forms/scroll churn and native accessibility; current exact all3/360focus/Avatar56 proof passes.
