@@ -6,9 +6,9 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|1118 ownership completion|.worktrees/1118-owner / work/1118-owner|Fresh worker investigates remaining vanished-intermediate ownership gap after58ee758c8. AC1 open, AC2 checked.|
-|896 call server|.worktrees/896 / work/896|Reserved: standalone Galène setup/supervision/token links, TS-only.895Review is dependency-ready.|
-|803 Museum updates|.worktrees/803 / work/803|Reserved: existing update lifecycle and parse-before-staging. Do not touch process provider until1118 finalizes.|
+|1119 quoted-key JSON|.worktrees/1119 / work/1119|Sole frontend worker fixes original896 configuration serialization, all3 engines; no app workaround.|
+|896 call server|.worktrees/896 / work/896|TS service source/README advances; original JSON config waits1119. Pinned static-source copy and bounded single-Zinc/browser proof planned.|
+|803 Museum updates|.worktrees/803 / work/803|Native async/validate-before-stage + update-enabled host export packaging; isolated main/CLI edits authorized, no loop/runtime change.|
 
 ## Integrated state
 
@@ -34,13 +34,17 @@ Older proofs keep their real hashes:037a922f9/29ffb93a19627fb7dc465badc12c9c292f
 
 Final unchanged kit gate passes: JS236192/246407/283256 B (unused10215,25 B margin;4094/component,15 B strict aggregate headroom). AOT5325336/5474000/6025776 B (unused148664;61308/component). No icon/feature/budget cuts. Detailed task provenance and docs/reports/bench/kit-integration-2026-11-10.json; root .logs/integration-2026-11-10. Root latest combined galene_toolchain/project_link/zapp_share/qjs_bytecode and original Hero check/interpreter4 PASS; no nested cleanup success claim. D278 records standalone Galène, D279 unsigned QuickJS source fallback. D280 records honest boundary GC scheduling.
 
-Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail1078.25-20261110/completed, .logs/share-774.31-20261110, .logs/galene-895-20261110, .logs/hero-603-20261110. Notes/Assistant final proofs and CUI artifacts are archived in .logs/archive-completed-workers-20261110/<id>-final. Fourteen completed clean worktrees were removed;1118/774.31 retained until ownership research checkpoints.575/1068 final logs are in their -final archives.
+Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail1078.25-20261110/completed, .logs/share-774.31-20261110, .logs/galene-895-20261110, .logs/hero-603-20261110. Notes/Assistant final proofs and CUI artifacts are archived in .logs/archive-completed-workers-20261110/<id>-final. Eighteen completed clean worktrees removed in this cleanup series;575/1068/old1118/nested1118/ownership1118/774.31 final logs and bundles are in their -final archives.
+
+## Ownership1118 research checkpoint
+
+Integrated72908db66. Exact real-Zinc repro on9a23: Python reaps an intermediate Zinc before ancestor cleanup, leaving a normal Zinc-owned subgroup alive. Survivor cleaned atomically; no process remains. Durable .logs/archive-completed-workers-20261110/1118-owner-final/logs/process1118-owner/repro-result.json. Guardian per spawn is only a design, not implemented/proven. Must isolate guardian from ancestor group kills, keep owner-only CLOEXEC writer, retain executable PID before reap and preserve public PID/status. Two-fork/libuv-atfork descriptor ordering and retained COW memory are unresolved. Next worker starts with bounded native scratch proof; no source implementation authorized yet.1118 BacklogAC1open/AC2checked, unclaimed while fresh1119 fixes actual896 blocker.
 
 ## Preserve external work and machine limits
 
 Main external WIP stays untouched: ui.ts sparse Map/Fenwick42add19del near639/1074 (known incomplete prependRows, do not investigate), main.cpp12/0 display, rt.h137/1 allocator, rtcalls30/17,machine3/2,worker1/1,perf15/0, LVGL/runtime/HAL/host/CHANGELOG/affected and untracked LVGL/skills files. Never build/reset/stage main WIP.
 
-Only UIchain carveout: isolated clean worktree changes display token near2956 and layers near8374, plus kitTabs. External virtualization hunk payload MUST remain identical; diff blob IDs/line offsets may change when HEAD changes. Preservation JSON and archived patches record normalized hashes. tools/integrate stashes overlaps uniquely/restores; verify ui.ts diff SHA, affected JSON, conflict markers, stash preservation. Perf owned append stage via HEAD+block/hash-object/update-index, never mixed working file.
+Completed UIchain carveout changed display token near2956/layers8374 and kitTabs. Current803 carveout is updater/fused metadata/export dispatch in main.cpp and CLI, outside the12line external display hunk.575 clean runtime/gfx.cpp profiler carveout is integrated. No other rt/runtime/UI/HAL change authorized. External virtualization hunk payload MUST remain identical; diff blob IDs/line offsets may change when HEAD changes. Preservation JSON and archived patches record normalized hashes. tools/integrate stashes overlaps uniquely/restores; verify ui.ts diff SHA, affected JSON, conflict markers, stash preservation. Perf owned append stage via HEAD+block/hash-object/update-index, never mixed working file.
 
 Every heavy command through absolute tools/work-run SECONDS COMMAND ARGS, one pending per worker. Max2 building trees globally, one app/test/link; bound every run, headless or ZINC_BACKGROUND=1, no leftover children. No suites/T1/T2/tests-demo/pixelcompare/conformance/fuzz/benchmarks/CI. Harness may build and prove startup only; quiet measurements owner's.
 

@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Ownership research72908db66 integrated: actual9a23 vanished-intermediate repro confirmed and atomically cleaned, guardian remains unproven due atfork/COW constraints.1118 released for future scratch-proof worker, BacklogAC1open. Fresh1119 frontend worker active in own tree;803 and896 continue, no shared production provider edits. Archived/removed4 clean old process/Share trees after saving complete logs/checkpoint bundles.
+
 - Final combined9a23 root3T0/Fatty/real same-binary Atelier close PASS (capture82018, Python82019, grandchild82020 absent); Share774.31 observed capture regression closed, Done,67currentlyDone. Broader1118 ownership gap remains separately Backlog. D280 honest boundary GC recorded;575/1068 final logs archived and clean trees removed. Root Hamlet exactT0/check/realQuickJS3 PASS.1119 core blocker reserved, ownershipresearch checkpoint pending frees slot.
 
 -896 original group JSON with quoted max-clients field fails common9a23 Z0005; confirmed root two-line repro and primary ECMAScript semantics. Created1119 blocking compiler fix, before896, no caller/manual-JSON workaround. Ownership1118 research finishes current scratch proof and checkpoints to free a fresh frontend slot;803 updater continues isolated main/runtime-safe route.
