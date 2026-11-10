@@ -185,6 +185,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `examples/ui/finance` adds fictional accounts, month-filtered cash flow, candlestick and spending charts, and searchable transactions with keyboard selection and numeric sorting.
 - `examples/ui/mail` adds a responsive local inbox with search, reading, stars, archiving and a composer that saves copies to Sent without sending email.
 
+- `examples/ui/assistant` adds a local scripted chat with reasoning, tool details, a plan, public source cards,
+  a multiline composer and working stop/retry controls in Quiet light and dark.
+
 #### Changed
 
 - The kit gallery keeps light/dark and family navigation visible while scrolling, with keyboard focus transfer and layouts that fit narrow windows.
