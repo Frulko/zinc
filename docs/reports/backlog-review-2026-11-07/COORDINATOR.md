@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve489 independent asset-cooker verification beside161.02. Primary research found a real receipt bug: quantError reconstructs unrounded X/65535 while output truncates XYZ/32767. Worker may repair that exact metric and add four-profile deterministic/budget/integer-position regressions; no new CLI option or huge stress fixture. Starts non-building on common0523dc12, second build slot only if cook.cpp repair needs it.
+
 - D293/root host-lite369121d52 and TC2d1bb151e proofs recorded; commoncompiler0523dc12 stable.80Done unchanged,164 Backlog/512 Review excluded. Archive164/512 (44completedsourcecheckpoints cleaned).161.02 solecorewriter has actualSymbol/custom/livecollection proofs; Table-only lazy metadata carve-out allowed after inspecting WIP, allocator/ArrObj/other payloads still protected. No benchmark/suite/hardware claims.
 
 - Reserve161.02 as next solecore feature: genuine Symbol values/keys and iterator protocol, preserving D275 snapshot-array collection methods. Primary research completed; full natural scope includes live Map/Set and close semantics, so freshworker must propose coherent representation before broad edits, no token demo/AC waiver. Owner rt.h0–300 and existing runtime hunks remain protected.164partial/512Review integrated; root final512proof running, no other core writer.
