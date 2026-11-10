@@ -6,13 +6,13 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|1118 nested process families|.worktrees/1118-nested / work/1118-nested|Initial POSIX groups miss nested Zinc-owned groups. Fresh worker fixes same-binary capture/child/grandchild; both AC reopened.|
-|575 QuickJS GC/profile|.worktrees/575 / work/575|Reserved: scheduling/profile implementation and short exact proof. Quiet pause/startup measurements remain owner-picked.|
+|1118 ownership completion|.worktrees/1118-owner / work/1118-owner|Fresh worker investigates remaining vanished-intermediate ownership gap after58ee758c8. AC1 open, AC2 checked.|
+|896 call server|.worktrees/896 / work/896|Reserved: standalone Galène setup/supervision/token links, TS-only.895Review is dependency-ready.|
 |803 Museum updates|.worktrees/803 / work/803|Reserved: existing update lifecycle and parse-before-staging. Do not touch process provider until1118 finalizes.|
 
 ## Integrated state
 
-66 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, and445 QuickJS packing/cache. Comparison1078.29, Galène895 and Hamlet1068 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
+66 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, and445 QuickJS packing/cache. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
 
 - UI chain7ed1b1211/39e7e5e62/5488a7d35, recursive capture063edc9de, Solid ownership0d7163987: root exact tests and original Music feature pass. Mail6dc4c22ca, Notesed5802785, Assistantc280d7fd8 and Music83e6fe6f5 Done with actual all3 action/desktop/mobile/focus/cleanup proofs. Original responsive/password defects fixed.
 -445 integrated5acf53be0: local trusted bytecode cache stays fast; unsigned packs execute retained source, with one explicit warning. No unauthenticated bytecode loader. Exact qjs_bytecode and actual Fatty direct/pack proof pass; no startup timing claim.
@@ -23,9 +23,12 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 -1068 integrated78c1d970a: exact deer already matches all3 with common engine; tight body bounds and17,776-frame coverage pass. Root tier-t0/real QuickJS proof queued. Quiet24/64/96 numbers remain open. An accidental duplicate-basename T1 completed and is disclosed in notes; no process remains.
 
+-575 integrated43af3d75d Review: frame-boundary allocation-pressure GC, RAII thresholds and stable append-compatible profile phase. Exact GC/cache T0 and real Fatty pass on worker95d46b9f. Full scans indivisible, no4ms/p99/startup claim. Original probes use top-level loop/loadScript, so performance AC remain open.
+-1118 nested58ee758c8: stable macOS original-parent identities plus atomic audit-token signals cover normal nested groups and leader _exit. Final candidateee200909 actual same-binary Atelier close passes; bounded walk/vanished intermediate/native API limitations keepAC1open. Root combined proof queued.
+
 ## Common engine and final kit gate
 
-Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, source a4d6d50de, SHA256286072a337fc84ee28375d9bc529a2afcb2d69b0ed9b37d0013cf7da9816cc7a. Adjacent AOT archives required. Includes all current features and initial1118, not the pending nested repair. Announce before replacing. Never build main external WIP.
+Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, source58ee758c8, SHA2569a23bc25acdf4fdd00316ded0d6efddd0673475b007b1ef2f5bfa43e84e24579. Adjacent AOT archives required. Includes current nested macOS repair and QuickJS GC/profile. Announce before replacing. Never build main external WIP.
 
 Older proofs keep their real hashes:037a922f9/29ffb93a19627fb7dc465badc12c9c292ffaa55bf1db76d458b81837f4b48155;fe4b8bee5/47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Mixed process proof was insufficient and is superseded by reopened combined repro.
 
