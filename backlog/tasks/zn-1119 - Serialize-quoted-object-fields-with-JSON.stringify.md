@@ -2,8 +2,7 @@
 id: ZN-1119
 title: Serialize quoted object fields with JSON.stringify
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-10 05:46'
 updated_date: '2026-11-10 05:55'
 labels:

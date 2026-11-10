@@ -6,7 +6,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-|1119 quoted-key JSON|.worktrees/1119 / work/1119|Sole frontend worker fixes original896 configuration serialization, all3 engines; no app workaround.|
+|1118 guardian prototype|.worktrees/1118-guard / work/1118-guard|Fresh worker proves minimal isolated guardian before production implementation; BacklogAC1open.|
 |896 call server|.worktrees/896 / work/896|TS service source/README advances; original JSON config waits1119. Pinned static-source copy and bounded single-Zinc/browser proof planned.|
 |803 Museum updates|.worktrees/803 / work/803|Native async/validate-before-stage + update-enabled host export packaging; isolated main/CLI edits authorized, no loop/runtime change.|
 
@@ -38,7 +38,7 @@ Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail
 
 ## Ownership1118 research checkpoint
 
-Integrated72908db66. Exact real-Zinc repro on9a23: Python reaps an intermediate Zinc before ancestor cleanup, leaving a normal Zinc-owned subgroup alive. Survivor cleaned atomically; no process remains. Durable .logs/archive-completed-workers-20261110/1118-owner-final/logs/process1118-owner/repro-result.json. Guardian per spawn is only a design, not implemented/proven. Must isolate guardian from ancestor group kills, keep owner-only CLOEXEC writer, retain executable PID before reap and preserve public PID/status. Two-fork/libuv-atfork descriptor ordering and retained COW memory are unresolved. Next worker starts with bounded native scratch proof; no source implementation authorized yet.1118 BacklogAC1open/AC2checked, unclaimed while fresh1119 fixes actual896 blocker.
+Integrated72908db66. Exact real-Zinc repro on9a23: Python reaps an intermediate Zinc before ancestor cleanup, leaving a normal Zinc-owned subgroup alive. Survivor cleaned atomically; no process remains. Durable .logs/archive-completed-workers-20261110/1118-owner-final/logs/process1118-owner/repro-result.json. Guardian per spawn is only a design, not implemented/proven. Must isolate guardian from ancestor group kills, keep owner-only CLOEXEC writer, retain executable PID before reap and preserve public PID/status. Two-fork/libuv-atfork descriptor ordering and retained COW memory are unresolved. Next worker starts with bounded native scratch proof; no source implementation authorized yet.1118 BacklogAC1open/AC2checked, reserved fresh1118-guard for minimal native prototype; no full engine build until coordinator releases a slot.
 
 ## Preserve external work and machine limits
 
@@ -54,7 +54,7 @@ Completed logs/checkpoints archived .logs/archive-completed-workers-20261110. Co
 
 Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow@192.168.2.228; Tailscale100.66.7.14 / optiplex.tail80b63.ts.net, HostKeyAlias192.168.2.228 verifies same key. Initially no compiler/build tools. Actual unchanged nullable_numeric cross-built x86_64-linux on Mac, deployed ~/zn/codex-1106-20261110-da7ca, timeout15/headless via Tailscale PASS, SHA7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No process left; GPU/desktop/native build unproven. Pi spark@192.168.2.31 and Mojave mowmow@192.168.2.215 remain. Own directories only, no machines/daemon restart/QEMU.
 
--774.31 capture regression is now closed on final combined same-binary root proof; task Done.1118 broader vanished-intermediate ownership gap remains independently open.1119 quoted-key JSON blocker is reserved for fresh core worker before896 can run original group setup; do not rewrite its JSON.
+-774.31 capture regression is now closed on final combined same-binary root proof; task Done.1118 broader vanished-intermediate ownership gap remains independently open.1119 quoted-key JSON fix integrated1b8ecadb5; original unchanged group check/all3 PASS. Frozen candidate38e22ed7035d08782e9293b57987ab76d4f95b3227bcd8e47b1b4131e018c6ab at .worktrees/1119/build/zinc (adjacent AOT libs) is in use by896; do not rebuild/remove it. Root exact json_quoted and unchanged kit_size now queued against integrated source with frozen candidate; common integration build deferred until803 returns.
 
 ## Tests to run (the owner picks)
 

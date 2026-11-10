@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated1119 quoted-key serializer1b8ecadb5, original group/all3/exactT0 PASS on frozen38e22ed7.896 uses candidate read-only; root exact json_quoted and unchanged kit_size queued because shared JSON codegen can affect the15B gate margin. Defer common full build to group with803. Reserve fresh1118 guardian prototype from research72908db66; provider ownership free, no production implementation before safe fork/lifetime proof.
+
 - Ownership research72908db66 integrated: actual9a23 vanished-intermediate repro confirmed and atomically cleaned, guardian remains unproven due atfork/COW constraints.1118 released for future scratch-proof worker, BacklogAC1open. Fresh1119 frontend worker active in own tree;803 and896 continue, no shared production provider edits. Archived/removed4 clean old process/Share trees after saving complete logs/checkpoint bundles.
 
 - Final combined9a23 root3T0/Fatty/real same-binary Atelier close PASS (capture82018, Python82019, grandchild82020 absent); Share774.31 observed capture regression closed, Done,67currentlyDone. Broader1118 ownership gap remains separately Backlog. D280 honest boundary GC recorded;575/1068 final logs archived and clean trees removed. Root Hamlet exactT0/check/realQuickJS3 PASS.1119 core blocker reserved, ownershipresearch checkpoint pending frees slot.
