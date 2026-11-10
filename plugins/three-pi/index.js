@@ -1,5 +1,7 @@
 import { TIER } from 'zinc:platform';
-import { BufferAttribute, BufferGeometry, Uint16BufferAttribute } from 'three';
+import { BufferAttribute, BufferGeometry, Uint16BufferAttribute, Float32BufferAttribute, Material,
+  Mesh, Object3D, MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, MeshStandardMaterial, MeshPhysicalMaterial, NormalBlending } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const LIMIT = 65535;
 const invalid = message => { throw new Error('zinc:three-pi: ' + message); };
@@ -108,4 +110,127 @@ export function warmUp(renderer, scene, camera) {
   renderer.compile(scene, camera);
   renderer.debug.checkShaderErrors = false;
   return renderer;
+}
+
+// A call-local identity map preserves sharing without retaining app resources globally.
+export function downgradeMaterials(scene) {
+  if (TIER !== 2) return scene;
+  const converted = new Map(), replacements = [];
+  const convert = source => {
+    if (!source || (source.constructor !== MeshStandardMaterial && source.constructor !== MeshPhysicalMaterial) ||
+        source.onBeforeCompile !== Material.prototype.onBeforeCompile ||
+        source.onBeforeRender !== Material.prototype.onBeforeRender ||
+        source.customProgramCacheKey !== Material.prototype.customProgramCacheKey) return source;
+    if (!converted.has(source)) {
+      const material = new MeshLambertMaterial();
+      Material.prototype.copy.call(material, source);
+      material.color.copy(source.color);
+      material.emissive.copy(source.emissive);
+      for (const key of ['map', 'emissiveMap', 'emissiveIntensity', 'lightMap', 'lightMapIntensity',
+        'aoMap', 'aoMapIntensity', 'alphaMap', 'fog', 'wireframe', 'wireframeLinewidth', 'wireframeLinecap', 'wireframeLinejoin']) material[key] = source[key];
+      // VC4 lacks derivatives for flat shading, normal/bump maps, alpha hashing and coverage.
+      material.alphaHash = false;
+      material.alphaToCoverage = false;
+      material.flatShading = false;
+      converted.set(source, material);
+    }
+    return converted.get(source);
+  };
+  scene.traverse(object => {
+    if (!object.isMesh) return;
+    const source = object.material;
+    const material = Array.isArray(source) ? source.map(convert) : convert(source);
+    if (Array.isArray(source) ? source.some((value, i) => value !== material[i]) : source !== material) replacements.push([object, material]);
+  });
+  for (const [object, material] of replacements) object.material = material;
+  return scene;
+}
+
+const renderKeys = ['visible', 'castShadow', 'receiveShadow', 'renderOrder', 'frustumCulled'];
+const hooks = ['onBeforeRender', 'onAfterRender', 'onBeforeShadow', 'onAfterShadow'];
+function mergeable(mesh) {
+  const geometry = mesh.geometry, material = mesh.material;
+  if (mesh.constructor !== Mesh || mesh.userData.static !== true || mesh.children.length || mesh.animations.length ||
+      mesh.matrixWorldAutoUpdate === false || mesh.customDepthMaterial || mesh.customDistanceMaterial ||
+      hooks.some(key => mesh[key] !== Object3D.prototype[key]) || !geometry ||
+      geometry.isInstancedBufferGeometry || Object.keys(geometry.morphAttributes).length ||
+      mesh.morphTargetInfluences || Array.isArray(material) || !material || material.transparent ||
+      material.blending !== NormalBlending || !material.depthTest || !material.depthWrite || material.stencilWrite ||
+      ![MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, MeshStandardMaterial, MeshPhysicalMaterial].includes(material.constructor) ||
+      material.onBeforeCompile !== Material.prototype.onBeforeCompile ||
+      material.onBeforeRender !== Material.prototype.onBeforeRender ||
+      material.customProgramCacheKey !== Material.prototype.customProgramCacheKey ||
+      geometry.groups.length || geometry.drawRange.start !== 0 || geometry.drawRange.count !== Infinity) return false;
+  const position = geometry.attributes.position;
+  if (!position || position.itemSize !== 3) return false;
+  for (const [name, attribute] of Object.entries(geometry.attributes)) {
+    // Baking transforms into integer/half-float storage would round or corrupt positions/normals/tangents.
+    if (attribute.isInterleavedBufferAttribute || attribute.isInstancedBufferAttribute ||
+        !attribute.array || !ArrayBuffer.isView(attribute.array) || attribute.array instanceof DataView ||
+        !Number.isSafeInteger(attribute.itemSize) || attribute.itemSize < 1 || attribute.count !== position.count ||
+        !(attribute.constructor === BufferAttribute || attribute.constructor === Float32BufferAttribute) ||
+        (['position', 'normal', 'tangent'].includes(name) &&
+          (attribute.normalized || !(attribute.array instanceof Float32Array || attribute.array instanceof Float64Array) ||
+           attribute.itemSize !== (name === 'tangent' ? 4 : 3)))) return false;
+  }
+  const index = geometry.index;
+  if (index) {
+    if (!index.array || index.itemSize !== 1 || index.normalized) return false;
+    for (const value of index.array) if (!Number.isSafeInteger(value) || value < 0 || value >= position.count) return false;
+  }
+  if ((index ? index.count : position.count) % 3) return false;
+  if (mesh.matrixAutoUpdate) mesh.updateMatrix();
+  const determinant = mesh.matrix.determinant();
+  // Reflections reverse winding/handedness; leave them and singular transforms to the caller.
+  return mesh.matrix.elements.every(Number.isFinite) && Number.isFinite(determinant) && determinant > 0;
+}
+
+function compatible(a, b) {
+  if (a.material !== b.material || a.layers.mask !== b.layers.mask || renderKeys.some(key => a[key] !== b[key])) return false;
+  const ga = a.geometry, gb = b.geometry;
+  if ((ga.index === null) !== (gb.index === null)) return false;
+  const names = Object.keys(ga.attributes);
+  return names.length === Object.keys(gb.attributes).length && names.every(name => {
+    const x = ga.attributes[name], y = gb.attributes[name];
+    return y && x.array.constructor === y.array.constructor && x.itemSize === y.itemSize &&
+      x.normalized === y.normalized && x.gpuType === y.gpuType && x.usage === y.usage;
+  });
+}
+
+// Only explicitly static, compatible direct children are candidates. Unsupported meshes stay intact.
+export function mergeStaticMeshes(parent) {
+  if (TIER !== 2) return parent;
+  const batches = [], replacements = [];
+  for (const mesh of parent.children) {
+    if (!mergeable(mesh)) continue;
+    let batch = batches.find(group => compatible(group[0], mesh));
+    if (!batch) { batch = []; batches.push(batch); }
+    batch.push(mesh);
+  }
+  // Prepare every result before touching the scene. Never release shared source resources.
+  for (const batch of batches) {
+    if (batch.length < 2) continue;
+    const geometries = batch.map(mesh => mesh.geometry.clone().applyMatrix4(mesh.matrix));
+    const merged = mergeGeometries(geometries, false);
+    if (!merged) invalid('static geometry merge failed');
+    for (const [name, attribute] of Object.entries(merged.attributes)) {
+      const source = batch[0].geometry.attributes[name];
+      attribute.setUsage(source.usage);
+      attribute.name = source.name;
+      if (source.gpuType !== undefined) attribute.gpuType = source.gpuType;
+    }
+    const meshes = splitGeometry(merged).map(geometry => {
+      const mesh = new Mesh(geometry, batch[0].material);
+      for (const key of renderKeys) mesh[key] = batch[0][key];
+      mesh.layers.mask = batch[0].layers.mask;
+      mesh.userData.static = true;
+      return mesh;
+    });
+    replacements.push({ batch, meshes });
+  }
+  for (const { batch, meshes } of replacements) {
+    for (const mesh of batch) parent.remove(mesh);
+    for (const mesh of meshes) parent.add(mesh);
+  }
+  return parent;
 }

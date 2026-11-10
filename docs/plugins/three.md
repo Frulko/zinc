@@ -188,7 +188,10 @@ or vendor a different three.js version. Automatic r162 selection and the VC4 pro
 are still separate unfinished tasks; browser export has not been verified.
 
 ```js
-import { splitGeometry, warmUp } from 'zinc:three-pi';
+import { splitGeometry, warmUp, downgradeMaterials, mergeStaticMeshes } from 'zinc:three-pi';
+downgradeMaterials(scene);
+// Mark only immutable ordinary mesh children: mesh.userData.static = true.
+mergeStaticMeshes(group); // optional; processes direct children only
 const chunks = splitGeometry(geometry);
 // Create the meshes explicitly, retaining any skeleton/morph state in your app.
 // Set the final lights/environment before warming up.
@@ -221,3 +224,42 @@ The exact `three_pi` T0 checks real r186 plus external checksum-pinned r162 data
 semantics and T3/T4 identity. A short direct renderer fixture is
 `tests/data/three-pi/render.js`; Mac WebGL1/r162 and WebGL2/r186 readback do not prove
 VC4 support, Pi frame rates or KTX2 decoding.
+
+`downgradeMaterials(scene)` replaces built-in Standard/Physical mesh materials with
+Lambert. A map local to that call preserves material sharing, including repeated
+entries of material arrays. Color, map, emissive color/map/intensity, lightMap and
+AO maps/intensities, alphaMap, opacity, alphaTest, vertex colors, fog, side and the
+applicable base Material state are retained. Normal/bump/displacement/environment
+maps, PBR-only features, flat shading, alpha hashing and alpha-to-coverage are
+omitted; the latter features need derivatives. Custom shader hooks and material
+subclasses are retained unchanged. Source materials/textures are never modified
+or disposed. These exclusions do not make custom/skinned shaders VC4-compatible.
+
+`mergeStaticMeshes(parent)` considers only direct ordinary `Mesh` children with
+`userData.static === true`: the application promises those objects and transforms
+will not be animated or independently edited. It groups by **material identity**
+and matching layers/render state and attributes (names, storage types, tuple
+sizes, normalization, GPU types and usage), not visual similarity. Opaque built-in
+materials must use normal blending, depth testing/writes and no stencil writes.
+Transparent/custom/skinned/instanced/morph meshes, meshes with children or animation
+tracks/hooks, material arrays, geometry groups, partial draw ranges, inaccessible,
+interleaved or custom attribute classes, and incompatible batches remain intact.
+
+Only ordinary BufferAttribute/Float32BufferAttribute storage is accepted for
+merging; position/normal/tangent must be unnormalized float32/float64. Integer or
+half-float transform attributes stay intact rather than rounding during baking.
+Singular/reflected/nonfinite local transforms stay intact too. Each accepted local
+transform is baked into the output parent's coordinates, with normal-matrix and
+tangent-direction transforms; parent transforms need no inverse. Original object
+identities and per-object names/metadata are intentionally replaced for opted-in
+meshes. Keep external references only when opting out of merging. Shared source
+geometry/material resources are not disposed. Outputs pass through `splitGeometry`
+so merging never reintroduces a 32-bit-index requirement. All geometry results are
+prepared before source objects are removed. T3/T4 return the original scene/parent
+without changing materials, geometry, groups, transforms or render/debug state.
+
+Map `three/addons/utils/BufferGeometryUtils.js` to the utility of the **same**
+three.js release as `three`; `examples/js-three` already maps the addon prefix.
+Both r162/WebGL1 and r186/WebGL2 have a short textured Lambert/static merge renderer
+fixture at `tests/data/three-pi/material-render.js`. This Mac proof does not certify
+Pi shaders, driver limits or speed.
