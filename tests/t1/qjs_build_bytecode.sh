@@ -1,7 +1,7 @@
 #!/bin/sh
 # QuickJS bytecode at zinc build and zinc export (ZN-773.09): zinc build of a project on "engine": "quickjs" writes build/<name>.js, its map and
 # build/<name>.qbc; zinc run build/<name>.qbc runs the bytecode (a source edited since, with the .qbc touched newer, is not what runs), a trace from
-# it names the user's file even after the build moved; a damaged .qbc and one older than its bundle fall back to the source with no error; the
+# it names the user's file even after the build moved; a damaged .qbc and one older than its bundle fall back to the source with one warning; the
 # macos export's .app carries app.qbc and starts from it. Skips (77) without the pinned esbuild in ZINC_HOME (never downloaded here).
 cd "$(dirname "$0")/../.." || exit 2
 ZINC_OFFLINE=1 "$ZINC" toolchain esbuild >/dev/null 2>&1 || { echo "skip: no esbuild in ZINC_HOME (zinc toolchain esbuild fetches it)"; exit 77; }
@@ -30,13 +30,13 @@ got=$(ZINC_STEPS=0 "$ZINC" run "$tmp/tmoved/qt.qbc" 2>&1)
 echo "$got" | grep -q "main.js:1:29" || { echo "a trace from the moved bytecode does not name main.js: $got"; fail=1; }
 mv "$tmp/p/build" "$tmp/moved"
 
-# damaged (the checksum QuickJS checks) and stale (older than the bundle): the source, no error
+# damaged (the checksum QuickJS checks) and stale (older than the bundle): the source and one warning
 printf 'garbage' | dd of="$tmp/moved/qb.qbc" bs=1 seek=40 conv=notrunc 2>/dev/null; touch "$tmp/moved/qb.qbc"
 got=$(ZINC_STEPS=0 "$ZINC" run "$tmp/moved/qb.qbc" 2>&1); rc=$?
-[ $rc = 0 ] && [ "$got" = "edited after the build" ] || { echo "a damaged .qbc does not fall back to the source (rc $rc): $got"; fail=1; }
+[ $rc = 0 ] && echo "$got" | grep -q '^edited after the build$' && [ "$(echo "$got" | grep -c 'warning: .*not readable by this QuickJS')" = 1 ] || { echo "a damaged .qbc does not fall back to the source (rc $rc): $got"; fail=1; }
 "$ZINC" build "$tmp/p" -o "$tmp/p/build/qb" >/dev/null 2>&1 && echo "console.log('newer bundle');" > "$tmp/p/build/qb.js"
 got=$(ZINC_STEPS=0 "$ZINC" run "$tmp/p/build/qb.qbc" 2>&1)
-[ "$got" = "newer bundle" ] || { echo "a .qbc older than its bundle still runs: $got"; fail=1; }
+echo "$got" | grep -q '^newer bundle$' && [ "$(echo "$got" | grep -c 'warning: .*older than the source')" = 1 ] || { echo "a .qbc older than its bundle still runs: $got"; fail=1; }
 
 # the macos export: the .app carries app.qbc and starts from it
 if [ "$(uname)" = Darwin ]; then

@@ -20,6 +20,17 @@ byte-identical, and `tar tf game.zapp` lists it.
 | `icon.png` | zinc.json `app.icon` (a PNG, an SVG or any image zinc decodes) as a 150 x 150 PNG on white: the launcher tile (`zinc-tile` on a reMarkable, the hub's list); absent when the app has no icon. The file itself is also packed at its own path |
 | `assets/...` | the project's assets, read at run time (`zinc:assets`); hidden files stay out |
 | `native/<target>-<arch>/<plugin>/` | the library of each native plugin the program calls, built for the machine that packed it, and its `exports` |
+| `.zinc/app.js`, `.zinc/app.js.map`, `.zinc/app.qbc` | a QuickJS project's bundled source, source map and bytecode; the original project sources and entry are also kept |
+
+QuickJS packs keep bytecode for the Zinc build that produced it: its `zinc-qbc` stamp records the engine version with its git commit,
+and the native QuickJS-ng header records its bytecode version (28 in the pinned 0.17.0). Another engine build, unreadable bytecode or
+bytecode older than its source uses the source with one warning; `zinc build` refreshes local bytecode.
+
+Pack signatures are currently empty. File hashes detect damage but do not authenticate a publisher, and QuickJS does not validate bytecode
+for safe execution ([QuickJS-ng C API](https://quickjs-ng.github.io/quickjs/developer-guide/intro/)). Running a QuickJS `.zapp`, including a fused one, therefore uses the original sources and prints one trust warning;
+no packed bytecode sidecar is loaded. Fast loading from packed bytecode waits for authenticated provenance. For a project you trust,
+`zinc build` produces local bytecode that `zinc run build/<name>.qbc` can load.
+Packing a QuickJS project now uses the pinned esbuild, downloaded and verified once as for `zinc build`; running its source requires no bundler.
 
 A program that calls a native plugin (`zinc:sqlite`, `zinc:audio`...) carries the plugin's library built for the packing machine (ZN-652).
 A fused executable loads it as its own code: it starts with no toolchain and no build. `zinc run app.zapp` builds the plugin from the

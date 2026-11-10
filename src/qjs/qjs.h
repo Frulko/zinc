@@ -16,6 +16,7 @@ struct Options {
   std::string cacheDir; // the transformed modules, by content hash (~/.zinc/cache/qjs); "" transforms each module at each run
   std::vector<std::string> args;  // after `--`
   int profileHz = 0;    // zinc profile --engine quickjs: the sampling rate of the QuickJS profiler (builds with ZN_QJS_PROFILE only)
+  bool bytecode = true; // false for unsigned packs: QuickJS bytecode is trusted code, not a validated input format
 };
 
 // Runs the program to its end (its modules, the promise jobs, the timers, or the frame loop of a zinc:gfx program); the process exit code.

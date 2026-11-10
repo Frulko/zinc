@@ -384,6 +384,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc lint` warns when a program imports a module the target's engine does not have (`zinc:gl` on the 3DS, PSP or Vita), and `zinc device deploy` to a console says so before sending it.
 - Asset budgets as a CI gate: `zinc assets check` builds the release packs for a target and fails naming each group or total over the budgets of `zinc.json` `assets.budgets`, with sizes in KB and MB; `zinc assets report --diff old.json` lists the groups that grew, shrank, appeared or went since an earlier `report.json` (`zinc export` now leaves one beside the SBOM), and `zinc assets clean` empties the asset cache.
 - `zinc assets build` checks the `.vert` and `.frag` shaders of a project's assets with the GLSL ES compiler of the WebGL layer, as GLSL ES 1.00 and 3.00: a shader with an error fails the build with its file and line, and a release build stores shaders without their comments and spaces.
+- `zinc pack` includes a QuickJS project's bundled source and bytecode alongside its original sources. Unsigned packs run from source with one explanation; local bytecode that is older, damaged or from another engine build falls back with one warning.
 
 #### Changed
 

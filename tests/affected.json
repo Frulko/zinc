@@ -3,6 +3,7 @@
   "default": ["checker", "lang"],
   "map": [
     {"paths": ["src/host/loop.cpp", "include/zn/loop.h", "include/zn/process_family.h", "plugins/process/", "tests/data/process_family/", "tests/t0/process_family.sh"], "tests": ["process_family"]},
+    {"paths": ["src/qjs/qjs.cpp", "src/qjs/qjs.h", "src/main.cpp", "tests/data/qjs_bytecode/", "tests/t0/qjs_bytecode.sh"], "tests": ["qjs_bytecode"]},
     {"paths": ["tools/cui-compare", "tools/cui_compare_frame.c", "tests/data/cui_compare.py", "tests/t0/cui_compare.sh"], "tests": ["cui_compare"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/modules.cpp", "lib/zinc.d.ts", "tests/data/return_type/", "tests/t0/return_type.sh"], "tests": ["return_type"]},
     {"paths": ["src/frontend/check.cpp", "tests/data/typeof_union/", "tests/t0/typeof_union.sh"], "tests": ["typeof_union"]},

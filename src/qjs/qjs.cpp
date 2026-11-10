@@ -1107,16 +1107,20 @@ int run(const Options& o) {
   }, e.rt);
   gMain = &e;
   // a bundle's bytecode (zinc build, zinc export, zinc bundle --bytecode): <name>.qbc beside <name>.js runs instead of the source while it is not
-  // older than the bundle and this QuickJS reads it (its version byte and checksum); otherwise the bundle runs, with no error (ZN-773.09)
+  // older than the bundle and this QuickJS reads it; a checksum checks damage, not the bytecode's trust (ZN-445).
   std::string qbc;
+  if (!o.bytecode) zn::log::warning("bytecode", "pack bytecode is not authenticated; running source (use zinc build on a trusted project for local bytecode)");
   {
     std::error_code ec;
     const bool named = endsWith(entry, ".qbc");
     const std::string stem = entry.substr(0, entry.size() - (named ? 4 : endsWith(entry, ".js") ? 3 : 0));
-    if (named && !std::filesystem::exists(stem + ".js", ec)) qbc = entry;   // a .qbc alone runs as before: no source to fall back to
+    if (o.bytecode && named && !std::filesystem::exists(stem + ".js", ec)) qbc = entry;   // a .qbc alone runs as before: no source to fall back to
     else if (stem.size() < entry.size()) {
       entry = stem + ".js";
-      if (std::filesystem::exists(stem + ".qbc", ec) && std::filesystem::last_write_time(stem + ".qbc", ec) >= std::filesystem::last_write_time(entry, ec) && !ec) qbc = stem + ".qbc";
+      if (o.bytecode && std::filesystem::exists(stem + ".qbc", ec)) {
+        if (std::filesystem::last_write_time(stem + ".qbc", ec) >= std::filesystem::last_write_time(entry, ec) && !ec) qbc = stem + ".qbc";
+        else zn::log::warning("bytecode", zn::log::shortPath(stem + ".qbc") + " is older than the source; running source (zinc build refreshes bytecode)");
+      }
     }
   }
   e.entry = entry;
@@ -1142,9 +1146,9 @@ int run(const Options& o) {
     if (!readFile(qbc, js)) { if (alone) { std::fprintf(stderr, "cannot read %s\n", qbc.c_str()); return 101; } }
     else if (js.rfind(stamp, 0) != 0) {   // another zinc's bytecode (or one from before the stamp): never read
       other = true;
-      const std::string by = js.rfind("zinc-qbc ", 0) == 0 ? "zinc " + js.substr(9, js.find('\n') - 9) : "an older zinc";
+      const std::string by = js.rfind("zinc-qbc ", 0) == 0 ? "zinc " + zn::log::jsonEscape(js.substr(9, std::min<std::size_t>(128, js.find('\n') - 9))) : "an older zinc";
       if (alone) { std::fprintf(stderr, "zinc: %s was compiled by %s, not by this one (%s): build it again (zinc build), or run the .js beside it\n", qbc.c_str(), by.c_str(), stamp.substr(9, stamp.size() - 10).c_str()); return 101; }
-      zn::log::step("bytecode", zn::log::shortPath(qbc) + " was compiled by " + by + ", the source instead");
+      zn::log::warning("bytecode", zn::log::shortPath(qbc) + " was compiled by " + by + ", the source instead (zinc build refreshes bytecode)");
     } else mod = JS_ReadObject(e.ctx, reinterpret_cast<const uint8_t*>(js.data()) + stamp.size(), js.size() - stamp.size(), JS_READ_OBJ_BYTECODE);
     if (!JS_IsException(mod) && JS_ResolveModule(e.ctx, mod) < 0) { JS_FreeValue(e.ctx, mod); mod = JS_EXCEPTION; }
     gMapFile = qbc.substr(0, qbc.size() - 4) + ".js";   // that bundle's source map
@@ -1157,7 +1161,7 @@ int run(const Options& o) {
       zn::log::step("bytecode", zn::log::shortPath(qbc) + " instead of the source");
     } else if (!alone && !other) {   // stale (another QuickJS) or damaged: the source
       JS_FreeValue(e.ctx, JS_GetException(e.ctx));
-      zn::log::step("bytecode", zn::log::shortPath(qbc) + " not readable by this QuickJS, the source instead");
+      zn::log::warning("bytecode", zn::log::shortPath(qbc) + " not readable by this QuickJS, the source instead (zinc build refreshes bytecode)");
     }
     if (!readFile(gMapFile + ".map", gMapJson)) gMapJson.clear();
   }

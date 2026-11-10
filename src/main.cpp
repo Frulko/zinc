@@ -2380,6 +2380,7 @@ int main(int argc, char** argv) {
       argv = gFusedArgv.data();
     }
   }
+  const bool unsignedPack = gFusedApp || (argc >= 3 && !std::strcmp(argv[1], "run") && std::filesystem::path(argv[2]).extension() == ".zapp");
   if (argc >= 3 && !std::strcmp(argv[1], "run") && (argc == 3 || !std::strcmp(argv[3], "--"))) {   // a .zapp of a project on a JavaScript engine: its sources on that engine
     const std::string path = argv[2];
     std::string dir, engine, err;
@@ -2752,6 +2753,7 @@ int main(int argc, char** argv) {
     qo.stdRoot = gRoot + "/lib/std";
     qo.cacheDir = qjsCacheDir();
     qo.profileHz = qjsProfileHz;
+    qo.bytecode = !unsignedPack;   // an unsigned archive cannot authorize QuickJS's unchecked bytecode loader
     if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
     {   // and the run-time permissions (ZN-795: QuickJS checked none, so fs.watch, readText... of any file worked in an enforced app)
       const std::string pf = zn::frontend::findProjectFile(argv[2]);
@@ -2961,6 +2963,24 @@ int main(int argc, char** argv) {
         if (char* json = yyjson_mut_write(md, 0, nullptr)) { files[mapRel] = json; std::free(json); }
         yyjson_mut_doc_free(md);
         yyjson_doc_free(doc);
+      }
+      if (engine == "quickjs") {
+        zn::qjs::BundleOptions bo;
+        bo.entry = entry;
+        bo.stdRoot = gRoot + "/lib/std";
+        bo.capsFile = gRoot + "/targets/capabilities.json";
+        bo.cacheDir = qjsCacheDir();
+        bo.work = zn::tc::home() + "/cache/quickjs/pack-" + std::to_string(std::hash<std::string>{}(entry));
+        bo.out = bo.work + "/app.js";
+        bo.bytecode = bo.sourcemap = bo.quiet = true;
+        if (!zn::tc::ensureEsbuild(bo.esbuild, perr)) { std::fprintf(stderr, "zinc pack: %s\n", perr.c_str()); return 2; }
+        if (const int rc = zn::qjs::bundle(bo)) return rc;
+        for (const char* name : {"app.js", "app.js.map", "app.qbc"}) {
+          std::ifstream f(fs::path(bo.work) / name, std::ios::binary);
+          std::stringstream b; b << f.rdbuf();
+          if (!f) { std::fprintf(stderr, "zinc pack: cannot read bundled %s\n", name); return 1; }
+          files[std::string(".zinc/") + name] = b.str();
+        }
       }
       if (have) if (std::string png = zn::cli::appIconPng(projDir, project.app.icon); !png.empty()) files["icon.png"] = std::move(png);   // the launcher tile (zinc-tile, the hub)
       if (outPath.empty()) { fs::create_directories(fs::path(projDir) / "build", ec); outPath = (fs::path(projDir) / "build" / (name + ".zapp")).string(); }
