@@ -238,5 +238,58 @@
     },
     "logs": ".logs/integration-2026-11-10/after1110-*, planning-integrated.log, tracker-*, ai-gallery-run.log",
     "limits": "physical accessibility/devices/performance unmeasured; no new demo tests committed"
+  },
+  "after_extended": {
+    "integration": "720f15378",
+    "tested_worker_source": "5d2e44881708c853c8f6fc9446b326dc80655cac",
+    "root_source": "becf01193",
+    "engine_sha256": "3978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af",
+    "engine_source": "90b24121b",
+    "root_checks": {
+      "kit_extended": "twelve model/System API/Solid/React paths all3 PASS",
+      "system_drop_scope": "production native drop callback selected file granted before delivery; text and neighbor denied PASS",
+      "original_extended_gallery_quickjs_4_frames": "exit0"
+    },
+    "root_inspected": [
+      "docs/img/kit-extended-capture-narrow.png",
+      "docs/img/kit-extended-social-dark.png"
+    ],
+    "raw_combined_gate": {
+      "JS": [
+        235962,
+        246177,
+        282882
+      ],
+      "AOT": [
+        5325320,
+        5474000,
+        6025760
+      ],
+      "JS_unused_budget": 10240,
+      "JS_unused": 10215,
+      "JS_unused_headroom": 25,
+      "JS_per_component": 4078,
+      "AOT_per_component": 61306,
+      "unused_plugins": [
+        "editor"
+      ]
+    },
+    "sha256": {
+      "lib/std/kit/index.ts": "288b6dee5754a93ad71fe489bc905a2f562d7a7c066e4a206371bbb99a864ab5",
+      "lib/std/kit/extended.tsx": "9503df87f9e6da92a1fb014ba893caffb2494de4e33a8b6e51249d1c064a2dd5",
+      "lib/std/kit/extended-model.ts": "dbcf7246b85edddf1795fa009d0b631e6b5f2b7426659aac44f57e3f86aca02a",
+      "plugins/system/core.ts": "cba673879f9b02f8b21d42b8cdff61841f04e46558597c33f840ddf30574c4a5",
+      "plugins/system/native/system.spec.ts": "52f1ec682cb3dab51b9a1992832d69c734cfdccc4fb9fff9ecb8a26e7067f740",
+      "plugins/system/native/system.host.cpp": "c873fb9ad15c64e51e9213a220a74ef4a7b5c0c1ac72aaf60dbfd68bfdd44058",
+      "tests/t0/kit_extended.sh": "eac9ca101d232f84cd5dc8c878712793ccd72b0bf3575c89777954a3ada62cae",
+      "tests/t0/kit_size.sh": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed"
+    },
+    "logs": ".logs/integration-2026-11-10/extended-integrated.log",
+    "worker_archive": ".logs/archive-completed-workers-20261110/1078.19/logs",
+    "unproven": [
+      "physical gestures/VoiceOver/device/browser",
+      "secondary-window drop routing (existing HAL gap)",
+      "quiet-machine speed/memory/energy"
+    ]
   }
 }

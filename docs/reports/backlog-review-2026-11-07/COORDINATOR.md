@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Root Extended integration PASS:12 exact model/API/UI paths all3, production native drop scope and original QJS4frames; capture360/dark social inspected. Provenance after_extended,50Done. Settings23 active with Gallery20/Dashboard22; engine397865 remains unchanged. Completed Extended logs/checkpoint archived before tree removal.
+
 - Extended19 integrated720f15378/becf01193 Done,50Done; final combined unchanged gate JS235962/246177/282882, unused10215<10240(25B margin),4078/component; AOT5325320/5474000/6025760. Lazy native System factory removes unused plugin, selected native drop scope proved; secondary-window HAL gap remains later. Root exact integration proof queued. Reserve fresh Settings23 (reference CUI pinned settings.c inspected), beside Gallery20/Dashboard22.
 
 - Root integration checks completed: jsx_map_trailing/kit_ai/kit_planning and unchanged gates PASS, original AI composerQJS4/Tracker check+interp4 PASS;49Done. Common397865 frozen, source90b compiler/d950 smoke tree. Extended19 completee31e822f4, short final rebase/combined gate requested; Gallery20/Dashboard22 active. Completed worker archives removed safely; no core writer. Raw provenance after_ai_planning in kit-integration JSON.

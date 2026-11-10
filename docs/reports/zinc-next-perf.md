@@ -1738,3 +1738,9 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 - Rebuilt compiler source90b24121b (1110 included), engine SHA2563978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af. Root jsx_map_trailing/kit_ai/kit_planning pass all required engines/models; no JSX formatting workaround. Existing Kanban focus corrected by component key, no frame delay or state mirror.
 - After AI raw gate JS235962/244342/281058B, unused8380<9728,4079/component/148B strict headroom; AOT5325320/5457488/6009248B, unused132168<155648,61306/component. Final Planning combined raw gate JS235962/245066/281771B, unused9104<9984,4078/component/159B strict headroom; AOT5325320/5474000/6025760B, unused148680<159744,61306/component. Same unchanged gate, no option/control/icon/threshold cuts.
 - Actual Tracker demo all3/light-dark/narrow/actions and root check/interpreter4frames pass; no demo test script committed. Integrated provenance kit-integration-2026-11-10.json after_ai_planning. Physical/device/idle/churn/energy/throughput remain unmeasured; no timing ranking.
+
+
+## 2026-11-10 — Extended combined integration
+
+- Planning+Tracker+Extended source720f15378, unchanged engine3978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af. Raw unchanged gate JS235962/246177/282882B; unused10215<10240 (25B margin),4078/component. AOT5325320/5474000/6025760B; unused148680<163840,61306/component. Lazy System native factory removes System from unused Button plugins; editor remains. No budget/option/icon/control cuts.
+- Root12 model/API/UI paths across all3, production-native chosen-path filesystem grant and original Extended QJS4frames pass. Twelve worker pictures; root narrow capture/dark social inspected. Exact source hashes/provenance kit-integration-2026-11-10.json after_extended. No physical gesture/secondary-window/device/VoiceOver/browser or quiet-machine performance/energy claim.
