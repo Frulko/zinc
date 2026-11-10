@@ -118,5 +118,60 @@
       "docs/img/kit-charts-distributions.png"
     ],
     "logs": ".logs/integration-2026-11-10/combined-*"
+  },
+  "after_tool_panels": {
+    "source_commit": "23cdd66a0",
+    "engine_build_source": "7774708ca",
+    "engine_sha256": "f561c4cc76172c731e4109cd9161b5a7092ffda9553260f25351a0a1e329fce1",
+    "files_sha256": {
+      "lib/std/kit/panels.tsx": "037463b0b62d1437ca4c81bd1f412399b1f5414985b65e76fc324e253405dd7a",
+      "lib/std/kit/tool-model.ts": "7d06fe55c4353c4e119ebedaf15284d8c380541c6ea373fac49e48fdf206fb4d",
+      "lib/std/kit/input.tsx": "204816b9fc47bfee15a3185a1dc6fa35304dbc43ded2a4d89610aaede4ca6914",
+      "tests/t0/tool_panels.sh": "344bfe18607ae38c4bd4485b85f180dba7d8f22842a4af14d38c5bf735970a00",
+      "tests/t0/kit_inputs.sh": "4f4c6c6f34c990f3712026dacfcd9b8b7aa7b06dad5b107b94af965cd3d30f36"
+    },
+    "root_checks": {
+      "tool_panels": "PASS all3",
+      "kit_inputs": "PASS exact shared-field regression",
+      "gallery_check": "PASS",
+      "original_tools_graph_quickjs_4_frames": "exit0"
+    },
+    "worker_ui_proof": {
+      "keyboard_routes": 30,
+      "pointer_routes": 24,
+      "models": [
+        "Solid",
+        "React"
+      ],
+      "engines": [
+        "interpreter",
+        "AOT",
+        "QuickJS"
+      ],
+      "pictures_inspected": 10
+    },
+    "root_inspected": [
+      "docs/img/kit-tools-inspector-narrow.png",
+      "docs/img/kit-tools-graph-dark.png"
+    ],
+    "javascript_bytes": {
+      "button": 235962,
+      "index": 242570,
+      "ten": 279337
+    },
+    "aot_bytes": {
+      "button": 5325320,
+      "index": 5457488,
+      "ten": 6009248
+    },
+    "strict_used_js_headroom_bytes": 97,
+    "raw_worker_gate_log": ".logs/archive-completed-workers-20261110/1078-panels/logs/rebased-final.log",
+    "aot_barrel_plugins": [
+      "editor"
+    ],
+    "not_proven": [
+      "physical keyboard/touch/VoiceOver/devices",
+      "long stream/idle/RSS/energy and profiler throughput"
+    ]
   }
 }

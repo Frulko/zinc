@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Root Tool14 integration modelT0 all3, shared kit_inputs, gallery check and4frame graphQJS PASS.44Done persisted; Tool source/gate hashes added to kit-integration after_tool_panels, perf appended without owner hunks. Completed Tool tree archived/removed. Active Media16/Planning17/AI18 all TS-only on commonf561, no engine writer; next family19 when slot free. PropertyInspector duplicate-label polish and typed-unknown identity/percent class findings remain later.md, no new task.
+
 - Tool14 integrated23cdd66a0 Done/released,44Done. Final worker all3 models,30keyboard/24pointer routes,ten inspected pictures and combined original gallery/check/gate PASS; root TS-only integration smoke underway on commonf561. Gate JS235962/242570/279337 (4085/component,97strictBheadroom), AOT5325320/5457488/6009248 (61306/component), no engine rebuild. Reserve fresh AI18; coordinator primary CUI/provider research recorded before claim. Media16/Planning17 remain active; all use commonf561, no core writer.
 
 - Final common rebuilt7774708ca SHA256f561c4cc76172c731e4109cd9161b5a7092ffda9553260f25351a0a1e329fce1; root optional_collection/method_defaults/lucide_serialization/kit_charts/gate PASS plus gallery check/3frameQJS. Charts15 closed,43Done. JS4085/component/97B strict headroom; AOT61306/component, native editor stilllinked underbudget/deferred. D274/provenance/perf/later updated. Active Tool14/Media16/Planning17 switched to common; no engine writer. Completed Charts/size/core trees archived, b96 engine retained in frozen complete package for diagnosis. External WIP stats unchanged.

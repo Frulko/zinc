@@ -1719,3 +1719,9 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 
 - Source7774708ca rebuilt with1108/1109 and lossless circle construction; engine SHA256f561c4cc76172c731e4109cd9161b5a7092ffda9553260f25351a0a1e329fce1. Raw unchanged kit_size: JS235962/241206/277973B; unused5244<8960 for35families,4085B/component,97B strict total headroom. AOT5325320/5440976/5992736B; unused115656<143360,61306B/component. Barrel Button still links native editor; further reachability work deferred, no zero-unused-cost claim.
 - Exact byte-identical circle construction saves109B in ten versus the failing Code+Charts baseline, with no icon/control/option or budget cut. At most2 added circle helper calls per selected icon (9 catalog-wide); cold allocations/runtime speed unmeasured. Root optional_collection/method_defaults/lucide_serialization/kit_charts all pass; actual Tool model all3 and30UI routes passed candidate1109. Source/hash/raw stdout: docs/reports/bench/kit-integration-2026-11-10.json. No timing ranking or broad suite.
+
+
+## 2026-11-10 — Tool panels integrated, combined gate retained
+
+- Source23cdd66a0 with unchanged common enginef561c4cc...: raw unchanged combined JS235962/242570/279337B, unused6608<9216 for36families,4085/component/97B strict total headroom. AOT5325320/5457488/6009248B, unused132168<147456,61306/component. Native editor still linked by public-barrel Button under budget.
+- Worker models all3,30 keyboard/24 pointer routes across both models/all3,ten inspected Zinc pictures and original gallery interp/AOT/QJS short runs pass. Root exact tool_panels, shared kit_inputs, gallery check and four-frame graph QJS also pass. Provenance/source hashes: kit-integration-2026-11-10.json after_tool_panels. No profiler/stream throughput, physical accessibility, idle/RSS/energy or device performance measured.

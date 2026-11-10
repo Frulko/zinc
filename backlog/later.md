@@ -721,6 +721,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1078.13: public-barrel Button still links native editor under the passing AOT budget; inspect surviving provider initialization/reachability for a legitimate further reduction, retaining all Code behavior. Final raw plugin line is in combined-kit_size.log.
 - ZN-1078.14: investigate typed array identity erased to unknown in zinc:assert.equal; typed `same(value) === value` passes while separate erased arguments copy wrappers. Minimal source/log in Tool worker .logs/array-unknown-identity; contract was tested directly with typed ok, no production workaround.
 
+- ZN-1078.14: remove redundant visible labels in PropertyInspector rows while preserving adjustable label columns and accessible field names; narrow captures currently show both row and embedded-field labels.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
