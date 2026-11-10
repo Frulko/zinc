@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Build the pinned Galène server (no web assets) with the pinned Go.
+
+Usage: tools/build-galene [--out DIR] [--verify] [darwin-arm64|linux-arm64|linux-armv7|linux-amd64 ...]
+ZINC names an existing zinc binary; downloads use its verified toolchain fetch and mirrors.
+--verify rebuilds from a second source path and compares both binaries and archives.
+"""
+import argparse
+import gzip
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+import tarfile
+import tempfile
+
+VERSION = '1.2.1'
+GO = '1.26.10'
+SOURCE_SHA256 = '230db9843995f6776b885cf7cb88d7de241abefc634e7845e20ce001fcdefd1a'
+GO_PINS = {
+    'darwin-arm64': '0b5183492292ada170f9b561a834863808dd02edba599e4ad0e89899330020b3',
+    'darwin-amd64': 'e820ab780c273ae4a340b79d0f3c4313b74ee029aa3874792145d44b9f4f91da',
+    'linux-arm64': '3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797',
+    'linux-amd64': 'ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5',
+}
+TARGETS = ('darwin-arm64', 'linux-arm64', 'linux-armv7', 'linux-amd64')
+FLAGS = ['-mod=readonly', '-trimpath', '-buildvcs=false', '-p=2', '-ldflags=-s -w']
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def archive(path, name, files):
+    # Fixed metadata and ordering: tar/gzip must not carry host names, paths or timestamps.
+    with open(path, 'wb') as out, gzip.GzipFile(filename='', mode='wb', fileobj=out, mtime=0) as gz:
+        with tarfile.open(fileobj=gz, mode='w', format=tarfile.USTAR_FORMAT) as tar:
+            for filename, data in sorted(files.items()):
+                info = tarfile.TarInfo(name + '/' + filename)
+                info.size, info.mode, info.mtime = len(data), 0o755 if filename == 'galene' else 0o644, 0
+                tar.addfile(info, io.BytesIO(data))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--out', type=Path, default=ROOT / 'dist/galene')
+    parser.add_argument('--verify', action='store_true')
+    parser.add_argument('targets', nargs='*')
+    args = parser.parse_args()
+    targets = args.targets or TARGETS
+    if any(t not in TARGETS for t in targets):
+        parser.error('targets must be ' + ', '.join(TARGETS))
+    host = platform.system().lower() + '-' + {'aarch64': 'arm64', 'x86_64': 'amd64'}.get(platform.machine(), platform.machine())
+    if host not in GO_PINS:
+        parser.error('no pinned Go archive for build host ' + host)
+    zinc = str(Path(os.environ.get('ZINC', ROOT / 'build/zinc')).resolve())
+    home = Path(os.environ.get('ZINC_HOME', Path.home() / '.zinc')).resolve()
+    sdk = home / 'toolchains' / ('go-' + host + '-' + GO)
+    source = home / 'cache' / ('galene-source-' + VERSION)
+
+    def fetch(url, checksum, where, marker):
+        subprocess.run([zinc, 'toolchain', 'fetch', url, checksum, str(where), marker], check=True, timeout=180)
+
+    fetch('https://go.dev/dl/go' + GO + '.' + host + '.tar.gz', GO_PINS[host], sdk, 'bin/go')
+    fetch('https://codeload.github.com/jech/galene/tar.gz/refs/tags/galene-' + VERSION, SOURCE_SHA256, source, 'go.mod')
+    go = str(sdk / 'bin/go')
+    # Ignore per-user Go configuration and auto-toolchain downloads; go.sum authenticates modules.
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('GO', 'CGO'))}
+    env.update(GOENV='off', GOTOOLCHAIN='local', GOWORK='off', CGO_ENABLED='0', GOMAXPROCS='2',
+               GOPATH=str(home / 'cache/galene-go'), GOCACHE=str(home / 'cache/galene-go-build'),
+               GOPROXY='https://proxy.golang.org', GOSUMDB='sum.golang.org')
+    version = subprocess.check_output([go, 'version'], env=env, text=True, timeout=10).strip()
+    if version != 'go version go' + GO + ' ' + host.replace('-', '/'):
+        raise RuntimeError('unexpected pinned compiler: ' + version)
+    args.out.mkdir(parents=True, exist_ok=True)
+    sums = []
+    with tempfile.TemporaryDirectory(prefix='galene-build-') as temporary:
+        work = Path(temporary)
+        for target in targets:
+            osname, arch = target.split('-')
+            env.update(GOOS=osname, GOARCH='arm' if arch == 'armv7' else arch, GOARM='7', GOAMD64='v1', GOARM64='v8.0')
+            name = 'galene-' + VERSION + '-' + target
+            outputs = []
+            for attempt in range(2 if args.verify else 1):
+                src = work / (target + '-' + str(attempt))
+                shutil.copytree(source, src)
+                binary = src / 'galene'
+                subprocess.run([go, 'build', *FLAGS, '-o', str(binary), '.'], cwd=src, env=env, check=True, timeout=600)
+                files = {'galene': binary.read_bytes(), 'LICENCE': (source / 'LICENCE').read_bytes(),
+                         'licenses/Go-LICENSE': (sdk / 'LICENSE').read_bytes()}
+                # Preserve the licence notices of the modules linked into the server.
+                packages = subprocess.check_output([go, 'list', '-deps', '-json', '.'], cwd=src, env=env, text=True, timeout=60)
+                decoder, offset, modules = json.JSONDecoder(), 0, {}
+                while offset < len(packages):
+                    package, used = decoder.raw_decode(packages[offset:])
+                    offset += used
+                    while offset < len(packages) and packages[offset].isspace():
+                        offset += 1
+                    module = package.get('Module', {})
+                    if module.get('Dir') and not module.get('Main'):
+                        modules[module['Path'] + '@' + module['Version']] = Path(module['Dir'])
+                for module, directory in sorted(modules.items()):
+                    notices = [p for p in directory.iterdir() if p.is_file() and p.name.upper().startswith(('LICENSE', 'LICENCE', 'COPYING', 'NOTICE'))]
+                    if not notices:
+                        raise RuntimeError('no licence notice for ' + module)
+                    for notice in notices:
+                        files['licenses/' + module.replace('/', '_') + '-' + notice.name] = notice.read_bytes()
+                provenance = {'galene': VERSION, 'source_sha256': SOURCE_SHA256, 'go': GO, 'go_archive_sha256': GO_PINS,
+                              'target': target, 'flags': FLAGS, 'CGO_ENABLED': '0',
+                              'binary_sha256': digest(binary), 'binary_bytes': binary.stat().st_size,
+                              'modules': sorted(modules)}
+                files['PROVENANCE.json'] = (json.dumps(provenance, indent=2, sort_keys=True) + '\n').encode()
+                output = work / (name + '-' + str(attempt) + '.tar.gz')
+                archive(output, name, files)
+                outputs.append(output)
+            if args.verify and digest(outputs[0]) != digest(outputs[1]):
+                raise RuntimeError('rebuild differs for ' + target)
+            dest = args.out / (name + '.tar.gz')
+            shutil.copyfile(outputs[0], dest)
+            sums.append(digest(dest) + '  ' + dest.name)
+            print(sums[-1] + '  archive_bytes=' + str(dest.stat().st_size) + ' binary_bytes=' + str(provenance['binary_bytes']) +
+                  ' binary_sha256=' + provenance['binary_sha256'] + (' reproducible=yes' if args.verify else ''), flush=True)
+    (args.out / 'SHA256SUMS').write_text('\n'.join(sums) + '\n')
+    print('LICENCE: Galène MIT; Go and linked module notices included in every archive.')
+
+
+if __name__ == '__main__':
+    main()

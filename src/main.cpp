@@ -3555,7 +3555,7 @@ int main(int argc, char** argv) {
       std::string where, err;
       const std::vector<std::string> emus = zn::tc::emulatorNames();
       const bool emu = std::find(emus.begin(), emus.end(), argv[3]) != emus.end();
-      if (!(emu ? zn::tc::ensureEmulator(argv[3], where, err) : zn::tc::ensureConsoleSdk(argv[3], where, err))) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      if (!(std::string(argv[3]) == "galene" ? zn::tc::ensureGalene(where, err) : emu ? zn::tc::ensureEmulator(argv[3], where, err) : zn::tc::ensureConsoleSdk(argv[3], where, err))) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
       std::puts(where.c_str());
       return 0;
     }
@@ -3590,7 +3590,7 @@ int main(int argc, char** argv) {
       std::printf("%s  %s\n", h.c_str(), argv[3]);
       return 0;
     }
-    std::fprintf(stderr, "usage: zinc toolchain install [psp|vita|ps2|n3ds|ios-legacy|ppsspp-headless|ppsspp|vita3k|play|pcsx2|azahar] | path | esptool | esbuild | basisu | gltfpack | targets | sha256 <file> | fetch <url> <sha256> <dir> <marker>\n");
+    std::fprintf(stderr, "usage: zinc toolchain install [galene|psp|vita|ps2|n3ds|ios-legacy|ppsspp-headless|ppsspp|vita3k|play|pcsx2|azahar] | path | esptool | esbuild | basisu | gltfpack | targets | sha256 <file> | fetch <url> <sha256> <dir> <marker>\n");
     return 2;
   }
   if (argc == 7 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[2], "--target") && !std::strcmp(argv[5], "-o")) {  // zinc build --target <t> <file> -o <out>: a program for another machine

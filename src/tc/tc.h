@@ -70,6 +70,8 @@ bool ensureEsptool(std::string& path, std::string& err);
 // itch.io's butler (ZN-325): ZINC_BUTLER, or the pinned release fetched once into ~/.zinc/toolchains, its SHA-256 checked. butlerPath() is
 // where it is (or will be) without fetching it.
 bool ensureButler(std::string& path, std::string& err);
+// Galène server (ZN-895): the Zinc release asset, SHA-256 verified once under ZINC_HOME/toolchains.
+bool ensureGalene(std::string& path, std::string& err);
 std::string butlerPath();
 std::string butlerVersion();
 // esbuild (docs/reports/zinc-quickjs-bundler.md), the linker and minifier of `zinc bundle`: ZINC_ESBUILD, or the pinned npm package of this platform

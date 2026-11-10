@@ -67,6 +67,14 @@ constexpr Pin kQemuPins[] = {
     {"x86_64-linux", "qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-linux-gnu.tar.xz", "0eecb2a34a5586c0e59110f77b9343b7b336e82fdb0e1a30e1dc1bab8a547e35"},
 };
 
+// Zinc-built Galène assets: tools/build-galene --verify, Go 1.26.10, upstream MIT tag galene-1.2.1.
+constexpr const char* kGaleneVersion = "1.2.1";
+constexpr Pin kGalenePins[] = {
+    {"aarch64-macos", "galene-1.2.1-darwin-arm64.tar.gz", "b57156481610a6e0255972a18428291864946942b2da9c95b7c825ab384905b4"},
+    {"aarch64-linux", "galene-1.2.1-linux-arm64.tar.gz", "5c93c048b8b25fd1b51a90945abf0d73e3fe933a6d3487306a060fbb83cd595a"},
+    {"arm-linux", "galene-1.2.1-linux-armv7.tar.gz", "96f368db4a3e67c95a5f8e5a3d1404ef8356bd174a10fe5ad2000ad184e22a2c"},
+    {"x86_64-linux", "galene-1.2.1-linux-amd64.tar.gz", "45bd7351e5e85003c1d63663a7c19cc43c9aed10c88e230ccebec95b74c7eeb6"},
+};
 // itch.io's butler (ZN-325), from its own distribution (broth.itch.zone); `file` is broth's channel. 15.31.0: 2026-08-31.
 constexpr const char* kButlerVersion = "15.31.0";
 constexpr Pin kButlerPins[] = {
@@ -253,6 +261,7 @@ std::vector<PinnedTool> pinnedTools() {
   add("esptool", kEsptoolVersion, kEsptoolPins, sizeof kEsptoolPins / sizeof *kEsptoolPins, "esptool-", "esptool");
   add("qemu-system-xtensa", qemuVersion(hostName()), kQemuPins, sizeof kQemuPins / sizeof *kQemuPins, "qemu-xtensa-", "bin/qemu-system-xtensa");
   add("butler", kButlerVersion, kButlerPins, sizeof kButlerPins / sizeof *kButlerPins, "butler-", "butler");
+  add("galene", kGaleneVersion, kGalenePins, sizeof kGalenePins / sizeof *kGalenePins, "galene-", "galene");
   add("esbuild", kEsbuildVersion, kEsbuildPins, sizeof kEsbuildPins / sizeof *kEsbuildPins, "esbuild-", hostName() == "x86_64-windows" ? "esbuild.exe" : "bin/esbuild");
   for (const Pin& p : kSwcPins) if (hostName() == p.host) add("swc", kSwcVersion, &p, 1, "swc-", p.file);
   out.push_back(PinnedTool{"esp32sim", std::string(kEsp32simVersion) + " (built by cargo)", kEsp32simSource.file, kEsp32simSource.sha256, esp32simDir().string(),
@@ -492,6 +501,18 @@ bool ensureZig(std::string& zigPath, std::string& err) {
   std::string base = std::getenv("ZINC_TC_MIRROR") ? std::getenv("ZINC_TC_MIRROR") : std::string("https://ziglang.org/download/") + kVersion;
   if (!fetchTool("the toolchain", *pin, base + "/" + pin->file, dir, marker, err)) return false;
   zigPath = (dir / marker).string();
+  return true;
+}
+
+bool ensureGalene(std::string& path, std::string& err) {
+  const Pin* pin = nullptr;
+  for (const Pin& p : kGalenePins) if (hostName() == p.host) pin = &p;
+  if (!pin) { err = "no pinned Galène for this machine (" + hostName() + ")"; return false; }
+  const fs::path dir = fs::path(home()) / "toolchains" / ("galene-" + hostName() + "-" + kGaleneVersion);
+  const std::string base = std::getenv("ZINC_TC_MIRROR") ? std::getenv("ZINC_TC_MIRROR")
+      : std::string("https://github.com/Frulko/zinc/releases/download/galene-") + kGaleneVersion;
+  if (!fetchTool("Galène", *pin, base + "/" + pin->file, dir, "galene", err)) return false;
+  path = (dir / "galene").string();
   return true;
 }
 

@@ -37,3 +37,55 @@ from the repository (`ZN_SOURCE_DIR`); shipping them with a packaged `zinc` belo
 
 Windows hosts and targets, musl (static) programs, ESP-IDF, PS1 (its own toolchain; the PSP, Vita, PS2 and 3DS SDKs are pinned in src/tc/consoles.cpp, ZN-456), the graphics host for a target (the
 runtime that draws is built for the machine running `zinc`), signing of the pins beyond the checksum, and an offline bundle.
+
+## Galène server (ZN-895)
+
+`zinc toolchain install galene` installs the server binary under
+`$ZINC_HOME/toolchains/galene-<host>-1.2.1/` and prints its executable path. It uses
+`fetchTool`'s existing SHA-256 check, file lock, atomic directory move and cache.
+`ZINC_TC_MIRROR=file:///absolute/path` substitutes the release directory;
+`ZINC_OFFLINE=1` refuses network sources. The pins and the Zinc release URL
+(`https://github.com/Frulko/zinc/releases/download/galene-1.2.1/`) are in
+`src/tc/tc.cpp`. The owner publishes those assets separately; until then use a
+local mirror of the build output. There is no server, account or service setup.
+
+```sh
+ZINC=build/zinc tools/build-galene --verify
+ZINC_OFFLINE=1 ZINC_TC_MIRROR="file://$PWD/dist/galene" build/zinc toolchain install galene
+ZINC=build/zinc ZINC_GALENE_TEST_ARCHIVE="$PWD/dist/galene/galene-1.2.1-darwin-arm64.tar.gz" tests/run --only galene_toolchain
+```
+
+The builder cross-compiles `darwin-arm64`, `linux-arm64`, `linux-armv7` (`GOARM=7`)
+and `linux-amd64` (`GOAMD64=v1`) sequentially. Targets may be named after the
+options to build only those; `--out DIR` changes the output directory. A build
+host may be Darwin/Linux arm64/amd64. Python 3, an existing Zinc and network
+access on the first build are sufficient: the existing `toolchain fetch`
+installs the pinned Go SDK and sources in Zinc's toolchain/cache directories.
+Nothing is installed system-wide or vendored into the engine.
+
+Source: upstream MIT tag [`galene-1.2.1`](https://github.com/jech/galene/tree/galene-1.2.1),
+source tar SHA-256 `230db9843995f6776b885cf7cb88d7de241abefc634e7845e20ce001fcdefd1a`.
+Its `go.mod` requires Go 1.24.0. The compiler is pinned to maintained Go 1.26.10
+with [official archive checksums](https://go.dev/dl/?mode=json&include=all).
+The builder checks its exact version, disables user Go settings/workspaces and
+[automatic toolchain downloads](https://go.dev/doc/toolchain), and uses the
+upstream `go.sum` with `-mod=readonly` and the Go checksum database for modules.
+
+The [upstream build](https://galene.org/galene-install.html) uses
+`CGO_ENABLED=0 -ldflags='-s -w'`. We add `-trimpath` to remove machine/source
+paths and `-buildvcs=false` to remove checkout metadata. Go parallelism is
+bounded to two processes/threads. `--verify` rebuilds from two separate source
+paths (with the shared Go build cache) and compares the complete archives.
+Tar entries have fixed ordering, ownership, mode and timestamps; gzip has no
+filename or timestamp. Each archive contains `galene`, upstream `LICENCE`, the
+Go and linked module licence notices, and `PROVENANCE.json` (source/compiler
+pins, flags, module versions and binary hash/bytes). No web client assets are
+included. `SHA256SUMS` and per-binary/archive byte counts are printed/written.
+
+The local-only T0 test checks deterministic archive metadata, target validation,
+a corrupt archive rejected before extraction, the real pinned archive installed
+from a file URL, cache reuse after removing the source and a missing local source.
+It needs the matching release archive from `--verify` (`ZINC_GALENE_TEST_ARCHIVE`,
+else `dist/galene/<host archive>`); without it the install proof is skipped with
+exit 77, never downloaded. Server startup, idle RSS and call quality require
+separate, owner-chosen runs on a quiet machine.
