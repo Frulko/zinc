@@ -974,3 +974,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-897: prove native-client TLS/TURN and remote hardware after the remaining portable ICE restart work; local synthetic media does not prove physical or cross-platform behavior.
 
 - ZN-603: prove native embedded packing on real Linux/Mojave; local Mac correctness and sizes do not establish off-Mac footprint or speed.
+- ZN-512: run cross_linux with GNU READELF at the owner-chosen milestone; local Cortex-A8 CPU/ABI metadata is proven, graphics linking and real ARM execution remain unproven.

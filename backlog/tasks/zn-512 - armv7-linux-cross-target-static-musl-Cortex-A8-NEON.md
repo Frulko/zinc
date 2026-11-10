@@ -2,8 +2,7 @@
 id: ZN-512
 title: 'armv7-linux: NEON in -mcpu and its checks'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:40'
 updated_date: '2026-11-10 13:56'
 labels:
@@ -52,4 +51,6 @@ AC2 passes on the real executable; AC5 is implemented in `tests/t2/cross_linux.s
 Coordinator proposals: no new architecture decision or performance measurement. Cross-platform pass line: `ZN-512: run cross_linux with GNU READELF at the owner-chosen milestone; the Cortex-A8 ELF metadata is proven locally, graphics linking and execution remain unproven.`
 
 Proposed tests: `READELF=<GNU readelf> ZINC=build/zinc tests/run --only cross_linux` (three graphics cross builds and final ELF attributes; several minutes cold, memory unmeasured); a short console hello on an available compatible ARM machine (seconds, memory unmeasured). No suite, Hero/thumb comparison, QEMU, benchmark or physical-device proof was attempted. Usage: n/a.
+Coordinator root2d1bb151e/compiler0523dc12 passes exacttc_cache, verifies realobject/ELF hashes and independently re-reads ARMv7/VFPv3/NEON/EABI5 hardfloat attributes. ReviewAC2/5 only, no execution/staticmusl claim. Durable .logs/archive-completed-workers-20261110/512-final.
+
 <!-- SECTION:NOTES:END -->

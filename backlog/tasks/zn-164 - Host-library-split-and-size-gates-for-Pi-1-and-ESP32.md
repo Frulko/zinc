@@ -2,8 +2,7 @@
 id: ZN-164
 title: Host library split and size gates for Pi 1 and ESP32
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-07 05:33'
 updated_date: '2026-11-10 13:51'
 labels:
@@ -56,4 +55,6 @@ Proposed tests:
 - ZINC=build/zinc tests/run --tier t0 --only lite_host: new Mac native size/transport-symbol gates and fetch retention, roughly5–10s, memory unmeasured (native compiler bounded).
 - Existing original Hero/novideo keyboard/upload and OSC worker listen/send/restart at owner milestone, seconds per smoke, memory unmeasured; cross/long/quiet tests remain unproven.
 usage: n/a (tools/usage).
+Coordinator root369121d52/compiler3a42c19f passes exactaot_embedded_blob/lite_host, actualOSC and Heroall3fourhashes. Native7,978,168B/source9,537,379B inclusive; D293. BothAC remain open. Durable .logs/archive-completed-workers-20261110/164-final.
+
 <!-- SECTION:NOTES:END -->

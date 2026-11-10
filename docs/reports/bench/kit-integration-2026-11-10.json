@@ -886,5 +886,108 @@
     "phaser_exact_golden": "PASS",
     "runtime_changed": false,
     "done_count": 80
+  },
+  "host_lite_integration": {
+    "source_commit": "369121d5213b49f379b73d038543be2c2a3a30d9",
+    "engine_sha256": "3a42c19f80a8c6b1eababea8563972466ccdb5f4f376224dad8d5b2e52ce81e0",
+    "native_bytes": 7978168,
+    "native_sha256": "f38694527aa8b505db0ccd38408da9781675d002c62fff8d1337c1bb5c577807",
+    "generated_cpp_and_header_bytes": 9537319,
+    "generated_inclusive_60byte_pch_wrapper": 9537379,
+    "exact_t0": [
+      "aot_embedded_blob",
+      "lite_host"
+    ],
+    "actual_osc_reopen_and_close": "PASS",
+    "hero_four_hashes_all3": "PASS",
+    "done_count": 80,
+    "quiet_or_cold_timing_claim": false,
+    "retained_symbol_native_bytes": {
+      "hello": [
+        285992,
+        285992
+      ],
+      "timer": [
+        4797832,
+        4778520
+      ],
+      "io": [
+        4798736,
+        4795936
+      ]
+    },
+    "task_status": "BacklogAC1AC2open"
+  },
+  "arm512_integration": {
+    "source_commit": "2d1bb151e62e373025d836f80755e5af3422ec7f",
+    "engine_sha256": "0523dc12d32233b0891970a1c5906afac1c483c53e9a1090d760036e20a342ac",
+    "exact_t0": "tc_cache PASS",
+    "worker_ELF_hashes_verified": true,
+    "actual_readelf_attributes": "PASS",
+    "ARM_execution_or_static_musl_claim": false,
+    "task_status": "ReviewAC2AC5",
+    "done_count": 80,
+    "worker_provenance": {
+      "task": "ZN-512",
+      "base": "f5a83c3ce",
+      "target": "arm-linux-gnueabihf.2.28",
+      "cpu": "cortex_a8+neon",
+      "zig": "0.15.2",
+      "cache_regression": "11 cold / 0 warm / 11 changed-flags",
+      "executed_ARM": false,
+      "T2_run": false,
+      "static_musl": false,
+      "artifacts": {
+        "float.c": {
+          "bytes": 49,
+          "sha256": "e2f150ab770dbc81330e2468485df7cfa8183406a1a9f4da2f7f8c5527b958e3"
+        },
+        "float.o": {
+          "bytes": 2256,
+          "sha256": "b469cbeb1dba13c275e958923feb29e91d68a6e9d320e8aaabd7c5135b8251a7"
+        },
+        "float-readelf.txt": {
+          "bytes": 1759,
+          "sha256": "d694413413909734a4dda513cc3623ba43f00938a60132d932a4ba945d69b4d7"
+        },
+        "hello.ts": {
+          "bytes": 32,
+          "sha256": "3135de3b7e690031b0bb06f343425880eb04e7606053f5b15f97e06d1f93f00b"
+        },
+        "hello-armv7": {
+          "bytes": 10486940,
+          "sha256": "3c2b635abe6125802ab2bc92e8eda8dfd8b28ef5e990a3f85be1ee9c23dccb59"
+        },
+        "hello-readelf.txt": {
+          "bytes": 4428,
+          "sha256": "a1ee90d01777df749db44a7357ca1c4c7d2436041d997c9162c0f40706650075"
+        },
+        "hello-check.log": {
+          "bytes": 71,
+          "sha256": "cedd5db1f8667189da15b5246022b15c18eff696cfa102ce4c628f603c44b0bd"
+        },
+        "tc-cache.log": {
+          "bytes": 33,
+          "sha256": "ddcc69dcd908f5d4b869e720ef1b78b6fcd7dd730f5371f833d69c56900efe27"
+        },
+        "tc-cache-details.txt": {
+          "bytes": 69,
+          "sha256": "110b19466cc0e0464cbcc79630234eae0b6e392d54925d2086e4e453e4ac2ce4"
+        },
+        "build.log": {
+          "bytes": 121968,
+          "sha256": "7d6e713d0bc158384c05500eb1d112aef979ff25fe759854ead0ac6395b0c01e"
+        },
+        "home/cache/armv7-linux/machine.cpp.1593881d1918325a.4710742.o": {
+          "bytes": 1010308,
+          "sha256": "d51f6184d43605092fbcc498d7d81ed80c24a63671035455129593603012d88c"
+        },
+        "runtime-readelf.txt": {
+          "bytes": 796,
+          "sha256": "d25ec2c560358000a16c3909610c142234c6ca0c20206813213e310be4d64e5c"
+        }
+      },
+      "commit": "1204e3ff0813d1e6c7e3cad2b2313d7d28106904"
+    }
   }
 }

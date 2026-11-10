@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- D293/root host-lite369121d52 and TC2d1bb151e proofs recorded; commoncompiler0523dc12 stable.80Done unchanged,164 Backlog/512 Review excluded. Archive164/512 (44completedsourcecheckpoints cleaned).161.02 solecorewriter has actualSymbol/custom/livecollection proofs; Table-only lazy metadata carve-out allowed after inspecting WIP, allocator/ArrObj/other payloads still protected. No benchmark/suite/hardware claims.
+
 - Reserve161.02 as next solecore feature: genuine Symbol values/keys and iterator protocol, preserving D275 snapshot-array collection methods. Primary research completed; full natural scope includes live Map/Set and close semantics, so freshworker must propose coherent representation before broad edits, no token demo/AC waiver. Owner rt.h0–300 and existing runtime hunks remain protected.164partial/512Review integrated; root final512proof running, no other core writer.
 
 - Reserve512 independent toolchain lane: Cortex-A8+NEON impliesVFPv3 in pinnedZig; crossruntime cache must hash flags or reuse oldCPU objects. Worker owns tc.cpp target/cachekey only and deferredcross T2 row, separate from164. Bound tinyELF attributes and consolehello proof; noHero/sysroot/fullT2/QEMU/benchmark run. Reviewed narrow scope is explicit, obsolete crosscriteria not claimed proven.
