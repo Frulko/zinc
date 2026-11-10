@@ -6,15 +6,17 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
-| Tool panels1078.14 | .worktrees/1078-panels / work/1078-panels | Ten controls implemented. Earlier original model all3 and30 UI routes passed1109; final invariants and pointer cleanup corrected afterward. Latest curve/gradient/clip pointer proof passes interpreter on commonf561. Clicked Hex focus, final captures/docs/rebase/combined gate remain. Owns minimal ScrubField default bounds; other worker avoids input.tsx. Frozen1108 isolated-source gate passed before final common rebase. |
+| AI1078.18 | .worktrees/1078.18 / work/1078.18 | Reserved fresh worker: nine requested assistant UI controls. Primary CUI/provider research already in task notes; reuse Code/Input/Overlay/Feedback leaves, no backend/model/network integration. |
 | Media1078.16 | .worktrees/1078.16 / work/1078.16 | Fresh worker, four controls; reuses imageviewer/image-cache and keeps Discord caller. Primary CUI/APG research complete, implementation underway. No engine edits/build. |
 | Planning1078.17 | .worktrees/1078.17 / work/1078.17 | Fresh worker, Kanban/week/month/Gantt; reuses dnd/picker-date/Calendar/example. Primary reference options in notes, no auto-scheduler. Pure model +one family, no engine edits/build. |
 
-Root plus three workers fill runtime4 slots. One queued heavy command per worker. No active engine writer now; root final engine is built. Fresh worker per next batch, never extend a completed context. Next startable family after these is1078.18, but integrate reported work first.
+Root plus three workers fill runtime4 slots. One queued heavy command per worker. No active engine writer now; root final engine is built. Fresh worker per next batch, never extend a completed context. Next startable family after these is1078.19, but integrate reported work first.
 
 ## Completed and final proof
 
-43 distinct Done tasks since1078.03: twelve kit subtasks(.03–.13 and.15), and1079–1109. Data11/Feedback12/Code13/Charts15 are closed/released on actual final gates; Tool14 is not counted. Older details/proposed tests archived in docs/reports/session-handover-2026-11-09.md.
+- Tool14 integrated23cdd66a0: ten controls, exact models all3,30keyboard/24pointer routes bothmodels/all3,ten pictures and actual gallery/check/gate pass. Focus-visible callback is not containment: gesture cleanup uses hasFocusWithin; Hex cell clicks retain root edit focus. Combined Tool gate JS235962/242570/279337,4085/component/97B strict headroom; AOT5325320/5457488/6009248,61306/component. Root integration smoke pending/underway, TS-only no rebuild.
+
+44 distinct Done tasks since1078.03: thirteen kit subtasks(.03–.15), and1079–1109. Data11/Feedback12/Code13/Charts15 are closed/released on actual final gates; Tool14 is now included after its final combined proof. Older details/proposed tests archived in docs/reports/session-handover-2026-11-09.md.
 
 -1108 optional collection guards b805f4819: preserve optional receiver/HOF short-circuit via existing access path and RAII.1109 method defaults51188abb0: correct receiver/previous-parameter scope, provided-argument order and literal undefined without widening null. Both exact all3/strict tsc/negatives/mem and original Tool models all3/30 UI routes pass. Root replay on final engine PASS. Both Done/released.
 - Code13 integrated8bbf8a245: five controls through existing editor/Markdown/Inspector providers, all6 interactions/static callers/eight pictures pass. Root replay all6/gallery check/3-frame editor QJS PASS. D277 bounded nearby diff anchors reconstruct exactly but distant reorders can be nonminimal.
