@@ -180,7 +180,7 @@
   "acceptance": {
     "1": "complete",
     "2": "complete",
-    "3": "open: strict used-JS gate exceeds budget by 12 bytes"
+    "3": "complete on unchanged combined Code+Charts gate with circle serialization patch"
   },
   "limits": [
     "Bounded nearby-anchor diff can produce a nonminimal alignment for distant reorders.",
@@ -204,5 +204,60 @@
     ],
     "logs": ".logs/integration-2026-11-10/{kit_code-integrated,code-gallery-check,code-gallery-run}.log",
     "size_acceptance": "still open12 strict JS bytes; no size budget waiver"
+  },
+  "size_completion": {
+    "date": "2026-11-10",
+    "proof_base_commit": "f667c8ceeaf6617a221d3b3735245be04c5b3781",
+    "engine_source": "f667c8cee plus circle serialization patch; includes1108, excludes1109 (coordinator rebuilds final combination)",
+    "engine_sha256": "97f9bf5b76412dcfc670e9cf31f9fe5d06fa7f6bb6b5c82d54c48023862943ab",
+    "module_sha256": "3f0963445b00383fd64377d106d9519dc89240d1190c25a0e6170321e4565882",
+    "oracle_sha256": "3a19221d9b62505d040dc926dc74fb2d94c4f3b7d8451937dfab907d0c1c0366",
+    "gate_sha256": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed",
+    "catalog_sha256": "da6e80345f5af5143c81f78ca55c390908188f31f4451488a69969d69a20d95f",
+    "change": "Reuse existing private XML construction pattern for exactly ordered string cx/cy/r circle attributes; key metadata ignored as before. Extra attributes/order/numeric values retain original serializer.",
+    "baseline_javascript_bytes": {
+      "button": 235962,
+      "index": 241206,
+      "ten": 278082
+    },
+    "javascript_bytes": {
+      "button": 235962,
+      "index": 241206,
+      "ten": 277973
+    },
+    "javascript_saving_bytes": 109,
+    "strict_used_javascript_headroom_bytes": 97,
+    "aot_bytes": {
+      "button": 5325320,
+      "index": 5440976,
+      "ten": 5992736
+    },
+    "checks": {
+      "unchanged_kit_size": "PASS",
+      "lucide_serialization_expanded": "interpreter/native AOT/QuickJS PASS; grip9circles and chart-scatter fill fallback added",
+      "gallery_check": "PASS",
+      "original_feedback_gallery_quickjs_3frames": "exit0"
+    },
+    "raw_gate": [
+      "bundle: Button 235962 B, through the index 241206 B (+5244 for 35 unused families, budget 8960), ten 277973 B (+4085 per component)",
+      "aot: Button 5325320 B, through the index 5440976 B (+115656 for 35 unused families, budget 143360), ten 5992736 B (+61306 per component)",
+      "aot, Button through the index links the plugins: editor"
+    ],
+    "raw_smoke": [
+      "  context    initialise QuickJS and host services...",
+      "  load       src/main.tsx",
+      "  run        QuickJS-ng, executing JavaScript",
+      "  exit       QuickJS-ng, status 0                         535 ms"
+    ],
+    "logs": ".logs/size-completion/",
+    "runtime_cost": "Unmeasured. At most2 additional circle helper calls per selected ten-program icon,9 per icon over the pinned catalog, plus string concatenations; no speed/allocation claim.",
+    "build_warnings": {
+      "total_existing": 107,
+      "edited_module": 0
+    },
+    "owned_processes": "none after completion",
+    "proposed_tests": [
+      "Quiet-machine cold icon-cache CPU/allocation measurements before attributing a runtime gain; no suite/device/pixel/benchmark run started."
+    ]
   }
 }

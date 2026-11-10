@@ -8,7 +8,7 @@ import json,pathlib,sys
 out=pathlib.Path(sys.argv[1])
 nodes=json.loads(pathlib.Path('third_party/lucide/icon-nodes.json').read_text())
 aliases=json.loads(pathlib.Path('third_party/lucide/aliases.json').read_text())
-names='bold circle-alert circle-check circle cross crosshair ellipse focus forward ghost group hand-grab image import info italic keyboard layers link mouse move phone pointer radio radius repeat rose rows-2 scale scroll search shrink square text-align-start text-wrap triangle-alert type underline video view x'.split()
+names='bold chart-scatter circle-alert circle-check circle cross crosshair ellipse focus forward ghost grip group hand-grab image import info italic keyboard layers link mouse move phone pointer radio radius repeat rose rows-2 scale scroll search shrink square text-align-start text-wrap triangle-alert type underline video view x'.split()
 names += ['grab','rows','text','text-','not-a-lucide-icon']
 header='<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
 rows=[]; selected=set()
