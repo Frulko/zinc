@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve668 recursive closure leak RESEARCHONLY, one bounded small repro and source/caller audit; no runtime/IR/header writes/build while1030core active. Currentcommon f34fc9 readonly baseline; no call-path benchmark authorization.603 strictHero size gates pass7,995,032B/9,527,337B, finalcommit pending.
+
 - Root97af/f34fc9 combined4exactT0 and actualpinnedPixi2workers/texturepixels+Tone2ticks/dispose PASS.587 clean logs/bundle archived and tree removed (27total); no process.603 finalHero/native gates active after worker-network classifier fix,1030 borrowedmethod frontend code/build slot released; rootidle, no thirdbuilder.
 
 - Integrated58797af370e3 Done (72total), pinnedPixi/Tone+clone/transfer/typedworkers+providerconcurrency proofs pass. D282 records existing bridge reuse and256message/16MiB queue bound. Common97af/f34fc9 rebuilt; exact4+actualcallers smoke queued.603 resumes finalrebase/classifier/header/blob/Hero gates;1030borrowedmethod frontend-only code, no thirdbuild.

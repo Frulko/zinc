@@ -2,7 +2,8 @@
 id: ZN-668
 title: 'Runtime: a closure that refers to itself is never freed'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 18:50'
 labels:
   - runtime
