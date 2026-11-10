@@ -2,7 +2,8 @@
 id: ZN-391
 title: Open .zapp files with zinc by double-click (macOS and Linux)
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-08 23:55'
 labels:
   - distribution
