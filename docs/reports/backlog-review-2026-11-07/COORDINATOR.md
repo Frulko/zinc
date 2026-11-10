@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+-1066401426c8a integratedBacklogAC1/2; all3export/pack/relocated/codesign/ZIPorDMGsignature/SBOM, literalHBC and unsignedsourcefallbackPASS. Nativefusedengineloader unchanged. Rootgroups1120+1066 commonrefresh. Fresh1030arrayphase approvedexistingInstOf/Downcast+closedworldguards/rawopdefence; no rows/wire/layout, no AC1waiver; researcharchived, solecoreworker next.
+
 -1120903f17ed4 integratedDoneall3AC; distinctNever/uninhabitedcarrier/voidreturn/Unreachable+signatureadapters exactall3PASS, rootcommonproofgroupswith1066.74Doneprovisionaluntilcombinedcheck. Reservefresh1030relatedreferencearray alias plan afterhigherprotected/milestone-onlytasks skipped; no corewriteractive now, no unsafewidening/ACwaiver.1066 finalrebase/source/exportproof underway.
 
 - Rootd87d08/b996304d combinedAOT+668+1030 proof PASS:7exactT0/rawkitgate/originalHero all3historicalhashes, native7,995,032B andsource9,527,457B+60B PCH.603Doneall3AC,73total;668ReviewAC1,1030array/storegapsopen. D283/D284/D231followup/perf/rawprovenance recorded. Building slots1120+1066; rootidle.

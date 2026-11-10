@@ -2,8 +2,7 @@
 id: ZN-1066
 title: 'Hermes and V8 projects: export, pack, bytecode'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:43'
 updated_date: '2026-11-10 10:33'
 labels:
