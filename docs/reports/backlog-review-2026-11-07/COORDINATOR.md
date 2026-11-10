@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve653 independent audio memory check while184 owns GLreplay. Review asks verify upstream nonfloat tail; if fixed, preserve all480frames and halve sample storage; if unfixed, record/drop per existing task review without counting a completed engine feature. Audio plugin/vendor only, no allocator/QJS/host/HAL/sharedruntime edits. No long audio test or new demo.
+
 - Recorded D288 and D188/D231 array amendment; root combined array/size/kit and real3D visibility proofs PASS.75Done. Completed1030-array/683 worktrees archived and removed;36 completed source checkpoints cleaned.184 remains active; remote SSH timeout, local ANGLE proof explored. All10 protected WIP payloads unchanged.
 
 - Finalarraycommon4a822/3c618d3 verified5exact/rawkit/Heroall3PASS7,995,048Bnative/9,537,382Bsource.68318aa3967c Done+rootactualSW/GPUtorusPASS,75Done. Reserve184EXT/ANGLEinstancing cleanGLreplay-only; ownerdisplay_gl.cpp/HALWIPforbidden. Feature-firstonecriterion+uploadbytes, no suite/benchmark/fullSDK.

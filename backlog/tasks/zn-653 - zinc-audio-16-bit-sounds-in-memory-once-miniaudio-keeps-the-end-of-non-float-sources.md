@@ -4,7 +4,8 @@ title: >-
   zinc:audio: 16-bit sounds in memory once miniaudio keeps the end of non-float
   sources
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 17:57'
 labels:
   - audio
