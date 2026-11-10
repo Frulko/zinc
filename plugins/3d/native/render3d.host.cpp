@@ -5,6 +5,7 @@
 #include "zinc_native_render3d.h"
 #include "zrt_raster.h"
 #include "zn/zmesh.h"
+#include "visibility.h"
 #include "zn/zworld.h"
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
@@ -55,7 +56,7 @@ enum { VCOL = 1, FLAT = 2, UNLIT = 4, DOUBLE = 8, NOFOG = 1 << 16 };
 enum { OPAQUE = 0, ALPHA = 1, ADD = 2 };   // draw flags bits 6-7 (ZN-696); bits 8-15 the opacity of a blended draw
 
 struct Mesh { int32_t nv, ni; float *pos, *nrm, *uv; uint32_t* col; uint16_t* idx; };
-struct Target { int32_t img, w, h; uint32_t* px; ZT* z; };
+struct Target { int32_t img, w, h; uint32_t* px; ZT* z; float vp[16]; };
 struct Tex { const uint32_t* px; int32_t w, h, stride; };
 struct V { float x, y, z, w, r, g, b, u, v; };      // clip space + shade (0..255) + uv
 struct S { float x, y, z, iw, r, g, b, u, v; };     // screen space; u, v premultiplied by iw
@@ -662,6 +663,7 @@ struct Engine : NativeRender3D {
     if (t) release(t);
     else { t = (Target*)mem(sizeof(Target)); id = targets.add(t); }
     t->w = w; t->h = h;
+    memset(t->vp, 0, sizeof(t->vp));
     t->px = (uint32_t*)mem((size_t)w * h * 4);
     t->z = (ZT*)mem(sizeof(ZT) * (size_t)w * h);
     t->img = raster::dyn_wrap(w, h, t->px, w);
@@ -683,10 +685,19 @@ struct Engine : NativeRender3D {
     for (int32_t i = 0, n = cur->w * cur->h; i < n; i++) px[i] = clear & 0xFFFFFF;
     memset(cur->z, 0xFF, sizeof(ZT) * (size_t)cur->w * cur->h);
     viewProjection(vp, (float)cur->w / cur->h, view, proj, nearN, farN, ortho);
+    memcpy(cur->vp, vp, sizeof(vp));
     eyeOf(view);
     spec[0] = spec[1] = spec[2] = 0;
     emit[0] = emit[1] = emit[2] = 0;
     camera(nearN, farN, ortho);
+  }
+  int32_t pointVisible(int32_t id, N x, N y, N z, N bias) override {
+    const Target* t = targets.at(id);
+    if (!t) return -1;   // hardware renderers have their own targets
+    int px, py; double depth;
+    if (!zn3d::projectPoint(t->vp, t->w, t->h, F(x), F(y), F(z), px, py, depth)) return 0;
+    const double stored = (double)t->z[(size_t)py * t->w + px] * (1u << ZSHIFT) / ZS;
+    return depth <= stored + F(bias) ? 1 : 0;
   }
   /** The camera's planes, which fog needs, and no fog yet: every begin() calls it. */
   void camera(N nearN, N farN, bool ortho) { camN = F(nearN); camF = F(farN); camOrtho = ortho; fogOn = false; }

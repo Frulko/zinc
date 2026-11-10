@@ -81,6 +81,7 @@ export default {
     targets.push(nt);
     return targets.length - 1;
   },
+  pointVisible(): i32 { return -1; },
   targetDestroy(t: i32): void { const c = t >= 0 && t < targets.length ? targets[t] : null; if (c !== null) { destroyImage(c.img); targets[t] = null; } },
   begin(): void { tris = 0; },
   ambient(): void {},

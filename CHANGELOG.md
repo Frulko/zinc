@@ -49,6 +49,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - QuickJS web pages support `Worker` from local modules and Blob URLs, with transferable buffers and ImageBitmaps; Pixi texture loading and Tone.js timers can run on a worker thread.
 - QuickJS schedules cycle collection between frame callbacks and reports those pauses as `gc` in `ZINC_PROFILE`, frame traces and the performance panel; memory pressure can still trigger an automatic collection.
 
+- `zinc:3d` cameras can test whether a world point is visible after rendering, so markers hide behind concave shapes on the software and macOS GPU renderers.
+
 #### Faster
 
 - On macOS a window that nobody sees (covered by other windows, minimized or hidden) stops drawing and slows its loop to 10 frames a second, about a tenth of the CPU it used, and is back at full speed the moment it shows again; `ZINC_UNSEEN=draw` keeps it drawing.

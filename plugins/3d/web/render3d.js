@@ -362,6 +362,7 @@ Z.registerNative('Render3D', {
   assetOpen: () => -1, assetByte: () => 0, assetMesh: () => -1, assetClose() {},
   partBounds,
   target, targetDestroy, begin,
+  pointVisible: () => -1,
   ambient(c) { amb[0] = (c >> 16 & 255) / 255; amb[1] = (c >> 8 & 255) / 255; amb[2] = (c & 255) / 255; },
   light(dx, dy, dz, c) {
     const l = Math.hypot(dx, dy, dz);

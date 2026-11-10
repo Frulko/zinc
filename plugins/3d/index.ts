@@ -655,6 +655,17 @@ export class Camera {
   /** The render target (colour image + z-buffer) is sized by the last render() box; free it when done. */
   dispose(): void { if (this.rt >= 0) R.targetDestroy(this.rt); this.rt = -1; }
 
+  /** A world point against this camera's last render (opaque depth, nearest pixel). False before rendering, after dispose or outside the
+   *  view. `bias` is a nonnegative tolerance in normalized depth units. Software and macOS OpenGL; other GPUs throw. GPU reads may stall. */
+  isVisible(x: number, y: number, z: number, bias: number = 0.00001): boolean {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z) || !Number.isFinite(bias) || bias < 0)
+      throw new RangeError('zinc:3d: visibility needs finite coordinates and a nonnegative bias');
+    if (this.rt < 0) return false;
+    const visible = R.pointVisible(this.rt, x, y, z, bias);
+    if (visible < 0) throw new Error('zinc:3d: visibility queries need the software or macOS OpenGL renderer');
+    return visible === 1;
+  }
+
   /** Renders `scene` seen by this camera into the screen box (x, y, w, h); returns the triangles rasterized. */
   render(scene: Scene, x: number, y: number, w: number, h: number): i32 {
     const k = this.pixelRatio > 0 ? this.pixelRatio : R.gpu() ? pixelScale() : 1;

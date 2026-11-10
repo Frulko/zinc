@@ -28,6 +28,8 @@ export interface Spec extends NativeModule {
    *  needed, or a new handle when t < 0. */
   target(t: i32, w: i32, h: i32): i32;
   targetDestroy(t: i32): void;
+  /** World point against the last rendered depth: 1 visible, 0 clipped/hidden, -1 unsupported. Bias is in normalized depth units. */
+  pointVisible(t: i32, x: number, y: number, z: number, bias: number): i32;
   /** Starts a frame: clears colour and depth, sets the camera. `view` is a column-major 4x4 matrix; `proj` is the
    *  vertical field of view in radians, or the view height in world units when `ortho`. */
   begin(t: i32, clear: u32, view: number[], proj: number, near: number, far: number, ortho: boolean): void;

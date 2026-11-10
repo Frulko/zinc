@@ -142,7 +142,7 @@ struct Prog { GLuint id = 0; GLint mvp = -1, model = -1, color = -1, amb = -1, l
   float emitSet[3] = {0, 0, 0}, alphaSet = 0, fogSet[5] = {-1, -1, -1, -1, -1}; };   // the values its uniforms hold (a program keeps them): sent again only when they change
 struct GMesh { GLuint vao, vbo, ibo; int32_t ni; bool uv, col; uint64_t bytes; int32_t nv; bool interleaved; };
 // msfbo (ZN-657): the multisampled framebuffer the frame is drawn into, resolved into fbo (whose colour texture is read back) at end()
-struct GTarget { int32_t img, w, h; uint32_t* px; GLuint fbo, color, depth, pbo[2], msfbo, mscolor, msdepth; int k, samples; bool pending[2]; };
+struct GTarget { int32_t img, w, h; uint32_t* px; GLuint fbo, color, depth, pbo[2], msfbo, mscolor, msdepth; int k, samples; bool pending[2]; float vp[16]; };
 struct GTex { GLuint id = 0; uint32_t version = 0; int filter = 0; bool mips = false; uint64_t bytes = 0; };   // filter: the one set on the texture (1 nearest, 2 linear, 3 mipmaps)
 
 GLuint shader(GLenum kind, const char* pre, const char* defs, const char* body) {
@@ -341,6 +341,7 @@ struct Gpu : Engine {
     if (t) release(t);
     else { t = (GTarget*)mem(sizeof(GTarget)); id = gtargets.add(t); }
     t->w = w; t->h = h;
+    memset(t->vp, 0, sizeof(t->vp));
     t->px = (uint32_t*)mem((size_t)w * h * 4);
     memset(t->px, 0, (size_t)w * h * 4);
     t->img = raster::dyn_wrap(w, h, t->px, w);
@@ -397,6 +398,7 @@ struct Gpu : Engine {
     glClearColor((clear & 255) / 255.0f, (clear >> 8 & 255) / 255.0f, (clear >> 16 & 255) / 255.0f, 0);  // blue first, as the shaders write
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     viewProjection(vp, (float)gcur->w / gcur->h, view, proj, nearN, farN, ortho);
+    memcpy(gcur->vp, vp, sizeof(vp));
     eyeOf(view);
     spec[0] = spec[1] = spec[2] = 0;
     emit[0] = emit[1] = emit[2] = 0;
@@ -509,6 +511,48 @@ struct Gpu : Engine {
     const int32_t n = rCount < 0 ? g->ni - rFirst : rCount;   // a range of the indices (worldDraw), else all
     glDrawElements(GL_TRIANGLES, n, GL_UNSIGNED_SHORT, (void*)((size_t)rFirst * 2));
     tris += n / 3;  // triangles drawn, before culling (three.js's renderer.info counts them so too)
+  }
+
+  int32_t pointVisible(int32_t id, N x, N y, N z, N bias) override {
+#ifdef __APPLE__
+    const GTarget* t = gtargets.at(id);
+    if (!t) return -1;
+    int px, py; double depth;
+    if (!zn3d::projectPoint(t->vp, t->w, t->h, F(x), F(y), F(z), px, py, depth)) return 0;
+    struct RestoreContext {
+      SDL_Window* window = SDL_GL_GetCurrentWindow();
+      SDL_GLContext context = SDL_GL_GetCurrentContext();
+      ~RestoreContext() { if (SDL_GL_GetCurrentContext() != context) SDL_GL_MakeCurrent(window, context); }
+    } restoreContext;
+    current();
+    struct RestoreBindings {
+      GLint readFbo, drawFbo, pack;
+      RestoreBindings() {
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFbo);
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFbo);
+        glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack);
+      }
+      ~RestoreBindings() {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)readFbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, (GLuint)drawFbo);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, (GLuint)pack);
+      }
+    } restoreBindings;
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    if (t->samples) {
+      glBindFramebuffer(GL_READ_FRAMEBUFFER, t->msfbo);
+      glBindFramebuffer(GL_DRAW_FRAMEBUFFER, t->fbo);
+      glBlitFramebuffer(px, py, px+1, py+1, px, py, px+1, py+1, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    }
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, t->fbo);
+    float stored = 0;
+    glReadPixels(px, py, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &stored);
+    return depth <= stored + F(bias) ? 1 : 0;
+#else
+    // GLES/WebGL cannot read a depth pixel with glReadPixels.
+    (void)id; (void)x; (void)y; (void)z; (void)bias;
+    return -1;
+#endif
   }
 
   /** The framebuffer into `dst` (a pixel buffer offset when one is bound): 0x00RRGGBB words, the shaders write blue first and alpha 0. RGBA bytes
