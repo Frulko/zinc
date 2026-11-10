@@ -723,6 +723,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-1078.14: remove redundant visible labels in PropertyInspector rows while preserving adjustable label columns and accessible field names; narrow captures currently show both row and embedded-field labels.
 
+- ZN-1078.17: physical keyboard/touch/VoiceOver and long Kanban/calendar/Gantt churn on devices; current exact all3/both-model proof uses correctly keyed component identities and normal formatted JSX.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -856,6 +858,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-973: Hamlet's farm-to-mill ratio (~3:1 at full speed) is above the 2:1 of Anno and Settlers: measure it in a played village (soil bonus included) before retuning the farm's 10 s cycle. `chainReport` lists only buildings as makers (adventure rewards and peddler sales could appear too).
 - ZN-1040 (museum editor): a film has no preview of its own; packaged tables have no default statistics directory; a visit under way when the table is switched off is not counted; storyboard miniatures ignore rotation; `table.visitors` is never read; `lengthOf` keeps a replaced file's length until reopen.
 - ZN-1040 (museum editor): no rubber-band selection on the table and storyboard; pasting a medium into a project in another folder does not copy its file; missing-file problems do not refresh while the project is open; check the native menu's greyed items and drag and drop on a real Mac.
+
+- ZN-1078.16: real touch/VoiceOver, GPU/device image interaction and Discord sharper-decode replay; current geometry/lifetime/controller proof covers all3 headless engines, no physical-performance claim.
 
 ## Cross-platform pass
 

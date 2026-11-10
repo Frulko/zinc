@@ -1731,3 +1731,10 @@ At9dc934f5f, kit SHA2564693ed2bf7f6aec566fe5cccad2a3818b9c819d49d4af69115c3a1f7d
 
 - Sourcee70c008e2, enginef561c4cc... unchanged: raw gate JS235962/243827/280594B; unused7865<9472,4085/component/97B strict used-total headroom. AOT5325320/5457488/6009248B; unused132168<151552,61306/component. No feature/icon/option removed or threshold changed; cold/runtime/idle costs unmeasured.
 - Root nine geometry/Solid/React programs on all3, gallery check and four-frame crop QJS pass; eight worker-inspected pictures, overlays and Discord compatibility checks pass. Explicitly owned modal/sharper/Tooltip cleanup; no image export pipeline added. Source/capture/raw gate provenance docs/reports/bench/kit-media-2026-11-10.json. Physical touch/VoiceOver/GPU/device and long decode measurements remain proposed.
+
+
+## 2026-11-10 — AI, Planning and JSX trailing-comma integration
+
+- Rebuilt compiler source90b24121b (1110 included), engine SHA2563978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af. Root jsx_map_trailing/kit_ai/kit_planning pass all required engines/models; no JSX formatting workaround. Existing Kanban focus corrected by component key, no frame delay or state mirror.
+- After AI raw gate JS235962/244342/281058B, unused8380<9728,4079/component/148B strict headroom; AOT5325320/5457488/6009248B, unused132168<155648,61306/component. Final Planning combined raw gate JS235962/245066/281771B, unused9104<9984,4078/component/159B strict headroom; AOT5325320/5474000/6025760B, unused148680<159744,61306/component. Same unchanged gate, no option/control/icon/threshold cuts.
+- Actual Tracker demo all3/light-dark/narrow/actions and root check/interpreter4frames pass; no demo test script committed. Integrated provenance kit-integration-2026-11-10.json after_ai_planning. Physical/device/idle/churn/energy/throughput remain unmeasured; no timing ranking.

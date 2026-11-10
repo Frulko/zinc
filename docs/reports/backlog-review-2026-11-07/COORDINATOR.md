@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Root integration checks completed: jsx_map_trailing/kit_ai/kit_planning and unchanged gates PASS, original AI composerQJS4/Tracker check+interp4 PASS;49Done. Common397865 frozen, source90b compiler/d950 smoke tree. Extended19 completee31e822f4, short final rebase/combined gate requested; Gallery20/Dashboard22 active. Completed worker archives removed safely; no core writer. Raw provenance after_ai_planning in kit-integration JSON.
+
 - Planning17 integratedb4edca089 Done, correct BoardCard key fixes React focus; actual final T0 all3/bothmodels and six refreshed captures/gate pass, closes1110 AC3. Tracker21 integratedd950a9460 Done: all3 real actions/light-dark/narrow proof, no new demo tests.49Done including1110; root integration smokes underway. Reserve Gallery20 and Dashboard22 fresh TS-only demo workers while Extended19 finalizes. Gallery must include Extended after integration before claiming full coverage; preserve focused screenshot modes. No engine writer, common397865 frozen.
 
 -1110 tested compiler source integratedebe53adf2 AC1/2; original formatted Month gallery/repro all3 pass, AC3 waits Planning React keyboard-drop focus fix. AI18 integrated90b24121b Done,46Done; fullall3/bothmodels/gate pass, root newcommon build/proofs pending. Reserve fresh Planning completion from parked78c13d3ea (normal formatting; no removal workaround) and DemoTracker21. Gallery20 final completeness waits open17/19, so independent Tracker21 proceeds (formal Nav/Feedback/Data depsDone). Extended19 uses CUI-exact injected Browse callback, no permission-collector task1111 needed; native user-picked drop grant correction authorized at System owner, strict scope proof pending.

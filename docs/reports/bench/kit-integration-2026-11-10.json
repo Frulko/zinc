@@ -173,5 +173,70 @@
       "physical keyboard/touch/VoiceOver/devices",
       "long stream/idle/RSS/energy and profiler throughput"
     ]
+  },
+  "after_ai_planning": {
+    "compiler_source": "90b24121b (includes1110 ebe53adf2)",
+    "engine_sha256": "3978659916223a6a6dccb3c5e474423e9fcc2f8d9455a92abc831b8d073ed5af",
+    "ai_commit": "90b24121b",
+    "planning_commit": "b4edca089",
+    "tracker_commit": "d950a9460",
+    "root_checks": {
+      "jsx_map_trailing": "PASS canonical/custom all3",
+      "kit_ai": "PASS both models/all3",
+      "kit_planning": "PASS pure models+both models/all3",
+      "unchanged_kit_size_after_ai": "PASS",
+      "tracker_check": "PASS",
+      "tracker_interp_4_frames": "exit0",
+      "ai_composer_quickjs_4_frames": "exit0"
+    },
+    "root_inspected": [
+      "docs/img/kit-ai-composer-narrow.png",
+      "docs/img/kit-ai-messages-dark.png",
+      "docs/img/kit-planning-month-narrow.png",
+      "examples/ui/tracker/pictures/narrow-detail.png"
+    ],
+    "ai_gate": {
+      "javascript_bytes": [
+        235962,
+        244342,
+        281058
+      ],
+      "aot_bytes": [
+        5325320,
+        5457488,
+        6009248
+      ],
+      "strict_js_headroom_bytes": 148,
+      "raw": [
+        "bundle: Button 235962 B, through the index 244342 B (+8380 for 38 unused families, budget 9728), ten 281058 B (+4079 per component)",
+        "aot: Button 5325320 B, through the index 5457488 B (+132168 for 38 unused families, budget 155648), ten 6009248 B (+61306 per component)",
+        "aot, Button through the index links the plugins: editor"
+      ]
+    },
+    "planning_combined_gate": {
+      "javascript_bytes": [
+        235962,
+        245066,
+        281771
+      ],
+      "aot_bytes": [
+        5325320,
+        5474000,
+        6025760
+      ],
+      "strict_js_headroom_bytes": 159,
+      "raw_log": ".logs/archive-completed-workers-20261110/1078.17-complete/logs/planning-complete/size.log"
+    },
+    "files_sha256": {
+      "src/frontend/jsx.cpp": "bc4448488f70583c536efa7b8f2d8ae38d3bb7c1f288439a5e8478461f77d00c",
+      "lib/std/kit/planning.tsx": "18e829e1755c75597ffb834ab5d9001985bd0dd5a3774f2aa6510c405f44c42f",
+      "lib/std/kit/input.tsx": "b0d1dc72e1b2259e2a368c4127a7c95b489b66014725b0d8f8186f310e7d4087",
+      "tests/t0/jsx_map_trailing.sh": "bf42f31b32011d52a4ba3120832006d0c4d5063ce3af6f5416786f7b67ea3884",
+      "tests/t0/kit_ai.sh": "5f2e1e7a001347fe46ad4e7e288ff30be7ecccedd01cde425fe38f37986db09e",
+      "tests/t0/kit_planning.sh": "3263884620e5f5cff2d7e16946b0eda4c75707d93b7760d1daade7c47a6248eb",
+      "tests/t0/kit_size.sh": "d4516f5dbd449421d4cc872afdba00acc8f07c22c3f0476498b06cf4fbc032ed"
+    },
+    "logs": ".logs/integration-2026-11-10/after1110-*, planning-integrated.log, tracker-*, ai-gallery-run.log",
+    "limits": "physical accessibility/devices/performance unmeasured; no new demo tests committed"
   }
 }

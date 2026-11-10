@@ -98,5 +98,18 @@
     "quiet-machine performance or memory"
   ],
   "owned_processes": "none after completion",
-  "rebase": "e19f83056 changes coordinator notes only; all tested source and capture hashes match after rebase"
+  "rebase": "e19f83056 changes coordinator notes only; all tested source and capture hashes match after rebase",
+  "integration": {
+    "commit": "e70c008e2",
+    "root_checks": {
+      "kit_media": "nine programs PASS: geometry and both UI models on all3",
+      "gallery_check": "PASS",
+      "original_crop_gallery_quickjs_4_frames": "exit0"
+    },
+    "root_inspected": [
+      "docs/img/kit-media-crop-narrow.png",
+      "docs/img/kit-media-compare-dark.png"
+    ],
+    "logs": ".logs/integration-2026-11-10/media-*"
+  }
 }
