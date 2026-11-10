@@ -2,8 +2,7 @@
 id: ZN-1109
 title: Bind method receivers in default parameter expressions
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-09 23:35'
 updated_date: '2026-11-10 00:08'
 labels:

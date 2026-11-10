@@ -4,11 +4,13 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 ## Active work
 
+Media16 claimed for fresh work/1078.16: four controls, reuse imperative ImageViewer and image-cache, no engine edits/build; actual UI proof/pictures/gate required.
+
 Core1108→1109 active in .worktrees/1108/work/1108, fresh sole core worker; 1108 checkpoint integratedb805f4819 (exact all3/check original gallery PASS, runtime AC3 waits1109); method receiver defaults now active. Group root rebuild after1109.
 
 | Work | Location | State |
 | --- | --- | --- |
-| Code13 | integrated8bbf8a245, fresh work/1078.13 | Five controls implemented via existing editor/Markdown/inspector providers. Original both-model/all3 interactions pass with integrated1105/1107. Final caches, all6 root replay, gallery check/run and pictures pass; D277. Fresh completion worker performs shared size analysis, core read-only until1109 finishes. AC3 stays open: JS235962/239442/276318,12B strict used-budget excess; unused/AOT pass. Next free slot goes core1108/1109. No core edits. |
+| Code13 | integrated8bbf8a245, fresh work/1078.13 | Five controls implemented via existing editor/Markdown/inspector providers. Original both-model/all3 interactions pass with integrated1105/1107. Final caches, all6 root replay, gallery check/run and pictures pass; D277. Fresh completion worker performs shared size analysis, sole core generator writer after1109 source freeze; measured lossless circle prototype saves109B/97B strict headroom, final engine/oracle/gate pending. AC3 stays open: JS235962/239442/276318,12B strict used-budget excess; unused/AOT pass. Next free slot goes core1108/1109. No core edits. |
 | Tool panels14 | work/1078-panels, .worktrees/1078-panels | Fresh implementation worker active, ten controls, caller-owned state and existing providers. Owns minimal ScrubField default-bounds correction; prior caller has explicit bounds. QJS model and ten actual interaction routes (five groups×both models) pass independently; original optional-find/default-this code waits1108/1109. Numeric control geometry is the portable path under documented ZN-382 classic percent-inset limit; separate rn class-parser defect is in later.md. Rebase before final delivery to omit duplicate1107 cherry-pick. |
 | Charts15 | integratede85f33a65, released Backlog | All fifteen charts, pure geometry all3 and interactions both models/all3 pass. Seven inspected pictures. AC3 open: combined Code+Charts JS235962/241206/278082, same12B strict excess; unused/AOT pass. |
 | Data12 | integrated8f8478bd5 | Done: original twelve runs and root final combined gate pass on da7ca0360. Eight inspected pictures. |
@@ -16,7 +18,7 @@ Core1108→1109 active in .worktrees/1108/work/1108, fresh sole core worker; 110
 
 ## Integrated and proven
 
-39 distinct Done tasks since1078.03 (ten kit subtasks03–12 and1079–1107), counted from actual task statuses. Data/Feedback are now included after their final combined proof. Earlier history/proposed tests are archived in docs/reports/session-handover-2026-11-09.md.
+41 distinct Done tasks since1078.03 (ten kit subtasks03–12 and1079–1109), counted from actual task statuses. Data/Feedback are now included after their final combined proof. Earlier history/proposed tests are archived in docs/reports/session-handover-2026-11-09.md.
 
 -1101 cwd902de09c0 and1104 reader8c31f5cb7: root clean project_cwd/library_icons and original Data/Feedback defaults pass; no app paths or manifest workarounds.
 -1103 SVG20fc72043: byte-identical private path constructor, all3 serialization proof. Original combined gate JS235400/238485/275177, AOT5325320/5374848/5926624;4076B/component JS,172B strict headroom. No UI/icon/budget cut; cold helper cost unmeasured.
