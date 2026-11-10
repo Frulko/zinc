@@ -70,17 +70,6 @@ bool cook(const std::string& gltfPath, const CookProfile& profile, const std::st
   float ext[3] = {mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]};
   for (int k = 0; k < 3; ++k) if (ext[k] < 1e-6f) ext[k] = 1.0f;
 
-  // quantization error estimate
-  double qerr = 0;
-  for (auto& v : verts) {
-    float qx = (v.px - mn[0]) / ext[0] * 65535.0f;
-    float qy = (v.py - mn[1]) / ext[1] * 65535.0f;
-    float qz = (v.pz - mn[2]) / ext[2] * 65535.0f;
-    float rx = mn[0] + (qx / 65535.0f) * ext[0];
-    qerr += std::fabs(rx - v.px);
-  }
-  qerr /= verts.size();
-
   // LODs
   std::vector<std::uint32_t> lodIdx = idx;
   std::uint64_t tris = idx.size() / 3;
@@ -116,10 +105,15 @@ bool cook(const std::string& gltfPath, const CookProfile& profile, const std::st
   std::uint32_t vc = verts.size();
   o.write(reinterpret_cast<const char*>(&vc), 4);
   // vertices: quantized positions (i16) + color
+  double qerr = 0;
   for (auto& v : verts) {
     std::int16_t qx = (std::int16_t)((v.px - mn[0]) / ext[0] * 32767.0f);
     std::int16_t qy = (std::int16_t)((v.py - mn[1]) / ext[1] * 32767.0f);
     std::int16_t qz = (std::int16_t)((v.pz - mn[2]) / ext[2] * 32767.0f);
+    // Measure the positions actually stored, in the source mesh's coordinate units.
+    qerr += std::hypot(double(mn[0]) + double(qx) / 32767.0 * ext[0] - v.px,
+                       double(mn[1]) + double(qy) / 32767.0 * ext[1] - v.py,
+                       double(mn[2]) + double(qz) / 32767.0 * ext[2] - v.pz);
     o.write(reinterpret_cast<const char*>(&qx), 2);
     o.write(reinterpret_cast<const char*>(&qy), 2);
     o.write(reinterpret_cast<const char*>(&qz), 2);
@@ -127,6 +121,7 @@ bool cook(const std::string& gltfPath, const CookProfile& profile, const std::st
     o.write(reinterpret_cast<const char*>(&v.g), 1);
     o.write(reinterpret_cast<const char*>(&v.b), 1);
   }
+  qerr /= verts.size();
   // indices
   std::uint32_t ic = idx.size();
   o.write(reinterpret_cast<const char*>(&ic), 4);

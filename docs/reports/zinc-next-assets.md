@@ -219,6 +219,12 @@ A rule `"as": "model"` runs glTF 2.0 files (`.glb`, or `.gltf` with its buffers)
 - The artifact is a bundle (`ZAB1`, `src/assets/model.h`): a directory of entries (name, kind, size) then their bytes; the pack takes each
   entry, and the report's row (`format` glb or zmesh) adds up their pack bytes and the GPU bytes of the textures, read from the directory.
 
+The geometry cooker, `zinc assets cook <scene.gltf|scene.glb> <psp30|vita60|n3ds30|ios60> -o <dir>`, writes a
+`<profile>.zcook` pack and `<profile>.receipt.json`. Its `quantError` is the mean Euclidean distance between each source vertex and
+its stored integer XYZ reconstructed with `minimum + q / 32767 * extent`, in source mesh coordinate units. The receipt's `lod` entries `lod0`
+and `lod1` carry triangle counts; simplification can retain the original count when topology prevents a reduction.
+ZCK1 stores three i16 position components and three RGB bytes per vertex, then u16 indices; the header's bounds remain f32.
+
 The font baker (`src/res`, `zinc-next-resources.md`) is the third built-in importer: its inputs are the program's sources, so the program
 build calls it (`bakeResources`: `zinc run`, `pack`, `build`, `export`, `bake`) through the same cache; its blob is not a pack entry yet.
 

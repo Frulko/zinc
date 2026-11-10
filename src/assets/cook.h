@@ -18,7 +18,7 @@ struct CookReceipt {
   std::string profile;
   std::uint64_t triangles = 0;
   std::uint64_t vertices = 0;
-  double quantErr = 0.0;
+  double quantErr = 0.0;  // mean Euclidean i16 reconstruction error, source mesh units
   std::vector<std::pair<std::string, std::uint64_t>> lodTris;
   bool ok = true;
   std::string error;

@@ -87,6 +87,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A Phaser game with `type: Phaser.CANVAS` draws its MULTIPLY and SCREEN blend modes instead of plain source-over: a script now runs once the pictures the page is loading from `data:` URLs are ready, as in a browser.
 - A screenshot (`ZINC_SHOT`, `zinc capture`) or a frame hash (`ZINC_FRAMEHASH`) of a program that does not paint the whole window shows black where nothing was drawn, the same at every run, instead of leftover memory.
 - On the GPU renderer, an image turned or skewed with `setTransform` has smooth edges and is smoothed the same way as on the CPU (sharp only with `ImageFlag.Nearest`): its edges were jagged and an unscaled picture stayed pixelated.
+- `zinc assets cook` receipts report the mean position error from the stored integer XYZ coordinates, in source mesh units.
 
 ### Hamlet
 
