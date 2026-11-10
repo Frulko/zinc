@@ -548,13 +548,22 @@ struct Lowering {
       }
     }
   }
+  bool selfBinding(std::uint32_t node, std::uint32_t s) const {
+    const auto& sym = c.syms[s];
+    if (sym.kind == SymKind::Func) return sym.decl == node;
+    if (sym.kind != SymKind::Var || !sym.isConst || sym.decl == kNil || n(node).kind != N::FuncExpr) return false;
+    if (sym.decl == node) return true;  // a named function expression's internal name
+    const Node& d = n(sym.decl);
+    return d.kind == N::Declarator && d.kids.size() > 1 && d.kids[1] == node;
+  }
   std::vector<std::uint32_t> capsOf(std::uint32_t node) const {
     std::vector<std::uint32_t> r;
     auto cap = c.captures.find(node);
     if (cap == c.captures.end()) return r;
     for (std::uint32_t s : cap->second) {
       if (topVars.count(s)) continue;  // a global: read where it lives
-      if (c.syms[s].kind == SymKind::Func && (!closureFns.count(c.syms[s].decl) || c.syms[s].decl == node)) continue;  // a plain function is called directly; a closure reaches itself through its own object (no cycle)
+      if (selfBinding(node, s)) continue;  // its own immutable binding is the receiver, never an owning capture
+      if (c.syms[s].kind == SymKind::Func && !closureFns.count(c.syms[s].decl)) continue;  // a plain function is called directly
       r.push_back(s);
     }
     return r;
@@ -1395,7 +1404,7 @@ struct Lowering::FnLower {
   ValueId storageOf(std::uint32_t s) {
     int fi = capField(s);
     if (fi >= 0) return emit(IrOp::GetField, m.classes[lam->cls].fields[static_cast<std::size_t>(fi)].type, {f.params[0]}, 0, 0, static_cast<std::uint32_t>(fi));
-    if (lam && c.syms[s].kind == SymKind::Func && c.syms[s].decl == lam->node) {
+    if (lam && L.selfBinding(lam->node, s)) {
       // A nested callback owns this self cell; the recursive closure never retains it (no cycle).
       declSym(s, f.params[0]);
     }
@@ -1403,7 +1412,7 @@ struct Lowering::FnLower {
   }
   ValueId readSym(std::uint32_t s) {
     if (!paramSubst.empty()) { auto ps = paramSubst.find(s); if (ps != paramSubst.end()) return ps->second; }
-    if (lam && c.syms[s].kind == SymKind::Func && c.syms[s].decl == lam->node) return f.params[0];  // a nested function used inside itself: its own closure object
+    if (lam && L.selfBinding(lam->node, s)) return f.params[0];  // an immutable self binding is its actual closure object
     if (L.global[s]) return emit(IrOp::GetGlobal, L.irType(c.syms[s].type), {}, 0, 0, L.globalIndex[s]);
     if (L.isCell(s)) return emit(IrOp::GetField, L.irType(c.syms[s].type), {storageOf(s)}, 0, 0, 0);
     return storageOf(s);

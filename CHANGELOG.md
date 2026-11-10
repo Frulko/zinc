@@ -388,6 +388,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Optional `any` and `unknown` fields keep `null` distinct from missing values in comparisons and JSON; truthiness and supported optional chains follow the stored value.
 - A public method read through `any` can use an unrelated object as its receiver when it reads and writes dynamic properties; borrowed calls preserve defaults and the method's lexical variables.
 - Values named `unknown`, `Map` or other type names no longer hide type annotations inside nested functions.
+- Recursive closures assigned directly to a `const`, and named function expressions, release their memory after use, including when nested callbacks keep them alive.
 
 ### Developer tools
 
