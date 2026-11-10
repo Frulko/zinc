@@ -2,8 +2,7 @@
 id: ZN-1068
 title: 'Hamlet follow-ups: atlas test and sprite rects'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:43'
 updated_date: '2026-11-10 05:27'
 labels:

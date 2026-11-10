@@ -8,11 +8,11 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 | --- | --- | --- |
 |1118 nested process families|.worktrees/1118-nested / work/1118-nested|Initial POSIX groups miss nested Zinc-owned groups. Fresh worker fixes same-binary capture/child/grandchild; both AC reopened.|
 |575 QuickJS GC/profile|.worktrees/575 / work/575|Reserved: scheduling/profile implementation and short exact proof. Quiet pause/startup measurements remain owner-picked.|
-|1068 Hamlet atlas/rects|.worktrees/1068 / work/1068|Reserved: deer stamp correctness and tight coverage. Quiet AOT/interpreter measurements remain owner-picked.|
+|803 Museum updates|.worktrees/803 / work/803|Reserved: existing update lifecycle and parse-before-staging. Do not touch process provider until1118 finalizes.|
 
 ## Integrated state
 
-66 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, and445 QuickJS packing/cache. Comparison1078.29 is Review; Galène895 is Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
+66 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, and445 QuickJS packing/cache. Comparison1078.29, Galène895 and Hamlet1068 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
 
 - UI chain7ed1b1211/39e7e5e62/5488a7d35, recursive capture063edc9de, Solid ownership0d7163987: root exact tests and original Music feature pass. Mail6dc4c22ca, Notesed5802785, Assistantc280d7fd8 and Music83e6fe6f5 Done with actual all3 action/desktop/mobile/focus/cleanup proofs. Original responsive/password defects fixed.
 -445 integrated5acf53be0: local trusted bytecode cache stays fast; unsigned packs execute retained source, with one explicit warning. No unauthenticated bytecode loader. Exact qjs_bytecode and actual Fatty direct/pack proof pass; no startup timing claim.
@@ -20,6 +20,8 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 -603 integrated64c0f7158: restore existing advanceUpload export for Hero callers. Hero all3 actual run passes. Native10905448 B and generated C++27205373 B exceed8MB/10MB criteria; no speculative optimization, task Backlog.
 -774.31 integrated0889d9c8a: editable sources/assets/PNG cover pack, exclusive safe unpack, short Play link, keyboard/import roundtrips pass. Source code remains integrated, AC1 reopened by916f20798 because final combined binary exposes1118 nested cleanup failure.
 -1118 initial566ba1115: pre-reap group ownership, stale handles, finish hooks, Mojave cwd fallback pass their direct tests. Same final Zinc binary creates nested groups that survive root capture group kill. Fresh repair active; no false POSIX family completion claim. Repro .logs/blockers/process-nested-groups/rebased-close.py; all surviving proof PIDs were cleaned.
+
+-1068 integrated78c1d970a: exact deer already matches all3 with common engine; tight body bounds and17,776-frame coverage pass. Root tier-t0/real QuickJS proof queued. Quiet24/64/96 numbers remain open. An accidental duplicate-basename T1 completed and is disclosed in notes; no process remains.
 
 ## Common engine and final kit gate
 
@@ -39,13 +41,15 @@ Only UIchain carveout: isolated clean worktree changes display token near2956 an
 
 Every heavy command through absolute tools/work-run SECONDS COMMAND ARGS, one pending per worker. Max2 building trees globally, one app/test/link; bound every run, headless or ZINC_BACKGROUND=1, no leftover children. No suites/T1/T2/tests-demo/pixelcompare/conformance/fuzz/benchmarks/CI. Harness may build and prove startup only; quiet measurements owner's.
 
-Completed logs/checkpoints archived .logs/archive-completed-workers-20261110. Core1111/old1112 and completed23/25/27/28 trees are clean/archived; remove when UIchain no longer needs original paths (copies already exist/rootdevelop includes all). Original old1078-data/pickers/feedback-astra contain unknown WIP, never reset/delete. Immutable Code stash a1c0db6f7469c18237690a4bf68a9de25d782bf5 and Gallery recovery stash eb2f5dffde05f0065d3cdb764fb00f4b1b3cbbe7 retained. Frozen diagnostic1108/1109 package under .logs/frozen-engines; executable alone cannot do AOT.
+Completed logs/checkpoints archived .logs/archive-completed-workers-20261110. Core1111/old1112 and final completed UI/app/compiler/tool trees were removed after archival; original sources remain on develop. Original old1078-data/pickers/feedback-astra contain unknown WIP, never reset/delete. Immutable Code stash a1c0db6f7469c18237690a4bf68a9de25d782bf5 and Gallery recovery stash eb2f5dffde05f0065d3cdb764fb00f4b1b3cbbe7 retained. Frozen diagnostic1108/1109 package under .logs/frozen-engines; executable alone cannot do AOT.
 
 ## Devices and proposed milestones
 
 Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow@192.168.2.228; Tailscale100.66.7.14 / optiplex.tail80b63.ts.net, HostKeyAlias192.168.2.228 verifies same key. Initially no compiler/build tools. Actual unchanged nullable_numeric cross-built x86_64-linux on Mac, deployed ~/zn/codex-1106-20261110-da7ca, timeout15/headless via Tailscale PASS, SHA7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No process left; GPU/desktop/native build unproven. Pi spark@192.168.2.31 and Mojave mowmow@192.168.2.215 remain. Own directories only, no machines/daemon restart/QEMU.
 
 ## Tests to run (the owner picks)
+
+- Since78c1d970a: Hamlet matched before/after AOT/interpreter idle-view24/64/96 and windowed Metal/QuickJS fluidity; exact geometry passes, speed benefit unproven.
 
 - Since5acf53be0: Phaser/Babylon cached startup and QuickJS GC p99 on a quiet machine;575 implements remaining scheduling/profile first.
 - Since9ccee370f: Galène real Pi/OptiPlex execution and quiet RSS before publication; recent optional SSH attempts timed out/Pi agent refused signature. Do not claim remote server proof.

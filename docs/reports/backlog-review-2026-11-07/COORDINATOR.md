@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Hamlet1068 integrated78c1d970a Review: deer baseline already exact all3, tight bounds17,776 frame coverage proven; quiet24/64/96 measurements remain open. Root exact tier-t0 integration/real QuickJS feature queued. Reserve803 museum updates for fresh independent source investigation; host/loop.cpp held until1118 final commit, src/rt/runtime/main/UI/HAL external WIP protected.
+
 - Recorded D278 standalone Galène and D279 unsigned QuickJS source fallback. Root combined exact galene_toolchain/project_link/zapp_share/qjs_bytecode and original Hero check/interpreter4 PASS. Archived full proof logs/checkpoint bundles and removed12 clean completed trees;1118/774.31 kept for nested repair. Final UI/core/app provenance and original source images reviewed; no benchmark, publication or nested-cleanup completion claim.
 
 - 2026-11-10: Combined Share binary exposed nested Zinc-owned process groups surviving capture shutdown. Reopened1118 and774.31;66 currently Done (65 UI/compiler +445). Fresh1118-nested worker repairs exact same-binary parent/child case. Reserve575 QuickJS GC/profile and1068 Hamlet atlas/rects as independent chains; no quiet benchmarks, measurement criteria remain open. Common source a4d6d50de SHA286072a337fc84ee28375d9bc529a2afcb2d69b0ed9b37d0013cf7da9816cc7a includes initial1118, not the nested repair.
