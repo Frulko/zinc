@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["lib/std/kit/ai.tsx", "lib/std/kit/ai-model.ts", "lib/std/kit/input.tsx", "tests/data/kit_ai/", "tests/t0/kit_ai.sh"], "tests": ["kit_ai"]},
     {"paths": ["src/frontend/check.h", "src/frontend/check.cpp", "src/ir/lower.cpp", "tests/data/method_defaults/", "tests/t0/method_defaults.sh"], "tests": ["method_defaults"]},
     {"paths": ["src/frontend/ast.h", "src/frontend/check.cpp", "src/ir/lower.cpp", "tests/data/optional_collection/", "tests/t0/optional_collection.sh"], "tests": ["optional_collection"]},
     {"paths": ["lib/std/kit/charts.tsx", "lib/std/kit/chart-model.ts", "tests/data/kit_charts/", "tests/t0/kit_charts.sh"], "tests": ["kit_charts"]},

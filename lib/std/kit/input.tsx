@@ -29,7 +29,13 @@ export interface InputProps {
   size?: string;
   className?: string;
 }
-export interface TextareaProps extends InputProps { rows?: number; height?: number }
+export interface TextareaProps extends InputProps {
+  rows?: number;
+  height?: number;
+  /** With rows=0, grow using native wrapping up to this many 20px lines, then scroll. */
+  maxRows?: number;
+  onKeyDown?: (event: ui.KeyEvent) => void;
+}
 
 function fieldClass(disabled: boolean): string {
   const t = theme();
@@ -102,12 +108,13 @@ export function SearchField(p: InputProps): i32 {
 }
 export function Textarea(props?: TextareaProps): i32 {
   const p: TextareaProps = props ?? {}, ref = createNodeRef();
-  const field = <TextArea ref={ref} className={`w-full min-h-16 py-2 ${fieldClass(p.disabled === true)} ${p.height === -1 ? 'grow h-full' : p.height !== undefined ? 'h-[' + p.height + 'px]' : ''}`} rows={p.rows ?? 3}
+  const field = <TextArea ref={ref} className={'w-full py-2 ' + (p.rows === 0 ? 'min-h-[38px] ' : 'min-h-16 ') + fieldClass(p.disabled === true) + (p.maxRows !== undefined ? ' text-[13px] leading-[20px] max-h-[' + (Math.max(1, Math.floor(Number.isFinite(p.maxRows) ? p.maxRows : 8)) * 20 + 18) + 'px]' : '') + (p.height === -1 ? ' grow h-full' : p.height !== undefined ? ' h-[' + p.height + 'px]' : '')} rows={p.rows ?? 3}
     value={p.value !== undefined ? p.value() : ''} placeholder={p.placeholder ?? ''} name={p.name ?? ''} aria-label={p.label ?? p.placeholder ?? ''}
     disabled={p.disabled === true} readOnly={p.readOnly === true}
     onInput={(v: string) => { if (p.onInput !== undefined) p.onInput(v); }} />;
-  if (p.onSubmit !== undefined) ui.onKeyDown(ref.node, (e: ui.KeyEvent) => {
-    if (e.primary && e.key === 'Enter' && p.onSubmit !== undefined) { p.onSubmit(); e.preventDefault(); }
+  if (p.onSubmit !== undefined || p.onKeyDown !== undefined) ui.onKeyDown(ref.node, (e: ui.KeyEvent) => {
+    if (p.onKeyDown !== undefined) p.onKeyDown(e);
+    if (!e.handled && e.primary && e.key === 'Enter' && p.onSubmit !== undefined) { p.onSubmit(); e.preventDefault(); }
   });
   return fieldFrame(p, field);
 }

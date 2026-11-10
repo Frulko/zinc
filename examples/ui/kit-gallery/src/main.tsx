@@ -20,6 +20,7 @@ import { OverlaysCard } from './sections/overlays';
 import { CodeSection } from './sections/code';
 import { DataSection } from './sections/data';
 import { ToolsSection } from './sections/tools';
+import { AiSection } from './sections/ai';
 
 useQuietTheme();
 if (env('GALLERY_DARK') === '1') setDarkMode(true);
@@ -61,6 +62,7 @@ function App(): i32 {
 
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'tools'}><ToolsSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY').startsWith('media')}><MediaSection /></Show>
+      <Show when={env('GALLERY') === '' || env('GALLERY') === 'ai'}><AiSection /></Show>
       <Show when={env('GALLERY') === ''}>
       <Section title="Metrics"><StatsRow /></Section>
       <Section title="Controls">

@@ -171,6 +171,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The Quiet kit adds interactive line, area, bar, circular, matrix and flow charts, plus zoomable candlesticks and spring-driven gauges, with keyboard inspection and focused gallery views.
 - The Quiet kit adds a zoomable image viewport, pixel-based crop geometry, an image comparison slider and a keyboard/swipe carousel; automatic rotation pauses for reading and stops at keyboard or pointer focus.
 
+- The Quiet kit adds assistant reasoning, tool details, plans, citations, context, model choices and a multiline chat composer, with caller-owned content and working keyboard actions.
+
 #### Changed
 
 - The default layout sizes `flex-1`, `w-full` and `h-full` as a browser does: `flex-1` items share a row or a column equally whatever their content, but never get narrower than their content unless they have `min-w-0`, `overflow-hidden` or `truncate`; a `w-full` or `h-full` box along the row or column stays inside its parent instead of growing with its content; and the last width or height class wins (`w-full w-[280px]` is 280 px wide).

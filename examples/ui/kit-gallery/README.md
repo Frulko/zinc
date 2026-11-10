@@ -79,3 +79,11 @@ append/filter logs, issue terminal commands, connect and move nodes, inspect tim
 with the timeline, change gradient stops or send meter peaks. The terminal supports `help`, `status`, `clear` and an
 explicit unknown-command reply; it starts no process. Play requests are displayed; the editor owns no playback loop.
 These examples use only public kit controls and create no background service.
+
+
+`GALLERY=ai` shows assistant presentation; `GALLERY_AI=research`, `composer` or `messages` selects one page.
+Finish/restart the local research, inspect tool payloads, choose a plan step/source, add context, choose a suggestion
+or model, attach/remove sample notes, send/stop/finish a sample reply, and activate Markdown links/tasks or Retry.
+All state is local; model names are fictitious and no network request or file chooser runs. Enter sends, Shift Enter
+starts a line, and composition Enter remains with the IME. `GALLERY_DARK=1` starts in Quiet dark. The controls are
+composed in `src/sections/ai.tsx`; `src/ai/` owns each example's state and callbacks.

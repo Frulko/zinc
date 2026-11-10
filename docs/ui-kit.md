@@ -764,3 +764,77 @@ also releases the viewer exactly once, and a fresh viewer may be opened afterwar
 
 ![Image viewport at 360 pixels](img/kit-media-viewer-narrow.png)
 ![Crop selection at 360 pixels](img/kit-media-crop-narrow.png)
+
+
+## Assistant interfaces
+
+`GALLERY=ai zinc run examples/ui/kit-gallery` shows the nine assistant controls. `GALLERY_AI=research`,
+`composer` or `messages` focuses one page; `GALLERY_DARK=1` starts in Quiet dark. The gallery uses local sample
+content and fictitious model choices. Its actions update the sample state; no request is sent to an AI service.
+
+All components are exported from `zinc:ui/kit`. Content, statuses, elapsed time, models, attachments and requests
+belong to the application. Callbacks decide what to send, stop, open, copy or retry. The family reuses the kit's
+text fields, selections, disclosures, progress, avatars, selectable Markdown, code blocks and JSON trees.
+
+![Reasoning, tool calls, plan, sources, citations and context drawn by Zinc](img/kit-ai-research.png)
+
+| Control | Caller contract and behaviour |
+| --- | --- |
+| `Reasoning` | `status: AiStatus`, optional `title`, `seconds`, `className`, and JSX children. Opens automatically while running and folds when finished. Enter/Space or a click overrides the automatic choice until unmount, including across a restart. The header exposes expanded state and its labelled region. |
+| `ToolCall` | `name`, `status`, optional `detail`, `input`, `output`, `seconds`, `className`. Its keyboard disclosure starts closed; JSON payloads use `JsonViewer`, other payloads use `CodeBlock`. Missing payloads have an explicit empty state. |
+| `AgentPlan` | `steps: () => AiPlanStep[]`, optional `title`, `onSelect(step)`, `className`. Each step has a stable `id`, `title`, `status` and optional `detail`. Displays completed/total progress and status marks; selectable titles use ordinary buttons. Empty plans remain readable. |
+| `Sources` / `Citation` | A source has `title`, `url` and optional `snippet`. `Sources` takes `items`, `onOpen(source)` and optional `label`/`className`; numbered cards scroll horizontally. `Citation` takes one `source`, `number`, `onOpen`; hover, focus or Enter opens its detail card, whose Open source button invokes the callback. Escape dismisses it. The shortened host is a display label; the callback receives the original URL and owns navigation. |
+| `ContextMeter` | `used: () => number`, `limit`, optional `parts: () => ContextPart[]`, `unit`, `label`. The ring is clamped to 0–100%; 80% is amber and 95% red. Hover/focus/Enter reveals used/limit and the supplied breakdown. Invalid totals yield 0% rather than invalid geometry. |
+
+`AiStatus` is an explicit presentation enum: `Pending`, `Running`, `Done`, `Failed`, `Skipped`. It does not start
+or stop work. A running mark uses the existing spinner and freezes for reduced motion; nothing shimmers at rest.
+Tool payload parsing is cached by input, and closed disclosures release their contents. Stable step and attachment
+IDs preserve identity when the caller updates a collection.
+
+![Suggestions, model choices and the composer drawn by Zinc](img/kit-ai-composer.png)
+![The composer in Quiet dark, drawn by Zinc](img/kit-ai-composer-dark.png)
+![The same controls at 360 px, drawn by Zinc](img/kit-ai-composer-narrow.png)
+
+| Control | Caller contract and behaviour |
+| --- | --- |
+| `PromptSuggestions` | `items: AiSuggestion[]`, `onSelect(item)`, optional `columns`, `label`, `className`. Suggestions have `id`, `title`, optional `detail` and `disabled`. `columns` limits each row (2 by default); buttons wrap on narrow screens; disabled choices cannot activate. |
+| `ModelPicker` | `items: AiModel[]`, `value: () => string`, `onChange(id)`, optional `label`, `disabled`, `className`. Models have `id`, `name`, optional `detail`, `badge`, `disabled`. Reuses `Select`: Enter/Space or arrows open, arrows/Home/End/typeahead navigate, Enter selects, Escape closes; disabled models are skipped. |
+| `ChatComposer` | Controlled `value`, `onChange`, `onSend`; optional `state: () => ComposerState`, `onStop`, `placeholder`, `label`, `maxLines`, `attachments`, `onAttach`, `onRemoveAttachment`, `model: ModelPickerProps`, `className`. Enter sends a nonempty draft; Shift Enter inserts a line; composition Enter remains with the IME. Native multiline layout grows to `maxLines` (8 by default), then scrolls. Busy displays Stop; Disabled locks editing and actions. Attachment entries have stable `id` and `name`; removal and adding are callbacks. |
+
+Read the composer's phase through a getter. A caller can switch immediately from `Ready` to `Busy` inside
+`onSend`, preventing a second Enter in the same event turn without an internal request state or an extra frame.
+The draft is passed unchanged; the application decides whether and when to clear it. A Busy composer without
+`onStop` shows a disabled Stop button. It creates no request, file chooser, timer or model connection.
+
+```tsx
+const [draft, setDraft] = componentSignal('');
+const [phase, setPhase] = componentSignal(ComposerState.Ready);
+<ChatComposer value={draft} onChange={setDraft} state={phase}
+  onSend={(text: string) => { setPhase(ComposerState.Busy); submit(text); }}
+  onStop={() => cancel()} />;
+```
+
+`Textarea` also exposes `maxRows` for its native auto-growing `rows={0}` mode and `onKeyDown(event)` for
+caller shortcuts. The custom handler runs first; unless it handles the event, the existing Ctrl/Command Enter
+`onSubmit` shortcut is preserved. Neither extension replaces native selection, caret, wrapping or IME handling.
+
+![Grouped conversation bubbles with selectable Markdown, drawn by Zinc](img/kit-ai-messages.png)
+![Conversation bubbles in Quiet dark, drawn by Zinc](img/kit-ai-messages-dark.png)
+![Conversation bubbles at 360 px, drawn by Zinc](img/kit-ai-messages-narrow.png)
+
+`ChatBubble` takes `text`, optional `mine`, `author`, `time`, `delivery`, `grouped`, `lastInGroup`, image-handle
+`avatar`, `markdown`, `onLink(href)`, `onTask(source, offset, checked)`, `onRetry`, `className`. Mine aligns to the
+right; grouping suppresses the repeated author and controls the final avatar/delivery marker. Copy uses the
+caller's original text. Markdown is the same md4c-backed, selectable source renderer as `MarkdownView`, including
+actual inline link hit testing and keyboard link/task activation; task callbacks return updated source for the
+caller to accept. Retry invokes its callback. No transcript store or chat backend is included.
+
+The reference contracts were checked against [CUI's AI source](https://github.com/yappologistic/CUI/blob/f70a1d3d095cafd67814b23bdd82c2dfba28efe0/src/cui_ai.c)
+and [public header](https://github.com/yappologistic/CUI/blob/f70a1d3d095cafd67814b23bdd82c2dfba28efe0/include/cui/cui.h),
+with [APG disclosure](https://www.w3.org/WAI/ARIA/apg/patterns/disclosure/) and
+[listbox keyboard patterns](https://www.w3.org/WAI/ARIA/apg/patterns/listbox/). The application owns external
+behaviour; Quiet supplies the neutral surfaces, focus indication and reduced-motion path.
+
+Recreate a picture with `GALLERY=ai GALLERY_AI=<page> ZINC_HEADLESS=1 ZINC_FRAMES=5 ZINC_SIZE=1000x1400
+ZINC_SHOT=<absolute-path> zinc run examples/ui/kit-gallery --engine quickjs`. The composer pictures use
+`1000x1000` and `360x1400`; the messages pictures use `1000x1100`. Set `GALLERY_DARK=1` for the dark versions.
