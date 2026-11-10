@@ -1442,6 +1442,10 @@ struct Lowering::FnLower {
   ValueId storageOf(std::uint32_t s) {
     int fi = capField(s);
     if (fi >= 0) return emit(IrOp::GetField, m.classes[lam->cls].fields[static_cast<std::size_t>(fi)].type, {f.params[0]}, 0, 0, static_cast<std::uint32_t>(fi));
+    if (lam && c.syms[s].kind == SymKind::Func && c.syms[s].decl == lam->node) {
+      // A nested callback owns this self cell; the recursive closure never retains it (no cycle).
+      declSym(s, f.params[0]);
+    }
     return readVar(s, cur);
   }
   ValueId readSym(std::uint32_t s) {
