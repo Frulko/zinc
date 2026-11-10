@@ -8379,7 +8379,7 @@ function stepLayer(l: Layer, on: boolean): boolean {
     if (!can) { l.t = 0; l.at = -1; return false; }
   }
   const goal: number = on ? 1 : 0;
-  if (l.ms <= 0) l.t = goal;
+  if (l.ms <= 0 || reduceMotion) l.t = goal;
   if (l.t === goal) { l.at = -1; return on; }
   if (l.at < 0) l.at = clock;   // the first frame of a motion shows where it starts
   const d = (clock - l.at) / l.ms;
