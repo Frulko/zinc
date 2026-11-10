@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Gallery20 integrated8678d8c6d Done,53Done including Finance24. Real defaultall all3,33landmarks, lateExtended Jump/focus, Form/ResizeHandle, narrowrotation prove coverage. Existing growDrawCommands enabled for exhaustive page; finite slow firstlayout remains later. Reserve1111 solecoreworker for Settings23 confirmed natural typeof optional numeric union: object/object/number, branch40/40/56, actual Avatar40/40/56; source/logs archived .logs/blockers/typeof-union. No caller workaround; Settings AC1open. Mail25 continues.
+
 - Finance24 integrated9abd4be3f Done,52Done. Real74frame input/all3/captures, narrowgridkeyboard/multi-selection pass; root check/QJS4queued. Reserve fresh Mail25, pinned CUI mail.c researched. Settings23 investigates minimal numeric Avatar/typeof discrepancy and narrow Tabs reveal, leaves AC1open if confirmed; no workaround. Gallery20 final narrow corrections/reproof.
 
 - Dashboard root check/original interp4 PASS; light native and360px form inspected, token eye aligned. Provenance dashboard_integration recorded, worker scratch/source hashes archived.51Done. Active Gallery20/Settings23/Finance24 on397865, no core writer.
