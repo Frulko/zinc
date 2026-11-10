@@ -1,0 +1,7 @@
+{"codecs":["vp8","opus"],"max-clients":25,"autokick":false}
+{"a-b":0,"a_b":1,"":false,"quo\"te":"a \"value\"","apo'strophe":"\\","back\\slash":2,"line\nbreak":3,"tab\tkey":4,"control\u0001":5,"café":[{"nested-key":[false,true]}],"emoji😀":[[0,1],[2]],"regular":null}
+6 1
+{"child-list":[0,2],"a\\b":0}
+{"a-b":6,"a_b":1,"":false,"quo\"te":"a \"value\"","apo'strophe":"\\","back\\slash":2,"line\nbreak":3,"tab\tkey":4,"control\u0001":5,"café":[{"nested-key":[false,true]}],"emoji😀":[[0,1],[2]],"regular":null}
+{"base-key":0,"quote\"key":false}
+["quote\"","\\","\n","é😀"]

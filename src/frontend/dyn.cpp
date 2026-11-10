@@ -122,7 +122,7 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
         for (std::size_t k = 0; k < tags.size(); ++k) tagList += (k ? ", " : "") + std::to_string(tags[k]);
         tagList += "]";
         bool fmtOk = inspectable(c, t), jsonOk = jsonable(c, t);
-        if (fmtOk) formatters.push_back(t);
+        if (fmtOk || jsonOk) formatters.push_back(t);
         std::string get = "(n: string): any => {\n    switch (n) {\n", set = "(n: string, w: any): void => {\n    switch (n) {\n", has = "(n: string): boolean => false";
         std::string hasExpr;
         for (const Member* m : fs) {

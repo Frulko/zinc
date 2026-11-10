@@ -2,6 +2,11 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
+#include <memory>
+#include <new>
+
+#include "yyjson.h"
 #include <set>
 
 namespace zn::frontend {
@@ -11,6 +16,21 @@ bool isIdent(const std::string& s) {
   if (s.empty() || std::isdigit(static_cast<unsigned char>(s[0]))) return false;
   for (char ch : s) if (!(std::isalnum(static_cast<unsigned char>(ch)) || ch == '_' || ch == '$')) return false;
   return true;
+}
+
+std::string quoted(const std::string& s) {
+  std::unique_ptr<yyjson_mut_doc, decltype(&yyjson_mut_doc_free)> doc(yyjson_mut_doc_new(nullptr), yyjson_mut_doc_free);
+  if (!doc) throw std::bad_alloc();
+  yyjson_mut_val* val = yyjson_mut_strn(doc.get(), s.data(), s.size());
+  if (!val) throw std::bad_alloc();
+  std::size_t len = 0;
+  std::unique_ptr<char, decltype(&std::free)> text(yyjson_mut_val_write(val, 0, &len), std::free);
+  if (!text) throw std::bad_alloc();
+  return std::string(text.get(), len);
+}
+
+std::string property(const std::string& obj, const std::string& key) {
+  return isIdent(key) ? obj + "." + key : obj + "[" + quoted(key) + "]";
 }
 
 TypeId typeOfObj(const Checked& c, std::uint32_t obj) { return c.typeOfObj(obj); }
@@ -143,7 +163,6 @@ bool jsonableRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
       if (oi.name == "Dyn") return true;  // `unknown`
       std::vector<const Member*> fs;
       fieldsOf(c, x.obj, fs);
-      for (const Member* m : fs) if (!isIdent(m->name) && !oi.isTuple) return false;
       for (const Member* m : fs) if (c.types[m->type].k != TK::Func && !jsonableRec(c, m->type, seen)) return false;
       if (!oi.isTuple && !oi.isRecord) for (std::uint32_t o : implementations(c, x.obj)) if (!jsonableRec(c, typeOfObj(c, o), seen)) return false;
       return true;
@@ -228,8 +247,8 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
         std::string e, lit = "{";
         for (const Member* m : fs) {
           if (c.types[m->type].k == TK::Func) continue;
-          lit += (lit == "{" ? "" : ",") + std::string("\"") + m->name + "\":";
-          e += "'" + lit + "' + " + call(m->type, "v." + m->name) + " + ";
+          lit += (lit == "{" ? "" : ",") + quoted(m->name) + ":";
+          e += quoted(lit) + " + " + call(m->type, property("v", m->name)) + " + ";
           lit.clear();
         }
         body += "  return " + e + "'" + (lit.empty() ? "}" : "{}") + "';\n";
@@ -239,12 +258,13 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
       for (const Member* m : fs) {
         if (c.types[m->type].k == TK::Func) continue;
         bool omit = c.types[m->type].k == TK::Union && c.types[m->type].undef;  // an undefined field is left out of the text
-        body += std::string("  ") + (omit ? "if (v." + m->name + " !== null) " : "") + "out.push('\"" + m->name + "\":' + " + call(m->type, "v." + m->name) + ");\n";
+        const std::string value = property("v", m->name);
+        body += std::string("  ") + (omit ? "if (" + value + " !== null) " : "") + "out.push(" + quoted(quoted(m->name) + ":") + " + " + call(m->type, value) + ");\n";
       }
       for (const auto& [rec, m] : added) {
         const TypeId rt = typeOfObj(c, rec);
         deps.push_back(rt);
-        body += "  { const e = (v as " + inspectAliasName(rt) + ")." + m->name + ";\n    if (e !== null) out.push('\"" + m->name + "\":' + " + call(m->type, "e") + ");\n  }\n";
+        body += "  { const e = " + property("(v as " + inspectAliasName(rt) + ")", m->name) + ";\n    if (e !== null) out.push(" + quoted(quoted(m->name) + ":") + " + " + call(m->type, "e") + ");\n  }\n";
       }
       body += "  return '{' + out.join(',') + '}';\n";
       break;

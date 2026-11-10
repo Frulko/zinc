@@ -6,6 +6,7 @@
 #include <mutex>
 
 #include "frontend/lexer.h"
+#include "zn/string_literal.h"
 
 namespace zn::frontend {
 namespace {
@@ -1091,6 +1092,7 @@ struct Parser {
     }
     if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String && cur().kind != Tok::Number && cur().kind != Tok::PrivateName) unexpected();
     name = txt();
+    if (cur().kind == Tok::String) name = keep(stringLiteralBody(name.substr(1, name.size() - 2)));
     ++i;
   }
 
@@ -1337,7 +1339,7 @@ struct Parser {
       std::string_view key = txt();
       bool str = cur().kind == Tok::String;
       if (cur().kind == Tok::Number && !isP(":", 1)) unexpected();   // `{ 1: 'a' }`: a number key holds a value
-      if (str) key = key.substr(1, key.size() - 2);
+      if (str) key = keep(stringLiteralBody(key.substr(1, key.size() - 2)));
       ++i;
       std::uint32_t value;
       if (!masync && !mgen && eatP(":")) value = assignment();

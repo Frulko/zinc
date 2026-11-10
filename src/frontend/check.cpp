@@ -1,6 +1,7 @@
 #include "frontend/check.h"
 #include "zn/native_sig.h"
 #include "zn/math_constants.h"
+#include "zn/string_literal.h"
 
 #include <algorithm>
 #include <cctype>
@@ -1442,7 +1443,7 @@ struct Checker {
     std::vector<TypeId> alias;
     for (auto& u : closure) alias.push_back(u.first);
     for (TypeId f : formatters) {   // the view of an object prints and serialises through its own generated functions
-      inspectLog(f, at);
+      if (inspectable(out, f)) inspectLog(f, at);
       if (jsonable(out, f)) jsonSym(f, at);   // printable is not serialisable: `A | B | null` prints, its view's toJSON says '{}' (dynConverter's jsonOk)
     }
     Ctx sv = saveCtx();
@@ -3615,6 +3616,13 @@ struct Checker {
         ot = appOrDiag(ot, x.kids[0]); it = appOrDiag(it, x.kids[1]);
         if (bad(ot) || bad(it)) return tError;
         if (optIdx && ot == tStr && isNum(it) && replaceWith(i, "__H0?.charAt(__H1)", {{x.kids[0]}, {x.kids[1]}})) return expr0(i, expected);
+        if (ty(ot).k == TK::Object && !isTupleType(ot) && n(x.kids[1]).kind == N::String) {
+          const Node& key = n(x.kids[1]);
+          a.nodes[i].text = keep(stringLiteralBody(key.text.substr(1, key.text.size() - 2)));
+          a.nodes[i].kind = N::Member;
+          a.nodes[i].kids.resize(1);
+          return expr0(i, expected);
+        }
         const TypeId r = [&]() -> TypeId {
           if (isTupleType(ot)) {  // t[0]: the index must be a constant inside the tuple
             const Node& ix = n(x.kids[1]);

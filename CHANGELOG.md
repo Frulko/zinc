@@ -373,6 +373,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Nullable string keys now work in `Map` and `Set`, including lookup and deletion after the collection grows; nullable string arrays also accept null in `includes` and `indexOf`.
 - `typeof` reports the actual value of mixed primitive unions, including optional `string | number` component props, so numeric sizes select their intended branch.
 - A recursive function declared inside another function can call itself from nested callbacks, including timers, without an internal compiler error.
+- `JSON.stringify` accepts quoted object fields such as `'max-clients'` and preserves escaped property names, nested arrays, zero and false on every engine.
 
 
 ### Developer tools
