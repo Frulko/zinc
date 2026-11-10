@@ -2,8 +2,7 @@
 id: ZN-668
 title: 'Runtime: a closure that refers to itself is never freed'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 18:50'
 updated_date: '2026-11-10 09:54'
 labels:

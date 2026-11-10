@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+-668032658ef7 integratedReviewAC1, exactall3+0leakproof (44alloc=44free; original2/2) PASS; no runtime/header/VM/AOTedits.1120research archived, distinctNever semanticplan approvedforfreshsolecoreimplementation after668freeze.603 current4f198strictgates7,995,032B/9,527,337B andfull19.16s pass, commit/provenancepending; rootfinalcombinedwith668checksneeded.
+
 - Root minimal valid never-return source confirmed check0/interpZ0005/QuickJS0 onf34fc9. Create/reserve1120 blocker of unchangedtype-namespace runtime, ordinal8901 after1030, no source workaround; researchonlyuntil668lower.cpp freezes. New-task blocks exception, no unrelated task expansion.
 
 - Integrated1030 borrowedscalar/type-namespace4f198e9c1, all3exactPASS9s, taskBacklogAC1open. Restoredfixtureunknownname, no test-source workaround.668 baseline selfarrow2leakedobjects/48B interp+AOT; preserve mutable/outercells and extend1080 ownbinding inlower.cpp only. Fresh668implementation next, researcharchive retained.603 mustrecountagainst4f198 tight8MB margin; rootcombinedrefresh pending.
