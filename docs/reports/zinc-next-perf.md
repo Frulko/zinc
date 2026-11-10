@@ -1823,3 +1823,8 @@ Integrated75ececd94/5009c9bd6; no engine build or performance benchmark. Exact f
 ### 2026-11-10 — ZN-541.03 native KTX2 feature and size
 
 Integrated80c0c0ad2, compiler54114 unchanged. Mac plugin1728176B, SHAe0aeff0f3ddb59e6693fc183f1e06459d0b820498e490e7a09a834f8a199b84e; independently rebuilt identicalbytes. NativeETC1 fixture7blocks/56B across4mips; RGBA340B, large typedresult66564B. Root realr162WebGL1/r186WebGL2 glTF+gamma/premul and exactT0 pass. Coldworker build observed~11s is indicative, not quiettiming; memoryunmeasured. Actualhost usesRGBAfallback, no ETC1GPU/Pi/FPS/browser/fullpackage claim. .logs/integration-2026-11-10/ktx541/summary.json.
+
+
+### 2026-11-10 — ZN-161.02 Symbols and iteration integrated size proof
+
+Sourcee74f0e5e9, compiler3199b9a9cc97ab7240e8493f51632e833d814a87d05a388ef1eaa60365034cf9. OriginalHero native7978168B unchanged, SHA d07dc94820d26379bd7486bf4cebc1e9b37e8a3c89996a00c18dd327576aeb5d; generatedCPP/header9539917+60PCH=9539977B. All3/four historical hashes PASS. RawkitJS236192/246407/283256B unchanged, unused10215B/25Bmargin, aggregate15Bmargin; AOT5193448/5259552/5778208B, unused66104B,57628/component. No speed/RSS claim. Pairedtinyworker baseline54114/featureae411814: unusedSymbol0native/+4491CPP; usedSymbol+200512native. Table120B(+8), MapObj136B, sidecar32B+1024B for128IDs; cursor16B payload+40B header/allocatorrounding. RootexactT0s/threeAOTfixtures/leaks/patchqueue pass. .logs/integration-2026-11-10/symbols/summary.json; workerarchived161-symbol-final.

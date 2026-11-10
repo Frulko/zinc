@@ -6,6 +6,7 @@ title: >-
 status: Backlog
 assignee: []
 created_date: '2026-10-09 07:45'
+updated_date: '2026-11-10 16:39'
 labels:
   - rpi
   - 3d
@@ -15,7 +16,6 @@ dependencies:
   - ZN-539
   - ZN-540
 ordinal: 55600
-updated_date: '2026-11-07 18:30'
 ---
 
 ## Description
@@ -28,8 +28,8 @@ A helper module for real three.js on T2: downgrade Standard and Physical materia
 <!-- AC:BEGIN -->
 - [ ] #1 a glTF diorama with >= 100 meshes loads and renders on the Pi 3B+ with no shader errors
 - [ ] #2 the diorama runs at >= 45 fps on the Pi 3B+ (960p internal, 1080p output, with RPI-3D-03)
-- [ ] #3 a KTX2 ETC1S file decodes to ETC1 natively; transcoder vendored with licence and pin
-- [ ] #4 the helpers are no-ops on T3/T4, so the same code runs on macOS
+- [x] #3 a KTX2 ETC1S file decodes to ETC1 natively; transcoder vendored with licence and pin
+- [x] #4 the helpers are no-ops on T3/T4, so the same code runs on macOS
 <!-- AC:END -->
 
 ## Implementation Notes

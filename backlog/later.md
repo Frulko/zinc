@@ -750,6 +750,9 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-541: verify browser export and T3 no-op identity with the same-release three/addons import map; native QuickJS helper proofs do not establish browser packaging.
 
+- ZN-161.02: audit unreachable generated globals/layout roots before pruning; unused Symbol is0 nativebytes but4491 generated-sourcebytes, without broad optimizer change inthisfeature.
+- ZN-161.02: fulltarget rebuild exposes unchanged NanoSVG signed-size comparison warning (nanosvg.h3211); record separately from Symbol semantics/size proof.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -981,3 +984,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-541: after538/540, repeat split/material-merge fixtures on actualPi and prove the parent diorama/FPS; Mac T2-profile render is not VC4 hardware proof.
 
 - ZN-541.03: verify actualPi ETC1 upload/transfer/alpha and packaged source rebuild at the cross-platform/package pass; native ETC1 blocks and Mac RGBA renderer fallback already pass.
+
+- ZN-161.02: repeat Symbol/iterator/clone fixtures across profiles and optionalJS engines; typed clone retains existingJSONsubset, no new parity claim.
+- ZN-513: actualCHIP/PocketCHIP graphics/input/power and crosshello+Hero remainunproven; capabilities/profile tests do not certify hardware.

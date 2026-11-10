@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated161.02 1a717097f/D296 +513tables e74f0e5e9. Root commoncompiler3199b9a9, exactsymbols/qjsbytecode/chipprofiles +AOT3fixtures/patchqueue/rawkit +originalHeroall3 fourhashes/7978168B PASS;85Done. Archive161/513 (49sourcecheckpoints), all10 payloads preserved. ExistingNanoSVGwarning recorded. Next solecore513 runtimeSCREEN defaultgap, no envworkaround; literalAC1/AC2 stayopen. Parent541 native/noopAC3/4 nowchecked, physicalAC1/2 remainopen.
+
 - Reserve513 independent nonbuilding CHIP/PocketCHIP capabilities+table+docs on frozencommon54114. Primaryresearch complete: existingprofile+genericplatform booleans suffice; glibc2.28 CortexA8NEON, no staticmusl/Jessie/physicalGPU claim. LiteralAC1 crosshello+Hero staysopen unlessproven, no waiver from rewrittennotes. No sourcebuild/corefiles.
 
 - Integrated541.03 80c0c0ad2, D295,84Done. Root native/exactT0/checks/realr162+r186glTF+gamma+alpha/selectedpackage28checksums/freshofflineT3T4 PASS, no enginebuild/common54114 frozen. Archive541-KTX2 (47completedsourcecheckpoints). ParentPi/ETC1GPU/FPS/browser/fullpackage remainopen. 513 research ready; profile/data/docs-only next, literalcrossHero criterion staysopen untilproven.

@@ -1058,5 +1058,25 @@
     "native_plugin_sha256": "e0aeff0f3ddb59e6693fc183f1e06459d0b820498e490e7a09a834f8a199b84e",
     "physical_Pi_or_ETC1_GPU_or_FPS_claim": false,
     "memory_measured": false
+  },
+  "symbol_iterator_integration": {
+    "source_commit": "e74f0e5e985075f5315d935208b400bba6e23599",
+    "engine_sha256": "3199b9a9cc97ab7240e8493f51632e833d814a87d05a388ef1eaa60365034cf9",
+    "native_bytes": 7978168,
+    "native_sha256": "d07dc94820d26379bd7486bf4cebc1e9b37e8a3c89996a00c18dd327576aeb5d",
+    "generated_cpp_and_header_bytes": 9539917,
+    "generated_inclusive_60byte_pch_wrapper": 9539977,
+    "exact_t0": [
+      "symbols",
+      "qjs_bytecode",
+      "chip_profiles"
+    ],
+    "symbol_AOT_main_dynamic_clone": "PASS",
+    "kit_raw_output": "bundle: Button 236192 B, through the index 246407 B (+10215 for 40 unused families, budget 10240), ten 283256 B (+4094 per component)\naot: Button 5193448 B, through the index 5259552 B (+66104 for 40 unused families, budget 163840), ten 5778208 B (+57628 per component)\naot, Button through the index links the plugins: editor\n",
+    "hero_four_hashes_all3": "PASS",
+    "protected_payloads": 10,
+    "done_count": 85,
+    "quiet_or_cold_timing_claim": false,
+    "chip_status": "Backlog AC1/AC2 open; screen default bug not hidden"
   }
 }
