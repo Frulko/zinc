@@ -1,8 +1,9 @@
 ---
 id: ZN-1118
 title: Terminate owned process descendants on timeout and shutdown
-status: Done
-assignee: []
+status: Backlog
+assignee:
+  - '@parallel'
 created_date: '2026-11-10 04:14'
 updated_date: '2026-11-10 04:48'
 labels:
@@ -22,8 +23,8 @@ Atelier774.31 starts a bounded zinc run --interp capture, but native plugin comp
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [x] #1 Owned spawned process families are terminated/reaped on kill timeout and provider shutdown, preserving public contract and refusing stale or unrelated group targets; no app shell workaround
-- [x] #2 Small bounded exact T0 child/grandchild and lifecycle regressions pass on available host, original Atelier capture/close path cleans up; untested platforms explicitly recorded
+- [ ] #1 Owned spawned process families are terminated/reaped on kill timeout and provider shutdown, preserving public contract and refusing stale or unrelated group targets; no app shell workaround
+- [ ] #2 Small bounded exact T0 child/grandchild and lifecycle regressions pass on available host, original Atelier capture/close path cleans up; untested platforms explicitly recorded
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -65,3 +66,5 @@ Both acceptance criteria are satisfied for the available POSIX development-host 
 
 Proposed tests: native Mojave exact process_family T0 and original cwd/env capture; Linux/Pi local exact T0 (seconds, compiler memory expected under250MiB, not measured); original process CLI on AOT/QuickJS; Windows atomic Job assignment and native lifecycle proof when that platform pass opens. Long app/reload churn remains owner-picked. usage: n/a
 <!-- SECTION:NOTES:END -->
+
+REOPENED after the actual combined binary: capture child Zinc itself now uses1118 and creates a separate owned Python subgroup; killing the outer capture group leaves Python+grandchild alive. Prior mixed-binary proof used a capture child without1118, which inherited the outer group and falsely covered only that easier case. Repro .logs/blockers/process-nested-groups/rebased-close.py/.log, full durable .logs/share-774.31-20261110. Test processes cleaned manually after observation, none left. Own automatically nested Zinc groups are not intentional user detachment and must be covered. New proof must use the same final binary for parent/capture child and nested normal zinc:process spawn, plus no-kill-independent-group and PID reuse safety. Preserve existing platform bounds; no shell/app workaround.
