@@ -170,6 +170,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - The Quiet kit adds interactive line, area, bar, circular, matrix and flow charts, plus zoomable candlesticks and spring-driven gauges, with keyboard inspection and focused gallery views.
 - The Quiet kit adds a zoomable image viewport, pixel-based crop geometry, an image comparison slider and a keyboard/swipe carousel; automatic rotation pauses for reading and stops at keyboard or pointer focus.
+- Quiet planning adds movable Kanban cards, week and month calendars, and Gantt timelines with dependencies, progress and milestones. The keyboard offers the same moves as dragging.
 
 - The Quiet kit adds assistant reasoning, tool details, plans, citations, context, model choices and a multiline chat composer, with caller-owned content and working keyboard actions.
 

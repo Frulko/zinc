@@ -838,3 +838,51 @@ behaviour; Quiet supplies the neutral surfaces, focus indication and reduced-mot
 Recreate a picture with `GALLERY=ai GALLERY_AI=<page> ZINC_HEADLESS=1 ZINC_FRAMES=5 ZINC_SIZE=1000x1400
 ZINC_SHOT=<absolute-path> zinc run examples/ui/kit-gallery --engine quickjs`. The composer pictures use
 `1000x1000` and `360x1400`; the messages pictures use `1000x1100`. Set `GALLERY_DARK=1` for the dark versions.
+
+## Quiet Planning
+
+`KanbanBoard`, `WeekCalendar`, `MonthCalendar` and `GanttChart` share Quiet's light/dark surfaces, accent and visible keyboard focus. Import them and their data types from `zinc:ui/kit`, or directly from `zinc:ui/kit/planning`. The gallery keeps each example focused:
+
+```sh
+GALLERY=planning PLANNING_VIEW=board zinc run examples/ui/kit-gallery
+GALLERY=planning PLANNING_VIEW=week zinc run examples/ui/kit-gallery
+GALLERY=planning PLANNING_VIEW=month zinc run examples/ui/kit-gallery
+GALLERY=planning PLANNING_VIEW=gantt zinc run examples/ui/kit-gallery
+```
+
+All four require an accessible `label` and accept `className`. Applications own the data and changes: supply accessors, retain array identity between changes, and replace arrays and changed records when editing. IDs are nonempty, unique and stable. Callbacks run on the input that commits the change; pointer previews commit on release and Escape cancels. Moving focus outside, replacing a dragged record, disabling editing or unmounting cancels an active edit. There are no idle animation loops; dragging follows the pointer directly, including under reduced motion.
+
+| Component | Data and options |
+| --- | --- |
+| `KanbanBoard` | `columns: () => KanbanColumn[]`, `cards: () => KanbanCard[]`, `onMove(move)`; optional `onCardClick(id)`, `onAdd(columnId)`, `readOnly`, `height` (320). Columns have `id`, `title`, optional `limit` and `width` (250). Cards have `id`, `column`, `title`, optional `detail`, `tag`, `disabled`. |
+| `WeekCalendar` | `weekStart` (the first displayed civil day), `events: () => WeekEvent[]`; optional `onEventChange(event)`, `onEventClick(id)`, `readOnly`, `startMinute` (420), `endMinute` (1260), `hourHeight` (52), `height` (460), `today`, `nowMinute: () => number`, `dayNames` (seven labels, Sunday first). Events have `id`, `title`, `date`, `startMinute`, `endMinute`, optional `detail`. |
+| `MonthCalendar` | Controlled `month: () => string` / `onMonthChange(month)`, `selected: () => string` / `onSelectDay(day)`, `events: () => MonthEvent[]`; optional `onDayActivate(day)`, `onEventClick(id)`, `today`, `weekStart` (Monday = 1; Sunday = 0), `cellHeight` (104), `monthNames` (12 labels), `dayNames` (seven labels, Sunday first), `hour12`. Events have `id`, `title`, `start`, optional inclusive `end`, `allDay`, `timeMinutes`. |
+| `GanttChart` | `origin` (civil day), `days`, `tasks: () => GanttTask[]`; optional `onTaskChange(task)`, `onTaskClick(id)`, `readOnly`, `dayWidth` (30), `rowHeight` (40), `height` (280), `today`. Tasks have `id`, `title`, `start`, `end`, optional `owner`, `progress` (0–1), `dependsOn` (one predecessor ID), `milestone`, `disabled`. |
+
+For Kanban, Space lifts a focused card, arrows choose a column or slot, Home/End choose the ends, Enter/Space drops, and Escape cancels. `KanbanMove` names the card, source/destination columns and destination index **after excluding the moving card**. The exported pure `moveKanbanCard(columns, cards, move)` applies it immutably; stale and disabled moves leave the original array intact. WIP limits warn when exceeded and permit the move, as in the reference. Columns and the board scroll independently; cross-column keyboard moves retain card focus.
+
+Week events are laid out side by side within connected overlap groups; touching ends can share a lane. Drag an event to move it by day and snapped 15-minute increments, or drag its lower handle to resize the end. Arrow Up/Down moves 15 minutes, Left/Right moves one day, and Shift+Up/Down resizes. Bounds retain duration when moving. Without `onEventChange`, or with `readOnly`, events still support click/keyboard activation. `nowMinute` belongs to the caller: the control owns no timer, so pass a reactive clock when the current-time marker must advance.
+
+Month views use four to six rows, inclusive span bars across weeks and a per-day overflow dialog. At widths below 520 px, compact day dots accompany the selected day's scrollable agenda. Arrow keys move the selected day, Page Up/Down changes month, Home selects today, Space selects and Enter activates; a double click also activates. Today, previous/next month and event buttons are native keyboard controls. Span bars and timed events share the same event callback. A missing or earlier `end` is a one-day event.
+
+Gantt task offsets are integer days from `origin`; ranges are half-open `[start, end)`, while a milestone has `start === end`. Drag a bar or either edge, use Left/Right for a day, Shift+Left/Right for the end edge, or focus an edge handle to adjust that edge. Up/Down focuses the adjacent task. Dependency elbows, progress, weekend bands and today's line follow the same coordinates as hit testing. Dependencies describe the plan and do not reschedule other tasks. Unknown predecessor IDs, cycles and malformed ranges are rejected. The task list and timeline synchronize vertical scrolling; the timeline scrolls horizontally on narrow screens.
+
+Dates use the existing calendar provider's ISO `YYYY-MM-DD` civil dates in years 0001–9999, without converting through local time zones. Week times lie within 0–1440 minutes and must have a positive duration. Limits reject oversized data with `RangeError`: 64 Kanban columns and 4,096 cards, 2,048 week events, 8,192 month events, and 4,096 Gantt tasks over 1–3,660 days. These are bounded correctness limits, not throughput measurements. Geometry is cached by its input identity, theme drawing uses the existing Canvas, and the month overflow list uses the existing virtual host.
+
+![Kanban cards, independent columns and WIP warning](img/kit-planning-board.png)
+
+![Week events, collision lanes and current time](img/kit-planning-week.png)
+
+![Month span bars, timed events and overflow](img/kit-planning-month.png)
+
+![Gantt dependencies, progress and milestones](img/kit-planning-gantt.png)
+
+![Planning in the dark Quiet theme](img/kit-planning-gantt-dark.png)
+
+![Month planning at 360 px](img/kit-planning-month-narrow.png)
+
+Recreate these pictures with `GALLERY=planning PLANNING_VIEW=<view> GALLERY_DARK=0
+ZINC_HEADLESS=1 ZINC_FRAMES=5 ZINC_SIZE=<size> ZINC_SHOT=<absolute-path>
+zinc run examples/ui/kit-gallery --engine quickjs`. Board and Gantt use `1000x720`,
+week `1000x850`, month `1000x1000`, and the narrow month `360x1100`. Set
+`GALLERY_DARK=1` for the dark Gantt picture.
