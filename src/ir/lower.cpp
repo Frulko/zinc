@@ -1871,7 +1871,7 @@ struct Lowering::FnLower {
           return constBool(false);
         }
         return constBool(x.text == "true");
-      case N::This: return readVar(thisVar, cur);
+      case N::This: return readThis();
       case N::Ident: {
         std::uint32_t s = c.nodeSym[i];
         if (s == kNil) return constNum(m.numT(NumK::f64), 0);
@@ -2028,7 +2028,7 @@ struct Lowering::FnLower {
           ValueId v = L.isCell(sym) ? storageOf(sym) : readSym(sym);  // a cell is shared, anything else is copied
           emit(IrOp::SetField, m.voidT(), {o, coerce(v, m.classes[li.cls].fields[k].type)}, 0, 0, static_cast<std::uint32_t>(k));
         }
-        if (li.thisField >= 0) emit(IrOp::SetField, m.voidT(), {o, coerce(readVar(thisVar, cur), m.classes[li.cls].fields[static_cast<std::size_t>(li.thisField)].type)}, 0, 0, static_cast<std::uint32_t>(li.thisField));
+        if (li.thisField >= 0) emit(IrOp::SetField, m.voidT(), {o, coerce(readThis(), m.classes[li.cls].fields[static_cast<std::size_t>(li.thisField)].type)}, 0, 0, static_cast<std::uint32_t>(li.thisField));
         if (selfIt != c.selfSym.end()) writeSym(selfIt->second, o);
         return o;
       }
@@ -2157,15 +2157,32 @@ struct Lowering::FnLower {
   // ---- calls
   std::unordered_map<std::uint32_t, ValueId> paramSubst;  // callee parameter symbol -> the argument value, while a default is evaluated
 
+  ValueId readThis() {
+    const auto it = paramSubst.find(thisVar);
+    return it != paramSubst.end() ? it->second : readVar(thisVar, cur);
+  }
+  std::uint32_t parameterDefault(std::uint32_t decl, std::size_t parameter) const {
+    return decl != kNil && (n(decl).kind == N::Function || n(decl).kind == N::Method) && parameter + 2 < n(decl).kids.size() ? n(n(decl).kids[parameter + 2]).kids[1] : kNil;
+  }
+  bool undefinedArgument(std::uint32_t arg) const {
+    return n(arg).kind == N::Literal && (n(arg).flags & frontend::kFlagUndefined);
+  }
+  ValueId defaultArgument(std::uint32_t decl, std::size_t parameter, const std::vector<ValueId>& values, std::size_t first, TypeId type, ValueId receiver = kNoValue) {
+    struct SubstitutionGuard {
+      std::unordered_map<std::uint32_t, ValueId>& active, saved;
+      ~SubstitutionGuard() { active = std::move(saved); }
+    } guard{paramSubst, paramSubst};
+    for (std::size_t j = 0; j < parameter; ++j) {
+      const std::uint32_t symbol = c.nodeSym[n(decl).kids[2 + j]];
+      if (symbol != kNil) paramSubst[symbol] = values[first + j];
+    }
+    if (receiver != kNoValue) paramSubst[thisVar] = receiver;
+    return exprTo(parameterDefault(decl, parameter), type);
+  }
   ValueId callFunction(std::uint32_t fn, std::vector<ValueId> recv, const std::vector<std::uint32_t>& args, std::size_t firstArg) {
     const Function& cf = m.functions[fn];
     std::vector<ValueId> vs = std::move(recv);
     std::size_t nrecv = vs.size();
-    for (std::size_t k = firstArg; k < args.size(); ++k) {
-      std::size_t pi = vs.size();
-      TypeId pt = pi < cf.params.size() ? cf.valueTypes[cf.params[pi]] : m.voidT();
-      vs.push_back(exprTo(args[k], pt));
-    }
     auto nf = L.nodeOfFunc.find(fn);  // omitted arguments take the parameter's default, evaluated here at the call
     std::uint32_t declNode = nf != L.nodeOfFunc.end() ? nf->second : kNil;
     while (declNode != kNil && n(declNode).kind == N::Class) {   // a constructor made for a class that has none forwards to its base's: the defaults are the base constructor's
@@ -2174,20 +2191,17 @@ struct Lowering::FnLower {
       auto pn = pc != L.ctorOfClass.end() ? L.nodeOfFunc.find(pc->second) : L.nodeOfFunc.end();
       declNode = pn != L.nodeOfFunc.end() ? pn->second : kNil;
     }
-    if (declNode != kNil && (n(declNode).kind == N::Function || n(declNode).kind == N::Method)) {
-      const Node& fnn = n(declNode);
-      for (std::size_t k = vs.size() - nrecv; k + 2 < fnn.kids.size() && vs.size() < cf.params.size(); ++k) {
-        std::uint32_t d = n(fnn.kids[2 + k]).kids[1];
-        if (d == kNil) break;
-        std::unordered_map<std::uint32_t, ValueId> saved = paramSubst;  // a default may read the parameters before it: they stand for the arguments of this call
-        for (std::size_t j = 0; j < k; ++j) {
-          std::uint32_t ps = c.nodeSym[fnn.kids[2 + j]];
-          if (ps != kNil && nrecv + j < vs.size()) paramSubst[ps] = vs[nrecv + j];
-        }
-        ValueId dv = exprTo(d, cf.valueTypes[cf.params[vs.size()]]);
-        paramSubst = std::move(saved);
-        vs.push_back(dv);
-      }
+    for (std::size_t k = firstArg; k < args.size(); ++k) {
+      const std::size_t pi = vs.size();
+      const TypeId pt = pi < cf.params.size() ? cf.valueTypes[cf.params[pi]] : m.voidT();
+      vs.push_back(undefinedArgument(args[k]) && parameterDefault(declNode, pi - nrecv) != kNil ? kNoValue : exprTo(args[k], pt));
+    }
+    for (std::size_t k = 0; nrecv + k < cf.params.size(); ++k) {
+      const std::size_t pi = nrecv + k;
+      if (pi < vs.size() && vs[pi] != kNoValue) continue;
+      if (parameterDefault(declNode, k) == kNil) break;
+      const ValueId value = defaultArgument(declNode, k, vs, nrecv, cf.valueTypes[cf.params[pi]], nrecv && n(declNode).kind == N::Method ? vs[0] : kNoValue);
+      if (pi < vs.size()) vs[pi] = value; else vs.push_back(value);
     }
     return emit(IrOp::Call, cf.ret, std::move(vs), 0, 0, fn);
   }
@@ -2370,7 +2384,7 @@ struct Lowering::FnLower {
   }
 
   ValueId thisValue(std::uint32_t asObj) {
-    ValueId t = readVar(thisVar, cur);
+    ValueId t = readThis();
     return coerce(t, m.refT(L.classOfObj[asObj]));
   }
   std::uint32_t currentObj() { return c.types[c.nodeType[job.classNode]].obj; }
@@ -2409,11 +2423,7 @@ struct Lowering::FnLower {
         if (k + 1 < x.kids.size()) { vs.push_back(exprTo(x.kids[k + 1], sg.params[k])); continue; }
         std::uint32_t d = declN != kNil && n(declN).kind == N::Function && 2 + k < n(declN).kids.size() ? n(n(declN).kids[2 + k]).kids[1] : kNil;
         if (d == kNil) { vs.push_back(nullConst(sg.params[k])); continue; }   // an optional parameter left out is null
-        std::unordered_map<std::uint32_t, ValueId> saved = paramSubst;   // a default may read the parameters before it
-        for (std::size_t j = 0; j < k; ++j) { std::uint32_t ps = c.nodeSym[n(declN).kids[2 + j]]; if (ps != kNil) paramSubst[ps] = vs[1 + j]; }
-        ValueId dv = exprTo(d, sg.params[k]);
-        paramSubst = std::move(saved);
-        vs.push_back(dv);
+        vs.push_back(defaultArgument(declN, k, vs, 1, sg.params[k]));
       }
       return emit(IrOp::CallVirt, sg.ret, std::move(vs), 0, 0, L.selectorFor("call", ftype));
     }
@@ -2581,13 +2591,12 @@ struct Lowering::FnLower {
           // an argument left out takes the default of the method the static type names (a default is evaluated at the call, as callFunction does); an optional one is null
           std::uint32_t sfn = L.resolveMethod(ct.obj, callee.text), sdecl = kNil;
           if (sfn != kNil) { auto nf = L.nodeOfFunc.find(sfn); if (nf != L.nodeOfFunc.end() && (n(nf->second).kind == N::Function || n(nf->second).kind == N::Method)) sdecl = nf->second; }
+          for (std::size_t k = 0; k + 1 < x.kids.size(); ++k)
+            vs.push_back(undefinedArgument(x.kids[k + 1]) && parameterDefault(sdecl, k) != kNil ? kNoValue : exprTo(x.kids[k + 1], sg.params[k]));
           for (std::size_t k = 0; k < sg.params.size(); ++k) {
-            if (k + 1 < x.kids.size()) { vs.push_back(exprTo(x.kids[k + 1], sg.params[k])); continue; }
-            std::uint32_t d = sdecl != kNil && 2 + k < n(sdecl).kids.size() ? n(n(sdecl).kids[2 + k]).kids[1] : kNil;
-            std::unordered_map<std::uint32_t, ValueId> saved = paramSubst;   // a default may read the parameters before it
-            for (std::size_t j = 0; d != kNil && j < k; ++j) { std::uint32_t ps = c.nodeSym[n(sdecl).kids[2 + j]]; if (ps != kNil) paramSubst[ps] = vs[1 + j]; }
-            vs.push_back(d != kNil ? exprTo(d, sg.params[k]) : nullConst(sg.params[k]));
-            paramSubst = std::move(saved);
+            if (k + 1 < vs.size() && vs[k + 1] != kNoValue) continue;
+            const ValueId value = parameterDefault(sdecl, k) != kNil ? defaultArgument(sdecl, k, vs, 1, sg.params[k], recv) : nullConst(sg.params[k]);
+            if (k + 1 < vs.size()) vs[k + 1] = value; else vs.push_back(value);
           }
           return emit(IrOp::CallVirt, sg.ret, std::move(vs), 0, 0, sel);
         }
@@ -3112,7 +3121,7 @@ struct Lowering::FnLower {
         if (mn.kind != N::Field || mn.kids[1] == kNil || (mn.flags & frontend::kFlagStatic)) continue;
         std::uint32_t fi = L.fieldIndex(obj, mn.text);
         TypeId ft = m.classes[job.cls].fields[fi].type;
-        emit(IrOp::SetField, m.voidT(), {readVar(thisVar, cur), exprTo(mn.kids[1], ft)}, 0, 0, fi);
+        emit(IrOp::SetField, m.voidT(), {readThis(), exprTo(mn.kids[1], ft)}, 0, 0, fi);
       }
     }
     if (body) stmtsFrom(*body, idx);

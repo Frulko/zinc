@@ -2569,6 +2569,23 @@ struct Checker {
     result = expr0(i, expected);
     return true;
   }
+  bool hasCallDefault(std::uint32_t callee, std::size_t parameter) {
+    std::uint32_t decl = kNone;
+    if (n(callee).kind == N::Ident) {
+      const std::uint32_t sym = out.nodeSym[callee];
+      if (sym != kNone && out.syms[sym].kind == SymKind::Func) decl = out.syms[sym].decl;
+    } else if (n(callee).kind == N::Member) {
+      const std::uint32_t receiver = n(callee).kids[0];
+      const TypeId rt = out.nodeType[receiver];
+      if (!bad(rt) && ty(rt).k == TK::Object) {
+        const std::uint32_t sym = out.nodeSym[receiver];
+        const bool isStatic = sym != kNone && out.syms[sym].kind == SymKind::Class;
+        const Member* member = lookupMember(ty(rt).obj, n(callee).text, isStatic);
+        if (member && member->method) decl = member->decl;
+      }
+    }
+    return decl != kNone && (n(decl).kind == N::Function || n(decl).kind == N::Method) && parameter + 2 < n(decl).kids.size() && n(n(decl).kids[parameter + 2]).kids[1] != kNone;
+  }
   TypeId callExpected = kNoType, genericExpected = kNoType;  // the type the call's value is wanted as, for type arguments the arguments do not give
   TypeId callExpr(std::uint32_t i, const Node& x, bool isNew) {
     TypeId myExpected = callExpected;
@@ -2930,6 +2947,10 @@ struct Checker {
     for (std::size_t k = 0; k < argc; ++k) {
       std::uint32_t arg = n(i).kids[k + 1];
       if (n(arg).kind == N::Spread) { diag(kZUnsupported, arg, "spread arguments"); continue; }
+      if (!isNew && undefinedLit(arg) && lookup("undefined") == kNone && hasCallDefault(callee, k)) {
+        a.nodes[arg].kind = N::Literal; a.nodes[arg].text = "null"; a.nodes[arg].flags |= kFlagUndefined;
+        out.nodeType[arg] = tNull; continue;
+      }
       TypeId expected = k < f.params.size() ? f.params[k] : (f.variadic && !f.params.empty() ? f.params.back() : kNoType);
       if (!isNew && n(callee).kind == N::Member && (n(callee).text == "log" || n(callee).text == "error")) logArg = arg;
       TypeId at = preEvaluated && out.nodeType[arg] != kNoType ? out.nodeType[arg] : expr(arg, expected);
@@ -3002,7 +3023,12 @@ struct Checker {
         if (!replaceWith(i, "__reLit(" + quote(t.substr(1, slash - 1)) + ", " + quote(t.substr(slash + 1)) + ")", {})) { diag(kZUnsupported, i, "regular expression literal"); return tError; }
         return expr0(i, kNoType);
       }
-      case N::Literal: return x.text == "null" ? tNull : tBool;
+      case N::Literal:
+        if ((x.flags & kFlagUndefined) && lookup("undefined") != kNone) {
+          a.nodes[i].kind = N::Ident; a.nodes[i].text = "undefined"; a.nodes[i].flags &= ~kFlagUndefined;
+          return expr0(i, expected);
+        }
+        return x.text == "null" ? tNull : tBool;
       case N::This:
         if (curClass == kNone || curStatic) { diag(kZNotAllowedHere, i, "'this'"); return tError; }
         for (std::size_t k = fnStack.size(); k-- > 0;) {  // arrow functions capture the `this` of the code around them
@@ -5961,6 +5987,7 @@ struct Checker {
         TypeId sig = signature(m, 2, isCtor, ps);
         out.nodeType[m] = sig;
         if (isCtor) { out.objs[objIdx].ctor = func(ty(sig).params, self, ty(sig).minArgs, false, ty(sig).rest); out.objs[objIdx].ctorAccess = accessOf(fl); ctorNode = m; }
+        mem.decl = m;
         mem.type = sig; mem.method = true; mem.readonly = true; mem.isAbstract = isIface || (fl & frontend::kFlagAbstract);
         mem.getter = (fl & frontend::kFlagGetter) != 0;
         if (mem.getter && isIface) diag(kZUnsupported, m, "accessors in interfaces");

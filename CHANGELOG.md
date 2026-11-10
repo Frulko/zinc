@@ -287,6 +287,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### Fixed
 
+- Method parameter defaults read the correct `this` and earlier arguments, including nested calls and explicit `undefined`; arguments run in the usual order.
+
 - Array callbacks and collection methods work after an optional chain, preserving single evaluation and skipping arguments when the receiver is absent.
 
 - Optional integer results can be stored, passed and returned as `number | undefined`; a present value converts normally and an absent value stays absent.

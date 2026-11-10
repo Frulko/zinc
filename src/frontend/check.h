@@ -48,6 +48,7 @@ struct Member {
   bool writable = false;              // an interface property not declared readonly: `iface.name = v` calls its setter `__set_name`
   bool ifaceSetter = false;           // that `__set_name(v)`, added to the interface at the first write: a class satisfies it with a setter, a field or
                                       // (a getter alone) a TypeError, as JavaScript gives
+  std::uint32_t decl = 0xFFFFFFFFu;  // method declaration, for parameter defaults at a call
 };
 
 struct ObjInfo {

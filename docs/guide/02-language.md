@@ -40,6 +40,8 @@ Optional callback fields can be called after an explicit object/field guard or a
 
 Array and collection methods keep their optional receiver guard when lowered to shared helpers: `track()?.keys.find(predicate())` evaluates `track()` once and skips both `predicate()` and the callback if the chain stops. A further nullable property still requires its own `?.`; parentheses end the chain. Native methods and generated callback helpers use the same short-circuit behavior.
 
+Method parameter defaults can read `this` and earlier parameters. Supplied arguments run first, followed by omitted defaults in parameter order, using the receiver of that call; nested calls restore the surrounding receiver. A literal `undefined` explicitly supplied to a declared default parameter uses that default, including before another supplied argument. An explicit `null` does not acquire this treatment.
+
 A callback with a typed optional cleanup result, `() => (() => void) | undefined`, can return its cleanup, explicit `undefined` or no value. An unrelated import that uses dynamic values does not change that typed nullish representation. Cleanup functions keep their identity and are called through their typed signature; an opaque dynamic value is not converted into an arbitrary typed function.
 
 ## What is rejected, and why
