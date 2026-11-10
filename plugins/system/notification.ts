@@ -1,6 +1,6 @@
 // zinc:system/notification: system notifications (docs/reports/system-integration.md 4.2). show() never throws for a refused permission: it resolves with delivered false and the reason.
 // The same id replaces; clicks, actions, replies and closes arrive as events and reach the Notification object of that id.
-import { call, on, supports } from 'zinc:system';
+import { call, on, supports } from './core';
 
 export class Action {
   id: string; title: string;

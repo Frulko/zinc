@@ -1,7 +1,7 @@
 // zinc:system/media: what plays, for the system's media controls (macOS: Control Center's Now Playing, the keyboard's media keys, AirPods
 // and headset buttons). The shape of the web's Media Session API (navigator.mediaSession): a metadata object, a playback state, the
 // position, and one handler per action. Where the target has no media controls (zinc:platform MEDIASESSION false) the calls do nothing.
-import { call, on } from 'zinc:system';
+import { call, on } from './core';
 import { MEDIASESSION } from 'zinc:platform';
 
 /** An image of the media; `src` is a file path (a `file://` URL is accepted). */

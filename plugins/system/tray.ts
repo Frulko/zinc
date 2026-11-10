@@ -1,6 +1,6 @@
 // zinc:system/tray: an icon in the menu bar (macOS) or the notification area (Linux, where a StatusNotifier host exists) with a menu and click events
 // (docs/reports/system-integration.md 4.4). Items of the tray menu report through menu.onClick(id) with source 'tray'.
-import { call, callRaw, on, supports } from 'zinc:system';
+import { call, callRaw, on, supports } from './core';
 import { Item, encodeItems, onClick } from './menu';
 
 export class Options {

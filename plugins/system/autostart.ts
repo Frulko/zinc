@@ -1,5 +1,5 @@
 // zinc:system/autostart: start the app at login. macOS: a LaunchAgent plist in ~/Library/LaunchAgents; Linux: an XDG autostart .desktop (docs/reports/system-integration.md 4.7).
-import { call } from 'zinc:system';
+import { call } from './core';
 import { APP } from 'zinc:system/app';
 
 function field(key: string): string {

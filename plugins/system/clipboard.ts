@@ -1,6 +1,6 @@
 // zinc:system/clipboard: what the plain text path (zinc:gfx clipboard, used by the UI kit) cannot do: html, an image, a file list (docs/reports/system-integration.md 4.7).
 // Images travel as base64 PNG text.
-import { call, supports } from 'zinc:system';
+import { call, supports } from './core';
 
 export function isSupported(): boolean { return supports('clipboard'); }
 export function writeHtml(html: string, text: string): void { call('clipboard.writeRich', { text: text, html: html }); }

@@ -1,6 +1,6 @@
 // zinc:system/instance: one running copy of the app. The first process to call lock() keeps the app; a second one is told so, hands its command line and working directory to the first (second-instance
 // event) and should exit (docs/reports/system-integration.md 4.7). The lock is a file lock plus a local socket, both named from app.id.
-import { call, on } from 'zinc:system';
+import { call, on } from './core';
 import { APP } from 'zinc:system/app';
 import * as sys from 'zinc:sys';
 

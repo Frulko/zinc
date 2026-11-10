@@ -1,6 +1,6 @@
 // zinc:system/window: the app window after it exists (docs/reports/system-integration.md 4.5). Creation options live in zinc.json app.window; this module changes and reads the window at run
 // time, keeps the close-to-tray handler, and saves and restores its position and size (the state file is plain JSON, the clamp to the displays is a pure function).
-import { call, on, preventClose, supports } from 'zinc:system';
+import { call, on, preventClose, supports } from './core';
 import * as fs from 'zinc:fs';
 import { openWindow, closeWindow, windowOpen, windowCtl, onWindowClosed, keep, width, height, clear, rect, rrect, line, text } from 'zinc:gfx';
 

@@ -886,3 +886,66 @@ ZINC_HEADLESS=1 ZINC_FRAMES=5 ZINC_SIZE=<size> ZINC_SHOT=<absolute-path>
 zinc run examples/ui/kit-gallery --engine quickjs`. Board and Gantt use `1000x720`,
 week `1000x850`, month `1000x1000`, and the narrow month `360x1100`. Set
 `GALLERY_DARK=1` for the dark Gantt picture.
+## Quiet Extended
+
+`GALLERY=extended zinc run examples/ui/kit-gallery` shows local capture, social controls, requested motion and
+caller controlled audio. Use `extended-capture`, `extended-social`, `extended-motion` or `extended-audio` to isolate
+one page; `GALLERY_DARK=1` selects dark. These pictures are drawn by Zinc, including the 360 px layouts.
+
+![Local file drop, editable avatar and signature drawn by Zinc](img/kit-extended-capture.png)
+![Comments, presence and card stack drawn by Zinc](img/kit-extended-social.png)
+![Counter, ticker, text effects, spotlight and five loaders drawn by Zinc](img/kit-extended-motion.png)
+![Waveform and two now-playing layouts drawn by Zinc](img/kit-extended-audio.png)
+
+| Component | Contract and useful options |
+|---|---|
+| `Dropzone` | `label`, `browse(): Promise<string[] \| null>`, `onFiles(paths)`; optional semicolon `accept`, `maxBytes` (16 MiB), `multiple`, `compact`, `description`, `disabled`, `children`, `onReject(path,reason)`, `className`. Enter/Space opens the supplied picker. Real `zinc:system/events` file drops route to the zone under the current surface pointer, including child nodes; text drops are ignored. Both picker results and drops pass the same scoped `fs.stat`, extension, regular-file and size checks. |
+| `AvatarUpload` | `name`, `browse`, `onSelect(path)`; optional borrowed `image`, `size` (72), `maxBytes` (8 MiB), `disabled`, `onError`, `className`. The avatar and its labelled change action accept PNG, JPEG, BMP, GIF and WebP. Selection uses the existing low priority image decoder, limited to a 512 px preview. A replacement or unmount cancels pending decode and releases each component-owned image exactly once. The application receives a path; it supplies any persistence or upload. |
+| `SignaturePad` | Controlled normalized `value(): SignatureStroke[]`, `onChange(strokes)`; optional `label`, `height` (150), `disabled`, `onExport(strokes)`, `className`. Points have `x`, `y`, `width`; speed changes ink width. Pointer capture draws across the pad. Arrow keys move the pen, Shift moves faster, Enter/Space starts or ends a stroke, Escape ends, Delete clears. Clear and Export are ordinary keyboard buttons. The export callback owns the requested format. |
+| `Comments` | `items: CommentItem[]`; optional `onLike(id)`, `onReply(id)`, `className`. A comment has stable `id`, `author`, `text`, optional `time`, `image`, `depth`, `likes`, `liked`, `badge`, `edited`. The application changes likes and opens its reply composer. Nested replies retain their rail and indentation. |
+| `Presence` | `people: PresencePerson[]`; optional `maxVisible` (5), `size` (36), `onPerson(id)`, `onOverflow`, `className`. People have `id`, `name`, optional `image` and `status`. Avatars overlap at rest, spread on hover/focus, show names in the existing tooltip and dim away/offline people. Overflow reports the number of additional people. |
+| `RollingCounter` | `value`; optional `prefix`, `suffix`, `decimals` (0–6), `grouping`, `animate`, `size` (28), `className`. Only changed digits roll in the direction of the change; punctuation and surrounding labels stay still. Reduced motion shows the target immediately. |
+| `Ticker` | `items: {label,value,delta?,lowerIsBetter?}[]`; optional `active`, `speed` (40 px/s), `height` (42), `className`. Animation starts only when `active` is true; hover and focus pause at the current offset. Static and reduced-motion layouts wrap all indicators so narrow windows keep their data. Delta colors describe improvement or regression, including lower-is-better values. |
+| `CardStack` | `cards: {id,title,description?}[]`, controlled `index`, `onChange(index,direction)`; optional `visible` (3), `height` (180), `onOpen(id)`, `className`. Flick left/right, use arrow keys or Previous/Next. The top card opens with Enter when `onOpen` is supplied. Promotion uses a spring and reduced motion snaps. |
+| `ShimmerText` | `text`; optional `active`, `duration` (1800 ms), `delay`, `size` (20), `className`. The moving highlight is opt-in; stopped/reduced-motion text is static. Whole strings are drawn through the font provider so the highlight does not split shaped glyphs. |
+| `Typewriter` | `text`; optional `active`, `speed` (40 characters/s), `caret`, `onDone`, `className`. Uses the host's complete text layout before revealing, keeping wrapped lines fixed. Appending continues from the visible cursor; replacement starts over. Large backlogs catch up faster. Stopped/reduced-motion text appears immediately. |
+| `WordReveal` | `text`; optional `active`, `stagger` (65 ms), `className`. Words fade and lift once on a requested/source change. It uses the same owned animation value in Solid and React; unmount removes its style listeners. |
+| `SpotlightCard` | `title`; optional `description`, `active`, `beam`, `children`, `onClick`, `className`. Pointer movement lights the local card only when requested; keyboard focus has the normal focus ring. There is no idle sweep or animation under reduced motion. |
+| `Loader` | `active(): boolean`; optional `style` (`dots`, `bars`, `pulse`, `orbit`, `grid`), `size` (36), `label`, `className`. Orbit reuses `Spinner` and the stopped ring reuses `ProgressRing`. All five have a static reduced-motion form; activity stops on unmount. |
+| `Waveform` | `peaks`, controlled normalized `position`; optional `onSeek(position)`, `height` (54), `label`, `disabled`, `className`. Peaks are resampled to the visible bars. Click/drag seeks; arrows step 1%, Shift 10%, Page keys ten steps, Home/End reach the ends. The seek control exposes slider min/max/value/value text. |
+| `NowPlaying` | `title`, controlled `playing`, `position` (seconds), `duration`, `onPlay(boolean)`, `onSeek(seconds)`; optional `artist`, borrowed `artwork`, `peaks`, `onPrevious`, `onNext`, `compact`, `countdown`, `className`. Playback and seeking remain application callbacks. No microphone, audio service or background player is started by this UI. |
+
+The picker is an explicit application dependency, as in CUI's separation of `cui_dropzone` from
+`cui_app_file_dialog`. For example, pass a function which constructs `OpenOptions` with image filters and calls
+`open(options)` from `zinc:system/dialog`; declare `"dialog"` in that application's `zinc.json`. The kit barrel
+never imports that privileged feature and therefore does not impose its permission on unrelated controls.
+The gallery's `src/extended/Files.ts` is a working example using that existing picker.
+
+`zinc:system.on` and `zinc:system/events.on` return an idempotent disposer. Both share one dispatcher; disposing
+another listener during delivery excludes it, and a listener added during delivery starts at the next event.
+Configuration, permissions and scopes are installed before the first native action. The legacy
+`zinc:system.backend` remains a string; feature/event imports activate their provider lazily. A trusted native
+file drop grants only its selected path to the existing user-picked filesystem scope before the event is delivered.
+Text drops and script-injected events do not grant filesystem access. The native regression calls the same HAL
+callback and checks real scoped reads before delivery, from inside delivery, and against an unselected neighbor.
+
+Drop hover depends on platform events: System currently supplies completed file drops, so these controls show a
+selection/rejection status after delivery rather than claiming a native drag-in-progress highlight. The routing
+uses the engine's transformed hit test and existing surface pointer, with no second global drop registry. The current
+HAL does not forward drops from secondary windows; support for those windows remains a provider gap.
+Every mounted zone owns its subscription and rejects late picker answers after its node generation changes.
+
+Work is bounded: each selection examines at most 128 paths, comments 256 entries, presence 20 visible avatars,
+signatures 256 strokes/8192 total points, ticker 256 entries, text effects 16 KiB/1024 words (shimmer 4096 code
+units), and waveform 65536 input peaks/512 columns. Signature callbacks retain immutable point-array snapshots;
+controls borrow caller data and images. Avatar previews are component-owned, and cached borrowed media retains
+its existing cache lease while mounted. Image errors remain visible and retryable through Change photo.
+
+![Capture in Quiet dark](img/kit-extended-capture-dark.png)
+![Social controls in Quiet dark](img/kit-extended-social-dark.png)
+![Requested motion in Quiet dark](img/kit-extended-motion-dark.png)
+![Audio controls in Quiet dark](img/kit-extended-audio-dark.png)
+![Capture at 360 pixels](img/kit-extended-capture-narrow.png)
+![Social controls at 360 pixels](img/kit-extended-social-narrow.png)
+![Requested motion at 360 pixels](img/kit-extended-motion-narrow.png)
+![Audio controls at 360 pixels](img/kit-extended-audio-narrow.png)

@@ -1,6 +1,6 @@
 // zinc:system/share: the system's share sheet, what a phone's apps share a text or a link with (Android's chooser, iOS's
 // UIActivityViewController; React Native's Share.share). zinc.json "permissions": ["share"]. The simulator records the call.
-import { call, supports } from 'zinc:system';
+import { call, supports } from './core';
 
 export class ShareContent {
   /** The text, the message of React Native's Share. */

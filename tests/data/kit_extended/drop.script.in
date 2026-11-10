@@ -1,0 +1,7 @@
+3 drop @ROOT@/tests/data/kit_extended/attachment.txt
+5 drop @ROOT@/tests/data/images/fixture.png
+7 drop ignored text
+12 drop @ROOT@/tests/data/images/fixture.png
+12 drop @ROOT@/tests/data/images/fixture.png
+25 drop @ROOT@/tests/data/kit_extended/attachment.txt
+30 drop @ROOT@/tests/data/kit_extended/attachment.txt

@@ -1,6 +1,6 @@
 // zinc:system/dialog: open, save and message dialogs (docs/reports/system-integration.md 4.6). Without a user (the simulator, a test) a dialog resolves as cancelled unless the script queued an
 // answer. The paths the user picks join the fs scope of the session: an app limited to "fs": "user-picked" can read exactly those.
-import { call, callRaw, on, supports } from 'zinc:system';
+import { call, callRaw, on, supports } from './core';
 
 export class Filter {
   name: string; extensions: string[];

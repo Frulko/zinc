@@ -1,6 +1,6 @@
 // zinc:system/opener: open a URL or a file with the system's default app, reveal a file in the file manager and move one to the trash. The URLs and paths allowed are listed in zinc.json
 // "scopes": {"opener": {"allow": ["https://*", "mailto:"]}}: anything else is refused (docs/reports/system-integration.md 5.2).
-import { call } from 'zinc:system';
+import { call } from './core';
 
 export async function openUrl(url: string): Promise<void> { call('opener.open', { target: url }); }
 export async function openPath(path: string): Promise<void> { call('opener.open', { target: path }); }

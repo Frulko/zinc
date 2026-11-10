@@ -1,3 +1,4 @@
+import { ExtendedSection } from './sections/extended';
 import { MediaSection } from './sections/media';
 import { PlanningSection } from './sections/planning';
 // kit-gallery: every zinc:ui/kit component on one scrolling page, in the Solid model.
@@ -63,6 +64,7 @@ function App(): i32 {
       <Show when={env('GALLERY') === '' || env('GALLERY').startsWith('charts')}><ChartsSection /></Show>
 
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'tools'}><ToolsSection /></Show>
+      <Show when={env('GALLERY') === '' || env('GALLERY').startsWith('extended')}><ExtendedSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY').startsWith('media')}><MediaSection /></Show>
       <Show when={env('GALLERY') === '' || env('GALLERY') === 'ai'}><AiSection /></Show>
       <Show when={env('GALLERY') === ''}>

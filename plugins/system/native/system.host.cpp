@@ -731,6 +731,9 @@ void Sim::onDrop(const char* path, int isText) {
     return;
   }
 #endif
+  // A native file drop is the same explicit user choice as dialog.open. Grant only
+  // that path before subscribers validate/read it; text and deep links grant nothing.
+  if (!isText && path && *path && zn_host_fs_grant) zn_host_fs_grant(path);
   char json[1200] = "{\"type\":\"drop\",\"args\":[";
   appendJson(json, sizeof json, path);
   strncat(json, isText ? ",\"text\"]}" : "]}", sizeof json - strlen(json) - 1);

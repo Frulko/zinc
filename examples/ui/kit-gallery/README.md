@@ -87,3 +87,7 @@ or model, attach/remove sample notes, send/stop/finish a sample reply, and activ
 All state is local; model names are fictitious and no network request or file chooser runs. Enter sends, Shift Enter
 starts a line, and composition Enter remains with the IME. `GALLERY_DARK=1` starts in Quiet dark. The controls are
 composed in `src/sections/ai.tsx`; `src/ai/` owns each example's state and callbacks.
+
+`GALLERY=extended-capture`, `GALLERY=extended-social`, `GALLERY=extended-motion` or `GALLERY=extended-audio` isolates an Extended page.
+Capture uses the declared `dialog` permission and the existing scoped system picker. Text/card effects start only
+when requested; audio controls update a caller model. No sound service is started by the gallery.

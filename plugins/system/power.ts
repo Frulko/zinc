@@ -1,5 +1,5 @@
 // zinc:system/power: battery, idle time, sleep/wake/lock events, the dark/light appearance and a sleep blocker (docs/reports/system-integration.md 4.7).
-import { call, on, supports } from 'zinc:system';
+import { call, on, supports } from './core';
 
 export class Battery {
   present: boolean; percent: number; charging: boolean;

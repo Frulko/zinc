@@ -1,6 +1,6 @@
 // zinc:system/shortcut: global keyboard shortcuts, active while the app is not in front (macOS Carbon hotkeys: no Accessibility permission). The accelerator grammar is the shared parser of
 // accelerator.ts (docs/reports/system-integration.md 4.7).
-import { callRaw, call, on, supports } from 'zinc:system';
+import { callRaw, call, on, supports } from './core';
 import { parseAccelerator, formatAccelerator } from './accelerator';
 
 const accs: string[] = [];

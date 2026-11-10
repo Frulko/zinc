@@ -1,5 +1,5 @@
 // zinc:system/dock: the macOS dock tile (badge, bounce, progress, dock menu); on Linux a launcher entry where the desktop has one (docs/reports/system-integration.md 4.7).
-import { call, callRaw, supports } from 'zinc:system';
+import { call, callRaw, supports } from './core';
 import { Item, encodeItems, onClick } from './menu';
 
 export function isSupported(): boolean { return supports('dock'); }

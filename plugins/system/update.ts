@@ -1,7 +1,7 @@
 // zinc:system/update: the app updates itself from its channel (zinc.json "update": url, channel, publicKey; ZN-324). The engine fetches the
 // channel's signed manifest and checks it with the app's key, downloads the newer .zapp with its SHA-256 and stages it; restart() starts the app
 // again, which runs the staged version on trial (it is kept once healthy() is called, after 5 s, or at a normal exit; a crash rolls it back).
-import { call } from 'zinc:system';
+import { call } from './core';
 
 export class UpdateInfo { available: boolean = false; version: string = ''; notes: string = ''; }
 

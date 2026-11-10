@@ -56,7 +56,8 @@
     "zinc:system/power": "power.ts",
     "zinc:system/clipboard": "clipboard.ts",
     "zinc:system/update": "update.ts",
-    "zinc:system/media": "media.ts"
+    "zinc:system/media": "media.ts",
+    "zinc:system/events": "core.ts"
   },
   "web": { "native": "System", "impl": "web/system.js", "needs": [], "optional": ["notifications", "clipboard", "wakeLock", "share"] }
 }

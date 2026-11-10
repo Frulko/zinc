@@ -1,6 +1,6 @@
 // zinc:system/menu: the application menu and context menus (docs/reports/system-integration.md 4.3). One serializable model: items carry ids, handlers register by id here and the native
 // side only ever sends ids back. Roles expand here (labels, accelerators), so the simulator, the macOS menu bar and the UI kit's menu bar all show the same menus.
-import { callRaw, on, supports, quit, requestClose } from 'zinc:system';
+import { callRaw, on, supports, quit, requestClose } from './core';
 import { APP } from 'zinc:system/app';
 import { GRANTED } from 'zinc:system/permissions';
 import { parseAccelerator, formatAccelerator, macModifiers } from './accelerator';

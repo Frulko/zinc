@@ -18,4 +18,5 @@ export interface Spec extends NativeModule {
   /** Events as JSON {"type": "...", "args": [...]}: menu clicks, tray clicks, notification actions, shortcuts, drops, deep links, power and appearance changes. */
   onEvent(cb: (event: string) => void): void;
 }
-export default requireNative<Spec>('System');
+// Construct the wrapper at first use: importing an unrelated kit family must not link System.
+export default function createSystem(): Spec { return requireNative<Spec>('System'); }

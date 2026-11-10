@@ -2,7 +2,7 @@
   "name": "kit-gallery",
   "entry": "src/main.tsx",
   "requires": ["fs"],
-  "permissions": ["fs:read:.", "fs:read:../../../lib/std"],
+  "permissions": ["dialog", "fs:read:.", "fs:read:../../../lib/std"],
   "targets": {
     "macos": {
       "width": 960,

@@ -1,6 +1,6 @@
 // zinc:system/deeplink: custom URL schemes (notes://doc/1). macOS delivers them to a bundled app registered through app.urlSchemes; Linux passes the URL as an argument (a .desktop entry
 // registered with register()); a second launch reaches the running copy through zinc:system/instance. current() has the URLs that launched the app, onOpen() the later ones.
-import { call, on } from 'zinc:system';
+import { call, on } from './core';
 import { APP } from 'zinc:system/app';
 import * as sys from 'zinc:sys';
 

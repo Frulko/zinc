@@ -124,6 +124,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### New
 
+- The Quiet kit adds local file drops, editable avatars and signatures, comments and presence, requested text and card motion,
+  and caller controlled waveform/player controls. Each has a working gallery page and a reduced-motion form.
+
 - `zinc:ui/kit` has `Input` and `Textarea` in the shape of shadcn/ui's: a bordered, rounded field that follows the page, with a muted placeholder, a stronger border while focused and a dimmed `disabled` state.
 - Mistakes that used to draw nothing now say what to write: an icon name Lucide renamed (`trash-2`, `home`) draws the new icon and names it, an unknown icon name suggests the closest one, a width or a colour passed as a string at run time says `pct(n)` or `0xrrggbb`, and `<Button icon>` inside your own `function Button` says to rename it (`zinc explain U0001` to `U0004`).
 - The keyboard scrolls: a focused `ScrollView` takes the arrows, Page Up and Page Down, Space and Home and End as in a browser, and Page Up, Page Down, Home and End also scroll the area the focus is in, or the one under the pointer.
@@ -183,6 +186,9 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Lucide icon bundles share repeated circle markup, keeping UI imports smaller while preserving the generated SVGs.
 
 #### Fixed
+
+- Dropping a file into a scoped app grants access to that selected path before its handlers read it. System event
+  subscriptions can now be disposed, including during dispatch, without keeping removed components alive.
 
 - Shared kit controls read their latest state during a React event, so several keyboard or pointer actions in the same frame use the current selection.
 
