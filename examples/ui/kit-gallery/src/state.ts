@@ -16,3 +16,9 @@ export function setDarkMode(on: boolean): void {
   setDarkModeSignal(on);
   setTheme(on ? DARK : LIGHT);
 }
+
+/** Embedded galleries can advance the sample upload from their own frame callback. */
+export function advanceUpload(dt: number): void {
+  const next = upload() + dt * 12;
+  setUpload(next > 100 ? 0 : next);
+}

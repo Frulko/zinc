@@ -467,6 +467,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The delete icons of the Nuxt UI, Carnet and Discord examples and of the `desktop-app` template draw again: they used `trash-2`, a name Lucide changed to `trash`.
 - Zinc Atelier's Settings page shows a project whose `zinc.json` has comments or a byte order mark, and edits it, instead of calling it a plain sketch.
 - In Hamlet, Ctrl+Z after razing trees with the demolish tool no longer lays a road where they stood.
+- Hero and Hero without video run again after the UI kit gallery update, with their sample upload advancing as before.
 
 
 ### Docs and learning
