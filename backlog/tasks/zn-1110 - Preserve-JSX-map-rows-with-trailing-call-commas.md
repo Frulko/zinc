@@ -1,11 +1,10 @@
 ---
 id: ZN-1110
 title: Preserve JSX map rows with trailing call commas
-status: Backlog
-assignee:
-  - '@parallel'
+status: Done
+assignee: []
 created_date: '2026-11-10 01:12'
-updated_date: '2026-11-10 01:15'
+updated_date: '2026-11-10 01:43'
 labels:
   - frontend
   - jsx
@@ -25,9 +24,8 @@ Blocks original formatted ZN-1078.17 MonthCalendar: valid .map(callback,) silent
 <!-- AC:BEGIN -->
 - [x] #1 Valid trailing call commas preserve mapped JSX rows for direct and nested callbacks, including normally formatted renderSlot block returns and named/imported JSX functions, with no application workaround
 - [x] #2 Focused T0 covers canonical Solid/React and existing helper contracts on interpreter/AOT/QuickJS, equal node counts/content/order with and without comma, once-only evaluation and unchanged actual-extra-argument/invalid-call diagnostics
-- [ ] #3 Original formatted Planning MonthCalendar and affected gallery/control callers pass without removing commas or changing formatter, with docs/changelog/provenance/limits and proposed tests recorded
+- [x] #3 Original formatted Planning MonthCalendar and affected gallery/control callers pass without removing commas or changing formatter, with docs/changelog/provenance/limits and proposed tests recorded
 <!-- AC:END -->
-
 
 ## Implementation Notes
 
@@ -57,4 +55,6 @@ AC3 stays open: unchanged `tests/t0/kit_planning.sh` passes pure models on all t
 
 All builds, checks and apps used the global `tools/work-run` queue, per-run timeouts and headless mode. No owned processes remain. No push, coordinator documents, external WIP or Planning source changes.
 usage: n/a
+
+Consumer AC3 now proven by fresh Planning completion worker: unchanged final kit_planning T0 PASS pure models all3 and complete Solid/React controls all3 with normally formatted trailing commas on rebuilt common397865. Remaining Kanban failure was component identity: BoardCard needed its own key, keyed host View alone does not key its component instance; one caller correction, no delayed events/weak assertions/mirrors. Original Month/gallery restored, six fresh captures inspected and gallery check47files PASS. Root final jsx_map_trailing/kit_ai/unchanged kit_size also PASS on common source90b24121b. Logs .worktrees/1078.17-complete/.logs/planning-complete/t0.log and .logs/integration-2026-11-10/after1110-*; pending Planning feature commit/gate remains its task.
 <!-- SECTION:NOTES:END -->
