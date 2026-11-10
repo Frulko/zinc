@@ -2,7 +2,8 @@
 id: ZN-1112
 title: Reveal selected tabs inside narrow scroll tracks
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-10 02:26'
 labels:
   - ui

@@ -6,19 +6,22 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Worktree / branch | State |
 | --- | --- | --- |
-| ZN-1078.23 Settings | .worktrees/1078.23 / work/1078.23 | Fresh demo worker: profile/notifications/appearance/account, actual save/discard and keyboard controls, CUI reference, no new widgets/services. |
-| ZN-1078.20 Gallery | .worktrees/1078.20 / work/1078.20 | All actual public kit controls on one scrollable light/dark page; focused GALLERY modes preserved. Must include Extended after integration. First all/default QJS3frames exits0 in34.9s, stable<150MB: indicative slow first layout, not a hang. Investigating navigation/narrow proof. |
+| ZN-1112 narrow Tabs | .worktrees/1112 / work/1112 | Fresh kit Tabs/reveal worker; actual End selects Account but label/focus clipped at360px all3, no caller workaround. |
+| ZN-1111 typeof union | .worktrees/1111 / work/1111 | Solecore frontend fix: dynBacked union omitted by typeof lowering. Candidate reuses existing __dynTypeof; build/exact proof underway, common397865 remains frozen. |
 | ZN-1078.25 Mail | .worktrees/1078.25 / work/1078.25 | Fresh local mail demo: responsive three panes, search, read/star/archive and compose, no external sending. |
 
-No active shared-core writer. Finish reported integration before filling the next slot. Next startable family: ZN-1078.27 Notes, then Assistant; Settings minimal Avatar/typeof and narrow Tabs evidence pending, may require a sole core blocker first. Read current task/dependencies and search primary references before claiming.
+1111 is sole active shared-core writer;1112 owns kit tabs only. Finish reported integration before filling the next slot. Next startable family: ZN-1078.27 Notes, then Assistant; Settings minimal Avatar/typeof and narrow Tabs evidence pending, may require a sole core blocker first. Read current task/dependencies and search primary references before claiming.
 
 ## Integrated
 
-- Finance24 9abd4be3f Done: actual all3 74frame interactions/captures, real DataGrid/candle/donut, accounts/month/search/category/numeric sort/details,360px grid keyboard and multiple selection. Root check/QJS4queued; provenance .logs/finance1078.24-20261110.
+- Gallery20 8678d8c6d Done: complete defaultall inclExtended,33landmarks, persistent accessible Jump and real Form/ResizeHandle, all3/narrowrotation/theme. Existing growDrawCommands avoids fixed draw pool saturation. Root full defaultall smoke queued; QJS37s indicative slowfirstlayout, not benchmark.
+- Settings23 checkpoint worker04826c88f integrated, Backlog AC2true/AC1open. Complete local app and all3/actions/7pictures, but original Avatar56 is40compiled and last Tabs focus clipped360px. Resume unchanged UI after1111+1112, no workaround. Durable repro/provenance .logs/settings-1078.23-20261110.
+
+- Finance24 9abd4be3f Done: actual all3 74frame interactions/captures, real DataGrid/candle/donut, accounts/month/search/category/numeric sort/details,360px grid keyboard and multiple selection. Root check/QJS4PASS; provenance .logs/finance1078.24-20261110.
 
 - Dashboard22 1d67788cf Done: actual all3 entry+actions, nine inspected pictures light/dark/360px, local kit build desk. Root check/interp4 PASS; root inspected native light and narrow form, responsive/password eye aligned. Provenance kit-integration JSON dashboard_integration. Title differs visually across original captures; standalone canonical and import-only App cases report correct28px, no confirmed engine defect. No override.
 
-52 distinct Done since1078.03: twenty ZN-1078 leaves (.03–.19,.21–.22,.24), plus1079–1110. Current feature source9abd4be3f. Earlier history and proposed tests: session-handover-2026-11-09.md and session-handover-2026-11-10.md.
+53 distinct Done since1078.03: twenty-one ZN-1078 leaves (.03–.22,.24), plus1079–1110. Current feature source9abd4be3f. Earlier history and proposed tests: session-handover-2026-11-09.md and session-handover-2026-11-10.md.
 
 - JSX1110 ebe53adf2: valid trailing commas in JSX map callbacks preserve nodes, ordering and evaluation across engines. Exact jsx_map_trailing passes. Planning b4edca089 completes normally formatted source; BoardCard key fixes actual React keyboard-drop focus. kit_planning all3/both models and six refreshed pictures pass.1110AC3 closed.
 - AI18 90b24121b: nine controls, seven inspected pictures; models/interactions both UI models/all3. Native Textarea maxRows/onKeyDown preserve IME/caret/shortcuts. Root kit_ai, original composerQJS4frames and unchanged gate pass. docs/reports/kit-ai-proof.md.
