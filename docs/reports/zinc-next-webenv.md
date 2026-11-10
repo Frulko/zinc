@@ -102,11 +102,12 @@ What a program finds:
 - `innerHTML` with markup (kept as text), a `FormData` of a form element (there are no form controls), a binary body over http (sent
   as UTF-8 text), streams, cookies, `Worker`, `toDataURL` of a WebGL canvas, the web environment in a `zinc:script` sandbox.
 
-## Libraries (2026-10-11, unmodified builds, no shim in the test)
+## Libraries (updated 2026-11-10, unmodified builds, no shim in the test)
 
 | Library | State | Test |
 |---|---|---|
 | p5.js 1.11.13 | boots and draws in WEBGL mode, and in its default 2D mode (shapes, rounded rectangles, text: SSIM 0.99 against Chrome, ZN-570) | `tests/t1/webenv_p5.sh`, `tests/t1/webenv_canvas2d_libs.sh` |
+| p5.js 2.3.4 | boots in global mode, runs setup and draws a WEBGL box on frames 1 and 5; native Promise retained, flat-colour pixels and GL error match 1.11.13 (ZN-707) | `tests/t1/webenv_p5.sh`, separate `page-v2.out` golden |
 | three.js r186 | boots, animates, OrbitControls turns the camera by a scripted drag; `TextureLoader` shows a picture from a file | `tests/t1/webenv_three.sh` |
 | PixiJS 7.4.3 | boots, animates, its sprites hear the pointer; `Assets.load` shows a picture from a file; a Graphics fill and a Text draw since ZN-570 (seen in a frame, not in a test) | `tests/t1/webenv_pixi.sh` |
 | PixiJS 8.22.0 | boots, animates, a Graphics square hears the pointer (since ZN-565: a WebGL 2 context is no longer `instanceof WebGLRenderingContext`, and `#define in attribute` compiles); `Assets.load` shows a picture from a file; Text (fill, stroke, drop shadow, alignment, word wrap) at SSIM 0.98 against Chrome (ZN-570) | `tests/t1/webenv_pixi.sh`, `tests/t1/webenv_canvas2d_libs.sh` |
@@ -120,6 +121,37 @@ properties, each on a page of `tests/golden/webenv/page`), `tests/t0/webenv_touc
 (images as textures, read back against a picture of known colours), `tests/t1/webgl_libs.sh` (the binding defects libraries
 found, ZN-565) and one T1 test per library above. Their programs and goldens are in `tests/golden/webenv/`. PixiJS, three.js and Phaser (MIT)
 are test data in `third_party/pixi`, `third_party/three` and `third_party/phaser`. p5.js is LGPL-2.1, which
-`RULES.md` §3 keeps out of the tree: `tools/test-lib p5-1.11.13` takes `lib/p5.min.js` of p5's npm release once into
+`RULES.md` §3 keeps out of the tree: `tools/test-lib p5-1.11.13` and `tools/test-lib p5-2.3.4` take `lib/p5.min.js` of each pinned npm release once into
 `${ZINC_HOME:-~/.zinc}/cache/test-libs/`, checks it against the sha256 pinned in the tool and prints its path; `webenv_p5` hands that path to
 its page, and is skipped (exit 77, the reason in its first line) when the file is neither cached nor downloadable.
+
+
+### ZN-707 direct boot proof (2026-11-10)
+
+The existing PixiJS 8.22.0 page (10 deterministic frames with `pointer.input`) and image page (4 frames)
+match their log goldens, including ticker frames, pointer events, decoded ImageBitmap colours and GL error 0.
+The existing p5 WEBGL page matches the retained 1.11.13 golden and the new 2.3.4 golden (8 frames each).
+No library source or sketch changed. The existing p5 harness runs both pinned versions sequentially.
+The p5 2.3.4 npm metadata identifies LGPL-2.1; its archive SHA256 is
+`af29afdfa8c5d1096fb1335d6160f7b17be12d1eb21e69782f47c57c05893a48`, and its 990,638-byte
+`package/lib/p5.min.js` SHA256 is `bb8b82b97fcbcd5bb2d5475d1b6a3904f3ab4ed01b821134fd8f1e7710fce559`.
+Both were independently checked against the official archive before adding the external-cache pin.
+
+Phaser 3.90.0 boots, loads the picture, renders the exact expected pixels at scene frames 2 and 8 and
+receives both scripted inputs, with GL error 0 and no uncaught exception. Its existing complete golden
+currently differs: pointerdown logs frame 4 instead of 5, keydown logs frame 5 instead of 6, and the
+frame-5 cursor state is already true. A second identical direct run reproduces the same difference.
+The input script schedules those inputs at host frames 4 and 5; how those map to scene updates needs
+review before changing the existing golden. The fixture and its expectations are preserved; ZN-707 AC1
+stays open for this discrepancy. AC2 (the PixiJS 8 half) passes.
+
+These are short direct fixture runs on the development Mac, using the common QuickJS compiler built
+from `3e0925d48` (SHA256 `e5206875f798939a9c36115ef6d8df44be782b8e1e32aaef2dafe5439eae3461`)
+and this tree's `ZINC_ROOT`. The T1 harnesses, other platforms, broader p5 2D/input/assets compatibility,
+and long-run behaviour were not run. Babylon, LittleJS and Kaplay remain covered by the existing
+`backlog/later.md` deferral, with no additional harness here.
+
+References: [p5 2.3.4 npm metadata](https://registry.npmjs.org/p5/2.3.4),
+[p5 v2 transition guide](https://p5js.org/tutorials/v2_transition/) (input and asset APIs changed; retain the
+v1 pin), [PixiJS Application](https://pixijs.com/8.x/guides/components/application) (async `app.init()`),
+[Phaser Game](https://docs.phaser.io/phaser/concepts/game) (normal game/scene boot).
