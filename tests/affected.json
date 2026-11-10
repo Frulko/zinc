@@ -619,6 +619,7 @@
     {"paths": ["src/frontend/check.cpp", "tests/t0/splice_any.sh"], "tests": ["splice_any"]},
     {"paths": ["src/frontend/check.cpp", "tests/t0/forof_dyn_conditional.sh"], "tests": ["forof_dyn_conditional"]},
     {"paths": ["src/qjs/qjs.cpp", "tests/native/qjs_fastcall.c", "tests/t0/qjs_fastcall.sh"], "tests": ["qjs_fastcall"]},
+    {"paths": ["plugins/three/native/qjs_math.cpp", "plugins/three/native/qjs_math.h", "plugins/three/native/qjs_math_kernels.h", "tests/native/three_math.cpp", "tests/native/three_math.js", "tests/t0/qjs_three_math.sh"], "tests": ["qjs_three_math"]},
     {"paths": ["src/qjs/qjs.cpp", "src/gl/webgl_js.cpp", "tests/data/qjs_binding_rules.py", "tests/t0/qjs_binding_rules.sh", "tools/bench", "bench/qjs_boundary/"], "tests": ["qjs_binding_rules"]},
     {"paths": ["third_party/node-api/", "src/qjs/napi_util.h", "src/qjs/ext.cpp", "tests/native/napi_test.cpp", "tests/t0/napi.sh"], "tests": ["napi", "qjs_native", "segment", "webenv_canvas2d", "webenv_image", "script", "jsc", "v8"]},
     {"paths": ["tools/hermes-patches/", "tools/hermes-pack", "tests/hermes_cdp_check.py", "tests/t0/hermes_cdp.sh"], "tests": ["hermes_cdp"]},
