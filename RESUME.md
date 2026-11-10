@@ -6,8 +6,9 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 | Task | Tree / branch | State |
 | --- | --- | --- |
+|513 screen defaults continuation|.worktrees/513 / work/513|Solecore writer: use existing profile dimensions for platform defaults, preserve explicitsize, no main/HAL/UI/RT owner hunks. AC1crossbuilds stayhonest.|
 
-Root clean common is rebuilt at e74f0e5e9/compiler3199b9a9; Symbol integration passed,85Done. No worker remains active after archiving161.02/513. Next solecore phase resumes513 to fix runtimeSCREEN_W/H default320x240 versus profile dimensions; do not add an environment workaround. Its tables/docs/T0 are integrated e74f0e5e9, BacklogAC1/AC2open. Intl161.03 research is ready in .logs/research-16103.txt after that gap. Existing Hermes1066 privateSDK only, ReviewAC3 remains.
+Root clean common is rebuilt at e74f0e5e9/compiler3199b9a9; Symbol integration passed,85Done. Fresh solecoreworker resumes513 after archiving161.02/513; it must fix to fix runtimeSCREEN_W/H default320x240 versus profile dimensions; do not add an environment workaround. Its tables/docs/T0 are integrated e74f0e5e9, BacklogAC1/AC2open. Intl161.03 research is ready in .logs/research-16103.txt after that gap. Existing Hermes1066 privateSDK only, ReviewAC3 remains.
 
 Array plan/proof scope: related object-reference arrays share actual ArrObj; scalar/string/Dyn/nested conversions unchanged. Source insertion preflight throws catchable TypeError atomically; raw VM/AOT checks protect bypassing bytecode. Exact array InstanceOf stays exact; compatible Downcast reads existing module metadata. IR InstOf internally targets reference types, no wire change. Shared guards must not bloat ordinary casts/scalar arrays; nativeHero budget is strict8,000,000 B. Full wider stores/member-specific structural views are still unfinished, no AC waiver.
 
