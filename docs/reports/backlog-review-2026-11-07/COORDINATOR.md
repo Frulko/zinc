@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Final combined9a23 root3T0/Fatty/real same-binary Atelier close PASS (capture82018, Python82019, grandchild82020 absent); Share774.31 observed capture regression closed, Done,67currentlyDone. Broader1118 ownership gap remains separately Backlog. D280 honest boundary GC recorded;575/1068 final logs archived and clean trees removed. Root Hamlet exactT0/check/realQuickJS3 PASS.1119 core blocker reserved, ownershipresearch checkpoint pending frees slot.
+
 -896 original group JSON with quoted max-clients field fails common9a23 Z0005; confirmed root two-line repro and primary ECMAScript semantics. Created1119 blocking compiler fix, before896, no caller/manual-JSON workaround. Ownership1118 research finishes current scratch proof and checkpoints to free a fresh frontend slot;803 updater continues isolated main/runtime-safe route.
 
 - Integrated57543af3d75d Review (GC phase AC2, synchronous pause/cache timings unproven) and1118 nested58ee758c8 BacklogAC1open/AC2true. Clean common rebuilt58ee758c8 SHA9a23bc25acdf4fdd00316ded0d6efddd0673475b007b1ef2f5bfa43e84e24579; root exact3stages/Fatty/same-binary Atelier close queued. Reserve896 standalone call server (895Review counts as dependency-ready by next-task) and fresh1118 ownership completion investigation;803 updater active. At most2 worker builders now root build finished;896 TS-only.

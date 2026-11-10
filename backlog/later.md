@@ -734,6 +734,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1117: verify native surface-close delivery destroys a Solid app root before audio/resource cleanup; explicit root disposal is proven, surface close without disposal is not.
 - ZN-603: attribute Hero's remaining linked-library text with retained symbols before optimizing; native 10,905,448 B and generated C++ 27,205,373 B still exceed the task's size limits.
 
+- ZN-575: measure original100k cyclic probe and matched full-frame work on a quiet machine; synchronous whole-heap GC cannot guarantee4ms, and loading/worker/script scans are outside the boundary phase.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -875,6 +877,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1078.20: study first layout and offscreen drawing cost of the exhaustive gallery; final QuickJS smoke about37s under shared activity, finite/stable footprint, no quiet-machine benchmark claim. Existing growDrawCommands is enabled so no family is silently omitted.
 
 - ZN-1078.23: physical keyboard/touch/VoiceOver and native accessibility/long edit-save-discard/theme/scroll churn; current unchanged app all3 and360px focus/Avatar56 proof passes on common47a238.
+
+- ZN-1068: measure matched before/after Hamlet idle views at24/64/96 with AOT/interpreter, then Metal/QuickJS fluidity;17,776-frame exact coverage is proven, speed benefit is not.
 
 ## Cross-platform pass
 

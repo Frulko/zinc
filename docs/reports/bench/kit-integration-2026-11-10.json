@@ -509,5 +509,56 @@
       "Hero8MB/10MB limits",
       "nested process cleanup before pending repair"
     ]
+  },
+  "gc_nested_integration": {
+    "source_commit": "58ee758c8",
+    "engine_sha256": "9a23bc25acdf4fdd00316ded0d6efddd0673475b007b1ef2f5bfa43e84e24579",
+    "exact_stages": {
+      "process_family": "PASS",
+      "qjs_gc": "PASS",
+      "qjs_bytecode": "PASS"
+    },
+    "original_features": [
+      "Fatty check and QuickJS3 PASS",
+      "Atelier same-binary nested-group close PASS"
+    ],
+    "close_proof": {
+      "pids": {
+        "capture": 82018,
+        "capture_group": 82018,
+        "capture_exe": "/Users/mowmow/Lab/zinc/.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc",
+        "capture_sha": "9a23bc25acdf4fdd00316ded0d6efddd0673475b007b1ef2f5bfa43e84e24579",
+        "leader": 82019,
+        "child": 82020,
+        "group": 82019
+      },
+      "all_reaped": true,
+      "staging_removed": true,
+      "provider_sha": "9a23bc25acdf4fdd00316ded0d6efddd0673475b007b1ef2f5bfa43e84e24579",
+      "captured_zinc_sha": "9a23bc25acdf4fdd00316ded0d6efddd0673475b007b1ef2f5bfa43e84e24579",
+      "app_source": "58ee758c8 including43af3d75d",
+      "same_binary": true
+    },
+    "log": ".logs/integration-2026-11-10/gc-nested-smoke.log",
+    "hamlet_integration": {
+      "source": "78c1d970a",
+      "tier_t0": "PASS",
+      "check": "PASS",
+      "real_quickjs3": "PASS",
+      "log": ".logs/integration-2026-11-10/hamlet-integrated.log"
+    },
+    "status": {
+      "575": "ReviewAC2",
+      "1068": "ReviewAC1",
+      "1118": "BacklogAC2",
+      "774.31": "Done"
+    },
+    "done_count": 67,
+    "not_proven": [
+      "GCp99/startup",
+      "Hamlet speed/fluidity",
+      "generic portable process ownership after vanished intermediate",
+      "native remote/physical browserVM proof"
+    ]
   }
 }

@@ -12,7 +12,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 
 ## Integrated state
 
-66 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, and445 QuickJS packing/cache. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
+67 currently Done since1078.03: all26 kit/demo leaves .03–.28,39 compiler/fix tasks1079–1117, 445 QuickJS packing/cache and774.31 Share. Comparison1078.29, Galène895, Hamlet1068 and QuickJS575 are Review; Hero603 remains Backlog for size criteria. No publication or benchmark run.
 
 - UI chain7ed1b1211/39e7e5e62/5488a7d35, recursive capture063edc9de, Solid ownership0d7163987: root exact tests and original Music feature pass. Mail6dc4c22ca, Notesed5802785, Assistantc280d7fd8 and Music83e6fe6f5 Done with actual all3 action/desktop/mobile/focus/cleanup proofs. Original responsive/password defects fixed.
 -445 integrated5acf53be0: local trusted bytecode cache stays fast; unsigned packs execute retained source, with one explicit warning. No unauthenticated bytecode loader. Exact qjs_bytecode and actual Fatty direct/pack proof pass; no startup timing claim.
@@ -24,7 +24,7 @@ Continue zn-coordinate until main `.paused` exists or no startable work remains.
 -1068 integrated78c1d970a: exact deer already matches all3 with common engine; tight body bounds and17,776-frame coverage pass. Root tier-t0/real QuickJS proof queued. Quiet24/64/96 numbers remain open. An accidental duplicate-basename T1 completed and is disclosed in notes; no process remains.
 
 -575 integrated43af3d75d Review: frame-boundary allocation-pressure GC, RAII thresholds and stable append-compatible profile phase. Exact GC/cache T0 and real Fatty pass on worker95d46b9f. Full scans indivisible, no4ms/p99/startup claim. Original probes use top-level loop/loadScript, so performance AC remain open.
--1118 nested58ee758c8: stable macOS original-parent identities plus atomic audit-token signals cover normal nested groups and leader _exit. Final candidateee200909 actual same-binary Atelier close passes; bounded walk/vanished intermediate/native API limitations keepAC1open. Root combined proof queued.
+-1118 nested58ee758c8: stable macOS original-parent identities plus atomic audit-token signals cover normal nested groups and leader _exit. Final candidateee200909 actual same-binary Atelier close passes; bounded walk/vanished intermediate/native API limitations keepAC1open. Root combined3T0/Fatty/same-binary Atelier close PASS; final proof archived .logs/integration-2026-11-10/process-close-final.
 
 ## Common engine and final kit gate
 
@@ -32,9 +32,9 @@ Read-only common: .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc, source58
 
 Older proofs keep their real hashes:037a922f9/29ffb93a19627fb7dc465badc12c9c292ffaa55bf1db76d458b81837f4b48155;fe4b8bee5/47a238519a706c385c312611ea9c17487944861e4bd660c012fe6ef643881764. Mixed process proof was insufficient and is superseded by reopened combined repro.
 
-Final unchanged kit gate passes: JS236192/246407/283256 B (unused10215,25 B margin;4094/component,15 B strict aggregate headroom). AOT5325336/5474000/6025776 B (unused148664;61308/component). No icon/feature/budget cuts. Detailed task provenance and docs/reports/bench/kit-integration-2026-11-10.json; root .logs/integration-2026-11-10. Root latest combined galene_toolchain/project_link/zapp_share/qjs_bytecode and original Hero check/interpreter4 PASS; no nested cleanup success claim. D278 records standalone Galène, D279 unsigned QuickJS source fallback.
+Final unchanged kit gate passes: JS236192/246407/283256 B (unused10215,25 B margin;4094/component,15 B strict aggregate headroom). AOT5325336/5474000/6025776 B (unused148664;61308/component). No icon/feature/budget cuts. Detailed task provenance and docs/reports/bench/kit-integration-2026-11-10.json; root .logs/integration-2026-11-10. Root latest combined galene_toolchain/project_link/zapp_share/qjs_bytecode and original Hero check/interpreter4 PASS; no nested cleanup success claim. D278 records standalone Galène, D279 unsigned QuickJS source fallback. D280 records honest boundary GC scheduling.
 
-Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail1078.25-20261110/completed, .logs/share-774.31-20261110, .logs/galene-895-20261110, .logs/hero-603-20261110. Notes/Assistant final proofs and CUI artifacts are archived in .logs/archive-completed-workers-20261110/<id>-final. Twelve completed clean worktrees were removed;1118/774.31 retained until nested repair completes.
+Durable latest proof archives: .logs/music1078.26-20261110-bf42e1ffe, .logs/mail1078.25-20261110/completed, .logs/share-774.31-20261110, .logs/galene-895-20261110, .logs/hero-603-20261110. Notes/Assistant final proofs and CUI artifacts are archived in .logs/archive-completed-workers-20261110/<id>-final. Fourteen completed clean worktrees were removed;1118/774.31 retained until ownership research checkpoints.575/1068 final logs are in their -final archives.
 
 ## Preserve external work and machine limits
 
@@ -49,6 +49,8 @@ Completed logs/checkpoints archived .logs/archive-completed-workers-20261110. Co
 ## Devices and proposed milestones
 
 Owner added OptiPlex: Fedora45KDE x86_64/i3-7100T2cores4threads/16GB. SSH mowmow@192.168.2.228; Tailscale100.66.7.14 / optiplex.tail80b63.ts.net, HostKeyAlias192.168.2.228 verifies same key. Initially no compiler/build tools. Actual unchanged nullable_numeric cross-built x86_64-linux on Mac, deployed ~/zn/codex-1106-20261110-da7ca, timeout15/headless via Tailscale PASS, SHA7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a. No process left; GPU/desktop/native build unproven. Pi spark@192.168.2.31 and Mojave mowmow@192.168.2.215 remain. Own directories only, no machines/daemon restart/QEMU.
+
+-774.31 capture regression is now closed on final combined same-binary root proof; task Done.1118 broader vanished-intermediate ownership gap remains independently open.1119 quoted-key JSON blocker is reserved for fresh core worker before896 can run original group setup; do not rewrite its JSON.
 
 ## Tests to run (the owner picks)
 
