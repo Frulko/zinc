@@ -32,7 +32,10 @@ canvas.addEventListener('click', mouse);
 canvas.addEventListener('contextmenu', e => { e.preventDefault(); mouse(e); });
 canvas.addEventListener('wheel', e => log(`frame ${frames + 1}: wheel on canvas, delta ${e.deltaX},${e.deltaY}, mode ${e.deltaMode}, at ${e.clientX},${e.clientY}`), { passive: false });
 const key = e => log(`frame ${frames + 1}: ${e.type} on ${where(e)}, target ${e.target.tagName.toLowerCase()}, key ${JSON.stringify(e.key)}, code ${e.code}, keyCode ${e.keyCode}, shift ${e.shiftKey}, repeat ${e.repeat}`);
-window.addEventListener('keydown', key);
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' && frames !== 5) throw new Error('host frame 5 input must precede animation frame 6');
+  key(e);
+});
 window.addEventListener('keypress', key);
 const touch = e => log(`frame ${frames + 1}: ${e.type} on ${where(e)}, touches ${e.touches.length}, changed ${e.changedTouches.map(t => t.identifier + '@' + t.clientX + ',' + t.clientY).join(' ')}`);
 for (const type of ['touchstart', 'touchmove', 'touchend']) canvas.addEventListener(type, touch);

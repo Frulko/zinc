@@ -21,7 +21,7 @@ const game = new Phaser.Game({
     update() {
       this.box.rotation += 0.05;
       frames++;
-      if (frames === 5 || frames === 7) console.log('frame', frames, 'the left cursor key is down:', this.cursors.left.isDown);
+      if (frames === 4 || frames === 7) console.log('frame', frames, 'the left cursor key is down:', this.cursors.left.isDown);
     },
   },
 });

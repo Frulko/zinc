@@ -138,14 +138,21 @@ The p5 2.3.4 npm metadata identifies LGPL-2.1; its archive SHA256 is
 Both were independently checked against the official archive before adding the external-cache pin.
 
 Phaser 3.90.0 boots, loads the picture, renders the exact expected pixels at scene frames 2 and 8 and
-receives both scripted inputs, with GL error 0 and no uncaught exception. Its existing complete golden
-currently differs: pointerdown logs frame 4 instead of 5, keydown logs frame 5 instead of 6, and the
-frame-5 cursor state is already true. A second identical direct run reproduces the same difference.
-The input script schedules those inputs at host frames 4 and 5; how those map to scene updates needs
-review before changing the existing golden. The fixture and its expectations are preserved; ZN-707 AC1
-stays open for this discrepancy. AC2 (the PixiJS 8 half) passes.
+receives both scripted inputs, with GL error 0 and no uncaught exception. The complete log now matches
+its corrected golden. A diagnostic trace shows preload on host frame 0, create and the first scene
+update on host frame 1. Host input still arrives before animation callbacks, as it did when the golden
+was introduced (`0e032f0f0`): pointerdown on host frame 4 precedes scene update 4, and keydown on host
+frame 5 precedes scene update 5. Phaser does not call scene update while its loader is running. The
+old golden assumed a scene update on host frame 0; it was never updated after later image/script boot
+changes. The key-up checkpoint moves from scene frame 5 to 4, retaining key-up-before/key-down-after
+coverage. No runtime, library or input schedule changes. The generic frames fixture additionally
+asserts that host frame 5's key event precedes animation frame 6. ZN-707 AC1 and AC2 both pass.
 
-These are short direct fixture runs on the development Mac, using the common QuickJS compiler built
+The diagnostic trace and final generic-frame/Phaser proofs use the common compiler built from `0e8bd9b90`
+(SHA256 `3ec59faa23598f799be9caf7f1263cdf7fc52780ced417991d2c50607f50d8d5`).
+Their logs are `.logs/707-frame/{trace,frames,phaser}.{out,err}` in the worker tree.
+
+The PixiJS and p5 proofs were short direct fixture runs on the development Mac, using the common QuickJS compiler built
 from `3e0925d48` (SHA256 `e5206875f798939a9c36115ef6d8df44be782b8e1e32aaef2dafe5439eae3461`)
 and this tree's `ZINC_ROOT`. The T1 harnesses, other platforms, broader p5 2D/input/assets compatibility,
 and long-run behaviour were not run. Babylon, LittleJS and Kaplay remain covered by the existing
@@ -154,4 +161,6 @@ and long-run behaviour were not run. Babylon, LittleJS and Kaplay remain covered
 References: [p5 2.3.4 npm metadata](https://registry.npmjs.org/p5/2.3.4),
 [p5 v2 transition guide](https://p5js.org/tutorials/v2_transition/) (input and asset APIs changed; retain the
 v1 pin), [PixiJS Application](https://pixijs.com/8.x/guides/components/application) (async `app.init()`),
-[Phaser Game](https://docs.phaser.io/phaser/concepts/game) (normal game/scene boot).
+[Phaser Game](https://docs.phaser.io/phaser/concepts/game) (normal game/scene boot),
+[Phaser Scenes](https://docs.phaser.io/phaser/concepts/scenes) and
+[Loader](https://docs.phaser.io/phaser/concepts/loader) (updates wait for loaded assets).

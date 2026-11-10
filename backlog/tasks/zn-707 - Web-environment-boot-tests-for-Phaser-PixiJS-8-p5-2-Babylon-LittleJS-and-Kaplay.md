@@ -3,11 +3,11 @@ id: ZN-707
 title: >-
   Web environment: boot tests for Phaser, PixiJS 8, p5 2, Babylon, LittleJS and
   Kaplay
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-10-10 22:50'
-updated_date: '2026-11-10 13:15'
+updated_date: '2026-11-10 13:28'
 labels:
   - js
   - qjs
@@ -30,7 +30,7 @@ ordinal: 20700
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 each library boots to a first frame headless with a log golden
+- [x] #1 each library boots to a first frame headless with a log golden
 - [x] #2 the PixiJS 8 half of webenv_pixi runs
 <!-- AC:END -->
 
@@ -55,4 +55,19 @@ Review 2026-11-07: rewrite. Six library boot tests is a lot; do PixiJS 8, Phaser
 Proposed tests (owner milestone only):
 - `tests/run --only webenv_p5`: both pinned p5 major versions, setup/rAF/WEBGL flat-colour logs and no uncaught rejection; ~2s with warm cache, downloads can take up to120s/version, RSS unmeasured (estimate<300MB).
 - `tests/run --only webenv_pixi`: both supported Pixi major versions, ticker/input and worker ImageBitmap pixels; ~2s, RSS unmeasured (estimate<300MB).
-- `tests/run --only webenv_phaser`: full boot/image/render/input golden, currently known scene-frame mismatch; ~1s, RSS unmeasured (estimate<300MB).
+- `tests/run --only webenv_phaser`: full boot/image/render/input golden, including the corrected scene-start offset; ~1s, RSS unmeasured (estimate<300MB).
+
+
+2026-11-10 Phaser frame-contract closure (fresh worker, branch work/707):
+
+- Read-only source/history review: the golden originated in `0e032f0f0`, which already dispatched host input before rAF; `lib/std/webenv.js` retains that order. Input script indices are zero-based host frames, while this fixture counts only scene updates. Later `7c440c65e` introduced script waits for local image probes, and `85f870edb` changed image completion; the old golden was unchanged. Official Phaser scene/loader docs state that `update()` runs only while RUNNING and is skipped while LOADING: https://docs.phaser.io/phaser/concepts/scenes and https://docs.phaser.io/phaser/concepts/loader. No guarantee equates the first host frame to the first scene update.
+- One diagnostic trace on the stable combined common compiler proves the exact cause: `preload host0`, `prestep host0 scene0`, `create host1`, `update host1 scene1`. DOM pointerdown at host4 precedes Phaser pointerdown/scene update4; DOM keydown at host5 precedes Phaser keydown/scene update5. The scene spends host0 loading, rather than input arriving a frame early. No runtime fix is warranted; input-before-rAF is preserved.
+- Narrow test correction: pointerdown/key golden counters become4/5; the up-before-key checkpoint moves5→4 and the down-after checkpoint stays7, so both keyboard states remain covered. The input file, unmodified library and all pixel expectations stay the same. Added an exact assertion to the existing generic frames fixture: host5 ArrowLeft must be seen with five animation callbacks completed, before callback6. Documented the host/scene distinction in the existing harness and module report. Internal expectation coverage only; no changelog line or new module/mapping needed.
+- Direct proofs, sequential bounded `/Users/mowmow/Lab/zinc/tools/work-run 20` commands, headless deterministic scale1 with this tree's `ZINC_ROOT`: generic `frames.js`10 hostframes exactly matches its unchanged golden with the new assertion; original Phaser `page.js`12 hostframes with unchanged `game.input` exactly matches the corrected complete golden. Phaser scene2/8 red/background/image-block pixels all match and GLerror0; no Uncaught in either stderr. Existing Pixi8 and both p5 boot proofs above plus these Phaser results satisfy AC1; AC2 remains satisfied. No T0/T1 harness/suite or build run.
+- Compiler: `/Users/mowmow/Lab/zinc/.claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc`, built from `0e8bd9b90`, SHA256 `3ec59faa23598f799be9caf7f1263cdf7fc52780ced417991d2c50607f50d8d5`. Logs and archived diagnostic source in this worker's `.logs/707-frame/`: `{trace,frames,phaser}.{out,err}` and `.707-trace-{page,game}.js`. The diagnostic copies were removed from the fixture directory after proof. Syntax checks (`node --check` on both changed JS files; `sh -n tests/t1/webenv_phaser.sh`) and `git diff --check` pass. All started processes exited; no leftovers.
+- Decision proposal: none; this preserves the existing event ordering and records a measured loader/scene offset. Later proposal: none, since Babylon/LittleJS/Kaplay already have deferrals. Usage: n/a (`tools/usage`).
+
+Proposed tests (owner milestone only):
+- `tests/run --only webenv_phaser`: maintained boot/load/render/input complete golden (~1s, RSS unmeasured, estimate<300MB).
+- `tests/run --only webenv`: broader DOM/timers/images and the input-before-rAF regression (seconds, RSS unmeasured, estimate<300MB).
+- Existing `webenv_pixi` and `webenv_p5` proposals above remain; physical/cross-platform, broader library APIs and long-run behaviour remain unproven.

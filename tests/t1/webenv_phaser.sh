@@ -5,6 +5,7 @@
 # brings a picture from a file (XMLHttpRequest of a blob, a blob: URL, an image element), and at frames 2 and 8 the pixels read back after
 # its render are the picture's own colours (tests/data/images/fixture.png), the rectangle's red and the background. A scripted key reaches
 # its keyboard on the window (the left cursor key is up before it and down after) and a scripted button its pointer on the canvas.
+# Input indices are host frames: this scene preloads on host frame 0 and first updates on frame 1.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
