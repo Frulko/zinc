@@ -17,7 +17,7 @@ namespace zn::frontend {
 using TypeId = std::uint32_t;
 inline constexpr TypeId kNoType = 0xFFFFFFFFu;
 
-enum class TK : std::uint8_t { Error, Any, Num, Bool, Str, Void, Null, Array, Func, Object, Param, Union, Map, Set };
+enum class TK : std::uint8_t { Error, Any, Num, Bool, Str, Void, Null, Array, Func, Object, Param, Union, Map, Set, Never };
 enum class Num : std::uint8_t { f64, f32, fx12, fx16, i8, i16, i32, i64, u8, u16, u32, u64, isize, usize };
 
 struct Type {
@@ -148,9 +148,7 @@ bool widens(Num from, Num to);
 // Class relations over ObjInfo indices (also used by the IR lowering for closed-world devirtualisation).
 bool isSubclass(const Checked& c, std::uint32_t a, std::uint32_t b);                   // a == b or a derives from b
 const Member* lookupMember(const Checked& c, std::uint32_t obj, std::string_view name, bool wantStatic);
-// A method type that takes only the first parameters of `want` (TypeScript lets an implementation or override ignore trailing arguments); lowering adapts the call.
-bool fewerParams(const Checked& c, TypeId impl, TypeId want);
-// A method type that takes only the first parameters of `want` (TypeScript lets an implementation or override ignore trailing arguments); lowering adapts the call.
+// A method that ignores trailing parameters or returns never in place of a value; lowering adapts the call.
 bool fewerParams(const Checked& c, TypeId impl, TypeId want);
 bool objAssignable(const Checked& c, std::uint32_t a, std::uint32_t b);               // subclass, or structurally an interface
 std::string typeName(const Checked& c, TypeId t);

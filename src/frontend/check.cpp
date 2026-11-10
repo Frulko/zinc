@@ -25,7 +25,7 @@
 namespace zn::frontend {
 namespace {
 
-constexpr TypeId tError = 0, tAny = 1, tBool = 2, tStr = 3, tVoid = 4, tNull = 5, tDyn = 6;  // tAny: console.log's "anything"; tDyn: the `any` of programs
+constexpr TypeId tError = 0, tAny = 1, tBool = 2, tStr = 3, tVoid = 4, tNull = 5, tDyn = 6, tNever = 7;  // tAny: console.log's "anything"; tDyn: the `any` of programs
 
 bool isInt(Num m) { return m != Num::f64 && m != Num::f32 && m != Num::fx12 && m != Num::fx16; }
 bool isFx(Num m) { return m == Num::fx12 || m == Num::fx16; }
@@ -177,7 +177,7 @@ struct Checker {
   explicit Checker(Ast& ast) : a(ast) {
     out.nodeType.assign(a.nodes.size(), kNoType);
     out.nodeSym.assign(a.nodes.size(), kNone);
-    for (TK k : {TK::Error, TK::Any, TK::Bool, TK::Str, TK::Void, TK::Null, TK::Any}) { Type t; t.k = k; out.types.push_back(t); }
+    for (TK k : {TK::Error, TK::Any, TK::Bool, TK::Str, TK::Void, TK::Null, TK::Any, TK::Never}) { Type t; t.k = k; out.types.push_back(t); }
   }
 
   // ---- diagnostics
@@ -342,7 +342,9 @@ struct Checker {
   }
 
   bool assignable(TypeId from, TypeId to, std::uint32_t node) {
-    if (from == to || bad(from) || bad(to) || ty(to).k == TK::Any) return true;
+    if (from == to || bad(from) || bad(to) || from == tNever) return true;
+    if (to == tNever) return false;
+    if (ty(to).k == TK::Any) return true;
     if (from == tDyn) return to != tVoid;                      // `any` converts to everything (checked when it runs)
     if (isDyn(to)) return from != tVoid && from != tNull ? true : from == tNull;  // `unknown` takes everything
     if (ty(from).k == TK::Union) { for (TypeId m : ty(from).params) if (!assignable(m, to, kNone)) return false; return true; }
@@ -416,7 +418,7 @@ struct Checker {
       // as TypeScript: a function returning T where one returning a union with T is expected (a component `() => i32` where `() => i32 | null`
       // is), and one returning something (an async handler's Promise) where one returning void is (the result is dropped)
       const Type& r = ty(t.elem);
-      if (t.elem != tVoid && !(r.k == TK::Union && std::find(r.params.begin(), r.params.end(), f.elem) != r.params.end())) return false;
+      if (f.elem != tNever && t.elem != tVoid && !(r.k == TK::Union && std::find(r.params.begin(), r.params.end(), f.elem) != r.params.end())) return false;
       differs = true;
     }
     return differs;
@@ -498,7 +500,17 @@ struct Checker {
     }
     return false;
   }
+  bool neverComputation(std::uint32_t i) const {
+    const Node& x = n(i);
+    if (x.kind == N::Call) return out.nodeType[i] == tNever;
+    if (x.kind == N::Cond) return neverComputation(x.kids[0]) || (neverComputation(x.kids[1]) && neverComputation(x.kids[2]));
+    if (x.kind == N::As || x.kind == N::NonNull) return neverComputation(x.kids[0]);
+    return false;
+  }
   bool require(TypeId from, TypeId to, std::uint32_t node) {
+    if (from == tNever && to != tNever && to != tVoid && node != kNone && !bad(to) && !neverComputation(node)) {
+      diag(kZUnsupported, node, "using an uninhabited never slot as '" + name(to) + "'"); return false;
+    }
     if (assignable(from, to, node)) { if (node != kNone) convertDyn(from, to, node); return true; }
     if (arrayConversion(from, to, node)) return true;
     if (node != kNone && !bad(from) && !bad(to) && name(from) == "NeverPromise" && promiseKind(to) != 0 && ty(to).k == TK::Object) {  // Promise.reject(e) without a type: a promise that only rejects fits any Promise<T>
@@ -524,7 +536,7 @@ struct Checker {
         aliases.push_back(t.params[k]); aliases.push_back(f.params[k]);
       }
       std::string R = inspectAliasName(t.elem);
-      std::string body = t.elem == tVoid ? "{ f(" + call + "); }" : f.elem == t.elem ? "f(" + call + ")" : "f(" + call + ") as " + R;
+      std::string body = t.elem == tVoid ? "{ f(" + call + "); }" : (f.elem == t.elem || f.elem == tNever) ? "f(" + call + ")" : "f(" + call + ") as " + R;
       aliases.push_back(t.elem);
       std::uint32_t sym = helper("thunk," + std::to_string(from) + "," + std::to_string(to), "function $F(f: " + inspectAliasName(from) + "): " + inspectAliasName(to) + " {\n  return (" + ps + "): " + R + " => " + body + ";\n}\n", aliases, node);
       wrapNode(node, sym);
@@ -737,7 +749,7 @@ struct Checker {
         Num m;
         if (x.kids.empty() && numFromName(x.text, m)) r = num(false && m == gNumber && x.text == "number" && builtinModuleNode(t) ? Num::f64 : m);   // the library (Date, JSON, the Error classes) keeps `number` = f64 under any profile
         else if (x.kids.empty() && x.text == "boolean") r = tBool;
-        else if (x.kids.empty() && x.text == "never" && lookupType("never") == kNone) r = tNull;  // no value has it: a position of type never holds null (T = never as a default says "unused")
+        else if (x.kids.empty() && x.text == "never" && lookupType("never") == kNone) r = tNever;
         else if (x.kids.empty() && x.text == "string") r = tStr;
         else if (x.kids.empty() && x.text == "void") r = tVoid;
         else if (x.kids.empty() && x.text == "null") r = tNull;
@@ -1020,7 +1032,7 @@ struct Checker {
       if (k >= t.params.size() && !isVoidClass(f.params[k])) break;
       call += (k ? ", " : "") + (k < t.params.size() ? "p" + std::to_string(k) : std::string("null"));
     }
-    const std::string body = f.elem == t.elem ? "f(" + call + ")" : "{ f(" + call + "); }";
+    const std::string body = (f.elem == t.elem || f.elem == tNever) ? "f(" + call + ")" : "{ f(" + call + "); }";
     // a function declaration named here with defaults past the expected parameters: an arrow that calls it by name, so the call evaluates the
     // defaults (a call through a function value passes null for what it leaves out)
     const std::uint32_t fs = n(node).kind == N::Ident ? out.nodeSym[node] : kNone;
@@ -1666,7 +1678,7 @@ struct Checker {
     return false;
   }
   void convertDyn(TypeId from, TypeId to, std::uint32_t node) {
-    if (bad(from) || bad(to) || to == tAny || dynObjOf() == kNone) return;
+    if (bad(from) || bad(to) || from == tNever || to == tAny || dynObjOf() == kNone) return;
     const bool intoUnion = dynBacked(to), outOfUnion = dynBacked(from);
     if (intoUnion && !outOfUnion && !isDyn(from) && !isDynFamily(from) && from != tNull && !hasParam(from)) {   // a member into a Dyn-backed union
       if (!dynConvertible(out, from)) { diag(kZUnsupported, node, "conversion of '" + name(from) + "' to '" + name(to) + "'"); return; }
@@ -3266,11 +3278,13 @@ struct Checker {
           return vt;
         }
         TypeId target = annotation(x.kids[1]);
+        if (target == tNever) { expr(x.kids[0]); diag(kZUnsupported, i, "assertions to never (an assertion does not make its operand stop returning)"); return tError; }
         if (bad(target)) { expr(x.kids[0]); return tError; }
         std::uint32_t savedAs = asOperand;
         asOperand = x.kids[0];
         TypeId vt = expr(x.kids[0], target);
         asOperand = savedAs;
+        if (vt == tNever && target != tNever && !neverComputation(x.kids[0])) { diag(kZUnsupported, i, "converting an uninhabited never slot to '" + name(target) + "'"); return tError; }
         if (!bad(vt) && !rawDyn() && (((isDyn(vt) || optionalDyn(vt)) && !isDyn(target) && !isDynFamily(target)) || (isDyn(target) && !isDyn(vt) && !isDynFamily(vt)) || (dynBacked(vt) && !dynBacked(target) && !isDyn(target)))) {  // a checked conversion from or to a Dyn
           std::uint32_t operand = x.kids[0];
           convertDyn(vt, target, operand);
@@ -3585,8 +3599,8 @@ struct Checker {
           pushFacts(ft); p = expr(x.kids[1], expected); narrowing.resize(mark);
           pushFacts(ff); q = expr(x.kids[2], emptyAt == 2 && !bad(p) && (ty(p).k == TK::Array || isDyn(p)) ? p : expected); narrowing.resize(mark);
         }
-        if (bad(p)) return q;
-        if (bad(q)) return p;
+        if (bad(p) || p == tNever) return q;
+        if (bad(q) || q == tNever) return p;
         if (expected != kNoType && ty(expected).k != TK::Any && assignable(p, expected, x.kids[1]) && assignable(q, expected, x.kids[2])) { convertDyn(p, expected, x.kids[1]); convertDyn(q, expected, x.kids[2]); return expected; }  // both branches fit the type asked for (c ? 1 : 0 into an i32)
         if (q == tNull && p != tNull && !isDyn(p)) return unionOf({p, tNull});  // c ? x : null
         if (p == tNull && q != tNull && !isDyn(q)) return unionOf({q, tNull});
@@ -3896,6 +3910,10 @@ struct Checker {
         return terminates(x.kids[0]) && !jumpsOut(a, x.kids[0], true, {}, inner);  // `l: { ... break l; ... }` goes on after the block
       }
       case N::Return: case N::Throw: return true;
+      case N::ExprStmt: return !x.kids.empty() && neverComputation(x.kids[0]);
+      case N::VarDecl:
+        for (std::uint32_t d : x.kids) if (n(d).kids.size() > 1 && n(d).kids[1] != kNone && neverComputation(n(d).kids[1])) return true;
+        return false;
       case N::Try: return (terminates(x.kids[0]) && (x.kids[2] == kNone || terminates(x.kids[2]))) || (x.kids[3] != kNone && terminates(x.kids[3]));
       case N::Block: for (std::uint32_t k : x.kids) if (terminates(k)) return true; return false;
       case N::If: return x.kids[2] != kNone && terminates(x.kids[1]) && terminates(x.kids[2]);
@@ -4331,7 +4349,7 @@ struct Checker {
         if (curRet == kInferRet) {  // a lambda without a return type: the first return decides, the others must fit
           if (x.kids[0] == kNone) { if (inferredRet == kNoType) inferredRet = tVoid; break; }
           TypeId rt = expr(x.kids[0]);
-          if (inferredRet == kNoType) inferredRet = rt;
+          if (inferredRet == kNoType || inferredRet == tNever) inferredRet = rt;
           else if (!bad(rt) && !bad(inferredRet) && !assignable(rt, inferredRet, x.kids[0]) && (rt == tNull || inferredRet == tNull || (ty(rt).k == TK::Object && ty(inferredRet).k == TK::Object) || ty(inferredRet).k == TK::Union || (ty(rt).k == TK::Union && hasNull(rt)))) inferredRet = unionOf({inferredRet, rt});  // null and an object, several objects, or a value then the same or null (`return c ? x : null`): their union
           else require(rt, inferredRet, x.kids[0]);
           break;
@@ -4744,11 +4762,13 @@ struct Checker {
     bool anyUndef = undef, plainNull = false;
     for (TypeId m : ms) {
       if (bad(m)) return tError;
+      if (m == tNever) continue;
       if (ty(m).k == TK::Union) { anyUndef = anyUndef || ty(m).undef; for (TypeId k : ty(m).params) flat.push_back(k); }
       else { if (m == tNull) plainNull = true; flat.push_back(m); }
     }
     std::sort(flat.begin(), flat.end());
     flat.erase(std::unique(flat.begin(), flat.end()), flat.end());
+    if (flat.empty()) return tNever;
     if (flat.size() == 1) return flat[0];
     Type t; t.k = TK::Union; t.params = std::move(flat);
     t.undef = anyUndef && !(plainNull && !undef) && std::find(t.params.begin(), t.params.end(), tNull) != t.params.end();
@@ -6732,7 +6752,9 @@ const Member* lookupMember(const Checked& c, std::uint32_t obj, std::string_view
 bool fewerParams(const Checked& c, TypeId impl, TypeId want) {
   if (impl == want || impl == kNoType || want == kNoType) return false;
   const Type &f = c.types[impl], &t = c.types[want];
-  if (f.k != TK::Func || t.k != TK::Func || f.variadic || t.variadic || f.rest || t.rest || f.params.size() >= t.params.size() || f.elem != t.elem) return false;
+  if (f.k != TK::Func || t.k != TK::Func || f.variadic || t.variadic || f.rest || t.rest || f.params.size() > t.params.size()) return false;
+  const bool neverReturn = f.elem != t.elem && c.types[f.elem].k == TK::Never;
+  if ((f.elem != t.elem && !neverReturn) || (f.params.size() == t.params.size() && !neverReturn) || (neverReturn && f.minArgs > t.minArgs)) return false;
   for (std::size_t k = 0; k < f.params.size(); ++k) if (f.params[k] != t.params[k]) return false;
   return true;
 }
@@ -6815,6 +6837,7 @@ std::string typeName(const Checked& c, TypeId t) {
     case TK::Bool: return "boolean";
     case TK::Str: return "string";
     case TK::Void: return "void";
+    case TK::Never: return "never";
     case TK::Null: return "null";
     case TK::Array: return typeName(c, x.elem) + "[]";
     case TK::Map: return "Map<" + typeName(c, x.params[0]) + ", " + typeName(c, x.elem) + ">";

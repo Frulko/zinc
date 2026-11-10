@@ -347,6 +347,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### Fixed
 
+- Throwing functions annotated `never` now compile on the interpreter and native engine, including closures and methods; calls preserve caught errors and `finally` blocks.
+
 - Method parameter defaults read the correct `this` and earlier arguments, including nested calls and explicit `undefined`; arguments run in the usual order.
 
 - Array callbacks and collection methods work after an optional chain, preserving single evaluation and skipping arguments when the receiver is absent.

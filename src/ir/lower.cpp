@@ -136,6 +136,7 @@ struct Lowering {
 
   static std::string mkey(std::uint32_t obj, std::string_view name) { return std::to_string(obj) + ":" + std::string(name); }
 
+  std::uint32_t neverStorage = kNil;
   TypeId irType(frontend::TypeId t, std::uint32_t at = kNil) {
     const frontend::Type& x = c.types[t];
     switch (x.k) {
@@ -143,6 +144,12 @@ struct Lowering {
       case frontend::TK::Bool: return m.boolT();
       case frontend::TK::Str: return m.strT();
       case frontend::TK::Void: return m.voidT();
+      case frontend::TK::Never:  // a slot for uninhabited fields/parameters, never an object a program can construct
+        if (neverStorage == kNil) {
+          neverStorage = static_cast<std::uint32_t>(m.classes.size());
+          Class cl; cl.name = "__Never"; m.classes.push_back(std::move(cl));
+        }
+        return m.refT(neverStorage);
       case frontend::TK::Array: return m.arrayT(irType(x.elem, at));
       case frontend::TK::Set: return m.setT(irType(x.elem, at));
       case frontend::TK::Map: return m.mapT(irType(x.params[0], at), irType(x.elem, at));
@@ -206,6 +213,10 @@ struct Lowering {
     return m.voidT();
   }
 
+  TypeId irReturnType(frontend::TypeId t, std::uint32_t at = kNil) {
+    return c.types[t].k == frontend::TK::Never ? m.voidT() : irType(t, at);
+  }
+
   std::uint32_t internStr(const std::string& s) {
     auto it = stringIds.find(s);
     if (it != stringIds.end()) return it->second;
@@ -240,7 +251,7 @@ struct Lowering {
     Selector s;
     s.name = name;
     for (frontend::TypeId p : c.types[ft].params) s.params.push_back(irType(p));
-    s.ret = irType(c.types[ft].elem);
+    s.ret = irReturnType(c.types[ft].elem);
     m.selectors.push_back(std::move(s));
     return selectorIds[key] = static_cast<std::uint32_t>(m.selectors.size() - 1);
   }
@@ -261,6 +272,10 @@ struct Lowering {
       std::uint32_t fn = resolveMethod(k, name);
       if (fn == kNil) return false;
       if (const frontend::Member* rm = frontend::lookupMember(c, recvObj, name, false); rm && c.types[rm->type].k == frontend::TK::Func && m.functions[fn].params.size() != c.types[rm->type].params.size() + 1) return false;   // an implementation that ignores trailing arguments is called through its adapter
+      if (const frontend::Member* rm = frontend::lookupMember(c, recvObj, name, false); rm && c.types[rm->type].k == frontend::TK::Func) {
+        const frontend::TK ret = c.types[c.types[rm->type].elem].k;
+        if (m.types[m.functions[fn].ret].k == Type::K::Void && ret != frontend::TK::Void && ret != frontend::TK::Never) return false;  // keep the never-to-value adapter
+      }
       if (found != kNil && found != fn) return false;
       found = fn;
     }
@@ -416,8 +431,7 @@ struct Lowering {
     f.blocks[0].insts.push_back(std::move(ret));
     return fn;
   }
-  // A vtable entry for a method that takes fewer parameters than its selector (an implementation or override that ignores trailing arguments):
-  // it receives them all and calls `target` with the first ones.
+  // A vtable entry for ignored trailing arguments or a never-returning implementation of a valued method.
   std::uint32_t arityAdapter(std::uint32_t cls, std::uint32_t target, const Selector& s) {
     std::vector<TypeId> ps{m.refT(cls)};
     ps.insert(ps.end(), s.params.begin(), s.params.end());
@@ -439,9 +453,11 @@ struct Lowering {
       args.push_back(f.valueTypes[f.params[k]] == want ? f.params[k] : add(IrOp::RefCast, want, {f.params[k]}, 0));
     }
     const ValueId r = add(IrOp::Call, tf.ret, args, target);
+    const auto node = nodeOfFunc.find(target);
+    const bool never = node != nodeOfFunc.end() && c.types[c.types[c.nodeType[node->second]].elem].k == frontend::TK::Never;
     Inst ret;
-    ret.op = IrOp::Ret; ret.ty = m.voidT();
-    if (m.types[s.ret].k != Type::K::Void) ret.args = {r};
+    ret.op = never ? IrOp::Unreachable : IrOp::Ret; ret.ty = m.voidT();
+    if (!never && m.types[s.ret].k != Type::K::Void) ret.args = {r};
     f.blocks[0].insts.push_back(std::move(ret));
     return fn;
   }
@@ -507,7 +523,7 @@ struct Lowering {
       for (std::uint32_t sel : std::vector<std::uint32_t>(m.classes[cls].selectors)) {
         const Selector s = m.selectors[sel];
         std::uint32_t fn = resolveMethod(o, s.name);
-        if (fn != kNil && m.functions[fn].params.size() < s.params.size() + 1) fn = arityAdapter(cls, fn, s);
+        if (fn != kNil && (m.functions[fn].params.size() < s.params.size() + 1 || m.functions[fn].ret != s.ret)) fn = arityAdapter(cls, fn, s);
         const bool set = s.name.rfind("__set_", 0) == 0;
         if (fn == kNil) fn = set ? accessor(o, cls, s.name.substr(6), true, s.params.empty() ? s.ret : s.params[0]) : accessor(o, cls, s.name, false, s.ret);
         m.classes[cls].vtable[sel] = fn;
@@ -587,7 +603,7 @@ struct Lowering {
   frontend::TypeId fnRep(frontend::TypeId ft) {
     const frontend::Type& t = c.types[ft];
     if (t.k != frontend::TK::Func) return ft;
-    std::string shape = std::to_string(irType(t.elem)) + (t.variadic ? "v" : "") + (t.rest ? "r" : "");   // the IR's types: `null | P` and `P | null` are one
+    std::string shape = std::to_string(irReturnType(t.elem)) + (t.variadic ? "v" : "") + (t.rest ? "r" : "");   // the IR's types: `null | P` and `P | null` are one
     for (frontend::TypeId p : t.params) shape += "," + std::to_string(irType(p));
     return fnShapes.emplace(shape, ft).first->second;
   }
@@ -748,7 +764,7 @@ struct Lowering {
       li.cls = static_cast<std::uint32_t>(m.classes.size() - 1);
       std::vector<TypeId> ps{m.refT(li.cls)};
       for (frontend::TypeId p : c.types[ftype].params) ps.push_back(irType(p, i));
-      li.fn = addFunction(m.classes[li.cls].name, ps, irType(c.types[ftype].elem, i));
+      li.fn = addFunction(m.classes[li.cls].name, ps, irReturnType(c.types[ftype].elem, i));
       funcOfNode[i] = li.fn; nodeOfFunc[li.fn] = i;
       jobs.push_back({li.fn, i, kNil, false, kNil, true});
       lambdas[i] = li;
@@ -922,7 +938,7 @@ struct Lowering {
         for (frontend::TypeId p : c.types[sig].params) ps.push_back(irType(p, s));
         auto inm = c.nodeNames.find(s);
         std::string nm = prefix + (inm != c.nodeNames.end() ? inm->second : std::string(x.text));
-        std::uint32_t fi = addFunction(nm, ps, irType(c.types[sig].elem, s));
+        std::uint32_t fi = addFunction(nm, ps, irReturnType(c.types[sig].elem, s));
         funcOfNode[s] = fi; nodeOfFunc[fi] = s;
         jobs.push_back({fi, s, kNil, false, kNil});
         if (x.kids[1] != kNil) collectFunctions(n(x.kids[1]).kids, nm + ".");
@@ -942,7 +958,7 @@ struct Lowering {
           if (!isStatic) ps.push_back(self);
           for (frontend::TypeId p : c.types[sig].params) ps.push_back(irType(p, mem));
           std::string nm = c.objs[obj].name + "." + std::string(mn.text);
-          std::uint32_t fi = addFunction(nm, ps, isCtor ? m.voidT() : irType(c.types[sig].elem, mem));
+          std::uint32_t fi = addFunction(nm, ps, isCtor ? m.voidT() : irReturnType(c.types[sig].elem, mem));
           funcOfNode[mem] = fi; nodeOfFunc[fi] = mem;
           if (isCtor) ctorOfClass[cls] = fi;
           else if (isStatic) staticFn[mkey(obj, mn.text)] = fi;
@@ -1960,7 +1976,7 @@ struct Lowering::FnLower {
         return nv;
       }
       case N::Cond: {
-        TypeId rt = natural(i);
+        TypeId rt = want != kNoValue && c.types[c.nodeType[i]].k == frontend::TK::Never ? want : natural(i);
         if (ty(rt).k == Type::K::Void && c.types[c.nodeType[i]].k == frontend::TK::Void) {  // `c ? a() : b()` of two calls that return nothing: run one of them, no value joins
           ValueId vc = exprTo(x.kids[0], m.boolT());
           BlockId vt = newBlock(), ve = newBlock(), vj = newBlock();
@@ -1998,7 +2014,16 @@ struct Lowering::FnLower {
         if (selfIt != c.selfSym.end()) writeSym(selfIt->second, o);
         return o;
       }
-      case N::Call: return call(i, x);
+      case N::Call: {
+        ValueId result = call(i, x);
+        if (c.types[c.nodeType[i]].k != frontend::TK::Never) return result;
+        terminate(IrOp::Unreachable, {}, {});  // emit retained the call's exception edge; only its normal continuation ends
+        startDead();
+        if (want == kNoValue && exprAt.size() == 1) return kNoValue;
+        ValueId dead = newValue(want == kNoValue ? natural(i) : want);
+        f.blocks[cur].params.push_back(dead);  // no predecessor can supply a never value; removed with this block
+        return dead;
+      }
       case N::New: return newObject(i, x);
       case N::Member: {
         const Node& on = n(x.kids[0]);
