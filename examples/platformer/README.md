@@ -26,9 +26,9 @@ zinc test examples/platformer --profile ps2           # the rules with the conso
 
 | File | Role |
 |---|---|
-| `src/main.ts` | the frame loop: fixed steps of 1/60 s (two at 30 fps), the title screen drifting over the level, `--log` and `--stats` |
+| `src/main.ts` | the caller-driven `zinc:game` scene: fixed steps of 1/60 s (two at 30 fps), the title screen drifting over the level, `--log` and `--stats` |
 | `src/world.ts` | the rules without drawing: the hero against the LDtk IntGrid (solid, one-way clouds, spikes), coyote time and jump buffering, walkers and flyers, coins, lives, the flag |
-| `src/render.ts` | the far layer at half speed, the front layer, the sprites, the HUD; one logical pixel is one screen pixel up to 448 lines, two above (Vita, desktop) |
+| `src/render.ts` | the far layer at half speed, the front layer, a `zinc:game` hero sprite and flag playback, the HUD; one logical pixel is one screen pixel up to 448 lines, two above (Vita, desktop) |
 | `src/input.ts`, `src/sound.ts` | the controls of one frame; the sounds played on the world's events |
 | `tests/world.test.ts` | a scripted run reaches the flag, one that never jumps loses (also with `--profile ps2`) |
 | `tools/make_assets.py` | writes the level (`assets/level.ldtk`), the two sprite sheets and the music loop; `--from` copies Kenney's files |

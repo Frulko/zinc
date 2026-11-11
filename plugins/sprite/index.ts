@@ -65,6 +65,11 @@ export class Animation {
 
   /** Its frames and mode (again, when the atlas is rebuilt). */
   set(mode: string, frames: Frame[]): void {
+    if (frames.length === 0) throw new Error('zinc:sprite: an animation needs a frame');
+    for (const frame of frames) {
+      if (!Number.isFinite(frame.duration) || frame.duration <= 0)
+        throw new Error('zinc:sprite: frame duration must be finite and positive');
+    }
     this.mode = mode; this.frames = frames; this.seq = [];
     const n = frames.length;
     if (mode === 'reverse') { for (let i = n - 1; i >= 0; i--) this.seq.push(i); }

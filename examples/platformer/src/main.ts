@@ -3,6 +3,7 @@
 // `--log` prints what happens (the test's record), `--stats` the tiles and sprites drawn and the draw commands.
 import { onFrame, commandCount, imageWidth, imageHeight } from 'zinc:gfx';
 import { atlas } from 'zinc:sprite';
+import { Scene, SceneController } from 'zinc:game';
 import { args, clock } from 'zinc:sys';
 import { load } from 'zinc:tilemap';
 import { Controls, readControls } from './input';
@@ -19,33 +20,43 @@ const logging = args().indexOf('--log') >= 0, measuring = args().indexOf('--stat
 let frames: i32 = 0, idle = 0, spent = 0, worst = 0;   // spent, worst: ms of the program's own work (--stats)
 if (measuring) for (const p of atlas('game').pages) console.log(`stats atlas page ${imageWidth(p)}x${imageHeight(p)}`);
 
-onFrame((dt: number) => {
-  const t0 = measuring ? clock() : 0;
-  readControls(controls);
-  // fixed steps: one per 1/60 s of the frame (two at 30 fps), at most four after a stall
-  const steps = Math.max(1, Math.min(4, Math.round(dt / STEP)));
-  for (let i = 0; i < steps; i++) {
-    const was = world.phase;
-    world.step(controls);
-    controls.jumpPressed = false;   // a press counts once
-    controls.start = false;
-    if (logging) for (const e of world.events) console.log(`${world.steps} ${e} x ${Math.floor(world.hero.x)} y ${Math.floor(world.hero.y)} score ${world.score} lives ${world.lives}`);
-    playSounds(world.events, world.phase);
-    if (was === Phase.Title && world.phase === Phase.Play) view.follow(world, true);
+let t0 = 0;
+class GameScene extends Scene {
+  override update(dt: number): void {
+    t0 = measuring ? clock() : 0;
+    readControls(controls);
+    // fixed steps: one per 1/60 s of the frame (two at 30 fps), at most four after a stall
+    const steps = Math.max(1, Math.min(4, Math.round(dt / STEP)));
+    for (let i = 0; i < steps; i++) {
+      const was = world.phase, previousTime = world.time;
+      world.step(controls);
+      if (world.time < previousTime) view.restartAnimations();
+      else view.updateAnimations(world.time - previousTime);
+      controls.jumpPressed = false;   // a press counts once
+      controls.start = false;
+      if (logging) for (const e of world.events) console.log(`${world.steps} ${e} x ${Math.floor(world.hero.x)} y ${Math.floor(world.hero.y)} score ${world.score} lives ${world.lives}`);
+      playSounds(world.events, world.phase);
+      if (was === Phase.Title && world.phase === Phase.Play) view.follow(world, true);
+    }
+    if (world.phase === Phase.Title) {   // the title screen drifts over the level
+      idle += dt;
+      world.hero.x = 160 + (1 - Math.cos(idle * 0.15)) * 700;
+      world.hero.facing = 1;
+    }
+    view.follow(world, frames === 0);
   }
-  if (world.phase === Phase.Title) {   // the title screen drifts over the level
-    idle += dt;
-    world.hero.x = 160 + (1 - Math.cos(idle * 0.15)) * 700;
-    world.hero.facing = 1;
+  override draw(): void {
+    draw(world, view, back, front);
+    frames++;
+    if (!measuring) return;
+    const ms = clock() - t0;
+    spent += ms; worst = Math.max(worst, ms);
+    if (frames % 60 === 0) {
+      console.log(`stats frame ${frames} tiles ${stats.tiles} sprites ${stats.sprites} commands ${commandCount()} avg_ms ${(spent / 60).toFixed(3)} max_ms ${worst.toFixed(3)}`);
+      spent = 0; worst = 0;
+    }
   }
-  view.follow(world, frames === 0);
-  draw(world, view, back, front);
-  frames++;
-  if (!measuring) return;
-  const ms = clock() - t0;
-  spent += ms; worst = Math.max(worst, ms);
-  if (frames % 60 === 0) {
-    console.log(`stats frame ${frames} tiles ${stats.tiles} sprites ${stats.sprites} commands ${commandCount()} avg_ms ${(spent / 60).toFixed(3)} max_ms ${worst.toFixed(3)}`);
-    spent = 0; worst = 0;
-  }
-});
+}
+const scene = new SceneController(new GameScene());
+scene.start();
+onFrame((dt: number) => { scene.update(dt); scene.draw(); });

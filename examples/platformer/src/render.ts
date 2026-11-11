@@ -5,6 +5,7 @@
 // Kenney's Pixel Platformer tilesheets by the asset build.
 import { clear, text, rect, width, height, setTransform, resetTransform, font, textWidth, ImageFlag } from 'zinc:gfx';
 import { atlas, Animation, Frame } from 'zinc:sprite';
+import { Playback, Sprite } from 'zinc:game';
 import { Layer } from 'zinc:tilemap';
 import { World, Phase, HERO_W, HERO_H } from './world';
 
@@ -25,6 +26,10 @@ export const stats = new Stats();
 export function pixelScale(): i32 { return height() >= 500 ? 2 : 1; }
 
 export class View {
+  flagPlayback = new Playback(flag);
+  heroSprite = new Sprite(heroIdle.frameAt(0));
+  updateAnimations(seconds: number): void { this.flagPlayback.update(seconds); }
+  restartAnimations(): void { this.flagPlayback.restart(); }
   camX = 0; camY = 0;
   w = 0; h = 0;
   /** Follows the hero, a little ahead of where it faces, inside the level. */
@@ -62,14 +67,18 @@ export function draw(world: World, view: View, back: Layer, front: Layer): void 
     if (e.kind === 'flyer') put(flyer.frameAt(e.t * 1000), fx, e.y + e.h / 2 - 12 - y, 0, view);
     else put(e.alive ? walker.frameAt(e.t * 1000) : walkerFlat, fx, e.y + e.h - 24 - y, e.vx > 0 ? MIRROR : 0, view);
   }
-  put(flag.frameAt(ms), world.goalX - x, world.goalY - y, 0, view);
+  put(view.flagPlayback.frame(), world.goalX - x, world.goalY - y, 0, view);
   put(pole, world.goalX - x, world.goalY + 18 - y, 0, view);
   const hero = world.hero;
   const blinking = hero.blink > 0 && hero.hurt <= 0 && Math.floor(hero.blink * 12) % 2 === 1;
   if (!blinking && world.phase !== Phase.Title) {
     const anim = hero.pose === 'run' ? heroRun : hero.pose === 'jump' ? heroJump : heroIdle;
-    const f = anim.frameAt(hero.anim), flags = PIXEL | (hero.facing < 0 ? MIRROR : 0);
-    f.draw(Math.round(hero.x) - 5 - x, Math.round(hero.y) - 2 - y, 0, 0, 255, flags, 0, hero.pose === 'hurt' ? HURT_TINT : 0xffffff);
+    const sprite = view.heroSprite;
+    sprite.frame = anim.frameAt(hero.anim);
+    sprite.x = Math.round(hero.x) - 5 - x; sprite.y = Math.round(hero.y) - 2 - y;
+    sprite.flags = PIXEL | (hero.facing < 0 ? MIRROR : 0);
+    sprite.tint = hero.pose === 'hurt' ? HURT_TINT : 0xffffff;
+    sprite.draw();
     stats.sprites++;
   }
   hud(world, s);

@@ -918,6 +918,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 ### Games
 
 #### New
+- `zinc:game` provides caller-driven scenes, sprite transforms and pausable animation playback, using existing sprite atlases and AOT compilation.
 - Build a village with `zinc run examples/hamlet`: roads laid by dragging with a live preview (`X` flips the corner, `R` auto-routes), houses that grow through three levels, production chains from wood and stone to bread, leather, tools, honey, candles and mead, a market, a tavern, and a campaign of goals that unlock buildings, with a peddler and adventures (`C`). Easy, Normal and Hard difficulties, and fire, collapse and theft risks with a fire post, a repair works and a watch post.
 - Hamlet has seven landscapes (Vallée, Plaine, Rivière, Lac, Forêt, Montagne, Côte, Classique) with biomes, rivers, lakes and the sea, maps up to 128 x 128 (256 x 256 in the sandbox), and seasons that change the land gradually: blossom, russet leaves, snow, frozen water, falling leaves, rain, and light that follows the hour. Land has relief: hills, plateaus, rivers in valleys and, in the Montagnes landscape, mountain ranges that hold the ore; houses need level ground, roads climb one level a tile at a higher cost, walkers slow on slopes, and nothing crosses a cliff.
 - Hamlet villagers have moods, sleep at night, stroll to the market and show their thoughts; deer, rabbits and boar live in herds, wolves can roam forest maps, and birds, ducks and fish share the scene. Villagers and carts keep to the roads: a workshop whose road does not lead to the village entrance stays idle and says so, and a store can be set to accept, refuse or only collect a good.
@@ -942,6 +943,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - Hamlet opens large maps much faster with much less memory, and panning is up to 40 % faster on the interpreter; maps of 512 tiles generate in 3 s instead of 12 s; a village of 500 people and 300 animals steps in about 1.5 ms instead of 58 ms; and carts and settlers on big maps read a cached distance map, so a 256 x 256 village with thousands of walkers no longer stalls. On maps of 192 x 192 and more, animals far from every building and from the camera rest as a count per region and reappear when you scroll or build near them.
 
 #### Fixed
+- Sprite animations report empty frame lists and invalid durations instead of returning an undefined frame.
 - Hamlet's late-winter snow lies in soft patches instead of dithered white noise; the tile view never shows a black map while the camera moves, and zooming out no longer leaves the village as a small clipped rectangle in the dark.
 - In a Hamlet city whose labour pool is under 100 %, people outside the pool no longer count as jobless, and a scarce pool staffs every workshop once before filling any twice.
 - Hamlet no longer puts trees, rocks, deposits, flowers, animals or people on the dark border of the map; saves from before drop what stood there.
