@@ -2,6 +2,7 @@
 // entries from HostSysFirst (include/zn/runtime.h). The Zinc side (the module sources of src/frontend/modules.cpp) turns the flat calls into
 // the API of lib/modules.d.ts: an error is reported with fsFailed()/fsError() and thrown there. Plain C++17, no dependency on the old runtime.
 #include "host/assets_host.h"
+#include "platform/board.h"
 #include "host/permissions.h"
 #include "zpk/zpk.h"
 #include "zrt_assets_dir.h"
@@ -257,6 +258,18 @@ bool simAnswer(const std::string& q, const std::string& a, std::string& out) {
   s->load();
   if (s->v.empty()) return false;   // the panel has not written its first state yet
   auto cap = [&](const char* k) { return s->has(std::string("can.") + k); };
+  if (q == "board") {
+    zn::board::Inventory board;
+    const std::string revision = s->get("board.revision");
+    uint32_t code = 0; std::istringstream value(revision); value >> std::hex >> code;
+    board.identity = zn::board::decode(code);
+    board.revision = revision;
+    board.identity.model = s->get("board.model", board.identity.model);
+    board.identity.soc = s->get("board.soc", board.identity.soc);
+    for (auto& c : board.caps) c.second = s->has("board." + c.first);
+    out = board.json();
+    return true;
+  }
   if (q == "battery") {
     if (!cap("battery")) { out = ""; return true; }
     if (s->has("battery.relay")) { out = desktopDevice(q, a); return true; }
@@ -399,7 +412,7 @@ std::string prop(const char* k) { char b[PROP_VALUE_MAX] = ""; __system_property
 #endif
 }  // namespace
 
-std::string deviceRecord() {
+std::string deviceRecord(bool board = false) {
   std::string type = "unknown", brand, manufacturer, modelName, modelId, designName, osName, osVer = osVersion(), osBuildId, cpus;
   double memory = 0;
   bool isDevice = true;
@@ -505,6 +518,15 @@ std::string deviceRecord() {
   std::snprintf(mem, sizeof mem, "%.0f", memory);
   // model and os: navigator.deviceInfo's two fields of before (lib/std/web.ts)
   const std::string model = !modelName.empty() ? modelName : !modelId.empty() ? modelId : std::string(u.machine);
+  if (board) {
+    zn::board::Inventory inventory = zn::board::current();
+    const char* root = getenv("ZINC_BOARD_ROOT");
+    if (!root || !*root) {
+      if (inventory.identity.model.empty()) inventory.identity.model = modelName.empty() ? modelId : modelName;
+      if (!inventory.identity.ramMB && memory > 0) inventory.identity.ramMB = static_cast<unsigned>(memory / 1048576);
+    }
+    return inventory.json();
+  }
   return "{\"type\":" + jsonText(type) + ",\"brand\":" + jsonText(brand) + ",\"manufacturer\":" + jsonText(manufacturer) + ",\"modelName\":" + jsonText(modelName) +
          ",\"modelId\":" + jsonText(modelId) + ",\"designName\":" + jsonText(designName) + ",\"osName\":" + jsonText(osName) + ",\"osVersion\":" + jsonText(osVer) +
          ",\"osBuildId\":" + jsonText(osBuildId) + ",\"totalMemory\":" + mem + ",\"cpuArchitectures\":" + arch + "],\"isDevice\":" + (isDevice ? "true" : "false") +
@@ -553,6 +575,13 @@ std::string systemAccent() {
 #endif
 }
 std::string desktopDevice(const std::string& q, const std::string& a) {
+  if (q == "board") {
+#ifndef _WIN32
+    return deviceRecord(true);
+#else
+    return zn::board::current().json();
+#endif
+  }
   if (q == "language") return systemLocale();
   if (q == "accent") return systemAccent();
   if (q == "osversion") return osVersion();

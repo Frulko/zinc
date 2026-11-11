@@ -1,0 +1,80 @@
+0002 256 BCM2835 Raspberry Pi Model B
+0003 256 BCM2835 Raspberry Pi Model B
+0004 256 BCM2835 Raspberry Pi Model B
+0005 256 BCM2835 Raspberry Pi Model B
+0006 256 BCM2835 Raspberry Pi Model B
+0007 256 BCM2835 Raspberry Pi Model A
+0008 256 BCM2835 Raspberry Pi Model A
+0009 256 BCM2835 Raspberry Pi Model A
+000d 512 BCM2835 Raspberry Pi Model B
+000e 512 BCM2835 Raspberry Pi Model B
+000f 512 BCM2835 Raspberry Pi Model B
+0010 512 BCM2835 Raspberry Pi Model B Plus
+0011 512 BCM2835 Raspberry Pi Compute Module
+0012 256 BCM2835 Raspberry Pi Model A Plus
+0013 512 BCM2835 Raspberry Pi Model B Plus
+0014 512 BCM2835 Raspberry Pi Compute Module
+0015 0 BCM2835 Raspberry Pi Model A Plus
+900021 512 BCM2835 Raspberry Pi Model A Plus
+900032 512 BCM2835 Raspberry Pi Model B Plus
+900061 512 BCM2835 Raspberry Pi Compute Module
+a01040 1024 BCM2836 Raspberry Pi 2 Model B
+a01041 1024 BCM2836 Raspberry Pi 2 Model B
+a21041 1024 BCM2836 Raspberry Pi 2 Model B
+a02042 1024 BCM2837 Raspberry Pi 2 Model B
+a22042 1024 BCM2837 Raspberry Pi 2 Model B
+a02082 1024 BCM2837 Raspberry Pi 3 Model B
+a22082 1024 BCM2837 Raspberry Pi 3 Model B
+a32082 1024 BCM2837 Raspberry Pi 3 Model B
+a52082 1024 BCM2837 Raspberry Pi 3 Model B
+a22083 1024 BCM2837 Raspberry Pi 3 Model B
+900092 512 BCM2835 Raspberry Pi Zero
+920092 512 BCM2835 Raspberry Pi Zero
+900093 512 BCM2835 Raspberry Pi Zero
+920093 512 BCM2835 Raspberry Pi Zero
+a020a0 1024 BCM2837 Raspberry Pi Compute Module 3
+a220a0 1024 BCM2837 Raspberry Pi Compute Module 3
+9000c1 512 BCM2835 Raspberry Pi Zero W
+a020d3 1024 BCM2837 Raspberry Pi 3 Model B Plus
+a020d4 1024 BCM2837 Raspberry Pi 3 Model B Plus
+9020e0 512 BCM2837 Raspberry Pi 3 Model A Plus
+9020e1 512 BCM2837 Raspberry Pi 3 Model A Plus
+a02100 1024 BCM2837 Raspberry Pi Compute Module 3 Plus
+a03111 1024 BCM2711 Raspberry Pi 4 Model B
+a03140 1024 BCM2711 Raspberry Pi Compute Module 4
+b03111 2048 BCM2711 Raspberry Pi 4 Model B
+b03112 2048 BCM2711 Raspberry Pi 4 Model B
+b03114 2048 BCM2711 Raspberry Pi 4 Model B
+b03115 2048 BCM2711 Raspberry Pi 4 Model B
+c03111 4096 BCM2711 Raspberry Pi 4 Model B
+c03112 4096 BCM2711 Raspberry Pi 4 Model B
+c03114 4096 BCM2711 Raspberry Pi 4 Model B
+c03115 4096 BCM2711 Raspberry Pi 4 Model B
+d03114 8192 BCM2711 Raspberry Pi 4 Model B
+d03115 8192 BCM2711 Raspberry Pi 4 Model B
+902120 512 BCM2837 Raspberry Pi Zero 2 W
+c03130 4096 BCM2711 Raspberry Pi 400
+a03140 1024 BCM2711 Raspberry Pi Compute Module 4
+b03140 2048 BCM2711 Raspberry Pi Compute Module 4
+c03140 4096 BCM2711 Raspberry Pi Compute Module 4
+d03140 8192 BCM2711 Raspberry Pi Compute Module 4
+a04170 1024 BCM2712 Raspberry Pi 5
+a04171 1024 BCM2712 Raspberry Pi 5
+b04170 2048 BCM2712 Raspberry Pi 5
+b04171 2048 BCM2712 Raspberry Pi 5
+c04170 4096 BCM2712 Raspberry Pi 5
+c04171 4096 BCM2712 Raspberry Pi 5
+d04170 8192 BCM2712 Raspberry Pi 5
+d04171 8192 BCM2712 Raspberry Pi 5
+e04170 16384 BCM2712 Raspberry Pi 5
+e04171 16384 BCM2712 Raspberry Pi 5
+b04180 2048 BCM2712 Raspberry Pi Compute Module 5
+c04180 4096 BCM2712 Raspberry Pi Compute Module 5
+d04180 8192 BCM2712 Raspberry Pi Compute Module 5
+e04180 16384 BCM2712 Raspberry Pi Compute Module 5
+d04190 8192 BCM2712 Raspberry Pi 500
+e04190 16384 BCM2712 Raspberry Pi 500+
+b041a0 2048 BCM2712 Raspberry Pi Compute Module 5 Lite
+c041a0 4096 BCM2712 Raspberry Pi Compute Module 5 Lite
+d041a0 8192 BCM2712 Raspberry Pi Compute Module 5 Lite
+e041a0 16384 BCM2712 Raspberry Pi Compute Module 5 Lite

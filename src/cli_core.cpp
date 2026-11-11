@@ -38,6 +38,7 @@
 #include "qrcodegen.h"
 
 #include "platform/platform.h"
+#include "platform/board.h"
 #include "platform/socket.h"
 #ifdef _WIN32
 #include <process.h>   // getpid
@@ -925,6 +926,7 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
 namespace {
 int doctorDetails(const std::string& engineRoot, const std::string& rendererLines, const std::string& version) {
   std::printf("zinc-next %s\nengine files: %s\n\nthis machine\n", version.c_str(), engineRoot.c_str());
+  std::printf("%s", zn::board::current().summary().c_str());
   std::istringstream is(rendererLines);
   std::string line;
   while (std::getline(is, line)) std::printf("  %s\n", line.c_str());
@@ -1092,6 +1094,7 @@ int doctor(const std::string& engineRoot, const std::string& rendererLines, bool
   else if (!up.empty() && up[0] == '?') line("info", tr("cli.doctor.updates"), up.substr(1));
   else if (!up.empty()) { line("warn", tr("cli.doctor.update", {{"version", up}}), tr("cli.doctor.update_this", {{"version", version}})); fix("a-newer-zinc-on-" + os); const std::string how = zn::tc::updateHow();
     todo.push_back(how == "run zinc update" ? tr("cli.doctor.todo.update", {{"command", P.cmd("zinc update")}, {"rollback", P.cmd("zinc update --rollback")}}) : tr("cli.doctor.todo.update_how", {{"how", how}})); }
+  line("info", "Board (observed hardware; profile " + profile + ")", zn::board::current().summary());
   line("ok", tr("cli.doctor.window"), tr("cli.doctor.window.note") + (gpu.empty() ? std::string() : "; GPU " + gpu) + (tier.empty() ? std::string() : ", tier " + tier) + (renderer.empty() ? std::string() : ", renderer " + renderer));
   for (const zn::tc::PinnedTool& t : zn::tc::pinnedTools()) {
     if (t.name == "zig") line(t.present ? "ok" : "info", tr("cli.doctor.zig", {{"tool", t.name + " " + t.version}}), tr(t.present ? "cli.doctor.tool_ready" : "cli.doctor.zig.later"));
