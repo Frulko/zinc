@@ -4,8 +4,7 @@ title: >-
   WebGL clears what the GL driver leaves undefined: copies outside the
   framebuffer, new renderbuffers
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 22:03'
 updated_date: '2026-11-11 23:43'
 labels:

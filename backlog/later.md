@@ -997,3 +997,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-725: measure indexedfringes onactualPi atbandclock andattribute stalls beforedefaultdecision; currentMacstructuralupload reduction57.4%, no FPSclaim.
 
 - ZN-1118: Windows atomic Job assignment before execution and native descendant/owner-close/leader-exit/restart proof when a Windows test machine is available.
+
+- ZN-701: Measure cost of explicit WebGL initialization on large texture/renderbuffer allocations before choosing GPU clear acceleration; bounded CPU staging is proven, timing is not.
