@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated535 e12851c0c BacklogAC1/4; rootexactboard PASS(session72430), sourcebundle archived57. Worker reportsall3/doctor/simulator pass; rawworkerlogs accidentallylost during cleanup after mixedownerchangelog comparison, recorded archiveROOT-PROOF. No source loss. Platformreexport/doctor--target/actualPi remainopen; SSHsignaturerefused/noQEMU.
+
 - Reserve535 independent board identity/capability probe alongside672 wasm. Primary research already returned; reuse deviceRecord and runtime bridge, no compile-host constants. No QEMU (owner rule); literal machine criteria remain open until actual proof.
 
 - 573 released and archived with source bundle/proof (56 checkpoints). Fresh native worker work/672 active from819bbea6b, all commands confined to its tree.
