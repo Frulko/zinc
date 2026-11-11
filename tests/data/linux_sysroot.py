@@ -119,8 +119,10 @@ with tempfile.TemporaryDirectory(prefix="zinc-sysroot-test-") as tmp:
     archive.write_bytes(good)
     # Two installers race through the same actual flock and recheck after acquiring it.
     runner = tmp / "install.py"
-    runner.write_text("import importlib.machinery
-import importlib.util\nm=importlib.machinery.SourceFileLoader('s', 'tools/linux-sysroot').load_module()\n"
+    runner.write_text("import importlib.machinery, importlib.util, sys\n"
+                      "loader=importlib.machinery.SourceFileLoader('s', 'tools/linux-sysroot')\n"
+                      "spec=importlib.util.spec_from_loader(loader.name, loader)\n"
+                      "m=importlib.util.module_from_spec(spec)\nsys.modules[loader.name]=m\nloader.exec_module(m)\n"
                       + "m.LOCK=" + repr(str(lock)) + "\nm.install('armhf', " + repr(str(home)) + ")\n")
     jobs = [subprocess.Popen([sys.executable, str(runner)], stdout=subprocess.DEVNULL) for _ in range(2)]
     assert all(job.wait(timeout=10) == 0 for job in jobs)
