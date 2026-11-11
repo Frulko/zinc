@@ -801,6 +801,7 @@
     {"paths": ["lib/std/kit/extended.tsx", "lib/std/kit/extended-model.ts", "plugins/system/core.ts", "plugins/system/subscriptions.ts", "plugins/system/index.ts", "tests/data/kit_extended/", "tests/t0/kit_extended.sh"], "tests": ["kit_extended"]},
     {"paths": ["plugins/system/native/system.host.cpp", "tests/native/system_drop.cpp", "tests/t0/system_drop_scope.sh"], "tests": ["system_drop_scope"]},
     {"paths": ["lib/std/kit/media.tsx", "lib/std/kit/media-model.ts", "lib/std/kit/imageviewer.ts", "lib/std/kit/tooltip.ts", "tests/data/kit_media/", "tests/t0/kit_media.sh"], "tests": ["kit_media"]},
-    {"paths": ["runtime/gfx.cpp", "tests/t0/framehash_corner.sh", "tests/data/framehash_corner/"], "tests": ["framehash_corner"]}
+    {"paths": ["runtime/gfx.cpp", "tests/t0/framehash_corner.sh", "tests/data/framehash_corner/"], "tests": ["framehash_corner"]},
+    {"paths": ["targets/wasm/glue/worker.mjs", "targets/wasm/image_info_web.cpp", "tests/wasm/images.mjs", "tests/t0/wasm_images.sh"], "tests": ["wasm_images"]}
   ]
 }

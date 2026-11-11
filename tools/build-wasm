@@ -35,23 +35,23 @@ fi
 
 out=${1:-build-wasm/vm.wasm}; obj=$(dirname "$out")/obj; mkdir -p "$obj"
 web=$(dirname "$out")/vm-web.wasm
-FLAGS="-target wasm32-wasi -std=c++20 -O2 -DZN_NO_MIMALLOC -D_WASI_EMULATED_MMAN -fwrapv -ffp-contract=off -Iinclude -Isrc -Ithird_party/quickjs-ng -Ithird_party/ieee754 -Ithird_party/sha256 -Ithird_party/lz4 -Ithird_party/zstd -Ithird_party/basis_universal/transcoder -w"
+FLAGS="-target wasm32-wasi -std=c++20 -O2 -DZN_NO_MIMALLOC -D_WASI_EMULATED_MMAN -fwrapv -ffp-contract=off -Iinclude -Isrc -Ithird_party/quickjs-ng -Ithird_party/ieee754 -Ithird_party/sha256 -Ithird_party/lz4 -Ithird_party/zstd -Ithird_party/basis_universal/transcoder -Ithird_party/stb -Ithird_party/libwebp/src -w"
 objs=""
-for f in src/rt/alloc.cpp src/rt/machine.cpp src/rt/program.cpp targets/wasm/worker_none.cpp src/rt/rtcalls.cpp src/rt/unicode.cpp src/rt/jsmath.cpp third_party/ieee754/src/base/ieee754.cc src/zbc/zbc.cpp src/vm/vm.cpp targets/wasm/vm_main.cpp targets/wasm/web_main.cpp targets/wasm/host_gfx_web.cpp targets/wasm/assets_web.cpp targets/wasm/ktx2_web.cpp src/zpk/zpk.cpp third_party/basis_universal/transcoder/basisu_transcoder.cpp targets/wasm/stubs.cpp targets/wasm/host_wasi.cpp; do
+for f in src/rt/alloc.cpp src/rt/machine.cpp src/rt/program.cpp targets/wasm/worker_none.cpp src/rt/rtcalls.cpp src/rt/unicode.cpp src/rt/jsmath.cpp third_party/ieee754/src/base/ieee754.cc src/zbc/zbc.cpp src/vm/vm.cpp targets/wasm/vm_main.cpp targets/wasm/web_main.cpp targets/wasm/host_gfx_web.cpp targets/wasm/assets_web.cpp targets/wasm/image_info_web.cpp targets/wasm/ktx2_web.cpp src/zpk/zpk.cpp third_party/basis_universal/transcoder/basisu_transcoder.cpp targets/wasm/stubs.cpp targets/wasm/host_wasi.cpp; do
   o="$obj/$(echo "$f" | tr / _).o"; objs="$objs $o"
-  stale=0; [ "$o" -nt "$f" ] && [ "$o" -nt tools/build-wasm ] || stale=1; [ -n "$(find include src/rt src/zbc src/vm src/ir src/zpk targets/wasm third_party/basis_universal -name '*.h' -newer "$o" 2>/dev/null | head -1)" ] && stale=1   # headers count: the runtime table lives in one
+  stale=0; [ "$o" -nt "$f" ] && [ "$o" -nt tools/build-wasm ] || stale=1; [ -n "$(find include src/rt src/zbc src/vm src/ir src/zpk targets/wasm third_party/basis_universal third_party/stb third_party/libwebp -name '*.h' -newer "$o" 2>/dev/null | head -1)" ] && stale=1   # headers count: the runtime table lives in one
   [ $stale = 0 ] || "$Z" c++ $FLAGS -c "$f" -o "$o" || exit 1
 done
-for f in third_party/core-math/pow.c third_party/quickjs-ng/libunicode.c third_party/quickjs-ng/cutils.c third_party/sha256/sha256.c third_party/lz4/lz4.c third_party/zstd/common/*.c third_party/zstd/decompress/*.c; do
+for f in third_party/libwebp/src/dec/webp_dec.c third_party/libwebp/src/dec/vp8_dec.c third_party/libwebp/src/dec/vp8l_dec.c third_party/libwebp/src/utils/bit_reader_utils.c third_party/core-math/pow.c third_party/quickjs-ng/libunicode.c third_party/quickjs-ng/cutils.c third_party/sha256/sha256.c third_party/lz4/lz4.c third_party/zstd/common/*.c third_party/zstd/decompress/*.c; do
   [ -f "$f" ] || continue
   o="$obj/$(echo "$f" | tr / _).o"; objs="$objs $o"
   stale=0; [ "$o" -nt "$f" ] && [ "$o" -nt tools/build-wasm ] || stale=1
-  [ -z "$(find targets/wasm/math_fenv.h third_party/core-math third_party/quickjs-ng third_party/zstd third_party/lz4 third_party/sha256 -name '*.h' -newer "$o" 2>/dev/null | head -1)" ] || stale=1
-  [ $stale = 0 ] || "$Z" cc -target wasm32-wasi -O2 -w -include targets/wasm/math_fenv.h -D_WASI_EMULATED_MMAN -DZSTD_DISABLE_ASM -DZSTD_MULTITHREAD=0 -Ithird_party/quickjs-ng -Ithird_party/zstd -Ithird_party/zstd/common -c "$f" -o "$o" || exit 1
+  [ -z "$(find targets/wasm/math_fenv.h third_party/core-math third_party/quickjs-ng third_party/zstd third_party/lz4 third_party/sha256 third_party/libwebp -name '*.h' -newer "$o" 2>/dev/null | head -1)" ] || stale=1
+  [ $stale = 0 ] || "$Z" cc -target wasm32-wasi -O2 -w -include targets/wasm/math_fenv.h -D_WASI_EMULATED_MMAN -DZSTD_DISABLE_ASM -DZSTD_MULTITHREAD=0 -Ithird_party/quickjs-ng -Ithird_party/zstd -Ithird_party/zstd/common -Ithird_party/libwebp -c "$f" -o "$o" || exit 1
 done
-shared=""; for o in $objs; do case "$o" in *vm_main*|*web_main*|*host_gfx_web*|*assets_web*|*ktx2_web*|*zpk*|*basisu*|*sha256*|*lz4*|*zstd*) ;; *) shared="$shared $o";; esac; done
+shared=""; for o in $objs; do case "$o" in *vm_main*|*web_main*|*host_gfx_web*|*assets_web*|*image_info_web*|*libwebp*|*ktx2_web*|*zpk*|*basisu*|*sha256*|*lz4*|*zstd*) ;; *) shared="$shared $o";; esac; done
 "$Z" c++ -target wasm32-wasi -O2 $shared "$obj/targets_wasm_vm_main.cpp.o" -lwasi-emulated-mman -s -o "$out" || exit 1   # -s: no DWARF, 0.6 MB instead of 6.4 (ZN-774.29)
-assets=""; for o in $objs; do case "$o" in *assets_web*|*zpk*|*sha256*|*lz4*|*zstd*) assets="$assets $o";; esac; done
+assets=""; for o in $objs; do case "$o" in *assets_web*|*image_info_web*|*libwebp*|*zpk*|*sha256*|*lz4*|*zstd*) assets="$assets $o";; esac; done
 # the browser build: a reactor (no _start), zn_run and the graphics import (glue/worker.mjs)
 "$Z" c++ -target wasm32-wasi -O2 -mexec-model=reactor $shared $assets "$obj/targets_wasm_web_main.cpp.o" "$obj/targets_wasm_host_gfx_web.cpp.o" -lwasi-emulated-mman -s -o "$web" || exit 1
 textures=""; for o in $objs; do case "$o" in *ktx2_web*|*basisu*|*zstd*|*targets_wasm_stubs*) textures="$textures $o";; esac; done

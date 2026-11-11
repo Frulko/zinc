@@ -2299,18 +2299,43 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
   yyjson_mut_obj_add_int(manifest, mr, "version", 1);
   yyjson_mut_obj_add_uint(manifest, mr, "ramBudget", ramBudget);
   yyjson_mut_val* packs = yyjson_mut_obj_add_arr(manifest, mr, "packs");
+  yyjson_mut_val* originals = yyjson_mut_obj_add_obj(manifest, mr, "originals");
   bool ktx2 = false;
   const fs::path cooked = fs::path(p.dir) / "build" / "assets" / "wasm";
   const bool haveAssets = fs::is_directory(fs::path(p.dir) / (haveProj ? proj.assets.dir : "assets"), ec) || (haveProj && splashFor(proj, p.dir, "wasm").on);
   if (haveAssets && fs::is_directory(cooked, ec)) for (const auto& f : fs::directory_iterator(cooked)) {
     if (f.path().extension() != ".zpk") continue;
     std::ifstream input(f.path(), std::ios::binary);
-    const std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     zn::zpk::Reader reader; std::string error;
     if (!reader.open(bytes.data(), bytes.size(), error)) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: %s\n", error.c_str()); return 1; }
+    // Keep only imported images' original files for readBytes; cooked pixels are not the file's bytes.
+    std::vector<zn::zpk::Input> entriesWithOriginals;
+    const fs::path assetRoot = fs::weakly_canonical(fs::path(p.dir) / (haveProj ? proj.assets.dir : "assets"));
+    for (std::size_t i = 0; i < reader.count(); ++i) {
+      const auto e = reader.entry(i);
+      zn::zpk::Input copy; copy.name = std::string(e.name); copy.group = e.group; copy.kind = e.kind; copy.codec = e.codec;
+      if (!reader.read(i, copy.data, error)) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: %s\n", error.c_str()); return 1; }
+      entriesWithOriginals.push_back(std::move(copy));
+      if (e.kind != zn::assets::Image) continue;
+      const fs::path source = fs::weakly_canonical(assetRoot / std::string(e.name), ec);
+      const fs::path rel = source.lexically_relative(assetRoot);
+      if (ec || rel.empty() || *rel.begin() == ".." || !fs::is_regular_file(source, ec)) continue; // atlas pages and generated images have no original file
+      const std::string name = "__zinc_original__/" + std::string(e.name);
+      if (reader.find(name) >= 0) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: reserved asset name %s\n", name.c_str()); return 1; }
+      std::ifstream original(source, std::ios::binary);
+      if (!original) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: cannot read %s\n", source.string().c_str()); return 1; }
+      zn::zpk::Input raw; raw.name = name; raw.group = e.group; raw.codec = zn::zpk::Codec::Zstd;
+      raw.data.assign(std::istreambuf_iterator<char>(original), std::istreambuf_iterator<char>());
+      entriesWithOriginals.push_back(std::move(raw));
+      yyjson_mut_obj_add(originals, yyjson_mut_strncpy(manifest, e.name.data(), e.name.size()), yyjson_mut_strcpy(manifest, name.c_str()));
+    }
+    std::string withOriginals;
+    if (!zn::zpk::write(std::move(entriesWithOriginals), {}, withOriginals, error)) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: %s\n", error.c_str()); return 1; }
+    bytes = std::move(withOriginals);
+    if (!reader.open(bytes.data(), bytes.size(), error)) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: %s\n", error.c_str()); return 1; }
     const std::string group = f.path().stem().string(), sha = zn::tc::sha256Hex(bytes), file = sha + ".zpk";
-    fs::copy_file(f.path(), out / file, fs::copy_options::overwrite_existing, ec);
-    if (ec) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: %s\n", ec.message().c_str()); return 1; }
+    if (!writeFile(out / file, bytes)) { yyjson_mut_doc_free(manifest); std::fprintf(stderr, "zinc export: cannot write %s\n", file.c_str()); return 1; }
     yyjson_mut_val* pack = yyjson_mut_arr_add_obj(manifest, packs);
     yyjson_mut_obj_add_strcpy(manifest, pack, "group", group.c_str());
     yyjson_mut_obj_add_strcpy(manifest, pack, "file", file.c_str());

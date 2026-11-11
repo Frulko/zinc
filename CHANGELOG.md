@@ -42,6 +42,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Wasm exports compile while downloading, show an inline loading screen, and fetch asset groups from a content cache. KTX2 textures decode in a worker, with the texture decoder downloaded only when needed.
 
+#### Fixed
+
+- Wasm exports decode image bytes, update runtime images, and draw render targets. `readBytes()` returns original imported image files alongside cooked textures.
+
 ### Rendering and performance
 
 #### New

@@ -1,8 +1,8 @@
 // The interpreter and the program in a worker (ZN-135): zinc:gfx draws on an OffscreenCanvas, the page's frame ticks and input arrive in a SharedArrayBuffer (Int32Array):
 // [0] frame tick counter, [1] pointer x * 16, [2] pointer y * 16, [3] pointer down, [4] button bit mask (Btn: Up Down Left Right A B X Y L R Start Select), [5] quit.
-// The runtime's frame loop blocks in gfxPoll (Atomics.wait) until the next tick, so no asyncify is needed. Needs cross-origin isolation (COOP/COEP) for the SharedArrayBuffer.
-// Without a SharedArrayBuffer (D242, ZN-774.30) the worker uses JSPI instead: zn.gfx is a WebAssembly.Suspending import that returns a promise for
-// gfxPoll only, which resolves on the worker's next animation frame, and zn_run is called through WebAssembly.promising; the page posts the input
+// SharedArrayBuffer needs cross-origin isolation (COOP/COEP). The fallback frame loop blocks in gfxPoll (Atomics.wait) until the next tick.
+// With JSPI (D242, ZN-774.30), zn.gfx is a WebAssembly.Suspending import: gfxPoll resolves on the next animation frame,
+// asset loads and image decoding resolve when ready, and zn_run is called through WebAssembly.promising; the page posts the input
 // ({ input: { x, y, down, bits } }, { quit: true }) as messages, which arrive while the program waits. `frames` stops the program after n frames.
 // No cross-origin isolation then; Chrome and Edge 137+ (WebAssembly.Suspending).
 import { wasiImports } from './wasi.mjs';
@@ -43,12 +43,59 @@ self.onmessage = async (e) => {
 };
 async function start(e) {
   const { wasm, zbc, res, canvas, sab, manifest, base = new URL('.', self.location.href).href, frames: maxFrames = 0 } = e.data;
-  const jspi = !sab || !!manifest?.packs?.length;
-  if (jspi && typeof WebAssembly.Suspending !== 'function') throw new Error('lazy asset packs need WebAssembly JSPI (Chrome/Edge 137 or newer)');
+  const jspi = typeof WebAssembly.Suspending === 'function' || !sab || !!manifest?.packs?.length;
+  if (jspi && typeof WebAssembly.Suspending !== 'function') throw new Error('wasm images and asset packs need WebAssembly JSPI (Chrome/Edge 137 or newer)');
   const images = bakedImages(res);
   const textures = new TextureDecoder(new URL('ktx2.wasm', base).href);
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
+  let ctx = canvas.getContext('2d');
+  let W = canvas.width, H = canvas.height;
+  const page = { ctx, w: W, h: H };
+  const Target = Object.freeze({ Page: 0, Image: 1 });
+  let target = Target.Page, targetId = -1, clipDepth = 0;
+  const sizeOK = (w, h) => Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0 && w <= 16384 && h <= 16384 && w * h <= 16777216;
+  function newImage(w, h) {
+    if (!sizeOK(w, h) || images.length >= 0x7fffffff) return -1;
+    try {
+      const c = new OffscreenCanvas(w, h), id = images.length;
+      images.push({ canvas: c, k: 1, w, h, dynamic: true }); return id;
+    } catch { return -1; }
+  }
+  function updateImage(id, bytes) {
+    const im = images[id];
+    if (!im?.dynamic || bytes.length < im.w * im.h * 4) return;
+    im.canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(bytes.slice(0, im.w * im.h * 4)), im.w, im.h), 0, 0);
+  }
+  function switchTarget(next, id = -1) {
+    if (next === Target.Image) {
+      const im = images[id];
+      if (target !== Target.Page || !im?.dynamic) return;
+      page.clipDepth = clipDepth; clipDepth = 0;
+      const transform = ctx.getTransform();
+      target = next; targetId = id; ctx = im.canvas.getContext('2d'); W = im.w; H = im.h; ctx.save(); ctx.setTransform(transform);
+    } else {
+      if (target !== Target.Image) return;
+      while (clipDepth > 0) { ctx.restore(); clipDepth--; }
+      ctx.restore();
+      clipDepth = page.clipDepth || 0; target = next; targetId = -1; ctx = page.ctx; W = page.w; H = page.h;
+    }
+  }
+  async function decodeImage(bytes) {
+    if (!jspi || !bytes.length || bytes.length > 67108864) return -1;
+    const p = ex.zn_alloc(bytes.length);
+    if (!p) return -1;
+    try {
+      new Uint8Array(memory.buffer, p, bytes.length).set(bytes);
+      if (!ex.zn_image_size_ok(p, bytes.length)) return -1;
+    } finally { ex.zn_free(p); }
+    let bitmap, id = -1;
+    try {
+      bitmap = await createImageBitmap(new Blob([bytes]), { imageOrientation: 'none' });
+      id = newImage(bitmap.width, bitmap.height);
+      if (id >= 0) images[id].canvas.getContext('2d').drawImage(bitmap, 0, 0);
+      return id;
+    } catch { if (id >= 0) images[id] = null; return -1; }
+    finally { bitmap?.close(); }
+  }
   const shared = sab ? new Int32Array(sab) : input;
   const nextFrame = () => new Promise((r) => (self.requestAnimationFrame ? self.requestAnimationFrame(() => r()) : setTimeout(r, 16)));
   const module = wasm instanceof WebAssembly.Module ? wasm : await WebAssembly.compile(wasm);
@@ -70,6 +117,13 @@ async function start(e) {
       if (c === 'd') a.push(v.getFloat64(base, true));
       else if (c === 's') { const p = v.getUint32(base + 16, true), n = v.getUint32(base + 20, true); a.push(new TextDecoder().decode(new Uint8Array(memory.buffer, p, n))); }
       else if (c === 'D') { const p = v.getUint32(base + 16, true), n = v.getUint32(base + 20, true); a.push(new Float64Array(memory.buffer.slice(p, p + n * 8))); }
+      else if (c === 'B' || c === 'U') {
+        const p = v.getUint32(base + 16, true), n = v.getUint32(base + 20, true);
+        if (p > memory.buffer.byteLength || n > Math.floor((memory.buffer.byteLength - p) / 8) || n > (c === 'B' ? 67108864 : 16777216)) throw new Error('invalid host array');
+        const values = c === 'B' ? new Uint8Array(n) : new Uint32Array(n);
+        for (let j = 0; j < n; j++) values[j] = v.getUint32(p + j * 8, true);
+        a.push(values);
+      }
       else if (c === 'u') a.push(Number(v.getBigInt64(base + 8, true)) >>> 0);
       else a.push(Number(v.getBigInt64(base + 8, true)));
     }
@@ -103,8 +157,26 @@ async function start(e) {
     };
     switch (name) {
       case 'host.gfxFrames': out = 2147483647; break;
-      case 'host.gfxBegin': case 'host.gfxEnd': case 'host.gfxFinish': case 'host.gfxKeep': case 'host.gfxProfMark': case 'host.gfxSetCursor': case 'host.gfxUnclip': break;
-      case 'host.gfxClear': ctx.globalAlpha = 1; ctx.fillStyle = hex(a[0]); ctx.fillRect(0, 0, W, H); break;
+      case 'host.gfxBegin': if (target === Target.Image) switchTarget(Target.Page); while (clipDepth > 0) { ctx.restore(); clipDepth--; } ctx.resetTransform(); break;
+      case 'host.gfxEnd': case 'host.gfxFinish': case 'host.gfxKeep': case 'host.gfxProfMark': case 'host.gfxSetCursor': break;
+      case 'host.gfxClear': ctx.save(); ctx.resetTransform(); ctx.globalAlpha = 1; ctx.fillStyle = hex(a[0]); ctx.fillRect(0, 0, W, H); ctx.restore(); break;
+      case 'host.gfxTranslate': ctx.setTransform(1, 0, 0, 1, a[0], a[1]); break;
+      case 'host.gfxClip': if (clipDepth < 16) { ctx.save(); clipDepth++; ctx.beginPath(); ctx.roundRect(a[0], a[1], a[2], a[3], Math.max(0, a[4])); ctx.clip(); } break;
+      case 'host.gfxUnclip': if (clipDepth > 0) { const t = ctx.getTransform(); ctx.restore(); ctx.setTransform(t); clipDepth--; } break;
+      case 'host.gfxCreateImage': out = newImage(a[0], a[1]); break;
+      case 'host.gfxDestroyImage': if (images[a[0]]?.dynamic) { if (targetId === a[0]) switchTarget(Target.Page); images[a[0]] = null; } break;
+      case 'host.gfxImageFromBytes': return later(decodeImage(a[0]));
+      case 'host.gfxImageFromPixels': out = a[0].length >= a[1] * a[2] * 4 ? newImage(a[1], a[2]) : -1; updateImage(out, a[0]); break;
+      case 'host.gfxUpdateImage': updateImage(a[0], a[1]); break;
+      case 'host.gfxUpdatePixels': {
+        const bytes = new Uint8Array(a[1].length * 4), packed = new DataView(bytes.buffer);
+        for (let j = 0; j < a[1].length; j++) packed.setUint32(j * 4, a[1][j] | (a[2] ? 0xff000000 : 0), true);
+        updateImage(a[0], bytes); break;
+      }
+      case 'host.gfxBeginImage': switchTarget(Target.Image, a[0]); break;
+      case 'host.gfxEndImage': switchTarget(Target.Page); break;
+      case 'host.gfxImageAlpha': break;
+      case 'host.gfxClearImage': { const im = images[a[0]]; if (im?.dynamic) { const c = im.canvas.getContext('2d'); c.save(); c.resetTransform(); c.clearRect(0, 0, im.w, im.h); c.restore(); } break; }
       case 'host.gfxRect': ctx.globalAlpha = 1; ctx.fillStyle = hex(a[4]); ctx.fillRect(a[0], a[1], a[2], a[3]); break;
       case 'host.gfxRRect': ctx.globalAlpha = a[6] / 255; ctx.fillStyle = hex(a[5]); ctx.beginPath(); ctx.roundRect(a[0], a[1], a[2], a[3], a[4]); ctx.fill(); ctx.globalAlpha = 1; break;
       case 'host.gfxLine': ctx.globalAlpha = 1; ctx.strokeStyle = hex(a[4]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(a[2], a[3]); ctx.stroke(); break;
@@ -120,9 +192,9 @@ async function start(e) {
         break;
       }
       case 'host.assetsExists': out = assets?.names.has(a[0]) ? 1 : 0; break;
-      case 'host.assetsReadText': return later(assets ? assets.ensure(a[0]).then(e => { if (!e || e.kind !== 0) throw new Error('no data asset ' + a[0]); fsError = ''; return new TextDecoder().decode(e.bytes); }) : Promise.resolve(''));
-      case 'host.assetsLoad': return later(assets ? assets.ensure(a[0]).then(e => { if (!e || e.kind !== 0) throw new Error('no data asset ' + a[0]); fsBytes = e.bytes; fsError = ''; return fsBytes.length; }) : Promise.resolve(0));
-      case 'host.assetsCount': listed = assets ? [...assets.names].filter(([, e]) => e.kind === 0).map(([n]) => n).sort() : []; out = listed.length; break;
+      case 'host.assetsReadText': return later(assets ? assets.ensure(manifest.originals?.[a[0]] || a[0]).then(e => { if (!e || e.kind !== 0) throw new Error('no data asset ' + a[0]); fsError = ''; return new TextDecoder().decode(e.bytes); }) : Promise.resolve(''));
+      case 'host.assetsLoad': return later(assets ? assets.ensure(manifest.originals?.[a[0]] || a[0]).then(e => { if (!e || e.kind !== 0) throw new Error('no data asset ' + a[0]); fsBytes = e.bytes; fsError = ''; return fsBytes.length; }) : Promise.resolve(0));
+      case 'host.assetsCount': listed = assets ? [...assets.names].filter(([n, e]) => e.kind === 0 && !Object.values(manifest.originals || {}).includes(n)).map(([n]) => n).concat(Object.keys(manifest.originals || {})).sort() : []; out = listed.length; break;
       case 'host.assetsName': out = listed[a[0]] || ''; break;
       case 'host.assetsGroupsCount': listed = assets ? [...assets.groups.keys()].sort() : []; out = listed.length; break;
       case 'host.assetsLoadGroup': try { out = assets?.load(a[0]) || 0; fsError = ''; } catch (error) { fsError = String(error.message); fsFailure = true; out = 0; } break;
