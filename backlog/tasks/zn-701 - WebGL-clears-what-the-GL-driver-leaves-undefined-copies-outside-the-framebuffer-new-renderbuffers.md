@@ -4,7 +4,8 @@ title: >-
   WebGL clears what the GL driver leaves undefined: copies outside the
   framebuffer, new renderbuffers
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 22:03'
 labels:
   - webgl
