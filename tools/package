@@ -305,7 +305,7 @@ def engine_macos(build, bindir, libdir, prefix):
     os.makedirs(bindir, exist_ok=True)
     binary = os.path.join(bindir, "zinc")
     shutil.copy2(os.path.join(build, "zinc"), binary)
-    for mod in ("libzn_webgl.dylib", "libzn_window.dylib", "libzn_engine_jsc.dylib", "zinc-mqjs"):   # libzn_engine_jsc: --engine jsc on the system's JavaScriptCore (ZN-773); zinc-mqjs: --engine mquickjs
+    for mod in ("libzn_webgl.dylib", "libzn_text_module.dylib", "libzn_text_module.LICENSE", "libzn_window.dylib", "libzn_engine_jsc.dylib", "zinc-mqjs"):   # libzn_engine_jsc: --engine jsc on the system's JavaScriptCore (ZN-773); zinc-mqjs: --engine mquickjs
         if os.path.exists(os.path.join(build, mod)):
             shutil.copy2(os.path.join(build, mod), os.path.join(bindir, mod))
     bundle_libs_macos(binary, libdir, prefix)
@@ -358,8 +358,9 @@ def package_linux(build, out, arch=None):
     shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
     os.makedirs(os.path.join(root, "bin")); os.makedirs(os.path.join(root, "lib"))
     shutil.copy2(os.path.join(build, "zinc"), os.path.join(root, "bin", "zinc"))
-    if os.path.exists(os.path.join(build, "libzn_webgl.so")):  # WebGL, loaded by zinc from its own directory (ZN-330.01)
-        shutil.copy2(os.path.join(build, "libzn_webgl.so"), os.path.join(root, "bin", "libzn_webgl.so"))
+    for mod in ("libzn_webgl.so", "libzn_text_module.so", "libzn_text_module.LICENSE"):
+        if os.path.exists(os.path.join(build, mod)):
+            shutil.copy2(os.path.join(build, mod), os.path.join(root, "bin", mod))
     if os.path.exists(os.path.join(build, "zinc-mqjs")):  # --engine mquickjs: the host mquickjs beside zinc (src/cli_mqjs.cpp)
         shutil.copy2(os.path.join(build, "zinc-mqjs"), os.path.join(root, "bin", "zinc-mqjs"))
     ldd = "" if cross else run("ldd", os.path.join(root, "bin", "zinc"), check=False).stdout   # cross: SDL3 is linked in, the rest is the system's

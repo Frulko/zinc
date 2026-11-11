@@ -101,7 +101,7 @@ bool ensureDevBundle(const BundleSpec& spec, const std::string& engine, const st
   std::error_code ec;
   for (const auto& e : fs::directory_iterator(fs::path(engine).parent_path(), ec)) {
     const std::string n = e.path().filename().string();
-    if (n.rfind("libzn_", 0) == 0 && e.path().extension() == ".dylib" && zn::plat::fileStamp(e.path().string(), size, mtime)) {
+    if (n.rfind("libzn_", 0) == 0 && (e.path().extension() == ".dylib" || n == "libzn_text_module.LICENSE") && zn::plat::fileStamp(e.path().string(), size, mtime)) {
       modules.push_back(e.path());
       want += " " + n + " " + std::to_string(size) + " " + std::to_string(mtime / 1000000000LL);
     }
@@ -117,7 +117,7 @@ bool ensureDevBundle(const BundleSpec& spec, const std::string& engine, const st
   for (const fs::path& m : modules) {
     fs::copy_file(m, exe.parent_path() / m.filename(), fs::copy_options::overwrite_existing, ec);
     if (ec) { err = "cannot copy " + m.string() + " into " + appPath + ": " + ec.message(); return false; }
-    if (!run("codesign --force --sign - " + q((exe.parent_path() / m.filename()).string()), err, "codesign")) return false;   // the bundle's signature covers signed code only
+    if (m.extension() == ".dylib" && !run("codesign --force --sign - " + q((exe.parent_path() / m.filename()).string()), err, "codesign")) return false;   // the bundle's signature covers signed code only
   }
   { std::ofstream(plist) << plistText; }
   if (!run("codesign --force --sign - --identifier " + q(spec.id) + " " + q(appPath), err, "codesign")) return false;

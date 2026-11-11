@@ -93,7 +93,7 @@ int runTestCommand(const std::string& self, const zn::frontend::Profile& p, cons
 extern char** environ;
 #endif
 #include "host/permissions.h"
-namespace zn::text { void installSegmenter(); void installShapedGfx(); }
+namespace zn::text { void installSegmenter(); void installShapedGfx(); void configureModule(const std::string&, const std::string&); }
 // The shaping tier (D32) is on wherever it is linked (ZN-1006): a text with a character the UI font lacks (CJK, Persian, arrows, emoji
 // sequences) is shaped over the fallback fonts instead of drawing '?', while Latin text keeps the codepoint tables and its pixels.
 // zinc.json "text": "simple" or ZINC_TEXT=simple keeps the tables alone; "shaped" from either one asks for the tier, as before.
@@ -1905,7 +1905,11 @@ static bool unpackZapp(const std::string& path, std::uint64_t offset, std::uint6
   if (!size) size = fs::file_size(path, ec);
   if (ec) { err = "cannot read it"; return false; }
   std::string dir;
-  if (!zn::zapp::unpackTo(path, offset, size, kVersionText, (fs::path(zn::tc::home()) / "cache" / "zapp").string(), dir, err)) return false;
+  const std::string textMember = "engine/" + zn::tc::hostName() + "/libzn_text_module" + zn::plat::libSuffix();
+  std::string textSha256;
+  if (!zn::zapp::unpackTo(path, offset, size, kVersionText, (fs::path(zn::tc::home()) / "cache" / "zapp").string(), dir, err,
+                         gFusedApp ? textMember : std::string(), gFusedApp ? &textSha256 : nullptr)) return false;
+  if (!textSha256.empty()) zn::text::configureModule((fs::path(dir) / textMember).string(), textSha256);
   if (!fs::exists(fs::path(dir) / "program.zbc", ec)) {
     std::ifstream pf(fs::path(dir) / "zinc.json");
     std::stringstream ps; ps << pf.rdbuf();
@@ -2362,7 +2366,7 @@ static int buildEngineApp(const std::string& engine, const std::string& entry, c
     if (ec) { std::fprintf(stderr, "zinc: cannot copy the %s engine into %s: %s\n", engine.c_str(), appPath.c_str(), ec.message().c_str()); return 1; }
     zn::log::step("engine", engine + (pack.dir.empty() ? " (" + zn::log::shortPath(path) + ")" : " " + pack.version + " (pack)"));
   }
-  for (const char* m : {"libzn_window.dylib", "libzn_webgl.dylib"})   // the modules zinc loads from beside it
+  for (const char* m : {"libzn_window.dylib", "libzn_webgl.dylib", "libzn_text_module.dylib", "libzn_text_module.LICENSE"})   // the modules zinc loads from beside it
     if (fs::exists(exeDir / m, ec)) fs::copy_file(exeDir / m, macos / m, fs::copy_options::overwrite_existing, ec);
   // the nested code signed by the bundle's identity (codesign of the .app seals it, it does not sign it); ad hoc by default
   for (auto it = fs::recursive_directory_iterator(macos.parent_path(), ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
@@ -3301,9 +3305,35 @@ int main(int argc, char** argv) {
     if (!target.empty() && target != host) { std::fprintf(stderr, "zinc fuse: only this machine's target (%s) for now: a prebuilt runtime for %s is not available yet (ZN-392); zinc export --target %s builds it with the AOT\n", host, target.c_str(), target.c_str()); return 2; }
     std::ifstream zf(in, std::ios::binary);
     std::stringstream zs; zs << zf.rdbuf();
-    const std::string archive = zs.str();
+    std::string archive = zs.str();
     std::map<std::string, std::string> files; std::string err;
     if (!zf || !zn::zapp::unpack(archive, kVersionText, files, err)) { std::fprintf(stderr, "zinc fuse: %s: %s\n", in.c_str(), zf ? err.c_str() : "cannot read it"); return 1; }
+    // The same-build text module travels inside this executable's checked archive; ordinary .zapps remain portable.
+    const std::string textName = std::string("libzn_text_module") + zn::plat::libSuffix();
+    std::ifstream tm(fs::path(zn::tc::executablePath()).parent_path() / textName, std::ios::binary);
+    if (!tm) { std::fprintf(stderr, "zinc fuse: missing %s beside zinc\n", textName.c_str()); return 1; }
+    const std::string member = "engine/" + zn::tc::hostName() + "/" + textName;
+    std::stringstream ts; ts << tm.rdbuf(); files[member] = ts.str();
+    const std::string licenseMember = "engine/" + zn::tc::hostName() + "/libzn_text_module.LICENSE";
+    std::ifstream license(fs::path(zn::tc::executablePath()).parent_path() / "libzn_text_module.LICENSE", std::ios::binary);
+    if (!license) { std::fprintf(stderr, "zinc fuse: missing text module licenses beside zinc\n"); return 1; }
+    std::stringstream ls; ls << license.rdbuf(); files[licenseMember] = ls.str();
+    yyjson_doc* manifest = yyjson_read(files["manifest.json"].data(), files["manifest.json"].size(), 0);
+    yyjson_mut_doc* changed = yyjson_doc_mut_copy(manifest, nullptr);
+    yyjson_mut_val* root = yyjson_mut_doc_get_root(changed);
+    yyjson_mut_val* sums = yyjson_mut_obj_get(root, "files");
+    yyjson_mut_obj_remove_key(sums, member.c_str());
+    yyjson_mut_obj_remove_key(sums, licenseMember.c_str());
+    yyjson_mut_obj_add_strcpy(changed, sums, member.c_str(), zn::tc::sha256Hex(files[member]).c_str());
+    yyjson_mut_obj_add_strcpy(changed, sums, licenseMember.c_str(), zn::tc::sha256Hex(files[licenseMember]).c_str());
+    size_t manifestSize = 0;
+    char* manifestText = yyjson_mut_write(changed, YYJSON_WRITE_PRETTY, &manifestSize);
+    if (!manifestText) { yyjson_mut_doc_free(changed); yyjson_doc_free(manifest); std::fprintf(stderr, "zinc fuse: cannot write module manifest\n"); return 1; }
+    files["manifest.json"].assign(manifestText, manifestSize);
+    std::free(manifestText); yyjson_mut_doc_free(changed); yyjson_doc_free(manifest);
+    std::vector<zn::zapp::TarEntry> entries;
+    for (const auto& [name, data] : files) entries.push_back({name, data});
+    archive = zn::zapp::ustar(entries);
     if (outPath.empty()) outPath = fs::path(in).replace_extension().string();
     std::ifstream self(zn::tc::executablePath(), std::ios::binary);
     std::stringstream ss; ss << self.rdbuf();

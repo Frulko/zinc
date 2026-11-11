@@ -2608,7 +2608,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
       fs::create_directories(macos, ec);
       fs::copy_file(archive, app / "Contents/Resources/app.zapp", fs::copy_options::overwrite_existing, ec);
       if (ec) { std::fprintf(stderr, "zinc export: cannot copy the app package: %s\n", ec.message().c_str()); return 1; }
-      for (const char* name : {"libzn_window.dylib", "libzn_webgl.dylib"}) {
+      for (const char* name : {"libzn_window.dylib", "libzn_webgl.dylib", "libzn_text_module.dylib"}) {
         const fs::path module = fs::path(self()).parent_path() / name;
         if (!fs::exists(module, ec)) continue;
         fs::copy_file(module, macos / name, fs::copy_options::overwrite_existing, ec);
@@ -2619,6 +2619,8 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
         sign.push_back((macos / name).string());
         if (zn::plat::run(sign) != 0) { std::fprintf(stderr, "zinc export: cannot sign %s\n", name); return 1; }
       }
+      fs::copy_file(fs::path(self()).parent_path() / "libzn_text_module.LICENSE", macos / "libzn_text_module.LICENSE", fs::copy_options::overwrite_existing, ec);
+      if (ec) { std::fprintf(stderr, "zinc export: cannot copy text module licenses: %s\n", ec.message().c_str()); return 1; }
       if (!zn::tc::writeBundle(spec, self(), app.string(), err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }
     }
     fs::remove(archive, ec);

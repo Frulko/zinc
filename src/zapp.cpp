@@ -181,7 +181,7 @@ bool unpack(const std::string& archive, const std::string& engine, std::map<std:
   return true;
 }
 
-bool unpackTo(const std::string& path, std::uint64_t offset, std::uint64_t size, const std::string& engine, const std::string& cacheRoot, std::string& dir, std::string& err) {
+bool unpackTo(const std::string& path, std::uint64_t offset, std::uint64_t size, const std::string& engine, const std::string& cacheRoot, std::string& dir, std::string& err, const std::string& executableMember, std::string* executableSha256) {
   namespace fs = std::filesystem;
   std::ifstream in(path, std::ios::binary);
   if (!in) { err = "cannot read it"; return false; }
@@ -218,6 +218,10 @@ bool unpackTo(const std::string& path, std::uint64_t offset, std::uint64_t size,
   for (const Member& m : members) byName[m.name] = &m;
   for (const auto& [name, s] : sums) if (!byName.count(name)) { err = missing(name); return false; }
   if (sums.size() + 1 != byName.size()) { err = kUnlisted; return false; }
+  if (executableSha256) {
+    const auto found = sums.find(executableMember);
+    *executableSha256 = found == sums.end() ? std::string() : found->second;
+  }
   dir = (fs::path(cacheRoot) / zn::tc::sha256Hex(manifest).substr(0, 24)).string();   // the manifest names every file's hash: the content
   long long fileSize = 0, mtime = 0;
   if (!zn::plat::fileStamp(path, fileSize, mtime)) { err = "cannot read it"; return false; }

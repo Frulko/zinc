@@ -45,8 +45,9 @@ bool unpack(const std::string& archive, const std::string& engine, std::map<std:
 /** The .zapp at [offset, offset + size) of the file `path` (a .zapp, or the end of a fused executable), as files in `dir` = <cacheRoot>/<the
  *  manifest's hash> (ZN-430). The first time, every member is streamed through its SHA-256 into the directory; after that only the headers
  *  and the manifest are read while the file keeps its size and time (a stamp in the directory), and a changed file is checked again member
- *  by member before it runs. The same refusals as unpack(), with its messages. */
-bool unpackTo(const std::string& path, std::uint64_t offset, std::uint64_t size, const std::string& engine, const std::string& cacheRoot, std::string& dir, std::string& err);
+ *  by member before it runs. The same refusals as unpack(), with its messages.
+ *  executableSha256 receives executableMember's hash from the source manifest (never the extraction cache), for verification at load time. */
+bool unpackTo(const std::string& path, std::uint64_t offset, std::uint64_t size, const std::string& engine, const std::string& cacheRoot, std::string& dir, std::string& err, const std::string& executableMember = {}, std::string* executableSha256 = nullptr);
 
 /** Add editable project sources and an optional captured PNG as the existing icon.png cover. */
 bool addSources(std::map<std::string, std::string>& files, const std::string& projectDir, const std::string& entry, const std::string& cover, std::string& err);

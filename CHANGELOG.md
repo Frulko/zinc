@@ -70,6 +70,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### Faster
 
+- Zinc loads font shaping and font baking from a separate module on first use, keeping HarfBuzz and SheenBidi out of the command-line executable. Fallback fonts stay enabled by default.
 - The GPU renderer shares polygon edge vertices, cutting fringe uploads by about 57% in a short navigation run; antialiased coverage and paint order are preserved.
 - On macOS a window that nobody sees (covered by other windows, minimized or hidden) stops drawing and slows its loop to 10 frames a second, about a tenth of the CPU it used, and is back at full speed the moment it shows again; `ZINC_UNSEEN=draw` keeps it drawing.
 - `charCodeAt`, `codePointAt`, `slice`, `charAt`, `indexOf` and `split('')` on text with accents or emoji no longer slow down with the length of the string: a loop over 1 MB of accented text takes tens of milliseconds instead of minutes.

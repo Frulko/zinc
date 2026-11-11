@@ -7,7 +7,7 @@
 #define STBI_NO_PIC
 #define STBI_NO_PNM
 #define STBI_NO_STDIO
-#include "hb-subset.h"
+#include "text/module.h"
 #include "res/res.h"
 #include "zn/image_limits.h"
 #include "res/codec.h"
@@ -522,32 +522,7 @@ void writeStr(std::vector<std::uint8_t>& b, const std::string& s) { writeU32(b, 
 // figures (ZN-1062): the shaping tier gives a tabular font (zinc:gfx tabularFont, tabular-nums) those, and nothing else changes by default.
 // False: keep the whole file.
 bool subsetTtf(const std::vector<std::uint8_t>& in, const std::set<std::uint32_t>& cps, std::vector<std::uint8_t>& out) {
-  hb_blob_t* blob = hb_blob_create(reinterpret_cast<const char*>(in.data()), static_cast<unsigned>(in.size()), HB_MEMORY_MODE_READONLY, nullptr, nullptr);
-  hb_face_t* face = hb_face_create(blob, 0);
-  hb_subset_input_t* input = hb_subset_input_create_or_fail();
-  bool ok = false;
-  if (input) {
-    hb_set_t* u = hb_subset_input_unicode_set(input);
-    for (std::uint32_t cp : cps) hb_set_add(u, cp);
-    hb_subset_input_set_flags(input, HB_SUBSET_FLAGS_NO_HINTING);
-    hb_set_t* drop = hb_subset_input_set(input, HB_SUBSET_SETS_DROP_TABLE_TAG);
-    for (const char* t : {"GPOS", "GDEF", "kern", "DSIG", "STAT", "fvar", "gvar", "HVAR", "avar"}) hb_set_add(drop, HB_TAG(t[0], t[1], t[2], t[3]));
-    hb_set_t* features = hb_subset_input_set(input, HB_SUBSET_SETS_LAYOUT_FEATURE_TAG);
-    hb_set_clear(features);
-    hb_set_add(features, HB_TAG('t', 'n', 'u', 'm'));
-    if (hb_face_t* sub = hb_subset_or_fail(face, input)) {
-      hb_blob_t* b = hb_face_reference_blob(sub);
-      unsigned n = 0;
-      const char* d = hb_blob_get_data(b, &n);
-      if (d && n) { out.assign(reinterpret_cast<const std::uint8_t*>(d), reinterpret_cast<const std::uint8_t*>(d) + n); ok = true; }
-      hb_blob_destroy(b);
-      hb_face_destroy(sub);
-    }
-    hb_subset_input_destroy(input);
-  }
-  hb_face_destroy(face);
-  hb_blob_destroy(blob);
-  return ok;
+  return text::module().subset(in, cps, out);
 }
 
 namespace {

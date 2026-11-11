@@ -301,16 +301,6 @@ int pot(int v) { int p = 1; while (p < v) p <<= 1; return p; }
 
 }  // namespace
 
-std::string zimHeader(int format, int scale, unsigned flags, int w, int h) {
-  std::string o = "ZIM1";
-  o += static_cast<char>(format);
-  o += static_cast<char>(scale);
-  o += static_cast<char>(flags & 0xff);
-  o += static_cast<char>(flags >> 8);
-  put32(o, static_cast<std::uint32_t>(w));
-  put32(o, static_cast<std::uint32_t>(h));
-  return o;
-}
 
 std::string sheetImage(const std::string& name, const std::string& json) {
   yyjson_doc* doc = yyjson_read(json.data(), json.size(), 0);
