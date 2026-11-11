@@ -993,3 +993,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-513: after334 pins/fetches video dependencies, repeat literalCHIP/PocketCHIP Hero builds; both currentcommands reach libavformat missing in armv7sysroot, not a frontend/layout failure.
 
 - ZN-1121: repeat cwdspawn on actualoldglibcLinux/Pi andMojave; currentdesktophelper/ELFcrosslink proofs pass, no targetexecution claimed.
+
+- ZN-725: measure indexedfringes onactualPi atbandclock andattribute stalls beforedefaultdecision; currentMacstructuralupload reduction57.4%, no FPSclaim.

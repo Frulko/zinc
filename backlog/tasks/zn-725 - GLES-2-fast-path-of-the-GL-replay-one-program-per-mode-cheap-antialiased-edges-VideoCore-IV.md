@@ -4,8 +4,7 @@ title: >-
   GLES 2 fast path of the GL replay: one program per mode, cheap antialiased
   edges (VideoCore IV)
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-12 10:41'
 updated_date: '2026-11-07 18:30'
 labels:

@@ -1838,3 +1838,8 @@ Source8c2f1ee82/compilerffec2b6ecbe90bed688d2464728c0e09b1e5faf1a31769f4ee0edd79
 ### 2026-11-10 — ZN-334/513 cross-build feature artifacts
 
 Integratedc0bb1ba9e, workercompiler191d941bb299477c3fb99d2ce68cd7ad85631cde0e3b976218a9ce63b3400786, canonical51-package/arch lockSHA7d815afb81d8e242763bfce950a4cb5734ad0c11f2b0ce968871358e8db56b77. GLARM64.so491112B, ARMhf.so589304B; actualUIexportARM64ELF5721152B. BothunchangedHeroCHIP/Pocket11006600B SHA26360e2733e93d6081e2efb813885bc51e4ad97f1b60feff70db51ae0eb5aa6e. Rootverifiedsource/hash/ELFmachine for5artifacts; no targetexecution, speed/RSS or GPUclaim. Coldcompilation times indicativeonly. Proof .logs/integration-2026-11-10/sysroot334/summary.json; archive334-final retainslogs/SDKs/crossstaticarchives without copyingunprovenmainlibraries.
+
+
+### 2026-11-11 — ZN-725 indexed polygon fringes
+
+Source418385788, compilerd3095ef7c54b0ef624618c2fdd6130de84c3213481f6677f1fa5ad456bd08efd. Rootactual17-frame navigation:984526vertex+130790indexbytes/frame vs2615802legacybytes,57.4% totalupload reduction. Worker984918+130845 vs2616904 atdifferenttransitioninstant. Exactgeometry/ushortchunk/attributeT0 andHero check pass; actualshotinspected. MacOpenGL4.1 forcedstrips, no realGLES2/Pi/timing/default claim. .logs/integration-2026-11-11/fringe/summary.json.
