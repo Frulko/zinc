@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated672 1db9edff3 Done(all3),90Done. Rootexactwasm_images PASS, finalglue/metadata/buildsourcesmatch; originalimage_rect pixelcheck zeroSlack/RTcolors/rawSHA allpass Chrome157. Archive58complete source+logs. Claim1118 finalselfexecguardian repair, researchcomplete; isolatedmain/AOTdispatch permitted outsideownerhunks. Commoncombinedrefresh next.
+
 - Integrated535 e12851c0c BacklogAC1/4; rootexactboard PASS(session72430), sourcebundle archived57. Worker reportsall3/doctor/simulator pass; rawworkerlogs accidentallylost during cleanup after mixedownerchangelog comparison, recorded archiveROOT-PROOF. No source loss. Platformreexport/doctor--target/actualPi remainopen; SSHsignaturerefused/noQEMU.
 
 - Reserve535 independent board identity/capability probe alongside672 wasm. Primary research already returned; reuse deviceRecord and runtime bridge, no compile-host constants. No QEMU (owner rule); literal machine criteria remain open until actual proof.

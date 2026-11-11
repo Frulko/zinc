@@ -4,8 +4,7 @@ title: >-
   wasm target: imageFromBytes, runtime images and render targets in the browser
   host
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 19:20'
 updated_date: '2026-11-11 22:49'
 labels:
