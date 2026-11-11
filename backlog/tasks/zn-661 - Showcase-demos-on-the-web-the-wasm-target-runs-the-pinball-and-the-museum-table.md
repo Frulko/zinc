@@ -4,8 +4,7 @@ title: >-
   Showcase demos on the web: the wasm target runs the pinball and the museum
   table
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 18:18'
 updated_date: '2026-11-11 23:26'
 labels:
