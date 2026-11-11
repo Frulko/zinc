@@ -1,0 +1,23 @@
+Tests to run (owner picks):
+-334 sincec0bb1ba9e: linux_cross_prebuilt, fullpackage/install_nocompiler (minutes, memoryunmeasured); actualLinux/Pi runtime/GPU and safelypruneobsoletegenerations. Fresh-homeexport/GLplugins/Hero/build+corruption/packagepayload already pass.
+-1121 sinced3fc22b57: actualoldglibcLinux/Pi/Mojave cwdspawn (seconds, memoryunmeasured), no emulator; rootexacthelper+crosslink already pass.
+-161.02 since1a717097f: crossprofile/optionalJSCV8Hermes and broaderclone parity (seconds–minutes, unmeasured); exactsymbols/qjs_bytecode/all3semantic fixtures, leakcheck/rawkit/Hero already pass. Source-metadata pruning needs audit.
+-513 since8c2f1ee82: bothHerocrossbuilds afterFFmpeg sysroot is pinned/fetched (minutescold; memoryunmeasured); actualboard display/input/GPIO/power (seconds; notproven). SCREEN/all3+literalHello builds and ELFmetadata pass.
+-541.03 since80c0c0ad2: actualPi ETC1GPU/transfer/alpha+glTF (seconds, tinyfixtureexpected<100MiB/unmeasured), browserordinary-loader path (seconds), fullpackage/relocatednative-sourcebuild (minutes/unmeasured). Parent100mesh/45fps unchangedopen; native/actualMacRGBA/exactT0 already pass.
+-541.01/.02 since75ececd94/5009c9bd6: directrender fixtures on actualPi after538/540 (seconds, expected<100MB/unmeasured); parent100mesh diorama/quiet45fps (minutes); browserexport/importmap/T3identity (seconds, memoryunmeasured). Macrender/exactT0 already passes.
+-489 sinceb7c0d7b4c: broader real-world/degenerate-axis/LOD cook fixtures; current4profile deterministic/budget/layout/XYZ proof already passes. No new benchmark or hardware test.
+-164 since369121d52: broader OSC workers/restarts and host-family linking; armv6/ESP32 gates and actual socket-free host remain in the open task. Exactlite_host and originalHero already pass; no benchmark.
+-512 since2d1bb151e: cross_linux with GNU READELF (minutes cold), graphics linking/realARM execution; no QEMU and no static-musl claim. Exactcache and actualELF metadata pass.
+-391 since1abd3ad0d: full package/install_nocompiler/macOS+Linux desktop session checks (minutes, memory unmeasured). Cold/warm and official validators already passed; default associations unchanged.
+-449 since03f33ed9c: export_wasm/image_rect_wasm/web_dev_wasm (~10–40s), broader texture formats (encoder-dependent), other browsers/JSPI and larger group churn (~1min, memory unmeasured). Actual three-criterion feature and T0 already passed.
+-707 since05bdbca32: webenv/webenv_phaser/webenv_pixi/webenv_p5 harnesses (~1–seconds, memory unmeasured). Direct original programs/goldens passed, no harness run.
+-653 since3e0925d48: audio, audio_music/audio_stream_pack/audio_import, voice_aec/discord_echo sharedconsumers (~5–30s each, unmeasured<300MB estimate), realPi/Mojave/OptiPlex and physical lowvolume listening. No extra probe timing measured.
+-184 since8ac26e714: gl_replay_es2 GLSL100 variant (seconds); realpbuffer proof Pi/OptiPlex whenreachable; noFPS or remoteproof claimed.
+-1030 sinceca3455856: array_covariance and ir/ir_test (seconds, memory unmeasured), diff-matrix records/arrays (~10min/<1GB estimate), physical/cross insertion/comparator checks.
+-683 since18aa3967c: native_gen (seconds), six visibility fixture engine/renderer combinations (~2s initial native build, memory unmeasured); broad platform readback remains unsupported.
+-603/668/1120: corpus diff-matrix (~10min/<1GB), originalHero/novideo keyboard/upload (~20s/engine), quiet closurecall-path measurement (seconds–minutes/<100MB estimate), broader Never/method/exception cases.
+-1066: full isolated patchedHermes SDK/pack build+nativeprobe, strictHermesInspector UI (~30s/<300MB), engine_pack install/tamper/portability (~30s/<300MB), boundedlong handle-scope and quietdebuggerCPU (10min, stop atgrowingfewGiB). Installed/publishedSDKold.
+-803: maintained app_update_api T1 (~5–15s), museum_update demo (~15–30s), exportedQJSapp/AOTpromise variants, slowearlyquit/refresh (up to135s+localchecks).
+-575GCp99/startup,1068quietHamlet24/64/96, CUI matchedquiet/window/RSS,895remote/RSS, physicalkeyboard/touch/VoiceOver and longresource/idlechurn allremainproposed.
+
+Devices: OptiPlexmowmow@192.168.2.228 Fedora45/x86_64/16GB, Tailscale100.66.7.14 oroptiplex.tail80b63.ts.net withHostKeyAlias=192.168.2.228 (neverdisablechecking); Pi spark@192.168.2.31, Mojave mowmow@192.168.2.215. Initial unchangednullable_numeric realOptiPlexTailscalePASS SHA7c6310a5f469884bef5d5572dd28cb11466d2508d585f3cfed408b4ac7e0ef3a; noGPU/nativecompilerinstall proof. LaterLANtimeouts/Piagentrefusal, retryonlyforactualfeature. NoQEMU/reboot/globalinstall/daemonrestart.

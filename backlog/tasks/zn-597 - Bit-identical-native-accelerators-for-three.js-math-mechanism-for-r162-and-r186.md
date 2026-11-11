@@ -4,8 +4,7 @@ title: >-
   Bit-identical native accelerators for three.js math (mechanism for r162 and
   r186)
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 09:28'
 updated_date: '2026-11-11 07:30'
 labels:
