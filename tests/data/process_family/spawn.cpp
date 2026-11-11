@@ -1,103 +1,86 @@
-// Force each optional cwd-action lookup while exercising the production spawn/cleanup path.
-#include <dlfcn.h>
-#include <cstring>
-enum class Lookup { Native, Standard, Nonstandard, Missing };
-static Lookup lookup = Lookup::Native;
-static int standardLookups = 0, nonstandardLookups = 0;
-static void* availableAction = nullptr;
-static void* cwdAction(void* handle, const char* name) {
-  bool standard = std::strcmp(name, "posix_spawn_file_actions_addchdir") == 0;
-  bool nonstandard = std::strcmp(name, "posix_spawn_file_actions_addchdir_np") == 0;
-  if (!standard && !nonstandard) return dlsym(handle, name);
-  if (standard) ++standardLookups; else ++nonstandardLookups;
-  if (lookup == Lookup::Missing || (lookup == Lookup::Nonstandard && standard)) return nullptr;
-  if (lookup == Lookup::Standard || lookup == Lookup::Nonstandard) return availableAction;
-  return dlsym(handle, name);
-}
-#define dlsym cwdAction
+// Exact private launch protocol, target compatibility and bounded old-executable rejection.
 #include "zn/process_family.h"
-#undef dlsym
 #include <cstdio>
-#include <cstdlib>
 #include <stdexcept>
 
 static void require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
-static std::string readAll(int fd) {
-  std::string result;
-  char buffer[256];
-  ssize_t n;
-  while ((n = read(fd, buffer, sizeof buffer)) > 0) result.append(buffer, static_cast<size_t>(n));
+static std::string output(int fd) {
+  std::string result; char b[256]; ssize_t n;
+  while ((n = read(fd, b, sizeof b)) != 0) {
+    if (n < 0 && errno == EINTR) continue;
+    require(n > 0, "stream read"); result.append(b, static_cast<size_t>(n));
+  }
   return result;
 }
-static int finish(pid_t pid) {
-  siginfo_t info{};
-  int rc;
-  do { rc = waitid(P_PID, static_cast<id_t>(pid), &info, WEXITED | WNOWAIT); } while (rc < 0 && errno == EINTR);
-  require(rc == 0, "child wait failed");
-  return zn::plat::reapFamily(pid);
-}
-int main() {
-  alarm(8);
-  signal(SIGPIPE, SIG_IGN);
+int main(int argc, char** argv) {
+  // Model an old/custom main that ignores the private bootstrap argument.
+  if (getenv("ZINC_TEST_OLD_MAIN") && argc == 2) {
+    zn::plat::FamilyTree tree; int pipes[3]; pid_t pid;
+    char* args[] = {argv[0], nullptr};
+    require(zn::plat::spawnFamily(args, zn::plat::familyEnvironment(), "", pid, pipes, tree) == ENOSYS, "old main recursively launched");
+    if (!strcmp(getenv("ZINC_TEST_OLD_MAIN"), "version")) {
+      uint32_t bad = 1; write(3, &bad, sizeof bad);
+    }
+    for (;;) pause();
+  }
+  zn::plat::dispatchProcessGuard(argc, argv);
+  if (argc == 2 && !strcmp(argv[1], "signals")) {
+    sigset_t mask; sigprocmask(SIG_SETMASK, nullptr, &mask);
+    struct sigaction ignored{}, caught{}; sigaction(SIGUSR1, nullptr, &ignored); sigaction(SIGUSR2, nullptr, &caught);
+    return sigismember(&mask, SIGUSR2) == 1 && ignored.sa_handler == SIG_IGN && caught.sa_handler == SIG_DFL ? 23 : 7;
+  }
+  alarm(9);
   try {
-    availableAction = dlsym(RTLD_DEFAULT, "posix_spawn_file_actions_addchdir");
-    if (!availableAction) availableAction = dlsym(RTLD_DEFAULT, "posix_spawn_file_actions_addchdir_np");
-    int first = open("/dev/null", O_RDONLY);
-    require(first >= 0, "descriptor baseline failed");
-    close(first);
+    int baseline = open("/dev/null", O_RDONLY); require(baseline >= 0, "baseline fd"); close(baseline);
     char command[] = "sh", option[] = "-c";
     char script[] = "IFS= read -r line; printf '%s\\n' \"$FAMILY_TEST\" \"$PWD\" \"$line\"; printf error >&2; exit 7";
     char path[] = "PATH=/bin", value[] = "FAMILY_TEST=override";
-    char* args[] = {command, option, script, nullptr};
-    char* env[] = {path, value, nullptr};
-    char cwd[1024];
-    require(realpath("/tmp", cwd) != nullptr, "cwd baseline failed");
-    for (Lookup mode : {Lookup::Native, Lookup::Standard, Lookup::Nonstandard, Lookup::Missing}) {
-      if (!availableAction && (mode == Lookup::Standard || mode == Lookup::Nonstandard)) continue;
-      lookup = mode;
-      for (int failure = 0; failure < 4; ++failure) {
-        char missing[] = "/no-such-zinc-spawn-1121", denied[] = "/";
-        args[0] = failure == 2 ? missing : failure == 3 ? denied : command;
-        int fds[3] = {-1, -1, -1};
-        pid_t pid = -1;
-        int rc = zn::plat::spawnFamily(args, env, failure == 1 ? missing : "/tmp", pid, fds);
-        int expected = failure == 3 ? EACCES : failure ? ENOENT : 0;
-#ifdef ZN_APP_LIBRARY
-        if (mode == Lookup::Missing || !availableAction) expected = ENOSYS;
-#endif
-        require(rc == expected, "spawn result changed");
-        if (!rc) {
-          require(getpgid(pid) == pid, "process group missing");
-          require(write(fds[0], "input\n", 6) == 6, "stdin write failed");
-          close(fds[0]);
-          require(readAll(fds[1]) == std::string("override\n") + cwd + "\ninput\n", "stdout/PATH/env/cwd changed or duplicate spawn");
-          require(readAll(fds[2]) == "error", "stderr changed");
-          close(fds[1]); close(fds[2]);
-          require(finish(pid) == 7, "exit code changed");
-        } else {
-          for (int fd : fds) require(fd == -1, "failure retained parent descriptor");
-        }
-        int status;
-        if (pid > 0) require(waitpid(pid, &status, WNOHANG) == -1 && errno == ECHILD, "child not reaped");
-        int next = open("/dev/null", O_RDONLY);
-        require(next == first, "spawn leaked descriptor");
-        close(next);
-      }
+    char* args[] = {command, option, script, nullptr}; char* env[] = {path, value, nullptr};
+    char cwd[PATH_MAX]; require(realpath("/tmp", cwd), "cwd baseline");
+    for (int failure = 0; failure < 4; ++failure) {
+      char missing[] = "/no-such-zinc-process-1118", denied[] = "/";
+      args[0] = failure == 2 ? missing : failure == 3 ? denied : command;
+      zn::plat::FamilyTree tree; pid_t pid = 0; int pipes[3];
+      int rc = zn::plat::spawnFamily(args, env, failure == 1 ? missing : "/tmp", pid, pipes, tree);
+      require(rc == (failure == 3 ? EACCES : failure ? ENOENT : 0), "startup error changed");
+      if (!rc) {
+        require(tree.guardian != pid && getpgid(tree.guardian) != getpgrp(), "guardian not isolated");
+        require(write(pipes[0], "input\n", 6) == 6, "stdin"); close(pipes[0]);
+        require(output(pipes[1]) == std::string("override\n") + cwd + "\ninput\n", "PATH/env/cwd/stdin");
+        require(output(pipes[2]) == "error", "stderr"); close(pipes[1]); close(pipes[2]);
+        int code = -1;
+        for (int k = 0; k < 200 && !zn::plat::pollFamily(pid, code, &tree); ++k) usleep(1000);
+        require(code == 7, "exit code");
+        require(!zn::plat::signalFamily(pid, SIGKILL, &tree), "stale handle");
+        int status; require(waitpid(tree.guardian, &status, WNOHANG) < 0 && errno == ECHILD, "guardian not reaped");
+      } else for (int fd : pipes) require(fd == -1, "error leaked stream");
+      int next = open("/dev/null", O_RDONLY); require(next == baseline, "fd leak"); close(next);
     }
-    require(standardLookups >= nonstandardLookups && nonstandardLookups > 0, "optional lookup order changed");
-    if (availableAction) require(standardLookups > nonstandardLookups, "standard action did not stop lookup");
-    standardLookups = nonstandardLookups = 0;
-    args[0] = command;
-    args[2] = const_cast<char*>("exit 0");
-    pid_t pid;
-    int fds[3];
-    require(zn::plat::spawnFamily(args, env, "", pid, fds) == 0, "no-cwd spawn needs optional action");
-    for (int fd : fds) close(fd);
-    require(finish(pid) == 0, "no-cwd exit changed");
-    require(!standardLookups && !nonstandardLookups, "no-cwd spawn looked up optional action");
-    std::puts("optional cwd action: PASS");
-  } catch (const std::exception& error) {
-    std::fprintf(stderr, "%s\n", error.what());
-    return 1;
-  }
+    sigset_t mask, previous; sigemptyset(&mask); sigaddset(&mask, SIGUSR2);
+    require(pthread_sigmask(SIG_BLOCK, &mask, &previous) == 0, "block target signal");
+    struct sigaction ignore{}, catchSignal{}, oldIgnore{}, oldCatch{};
+    ignore.sa_handler = SIG_IGN; sigemptyset(&ignore.sa_mask);
+    catchSignal.sa_handler = +[](int) {}; sigemptyset(&catchSignal.sa_mask);
+    sigaction(SIGUSR1, &ignore, &oldIgnore); sigaction(SIGUSR2, &catchSignal, &oldCatch);
+    char* signals[] = {argv[0], const_cast<char*>("signals"), nullptr};
+    zn::plat::FamilyTree tree; pid_t pid; int pipes[3];
+    require(zn::plat::spawnFamily(signals, zn::plat::familyEnvironment(), "", pid, pipes, tree) == 0, "signal spawn");
+    // Wait for natural exit: closing ownership immediately would deliberately kill the target.
+    siginfo_t exited{}; require(waitid(P_PID, tree.guardian, &exited, WEXITED | WNOWAIT) == 0, "signal wait");
+    require(zn::plat::reapFamily(pid, &tree) == 23, "target signal mask/dispositions changed");
+    for (int fd : pipes) close(fd);
+    pthread_sigmask(SIG_SETMASK, &previous, nullptr); sigaction(SIGUSR1, &oldIgnore, nullptr); sigaction(SIGUSR2, &oldCatch, nullptr);
+    for (const char* mode : {"version", "timeout"}) {
+      setenv("ZINC_TEST_OLD_MAIN", mode, 1);
+      zn::plat::FamilyTree old; int fds[3]; pid_t oldPid;
+      auto begin = zn::plat::family::Clock::now();
+      int rc = zn::plat::spawnFamily(signals, zn::plat::familyEnvironment(), "", oldPid, fds, old);
+      unsetenv("ZINC_TEST_OLD_MAIN");
+      require(rc == (!strcmp(mode, "version") ? EPROTO : ETIMEDOUT), "old executable not refused");
+      require(zn::plat::family::Clock::now() - begin < std::chrono::seconds(3), "old executable blocked launch");
+      for (int fd : fds) require(fd == -1, "old executable retained streams");
+    }
+    int status; require(waitpid(-1, &status, WNOHANG) < 0 && errno == ECHILD, "launch retained child");
+    std::puts("guardian startup, streams, errors, signals and old main: PASS");
+  } catch (const std::exception& error) { std::fprintf(stderr, "%s\n", error.what()); return 1; }
 }

@@ -48,6 +48,7 @@
 #include "assets/assets.h"
 #include "zn/hostsys.h"
 #include "zn/platform.h"
+#include "zn/process_family.h"
 #include "qjs/qjs.h"
 #include "zn/engine.h"
 #ifdef ZN_HOST_LIBS
@@ -1294,7 +1295,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
       // A declaration change invalidates every cached unit, even though the include's filename stays the same.
       for (std::string& part : parts) part = "// declarations sha256 " + hash + "\n#include \"" + name + "\"\n" + part;
     }
-    std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } if (!assetLines.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, assetLines); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; }
+    std::string text = std::move(parts[0]); if (!gBakedSize.empty()) { std::size_t at = text.find("  // ZINC_PROGRAM_START\n", text.find("int main(")); if (at != std::string::npos) text.insert(at, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the board's surface\n"); } if (!assetLines.empty()) { std::size_t at = text.find("  // ZINC_PROGRAM_START\n", text.find("int main(")); if (at != std::string::npos) text.insert(at, assetLines); } o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; }
     for (std::size_t k = 1; k < parts.size(); ++k) { moreUnits.push_back(fs::path(out).string() + ".part" + std::to_string(k) + ".cpp"); std::ofstream u(moreUnits.back()); u << parts[k]; if (!u) { std::fprintf(stderr, "cannot write %s\n", moreUnits.back().string().c_str()); return 2; } } }
   std::string shapedLibs;   // "text": "shaped" (ZN-224): the shaping tier is linked into this program only
   if (zn::aot::usesHost(zm)) {
@@ -1316,8 +1317,8 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
         if (w.kiosk) keep("ZINC_KIOSK", "1");
         std::string text;
         { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
-        std::size_t at = text.find("{\n", text.find("int main("));
-        if (!env.empty() && at != std::string::npos) { text.insert(at + 2, env); std::ofstream o(cpp); o << text; }
+        std::size_t at = text.find("  // ZINC_PROGRAM_START\n", text.find("int main("));
+        if (!env.empty() && at != std::string::npos) { text.insert(at, env); std::ofstream o(cpp); o << text; }
       }
     }
 #ifdef ZN_HOST_GFX
@@ -1326,8 +1327,8 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
       const std::string c = appWindowConfig(proj.app.window, sized);
       std::string text;
       { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
-      std::size_t at = text.find("{\n", text.find("int main("));
-      if (at != std::string::npos && c.find(")ZNW") == std::string::npos) { text.insert(at + 2, "  setenv(\"ZINC_WINDOW_CONFIG\", R\"ZNW(" + c + ")ZNW\", 1);   // zinc.json app.window\n"); std::ofstream o(cpp); o << text; }
+      std::size_t at = text.find("  // ZINC_PROGRAM_START\n", text.find("int main("));
+      if (at != std::string::npos && c.find(")ZNW") == std::string::npos) { text.insert(at, "  setenv(\"ZINC_WINDOW_CONFIG\", R\"ZNW(" + c + ")ZNW\", 1);   // zinc.json app.window\n"); std::ofstream o(cpp); o << text; }
     }
 #endif
     // the tier as the interpreter has it (shapedTextWanted), when this zinc has its archives; an app library or an Android export
@@ -2487,6 +2488,7 @@ static void glRows(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
 }
 
 int main(int argc, char** argv) {
+  zn::plat::dispatchProcessGuard(argc, argv);
   for (int k = 0; k < argc; ++k) gLaunchArgs.push_back(argv[k]);
   // what a .zapp's needs are compared with (src/zapp.cpp): a program that installs apps (app/hub) reads them with zinc:sys env()
   setenv("ZINC_ENGINE_ZBC", std::to_string(zn::kZbcVersion).c_str(), 1);
@@ -3873,8 +3875,8 @@ int main(int argc, char** argv) {
     const std::string resBin = resFailed ? std::string() : writeIncbinFile(cpp, blob, nullptr, resFailed);   // zig c++ assembles it (ZN-429)
     if (resFailed) return 1;
     { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), resFile, resBin);
-      if (draws && !gWindowSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  if (getenv(\"DISPLAY\")) setenv(\"ZINC_SIZE\", \"" + gWindowSize + "\", 0);   // the project's window\n"); }
-      if (draws && !gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the project's surface\n"); }
+      if (draws && !gWindowSize.empty()) { std::size_t at = text.find("  // ZINC_PROGRAM_START\n", text.find("int main(")); if (at != std::string::npos) text.insert(at, "  if (getenv(\"DISPLAY\")) setenv(\"ZINC_SIZE\", \"" + gWindowSize + "\", 0);   // the project's window\n"); }
+      if (draws && !gBakedSize.empty()) { std::size_t at = text.find("  // ZINC_PROGRAM_START\n", text.find("int main(")); if (at != std::string::npos) text.insert(at, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the project's surface\n"); }
       o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; } }
     if (draws) injectPermissions(cpp.string(), argv[4], std::string(argv[3]).find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03
     bool ok;

@@ -13,6 +13,7 @@
 #include "zn/zim.h"
 #include "zn/app.h"
 #include "zn/platform.h"
+#include "zn/process_family.h"
 #include "hal.h"
 // the CPU decoders of the GPU block formats (ZN-439): the software raster draws a compressed texture from its decoded texels
 #define BCDEC_STATIC
@@ -180,6 +181,9 @@ thread_local std::string gPayload;   // the payload of the event evNext returned
 // The working directory the program started in (ZN-687: sys.launchDir of a built program), kept before its first chdir.
 // The program's own executable (sys.execPath), as tc::executablePath finds zinc's: the host library links no tc.
 static std::string execPath() {
+#if !defined(_WIN32) && !defined(ZN_APP_LIBRARY)
+  return zn::plat::familyExecutablePath();
+#else
   char b[4096];
 #if defined(__APPLE__)
   std::uint32_t n = sizeof b;
@@ -193,7 +197,9 @@ static std::string execPath() {
   const ssize_t n = readlink("/proc/self/exe", b, sizeof b - 1);
   return n > 0 ? std::string(b, (size_t)n) : "";
 #endif
+#endif
 }
+
 const std::string& startDir() { static const std::string d = [] { char b[4096]; return std::string(getcwd(b, sizeof b) ? b : ""); }(); return d; }
 // "fr_FR.UTF-8@euro" -> "fr-FR"
 std::string bcp47(std::string v) {

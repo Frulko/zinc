@@ -109,6 +109,7 @@ extern "C" void zn_console_aot(const unsigned char** module, unsigned long* size
 }
 #else
 int main(int, char**) {
+  // ZINC_PROGRAM_START
   return zn::rt::runProgramPacked(reinterpret_cast<const unsigned char*>(kModule), kModuleSize, kNatives, 2);
 }
 #endif

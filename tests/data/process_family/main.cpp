@@ -14,8 +14,20 @@ namespace zn::netlog { void tick(double) {} }   // unrelated HAR logging is off
 static void require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
 static int helper(const std::string& mode, const char* exe) {
   alarm(8);
-  if (mode == "nested" || mode == "nested-exit") {
-    int h = zn::loop::spawnProcess({exe, "--helper", "wait"}, "", {});
+  if (mode == "reaper") {
+    int output[2]; if (pipe(output)) return 2;
+    pid_t middle = fork();
+    if (!middle) { dup2(output[1], 1); close(output[0]); close(output[1]); execl(exe, exe, "--helper", "nested", nullptr); _exit(127); }
+    if (middle < 0) return 2;
+    close(output[1]); char text[128]{};
+    ssize_t n = read(output[0], text, sizeof text - 1); close(output[0]);
+    if (n <= 0) return 2;
+    kill(middle, SIGKILL); int status; while (waitpid(middle, &status, 0) < 0 && errno == EINTR) {}
+    std::printf("%d %s", static_cast<int>(middle), text); std::fflush(stdout);
+    for (;;) pause();
+  }
+  if (mode == "nested" || mode == "nested-exit" || mode == "owner" || mode == "owner-exec") {
+    int h = zn::loop::spawnProcess({exe, "--helper", (mode == "owner" || mode == "owner-exec") ? "nested" : "wait"}, "", {});
     if (h <= 0) return 2;
     std::string out;
     for (;;) {
@@ -24,9 +36,10 @@ static int helper(const std::string& mode, const char* exe) {
       while (zn::loop::nextEvent(event)) if (event.kind == 0) out += event.data;
       if (!out.empty()) break;
     }
-    std::printf("%d %d\n", zn::loop::pidOf(h), std::atoi(out.c_str()));
+    std::printf("%d %s", zn::loop::pidOf(h), out.c_str());
     std::fflush(stdout);
-    if (mode == "nested-exit") _exit(23);   // bypass local shutdown: the ancestor must discover the orphaned group
+    if (mode == "owner-exec") { execl("/bin/sh", "sh", "-c", "exit 23", nullptr); return 2; }
+    if (mode == "nested-exit") _exit(23);   // bypass local shutdown: ownership EOF must clean the orphaned group
     for (;;) zn::loop::wait(50);
   }
   if (mode == "moved") {
@@ -96,41 +109,10 @@ static size_t start(const char* exe, bool exits = false) {
   return i;
 }
 int main(int argc, char** argv) {
+  zn::plat::dispatchProcessGuard(argc, argv);
   if (argc > 1 && std::string(argv[1]) == "--helper") return helper(argv[2], argv[0]);
   signal(SIGPIPE, SIG_IGN);
   try {
-#ifdef __APPLE__
-    require(zn::plat::familySignal() != nullptr, "native identity signal API missing");
-    zn::plat::FamilyInfo self{};
-    require(zn::plat::familyInfo(getpid(), self), "native identity lookup failed");
-    zn::plat::FamilyMember identity(self);
-    require(identity.signal(SIGCONT) == 0, "current audit token refused");
-    ++identity.token.val[7];
-    require(zn::plat::familySignal()(&identity.token, SIGCONT) == ESRCH, "stale audit token accepted");
-    auto resumed = start(argv[0]);
-    zn::plat::FamilyInfo original{};
-    require(zn::plat::familyInfo(families[resumed].leader, original), "freeze identity missing");
-    try {
-      zn::plat::FrozenFamily frozen;
-      require(frozen.stop(original, std::chrono::steady_clock::now() + std::chrono::milliseconds(250)), "freeze failed");
-      throw 1;
-    } catch (int) {}
-    until([&] {
-      zn::plat::FamilyInfo current{};
-      return zn::plat::familyInfo(families[resumed].leader, current) && current.bsd.pbi_status != SSTOP;
-    }, "exception left owned child stopped");
-    zn::loop::signalProcess(families[resumed].h, SIGKILL);
-    ended(resumed, 137);
-    auto stopped = start(argv[0]);
-    zn::loop::signalProcess(families[stopped].h, SIGSTOP);
-    until([&] { return zn::plat::familyInfo(families[stopped].leader, original) && original.bsd.pbi_status == SSTOP; }, "external stop failed");
-    {
-      zn::plat::FrozenFamily frozen;
-      require(frozen.stop(original, std::chrono::steady_clock::now() + std::chrono::milliseconds(250)), "pre-stopped capture failed");
-    }
-    require(zn::plat::familyInfo(families[stopped].leader, original) && original.bsd.pbi_status == SSTOP, "capture resumed an external stop");
-    zn::loop::signalProcess(families[stopped].h, SIGKILL);
-    ended(stopped, 137);
     for (int mode = 0; mode < 3; ++mode) {
       int h = zn::loop::spawnProcess({argv[0], "--helper", mode == 2 ? "nested-exit" : "nested"}, "", {});
       require(h > 0, "nested owner spawn failed");
@@ -146,7 +128,23 @@ int main(int argc, char** argv) {
       int status;
       require(waitpid(nested.leader, &status, WNOHANG) == -1 && errno == ECHILD, "nested leader not reaped");
     }
-#endif
+    for (const char* mode : {"reaper", "owner", "owner-exec"}) {
+      int h = zn::loop::spawnProcess({argv[0], "--helper", mode}, "", {});
+      require(h > 0, "deep owner spawn failed");
+      families.push_back({h, zn::loop::pidOf(h)}); size_t i = families.size() - 1;
+      until([&] { return families[i].output.find('\n') != std::string::npos; }, "deep family not ready");
+      int first = 0, second = 0, third = 0;
+      require(sscanf(families[i].output.c_str(), "%d %d %d", &first, &second, &third) == 3, "deep pid stream");
+      if (std::string(mode) == "reaper") {
+        require(gone(first), "nonowned intermediate was not reaped");
+        until([&] { return gone(second) && gone(third); }, "vanished intermediate leaked nested group");
+        require(!gone(families[i].leader), "ancestor exited before ownership cascade");
+      }
+      bool replaced = std::string(mode) == "owner-exec";
+      if (!replaced) require(zn::loop::sendSignal(families[i].leader, "SIGKILL") == 1, "direct owner kill failed");
+      until([&] { return families[i].code == (replaced ? 23 : 137); }, "deep owner exit missing");
+      until([&] { return gone(first) && gone(second) && gone(third); }, "three-level family survived owner death");
+    }
     auto a = start(argv[0]), b = start(argv[0]);
     zn::loop::signalProcess(families[a].h, SIGTERM);
     ended(a, 143);   // grandchild ignores TERM; final cleanup must still stop it
@@ -167,48 +165,19 @@ int main(int argc, char** argv) {
     size_t lookupIndex = families.size() - 1;
     until([&] { return families[lookupIndex].code >= 0; }, "PATH child exit missing");
     require(families[lookupIndex].code == 7 && families[lookupIndex].output == "override", "PATH or environment override changed");
-#if !defined(ZN_APP_LIBRARY) && (defined(__APPLE__) || (defined(__linux__) && !defined(__ANDROID__)))
-    // Exercise the old-host path directly even though this SDK has spawn's chdir action.
-    for (int which = 0; which < 3; ++which) {
-      int pipes[3][2] = {{-1, -1}, {-1, -1}, {-1, -1}};
-      for (auto& pipe : pipes) require(zn::plat::familyPipe(pipe) == 0, "fallback pipe failed");
-      char missing[] = "/no-such-zinc-fork-family-1118";
-      char option[] = "-c", script[] = "printf '%s\\n' \"$FAMILY_TEST\"; pwd; exit 7";
-      char* args[] = {which == 2 ? missing : commandName.data(), option, script, nullptr};
-      char env[] = "FAMILY_TEST=override";
-      char* environment[] = {env, pathEnv.data(), nullptr};
-      pid_t pid;
-      int rc = zn::plat::forkFamily(args, environment, which == 1 ? "/no-such-zinc-cwd-1118" : "/tmp", pipes, pid);
-      for (int k = 0; k < 3; ++k) close(pipes[k][k == 0 ? 0 : 1]);
-      close(pipes[0][1]);
-      if (!which) {
-        require(rc == 0, "fallback spawn failed");
-        require(getpgid(pid) == pid, "fallback group missing");
-        std::string out; char chunk[256]; ssize_t n;
-        while ((n = read(pipes[1][0], chunk, sizeof chunk)) > 0) out.append(chunk, static_cast<size_t>(n));
-        char cwd[1024];
-        require(realpath("/tmp", cwd) != nullptr && out == std::string("override\n") + cwd + "\n", "fallback argv/env/cwd changed");
-        int code = -1;
-        for (int i = 0; i < 200; ++i) { if (zn::plat::pollFamily(pid, code)) break; usleep(5000); }
-        require(code == 7, "fallback exit code changed");
-      } else require(rc == ENOENT, "fallback spawn error lost");
-      close(pipes[1][0]); close(pipes[2][0]);
-      int status;
-      require(waitpid(pid, &status, WNOHANG) == -1 && errno == ECHILD, "fallback child not reaped");
-    }
-#endif
     require(unlink(tool.c_str()) == 0, "PATH test symlink cleanup failed");
     // The legacy POSIX provider owns a group without a new session; its leader can leave that group.
     char* movedArgs[] = {argv[0], const_cast<char*>("--helper"), const_cast<char*>("moved"), nullptr};
     extern char** environ;
     pid_t moved;
     int pipes[3];
-    require(zn::plat::spawnFamily(movedArgs, environ, "", moved, pipes) == 0, "moved leader spawn failed");
+    zn::plat::FamilyTree movedFamily;
+    require(zn::plat::spawnFamily(movedArgs, environ, "", moved, pipes, movedFamily) == 0, "moved leader spawn failed");
     char ready[32];
     require(read(pipes[1], ready, sizeof ready) > 0, "moved leader not ready");
-    require(getpgid(moved) == getpgrp(), "leader did not leave group");
-    require(zn::plat::signalFamily(moved, SIGKILL), "moved leader signal failed");
-    require(zn::plat::reapFamily(moved) == 137, "moved leader not reaped");
+    require(getpgid(moved) != moved, "leader did not leave group");
+    require(zn::plat::signalFamily(moved, SIGKILL, &movedFamily), "moved leader signal failed");
+    require(zn::plat::reapFamily(moved, &movedFamily) == 137, "moved leader not reaped");
     for (int fd : pipes) close(fd);
     auto c = start(argv[0], true);
     ended(c, 23);   // leader already exited, grandchild still held stdout/stderr

@@ -16,7 +16,7 @@
     {"paths": ["src/frontend/check.cpp", "src/frontend/dyn.cpp", "src/frontend/dyn.h", "src/frontend/inspect.cpp", "src/frontend/parser.cpp", "tests/data/open_record_methods/", "tests/t0/open_record_methods.sh"], "tests": ["open_record_methods"]},
     {"paths": ["include/zn/string_literal.h", "src/frontend/inspect.cpp", "src/frontend/parser.cpp", "src/frontend/check.cpp", "src/frontend/dyn.cpp", "src/ir/lower.cpp", "tests/data/json_quoted/", "tests/t0/json_quoted.sh"], "tests": ["json_quoted"]},
     {"paths": ["plugins/system/update.ts", "plugins/process/index.ts", "src/tc/tc.cpp", "tests/data/app_update_async/", "tests/t0/app_update_async.sh"], "tests": ["app_update_async"]},
-    {"paths": ["src/host/loop.cpp", "include/zn/loop.h", "include/zn/process_family.h", "plugins/process/", "tests/data/process_family/", "tests/t0/process_family.sh"], "tests": ["process_family"]},
+    {"paths": ["src/host/loop.cpp", "src/aot/aot.cpp", "src/main.cpp", "include/zn/loop.h", "include/zn/process_family.h", "plugins/process/", "tests/data/process_family/", "tests/t0/process_family.sh"], "tests": ["process_family"]},
     {"paths": ["src/qjs/qjs.cpp", "src/qjs/qjs.h", "src/main.cpp", "tests/data/qjs_bytecode/", "tests/t0/qjs_bytecode.sh"], "tests": ["qjs_bytecode"]},
     {"paths": ["src/zapp.cpp", "src/zapp.h", "src/cli_core.cpp", "src/main.cpp", "tests/t0/zapp_share.sh"], "tests": ["zapp_share"]},
     {"paths": ["lib/std/project-link.ts", "site/src/components/Play.astro", "tests/data/project_link/", "tests/t0/project_link.sh"], "tests": ["project_link"]},

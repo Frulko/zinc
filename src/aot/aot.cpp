@@ -403,6 +403,19 @@ bool usesNative(const zbc::Module& mod, std::string_view module) {
   return false;
 }
 
+// Process calls can survive only in a worker, or use the host row without a native import.
+static bool usesProcesses(const zbc::Module& mod) {
+  if (usesNative(mod, "Process")) return true;
+  for (const zbc::Function& fn : mod.functions)
+    for (std::size_t pc = 0; pc < fn.code.size(); pc += (kOps[opOf(fn.code[pc])].fmt == Fmt::AB2 || kOps[opOf(fn.code[pc])].fmt == Fmt::AK2) ? 2 : 1)
+      if (std::string(kOps[opOf(fn.code[pc])].name) == "Rt" && (static_cast<zn::Rt>(dOf(fn.code[pc])) == zn::Rt::HostProcSpawnEx || static_cast<zn::Rt>(dOf(fn.code[pc])) == zn::Rt::HostProcSpawn)) return true;
+  for (const auto& w : mod.workers) {
+    zbc::Module child; std::string error;
+    if (!zbc::decode(w.second, child, error) || usesProcesses(child)) return true;
+  }
+  return false;
+}
+
 // Whether the module calls the host (the Rt::Host* entries): the program then installs the graphics host and links its library.
 bool usesHost(const zbc::Module& mod) {
   for (const zbc::Function& fn : mod.functions)
@@ -639,7 +652,12 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
        "  *module = reinterpret_cast<const unsigned char*>(kModule); *size = kModuleSize; *natives = kNatives; *count = " + std::to_string(mod.functions.size()) + ";\n" +
        std::string(resources && usesHost(mod) ? "  *res = reinterpret_cast<const unsigned char*>(kResources); *resSize = kResourcesSize;\n" : "  *res = nullptr; *resSize = 0;\n") +
        "}\n#else\n" +
-       (usesHost(mod) ? "#include \"zn/hostsys.h\"\n\nint main(int argc, char** argv) {\n  zn::host::setProgramArgs(std::vector<std::string>(argv + 1, argv + argc));   // zinc:sys args()\n" : "int main(int, char**) {\n") + nativeRegs + (hasFixture ? "  { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }\n" : "") + (usesHost(mod) ? "  zn::host::installGfx();\n  zn::host::showSplash();   // the splash first (ZN-446): before the fonts, the plugins and the program\n  zn::rt::gConsoleTap = zn::netlog::consoleLine;   // the inspector's Console\n" + std::string(rnLayout && usesLayout(mod) ? "  zn::host::installLayout();\n" : "") + std::string(usesGl(mod) ? "  zn::host::installGl();\n" : "") + std::string(resources ? (unpackedResources ? "  { std::vector<std::uint8_t> raw; if (!zn::res::unpackEmbeddedBlob(reinterpret_cast<const unsigned char*>(kResources), kResourcesSize, " + std::to_string(unpackedResources) + ", raw) || !zn::host::installResources(raw.data(), raw.size())) { std::fputs(\"embedded resources: damaged\\n\", stderr); return 2; } }\n" : "  zn::host::installResources(reinterpret_cast<const unsigned char*>(kResources), kResourcesSize);\n") : !resourcesFile.empty() ? "  if (!zn::host::installResourcesFile(" + fileLit + ")) return 2;   // the fonts and images beside the program\n" : "") : std::string()) + (unpackedTables ? "  std::vector<std::uint8_t> tables; if (!zn::res::unpackEmbeddedBlob(reinterpret_cast<const unsigned char*>(kModule), kModuleSize, " + std::to_string(unpackedTables) + ", tables)) { std::fputs(\"embedded module: damaged\\n\", stderr); return 1; }\n  return zn::rt::runProgramPacked(tables.data(), tables.size(), kNatives, " : "  return zn::rt::runProgramPacked(reinterpret_cast<const unsigned char*>(kModule), kModuleSize, kNatives, ") + std::to_string(mod.functions.size()) + ");\n}\n#endif\n";
+       std::string(usesHost(mod) ? "#include \"zn/hostsys.h\"\n" : "") +
+       std::string(usesProcesses(mod) ? "#include \"zn/process_family.h\"\n" : "") +
+       std::string(usesHost(mod) || usesProcesses(mod) ? "int main(int argc, char** argv) {\n" : "int main(int, char**) {\n") +
+       std::string(usesProcesses(mod) ? "  zn::plat::dispatchProcessGuard(argc, argv);\n" : "") +
+       "  // ZINC_PROGRAM_START\n" +
+       std::string(usesHost(mod) ? "  zn::host::setProgramArgs(std::vector<std::string>(argv + 1, argv + argc));   // zinc:sys args()\n" : "") + nativeRegs + (hasFixture ? "  { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }\n" : "") + (usesHost(mod) ? "  zn::host::installGfx();\n  zn::host::showSplash();   // the splash first (ZN-446): before the fonts, the plugins and the program\n  zn::rt::gConsoleTap = zn::netlog::consoleLine;   // the inspector's Console\n" + std::string(rnLayout && usesLayout(mod) ? "  zn::host::installLayout();\n" : "") + std::string(usesGl(mod) ? "  zn::host::installGl();\n" : "") + std::string(resources ? (unpackedResources ? "  { std::vector<std::uint8_t> raw; if (!zn::res::unpackEmbeddedBlob(reinterpret_cast<const unsigned char*>(kResources), kResourcesSize, " + std::to_string(unpackedResources) + ", raw) || !zn::host::installResources(raw.data(), raw.size())) { std::fputs(\"embedded resources: damaged\\n\", stderr); return 2; } }\n" : "  zn::host::installResources(reinterpret_cast<const unsigned char*>(kResources), kResourcesSize);\n") : !resourcesFile.empty() ? "  if (!zn::host::installResourcesFile(" + fileLit + ")) return 2;   // the fonts and images beside the program\n" : "") : std::string()) + (unpackedTables ? "  std::vector<std::uint8_t> tables; if (!zn::res::unpackEmbeddedBlob(reinterpret_cast<const unsigned char*>(kModule), kModuleSize, " + std::to_string(unpackedTables) + ", tables)) { std::fputs(\"embedded module: damaged\\n\", stderr); return 1; }\n  return zn::rt::runProgramPacked(tables.data(), tables.size(), kNatives, " : "  return zn::rt::runProgramPacked(reinterpret_cast<const unsigned char*>(kModule), kModuleSize, kNatives, ") + std::to_string(mod.functions.size()) + ");\n}\n#endif\n";
   out[0] = std::move(s);
   return out;
 }

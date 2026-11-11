@@ -371,7 +371,7 @@ int spawnProcess(const std::vector<std::string>& argvIn, const std::string& cwd,
 #else
   pid_t pid;
   int fds[3];
-  rc = zn::plat::spawnFamily(args.data(), envp.data(), cwd.c_str(), pid, fds);
+  rc = zn::plat::spawnFamily(args.data(), envp.data(), cwd.c_str(), pid, fds, p->family);
   if (rc) rc = uv_translate_sys_error(rc);
   if (!rc) {
     p->pid = pid;

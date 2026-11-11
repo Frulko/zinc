@@ -97,14 +97,14 @@ struct HostProcess : NativeProcess, zrt::Poller {
 
     int parent[3];
     pid_t pid;
-    int rc = zn::plat::spawnFamily(argv, envp, d, pid, parent);
+    Proc& p = procs[h];
+    int rc = zn::plat::spawnFamily(argv, envp, d, pid, parent, p.family);
     if (rc != 0) snprintf(err_msg, sizeof err_msg, "%s: %s", c, strerror(rc));
     free(argv); free(over); free(envp); free(c); free(a); free(d); free(e);
     if (rc != 0) return -1;
     fcntl(parent[1], F_SETFL, O_NONBLOCK);
     fcntl(parent[2], F_SETFL, O_NONBLOCK);
-    Proc& p = procs[h];
-    p = Proc{};
+    for (Stream& stream : p.out) stream.ntail = 0;
     p.handle = nextHandle++;
     p.transition(Proc::State::Running);
     p.pid = pid; p.in = parent[0]; p.out[0].fd = parent[1]; p.out[1].fd = parent[2];

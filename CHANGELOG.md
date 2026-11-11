@@ -148,7 +148,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Quit in the app menu (Cmd+Q) runs the program's close handlers first, as the window's close button does, so a program can save its work, ask, or keep its state before it ends.
 - On Linux, `deeplink.register()` makes the app the handler of its scheme even where xdg-utils is not installed, keeping the other entries of `mimeapps.list`, and a link opened while the app runs reaches `deeplink.onOpen` in the running copy instead of only its second-launch arguments.
 - On macOS and Linux, stopping a `zinc:process` child or closing its owner also stops descendants in its process group, even if the child has already exited.
-- On supported macOS hosts, stopping a nested Zinc command also stops its discovered child groups; stale process identities are refused during cleanup.
+- On desktop macOS and Linux, nested `zinc:process` commands retain ownership through an intermediate command's death or exec, so shutdown also cleans their child groups after an intermediate has already been reaped. Each spawn uses a private guardian process; `pid` still identifies the command.
 - Quitting a program with active WebRTC audio or video stops its media workers before native cleanup, preventing a crash on exit.
 - Linux exports that start child processes link on glibc 2.28, including children started in a different working directory.
 
