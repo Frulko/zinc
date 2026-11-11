@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve673 next independent wasm host chain beside1118 processguard; research finds bakedZRS1 glyphmetrics/coverage reusable, CanvasFontFace alone insufficient. Absolute translate/matrix order must follow native. Fullpixelcomparison milestone notselected, acceptance staysopen until actualallowedproof.
+
 - Root combined build57559ca9c/common55958316 complete; exactboard+wasm_images PASS. Stalepre672 wasm companion correctlyfailed first, replaced by SHA-verified archived final672 runtime9411c95a (provenance in integration/board-wasm). All10ownerpayloads preserved. Active1118guard worker, no other building worker.
 
 - Integrated672 1db9edff3 Done(all3),90Done. Rootexactwasm_images PASS, finalglue/metadata/buildsourcesmatch; originalimage_rect pixelcheck zeroSlack/RTcolors/rawSHA allpass Chrome157. Archive58complete source+logs. Claim1118 finalselfexecguardian repair, researchcomplete; isolatedmain/AOTdispatch permitted outsideownerhunks. Commoncombinedrefresh next.

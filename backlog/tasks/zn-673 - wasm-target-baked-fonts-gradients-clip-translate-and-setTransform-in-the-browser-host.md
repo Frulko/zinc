@@ -4,7 +4,8 @@ title: >-
   wasm target: baked fonts, gradients, clip, translate and setTransform in the
   browser host
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 19:20'
 labels:
   - wasm
