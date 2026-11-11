@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated701 1ca3bba23 ReviewAC1/2open; ownmodule realWebGL1/2+spyproof passes, rootcommonmodulebuild underway, knownAMD exclusionskept. Reserve584.01 smalltypedgame scenes/sprites/playback overexistingFrame/Animation/batcher (no newdemo/service); delegatedresearchcomplete. 723owncompiler deferred per724prior-measureconstraint, researchretained .logs/research-723-lowering.txt, nobenchmarkauthorized.
+
 - Integrated330.04 e31522ace Review(noAC/goldensunrun); rootcombinedbuild/text_module/wasm_native PASS, all10ownerpayloads preserved. Main18168368B +adjacentmodule2976648B, no pairedsaving/timing claim. Source/fullproof archive62.701active;723.01 read-onlyresearch fornextengineperf chain.91Doneunchanged.
 
 - Reserve701 independentGL storage correctness beside330.04. Delegatedprimaryresearch: out-of-bounds subcopy leavesdestination untouched; copyImage zerosnewstorage then clippedcopy. Nulltexture/RBO/MSAA init mustcoverREAD/DRAW bindings/typedformats andpreservestate/aliasing. Fullconformance/AMDcriteria notauthorized, knownfailurelist retained.
