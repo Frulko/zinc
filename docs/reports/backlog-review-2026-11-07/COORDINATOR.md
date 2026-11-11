@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve592.04 Linuxlazywindowmodule. Read-onlyresearchcomplete: platformsplitCMake/PIC/wholearchiveSDL/transitivelibs, GLOBALloaderandELFfunctioninterposition, .so package/fuse withverifiedcache. No protectedHAL/driveredits needed; Linuxdisplay-gl EGLnotSDL. ActualLinuxshortproof/crossbuild permitted, no launchbenchmark/T1campaign.584.01 justintegrated rootbuild/proof underway.
+
 - Root701 modulebuild/exactwebgl_initialization PASS oncombinedengine08bedbdc, Reviewgatesopen, source/fullproof archive63. Active584.01 typedgameSDK.673remainingUnicode research identifies nativeOSfallback unavailableinresources; no silentfontsubstitution ornewshaperbloat started.723compiler waits724measure. Allnewgates remainhonest;91Done.
 
 - Integrated701 1ca3bba23 ReviewAC1/2open; ownmodule realWebGL1/2+spyproof passes, rootcommonmodulebuild underway, knownAMD exclusionskept. Reserve584.01 smalltypedgame scenes/sprites/playback overexistingFrame/Animation/batcher (no newdemo/service); delegatedresearchcomplete. 723owncompiler deferred per724prior-measureconstraint, researchretained .logs/research-723-lowering.txt, nobenchmarkauthorized.
