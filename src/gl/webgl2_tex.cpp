@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "gl/webgl1.h"
+#include "gl/zero_upload.h"
 #include "glad/gl.h"
 
 namespace zn::gl {
@@ -103,11 +104,12 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
     // glTexStorage* is GL 4.2 (macOS stops at 4.1): the levels are allocated one by one, which looks the same once the wrapper refuses later respecification
     std::uint32_t fmt = 0, typ = 0;
     for (const Fmt& f : kFormats) if (f.internal == ifmt) { fmt = f.format; typ = f.type; break; }
+    int bpp = 0; lookup(ifmt, fmt, typ, bpp);
     int lw = w, lh = h, ld = d;
     for (int l = 0; l < levels; ++l) {
-      if (three) glTexImage3D(bindTarget, l, static_cast<GLint>(ifmt), lw, lh, target == GL_TEXTURE_3D ? ld : d, 0, fmt, typ, nullptr);
-      else if (bindTarget == GL_TEXTURE_CUBE_MAP) for (int f = 0; f < 6; ++f) glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + f, l, static_cast<GLint>(ifmt), lw, lh, 0, fmt, typ, nullptr);
-      else glTexImage2D(bindTarget, l, static_cast<GLint>(ifmt), lw, lh, 0, fmt, typ, nullptr);
+      if (three) { if (!zeroImage(bindTarget, l, ifmt, lw, lh, target == GL_TEXTURE_3D ? ld : d, fmt, typ, bpp, true, [this] { return driverOk(); })) return false; }
+      else if (bindTarget == GL_TEXTURE_CUBE_MAP) for (int f = 0; f < 6; ++f) { if (!zeroImage(GL_TEXTURE_CUBE_MAP_POSITIVE_X + f, l, ifmt, lw, lh, 1, fmt, typ, bpp, false, [this] { return driverOk(); })) return false; }
+      else { if (!zeroImage(bindTarget, l, ifmt, lw, lh, 1, fmt, typ, bpp, false, [this] { return driverOk(); })) return false; }
       lw = std::max(1, lw / 2); lh = std::max(1, lh / 2); ld = std::max(1, ld / 2);
     }
     glTexParameteri(bindTarget, GL_TEXTURE_MAX_LEVEL, levels - 1);
@@ -145,23 +147,9 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
     else glTexSubImage2D(target, level, xoff, yoff, w, h, format, type, data);
     return true;
   }
-  // no data means zeros in WebGL; a driver re-specifying a level of the same size would keep the old pixels, so hand it zeros (default pixel-store state, no unpack buffer)
-  std::vector<std::uint8_t> zeros;
-  GLint pbo = 0, align = 0, ps[5] = {0, 0, 0, 0, 0};
-  const GLenum psName[5] = {GL_UNPACK_ROW_LENGTH, GL_UNPACK_IMAGE_HEIGHT, GL_UNPACK_SKIP_PIXELS, GL_UNPACK_SKIP_ROWS, GL_UNPACK_SKIP_IMAGES};
-  if (!data) {
-    glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &pbo);
-    if (!pbo) {
-      zeros.assign(static_cast<std::size_t>(w) * h * std::max(d, 1) * bpp, 0);
-      glGetIntegerv(GL_UNPACK_ALIGNMENT, &align);
-      for (int i = 0; i < 5; ++i) { glGetIntegerv(psName[i], &ps[i]); glPixelStorei(psName[i], 0); }
-      glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-      data = zeros.data();
-    }
-  }
-  if (three) glTexImage3D(target, level, static_cast<GLint>(ifmt), w, h, d, 0, format, type, data);
+  if (!data) { if (!zeroImage(target, level, ifmt, w, h, d, format, type, bpp, three, [this] { return driverOk(); })) return false; }
+  else if (three) glTexImage3D(target, level, static_cast<GLint>(ifmt), w, h, d, 0, format, type, data);
   else glTexImage2D(target, level, static_cast<GLint>(ifmt), w, h, 0, format, type, data);
-  if (!zeros.empty()) { for (int i = 0; i < 5; ++i) glPixelStorei(psName[i], ps[i]); glPixelStorei(GL_UNPACK_ALIGNMENT, align); }
   if (level == 0) {
     t.w = w; t.h = h; t.d = d; t.format = format; t.cfmt = 0;
     t.f32 = ifmt == GL_R32F || ifmt == GL_RG32F || ifmt == GL_RGB32F || ifmt == GL_RGBA32F || (isUnsizedLegacy(ifmt) && type == GL_FLOAT);   // not filterable without OES_texture_float_linear
@@ -199,7 +187,11 @@ void WebGL1::copyTexSubImage3D(std::uint32_t target, int level, int xo, int yo, 
   if (target != GL_TEXTURE_3D && target != GL_TEXTURE_2D_ARRAY) return error(GL_INVALID_ENUM);
   if (level < 0 || xo < 0 || yo < 0 || zo < 0 || w < 0 || h < 0) return error(GL_INVALID_VALUE);
   if (!boundTex(target)) return error(GL_INVALID_OPERATION);
-  glCopyTexSubImage3D(target, level, xo, yo, zo, x, y, w, h);
+  if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  GLint tw = 0, th = 0, td = 0;
+  glGetTexLevelParameteriv(target, level, GL_TEXTURE_WIDTH, &tw); glGetTexLevelParameteriv(target, level, GL_TEXTURE_HEIGHT, &th); glGetTexLevelParameteriv(target, level, GL_TEXTURE_DEPTH, &td);
+  if (std::int64_t(xo) + w > tw || std::int64_t(yo) + h > th || zo >= td) return error(GL_INVALID_VALUE);
+  if (clipCopy(x, y, w, h, xo, yo)) glCopyTexSubImage3D(target, level, xo, yo, zo, x, y, w, h);
 }
 
 // ---- samplers
@@ -416,6 +408,7 @@ void WebGL1::blitFramebuffer(int sx0, int sy0, int sx1, int sy1, int dx0, int dy
   if ((mask & (GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)) && filter == GL_LINEAR) return error(GL_INVALID_OPERATION);
   auto span = [](int a, int b) { return a > b ? static_cast<std::int64_t>(a) - b : static_cast<std::int64_t>(b) - a; };
   if (span(sx0, sx1) > 0x7fffffff || span(sy0, sy1) > 0x7fffffff || span(dx0, dx1) > 0x7fffffff || span(dy0, dy1) > 0x7fffffff) return error(GL_INVALID_VALUE);
+  if (!framebufferReady(GL_READ_FRAMEBUFFER) || !framebufferReady(GL_DRAW_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   if (fboRead_ == fbo_) return error(GL_INVALID_OPERATION);
   if (fboRead_ && fbo_) {   // the same image (object, level, face, layer) on both sides of a copied buffer
     auto img = [](GLenum target, GLenum att, GLint* v) {
@@ -565,8 +558,10 @@ void WebGL1::renderbufferStorageMultisample(std::uint32_t target, int samples, s
   if (samples < 0 || w < 0 || h < 0 || w > maxTexSize_ || h > maxTexSize_) return error(GL_INVALID_VALUE);
   if (!rbo_) return error(GL_INVALID_OPERATION);
   Rbo& r = rbos_[rbo_];
-  r.w = w; r.h = h; r.format = fmt; r.samples = samples;
+  driverOk();
   glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, fmt == GL_DEPTH_STENCIL ? GL_DEPTH24_STENCIL8 : fmt, w, h);
+  if (!driverOk() || (w && h && !initializeRenderbuffer(fmt))) return;
+  r.w = w; r.h = h; r.format = fmt; r.samples = samples;
 }
 void WebGL1::clearBufferfv(std::uint32_t buffer, int drawbuffer, const float* v, std::size_t n) {
   if (version_ != 2) return error(GL_INVALID_OPERATION);

@@ -317,7 +317,11 @@ class WebGL1 {
   void eraseProgram(Id id);
   std::string toDriver(const std::string& name) const;     // a uniform, attribute or varying name of the page as the driver has it (webgl1.cpp mapWords), and back
   std::string fromDriver(const std::string& name) const;
-  bool framebufferReady();
+  bool framebufferReady(std::uint32_t target = 0x8D40);
+  bool driverOk();
+  bool initializeRenderbuffer(std::uint32_t format);
+  void readSize(int& width, int& height);
+  bool clipCopy(int& x, int& y, int& width, int& height, int& xoff, int& yoff);
   Id& bufferSlot(std::uint32_t t);   // program, attributes in range, framebuffer complete
 
   Offscreen gl_;
@@ -359,7 +363,7 @@ class WebGL1 {
   bool compressedBytes(std::uint32_t fmt, int w, int h, std::size_t& bytes) const;
   std::uint32_t driverFormat(std::uint32_t fmt) const;
   int copyClash(std::uint32_t target, int level, std::uint32_t destName);
-  void copyThrough(bool sub, std::uint32_t target, int level, std::uint32_t ifmt, int xoff, int yoff, int x, int y, int w, int h);
+  bool copyThrough(bool sub, std::uint32_t target, int level, std::uint32_t ifmt, int xoff, int yoff, int x, int y, int w, int h);
   bool renderbufferFormatAllowed(std::uint32_t fmt) const;
   bool v1Type(std::uint32_t type) const;
   bool depthAttr_ = true, stencilAttr_ = false, alphaAttr_ = true;   // the context attributes: what DEPTH_BITS and STENCIL_BITS report

@@ -1,4 +1,5 @@
 #include "gl/webgl1.h"
+#include "gl/zero_upload.h"
 
 #include <algorithm>
 #include <cctype>
@@ -586,12 +587,18 @@ void WebGL1::compositeClear() {
   glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(read));
 }
 
-std::uint32_t WebGL1::getError() {
+bool WebGL1::driverOk() {
+  bool ok = true;
   while (true) {   // errors of the driver that validation missed are kept visible rather than lost
     GLenum e = glGetError();
     if (e == GL_NO_ERROR) break;
+    ok = false;
     if (e >= GL_INVALID_ENUM && e <= GL_INVALID_FRAMEBUFFER_OPERATION && e != 0x0503 && e != 0x0504) error(e);
   }
+  return ok;
+}
+std::uint32_t WebGL1::getError() {
+  driverOk();
   for (std::uint32_t code = GL_INVALID_ENUM; code <= GL_INVALID_FRAMEBUFFER_OPERATION; ++code)
     if (flags_ & bit(code)) { flags_ &= ~bit(code); return code; }
   return GL_NO_ERROR;
@@ -1139,7 +1146,8 @@ void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalf
     if (dataBytes < need) return error(GL_INVALID_OPERATION);
   }
   const GlFmt f = glFormat(format, type, gl_.info().es);
-  glTexImage2D(target, level, static_cast<GLint>(f.internal), width, height, 0, f.format, f.type, data);
+  if (!data) { if (!zeroImage(target, level, static_cast<GLint>(f.internal), width, height, 1, f.format, f.type, bpp, false, [this] { return driverOk(); })) return; }
+  else glTexImage2D(target, level, static_cast<GLint>(f.internal), width, height, 0, f.format, f.type, data);
   Tex& t = textures_[id];
   if (level == 0) {
     t.w = width; t.h = height; t.format = format; t.type = type;
@@ -1218,11 +1226,13 @@ void WebGL1::framebufferTexture2D(std::uint32_t target, std::uint32_t attachment
   glFramebufferTexture2D(target, attachment, textarget, name, level);
 }
 // the per-draw test: the driver's own answer is enough unless it says no (then the full rules decide)
-bool WebGL1::framebufferReady() {
-  if (!fbo_) return true;
-  Fbo& f = fbos_[fbo_];
+bool WebGL1::framebufferReady(std::uint32_t target) {
+  if (version_ != 2) target = GL_FRAMEBUFFER;
+  const Id id = target == GL_READ_FRAMEBUFFER ? fboRead_ : fbo_;
+  if (!id) return true;
+  Fbo& f = fbos_[id];
   if (f.okGen == fbGen_) return true;   // nothing that decides completeness changed since the last answer
-  const bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && checkFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+  const bool ok = glCheckFramebufferStatus(target) == GL_FRAMEBUFFER_COMPLETE && checkFramebufferStatus(target) == GL_FRAMEBUFFER_COMPLETE;
   if (ok) f.okGen = fbGen_;
   return ok;
 }
@@ -1366,7 +1376,7 @@ void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::u
     std::size_t need = 0;
     if (packBufferBound()) return error(GL_INVALID_OPERATION);   // a pack buffer wants an offset, not a view
     if (!readCheck(w, h, format, type, need)) return;
-    if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+    if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
     if (outBytes < need) return error(GL_INVALID_OPERATION);
     glReadPixels(x, y, w, h, format, type, out);
     return;
@@ -1379,7 +1389,7 @@ void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::u
     while (glGetError() != GL_NO_ERROR) {}
     if (comp == GL_FLOAT) {
       if (w < 0 || h < 0) return error(GL_INVALID_VALUE);
-      if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+      if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
       if (outBytes < static_cast<std::size_t>(w) * h * (type == GL_FLOAT ? 16 : 8)) return error(GL_INVALID_OPERATION);
       glReadPixels(x, y, w, h, GL_RGBA, type == GL_FLOAT ? GL_FLOAT : GL_HALF_FLOAT, out);
       return;
@@ -1388,7 +1398,7 @@ void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::u
   switch (type) { case GL_UNSIGNED_BYTE: case GL_BYTE: case GL_SHORT: case GL_UNSIGNED_SHORT: case GL_INT: case GL_UNSIGNED_INT: case GL_FLOAT: case GL_UNSIGNED_SHORT_5_6_5: case GL_UNSIGNED_SHORT_4_4_4_4: case GL_UNSIGNED_SHORT_5_5_5_1: case 0x8D61: break; default: return error(GL_INVALID_ENUM); }   // 0x8D61: HALF_FLOAT_OES
   if (format != GL_RGBA || type != GL_UNSIGNED_BYTE) return error(GL_INVALID_OPERATION);   // the one combination every implementation reads
   if (w < 0 || h < 0) return error(GL_INVALID_VALUE);
-  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   if (outBytes < static_cast<std::size_t>(w) * h * 4) return error(GL_INVALID_OPERATION);
   glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, out);
 }
@@ -1398,7 +1408,7 @@ void WebGL1::readPixelsToBuffer(int x, int y, int w, int h, std::uint32_t format
   if (offset < 0) return error(GL_INVALID_VALUE);
   std::size_t need = 0;
   if (!readCheck(w, h, format, type, need)) return;
-  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   const Buf& b = buffers_[otherBuffers_[0x88EB]];
   if (offset > b.size || static_cast<std::int64_t>(need) > b.size - offset) return error(GL_INVALID_OPERATION);
   glReadPixels(x, y, w, h, format, type, reinterpret_cast<void*>(static_cast<std::intptr_t>(offset)));

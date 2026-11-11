@@ -3,6 +3,7 @@
   "default": ["checker", "lang"],
   "map": [
     {"paths": ["src/text/", "src/assets/font.cpp", "src/assets/zim.cpp", "src/res/res.cpp", "tests/text/module_test.cpp", "tests/t0/text_module.sh"], "tests": ["text_module"]},
+    {"paths": ["src/gl/", "tests/native/webgl_zero_test.cpp", "tests/data/webgl/initialization.js", "tests/t0/webgl_initialization.sh"], "tests": ["webgl_initialization"]},
     {"paths": ["src/platform/board.h", "src/host/sys_host.cpp", "src/frontend/modules.cpp", "src/cli_core.cpp", "lib/std/board.ts", "tests/data/board/", "tests/t0/board.sh"], "tests": ["board"]},
     {"paths": ["src/tc/linux-sysroot.lock", "src/tc/tc.cpp", "src/tc/plugin_build.cpp", "tools/linux-sysroot", "tools/package", "tests/t0/linux_sysroot.sh", "tests/data/linux_sysroot.py"], "tests": ["linux_sysroot"]},
     {"paths": ["plugins/three-pi/", "tests/data/three-pi/", "tests/t0/three_pi.sh", "tests/t0/three_pi_ktx2.sh"], "tests": ["three_pi", "three_pi_ktx2"]},

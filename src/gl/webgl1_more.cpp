@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "gl/webgl1.h"
+#include "gl/zero_upload.h"
 #include "glad/gl.h"
 
 namespace zn::gl {
@@ -164,14 +165,60 @@ bool WebGL1::renderbufferFormatAllowed(std::uint32_t fmt) const {
   }
   return false;
 }
+bool WebGL1::initializeRenderbuffer(std::uint32_t fmt) {
+  GLint draw = 0, read = 0; glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw); glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
+  driverOk();
+  GLuint scratch = 0; glGenFramebuffers(1, &scratch);
+  if (!driverOk() || !scratch) return false;
+  glBindFramebuffer(GL_FRAMEBUFFER, scratch);
+  const bool depth = fmt == GL_DEPTH_COMPONENT16 || fmt == GL_DEPTH_COMPONENT24 || fmt == GL_DEPTH_COMPONENT32F;
+  const bool stencil = fmt == GL_STENCIL_INDEX8;
+  const bool both = fmt == GL_DEPTH_STENCIL || fmt == GL_DEPTH24_STENCIL8 || fmt == GL_DEPTH32F_STENCIL8;
+  glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, both ? GL_DEPTH_STENCIL_ATTACHMENT : depth ? GL_DEPTH_ATTACHMENT : stencil ? GL_STENCIL_ATTACHMENT : GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbos_[rbo_].name);
+  const GLenum out = depth || stencil || both ? GL_NONE : GL_COLOR_ATTACHMENT0;
+  glDrawBuffers(1, &out); glReadBuffer(out);
+  const GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST), discard = glIsEnabled(GL_RASTERIZER_DISCARD);
+  const bool indexed = extOn(Ext::DrawBuffersIndexed);
+  GLboolean color[4], dm; GLint sf = 0, sb = 0;
+  if (indexed) glGetBooleani_v(GL_COLOR_WRITEMASK, 0, color); else glGetBooleanv(GL_COLOR_WRITEMASK, color); glGetBooleanv(GL_DEPTH_WRITEMASK, &dm);
+  glGetIntegerv(GL_STENCIL_WRITEMASK, &sf); glGetIntegerv(GL_STENCIL_BACK_WRITEMASK, &sb);
+  struct Restore {
+    GLint draw, read, sf, sb; GLuint scratch; GLboolean color[4], depth, scissor, discard; bool indexed;
+    ~Restore() {
+      if (indexed) glColorMaski(0, color[0], color[1], color[2], color[3]); else glColorMask(color[0], color[1], color[2], color[3]);
+      glDepthMask(depth);
+      glStencilMaskSeparate(GL_FRONT, sf); glStencilMaskSeparate(GL_BACK, sb);
+      if (scissor) glEnable(GL_SCISSOR_TEST);
+      if (discard) glEnable(GL_RASTERIZER_DISCARD);
+      glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw); glBindFramebuffer(GL_READ_FRAMEBUFFER, read); glDeleteFramebuffers(1, &scratch);
+    }
+  } restore{draw, read, sf, sb, scratch, {color[0], color[1], color[2], color[3]}, dm, scissor, discard, indexed};
+  glDisable(GL_SCISSOR_TEST); glDisable(GL_RASTERIZER_DISCARD);
+  if (indexed) glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); else glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+  glDepthMask(GL_TRUE); glStencilMaskSeparate(GL_FRONT, ~0u); glStencilMaskSeparate(GL_BACK, ~0u);
+  if (glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) { error(GL_INVALID_FRAMEBUFFER_OPERATION); return false; }
+  else if (both) glClearBufferfi(GL_DEPTH_STENCIL, 0, 1, 0);
+  else if (depth) { const GLfloat one = 1; glClearBufferfv(GL_DEPTH, 0, &one); }
+  else if (stencil) { const GLint zero = 0; glClearBufferiv(GL_STENCIL, 0, &zero); }
+  else {
+    int comps = 0; char cls = 'f'; texFormatInfo(fmt, comps, cls);
+    const GLint iz[4] = {}; const GLuint uz[4] = {}; const GLfloat fz[4] = {};
+    if (cls == 'i') glClearBufferiv(GL_COLOR, 0, iz);
+    else if (cls == 'u') glClearBufferuiv(GL_COLOR, 0, uz);
+    else glClearBufferfv(GL_COLOR, 0, fz);
+  }
+  return driverOk();
+}
 void WebGL1::renderbufferStorage(std::uint32_t target, std::uint32_t fmt, int w, int h) { ++fbGen_;
   if (target != GL_RENDERBUFFER) return error(GL_INVALID_ENUM);
   if (!renderbufferFormatAllowed(fmt)) return error(GL_INVALID_ENUM);
   if (w < 0 || h < 0 || w > maxTexSize_ || h > maxTexSize_) return error(GL_INVALID_VALUE);
   if (!rbo_) return error(GL_INVALID_OPERATION);
   Rbo& r = rbos_[rbo_];
-  r.w = w; r.h = h; r.format = fmt; r.samples = 0;
+  driverOk();
   glRenderbufferStorage(GL_RENDERBUFFER, fmt == GL_DEPTH_STENCIL ? GL_DEPTH24_STENCIL8 : fmt, w, h);
+  if (!driverOk() || (w && h && !initializeRenderbuffer(fmt))) return;
+  r.w = w; r.h = h; r.format = fmt; r.samples = 0;
 }
 WebGL1::Param WebGL1::getRenderbufferParameter(std::uint32_t target, std::uint32_t pname) {
   Param r;
@@ -610,11 +657,11 @@ bool WebGL1::readFormat(int& comps, char& cls) {
   const GLenum att = version_ == 2 ? fbos_[fb].readBuffer : static_cast<GLenum>(GL_COLOR_ATTACHMENT0);
   GLint t = GL_NONE, comp = 0, bits[4] = {};
   glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &t);
-  if (t == GL_NONE) { while (glGetError() != GL_NO_ERROR) {} return false; }
+  if (t == GL_NONE) { driverOk(); return false; }
   glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &comp);
   const GLenum sz[4] = {GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE, GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE, GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE, GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE};
   for (int i = 0; i < 4; ++i) glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, sz[i], &bits[i]);
-  while (glGetError() != GL_NO_ERROR) {}
+  driverOk();
   comps = bits[3] ? 4 : bits[2] ? 3 : bits[1] ? 2 : 1;
   cls = comp == GL_INT ? 'i' : comp == GL_UNSIGNED_INT ? 'u' : 'f';
   return true;
@@ -637,13 +684,49 @@ int WebGL1::copyClash(std::uint32_t target, int level, std::uint32_t destName) {
     glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL, &lv);
     glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE, &face);
   }
-  while (glGetError() != GL_NO_ERROR) {}
+  driverOk();
   if (type != GL_TEXTURE || static_cast<std::uint32_t>(name) != destName) return 0;
   const bool cubeFace = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   return lv == level && (!cubeFace || static_cast<std::uint32_t>(face) == target) ? 1 : 2;
 }
+void WebGL1::readSize(int& w, int& h) {
+  w = gl_.width(); h = gl_.height();
+  if (!fboRead_) return;
+  const GLenum att = version_ == 2 ? fbos_[fboRead_].readBuffer : GLenum(GL_COLOR_ATTACHMENT0);
+  GLint kind = 0, name = 0;
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &kind);
+  glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &name);
+  if (kind == GL_RENDERBUFFER) {
+    GLint old = 0; glGetIntegerv(GL_RENDERBUFFER_BINDING, &old);
+    struct Restore { GLint old; ~Restore() { glBindRenderbuffer(GL_RENDERBUFFER, old); } } restore{old};
+    glBindRenderbuffer(GL_RENDERBUFFER, name);
+    glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &w); glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &h);
+  } else if (kind == GL_TEXTURE) {
+    GLint level = 0, face = 0;
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL, &level);
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, att, GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE, &face);
+    for (const auto& entry : textures_) if (entry.second.name == GLuint(name)) {
+      const GLenum target = entry.second.target;
+      const auto oldTex = textures_.find(boundTex(target));
+      const GLuint old = oldTex == textures_.end() ? 0 : oldTex->second.name;
+      struct Restore { GLenum target; GLuint old; ~Restore() { glBindTexture(target, old); } } restore{target, old};
+      glBindTexture(target, name);
+      glGetTexLevelParameteriv(face ? GLenum(face) : target, level, GL_TEXTURE_WIDTH, &w);
+      glGetTexLevelParameteriv(face ? GLenum(face) : target, level, GL_TEXTURE_HEIGHT, &h);
+      break;
+    }
+  }
+}
+bool WebGL1::clipCopy(int& x, int& y, int& w, int& h, int& xo, int& yo) {
+  int fw = 0, fh = 0; readSize(fw, fh);
+  const std::int64_t right = std::min<std::int64_t>(fw, std::int64_t(x) + w), top = std::min<std::int64_t>(fh, std::int64_t(y) + h);
+  const int left = std::max(0, x), bottom = std::max(0, y);
+  if (right <= left || top <= bottom) return false;
+  xo = int(std::int64_t(xo) + left - x); yo = int(std::int64_t(yo) + bottom - y);
+  x = left; y = bottom; w = int(right - left); h = int(top - bottom); return true;
+}
 // glCopyTex(Sub)Image2D of the read framebuffer in two steps through a temporary texture
-void WebGL1::copyThrough(bool sub, std::uint32_t target, int level, std::uint32_t ifmt, int xoff, int yoff, int x, int y, int w, int h) {
+bool WebGL1::copyThrough(bool sub, std::uint32_t target, int level, std::uint32_t ifmt, int xoff, int yoff, int x, int y, int w, int h) {
   const bool cubeFace = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   const GLenum bt = cubeFace ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
   const Id destId = (cubeFace ? texCube_ : tex2d_)[activeUnit_];
@@ -651,19 +734,32 @@ void WebGL1::copyThrough(bool sub, std::uint32_t target, int level, std::uint32_
   GLint read = 0;
   glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
   if (sub) { GLint f = 0; glGetTexLevelParameteriv(target, level, GL_TEXTURE_INTERNAL_FORMAT, &f); ifmt = f ? static_cast<std::uint32_t>(f) : GL_RGBA8; }
+  int sx = x, sy = y, cw = w, ch = h, dx = 0, dy = 0;
+  const bool visible = clipCopy(sx, sy, cw, ch, dx, dy);
+  GLint old2d = 0; glGetIntegerv(GL_TEXTURE_BINDING_2D, &old2d);
   GLuint tmp = 0, fbo = 0;
+  struct Restore {
+    GLint read, tex; GLuint& tmp; GLuint& fbo;
+    ~Restore() {
+      glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
+      glDeleteFramebuffers(1, &fbo); glDeleteTextures(1, &tmp);
+      glBindTexture(GL_TEXTURE_2D, tex);
+    }
+  } restore{read, old2d, tmp, fbo};
   glGenTextures(1, &tmp);
   glBindTexture(GL_TEXTURE_2D, tmp);
-  glCopyTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLenum>(ifmt), x, y, w, h, 0);
+  int comps = 0; char cls = 'f'; texFormatInfo(ifmt, comps, cls);
+  const GLenum format = cls == 'f' ? GL_RGBA : GL_RGBA_INTEGER;
+  const GLenum type = cls == 'i' ? GL_INT : cls == 'u' ? GL_UNSIGNED_INT : (ifmt == GL_RGB || ifmt == GL_RGBA) ? GL_UNSIGNED_BYTE : GL_FLOAT;
+  const bool allocated = zeroImage(GL_TEXTURE_2D, 0, ifmt, w, h, 1, format, type, type == GL_UNSIGNED_BYTE ? 4 : 16, false, [this] { return driverOk(); });
+  if (allocated && visible) glCopyTexSubImage2D(GL_TEXTURE_2D, 0, dx, dy, sx, sy, cw, ch);
   glGenFramebuffers(1, &fbo);
   glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
   glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tmp, 0);
+  const bool ready = allocated && fbo && glCheckFramebufferStatus(GL_READ_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && driverOk();
   glBindTexture(bt, dest);
-  if (sub) glCopyTexSubImage2D(target, level, xoff, yoff, 0, 0, w, h); else glCopyTexImage2D(target, level, static_cast<GLenum>(ifmt), 0, 0, w, h, 0);
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(read));
-  glDeleteFramebuffers(1, &fbo);
-  glDeleteTextures(1, &tmp);
-  if (bt == GL_TEXTURE_2D) glBindTexture(GL_TEXTURE_2D, dest);   // (the destination was the bound texture of its target all along)
+  if (ready && sub) glCopyTexSubImage2D(target, level, xoff, yoff, 0, 0, w, h); else if (ready) glCopyTexImage2D(target, level, static_cast<GLenum>(ifmt), 0, 0, w, h, 0);
+  return ready && driverOk();
 }
 void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, int x, int y, int w, int h, int border) {
   Offscreen::ReadResolved resolved(gl_);   // the multisampled canvas reads its resolved copy (ZN-576)
@@ -680,7 +776,7 @@ void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, 
   if (level < 0 || w < 0 || h < 0 || level > 30 || w > (maxTexSize_ >> level) || h > (maxTexSize_ >> level) || border != 0) return error(GL_INVALID_VALUE);
   if (version_ != 2 && level > 0 && (((w & (w - 1)) != 0) || ((h & (h - 1)) != 0))) return error(GL_INVALID_VALUE);   // WebGL 1: a level other than the base is a power of two
   if (!(face ? texCube_ : tex2d_)[activeUnit_]) return error(GL_INVALID_OPERATION);
-  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   int srcComps = 4; char srcCls = 'f';
   if (!readFormat(srcComps, srcCls) || !copyFits(srcComps, srcCls, dstComps, dstCls)) return error(GL_INVALID_OPERATION);
   const Id id = (face ? texCube_ : tex2d_)[activeUnit_];
@@ -689,8 +785,10 @@ void WebGL1::copyTexImage2D(std::uint32_t target, int level, std::uint32_t fmt, 
   const std::uint32_t ifmt = legacy ? (fmt == GL_RGB ? GL_RGB : GL_RGBA) : fmt;
   const int clash = copyClash(target, level, textures_[id].name);
   if (clash == 1) return error(GL_INVALID_OPERATION);
-  if (clash == 2) copyThrough(false, target, level, ifmt, 0, 0, x, y, w, h);
-  else glCopyTexImage2D(target, level, ifmt, x, y, w, h, 0);
+  int sx = x, sy = y, cw = w, ch = h, dx = 0, dy = 0;
+  const bool visible = clipCopy(sx, sy, cw, ch, dx, dy);
+  if (clash == 0 && (!w || !h || (visible && cw == w && ch == h))) glCopyTexImage2D(target, level, ifmt, x, y, w, h, 0);
+  else if (!copyThrough(false, target, level, ifmt, 0, 0, x, y, w, h)) return;
   Tex& t = textures_[id];
   if (level == 0) {
     t.w = w; t.h = h; t.format = fmt; t.type = 0; t.f32 = t.f16 = false; t.cfmt = 0;
@@ -705,7 +803,7 @@ void WebGL1::copyTexSubImage2D(std::uint32_t target, int level, int xoff, int yo
   if (level < 0 || xoff < 0 || yoff < 0 || w < 0 || h < 0) return error(GL_INVALID_VALUE);
   const Id id = (face ? texCube_ : tex2d_)[activeUnit_];
   if (!id) return error(GL_INVALID_OPERATION);
-  if (!framebufferReady()) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
+  if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   const Tex& t = textures_[id];
   if (t.format == GL_DEPTH_COMPONENT || t.format == kDepthStencilFmt || t.cfmt) return error(GL_INVALID_OPERATION);
   int srcComps = 4, dstComps = 4; char srcCls = 'f', dstCls = 'f';
@@ -714,6 +812,10 @@ void WebGL1::copyTexSubImage2D(std::uint32_t target, int level, int xoff, int yo
   if (!readFormat(srcComps, srcCls) || !copyFits(srcComps, srcCls, dstComps, dstCls)) return error(GL_INVALID_OPERATION);
   const int clash = copyClash(target, level, t.name);
   if (clash == 1) return error(GL_INVALID_OPERATION);
+  GLint tw = 0, th = 0;
+  glGetTexLevelParameteriv(target, level, GL_TEXTURE_WIDTH, &tw); glGetTexLevelParameteriv(target, level, GL_TEXTURE_HEIGHT, &th);
+  if (std::int64_t(xoff) + w > tw || std::int64_t(yoff) + h > th) return error(GL_INVALID_VALUE);
+  if (!clipCopy(x, y, w, h, xoff, yoff)) return;
   if (clash == 2) copyThrough(true, target, level, 0, xoff, yoff, x, y, w, h);
   else glCopyTexSubImage2D(target, level, xoff, yoff, x, y, w, h);
 }

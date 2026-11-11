@@ -101,6 +101,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - A screenshot (`ZINC_SHOT`, `zinc capture`) or a frame hash (`ZINC_FRAMEHASH`) of a program that does not paint the whole window shows black where nothing was drawn, the same at every run, instead of leftover memory.
 - On the GPU renderer, an image turned or skewed with `setTransform` has smooth edges and is smoothed the same way as on the CPU (sharp only with `ImageFlag.Nearest`): its edges were jagged and an unscaled picture stayed pixelated.
 - `zinc assets cook` receipts report the mean position error from the stored integer XYZ coordinates, in source mesh units.
+- WebGL initializes new textures and renderbuffers, including multisampled buffers; framebuffer copies outside the source produce zero in new images and preserve existing pixels in subimages.
 - `zinc:platform` uses the selected profile's default `SCREEN_W/H` when no explicit size is given, including CHIP's 720×576 and PocketCHIP's 480×272.
 
 ### Hamlet
