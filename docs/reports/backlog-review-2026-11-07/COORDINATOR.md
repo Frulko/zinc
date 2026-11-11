@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve573: productionrender RAII debugscope + checkednativeallocator/controlentries, standalonepinnedHowler actualnullmixer. No newgraph/queue/runtimeallocator changes; fullQuickJS/globalallocation invariant mustnotbeoverclaimed. Kaplay/soak criteria stayopenuntilproved. Primaryresearchcomplete; reuseminiaudio callbacks.
+
 - Integrated725418385788/D299 ReviewAC5–7open. Rootcleanbuild/gl_fringe/Hero check/actualnavigation+inspectedshot PASS;984526+130790 vs2615802 legacybytes/frame,57.4% lessupload, noFPSclaim. Common d3095ef7,89Doneunchanged. Archive725 (55checkpoints). Next573feature researchcomplete.
 
 - Reserve725 for runtimeperformance: existingmode/analyticclip alreadyimplemented, nextsharedindexedfringevertices in gl_replay only. No HAL/zrt/allocator/rendererdefault changes; deterministicgeometry/uploadproof andshortactualrun, originalPi/quietgates remainopen. Primaryresearchcomplete.
