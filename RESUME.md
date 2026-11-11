@@ -6,7 +6,7 @@ Continue zn-coordinate until .paused or nothing startable. Never ask owner; no p
 
 ## Current
 
-Active573 .worktrees/573 / work/573: nativeaudio-thread guard + actualHowler null-backend proof, no protectedallocator/VM edits or speaker output.725 integrated418385788 Review, originalPi/quietcriteria open. Rootactualnavigation/exactgl_fringe pass,57.4% lessfringeupload. Next573 nativeaudiocallback guard/Howler null-backend feature. completed161.03/597 archived (55 source checkpoints). Next choose independent engine/performance work with tools/next-task; user prioritizes runtime performance. No benchmark/fuzz/conformance/CI milestone authorized. Existing measured gains: rectangle uploads62.5% less, nativeS16 PCM halves, Hero10.9MB→~8MB; no inferred FPS promise.
+573 integrated f22d2f54e: audio_storage/howler_audio PASS; plugin-local render guard and actual Howler null-mixer proof. Backlog: global allocation/JS-entry invariant, Kaplay and soak unproven. Reserved672: wasm runtime images/render targets and exported readBytes; delegated research complete. 89 Done unchanged. 725 Review: actual navigation uploads57.4% less fringe data; no FPS claim. No benchmark milestone authorized.
 
 Common readonly binary .claude/worktrees/agent-aae96db4e67d4b8e6/build/zinc compiled418385788, SHA d3095ef7c54b0ef624618c2fdd6130de84c3213481f6677f1fa5ad456bd08efd. Latestproof .logs/integration-2026-11-11/fringe/summary.json; priorcombined4T0 checks remain recorded. Adjacent archives required. Root combined intl_format/qjs_three_math/linux_sysroot/process_family PASS; all10 external payloads preserved. Proof .logs/integration-2026-11-11/summary.json. No own process left.
 
