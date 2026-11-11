@@ -608,3 +608,8 @@ Use a debug-only enum/RAII scope around the existing production render callback 
 ## D304 — Board observations are runtime data, separate from build profiles (ZN-535)
 
 Reuse the device bridge for root-prefixed board/revision/node probes and the explicit zinc:board module, doctor and simulator seam. Do not bake the build Mac identity into cross-generated programs. A platform reexport was removed after it retained the probe and JSON for an unrelated screen constant; no misleading PURE marker or fake constant. Integratede12851c0c BacklogAC1/4; root exactboard passes on combined57559ca9c. Platform exports/doctor target spelling and actualPi remain open; QEMU is prohibited and SSH signature was refused. Sourcearchive535-final is intact, but original worker logs were lost in coordinator cleanup; root combined logs are retained under integration-2026-11-11/board-wasm. No hardware or performance claim.
+
+
+## D305 — Browser baked text reuses Zinc coverage and metrics (ZN-673)
+
+Export the existing bounded ZRS1 font data without duplicate images/TTF and load app.res by default. Draw baked glyph coverage and use exact native advances, rather than substitute CSS font metrics. Keep independent absolute translation and matrix order M*T, native clipping and simple gradients. Integrated4b6b11477 BacklogAC3only; rootexactwasm_gfx PASS. Unchangedxform passes1426pixelszeroSlack; titlewidths197.828125/293.015625 and ascent/lineHeight39/49 match. Unicodeprobe staysfailing51.140625nativevs42.328125browser, showing shaping/fallback gap. Originalgame titleblocked by missingAudio nativebridge; existing661 owns that work. No fullpixelcomparison milestone, dynamicTTF/shaping/gradientPaint parity claim. Archive673-final contains source and complete logs.
