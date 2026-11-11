@@ -12,6 +12,7 @@
 #ifdef __APPLE__
 #include <AudioToolbox/ExtendedAudioFile.h>
 #endif
+#include <assert.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -19,6 +20,34 @@
 #include <string.h>
 
 namespace {
+// Plugin-local boundary: this cannot intercept QuickJS or allocations outside miniaudio's callbacks.
+#ifndef NDEBUG
+enum class RenderPhase { Control, Rendering };
+thread_local RenderPhase renderPhase = RenderPhase::Control;
+void render_phase(RenderPhase next) {
+  assert(renderPhase != next && "nested audio render or invalid render exit");
+  renderPhase = next;
+}
+#endif
+void control_only() {
+#ifndef NDEBUG
+  assert(renderPhase == RenderPhase::Control && "audio control or allocation during render");
+#endif
+}
+struct RenderScope {
+  RenderScope() {
+#ifndef NDEBUG
+    render_phase(RenderPhase::Rendering);
+#endif
+  }
+  ~RenderScope() {
+#ifndef NDEBUG
+    render_phase(RenderPhase::Control);
+#endif
+  }
+  RenderScope(const RenderScope&) = delete;
+  RenderScope& operator=(const RenderScope&) = delete;
+};
 const int MAXSOUND = 256, MAXVOICE = 32;
 const ma_uint32 RATE = 48000;
 // Native 16-bit sources stay 16-bit; all others stay float. A long compressed file (load) is decoded on a thread into pcm,
@@ -53,6 +82,7 @@ void heap_add(void* u, size_t add, size_t sub) {
   while (n > p && !__atomic_compare_exchange_n(&h->peak, &p, n, true, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {}
 }
 void* heap_malloc(size_t sz, void* u) {
+  control_only();
   size_t* p = (size_t*)malloc(sz + 16);
   if (!p) return nullptr;
   *p = sz;
@@ -60,6 +90,7 @@ void* heap_malloc(size_t sz, void* u) {
   return (char*)p + 16;
 }
 void* heap_realloc(void* q, size_t sz, void* u) {
+  control_only();
   if (!q) return heap_malloc(sz, u);
   size_t* p = (size_t*)((char*)q - 16);
   const size_t old = *p;
@@ -70,6 +101,7 @@ void* heap_realloc(void* q, size_t sz, void* u) {
   return (char*)p + 16;
 }
 void heap_free(void* q, void* u) {
+  control_only();
   if (!q) return;
   size_t* p = (size_t*)((char*)q - 16);
   heap_add(u, 0, *p);
@@ -475,6 +507,7 @@ void* music_thread(void* p) {
 // The next frames of the mix. The engine's clock, which time() and the delays count on, stands still while no sound is in
 // the graph: it is moved by hand over that silence.
 void render(void* out, ma_uint32 frames) {
+  const RenderScope scope;
   const ma_uint64 t = ma_engine_get_time_in_pcm_frames(&eng);
   ma_engine_read_pcm_frames(&eng, out, frames, nullptr);
   if (ma_engine_get_time_in_pcm_frames(&eng) < t + frames) ma_engine_set_time_in_pcm_frames(&eng, t + frames);
@@ -568,8 +601,8 @@ ma_engine* engine() {
 }  // namespace
 
 struct HostAudio : NativeAudio {
-  zrt::String backend() override { return str(engine() && output() ? ma_get_backend_name(dev.pContext->backend) : "null"); }
-  int32_t load(zrt::Array<uint8_t> bytes) override {
+  zrt::String backend() override { control_only(); return str(engine() && output() ? ma_get_backend_name(dev.pContext->backend) : "null"); }
+  int32_t load(zrt::Array<uint8_t> bytes) override { control_only();
     int32_t h = free_slot();
     if (h < 0) return -1;
     if (!bytes.a || bytes.a->len <= 0) return fail("the file is empty");
@@ -613,7 +646,7 @@ struct HostAudio : NativeAudio {
     clips[h] = Clip{pcm, frames, dc.channels, dc.sampleRate, dc.format};
     return h;
   }
-  int32_t tone(int32_t wave, double hz, double seconds) override {
+  int32_t tone(int32_t wave, double hz, double seconds) override { control_only();
     if (wave < 0 || wave > 4) return fail("unknown wave (0 sine, 1 square, 2 triangle, 3 sawtooth, 4 noise)");
     if (!(seconds > 0) || seconds > 60 || !(hz > 0) || hz > 20000) return fail("a tone lasts up to 60 seconds, between 0 and 20000 Hz");
     int32_t h = free_slot();
@@ -641,9 +674,9 @@ struct HostAudio : NativeAudio {
     clips[h] = Clip{pcm, frames, 1, RATE, ma_format_f32};
     return h;
   }
-  zrt::String error() override { return str(err_msg); }
-  double duration(int32_t h) override { Clip* c = clip_at(h); return c ? (double)c->frames / c->rate : 0; }
-  void unload(int32_t h) override {
+  zrt::String error() override { control_only(); return str(err_msg); }
+  double duration(int32_t h) override { control_only(); Clip* c = clip_at(h); return c ? (double)c->frames / c->rate : 0; }
+  void unload(int32_t h) override { control_only();
     Clip* c = clip_at(h);
     if (!c) return;
     stop(h);
@@ -651,8 +684,8 @@ struct HostAudio : NativeAudio {
     ma_free(c->pcm, nullptr);
     *c = Clip{};
   }
-  bool play(int32_t h, double volume, bool loop, double rate, double pan) override { return start(h, volume, loop, rate, pan, 0, 0) != 0; }
-  int32_t start(int32_t h, double volume, bool loop, double rate, double pan, double offset, double delay) override {
+  bool play(int32_t h, double volume, bool loop, double rate, double pan) override { control_only(); return start(h, volume, loop, rate, pan, 0, 0) != 0; }
+  int32_t start(int32_t h, double volume, bool loop, double rate, double pan, double offset, double delay) override { control_only();
     Clip* c = clip_at(h);
     ma_engine* e = engine();
     if (!c || !e) return 0;
@@ -695,19 +728,19 @@ struct HostAudio : NativeAudio {
     ma_sound_set_looping(&v->sound, loop);
     return ma_sound_start(&v->sound) == MA_SUCCESS ? voice_id(*v) : 0;
   }
-  void stop(int32_t h) override { for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) release(v); }
-  bool playing(int32_t h) override {
+  void stop(int32_t h) override { control_only(); for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) release(v); }
+  bool playing(int32_t h) override { control_only();
     for (Voice& v : voices) if (v.clip == h && live(v)) return true;
     return false;
   }
-  void setVolume(int32_t h, double volume) override { for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) ma_sound_set_volume(&v.sound, (float)volume); }
-  void setLoop(int32_t h, bool on) override { for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) ma_sound_set_looping(&v.sound, on); }
-  void setRate(int32_t h, double rate) override { for (Voice& v : voices) if (v.state != VState::Free && v.pitched && v.clip == h) ma_sound_set_pitch(&v.sound, rate_of(rate)); }
-  void setPan(int32_t h, double pan) override { for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) ma_sound_set_pan(&v.sound, pan_of(pan)); }
-  void stopAll() override { for (Voice& v : voices) release(v); }
+  void setVolume(int32_t h, double volume) override { control_only(); for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) ma_sound_set_volume(&v.sound, (float)volume); }
+  void setLoop(int32_t h, bool on) override { control_only(); for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) ma_sound_set_looping(&v.sound, on); }
+  void setRate(int32_t h, double rate) override { control_only(); for (Voice& v : voices) if (v.state != VState::Free && v.pitched && v.clip == h) ma_sound_set_pitch(&v.sound, rate_of(rate)); }
+  void setPan(int32_t h, double pan) override { control_only(); for (Voice& v : voices) if (v.state != VState::Free && v.clip == h) ma_sound_set_pan(&v.sound, pan_of(pan)); }
+  void stopAll() override { control_only(); for (Voice& v : voices) release(v); }
   // A stop now, or at a frame of the mix; with a fade, miniaudio's fader takes the voice's gain from where it is to 0 over the `fade` seconds
   // before that frame, sample by sample on the mixer's thread (after the resampler: a pitched voice fades over the same frames of mix).
-  void voiceStop(int32_t id, double delay, double fade) override {
+  void voiceStop(int32_t id, double delay, double fade) override { control_only();
     Voice* v = voice_at(id);
     if (!v) return;
     const ma_uint64 d = delay > 0 ? (ma_uint64)(delay * RATE + 0.5) : 0, f = fade > 0 ? (ma_uint64)(fade * RATE + 0.5) : 0;
@@ -718,21 +751,21 @@ struct HostAudio : NativeAudio {
   // pause() takes the voice out of the mix at once, where it is (ma_sound_stop keeps the cursor), and resume() puts it back: the frames of mix
   // in between do not count, so it ends that much later. ponytail: a hard cut, as alSourcePause or FMOD's setPaused; a few ms of ramp (fade, then
   // seek back by the ramp on resume) if a click is heard.
-  void voicePause(int32_t id, bool on) override {
+  void voicePause(int32_t id, bool on) override { control_only();
     Voice* v = voice_at(id);
     if (!v) return;
     if (on && live(*v) && to(*v, VState::Paused)) ma_sound_stop(&v->sound);
     else if (!on && v->state == VState::Paused && to(*v, VState::Playing)) ma_sound_start(&v->sound);
   }
-  void voiceSet(int32_t id, double volume, double rate, double pan) override {
+  void voiceSet(int32_t id, double volume, double rate, double pan) override { control_only();
     Voice* v = voice_at(id);
     if (!v) return;
     ma_sound_set_volume(&v->sound, (float)volume);
     if (v->pitched) ma_sound_set_pitch(&v->sound, rate_of(rate));
     ma_sound_set_pan(&v->sound, pan_of(pan));
   }
-  bool voicePlaying(int32_t id) override { Voice* v = voice_at(id); return v && live(*v); }
-  void voiceLoop(int32_t id, double from, double to) override {
+  bool voicePlaying(int32_t id) override { control_only(); Voice* v = voice_at(id); return v && live(*v); }
+  void voiceLoop(int32_t id, double from, double to) override { control_only();
     Voice* v = voice_at(id);
     Clip* c = v && !v->useProg ? clip_at(v->clip) : nullptr;
     if (!c) return;
@@ -740,8 +773,8 @@ struct HostAudio : NativeAudio {
     const ma_uint64 b = at(from), e = at(to);
     ma_data_source_set_loop_point_in_pcm_frames(&v->src, e > b ? b : 0, e > b ? e : ~(ma_uint64)0);   // ~0: to the end
   }
-  void suspend(bool on) override { __atomic_store_n(&held, on ? 1 : 0, __ATOMIC_RELAXED); }
-  int32_t pcm(zrt::Array<double> samples, int32_t channels, int32_t rate) override {
+  void suspend(bool on) override { control_only(); __atomic_store_n(&held, on ? 1 : 0, __ATOMIC_RELAXED); }
+  int32_t pcm(zrt::Array<double> samples, int32_t channels, int32_t rate) override { control_only();
     const int64_t frames = samples.a && channels > 0 ? samples.a->len / channels : 0;
     if (channels < 1 || channels > 2 || rate < 8000 || rate > 192000 || frames < 1) return fail("samples of 1 or 2 channels, at 8000 to 192000 frames per second");
     int32_t h = free_slot();
@@ -753,9 +786,9 @@ struct HostAudio : NativeAudio {
     clips[h] = Clip{pcm, (ma_uint64)frames, (ma_uint32)channels, (ma_uint32)rate, ma_format_f32};
     return h;
   }
-  int32_t channels(int32_t h) override { Clip* c = clip_at(h); return c ? (int32_t)c->channels : 0; }
-  int32_t rate(int32_t h) override { Clip* c = clip_at(h); return c ? (int32_t)c->rate : 0; }
-  zrt::Array<double> samples(int32_t h, int32_t channel) override {
+  int32_t channels(int32_t h) override { control_only(); Clip* c = clip_at(h); return c ? (int32_t)c->channels : 0; }
+  int32_t rate(int32_t h) override { control_only(); Clip* c = clip_at(h); return c ? (int32_t)c->rate : 0; }
+  zrt::Array<double> samples(int32_t h, int32_t channel) override { control_only();
     Clip* c = clip_at(h);
     if (!c || channel < 0 || (ma_uint32)channel >= c->channels || c->frames > 0x7fffffff) return zrt::Array<double>::with_cap(0);
     settle(c, false);
@@ -768,7 +801,7 @@ struct HostAudio : NativeAudio {
     r.a->len = n;
     return r;
   }
-  int32_t streamOpen(int32_t channels, int32_t rate) override {
+  int32_t streamOpen(int32_t channels, int32_t rate) override { control_only();
     if (channels < 1 || channels > 2 || rate < 8000 || rate > 192000) return fail("a stream of 1 or 2 channels, at 8000 to 192000 frames per second");
     ma_engine* e = engine();
     if (!e) return fail("no mixer");
@@ -791,7 +824,7 @@ struct HostAudio : NativeAudio {
     ma_sound_start(&s.sound);
     return h;
   }
-  int32_t streamWrite(int32_t h, zrt::Array<double> samples) override {
+  int32_t streamWrite(int32_t h, zrt::Array<double> samples) override { control_only();
     Stream* s = stream_at(h);
     if (!s) return 0;
     const size_t n = samples.a ? (size_t)samples.a->len - (size_t)samples.a->len % s->channels : 0;
@@ -805,7 +838,7 @@ struct HostAudio : NativeAudio {
     pthread_mutex_unlock(&s->mu);
     return frames;
   }
-  zrt::Array<double> streamInfo(int32_t h) override {
+  zrt::Array<double> streamInfo(int32_t h) override { control_only();
     Stream* s = stream_at(h);
     zrt::Array<double> r = zrt::Array<double>::with_cap(3);
     double v[3] = {0, 0, 0};
@@ -814,8 +847,8 @@ struct HostAudio : NativeAudio {
     r.a->len = 3;
     return r;
   }
-  void streamSetVolume(int32_t h, double volume) override { if (Stream* s = stream_at(h)) ma_sound_set_volume(&s->sound, (float)volume); }
-  void streamClose(int32_t h) override {
+  void streamSetVolume(int32_t h, double volume) override { control_only(); if (Stream* s = stream_at(h)) ma_sound_set_volume(&s->sound, (float)volume); }
+  void streamClose(int32_t h) override { control_only();
     Stream* s = stream_at(h);
     if (!s) return;
     ma_sound_uninit(&s->sound);   // leaves the mix before its buffer goes
@@ -824,7 +857,7 @@ struct HostAudio : NativeAudio {
     pthread_mutex_destroy(&s->mu);
     s->used = false;
   }
-  int32_t musicOpen(zrt::String path) override {
+  int32_t musicOpen(zrt::String path) override { control_only();
     ma_engine* e = engine();
     if (!e) return fail("no mixer");
     if (path.bytes() == 0 || path.bytes() >= sizeof(musics[0].path)) return fail("no file, or a path too long");
@@ -860,7 +893,7 @@ struct HostAudio : NativeAudio {
   // An asset streamed in place: the decoder reads the mapped pack on the mixer's thread, as the mix pulls frames, at the file's own rate and
   // channels (the sound's node converts them, so a loop is seamless across the resampler too); a loop is miniaudio's data-source loop, which
   // seeks to the start inside the read that reached the end.
-  int32_t musicAsset(zrt::String name) override {
+  int32_t musicAsset(zrt::String name) override { control_only();
     ma_engine* e = engine();
     if (!e) return fail("no mixer");
     if (!zn_asset_view || !zn_asset_unview) return fail("this program reads no asset in place");
@@ -900,7 +933,7 @@ struct HostAudio : NativeAudio {
     m.used = true;
     return music_id(m);
   }
-  void musicPlay(int32_t h, bool on) override {
+  void musicPlay(int32_t h, bool on) override { control_only();
     Music* m = music_at(h);
     if (!m) return;
     if (m->src == MSrc::Asset) {   // ma_sound_start plays an ended sound from its start
@@ -916,7 +949,7 @@ struct HostAudio : NativeAudio {
     }
     pthread_mutex_unlock(&m->mu);
   }
-  void musicLoop(int32_t h, bool on) override {
+  void musicLoop(int32_t h, bool on) override { control_only();
     Music* m = music_at(h);
     if (!m) return;
     if (m->src == MSrc::Asset) { m->loop = on; ma_sound_set_looping(&m->sound, on); return; }
@@ -924,7 +957,7 @@ struct HostAudio : NativeAudio {
     m->loop = on;
     pthread_mutex_unlock(&m->mu);
   }
-  void musicSeek(int32_t h, double seconds) override {
+  void musicSeek(int32_t h, double seconds) override { control_only();
     Music* m = music_at(h);
     if (!m) return;
     const double at = seconds > 0 ? (m->duration > 0 && seconds > m->duration ? m->duration : seconds) : 0;
@@ -935,7 +968,7 @@ struct HostAudio : NativeAudio {
     pthread_mutex_unlock(&m->mu);
     pthread_cond_signal(&m->cv);
   }
-  zrt::Array<double> musicInfo(int32_t h) override {
+  zrt::Array<double> musicInfo(int32_t h) override { control_only();
     Music* m = music_at(h);
     double v[5] = {0, 0, 0, -1, 0};
     if (m && m->src == MSrc::Asset) {
@@ -962,10 +995,10 @@ struct HostAudio : NativeAudio {
     r.a->len = 5;
     return r;
   }
-  zrt::String musicError(int32_t h) override { Music* m = music_at(h); return str(m ? m->err : "no such music"); }
-  void musicSetVolume(int32_t h, double volume) override { if (Music* m = music_at(h)) ma_sound_set_volume(&m->sound, (float)volume); }
-  void musicClose(int32_t h) override { close_music(music_at(h)); }
-  zrt::Array<double> played() override {
+  zrt::String musicError(int32_t h) override { control_only(); Music* m = music_at(h); return str(m ? m->err : "no such music"); }
+  void musicSetVolume(int32_t h, double volume) override { control_only(); if (Music* m = music_at(h)) ma_sound_set_volume(&m->sound, (float)volume); }
+  void musicClose(int32_t h) override { control_only(); close_music(music_at(h)); }
+  zrt::Array<double> played() override { control_only();
     pthread_mutex_lock(&tapMu);
     tapOn = true;
     zrt::Array<double> r = zrt::Array<double>::with_cap((int32_t)tapCount);
@@ -975,9 +1008,9 @@ struct HostAudio : NativeAudio {
     pthread_mutex_unlock(&tapMu);
     return r;
   }
-  double time() override { return opened ? (double)ma_engine_get_time_in_pcm_frames(&eng) / RATE : 0; }
-  void setMasterVolume(double volume) override { if (ma_engine* e = engine()) ma_engine_set_volume(e, (float)volume); }
-  zrt::Array<double> mix(int32_t frames) override {
+  double time() override { control_only(); return opened ? (double)ma_engine_get_time_in_pcm_frames(&eng) / RATE : 0; }
+  void setMasterVolume(double volume) override { control_only(); if (ma_engine* e = engine()) ma_engine_set_volume(e, (float)volume); }
+  zrt::Array<double> mix(int32_t frames) override { control_only();
     ma_engine* e = engine();
     if (!e || frames <= 0 || output()) return zrt::Array<double>::with_cap(0);   // a device has the mix: two readers would tear it
     if (frames > 480000) frames = 480000;   // 10 s a call

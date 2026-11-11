@@ -16,6 +16,11 @@
 set -u
 more=""   # other files of the same archive the library needs beside it: triples of file, member and sha256
 case "${1:-}" in
+  howler-2.2.4)
+    file=howler.js
+    url=https://registry.npmjs.org/howler/-/howler-2.2.4.tgz   # MIT; archive sha256: be9d8d09345954e246e932a057de0c9724475c8b58120dc690644432a0ba485f
+    member=package/dist/howler.js
+    sha=81343a465947066ec1cd91a1ab88fe83591234159f4f55bcdf44073822c0bd9e ;;
   three-0.162.0)
     file=three.module.js
     url=https://registry.npmjs.org/three/-/three-0.162.0.tgz   # archive sha256: f810fd7615dad5e6a25ae962a2dcfb520a9ddce2ca24f59b10cf68f278cae13f
@@ -43,7 +48,7 @@ case "${1:-}" in
     member=package/build/runtime.standalone.webgl.js
     sha=acec1fc77e8936899d8d0e015ad7599529815a661179698d9f977656ac18f262
     more="opentype.js package/build/opentype.js d7231cb597a44e3748828e0bfc7acfbf89caac5ef986462c752a465b5e9a6171 howler.js package/build/howler.js ee3778513d97db7a4c51a60cb44672986d73dbb9ccb4390f43e27b6e39c8c894" ;;
-  *) echo "test-lib: unknown library '${1:-}' (three-0.162.0, p5-1.11.13, p5-2.3.4, gsap-3.15.0, spline-runtime-2.0.98)" >&2; exit 2 ;;
+  *) echo "test-lib: unknown library '${1:-}' (howler-2.2.4, three-0.162.0, p5-1.11.13, p5-2.3.4, gsap-3.15.0, spline-runtime-2.0.98)" >&2; exit 2 ;;
 esac
 sum() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
 dir="${ZINC_HOME:-$HOME/.zinc}/cache/test-libs/$1"

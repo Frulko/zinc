@@ -1,6 +1,9 @@
 // Exercise the production clip readers; count requested PCM allocation bytes, not whole-process RSS.
 #define ZRT_HOSTED_CPP
 #include <cassert>
+#include <csignal>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -86,9 +89,81 @@ static void check(HostAudio& audio, int frames, int channels) {
   printf("%d frames %d channels: whole, PCM allocation %zu -> %zu bytes\n", frames, channels, floatBytes, storedBytes);
   ma_free(reference, nullptr); audio.unload(h);
 }
+static HostAudio* guardAudio;
+static int guardMisuse;
+static void* guardAllocation;
+static ma_result guard_read(ma_data_source*, void*, ma_uint64, ma_uint64*) {
+  if (guardMisuse == 0) heap_malloc(8, &engineHeap);
+  else if (guardMisuse == 1) heap_realloc(guardAllocation, 16, &engineHeap);
+  else if (guardMisuse == 2) heap_free(guardAllocation, &engineHeap);
+  else guardAudio->time();
+  return MA_ERROR;
+}
+static void render_guard(HostAudio& audio) {
+  [] { const RenderScope scope; return; }();
+  control_only();
+  const int h = audio.tone(0, 440, 0.01);
+  assert(h >= 0 && audio.play(h, 1, false, 1, 0));
+  float out[128 * 2]; render(out, 128); control_only();
+  audio.unload(h);
+  for (int misuse = 0; misuse < 4; ++misuse) {
+    const pid_t pid = fork(); assert(pid >= 0);
+    if (pid == 0) {
+      // Avoid a core or CrashReporter dialog for the deliberately rejected data-source callback.
+      signal(SIGABRT, [](int) { _exit(73); });
+      guardAudio = &audio; guardMisuse = misuse;
+      guardAllocation = heap_malloc(8, &engineHeap);
+      Clip c{}; c.channels = 2; c.rate = RATE; c.format = ma_format_f32;
+      Prog source{}; source.clip = &c;
+      ma_data_source_vtable vt = prog_vtable; vt.onRead = guard_read;
+      ma_data_source_config config = ma_data_source_config_init(); config.vtable = &vt;
+      assert(ma_data_source_init(&config, &source.base) == MA_SUCCESS);
+      ma_sound sound;
+      assert(ma_sound_init_from_data_source(engine(), &source, MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH, nullptr, &sound) == MA_SUCCESS);
+      assert(ma_sound_start(&sound) == MA_SUCCESS);
+      render(out, 128);
+      _exit(1);
+    }
+    int status = 0; assert(waitpid(pid, &status, 0) == pid);
+    assert(WIFEXITED(status) && WEXITSTATUS(status) == 73);
+  }
+  puts("render guard: normal render, restoration, callback malloc/realloc/free/control rejection ok");
+}
+static void music_render(HostAudio& audio) {
+  const auto bytes = wav(4800, 1);
+  char path[] = "/tmp/zinc-audio-guard-XXXXXX";
+  const int fd = mkstemp(path); assert(fd >= 0);
+  assert(write(fd, bytes.data(), bytes.size()) == (ssize_t)bytes.size()); close(fd);
+  const int h = audio.musicOpen(str(path)); assert(h >= 0);
+  bool ready = false;
+  for (int n = 0; n < 100; ++n) {
+    Music* m = music_at(h); assert(m);
+    pthread_mutex_lock(&m->mu);
+    ready = m->status == 1 && m->count >= 128;
+    pthread_mutex_unlock(&m->mu);
+    if (ready) break;
+    usleep(1000);
+  }
+  assert(ready);
+  audio.musicPlay(h, true);
+  assert(audio.mix(128).a->data[0] != 0);
+  audio.musicClose(h); unlink(path);
+  // The mapped-asset path uses a decoder directly on the mixer, with these counted callbacks.
+  Heap heap{}; auto config = decoding(0, 0); config.allocationCallbacks = counted(&heap);
+  ma_decoder decoder; assert(ma_decoder_init_memory(bytes.data(), bytes.size(), &config, &decoder) == MA_SUCCESS);
+  ma_sound sound;
+  assert(ma_sound_init_from_data_source(engine(), &decoder, MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH, nullptr, &sound) == MA_SUCCESS);
+  assert(ma_sound_start(&sound) == MA_SUCCESS);
+  assert(audio.mix(128).a->data[0] != 0);
+  ma_sound_uninit(&sound); ma_decoder_uninit(&decoder);
+  assert(heap.now == 0);
+  puts("file music and counted asset decoder render: ok");
+}
 int main() {
   setenv("ZINC_HEADLESS", "1", 1);
   HostAudio audio;
+  render_guard(audio);
+  music_render(audio);
   for (int n : {240, 480, 960, 2000}) for (int ch : {1, 2}) check(audio, n, ch);
   for (int bits : {8, 24, 32}) {
     const auto b = wav(480, 1, bits);
@@ -114,6 +189,9 @@ int main() {
   assert(clips[async].th); settle(&clips[async], false);
   assert(clips[async].format == ma_format_s16 && clips[async].frames == desc.samples);
   assert(allocations.at(clips[async].pcm) == desc.samples * sizeof(short));
+  assert(audio.play(async, 1, false, 1, 0));
+  assert(audio.mix(128).a->data[0] != 0);
+  audio.stop(async);
   auto config = decoding(0, 0);
   ma_uint64 frames = 0; void* reference = nullptr;
   assert(tracked_decode(file.data(), file.size(), &config, &frames, &reference) == MA_SUCCESS);

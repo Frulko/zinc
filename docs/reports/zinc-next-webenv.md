@@ -164,3 +164,11 @@ v1 pin), [PixiJS Application](https://pixijs.com/8.x/guides/components/applicati
 [Phaser Game](https://docs.phaser.io/phaser/concepts/game) (normal game/scene boot),
 [Phaser Scenes](https://docs.phaser.io/phaser/concepts/scenes) and
 [Loader](https://docs.phaser.io/phaser/concepts/loader) (updates wait for loaded assets).
+
+### Audio render boundary (ZN-573, 2026-11-11)
+
+Debug builds mark `plugins/audio/native/audio.host.cpp`'s `render()` with a thread-local phase and restore it with RAII. Device pulls and null-backend `mix()` share that scope. All native audio control entries and the counted miniaudio malloc/realloc/free callbacks reject calls inside it. The callbacks are installed on the engine and mapped-asset music decoder; decoded clips/progressive readers copy existing PCM, while file music decodes on its worker into its existing ring.
+
+This is a plugin-local assertion, not a global allocation or QuickJS entry guard: default/system codec allocators, runtime allocations, unrelated native code and QuickJS itself are outside its boundary. AC2 remains open. `audio_storage` exercises normal clip/progressive/file-music/asset-decoder renders and deliberate bad data-source callbacks in children that catch SIGABRT without a crash dialog.
+
+`tools/test-lib howler-2.2.4` fetches the unchanged MIT upstream distribution into the existing external cache. `howler_audio` runs it as a script against the production null mixer and checks rendered stereo peaks and audible durations for play, loop, fade and pan. Parameters retain the facade's frame-rate updates. Kaplay integration and the real-device 10-minute/32-voice soak remain unproven; no throughput, latency or underrun claim follows from these checks.
