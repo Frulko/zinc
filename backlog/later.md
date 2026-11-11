@@ -755,6 +755,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-334: safelypruneobsolete managedsysroot generations after preservingmanualadditions; currentpublication intentionallyretainsoldroots.
 
+- ZN-701: Measure cost of explicit WebGL initialization on large texture/renderbuffer allocations before choosing GPU clear acceleration; bounded CPU staging is proven, timing is not.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -998,4 +1000,3 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-1118: Windows atomic Job assignment before execution and native descendant/owner-close/leader-exit/restart proof when a Windows test machine is available.
 
-- ZN-701: Measure cost of explicit WebGL initialization on large texture/renderbuffer allocations before choosing GPU clear acceleration; bounded CPU staging is proven, timing is not.

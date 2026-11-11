@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated584.01 7b47aef28 ReviewAC1; rootcombinedbuild/game all3 PASS; sourcehashmatch, actualplatformerAOT40frames/Start/captureinspected. Archive64fullsource/proofs.Active592.04 Linuxwindowmodule only; no10kFPS/T1. Commonbinaryrefresh recorded game584summary,91Doneunchanged.
+
 - Reserve592.04 Linuxlazywindowmodule. Read-onlyresearchcomplete: platformsplitCMake/PIC/wholearchiveSDL/transitivelibs, GLOBALloaderandELFfunctioninterposition, .so package/fuse withverifiedcache. No protectedHAL/driveredits needed; Linuxdisplay-gl EGLnotSDL. ActualLinuxshortproof/crossbuild permitted, no launchbenchmark/T1campaign.584.01 justintegrated rootbuild/proof underway.
 
 - Root701 modulebuild/exactwebgl_initialization PASS oncombinedengine08bedbdc, Reviewgatesopen, source/fullproof archive63. Active584.01 typedgameSDK.673remainingUnicode research identifies nativeOSfallback unavailableinresources; no silentfontsubstitution ornewshaperbloat started.723compiler waits724measure. Allnewgates remainhonest;91Done.

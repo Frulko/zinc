@@ -641,3 +641,10 @@ Reuse existing packaging and fuse manifest: only trusted embedded module content
 Use bounded row staging for texture zeros and typed scratch-FBO renderbuffer clears, including multisampling. Restore unpack/PBO and READ/DRAW bindings, scissor/masks/clear state; preserve errors and do not write after failed allocation. Validate original destination bounds before clipping. copyTexImage creates zeroed storage then clipped copy; copyTexSubImage leaves out-of-source destination untouched. Preserve other-mip aliases by saving source first. [Khronos](https://registry.khronos.org/webgl/specs/latest/1.0/#READS_OUTSIDE_FRAMEBUFFER), [ANGLE](https://raw.githubusercontent.com/google/angle/main/src/libANGLE/renderer/gl/BlitGL.cpp).
 
 Integrated1ca3bba23 ReviewAC1/2open. Rootmodulebuild/exactwebgl_initialization PASS on08bedbdc engine, realWebGL1/2 plus spyallocationfailure/explicitrow/state proofs. Workeralias/3D/inttexture/depth1/stencil0/MSAA/separateFBO cases pass. Archive701-final fullsource/proofs. AMD pages and695-page campaign unrun; knownexclusions remain. Largeallocation cost/PiGLES remain proposed, no performance claim.
+
+
+## D310 — Typed games reuse sprite frames and caller-driven lifecycles (ZN-584.01)
+
+Add small SceneController/Sprite/Playback over existing Frame.draw/Animation, without import-time scenes/atlases, automatic loops or an ECS. Explicit lifecycle transitions and finally restore guards; failed hooks have documented state/resource responsibilities. Public updates use seconds, animation state milliseconds; restart/pause/completion preserve defined behavior. Validate empty/nonpositive animation definitions in the shared sprite API before mutation.
+
+Integrated7b47aef28 ReviewAC1. Rootcombinedgame T0 passes interp/QuickJS/AOT; originalplatformer adoption runs40nativeframes with Start and inspectedvisiblegame. Source/fullproof archive584.01-final. No10000sprite60FPS or broadmultiplatform claim, AC2 remainsowner-selectedperformance gate.
