@@ -2,8 +2,7 @@
 id: ZN-573
 title: 'Web Audio facade: Howler and Kaplay, audio-thread assertion'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 08:11'
 updated_date: '2026-11-11 12:00'
 labels:

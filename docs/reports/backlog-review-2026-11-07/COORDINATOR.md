@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 573 released and archived with source bundle/proof (56 checkpoints). Fresh native worker work/672 active from819bbea6b, all commands confined to its tree.
+
 - Integrated573 f22d2f54e: audio_storage and howler_audio exact T0 PASS. Backlog, global allocation/JS-entry invariant and Kaplay/soak remain open. Reserve672 browser runtime images/render targets; delegated research complete, independent wasm host scope. Root sole coordinator; no other loop/build process observed.
 
 - Reserve573: productionrender RAII debugscope + checkednativeallocator/controlentries, standalonepinnedHowler actualnullmixer. No newgraph/queue/runtimeallocator changes; fullQuickJS/globalallocation invariant mustnotbeoverclaimed. Kaplay/soak criteria stayopenuntilproved. Primaryresearchcomplete; reuseminiaudio callbacks.
