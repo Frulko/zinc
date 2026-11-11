@@ -12,7 +12,7 @@ const [wasm, zbc, manifest, res] = await Promise.all([
   WebAssembly.compileStreaming(fetch(wasmUrl)),
   fetch(zbcUrl).then((r) => { if (!r.ok) throw new Error('cannot download program'); return r.arrayBuffer(); }),
   q.has('zbc') || q.has('wasm') ? null : fetch('boot.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
-  q.has('res') || q.has('zbc') || q.has('wasm') ? fetch(q.get('res') || 'app.res').then(r => r.ok ? r.arrayBuffer() : null).catch(() => null) : null,
+  fetch(q.get('res') || 'app.res').then(r => { if (r.ok) return r.arrayBuffer(); if (q.has('zbc') || q.has('wasm')) return null; throw new Error('cannot download baked fonts'); }),
 ]);
 const sab = new SharedArrayBuffer(64), shared = new Int32Array(sab);
 const worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });

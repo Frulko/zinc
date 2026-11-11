@@ -2292,6 +2292,28 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
   const bool haveProj = pf && zn::frontend::parseProject(ps.str(), proj, perr);
   // Packs are already cooked for wasm by exportApp; keep source asset names in the boot index for lazy lookup.
   if (status(std::system((q(self()) + " --emit=zbc-bin " + q(p.entry) + " " + q((out / "app.zbc").string())).c_str())) != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return 1; }
+  // The existing baker owns font selection and metrics; image packs remain the image source.
+  const fs::path baked = out / "app.res";
+  if (status(std::system((q(self()) + " bake " + q(p.entry) + " -o " + q(baked.string())).c_str())) != 0) return 1;
+  std::ifstream resources(baked, std::ios::binary);
+  std::string blob((std::istreambuf_iterator<char>(resources)), std::istreambuf_iterator<char>());
+  size_t cursor = 4;
+  auto take = [&](size_t n) { if (cursor > blob.size() || n > blob.size() - cursor) return false; cursor += n; return true; };
+  auto word = [&]() -> uint32_t {
+    if (!take(4)) { cursor = blob.size() + 1; return 0; }
+    const auto* b = reinterpret_cast<const unsigned char*>(blob.data() + cursor - 4);
+    return b[0] | (uint32_t(b[1]) << 8) | (uint32_t(b[2]) << 16) | (uint32_t(b[3]) << 24);
+  };
+  const uint32_t fontCount = word();
+  if (blob.compare(0, 4, "ZRS1") != 0 || fontCount > 512) return 1;
+  for (uint32_t n = 0; n < fontCount; ++n) {
+    const uint32_t nameBytes = word(); if (!take(nameBytes) || !take(16)) return 1;
+    const uint32_t glyphCount = word(); if (!take(size_t(glyphCount) * 28)) return 1;
+    const uint32_t bitmapBytes = word(); if (!take(bitmapBytes)) return 1;
+  }
+  if (cursor > blob.size()) return 1;
+  blob.resize(cursor); blob.append(8, '\0');   // no images or unused TrueType outlines in the browser's baked-font table
+  if (!writeFile(baked, blob)) return 1;
   std::string packPath, assetError; std::uint64_t ramBudget = 0;
   if (!assetRun(p.dir, "wasm", engineRoot, false, packPath, ramBudget, assetError)) { std::fprintf(stderr, "zinc export: %s\n", assetError.c_str()); return 1; }
   yyjson_mut_doc* manifest = yyjson_mut_doc_new(nullptr);
@@ -2396,7 +2418,7 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
             "except KeyboardInterrupt: pass\n");
   fs::permissions(out / "serve.py", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
   writeFile(out / "README.txt", p.name + " " + p.version + " (wasm) built with Zinc.\nServe this folder with the headers Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy: require-corp\n(./serve.py does, then open the address it prints).\n");
-  zn::log::step("site", "index.html, app.js, app.wasm, app.zbc, boot.json, group packs, serve.py");
+  zn::log::step("site", "index.html, app.js, app.wasm, app.zbc, app.res, boot.json, group packs, serve.py");
   zn::log::step("done", zn::log::shortPath(fs::absolute(out).string()), zn::log::since(t0));
   zn::log::step("next", zn::log::shortPath((fs::absolute(out) / "serve.py").string()) + ", then open the address it prints");
   std::printf("%s\n", out.string().c_str());

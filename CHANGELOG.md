@@ -45,6 +45,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Fixed
 
 - Wasm exports decode image bytes, update runtime images, and draw render targets. `readBytes()` returns original imported image files alongside cooked textures.
+- Wasm exports render baked text with native metrics and support two-colour gradients, translations, transforms and clipping.
 
 ### Rendering and performance
 

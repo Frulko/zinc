@@ -12,26 +12,81 @@ import { TextureDecoder } from './transcoder.mjs';
 const ARG = 24;   // sizeof(HostArg): double d @0, int64 i @8, void* p @16, uint32 n @20
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
 
-// The baked images of the program (ZN-432): app.res is the blob of `zinc bake` (ZRS1: the fonts, then the images as RGBA; src/host/resources.cpp reads the same
-// layout). Each image gets a canvas of its own, which drawImage reads; w and h are what imageWidth and imageHeight report (k texels a pixel).
-function bakedImages(buf) {
-  const out = [];
-  if (!buf || buf.byteLength < 8 || new TextDecoder().decode(new Uint8Array(buf, 0, 4)) !== 'ZRS1') return out;
-  const v = new DataView(buf);
-  let p = 4;
-  const u32 = () => { const x = v.getUint32(p, true); p += 4; return x; };
-  const str = () => { const n = u32(); const s = new TextDecoder().decode(new Uint8Array(buf, p, n)); p += n; return s; };
-  const skip = (n) => { p += n; };   // (p += u32() would add to the p read before the call)
-  for (let n = u32(); n > 0; n--) { str(); skip(16); skip(u32() * 28); skip(u32()); }   // a font: name, four metrics, the glyph records, the bitmap
-  for (let n = u32(); n > 0; n--) {
-    const name = str(), w = u32(), h = u32(), k = Math.max(1, u32());
-    const c = new OffscreenCanvas(Math.max(1, w), Math.max(1, h));
-    if (w && h) c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(buf.slice(p, p + w * h * 4)), w, h), 0, 0);
-    p += w * h * 4;
-    out.push({ name, canvas: c, k, w: Math.trunc((w + (k >> 1)) / k), h: Math.trunc((h + (k >> 1)) / k) });
+// ZRS1 is shared with src/host/resources.cpp: glyph records are 28 bytes on disk, then coverage; images are RGBA.
+// Browser exports keep the fonts here and deliver images through asset packs; custom resource blobs may contain both.
+function bakedResources(buf) {
+  const fonts = [], images = [];
+  if (!buf) return { fonts, images };
+  const v = new DataView(buf); let p = 0;
+  const take = n => { if (!Number.isSafeInteger(n) || n < 0 || n > buf.byteLength - p) throw new Error('truncated ZRS1 resource'); const b = new Uint8Array(buf, p, n); p += n; return b; };
+  const u32 = () => { const b = take(4); return new DataView(b.buffer, b.byteOffset, 4).getUint32(0, true); };
+  const str = () => new TextDecoder().decode(take(u32()));
+  const count = max => { const n = u32(); if (n > max) throw new Error('invalid ZRS1 count'); return n; };
+  if (new TextDecoder().decode(take(4)) !== 'ZRS1') throw new Error('invalid ZRS1 resource');
+  for (let n = count(512); n > 0; n--) {
+    const f = { name: str(), px: u32(), ascent: u32() | 0, descent: u32() | 0, lineGap: u32() | 0, glyphs: new Map() };
+    const ng = count(Math.floor((buf.byteLength - p) / 28));
+    for (let j = 0; j < ng; j++) {
+      const g = { cp: u32(), x: u32() << 16 >> 16, y: u32() << 16 >> 16, w: u32() & 65535, h: u32() & 65535, adv: u32() | 0, off: u32() };
+      f.glyphs.set(g.cp, g);
+    }
+    f.bitmap = take(u32());
+    for (const g of f.glyphs.values()) if (g.off > f.bitmap.length || g.w * g.h > f.bitmap.length - g.off) throw new Error('invalid ZRS1 glyph');
+    fonts.push(f);
   }
-  return out;
+  for (let n = count(128); n > 0; n--) {
+    const name = str(), w = u32(), h = u32(), k = Math.max(1, u32()), pixels = take(w * h * 4);
+    if (w > 16384 || h > 16384 || w * h > 16777216) throw new Error('invalid ZRS1 image');
+    const c = new OffscreenCanvas(Math.max(1, w), Math.max(1, h));
+    if (w && h) c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(pixels), w, h), 0, 0);
+    images.push({ name, canvas: c, k, w: Math.trunc((w + (k >> 1)) / k), h: Math.trunc((h + (k >> 1)) / k) });
+  }
+  for (let n = count(16); n > 0; n--) { str(); take(u32()); }
+  return { fonts, images };
 }
+function bakedFont(fonts, name, px) {
+  px = !(px >= 1) ? 1 : Math.min(512, Math.trunc(px + 0.5));
+  let f = fonts.findIndex(f => f.name === name && f.px === px);
+  if (f >= 0) return f;
+  const stem = name.replace(/(?:~[it])+$/, ''), marks = name.slice(stem.length);
+  const normalized = stem.slice(stem.lastIndexOf('/') + 1).replace(/\.[^.]*$/, '') + marks;
+  f = fonts.findIndex(f => f.name === normalized && f.px === px);
+  if (f >= 0) return f;
+  let distance = Infinity;
+  fonts.forEach((font, i) => { if (font.name === normalized && Math.abs(font.px - px) < distance) { distance = Math.abs(font.px - px); f = i; } });
+  return f;
+}
+// shortcut: baked glyphs only; runtime font sizes and missing glyphs need the native TTF/shaping exports.
+function textGlyphs(f, text, tracking, draw = () => {}) {
+  if (!f) return 0;
+  let pen = 0;
+  const track = Math.trunc(Math.fround(Math.fround(tracking) * 64));
+  for (const c of text) {
+    const cp = c.codePointAt(0);
+    const g = f.glyphs.get(cp) || (/^[\u00ad\u034f\u061c\u115f-\u1160\u17b4-\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufff8\u{1bca0}-\u{1bca3}\u{1d173}-\u{1d17a}\u{e0000}-\u{e0fff}]$/u.test(c) ? null : f.glyphs.get(63));
+    if (g) { draw(g, pen); pen += g.adv + track; }
+  }
+  return pen / 64;
+}
+
+function drawBakedText(ctx, font, x, y, text, color, alpha, tracking) {
+  const f = font;
+  if (!f) return;
+  ctx.save(); ctx.globalAlpha = Math.min(255, Math.max(0, alpha)) / 255;
+  textGlyphs(f, text, tracking, (g, pen) => {
+    if (!g.w || !g.h) return;
+    const key = color >>> 0;
+    if (g.color !== key) {
+      g.canvas = new OffscreenCanvas(g.w, g.h); g.color = key;
+      const pixels = new Uint8ClampedArray(g.w * g.h * 4);
+      for (let j = 0; j < g.w * g.h; j++) { pixels[j * 4] = key >> 16 & 255; pixels[j * 4 + 1] = key >> 8 & 255; pixels[j * 4 + 2] = key & 255; pixels[j * 4 + 3] = f.bitmap[g.off + j]; }
+      g.canvas.getContext('2d').putImageData(new ImageData(pixels, g.w, g.h), 0, 0);
+    }
+    ctx.drawImage(g.canvas, Math.floor((Math.floor(x * 64) + pen + 32) / 64) + g.x, Math.floor(y + 0.5) + f.ascent + g.y);
+  });
+  ctx.restore();
+}
+
 
 // The input of the JSPI path, written by the page's messages: [0] unused, then the same slots as the SharedArrayBuffer
 const input = new Int32Array(6);
@@ -45,13 +100,29 @@ async function start(e) {
   const { wasm, zbc, res, canvas, sab, manifest, base = new URL('.', self.location.href).href, frames: maxFrames = 0 } = e.data;
   const jspi = typeof WebAssembly.Suspending === 'function' || !sab || !!manifest?.packs?.length;
   if (jspi && typeof WebAssembly.Suspending !== 'function') throw new Error('wasm images and asset packs need WebAssembly JSPI (Chrome/Edge 137 or newer)');
-  const images = bakedImages(res);
+  const { fonts, images } = bakedResources(res);
   const textures = new TextureDecoder(new URL('ktx2.wasm', base).href);
   let ctx = canvas.getContext('2d');
   let W = canvas.width, H = canvas.height;
   const page = { ctx, w: W, h: H };
   const Target = Object.freeze({ Page: 0, Image: 1 });
   let target = Target.Page, targetId = -1, clipDepth = 0;
+  const transform = { matrix: null, tx: 0, ty: 0 };
+  let clips = [];
+  function applyTransform() {
+    const m = transform.matrix || [1, 0, 0, 1, 0, 0];
+    ctx.setTransform(m[0], m[1], m[2], m[3], m[4] + m[0] * transform.tx + m[2] * transform.ty, m[5] + m[1] * transform.tx + m[3] * transform.ty);
+  }
+  function applyClip(c) {
+    ctx.save(); ctx.resetTransform(); ctx.beginPath(); ctx.roundRect(...c); ctx.clip(); applyTransform();
+  }
+  function clipBox(a) {
+    const m = transform.matrix;
+    if (!m) return [a[0] + transform.tx, a[1] + transform.ty, a[2], a[3], Math.max(0, a[4])];
+    const points = [[a[0], a[1]], [a[0] + a[2], a[1]], [a[0], a[1] + a[3]], [a[0] + a[2], a[1] + a[3]]].map(([x,y]) => [m[0]*x + m[2]*y + m[4], m[1]*x + m[3]*y + m[5]]);
+    const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs)-Math.min(...xs), Math.max(...ys)-Math.min(...ys), 0];
+  }
   const sizeOK = (w, h) => Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0 && w <= 16384 && h <= 16384 && w * h <= 16777216;
   function newImage(w, h) {
     if (!sizeOK(w, h) || images.length >= 0x7fffffff) return -1;
@@ -69,14 +140,14 @@ async function start(e) {
     if (next === Target.Image) {
       const im = images[id];
       if (target !== Target.Page || !im?.dynamic) return;
-      page.clipDepth = clipDepth; clipDepth = 0;
+      page.clipDepth = clipDepth; clipDepth = 0; page.clips = clips; clips = [];
       const transform = ctx.getTransform();
       target = next; targetId = id; ctx = im.canvas.getContext('2d'); W = im.w; H = im.h; ctx.save(); ctx.setTransform(transform);
     } else {
       if (target !== Target.Image) return;
       while (clipDepth > 0) { ctx.restore(); clipDepth--; }
       ctx.restore();
-      clipDepth = page.clipDepth || 0; target = next; targetId = -1; ctx = page.ctx; W = page.w; H = page.h;
+      clipDepth = page.clipDepth || 0; clips = page.clips || []; target = next; targetId = -1; ctx = page.ctx; W = page.w; H = page.h; applyTransform();
     }
   }
   async function decodeImage(bytes) {
@@ -100,7 +171,6 @@ async function start(e) {
   const nextFrame = () => new Promise((r) => (self.requestAnimationFrame ? self.requestAnimationFrame(() => r()) : setTimeout(r, 16)));
   const module = wasm instanceof WebAssembly.Module ? wasm : await WebAssembly.compile(wasm);
   let memory, assets, returnBuffer = 0, fsBytes = new Uint8Array(), fsError = '', fsFailure = false, listed = [];
-  const fonts = [];
   let lastTick = 0, prevBits = 0, frames = 0, ex;
   const dv = () => new DataView(memory.buffer);
   const cstr = (p) => { const b = new Uint8Array(memory.buffer); let q = p; while (b[q]) q++; return new TextDecoder().decode(b.subarray(p, q)); };
@@ -157,12 +227,14 @@ async function start(e) {
     };
     switch (name) {
       case 'host.gfxFrames': out = 2147483647; break;
-      case 'host.gfxBegin': if (target === Target.Image) switchTarget(Target.Page); while (clipDepth > 0) { ctx.restore(); clipDepth--; } ctx.resetTransform(); break;
+      case 'host.gfxBegin': if (target === Target.Image) switchTarget(Target.Page); while (clipDepth > 0) { ctx.restore(); clipDepth--; } clips = []; transform.matrix = null; transform.tx = transform.ty = 0; applyTransform(); break;
       case 'host.gfxEnd': case 'host.gfxFinish': case 'host.gfxKeep': case 'host.gfxProfMark': case 'host.gfxSetCursor': break;
-      case 'host.gfxClear': ctx.save(); ctx.resetTransform(); ctx.globalAlpha = 1; ctx.fillStyle = hex(a[0]); ctx.fillRect(0, 0, W, H); ctx.restore(); break;
-      case 'host.gfxTranslate': ctx.setTransform(1, 0, 0, 1, a[0], a[1]); break;
-      case 'host.gfxClip': if (clipDepth < 16) { ctx.save(); clipDepth++; ctx.beginPath(); ctx.roundRect(a[0], a[1], a[2], a[3], Math.max(0, a[4])); ctx.clip(); } break;
-      case 'host.gfxUnclip': if (clipDepth > 0) { const t = ctx.getTransform(); ctx.restore(); ctx.setTransform(t); clipDepth--; } break;
+      case 'host.gfxClear': { while (clipDepth > 0) { ctx.restore(); clipDepth--; } ctx.save(); ctx.resetTransform(); ctx.globalAlpha = 1; ctx.fillStyle = hex(a[0]); ctx.fillRect(0, 0, W, H); ctx.restore(); for (const c of clips) { applyClip(c); clipDepth++; } applyTransform(); break; }
+      case 'host.gfxTranslate': transform.tx = a[0]; transform.ty = a[1]; applyTransform(); break;
+      case 'host.gfxSetTransform': transform.matrix = a.slice(0, 6); applyTransform(); break;
+      case 'host.gfxResetTransform': transform.matrix = null; applyTransform(); break;
+      case 'host.gfxClip': if (clipDepth < 16) { const c = clipBox(a); clips.push(c); applyClip(c); clipDepth++; } break;
+      case 'host.gfxUnclip': if (clipDepth > 0) { ctx.restore(); clips.pop(); clipDepth--; applyTransform(); } break;
       case 'host.gfxCreateImage': out = newImage(a[0], a[1]); break;
       case 'host.gfxDestroyImage': if (images[a[0]]?.dynamic) { if (targetId === a[0]) switchTarget(Target.Page); images[a[0]] = null; } break;
       case 'host.gfxImageFromBytes': return later(decodeImage(a[0]));
@@ -179,13 +251,19 @@ async function start(e) {
       case 'host.gfxClearImage': { const im = images[a[0]]; if (im?.dynamic) { const c = im.canvas.getContext('2d'); c.save(); c.resetTransform(); c.clearRect(0, 0, im.w, im.h); c.restore(); } break; }
       case 'host.gfxRect': ctx.globalAlpha = 1; ctx.fillStyle = hex(a[4]); ctx.fillRect(a[0], a[1], a[2], a[3]); break;
       case 'host.gfxRRect': ctx.globalAlpha = a[6] / 255; ctx.fillStyle = hex(a[5]); ctx.beginPath(); ctx.roundRect(a[0], a[1], a[2], a[3], a[4]); ctx.fill(); ctx.globalAlpha = 1; break;
+      case 'host.gfxGradient': {
+        ctx.save(); ctx.globalAlpha = Math.min(255, Math.max(0, a[8])) / 255;
+        const gradient = ctx.createLinearGradient(a[0], a[1], a[0] + (a[7] ? 0 : a[2]), a[1] + (a[7] ? a[3] : 0));
+        gradient.addColorStop(0, hex(a[5])); gradient.addColorStop(1, hex(a[6])); ctx.fillStyle = gradient;
+        ctx.beginPath(); ctx.roundRect(a[0], a[1], a[2], a[3], Math.max(0, a[4])); ctx.fill(); ctx.restore(); break;
+      }
       case 'host.gfxLine': ctx.globalAlpha = 1; ctx.strokeStyle = hex(a[4]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(a[2], a[3]); ctx.stroke(); break;
-      case 'host.gfxText': ctx.globalAlpha = 1; ctx.fillStyle = hex(a[3]); ctx.font = `${8 * Math.max(1, a[4])}px monospace`; ctx.textBaseline = 'top'; ctx.fillText(a[2], a[0], a[1]); break;
-      case 'host.gfxFont': fonts.push({ family: a[0], px: a[1] }); out = fonts.length - 1; break;
-      case 'host.gfxFontAscent': out = Math.round(fonts[a[0]].px * 0.97); break;
-      case 'host.gfxLineHeight': out = Math.round(fonts[a[0]].px * 1.21); break;
-      case 'host.gfxTextWidth': { const f = fonts[a[0]]; ctx.font = `${f.px}px ${f.family === 'mono' ? 'monospace' : 'sans-serif'}`; out = ctx.measureText(a[1]).width + a[2] * a[1].length; break; }
-      case 'host.gfxDrawText': { const f = fonts[a[0]]; ctx.globalAlpha = a[5] / 255; ctx.fillStyle = hex(a[4]); ctx.font = `${f.px}px ${f.family === 'mono' ? 'monospace' : 'sans-serif'}`; ctx.textBaseline = 'top'; ctx.fillText(a[3], a[1], a[2]); ctx.globalAlpha = 1; break; }
+      case 'host.gfxText': drawBakedText(ctx, fonts[bakedFont(fonts, 'grid', 8 * Math.max(1, a[4]))], a[0], a[1], a[2], a[3], 255, 0); break;
+      case 'host.gfxFont': out = bakedFont(fonts, a[0], a[1]); break;
+      case 'host.gfxFontAscent': out = fonts[a[0]]?.ascent || 0; break;
+      case 'host.gfxLineHeight': out = fonts[a[0]] ? fonts[a[0]].ascent + fonts[a[0]].descent + fonts[a[0]].lineGap : 0; break;
+      case 'host.gfxTextWidth': out = textGlyphs(fonts[a[0]], a[1], a[2]); break;
+      case 'host.gfxDrawText': drawBakedText(ctx, fonts[a[0]], ...a.slice(1)); break;
       case 'host.gfxImage': {
         out = images.findIndex(i => i?.name === a[0]);
         if (out < 0 && assets) return later(assets.ensure(a[0]).then(imageId));
