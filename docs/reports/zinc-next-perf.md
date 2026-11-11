@@ -1849,3 +1849,8 @@ Source418385788, compilerd3095ef7c54b0ef624618c2fdd6130de84c3213481f6677f1fa5ad4
 
 - ZN-161.03 final strict Hero: native7985488B; inclusive generatedC++9596411B; historical4hashes unchanged all3 engines. Kit rawJS236192/246407/283256B; AOT5227192/5293312/5811952B. Tiny254240B unchanged, Date-only+17232B. Source/proofs archive161-intl-final; no FPS/RSS or broad locale claim.
 - ZN-672 originalPNG272B retained byte-identically (SHA874470dd4671407c7f783db057c876204223538ee5739ffa8dd3bada37fad259), cookedpack2860→3228B including source/index. Final wasm773405B SHA9411c95a39851e2272804a96f04a1d44b796bc69a4038c732b5ae509cb27a452. Existing packs/budgets reused; no runtime speed claim. Archive672-final/provenance.
+
+
+### 2026-11-12 — Lazy shaping artifact accounting (not timing)
+
+Combinedenginee31522ace: zinc18168368B SHA08bedbdc000150ace1221593f93f41e66d8a3d0306beaf62f059560daf69dae8, adjacenttextmodule2976648B. HarfBuzz/SheenBidi symbol count0 inmain. No isolated before/after saving, RSS or latency claim; shippedmodule remains realpayload. Workerfontsubset931961B is byte-identical to baseline(SHA897ec64fb9a49aba6f124befc21a3bce3664b64bb60b210f86f47bfc7cb8b794), realMSDF107glyphs/351850Bpack. Rootexactmodule/native proof and artifactSHA in integration-2026-11-11/text-module-summary.json; source/proofs archive330.04-final.

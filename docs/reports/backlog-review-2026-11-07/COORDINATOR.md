@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated330.04 e31522ace Review(noAC/goldensunrun); rootcombinedbuild/text_module/wasm_native PASS, all10ownerpayloads preserved. Main18168368B +adjacentmodule2976648B, no pairedsaving/timing claim. Source/fullproof archive62.701active;723.01 read-onlyresearch fornextengineperf chain.91Doneunchanged.
+
 - Reserve701 independentGL storage correctness beside330.04. Delegatedprimaryresearch: out-of-bounds subcopy leavesdestination untouched; copyImage zerosnewstorage then clippedcopy. Nulltexture/RBO/MSAA init mustcoverREAD/DRAW bindings/typedformats andpreservestate/aliasing. Fullconformance/AMDcriteria notauthorized, knownfailurelist retained.
 
 - Integrated661 f0ed086b9 BacklogshowcaseACopen/D307; rootexactwasm_native PASS/allprovenancecodehashmatch. ActualPCM normalgesture/autoplay/noJSPI/legacyweb/gameoriginal passes, reviewP1 regressions fixed. Archive61(fullsource/proofs/runtime).330.04 active finalmodulefail/cacheproofs, commonrefreshafteritsintegration;701research next independentGLcorrectness.91Doneunchanged.
