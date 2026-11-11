@@ -4,8 +4,7 @@ title: >-
   Board detection and capability probe: zinc:board and zinc:platform BOARD, SOC,
   RAM_MB, REVISION, has()
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:45'
 updated_date: '2026-11-11 22:47'
 labels:
