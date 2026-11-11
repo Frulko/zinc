@@ -8,6 +8,8 @@
 import { wasiImports } from './wasi.mjs';
 import { BrowserAssets, Group, Request } from './assets.mjs';
 import { TextureDecoder } from './transcoder.mjs';
+import { NativeABI, NativeRPC } from './native.mjs';
+const nativeRPC = new NativeRPC(message => self.postMessage(message));
 
 const ARG = 24;   // sizeof(HostArg): double d @0, int64 i @8, void* p @16, uint32 n @20
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
@@ -92,12 +94,13 @@ function drawBakedText(ctx, font, x, y, text, color, alpha, tracking) {
 const input = new Int32Array(6);
 let started = false;
 self.onmessage = async (e) => {
+  if (e.data.nativeReply) { nativeRPC.reply(e.data.nativeReply); return; }
   if (started) { const m = e.data; if (m.input) { input[1] = m.input.x * 16; input[2] = m.input.y * 16; input[3] = m.input.down; input[4] = m.input.bits; } if (m.quit) input[5] = 1; return; }
   started = true;
-  try { await start(e); } catch (err) { self.postMessage({ error: String(err && err.stack || err) }); }
+  try { await start(e); } catch (err) { nativeRPC.close(); self.postMessage({ error: String(err && err.stack || err) }); }
 };
 async function start(e) {
-  const { wasm, zbc, res, canvas, sab, manifest, base = new URL('.', self.location.href).href, frames: maxFrames = 0 } = e.data;
+  const { wasm, zbc, res, canvas, sab, manifest, natives = [], base = new URL('.', self.location.href).href, frames: maxFrames = 0 } = e.data;
   const jspi = typeof WebAssembly.Suspending === 'function' || !sab || !!manifest?.packs?.length;
   if (jspi && typeof WebAssembly.Suspending !== 'function') throw new Error('wasm images and asset packs need WebAssembly JSPI (Chrome/Edge 137 or newer)');
   const { fonts, images } = bakedResources(res);
@@ -356,13 +359,34 @@ async function start(e) {
   }
   let this_bits = 0;
 
+  let nativeABI;
+  function nativeCall(module, name, sig, args, ret, err, size) {
+    const fail = error => { nativeABI.error(err,size,error); return 2; };
+    try {
+      const signature = nativeABI.cstr(sig);
+      const result = nativeRPC.call(nativeABI.cstr(module),nativeABI.cstr(name),signature,nativeABI.args(signature,args),!jspi);
+      const finish = value => { nativeABI.write(signature.split('>')[1],ret,value); return 0; };
+      return jspi ? result.then(finish).catch(fail) : finish(result);
+    } catch (error) { return fail(error); }
+  }
   const imports = {
     wasi_snapshot_preview1: wasiImports(module, () => memory, (fd, text) => { (fd === 2 ? console.error : console.log)(text.replace(/\n$/, '')); self.postMessage({ out: text }); }),
-    zn: { gfx: jspi ? new WebAssembly.Suspending(gfx) : gfx },
+    zn: { gfx: jspi ? new WebAssembly.Suspending(gfx) : gfx, native_call: jspi ? new WebAssembly.Suspending(nativeCall) : nativeCall },
   };
   const inst = await WebAssembly.instantiate(module, imports);
   ex = inst.exports; memory = ex.memory;
   if (ex._initialize) ex._initialize();
+  nativeABI = new NativeABI(() => memory,ex);
+  ex.zn_native_reset();
+  for (const descriptor of natives) {
+    const pointers = descriptor.map(value => {
+      const bytes = new TextEncoder().encode(value + '\0'), ptr = ex.zn_alloc(bytes.length);
+      if (!ptr) throw new Error('browser native descriptor allocation failed');
+      new Uint8Array(memory.buffer,ptr,bytes.length).set(bytes); return ptr;
+    });
+    try { if (ex.zn_native_add(...pointers)) throw new Error('invalid browser native descriptor'); }
+    finally { pointers.forEach(ptr=>ex.zn_free(ptr)); }
+  }
   if (manifest) assets = new BrowserAssets(manifest, base, (bytes) => {
     const p = ex.zn_alloc(bytes.byteLength);
     if (!p) throw new Error('asset allocation failed');
@@ -390,6 +414,7 @@ async function start(e) {
   self.postMessage({ started: true });
   let rc;
   try { rc = jspi ? await WebAssembly.promising(ex.zn_run)(p, zbc.byteLength) : ex.zn_run(p, zbc.byteLength); } catch (err) { console.error(String(err)); rc = -1; }
+  nativeRPC.close();
   self.postMessage({ done: true, rc, frames });
   if (canvas.convertToBlob) {
     const blob = await canvas.convertToBlob({ type: 'image/png' });

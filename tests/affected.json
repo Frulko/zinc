@@ -803,6 +803,7 @@
     {"paths": ["lib/std/kit/media.tsx", "lib/std/kit/media-model.ts", "lib/std/kit/imageviewer.ts", "lib/std/kit/tooltip.ts", "tests/data/kit_media/", "tests/t0/kit_media.sh"], "tests": ["kit_media"]},
     {"paths": ["runtime/gfx.cpp", "tests/t0/framehash_corner.sh", "tests/data/framehash_corner/"], "tests": ["framehash_corner"]},
     {"paths": ["targets/wasm/glue/worker.mjs", "targets/wasm/image_info_web.cpp", "tests/wasm/images.mjs", "tests/t0/wasm_images.sh"], "tests": ["wasm_images"]},
-    {"paths": ["targets/wasm/glue/worker.mjs", "tests/wasm/gfx.mjs", "tests/t0/wasm_gfx.sh"], "tests": ["wasm_gfx"]}
+    {"paths": ["targets/wasm/glue/worker.mjs", "tests/wasm/gfx.mjs", "tests/t0/wasm_gfx.sh"], "tests": ["wasm_gfx"]},
+    {"paths": ["targets/wasm/native_web.cpp", "targets/wasm/glue/native.mjs", "targets/web/native-services.mjs", "tests/wasm/native.mjs", "tests/t0/wasm_native.sh"], "tests": ["wasm_native"]}
   ]
 }

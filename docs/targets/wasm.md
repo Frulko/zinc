@@ -9,9 +9,9 @@
 |---|---|
 | `vm.wasm` | a WASI program: `vm.wasm program.zbc` decodes, verifies and runs a module (Node's WASI with `tests/wasm/run.mjs`, or wasmtime) |
 | `ktx2-web.wasm` | optional Basis Universal 2.50 texture decoder: a separate reactor downloaded only on the first KTX2 image lookup |
-| `vm-web.wasm` | the same runtime as a reactor for the browser: `zn_run(zbc, len)` and one import, `zn.gfx(id, args, result)`, for every zinc:gfx row |
+| `vm-web.wasm` | the same runtime as a reactor for the browser: `zn_run(zbc, len)` with `zn.gfx(id, args, result)` for zinc:gfx and `zn.native_call` for browser plugin backends |
 
-The pure runtime (strings, arrays, Maps, classes, exceptions, closures, async with a virtual clock) is in; native modules, files, sockets and processes are not (the host rows answer "not available"). A program is compiled to `.zbc` with `zinc --emit=zbc-bin file.ts out.zbc` and loaded by the page.
+The pure runtime (strings, arrays, Maps, classes, exceptions, closures, async with a virtual clock) is in; WASI native modules, files, sockets and processes are not (the host rows answer "not available"). A program is compiled to `.zbc` with `zinc --emit=zbc-bin file.ts out.zbc` and loaded by the page.
 
 ## In a browser
 
@@ -43,3 +43,10 @@ The wasm math build uses the same V8/CORE-MATH implementations as the other engi
 `tests/t2/wasm.sh`: the 18 programs of `corpus/M3-set.txt` print on WASI what `zinc run` prints in a deterministic run, with the same exit code. `tests/t2/wasm_browser.sh`: headless Chrome (driven over the DevTools pipe by `tools/wasm-browser-test`) runs breakout on `vm-web.wasm` and the last frame is checked (skipped without Chrome). `tests/t1/image_rect_wasm.sh`: the sprites of a sheet are the same frame in Chrome as in the interpreter, and the exported game-2d template shows its player and coins.
 
 The focused loader unit check is `tests/run --only wasm_loading` after building wasm. The manual three-criterion browser proof is `ZINC=build/zinc timeout 60 tests/wasm/loading_export.sh`; it holds the wasm response, checks both KTX2 alpha modes, reloads with HTTP cache disabled, and checks that an asset-free export drops stale packs.
+
+Browser native plugins
+----------------------
+
+Wasm exports include the `web.native` / `web.impl` backends of the plugins the program calls. `natives.js` carries signatures from the compiled native specs; only implemented browser functions with supported signatures enter the runtime registry. The existing `zinc:audio` Web Audio backend handles decoded sounds, voices and PCM streams on the page. Decoding is asynchronous: duration/channels/rate are zero until ready, and an early play waits for decoding. Audio resumes after user input, following the browser's autoplay policy.
+
+The native bridge carries scalars, UTF-8 strings and packed byte, i32, f64 and string-array arguments; callback, resource and promise signatures remain unsupported, as do unimplemented exports such as streamed music. Calls and replies are bounded to 4 MiB and replies time out after 15 seconds. JSPI suspends the interpreter while the page responds; asset-free programs without JSPI use a shared reply buffer while the worker blocks. Raw `?zbc=...&wasm=...` source-glue runs have no exported plugin descriptors. Use `zinc export --target wasm` for browser native plugins.

@@ -2292,6 +2292,11 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
   const bool haveProj = pf && zn::frontend::parseProject(ps.str(), proj, perr);
   // Packs are already cooked for wasm by exportApp; keep source asset names in the boot index for lazy lookup.
   if (status(std::system((q(self()) + " --emit=zbc-bin " + q(p.entry) + " " + q((out / "app.zbc").string())).c_str())) != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return 1; }
+  WebArgs web; web.dir = p.dir; web.entry = p.entry; web.engineRoot = engineRoot; web.out = out.string();
+  std::string nativeError;
+  if (!wasmNativeBackends(web, (out / "app.zbc").string(), nativeError)) { std::fprintf(stderr, "zinc export: %s\n", nativeError.c_str()); return 1; }
+  fs::copy_file(root / "targets/web/native-services.mjs", out / "native-services.mjs", fs::copy_options::overwrite_existing, ec);
+  if (ec) { std::fprintf(stderr, "zinc export: %s\n", ec.message().c_str()); return 1; }
   // The existing baker owns font selection and metrics; image packs remain the image source.
   const fs::path baked = out / "app.res";
   if (status(std::system((q(self()) + " bake " + q(p.entry) + " -o " + q(baked.string())).c_str())) != 0) return 1;
@@ -2384,7 +2389,7 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
     if (ec) { std::fprintf(stderr, "zinc export: %s\n", ec.message().c_str()); return 1; }
   }
   fs::copy_file(wasm, out / "app.wasm", fs::copy_options::overwrite_existing, ec);
-  for (const char* f : {"app.js", "worker.mjs", "wasi.mjs", "assets.mjs", "transcoder.mjs"}) fs::copy_file(glue / f, out / f, fs::copy_options::overwrite_existing, ec);
+  for (const char* f : {"app.js", "worker.mjs", "wasi.mjs", "assets.mjs", "transcoder.mjs", "native.mjs"}) fs::copy_file(glue / f, out / f, fs::copy_options::overwrite_existing, ec);
   if (ec) { std::fprintf(stderr, "zinc export: %s\n", ec.message().c_str()); return 1; }
   int w = 480, h = 320;   // the canvas: zinc.json targets.wasm width / height
   if (haveProj && proj.targets.count("wasm")) {

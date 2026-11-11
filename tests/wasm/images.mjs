@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { existsSync } from 'node:fs';
+import { NativeABI, NativeRPC } from '../../targets/wasm/glue/native.mjs';
 import { wasiImports } from '../../targets/wasm/glue/wasi.mjs';
 const memory = new WebAssembly.Memory({ initial: 2 });
 let dispatch, nextString = 64;
@@ -27,7 +28,7 @@ class Canvas {
   constructor(w, h) { this.width = w; this.height = h; }
   getContext() { return { putImageData: d => writes.push([...d.data]), drawImage() {}, getTransform: () => ({}), setTransform() {}, resetTransform() {}, save() {}, restore() {} }; }
 }
-const ex = { memory, zn_alloc: () => 16384, zn_image_size_ok: () => 1, zn_free() {}, zn_row_sig: id => str(rows[id][1]), zn_row_name: id => str('host.' + rows[id][0]), zn_run: async () => {
+const ex = { memory, zn_native_reset() {}, zn_alloc: () => 16384, zn_image_size_ok: () => 1, zn_free() {}, zn_row_sig: id => str(rows[id][1]), zn_row_name: id => str('host.' + rows[id][0]), zn_run: async () => {
   assert.equal(call(0, [0, 4]), -1);
   const id = call(1, [[255, 1, 2, 128, 3, 4, 5, 255], 2, 1]);
   assert.deepEqual(writes.pop(), [255, 1, 2, 128, 3, 4, 5, 255]);
@@ -42,10 +43,10 @@ const ex = { memory, zn_alloc: () => 16384, zn_image_size_ok: () => 1, zn_free()
   return 0;
 } };
 const errors = [];
-const context = { TextDecoder, TextEncoder, DataView, Uint8Array, Uint8ClampedArray, Uint32Array, Float64Array, Int32Array, Blob, console, setTimeout, clearTimeout,
+const context = { NativeABI, NativeRPC, TextDecoder, TextEncoder, DataView, Uint8Array, Uint8ClampedArray, Uint32Array, Float64Array, Int32Array, Blob, console, setTimeout, clearTimeout,
   OffscreenCanvas: Canvas, ImageData: class { constructor(data) { this.data = data; } }, createImageBitmap: async () => { throw new Error('bad image'); },
   BrowserAssets: class {}, TextureDecoder: class {}, wasiImports: () => ({}), self: { location: { href: 'https://example.test/' }, postMessage(m) { if (m.error) errors.push(m.error); } }, URL,
-  WebAssembly: { Memory: WebAssembly.Memory, Module: class {}, compile: async () => ({}), Suspending: function(f) { dispatch = f; return f; }, promising: f => f, instantiate: async () => ({ exports: ex }) } };
+  WebAssembly: { Memory: WebAssembly.Memory, Module: class {}, compile: async () => ({}), Suspending: function(f) { if (f.name === 'gfx') dispatch = f; return f; }, promising: f => f, instantiate: async () => ({ exports: ex }) } };
 vm.runInNewContext(readFileSync('targets/wasm/glue/worker.mjs', 'utf8').replace(/^import .*;\n/gm, ''), context);
 await context.self.onmessage({ data: { wasm: new ArrayBuffer(0), zbc: new ArrayBuffer(0), canvas: new Canvas(400, 180), base: 'https://example.test/' } });
 assert.deepEqual(errors, []);
@@ -54,7 +55,7 @@ console.log('wasm_images: Slot arrays, update, target, stale ids and decode fail
 if (existsSync('build-wasm/vm-web.wasm')) {
   const mod = await WebAssembly.compile(readFileSync('build-wasm/vm-web.wasm'));
   let mem;
-  const real = (await WebAssembly.instantiate(mod, { wasi_snapshot_preview1: wasiImports(mod, () => mem, () => {}), zn: { gfx() {} } })).exports;
+  const real = (await WebAssembly.instantiate(mod, { wasi_snapshot_preview1: wasiImports(mod, () => mem, () => {}), zn: { gfx() {}, native_call() { throw new Error('unexpected native call'); } } })).exports;
   mem = real.memory; real._initialize?.();
   const bytes = readFileSync('tests/data/image_rect/assets/sheet.png'), p = real.zn_alloc(bytes.length);
   try {

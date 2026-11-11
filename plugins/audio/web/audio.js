@@ -57,7 +57,16 @@ Z.registerNative('Audio', {
     try {
       const c = context(), id = mk(null), s = sounds.get(id);
       const ab = Uint8Array.from(bytes).buffer;
-      c.decodeAudioData(ab).then((b) => { s.buffer = b; for (const f of s.waiting.splice(0)) f(); }, (e) => { s.failed = String(e && e.message || e); });
+      c.decodeAudioData(ab).then((b) => {
+        if (sounds.get(id) !== s) return; // an unload must not start a queued voice after decoding
+        s.buffer = b; for (const f of s.waiting.splice(0)) f();
+      }, (e) => {
+        if (sounds.get(id) !== s) return;
+        lastError = String(e && e.message || e);
+        s.waiting.length = 0;
+        for (const voice of s.ids) { const v = voices.get(voice); if (v) v.state = 'ended'; }
+        s.ids.clear();
+      });
       return id;
     } catch (e) { lastError = String(e && e.message || e); return -1; }
   },

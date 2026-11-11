@@ -20,6 +20,8 @@ struct WebArgs {
 /** `zinc export --target web`: a static folder (index.html, hashed JS and assets, a service worker and a manifest, precompressed copies, _headers). --check
  *  only reports what the browsers of the target set cannot run. Returns the exit code. */
 int exportWeb(const WebArgs& a);
+// Browser backends and signatures from the program's compiled native specs.
+bool wasmNativeBackends(const WebArgs& a, const std::string& bytecode, std::string& error);
 /** `zinc dev --target web`: serves the project unbundled on http://127.0.0.1:<port> with a WebSocket for hot reload; runs until interrupted. */
 int devWeb(const WebArgs& a);
 /** `zinc explain W0601`: the warnings of the web export (not checker errors, so not in the Z registry of include/zn/diagnostics.h); "" for another code. */

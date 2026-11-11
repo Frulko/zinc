@@ -1,11 +1,17 @@
+import { nativeServices } from './native-services.mjs';
+import { nativeDeclarations, serveNative } from './native.mjs';
 // The page of the browser build (ZN-135, zinc export --target wasm: ZN-326.01): ?zbc=<file.zbc>&wasm=<vm-web.wasm>&frames=<n> (frames: stop after n ticks and publish the last frame as a PNG in #png; default: run forever).
 // Needs cross-origin isolation: serve with Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy: require-corp.
 const q = new URL(location.href).searchParams;
+const customProgram = q.has('zbc') || q.has('wasm');
 const zbcUrl = q.get('zbc') || 'app.zbc', wasmUrl = q.get('wasm') || 'app.wasm', maxFrames = Number(q.get('frames') || 0);
 const log = document.getElementById('log');
 const canvas = document.getElementById('c');
 window.addEventListener("error", (e) => { document.getElementById('splash')?.remove(); log.textContent += "error: " + e.message + "\n"; });
 window.addEventListener('unhandledrejection', (e) => { log.textContent += 'error: ' + String(e.reason) + '\n'; document.getElementById('splash')?.remove(); });
+const Z = nativeServices();
+const { declarations } = customProgram ? { declarations: [] } : await import('./natives.js');
+const natives = nativeDeclarations(Z, declarations);
 if (!crossOriginIsolated) { log.textContent = 'This page needs cross-origin isolation (COOP/COEP headers) for SharedArrayBuffer.'; throw new Error('not isolated'); }
 // A compiled Module is cloneable: compilation overlaps the download on the page, before it reaches the worker.
 const [wasm, zbc, manifest, res] = await Promise.all([
@@ -29,6 +35,7 @@ addEventListener('pointerup', (e) => pointer(e, false));
 let ticks = 0, done = false;
 worker.onmessage = (e) => {
   const m = e.data;
+  if (m.nativeCall) { void serveNative(Z,natives,m.nativeCall,reply=>worker.postMessage(reply)); return; }
   if (m.error) { document.getElementById('splash')?.remove(); log.textContent += 'worker error: ' + m.error + '\n'; console.error('worker error: ' + m.error); }
   if (m.out) log.textContent += m.out;   // the program's stdout and stderr
   if (m.progress) window.__znAssetProgress = m.progress;
@@ -37,7 +44,7 @@ worker.onmessage = (e) => {
   if (m.png) { document.title = 'done'; const b64 = btoa(String.fromCharCode(...new Uint8Array(m.png))); const pre = document.createElement('pre'); pre.id = 'png'; pre.textContent = b64; document.body.appendChild(pre); }
   if (m.done) { done = true; log.textContent += 'exit ' + m.rc + ', ' + m.frames + ' frames'; }
 };
-worker.postMessage({ wasm, zbc, res, manifest, base: new URL('.', location.href).href, canvas: off, sab }, [off]);
+worker.postMessage({ wasm, zbc, res, manifest, natives, base: new URL('.', location.href).href, canvas: off, sab }, [off]);
 function tick() {
   if (done) return;
   ticks++; Atomics.add(shared, 0, 1); Atomics.notify(shared, 0);

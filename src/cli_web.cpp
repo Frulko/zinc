@@ -33,6 +33,7 @@
 #include "frontend/project.h"
 #include "platform/platform.h"
 #include "res/codec.h"
+#include "zbc/zbc.h"
 #include "platform/socket.h"
 #include "tc/tc.h"
 #include "yyjson.h"
@@ -889,8 +890,9 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
   // 3. the runtime, the native glue and (DOM mode) the DOM painter, minified
   fs::create_directories(tmp / "rt", ec);
   writeAll(tmp / "rt" / "native.js", nativeJs(cm.used, cm.rowJs));
-  for (const char* f : {"runtime.js", "dom.js"}) fs::copy_file(fs::path(runtimeDir(a)) / f, tmp / "rt" / f, fs::copy_options::overwrite_existing, ec);
+  for (const char* f : {"runtime.js", "dom.js", "native-services.mjs"}) fs::copy_file(fs::path(runtimeDir(a)) / f, tmp / "rt" / f, fs::copy_options::overwrite_existing, ec);
   std::map<std::string, std::string> out;   // published name -> bytes
+  out["native-services.mjs"] = readAll(fs::path(runtimeDir(a)) / "native-services.mjs");
   auto publish = [&](const std::string& base, const std::string& ext, const std::string& bytes) {
     const std::string name = base + "." + hash10(bytes) + ext;
     out[name] = bytes;
@@ -1851,6 +1853,23 @@ int devWasm(const WebArgs& a) {
 
 }  // namespace
 
+bool wasmNativeBackends(const WebArgs& a, const std::string& bytecode, std::string& error) {
+  const std::string bytes = readAll(bytecode);
+  zn::zbc::Module module;
+  if (!zn::zbc::decode(std::vector<std::uint8_t>(bytes.begin(), bytes.end()), module, error)) return false;
+  std::set<std::string> needed;
+  std::string js = "export const declarations = [\n";
+  for (const auto& n : module.natives) {
+    needed.insert(n.module);
+    js += "[" + jstr(n.module) + "," + jstr(n.name) + "," + jstr(n.sig) + "],\n";
+  }
+  js += "];\n";
+  for (const auto& p : findPlugins(a, readCfg(a))) if (needed.count(p.native) && !p.impl.empty())
+    js += "(() => {\n" + readAll(fs::path(p.dir) / p.impl) + "\n})();\n";
+  if (!writeAll(fs::path(a.out) / "natives.js", js)) { error = "cannot write browser native backends"; return false; }
+  return true;
+}
+
 int exportWeb(const WebArgs& a) { return exportSite(a, "web-export"); }
 
 int devWeb(const WebArgs& a) {
@@ -1891,7 +1910,7 @@ int devWeb(const WebArgs& a) {
   std::fputs(d.cm.report.c_str(), stderr);
   // the page and the runtime files, as they are (no hashes, no minify: the browser's devtools read them)
   const bool dom = d.cm.cfg.render == "dom";
-  for (const char* f : {"runtime.js", "dom.js", "hmr.js"}) writeAll(d.site / f, readAll(fs::path(runtimeDir(a)) / f));
+  for (const char* f : {"runtime.js", "dom.js", "hmr.js", "native-services.mjs"}) writeAll(d.site / f, readAll(fs::path(runtimeDir(a)) / f));
   writeAll(d.site / "native.js", nativeJs(d.cm.used, d.cm.rowJs));
   for (const WebPlugin& p : d.cm.used) {
     if (p.wasmSources.empty()) continue;

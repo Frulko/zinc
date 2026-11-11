@@ -51,7 +51,7 @@ assert.equal(a.requests.get(id).state, Request.Failed); assert.match(a.requests.
 // The actual wasm boundary must reject malformed indexes and remain reusable after failure.
 const wasi = new WASI({ version: 'preview1', args: [], env: {}, preopens: {}, returnOnExit: true });
 const module = await WebAssembly.compile(readFileSync(process.argv[2]));
-const instance = await WebAssembly.instantiate(module, { ...wasi.getImportObject(), zn: { gfx() {} } });
+const instance = await WebAssembly.instantiate(module, { ...wasi.getImportObject(), zn: { gfx() {}, native_call() { throw new Error('unexpected native call'); } } });
 wasi.initialize(instance);
 const ex = instance.exports, p = ex.zn_alloc(32);
 new Uint8Array(ex.memory.buffer, p, 32).fill(0);

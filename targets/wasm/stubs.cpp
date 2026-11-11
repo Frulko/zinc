@@ -7,9 +7,11 @@
 #include "zn/native.h"
 
 extern "C" {
+#ifndef ZN_BROWSER_NATIVE
 const ZnExport* zn_native_find(const char*, const char*) { return nullptr; }
 int32_t zn_native_has_module(const char*) { return 0; }
 int32_t zn_native_call(const char*, const char*, const char*, const ZnVal*, ZnVal*, char* err, size_t errsize) { if (err && errsize) std::strncpy(err, "native modules are not available on WASI", errsize - 1); return -1; }
+#endif
 uint64_t zn_native_last_promise(void) { return 0; }
 void zn_native_set_sink(const ZnSink*) {}
 void zn_native_drop_callbacks(void) {}

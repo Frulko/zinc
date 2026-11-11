@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { NativeABI, NativeRPC } from '../../targets/wasm/glue/native.mjs';
 const source = readFileSync('targets/wasm/glue/worker.mjs', 'utf8').replace(/^import .*;\n/gm, '');
 const coverage = [], drawn = [];
-const context = { OffscreenCanvas: class { getContext() { return { putImageData(im) { coverage.push([...im.data]); } }; } }, ImageData: class { constructor(data) { this.data=data; } }, TextDecoder, TextEncoder, Uint8Array, Uint8ClampedArray, DataView, Int32Array, self: {} };
+const context = { NativeABI, NativeRPC, OffscreenCanvas: class { getContext() { return { putImageData(im) { coverage.push([...im.data]); } }; } }, ImageData: class { constructor(data) { this.data=data; } }, TextDecoder, TextEncoder, Uint8Array, Uint8ClampedArray, DataView, Int32Array, self: {} };
 vm.createContext(context);
 vm.runInContext(source + '\nself.test = {bakedResources,bakedFont,textGlyphs,drawBakedText};', context);
 const { bakedResources, bakedFont, textGlyphs, drawBakedText } = context.self.test;
@@ -47,13 +48,14 @@ harness = harness.replace("return 0;\n} };", `call(9,[3,4]); call(10,[2,0,0,3,10
   return 0;
 } };`);
 // Reuse its import bindings in a separate module scope.
+harness = harness.replace("from '../../targets/wasm/glue/native.mjs'", 'from ' + JSON.stringify(new URL('../../targets/wasm/glue/native.mjs',import.meta.url).href));
 const moduleURL = 'data:text/javascript;base64,' + Buffer.from(harness.replace("import { wasiImports } from '../../targets/wasm/glue/wasi.mjs';", 'const wasiImports = () => ({});')).toString('base64');
 await import(moduleURL);
 console.log('wasm_gfx: matrix/translation, reset, device-space clip, unclip and clear state passed');
 
-const app = readFileSync('targets/wasm/glue/app.js','utf8').replaceAll('import.meta.url', "'https://example.test/app.js'");
+const app = readFileSync('targets/wasm/glue/app.js','utf8').replace(/^import .*;\n/gm,'').replace("await import('./natives.js')", '({declarations:[]})').replaceAll('import.meta.url', "'https://example.test/app.js'");
 const downloads = [];
-const page = { URL, location: { href:'https://example.test/' }, crossOriginIsolated:true,
+const page = { nativeServices:()=>({}), nativeDeclarations:()=>[], URL, location: { href:'https://example.test/' }, crossOriginIsolated:true,
   document: { getElementById: () => ({}) }, window: { addEventListener() {} },
   fetch: async url => { downloads.push(url); return { ok:url !== 'app.res', arrayBuffer:async()=>new ArrayBuffer(0), json:async()=>null }; },
   WebAssembly: { compileStreaming: async promise => { await promise; return {}; } } };

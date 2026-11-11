@@ -46,6 +46,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Wasm exports decode image bytes, update runtime images, and draw render targets. `readBytes()` returns original imported image files alongside cooked textures.
 - Wasm exports render baked text with native metrics and support two-colour gradients, translations, transforms and clipping.
+- Wasm exports call supported browser plugin backends, including `zinc:audio` sounds and PCM streams; playback starts after user input. Failed or unloaded audio decodes no longer leave queued voices playing.
 
 ### Rendering and performance
 
