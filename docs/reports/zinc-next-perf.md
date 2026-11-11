@@ -1843,3 +1843,9 @@ Integratedc0bb1ba9e, workercompiler191d941bb299477c3fb99d2ce68cd7ad85631cde0e3b9
 ### 2026-11-11 — ZN-725 indexed polygon fringes
 
 Source418385788, compilerd3095ef7c54b0ef624618c2fdd6130de84c3213481f6677f1fa5ad456bd08efd. Rootactual17-frame navigation:984526vertex+130790indexbytes/frame vs2615802legacybytes,57.4% totalupload reduction. Worker984918+130845 vs2616904 atdifferenttransitioninstant. Exactgeometry/ushortchunk/attributeT0 andHero check pass; actualshotinspected. MacOpenGL4.1 forcedstrips, no realGLES2/Pi/timing/default claim. .logs/integration-2026-11-11/fringe/summary.json.
+
+
+### 2026-11-11 — Intl and wasm artifact sizes (not timing)
+
+- ZN-161.03 final strict Hero: native7985488B; inclusive generatedC++9596411B; historical4hashes unchanged all3 engines. Kit rawJS236192/246407/283256B; AOT5227192/5293312/5811952B. Tiny254240B unchanged, Date-only+17232B. Source/proofs archive161-intl-final; no FPS/RSS or broad locale claim.
+- ZN-672 originalPNG272B retained byte-identically (SHA874470dd4671407c7f783db057c876204223538ee5739ffa8dd3bada37fad259), cookedpack2860→3228B including source/index. Final wasm773405B SHA9411c95a39851e2272804a96f04a1d44b796bc69a4038c732b5ae509cb27a452. Existing packs/budgets reused; no runtime speed claim. Archive672-final/provenance.
