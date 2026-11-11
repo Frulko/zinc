@@ -995,3 +995,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-1121: repeat cwdspawn on actualoldglibcLinux/Pi andMojave; currentdesktophelper/ELFcrosslink proofs pass, no targetexecution claimed.
 
 - ZN-725: measure indexedfringes onactualPi atbandclock andattribute stalls beforedefaultdecision; currentMacstructuralupload reduction57.4%, no FPSclaim.
+
+- ZN-1118: Windows atomic Job assignment before execution and native descendant/owner-close/leader-exit/restart proof when a Windows test machine is available.
