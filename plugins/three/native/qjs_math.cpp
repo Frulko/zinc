@@ -1,6 +1,7 @@
 // Guarded accelerators for unchanged three.js releases; arithmetic is upstream MIT.
 #include "qjs_math.h"
 #include "qjs_math_kernels.h"
+#include "zn/js_ext.h"
 #include "quickjs.h"
 #include "zn/jsmath.h"
 extern "C" {
@@ -47,7 +48,8 @@ constexpr const char* xyz[] = {"x","y","z","w"};
 constexpr const char* xyzw[] = {"_x","_y","_z","_w"};
 bool enabled() { const char* value=std::getenv("ZINC_JS_ACCEL"); return !value || std::strcmp(value,"0"); }
 bool equal(JSValueConst a, JSValueConst b) {
-  return JS_VALUE_GET_TAG(a)==JS_VALUE_GET_TAG(b) && JS_VALUE_GET_PTR(a)==JS_VALUE_GET_PTR(b);
+  if (JS_IsUndefined(a) && JS_IsUndefined(b)) return true;
+  return JS_IsObject(a) && JS_IsObject(b) && JS_VALUE_GET_PTR(a)==JS_VALUE_GET_PTR(b);
 }
 // The class check comes before every reflective API: Proxy/exotic traps never run.
 struct Guard {
@@ -259,9 +261,10 @@ JSValue accelerated(JSContext* ctx,JSValueConst self,int argc,JSValueConst* argv
       if (!intrinsics || !g.vector(self,QuaternionProto,out,4,true,true) || !g.proto(arg(0),EulerProto)
         || !g.number(arg(0),"_x",a[0]) || !g.number(arg(0),"_y",a[1]) || !g.number(arg(0),"_z",a[2])
         || !g.own(arg(0),"_order",order) || !JS_IsString(order)) return fallback();
-      const char* text=JS_ToCString(ctx,order); if (!text) return JS_EXCEPTION;
+      size_t length=0;
+      const char* text=JS_ToCStringLen(ctx,&length,order); if (!text) return JS_EXCEPTION;
       constexpr const char* orders[]={"XYZ","YXZ","ZXY","ZYX","YZX","XZY"}; int k=0;
-      while (k<6 && std::strcmp(text,orders[k])) ++k;
+      while (k<6 && (length!=3 || std::memcmp(text,orders[k],3))) ++k;
       JS_FreeCString(ctx,text); if (k==6) return fallback();
       bool update=argc<2 || JS_IsUndefined(arg(1)) || (JS_IsBool(arg(1)) && JS_VALUE_GET_BOOL(arg(1)));
       if (update) {
@@ -393,3 +396,10 @@ void mathSource(std::string& source) {
   }
 }
 }  // namespace zn::three
+
+namespace zn::qjs {
+void libraryHooks(ContextHook& context, SourceHook& source) {
+  context=[](napi_env env) { if (env) zn::three::mathContext(contextOf(env)); };
+  source=zn::three::mathSource;
+}
+}  // namespace zn::qjs

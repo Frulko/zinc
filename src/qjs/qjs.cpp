@@ -509,6 +509,7 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
     if (std::getenv("ZN_QJS_DEBUG")) std::fprintf(stderr, "qjs: module failli: name=<%s> path=<%s>\n", name.c_str(), path.c_str());
     err = "cannot load module " + name; return false;
   }
+  runSourceHooks(src); // the transformed text also identifies its source-cache entry
   if (name.rfind("zinc:", 0) != 0 && isCommonJs(path, src)) {
     commonJsModule(e.res, path, src, js);
     if (name == e.entry && e.modules.empty()) collectionPrelude(js);

@@ -497,6 +497,7 @@ JSModuleDef* moduleLoader(JSContext* ctx, const char* name, void*) {
     if (H->cb_call(vm->resolver, &a, 1, &r) == 0 && r.s.n) { src.assign(r.s.p, r.s.n); have = true; }
   }
   if (!have) { JS_ThrowReferenceError(ctx, "could not load module '%s'", name); return nullptr; }
+  zn::qjs::runSourceHooks(src);
   JSValue f = JS_Eval(ctx, src.c_str(), src.size(), name, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
   if (JS_IsException(f)) return nullptr;
   JSModuleDef* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(f));
@@ -590,6 +591,7 @@ int32_t qLoad(void*, ZnCtx*, Args a, ZnVal* r) {
   Entry en(vm);
   JSContext* ctx = vm->ctx;
   std::string src = str(a[2]), name = str(a[1]);
+  zn::qjs::runSourceHooks(src);
   JSValue f = JS_Eval(ctx, src.c_str(), src.size(), name.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
   if (JS_IsException(f)) { r->i = settleValue(vm, en, f) ? 1 : 0; return ZN_OK; }
   JSModuleDef* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(f));

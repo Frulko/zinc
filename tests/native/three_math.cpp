@@ -1,5 +1,6 @@
 // Standalone production binding proof; shared RegExp callbacks match Zinc startup.
 #include "plugins/three/native/qjs_math.h"
+#include "zn/js_ext.h"
 #include "quickjs.h"
 #include "zn/jsmath.h"
 #include <cstdio>
@@ -63,6 +64,10 @@ int main(int argc,char** argv) {
   const std::string changed=sameLength;
   zn::three::mathSource(sameLength);
   if (sameLength!=changed) return 7;
+  zn::qjs::addContextHook([](napi_env) {}, [](std::string& text) { text+='\n'; });
+  std::string transformed=original;
+  zn::qjs::runSourceHooks(transformed);
+  if(transformed!=original+"\n") return 8;
   const std::string exports="={Matrix4,Matrix3,Vector3,Vector4,Sphere,Frustum,Quaternion,Object3D,Euler,Plane,Mesh,InstancedMesh,BufferGeometry};";
   const bool ok=eval(ctx,original+"\nglobalThis.JS"+exports,"baseline.mjs",JS_EVAL_TYPE_MODULE)
     && eval(ctx,native+"\nglobalThis.T"+exports,"accelerated.mjs",JS_EVAL_TYPE_MODULE)

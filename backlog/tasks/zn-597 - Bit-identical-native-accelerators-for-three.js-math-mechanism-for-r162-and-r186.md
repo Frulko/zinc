@@ -3,11 +3,11 @@ id: ZN-597
 title: >-
   Bit-identical native accelerators for three.js math (mechanism for r162 and
   r186)
-status: In Progress
+status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-09 09:28'
-updated_date: '2026-11-10 21:40'
+updated_date: '2026-11-11 07:30'
 labels:
   - perf
   - quickjs
@@ -28,9 +28,9 @@ Measured: replacing Matrix4.prototype.multiplyMatrices of three r186 by a native
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 a host test compares every accelerated method with three's JS on 10^5 random inputs: bit-identical outputs (===), including -0 and NaN cases
+- [x] #1 a host test compares every accelerated method with three's JS on 10^5 random inputs: bit-identical outputs (===), including -0 and NaN cases
 - [ ] #2 the report's w_three workload (500 meshes) <= 4.5 ms per frame on the M1 Pro (today 7.9 ms)
-- [ ] #3 accelerators can be disabled (ZINC_JS_ACCEL=0) and the three.js demo frames are identical either way
+- [x] #3 accelerators can be disabled (ZINC_JS_ACCEL=0) and the three.js demo frames are identical either way
 - [ ] #4 works for vendored three r186 and r162
 <!-- AC:END -->
 
@@ -56,5 +56,19 @@ Proposed tests: quiet report workload `w_three` (500 meshes, ≤4.5 ms CPU frame
 - Generic core hook/startup/cache wiring and actual frame proof still await the coordinator's shared-core handoff from Intl. All AC remain unticked until the complete integrated boundary is proven. Final exact source hashes and both latest 100000-case runs (including all 43 adverse cases and opt-out/absent binding checks) are in `.logs/extension-provenance.json`; exact T0 output is `.logs/t0-qjs-three-math.log`.
 
 Proposed decision for the coordinator: retain public QuickJS guards/setters and the existing static QuickJS extension archive. RULES-order engineering scores (not measured speed): static/public 5/3/4/5/5/5/5=62; optional DSO/new API table 5/3/5/3/5/4/2=56; additional raw-private accessor 5/4/4/2/4/3/2=52. Revisit raw writable access only after an owner-selected measurement identifies setter/descriptor overhead as material. Generic source hook wiring must preserve the existing one-argument `addContextHook(ContextHook)` ABI symbol; add an overload, not only a default parameter.
+
+2026-11-11 worker, integrated source/context boundary after Intl's explicit core handoff:
+- Installed the extension-owned table through the existing QuickJS hook registry. A generic compiled-hook factory lives in the Three extension, not the loader; no Three identifiers entered core loader/startup code. The source hook runs before the cache fingerprint and after other source transforms. The original one-argument C++ hook symbol is preserved beside the new overload; an independently declared old-interface consumer links and runs against the final archives.
+- Main QuickJS and both core embedded-script module-loading routes use the same raw-source seam. Only `zn_qjs_ext` links the QuickJS binding; portable WebGL, JSC/V8/Hermes and the ordinary typed Three plugin remain unchanged. No QuickJS private API, third-party patch, bytecode opcode or wire change; QuickJS v0.17+7 / BC29 preserved.
+- Final release `-O3 -ffp-contract=off` proof passes 100000 deterministic cases for each of all eleven actual methods on both exact upstream versions, plus 112 numeric edge cases/version and 44 adversarial scenarios. The reference prototypes/functions are distinct and remain original JS. Compile-only hit counters prove every normal kernel and designated fallback. A discovered embedded-NUL Euler order bug now has a failing-before/passing-after regression: match the full three-byte string, never a C-string prefix. `Object.is`, not `===`, proves NaN and signed zero correctly. AC1 passes.
+- The actual loader proves on→off→on in one isolated cache, original r162 native selection, and same-path/same-length edited-source rejection. Absent-binding execution and disabled source/context installation also pass. Direct/imported core Script contexts select all eleven native methods under interpreter and native AOT. The separately vendored legacy Script plugin used by an outer JavaScript program remains original JS and returns the same numeric result; no incompatible QuickJS APIs are mixed.
+- Final exact `qjs_three_math` T0 passes. The unchanged real `examples/js-three` lighthouse renders three byte-identical PNGs at 800×500 on/off; frame hashes are adce9b77428fb3ea / 46c410b544059e4b / 01b6661e52705ac4. No frame suite or pixel-comparison script was run. AC3 passes. Architecture/proof/limits: `docs/reports/zinc-next-three-math.md`; final source/archive/compiler hashes and logs: `.logs/extension-provenance.json`, `.logs/frame-proof.json`, `.logs/final-summary.json`.
+- Final production accounted heap costs reproduce +3499 B unused binding, +3894 B loaded r186 and +3790 B loaded r162 versus their original JS contexts. These are not RSS measurements or timing results. Unchanged Hero native 7978168 B and generated source including shared/PCH wrapper 9539880 B stay below the original 8000000/10000000 B limits. No payload/example edits or raised budgets. The new module builds warning-free; existing SDK/V8, rg_etc1, agent initializer and NanoSVG warnings remain baseline.
+- AC2 stays unchecked: the owner-selected quiet 500-mesh ≤4.5 ms gate was not authorized/run. No new speed claim. AC4 stays unchecked: r186 is production-vendored and r162's existing checksum-pinned original passes the mechanism proof, but production selection/vendor ZN-540 remains open. Task is Review rather than masking either open criterion. Source tree is based on 3cc002f5a; coordinator integration with Intl ac5e1bf1d remains to be checked together.
+- Usage: tools/usage reports n/a. No owned app, server or build process remains; no push or shared-record edits.
+
+Proposed tests: owner-selected quiet report `w_three` 500-mesh timing gate (seconds to minutes; memory unmeasured); rerun `qjs_three_math` after combined Intl integration (seconds, below the host's 128 MiB QuickJS limit per context plus compiler); production r162 selector/packaged-module proof after ZN-540 (seconds; memory unmeasured). No suite, benchmark, remote-device or cross-engine corpus claim.
+
+Coordinator later proposals: migrate the separately vendored legacy Script plugin before accelerating its nested JS contexts; retain the open quiet performance and production r162 gates above. Decision proposal remains static public guards/setters (62) over a new DSO/API table (56) or private writable accessor (52), engineering scores only. Keep captured scratch-sphere/alias behavior and traced originals. Ponytail full: no framework or duplicate vendor; only the required table and existing hook seam. Skipped quiet performance/cross-target gates remain explicit risks, not claimed gains.
 
 <!-- SECTION:NOTES:END -->

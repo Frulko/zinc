@@ -158,8 +158,8 @@ scenario('frustum compute exception',(C,trace)=>{
   const object=new C.Mesh(new C.BufferGeometry());object.geometry.computeBoundingSphere=function(){trace.push('compute throws');throw Error('expected');};
   new C.Frustum().intersectsObject(object);
 });
-scenario('quaternion unknown order',(C,trace)=>{
+for(const order of ['BAD','XYZ'+String.fromCharCode(0)+'BAD']) scenario('quaternion unknown order '+order.length,(C,trace)=>{
   const previous=globalThis.console;globalThis.console={warn(...args){trace.push(args);}};
-  try{const q=new C.Quaternion();q._onChange(()=>trace.push('change'));q.setFromEuler(new C.Euler(1,2,3,'BAD'));return q.toArray();}
+  try{const q=new C.Quaternion();q._onChange(()=>trace.push('change'));q.setFromEuler(new C.Euler(1,2,3,order));return q.toArray();}
   finally{if(previous===undefined)delete globalThis.console;else globalThis.console=previous;}
 });

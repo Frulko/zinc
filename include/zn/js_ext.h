@@ -1,15 +1,20 @@
 #pragma once
-// Extension point of the JavaScript engines (ZN-203.03): a module that wants native classes in the JS global scope (WebGL, Intl.Segmenter) registers a hook; the engine
-// runs the hooks on every context it creates for a trusted program (`zinc run --engine quickjs`). Sandboxed zinc:script contexts get nothing unless the host exposes it.
-// The hooks receive the context's Node-API environment (ZN-773, docs/reports/js-engines-jsc-v8.md): a binding is written once against Node-API and runs on every engine.
+// Extensions for trusted QuickJS contexts. Sandboxed zinc:script contexts get nothing unless the host exposes it.
+// Context hooks receive QuickJS's Node-API environment; portable engines install their bindings separately.
+#include <string>
 struct JSContext;
 typedef struct napi_env__* napi_env;
 
 namespace zn::qjs {
 
 using ContextHook = void (*)(napi_env);
-void addContextHook(ContextHook h);
+using SourceHook = void (*)(std::string&);
+void addContextHook(ContextHook h); // retain the original ABI for cached consumers
+void addContextHook(ContextHook h, SourceHook source);
 void runContextHooks(napi_env env);
+// Raw module text, before cache lookup. Newest transforms run first; compiled recognizers run last.
+// Unsupported sources stay unchanged; bundles must work without the context binding.
+void runSourceHooks(std::string& source);
 
 // The Node-API environment of a QuickJS context, made at its first use; napiRelease before JS_FreeContext. contextOf: the way back, for code not ported yet.
 napi_env napiEnv(JSContext* ctx);
