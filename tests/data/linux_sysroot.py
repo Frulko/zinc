@@ -1,6 +1,7 @@
 """Small, offline trust-boundary and publication checks for the actual fetcher."""
 import hashlib
 import importlib.machinery
+import importlib.util
 import io
 import os
 from pathlib import Path
@@ -10,7 +11,10 @@ import tarfile
 import tempfile
 
 loader = importlib.machinery.SourceFileLoader("sysroot", "tools/linux-sysroot")
-m = loader.load_module()
+spec = importlib.util.spec_from_loader(loader.name, loader)
+m = importlib.util.module_from_spec(spec)
+sys.modules[loader.name] = m
+loader.exec_module(m)
 
 rows = [line.split() for line in Path("src/tc/linux-sysroot.lock").read_text().splitlines() if line and not line.startswith("#")]
 assert {r[0] for r in rows} == set(m.DEBIAN)
@@ -115,7 +119,8 @@ with tempfile.TemporaryDirectory(prefix="zinc-sysroot-test-") as tmp:
     archive.write_bytes(good)
     # Two installers race through the same actual flock and recheck after acquiring it.
     runner = tmp / "install.py"
-    runner.write_text("import importlib.machinery\nm=importlib.machinery.SourceFileLoader('s', 'tools/linux-sysroot').load_module()\n"
+    runner.write_text("import importlib.machinery
+import importlib.util\nm=importlib.machinery.SourceFileLoader('s', 'tools/linux-sysroot').load_module()\n"
                       + "m.LOCK=" + repr(str(lock)) + "\nm.install('armhf', " + repr(str(home)) + ")\n")
     jobs = [subprocess.Popen([sys.executable, str(runner)], stdout=subprocess.DEVNULL) for _ in range(2)]
     assert all(job.wait(timeout=10) == 0 for job in jobs)
