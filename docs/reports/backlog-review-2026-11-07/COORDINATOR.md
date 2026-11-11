@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated1118 caa9096be Doneall2,91Done; rootcommonbuild/exactprocess_family+wasm_gfx PASS. SourceSHA HEADmatch, actualworker vanished+Atelierclose allownedPIDs gone/independentgroupalive, archive60. All10ownerpayloads preserved. Claim330.04 isolatedtext/layout+baker/MSDF lazy module, no protectedruntime/HAL/mainhunk; researchcomplete.661browsernativeworker active.
+
 - Integrated673 4b6b11477 BacklogAC3only; rootexactwasm_gfx PASS/source match, source+all673logs archived59. Originalxform1426pixelszeroSlack, titlemetricsmatch butUnicode51.140625vs42.328125 and Audio modulegap remainvisible. Claim661 existingwasmshowcase task for realgenericnativebridge+existingWebAudio, research .logs/research-661-wasm-native.txt.1118 active. Commonrefreshwaits1118combined.
 
 - Reserve673 next independent wasm host chain beside1118 processguard; research finds bakedZRS1 glyphmetrics/coverage reusable, CanvasFontFace alone insufficient. Absolute translate/matrix order must follow native. Fullpixelcomparison milestone notselected, acceptance staysopen until actualallowedproof.

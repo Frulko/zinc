@@ -613,3 +613,10 @@ Reuse the device bridge for root-prefixed board/revision/node probes and the exp
 ## D305 — Browser baked text reuses Zinc coverage and metrics (ZN-673)
 
 Export the existing bounded ZRS1 font data without duplicate images/TTF and load app.res by default. Draw baked glyph coverage and use exact native advances, rather than substitute CSS font metrics. Keep independent absolute translation and matrix order M*T, native clipping and simple gradients. Integrated4b6b11477 BacklogAC3only; rootexactwasm_gfx PASS. Unchangedxform passes1426pixelszeroSlack; titlewidths197.828125/293.015625 and ascent/lineHeight39/49 match. Unicodeprobe staysfailing51.140625nativevs42.328125browser, showing shaping/fallback gap. Originalgame titleblocked by missingAudio nativebridge; existing661 owns that work. No fullpixelcomparison milestone, dynamicTTF/shaping/gradientPaint parity claim. Archive673-final contains source and complete logs.
+
+
+## D306 — Retain process-family ownership with a private self-executed guardian (ZN-1118)
+
+Reuse a small private guardian instead of ancestry walking after an intermediate disappears, or a fork-only guardian that retains the parent heap. A validated private socket/version handshake precedes launch; restore target signal mask and inherited ignored dispositions separately from guardian state. Keep real public PID distinct, drain streams/reap, reject stale ownership and preserve independent groups. CLI/AOT dispatch runs before app initialization; generated insertion anchors stay after it. Reuse existing providers, no daemon or app workaround.
+
+Integratedcaa9096be DoneavailablePOSIXscope. Root combinedbuild/exactprocess_family+wasm_gfx PASS; unchangedownerpayloads. Finalworker2cc2c6e5 actualvanishedintermediate+independentgroup and originalAtelierclose bothpass, allownedPIDs/staginggone; archive1118-guardian-final fullsource/logs. Extraoneprocess/selfexec per spawn and changedPPID are documented, no timing/memory claim. NativeLinux/Pi/Mojave/WindowsJobs and broadAOT/QuickJS remain proposed; voluntarydetachment and separate zinc:sys spawnLine helper are outside provider guarantee.
