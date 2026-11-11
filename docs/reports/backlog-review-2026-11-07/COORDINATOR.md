@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve725 for runtimeperformance: existingmode/analyticclip alreadyimplemented, nextsharedindexedfringevertices in gl_replay only. No HAL/zrt/allocator/rendererdefault changes; deterministicgeometry/uploadproof andshortactualrun, originalPi/quietgates remainopen. Primaryresearchcomplete.
+
 - IntegratedIntl8e11bffb6 Done andThreeMathd46c36e49/94739aa98 Review,89Done. Rootcombined4exactT0PASS; Python3.15 testloader fixed1d72e7bfd/a1a318a28. Commonrefreshed 8f6f5eb9b9153c9eeb49a73be08b46282f1b19b2a0bdfb67c1772c1f1d95bd16. All10payloads preserved; archiveIntl/597 (54checkpoints). QuietCPUgate/productionr162 remainopen, no speedclaim. Next engine/performance chain; no activeworkers.
 
 - Reserve597 for userperformancepriority. Research .logs/research-597.txt; prototypeCPU numbers arehistorical, no finalFPSclaim. Freshworker initiallypurekernels/plan only, no QJS/core edits untilIntl handoff. Reuseextension/context seams, pinnedsource+safeproperty/array guards, retainedoriginalfallback; no corelibrary-name hardcoding/newservice. Exactsecondsregressions only, quietframegate remainsownerchoice.
