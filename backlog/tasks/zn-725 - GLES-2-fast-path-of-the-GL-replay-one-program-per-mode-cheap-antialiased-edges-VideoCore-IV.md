@@ -3,7 +3,7 @@ id: ZN-725
 title: >-
   GLES 2 fast path of the GL replay: one program per mode, cheap antialiased
   edges (VideoCore IV)
-status: Backlog
+status: Review
 assignee:
   - '@parallel'
 created_date: '2026-10-12 10:41'
@@ -117,4 +117,17 @@ HANDOVER (task back to Backlog; #5, #6, #7 open):
 - tools/device: `capture <name> <file.bmp>` (a frame read back by the program), `stop` and the measures kill what is left running (main's fix 036a084d taken as is).
 Review 2026-10-25: done-partly. AC1-AC4 are done (per-mode programs, glslang test, pixels, strips for edges; navigation 181 -> 25 ms on the Pi). #5 not met (25 ms vs bands 19 ms), #6 partly, #7 numbers are in perf.md and raspberry-pi.md; D111 keeps renderer cpu on GLES2. Remaining is Pi-rig work with a doubtful payoff. Evidence: docs/reports/zinc-next-perf.md:697; D111; tests/native/gl_replay_es2.cpp
 Review 2026-11-07: cross-platform pass. (corrected: park proposed; it needs only the Raspberry Pi 3B+ or the Intel Mac, both available since 2026-11-07 (owner): cross-platform pass, not parked.)
+
+2026-11-11 indexed fringe continuation (worker branchwork/725):
+- Re-read the actual replay before changing it: per-mode programs, analytic rounded clips and mask caching already exist. Only edge geometry/upload changed, plus the two plugin cache dependency lists for the new internal header.
+- Emit centre/left/right once per visible contour point; compact culled edges before emission, reuse closing endpoints, pack small contours in the same ushort window, duplicate boundary points when needed. Separate left/right index ranges preserve all-left then all-right ordering and every stencil/coverage/paint pass. Existing distinct-point filtering and miter equations are unchanged. Reserve endpoints/indices/chunk metadata before publishing an edge so allocation failure leaves earlier geometry valid. Buffers retain the existing context lifetime/streaming convention.
+- Short proof: tools/build zinc; build/zinc check examples/hero; tests/run --only gl_fringe (native legacy-quad triangle and attribute reference, both sides/winding, culled edge selection, 21,844/43,695-edge boundaries). All pass. Initial clean build has baseline V8/assets/third-party warnings; no new fringe warnings.
+- Actual feature: ZINC_BACKGROUND=1 ZINC_HEADLESS=0 ZINC_DETERMINISTIC=0 ZINC_RENDERER=gl ZINC_GL_STRIPS=1 ZINC_GL_STATS=1 ZINC_FRAMES=16 ZINC_DEMO=navdrive build/zinc run examples/hero --interp; 17 GL frames, no skipped LINE/POLY, screenshot inspected (navigation during its transition). .logs/navigation-gl.log, navigation-gl.png and proof-summary.json; .logs/check.log, build-final.log and gl-fringe-t0.log. A prior deterministic run used the headless raster, so it is not the GL proof.
+- Structural uploads per replayed frame on Apple M1 Pro GL 4.1: 984,918 vertex + 130,845 ushort index bytes versus 2,616,904 legacy vertex bytes for the same visible edges: about 57.4% less total upload. No FPS, quiet-machine or Pi speed claim. V is 60 bytes; a fully shared edge costs 180 vertex + 24 index bytes versus 480 old bytes; an isolated visible edge costs 360 + 24, still smaller. Draw count may differ because ushort windows replace the old MAXQ windows.
+- Research supplied by coordinator: Apple vertex-data guide (https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/TechniquesforWorkingwithVertexData/TechniquesforWorkingwithVertexData.html), Arm GLES guide (https://support.arm.com/documentation/102697/0100), NanoVG GL (https://github.com/memononen/nanovg/blob/master/src/nanovg_gl.h). Indexed vertex reuse fits the existing geometry/stencil convention; no library/framework added.
+- Review, not Done: AC1–4 retain their existing checks; AC5–7 remain open. This is a bounded upload/vertex-work improvement, not evidence that VC4 fragment cost/stalls or the original timings pass. No default switch or waiver. No shared perf/decision records edited; no D number. No owned process left running.
+- Proposed tests: isolated same-clock Pi navigation/home/gallery profile and VC4_DEBUG=perf trace (about 10 s each, record RSS), prove original AC5 and identify residual stalls for AC6; separately chosen long Kit/Forms partial-update/reset run (one hour, record RSS). A true GLES2 ANGLE/VC4 capture may validate indexed strip output on that driver (seconds, under 200 MB expected); no suite/pixel-compare run here.
+- Usage: tools/usage reports n/a in this worker.
+- Coordinator later line: ZN-725: measure indexed fringes on the quiet Pi at the bands' clock and attribute remaining VC4 stalls before deciding the GLES2 default.
+
 <!-- SECTION:NOTES:END -->

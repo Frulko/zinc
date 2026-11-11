@@ -494,3 +494,33 @@ Not seen by the one who measured: the screen itself (colours against the softwar
 come and go). Not measured: a film in a card that is being dragged or zoomed (the plane and the frame move in one commit, but no number
 was taken), two films at once (the driver has two planes for pictures), a 1080p clip, the same on a Pi 4 or 5 (their decoders give
 other formats), a run of an hour.
+
+
+### Indexed polygon fringes (2026-11-11, ZN-725; Pi timing still open)
+
+The existing strip path now uploads centre/left/right vertices once per visible contour point,
+with separate unsigned-short index ranges for the two sides. Adjacent edges share the same
+positions, distance, colour and depth; the winding and inside/outside stencil passes are unchanged.
+Only visible endpoints are emitted. Vertex windows hold at most 65,535 vertices; a boundary
+endpoint is repeated in the next window. Small contours share windows, and every left edge is
+drawn before every right edge as before. The upload uses fresh buffer storage, following the
+replay's existing streaming convention; this does not establish that VC4 buffer-map stalls vanish.
+
+A bounded development-Mac navigation smoke (Apple M1 Pro, OpenGL 4.1, forced strips,
+17 replayed frames) submitted 984,918 vertex plus 130,845 index bytes per frame, against
+2,616,904 bytes for the legacy eight vertices of those same visible edges: approximately
+57.4% fewer upload bytes. These are structural counters, **not a Pi timing or FPS result**.
+The small native `gl_fringe` check expands indexed triangles against legacy quads and checks
+coverage attributes, colour/depth preservation, both sides, winding order and ushort boundaries.
+
+The current rounded-clip shader/mask cache already avoids the old framebuffer-read path on
+supported tilers; the older handover above predates it. No renderer default changes here.
+AC5–7 still require isolated Pi navigation/home/gallery timings at the same clock, VC4 stall
+attribution and the resulting default decision. Proposed checks: one short same-clock Pi profile
+per screen (about 10 s each, app RSS to record), followed by the separately chosen long partial-
+update/reset run (one hour, RSS to record). Development proof logs are archived by the coordinator.
+
+Research: Apple's [vertex-data guide](https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/TechniquesforWorkingwithVertexData/TechniquesforWorkingwithVertexData.html)
+recommends indexed reuse; [Arm's GLES guide](https://support.arm.com/documentation/102697/0100)
+describes avoiding redundant vertex work; [NanoVG's GL renderer](https://github.com/memononen/nanovg/blob/master/src/nanovg_gl.h)
+is the reference for the existing stencil/fringe technique. No dependency was added.

@@ -15,6 +15,7 @@
 #include "zrt_raster.h"
 #include "gl_caps.h"
 #include "gl_clip.h"
+#include "gl_fringe.h"
 #include "gl_paint_cache.h"
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
@@ -111,7 +112,7 @@ struct Run { int first; uint8_t key; bool opaque; };   // opaque: every pixel of
 enum { A_BOX = 2, A_PAR, A_C1, A_C2, A_Z };   // attribute locations, the same in every program (zgl_program binds the names; a_pos is 0)
 static float cur_z;          // NDC depth of the command being drawn: later commands are nearer (GL_LESS)
 static GLuint sprog, svbo;    // the occlusion pass's program and buffer
-static GLuint fprog, fvbo, evbo;   // POLY on the GPU (ZN-590.02): the stencil pass's program (positions only) and buffer, the fringe quads' buffer
+static GLuint fprog, fvbo, evbo, eibo;   // POLY on the GPU (ZN-590.02): the stencil pass's program (positions only) and buffer, the fringe quads' buffer
 static GLint f_res, f_flip;
 static bool stencil_ok;       // this frame: the framebuffer has 8 stencil bits
 static GLint s_res, s_flip, s_rect, s_col, s_z, s_pos;
@@ -154,7 +155,7 @@ static uint32_t clip_gen = 1;   // changes when the set of open rounded clips do
 static bool rclip_on;
 static bool mask_clip_on;
 static uint32_t warned, unsupported;
-static struct { uint32_t img_ups, img_part; uint64_t img_bytes; double img_us; uint32_t frames, idle, occl_frames, draws, quads, glyphs, ptiles, blocks, decoded, progs, atlas_ups; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes, solid_upload_bytes; } st;
+static struct { uint32_t img_ups, img_part; uint64_t img_bytes; double img_us; uint32_t frames, idle, occl_frames, draws, quads, glyphs, ptiles, blocks, decoded, progs, atlas_ups; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes, solid_upload_bytes, fringe_vertex_bytes, fringe_index_bytes, fringe_legacy_bytes; } st;
 // GPU time of the replays (ZINC_GL_STATS, ZN-679; ZINC_PROFILE=json publishes it). The sources, in the order they are tried, and the name each publishes as gl_timer_source:
 //   GL_TIME_ELAPSED          desktop core GL (macOS): a timer query per frame, read four frames later so the CPU never waits for the GPU
 //   EXT_disjoint_timer_query GLES 2 and 3 where the driver has the extension (found at run time through eglGetProcAddress): the same, plus the disjoint check
@@ -280,7 +281,7 @@ extern "C" { extern void (*zrt_gl_info_hook)(); }   // runtime/gfx.cpp: ZINC_PRO
 static void gl_info_hook();
 static GLint occl_bits;   // the depth bits of the target the last frame was drawn to (published: the occlusion pass needs 16)
 extern "C" { extern void (*zrt_gl_info_reset_hook)(); }   // runtime/gfx.cpp: a profile section ended (zinc:gfx profSection): the counters start again
-static void gl_info_reset() { st.frames = st.idle = st.occl_frames = st.draws = st.quads = 0; st.solid_upload_bytes = 0; st.us = 0; gpu_us = 0; gpu_n = 0; gpu_lost = 0; }
+static void gl_info_reset() { st.frames = st.idle = st.occl_frames = st.draws = st.quads = 0; st.solid_upload_bytes = st.fringe_vertex_bytes = st.fringe_index_bytes = st.fringe_legacy_bytes = 0; st.us = 0; gpu_us = 0; gpu_n = 0; gpu_lost = 0; }
 static glcaps::Caps caps;
 static const char* egl_extensions;
 /** Why init() refused to run the replay (a quirk), empty when it did not: the host prints it in its one line about drawing on the CPU. */
@@ -485,6 +486,7 @@ static bool init(int32_t w, int32_t h) {
   if (!fprog) return false;
   st.prog_us += now_us() - t0;
   glGenBuffers(1, &evbo);
+  glGenBuffers(1, &eibo);
   f_res = glGetUniformLocation(fprog, "u_res"); f_flip = glGetUniformLocation(fprog, "u_flip");
   glGenBuffers(1, &fvbo);
   s_res = glGetUniformLocation(sprog, "u_res"); s_flip = glGetUniformLocation(sprog, "u_flip");
@@ -1372,16 +1374,21 @@ static void edge_quads(const float* pts, uint32_t contours, uint32_t c1, uint32_
     }
   }
 }
-// The fringes as strips (RAMP, ZN-725): each edge A-B gets two quads half a pixel wide, one on its left (edgev) and one on its right
-// (edgev_r), t the distance to the edge: 0 along it, 0.5 at the far side. The passes of poly_flush pick the side by drawing one array
-// instead of testing it per pixel. Neighbouring edges share their far corners on the bisector (no gap, no overlap; past a turn of 120
+// The fringes as strips (RAMP, ZN-725): two half-pixel quads per edge, with separate left/right index ranges. Three vertices per point
+// carry centre/left/right positions and distance t (0 at the centre, 0.5 outside); adjacent edges share them. Unsigned-short windows
+// repeat boundary points. The passes choose a side without testing it per pixel. Far corners share a bisector (past a turn of 120
 // degrees the corner stays within a pixel of the vertex, with the t it has there).
-static V* edgev_r; static size_t edgev_r_cap;
+struct EdgeChunk { size_t vertex, first; uint32_t count; };
+static EdgeChunk* echunks; static size_t echunks_cap, nechunks;
+static uint16_t *edgei, *edgei_r; static size_t edgei_cap, edgei_r_cap;
+static size_t nstrip;
+static size_t* pointv; static size_t pointv_cap;
 static float* mit; static size_t mit_cap;   // per point of a contour: the unit normal of the edge that leaves it, its miter, the miter's t
 static void edge_strips(const float* pts, uint32_t contours, uint32_t c1, uint32_t alpha) {
   static const bool on = !getenv("ZINC_GL_FRINGE") || atoi(getenv("ZINC_GL_FRINGE")) != 0;
   if (!on) return;
   static const bool stats = getenv("ZINC_GL_STATS") != nullptr;
+  if (!nedge) { nstrip = 0; nechunks = 0; }
   uint32_t at = 0;
   for (uint32_t k = 0; k < contours; k++) {
     const uint32_t cnt = (uint32_t)pts[at];
@@ -1404,19 +1411,39 @@ static void edge_strips(const float* pts, uint32_t contours, uint32_t c1, uint32
       else { const float l = __builtin_sqrtf(mx * mx + my * my); const float s = l > 1e-3f ? 2 / l : 0; mx *= s; my *= s; }
       mit[i * 5 + 2] = mx; mit[i * 5 + 3] = my; mit[i * 5 + 4] = 0.5f * (mx * b[0] + my * b[1]);
     }
-    for (uint32_t i = 0; i < m; i++) {
+    if (!grow(pointv, pointv_cap, m)) return;
+    for (uint32_t i = 0; i < m; ++i) pointv[i] = SIZE_MAX;
+    for (uint32_t i = 0; i < m; ++i) {
       const uint32_t j = (i + 1) % m;
       const float ax = p[i * 2], ay = p[i * 2 + 1], bx = p[j * 2], by = p[j * 2 + 1];
       const float x0 = (ax < bx ? ax : bx) - 1, y0 = (ay < by ? ay : by) - 1, x1 = (ax > bx ? ax : bx) + 1, y1 = (ay > by ? ay : by) + 1;
       if (x1 <= (float)clip.x0 || x0 >= (float)clip.x1 || y1 <= (float)clip.y0 || y0 >= (float)clip.y1) continue;
-      if (stats) fringe_px += __builtin_sqrtf((bx - ax) * (bx - ax) + (by - ay) * (by - ay));   // two halves, half a pixel wide each
-      if (!grow(edgev, edgev_cap, ((size_t)nedge + 1) * 4) || !grow(edgev_r, edgev_r_cap, ((size_t)nedge + 1) * 4)) return;
-      const float* ma = mit + i * 5 + 2; const float* mb = mit + j * 5 + 2;
-      const float l[4][3] = {{ax, ay, 0}, {bx, by, 0}, {bx + 0.5f * mb[0], by + 0.5f * mb[1], mb[2]}, {ax + 0.5f * ma[0], ay + 0.5f * ma[1], ma[2]}};
-      const float r[4][3] = {{ax, ay, 0}, {bx, by, 0}, {bx - 0.5f * mb[0], by - 0.5f * mb[1], mb[2]}, {ax - 0.5f * ma[0], ay - 0.5f * ma[1], ma[2]}};
-      ramp_set(&edgev[nedge * 4], l, 0.5f, c1, alpha);
-      ramp_set(&edgev_r[nedge * 4], r, 0.5f, c1, alpha);
-      nedge++;
+      // Reserve both endpoints before publishing an edge; failed allocations leave prior edges usable.
+      if (!grow(edgev, edgev_cap, nstrip + 6) ||
+          !grow(edgei, edgei_cap, ((size_t)nedge + 1) * 6) ||
+          !grow(edgei_r, edgei_r_cap, ((size_t)nedge + 1) * 6) ||
+          !grow(echunks, echunks_cap, nechunks + 1)) return;
+      size_t base = nechunks ? echunks[nechunks - 1].vertex : nstrip;
+      auto present = [base](size_t v) { return v != SIZE_MAX && v >= base; };
+      const size_t needed = (present(pointv[i]) ? 0 : 3) + (present(pointv[j]) ? 0 : 3);
+      if (!nechunks || nstrip + needed - base > 65536) {
+        base = nstrip;
+        echunks[nechunks++] = EdgeChunk{base, (size_t)nedge * 6, 0};
+      }
+      for (int endpoint = 0; endpoint < 2; ++endpoint) {
+        const uint32_t point = endpoint ? j : i;
+        if (pointv[point] != SIZE_MAX && pointv[point] >= base) continue;
+        V* v = edgev + nstrip;
+        const V value{0, 0, 0, 0.5f, 0, 0, 0, 0, 0, 0, (float)RAMP_M, 0, {0, 0, 0, 0}, {0, 0, 0, 0}, cur_z};
+        for (int q = 0; q < 3; ++q) { v[q] = value; setc(v[q].c1, c1, alpha); }
+        zn_gl::fringe_point(v, p[point * 2], p[point * 2 + 1], mit + point * 5 + 2);
+        pointv[point] = nstrip; nstrip += 3;
+      }
+      const uint32_t a = (uint32_t)((pointv[i] - base) / 3), b = (uint32_t)((pointv[j] - base) / 3);
+      zn_gl::fringe_indices(edgei + (size_t)nedge * 6, a, b, 1);
+      zn_gl::fringe_indices(edgei_r + (size_t)nedge * 6, a, b, 2);
+      ++nedge; echunks[nechunks - 1].count += 6;
+      if (stats) fringe_px += __builtin_sqrtf((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
     }
   }
 }
@@ -1438,7 +1465,22 @@ static void edge_draw(int side, bool inside) {
   if (!nedge) return;
   if (strips) {   // the side is an array: the left quads come first in the buffer
     glUniform3f(use_prog(key_of(RAMP_M)).u_edge, 0, 0, inside ? 1.f : -1.f);
-    edge_range(side == 2 ? nedge : 0, side ? nedge : nedge * 2);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eibo);
+    apply_clip();
+    glBindTexture(GL_TEXTURE_2D, cur_tex);
+    glBindBuffer(GL_ARRAY_BUFFER, evbo);
+    // Keep all left edges before all right edges, including across contour/chunk boundaries.
+    for (int half = 0; half < 2; ++half) {
+      if ((side == 1 && half) || (side == 2 && !half)) continue;
+      for (size_t i = 0; i < nechunks; ++i) {
+        const EdgeChunk& c = echunks[i];
+        if (!c.count) continue;
+        attribs(c.vertex * sizeof(V));
+        glDrawElements(GL_TRIANGLES, (GLsizei)c.count, GL_UNSIGNED_SHORT,
+                       (void*)((c.first + (size_t)half * nedge * 6) * sizeof(uint16_t)));
+        ++st.draws; st.quads += c.count / 6;
+      }
+    }
     return;
   }
   glUniform3f(use_prog(key_of(EDGE_M)).u_edge, side ? 1.f : 0.f, side == 1 ? 1.f : 0.f, inside ? 1.f : 0.f);
@@ -1449,9 +1491,15 @@ static void edge_upload() {
   glBindBuffer(GL_ARRAY_BUFFER, evbo);
   const GLsizeiptr half = (GLsizeiptr)nedge * 4 * sizeof(V);
   if (!strips) { glBufferData(GL_ARRAY_BUFFER, half, edgev, GL_STREAM_DRAW); return; }
-  glBufferData(GL_ARRAY_BUFFER, half * 2, nullptr, GL_STREAM_DRAW);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, half, edgev);
-  glBufferSubData(GL_ARRAY_BUFFER, half, half, edgev_r);
+  st.fringe_vertex_bytes += nstrip * sizeof(V);
+  st.fringe_index_bytes += (size_t)nedge * 12 * sizeof(uint16_t);
+  st.fringe_legacy_bytes += (size_t)nedge * 8 * sizeof(V);
+  glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(nstrip * sizeof(V)), edgev, GL_STREAM_DRAW);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, eibo);
+  const GLsizeiptr indices = (GLsizeiptr)nedge * 6 * sizeof(uint16_t);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices * 2, nullptr, GL_STREAM_DRAW);
+  glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indices, edgei);
+  glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, indices, indices, edgei_r);
 }
 static void stencil_draw(const float* v, size_t n) {   // triangles (x, y) into the stencil only, depth ignored
   glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
@@ -2738,6 +2786,7 @@ static void report() {
   fprintf(stderr, "display-gl renderer gl: %u uploads of runtime images (%u of a rectangle only), %llu bytes, %.2f ms\n", st.img_ups, st.img_part, (unsigned long long)st.img_bytes, st.img_us / 1e3);
   fprintf(stderr, "display-gl renderer gl: solid rectangles: %.0f upload bytes per frame, instancing %s\n", st.solid_upload_bytes / n, instanced ? "on" : "off");
   if (mst.moves) fprintf(stderr, "display-gl renderer gl: %u scrolls moved on the GPU, %.0f pixels each\n", mst.moves, mst.px / mst.moves);
+  fprintf(stderr, "display-gl renderer gl: indexed fringe uploads: %.0f vertex + %.0f index bytes per frame (legacy %.0f vertex bytes)\n", st.fringe_vertex_bytes / n, st.fringe_index_bytes / n, st.fringe_legacy_bytes / n);
   fprintf(stderr, "display-gl renderer gl: the fringe quads of POLY cover %.0f pixels per frame in each of their passes (the surface has %d)\n", fringe_px / n, W * H);
 }
 }  // namespace glr
