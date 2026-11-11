@@ -591,3 +591,20 @@ Integrated418385788, ReviewAC5–7open. Root build/exactgl_fringe/Hero check/17-
 Use OffscreenCanvas and createImageBitmap with JSPI, copying Slots before suspension. Existing vendored stb/WebP metadata rejects oversized images before browser allocation; monotonic handles and explicit page/image transitions protect destruction. Keep original imported image bytes as private entries in existing group packs, distinct from cooked GPU images, preserving hashes, codecs and budgets. No second loader or entire raw tree. [OffscreenCanvas](https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas), [browser decode](https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope/createImageBitmap), [JSPI](https://v8.dev/blog/jspi).
 
 Integrated1db9edff3 Doneall3. Root exactwasm_images passes; unchanged image_rect/default-zero-slack checker and RT/update/destroy proofs pass Chrome157. OriginalPNG272B SHA matches; pack2860 to3228B, no speed claim. Archive672-final holds full provenance and logs. Other browser formats/SAB/browser matrix remain proposed milestone checks.
+
+
+## D301 — Intl uses OS formatting with an explicit portable subset (ZN-161.03)
+
+Keep formatter state private and reference-counted; reuse host formatting and a portable en-US subset rather than bundle ICU or introduce a registry. Preserve constructor/options/getter evaluation order and native Intl where available. Shared default initialization, dynamic array boxing and getters were fixed at their engine seams. Integrated8e11bffb6 Done; exact intl_format and historical three-engine hashes pass. PhotoSorter renders “2 janvier 2024”. Final nativeHero7985488B, inclusiveCPP9596411B; tiny254240B unchanged. Archive161-intl-final contains proofs. No claim of all locales, remote platform parity or zero cost for used formatters.
+
+## D302 — Three native kernels are optional guarded extensions (ZN-597)
+
+Use the existing QuickJS context extension and a separate extension-owned module, with pinned-source verification, disable switch and retained JavaScript fallback. Guard canonical prototypes, ordinary writable dense data and aliasing before writing; preserve r162/r186 arithmetic order. No public QuickJS patch or core library-name dispatch. Integratedd46c36e49/94739aa98, Review: eleven kernels pass numeric/adversarial and actual loader/cache/disable cases; lighthouse images match. Archive597-final. Quiet CPU gate and productionr162 selection remain open; legacy nested Script stays JavaScript. Historical prototype speed figures are not final measurements.
+
+## D303 — Audio render assertions stay honest about their scope (ZN-573)
+
+Use a debug-only enum/RAII scope around the existing production render callback and checked plugin allocator/control boundaries. Do not claim interception of all system allocation or QuickJS entry. Integratedf22d2f54e; root exactaudio_storage/howler_audio pass, standalone pinnedHowler null-mixer checks looping/fade/pan. Backlog: global invariant, Kaplay and soak remain open. Archive573-final includes source bundle and proof. No device, latency or speed claim.
+
+## D304 — Board observations are runtime data, separate from build profiles (ZN-535)
+
+Reuse the device bridge for root-prefixed board/revision/node probes and the explicit zinc:board module, doctor and simulator seam. Do not bake the build Mac identity into cross-generated programs. A platform reexport was removed after it retained the probe and JSON for an unrelated screen constant; no misleading PURE marker or fake constant. Integratede12851c0c BacklogAC1/4; root exactboard passes on combined57559ca9c. Platform exports/doctor target spelling and actualPi remain open; QEMU is prohibited and SSH signature was refused. Sourcearchive535-final is intact, but original worker logs were lost in coordinator cleanup; root combined logs are retained under integration-2026-11-11/board-wasm. No hardware or performance claim.
