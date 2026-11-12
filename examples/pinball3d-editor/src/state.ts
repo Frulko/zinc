@@ -373,6 +373,12 @@ export function setField(path: string, value: any): boolean {
   }
   return report(current.set(path, value));
 }
+/** An explicit rename from a declared-name control, never inferred from a whole-list edit. */
+export function renameName(path: string, old: string, name: string): boolean {
+  const done = report(current.renameName(path, old, name));
+  if (!done && current.refused === '') refresh();
+  return done;
+}
 /** Replaces the selection by its text as the file has it, edited. */
 export function replaceSelected(json: string): boolean {
   const path = selected();

@@ -458,6 +458,30 @@ export class Doc {
       return true;
     });
   }
+  /** Renames one declared string by identity, together with references in its name space, as one validated step. */
+  renameName(path: string, old: string, name: string): boolean {
+    this.refused = '';
+    const f = fieldAt(path), items: any = this.get(path);
+    if (f === null || f.kind !== Kind.Texts || f.declares === '' || !Array.isArray(items)) { this.refused = `${path}: not a list of declared names`; return false; }
+    if (old === '' || items.indexOf(old) < 0 || items.indexOf(old) !== items.lastIndexOf(old)) { this.refused = `${path}: name is not unique`; return false; }
+    if (name.trim() === '') { this.refused = `${path}: name must not be empty`; return false; }
+    if (old === name) return false;
+    if (items.indexOf(name) >= 0) { this.refused = `${path}: "${name}" is used twice`; return false; }
+    return this.apply(`Rename ${old}`, '', (d: any) => {
+      const renamed: string[] = [];
+      for (let i = 0; i < items.length; i++) renamed.push(items[i] === old ? name : items[i]);
+      put(d, path, renamed);
+    }, (d: any, faults: string[]): boolean => {
+      // Only references invalidated by removing this declaration take the new name.
+      for (const fault of faults) {
+        const p = faultPath(fault);
+        if (p === '' || valueAt(d, p) !== old) return false;
+        put(d, p, name);
+      }
+      return true;
+    });
+  }
+
   /** Moves an element by (dx, dy) centimetres in the top view. */
   move(path: string, dx: number, dy: number): boolean {
     const s = schemaAt(path);

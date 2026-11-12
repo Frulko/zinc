@@ -13,7 +13,7 @@ import * as ui from 'zinc:ui';
 import { rect, border, stroke, gradient } from 'zinc:gfx';
 import { Schema, Field, Kind, Variants, Variant } from '../../pinball-kit/format/schema';
 import { doc, table, selected, select, setField, replaceSelected, deleteSelected, duplicateSelected, mirrorSelected, turnSelected, selectionTurns, selectionPlaced, advanced, setAdvanced, refresh,
-  activeRow, setActiveRow, dragRow, changeRows, addTo, reorderSelected, addKind as addKindTo, setKind as setKindOf, removeItem, moveItem } from './state';
+  activeRow, setActiveRow, renameName, dragRow, changeRows, addTo, reorderSelected, addKind as addKindTo, setKind as setKindOf, removeItem, moveItem } from './state';
 import { previewSound } from './play';
 import { filesOfKind, noteOf, pictureOf, hearFile as hearFileOf, importFrom } from './files';
 import { fieldAt, schemaAt, listOf, steps, pathOf, found, isPath, isProfile, colorsIn } from './doc';
@@ -32,6 +32,9 @@ export class Source {
   /** The names a reference to this name space may hold. */
   names(space: string): string[] { return []; }
   set(path: string, value: any): void {}
+  canRename(): boolean { return false; }
+  /** Renames a declaration by its old name, with its references in the same edit. */
+  rename(path: string, old: string, name: string): void {}
   field(path: string): Field | null { return null; }
   /** One line that tells an item of a list from the others. */
   summary(path: string): string { return path; }
@@ -72,6 +75,8 @@ class TableSource extends Source {
   isDefault(path: string): boolean { return doc().isDefault(path); }
   names(space: string): string[] { return doc().namesOf(space); }
   set(path: string, value: any): void { setField(path, value); }
+  canRename(): boolean { return true; }
+  rename(path: string, old: string, name: string): void { renameName(path, old, name); }
   field(path: string): Field | null { return fieldAt(path); }
   summary(path: string): string { const s = sentenceAt(path); return s !== '' ? s : doc().summaryOf(path); }
   schemaOf(path: string): Schema | null { return schemaAt(path); }
@@ -420,9 +425,15 @@ function Control(p: { src: Source; field: Field; path: string }): i32 {
   if (fd.kind === Kind.Rows) return <Text className="text-xs text-zinc-500">{f(isPath(fd) ? L.POINTS : L.ROWS, count())}</Text>;
   if (fd.kind === Kind.List) return <Text className="text-xs text-zinc-500">{f(L.ITEMS, count())}</Text>;
   if (fd.kind === Kind.Texts) {
-    const lines = (): string => { const v: any = src.get(path); const out: string[] = []; if (v !== undefined) for (let i = 0; i < v.length; i++) out.push(`${v[i]}`); return out.join('\n'); };
-    return <TextArea className="p-2 rounded-md bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: WIDE }} rows={4} placeholder={t(L.ONE_PER_LINE)} value={lines()}
-      onChange={(v: string) => { src.set(path, v.split('\n').map((s: string) => s.trim()).filter((s: string) => s.length > 0)); }} />;
+    const texts = (): string[] => { const v: any = src.get(path); const out: string[] = []; if (v !== undefined) for (let i = 0; i < v.length; i++) out.push(`${v[i]}`); return out; };
+    const lines = (): string => texts().join('\n');
+    return <View className="flex-col gap-1" style={{ width: WIDE }}>
+      <Show when={fd.declares !== '' && src.canRename()}><Text className="text-[11px] text-zinc-500">{t(L.RENAME)}</Text><For each={texts()}>{(name: string, i: i32) =>
+        <Input aria-label={name} className={'py-1.5 ' + FIELD} value={src.get(path) === undefined ? '' : name} onChange={(v: string) => src.rename(path, name, v.trim())} />
+      }</For></Show>
+      <TextArea className="p-2 rounded-md bg-zinc-950 border border-zinc-700 text-xs text-zinc-100 focus:border-amber-400" style={{ width: WIDE }} rows={4} placeholder={t(L.ONE_PER_LINE)} value={lines()}
+        onChange={(v: string) => { src.set(path, v.split('\n').map((s: string) => s.trim()).filter((s: string) => s.length > 0)); }} />
+    </View>;
   }
   return <Input className={'py-1.5 ' + FIELD} style={{ width: WIDE }} value={text()} onChange={(v: string) => { src.set(path, v); }} />;
 }

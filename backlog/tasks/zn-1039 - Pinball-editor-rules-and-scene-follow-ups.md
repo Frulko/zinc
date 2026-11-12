@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:38'
-updated_date: '2026-11-12 10:52'
+updated_date: '2026-11-12 13:34'
 labels:
   - pinball
   - ui
@@ -60,4 +60,21 @@ Next work: inspect examples/pinball3d/src/chooser.ts and existing editor drop ha
 - Existing tests/demo/pinball3d_chooser.sh: chooser/input compatibility after cleanup, roughly seconds, modest app memory; owner-selected milestone only.
 - Existing editor demo sessions for edit/undo/refresh/play and package paths: shared-image and document interaction, roughly seconds to a minute, one app at a time; owner-selected milestone only.
 - A bounded repeated-table memory run on a quiet machine: separately measure shared cache retention and native audio bytes; no duration/RSS result claimed here.
+
+2026-11-12 — Counter and score-grid increment of AC2. **All four compound criteria remain open; status Backlog.** The shared horizontal keyboard-focus reveal defect ZN-1129 still prevents the complete AC2 proof. AC1/3/4 are unchanged. The original dynamic-array `lastIndexOf` failure is fixed separately by ZN-1128; this app retains its original method call with no typecast, loop or provider workaround.
+
+Need → provider → gap: declared string names → schema metadata and existing Doc.apply/checkTable/history → one declaration annotation and an explicit identity-based rename command. The generated form keeps its whole-list TextArea for add/remove/reorder and offers separate per-name Rename inputs. The real Source callback carries the old name; no array-position inference occurs. Declaration and invalidated references change in one validated undo step. Empty/colliding/unknown/duplicate identities refuse; no-ops and refusals preserve history, and the field restores the document value. Other namespaces and free text keep their spelling. The current mission-step schema has no condition/action lists; none were invented.
+
+Narrow scores → existing overflow-x-auto ScrollView → one horizontal viewport around the event headings and vertically scrolling body. Width follows the actual event count plus24px padding. The finder remains fixed above the columns; score/caret/zero semantics are unchanged. Research: [Qt undo commands](https://doc.qt.io/qt-6/qundocommand.html) supports one existing transaction, and [WAI grid guidance](https://www.w3.org/WAI/ARIA/apg/patterns/grid/) supports retaining cell input/caret behavior. No dependency added.
+
+Final proof `.logs/stage-final1/summary.json`: original editor36-file check PASS; pure production Doc and actual Properties→Input.onChange→TableSource→state→Doc PASS on interpreter, QuickJS and actual native, including namespace isolation, identity/refusal/no-op/duplicate handling, refusal-preserves-redo, undo/redo and canonical text roundtrip. The unchanged Doc fixture was also frozen for worker1128. Compiler is its immutable stage-proof5 candidate, SHA256 f85b4795266d8e9ebbfaa1d4b830080a3489d595a6567c62966ebc68863b618c; own ZINC_ROOT, no CLI build. All4456 final source snapshots remained unchanged. Both actual native app caches retain app/inputs/key/plugin facts/fallbacks/assets, and the final capture was inspected; all five imported plugins report native=true, no fallback.
+
+Actual production ScoreGrid all3: trackpad reaches the final FLIP column;1180px root with original386+340px sidebars yields454px viewport for716px content; heading/cell alignment, lastscore321/edit/undo/25/zero, filtering/fixed finder, vertical overflow and1600/980px container resizing PASS. These are real component-container proofs, not physical-window or full-app sessions. The keyboard failure is explicitly logged, never counted as PASS: minimal Tab focus reaches the last input but sx stays0 instead of400. ZN-1129 owns this provider gap; ui.ts is owner-held and untouched here.
+
+All commands were serial/bounded/headless through MAIN tools/work-run. The fixture declares the editor's existing dialog/fs/window permissions and privately bundles its starter table for import-time assets.readText, with in-memory edits only; no audio playback, network, file dialog/save or scene action. Original failures and later corrections remain in `.logs/AUDIT.md` and their unique stages. The first check script was created after its source snapshot; the final check is fully snapshotted. No suite, T1, golden, benchmark, hardware or memory claim; no owned process remains. usage: n/a.
+
+**Proposed tests**
+- Owner-selected existing tests/demo/pinball3d_editor_rules.sh: whole rules/editor compatibility, seconds to a minute, memory unmeasured.
+- After ZN-1129, bounded keyboard traversal to the offscreen last score at1180px and back through the fixed finder: horizontal/vertical reveal and numeric caret, roughly10s plus native compile, memory unmeasured.
+- Owner-selected physical-window resizing with mouse/keyboard/trackpad, both languages and light/dark: visible controls, scrolling and focus, roughly20s, memory unmeasured.
 <!-- SECTION:NOTES:END -->

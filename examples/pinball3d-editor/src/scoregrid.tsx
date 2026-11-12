@@ -19,9 +19,9 @@ const finder = createNodeRef();
 /** Puts the caret in the box that finds a row (Cmd+K). */
 export function findScore(): void { if (scoresShown() && finder.node >= 0) { ui.focusNode(finder.node); ui.select(finder.node, 0, ui.getValue(finder.node).length); } }
 
-// ponytail: the columns have a fixed width that fits the ten events elements send today in a window of 1440; a horizontal scroll if the format gains more
 const NAME = 116, KIND = 76, COL = 50;
 const EVENTS = scoreEvents();
+const WIDTH = NAME + KIND + COL * EVENTS.length + 24;
 
 /** One row, from its line "name|g or e|list|events it sends": made again only when one of these changes, so that a cell keeps the
  *  caret while its number is typed. */
@@ -56,18 +56,23 @@ export function ScoreGrid(): i32 {
     <View className="flex-row items-center gap-3 h-9 px-3 shrink-0 bg-zinc-900 border-b border-zinc-800">
       <Heading label={t(L.SCORES)} />
       <Text className="grow basis-0 truncate text-[11px] text-zinc-500">{t(L.SCORES_HOW)}</Text>
-    </View>
-    <View className="flex-row items-center h-9 px-3 shrink-0 border-b border-zinc-800">
       <View className="flex-row items-center gap-2 shrink-0" style={{ width: NAME + KIND }}>
         <Ico name="search" size={13} color={MUTED} />
         <Input ref={finder} style={{ width: NAME + KIND - 34 }} className="py-1.5 h-7 px-2 rounded-md bg-zinc-950 border border-zinc-800 text-xs text-zinc-100 focus:border-amber-400" placeholder={f(L.FIND_SCORE, chord('K'))}
           value={wanted()} onInput={(v: string) => setWanted(v)} onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Escape') setWanted(''); }} />
       </View>
-      {EVENTS.map((e: string, k: i32) => <Text className="shrink-0 truncate text-[10px] font-bold text-zinc-400" style={{ width: COL }}>{(phrase(`event.${e}`) === '' ? e : phrase(`event.${e}`)).toUpperCase()}</Text>)}
     </View>
-    <ScrollView className="grow basis-0 min-h-0 flex-col">
-      <For each={lines()}>{(line: string, i: i32) => <Row line={line} />}</For>
-      <Show when={lines().length === 0}><Text className="px-3 py-3 text-xs text-zinc-500">{t(L.NO_SCORES)}</Text></Show>
+    <ScrollView className="grow basis-0 min-h-0 min-w-0 overflow-x-auto flex-col">
+      <View className="grow basis-0 min-h-0 flex-col" style={{ width: WIDTH }}>
+        <View className="flex-row items-center h-9 px-3 shrink-0 border-b border-zinc-800">
+          <View className="shrink-0" style={{ width: NAME + KIND }} />
+          {EVENTS.map((e: string, k: i32) => <Text className="shrink-0 truncate text-[10px] font-bold text-zinc-400" style={{ width: COL }}>{(phrase(`event.${e}`) === '' ? e : phrase(`event.${e}`)).toUpperCase()}</Text>)}
+        </View>
+        <ScrollView className="grow basis-0 min-h-0 flex-col">
+          <For each={lines()}>{(line: string, i: i32) => <Row line={line} />}</For>
+          <Show when={lines().length === 0}><Text className="px-3 py-3 text-xs text-zinc-500">{t(L.NO_SCORES)}</Text></Show>
+        </ScrollView>
+      </View>
     </ScrollView>
   </View>;
 }

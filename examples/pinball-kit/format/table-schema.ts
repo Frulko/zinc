@@ -402,7 +402,7 @@ export function tableSchema(): Schema {
   rules.texts('ranks', 'The ranks, from the first: finishing a mission promotes to the next.');
   rules.ref('rankLights', 'light groups', 'A group of lights that shows the rank: one more is lit at each promotion.');
   rules.ref('ballSaveLight', 'lights', 'A light that blinks while a drained ball would come back, and stays on while an extra ball is held ("shoot again").');
-  rules.texts('counters', 'The names of the counters the rules use (a rule can only count what is declared here).');
+  rules.texts('counters', 'The names of the counters the rules use (a rule can only count what is declared here).').declaring('counters');
   rules.list('missions', mission, 'The missions.');
   rules.obj('multiball', multiball, 'Multiball.');
   rules.list('when', rule, 'The rules.');

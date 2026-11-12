@@ -64,6 +64,7 @@ export const SNAP_OFF = S('off', 'aucun');
 export const AXIS = S('axis', 'axe');
 // ---- the palette and what is being placed
 export const ADD = S('Add', 'Ajouter');
+export const RENAME = S('Rename', 'Renommer');
 export const PLACE_ONE = S('{0}: click on the table where it goes. Esc gives up.', '{0} : cliquez sur la table là où le poser. Échap abandonne.');
 export const PLACE_TWO = S('{0}: click one end, then the other. Esc gives up.', '{0} : cliquez un bout, puis l’autre. Échap abandonne.');
 export const PLACE_PATH = S('{0}: click each point; double-click or Enter ends, Backspace takes the last point back, Esc gives up.',

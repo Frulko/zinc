@@ -47,6 +47,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Fixed
 
 - Switching pinball tables and rebuilding the editor now release the previous scene and sounds; a faulty replacement keeps the current table playing.
+- Counter renaming updates the pinball editor’s rules in one undo step, and score columns scroll horizontally in narrow windows.
 
 ### Video mapper
 

@@ -37,6 +37,8 @@ export class Field {
   /** Ref: the name space the id belongs to (see Names). Asset: the kind of file it names ('image', 'sound', 'model': the format
    *  that uses the schema says which files are of each kind). */
   to: string = '';
+  /** Texts: the name space these strings declare; an editor can rename a name explicitly. */
+  declares: string = '';
   cols: i32 = 0;
   maxCols: i32 = 0;
   minRows: i32 = 0;
@@ -50,6 +52,7 @@ export class Field {
   constructor(name: string, kind: Kind, doc: string) { this.name = name; this.kind = kind; this.doc = doc; }
   range(min: number, max: number): Field { this.min = min; this.max = max; return this; }
   must(): Field { this.required = true; return this; }
+  declaring(space: string): Field { this.declares = space; return this; }
   withRole(role: string): Field { this.role = role; return this; }
   withUnit(unit: string): Field { this.unit = unit; return this; }
 }
