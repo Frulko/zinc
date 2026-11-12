@@ -7,5 +7,5 @@ out = pathlib.Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
 source = (root / 'plugins/ble/index.ts').read_text()
 assert source.count("import S from './native/ble.spec';") == 1
 (out / 'ble.ts').write_text(source.replace("import S from './native/ble.spec';", "import S from './ble-fake';\nimport { setInterval, clearInterval, setTimeout, clearTimeout } from './ble-fake';"))
-for name in ('ble-fake.ts', 'ble-reentrant.ts', 'ble-gatt-public.ts'):
+for name in ('ble-fake.ts', 'ble-reentrant.ts', 'ble-gatt-public.ts', 'ble-peripheral-public.ts'):
     (out / name).write_text((root / 'tests/data/radios' / name).read_text())

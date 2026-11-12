@@ -247,7 +247,12 @@ let scanTimer: i32 = -1;
 let onFound: (d: Device) => void = (d: Device): void => {};
 let found: Device[] = [];        // reported in this scan
 let nameless: string[] = [];     // one id per sighting without a name
-let advertising = false;
+enum AdvertisementState { idle, starting, ready }
+let advertisementState = AdvertisementState.idle;
+let advertisementGeneration: i32 = 0;
+function advertisementTo(next: AdvertisementState): void {
+  if (next === AdvertisementState.idle || (advertisementState === AdvertisementState.idle && next === AdvertisementState.starting) || (advertisementState === AdvertisementState.starting && next === AdvertisementState.ready)) advertisementState = next;
+}
 let advOpen: OpenCb = (l: Link): void => {};
 let advMessage: MessageCb = (l: Link, text: string): void => {};
 let advClose: CloseCb = (l: Link): void => {};
@@ -255,7 +260,7 @@ let advClose: CloseCb = (l: Link): void => {};
 function wake(): void { if (timer < 0) timer = setInterval(() => poll(), POLL_MS); }
 /** Nothing going on: the timer stops, so a program with nothing else to do ends. */
 function idle(): void {
-  if (scanMode !== ScanMode.idle || advertising || links.length > 0 || gattConnections.length > 0 || timer < 0) return;
+  if (scanMode !== ScanMode.idle || advertisementState !== AdvertisementState.idle || links.length > 0 || gattConnections.length > 0 || timer < 0) return;
   clearInterval(timer);
   timer = -1;
 }
@@ -280,11 +285,15 @@ function poll(): void {
     if (r === '') continue;
     const f = r.split(FS);
     const h = parseInt(f[1]);
-    if (f[0] === 'device') sighted(f[2], f[3], parseInt(f[4]));
+    if (f[0] === 'advertisement') {
+      if (h !== advertisementGeneration) continue;
+      advertisementTo(f[2] === 'ready' ? AdvertisementState.ready : AdvertisementState.idle);
+      idle();
+    } else if (f[0] === 'device') sighted(f[2], f[3], parseInt(f[4]));
     else if (f[0] === 'open') {
       const l = linkOf(h);
       if (l !== null) l.opened(f[2], f[3]);
-      else if (advertising) {   // a central connected to our advertisement
+      else if (advertisementState !== AdvertisementState.idle) {   // a central connected to our advertisement
         const n = new Link(h, f[2], f[3], advOpen, advMessage, advClose);
         links.push(n);
         n.opened('', '');
@@ -401,23 +410,28 @@ export function connect(id: string, onOpen: (l: Link) => void, onMessage: (l: Li
   wake();
 }
 
-/** Peripheral (the ESP32): advertise `name` with the UART service; each central that connects is a Link. On macOS it throws: the Mac is
- *  the central (scan and connect). */
+/** Peripheral (Linux/ESP32): accepts UART advertising; Linux registers asynchronously.
+ *  Registration failure stops advertising; error() reports the reason. macOS is central only. */
 export function advertise(name: string, onOpen: (l: Link) => void, onMessage: (l: Link, text: string) => void, onClose: (l: Link) => void): void {
   usable('advertise');
-  if (!S.advertise(name)) throw new Error('ble: advertise: not on this target (here the program is the central: scan() and connect())');
+  if (advertisementState !== AdvertisementState.idle) throw new Error('ble: advertisement already active');
+  if (advertisementGeneration === 2147483647) throw new Error('ble: advertisement identity exhausted');
+  const cycle: i32 = advertisementGeneration + 1;
+  if (!S.advertise(name, cycle)) throw new Error('ble: advertise: unsupported or unavailable: ' + S.error());
+  advertisementGeneration = cycle;
   advOpen = onOpen; advMessage = onMessage; advClose = onClose;
-  advertising = true;
+  advertisementTo(AdvertisementState.starting);
   wake();
 }
 
 /** Ends scanning, advertising and every link (their onClose run). */
 export function stop(): void {
   activityGeneration++;
+  if (advertisementGeneration < 2147483647) advertisementGeneration++;
   const closingLinks = links.slice(); const closingGatt = gattConnections.slice();
   S.stop();
   if (scanTimer >= 0) { clearTimeout(scanTimer); scanTimer = -1; }
-  scanMode = ScanMode.idle; advertising = false;
+  scanMode = ScanMode.idle; advertisementTo(AdvertisementState.idle);
   for (const l of closingLinks) l.finish();
   for (const c of closingGatt) c.finish('');
   idle();

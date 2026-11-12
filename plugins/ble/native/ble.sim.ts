@@ -113,7 +113,7 @@ export default {
     pending += `close${FS}${h}${RS}`;
     return h;
   },
-  advertise: (name: string): boolean => { opened(CENTRAL_ID, CENTRAL_NAME); return true; },
+  advertise: (name: string, cycle: i32): boolean => { opened(CENTRAL_ID, CENTRAL_NAME); return true; },
   maxWrite: (h: i32): i32 => CHUNK,
   write: (h: i32, chunk: u8[]): boolean => {
     const l = at(h);

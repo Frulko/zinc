@@ -42,9 +42,19 @@ using Handler = int (*)(sd_bus_message*, void*, sd_bus_error*);
  X(int, append_basic, sd_bus_message_append_basic, (sd_bus_message*, char, const void*)) \
  X(int, open, sd_bus_message_open_container, (sd_bus_message*, char, const char*)) \
  X(int, close, sd_bus_message_close_container, (sd_bus_message*))
+#define ZN_BUS_EXPORT_FUNCTIONS(X) \
+ X(int, add_object, sd_bus_add_object, (sd_bus*, sd_bus_slot**, const char*, Handler, void*)) \
+ X(int, new_return, sd_bus_message_new_method_return, (sd_bus_message*, sd_bus_message**)) \
+ X(int, new_error, sd_bus_message_new_method_error, (sd_bus_message*, sd_bus_message**, const sd_bus_error*)) \
+ X(int, send, sd_bus_send, (sd_bus*, sd_bus_message*, uint64_t*)) \
+ X(const char*, sender, sd_bus_message_get_sender, (sd_bus_message*)) \
+ X(int, is_call, sd_bus_message_is_method_call, (sd_bus_message*, const char*, const char*)) \
+ X(int, expect_reply, sd_bus_message_get_expect_reply, (sd_bus_message*)) \
+ X(int, can_send, sd_bus_can_send, (sd_bus*, char))
 struct Api {
 #define ZN_FIELD(ret, field, symbol, args) ret (*field) args = nullptr;
   ZN_BUS_FUNCTIONS(ZN_FIELD)
+  ZN_BUS_EXPORT_FUNCTIONS(ZN_FIELD)
 #undef ZN_FIELD
 };
 struct Library {
@@ -58,6 +68,9 @@ struct Library {
     if (!handle) return false;
 #define ZN_LOAD(ret, field, symbol, args) api.field = reinterpret_cast<decltype(api.field)>(dlsym(handle, #symbol)); if (!api.field) { dlclose(handle); handle = nullptr; api = {}; return false; }
     ZN_BUS_FUNCTIONS(ZN_LOAD)
+#define ZN_LOAD_EXPORT(ret, field, symbol, args) api.field = reinterpret_cast<decltype(api.field)>(dlsym(handle, #symbol));
+    ZN_BUS_EXPORT_FUNCTIONS(ZN_LOAD_EXPORT)
+#undef ZN_LOAD_EXPORT
 #undef ZN_LOAD
     return true;
 #else
@@ -66,6 +79,7 @@ struct Library {
   }
 };
 #undef ZN_BUS_FUNCTIONS
+#undef ZN_BUS_EXPORT_FUNCTIONS
 
 inline bool objectPath(const std::string& s) {
   if (s.empty() || s.size() > 1024 || s[0] != '/') return false;
@@ -178,7 +192,7 @@ public:
   enum class Failure { none, unavailable, denied, other };
   using Callback = std::function<void(const Reply&)>;
 private:
-  struct Pending { Bus* owner; uint64_t generation; sd_bus_slot* slot = nullptr; Callback callback; enum class State { waiting, done } state = State::waiting; bool persistent = false; };
+  struct Pending { Bus* owner; uint64_t generation; sd_bus_slot* slot = nullptr; Callback callback, installation; enum class State { waiting, done } state = State::waiting; bool persistent = false; };
   Library library;
   Api* api;
   sd_bus* bus = nullptr;
@@ -200,7 +214,8 @@ private:
   }
   static int installed(sd_bus_message* m, void* data, sd_bus_error*) {
     auto& p = *static_cast<Pending*>(data);
-    if (p.generation != p.owner->generation || p.owner->api->is_error(m, nullptr) <= 0) return 0;
+    if (p.generation != p.owner->generation) return 0;
+    if (p.owner->api->is_error(m, nullptr) <= 0) { if (p.installation) { auto cb=p.installation; cb(readReply(*p.owner->api,m)); } return 0; }
     p.state = Pending::State::done;
     Reply r = readReply(*p.owner->api, m); auto callback = p.callback; callback(r); return 0;
   }
@@ -254,9 +269,11 @@ public:
     if (n < 0) { if (p->slot) api->slot_unref(p->slot); return false; }
     pending.push_back(std::move(p)); return true;
   }
-  bool match(const std::string& rule, Callback callback) {
+  Api& rawApi() { return *api; }
+  sd_bus* rawBus() { return bus; }
+  bool match(const std::string& rule, Callback callback, Callback installation = {}) {
     if (phase != State::ready || pending.size() >= 128) return false;
-    auto p = std::make_unique<Pending>(); p->owner = this; p->generation = generation; p->callback = std::move(callback); p->persistent = true;
+    auto p = std::make_unique<Pending>(); p->owner = this; p->generation = generation; p->callback = std::move(callback); p->persistent = true; p->installation = std::move(installation);
     int n = api->add_match_async(bus, &p->slot, rule.c_str(), delivered, installed, p.get());
     if (n < 0) { if (p->slot) api->slot_unref(p->slot); return false; }
     pending.push_back(std::move(p)); return true;

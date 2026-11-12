@@ -13,6 +13,7 @@ int main() {
   assert(!b.has() && !b.powered(true) && !b.discover(zrt::String::from("",0)));
   zrt::Array<uint8_t> nil;
   assert(b.gattOpen(zrt::String::from("fake",4))==-1 && b.gattTree(0).bytes()==0 && b.gattRequest(0,0,0,nil)==-1 && b.gattEvents().bytes()==0);
+  assert(!b.advertise(zrt::String::from("Zinc",4),1));
   b.gattCancel(0,0);
   b.scan(); assert(b.connect(zrt::String::from("fake",4))==-1);
   assert(b.events().bytes()==0 && f.slots.empty() && f.requests.empty());

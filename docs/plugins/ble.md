@@ -20,7 +20,7 @@ phone apps such as nRF Connect and Bluefruit Connect also speak.
 | macos | central: scan, connect, send, receive; built and run on x86_64 against the simulated radio; not yet run against a real ESP32 |
 | macos, `advertise()` | not on this target: it throws (a Mac would need `CBPeripheralManager`) |
 | esp32 | peripheral, in the firmware of the ESP32 engine (`firmware/esp32-mquickjs`) |
-| linux | experimental BlueZ discovery, power requests and NUS central; injected protocol/native ABI proof only, no real-radio run. Generic GATT read/write/notify is available; the exported UART peripheral remains unfinished. |
+| linux | experimental BlueZ discovery, power requests and NUS central; injected protocol/native ABI proof only, no real-radio run. Generic GATT read/write/notify and an exported UART peripheral are implemented; Linux runtime interoperability remains unproven. |
 | windows, anywhere else | `state()` is `'unsupported'`; the simulated radio when asked for |
 
 ```ts
@@ -47,7 +47,7 @@ ble.scan((d: ble.Device) => {
 | `stopScan()` | |
 | `connect(id, onOpen, onMessage, onClose)` | Connects to a scanned device. `onOpen(link)` when the UART characteristics are ready, `onMessage(link, text)` for each message, `onClose(link)` once: after `close()`, when the device goes away or Bluetooth is turned off, and when the connection fails or takes more than 10 seconds (then without `onOpen`). |
 | `advertise(name, onOpen, onMessage, onClose)` | Peripheral: advertise `name` with the UART service; each central that connects is a `Link`. On macOS it throws. |
-| `link.send(text)` | Sends one message. Throws when the link is not open, or when 1 MiB already waits to go out. |
+| `link.send(text)` | Sends one message. Throws when the link is not open or its bounded outgoing queue is full. |
 | `link.close()` | Ends the link; `onClose` runs at once. |
 | `link.id`, `link.name` | The peer. |
 | `stop()` | Ends scanning, advertising and every link (their `onClose` run). |
@@ -99,8 +99,7 @@ blind retry or foreign-profile cleanup is performed. Native factory/VM reload an
 described below. No real-radio or prepared `btvirt` run is claimed by the injected protocol and simulator proofs.
 
 See the [BlueZ characteristic API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.GattCharacteristic.rst)
-for daemon errors and long read/write procedures. Linux `advertise()` still refuses real operation until a live exported
-UART GATT application and correctly targeted notifications are implemented; advertising alone is insufficient.
+for daemon errors and long read/write procedures. The Linux UART peripheral below uses a separate exported GATT application.
 
 ## Messages on the wire
 
@@ -161,4 +160,14 @@ The legacy UART central waits for `ServicesResolved`, actual writable RX/notifyi
 
 BlueZ `Device1` connections are shared system objects: there is no client-bound connection lease. This backend refuses an already observed connected device, but another client can race or share a connection afterward. A daemon operation that completes after a timeout cannot be proven owned or cancelled. Explicit `stop()`/`link.close()` is required; native VM shutdown/reload and concurrent VM ownership remain unproven (D316). No automatic Pair/Trust or authorization bypass is performed.
 
-This is an incomplete ZN-558 software checkpoint: generic GATT read/write/notify APIs and Linux LE advertising with an actual exported UART GATT application are not implemented. `advertise()` currently returns unsupported on real Linux, as on macOS. No hwsim/btvirt/CI VM, real Pi peripheral or no-radio-board acceptance criterion has been proven.
+ZN-558 remains an incomplete software checkpoint: the nmcli connection fallback, static NimBLE/HCI and CHIP backend work are still open. No hwsim/btvirt/CI VM, real Pi peripheral or no-radio-board acceptance criterion has been proven.
+
+## Experimental Linux UART peripheral
+
+`advertise(name, onOpen, onMessage, onClose)` accepts an asynchronous registration request. It exports a fixed Nordic UART GATT application and registers the LE advertisement only after BlueZ acknowledges the application. A powered adapter must expose GATT and LE advertising managers; Zinc does not power it automatically. Names are nonempty, at most 128 UTF-8 bytes; the controller can reject shorter names when its advertising packet is full. A second active request throws. Registration failure or BlueZ owner loss ends advertising, closes its incoming links and stops its public timer when nothing else is active. `error()` retains the sanitized reason. Restart explicitly after failure.
+
+An incoming link opens only after BlueZ acquires its notification socket with `AcquireNotify`. Each device gets its own nonblocking Unix seqpacket socket and monotonic link identity. `link.send()` targets that socket; ordinary shared `Value` notifications and identity-free `StartNotify` are refused. Peers on BlueZ versions without server acquisition support cannot open a link. RX writes require a matching acquired device on the selected adapter, the negotiated MTU and supported ordinary write options; prepared/reliable writes are rejected. New or changed device objects temporarily fence incoming operations until the subscribed cache refreshes. No Device1 connection, pairing, trust or disconnect is used to own incoming UART peers.
+
+There are at most 16 incoming links, 128 queued chunks per link, 64 KiB incoming bytes per link, and 512 admitted event records/32 KiB before new acquisitions stop (terminal records have reserved headroom). Outgoing chunks remain 20 bytes. Socket HUP/error closes only that peer. Explicit `stop()` unregisters advertisement then application with a three-second total cleanup budget; cancellation during registration, failure, Release or deadline closes the dedicated peripheral bus, so BlueZ can release its connection-bound registrations. Central connections use another bus. This relies on BlueZ's disconnect cleanup; it does not prove controller cleanup after a daemon failure.
+
+The exact callback tests use an injected sd-bus API and real owned packet socketpairs. macOS lacks Unix seqpacket: its fixture uses a datagram-only test seam and proves targeting, packet boundaries, bounded backpressure, explicit-close isolation and fd cleanup. Production Linux C++17 is compiled to an object; Linux seqpacket/HUP, actual registration and ATT interoperability have not run. Native factory/concurrent-VM/reload/post-polling limits (D316) still apply; always close or stop explicitly.

@@ -7,8 +7,11 @@ export function gattStep(events: string): void { gattPending = events; tick(); }
 export function wasCancelled(id: i32): boolean { return cancelled.includes(id); }
 let n: i32 = 0;
 let timers: i32 = 0;
-export function setInterval(cb: () => void, delay: i32): i32 { tick = cb; timers++; return timers; }
-export function clearInterval(id: i32): void { tick = (): void => {}; }
+let intervals: i32 = 0, cycle: i32 = 0;
+export function timerCount(): i32 { return intervals; }
+export function adCycle(): i32 { return cycle; }
+export function setInterval(cb: () => void, delay: i32): i32 { tick = cb; intervals++; timers++; return timers; }
+export function clearInterval(id: i32): void { tick = (): void => {}; intervals--; }
 export function setTimeout(cb: () => void, delay: i32): i32 { return ++timers; }
 export function clearTimeout(id: i32): void {}
 export function step(events: string, rows: string = ''): void { pending = events; advertisements = rows; tick(); }
@@ -23,7 +26,7 @@ export default {
   advertisements: (): string => { const out = advertisements; advertisements = ''; return out; },
   error: (): string => '', scan: (): void => {}, stopScan: (): void => {},
   connect: (id: string): i32 => ++n,
-  advertise: (name: string): boolean => true,
+  advertise: (name: string, token: i32): boolean => { cycle = token; return true; },
   maxWrite: (h: i32): i32 => 20, write: (h: i32, b: u8[]): boolean => true,
   read: (h: i32): u8[] => [], close: (h: i32): void => {}, stop: (): void => {},
   events: (): string => { const out = pending; pending = ''; return out; },

@@ -305,7 +305,7 @@ struct MacBle : NativeBle {
   }
   void gattCancel(int32_t h,int32_t request) override { std::lock_guard<std::mutex> g(mu); if(sim)gattSim.cancel(h,request); }
   zrt::String gattEvents() override { std::lock_guard<std::mutex> g(mu); return str(sim?gattSim.events():""); }
-  bool advertise(zrt::String) override {   // ponytail: the Mac is a central; CBPeripheralManager when a Mac has to be the peripheral
+  bool advertise(zrt::String,int32_t) override {   // ponytail: the Mac is a central; CBPeripheralManager when a Mac has to be the peripheral
     if (!sim) return false;
     std::lock_guard<std::mutex> g(mu);
     simLink("zinc-sim-central", "Zinc sim central");

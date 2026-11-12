@@ -1,5 +1,6 @@
 #pragma once
 #include "radio_dbus.h"
+#include "peripheral.h"
 #include <algorithm>
 #include <chrono>
 #include <charconv>
@@ -67,6 +68,7 @@ private:
     }
   };
   Bus bus;
+  Peripheral peripheral;
   State phase = State::idle;
   Scan scanning = Scan::idle;
   uint64_t epoch = 0, scanEpoch = 0, requestedScan = 0, currentScan = 0, nextDevice = 1;
@@ -483,7 +485,7 @@ private:
     })) { error("BLE write request failed"); finish(h,true); }
   }
 public:
-  explicit BlueZ(Api* injected = nullptr) : bus(injected) {}
+  explicit BlueZ(Api* injected = nullptr) : bus(injected), peripheral(injected,[this](){return nextHandle==INT_MAX?-1:nextHandle++;},[this](const std::string& why){error(why);}) {}
   State status() const { return phase; }
   const std::string& error() const { return reason; }
   void start() {
@@ -510,6 +512,7 @@ public:
     })) fail("BLE enumeration failed");
   }
   void poll(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()) {
+    peripheral.poll(now);
     bus.poll(); if ((phase == State::ready || phase == State::discovering || phase == State::stopping) && bus.state() == Bus::State::failed) { fail(bus.error()); return; }
     std::vector<int> hs; for (auto& l : links) hs.push_back(l.first);
     for (int h : hs) {
@@ -534,6 +537,7 @@ public:
     if (phase == State::stopping && links.empty() && disconnects == 0 && pendingGatt == 0) finishStop();
   }
   bool cleanupPending() const {
+    if(peripheral.active())return true;
     if (phase == State::discovering || phase == State::stopping || disconnects > 0 || pendingGatt > 0) return true;
     for (auto& l : links) if (l.second.phase == Link::State::closing) return true;
     return false;
@@ -610,15 +614,22 @@ public:
     }
   }
   std::string gattEvents() { poll(); std::string out; out.swap(gattOut); return out; }
+  bool advertise(const std::string& name,int cycle) {
+    bool accepted=peripheral.start(name,cycle);
+    if(!accepted)error(peripheral.error().empty()?"BLE advertisement refused":peripheral.error());
+    return accepted;
+  }
   bool write(int h, const std::vector<uint8_t>& bytes) {
+    if(peripheral.owns(h))return peripheral.write(h,bytes);
     auto p = links.find(h); if (p == links.end() || p->second.mode != Link::Mode::uart || p->second.phase != Link::State::open || bytes.size() > 20 || p->second.queued + bytes.size() > 1048576) return false;
     if (bytes.empty()) return true;
     p->second.outgoing.push_back(bytes); p->second.queued += bytes.size(); return true;
   }
-  std::vector<uint8_t> read(int h) { auto p = links.find(h); if (p == links.end()) return {}; std::vector<uint8_t> r; r.swap(p->second.incoming); return r; }
-  void close(int h) { finish(h,false); }
-  std::string events() { poll(); std::string r; r.swap(eventsOut); return r; }
+  std::vector<uint8_t> read(int h) { if(peripheral.owns(h))return peripheral.read(h); auto p = links.find(h); if (p == links.end()) return {}; std::vector<uint8_t> r; r.swap(p->second.incoming); return r; }
+  void close(int h) { if(peripheral.owns(h))peripheral.close(h);else finish(h,false); }
+  std::string events() { poll(); std::string r; r.swap(eventsOut); r+=peripheral.events(); return r; }
   void stop() {
+    peripheral.stop();
     if (phase == State::closed || phase == State::stopping) return;
     requestScan(ScanRequest::stopped); ++requestedScan; observations.clear(); eventsOut.clear(); gattOut.clear();
     std::vector<int> hs; for (auto& l : links) hs.push_back(l.first); for (int h : hs) finish(h,false);

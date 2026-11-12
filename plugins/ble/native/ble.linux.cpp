@@ -76,10 +76,11 @@ struct LinuxBle : NativeBle {
   }
   void gattCancel(int32_t h,int32_t request) override { std::lock_guard<std::mutex> lock(mutex); if(simulated)gattSim.cancel(h,request);else backend.gattCancel(h,request); }
   zrt::String gattEvents() override { std::lock_guard<std::mutex> lock(mutex); return str(!allowed()?"":simulated?gattSim.events():backend.gattEvents()); }
-  bool advertise(zrt::String) override {
+  bool advertise(zrt::String name,int32_t cycle) override {
     std::lock_guard<std::mutex> lock(mutex);
     if (allowed() && simulated) return simOpen("zinc-sim-central","Zinc sim central")>=0;
-    return false; // shortcut: BlueZ GATT peripheral export is missing, complete it before closing ZN-558.
+    if (!allowed() || simulated || name.bytes()>128) return false;
+    watch(); return backend.advertise(std::string(name.ptr(),name.bytes()),cycle);
   }
   int32_t maxWrite(int32_t) override { return 20; }
   bool write(int32_t h,zrt::Array<uint8_t> bytes) override {

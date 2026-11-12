@@ -32,8 +32,8 @@ export interface Spec extends NativeModule {
   gattCancel(h: i32, request: i32): void;
   /** Tab/newline records with hex bytes/errors: h open/close; h result request error data; h value characteristic data. */
   gattEvents(): string;
-  /** Advertises `name` with the UART service: an 'open' event per central that connects. False when this target cannot. */
-  advertise(name: string): boolean;
+  /** Accepts UART advertising. Linux emits advertisement cycle ready/failed hex(reason), then open per acquired peer. */
+  advertise(name: string, cycle: i32): boolean;
   /** The largest chunk write() takes on an open link (20 before the MTU exchange). */
   maxWrite(h: i32): i32;
   /** Queues one chunk of at most maxWrite() bytes; false when the link is not open or 1 MiB already waits. */
