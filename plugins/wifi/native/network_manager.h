@@ -37,7 +37,7 @@ private:
     if (valid) operation = next;
     return valid;
   }
-  void fail(const std::string& error) { reason = error; transition(Operation::failed); }
+  void fail(const std::string& error) { reason = error; networks.clear(); transition(Operation::failed); }
   static uint32_t integer(const Value* v, char type = 'u') { return v && v->type == type ? static_cast<uint32_t>(v->number) : 0; }
   static std::string text(const Value* v, char type = 's') { return v && v->type == type ? v->text : ""; }
   using Callback = Bus::Callback;
@@ -119,6 +119,7 @@ public:
   const std::string& error() const { return reason; }
   const std::vector<Network>& results() const { return networks; }
   bool has() const { return phase == State::ready; }
+  bool transportUnavailable() const { return phase == State::failed && bus.unavailable(); }
   std::string status() const {
     if (phase == State::discovering || phase == State::idle) return "discovering";
     if (phase == State::absent) return "unsupported";

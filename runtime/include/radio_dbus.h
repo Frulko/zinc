@@ -1,6 +1,7 @@
 #pragma once
 // The OS supplies LGPL libsystemd at run time; this header never links it into Zinc.
 #include <cstdint>
+#include <cerrno>
 #include <cstring>
 #include <dlfcn.h>
 #include <functional>
@@ -174,6 +175,7 @@ inline Reply readReply(Api& a, sd_bus_message* m) {
 class Bus {
 public:
   enum class State { idle, starting, ready, failed, closed };
+  enum class Failure { none, unavailable, denied, other };
   using Callback = std::function<void(const Reply&)>;
 private:
   struct Pending { Bus* owner; uint64_t generation; sd_bus_slot* slot = nullptr; Callback callback; enum class State { waiting, done } state = State::waiting; bool persistent = false; };
@@ -181,6 +183,7 @@ private:
   Api* api;
   sd_bus* bus = nullptr;
   State phase = State::idle;
+  Failure failureKind = Failure::none;
   uint64_t generation = 1;
   std::list<std::unique_ptr<Pending>> pending;
   std::string failure;
@@ -202,7 +205,12 @@ private:
     Reply r = readReply(*p.owner->api, m); auto callback = p.callback; callback(r); return 0;
   }
   void cancel() { ++generation; for (auto& p : pending) if (p->slot) api->slot_unref(p->slot); pending.clear(); }
-  void fail(std::string why) { failure = std::move(why); transition(State::failed); }
+  static Failure classify(int n) {
+    if (n == -EACCES || n == -EPERM) return Failure::denied;
+    if (n == -ENOENT || n == -ECONNREFUSED || n == -ENOTCONN || n == -EPIPE || n == -ECONNRESET || n == -ENOSYS) return Failure::unavailable;
+    return Failure::other;
+  }
+  void fail(std::string why, Failure kind) { failure = std::move(why); failureKind = kind; transition(State::failed); }
 public:
   explicit Bus(Api* injected = nullptr) : api(injected ? injected : &library.api) {}
   Bus(const Bus&) = delete;
@@ -210,16 +218,17 @@ public:
   ~Bus() { stop(); }
   State state() const { return phase; }
   const std::string& error() const { return failure; }
+  bool unavailable() const { return phase == State::failed && failureKind == Failure::unavailable; }
   bool start() {
     if (phase == State::ready) return true;
     if (phase == State::starting) return false;
-    transition(State::starting); failure.clear();
-    if (api == &library.api && !library.load()) { fail("libsystemd.so.0 unavailable"); return false; }
+    transition(State::starting); failure.clear(); failureKind = Failure::none;
+    if (api == &library.api && !library.load()) { fail("libsystemd.so.0 unavailable", Failure::unavailable); return false; }
     int n = api->new_bus(&bus);
     if (n >= 0) n = api->set_address(bus, "unix:path=/run/dbus/system_bus_socket");
     if (n >= 0) n = api->set_bus_client(bus, 1);
     if (n >= 0) n = api->start(bus);
-    if (n < 0) { if (bus) bus = api->close_unref(bus); fail("system bus unavailable (" + std::to_string(n) + ")"); return false; }
+    if (n < 0) { if (bus) bus = api->close_unref(bus); fail("system bus unavailable (" + std::to_string(n) + ")", classify(n)); return false; }
     transition(State::ready); return true;
   }
   void stop() { if (bus) { cancel(); bus = api->close_unref(bus); } transition(State::closed); }
@@ -228,7 +237,7 @@ public:
     for (unsigned i = 0; i < 32; i++) {
       int n = api->process(bus, nullptr);
       if (phase != State::ready) return;
-      if (n < 0) { cancel(); bus = api->close_unref(bus); fail("system bus disconnected (" + std::to_string(n) + ")"); return; }
+      if (n < 0) { cancel(); bus = api->close_unref(bus); fail("system bus disconnected (" + std::to_string(n) + ")", classify(n)); return; }
       if (n == 0) break;
     }
     pending.remove_if([&](auto& p) { if (p->state != Pending::State::done) return false; if (p->slot) api->slot_unref(p->slot); return true; });

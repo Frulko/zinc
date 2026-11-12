@@ -73,12 +73,12 @@ export function scan(cb: (networks: Network[]) => void): void {
   cancelScan(); scanResult = cb; transitionScan(ScanState.waiting);
 }
 /** Uses a scanned SSID exactly, including SSIDs which are not UTF-8. Connections are temporary and end with stop(). */
-export function connectBytes(ssid: u8[], password: string): void { if (!S.connect(ssid, password, false)) throw new Error('wifi: connect: ' + S.error()); }
+export function connectBytes(ssid: u8[], password: string): void { if (!S.connect(ssid, password, false)) throw new Error('wifi: connect: ' + S.error()); cancelScan(); }
 export function connect(ssid: string, password: string): void { connectBytes(utf8Encode(ssid), password); }
 /** Explicitly creates a temporary hotspot (NetworkManager shared IPv4/DHCP/NAT). Empty password makes it open. */
-export function accessPoint(ssid: string, password: string): void { if (!S.connect(utf8Encode(ssid), password, true)) throw new Error('wifi: accessPoint: ' + S.error()); }
+export function accessPoint(ssid: string, password: string): void { if (!S.connect(utf8Encode(ssid), password, true)) throw new Error('wifi: accessPoint: ' + S.error()); cancelScan(); }
 /** Disconnects only the temporary connection this program created. Never deletes a saved system profile. */
-export function forget(): void { S.disconnect(); }
+export function forget(): void { S.disconnect(); cancelScan(); }
 export function stop(): void {
   generation++; cancelScan();
   if (state !== State.closed) transition(State.closed);

@@ -5,6 +5,8 @@ cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 c++ -Iruntime/include -std=c++20 -Wall -Wextra -Werror tests/native/radios/network_manager.cpp -o "$tmp/network-manager"
 timeout 5 "$tmp/network-manager"
+c++ -std=c++20 -Wall -Wextra -Werror -Iruntime/include tests/native/radios/nmcli.cpp -o "$tmp/nmcli"
+timeout 5 "$tmp/nmcli"
 cc -c third_party/yyjson/yyjson.c -o "$tmp/yyjson.o"
 c++ -std=c++20 -Wall -Wextra -Werror -Isrc -Ithird_party/yyjson tests/native/radios/project.cpp src/frontend/project.cpp "$tmp/yyjson.o" -o "$tmp/project"
 timeout 5 "$tmp/project"

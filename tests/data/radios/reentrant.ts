@@ -36,6 +36,9 @@ step('replace', '61\t80\t0');
 if (newResults !== 1 || oldResults !== 0) throw new Error('old poll crossed scan replacement');
 step('done', '63\t70\t1');
 if (newResults !== 2) throw new Error('replacement scan missing');
+wifi.scan((networks: wifi.Network[]): void => { oldResults++; });
+wifi.connect('x', ''); step('connected', '61\t80\t0');
+if (oldResults !== 0) throw new Error('connection delivered cancelled scan');
 wifi.stop(); wifi.stop();
 let rejected = false;
 try { wifi.scan((networks: wifi.Network[]): void => {}); } catch (e) { rejected = true; }
