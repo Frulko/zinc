@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- K review:1124 commit35d1022c0 reopened for ordinary-If invalidation regression and stale facts after a conditional guard write; only the latest final freeze may be integrated. Exact stages/caller hashes and old-engine D224 optional-store discrepancy retained.563 actual Linux software fallback and OpenGL triangle capture pass in owned directories; archived CLI compatibility metadata is isolated/reconstructed, not a package or physical GPU claim. Both source trees remain unintegrated,1039 parked,94Done,nextD334/archive94. No root heavy command or process.
+
 - K activated after ready-k; fresh1124 solefrontendworker firstresetconfirmed d68999817, no ownerheldsource changes.563final64910plugin/objects/AOTlinks/MacGPU PASS; K source review requires explicit cachedSDLbootstrap rather than repeated14dlsym per Rcall, proof after finaledit beforeSSH.1039uncommittedparkedunchanged, no rootheavy/pending. NextD334/archive94,94Done.
 
 - COORDINATOR HANDOFF2026-11-12k: K leads only after .logs/coord-transfer-20261112-k.ready; J ceases all coordination then. FULL .logs/COORDINATOR-K-HANDOFF.md. Active563.01 source owns new optional SDL dispatch; objects/plugin/Mac GPU pass but final dispatch proof pending, no Linux runtime claim.1039 parked ten uncommitted payloads after real try-flow gap, claim kept.1124 newly created/claimed a8d3d9ba7 with empty clean source tree, NO WORKER YET; K starts fresh solefrontend worker after marker.681 e79cc0cc9/D333/archive93/rootPASS/sourcecleaned,94Done,nextD334/archive94. No root pending; owner audit before marker.
