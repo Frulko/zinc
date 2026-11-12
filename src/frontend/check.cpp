@@ -98,33 +98,50 @@ struct Checker {
   // Collected once per statement into the set of the statements above (ZN-415): asking each declaration again walked every statement above it.
   // A name the body declares itself (a parameter, a local of an enclosing block, a `var` of the function) is not the top-level variable (ZN-798:
   // a local `let cur` must not make every read of a top-level `cur` a guarded call, which no test can narrow).
+  struct LocalNames {
+    std::vector<std::string_view> order;
+    std::unordered_set<std::string_view> names;
+    void push_back(std::string_view name) {
+      if (names.insert(name).second) order.push_back(name);
+    }
+    struct Scope {
+      LocalNames& locals;
+      std::size_t mark;
+      ~Scope() {
+        while (locals.order.size() > mark) {
+          locals.names.erase(locals.order.back());
+          locals.order.pop_back();
+        }
+      }
+    };
+  };
   void fnMentions(std::uint32_t i, std::unordered_set<std::string_view>& out, bool inFn = false) const {
-    std::vector<std::string_view> locals;
+    LocalNames locals;
     fnMentionsIn(i, out, inFn, locals);
   }
-  void patternNames(std::uint32_t p, std::vector<std::string_view>& v) const {
+  void patternNames(std::uint32_t p, LocalNames& v) const {
     if (p == kNone) return;
     const Node& x = n(p);
     if (x.kind == N::Ident) { v.push_back(x.text); return; }
     if (x.kind == N::ArrayPattern || x.kind == N::ObjectPattern || x.kind == N::PatProp || x.kind == N::Spread) for (std::uint32_t k : x.kids) patternNames(k, v);
   }
-  void declaredNames(std::uint32_t d, std::vector<std::string_view>& v) const {   // a Declarator or a Param
+  void declaredNames(std::uint32_t d, LocalNames& v) const {   // a Declarator or a Param
     if (!n(d).text.empty()) v.push_back(n(d).text);
     else if (n(d).kids.size() > 2) patternNames(n(d).kids[2], v);
   }
-  void varNames(std::uint32_t i, std::vector<std::string_view>& v) const {   // the `var`s of a function body, hoisted to the function
+  void varNames(std::uint32_t i, LocalNames& v) const {   // the `var`s of a function body, hoisted to the function
     const Node& x = n(i);
     if (x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method || x.kind == N::Class) return;
     if ((x.kind == N::VarDecl || x.kind == N::ForOf || x.kind == N::ForIn) && x.text == "var") for (std::uint32_t d : x.kids) if (d != kNone && n(d).kind == N::Declarator) declaredNames(d, v);
     for (std::uint32_t k : x.kids) if (k != kNone) varNames(k, v);
   }
-  void fnMentionsIn(std::uint32_t i, std::unordered_set<std::string_view>& out, bool inFn, std::vector<std::string_view>& locals) const {
+  void fnMentionsIn(std::uint32_t i, std::unordered_set<std::string_view>& out, bool inFn, LocalNames& locals) const {
     const Node& x = n(i);
     if (x.kind == N::Ident) {
-      if (inFn && std::find(locals.begin(), locals.end(), x.text) == locals.end()) out.insert(x.text);
+      if (inFn && !locals.names.contains(x.text)) out.insert(x.text);
       return;
     }
-    const std::size_t mark = locals.size();
+    const LocalNames::Scope scope{locals, locals.order.size()};
     const bool fn = x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method;
     if (fn) {
       for (std::size_t k = 2; k < x.kids.size(); ++k) if (x.kids[k] != kNone && n(x.kids[k]).kind == N::Param) declaredNames(x.kids[k], locals);
@@ -144,7 +161,6 @@ struct Checker {
       patternNames(x.kids[1], locals);   // (the catch name reaches the finally block too: harmless, a top-level variable of that name there is rare)
     }
     for (std::uint32_t k : x.kids) if (k != kNone) fnMentionsIn(k, out, inFn || fn, locals);
-    locals.resize(mark);
   }
   bool mentionsIdent(std::uint32_t i, std::string_view nm) const {
     const Node& x = n(i);

@@ -1,0 +1,9 @@
+inner 8
+shadow 7
+loop 0
+of 5
+patterns 10
+sibling 9
+tdz true
+sibling 9
+ready 21 100

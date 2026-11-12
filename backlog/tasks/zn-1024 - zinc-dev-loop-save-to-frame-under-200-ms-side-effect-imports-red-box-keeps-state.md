@@ -132,4 +132,23 @@ later.md lines (for the coordinator):
 - ZN-1024: zinc dev polls the project every 40 ms: a save waits 0-40 ms before it is seen, outside the logged number; FSEvents/kqueue would remove it.
 
 Proposed tests: tests/run --only hot_recompile (T0, ~10 s, <500 MB: ran, passes), tests/run --only rc_borrow rc_lend rc_refcast (T0: ran, pass), tools/diff-matrix at the next milestone (emit, verify and the passes now run on up to 8 threads), tests/run --only hot_swap / dev_mode / fast_refresh (T1, ~20 s each), the quiet zinc dev measurement above.
+
+
+Session 2026-11-12, checker membership increment (criterion #1 remains open).
+
+Delegated primary research: TypeScript's binder keeps local symbol tables per lexical container (https://github.com/microsoft/TypeScript-Compiler-Notes/blob/main/codebase/src/compiler/binder.md); esbuild's rebuild caches unchanged inputs (https://esbuild.github.io/api/#rebuild), and Salsa's durability separates stable library inputs (https://salsa-rs.github.io/salsa/reference/durability.html). Existing Zinc text/parse caches already cover the latter small opportunities; this increment only replaces the known linear local-name search, without adding a global cache or changing binding semantics.
+
+Changed: fnMentions owns a walk-local unordered_set plus an insertion stack of unique active names. Duplicate shadow declarations do not append, so unwinding an inner scope cannot remove the outer name. A scoped destructor erases only names introduced since the scope's mark. All declaration collectors, recursion, loop/function/class handling and the existing catch/finally approximation remain unchanged. The two callers (stmtRest's forward declarations and tdzPrepass) and every collector caller were reviewed; the shared checker feeds all three engines.
+
+Proof: tools/build zinc succeeds. Build log retains existing V8/vendor warnings, src/agent/dev.cpp missing-field warning and duplicate linker libraries; no warning originates in the changed checker. New seconds-long tests/run --only tdz_locals passes: interpreter, native AOT and QuickJS agree on nested duplicate shadows, sibling local/global TDZ, destructured parameters/locals and loop declarations. Negative checks preserve Z0106 property diagnostic plus the strict-language Z1001 var rejection and Z0101 missing-name location/text. Full diagnostic stdout/stderr is byte-identical to the reference compiler. The fixture's --emit=ir is byte-identical (SHA256 cf942763a0eb37f44c6378cc880be73d7f3d4d8f31ba63d717ef1c36a55fd8ca). Actual hero check passes and --emit=zbc-bin examples/hero/src/main.tsx is byte-identical to reference cf7f76d9e: 1,447,822 bytes, SHA256 c29eff1400f19eec27ce1e56e46ce5ba1d24ee05175d2c04131abf295bb6e62c. Logs, scripts and summary: .logs/tdz-locals/. No process remains.
+
+No speed measurement, benchmark, suite or save-to-frame campaign was run. Removing the linear membership scan does not establish a wall-clock gain (hashing/allocation may cost more on tiny scopes), and criterion #1 is unchanged. The larger remaining work is still incremental checking/lowering with stable or relinked type/class/function/string ids; this does not implement it. Next command at an owner-selected milestone: the existing quiet hero save-to-frame recipe above, then decide the library compilation unit design from that result. No new task or dependency.
+
+Proposed decision: retain only walk-local membership state with RAII rollback; no persistent AST/name cache is needed for this search. Revisit only if an owner-selected profile shows tiny-scope hashing overhead outweighs the removed scans.
+
+Proposed later.md line: ZN-1024: measure indexed fnMentions local-name membership on the quiet hero dev entry; no speed claim yet, and whole-program incremental compilation remains the main route to 200 ms.
+
+usage: n/a
+
+Proposed tests: tests/run --only tdz_locals (all-three-engine shadowing/TDZ and exact negative diagnostics, seconds, memory unmeasured); the already documented quiet hero save-to-frame recipe (owner-selected, ~120 s bound, memory unmeasured); existing hot_recompile/hot_swap/dev_mode only at the selected milestone.
 <!-- SECTION:NOTES:END -->

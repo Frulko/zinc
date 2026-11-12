@@ -1,0 +1,2 @@
+tests/data/tdz_locals/var-negative.ts:2:15: error Z1001: `var` is not supported
+tests/data/tdz_locals/var-negative.ts:3:10: error Z0101: Cannot find name: 'held'

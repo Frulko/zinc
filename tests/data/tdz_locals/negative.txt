@@ -1,0 +1,1 @@
+tests/data/tdz_locals/negative.ts:3:10: error Z0106: Property does not exist: 'missing' on 'i32'

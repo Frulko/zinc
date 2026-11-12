@@ -507,6 +507,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - A save in `zinc dev` reaches the screen in well under half the time (hero: 1.2 s down to about 0.5 s): the files you did not change are not parsed again, the fonts and images are baked again only when the save changes a text size, a character or a font face, the inspector no longer slows the type check of a large app, and the compiler does more of its work on several cores.
 
+- The compiler indexes local names when finding references to globals, so each lookup no longer scans every local in the enclosing scopes.
+
 #### Fixed
 
 - App updates are judged more carefully: an update that exits with an error code is rolled back, opening the app a second time while an update is on trial no longer rolls back a good update, and a device update with no previous version to restore stays on trial instead of losing its way back.
