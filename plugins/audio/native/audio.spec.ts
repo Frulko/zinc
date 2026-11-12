@@ -2,6 +2,7 @@
 // 48 kHz stereo). plugins/audio/index.ts wraps the handles in the Sound class.
 import { NativeModule, requireNative } from 'zinc:native';
 
+// The optional audio.opus setting also enables Ogg Opus for load, musicAsset and musicOpen.
 export interface Spec extends NativeModule {
   /** The output in use: miniaudio's name ('Core Audio', 'ALSA', 'PulseAudio'...), or 'null' when nothing is played
    *  (ZINC_HEADLESS, ZINC_DETERMINISTIC, ZINC_AUDIO=null, or no playback device). The output opens in the background
@@ -91,7 +92,7 @@ export interface Spec extends NativeModule {
   /** Whether a music starts again from its beginning at its end, without a gap. */
   musicLoop(music: i32, on: boolean): void;
   /** [position in seconds, duration in seconds, 1 while it plays, status: 0 opening, 1 open, 2 ended, -1 failed (musicError()), bytes of
-   *  memory it has held at most (a streamed asset: its decoder and its node; a file: its ring)]. */
+   *  memory it has held at most (a streamed asset: its decoder and its node; a file: its ring; Opus is a lower bound excluding codec-internal allocations)]. */
   musicInfo(music: i32): f64[];
   musicError(music: i32): string;
   musicSetVolume(music: i32, volume: f64): void;

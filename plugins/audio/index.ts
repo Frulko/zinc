@@ -81,7 +81,7 @@ function made(h: i32, what: string): Sound {
   return new Sound(-1, why);
 }
 
-/** A sound from the bytes of a WAV, FLAC, MP3, Ogg Vorbis or QOA file, decoded now and kept in memory. */
+/** A sound from the bytes of a WAV, FLAC, MP3, Ogg Vorbis or QOA file (also Ogg Opus with audio.opus), decoded now and kept in memory. */
 export function decode(bytes: u8[], name: string = 'sound'): Sound { return made(A.load(bytes), name); }
 
 /** A sound from samples (1 = full scale; two channels interleaved: left, right, left...) at `rate` frames per second. */
@@ -163,7 +163,7 @@ export class Music {
   get loop(): boolean { return this.looping; }
   set loop(on: boolean) { this.looping = on; if (this.h >= 0) A.musicLoop(this.h, on); }
   /** Bytes of memory it has held at most: for loadMusic(), its decoder and its place in the mix (the file is read in place, not counted);
-   *  for openMusic(), its read-ahead buffer. */
+   *  for openMusic(), its read-ahead buffer. For Opus this is a lower bound: it excludes libopusfile/libopus internal allocations. */
   get memory(): number { return this.h < 0 ? 0 : A.musicInfo(this.h)[4]; }
   /** Stops it and closes the file. */
   close(): void { if (this.h >= 0) { A.musicClose(this.h); this.h = -1; } }
@@ -172,7 +172,7 @@ export class Music {
  *  WAV, FLAC, MP3 and Ogg Vorbis elsewhere. It is read a few seconds ahead as it plays; four are open at most. */
 export function openMusic(path: string): Music { return new Music(A.musicOpen(path), path); }
 /** A music of the project's assets, streamed: read in place from its pack (or the assets directory) and decoded as it plays, a few kilobytes
- *  in memory whatever its length (an IMA ADPCM WAV: under 16 KB; a stereo QOA: 24 KB; Ogg Vorbis about 200 KB). WAV, FLAC, MP3, Ogg Vorbis and QOA.
+ *  in memory whatever its length (an IMA ADPCM WAV: under 16 KB; a stereo QOA: 24 KB; Ogg Vorbis about 200 KB). WAV, FLAC, MP3, Ogg Vorbis and QOA; Ogg Opus with the audio.opus plugin option.
  *  Paused, ready at once. */
 export function loadMusic(name: string): Music { return new Music(A.musicAsset(name), name); }
 

@@ -4,6 +4,9 @@
 // run is silent, starts no thread and renders the same samples every time.
 #include "zinc_native_audio.h"
 #include "../vendor/miniaudio.h"
+#if ZP_AUDIO_OPUS
+#include "../vendor/extras/decoders/libopus/miniaudio_libopus.h"
+#endif
 #define STB_VORBIS_HEADER_ONLY
 #include "../vendor/stb_vorbis.c"   // only to size a Vorbis decoder's memory (loadMusic): the code is in miniaudio_impl.c
 #undef STB_VORBIS_HEADER_ONLY
@@ -50,6 +53,13 @@ struct RenderScope {
 };
 const int MAXSOUND = 256, MAXVOICE = 32;
 const ma_uint32 RATE = 48000;
+#if ZP_AUDIO_OPUS
+const char* const decode_error = "not a WAV, FLAC, MP3, Ogg Vorbis, QOA or Ogg Opus file";
+const char* const file_decode_error = "not a file an enabled audio decoder can play";
+#else
+const char* const decode_error = "not a WAV, FLAC, MP3, Ogg Vorbis or QOA file";
+const char* const file_decode_error = "not a WAV, FLAC, MP3 or Ogg Vorbis file";
+#endif
 // Native 16-bit sources stay 16-bit; all others stay float. A long compressed file (load) is decoded on a thread into pcm,
 // sized from the file's length: `filled` frames are ready while
 // `pending`; a voice plays what is there (Prog below) and waits for the rest, so load() returns at once and play() works at once.
@@ -219,12 +229,16 @@ void qd_uninit(void*, ma_data_source* ds, const ma_allocation_callbacks* a) {
   ma_free(q, a);
 }
 ma_decoding_backend_vtable qoa_backend = {qd_init_stream, nullptr, nullptr, qd_init_memory, qd_uninit};
-ma_decoding_backend_vtable* backends[] = {&qoa_backend};
-// A decoder's settings: float samples (`channels` and `rate` 0: the file's), and the QOA backend before miniaudio's own.
+ma_decoding_backend_vtable* backends[] = {&qoa_backend
+#if ZP_AUDIO_OPUS
+  , ma_decoding_backend_libopus
+#endif
+};
+// Custom codecs precede miniaudio's built-ins; 0 channels/rate keeps the file's format.
 ma_decoder_config decoding(ma_uint32 channels, ma_uint32 rate) {
   ma_decoder_config c = ma_decoder_config_init(ma_format_f32, channels, rate);
   c.ppCustomBackendVTables = backends;
-  c.customBackendCount = 1;
+  c.customBackendCount = sizeof backends / sizeof backends[0];
   return c;
 }
 // the decoding thread of a long file: chunks of 4096 frames, `filled` published after each; the decoder and the file's copy go when it ends
@@ -332,6 +346,7 @@ const double RING = 2.0;
 // Where a music comes from: a file on disk, read ahead by its thread into the ring (openMusic); or an asset read in place from its mapped pack
 // and decoded on the mixer's thread as the mix asks for it (loadMusic, ZN-440.02): no thread, no ring, the decoder's state alone in memory.
 enum class MSrc : uint8_t { File, Asset };
+enum class FileDecoder : uint8_t { None, AudioToolbox, Miniaudio };
 struct Music {
   ma_data_source_base base;   // first: miniaudio sees the music as a data source
   ma_sound sound;
@@ -357,9 +372,9 @@ struct Music {
 #ifdef __APPLE__
   ExtAudioFileRef xf;
   double fileRate;
-#else
-  ma_decoder dec;
 #endif
+  ma_decoder dec;
+  FileDecoder fileDecoder;
 };
 Music musics[MAXMUSIC];
 int32_t music_id(Music& m) { return m.gen << 2 | (int32_t)(&m - musics); }
@@ -412,63 +427,75 @@ ma_result music_format(ma_data_source*, ma_format* f, ma_uint32* ch, ma_uint32* 
 }
 ma_data_source_vtable music_vtable = {music_read, music_seek, music_format, ds_cursor, ds_length, nullptr, 0};
 
+void file_decoder(Music& m, FileDecoder next) {
+  assert((next == FileDecoder::None || m.fileDecoder == FileDecoder::None) && "file decoder already open");
+  m.fileDecoder = next;
+}
 bool music_open_file(Music& m) {
+  assert(m.fileDecoder == FileDecoder::None);
 #ifdef __APPLE__
   CFURLRef url = CFURLCreateFromFileSystemRepresentation(nullptr, (const UInt8*)m.path, (CFIndex)strlen(m.path), false);
   OSStatus s = url ? ExtAudioFileOpenURL(url, &m.xf) : -1;
   if (url) CFRelease(url);
-  if (s != noErr) { snprintf(m.err, sizeof m.err, "%s: not a file AudioToolbox can play (error %d)", m.path, (int)s); return false; }
-  AudioStreamBasicDescription in{}, want{};
-  UInt32 sz = sizeof in;
-  SInt64 len = 0;
-  ExtAudioFileGetProperty(m.xf, kExtAudioFileProperty_FileDataFormat, &sz, &in);
-  sz = sizeof len;
-  ExtAudioFileGetProperty(m.xf, kExtAudioFileProperty_FileLengthFrames, &sz, &len);
-  m.fileRate = in.mSampleRate > 0 ? in.mSampleRate : RATE;
-  m.duration = (double)len / m.fileRate;
-  want.mSampleRate = RATE; want.mFormatID = kAudioFormatLinearPCM; want.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
-  want.mChannelsPerFrame = 2; want.mBitsPerChannel = 32; want.mFramesPerPacket = 1; want.mBytesPerFrame = 8; want.mBytesPerPacket = 8;
-  if (ExtAudioFileSetProperty(m.xf, kExtAudioFileProperty_ClientDataFormat, sizeof want, &want) != noErr) {
-    ExtAudioFileDispose(m.xf);
-    snprintf(m.err, sizeof m.err, "%s: cannot be converted to 48 kHz stereo", m.path);
-    return false;
+  if (s == noErr) {
+    AudioStreamBasicDescription in{}, want{};
+    UInt32 sz = sizeof in;
+    SInt64 len = 0;
+    ExtAudioFileGetProperty(m.xf, kExtAudioFileProperty_FileDataFormat, &sz, &in);
+    sz = sizeof len;
+    ExtAudioFileGetProperty(m.xf, kExtAudioFileProperty_FileLengthFrames, &sz, &len);
+    m.fileRate = in.mSampleRate > 0 ? in.mSampleRate : RATE;
+    m.duration = (double)len / m.fileRate;
+    want.mSampleRate = RATE; want.mFormatID = kAudioFormatLinearPCM; want.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+    want.mChannelsPerFrame = 2; want.mBitsPerChannel = 32; want.mFramesPerPacket = 1; want.mBytesPerFrame = 8; want.mBytesPerPacket = 8;
+    if (ExtAudioFileSetProperty(m.xf, kExtAudioFileProperty_ClientDataFormat, sizeof want, &want) != noErr) {
+      ExtAudioFileDispose(m.xf);
+      snprintf(m.err, sizeof m.err, "%s: cannot be converted to 48 kHz stereo", m.path);
+      return false;
+    }
+    file_decoder(m, FileDecoder::AudioToolbox);
+    return true;
   }
-  return true;
-#else
-  ma_decoder_config dc = ma_decoder_config_init(ma_format_f32, 2, RATE);   // ponytail: no QOA from a file on disk (its backend reads memory); a QOA song is an asset (loadMusic)
-  if (ma_decoder_init_file(m.path, &dc, &m.dec) != MA_SUCCESS) { snprintf(m.err, sizeof m.err, "%s: not a WAV, FLAC, MP3 or Ogg Vorbis file", m.path); return false; }
+#if !ZP_AUDIO_OPUS
+  snprintf(m.err, sizeof m.err, "%s: not a file AudioToolbox can play (error %d)", m.path, (int)s);
+  return false;
+#endif
+#endif
+  ma_decoder_config dc = decoding(2, RATE);
+  if (ma_decoder_init_file(m.path, &dc, &m.dec) != MA_SUCCESS) { snprintf(m.err, sizeof m.err, "%s: %s", m.path, file_decode_error); return false; }
   ma_uint64 len = 0;
   ma_decoder_get_length_in_pcm_frames(&m.dec, &len);
   m.duration = (double)len / RATE;
+  file_decoder(m, FileDecoder::Miniaudio);
   return true;
-#endif
 }
 size_t music_decode(Music& m, float* out, size_t frames) {
 #ifdef __APPLE__
-  AudioBufferList bl;
-  bl.mNumberBuffers = 1;
-  bl.mBuffers[0].mNumberChannels = 2; bl.mBuffers[0].mDataByteSize = (UInt32)(frames * 8); bl.mBuffers[0].mData = out;
-  UInt32 n = (UInt32)frames;
-  return ExtAudioFileRead(m.xf, &n, &bl) == noErr ? n : 0;
-#else
+  if (m.fileDecoder == FileDecoder::AudioToolbox) {
+    AudioBufferList bl;
+    bl.mNumberBuffers = 1;
+    bl.mBuffers[0].mNumberChannels = 2; bl.mBuffers[0].mDataByteSize = (UInt32)(frames * 8); bl.mBuffers[0].mData = out;
+    UInt32 n = (UInt32)frames;
+    return ExtAudioFileRead(m.xf, &n, &bl) == noErr ? n : 0;
+  }
+#endif
   ma_uint64 n = 0;
   ma_decoder_read_pcm_frames(&m.dec, out, frames, &n);
   return (size_t)n;
-#endif
 }
 void music_file_seek(Music& m, double sec) {
 #ifdef __APPLE__
-  ExtAudioFileSeek(m.xf, (SInt64)(sec * m.fileRate));
-#else
-  ma_decoder_seek_to_pcm_frame(&m.dec, (ma_uint64)(sec * RATE));
+  if (m.fileDecoder == FileDecoder::AudioToolbox) { ExtAudioFileSeek(m.xf, (SInt64)(sec * m.fileRate)); return; }
 #endif
+  ma_decoder_seek_to_pcm_frame(&m.dec, (ma_uint64)(sec * RATE));
 }
 void music_close_file(Music& m) {
 #ifdef __APPLE__
-  ExtAudioFileDispose(m.xf);
-#else
-  ma_decoder_uninit(&m.dec);
+  if (m.fileDecoder == FileDecoder::AudioToolbox) ExtAudioFileDispose(m.xf);
+  else
 #endif
+  if (m.fileDecoder == FileDecoder::Miniaudio) ma_decoder_uninit(&m.dec);
+  file_decoder(m, FileDecoder::None);
 }
 void* music_thread(void* p) {
   Music& m = *(Music*)p;
@@ -641,7 +668,7 @@ struct HostAudio : NativeAudio {
     ma_result r = ma_decode_memory(bytes.a->data, (size_t)bytes.a->len, &dc, &frames, &pcm);
     if (r != MA_SUCCESS || !pcm || frames == 0) {
       if (pcm) ma_free(pcm, nullptr);
-      return fail(r == MA_OUT_OF_MEMORY ? "out of memory" : "not a WAV, FLAC, MP3, Ogg Vorbis or QOA file");
+      return fail(r == MA_OUT_OF_MEMORY ? "out of memory" : decode_error);
     }
     clips[h] = Clip{pcm, frames, dc.channels, dc.sampleRate, dc.format};
     return h;
@@ -909,7 +936,7 @@ struct HostAudio : NativeAudio {
     dc.allocationCallbacks = counted(&m.heap);
     if (ma_decoder_init_memory(d, (size_t)size, &dc, &m.adec) != MA_SUCCESS) {
       zn_asset_unview(d);
-      return fail("not a WAV, FLAC, MP3, Ogg Vorbis or QOA file");
+      return fail(decode_error);
     }
     const size_t before = __atomic_load_n(&engineHeap.now, __ATOMIC_RELAXED);
     const ma_uint32 flags = MA_SOUND_FLAG_NO_SPATIALIZATION | (m.adec.outputSampleRate == RATE ? MA_SOUND_FLAG_NO_PITCH : 0);   // a resampler only off 48 kHz

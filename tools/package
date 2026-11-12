@@ -118,6 +118,11 @@ def payload(share):
     with open(os.path.join(share, "VERSION"), "w") as stamp:
         stamp.write(VERSION + "\n")
 
+def copy_audio_codec_sources(share):
+    """Audio's optional decoder uses the existing WebRTC Opus pin after installation."""
+    shutil.copytree(os.path.join(REPO, "plugins/webrtc/vendor/opus"), os.path.join(share, "plugins/webrtc/vendor/opus"), dirs_exist_ok=True, ignore=shutil.ignore_patterns("dnn"))
+    shutil.copy2(os.path.join(REPO, "plugins/webrtc/vendor/PIN"), os.path.join(share, "plugins/webrtc/vendor/PIN"))
+
 def prebuild_plugins(zinc, share, target, cross=None):
     """ZN-718: the native libraries of the plugins, built here with the pinned zig, in share/plugins/<name>/prebuilt/<target>/ (dylib or so, plugin.a, vendor.a, key),
     so an install runs a program that imports a plugin with no compiler. A plugin that needs a system library (`pkg`) is left out: its library would not load
@@ -165,6 +170,7 @@ def prebuild_plugins(zinc, share, target, cross=None):
                 without[name + " (" + device + ")"] = (r.stderr.strip().splitlines() or ["no library"])[-1][:200]
                 continue
             shutil.copytree(at[0], os.path.join(share, "plugins", name, "prebuilt", device), dirs_exist_ok=True)
+    copy_audio_codec_sources(share)
     return without
 
 DEVICE_ENTRIES = {"aarch64": [("display-rmpp", "rmpp")]}   # cross arch: (plugin, device entry) built besides its "linux" entry

@@ -114,6 +114,14 @@ built (a line says so while it compiles); when it cannot be, one line says why a
   fused apps carry their plugins; `zinc build` and `zinc export` link the plugin into the program.
 - **The end of the program** stops the device: a command-line program that wants its beep heard waits for it
   (`setTimeout(() => {}, 200)`).
-- **Formats.** WAV (PCM 8 to 32 bit, float, ADPCM), FLAC, MP3, Ogg Vorbis. Opus and AAC are not decoded.
+- **Formats.** WAV (PCM 8 to 32 bit, float, ADPCM), FLAC, MP3, Ogg Vorbis. Ogg Opus is optional (below); AAC files use AudioToolbox through `openMusic` on Apple systems.
 
 Note: `mix(frames)` returns at most 480,000 frames per call (10 s at 48 kHz); ask again for more.
+
+### Optional Ogg Opus
+
+Set `"plugins": { "audio": { "opus": true } }` in `zinc.json` to enable Ogg Opus for `load`, `decode`, `loadMusic` and `openMusic` on native desktop targets. The default is off. Web playback uses the browser's codecs. Apple file playback still tries AudioToolbox first, then the configured miniaudio decoder.
+
+The backend is miniaudio 0.11.26's libopus adapter, libopusfile 0.12, libogg 1.3.6 and the existing WebRTC libopus 1.6.1 source pin, built without DRED, deep PLC or SIMD. The baseline codec symbols have an audio-only prefix, so they cannot replace WebRTC's DRED/deep-PLC build. There is no HTTP/URL decoder. Disabled programs do not link the codec, although a cold plugin build still compiles the vendor archive. Installed option builds retain the shared Opus source tree.
+
+`music.memory` is a lower bound for Opus: it excludes libopusfile/libopus internal allocations and is **not** an Opus resident-memory measurement. The under-64-KB streaming claim applies to the previously measured IMA ADPCM path, not Opus. A native combined archive check preserves WebRTC DRED and encode/decode while playing Opus; Pi decode CPU and actual network playback remain proposed checks; no hardware performance claim is made. Chained Opus streams may allocate while decoding on the mixer; this change makes no allocation-free render claim (the wider render invariant remains open in ZN-573).

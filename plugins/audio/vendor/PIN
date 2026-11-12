@@ -11,3 +11,22 @@ kept, unmodified:
   qoa.h         sha256 7b2396063eb960b10001db7db28ba25e284d4e772191968012e612dc8834952c  (MIT, Dominic Szablewski)
   LICENSE.qoa   sha256 a2e4aff52bf9a25f565ba713ad84defbf5ec22123e981480f94d60649b2ee0c0  (LICENSE of the same commit)
 compiled by miniaudio_impl.c (the decoder of zinc:audio), src/assets/audio_codecs.c (the encoder of the asset build) and targets/console/qoa_console.c
+
+Optional Ogg Opus decoder (audio.opus, default false):
+  miniaudio 0.11.26 extras/decoders/libopus/miniaudio_libopus.{c,h}, unmodified, under the miniaudio LICENSE above.
+  https://raw.githubusercontent.com/mackron/miniaudio/0.11.26/extras/decoders/libopus/miniaudio_libopus.c
+  c sha256 d58586494c65a4604c7b3d2e0a78851a9ed4ec8a56b68b300aa423a96c9e16ac
+  h sha256 2d15bc4acb91a9775babe25527654f75ecc970ecdb05cdf2382a43d8e3eaed97
+  opusfile 0.12 https://downloads.xiph.org/releases/opus/opusfile-0.12.tar.gz
+  archive sha256 118d8601c12dd6a44f52423e68ca9083cc9f2bfe72da7a8c1acb22a80ae3550b
+  kept: include/opusfile.h, src/{info.c,internal.c,internal.h,opusfile.c,stream.c}, COPYING; unmodified BSD-3-Clause.
+  No opusurl/http/OpenSSL dependency.
+  libogg 1.3.6 https://downloads.xiph.org/releases/ogg/libogg-1.3.6.tar.gz
+  archive sha256 83e6704730683d004d20e21b8f7f55dcb3383cdf84c0daedf30bde175f774638
+  kept: include/ogg/{ogg.h,os_types.h}, src/{bitwise.c,framing.c,crctable.h}, COPYING; unmodified BSD-3-Clause.
+  include/ogg/config_types.h is ours: configure's fixed-width typedefs expressed with C99 stdint.h.
+  Reuses ../webrtc/vendor/opus 1.6.1 and its COPYING, archive pin in ../webrtc/vendor/PIN (no duplicate vendor).
+  Baseline floating point generic C, OPUS_BUILD/USE_ALLOCA/HAVE_LRINTF/HAVE_LRINT; no DRED, deep PLC or SIMD.
+  Adapter ignores miniaudio allocation callbacks for opusfile/opus internal allocations; music.memory excludes them.
+  ../opus_namespace.h prefixes all 425 generic Opus extern symbols (including CELT/SILK), only for audio.
+  Generation and regression recipe: OPUS-NAMESPACE.md. It prevents baseline Opus from disabling WebRTC's DRED via symbol interposition.

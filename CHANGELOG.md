@@ -138,6 +138,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc:audio` pauses one sound and picks it up where it was: `voice.pause()` and `voice.resume()`, on the desktop, the consoles and the web; the museum table's guided visit now goes on mid-sentence after a touch pauses it.
 - Sounds can be shrunk at pack time: an `"as": "audio"` rule in `zinc.json` encodes them to QOA, about a fifth of their WAV size, at the `rate` and `channels` you ask (per target with `targets`); `load()` and `loadMusic()` play them under the same names (a streamed QOA track holds 24 KB), and `report.json` gives each sound's codec and the bytes of each codec.
 - `zinc:3d` worlds switch their shadows off and on with `world.setShadows(false)` and `world.setShadows(true)`, at once and without reading the heights again; Pocket Tokyo's Shadows button on the PSP and the 3DS uses it.
+- `zinc:audio` can decode Ogg Opus sounds and streamed music with `"plugins": { "audio": { "opus": true } }` in `zinc.json`; the codec is off by default.
 - `zinc:three-pi` loads ETC1S KTX2 textures natively on T2, including glTF images and mipmaps, without WASM or workers; opaque textures use ETC1 when supported, with RGBA fallback that preserves alpha.
 
 #### Changed
