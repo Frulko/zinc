@@ -6,6 +6,8 @@ Continue zn-coordinate until .paused or nothing startable. Never ask owner; no p
 
 ## Current
 
+440.03 integratedaf7a3897e Review/D312; rootexactaudio_opus withexistingWebRTCarchives PASS, actualinterpreterclip/pack/openMusic nonzeroPCM thenstopzero.425privateOpusglobals fixactualWebRTCDREDcollision. Optionaldefaultoff excludescodec symbols; memorylowerbound/chainedallocation caveats public; noPiCPUclaim. Archive69fullsource/proofs/artifacts verified. Active535-lazy sourceworker .worktrees/535-lazy, explicitgeneratedmodule runtimeexportgroup notpurequery/ordinaryTSlazyrewrite; nootherworkers/builds.92Done.
+
 584.04 df8cc1288 ReviewAC1;584.05 061a664d6 DoneAC1. Rootnewgame/check/AOT40frames+inspectedcapture hash1f813cba3bf62866 PASS. Workerinterp/AOT1840allframes throughrestart+QJS40samehash,9docsnippets/54links/targetedrender pass. Archive68verifiedfullsource/proofs. Active440.03 finaloptionalOpuschecks;535lazyexportread-onlyresearchnext.92Done.
 
 584.03 integratedde56ba0b5 ReviewAC1; rootexactgame all3 PASS includingactualplatformerfocusreset, actualAOT40frames Start/focusloss/captureinspected hashda91e6dbc6ac14ed. Archive67verifiedsource/fullproof. 584.02 integrated8b227f58e ReviewAC1(T1unselected); Tiled/LDtk originalfixtureall3 hash442439ac4b8ed9c3, rootT0+2frameproof pass; archive65. 592.04 integrated64541daa1 ReviewAC1/D311; rootmacbuild/exactwindow_module/backgroundplatformer2frames pass. CrossLinuxELF19490224B/window3135464B noSDLmain/sharedruntimeimports pass; SSHauthfailed, noactualLinuxclaim. Archive66fullsource/logs/5artifacts. Active440.03 optionalOpus nativeworker;584.04/.05 template/docsresearchcomplete candidate.92Done after584.05.
@@ -25,6 +27,8 @@ Never reset/build/stage main WIP. Exact payload hashes .logs/blockers/core-1030/
 1030 Backlog: wider structural stores/views unfinished; related-reference array guards and earlier dynamic/default/namespace fixes integrated.1118 Backlog: vanished intermediate process ancestry remains;1121 only fixes cwd/glibc.1066 Review: privateHermes SDK patch only, installed/public SDK unchanged.512 Review: realNEON/hardfloat metadata, no staticmusl or ARM execution claim.164 Backlog: lite OSC/DNS removal, genericlibuv sockets remain.575/1068/1078.29 Review: quietperformance gates unrun.897 WebRTC client actualICE/twoZinc scope open. No newservices/demos.
 
 ## Tests to run (owner picks)
+
+- Sinceaf7a3897e: PiOpus functional smoke then separatelyselectedquietCPU; connectedWebRTC+music bothorders/AOT/QJS; chainedstreams/fullallocationaccounting andAppleAAC/Windows/iOS/Linux option builds (~2–20s each, memory unmeasured), exactrecipes task440.03. Existingarchivecoexistence andpublicAPI nullmix alreadypass.
 
 - Sincedf8cc1288/061a664d6: quiet500bodyAOT60FPSgate for584.04 remainsunselected; full `zinc doc --std --out <temporary-dir>` navigation/audible/cross-targettemplate checks proposed in tasks. Root40framefeature andtargetedsnippet/render proofs already pass.
 

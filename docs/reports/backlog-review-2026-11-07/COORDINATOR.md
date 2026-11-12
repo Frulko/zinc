@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated440.03 af7a3897e Review/D312; rootexactaudio_opus+existingWebRTCarchives PASS, actualclip/pack/filePCM+stopzero PASS. MaterialbaselineOpusinterposition foundandfixed425privateglobals; DRED100ms/roundtrip/factorynowpass. Archive69fullsource/proofs/artifacts verifiedbeforecleanup. Memorylowerbound/chainedalloc andPiCPU remainopen.535-lazy active sole sourceworker;92Done.
+
 - Reserve535 remainingsoftware: delegatedresearchrejects queryelision/pureannotation (V4L2opens/ioctls, simulatorstate, JSONthrows). Select explicitgenerated-module runtimeexportgroup contract, notordinaryTSbarreloptimization: requestedvaluegroup activatesexistingboard snapshot; profile-only/bareplatform omitsboarddependency. Genericmetadata resolver acrossall3paths, conservativenamespace handling andregressionrequired; no RT/HAL/ownerchanges.440.03 integratedaf7a3897e rootexactproofunderway.
 
 - Integrated584.04 df8cc1288 ReviewAC1 and584.05 061a664d6 DoneAC1,92Done. Rootnewtemplate/check/actualAOT40frames+inspectedcapture hash1f813cba3bf62866 PASS. Worker1840interp/AOTallframes+QJS40/doc9snippets54links/targetedrender pass. Archive68fullsource/proof verifiedbeforecleanup.440.03 finalcodecproofs includingrealWebRTCcollisionfix;535lazyexportresearchnext.

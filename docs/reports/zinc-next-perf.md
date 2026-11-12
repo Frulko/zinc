@@ -1859,3 +1859,8 @@ Combinedenginee31522ace: zinc18168368B SHA08bedbdc000150ace1221593f93f41e66d8a3d
 ### ZN-592.04 — Linux window module separation (2026-11-12)
 
 Cross GNUx86_64 glibc2.28 build64541daa1: zinc19,490,224B, windowmodule3,135,464B, textmodule3,690,448B, WebGLmodule3,526,584B. These are artifact sizes without a paired static baseline, not a startup or total-size saving claim. Main has no SDL symbols; windowmodule keeps SDL exports and default-visibility shared runtime imports. Exactwindow_module passes; actualLinux execution/CPU/launch measurement unrun (SSHauthentication failed). Root macOS combinedbuild and boundedbackground platformer2frame run/capture pass. Provenance/archive: .logs/archive-completed-workers-20261110/592.04-final.
+
+
+### ZN-440.03 — Optional Opus artifacts (2026-11-12)
+
+Enabled prefixed audio plugin1,073,920B SHA7360e66d4aa4d2bc725fa1145ef68de87764cd9b09b452630960f5749d73ef8b; vendor archive1,692,048B SHA823837c07cdf7f9c496770b31e44213f5ea9b2e11135370366bf00c1ba8a2865. Existing combined WebRTC/audio proof executable14,528,024B SHA18f655f5f239f9f79f0f070fb415572ddae974ffda6437242c7d211e82bd9033. These are artifacts without paired footprint claims. Incidental cold plugin build5.70s is indicative under concurrent machine activity, not a benchmark. Disabled plugin/executable contain no Opus decoder symbols; cold vendor compile still occurs. Root exactaudio_opus with existing WebRTC archives and actualclip/pack/file nullmix pass; noPiCPU,64KB,allocation-free render orconnectednetwork claim. Full provenance .logs/archive-completed-workers-20261110/440.03-final.
