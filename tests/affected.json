@@ -4,6 +4,8 @@
   "map": [
     {"paths": ["plugins/ipod/native/ipod_linux_mount.h", "plugins/ipod/native/ipod_usb_identity.h", "plugins/ipod/native/ipod_core.cpp", "tests/native/ipod_mount.cpp", "tests/t0/ipod_mount.sh"], "tests": ["ipod_mount"]},
     {"paths": ["plugins/discord-voice/index.ts", "plugins/discord-voice/native/voice.spec.ts", "plugins/discord-voice/native/voice.host.cpp", "tests/native/discord_video_capability.mjs", "tests/t0/discord_video_capability.sh"], "tests": ["discord_video_capability"]},
+    {"paths": ["examples/museum-table/tools/decimate.cpp", "tests/native/decimate_glb_check.cpp", "tests/native/museum_decimate.py", "tests/t0/museum_decimate_tool.sh"], "tests": ["museum_decimate_tool"]},
+    {"paths": ["plugins/3d/gltf.ts", "plugins/three/native/three.", "plugins/three/gltf-material.ts", "plugins/three/addons/GLTFLoader.ts", "tests/data/zinc3d_gltf_geometry/", "tests/native/gltf_sim_registry.mjs", "tests/t0/zinc3d_gltf_geometry.sh"], "tests": ["zinc3d_gltf_geometry"]},
     {"paths": ["plugins/ipod/", "tests/native/ipod_rules.cpp", "tests/data/ipod-rules/", "tests/t0/ipod_rules.sh"], "tests": ["ipod_rules"]},
     {"paths": ["tools/canvas-wpt", "third_party/wpt-canvas/", "tests/t0/canvas_wpt_tool.sh"], "tests": ["canvas_wpt_tool"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/dyn.cpp", "src/frontend/dyn.h", "tests/data/dyn_callback/", "tests/native/dyn_callback/", "tests/t0/dyn_callback.sh"], "tests": ["dyn_callback"]},

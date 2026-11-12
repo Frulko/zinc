@@ -10,7 +10,7 @@ photos/water-lily-pond.jpg: image 1280x1138
 photos/the-letter.jpg: image 882x1280
 photos/divan-japonais.jpg: image 968x1280
 photos/nocturne.jpg: image 1280x854
-models/vase.obj: model 7058 vertices, 12000 triangles
+models/vase.glb: model 7058 vertices, 12000 triangles
 models/vase.jpg: image 1536x1536
 panoramas/ninomaru.jpg: image 2048x1024
 video/great-wave.mp4: 347438 bytes

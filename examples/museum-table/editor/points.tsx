@@ -12,7 +12,7 @@ import { PanoramaView } from '../src/panorama';
 import { Frame } from '../src/frame';
 import { files } from '../src/files';
 import { project, lang, pointing, selectedPoint, pickPoint, addPoint, movePoint, closePoints, setStatus, logging } from './state';
-import { Shape, parseShape, hit } from './pick';
+import { Shape, parseShape, loadGltfShape, hit } from './pick';
 import { Ico, Tool, ACCENT, DARK, INK, KIND_ICON, KIND_COLOUR, kindIndex } from './widgets';
 import * as L from './strings';
 import { t, f } from './strings';
@@ -25,7 +25,7 @@ const NUMBER = font('sans-bold', 11);
 
 // ---------------------------------------------------------------- what is shown
 
-// The view of the medium being pointed: an object viewer and, for an OBJ file, its triangles (to find the place under a click), or a
+// The view of the medium being pointed: an object viewer and its triangles (to find the place under a click), or a
 // panorama. Made when the medium is opened and kept while its file is the same; its angles are the author's, not the document's.
 let object: ObjectView | null = null, pano: PanoramaView | null = null, shape: Shape | null = null, shownKey = '';
 /** Why the file cannot be shown ('' when it can). */
@@ -49,8 +49,8 @@ function show(m: Media): void {
     if (m.kind === 'model') {
       // the viewer reads a medium and its project once: it gets a copy, so that an undo cannot leave it with objects the document dropped
       const snap = copyProject(project()), own = snap.medium(m.id);
+      shape = m.file.toLowerCase().endsWith('.obj') ? parseShape(files.text(m.file)) : loadGltfShape(files.path(m.file));
       if (own !== null) object = new ObjectView(snap, own, snap.theme, lang(), new Frame(snap.table.width, snap.table.height), false);
-      if (m.file.toLowerCase().endsWith('.obj')) shape = parseShape(files.text(m.file));
     } else {
       const picture = files.picture(m.file);
       if (picture >= 0) pano = new PanoramaView(picture, m.view); else why = m.file;
@@ -106,9 +106,7 @@ function under(gx: number, gy: number): number[] {
   const o = object, p = pano;
   if (o !== null) {
     const r = o.ray(gx, gy), s = shape;
-    // ponytail: a glTF model has no triangles here, so its point goes on the plane through the middle of the object that faces the author;
-    // a ray cast in zinc:3d, or the depth of a pixel, would put it on the surface. The advanced mode has the three numbers.
-    const far = s !== null ? hit(s, [r[0], r[1], r[2]], [r[3], r[4], r[5]]) : 1;
+    const far = s !== null ? hit(s, [r[0], r[1], r[2]], [r[3], r[4], r[5]]) : -1;
     return far < 0 ? [] : [r[0] + r[3] * far, r[1] + r[4] * far, r[2] + r[5] * far];
   }
   if (p !== null) return p.unproject(gx, gy, bx, by, bw, bh);

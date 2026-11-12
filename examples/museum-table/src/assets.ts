@@ -1,11 +1,18 @@
 // Loads every file the project names the way the player will and says what it found, one line per file: images through zinc:gfx (pixel
-// size), OBJ models through zinc:3d (vertices and triangles), the rest by its size in bytes. Exit code 1 when a file is missing or unreadable.
+// size), OBJ/glTF models through zinc:3d (vertices and triangles), the rest by its size in bytes. Exit code 1 when a file is missing or unreadable.
 //   ZINC_HEADLESS=1 zinc run examples/museum-table/src/assets.ts      (from examples/museum-table)
 import { onFrame, image, imageWidth, imageHeight, quit } from 'zinc:gfx';
 import { readText, readBytes, exists } from 'zinc:assets';
 import { exit } from 'zinc:sys';
-import { loadObj } from 'zinc:3d';
+import { loadObj, Node, Mesh } from 'zinc:3d';
+import { loadGltf } from 'zinc:3d/gltf';
 import { parseProject, assetFiles } from './project';
+
+function modelStats(node: Node, seen: Mesh[], total: number[]): void {
+  const mesh = node.mesh;
+  if (mesh !== null && seen.indexOf(mesh) < 0) { seen.push(mesh); total[0] += mesh.vertices; total[1] += mesh.triangles; }
+  for (const child of node.children) modelStats(child, seen, total);
+}
 
 const project = parseProject(readText('project.json'));
 const IMAGES: string[] = ['jpg', 'jpeg', 'png', 'webp'];
@@ -25,7 +32,14 @@ onFrame((dt: number) => {   // images exist once the frame loop runs
       else console.log(`${f}: image ${imageWidth(im)}x${imageHeight(im)}`);
     } else if (kind === 'obj') {
       const mesh = loadObj(f);
-      console.log(`${f}: model ${mesh.vertices} vertices, ${mesh.triangles} triangles`);
+      try { console.log(`${f}: model ${mesh.vertices} vertices, ${mesh.triangles} triangles`); } finally { mesh.dispose(); }
+    } else if (kind === 'glb' || kind === 'gltf') {
+      const seen: Mesh[] = [], total: number[] = [0, 0];
+      try {
+        modelStats(loadGltf(f), seen, total);
+        console.log(`${f}: model ${total[0]} vertices, ${total[1]} triangles`);
+      } catch (error) { console.log(`${f}: ${error.message}`); bad++; }
+      finally { for (const mesh of seen) mesh.dispose(); }
     } else console.log(`${f}: ${readBytes(f).length} bytes`);
   }
   // every picture, object and panorama is described for a visitor who cannot see it, in every language

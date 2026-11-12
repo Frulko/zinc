@@ -8,7 +8,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 assets=$here/../assets
 repo=$here/../../..
 work=${1:-$(mktemp -d)}
-mkdir -p "$work/photos" "$work/model" "$work/pano" "$assets/photos" "$assets/models" "$assets/panoramas" "$assets/video" "$assets/audio"
+mkdir -p "$work/photos" "$work/model" "$work/pano" "$assets/photos" "$assets/models" "$assets/panoramas" "$assets/video" "$assets/audio" "$here/source"
 
 get() {  # destination, url
   [ -s "$1" ] || curl -sS -L --fail -m 900 -H "AIC-User-Agent: zinc-museum-table-demo (open-source sample collection)" -o "$1" "$2"
@@ -40,8 +40,9 @@ done
 
 (cd "$work/model" && unzip -o -q vase.zip)
 c++ -O2 -std=c++17 -I "$repo/third_party/meshoptimizer" "$here/decimate.cpp" "$repo"/third_party/meshoptimizer/*.cpp -o "$work/decimate"
-"$work/decimate" "$work/model/f1980_191-150k.obj" "$assets/models/vase.obj" 12000
+"$work/decimate" "$work/model/f1980_191-150k.obj" "$here/source/vase.obj" 12000
 sips -Z 1536 -s format jpeg -s formatOptions 80 "$work/model/f1980_191-150k-4096-diffuse.jpg" --out "$assets/models/vase.jpg" >/dev/null
+"$work/decimate" "$here/source/vase.obj" "$assets/models/vase.glb" 12000 vase.jpg
 
 sips -z 1024 2048 -s format jpeg -s formatOptions 80 "$work/pano/ninomaru_teien.jpg" --out "$assets/panoramas/ninomaru.jpg" >/dev/null
 

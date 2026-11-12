@@ -3,7 +3,8 @@
 import { NativeModule, requireNative } from 'zinc:native';
 
 export interface Spec extends NativeModule {
-  /** Parses a .gltf (JSON) or .glb document; -1 when invalid (error() tells why). */
+  /** Parses a .gltf (JSON) or .glb document; -1 when invalid (error() tells why).
+   *  At most 16 active documents. Positive monotonic handles never alias a document opened after free(). */
   parse(data: u8[]): i32;
   error(): string;
   free(h: i32): void;
@@ -31,6 +32,8 @@ export interface Spec extends NativeModule {
   meshCount(h: i32): i32;
   meshName(h: i32, m: i32): string;
   primitiveCount(h: i32, m: i32): i32;
+  /** Position-component count and upper bound on expanded triangle indices, read without decoding buffer views. */
+  primitiveSize(h: i32, m: i32, p: i32, out: i32[]): boolean;
   /** Triangles of a primitive (TRIANGLES, strips and fans): xyz positions, xyz normals, uv pairs, rgb colours (0..1),
    *  indices; empty arrays when the attribute is absent. Returns the material index, -1 for the default material,
    *  -2 when the primitive has no triangles or no positions. */
@@ -41,6 +44,8 @@ export interface Spec extends NativeModule {
   materialColor(h: i32, m: i32, out: number[]): void;
   /** baseColorTexture index, -1 when none */
   materialTexture(h: i32, m: i32): i32;
+  /** KHR_materials_specular factors: highlight RGB (colour times strength), roughness. False when absent. Specular textures are refused. */
+  materialSpecular(h: i32, m: i32, out: number[]): boolean;
   /** 1 double sided, 2 unlit (KHR_materials_unlit), 4 alphaMode BLEND, 8 alphaMode MASK */
   materialFlags(h: i32, m: i32): i32;
   /** Counts of what the loader ignores (reported in the GLTF object). */

@@ -41,6 +41,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Changed
 
 - The `game-2d` template uses `zinc:game` scenes, sprites and input actions, with keyboard, pointer and gamepad controls.
+- The museum table ships its 12,000-triangle vase as a 299 KB GLB, retaining its texture and surface picking in the editor.
+
 
 ### Video mapper
 
@@ -100,6 +102,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - On T2, `zinc:three-pi` can replace real three.js PBR materials with Lambert and merge explicitly static, compatible mesh siblings while retaining shared source resources.
 - QuickJS uses native math for the pinned Three.js build, with the original methods as fallback; `ZINC_JS_ACCEL=0` disables it.
 - PSP and 3DS GPU replay reports quads, cached shape tiles and cache hits per frame when verbose logging is enabled.
+- `zinc:3d/gltf` exposes scene-space triangles for picking tools and reads uniform `KHR_materials_specular` factors through its existing highlight model.
 
 #### Changed
 
@@ -140,6 +143,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc assets cook` receipts report the mean position error from the stored integer XYZ coordinates, in source mesh units.
 - WebGL initializes new textures and renderbuffers, including multisampled buffers; framebuffer copies outside the source produce zero in new images and preserve existing pixels in subimages.
 - `zinc:platform` uses the selected profile's default `SCREEN_W/H` when no explicit size is given, including CHIP's 720×576 and PocketCHIP's 480×272.
+- Closed glTF document handles cannot read or free a newly opened model; invalid node trees and unsupported specular textures fail before scene construction.
+
 
 ### Hamlet
 

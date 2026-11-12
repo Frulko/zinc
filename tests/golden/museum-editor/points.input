@@ -1,5 +1,5 @@
 # Points of interest (tests/demo/museum_editor.sh), on the project of the table session in a folder that also holds the sample's vase
-# (models/vase.obj and its picture) and its panorama (panoramas/ninomaru.jpg). A double click opens the table of the first sequence.
+# (models/vase.glb and its picture) and its panorama (panoramas/ninomaru.jpg). A double click opens the table of the first sequence.
 4 move 350 230
 5 down
 6 up

@@ -16,6 +16,19 @@ Smithsonian, a panorama of a Japanese garden, all CC0, and a narration by two op
 ![The vase, a point of interest open](../../docs/img/museum-table-object.jpg)
 ![The full view of a print](../../docs/img/museum-table-full.jpg)
 
+## The vase asset
+
+The sample loads `assets/models/vase.glb` (299,100 bytes, 7,058 vertices and 12,000 triangles) with the unchanged external `vase.jpg`. The already-decimated OBJ is retained as an authoring source in `tools/source/vase.obj`, outside the shipped asset inventory. GLB conversion preserves positions and triangles, flips the OBJ texture V coordinate once and normalises its rounded normals. Its standard uniform specular factors reproduce the existing legacy highlight parameters; this does not claim PBR rendering or an approved OBJ/GLB pixel comparison. The editor reads the GLB scene’s actual triangles for placing new points on the surface.
+
+From the repository root, rebuild the GLB without downloads or another simplification:
+
+```sh
+c++ -O2 -std=c++17 -I third_party/meshoptimizer examples/museum-table/tools/decimate.cpp third_party/meshoptimizer/*.cpp -o /tmp/museum-decimate
+/tmp/museum-decimate examples/museum-table/tools/source/vase.obj examples/museum-table/assets/models/vase.glb 12000 vase.jpg
+```
+
+The fixed writer accepts positive triangular `v/vt/vn` OBJ references, finite attributes, a target count and an ASCII texture filename beside the GLB. Targets at or above the source count only convert. Inputs are regular files up to 64 MiB/one million triangles; outputs have at most 65,535 vertices. It checks and writes a temporary file before replacing the destination, refuses an input/output alias and preserves the existing output on failure. The example’s existing 12 MiB source-size limit is unchanged.
+
 ## Run it
 
 ```sh

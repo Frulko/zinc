@@ -4,9 +4,20 @@ import { createImage } from 'zinc:gfx';
 import * as fs from 'node:fs';
 
 interface Doc { j: any; bufs: (Uint8Array | null)[] }
-const docs: (Doc | null)[] = [];
-let err = '';
-const doc = (h: number): Doc | null => docs[h] ?? null;
+enum DocumentState { Vacant, Ready }
+interface DocumentSlot { state: DocumentState; id: number; value: Doc | null }
+const docs: DocumentSlot[] = Array.from({length:16},()=>({state:DocumentState.Vacant,id:0,value:null}));
+let nextDocumentId = 1, err = '';
+function transition(slot: DocumentSlot, to: DocumentState, value: Doc | null = null, id = 0): boolean {
+  if (slot.state === DocumentState.Vacant && to === DocumentState.Ready && value !== null && id > 0) {
+    slot.value=value;slot.id=id;slot.state=to;return true;
+  }
+  if (slot.state === DocumentState.Ready && to === DocumentState.Vacant && value === null && id === 0) {
+    slot.value=null;slot.id=0;slot.state=to;return true;
+  }
+  return false;
+}
+const doc = (h: number): Doc | null => docs.find(slot=>slot.state===DocumentState.Ready && slot.id===h)?.value ?? null;
 const str = (v: unknown): string => typeof v === 'string' ? v : '';
 const u8 = (a: number[]): Uint8Array => Uint8Array.from(a);
 
@@ -15,10 +26,39 @@ function dataUri(s: string): Uint8Array | null {
   const c = s.indexOf(',');
   return c < 0 ? null : new Uint8Array(Buffer.from(s.slice(c + 1).replace(/-/g, '+').replace(/_/g, '/'), 'base64'));
 }
+function validNodes(j: any): boolean {
+  const nodes: any[] = Array.isArray(j.nodes) ? j.nodes : [];
+  if (nodes.length > 65536) return false;
+  const parents = Array<number>(nodes.length).fill(0), seen = new Set<number>();
+  const index = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < nodes.length;
+  for (const node of nodes) {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return false;
+    for (const [key,width] of [['matrix',16],['translation',3],['rotation',4],['scale',3]] as const) {
+      const values = node[key];
+      if (values !== undefined && (!Array.isArray(values) || values.length !== width || !values.every((v: unknown) => typeof v === 'number' && Number.isFinite(v)))) return false;
+    }
+    if (node.children !== undefined && !Array.isArray(node.children)) return false;
+    for (const child of node.children ?? []) if (!index(child) || parents[child]++) return false;
+  }
+  const visit = (n: number, depth: number): boolean => {
+    if (depth > 64 || seen.has(n)) return false;
+    seen.add(n);
+    return (nodes[n].children ?? []).every((child: number) => visit(child,depth+1));
+  };
+  for (let n=0;n<nodes.length;n++) if (!parents[n] && !visit(n,0)) return false;
+  if (seen.size !== nodes.length) return false;
+  for (const scene of j.scenes ?? []) {
+    const roots = new Set<number>();
+    if (scene.nodes !== undefined && !Array.isArray(scene.nodes)) return false;
+    for (const n of scene.nodes ?? []) { if (!index(n) || parents[n] || roots.has(n)) return false; roots.add(n); }
+  }
+  return true;
+}
 function parse(data: number[]): number {
   let slot = 0;
-  while (slot < docs.length && docs[slot]) slot++;
+  while (slot < docs.length && docs[slot].state !== DocumentState.Vacant) slot++;
   if (slot >= 16) { err = 'too many open glTF documents'; return -1; }
+  if (nextDocumentId > 2147483647) { err = 'glTF document handle space exhausted'; return -1; }
   const b = u8(data), dv = new DataView(b.buffer);
   let text = '', bin: Uint8Array | null = null;
   if (b.length >= 20 && String.fromCharCode(b[0], b[1], b[2], b[3]) === 'glTF') {
@@ -38,11 +78,23 @@ function parse(data: number[]): number {
   try { j = JSON.parse(text.replace(/^﻿/, '')); } catch { err = 'invalid glTF JSON'; return -1; }
   if (!j || typeof j !== 'object' || !str(j.asset?.version).startsWith('2')) { err = 'not a glTF 2.0 document'; return -1; }
   for (const e of j.extensionsRequired ?? []) {
-    if (e !== 'KHR_materials_unlit' && e !== 'KHR_texture_transform') { err = `required extension ${e} is not supported`; return -1; }
+    if (e !== 'KHR_materials_specular' && e !== 'KHR_materials_unlit' && e !== 'KHR_texture_transform') { err = `required extension ${e} is not supported`; return -1; }
   }
+  for (const material of j.materials ?? []) {
+    const spec = material.extensions?.KHR_materials_specular;
+    if (spec === undefined) continue;
+    const unit = (v: unknown): boolean => v === undefined || typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
+    if (!spec || typeof spec !== 'object' || Array.isArray(spec) || material.extensions?.KHR_materials_unlit !== undefined || material.extensions?.KHR_materials_pbrSpecularGlossiness !== undefined || 'specularTexture' in spec || 'specularColorTexture' in spec ||
+        !unit(spec.specularFactor) || !unit(material.pbrMetallicRoughness?.roughnessFactor) ||
+        spec.specularColorFactor !== undefined && (!Array.isArray(spec.specularColorFactor) || spec.specularColorFactor.length !== 3 || !spec.specularColorFactor.every(unit))) {
+      err = 'KHR_materials_specular: expected finite factors in 0..1; specular textures and unlit/specular-glossiness combinations are not supported'; return -1;
+    }
+  }
+  if (!validNodes(j)) { err = 'glTF requires finite transforms and disjoint node trees (64 levels, 65536 nodes) with unique scene roots'; return -1; }
   const bufs = (j.buffers ?? []).map((x: any) => x.uri === undefined ? bin : dataUri(str(x.uri)));
-  docs[slot] = { j, bufs };
-  return slot;
+  const id=nextDocumentId;
+  if (!transition(docs[slot],DocumentState.Ready,{j,bufs},id)) {err='invalid glTF document admission';return -1;}
+  nextDocumentId++;return id;
 }
 const list = (d: Doc, k: string): any[] => Array.isArray(d.j[k]) ? d.j[k] : [];
 const item = (d: Doc, k: string, i: number): any => list(d, k)[i];
@@ -102,7 +154,7 @@ function decodeBytes(b: Uint8Array): number {
 export default {
   parse,
   error: (): string => err,
-  free(h: number): void { if (doc(h)) docs[h] = null; },
+  free(h: number): void { const slot=docs.find(slot=>slot.state===DocumentState.Ready && slot.id===h);if(slot)transition(slot,DocumentState.Vacant); },
   assetInfo: (h: number): string => str(doc(h)?.j.asset?.generator),
   bufferCount: (h: number): number => doc(h)?.bufs.length ?? 0,
   bufferUri(h: number, i: number): string { const d = doc(h); return d && !d.bufs[i] ? str(item(d, 'buffers', i)?.uri) : ''; },
@@ -120,7 +172,7 @@ export default {
   },
   textureSource: (h: number, t: number): number => { const d = doc(h); return d ? item(d, 'textures', t)?.source ?? -1 : -1; },
   sceneCount: (h: number): number => { const d = doc(h); return d ? list(d, 'scenes').length : 0; },
-  defaultScene: (h: number): number => doc(h)?.j.scene ?? 0,
+  defaultScene: (h: number): number => { const d=doc(h);return d ? d.j.scene ?? 0 : -1; },
   sceneName: (h: number, s: number): string => { const d = doc(h); return d ? str(item(d, 'scenes', s)?.name) : ''; },
   sceneNodes(h: number, s: number, out: number[]): void { const d = doc(h); for (const n of (d ? item(d, 'scenes', s)?.nodes : null) ?? []) out.push(n); },
   nodeCount: (h: number): number => { const d = doc(h); return d ? list(d, 'nodes').length : 0; },
@@ -141,6 +193,27 @@ export default {
   meshCount: (h: number): number => { const d = doc(h); return d ? list(d, 'meshes').length : 0; },
   meshName: (h: number, m: number): string => { const d = doc(h); return d ? str(item(d, 'meshes', m)?.name) : ''; },
   primitiveCount: (h: number, m: number): number => { const d = doc(h); return d ? (item(d, 'meshes', m)?.primitives ?? []).length : 0; },
+  primitiveSize(h: number, m: number, p: number, out: number[]): boolean {
+    const d=doc(h), primitive=d ? item(d,'meshes',m)?.primitives?.[p] : undefined;
+    if (!d || !primitive) return false;
+    let decodedBytes=0;
+    for(const view of list(d,'bufferViews')) {
+      const ext=view?.extensions?.EXT_meshopt_compression??view?.extensions?.KHR_meshopt_compression;
+      if(!ext)continue;
+      if(!Number.isInteger(ext.count)||!Number.isInteger(ext.byteStride)||ext.count<=0||ext.byteStride<=0||ext.count*ext.byteStride>8*1024*1024-decodedBytes){err='CPU geometry document meshopt views exceed 8 MiB or have invalid sizes';return false;}
+      decodedBytes+=ext.count*ext.byteStride;
+    }
+    const count=(index: number): number => {
+      const acc=item(d,'accessors',index), n=acc?.count, view=item(d,'bufferViews',acc?.bufferView??-1);
+      const ext=view?.extensions?.EXT_meshopt_compression??view?.extensions?.KHR_meshopt_compression;
+      if(ext && (!Number.isInteger(ext.count)||!Number.isInteger(ext.byteStride)||ext.count<=0||ext.byteStride<=0||ext.count*ext.byteStride>8*1024*1024))return -1;
+      return Number.isInteger(n) && n>=0 && n<=Math.floor(2147483647/3) ? n : -1;
+    };
+    const vertices=count(primitive.attributes?.POSITION??-1),indices=primitive.indices===undefined?vertices:count(primitive.indices),mode=primitive.mode??4;
+    if(vertices<=0||indices<0||!Number.isInteger(mode)||mode<4||mode>6){err='invalid primitive geometry size';return false;}
+    for(const key of ['NORMAL','TEXCOORD_0','COLOR_0'])if(primitive.attributes?.[key]!==undefined && count(primitive.attributes[key])!==vertices){err='invalid or oversized primitive attribute '+key;return false;}
+    out.push(vertices*3,mode===4?indices-indices%3:indices>=3?(indices-2)*3:0);return true;
+  },
   primitive(h: number, m: number, p: number, pos: number[], nrm: number[], uv: number[], col: number[], idx: number[]): number {
     const d = doc(h);
     if (!d) return -2;
@@ -177,6 +250,14 @@ export default {
     for (let i = 0; i < 4; i++) out.push(typeof f?.[i] === 'number' ? f[i] : 1);
   },
   materialTexture: (h: number, m: number): number => { const d = doc(h); return d ? item(d, 'materials', m)?.pbrMetallicRoughness?.baseColorTexture?.index ?? -1 : -1; },
+  materialSpecular(h: number, m: number, out: number[]): boolean {
+    const d = doc(h), material = d ? item(d, 'materials', m) : undefined, spec = material?.extensions?.KHR_materials_specular;
+    if (spec === undefined) return false;
+    const strength = spec.specularFactor ?? 1;
+    for (let i = 0; i < 3; i++) out.push(strength * (spec.specularColorFactor?.[i] ?? 1));
+    out.push(material?.pbrMetallicRoughness?.roughnessFactor ?? 1);
+    return true;
+  },
   materialFlags(h: number, m: number): number {
     const d = doc(h);
     const o = d ? item(d, 'materials', m) : null;

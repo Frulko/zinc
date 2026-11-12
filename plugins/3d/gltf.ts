@@ -3,17 +3,35 @@
 // hierarchy (TRS or matrix), meshes (triangles, strips, fans; positions, normals, uvs, vertex colours; any number of vertices, split in
 // meshes of 65535), base colour and its texture, double-sided and unlit materials. Skins, animations and unsupported extensions are named
 // in a warning; a file that requires an unsupported extension is an error (the reader refuses it).
-import { Node, Mesh, Material, Shading, rgb } from 'zinc:3d';
+import { Node, Mesh, Material, Shading, rgb, mat4, mat4Compose, mat4Multiply } from 'zinc:3d';
 import { image as bakedImage } from 'zinc:gfx';
 import { exists, readBytes } from 'zinc:assets';
 import T from '../three/native/three.spec';
+import { gltfShininess } from '../three/gltf-material';
 
 /** The extensions loadGltf reads. */
-const SUPPORTED = ['KHR_materials_unlit', 'KHR_texture_transform', 'KHR_mesh_quantization', 'EXT_meshopt_compression', 'KHR_meshopt_compression'];
+const SUPPORTED = ['KHR_materials_specular', 'KHR_materials_unlit', 'KHR_texture_transform', 'KHR_mesh_quantization', 'EXT_meshopt_compression', 'KHR_meshopt_compression'];
 const MAX_VERTICES: i32 = 65535;
+const MAX_GEOMETRY_VALUES: i32 = 1048576; // At most 8 MiB of numeric payload for an explicitly requested CPU copy.
 
 /** A .gltf or .glb file from the embedded assets (or the file system): a node whose children are the default scene's roots. */
 export function loadGltf(asset: string): Node {
+  const b = open(asset);
+  try { return b.scene(); } finally { T.free(b.h); }
+}
+
+/** CPU triangles in the default scene's coordinate system, including node transforms and instances.
+ *  Requested explicitly for tools such as surface picking; ordinary loadGltf/Mesh objects retain no CPU copy. */
+export class GltfGeometry {
+  positions: number[] = [];
+  indices: i32[] = [];
+}
+export function loadGltfGeometry(asset: string): GltfGeometry {
+  const b = open(asset);
+  try { return b.geometry(); } finally { T.free(b.h); }
+}
+
+function open(asset: string): Builder {
   const data = readFile(asset);
   if (data.length === 0) throw new Error(`zinc:3d: cannot read ${asset}`);
   const h = T.parse(data);
@@ -30,10 +48,8 @@ export function loadGltf(asset: string): Node {
       if (bytes.length === 0) throw new Error(`zinc:3d: ${asset}: cannot read buffer ${b.base}${uri}`);
       T.setBuffer(h, i, bytes);
     }
-    return b.scene();
-  } finally {
-    T.free(h);
-  }
+    return b;
+  } catch (error) { T.free(h); throw error; }
 }
 
 function readFile(path: string): u8[] {
@@ -71,15 +87,57 @@ class Builder {
     if (ignored.length > 0) console.warn(`zinc:3d: ${this.asset}: not supported, ignored: ${ignored.join(', ')}`);
   }
 
+  private roots(): i32[] {
+    let scene = T.defaultScene(this.h);
+    if (scene < 0 || scene >= T.sceneCount(this.h)) scene = 0;
+    const roots: i32[] = [];
+    if (scene < T.sceneCount(this.h)) T.sceneNodes(this.h, scene, roots);
+    return roots;
+  }
+
   scene(): Node {
     const root = new Node(null, null);
-    let s = T.defaultScene(this.h);
-    if (s < 0 || s >= T.sceneCount(this.h)) s = 0;
-    if (s >= T.sceneCount(this.h)) return root;
-    const roots: i32[] = [];
-    T.sceneNodes(this.h, s, roots);
-    for (const n of roots) root.add(this.node(n, 0));
+    for (const n of this.roots()) root.add(this.node(n, 0));
     return root;
+  }
+
+  geometry(): GltfGeometry {
+    const out = new GltfGeometry();
+    for (const n of this.roots()) this.geometryNode(n, mat4(), out);
+    return out;
+  }
+
+  private geometryNode(n: i32, parent: number[], out: GltfGeometry): void {
+    const t: number[] = [];
+    T.nodeTransform(this.h, n, t);
+    const local = t.length === 16 ? t : mat4Compose(mat4(), t.slice(0, 3), t.slice(3, 7), t.slice(7, 10));
+    const world = mat4Multiply(mat4(), parent, local), mesh = T.nodeMesh(this.h, n);
+    if (mesh >= 0) for (let p = 0; p < T.primitiveCount(this.h, mesh); p++) {
+      const size: i32[] = [], available: i32 = MAX_GEOMETRY_VALUES - out.positions.length - out.indices.length;
+      if (!T.primitiveSize(this.h, mesh, p, size) || size.length !== 2) throw new Error(`zinc:3d: ${this.asset}: ${T.error()}`);
+      if (size[0] > available || size[1] > available - size[0]) throw new Error(`zinc:3d: ${this.asset}: CPU geometry exceeds 8 MiB`);
+      const pos: number[] = [], normals: number[] = [], uv: number[] = [], colors: number[] = [], indices: i32[] = [];
+      const material = T.primitive(this.h, mesh, p, pos, normals, uv, colors, indices);
+      if (material < -1) throw new Error(`zinc:3d: ${this.asset}: ${T.error()}`);
+      if (pos.length > size[0] || indices.length > size[1] || pos.length % 3 !== 0 || indices.length % 3 !== 0) throw new Error(`zinc:3d: ${this.asset}: incomplete triangle geometry`);
+      if (pos.length > MAX_GEOMETRY_VALUES - out.positions.length - out.indices.length || indices.length > MAX_GEOMETRY_VALUES - out.positions.length - out.indices.length - pos.length) throw new Error(`zinc:3d: ${this.asset}: CPU geometry exceeds 8 MiB`);
+      const first: i32 = out.positions.length / 3;
+      for (let i = 0; i + 2 < pos.length; i += 3) {
+        const x = pos[i], y = pos[i + 1], z = pos[i + 2];
+        for (let r = 0; r < 3; r++) {
+          const value = world[r] * x + world[4 + r] * y + world[8 + r] * z + world[12 + r];
+          if (!Number.isFinite(value)) throw new Error(`zinc:3d: ${this.asset}: nonfinite geometry`);
+          out.positions.push(value);
+        }
+      }
+      for (const index of indices) {
+        if (index < 0 || index >= pos.length / 3) throw new Error(`zinc:3d: ${this.asset}: invalid geometry index`);
+        out.indices.push(first + index);
+      }
+    }
+    const kids: i32[] = [];
+    T.nodeChildren(this.h, n, kids);
+    for (const child of kids) this.geometryNode(child, world, out);
   }
 
   private image(i: i32): i32 {
@@ -110,6 +168,8 @@ class Builder {
       const flags = T.materialFlags(this.h, m);
       mat.doubleSided = (flags & 1) !== 0;
       if ((flags & 2) !== 0) mat.shading = Shading.Unlit;
+      const spec: number[] = [];
+      if (T.materialSpecular(this.h, m, spec)) { mat.specular = rgb(spec[0], spec[1], spec[2]); mat.shininess = gltfShininess(spec[3]); }
       const t = T.materialTexture(this.h, m), src = t >= 0 ? T.textureSource(this.h, t) : -1;
       if (src >= 0) mat.texture = this.image(src);
     }

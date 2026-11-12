@@ -4,6 +4,7 @@
 // What gltfpack writes (ZN-441) reads too: quantised attributes (KHR_mesh_quantization), buffer views compressed with EXT_ or
 // KHR_meshopt_compression (decoded once by the decoder of the engine's vendored meshoptimizer 1.3), KHR_texture_transform on the
 // base colour texture (applied to the uvs).
+#define ZRT_HOSTED_CPP
 #include "zinc_native_three.h"
 #include "zrt_raster.h"
 #if __has_include("zn/resource_stats.h")
@@ -16,6 +17,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <mutex>
+#include <limits.h>
 
 #include "meshoptimizer/vertexcodec.cpp"
 #include "meshoptimizer/indexcodec.cpp"
@@ -213,11 +216,26 @@ struct Doc {
   Vec<Buf> views;  // compressed buffer views, decoded on first use (p null: not yet, n 0 and owned: it does not decode)
 };
 static const int MAX_DOCS = 16;
-static Doc* docs[MAX_DOCS];
+enum class DocumentState { Vacant, Ready };
+struct DocumentSlot { DocumentState state = DocumentState::Vacant; int32_t id = 0; Doc* value = nullptr; };
+static DocumentSlot docs[MAX_DOCS];
+static int64_t next_document_id = 1;
+static std::recursive_mutex document_mutex;
+static bool transition(DocumentSlot& slot, DocumentState to, Doc* value = nullptr, int32_t id = 0) {
+  if (slot.state == DocumentState::Vacant && to == DocumentState::Ready && value && id > 0) {
+    slot.value = value; slot.id = id; slot.state = to; return true;
+  }
+  if (slot.state == DocumentState::Ready && to == DocumentState::Vacant && !value && !id) {
+    slot.value = nullptr; slot.id = 0; slot.state = to; return true;
+  }
+  return false;
+}
 #if __has_include("zn/resource_stats.h")
 static ZnResourceStats document_stats(void*) {
+  std::lock_guard<std::recursive_mutex> lock(document_mutex);
   ZnResourceStats s{};
-  for (const Doc* d : docs) if (d) {
+  for (const DocumentSlot& slot : docs) if (slot.state == DocumentState::Ready) {
+    const Doc* d = slot.value;
     ++s.objects; s.cpuBytes += d->len + d->J.v.cap * sizeof(JV);
     for (uint32_t i = 0; i < d->bufs.n; ++i) if (d->bufs[i].owned) s.cpuBytes += d->bufs[i].n;
     for (uint32_t i = 0; i < d->views.n; ++i) if (d->views[i].owned) s.cpuBytes += d->views[i].n;
@@ -228,7 +246,11 @@ static ZnResourceStatsRegistration document_stats_registration("gltf.documents",
 #endif
 static char err[160];
 
-static Doc* doc(int32_t h) { return h >= 0 && h < MAX_DOCS ? docs[h] : nullptr; }
+// Callers hold document_mutex for the whole operation, including the use of the returned document.
+static Doc* doc(int32_t h) {
+  for (const DocumentSlot& slot : docs) if (slot.state == DocumentState::Ready && slot.id == h) return slot.value;
+  return nullptr;
+}
 static int32_t arr(const Doc& d, const char* key) { return d.J.get(d.root, key); }
 static int32_t item(const Doc& d, const char* key, int32_t i) { return d.J.at(arr(d, key), i); }
 static void free_doc(Doc* d) {
@@ -238,16 +260,73 @@ static void free_doc(Doc* d) {
 }
 static uint32_t u32le(const uint8_t* p) { return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
 
+// glTF nodes form disjoint trees; meshes may be instanced, nodes may not have two parents.
+static bool validate_nodes(const Doc& d) {
+  const Json& J = d.J;
+  const int32_t count = J.count(arr(d, "nodes"));
+  if (count > 65536) { snprintf(err, sizeof err, "glTF has more than 65536 nodes"); return false; }
+  struct Scratch {
+    Vec<uint8_t> parents; Vec<uint32_t> seen;
+    ~Scratch() { parents.release(); seen.release(); }
+  } scratch;
+  for (int32_t n = 0; n < count; ++n) { scratch.parents.push(0); scratch.seen.push(0); }
+  auto node_index = [&](int32_t value) { return value >= 0 && J.v[value].t == JNUM && isfinite(J.v[value].num) && J.v[value].num >= 0 && J.v[value].num < count && floor(J.v[value].num) == J.v[value].num; };
+  for (int32_t n = 0; n < count; ++n) {
+    const int32_t node = item(d, "nodes", n);
+    if (J.v[node].t != JOBJ) { snprintf(err, sizeof err, "glTF node %d must be an object", n); return false; }
+    const char* fields[] = {"matrix", "translation", "rotation", "scale"};
+    const int widths[] = {16, 3, 4, 3};
+    for (int f = 0; f < 4; ++f) {
+      const int32_t values = J.get(node, fields[f]);
+      if (values < 0) continue;
+      if (J.v[values].t != JARR || J.count(values) != widths[f]) { snprintf(err, sizeof err, "glTF node %d has invalid %s", n, fields[f]); return false; }
+      for (int k = 0; k < widths[f]; ++k) {
+        const int32_t value = J.at(values, k);
+        if (J.v[value].t != JNUM || !isfinite(J.v[value].num)) { snprintf(err, sizeof err, "glTF node %d has a nonfinite transform", n); return false; }
+      }
+    }
+    const int32_t kids = J.get(node, "children");
+    if (kids >= 0 && J.v[kids].t != JARR) { snprintf(err, sizeof err, "glTF node %d has invalid children", n); return false; }
+    for (int32_t child = kids < 0 ? -1 : J.v[kids].first; child >= 0; child = J.v[child].next) {
+      if (!node_index(child) || scratch.parents[(uint32_t)J.v[child].num]++) { snprintf(err, sizeof err, "glTF has an invalid or repeated child node"); return false; }
+    }
+  }
+  auto visit = [&](auto&& self, int32_t n, int32_t depth) -> bool {
+    if (depth > 64 || scratch.seen[n]) { snprintf(err, sizeof err, "glTF node hierarchy exceeds 64 levels or contains a cycle"); return false; }
+    scratch.seen[n] = 1;
+    const int32_t kids = J.get(item(d, "nodes", n), "children");
+    for (int32_t child = kids < 0 ? -1 : J.v[kids].first; child >= 0; child = J.v[child].next) if (!self(self, (int32_t)J.v[child].num, depth + 1)) return false;
+    return true;
+  };
+  for (int32_t n = 0; n < count; ++n) if (!scratch.parents[n] && !visit(visit, n, 0)) return false;
+  for (int32_t n = 0; n < count; ++n) if (!scratch.seen[n]) { snprintf(err, sizeof err, "glTF node hierarchy contains a cycle"); return false; }
+  if (count) memset(scratch.seen.p, 0, size_t(count) * sizeof(uint32_t));
+  for (int32_t scene = 0; scene < J.count(arr(d, "scenes")); ++scene) {
+    const int32_t roots = J.get(item(d, "scenes", scene), "nodes");
+    if (roots >= 0 && J.v[roots].t != JARR) { snprintf(err, sizeof err, "glTF scene has invalid roots"); return false; }
+    for (int32_t root = roots < 0 ? -1 : J.v[roots].first; root >= 0; root = J.v[root].next) {
+      if (!node_index(root)) { snprintf(err, sizeof err, "glTF scene has invalid root node"); return false; }
+      const uint32_t n = (uint32_t)J.v[root].num;
+      if (scratch.parents[n] || scratch.seen[n] == uint32_t(scene) + 1) { snprintf(err, sizeof err, "glTF scene has a non-root or repeated root node"); return false; }
+      scratch.seen[n] = uint32_t(scene) + 1;
+    }
+  }
+  return true;
+}
+
 static int32_t parse_doc(uint8_t* data, uint32_t len) {
   int32_t slot = -1;
-  for (int32_t i = 0; i < MAX_DOCS; i++) if (!docs[i]) { slot = i; break; }
+  for (int32_t i = 0; i < MAX_DOCS; i++) if (docs[i].state == DocumentState::Vacant) { slot = i; break; }
   if (slot < 0) { snprintf(err, sizeof err, "too many open glTF documents"); free(data); return -1; }
+  if (next_document_id > INT32_MAX) { snprintf(err, sizeof err, "glTF document handle space exhausted"); free(data); return -1; }
   Doc* d = (Doc*)calloc(1, sizeof(Doc));
+  if (!d) { snprintf(err, sizeof err, "cannot allocate glTF document"); free(data); return -1; }
+  struct PendingDocument { Doc* value; ~PendingDocument() { if (value) free_doc(value); } } pending{d};
   d->data = data; d->len = len;
   const char* text = (const char*)data; uint32_t tlen = len;
   Buf bin = {nullptr, 0, false};
   if (len >= 20 && !memcmp(data, "glTF", 4)) {  // GLB: header, JSON chunk, optional BIN chunk
-    if (u32le(data + 4) != 2) { snprintf(err, sizeof err, "glb version %u is not supported", u32le(data + 4)); free_doc(d); return -1; }
+    if (u32le(data + 4) != 2) { snprintf(err, sizeof err, "glb version %u is not supported", u32le(data + 4)); return -1; }
     uint32_t total = u32le(data + 8) < len ? u32le(data + 8) : len, off = 12;
     text = nullptr;
     while (off + 8 <= total) {
@@ -257,20 +336,38 @@ static int32_t parse_doc(uint8_t* data, uint32_t len) {
       else if (type == 0x004E4942 && !bin.p) { bin.p = data + off + 8; bin.n = clen; }
       off += 8 + ((clen + 3) & ~3u);
     }
-    if (!text) { snprintf(err, sizeof err, "glb without a JSON chunk"); free_doc(d); return -1; }
+    if (!text) { snprintf(err, sizeof err, "glb without a JSON chunk"); return -1; }
   }
   d->J.p = text; d->J.end = text + tlen;
   if (tlen >= 3 && (uint8_t)text[0] == 0xEF && (uint8_t)text[1] == 0xBB && (uint8_t)text[2] == 0xBF) d->J.p += 3;  // BOM
   d->root = d->J.value(0);
-  if (d->J.bad || d->root < 0 || d->J.v[d->root].t != JOBJ) { snprintf(err, sizeof err, "invalid glTF JSON"); free_doc(d); return -1; }
+  if (d->J.bad || d->root < 0 || d->J.v[d->root].t != JOBJ) { snprintf(err, sizeof err, "invalid glTF JSON"); return -1; }
   int32_t asset = d->J.get(d->root, "asset"), ver = d->J.get(asset, "version");
-  if (ver < 0 || d->J.v[ver].t != JSTR || d->J.v[ver].sl < 1 || d->J.v[ver].s[0] != '2') { snprintf(err, sizeof err, "not a glTF 2.0 document"); free_doc(d); return -1; }
+  if (ver < 0 || d->J.v[ver].t != JSTR || d->J.v[ver].sl < 1 || d->J.v[ver].s[0] != '2') { snprintf(err, sizeof err, "not a glTF 2.0 document"); return -1; }
   int32_t req = d->J.get(d->root, "extensionsRequired");
   for (int32_t c = req >= 0 ? d->J.v[req].first : -1; c >= 0; c = d->J.v[c].next) {
-    if (d->J.streq(c, "KHR_materials_unlit") || d->J.streq(c, "KHR_texture_transform") || d->J.streq(c, "KHR_mesh_quantization") ||
+    if (d->J.streq(c, "KHR_materials_specular") || d->J.streq(c, "KHR_materials_unlit") || d->J.streq(c, "KHR_texture_transform") || d->J.streq(c, "KHR_mesh_quantization") ||
         d->J.streq(c, "EXT_meshopt_compression") || d->J.streq(c, "KHR_meshopt_compression")) continue;
-    snprintf(err, sizeof err, "required extension %.*s is not supported", (int)d->J.v[c].sl, d->J.v[c].s); free_doc(d); return -1;
+    snprintf(err, sizeof err, "required extension %.*s is not supported", (int)d->J.v[c].sl, d->J.v[c].s); return -1;
   }
+  // The legacy renderer can carry uniform specular factors, not per-texel highlight strength/colour.
+  for (int32_t m = 0; m < d->J.count(arr(*d, "materials")); ++m) {
+    const Json& J = d->J;
+    int32_t material = item(*d, "materials", m), spec = J.get(J.get(material, "extensions"), "KHR_materials_specular");
+    if (spec < 0) continue;
+    const char* why = nullptr;
+    if (J.v[spec].t != JOBJ) why = "must be an object";
+    else if (J.get(J.get(material, "extensions"), "KHR_materials_unlit") >= 0 || J.get(J.get(material, "extensions"), "KHR_materials_pbrSpecularGlossiness") >= 0) why = "cannot be combined with KHR_materials_unlit or KHR_materials_pbrSpecularGlossiness";
+    else if (J.get(spec, "specularTexture") >= 0 || J.get(spec, "specularColorTexture") >= 0) why = "textures are not supported by the legacy renderer";
+    auto unit = [&](int32_t v) { return v < 0 || (J.v[v].t == JNUM && isfinite(J.v[v].num) && J.v[v].num >= 0 && J.v[v].num <= 1); };
+    int32_t color = J.get(spec, "specularColorFactor");
+    if (!why && !unit(J.get(spec, "specularFactor"))) why = "specularFactor must be a finite number in 0..1";
+    if (!why && color >= 0 && (J.v[color].t != JARR || J.count(color) != 3)) why = "specularColorFactor must have three components";
+    if (!why && color >= 0) for (int i = 0; i < 3; ++i) if (!unit(J.at(color, i))) why = "specularColorFactor must contain finite numbers in 0..1";
+    if (!why && !unit(J.get(J.get(material, "pbrMetallicRoughness"), "roughnessFactor"))) why = "roughnessFactor must be a finite number in 0..1";
+    if (why) { snprintf(err, sizeof err, "material %d KHR_materials_specular: %s", m, why); return -1; }
+  }
+  if (!validate_nodes(*d)) { return -1; }
   int32_t bs = arr(*d, "buffers");
   for (int32_t i = 0; i < d->J.count(bs); i++) {
     int32_t b = d->J.at(bs, i), uri = d->J.get(b, "uri");
@@ -279,8 +376,11 @@ static int32_t parse_doc(uint8_t* data, uint32_t len) {
     else if (data_uri(d->J.v[uri].s, d->J.v[uri].sl, &x.p, &x.n)) x.owned = true;
     d->bufs.push(x);
   }
-  docs[slot] = d;
-  return slot;
+  const int32_t id = (int32_t)next_document_id;
+  if (!transition(docs[slot], DocumentState::Ready, d, id)) { snprintf(err, sizeof err, "invalid glTF document admission"); return -1; }
+  pending.value = nullptr; // The ready slot now owns the document.
+  ++next_document_id;
+  return id;
 }
 
 // accessors: element (i, component c) as a double; normalized integers map to [0, 1] or [-1, 1]
@@ -410,38 +510,45 @@ static uint8_t* copy_bytes(const Bytes& b, uint32_t* n) {
 }
 
 struct Impl : NativeThree {
-  int32_t parse(Bytes data) override { uint32_t n; uint8_t* p = copy_bytes(data, &n); return parse_doc(p, n); }
-  zrt::String error() override { return zrt::String::from(err, (uint32_t)strlen(err)); }
-  void free(int32_t h) override { if (Doc* d = doc(h)) { free_doc(d); docs[h] = nullptr; } }
+  int32_t parse(Bytes data) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); uint32_t n; uint8_t* p = copy_bytes(data, &n); return parse_doc(p, n); }
+  zrt::String error() override { std::lock_guard<std::recursive_mutex> lock(document_mutex); return zrt::String::from(err, (uint32_t)strlen(err)); }
+  void free(int32_t h) override {
+    std::lock_guard<std::recursive_mutex> lock(document_mutex);
+    for (DocumentSlot& slot : docs) if (slot.state == DocumentState::Ready && slot.id == h) {
+      Doc* value = slot.value;
+      if (transition(slot, DocumentState::Vacant)) free_doc(value);
+      return;
+    }
+  }
   zrt::String assetInfo(int32_t h) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     if (!d) return zrt::String::from("", 0);
     int32_t a = d->J.get(d->root, "asset");
     return jstr(d->J, d->J.get(a, "generator"));
   }
-  int32_t bufferCount(int32_t h) override { Doc* d = doc(h); return d ? (int32_t)d->bufs.n : 0; }
+  int32_t bufferCount(int32_t h) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? (int32_t)d->bufs.n : 0; }
   zrt::String bufferUri(int32_t h, int32_t i) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     if (!d || i < 0 || i >= (int32_t)d->bufs.n || d->bufs[(uint32_t)i].p) return zrt::String::from("", 0);
     return jstr(d->J, d->J.get(item(*d, "buffers", i), "uri"));
   }
   void setBuffer(int32_t h, int32_t i, Bytes data) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     if (!d || i < 0 || i >= (int32_t)d->bufs.n) return;
     Buf& b = d->bufs[(uint32_t)i];
     if (b.owned) ::free(b.p);
     b.p = copy_bytes(data, &b.n); b.owned = true;
   }
-  int32_t imageCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "images")) : 0; }
+  int32_t imageCount(int32_t h) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? d->J.count(arr(*d, "images")) : 0; }
   zrt::String imageUri(int32_t h, int32_t i) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     if (!d) return zrt::String::from("", 0);
     int32_t u = d->J.get(item(*d, "images", i), "uri");
     if (u < 0 || (d->J.v[u].sl >= 5 && !memcmp(d->J.v[u].s, "data:", 5))) return zrt::String::from("", 0);
     return jstr(d->J, u);
   }
   int32_t imageDecode(int32_t h, int32_t i) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     if (!d) return -1;
     int32_t im = item(*d, "images", i), u = d->J.get(im, "uri");
     if (u >= 0) {
@@ -459,19 +566,19 @@ struct Impl : NativeThree {
     return decode_bytes(d->bufs[(uint32_t)b].p + off, n);
   }
   int32_t textureSource(int32_t h, int32_t t) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     return d ? i32(d->J.num(item(*d, "textures", t), "source", -1)) : -1;
   }
-  int32_t sceneCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "scenes")) : 0; }
-  int32_t defaultScene(int32_t h) override { Doc* d = doc(h); return d ? (int32_t)i32(d->J.num(d->root, "scene", 0)) : -1; }
-  zrt::String sceneName(int32_t h, int32_t s) override { Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "scenes", s), "name")) : zrt::String::from("", 0); }
-  void sceneNodes(int32_t h, int32_t s, Ints out) override { if (Doc* d = doc(h)) ints(*d, d->J.get(item(*d, "scenes", s), "nodes"), out); }
-  int32_t nodeCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "nodes")) : 0; }
-  zrt::String nodeName(int32_t h, int32_t n) override { Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "nodes", n), "name")) : zrt::String::from("", 0); }
-  int32_t nodeMesh(int32_t h, int32_t n) override { Doc* d = doc(h); return d ? i32(d->J.num(item(*d, "nodes", n), "mesh", -1)) : -1; }
-  void nodeChildren(int32_t h, int32_t n, Ints out) override { if (Doc* d = doc(h)) ints(*d, d->J.get(item(*d, "nodes", n), "children"), out); }
+  int32_t sceneCount(int32_t h) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? d->J.count(arr(*d, "scenes")) : 0; }
+  int32_t defaultScene(int32_t h) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? (int32_t)i32(d->J.num(d->root, "scene", 0)) : -1; }
+  zrt::String sceneName(int32_t h, int32_t s) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "scenes", s), "name")) : zrt::String::from("", 0); }
+  void sceneNodes(int32_t h, int32_t s, Ints out) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); if (Doc* d = doc(h)) ints(*d, d->J.get(item(*d, "scenes", s), "nodes"), out); }
+  int32_t nodeCount(int32_t h) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? d->J.count(arr(*d, "nodes")) : 0; }
+  zrt::String nodeName(int32_t h, int32_t n) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "nodes", n), "name")) : zrt::String::from("", 0); }
+  int32_t nodeMesh(int32_t h, int32_t n) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? i32(d->J.num(item(*d, "nodes", n), "mesh", -1)) : -1; }
+  void nodeChildren(int32_t h, int32_t n, Ints out) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); if (Doc* d = doc(h)) ints(*d, d->J.get(item(*d, "nodes", n), "children"), out); }
   void nodeTransform(int32_t h, int32_t n, Nums out) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     if (!d) return;
     const Json& J = d->J;
     int32_t o = item(*d, "nodes", n), m = J.get(o, "matrix");
@@ -484,11 +591,54 @@ struct Impl : NativeThree {
       for (int32_t i = 0; i < cnt; i++, k++) { int32_t c = J.at(a, i); out.push(c >= 0 && J.v[c].t == JNUM ? J.v[c].num : def[k]); }
     }
   }
-  int32_t meshCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "meshes")) : 0; }
-  zrt::String meshName(int32_t h, int32_t m) override { Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "meshes", m), "name")) : zrt::String::from("", 0); }
-  int32_t primitiveCount(int32_t h, int32_t m) override { Doc* d = doc(h); return d ? d->J.count(d->J.get(item(*d, "meshes", m), "primitives")) : 0; }
-  int32_t primitive(int32_t h, int32_t m, int32_t p, Nums pos, Nums nrm, Nums uv, Nums col, Ints idx) override {
+  int32_t meshCount(int32_t h) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? d->J.count(arr(*d, "meshes")) : 0; }
+  zrt::String meshName(int32_t h, int32_t m) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "meshes", m), "name")) : zrt::String::from("", 0); }
+  int32_t primitiveCount(int32_t h, int32_t m) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? d->J.count(d->J.get(item(*d, "meshes", m), "primitives")) : 0; }
+  bool primitiveSize(int32_t h, int32_t m, int32_t p, Ints out) override {
+    std::lock_guard<std::recursive_mutex> lock(document_mutex);
     Doc* d = doc(h);
+    if (!d) return false;
+    const Json& J = d->J;
+    const int32_t primitive = J.at(J.get(item(*d, "meshes", m), "primitives"), p), attributes = J.get(primitive, "attributes");
+    // Conservative document-wide budget: decoded views stay owned by the document across primitives.
+    double decoded_bytes = 0;
+    for (int32_t v = 0; v < J.count(arr(*d, "bufferViews")); ++v) {
+      const int32_t view = item(*d, "bufferViews", v);
+      int32_t ext = J.get(J.get(view, "extensions"), "EXT_meshopt_compression");
+      if (ext < 0) ext = J.get(J.get(view, "extensions"), "KHR_meshopt_compression");
+      if (ext < 0) continue;
+      const double n = J.num(ext, "count", -1), stride = J.num(ext, "byteStride", -1);
+      if (!isfinite(n) || !isfinite(stride) || n <= 0 || stride <= 0 || floor(n) != n || floor(stride) != stride || n * stride > (8u << 20) - decoded_bytes) {
+        snprintf(err, sizeof err, "CPU geometry document meshopt views exceed 8 MiB or have invalid sizes"); return false;
+      }
+      decoded_bytes += n * stride;
+    }
+    auto count = [&](int32_t accessor) -> int32_t {
+      const int32_t value = J.get(item(*d, "accessors", accessor), "count");
+      if (value < 0 || J.v[value].t != JNUM || !isfinite(J.v[value].num) || J.v[value].num < 0 || J.v[value].num > INT32_MAX / 3 || floor(J.v[value].num) != J.v[value].num) return -1;
+      // Inspect raw metadata only: accessor() may allocate a meshopt view.
+      const int32_t acc = item(*d, "accessors", accessor), view = item(*d, "bufferViews", i32(J.num(acc, "bufferView", -1)));
+      int32_t ext = J.get(J.get(view, "extensions"), "EXT_meshopt_compression");
+      if (ext < 0) ext = J.get(J.get(view, "extensions"), "KHR_meshopt_compression");
+      if (ext >= 0) {
+        const double n = J.num(ext, "count", -1), stride = J.num(ext, "byteStride", -1);
+        if (!isfinite(n) || !isfinite(stride) || n <= 0 || stride <= 0 || floor(n) != n || floor(stride) != stride || n * stride > (8u << 20)) return -1;
+      }
+      return (int32_t)J.v[value].num;
+    };
+    const int32_t vertices = count(i32(J.num(attributes, "POSITION", -1))), mode = i32(J.num(primitive, "mode", 4));
+    const int32_t indices = J.get(primitive, "indices") < 0 ? vertices : count(i32(J.num(primitive, "indices", -1)));
+    if (vertices <= 0 || indices < 0 || mode < 4 || mode > 6) { snprintf(err, sizeof err, "invalid primitive geometry size"); return false; }
+    const char* consumed[] = {"NORMAL", "TEXCOORD_0", "COLOR_0"};
+    for (const char* key : consumed) if (J.get(attributes, key) >= 0 && count(i32(J.num(attributes, key, -1))) != vertices) {
+      snprintf(err, sizeof err, "invalid or oversized primitive attribute %s", key); return false;
+    }
+    out.push(vertices * 3);
+    out.push(mode == 4 ? indices - indices % 3 : indices >= 3 ? (indices - 2) * 3 : 0);
+    return true;
+  }
+  int32_t primitive(int32_t h, int32_t m, int32_t p, Nums pos, Nums nrm, Nums uv, Nums col, Ints idx) override {
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     if (!d) return -2;
     const Json& J = d->J;
     int32_t pr = J.at(J.get(item(*d, "meshes", m), "primitives"), p), at = J.get(pr, "attributes");
@@ -531,30 +681,42 @@ struct Impl : NativeThree {
     ix.release();
     return tris ? (int32_t)i32(J.num(pr, "material", -1)) : -2;
   }
-  int32_t materialCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "materials")) : 0; }
-  zrt::String materialName(int32_t h, int32_t m) override { Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "materials", m), "name")) : zrt::String::from("", 0); }
+  int32_t materialCount(int32_t h) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? d->J.count(arr(*d, "materials")) : 0; }
+  zrt::String materialName(int32_t h, int32_t m) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? jstr(d->J, d->J.get(item(*d, "materials", m), "name")) : zrt::String::from("", 0); }
   void materialColor(int32_t h, int32_t m, Nums out) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     int32_t f = d ? d->J.get(d->J.get(item(*d, "materials", m), "pbrMetallicRoughness"), "baseColorFactor") : -1;
     for (int32_t i = 0; i < 4; i++) { int32_t c = d ? d->J.at(f, i) : -1; out.push(c >= 0 && d->J.v[c].t == JNUM ? d->J.v[c].num : 1); }
   }
   int32_t materialTexture(int32_t h, int32_t m) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     if (!d) return -1;
     return i32(d->J.num(d->J.get(d->J.get(item(*d, "materials", m), "pbrMetallicRoughness"), "baseColorTexture"), "index", -1));
   }
+  bool materialSpecular(int32_t h, int32_t m, Nums out) override {
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
+    if (!d) return false;
+    const Json& J = d->J;
+    int32_t material = item(*d, "materials", m), spec = J.get(J.get(material, "extensions"), "KHR_materials_specular");
+    if (spec < 0) return false;
+    const double strength = J.num(spec, "specularFactor", 1);
+    const int32_t color = J.get(spec, "specularColorFactor");
+    for (int32_t i = 0; i < 3; ++i) { const int32_t c = J.at(color, i); out.push(strength * (c < 0 ? 1 : J.v[c].num)); }
+    out.push(J.num(J.get(material, "pbrMetallicRoughness"), "roughnessFactor", 1));
+    return true;
+  }
   int32_t materialFlags(int32_t h, int32_t m) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     if (!d) return 0;
     const Json& J = d->J;
     int32_t o = item(*d, "materials", m), am = J.get(o, "alphaMode");
     return (J.num(o, "doubleSided", 0) != 0 ? 1 : 0) | (J.get(J.get(o, "extensions"), "KHR_materials_unlit") >= 0 ? 2 : 0) |
            (J.streq(am, "BLEND") ? 4 : 0) | (J.streq(am, "MASK") ? 8 : 0);
   }
-  int32_t animationCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "animations")) : 0; }
-  int32_t skinCount(int32_t h) override { Doc* d = doc(h); return d ? d->J.count(arr(*d, "skins")) : 0; }
+  int32_t animationCount(int32_t h) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? d->J.count(arr(*d, "animations")) : 0; }
+  int32_t skinCount(int32_t h) override { std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h); return d ? d->J.count(arr(*d, "skins")) : 0; }
   zrt::String extensions(int32_t h) override {
-    Doc* d = doc(h);
+    std::lock_guard<std::recursive_mutex> lock(document_mutex); Doc* d = doc(h);
     if (!d) return zrt::String::from("", 0);
     const Json& J = d->J;
     int32_t a = arr(*d, "extensionsUsed");
@@ -572,6 +734,7 @@ struct Impl : NativeThree {
     return r;
   }
   int32_t decode(Bytes data) override {
+    std::lock_guard<std::recursive_mutex> lock(document_mutex);
     uint32_t n; uint8_t* p = copy_bytes(data, &n);
     int32_t id = decode_bytes(p, n);
     ::free(p);

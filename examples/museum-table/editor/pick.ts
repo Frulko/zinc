@@ -1,6 +1,8 @@
 // Where a line of sight meets a 3D model: what puts a point of interest on the place of the object the author clicked. Pure code: the
-// triangles are read from the text of an OBJ file (the renderer keeps its meshes to itself), the line comes from the object viewer
+// triangles are read from OBJ text or the shared glTF geometry reader, the line comes from the object viewer
 // (../src/viewer.ts `ray`).
+
+import { loadGltfGeometry } from 'zinc:3d/gltf';
 
 /** The triangles of a model: `at` holds x, y, z of every vertex, `corners` three vertex numbers per triangle. */
 export class Shape {
@@ -30,6 +32,13 @@ export function parseShape(obj: string): Shape {
     }
     from = end + 1;
   }
+  return shape;
+}
+
+/** The default glTF scene's triangles, including its node transforms, without allocating rendered meshes or images. */
+export function loadGltfShape(asset: string): Shape {
+  const geometry = loadGltfGeometry(asset), shape = new Shape();
+  shape.at = geometry.positions; shape.corners = geometry.indices;
   return shape;
 }
 

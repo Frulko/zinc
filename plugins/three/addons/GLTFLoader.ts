@@ -4,11 +4,12 @@
 // PNG/JPEG textures: image files in the assets are baked at build time, embedded images are decoded at run time.
 // Not supported (ignored, counted in the result): animations, skins, morph targets, cameras, sparse accessors, Draco.
 import {
-  Group, Object3D, Mesh, BufferGeometry, Float32BufferAttribute, Material, MeshStandardMaterial, MeshBasicMaterial,
+  Group, Object3D, Mesh, BufferGeometry, Float32BufferAttribute, Material, MeshStandardMaterial, MeshPhongMaterial, MeshBasicMaterial,
   Texture, DoubleSide, Matrix4, Camera, readFile, decodeUri,
 } from '../index';
 import { image as bakedImage } from 'zinc:gfx';
 import T from '../native/three.spec';
+import { gltfShininess } from '../gltf-material';
 
 export class AnimationClip { name = ''; }
 export class GLTFAsset { version = '2.0'; generator = ''; }
@@ -46,11 +47,13 @@ export class GLTFLoader {
   parse(data: u8[], path: string, onLoad: (gltf: GLTF) => void, onError: ((e: Error) => void) | null = null): void {
     const h = T.parse(data);
     if (h < 0) { fail(onError, `GLTFLoader: ${T.error()}`); return; }
-    const b = new Builder(h, path);
-    const err = b.loadBuffers();
-    if (err.length > 0) { T.free(h); fail(onError, err); return; }
-    const g = b.build();
-    T.free(h);
+    let g: GLTF;
+    try {
+      const b = new Builder(h, path);
+      const err = b.loadBuffers();
+      if (err.length > 0) { fail(onError, err); return; }
+      g = b.build();
+    } finally { T.free(h); }
     onLoad(g);
   }
 }
@@ -128,8 +131,11 @@ class Builder {
   }
   private material(m: i32): Material {
     const flags = T.materialFlags(this.h, m);
-    let mat: Material = new MeshStandardMaterial();
+    const spec: number[] = [];
+    const highlights = T.materialSpecular(this.h, m, spec);
+    let mat: Material = highlights ? new MeshPhongMaterial() : new MeshStandardMaterial();
     if ((flags & 2) !== 0) mat = new MeshBasicMaterial();
+    if (highlights) { mat.specular.setRGB(spec[0], spec[1], spec[2]); mat.shininess = gltfShininess(spec[3]); }
     mat.name = T.materialName(this.h, m);
     const c: number[] = [];
     T.materialColor(this.h, m, c);

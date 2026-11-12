@@ -116,7 +116,7 @@ check('the sample project is in canonical form', serializeProject(parseProject(s
 {
   const d = new Doc(newProject(), '');
   const a = d.addSequence(0, 0), b = d.addSequence(300, 0);
-  const vase = d.addMedia('model', 'models/vase.obj', 'Vase', 'https://example.org/vase', 'CC0 1.0', 'models/vase.jpg');
+  const vase = d.addMedia('model', 'models/vase.glb', 'Vase', 'https://example.org/vase', 'CC0 1.0', 'models/vase.jpg');
   const garden = d.addMedia('panorama', 'panoramas/garden.jpg', 'Jardin', 'https://example.org/garden', 'CC0 1.0', 'ignored.jpg');
   d.addItem(a, vase, 600, 500); d.addItem(a, garden, 1300, 500);
   const first = d.addPoint(vase, [0.086049, 0.05, -0.000004], 89.6, 4.4, 1.604);

@@ -72,7 +72,7 @@
     {
       "id": "vase",
       "kind": "model",
-      "file": "models/vase.obj",
+      "file": "models/vase.glb",
       "texture": "models/vase.jpg",
       "title": {
         "fr": "Vase"
