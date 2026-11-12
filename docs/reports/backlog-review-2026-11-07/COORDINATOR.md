@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- O→P pending relay: P FULLreads/ACK, READONLY until ready-p then O ceasesALLcoordination/mutation/claim/integration/heavy. Full COORDINATOR-P-HANDOFF.md/currentRESUME.1130archive103 verified/released/removedexit0beforebranchdelete;100Done,nextD347/archive104. Sole1034app safeff6991/TRUEfa05 finaloriginal103check and productionVM/QJS/actualnative all3 pass,7760correctedsourceinputs/100artifacts/16providers,3nativeapps retained; task/CHG/commit/freeze continuing. Earlyclosure omissions and inheritednativefailedsave residual explicit. Owner25/index/common8848+NEWwebgl87def audit beforemarker; no O heavy/pending.
+
 - O verified archive103 full11970entrymanifest and owner25/index/common4/sourceclean audit after11d31d412 metadata;1130 worktree removal exited0 before branch deletion. No root pending. Only1034 app source active on safeff6991/newCLI8848; original103check +finalVM productionproof pass, QJS/native final proofs continuing. NextD347/archive104,100Done unchanged.
 
 - O integrated1130 6991e4d1c/D346 BacklogAC1+3checked/AC2OPEN,100Done. Root clean common6991 CLI8848b04a exactfs_lock/publicall3/actualnative PASS,22545sources/100recursiveartifacts/6090inputs unchanged; NEWwebgl87def20198c, window/text unchanged. Archive103 fullyverified19blobs/6517workerentries/11970archiveentries/bundleTRUEce9623/fullcompilers+nativeapps. Unclosed same-thread VM/QJS lock gap retained, explicitfinally contract; no heldRT/UI/HAL/main edits. App1034 safeff6991 keeps10sourceSHA, finalnewcompiler proofs active. Release1130 beforecleanup; nextD347/archive104.
