@@ -1,6 +1,6 @@
 # Zinc coordinator — 2026-11-12
 
-S alone coordinates after `.logs/coord-transfer-20261112-s.ready`; R ceased all coordination. Continue zn-coordinate until .paused or literally nothing startable; no owner question/push.100Done. NextD352/archive109. Full evidence: State, Q handoff, archives97–107. Owner steering: next safe engine/runtime chain after engaged iPod batch; no new app polish.
+S alone coordinates until `.logs/coord-transfer-20261112-t.ready`; T alone afterwards, S ceases all coordination. Continue zn-coordinate until .paused or literally nothing startable; no owner question/push.100Done. NextD352/archive109. Full evidence: State, Q handoff, archives97–107. Owner steering: next safe engine/runtime chain after engaged iPod batch; no new app polish.
 ## Current
 
 Integrated203.09 a12b98d52 asdc2a988eb/D351: public DataView slices, normative source-range errors and no typed destination write on failed getBufferSubData. Task BacklogAC1UNCHECKED,100Done. Actual old JavaScript+typed failures reproduced before edits; same payloads pass exactT0/typedcheck/originalcaller/actualnative. Independent old/newJS+typedVM probes pass candidate with13156+25 inputs unchanged.
