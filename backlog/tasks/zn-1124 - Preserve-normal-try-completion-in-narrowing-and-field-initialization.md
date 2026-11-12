@@ -1,7 +1,7 @@
 ---
 id: ZN-1124
 title: Preserve normal try completion in narrowing and field initialization
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-12 07:43'
@@ -53,3 +53,12 @@ Later proposal: keep D224 optional machine-number store coercion on QuickJS visi
 Usage: `tools/usage` reported `usage: n/a`; no usage estimate is invented.
 
 2026-11-12 coordinator L: reopened after original unchanged iPod103-file check exposed a regression introduced by8975a1c6d: four existing kit optional-property narrowings now fail. Same source/tree with archived old6121edcc8 CLI passes; compact four-case source and both logs are preserved under .worktrees/1037-remote-wire/.logs/remote1037/kit-narrowing.ts, kit-current8975.log and kit-old6121.log. Current examples: guarded callback after conditional getter, early-return guarded callback, compound guard optional number, nested guarded callback with argument call. Correct shared checker transfer precision without changing callers or dropping existing conditional-write negative safety; keep original try-flow proofs. All earlier proofs remain true, but task is reopened until this source regression is fixed. No app workaround.
+
+2026-11-12 worker repair of the reopened regression: `resetAssigned` retains its existing loop/handler call policy by default; conditional/short-circuit forms use actual writes only, skipping dormant function/class bodies and including directly invoked function-expression bodies. No receiver-call reset is replayed over an already evaluated guard. Explicit conditional writes still reset the target and dependent paths. Scope is only the shared checker, focused try_flow fixtures/runner, docs and this task/changelog.
+
+Proof: own relative tools/build zinc under work-run600 exits0, `.logs/build-1124-stage1.log`. Exact try_flow stage2 passes three positive programs on interpreter/native AOT/QuickJS and all28 negative controls, including the original25 plus member/parent/IIFE guarded resets; `.logs/try-flow-stage2.log`. Original compact four-kit source passes and original iPod103-file app passes using this candidate in remote1037 tree, with622 source payload hashes unchanged; remote stage-1124-checks retains compiler manifest and logs. Own unchanged pinball25-file player and36-file editor checks pass. TypeScript6 strict accepts the four-case runtime source with moduleDetection Force (`.logs/typescript-guard-1124-stage2.log`). First TS check used script scope and collided with DOM global `external`; full failed log retained, source unchanged. First added runtime fixture used function-valued `&&`, rejected by Zinc's strict boolean rule; original failed stage log retained and unused fixture expression removed, with full exact T0 rerun. Existing NanoSVG and duplicate-library warnings retained; no changed-checker warning.
+
+The original ipod-web caller check reached its60s bound without a diagnostic; sourceworker preserved `.logs/remote1037/stage-1124-checks/ipod-web.log`. No successful ipod-web check is claimed here. Coordinator owns any bounded comparison. No suite, T1/T2, app execution, device/network/OS action or performance claim. All3 original criteria remain satisfied; the source regression is repaired.
+
+Proposed decision: retain conservative call effects only where the original loop/handler analysis needs them; replay actual conditional writes rather than unrelated getter calls when normal-transfer facts are incomplete.
+Proposed tests: existing broader checker/property-path/closure milestone (seconds to a minute, memory unmeasured), selected by owner; exact guard runtime and unsafe-write checks already pass.

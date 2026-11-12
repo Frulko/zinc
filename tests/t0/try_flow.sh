@@ -9,9 +9,11 @@ for engine in interp native quickjs; do
   printf 'try flow: pass\n' | diff -u - "$tmp/$engine.out"
   ZINC_HEADLESS=1 ZINC_BACKGROUND=1 timeout 40 "$ZINC" run tests/data/try_flow/machine-main.ts "$@" > "$tmp/machine-$engine.out" 2> "$tmp/machine-$engine.err" || { cat "$tmp/machine-$engine.err"; exit 1; }
   printf 'try machine flow: pass\n' | diff -u - "$tmp/machine-$engine.out"
+  ZINC_HEADLESS=1 ZINC_BACKGROUND=1 timeout 40 "$ZINC" run tests/data/try_flow/guard-main.ts "$@" > "$tmp/guard-$engine.out" 2> "$tmp/guard-$engine.err" || { cat "$tmp/guard-$engine.err"; exit 1; }
+  printf 'guard flow: pass\n' | diff -u - "$tmp/guard-$engine.out"
 done
 for source in tests/data/try_flow/*.ts; do
-  case "$source" in tests/data/try_flow/main.ts|tests/data/try_flow/machine-main.ts) continue;; esac
+  case "$source" in tests/data/try_flow/main.ts|tests/data/try_flow/machine-main.ts|tests/data/try_flow/guard-main.ts) continue;; esac
   if LANG=en timeout 10 "$ZINC" check "$source" > "$tmp/negative.log" 2>&1; then echo "accepted unsafe flow: $source"; exit 1; fi
   expected='Z0103|Z0111'
   [ "$source" != tests/data/try_flow/multiple-numbers.ts ] || expected='Z0107'

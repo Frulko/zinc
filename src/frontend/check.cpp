@@ -4485,7 +4485,8 @@ struct Checker {
     if (node == kNone) return;
     const Node& x = n(node);
     if (x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method || x.kind == N::Class) return;
-    if (x.kind == N::Cond || x.kind == N::Switch || isLoop(x.kind) || (x.kind == N::Binary && (x.text == "&&" || x.text == "||" || x.text == "?" "?"))) { resetAssigned(node); return; }
+    if (x.kind == N::Cond || (x.kind == N::Binary && (x.text == "&&" || x.text == "||" || x.text == "?" "?"))) resetAssigned(node, false);
+    else if (x.kind == N::Switch || isLoop(x.kind)) resetAssigned(node);
   }
   // A guard fact from an earlier operand cannot survive a later conditional write.
   void forgetGuardWrites(std::uint32_t node) {
@@ -5425,9 +5426,11 @@ struct Checker {
     }
   }
   // Names assigned anywhere inside a loop invalidate what was known about them before it.
-  void collectAssigned(std::uint32_t i, std::vector<std::string_view>& names) const {
+  void collectAssigned(std::uint32_t i, std::vector<std::string_view>& names, bool immediateOnly = false) const {
     if (i == kNone) return;
     const Node& x = n(i);
+    if (immediateOnly && (x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method || x.kind == N::Class)) return;
+    if (immediateOnly && x.kind == N::Call && !x.kids.empty() && n(x.kids[0]).kind == N::FuncExpr) collectAssigned(n(x.kids[0]).kids[1], names, true);
     auto target = [&](auto&& self, std::uint32_t t) -> void {
       const Node& tn = n(t);
       if (tn.kind == N::Ident) names.push_back(tn.text);
@@ -5437,32 +5440,35 @@ struct Checker {
     };
     if (x.kind == N::Assign) target(target, x.kids[0]);
     else if (x.kind == N::UpdatePre || x.kind == N::UpdatePost) target(target, x.kids[0]);
-    for (std::uint32_t k : x.kids) collectAssigned(k, names);
+    for (std::uint32_t k : x.kids) collectAssigned(k, names, immediateOnly);
   }
-  void resetAssigned(std::uint32_t loopNode) {
+  void resetAssigned(std::uint32_t loopNode, bool calls = true) {
     std::vector<std::string_view> names;
-    collectAssigned(loopNode, names);
+    collectAssigned(loopNode, names, !calls);
     for (std::string_view nm : names) {
       std::uint32_t sy = lookup(nm);
       if (sy != kNone && trackable(sy) && ty(out.syms[sy].type).k == TK::Union) narrowing.push_back({sy, out.syms[sy].type});
       if (sy != kNone && trackable(sy)) resetPaths(sy);
     }
     std::vector<std::string> keys;
-    collectAssignedPaths(loopNode, keys);
+    collectAssignedPaths(loopNode, keys, !calls);
     for (const std::string& key : keys) {  // a path written in the loop, and what hangs below it, is not what it was before the loop
       auto it = pathSyms.find(key);
       if (it != pathSyms.end()) narrowing.push_back({it->second, out.syms[it->second].type});
       resetBelow(key);
     }
+    if (!calls) return; // Calls keep their ordinary flow effects; only writes invalidate conditional facts.
     std::vector<std::string> called;
     collectCalledPaths(loopNode, called);
     for (const std::string& key : called) resetBelow(key);
   }
-  void collectAssignedPaths(std::uint32_t i, std::vector<std::string>& v) const {
+  void collectAssignedPaths(std::uint32_t i, std::vector<std::string>& v, bool immediateOnly = false) const {
     if (i == kNone) return;
     const Node& x = n(i);
+    if (immediateOnly && (x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method || x.kind == N::Class)) return;
+    if (immediateOnly && x.kind == N::Call && !x.kids.empty() && n(x.kids[0]).kind == N::FuncExpr) collectAssignedPaths(n(x.kids[0]).kids[1], v, true);
     if ((x.kind == N::Assign || x.kind == N::UpdatePre || x.kind == N::UpdatePost) && (n(x.kids[0]).kind == N::Member || n(x.kids[0]).kind == N::Index)) { std::string k = pathKey(x.kids[0]); if (!k.empty()) v.push_back(k); }
-    for (std::uint32_t k : x.kids) collectAssignedPaths(k, v);
+    for (std::uint32_t k : x.kids) collectAssignedPaths(k, v, immediateOnly);
   }
   void collectCalledPaths(std::uint32_t i, std::vector<std::string>& v) const {  // `p.m(...)` in a loop: what hangs below p may change
     if (i == kNone) return;
