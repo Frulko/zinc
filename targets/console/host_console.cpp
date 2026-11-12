@@ -272,6 +272,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostLoopEpoch: { timeval tv{}; gettimeofday(&tv, nullptr); r->d = static_cast<double>(tv.tv_sec) * 1000.0 + static_cast<double>(tv.tv_usec) / 1000.0; break; }
     case Rt::HostEvNext: ret(r, ""); break;
     case Rt::HostEvReady: case Rt::HostEvActive: case Rt::HostNativePoll: r->i = 0; break;
+    case Rt::HostFsTryLock: case Rt::HostFsUnlock: gFailed = true; gError = "ENOTSUP: filesystem locks are unavailable on this device"; r->i = 0; break;
     case Rt::HostFsFailed: r->i = gFailed; gFailed = false; break;
     case Rt::HostFsError: ret(r, gError); break;
     case Rt::HostFsReadText: { std::vector<unsigned char> b; ret(r, readAll(str(a[0]), b) ? std::string(b.begin(), b.end()) : ""); break; }

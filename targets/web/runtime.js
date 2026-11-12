@@ -897,6 +897,8 @@ const rows = {
   sysAllocations: () => 0, sysLiveBlocks: () => 0,
   // files: the app's assets and the project's files (zinc.json targets.web.files) are read only; what the app writes is kept in IndexedDB (disk above);
   // storage is the page's localStorage
+  fsTryLock: () => { fsErr = 'ENOTSUP: tryLock requires a native filesystem lock provider'; return 0; },
+  fsUnlock: () => { fsErr = 'ENOTSUP: unlock requires a native filesystem lock provider'; },
   fsFailed: () => fsErr !== '', fsError: () => fsErr,
   fsReadText: (p) => { fsErr = ''; const b = fileBytes(p); if (!b) { fsErr = 'ENOENT: readText ' + p; return ''; } return dec.decode(b); },
   fsWriteText: (p, s) => { fsErr = ''; put(p, enc.encode(s)); },
@@ -1000,6 +1002,7 @@ if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host s
   // a file the page has itself (an asset, a file it wrote in memory) is read here; any other path is the machine's
   let viaBridge = false, loaded = new Uint8Array(0);
   const mine = (p) => !!fileBytes(p);
+  for (const n of ['fsTryLock', 'fsUnlock']) G['__host_' + n] = (...a) => { viaBridge = true; return Z.bridge.call('__rows', n, a); };
   G.__host_fsFailed = () => (viaBridge ? Z.bridge.call('__rows', 'fsFailed', []) : rows.fsFailed());
   G.__host_fsError = () => (viaBridge ? Z.bridge.call('__rows', 'fsError', []) : rows.fsError());
   for (const n of ['fsReadText', 'fsExists']) G['__host_' + n] = (p, ...a) => ((viaBridge = !mine(p)) ? Z.bridge.call('__rows', n, [p, ...a]) : rows[n](p, ...a));

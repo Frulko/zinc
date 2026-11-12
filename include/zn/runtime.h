@@ -446,7 +446,9 @@
   X(SetIterValue, "Set.__iteratorValue", "ti>e", 2) \
   X(HostIntlLocale, "host.intlLocale", "sb>s", 2) X(HostIntlZone, "host.intlZone", "s>s", 2) \
   X(HostIntlNumber, "host.intlNumber", "sdddb>s", 2) X(HostIntlDate, "host.intlDate", "sssd>s", 2) \
-  X(HostIntlDateResolved, "host.intlDateResolved", "sss>s", 2)
+  X(HostIntlDateResolved, "host.intlDateResolved", "sss>s", 2) \
+  /* owned nonblocking filesystem locks; appended to preserve existing bytecode ids */ \
+  X(HostFsTryLock, "host.fsTryLock", "s>i", 2) X(HostFsUnlock, "host.fsUnlock", "i>n", 2)
 
 namespace zn {
 
@@ -481,7 +483,7 @@ inline constexpr bool isGfxTailRow(Rt r) {
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too. zinc:osc and the loop's events it arrives by.
 inline constexpr bool isSysTailRow(Rt r) {
-  return (r >= Rt::HostIntlLocale && r <= Rt::HostIntlDateResolved) || r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysExecPath || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat) || r == Rt::HostAssetsPackAdd || r == Rt::HostAssetsPackWrite ||   // writePack too (QuickJS had no __host_assetsPackAdd)
+  return r == Rt::HostFsTryLock || r == Rt::HostFsUnlock || (r >= Rt::HostIntlLocale && r <= Rt::HostIntlDateResolved) || r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysExecPath || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat) || r == Rt::HostAssetsPackAdd || r == Rt::HostAssetsPackWrite ||   // writePack too (QuickJS had no __host_assetsPackAdd)
          (r >= Rt::HostOscListen && r <= Rt::HostOscSend) || r == Rt::HostSockError || r == Rt::HostEvReady || r == Rt::HostEvNext ||
          r == Rt::HostSigWatch || r == Rt::HostSigSend || r == Rt::HostStdinRead ||   // sys.onSignal, sys.kill, sys.onStdin
          (r >= Rt::HostFsSymlink && r <= Rt::HostOsNetField) ||   // zinc:fs symlink, readlink, chmod and zinc:os uid, gid, shell, cpus, networkInterfaces

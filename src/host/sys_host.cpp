@@ -5,6 +5,7 @@
 #include "platform/board.h"
 #include "platform/power.h"
 #include "host/permissions.h"
+#include "host/fs_lock.h"
 #include "zpk/zpk.h"
 #include "zrt_assets_dir.h"
 #include <signal.h>
@@ -731,6 +732,7 @@ std::string str(const HostArg& a) { return std::string(static_cast<const char*>(
 
 const char* codeOf(int e) {
   switch (e) {
+    case EBADF: return "EBADF"; case ENOTSUP: return "ENOTSUP"; case ELOOP: return "ELOOP";
     case ENOENT: return "ENOENT"; case EACCES: return "EACCES"; case EEXIST: return "EEXIST"; case ENOTDIR: return "ENOTDIR"; case ENOTEMPTY: return "ENOTEMPTY";
     case EISDIR: return "EISDIR"; case EPERM: return "EPERM"; case EINVAL: return "EINVAL"; case EBUSY: return "EBUSY"; case EXDEV: return "EXDEV"; case EMFILE: return "EMFILE";
     default: return "EIO";
@@ -769,6 +771,29 @@ bool denyByScope(const char* op, const std::string& path) {
   if (scopeAllows(path)) return false;
   gFailed = true; gError = std::string("EACCES: ") + op + " " + path + " (outside the fs scope: only files picked in a dialog)";
   return true;
+}
+
+// Resolve the existing parent before checking a missing leaf; a final symlink is never followed by the lock provider.
+std::int32_t tryFileLock(const std::string& path) {
+  if (path.empty() || path.find('\0') != std::string::npos) { fail("tryLock", path, EINVAL); return 0; }
+  if (denyByPermission("fs:write", path) || denyByScope("tryLock", path)) return 0;
+#ifdef _WIN32
+  const auto slash = path.find_last_of("/\\");
+  const bool driveRoot = slash == 2 && path[1] == ':';
+#else
+  const auto slash = path.find_last_of('/');
+  constexpr bool driveRoot = false;
+#endif
+  const std::string parent = slash == std::string::npos ? "." : slash == 0 || driveRoot ? path.substr(0, slash + 1) : path.substr(0, slash);
+  const std::string leaf = slash == std::string::npos ? path : path.substr(slash + 1);
+  if (leaf.empty() || leaf == "." || leaf == "..") { fail("tryLock", path, EINVAL); return 0; }
+  char resolved[4096];
+  if (!realpath(parent.c_str(), resolved)) { fail("tryLock", path); return 0; }
+  const std::string canonical = std::string(resolved) + "/" + leaf;
+  if (denyByPermission("fs:write", canonical) || denyByScope("tryLock", canonical)) return 0;
+  std::int32_t token = 0;
+  if (const int error = zn::host::fslock::acquire(canonical, token)) fail("tryLock", path, error);
+  return token;
 }
 
 // The I/O of readAll and writeAll, without the checks or the shared error: 0, or the errno (the async rows run them on libuv's thread pool).
@@ -1127,6 +1152,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysUtf8Byte: r->i = static_cast<std::uint32_t>(n(1)) < a[0].n ? static_cast<unsigned char>(static_cast<const char*>(a[0].p)[n(1)]) : 0; break;
     case Rt::HostSysUtf8Decode: ret(r, utf8Decode(static_cast<const std::uint64_t*>(a[0].p), a[0].n)); break;
     // ---- zinc:fs
+    case Rt::HostFsTryLock: r->i = tryFileLock(s(0)); break;
+    case Rt::HostFsUnlock: if (const int error = zn::host::fslock::release(n(0))) fail("unlock", std::to_string(n(0)), error); break;
     case Rt::HostFsFailed: { r->i = gFailed; gFailed = false; break; }
     case Rt::HostFsError: ret(r, gError); break;
     case Rt::HostFsReadText: { std::vector<unsigned char> b; if (readAll(s(0), b, "cannot open")) ret(r, std::string(b.begin(), b.end())); else ret(r, ""); break; }

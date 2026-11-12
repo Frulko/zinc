@@ -462,6 +462,8 @@ function check(): void { if (__host_fsFailed()) throw new Error(__host_fsError()
 export function readText(path: string): string { const s = __host_fsReadText(path); check(); return s; }
 export function writeText(path: string, data: string): void { __host_fsWriteText(path, data); check(); }
 export function appendText(path: string, data: string): void { __host_fsAppendText(path, data); check(); }
+export function tryLock(path: string): i32 { const token = __host_fsTryLock(path); check(); return token; }
+export function unlock(token: i32): void { __host_fsUnlock(token); check(); }
 // writeTextAsync / readTextAsync: the file is written or read on a worker thread; the host's event (kind 60 written, 61 read with the text as
 // the payload, 62 failed) settles the promise of the request with that id.
 class __FsCall {

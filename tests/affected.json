@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["src/host/fs_lock.h", "src/host/sys_host.cpp", "include/zn/runtime.h", "src/frontend/modules.cpp", "lib/modules.d.ts", "targets/web/runtime.js", "targets/wasm/host_wasi.cpp", "targets/wasm/glue/worker.mjs", "targets/console/host_console.cpp", "tests/native/fs_lock.cpp", "tests/native/fs_lock_wasi.cpp", "tests/native/fs_lock_console.cpp", "tests/native/fs_lock_web.mjs", "tests/t0/fs_lock.sh", "tests/data/fs_lock/"], "tests": ["fs_lock"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/dyn.cpp", "tests/data/dyn_lastindex/", "tests/t0/dyn_lastindex.sh"], "tests": ["dyn_lastindex"]},
     {"paths": ["src/tc/bundle.cpp", "tests/native/bundle_licenses.cpp", "tests/t0/bundle_licenses.sh"], "tests": ["bundle_licenses"]},
     {"paths": ["src/frontend/check.cpp", "tests/data/fluent_receivers/", "tests/t0/fluent_receivers.sh"], "tests": ["fluent_receivers"]},

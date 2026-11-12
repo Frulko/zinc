@@ -14,11 +14,18 @@ void (*zn_wasm_assets_host)(int, const zn::host::HostArg*, zn::host::HostArg*) =
 namespace {
 double gNow = 0;       // virtual milliseconds since the start
 std::string gOut;
+bool gLockFailed = false;
+std::string gLockError;
 void ret(zn::host::HostArg* r, const std::string& s) { gOut = s; r->p = gOut.data(); r->n = static_cast<std::uint32_t>(gOut.size()); }
 
 void call(int id, const zn::host::HostArg* a, zn::host::HostArg* r) {
   using zn::Rt;
   const auto row = static_cast<Rt>(id);
+  if (row == Rt::HostFsTryLock || row == Rt::HostFsUnlock) {
+    gLockFailed = true; gLockError = "ENOTSUP: filesystem locks are unavailable on WASI"; r->i = 0; return;
+  }
+  if (row == Rt::HostFsFailed && gLockFailed) { gLockFailed = false; r->i = 1; return; }
+  if (row == Rt::HostFsError && !gLockError.empty()) { ret(r, gLockError); gLockError.clear(); return; }
   if (zn_wasm_assets_host && ((row >= Rt::HostAssetsExists && row <= Rt::HostAssetsName) ||
       (row >= Rt::HostAssetsMount && row <= Rt::HostAssetsStat) || row == Rt::HostFsFailed || row == Rt::HostFsError || row == Rt::HostFsByte || row == Rt::HostFsBytes)) {
     zn_wasm_assets_host(id, a, r); return;

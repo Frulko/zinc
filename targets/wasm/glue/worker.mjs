@@ -305,6 +305,7 @@ async function start(e) {
         break;
       }
       case 'host.assetsMount': case 'host.assetsUnmount': fsError = 'browser asset mounts are declared in boot.json'; fsFailure = true; out = 0; break;
+      case 'host.fsTryLock': case 'host.fsUnlock': fsError = 'ENOTSUP: filesystem locks are unavailable in a browser'; fsFailure = true; out = 0; break;
       case 'host.fsFailed': out = fsFailure ? 1 : 0; fsFailure = false; break;
       case 'host.fsError': out = fsError; break;
       case 'host.fsByte': out = fsBytes[a[0]] || 0; break;

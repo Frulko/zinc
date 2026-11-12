@@ -59,6 +59,13 @@ declare module 'zinc:sys' {
 }
 
 declare module 'zinc:fs' {
+  /** Exclusive nonblocking advisory lock on a stable regular file (created if absent, never truncated/deleted).
+   *  Positive opaque token owned by this thread; 0 only means contention. Needs fs:write and fs scope access.
+   *  Always unlock in finally: program teardown does not release unclosed locks on a reused thread.
+   *  Native desktop hosts only; unsupported providers throw ENOTSUP. Other filesystem errors throw. */
+  export function tryLock(path: string): i32;
+  /** Releases this thread's acquisition; stale, invalid or other-thread tokens throw EBADF. */
+  export function unlock(token: i32): void;
   /** @throws when the file cannot be read */
   export function readText(path: string): string;
   /** @throws when the file cannot be written */

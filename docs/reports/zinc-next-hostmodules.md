@@ -76,3 +76,22 @@ Decoding: stb_image on PNG, JPEG, BMP and GIF (first frame), for baked assets an
 Result (macOS arm64): `otool -L` of the packaged `zinc` lists system libraries only (libSystem, libc++, libobjc and Apple frameworks); the app bundle has no `Frameworks/*.dylib`. `zinc` grows from 5.9 MB to 7.8 MB while the Homebrew `libSDL3.dylib` (2.5 MB) is no longer shipped: the package is 5.6 MB zipped, 15 MB unpacked. On Linux SDL opens X11, Wayland, KMS and ALSA with `dlopen` at run time; building it needs their development headers (X11, Wayland, xkbcommon, libdrm, gbm, udev) and was not run here (no Docker by decision).
 
 The window zoom: `display-gl` honours `ZINC_ZOOM` now (window size in points, as `hal_sdl` does). DPI: the logical surface is the `zinc.json` width and height; a surface 400 px wide or less opens at 2x (SDL window) or 3x (display-gl) in points, and the drawable is rendered at the screen density on top (Retina: 2 pixels per point), so a 320x240 program shows as 640x480 points / 1280x960 pixels. `ZINC_ZOOM=1` or `zoom` in `zinc.json` turns the enlargement off.
+
+## Owned filesystem locks (ZN-1130)
+
+`zinc:fs.tryLock(path): i32` takes a nonblocking exclusive advisory lock on a stable regular file. A positive token belongs to the calling thread; zero means another acquisition holds the lock. All other errors throw with a filesystem code. `unlock(token)` releases only that acquisition; invalid, stale, double-released and other-thread tokens throw `EBADF`. Tokens never repeat within the process. Native desktop hosts share the implementation across interpreter, native AOT and QuickJS. Web, WASI and console providers throw `ENOTSUP`; the web development bridge uses the native host's real filesystem and its permission policy.
+
+Use a sibling such as `covers.lock`, and keep it at the same path: never unlink or rename a live lock file. Acquisition creates a missing file with mode 0600 on POSIX, but never truncates or deletes it. All cooperating readers and writers must use the same lock. The provider rejects embedded NUL, nonregular files and final symlinks; `fs:write` and the existing picked-file scope are checked before creation, including the resolved existing parent. This follows the existing filesystem policy, not a stronger sandbox against concurrent ancestor replacement. Network filesystems have platform-specific advisory locking behavior and are unproven.
+
+```ts
+import { tryLock, unlock } from 'zinc:fs';
+const token = tryLock('covers.lock');
+if (token > 0) {
+  try { /* read, mutate and publish the shared files */ }
+  finally { unlock(token); }
+}
+```
+
+Explicit release in `finally` is required. A thread's exit destroys its owned OS handles, and process death releases them through the OS (availability may be delayed on Windows). **Program teardown on a reused thread does not automatically release an unclosed token.** The current runtime finish hook misses non-graphics VM/QuickJS and forced embedder exits, and has a fixed unchecked callback capacity; no registration is used as a false guarantee. ZN-1130 AC2 remains open until a real run-owner boundary covers those paths. Windows uses `LockFileEx`; actual Windows execution remains unproven.
+
+Platform references: [Apple flock](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/flock.2.html), [Linux flock](https://man7.org/linux/man-pages/man2/flock.2.html), [Microsoft LockFileEx](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex).
