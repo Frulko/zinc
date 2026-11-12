@@ -2,11 +2,13 @@
 
 Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after handoff: /root/coordinator_next. Root stops coordinating once .logs/coord-transfer-20261112.ready exists; source worker /root/linux_window_592_04 reports to the new coordinator. Native workers in isolated worktrees; max2 building trees, one heavy command through absolute tools/work-run. Read .logs/worker-rules.md for brief supplement.
 
-91 Done since1078.03. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
+92 Done since1078.03. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
 
 ## Current
 
-584.03 integratedde56ba0b5 ReviewAC1; rootexactgame all3 PASS includingactualplatformerfocusreset, actualAOT40frames Start/focusloss/captureinspected hashda91e6dbc6ac14ed. Archive67verifiedsource/fullproof. 584.02 integrated8b227f58e ReviewAC1(T1unselected); Tiled/LDtk originalfixtureall3 hash442439ac4b8ed9c3, rootT0+2frameproof pass; archive65. 592.04 integrated64541daa1 ReviewAC1/D311; rootmacbuild/exactwindow_module/backgroundplatformer2frames pass. CrossLinuxELF19490224B/window3135464B noSDLmain/sharedruntimeimports pass; SSHauthfailed, noactualLinuxclaim. Archive66fullsource/logs/5artifacts. Active440.03 optionalOpus nativeworker;584.04/.05 template/docsresearchcomplete candidate.91Doneunchanged.
+584.04 df8cc1288 ReviewAC1;584.05 061a664d6 DoneAC1. Rootnewgame/check/AOT40frames+inspectedcapture hash1f813cba3bf62866 PASS. Workerinterp/AOT1840allframes throughrestart+QJS40samehash,9docsnippets/54links/targetedrender pass. Archive68verifiedfullsource/proofs. Active440.03 finaloptionalOpuschecks;535lazyexportread-onlyresearchnext.92Done.
+
+584.03 integratedde56ba0b5 ReviewAC1; rootexactgame all3 PASS includingactualplatformerfocusreset, actualAOT40frames Start/focusloss/captureinspected hashda91e6dbc6ac14ed. Archive67verifiedsource/fullproof. 584.02 integrated8b227f58e ReviewAC1(T1unselected); Tiled/LDtk originalfixtureall3 hash442439ac4b8ed9c3, rootT0+2frameproof pass; archive65. 592.04 integrated64541daa1 ReviewAC1/D311; rootmacbuild/exactwindow_module/backgroundplatformer2frames pass. CrossLinuxELF19490224B/window3135464B noSDLmain/sharedruntimeimports pass; SSHauthfailed, noactualLinuxclaim. Archive66fullsource/logs/5artifacts. Active440.03 optionalOpus nativeworker;584.04/.05 template/docsresearchcomplete candidate.92Done after584.05.
 
 Prior integrated features/proofs:573 f22d2f54e Backlog globalallocation/Kaplay/soakopen;6721db9edff3 Doneall3 browserimages;1118caa9096be Doneall2 processguardian;330.04e31522ace Reviewtextmodule goldensunrun;7011ca3bba23 Review AMD/conformanceunrun;584.017b47aef28 ReviewAC1 typedgames no10kFPS;6734b6b11477 BacklogAC3only Unicodefallbackdiff/audioopen;661f0ed086b9 Backlogshowcasesopen actualWebAudio nativebridgepass;535e12851c0c BacklogAC1/4 noactualPi/platformreexport. Sourcearchives57–64 and integration-2026-11-11 summaries retain details. No benchmarkmilestone selected.
 
@@ -23,6 +25,8 @@ Never reset/build/stage main WIP. Exact payload hashes .logs/blockers/core-1030/
 1030 Backlog: wider structural stores/views unfinished; related-reference array guards and earlier dynamic/default/namespace fixes integrated.1118 Backlog: vanished intermediate process ancestry remains;1121 only fixes cwd/glibc.1066 Review: privateHermes SDK patch only, installed/public SDK unchanged.512 Review: realNEON/hardfloat metadata, no staticmusl or ARM execution claim.164 Backlog: lite OSC/DNS removal, genericlibuv sockets remain.575/1068/1078.29 Review: quietperformance gates unrun.897 WebRTC client actualICE/twoZinc scope open. No newservices/demos.
 
 ## Tests to run (owner picks)
+
+- Sincedf8cc1288/061a664d6: quiet500bodyAOT60FPSgate for584.04 remainsunselected; full `zinc doc --std --out <temporary-dir>` navigation/audible/cross-targettemplate checks proposed in tasks. Root40framefeature andtargetedsnippet/render proofs already pass.
 
 - Sincede56ba0b5: selected scriptedT1 camera/actions in platformer incl keys/pointer/gamepad/bounds/restart/focus (~5–15s, memory unmeasured). ExactT0+40frameAOT proof already pass; task584.03AC2 remainsopen.
 

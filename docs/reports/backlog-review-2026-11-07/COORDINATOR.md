@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated584.04 df8cc1288 ReviewAC1 and584.05 061a664d6 DoneAC1,92Done. Rootnewtemplate/check/actualAOT40frames+inspectedcapture hash1f813cba3bf62866 PASS. Worker1840interp/AOTallframes+QJS40/doc9snippets54links/targetedrender pass. Archive68fullsource/proof verifiedbeforecleanup.440.03 finalcodecproofs includingrealWebRTCcollisionfix;535lazyexportresearchnext.
+
 - Reserve584.04/.05 samegamechain after584.03; delegatedprimaryresearchcomplete. ExistingCoinRush templateadopts SceneController/Sprite/InputActions, preservesworld/save/audio/controls; noforcedmap/animation/physics ornewdemo.500body60FPSgate staysopen/unselected. Existingreference extended+guidechapter/nav, documentationtask mayclose onexactchecks.440.03 nativeaudioactive.
 
 - Integrated584.03 de56ba0b5 ReviewAC1; reviewcaughtnewplatformerfocuslossstuckkey, callerreset+actualappT0 added, all3 exactgamePASS. RootAOT40frames/captureinspected hashda91e6dbc6ac14ed. Sharedaffected merge duplicateoldmapping removed, onlyownedHEADpatch staged. Archive67verifiedbeforecleanup.440.03 activeoptionalcodec;584.04/.05 researchcomplete candidate.91Doneunchanged.
