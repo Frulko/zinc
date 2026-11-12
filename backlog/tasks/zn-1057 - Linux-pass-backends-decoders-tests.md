@@ -2,8 +2,7 @@
 id: ZN-1057
 title: 'Linux pass: backends, decoders, tests'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:40'
 labels:
   - linux

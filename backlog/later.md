@@ -769,6 +769,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-661: reconcile native `u32[]` result matching and unsigned toSlot conversion when an actual result API needs it; browser U arguments/output views now work, while result support requires held core work.
 
+- ZN-1057: align `zinc check --json <project>` permission/native-provider setup with ordinary project checks; Discord currently stops on21 pre-check diagnostics while its realfrontend contract check passes (logs retained, main wiring held).
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).

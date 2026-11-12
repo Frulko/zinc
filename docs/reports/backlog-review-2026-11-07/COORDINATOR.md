@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated1057video06a1556c2/D331 Backlogall5ACopen,94Done. RootexactNodeproduction/fakeT0+realpublic/nativecapability/guardsforcedoff+normalall3PASS; actualMacplugin/table/vendorpackretained,434vendorsource+20artifacthashesverify. WorkerMac/LinuxobjectsWerror/providerreal/193filecontractcheckPASS; noLinuxlink/runtime/call/device/fullappcheck/enginebuild. Archive91 verifies11payloads/full68logs/root16files/bundle.1057released,cleanupnext; only681activebase2fafbf09d, sharedstandardmaterial+on-demandgeometry/writer/source migration underway. NextD332/archive92.
+
 - Claimed681 after primary/source research `.logs/research-681-i.txt`: existing decimated OBJ can become bounded GLB, but default migration must preserve glaze and surface picking. Isolated museum asset/tool plus necessary shared3d/three material/intersection seams; no hiddenOBJ workaround/default regression or owner runtime/host edit. No new dependency/demo/service;12MiB limit unchanged, literal frame comparison unselected. Fresh worker must report full source plan before plugin edits.1057 remains separate.
 
 - Integrated66131ae13de7/D330 BacklogbothACopen,94Done. CleancommonWASMbuild/exactwasm_native/typedfixture/productionChromeexportPASS; realJSPI+blockingVM/BIUDgrowshrinkemptyalias/-0 andRender3DCPU only. Archive90 verifies16payloads/full52logs/root27files/threeWASMartifacts/bundle. Rootexport--out typo refusedbeforeexecution; failedscript/logkept, corrected-oexportChromePASS, no repeatedbuild/T0.661claimreleased,source/branchremovedafterverification. Active1057isolatedtruthfulH264capabilityonly; noownerRT/CLIchange/suite/performanceclaim. NextD331/archive91.
