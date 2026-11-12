@@ -1,6 +1,6 @@
-# Zinc coordinator — 2026-11-11
+# Zinc coordinator — 2026-11-12
 
-Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Root sole coordinator. Native workers in isolated worktrees; max2 building trees, one heavy command through absolute tools/work-run. Read .logs/worker-rules.md for brief supplement.
+Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after handoff: /root/coordinator_next. Root stops coordinating once .logs/coord-transfer-20261112.ready exists; source worker /root/linux_window_592_04 reports to the new coordinator. Native workers in isolated worktrees; max2 building trees, one heavy command through absolute tools/work-run. Read .logs/worker-rules.md for brief supplement.
 
 91 Done since1078.03. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
 
