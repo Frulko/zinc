@@ -763,6 +763,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-550: native ABI shutdown/VM ownership and generated static argument scratch/allocator/factory concurrency need a focused engine check; current bus internal locks and explicit close do not establish whole-VM concurrency or unclosed-handle reload cleanup.
 
+- ZN-558: finish generic GATT and actual targeted UART GATT/LE export, then selected hwsim/NM, btvirt and Pi/no-radio checks; nmcli writes/static alternatives and D316 shared-native teardown/concurrency remain open.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
