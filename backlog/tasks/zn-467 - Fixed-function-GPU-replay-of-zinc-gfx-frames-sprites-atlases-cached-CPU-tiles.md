@@ -2,7 +2,8 @@
 id: ZN-467
 title: 'ff_replay: desktop CPU reference backend, T1 against the raster, counters in zinc -v'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:37'
 updated_date: '2026-11-07 18:30'
 labels:

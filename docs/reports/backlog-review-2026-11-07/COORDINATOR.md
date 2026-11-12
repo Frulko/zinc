@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Fresh sole coordinator /root/coordinator_next/coordinator_fresh after6f7b8eaee/ready-b. Reserve467 independent console fixed-function CPU reference/counters beside535 frontend/QJS worker; no runtime/HAL/owner edits. Delegated primary research underway; literal T1 acceptance remains unselected.92Done,69archives.
+
 - Coordinatorfreshhandoff2026-11-12b: leader /root/coordinator_next/coordinator_fresh activatesONLYafter .logs/coord-transfer-20261112-b.ready; prior /root/coordinator_next thenstopscoordination. Soleworker /root/coordinator_next/board535_lazy work/535-lazy claimed1c6a31975, noheavyrootpending/process;92Done/archive69/D312. Fullhandoffbrief+RESUME capturecontract/protectedpayloads. All10ownerpayloadverified; perf15ownerlines remainuncommitted.
 
 - Integrated440.03 af7a3897e Review/D312; rootexactaudio_opus+existingWebRTCarchives PASS, actualclip/pack/filePCM+stopzero PASS. MaterialbaselineOpusinterposition foundandfixed425privateglobals; DRED100ms/roundtrip/factorynowpass. Archive69fullsource/proofs/artifacts verifiedbeforecleanup. Memorylowerbound/chainedalloc andPiCPU remainopen.535-lazy active sole sourceworker;92Done.
