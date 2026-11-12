@@ -2,9 +2,11 @@
 
 Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after ready-m: coordinator_m under coordinator_l. Outgoing L ceases all coordination at .logs/coord-transfer-20261112-m.ready. Full durable handoff .logs/COORDINATOR-M-HANDOFF.md; full worker-rules. Source isolated; max2buildingtrees/oneheavy, absolute main tools/work-run and relative tools/build in correct tree.
 
-94 Done since1078.03;1124 reopened for a confirmed new narrowing regression. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
+95 Done since1078.03 after reconciling the completed161 parent;1124 remains reopened pending integration of its repair. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
 
 ## Current
+
+Reconciled stale parent ZN-161: all three children Done, inherited Node-fixture and per-addition-budget criterion supported by source14f12f075/1a717097f/8e11bffb6 and D263/D296/D301. Read-only bundle/golden/summary audit passes; no test or measurement rerun, no new feature. Reflect/Proxy remain explicitly dropped.95Done now includes this parent closure; engine1124/1125/1126 remains unintegrated.
 
 Sole coordinator after `.logs/coord-transfer-20261112-m.ready`: coordinator_m. L ceases all coordination at that marker. Full handoff: `.logs/COORDINATOR-M-HANDOFF.md`.
 
@@ -14,7 +16,7 @@ New/claimed1126 blocks actual1037wire QuickJS: rules?:ipod.SmartRules causes emp
 
 ZN-1037 app tree `.worktrees/1037-remote-wire` remains SAME edited tree, truebase0e135ab485ab0ee7b398655a9ea4ea32d0c04a04, ONLYremote.ts/api.ts WIP, no sourcecommit/noACchecked. Provisional sourceworker ended to free research slot; `.logs/HANDOFF-1037-BLOCKED.md` and full2558filemanifest preserve state. Resume FRESHremote worker there WITHOUTRESET only after1126stablecandidate. Sender/consumer prepared notrun. Original baseline log genuine but net-fake dependency lost/reconstructed explicitly; original ipod-web globalcheck timesout old90s/candidate60s, no diagnostic/lowsteadyRSS, no globalrerun. Partial<TrackInput> miniPASS, hypothesisdoesnotreproduce. Fullsource snapshots/provenance/stages retained.
 
-Next D337/archive97;94Done until1124integrated repair. Engine/public native wire/RT/IRABI unchanged, owner10/perf15auditPASS. No daemon/network/device/SDK/service action or suite/benchmark selected.
+Next D337/archive97;95Done including161 parent,1124 repair still awaits integration. Engine/public native wire/RT/IRABI unchanged, owner10/perf15auditPASS. No daemon/network/device/SDK/service action or suite/benchmark selected.
 
 Integrated ZN-1123 bc2cfe9c4 / D326, Done both criteria; 94 Done since1078.03. Exact Dyn aliases retain callback parameter/result identity. Clean common build, exact dyn_callback, original Request/fetch all3 and rn-showcase32-file check pass without app/library changes. Archive86 verifies17 source payloads,83 worker logs and70 rootproof files.
 
