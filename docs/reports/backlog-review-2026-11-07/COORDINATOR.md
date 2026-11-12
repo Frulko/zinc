@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Created/claimed1124 New-taskblocks pinballlifetime: valid16line try/catchfield+localassign acceptedTS6strict, current6121edcc8Z0111/Z0103; primary/source research .logs/research-try-j.txt. Newsolefrontendworker next, noownerRT/HAL/UI/main/nativechanges.1039sourceparkeduncommittedtenpayloads+logs, claimretained, no workaround.563GPUcontinuesindependent; crossAOTundefinedSDLrevealsmissingoptionalruntime, privateSDLdispatchfallbackplanaccepted nohostedit, noGPUAOTclaim.
+
 - Claimed1039 existingpinball scene/audio lifetime after primary/source research .logs/research-apps-j.txt: tablechanges/editorrebuild dropmeshes/camera/sounds withoutdispose/unload. App-onlysharedclasses/callers/constructorrollback/exactlifecycleT0, no3d/audio nativeedit/newdemo/service/assetdownload. Sharedimagecache keptunlesscorrectboundaryproved; noglobalforgetperdrop/totalRSSclaim. AllcompoundACstayopen; independent563.01GPUactive, sharedheavyqueue.
 
 - Claimed563.01 after primary/source research .logs/research-next-j.txt: existing3dGPUmanifest lacksLinux, privateSDLcontext and existing windowmodule permit isolated dynamicGLloader/manifest/headerpayload. No heldHAL/runtime/host/main edits/newdependency/service/demo; require workerplan before edits for lifecycle/handles/pkg. LinuxSSIM/T1/performance remainunselected, actualshortfeature only if safe accessible.681integrated/archive93/cleaned, no rootheavy; nextD334/archive94.
