@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated1057mount986a91af7/D332 Backlogall5ACopen,94Done. RootexactfakeUDisks/sysfsT0+strictMaccore/Linuxhelperobjects+explicitTSsimall3PASS; noactualbus/mount/USB/device/OSaction, nofullLinuxcore/pluginlink. Archive92 verifies12payloads/full55logs/root21files/bundle; rootgenincludeadapterfailureandinitialworkerfailuresretained.1057released,cleanupnext. Only681activebase2fafbf09d, finalpredecodeviewcumulguardunderreview; nofreeze/integrationyet. NextD333/archive93.
+
 - ReclaimedSAME1057 Linux iPod mount discovery after primary/source research `.logs/research-cross-i.txt`: emptyinput currently refuses, stable UDisks API via existing injected finiteBus/read-onlyradio_dbus helper plus exactUSBidentity. Isolated plugin/privatehelper/fakeproof only; no realmount/USB/bus/service/device action, newdependency, runtime/HAL/main edit or app rewrite. All5ACremainopen. Independent681 active; max2buildingtrees/oneheavy queue.
 
 - Integrated1057video06a1556c2/D331 Backlogall5ACopen,94Done. RootexactNodeproduction/fakeT0+realpublic/nativecapability/guardsforcedoff+normalall3PASS; actualMacplugin/table/vendorpackretained,434vendorsource+20artifacthashesverify. WorkerMac/Linuxobjectswarningfree/providerreal/193filecontractcheckPASS; noLinuxlink/runtime/call/device/fullappcheck/enginebuild. Archive91 verifies11payloads/full68logs/root16files/bundle.1057released,source/branchremovedafterverification; only681activebase2fafbf09d, sharedstandardmaterial+on-demandgeometry/writer/source migration underway. NextD332/archive92.
