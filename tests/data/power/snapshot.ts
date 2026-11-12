@@ -1,0 +1,10 @@
+import { snapshot, onChange } from 'zinc:power';
+const s = snapshot();
+console.log(JSON.stringify(s));
+console.log(s.temperatures.length, s.cpuRequestedMHz === null, s.underVoltage === null, s.fanRPM === null, s.powerButtonPressed === null);
+let calls = 0;
+const stop = onChange(() => { calls++; });
+stop(); stop();
+const again = onChange(() => { calls++; });
+again();
+console.log(calls);

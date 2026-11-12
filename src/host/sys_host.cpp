@@ -3,6 +3,7 @@
 // the API of lib/modules.d.ts: an error is reported with fsFailed()/fsError() and thrown there. Plain C++17, no dependency on the old runtime.
 #include "host/assets_host.h"
 #include "platform/board.h"
+#include "platform/power.h"
 #include "host/permissions.h"
 #include "zpk/zpk.h"
 #include "zrt_assets_dir.h"
@@ -581,6 +582,7 @@ std::string systemAccent() {
 #endif
 }
 std::string desktopDevice(const std::string& q, const std::string& a) {
+  if (q == "power") return zn::power::current().json();
   if (q == "board") {
 #ifndef _WIN32
     return deviceRecord(true);

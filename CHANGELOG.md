@@ -16,6 +16,12 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Fused desktop apps enforce their declared `zinc.json` permissions, as native exports do; declare every capability the app uses.
 - Zinc and QuickJS locale formatting reject options outside the [documented Intl subset](docs/intl.md), instead of silently ignoring them; fraction digits are limited to 0 through 20.
 
+### Hardware
+
+#### New
+
+- `zinc:power` reads thermal zones, CPU clocks, Raspberry Pi throttle flags and fan observations, with change subscriptions; `zinc doctor` shows the same snapshot and marks unavailable readings as unknown.
+
 ### Games
 
 #### Changed

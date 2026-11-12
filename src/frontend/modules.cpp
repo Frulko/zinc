@@ -2093,7 +2093,7 @@ constexpr StdModule kStdModules[] = {
     {"zinc:ui/react", "react.ts", {}}, {"zinc:ui/kit", "kit/index.ts", {}}, {"zinc:ui/kit/host", "kit/host.ts", {}}, {"zinc:icons", "icons.tsx", {}}, {"zinc:ui/animated", "animated.ts", {}},
     {"zinc:ui/dnd", "dnd.ts", {}}, {"zinc:react-native", "react-native.tsx", {}}, {"zinc:react-native/linking", "react-native-linking.ts", {}},
     {"zinc:ui/nuxt", "nuxt/index.ts", {}}, {"zinc:ui/nuxt/host", "nuxt/host.ts", {}}, {"zinc:ui/platform", "platform/index.ts", {}}, {"zinc:ui/navigation", "navigation.tsx", {}}, {"zinc:ui/history", "history.ts", {}},
-    {"zinc:haptics", "haptics.ts", {}}, {"zinc:device-info", "device-info.ts", {}}, {"zinc:board", "board.ts", {}}, {"zinc:hardware", "hardware.ts", {}}, {"zinc:signals", "signals.ts", {}},
+    {"zinc:haptics", "haptics.ts", {}}, {"zinc:device-info", "device-info.ts", {}}, {"zinc:board", "board.ts", {}}, {"zinc:power", "power.ts", {}}, {"zinc:hardware", "hardware.ts", {}}, {"zinc:signals", "signals.ts", {}},
     {"zinc:path", "path.ts", {}}, {"zinc:hash", "hash.ts", "hash.browser.ts"}, {"zinc:net/acme", "acme.ts", {}}, {"zinc:worker", "worker.ts", {}}, {"zinc:xml", "xml.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:devhooks", "devhooks.ts", {}}, {"zinc:i18n", "i18n.ts", {}}, {"zinc:stage", "stage.ts", {}}, {"zinc:game", "game.ts", {}}, {"zinc:system", "system/index.ts", {}},
     {"zinc:system/notification", "system/notification.ts", {}}, {"zinc:system/menu", "system/menu.ts", {}}, {"zinc:system/tray", "system/tray.ts", {}},
     {"zinc:system/dialog", "system/dialog.ts", {}}, {"zinc:system/window", "system/window.ts", {}}, {"zinc:system/shortcut", "system/shortcut.ts", {}},
