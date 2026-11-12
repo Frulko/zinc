@@ -213,14 +213,20 @@ declare module 'zinc:telemetry' {
 }
 
 declare module 'zinc:gpio' {
-  export interface PinEdge { pin: u8; value: u8; timestampMs: f64 }
-  /** mode: "in" | "out"; pull: "up" | "down" | "none" */
-  export function setup(pin: u8, mode: string, pull: string): void;
+  /** Monotonic timestamp in milliseconds; Linux sequence gaps indicate dropped kernel events. */
+  export interface PinEdge { pin: u8; value: u8; timestampMs: f64; sequence: f64 }
+  /** Chip label/path and a local offset string or exact line name. 'sim' explicitly selects the simulator. Releases any old request. */
+  export function select(pin: u8, chip: string, line: string): void;
+  /** mode: in/out; pull: up/down/none/keep; drive: push-pull/open-drain/open-source. */
+  export function setup(pin: u8, mode: string, pull: string, drive?: string, initial?: u8): void;
   export function write(pin: u8, value: u8): void;
   export function read(pin: u8): u8;
-  /** edge: "rising" | "falling" | "both" */
+  /** edge: rising/falling/both; kernel debounce on Linux, software debounce in simulation. */
   export function watch(pin: u8, edge: string, debounceMs: u16, cb: (e: PinEdge) => void): void;
-  /** Simulator only (macos/linux/sim): drive an input pin as if wired to a button. */
+  export function unwatch(pin: u8): void;
+  /** Releases ownership, cancels callbacks. Electrical state after release is unspecified. Required before VM teardown/reload. */
+  export function release(pin: u8): void;
+  /** Drives an explicitly simulated input; macOS defaults to simulation. */
   export function simulate(pin: u8, value: u8): void;
 }
 

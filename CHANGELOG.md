@@ -24,6 +24,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - `zinc:i2c` lists adapters, reads registers and scans with an explicit probe policy; `zinc:spi` supports modes, speed and full-duplex transfers. Both offer an explicit native simulator.
 
+- `zinc:gpio` owns Linux GPIO v2 lines by chip label or name, with bias, drive, timestamped edges, debounce and explicit release; the existing simulator API keeps working.
+
 #### Fixed
 
 - Existing hardware display drivers rebuild when the shared bus header changes, so cached plugins receive bus fixes.

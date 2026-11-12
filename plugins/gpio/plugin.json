@@ -1,0 +1,5 @@
+{
+  "name": "gpio", "kind": "module", "module": "zinc:gpio", "entry": "index.ts",
+  "description": "GPIO line ownership, Linux chardev v2 and explicit simulation",
+  "targets": {"macos": {}, "linux": {}, "rpi1": {}}
+}
