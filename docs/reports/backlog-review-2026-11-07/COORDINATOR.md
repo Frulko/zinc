@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve549 remaining softwaregap: prepared-kernel gpio-sim integration harness, after delegatedprimaryresearch. Test/tool/fixture/docs only, no native/HAL/runtime edits/build, no moduleload/mount/sudo/physicalpin oractualkernelrun here. Missingprerequisites exit77; AC1/2stayopen untilliteralruns. IndependentBlueZ558 sourceworker continues.
+
 - 558 nmcli checkpointa5f149b1a archived77: fullsourcebundle30blobs+32logs verified. Freshbluez558 work/558-bluez replay800022cc9/6f534074d/bc2a2bccc,27blobs+3sharedownedpayloads identical before oldtreecleanup. None558integrated, allACopenBacklog; fallbackwrites/BlueZremainsoftwaregaps.549harness read-onlyresearch underway, no newclaim.
 
 - Integrated1024 aafdbfbbd BacklogAC1open/D318; cleanbuild/exacttdz_locals all3/actualfixture/herocheck+unchangedbytecode PASS. Archive76 fullsource11blobs/logs/rootproof verified. No speed/200msclaim;92Done unchanged.558_next nearingnmcli checkpoint, BlueZ software remainsopen.
