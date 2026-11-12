@@ -1,4 +1,4 @@
-# Game scenes, sprites, animation and tilemaps
+# Game scenes, sprites, tilemaps, cameras and input
 
 `zinc:game` is a caller-owned layer over `zinc:sprite`. It registers no frame
 callback and loads no atlas at import. The same typed source runs interpreted,
@@ -70,3 +70,53 @@ The module also exports `TileMap`, `Level`, `Layer`, `MapObject` and `Properties
 from `zinc:tilemap`. It uses that module's loader and culled drawing directly;
 see [Tilemaps](../plugins/tilemap.md) for layers, objects, properties, parallax,
 asset ownership and format limits. Loading a missing or unimported map throws.
+
+## Camera and actions
+
+`Camera(width, height)` takes a positive viewport size in world units.
+`viewport(width, height)` updates it, `bounds(worldWidth, worldHeight)` enables
+nonnegative bounds starting at the world origin, and `move(x, y)` sets the
+world top-left. `follow(x, y)` centers a world point. Bounds clamp each axis;
+a world smaller than the viewport is centered on that axis. Read `x`/`y` for
+the base position, `viewX`/`viewY` for drawing tilemaps and sprites.
+
+`shake(seconds, amplitude)` replaces the current shake with random offsets
+bounded by the amplitude in world units. Call `update(seconds)` each frame;
+expiry, zero duration/amplitude, and `reset()` clear offsets immediately.
+`shakeState` is Idle or Shaking. Shake does not change the bounded base position
+and can reveal the area outside the world. Coordinates, sizes, amplitudes and
+time must be finite; negative sizes, amplitude or time throw.
+
+```ts
+import { Camera, InputActions } from 'zinc:game';
+import { GamepadAxis, GamepadButton } from 'zinc:gfx';
+const camera = new Camera(480, 272);
+camera.bounds(2000, 800);
+const actions = new InputActions();
+const right = actions.add().key('d').key('ArrowRight')
+  .axis(0, GamepadAxis.LeftX, 1, 0.25);
+const jump = actions.add().key(' ').pointer().button(0, GamepadButton.South);
+// Once per frame, before game logic:
+actions.update();
+if (right.down) camera.move(camera.x + right.value * 3, camera.y);
+// Queries are nonconsuming; jump.pressed may be read by several callers.
+camera.update(1 / 60);
+// level.draw(camera.viewX, camera.viewY, 480, 272);
+```
+
+Each `add()` returns an action. Bindings combine by maximum strength, so
+releasing one binding while another is held does not release the action.
+`value` is 0..1, `down` means positive strength, and `pressed`/`released` are
+edges since the latest update. Both edges remain true for a key tapped within
+one frame. Duplicate key-down and Repeat/Text events do not create edges.
+Keys use `zinc:gfx` key names (Space is `' '`). Pointer buttons are zero-based
+(0 left, 1 middle, 2 right). Gamepad button values retain analog strength;
+axis direction is -1 or 1, and deadzone is in [0, 1), rescaled to 0..1.
+Disconnected pads contribute zero.
+
+Call `update()` exactly once per caller frame. Actions register no listeners
+and consume no shared signal queue. Call `reset()` on restart and when your
+application handles focus loss: it clears held keys, strengths and edges.
+Pointer/gamepad state is sampled again on the next update. InputActions does
+not replay input received before its creation. The platformer combines actions
+with the existing `Btn` mapping for console HAL controls.

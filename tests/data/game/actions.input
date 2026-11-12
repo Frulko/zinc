@@ -1,0 +1,14 @@
+0 key a
+1 key a
+1 key b
+2 keyup a
+3 keyup b
+4 key a
+4 keyup a
+5 down
+6 gamepad 0
+6 gbutton 0 0
+6 gaxis 0 0 0.75
+7 up
+8 gamepadoff 0
+9 key b

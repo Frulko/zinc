@@ -1,5 +1,5 @@
 import { Animation, Frame } from 'zinc:sprite';
-import { Playback, PlaybackState, Sprite, Scene, SceneController, SceneState, loadTileMap, TileMap, Level, Layer, MapObject, Properties } from 'zinc:game';
+import { Playback, PlaybackState, Sprite, Scene, SceneController, SceneState, loadTileMap, TileMap, Level, Layer, MapObject, Properties, Camera, ShakeState, InputActions } from 'zinc:game';
 function check(value: boolean): void { if (!value) throw new Error('game assertion'); }
 const a = new Frame('a', -1, 0, 0, 2, 2, 0, 0, 2, 2, 1, 0.5, 0.5, 100);
 const b = new Frame('b', -1, 0, 0, 2, 2, 0, 0, 2, 2, 1, 0.5, 0.5, 200);
@@ -97,4 +97,21 @@ check(map.level() === level && level.layer('walls').value(0, 0) === 1 && level.o
 invalid = false;
 try { loadTileMap('missing.tmj'); } catch (e) { invalid = true; }
 check(invalid);
+const camera = new Camera(100, 80);
+camera.follow(150, 100); check(camera.x === 100 && camera.y === 60);
+camera.bounds(200, 160); camera.follow(999, -999); check(camera.x === 100 && camera.y === 0);
+camera.bounds(20, 10); check(camera.x === -40 && camera.y === -35);
+camera.shake(1, 4); camera.update(0.1);
+check(Math.abs(camera.viewX - camera.x) <= 4 && Math.abs(camera.viewY - camera.y) <= 4);
+camera.update(1); check(camera.shakeState === ShakeState.Idle && camera.viewX === camera.x);
+camera.shake(2, 8); camera.update(0.1); camera.shake(1, 2);
+check(camera.viewX === camera.x); camera.reset(); check(camera.shakeState === ShakeState.Idle);
+invalid = false; try { camera.update(-1); } catch (e) { invalid = true; } check(invalid);
+invalid = false; try { camera.shake(Infinity, 1); } catch (e) { invalid = true; } check(invalid);
+invalid = false; try { new Camera(0, 1); } catch (e) { invalid = true; } check(invalid);
+camera.viewport(10, 8); camera.follow(10, 5); check(camera.x === 5 && camera.y === 1);
+invalid = false; try { camera.viewport(NaN, 1); } catch (e) { invalid = true; } check(invalid && camera.x === 5);
+const bindings = new InputActions();
+invalid = false; try { bindings.add().key(''); } catch (e) { invalid = true; } check(invalid);
+invalid = false; try { bindings.add().pointer(5); } catch (e) { invalid = true; } check(invalid);
 console.log('game: ok');

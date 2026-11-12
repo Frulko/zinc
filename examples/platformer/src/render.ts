@@ -5,7 +5,7 @@
 // Kenney's Pixel Platformer tilesheets by the asset build.
 import { clear, text, rect, width, height, setTransform, resetTransform, font, textWidth, ImageFlag } from 'zinc:gfx';
 import { atlas, Animation, Frame } from 'zinc:sprite';
-import { Playback, Sprite } from 'zinc:game';
+import { Playback, Sprite, Camera } from 'zinc:game';
 import { Layer } from 'zinc:tilemap';
 import { World, Phase, HERO_W, HERO_H } from './world';
 
@@ -30,7 +30,9 @@ export class View {
   heroSprite = new Sprite(heroIdle.frameAt(0));
   updateAnimations(seconds: number): void { this.flagPlayback.update(seconds); }
   restartAnimations(): void { this.flagPlayback.restart(); }
-  camX = 0; camY = 0;
+  camera = new Camera(1, 1);
+  get camX(): number { return this.camera.viewX; }
+  get camY(): number { return this.camera.viewY; }
   w = 0; h = 0;
   /** Follows the hero, a little ahead of where it faces, inside the level. */
   follow(world: World, snap: boolean): void {
@@ -39,10 +41,9 @@ export class View {
     const hero = world.hero;
     const tx = hero.x + HERO_W / 2 + hero.facing * 27 - this.w / 2, ty = hero.y + HERO_H / 2 - this.h * 0.55;
     const k = snap ? 1 : 0.12;
-    this.camX += (tx - this.camX) * k;
-    this.camY += (ty - this.camY) * k;
-    this.camX = Math.max(0, Math.min(world.width - this.w, this.camX));
-    this.camY = Math.max(0, Math.min(world.height - this.h, this.camY));
+    this.camera.viewport(this.w, this.h);
+    this.camera.bounds(world.width, world.height);
+    this.camera.move(this.camera.x + (tx - this.camera.x) * k, this.camera.y + (ty - this.camera.y) * k);
   }
 }
 

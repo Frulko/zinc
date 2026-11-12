@@ -118,6 +118,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### New
 
+- `zinc:game` offers bounded follow cameras with shake, and caller-driven input actions combining keys, pointer buttons and gamepads.
 - `zinc:game` loads Tiled and LDtk maps with `loadTileMap`, using the existing tilemap asset rules, layers, objects and culled drawing.
 
 - `zinc:board` reports the running board, SoC, RAM, revision and observed hardware; `zinc doctor` shows the same Linux inventory.
