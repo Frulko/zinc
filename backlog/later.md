@@ -922,6 +922,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-603: investigate Hero headless Video Canvas invalidation; the historical native also decodes moving frames while its Canvas stays black.
 
+- ZN-563.01: standalone cross-AOT null/EGL apps lack the SDL/window runtime needed for the GPU path; optional dispatch proves linkage/software fallback only. Keep current Linux package/native-build, SSIM, shared world/software/console stale handles and D316 SDL quit/restart ownership explicit (archive95).
+
 ## Cross-platform pass
 
 - ZN-554: prove actual Pi thermal/clock/mailbox/fan/button readings and the owner-selected weak-supply rig; sampled buttons can miss short presses and another client may clear firmware latches.
