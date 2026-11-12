@@ -1,4 +1,5 @@
 #include "gl/essl_check.h"
+#include "gl/shader_directives.h"
 
 #include <algorithm>
 #include <functional>
@@ -30,11 +31,13 @@ void parseOne(Parsed& p, bool fragment) {
   static std::once_flag once;
   std::call_once(once, [] { glslang::InitializeProcess(); });
   const EShLanguage stage = fragment ? EShLangFragment : EShLangVertex;
-  const bool es3 = p.source.find("#version 300 es") != std::string::npos;
+  const auto directives = shaderDirectives(p.source);
+  if (!directives.error.empty()) { p.log = directives.error; return; }
+  const bool es3 = directives.version == 300;
   const int version = es3 ? 300 : 100;
   if (es3) {   // WebGL 2 makes std140 the default layout of uniform blocks (glslang's is shared); said after the version line, the line numbers kept by #line
-    const std::size_t at = p.source.find("#version 300 es"), eol = p.source.find('\n', at);
-    if (eol != std::string::npos) p.source.insert(eol + 1, "layout(std140) uniform;\n#line " + std::to_string(std::count(p.source.begin(), p.source.begin() + eol, '\n') + 2) + "\n");
+    const std::size_t eol = directives.versionEnd;
+    if (eol != std::string::npos) p.source.insert(shaderNextLine(p.source, eol), "layout(std140) uniform;\n#line 2\n");
     // and on each block without a layout of its own: glslang gives member offsets only to a block that names its layout, and refuses to link it with one that does not
     static const std::regex block(R"((\)\s*)?\buniform\s+\w+\s*\{)");   // (a `)` before it: the end of a layout qualifier)
     std::string out;
@@ -144,7 +147,7 @@ std::string esslValidate(const std::string& source, std::string& preamble, bool 
 }
 
 std::string esslLink(const std::string& vsSource, const std::string& vsPreamble, const std::string& fsSource, const std::string& fsPreamble) {
-  const bool vs3 = vsSource.find("#version 300 es") != std::string::npos, fs3 = fsSource.find("#version 300 es") != std::string::npos;
+  const bool vs3 = shaderDirectives(vsSource).version == 300, fs3 = shaderDirectives(fsSource).version == 300;
   if (vs3 != fs3) return "ERROR: Versions of linked shaders have to match";
   Parsed vs, fs;
   vs.source = vsSource; vs.preamble = vsPreamble;

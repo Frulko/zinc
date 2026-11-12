@@ -10,6 +10,7 @@
 #include <set>
 
 #include "gl/essl_check.h"
+#include "gl/shader_directives.h"
 #include "glad/gl.h"
 
 namespace zn::gl {
@@ -35,13 +36,8 @@ void replaceIdent(std::string& body, const std::string& from, const std::string&
 }
 // the source with its comments blanked (newlines kept)
 std::string withoutComments(const std::string& src) {
-  std::string t;
-  for (std::size_t i = 0; i < src.size(); ++i) {
-    if (src.compare(i, 2, "//") == 0) { while (i < src.size() && src[i] != '\n') ++i; t += '\n'; }
-    else if (src.compare(i, 2, "/*") == 0) { std::size_t e = src.find("*/", i + 2); const std::size_t stop = e == std::string::npos ? src.size() : e + 2; for (std::size_t k = i; k < stop; ++k) if (src[k] == '\n') t += '\n'; t += ' '; i = stop - 1; }
-    else t += src[i];
-  }
-  return t;
+  bool closed;
+  return shaderCommentMask(src, closed);
 }
 // `continue` inside a `switch` (legal ESSL 3.00) made a flag and a `break`, the `continue` put after the switch: macOS's OpenGL compiles the shader and
 // fails the link with an empty log (Spline's metaball pass). The switches are taken innermost first, so the `continue` an inner one leaves is the outer's to rewrite.
@@ -87,19 +83,7 @@ std::string continueOutOfSwitch(std::string t) {
 }
 // The validator's view of a source: comments gone (a backslash at the end of a // comment line continues the comment) and the loop steps ++i / --i written i++ / i--, the forms Appendix A names and WebGL implementations also take in the prefix form
 std::string normalizeForValidator(const std::string& src) {
-  std::string t;
-  for (std::size_t i = 0; i < src.size(); ++i) {
-    if (src.compare(i, 2, "//") == 0) {
-      while (i < src.size() && src[i] != '\n') { if (src[i] == '\\' && i + 1 < src.size() && (src[i + 1] == '\n' || (src[i + 1] == '\r' && i + 2 < src.size() && src[i + 2] == '\n'))) { t += '\n'; i += src[i + 1] == '\r' ? 2 : 1; } ++i; }
-      t += '\n';
-    } else if (src.compare(i, 2, "/*") == 0) {
-      std::size_t e = src.find("*/", i + 2);
-      const std::size_t stop = e == std::string::npos ? src.size() : e + 2;
-      for (std::size_t k = i; k < stop; ++k) if (src[k] == '\n') t += '\n';
-      t += ' ';
-      i = stop - 1;
-    } else t += src[i];
-  }
+  std::string t = withoutComments(src);
   static const std::regex step(R"((\bfor\s*\([^;()]*;[^;()]*;\s*)(\+\+|--)\s*(\w+)(\s*\)))");
   t = std::regex_replace(t, step, "$1$3$2$4");
   {   // a sequence of two literals in parentheses, (0.2, 0.5): a constant expression for WebGL implementations (ANGLE), not for glslang; it is the second literal
@@ -141,13 +125,6 @@ std::string essl1Violation(const std::string& src, int webgl) {
       if (dir && (name == "if" || name == "ifdef" || name == "ifndef")) ++depth;
       ls = le + 1;
     }
-  }
-  std::size_t at = t.find_first_not_of(" \t\r\n");
-  for (std::size_t p = t.find("#version"); p != std::string::npos; p = t.find("#version", p + 1)) {
-    (void)at;
-    static const std::regex ver(R"(#\s*version\s+(\w+))");
-    std::smatch m; const std::string rest = t.substr(p, 40);
-    if (std::regex_search(rest, m, ver) && m[1] != "100") return "ERROR: 0:1: '#version' : version number not supported by WebGL 1 / ESSL 1.00 (" + m[1].str() + ")";
   }
   const auto word = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
   for (std::size_t i = 0; i < t.size();) {
@@ -219,14 +196,16 @@ std::string textureHelpers(const std::string& body, bool fragment, bool lodExt) 
 // The GLSL ES 1.00 source of WebGL on a desktop core context: the prelude renames the old keywords. ES contexts take the source as it is.
 // valSrc / valPre: what the GLSL ES validator (essl_check.cpp) is shown: the source with comments gone and the macros of this context in a preamble
 std::string translate(const std::string& src, std::uint32_t type, bool es, std::uint32_t extOn, int webgl, std::string& err, std::string& valSrc, std::string& valPre) {
+  const auto directives = shaderDirectives(src);
+  if (!directives.error.empty()) { err = directives.error; return ""; }
+  if (webgl == 1 && directives.version != 100) { err = "ERROR: 0:1: '#version' : WebGL 1 shaders are written in GLSL ES 1.00"; return ""; }
   if (es) return src;
-  if (webgl == 1 && src.find("#version 300 es") != std::string::npos) { err = "ERROR: 0:1: '#version' : WebGL 1 shaders are written in GLSL ES 1.00"; return ""; }
   {   // GLSL ES 3.00 is close enough to GLSL 330 core to run as it is with the version line replaced
-    std::size_t at = src.find("#version");
-    const bool es3 = at != std::string::npos && src.compare(at, 15, "#version 300 es") == 0;
+    const bool es3 = directives.version == 300;
     if (es3) {
       valSrc = normalizeForValidator(src);
-      std::string body = src.substr(at + 15 + (at + 15 < src.size() && src[at + 15] == '\n' ? 1 : 0));
+      std::string body = src;
+      body.replace(directives.versionBegin, directives.versionEnd - directives.versionBegin, directives.versionEnd - directives.versionBegin, ' ');
       if (body.find("switch") != std::string::npos && body.find("continue") != std::string::npos) body = continueOutOfSwitch(withoutComments(body));
       // three.js and others `#define gl_FragColor pc_fragColor`: a macro named after a compatibility built-in is refused by some drivers, and ES 3.00 has no such built-in, so the name is free to rename
       for (const char* name : {"gl_FragColor", "gl_FragData", "gl_MaxDrawBuffers"}) {   // the last: MAX_DRAW_BUFFERS is reported as 4, not what the driver has
@@ -248,7 +227,7 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
           body.insert(static_cast<std::size_t>(mm.position(0) + mm.length(0)), init);
         }
       }
-      return "#version 330 core\n" + body;
+      return "#version 330 core\n#line 1\n" + body;
     }
   }
   if (const std::string bad = essl1Violation(src, webgl); !bad.empty()) { err = bad; return ""; }
@@ -256,14 +235,16 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
   std::string pre = "#version 330 core\n";
   std::string tail;
   std::uint32_t active = 0;   // the extensions this shader enabled with #extension (a built-in of an extension needs both the pragma and getExtension)
+  bool commentsClosed;
+  const std::string mask = shaderCommentMask(src, commentsClosed);
   std::size_t pos = 0;
   while (pos < src.size()) {   // drop #version 100; #extension lines become blank lines after their check
-    std::size_t nl = src.find('\n', pos);
-    std::string line = src.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos);
+    std::size_t nl = shaderLineEnd(src, pos);
+    std::string line = mask.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos);
     std::size_t k = line.find_first_not_of(" \t");
     bool directive = k != std::string::npos && line[k] == '#';
     std::size_t w = directive ? line.find_first_not_of(" \t", k + 1) : std::string::npos;
-    if (directive && line.compare(k + 1, 7, "version") == 0 && w == k + 1) { body += "\n"; valSrc += "\n"; }
+    if (pos == directives.versionBegin) { body += std::string(line.size(), ' ') + "\n"; valSrc += line + "\n"; }
     else if (w != std::string::npos && line.compare(w, 9, "extension") == 0) {   // #extension NAME : BEHAVIOR
       static const std::regex ext(R"(extension\s+(\w+)\s*:\s*(\w+))");
       std::smatch m;
@@ -291,7 +272,7 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
       } else { body += line + "\n"; valSrc += line + "\n"; }
     }
     if (nl == std::string::npos) break;
-    pos = nl + 1;
+    pos = shaderNextLine(src, nl);
   }
   const bool drawBuf = webgl == 1 && ((extOn >> static_cast<int>(Ext::DrawBuffers)) & 1);   // (WEBGL_draw_buffers: gl_FragData[1..3] and gl_MaxDrawBuffers come with getExtension, no pragma needed)
   auto has = [&](Ext e) { return (active >> static_cast<int>(e)) & 1; };
@@ -339,20 +320,15 @@ std::string translate(const std::string& src, std::uint32_t type, bool es, std::
     } else if (body.find("gl_FragData") != std::string::npos) { pre += "out vec4 zn_FragData[1];\n"; replaceIdent(body, "gl_FragData", "zn_FragData"); }   // gl_FragData[0] without the draw-buffers extension
     else { pre += "out vec4 zn_FragColor;\n"; replaceIdent(body, "gl_FragColor", "zn_FragColor"); }
   }
-  return pre + body + tail;
+  return pre + "#line 1\n" + body + tail;
 }
 
 
 // the colour numbers a fragment shader writes, as the class of each ('f', 'i', 'u'; 0: not written): from its `out` declarations (ES 3.00) or gl_FragColor / gl_FragData (ES 1.00)
 void fragOutputs(const std::string& src, char out[4]) {
   std::fill(out, out + 4, 0);
-  std::string t;   // comments out
-  for (std::size_t i = 0; i < src.size(); ++i) {
-    if (src.compare(i, 2, "//") == 0) { while (i < src.size() && src[i] != '\n') ++i; t += '\n'; }
-    else if (src.compare(i, 2, "/*") == 0) { std::size_t e = src.find("*/", i + 2); i = e == std::string::npos ? src.size() : e + 1; t += ' '; }
-    else t += src[i];
-  }
-  if (t.find("#version 300 es") == std::string::npos) {   // ESSL 1.00: gl_FragColor writes every draw buffer, gl_FragData[n] the one it names (a computed index: all)
+  const std::string t = withoutComments(src);
+  if (shaderDirectives(src).version != 300) {   // ESSL 1.00: gl_FragColor writes every draw buffer, gl_FragData[n] the one it names (a computed index: all)
     static const std::regex data(R"(gl_FragData\s*\[\s*(\w+)\s*\])");
     static const std::regex pragma(R"(#\s*extension\s+GL_EXT_draw_buffers\s*:\s*(enable|require))");
     const bool usesColor = t.find("gl_FragColor") != std::string::npos;

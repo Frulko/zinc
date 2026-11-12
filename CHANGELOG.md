@@ -152,6 +152,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - WebGL initializes new textures and renderbuffers, including multisampled buffers; framebuffer copies outside the source produce zero in new images and preserve existing pixels in subimages.
 - `zinc:platform` uses the selected profile's default `SCREEN_W/H` when no explicit size is given, including CHIP's 720×576 and PocketCHIP's 480×272.
 - Closed glTF document handles cannot read or free a newly opened model; invalid node trees and unsupported specular textures fail before scene construction.
+- WebGL ignores version text inside shader comments and accepts spaced GLSL ES version declarations, while rejecting malformed declarations and mismatched shader versions.
 
 
 ### Hamlet
