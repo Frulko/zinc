@@ -22,6 +22,8 @@ Read-only research-independent-p recommends complete1053AC3 threadcomposer+forwa
 
 ## Other open work
 
+Owner steering: after the engaged1034 batch, prioritize a safe engine/runtime chain; do not add app polish.1053AC3 claim cancelled/released before source or proof; read-only research retained, no pending CLIworker.
+
 1030 structural storage/views and related RT/allocator/render work are held,1024 needs heldmain/timing, conformance/fuzz/performance campaigns unselected.597 and575/1068/1078.29 quiet gates remain unselected;897 joinedICE open;1066 privateHermes only;512 no actual ARM;164 genericlibuv split open. No new service/demo/SDK/OS/device action. Full pending task details in State/task notes.
 
 ## Tests to run (owner picks)
