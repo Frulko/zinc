@@ -30,6 +30,7 @@ struct Type {
   bool variadic = false;        // Func (builtin console.log)
   bool rest = false;            // Func: the last parameter is `...name: T[]`; a call passes the arguments from there on as one array
   bool undef = false;           // Union with null: the absent value is `undefined` (prints so); same representation as the `null` flavour
+  bool bothNullish = false;     // checked Dyn admission permits both tags; storage/printing still use the existing undef flavour
   std::uint32_t obj = 0;        // Object: index into Checked::objs; Param: index into Checked::tparams; Num: 1 + index into Checked::enumNames for an enum type
 };
 

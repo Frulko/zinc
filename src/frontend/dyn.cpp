@@ -128,7 +128,7 @@ std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, st
       TypeId member = kNoType;
       for (TypeId m : x.params) if (m != 5) member = m;
       if (to) body = "  if (v === null) return " + std::string(x.undef ? "__undef" : "__null") + ";\n  return " + toExpr(member, "v") + ";\n";
-      else body = "  if (d.kind() " + std::string(isDynT(member) ? (x.undef ? "=== 0" : "=== 1") : "<= 1") + ") return null;\n  return " + fromExpr(member, "d") + ";\n";
+      else body = "  if (d.kind() " + std::string(!isDynT(member) && x.bothNullish ? "<= 1" : x.undef ? "=== 0" : "=== 1") + ") return null;\n  return " + fromExpr(member, "d") + ";\n";
       break;
     }
     case TK::Object: {

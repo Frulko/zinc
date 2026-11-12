@@ -200,7 +200,7 @@ const char* kPrelude = R"JS(
     }
   };
   // D179's checked copy out of `any` (src/qjs/strip.cpp dynCopiesForJs): the value as the schema's type, the typed engines' TypeError otherwise.
-  // Schema: d i u b s B, *T, ?T (null when absent), ~T (an optional field: undefined when absent), @Name{name:T,...} (only these fields are
+  // Schema: d i u b s B, *T, ?T (null), ~T (undefined), ~?T (either), @Name{name:T,...} (only these fields are
   // kept), ^Name (the record Name that holds it)
   const dynKind = v => v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v;
   const dynFail = (v, to) => { throw new TypeError('cannot convert Dyn (' + dynKind(v) + ') to ' + to); };
@@ -217,8 +217,8 @@ const char* kPrelude = R"JS(
       if (c === 's') return v => typeof v === 'string' ? v : dynFail(v, 'string');
       if (c === 'B') return v => Array.isArray(v) ? v.map(x => typeof x === 'number' ? x & 255 : dynFail(x, 'number')) : dynFail(v, 'array');
       if (c === '*') { const e = one(); return v => Array.isArray(v) ? v.map(x => e(x)) : dynFail(v, 'array'); }
-      if (c === '?') { const e = one(); return v => v == null ? null : e(v); }
-      if (c === '~') { const e = one(); return v => v == null ? undefined : e(v); }
+      if (c === '?') { const e = one(); return v => v === null ? null : e(v); }
+      if (c === '~') { const e = one(); return v => v === undefined ? undefined : e(v); }
       if (c === '^') { const at = i; while (/\w|\$/.test(s[i] || '')) i++; const ref = named[s.slice(at, i)]; return v => ref.f(v); }
       if (c === '@') {
         const at = s.indexOf('{', i), ref = named[s.slice(i, at)] = { f: null };

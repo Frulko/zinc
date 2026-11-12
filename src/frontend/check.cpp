@@ -220,7 +220,7 @@ struct Checker {
   struct TypeHash {
     std::size_t operator()(const Type& t) const {
       std::size_t h = static_cast<std::size_t>(t.k) | static_cast<std::size_t>(t.num) << 8 | static_cast<std::size_t>(t.variadic) << 16 | static_cast<std::size_t>(t.rest) << 17 |
-                      static_cast<std::size_t>(t.undef) << 18;
+                      static_cast<std::size_t>(t.undef) << 18 | static_cast<std::size_t>(t.bothNullish) << 19;
       for (std::size_t v : {static_cast<std::size_t>(t.elem), static_cast<std::size_t>(t.minArgs), static_cast<std::size_t>(t.obj)}) h = h * 1000003u ^ v;
       for (TypeId p : t.params) h = h * 1000003u ^ p;
       return h;
@@ -228,7 +228,7 @@ struct Checker {
   };
   struct TypeEq {
     bool operator()(const Type& u, const Type& t) const {
-      return u.k == t.k && u.num == t.num && u.elem == t.elem && u.params == t.params && u.minArgs == t.minArgs && u.variadic == t.variadic && u.rest == t.rest && u.undef == t.undef && u.obj == t.obj;
+      return u.k == t.k && u.num == t.num && u.elem == t.elem && u.params == t.params && u.minArgs == t.minArgs && u.variadic == t.variadic && u.rest == t.rest && u.undef == t.undef && u.bothNullish == t.bothNullish && u.obj == t.obj;
     }
   };
   std::unordered_map<Type, TypeId, TypeHash, TypeEq> typeIndex;
@@ -875,9 +875,20 @@ struct Checker {
       }
       case N::TypeUnion: {
         std::vector<TypeId> ms;
-        bool undef = false;
-        for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) { ms.push_back(annotation(k)); undef = undef || (n(k).kind == N::TypeRef && ((n(k).flags & frontend::kFlagUndefined) || (n(k).text == "undefined" && n(k).kids.empty()))); }
+        bool undef = false, admitsNull = false, admitsUndefined = false;
+        for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) {
+          const TypeId member = annotation(k);
+          ms.push_back(member);
+          const bool missing = n(k).kind == N::TypeRef && ((n(k).flags & frontend::kFlagUndefined) || (n(k).text == "undefined" && n(k).kids.empty()));
+          undef = undef || missing;
+          if (member == tNull) { admitsUndefined = admitsUndefined || missing; admitsNull = admitsNull || !missing; }
+          else if (hasNull(member)) {
+            admitsUndefined = admitsUndefined || ty(member).undef || ty(member).bothNullish;
+            admitsNull = admitsNull || !ty(member).undef || ty(member).bothNullish;
+          }
+        }
         r = unionOf(ms, undef);
+        if (ty(r).k == TK::Union && admitsNull && admitsUndefined) { Type both = ty(r); both.bothNullish = true; r = intern(both); }
         break; }
       case N::TypeTuple: { std::vector<TypeId> es; for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) es.push_back(annotation(k)); r = tupleOf(es); break; }
       case N::TypeOther: diag(kZUnsupported, t, std::string(x.text) + " types"); break;   // parsed (the QuickJS engine erases it), not typed yet
@@ -958,7 +969,7 @@ struct Checker {
       if ((u == "Pick" && !listed) || (u == "Omit" && listed)) continue;
       const bool opt = u == "Partial" || (u != "Required" && m->optional);
       TypeId ft = m->type;   // an optional member's type holds undefined (`T | undefined`)
-      if (opt && !m->optional && !hasNull(ft)) ft = unionOf({ft, tNull}, true);
+      if (opt && !m->optional) ft = unionOf({ft, tNull}, true);
       else if (!opt && m->optional && withoutNull(ft) != kNoType) ft = withoutNull(ft);
       shape.push_back({m->name, ft});
       lits.push_back(opt ? std::string("\x01") : m->hasLiteral ? m->literal : std::string());
@@ -5171,11 +5182,11 @@ struct Checker {
   // null, only printed differently; a union that mixes a plain null in is a null one.
   TypeId unionOf(std::vector<TypeId> ms, bool undef = false) {
     std::vector<TypeId> flat;
-    bool anyUndef = undef, plainNull = false;
+    bool anyUndef = undef, plainNull = false, bothNullish = false, nullableMember = false;
     for (TypeId m : ms) {
       if (bad(m)) return tError;
       if (m == tNever) continue;
-      if (ty(m).k == TK::Union) { anyUndef = anyUndef || ty(m).undef; for (TypeId k : ty(m).params) flat.push_back(k); }
+      if (ty(m).k == TK::Union) { nullableMember = nullableMember || (hasNull(m) && !ty(m).undef); bothNullish = bothNullish || ty(m).bothNullish; anyUndef = anyUndef || ty(m).undef; for (TypeId k : ty(m).params) flat.push_back(k); }
       else { if (m == tNull) plainNull = true; flat.push_back(m); }
     }
     std::sort(flat.begin(), flat.end());
@@ -5183,6 +5194,7 @@ struct Checker {
     if (flat.empty()) return tNever;
     if (flat.size() == 1) return flat[0];
     Type t; t.k = TK::Union; t.params = std::move(flat);
+    t.bothNullish = (bothNullish || (undef && nullableMember)) && std::find(t.params.begin(), t.params.end(), tNull) != t.params.end();
     t.undef = anyUndef && !(plainNull && !undef) && std::find(t.params.begin(), t.params.end(), tNull) != t.params.end();
     return intern(t);
   }

@@ -56,10 +56,15 @@ struct Records {
     if (x.kind == N::TypeUnion) {   // T | null
       std::uint32_t one = kNone;
       int n = 0, nulls = 0;
-      for (std::uint32_t k : x.kids) { if (isNull(k)) ++nulls; else { one = k; ++n; } }
+      bool nullable = false, missing = false;
+      for (std::uint32_t k : x.kids) {
+        if (isNull(k)) { ++nulls; if ((a.nodes[k].flags & kFlagUndefined) || a.nodes[k].text == "undefined") missing = true; else nullable = true; }
+        else { one = k; ++n; }
+      }
       if (n != 1 || nulls == 0) return fail(t, "is a union: a record field is T or T | null");
       std::string e = type(one, depth + 1);
-      return e.empty() ? e : "?" + e;
+      if (e.empty() || !tilde) return e.empty() ? e : "?" + e;
+      return std::string(missing ? "~" : "") + (nullable ? "?" : "") + e;
     }
     if (x.kind != N::TypeRef) return fail(t, "has no record form (number, i32, u32, boolean, string, u8[], arrays, T | null and records)");
     std::string nm(x.text);
@@ -82,8 +87,10 @@ struct Records {
       if (f.kind != N::Field || f.kids.empty() || f.kids[0] == kNone) return fail(t, "has a member '" + std::string(f.text) + "' that is not a typed field (a record holds data only)");
       std::string ft = type(f.kids[0], depth + 1);
       if (ft.empty()) { if (tilde) reading.pop_back(); return ""; }
-      if ((f.flags & kFlagOptional) && ft[0] != '?') ft = "?" + ft;
-      if ((f.flags & kFlagOptional) && tilde) ft[0] = '~';
+      if (f.flags & kFlagOptional) {
+        if (tilde) { if (ft[0] != '~') ft = "~" + ft; }
+        else if (ft[0] != '?') ft = "?" + ft;
+      }
       s += (k > 1 ? "," : "") + std::string(f.text) + ":" + ft;
     }
     if (std::find(order.begin(), order.end(), nm) == order.end()) order.push_back(nm);
