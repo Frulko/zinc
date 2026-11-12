@@ -6,6 +6,8 @@ Continue zn-coordinate until .paused or nothing startable. Never ask owner; no p
 
 ## Current
 
+Independent1053 AC4 worker starts in its own tree: shared screen picker real settings/monitor icons, existing thumbnail node refresh and shield tooltip retained. TypeScript UI only, no engine build/native capture/network; fake source short proof and proposed broader tests only. Research `.logs/research-next-m.txt`.
+
 Reconciled stale parent ZN-161: all three children Done, inherited Node-fixture and per-addition-budget criterion supported by source14f12f075/1a717097f/8e11bffb6 and D263/D296/D301. Read-only bundle/golden/summary audit passes; no test or measurement rerun, no new feature. Reflect/Proxy remain explicitly dropped.95Done now includes this parent closure; engine1124/1125/1126 remains unintegrated.
 
 Sole coordinator after `.logs/coord-transfer-20261112-m.ready`: coordinator_m. L ceases all coordination at that marker. Full handoff: `.logs/COORDINATOR-M-HANDOFF.md`.

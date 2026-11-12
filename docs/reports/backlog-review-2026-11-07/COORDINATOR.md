@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- M claimed1053 AC4 share-picker completion after read-only research-next-m: existing same-node thumbnail refresh and shield Tooltip retained; only missing settings/monitor glyphs change in screen-capture picker, no native capture/lifecycle rewrite or Discord network. Independent app/plugin TS worker, no CLI build, existing fake sources only and one short capture/refresh proof; no selected T1. Sole core1126 remains active;95Done,nextD337/archive97.
+
 - M reconciled ZN-161 parent Done: three split children already Done, inherited Node/budget criterion supported by source14f12f075/1a717097f/8e11bffb6 and D263/D296/D301; read-only archived bundle/golden/summary audit PASS. Reflect/Proxy explicitly dropped by original review, no new feature/test/measure.95Done including parent closure;1124/1125/1126 remain unintegrated, nextD337/archive97.
 
 - M activated after ready-m/5fd32ff83; owner10/perf15DEFAULTpayload/index auditPASS.1125pureundefinedalias introduced regression confirmed and fixed877b265ef(all3checked_nullish11badcasesPASS), f8/history retained. Approved1126read-adapterTYPEONLY+existingloadProgram ONCEtransform, per-modulecheckedRecords/Engineexistingresolvercallback; no newloaderpolicy/nativewire/RTABIchange. Soleengineworkercontinues,1037parked2WIP/noreset/noappworker. No rootheavy/integration/build;94Done,nextD337/archive97.

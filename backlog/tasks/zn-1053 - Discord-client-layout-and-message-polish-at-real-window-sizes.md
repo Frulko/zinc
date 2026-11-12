@@ -2,7 +2,8 @@
 id: ZN-1053
 title: 'Discord client: layout and message polish at real window sizes'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:40'
 labels:
   - discord
