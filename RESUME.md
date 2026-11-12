@@ -1,12 +1,12 @@
 # Zinc coordinator — 2026-11-12
 
-Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after ready-k: /root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next/coordinator_e/coordinator_f/coordinator_g/coordinator_h/coordinator_i/coordinator_j/coordinator_k. Outgoing J ceases all coordination at .logs/coord-transfer-20261112-j.ready. Full durable handoff .logs/COORDINATOR-K-HANDOFF.md; full worker-rules. Source isolated; max2buildingtrees/oneheavy, absolute main tools/work-run and relative tools/build in correct tree.
+Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after ready-k: /root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next/coordinator_e/coordinator_f/coordinator_g/coordinator_h/coordinator_i/coordinator_j/coordinator_k. Outgoing J ceases all coordination at .logs/coord-transfer-20261112-k.ready. Full durable handoff .logs/COORDINATOR-K-HANDOFF.md; full worker-rules. Source isolated; max2buildingtrees/oneheavy, absolute main tools/work-run and relative tools/build in correct tree.
 
 94 Done since1078.03. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
 
 ## Current
 
-Sole coordinator after `.logs/coord-transfer-20261112-j.ready`: coordinator_k. J ceases all coordination at that marker. Full handoff: `.logs/COORDINATOR-K-HANDOFF.md`.
+Sole coordinator after `.logs/coord-transfer-20261112-k.ready`: coordinator_k. J ceases all coordination at that marker. Full handoff: `.logs/COORDINATOR-K-HANDOFF.md`.
 
 Integrated ZN-1123 bc2cfe9c4 / D326, Done both criteria; 94 Done since1078.03. Exact Dyn aliases retain callback parameter/result identity. Clean common build, exact dyn_callback, original Request/fetch all3 and rn-showcase32-file check pass without app/library changes. Archive86 verifies17 source payloads,83 worker logs and70 rootproof files.
 
