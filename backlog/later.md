@@ -1011,3 +1011,5 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-1118: Windows atomic Job assignment before execution and native descendant/owner-close/leader-exit/restart proof when a Windows test machine is available.
 
+
+- ZN-549: prove CHIP SoC/PCF8574A controller labels and ESP board reservations/ISR/IPC teardown on actual targets; current Linux UAPI shim and cross-object proof do not certify electrical or interrupt behavior.

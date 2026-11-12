@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated549 cf7f76d9e BacklogAC3/4, D317; root clean build/exactgpio+buses/public and unchanged frozenGPIO all3 PASS. Archive75 full source/logs/compiler+rootproof verified before cleanup. Missing literal gpio-sim integration harness and Pi jumper remain AC1/2. Source worker558_next active,98fef288a+637388a5e not integrated; no root heavy process.92Done unchanged.
+
 - 558 Wi-Fi checkpoint394747b78 frozen/archived74 (full source bundle21files+24logs verified), NOT integrated. Fresh radios558_next inwork/558-radios-next cherry-picks checkpoint, first fixes public poll callback restart generations then nmcli/BlueZ. Existing taskBacklog/allACopen, no network/service action. GPIO549 final review/buildproof continues; no root heavy process.
 
 - Reserve558 independent Linux radio plugins beside549: delegated NetworkManager/BlueZ research underway, preserve existing BLE UART callers and permissions. No physical scan/connect, system service/OS mutation or privileged hwsim/vhci setup. Existing higher performance tasks require owner-held runtime/UI or unselected quiet/milestone measurements.
