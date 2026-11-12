@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- ReclaimedSAME1057 Linux iPod mount discovery after primary/source research `.logs/research-cross-i.txt`: emptyinput currently refuses, stable UDisks API via existing injected finiteBus/read-onlyradio_dbus helper plus exactUSBidentity. Isolated plugin/privatehelper/fakeproof only; no realmount/USB/bus/service/device action, newdependency, runtime/HAL/main edit or app rewrite. All5ACremainopen. Independent681 active; max2buildingtrees/oneheavy queue.
+
 - Integrated1057video06a1556c2/D331 Backlogall5ACopen,94Done. RootexactNodeproduction/fakeT0+realpublic/nativecapability/guardsforcedoff+normalall3PASS; actualMacplugin/table/vendorpackretained,434vendorsource+20artifacthashesverify. WorkerMac/Linuxobjectswarningfree/providerreal/193filecontractcheckPASS; noLinuxlink/runtime/call/device/fullappcheck/enginebuild. Archive91 verifies11payloads/full68logs/root16files/bundle.1057released,source/branchremovedafterverification; only681activebase2fafbf09d, sharedstandardmaterial+on-demandgeometry/writer/source migration underway. NextD332/archive92.
 
 - Claimed681 after primary/source research `.logs/research-681-i.txt`: existing decimated OBJ can become bounded GLB, but default migration must preserve glaze and surface picking. Isolated museum asset/tool plus necessary shared3d/three material/intersection seams; no hiddenOBJ workaround/default regression or owner runtime/host edit. No new dependency/demo/service;12MiB limit unchanged, literal frame comparison unselected. Fresh worker must report full source plan before plugin edits.1057 remains separate.
