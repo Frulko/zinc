@@ -2,8 +2,7 @@
 id: ZN-681
 title: 'Museum table: ship the vase as a decimated GLB'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-10 19:36'
 updated_date: '2026-11-12 08:10'
 labels:

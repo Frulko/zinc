@@ -1871,3 +1871,8 @@ Enabled prefixed audio plugin1,073,920B SHA7360e66d4aa4d2bc725fa1145ef68de87764c
 Source artifacts, not timings: the identical profile-only program emits byte-identical C++ before/after, 4445 B; bare import4410 B, runtime observation fixture76504 B. Bundled JavaScript profile726 B, bare608 B, quoted-name profile809 B, runtime1277 B. Different fixtures are not a before/after speed or binary-size comparison. Unused outputs contain neither board query nor JSON parser. Worker compiled AOT fixture4236168 B; root independently compiles/runs the same public observation on all3 engines and both doctor aliases.
 
 Root clean build/exact generated_runtime_exports PASS; existing agent/NanoSVG/linker warnings, none from changed code. Full source/proofs/artifacts archived535-lazy-final; summary `.logs/integration-2026-11-11/board535-lazy-summary.json`. No CPU, launch, memory, physical Pi or benchmark claim.
+
+
+### ZN-681 — Museum source and shipped geometry (2026-11-12)
+
+Existing decimated vase OBJ1,033,256B SHA cc02e35040b919e0d03a16569c9e8ee314c1e64b941e9e9ae7c53330051b909f becomes GLB299,100B SHA75e9382873fb8d6de542a7c98b598fad80f0fbb8ff925bc59ddcce0a38371472,734,156 fewer shipped geometry bytes. Both preserve7,058vertices/12,000triangles; the original OBJ remains under tools/source and JPEG578,249B is unchanged. Whole authoring inventory recorded by the worker10,170,442B, below unchanged12,582,912B gate. These are source/artifact counts, not compressed download, CPU, RSS or pixel-equivalence measurements. Root exact converter/glTF tests, real material/18surfacehits all3 and native6frames pass; archive93 retains full source/provenance and proofs. AC2 comparison remains open.

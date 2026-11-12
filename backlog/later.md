@@ -5,6 +5,7 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- ZN-681: retain the D316 abandoned glTF-document VM-unload and embedded-image lifetime investigation; the named external-JPEG vase and explicit free/RAII proofs do not resolve those ownership paths.
 - ZN-555: run the written snd-aloop public capture harness on selected isolated Linux CI, then prove Pi HDMI/jack/I2S and PocketCHIP named routes; pure runner tests cannot establish audible output.
 - ZN-1024: measure indexed local-name membership on the quiet hero dev entry; hashing overhead is unmeasured and whole-program incremental compilation remains the route to 200 ms.
 - ZN-449: verify optional compressed GPU texture uploads when the browser renderer supports them; the current supported KTX2 path decodes RGBA32 for Canvas2D.
