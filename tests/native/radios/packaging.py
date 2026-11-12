@@ -2,13 +2,17 @@
 """Stage only the production runtime-header copy rule, without building a package."""
 import ast
 import importlib.machinery
+import importlib.util
 import pathlib
 import shutil
 import subprocess
 import sys
 root = pathlib.Path(__file__).resolve().parents[3]
 stage = pathlib.Path(sys.argv[1]) / 'packaged'
-package = importlib.machinery.SourceFileLoader('zinc_package', str(root / 'tools/package')).load_module()
+loader = importlib.machinery.SourceFileLoader('zinc_package', str(root / 'tools/package'))
+package = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+sys.modules[loader.name] = package
+loader.exec_module(package)
 # Execute the actual copy call/filter so a packaging-policy regression fails here.
 tree = ast.parse((root / 'tools/package').read_text())
 calls = [n for n in ast.walk(tree) if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
