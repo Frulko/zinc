@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve558 independent Linux radio plugins beside549: delegated NetworkManager/BlueZ research underway, preserve existing BLE UART callers and permissions. No physical scan/connect, system service/OS mutation or privileged hwsim/vhci setup. Existing higher performance tasks require owner-held runtime/UI or unselected quiet/milestone measurements.
+
 - Fresh sole coordinator /root/coordinator_next/coordinator_fresh/coordinator_fresh2 after b884a2eab/ready-c. Reserve549 GPIO v2 after550 header/cache integration; delegated primary research underway. Preserve existing builtin GPIO API and simulator callers; no owner runtime/HAL/UI edits, privileged setup, physical pin probe or QEMU. Common binary b4929e91c, archives73,92Done.
 
 - COORDINATOR HANDOFF2026-11-12c: /root/coordinator_next/coordinator_fresh/coordinator_fresh2 becomes soleleader when .logs/coord-transfer-20261112-c.ready exists; current coordinator ceases claims/integrations/mutations then. All source trees550/554 removed after verified archives72/73/rootproof; prior467/535 archives70/71. No active source worker, owned process or heavy queue. Commonb4929e91c/005ed685,92Done,D316. Owner10payloads/perf15lines preserved.549 is next independent software candidate after header release; no unselected tests or native-ABI cleanup claims.

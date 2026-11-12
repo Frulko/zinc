@@ -2,7 +2,8 @@
 id: ZN-558
 title: 'zinc:wifi and zinc:ble over D-Bus (NetworkManager, BlueZ)'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:46'
 labels:
   - rpi
