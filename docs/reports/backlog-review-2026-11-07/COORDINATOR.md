@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Claimed661 generic WASM native ABI increment after delegated primary/source research .logs/research-wasm661-h.txt: U/u32 arrays and complete numeric output copies. Only WASM/glue/exactwasm_native; no owner RT/main/host edit, new SDK/backend/service/demo, fake physics or actual showcase parity claim. Fresh isolated worker next; only relative tools/build-wasm via absolute MAIN work-run, no CLI build. Independent ipod1051 active at basebdaeaaeb4; no root heavy pending.
+
 - Integrated572tooling1e4f2dad4/D328 Backlogall3ACopen,94Done. Rootpurecanvas_wpt_toolPASS; noZinc/Canvas/WPT/SSIM/FPSrun/build. Archive88 verifies14payloads/full16logs/root3files/bundle.572claimreleased;1051claimedafterreadonlyaudit .logs/startable-audit-h.txt (89IDs); isolatedipodplugin datafixesnext, noactualhardwarewrite/USB/restore/newservice/demo/ownerheldsource.853 oldunassignedInProgressrestoredoesnotholdsourcebyavailableevidence. NextD329/archive89. Commoncheckout1e4f2dad4, engine6121edcc8/SHA7da7f402 unchanged.
 
 - Integrated1123bc2cfe9c4/D326 DonebothAC,94Done andweb863.036121edcc8/D327 ReviewAC2/AC1goldenopen. Onecleancommonbuild/exactdyn_callback+web_frame/originalRequestfetchall3/rncheck32files/actualCanvasDOMbrowser+prerenderproofPASS. Archives86/87 verify17+9sourcepayloads/full83+96logs/root70fileseach/namedbundles. Sourceworkerclaimsreleased, owner10payloads/perf15preserved. CommonSHA7da7f4026a6436f68afa97f141fafee188fd901668d97c553420b40cf5f8fb69. Active572toolingonly; nextD328/archive88. Readonly863.04/221assessment .logs/research-next-h.txt retainsheldLVGL/mainconstraints, neitherclaimed.
