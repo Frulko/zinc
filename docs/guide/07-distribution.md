@@ -595,3 +595,5 @@ with `--quiet`, when stderr is not a terminal, and for a build without a release
 for it: "Zinc is up to date" or "Zinc 0.2.0 is available". `tests/t1/self_update.sh` proves all of it on a local release.
 
 Next: [security](08-security.md).
+
+For scenes, sprites, input and game rules before exporting, see [Build a 2D game](15-games.md).

@@ -20,8 +20,13 @@ zinc build    # a native executable in build/
 |---|---|
 | `src/main.ts` | die Frame-Schleife: führt die aktuelle Szene aus und wechselt zu der, die sie nennt |
 | `src/scenes.ts` | die Szenen Titel, Spiel und Game over (Zeichnen und Eingabe) |
+| `src/input.ts` | Eingabeaktionen und Zurücksetzen bei Fokusverlust; Tastatur und Gamepad (`zinc:game`) |
 | `src/world.ts` | die Regeln ohne Zeichnen: Bewegung, Münzen, Punktestand, Zeit (das prüfen die Tests) |
 | `src/save.ts` | der beste Punktestand, gespeichert mit `zinc:storage` |
 | `assets/*.svg` | die Sprites: Die Regel `sprite` in `zinc.json` packt sie in eine Textur, einen Atlas, gezeichnet mit `zinc:sprite`: `atlas('sprites').frame('player.svg').draw(x, y)` (auch PNG- und Aseprite-Dateien, siehe docs/plugins/sprite.md) |
 | `assets/coin.wav` | der Klang einer eingesammelten Münze, abgespielt mit `zinc:audio`: `load('coin.wav').play()` (WAV, FLAC, MP3 oder OGG; `loop` und `volume` für Musik) |
 | `zinc.json` `loading` | der Ladebildschirm: ein Balken, der gezeichnet wird, während die Assets laden, bevor `src/main.ts` startet, und in den Titel übergeht; nicht gezeigt, wenn sie innerhalb eines Frames laden (`"screen"` nimmt `"bar"`, `"default"`: den Splash mit Balken, oder ein eigenes Modul, siehe docs/plugins/loader.md) |
+
+Leitfaden für 2D-Spiele: https://frulko.github.io/zinc/docs/guide/15-games/
+
+`src/main.ts`: `SceneController`; `src/scenes.ts`: `Scene`, `Sprite`; `src/input.ts`: `InputActions`.

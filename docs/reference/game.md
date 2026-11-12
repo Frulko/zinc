@@ -1,6 +1,6 @@
 # Game scenes, sprites, tilemaps, cameras and input
 
-`zinc:game` is a caller-owned layer over `zinc:sprite`. It registers no frame
+`zinc:game` is a caller-owned layer over `zinc:sprite`, `zinc:tilemap` and `zinc:gfx`. It registers no frame
 callback and loads no atlas at import. The same typed source runs interpreted,
 with QuickJS, or compiled AOT.
 
@@ -120,3 +120,51 @@ application handles focus loss: it clears held keys, strengths and edges.
 Pointer/gamepad state is sampled again on the next update. InputActions does
 not replay input received before its creation. The platformer combines actions
 with the existing `Btn` mapping for console HAL controls.
+
+## Signatures and defaults
+
+All objects below belong to the caller. Keep one controller per scene and call
+its methods from your frame loop. There is no global active scene, automatic
+scene switching, physics clock or audio mixer in this module.
+
+| API | Contract |
+|---|---|
+| `new Scene()` | Empty `enter(): void`, `update(seconds: number): void`, `draw(): void`, `leave(): void` hooks to override. |
+| `new SceneController(scene: Scene)` | Retains the scene, initially `SceneState.Idle`. `start()`, `update(seconds)`, `draw()`, `stop()` return void; readonly `state` reports Idle, Entering, Active, Updating, Drawing or Leaving. |
+| `new Playback(animation: Animation, loop: boolean = true)` | Retains the animation. Public `animation` and `loop` can be changed; readonly `state: PlaybackState` is Playing, Paused or Finished, initially Playing. `milliseconds: number` starts at zero. |
+| `playback.update(seconds: number)`, `pause()`, `resume()`, `restart()` | Return void. Time is seconds here, milliseconds in `Animation`; accumulated time overflow throws. `frame(): Frame` returns the current atlas frame. |
+| `new Sprite(frame: Frame)` | Retains the frame. `playback: Playback \| null = null`; `x`, `y`, `width`, `height`, `rotation`, `flags`, `blend` default to zero; `alpha = 255`, `tint = 0xffffff`. `update(seconds)` and `draw()` return void. |
+| `new Camera(width: number, height: number)` | Initially at (0, 0), unbounded, with no shake. `viewport(width, height)`, `bounds(width, height)`, `move(x, y)`, `follow(x, y)`, `shake(seconds, amplitude)`, `update(seconds)`, `reset()` return void. Position getters return numbers; `shakeState` is `ShakeState.Idle` or Shaking. |
+| `new InputActions()` | Initially no held keys or actions. `add(): InputAction`, `update(): void`, `reset(): void`. Each collection owns its key history and actions. |
+| `action.key(name: string)` | Adds an exact, nonempty key name. All binding methods return this same `InputAction` for chaining. |
+| `action.pointer(button: i32 = 0)` | Adds a pointer button, range 0..4. |
+| `action.button(pad: i32, button: GamepadButton)` | Adds a nonnegative pad index and a button from `zinc:gfx` (0..16). |
+| `action.axis(pad: i32, axis: GamepadAxis, direction: number, deadzone: number = 0.2)` | Axis 0..3, direction exactly -1 or 1, finite deadzone from 0 inclusive to 1 exclusive. |
+| `action.value`, `down`, `pressed`, `released` | Readonly number/booleans. `reset(): void` clears strength and edges; `clearEdges(): void` clears only edges. `sample(keys: string[]): void` is the low-level sampler used by the collection; normally call `InputActions.update()` instead. |
+| `loadTileMap(name: string): TileMap` | Alias of `zinc:tilemap.load`; see the [tilemap API](../plugins/tilemap.md). |
+
+`SceneController.update` rejects negative/nonfinite time before invoking the
+hook. Calling start twice, stop before start, or driving a controller inside
+its own hook throws. Switch controllers after the current hook has returned.
+For a new round, stop the old controller, then start the next; reset game
+state in `enter()`. See the [game guide](../guide/15-games.md) and the
+[template](../../templates/game-2d/src/main.ts).
+
+`Camera.reset()` cancels shake only: it preserves the base position, viewport
+and bounds. `InputActions.reset()` preserves bindings. Reset a collection on
+focus loss in the application that owns the `zinc:gfx` signal queue; do not
+have multiple subsystems drain that queue. Reset on restart when held keys
+should be forgotten. Pointer and gamepad values return on the next sample
+if the device is still held.
+
+Sprites and playback do not load, clone or unload atlas resources. A Sprite
+with no playback needs no update call. Sharing a Playback shares its clock;
+advance it once per frame. See [sprites](../plugins/sprite.md) for atlas assets,
+frames, animation names and reload ownership.
+
+Use [audio](../plugins/audio.md) and [physics2d](../plugins/physics2d.md)
+directly. `zinc:game` does not re-export either plugin or add a performance
+guarantee. A scene that opens a physics world or a music stream releases it
+in `leave()`; failed setup must clean up what it opened before propagating
+the error. `Sound.unload()` stops its voices and releases decoded samples;
+`World.destroy()` releases bodies and joints.

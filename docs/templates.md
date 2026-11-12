@@ -39,7 +39,7 @@ compares the graphical ones with a recorded frame.
 | Template | What it is | Targets |
 |---|---|---|
 | game | a window, the arrow keys and a square (zinc:gfx) | macos, linux, rpi |
-| game-2d | a 2D game to grow from: title / play / game-over scenes, keyboard, gamepad and pointer input, SVG sprites, a saved best score (zinc:gfx, zinc:storage); sound waits for zinc:audio (ZN-390) | macos, linux, rpi |
+| game-2d | a 2D game to grow from: title / play / game-over scenes, keyboard, gamepad and pointer input, SVG sprites, a saved best score (zinc:game scenes, sprites and input actions, zinc:audio sound effects, zinc:storage) | macos, linux, rpi |
 | canvas | a sketch on the web's Canvas API (zinc:canvas) in zinc:gfx's frame loop, no JSX: a gradient sky, a turning star, text, bubbles where you click | macos, linux, rpi |
 | desktop-app | a desktop app shell on zinc:ui/nuxt: sidebar and router (Home, Notes, Settings), the application menu and a tray icon (zinc:system/menu, zinc:system/tray), dark mode and settings saved with zinc:storage | macos, linux |
 | dashboard | a live dashboard on zinc:ui/nuxt: stat cards, a line and a bar chart drawn in a Canvas, alerts, pause; fed by a mock source behind a `Source` interface | macos, linux, rpi |
