@@ -187,6 +187,9 @@
         "libxml2-dev",
         "libsqlite3-dev",
         "zlib1g-dev"
+      ],
+      "libs": [
+        "dl"
       ]
     },
     "rpi1": {
@@ -275,6 +278,9 @@
         "libxml2-dev",
         "libsqlite3-dev",
         "zlib1g-dev"
+      ],
+      "libs": [
+        "dl"
       ]
     }
   }

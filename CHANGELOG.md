@@ -168,6 +168,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc:3d` worlds switch their shadows off and on with `world.setShadows(false)` and `world.setShadows(true)`, at once and without reading the heights again; Pocket Tokyo's Shadows button on the PSP and the 3DS uses it.
 - `zinc:audio` can decode Ogg Opus sounds and streamed music with `"plugins": { "audio": { "opus": true } }` in `zinc.json`; the codec is off by default.
 - `zinc:three-pi` loads ETC1S KTX2 textures natively on T2, including glTF images and mipmaps, without WASM or workers; opaque textures use ETC1 when supported, with RGBA fallback that preserves alpha.
+- `ipod.mount('')` can ask Linux UDisks to mount an identified iPod filesystem, with read-only HFS/HFS+ and explicit ambiguity or policy errors.
 
 #### Changed
 

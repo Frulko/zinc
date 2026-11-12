@@ -5,6 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-11-07 16:40'
+updated_date: '2026-11-12 06:50'
 labels:
   - linux
   - cross
@@ -12,7 +13,6 @@ labels:
 milestone: m-25
 dependencies: []
 ordinal: 51600
-updated_date: '2026-11-12 07:00'
 ---
 
 ## Description
@@ -78,4 +78,25 @@ Proposed tests:
 - Prepared Linux native plugin link/public capability and voice-only call with unsupported-video requests (~30–60s after build, memory unmeasured); no service/device setup is performed here.
 - Existing macOS camera/Go Live receive/send session and stop/reconnect (~20–30s, memory unmeasured), at the owner's selected milestone; no real Discord request here.
 - Remaining1057 providers, Linux regression sessions, AEC and platform window/profiler/Inspector checks remain in this task, not new tasks.
+
+2026-11-12 — isolated Linux automatic iPod-mount increment; all five compound criteria remain open (Backlog).
+
+`ipod.mount('')` now has a Linux UDisks path instead of requiring a partition name. It uses the existing runtime-loaded sd-bus transport without modifying that shared header or linking libsystemd into the engine. ObjectManager's Block/Drive/Filesystem relationships, typed properties and bounded snapshots identify one FAT/HFS/HFS+ filesystem. The canonical sysfs block device must match DeviceNumber and descend from an Apple USB disk-mode product with the same serial. The product whitelist is shared with existing USB enumeration through one private header, not copied. Drive identity/time, filesystem UUID/size/type, device number and USB identity are checked again before one Mount request; no volume-name or model-string guess is used. Foreign/internal/virtual/RAID/encrypted/firmware/non-filesystem/unknown/ambiguous candidates are refused. An already-mounted filesystem is not mounted again; its existing options are not changed or certified read-only. Unmounted filesystems with persistent configuration such as fstab are refused: UDisks otherwise ignores the supplied mount options, defeating the HFS read-only request.
+
+The private request has one enum/transition function and one finite ten-second deadline, including subscription, owner lookup, enumeration, revalidation and method reply. It requires an already-running UDisks service without activation/installation fallback, pins its unique owner, waits for monitor installation, invalidates topology/selected-device changes and cancels pending slots with the existing Bus RAII/generation machinery. It is one-shot; second start is refused. Mount's own filesystem/option updates and job objects do not invalidate its response. Requests disable interactive authorization and ask for read-only on HFS/HFS+ or a read-only block device. Every failure after the Mount stage says that the outcome is unknown and asks the user to check the file manager before retrying. There is no retry, unmount, reset, poweroff, sudo or installation fallback. A D-Bus timeout cannot undo a mount accepted by the daemon; physical hotplug is not atomic with the final identity check. Sysfs reads are bounded and checked between deadline stages, but cannot preempt a kernel syscall that is itself stuck.
+
+Callers read: public index.ts mount wrapper, native Spec/host worker promise, in-memory stand-in, the existing app action/error handler, all core run()/mount()/eject() callers, the current ipod_rules proof and lifecycle audit. Public signatures and app behavior stay compatible; no app, backup, smart-rule, open-library or eject logic changed. The macOS diskutil/reset path and explicit Linux partition/udisksctl path are unchanged; the inherited run() wait for those explicit paths remains unbounded and is not presented as fixed here. Linux/rpi1 link dl for the existing dynamic library loader. No SDK, new parser/dependency/service or engine/runtime/HAL/host/main change.
+
+Research supplied by the coordinator: `.logs/research-cross-i.txt`; primary API details checked against [UDisks Block](https://storaged.org/doc/udisks2-api/latest/gdbus-org.freedesktop.UDisks2.Block.html), [Drive](https://storaged.org/doc/udisks2-api/latest/gdbus-org.freedesktop.UDisks2.Drive.html), [Filesystem](https://storaged.org/doc/udisks2-api/latest/gdbus-org.freedesktop.UDisks2.Filesystem.html) and [sysfs rules](https://docs.kernel.org/admin-guide/sysfs-rules.html). The [udisksctl manual](https://storaged.org/doc/udisks2-api/latest/udisksctl.1.html) explicitly does not promise a stable program interface, so its human output is not parsed. Design judgments (fit x3/performance x3/size x2/maintainability x2/supply x2/portability x1/effort x1), not timing: reuse existing Bus62 (5/4/5/4/5/4/3), parse CLI47 (3/3/5/2/4/3/4), new UDisks wrapper dependency47 (4/4/2/4/3/3/2). Existing finite transport is the smallest complete route.
+
+Proof: exact new ipod_mount T0 compiles C++17/no-exceptions/no-rtti with warnings as errors, then exercises the actual private transaction and existing D-Bus decoder through fake APIs, plus real canonical-file/symlink reads in an owned fake sysfs tree. Cases cover whitelist/serial/ancestor/device number, foreign/virtual/internal/RAID/crypto/nonFS/ambiguous data, malformed paths/properties/mount points/unique owners, oversized replies, already-mounted state, revalidation, mount options/HFS read-only and persistent-fstab refusal, own job/property notifications, denial/service absence/disconnect/timeout, owner/object loss, unknown post-Mount outcomes, duplicate start and late replies after destruction. No real bus connection, device scan or mount is made. Final `.logs/t0-final-2.log` PASS. `.logs/objects-final-2.log` compiles the real macOS core and the complete new Linux helper/entry adapter with production C++17/no-exceptions/no-rtti flags, warning-free, using the existing pinned Zig x86_64-linux glibc2.28 toolchain. This is not a full Linux ipod-core/plugin link: the local Linux sysroot lacks its GLib/TagLib/libplist/libusb headers. An explicit ipod.sim.ts mount-only fixture runs identically on interpreter/AOT/QuickJS (`.logs/sim-*.out`), never calling the native mount implementation. No engine build, suite, device/USB/reset/DBus/OS mount or database write occurred.
+
+Failures retained with actual scripts/source: first T0 fixture compilation collided with a private validator name and the shared dictionary constructor (fixed name, `.logs/stage1-source`); first native-gen proof script omitted its output directory (`.logs/native-gen-1.log`, compile-initial.sh), corrected before resuming only objects/sim. All final source/proof/artifact hashes and the complete logs are retained in worker manifests. No speed/memory claim. Usage: n/a (`tools/usage`).
+
+Proposed decision: use the stable UDisks object API and a pinned finite transaction for automatic mounting, retain explicit legacy paths, and refuse uncertain identity instead of guessing. Revisit on actual UDisks/iPod evidence or if a cancellable OS mount API becomes available.
+Proposed later line: ZN-1057: bound the inherited explicit-partition/diskutil/eject run() process helper with safe child ownership; automatic Linux UDisks mounting is finite, but those unchanged paths can still wait indefinitely.
+Proposed tests:
+- Prepared Linux with existing dependencies: full ipod plugin link, then owner-selected real iPod automatic discovery/mount/already-mounted/HFS read-only and hotplug denial cases (10–20s each after build, memory unmeasured); never execute against unrelated disks.
+- Owner-selected Linux/rpi1 packaging with/without libsystemd/UDisks/policy and existing ipod_rules/smart regressions (seconds to a minute after build, memory unmeasured). No daemon or package setup is performed here.
+
 <!-- SECTION:NOTES:END -->

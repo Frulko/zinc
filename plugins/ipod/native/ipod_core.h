@@ -123,8 +123,8 @@ std::string safeName(const std::string& name, const std::string& fallback);
 /** Copies a backup folder onto the iPod at `mountpoint`: its database, and the music files it refers to that the iPod lacks (from the
  *  backup's shared Music folder). The iPod's own description (iPod_Control/Device) is never replaced. */
 bool restoreBackup(const std::string& folder, const std::string& mountpoint, const Progress& progress, std::string& err);
-/** Mounts the disk `device` (a BSD name such as disk4, sdb2 on Linux), or with '' every iPod disk plugged in but not mounted
- *  (macOS: the external disks whose media name says iPod). Changes nothing on the iPod. */
+/** Mounts the named disk, or with '' the iPod disks on macOS / one identified USB iPod filesystem via UDisks on Linux.
+ *  Linux automatic discovery refuses ambiguity and mounts HFS/HFS+ read-only. Does not edit the music or database. */
 bool mount(const std::string& device, std::string& err);
 /** sync, unmount and power off the volume. */
 bool eject(const std::string& mountpoint, std::string& err);

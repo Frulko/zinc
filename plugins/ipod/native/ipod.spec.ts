@@ -334,8 +334,8 @@ export interface Spec extends NativeModule {
    *  when later. Tracks no longer there are skipped. One save at the end (after the session's restore point); resolves with the tracks
    *  counted, as they are now. */
   played(plays: Play[]): Promise<Track[]>;
-  /** Mounts the disk `device` (disk4 on macOS, sdb2 on Linux), or with '' every iPod plugged in but not mounted (macOS: the
-   *  external disks whose media name says iPod). Changes nothing on the iPod. */
+  /** Mounts a named disk, or with '' the iPod disks on macOS / one identified USB iPod filesystem via UDisks on Linux.
+   *  Linux automatic discovery refuses ambiguity and mounts HFS/HFS+ read-only. Does not edit music or the database. */
   mount(device: string): Promise<void>;
   /** Flushes, closes and ejects (diskutil on macOS, udisksctl or umount on Linux). */
   eject(mountpoint: string): Promise<void>;

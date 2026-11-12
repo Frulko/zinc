@@ -2,6 +2,11 @@
 // SysInfoExtended, std::filesystem for copies, snapshots and backups. Runs on one thread at a time (the worker).
 #include "ipod_core.h"
 #include "ipod_fingerprint.h"
+#include "ipod_usb_identity.h"
+#ifdef __linux__
+#include "ipod_linux_mount.h"
+#include <sys/sysmacros.h>
+#endif
 
 #include <itdb.h>
 #include <libusb.h>
@@ -495,7 +500,7 @@ struct UsbIpod { std::string serial; std::string xml; uint16_t product = 0; };
 
 /** The iPods that have a disk mode: 0x1201-0x128f (1G to Classic and Nano 7G) and the Shuffles (0x1300-0x130f). An iPhone, an iPad
  *  or an iPod touch (0x1290 and up) is not one: it has no iPod_Control to manage. */
-bool diskModeIpod(uint16_t product) { return (product >= 0x1201 && product < 0x1290) || (product >= 0x1300 && product <= 0x130f); }
+using usb::diskModeIpod;
 
 /** Every iPod on the USB bus, its serial and, when `withXml`, the SysInfoExtended it serves (vendor request 0x40, as libgpod's
  *  ipod-read-sysinfo-extended; a device request, so the mounted disk is untouched). */
@@ -2088,7 +2093,17 @@ bool mount(const std::string& device, std::string& err) {
   if (!found) { err = "no iPod disk to mount: unplug the iPod and plug it in again (an ejected iPod offers its disk again then), or put it in disk mode"; return false; }
   return ok;
 #else
-  if (device.empty()) { err = "name the iPod's partition (e.g. sdb2), or mount it with the file manager"; return false; }
+  if (device.empty()) {
+#ifdef __linux__
+    linux_mount::Request request([](const linux_mount::Candidate& c, linux_mount::Identity& identity) {
+      const dev_t number = static_cast<dev_t>(c.number);
+      return linux_mount::usbIdentity("/sys", std::to_string(major(number)) + ":" + std::to_string(minor(number)), c.device.substr(5), identity);
+    });
+    return request.run(err);
+#else
+    err = "automatic iPod mounting requires Linux UDisks"; return false;
+#endif
+  }
   return run({"udisksctl", "mount", "--block-device", "/dev/" + device}, err);
 #endif
 }
