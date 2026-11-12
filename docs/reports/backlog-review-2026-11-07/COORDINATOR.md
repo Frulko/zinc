@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Continue SAME558 with fresh peripheral558 in .worktrees/558-peripheral / work/558-peripheral, baseb7c3f4c8b; original claim retained. Scope actual exported UART GATT+LE and targeted AcquireNotify FD sessions, no real radio/daemon action. Generic source archived84 and removed after verification.93 Done, nextD325/archive85; no root heavy command/process pending.
+
 - Integrated558 genericGATTcentral55d18c965/D324, Backlogall4ACopen,93Done. Rootexactbluez/publicfakeall3/TSsimall3/nativeMacSIM_AOT/checkPASS; productionLinuxC++17objectPASSinworker,noactualradio. Archive84 source19/full76availablelogs/root22verified; oneearlierMacfailurefull-logoverwritten/recoveredexcerptonly. Originalclaimretainedforsame558targetedUARTGATT+LEfreshcontinuation; no sourceworkerafterfreeze, nextD325/archive85.
 
 - Integrated1122 b63c8367a/D323 DonebothAC,93Done. Cleancommonbuild/exactclosure_arityall3 andworkerunchangedBLETSsimall3PASS. Archive83 eightblobs/full35logs/rootproofverified; release1122. Source558continuesGATTcleanup, nextD324/archive84. Mistakenmainbuildpathstoppedbeforelink/no sourcechange, retainedfailedlog; correctcleanbuildPASS. Ownerpayloadsverified.
