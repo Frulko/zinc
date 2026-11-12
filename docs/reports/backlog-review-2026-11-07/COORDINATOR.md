@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- ContinuedSAME558 freshworker gatt558 in .worktrees/558-gatt/work/558-gatt base05fa828bf, originalclaimretained. ScopegenericGATTcentralfirst, thenrealGATT+LEtargetedUART export; fullnewprimaryexportsresearch provided. Old558central/Pythontreesremovedonlyafter81/82sourcebundle/full.logs/rootproofverification. No rootheavy/processpending,nextD323/archive83.
+
 - Integrated558 WiFi0f8c4c1af/59011da2e/679f8e902+BlueZ365a99994 andPythonf9b87dddd/D322. Rootbuild/exactradios+cache+bluez/publicWiFiBLEall3/SIMUARTall3/typecheckPASS; archive81(45blobs/52logs)+82(2blobs/5logs)/rootproofverified. AllACopenBacklog,92Doneunchanged, claimretainedforsame558freshgenericGATT/exportcontinuation. Physicalsharedconnection/D316residualsexplicit. Protected10payloads/perf15linesunchanged.
 
 - Integrated555 captureharnessc8cd0b268/D321, BacklogAC3checkedAC1/2open. WrittenoptinLinuxpubliccapture pluspureT0/typecheckPASS; no audio/kernel/OSaction orenginebuild. Archive80 sevenintegratedsourceblobs/fulltenlogs/rootproofverified; release555,92Doneunchanged. BlueZ558 finalcentralownershipchecks ongoing, nothing558integrated.
