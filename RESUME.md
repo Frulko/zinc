@@ -6,7 +6,7 @@ Continue zn-coordinate until .paused or nothing startable. Never ask owner; no p
 
 ## Current
 
-Claimed ZN-863.03 web device frames: isolated src/cli_web.cpp/targets/web existing-output capability, no ownerRT/HAL/UI/main changes or newdemo/service. Delegated research .logs/research-86303-g.txt; bounded exact T0/actualexistingrn-showcase proof only, screenshotgolden remains owner milestone. Fresh worker follows after claim commit; no heavycommand pending.
+Claimed ZN-863.03 web device frames: isolated src/cli_web.cpp/targets/web existing-output capability, no ownerRT/HAL/UI/main changes or newdemo/service. Delegated research .logs/research-86303-g.txt; bounded exact T0/actualexistingrn-showcase proof only, screenshotgolden remains owner milestone. Active worker /root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next/coordinator_e/coordinator_f/coordinator_g/webframe863, .worktrees/86303-webframe / work/86303-webframe, confirmedbase95eefd2bc. Noheavycommand pending atstart.
 
 1122 integratedb63c8367a/D323 DonebothAC. Lexical self-reference detection and deferredcallbackpadding fixed, catchscope exact. Cleancommonbuild/exactclosure_arityall3PASS; originalunchangedBLETSsimcheck/interp/QJS/AOTPASSinworker. Archive83 eightblobs/full35logs/rootproofverified. Firstcoordinatorbuild usedwrong main tools/build path, stoppedbeforelink; no sourcechange, failedattempt retained, mainbuildobjects mayhavechanged. 558genericintegrationbelow; all558ACopen. Readonly392research .logs/research-392-f.txt, notclaimedbecauseowner mainrequired.
 
