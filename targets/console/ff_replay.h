@@ -25,7 +25,13 @@ void draw_quad(const void* tex, bool linear, float x0, float y0, float x1, float
 // The same with a colour per corner (x0 y0, x1 y0, x0 y1, x1 y1), blended across the quad: the linear gradients.
 void draw_quad4(const void* tex, bool linear, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, const uint32_t rgb[4], float a);
 
-// The replay's part.
+// The replay's part. One begin/end pair surrounds every presented frame, including all its lists/surfaces.
+struct Stats { uint32_t quads, tiles, cache_hits; };  // tiles: shape draws; hits: tiles prepared in an earlier frame
+void begin_frame();
+Stats frame_stats();
+void end_frame();   // logs the counters when zinc -v enabled ZINC_LOG=info (or debug/trace)
+void reset_cache(); // between backend lifetimes, when its atlas memory has been replaced
+
 bool drawable(const HalCmdList* const* lists, int32_t n);       // every command is one the replay draws (images are uploaded on the way)
 // One list on a w x h surface, shown at screen x = ox + k x, y = oy + k y.
 void replay(const HalCmdList* l, int32_t w, int32_t h, float k, float ox, float oy);

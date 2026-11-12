@@ -254,6 +254,7 @@ bool zn_c3d_init(int32_t w, int32_t h) {
   C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
   static const char on[] = "n3ds c3d: on\n";
   hal_log(on, sizeof on - 1);
+  zn::ff::reset_cache();
   ready = true;
   return true;
 }
@@ -264,6 +265,7 @@ void zn_c3d_begin(void) {
   if (!ready || inFrame) return;
   { zn::n3ds::capture::Scope waitScope(zn::n3ds::capture::Wait);
     inFrame = C3D_FrameBegin(C3D_FRAME_SYNCDRAW); }
+  if (!inFrame) return;
   for (C3D_Tex& t : retired) C3D_TexDelete(&t);   // the frames that could read them are done
   retired.clear();
   zn::n3ds::capture::add(zn::n3ds::capture::PreviousGpu, (uint32_t)(C3D_GetDrawingTime() * 1000));
@@ -272,6 +274,7 @@ void zn_c3d_begin(void) {
   if (previousVblank) zn::n3ds::capture::add(zn::n3ds::capture::Vblanks, vblank - previousVblank);
   previousVblank = vblank;
   nv = runFirst = 0; overflow = false; curMode = NONE; cur = nullptr;
+  zn::ff::begin_frame();
 }
 void zn_c3d_end(void);
 // Submits the open frame (a left eye waiting for its right one included) and waits for it: the HAL reads the screens back for a shot.
@@ -286,6 +289,7 @@ void zn_c3d_end(void) {
   // Textures, atlases and used vertices are already flushed; flags=0 flushes the entire linear heap again.
   C3D_FrameEnd(GX_CMDLIST_FLUSH);
   inFrame = false;
+  zn::ff::end_frame();
   if (overflow) { static bool told; if (!told) { told = true; static const char m[] = "n3ds c3d: a frame has more quads than the vertex pool: the rest is not drawn\n"; hal_log(m, sizeof m - 1); } }
 }
 // Stops citro3d before gfxExit: the open frame submitted, the GPU's work waited for, its threads and buffers released. Without it a console
@@ -327,6 +331,7 @@ static void replayStats(bool gpu) {
 bool zn_c3d_window(const HalCmdList* l, int32_t w, int32_t h) {
   if (!ready) return false;
   zn_c3d_begin();
+  if (!inFrame) return false;
   bool drawable;
   { zn::n3ds::capture::Scope scope(zn::n3ds::capture::Validate); drawable = zn::ff::drawable(&l, 1); }
   replayStats(drawable);
@@ -348,6 +353,7 @@ bool zn_c3d_draw(const HalFrame* f, int target, bool always) {
   float K, OX, OY;
   fit(target, f->w, f->h, &K, &OX, &OY);
   zn_c3d_begin();
+  if (!inFrame) return false;
   const uint64_t t0 = svcGetSystemTick();   // after the wait for the GPU's last frame: the replay's CPU time, ZINC_PROFILE's raster
   auto done = [&] { zrt_prof_band(0, t0 * 1000000ull / SYSCLOCK_ARM11, svcGetSystemTick() * 1000000ull / SYSCLOCK_ARM11); return true; };
   bool drawable;

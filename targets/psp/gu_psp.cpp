@@ -159,6 +159,7 @@ bool zn_gu_init(int32_t w, int32_t h) {
   sceGuDisplay(GU_TRUE);
   static const char on[] = "psp gu: on\n";
   hal_log(on, sizeof on - 1);
+  zn::ff::reset_cache();
   ready = true;
   return true;
 }
@@ -167,6 +168,7 @@ bool zn_gu_init(int32_t w, int32_t h) {
 // screen keeps the last frame and the HAL does not swap).
 bool zn_gu_present(const HalFrame* f) {
   if (!ready || f->y1 <= f->y0 || f->x1 <= f->x0) return false;
+  zn::ff::begin_frame();
   const uint64_t t0 = sceKernelGetSystemTimeWide();
   const HalCmdList* lists[6];
   const int32_t n = f->frames ? f->frames(lists, 6) : 0;
@@ -197,6 +199,7 @@ bool zn_gu_present(const HalFrame* f) {
   const uint64_t t1 = sceKernelGetSystemTimeWide();
   sceGuSync(GU_SYNC_FINISH, GU_SYNC_WHAT_DONE);
   zrt_prof_band(0, t0, t1);
+  zn::ff::end_frame();
   if (overflow) { static bool told; if (!told) { told = true; hal_log("psp gu: a frame has more quads than the vertex pool: the rest is not drawn\n", 74); } }
   return true;
 }

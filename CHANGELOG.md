@@ -73,6 +73,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc:three-pi` can split real three.js triangle geometry into 16-bit chunks on T2 and warm shaders before rendering; desktop tiers leave the inputs unchanged.
 - On T2, `zinc:three-pi` can replace real three.js PBR materials with Lambert and merge explicitly static, compatible mesh siblings while retaining shared source resources.
 - QuickJS uses native math for the pinned Three.js build, with the original methods as fallback; `ZINC_JS_ACCEL=0` disables it.
+- PSP and 3DS GPU replay reports quads, cached shape tiles and cache hits per frame when verbose logging is enabled.
 
 #### Changed
 

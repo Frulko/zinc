@@ -16,6 +16,9 @@ namespace {
 struct GSlot { int32_t font; uint32_t cp; int16_t x, y; };
 GSlot gtab[4096];
 int gx, gy, growH, gcount;
+bool loaded[64];
+Stats stats{};
+uint64_t frameSerial;
 // A glyph's place in the atlas, copied on first use; null when the atlas is full. ponytail: never evicted, a reset when a program needs more
 // than 512x512 of distinct glyphs is the upgrade.
 const GSlot* glyph(int32_t font, uint32_t cp, const Glyph& g, const uint8_t* bitmap) {
@@ -74,6 +77,7 @@ void quad(const void* tex, bool linear, float x0, float y0, float x1, float y1, 
   if (y0 < clip.y0) { v0 += (v1 - v0) * (clip.y0 - y0) / (y1 - y0); y0 = clip.y0; }
   if (y1 > clip.y1) { v1 -= (v1 - v0) * (y1 - clip.y1) / (y1 - y0); y1 = clip.y1; }
   if (x0 >= x1 || y0 >= y1 || a <= 0) return;
+  stats.quads++;
   if (G) {
     const uint32_t c[4] = {gradAt(x0, y0), gradAt(x1, y0), gradAt(x0, y1), gradAt(x1, y1)};
     draw_quad4(tex, linear, OX + K * x0, OY + K * y0, OX + K * x1, OY + K * y1, u0, v0, u1, v1, c, a);
@@ -87,7 +91,6 @@ void text(const Cmd& c, const char* s) {
   if (!fp) return;
   const Font& f = *fp;
   // a baked font's ASCII glyphs go into the atlas at its first use, together: an emulator that caches textures sees one upload
-  static bool loaded[64];
   if (c.res >= 0 && c.res < 64 && !loaded[c.res]) {
     loaded[c.res] = true;
     for (int32_t i = 0; i < f.count; i++) if (f.glyphs[i].cp < 128 && f.glyphs[i].w && f.glyphs[i].h) glyph(c.res, f.glyphs[i].cp, f.glyphs[i], f.bitmap);
@@ -138,7 +141,7 @@ void image(const Cmd& c) {
 // (the straight edges, the inside): the longest run of each is kept as one texel, stretched back by a 9-slice of quads, so a card of any
 // size costs its corners. A command that moves keeps its shape when it moves by whole pixels (the key holds the fractions), a POLY too
 // (its points are keyed from its box's corner). ponytail: the atlas is emptied when it is full (between frames), no eviction by use.
-struct Shape { uint16_t ax, ay, w, h, lx, mx, ly, my; };   // atlas place; full size; the left / top part and the stretched run after it
+struct Shape { uint16_t ax, ay, w, h, lx, mx, ly, my; uint64_t created; };   // atlas place; full size; the left / top part and the stretched run after it
 std::map<uint64_t, Shape> shapes;
 int sx, sy, srowH;          // the shape atlas's shelf
 std::vector<uint32_t> scratch;
@@ -242,7 +245,7 @@ const Shape* shape(const Cmd& c, const float* pts) {
     for (int32_t x = 0; x < cw; x++) mem[(size_t)(sy + y) * kAtlasW + sx + x] = cov[(size_t)fy * w + (!mx || x <= lx ? x : x + mx - 1)];
   }
   atlas_written(1, sx, sy, cw, ch);
-  const Shape s = {(uint16_t)sx, (uint16_t)sy, (uint16_t)w, (uint16_t)h, (uint16_t)lx, (uint16_t)mx, (uint16_t)ly, (uint16_t)my};
+  const Shape s = {(uint16_t)sx, (uint16_t)sy, (uint16_t)w, (uint16_t)h, (uint16_t)lx, (uint16_t)mx, (uint16_t)ly, (uint16_t)my, frameSerial};
   sx += cw + 1;
   if (ch + 1 > srowH) srowH = ch + 1;
   return &(shapes[key] = s);
@@ -252,6 +255,8 @@ const Shape* shape(const Cmd& c, const float* pts) {
 void drawShape(const Cmd& c, const float* pts) {
   const Shape* s = shape(c, pts);
   if (!s) return;
+  stats.tiles++;
+  if (s->created != frameSerial) stats.cache_hits++;
   int32_t bx, by, w, h;
   shapeBox(c, &bx, &by, &w, &h);
   struct Span { int32_t p0, p1, t0, t1; };
@@ -275,6 +280,22 @@ void drawShape(const Cmd& c, const float* pts) {
   G = nullptr;
 }
 }  // namespace
+
+void begin_frame() { stats = {}; ++frameSerial; }
+Stats frame_stats() { return stats; }
+void end_frame() {
+  const char* level = hal_env("ZINC_LOG");
+  if (!level || (strcmp(level, "info") && strcmp(level, "debug") && strcmp(level, "trace"))) return;
+  char line[128];
+  const int n = snprintf(line, sizeof line, "gpu replay: %u quads, %u tiles, %u cache hits\n", stats.quads, stats.tiles, stats.cache_hits);
+  if (n > 0) hal_log(line, (size_t)n);
+}
+void reset_cache() {
+  emptyShapes();
+  memset(gtab, 0, sizeof gtab); memset(loaded, 0, sizeof loaded);
+  gx = gy = growH = gcount = 0;
+  G = nullptr; shapesFull = false;
+}
 
 // The first command of a kind the replay does not draw, once on the log (why a program's frames are the software raster's).
 bool refuse(const Cmd& m) {
