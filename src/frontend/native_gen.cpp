@@ -33,6 +33,14 @@ struct Records {
     }
   }
   bool isNull(std::uint32_t t) const { return a.nodes[t].kind == N::TypeRef && (a.nodes[t].text == "null" || a.nodes[t].text == "undefined"); }
+  bool checkedNullish(std::uint32_t t, bool missingOnly, unsigned depth = 0) const {
+    if (t == kNone || depth > 16) return false;
+    const Node& x = a.nodes[t];
+    if (x.kind != N::TypeRef || !x.kids.empty()) return false;
+    if (isNull(t)) return !missingOnly || (x.flags & kFlagUndefined) || x.text == "undefined";
+    auto alias = aliases.find(std::string(x.text));
+    return alias != aliases.end() && checkedNullish(alias->second, missingOnly, depth + 1);
+  }
   // Whether the type mentions a record of the file (through arrays, unions, aliases and Array<T>).
   bool holds(std::uint32_t t, int depth = 0) const {
     if (t == kNone || depth > 16) return false;
@@ -58,7 +66,7 @@ struct Records {
       int n = 0, nulls = 0;
       bool nullable = false, missing = false;
       for (std::uint32_t k : x.kids) {
-        if (isNull(k)) { ++nulls; if ((a.nodes[k].flags & kFlagUndefined) || a.nodes[k].text == "undefined") missing = true; else nullable = true; }
+        if (isNull(k) || (tilde && checkedNullish(k, false))) { ++nulls; if (checkedNullish(k, true)) missing = true; else nullable = true; }
         else { one = k; ++n; }
       }
       if (n != 1 || nulls == 0) return fail(t, "is a union: a record field is T or T | null");

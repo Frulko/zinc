@@ -879,7 +879,7 @@ struct Checker {
         for (std::uint32_t k : std::vector<std::uint32_t>(x.kids)) {
           const TypeId member = annotation(k);
           ms.push_back(member);
-          const bool missing = n(k).kind == N::TypeRef && ((n(k).flags & frontend::kFlagUndefined) || (n(k).text == "undefined" && n(k).kids.empty()));
+          const bool missing = undefinedAnnotation(k);
           undef = undef || missing;
           if (member == tNull) { admitsUndefined = admitsUndefined || missing; admitsNull = admitsNull || !missing; }
           else if (hasNull(member)) {
@@ -896,6 +896,19 @@ struct Checker {
     }
     out.nodeType[t] = r;
     return r;
+  }
+
+  bool undefinedAnnotation(std::uint32_t node, unsigned depth = 0) {
+    if (node == kNone || depth > 16) return false;
+    const Node& x = n(node);
+    if (x.kind != N::TypeRef || !x.kids.empty()) return false;
+    if ((x.flags & kFlagUndefined) || x.text == "undefined") return true;
+    const auto sym = lookupType(x.text);
+    if (sym == kNone || out.syms[sym].kind != SymKind::TypeAlias || !generics.count(sym)) return false;
+    bool missing = false;
+    GenericDecl& g = generics[sym];
+    withAliasScope(g, {}, [&] { missing = undefinedAnnotation(n(g.node).kids[0], depth + 1); });
+    return missing;
   }
 
   // TypeScript's utility types: callable return types and mapped data records (one anonymous record per distinct shape).

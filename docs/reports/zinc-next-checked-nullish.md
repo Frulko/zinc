@@ -11,3 +11,5 @@ The exact `checked_nullish` T0 covers primitive, record, array, nested-list reje
 An actual iPod production decoder probe revealed another pre-existing boundary: QuickJS schema collection follows relative imports only and cannot resolve `ipod.SmartRules` from `zinc:ipod`. It therefore leaves the whole playlist JSON copy unchecked, including required identity fields. No app workaround is added and the production all-three criterion remains open until the schema-resolution engine gap is repaired.
 
 References: [strictNullChecks](https://www.typescriptlang.org/tsconfig/strictNullChecks.html), [JSON.parse](https://tc39.es/ecma262/multipage/structured-data.html#sec-json.parse), D18 (shared static storage), D179 (checked copies), D231 (optional Dyn distinction).
+
+A follow-up keeps standalone `undefined` aliases in union annotations precise: the checker follows a non-generic alias in its declaration scope before the fixed null type erases its flavour. Checked QuickJS schemas follow the same alias only in checked mode; native wire support/output stays unchanged. The exact regression proves missing acceptance and null rejection on all three engines.

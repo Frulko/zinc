@@ -8,6 +8,8 @@ int main(int argc, char**) {
   assert(wire == "{n:?d,alias:??d,u:?d,nill:?d,both:?d}");
   std::cout << wire << '\n';
   if (argc > 1) return 0;
+  assert(zn::frontend::schemaOfType("type Missing=undefined;interface A{n:number|Missing;}","A").empty());
+  assert(zn::frontend::schemaOfType("type Missing=undefined;interface A{n:number|Missing;}","A",true)=="@A{n:~d}");
   const auto checked = zn::frontend::schemaOfType(decls, "P", true);
   assert(checked == "@P{n:~d,alias:~?d,u:~d,nill:?d,both:~?d}");
   assert(zn::frontend::schemaOfType(decls,"number|undefined",true)=="~d");

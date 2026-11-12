@@ -8,9 +8,14 @@ interface Item { name: string; }
 interface Optional { n?: number; b?: boolean; s?: string; list?: number[]; item?: Item; }
 interface Nullable { n: number | null; b: boolean | null; s: string | null; list: number[] | null; item: Item | null; }
 type Maybe = number | null;
+type Missing = undefined;
+interface AliasedMissing { value: number | Missing; }
 interface Both { direct?: number | null; alias?: Maybe; }
 interface Nested { rows: Optional[]; }
 interface Dynamic { value?: unknown; }
+const aliasedMissing: AliasedMissing = JSON.parse('{}');
+check(aliasedMissing.value === undefined, 'undefined alias absence');
+reject(() => { const v: AliasedMissing = JSON.parse('{"value":null}'); });
 const absent: Optional = JSON.parse('{}');
 check(absent.n === undefined && absent.b === undefined && absent.s === undefined && absent.list === undefined && absent.item === undefined, 'optional absence');
 const values: Optional = JSON.parse('{"n":0,"b":false,"s":"","list":[],"item":{"name":"","extra":1},"extra":1}');
@@ -41,5 +46,5 @@ check(missing === 0, 'optional value zero');
 function decoded(): Optional { const result: Optional = JSON.parse('{"n":4}'); return result; }
 function callback(value: Optional): number { return value.n ?? -1; }
 check(callback(decoded()) === 4, 'typed result and parameter');
-check(refused === 10, 'all malformed cases rejected');
+check(refused === 11, 'all malformed cases rejected');
 console.log('checked nullish: pass');
