@@ -16,6 +16,12 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Fused desktop apps enforce their declared `zinc.json` permissions, as native exports do; declare every capability the app uses.
 - Zinc and QuickJS locale formatting reject options outside the [documented Intl subset](docs/intl.md), instead of silently ignoring them; fraction digits are limited to 0 through 20.
 
+### Games
+
+#### Changed
+
+- The `game-2d` template uses `zinc:game` scenes, sprites and input actions, with keyboard, pointer and gamepad controls.
+
 ### Video mapper
 
 #### New
