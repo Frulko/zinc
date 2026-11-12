@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 558 nmcli checkpointa5f149b1a archived77: fullsourcebundle30blobs+32logs verified. Freshbluez558 work/558-bluez replay800022cc9/6f534074d/bc2a2bccc,27blobs+3sharedownedpayloads identical before oldtreecleanup. None558integrated, allACopenBacklog; fallbackwrites/BlueZremainsoftwaregaps.549harness read-onlyresearch underway, no newclaim.
+
 - Integrated1024 aafdbfbbd BacklogAC1open/D318; cleanbuild/exacttdz_locals all3/actualfixture/herocheck+unchangedbytecode PASS. Archive76 fullsource11blobs/logs/rootproof verified. No speed/200msclaim;92Done unchanged.558_next nearingnmcli checkpoint, BlueZ software remainsopen.
 
 - Sole coordinator after7cbb2445b/ready-d: /root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next. Reserve1024 compiler-only local-name membership index after delegated primary research; frontend free, no runtime/UI/HAL edits. Task200ms gate remains open/unselected.558_next continues independent radio plugins; all heavy commands share work-run queue. No owner payload changed.
