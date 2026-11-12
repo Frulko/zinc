@@ -2,7 +2,8 @@
 id: ZN-554
 title: 'zinc:power: thermal, clocks, throttling and under-voltage'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:46'
 labels:
   - rpi

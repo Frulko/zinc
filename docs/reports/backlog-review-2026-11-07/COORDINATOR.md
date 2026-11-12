@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve554 read-only power telemetry independently of550 bus shim. Delegated primary research underway; fixtures first, no weak-supply experiment/privileged setup/QEMU or hardware claim. No shared hw.h/HAL/owner RT edits.535/467 archives71/70 verified and trees removed;92Done.
+
 - Integrated535 476b26695 Review AC1/4, D314; root clean build, exact generated_runtime_exports and actual fixture all3/doctor aliases PASS. Archive71 full source/logs/artifacts verified before cleanup; ten owner payloads unchanged. Common binary now476b26695/5e8b14a1, companions unchanged. Active550 isolated public I2C/SPI + unheld hw.h seam; no other source worker or root heavy process pending.92Done.
 
 - Reserve550 newlyunblocked by535 Review: publicI2C/SPI overexistinghw/simulator, delegatedprimaryresearch underway. No privilegedbus/OSmutations orrealdeviceprobe, noHAL/ownerRT edits; hw.h-only unheld seam mustremain isolated.535 integrated476b26695/rootcleanbuild underway.
