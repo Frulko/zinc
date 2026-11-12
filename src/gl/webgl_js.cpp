@@ -899,7 +899,7 @@ M(copyBufferSubData) { SELF NEED(5); gl.copyBufferSubData(U(0), U(1), i64(c, arg
 M(getBufferSubData) {
   SELF NEED(3);
   std::uint8_t* p = nullptr; std::size_t n = 0;
-  { bool typedArray = false; if (napi_is_typedarray(c, argv[2], &typedArray) != napi_ok || !typedArray) return typeError(c, "getBufferSubData: dstData must be an ArrayBuffer view"); }
+  { bool typedArray = false, dataView = false; napi_is_typedarray(c, argv[2], &typedArray); napi_is_dataview(c, argv[2], &dataView); if (!typedArray && !dataView) return typeError(c, "getBufferSubData: dstData must be an ArrayBuffer view"); }
   int r = viewSlice(c, gl, argc, argv, 2, p, n);
   if (!r) return typeError(c, "getBufferSubData: dstData must be an ArrayBuffer view");
   if (r == 1) gl.getBufferSubData(U(0), i64(c, argv[1]), p, n);

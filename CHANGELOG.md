@@ -154,6 +154,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Closed glTF document handles cannot read or free a newly opened model; invalid node trees and unsupported specular textures fail before scene construction.
 - WebGL ignores version text inside shader comments and accepts spaced GLSL ES version declarations, while rejecting malformed declarations and mismatched shader versions.
 - WebGL shaders accept CRLF and LFCR comment continuations and report physical lines consistently across newline formats, while preserving the original shader source.
+- WebGL 2 buffer readback accepts `DataView` slices, reports source overruns correctly, and preserves typed destinations when a read fails.
 
 
 ### Hamlet

@@ -128,7 +128,7 @@ class WebGL1 {
   Param getActiveUniformBlockParameter(Id p, std::uint32_t block, std::uint32_t pname);
   std::string getActiveUniformBlockName(Id p, std::uint32_t block, bool& ok);
   void copyBufferSubData(std::uint32_t readTarget, std::uint32_t writeTarget, std::int64_t readOffset, std::int64_t writeOffset, std::int64_t size);
-  void getBufferSubData(std::uint32_t target, std::int64_t srcOffset, void* dst, std::size_t dstBytes);
+  bool getBufferSubData(std::uint32_t target, std::int64_t srcOffset, void* dst, std::size_t dstBytes);
   void uniformNui(const UniformLoc& l, int n, const std::uint32_t* v, std::size_t count);
   void vertexAttribIPointer(std::uint32_t index, int size, std::uint32_t type, int stride, std::int64_t offset);
   // ---- WebGL 2.0 textures, samplers, queries, sync, transform feedback, blits (webgl2_tex.cpp)

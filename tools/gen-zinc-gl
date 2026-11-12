@@ -62,7 +62,7 @@ m("bufferDataSize", "target:u32 size:i32 usage:u32", "gl.bufferData({1}, {2}, nu
 m("bufferSubData", "target:u32 offset:i32 data:data", "if (!{3}null) gl.bufferSubData({1}, {2}, {3}n, {3});")
 m("getBufferParameter", "target:u32 pname:u32", "c->param = gl.getBufferParameter({1}, {2});", "param")
 m("copyBufferSubData", "readTarget:u32 writeTarget:u32 readOffset:i32 writeOffset:i32 size:i32", "gl.copyBufferSubData({1}, {2}, {3}, {4}, {5});")
-m("getBufferSubData", "target:u32 srcOffset:i32 dst:out", "gl.getBufferSubData({1}, {2}, {3}, {3}n);")
+m("getBufferSubData", "target:u32 srcOffset:i32 dst:out", "if (!gl.getBufferSubData({1}, {2}, {3}, {3}n)) break;")
 # ---- shaders and programs
 m("createShader", "type:u32", "r->i = gl.createShader({1});", "Shader"); m("deleteShader", "shader:Shader?", "gl.deleteShader({1});")
 m("isShader", "shader:Shader?", "r->i = gl.isShader({1});", "bool")

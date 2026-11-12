@@ -48,7 +48,7 @@
     case Rt::HostGlBufferSubData: { const Bytes v3 = bytesIn(a[3], a[4]); if (!v3.null) gl.bufferSubData(U(a[1]), I(a[2]), v3.n, v3.p); break; }
     case Rt::HostGlGetBufferParameter: { c->param = gl.getBufferParameter(U(a[1]), U(a[2])); break; }
     case Rt::HostGlCopyBufferSubData: { gl.copyBufferSubData(U(a[1]), U(a[2]), I(a[3]), I(a[4]), I(a[5])); break; }
-    case Rt::HostGlGetBufferSubData: { Bytes v3 = bytesOut(a[3], a[4]); gl.getBufferSubData(U(a[1]), I(a[2]), v3.p, v3.n); bytesBack(v3, a[3]); break; }
+    case Rt::HostGlGetBufferSubData: { Bytes v3 = bytesOut(a[3], a[4]); if (!gl.getBufferSubData(U(a[1]), I(a[2]), v3.p, v3.n)) break; bytesBack(v3, a[3]); break; }
     case Rt::HostGlCreateShader: { r->i = gl.createShader(U(a[1])); break; }
     case Rt::HostGlDeleteShader: { gl.deleteShader(U(a[1])); break; }
     case Rt::HostGlIsShader: { r->i = gl.isShader(U(a[1])); break; }

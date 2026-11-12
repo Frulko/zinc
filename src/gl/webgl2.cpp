@@ -200,14 +200,17 @@ void WebGL1::copyBufferSubData(std::uint32_t rt, std::uint32_t wt, std::int64_t 
   wb.ranges.clear();
   glCopyBufferSubData(rt, wt, static_cast<GLintptr>(ro), static_cast<GLintptr>(wo), static_cast<GLsizeiptr>(size));
 }
-void WebGL1::getBufferSubData(std::uint32_t target, std::int64_t src, void* dst, std::size_t dstBytes) {
-  if (version_ != 2 || !bufferTargetOk(target)) return error(GL_INVALID_ENUM);
+bool WebGL1::getBufferSubData(std::uint32_t target, std::int64_t src, void* dst, std::size_t dstBytes) {
+  if (version_ != 2 || !bufferTargetOk(target)) { error(GL_INVALID_ENUM); return false; }
   Id id = bufferSlot(target);
-  if (!id) return error(GL_INVALID_OPERATION);
+  if (!id) { error(GL_INVALID_OPERATION); return false; }
   Buf& b = buffers_[id];
-  if (tfActive()) for (auto& x : indexed_) if (static_cast<std::uint32_t>(x.first >> 32) == GL_TRANSFORM_FEEDBACK_BUFFER && idxCurrent(x.first) && x.second.buffer == id) return error(GL_INVALID_OPERATION);   // being written
-  if (src < 0 || src + static_cast<std::int64_t>(dstBytes) > b.size) return error(GL_INVALID_VALUE);
+  if (tfActive()) for (auto& x : indexed_) if (static_cast<std::uint32_t>(x.first >> 32) == GL_TRANSFORM_FEEDBACK_BUFFER && idxCurrent(x.first) && x.second.buffer == id) { error(GL_INVALID_OPERATION); return false; }   // being written
+  if (src < 0) { error(GL_INVALID_VALUE); return false; }
+  if (src > b.size || dstBytes > static_cast<std::uint64_t>(b.size - src)) { error(GL_INVALID_OPERATION); return false; }
+  driverOk();   // keep older driver errors observable without attributing them to this read
   glGetBufferSubData(target, static_cast<GLintptr>(src), static_cast<GLsizeiptr>(dstBytes), dst);
+  return driverOk();
 }
 
 // ---- unsigned and integer attributes
