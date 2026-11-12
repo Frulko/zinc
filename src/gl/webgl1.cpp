@@ -1091,13 +1091,13 @@ void WebGL1::bindTexture(std::uint32_t target, Id id) {
   boundTex(target) = id;
   glBindTexture(target, name);
 }
-void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes) { ++fbGen_;
+void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, UnpackLayout layout) { ++fbGen_;
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   if (target != GL_TEXTURE_2D && !face) return error(GL_INVALID_ENUM);
   if (version_ == 2 && border != 0) return error(GL_INVALID_VALUE);
   if (version_ == 2 && internalformat != format) {   // sized internal formats (ES 3.0 table 3.2)
     if (face && width != height) return error(GL_INVALID_VALUE);
-    uploadTexture(false, target, level, internalformat, width, height, 1, format, type, data, dataBytes, 0, 0, 0, false);
+    uploadTexture(false, target, level, internalformat, width, height, 1, format, type, data, dataBytes, 0, 0, 0, false, layout);
     return;
   }
   int bpp = 0;
@@ -1112,7 +1112,9 @@ void WebGL1::texImage2D(std::uint32_t target, int level, std::uint32_t internalf
   if (!id) return error(GL_INVALID_OPERATION);
   if (textures_[id].immutable) return error(GL_INVALID_OPERATION);   // texStorage fixed the format and sizes
   if (face && width != height) return error(GL_INVALID_VALUE);   // cube faces are square
-  if (data) {
+  if (data && version_ == 2) {
+    if (!unpackFits(width, height, 1, bpp, false, dataBytes, layout)) return error(GL_INVALID_OPERATION);
+  } else if (data) {
     std::size_t row = static_cast<std::size_t>(width) * bpp;
     row = (row + unpackAlignment_ - 1) / unpackAlignment_ * unpackAlignment_;
     std::size_t need = height ? row * (height - 1) + static_cast<std::size_t>(width) * bpp : 0;

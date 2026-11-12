@@ -616,10 +616,10 @@ void WebGL1::vertexAttribNf(std::uint32_t i, int n, const float* v) {
 }
 
 // ---- textures
-void WebGL1::texSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int width, int height, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes) {
+void WebGL1::texSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int width, int height, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, UnpackLayout layout) {
   if (version_ == 2) {   // sized formats: the pair (format, type) is checked against the ES 3.0 table
     if (!data) return error(GL_INVALID_VALUE);
-    uploadTexture(false, target, level, 0, width, height, 1, format, type, data, dataBytes, xoff, yoff, 0, true);
+    uploadTexture(false, target, level, 0, width, height, 1, format, type, data, dataBytes, xoff, yoff, 0, true, layout);
     return;
   }
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;

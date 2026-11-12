@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["src/gl/webgl1.h", "src/gl/webgl1.cpp", "src/gl/webgl1_more.cpp", "src/gl/webgl2_tex.cpp", "src/gl/webgl_js.cpp", "tests/data/webgl/unpack_", "tests/t0/webgl_unpack_layout.sh"], "tests": ["webgl_unpack_layout"]},
     {"paths": ["src/gl/webgl2.cpp", "src/gl/webgl1_more.cpp", "tests/data/webgl/tf_readback", "tests/t0/webgl_tf_readback.sh"], "tests": ["webgl_tf_readback"]},
     {"paths": ["src/gl/webgl1.h", "src/gl/webgl1.cpp", "src/gl/webgl_host.cpp", "src/gl/webgl_host_rows.inc", "tools/gen-zinc-gl", "tests/data/webgl/readpixels_", "tests/t0/webgl_readpixels_preserve.sh"], "tests": ["webgl_readpixels_preserve"]},
     {"paths": ["src/gl/webgl1.h", "src/gl/webgl2.cpp", "src/gl/webgl_js.cpp", "src/gl/webgl_host_rows.inc", "tools/gen-zinc-gl", "tests/data/webgl/buffer_readback", "tests/t0/webgl_buffer_readback.sh"], "tests": ["webgl_buffer_readback"]},

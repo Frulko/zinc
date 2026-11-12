@@ -157,7 +157,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - WebGL 2 buffer readback accepts `DataView` slices, reports source overruns correctly, and preserves typed destinations when a read fails.
 - WebGL pixel reads preserve untouched destination values, reject mismatched array types, and check packed output bounds before reading.
 - WebGL 2 buffer reads reject current transform-feedback aliases and active feedback targets without changing the destination; default feedback activity queries report the active state.
-
+- WebGL 2 texture uploads validate row and image skips against the source view, rejecting short or overlapping layouts while preserving DOM uploads and unpack state.
 
 ### Hamlet
 

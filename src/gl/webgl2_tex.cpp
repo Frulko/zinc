@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 
 #include "gl/webgl1.h"
 #include "gl/zero_upload.h"
@@ -65,8 +66,28 @@ Id& WebGL1::boundTex(std::uint32_t target) {
   }
 }
 
+bool WebGL1::unpackFits(int w, int h, int d, int bpp, bool three, std::size_t bytes, UnpackLayout layout) const {
+  const bool client = layout == UnpackLayout::Client;
+  const std::size_t rowPixels = client && unpackRowLength_ ? unpackRowLength_ : w;
+  const std::size_t imageRows = three && client && unpackImageHeight_ ? unpackImageHeight_ : h;
+  const std::size_t sx = client ? unpackSkipPixels_ : 0, sy = client ? unpackSkipRows_ : 0;
+  const std::size_t sz = three && client ? unpackSkipImages_ : 0;
+  if (sx + static_cast<std::size_t>(w) > rowPixels || (three && sy + static_cast<std::size_t>(h) > imageRows)) return false;
+  if (!w || !h || !d) return true;
+  const auto max = std::numeric_limits<std::size_t>::max();
+  const auto mul = [](std::size_t a, std::size_t b, std::size_t& out) { if (a && b > max / a) return false; out = a * b; return true; };
+  std::size_t row = 0, image = 0, end = 0, part = 0;
+  if (!mul(rowPixels, bpp, row) || row > max - (unpackAlignment_ - 1)) return false;
+  row = (row + unpackAlignment_ - 1) / unpackAlignment_ * unpackAlignment_;
+  if (three && (!mul(row, imageRows, image) || !mul(sz + d - 1, image, end))) return false;
+  if (!mul(sy + h - 1, row, part) || part > max - end) return false;
+  end += part;
+  if (!mul(sx + w, bpp, part) || part > max - end) return false;
+  return bytes >= end + part;  // The last row needs its pixels, not trailing alignment padding.
+}
+
 // One upload for texImage2D (sized), texImage3D, texSubImage3D and the texStorage calls. Returns false after setting the error.
-bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::uint32_t ifmt, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, int xoff, int yoff, int zoff, bool sub) { ++fbGen_;
+bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::uint32_t ifmt, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, int xoff, int yoff, int zoff, bool sub, UnpackLayout layout) { ++fbGen_;
   const bool face = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
   const bool three = target == GL_TEXTURE_3D || target == GL_TEXTURE_2D_ARRAY;
   const std::uint32_t bindTarget = face ? GL_TEXTURE_CUBE_MAP : target;
@@ -136,11 +157,7 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
   } else if (!formatType(format, type, bpp)) { error(GL_INVALID_OPERATION); return false; }
   const int lim = level >= 0 && level <= 30 ? (target == GL_TEXTURE_3D ? max3dSize_ : maxTexSize_) >> level : 0;   // each level is half the one before it
   if (level < 0 || w < 0 || h < 0 || d < 0 || w > lim || h > lim || (target == GL_TEXTURE_3D ? d > lim : three && d > 2048)) { error(GL_INVALID_VALUE); return false; }
-  if (data) {
-    const std::size_t row = (static_cast<std::size_t>(w) * bpp + unpackAlignment_ - 1) / unpackAlignment_ * unpackAlignment_;
-    const std::size_t need = (h && w && d) ? row * static_cast<std::size_t>(h) * (d - 1) + row * (h - 1) + static_cast<std::size_t>(w) * bpp : 0;
-    if (dataBytes < need) { error(GL_INVALID_OPERATION); return false; }
-  }
+  if (data && !unpackFits(w, h, d, bpp, three, dataBytes, layout)) { error(GL_INVALID_OPERATION); return false; }
   if (sub) {
     if (xoff < 0 || yoff < 0 || zoff < 0) { error(GL_INVALID_VALUE); return false; }
     if (three) glTexSubImage3D(bindTarget == target ? target : target, level, xoff, yoff, zoff, w, h, d, format, type, data);
@@ -159,17 +176,17 @@ bool WebGL1::uploadTexture(bool storage, std::uint32_t target, int level, std::u
   return true;
 }
 
-void WebGL1::texImage3D(std::uint32_t target, int level, std::uint32_t ifmt, int w, int h, int d, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t bytes) {
+void WebGL1::texImage3D(std::uint32_t target, int level, std::uint32_t ifmt, int w, int h, int d, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t bytes, UnpackLayout layout) {
   if (version_ != 2) return error(GL_INVALID_OPERATION);
   if (target != GL_TEXTURE_3D && target != GL_TEXTURE_2D_ARRAY) return error(GL_INVALID_ENUM);
   if (border != 0) return error(GL_INVALID_VALUE);
-  uploadTexture(false, target, level, ifmt, w, h, d, format, type, data, bytes, 0, 0, 0, false);
+  uploadTexture(false, target, level, ifmt, w, h, d, format, type, data, bytes, 0, 0, 0, false, layout);
 }
-void WebGL1::texSubImage3D(std::uint32_t target, int level, int x, int y, int z, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t bytes) {
+void WebGL1::texSubImage3D(std::uint32_t target, int level, int x, int y, int z, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t bytes, UnpackLayout layout) {
   if (version_ != 2) return error(GL_INVALID_OPERATION);
   if (target != GL_TEXTURE_3D && target != GL_TEXTURE_2D_ARRAY) return error(GL_INVALID_ENUM);
   if (!data) return error(GL_INVALID_VALUE);
-  uploadTexture(false, target, level, 0, w, h, d, format, type, data, bytes, x, y, z, true);
+  uploadTexture(false, target, level, 0, w, h, d, format, type, data, bytes, x, y, z, true, layout);
 }
 void WebGL1::texStorage2D(std::uint32_t target, int levels, std::uint32_t ifmt, int w, int h) {
   if (version_ != 2) return error(GL_INVALID_OPERATION);

@@ -24,6 +24,7 @@ constexpr std::uint32_t kHalfFloatOes = 0x8D61, kDepthStencilFmt = 0x84F9, kUnsi
 /** What the driver gets for a WebGL 1 (format, type) pair: internal format, format, type and the swizzle that stands in for ALPHA / LUMINANCE (0 none, 1 ALPHA, 2 LUMINANCE, 3 LUMINANCE_ALPHA) on a core profile. */
 struct GlFmt { std::uint32_t internal, format, type; int swizzle; };
 GlFmt glFormat(std::uint32_t format, std::uint32_t type, bool es);
+enum class UnpackLayout { Client, PackedDom };
 bool formatType(std::uint32_t format, std::uint32_t type, int& bpp);   // texImage2D's (format, type) table
 /** WebGL 2 sized or legacy unsized texture format: its component count and class ('f' fixed / float, 'i' signed integer, 'u' unsigned integer); false for depth / stencil and for anything that is not a format. */
 bool texFormatInfo(std::uint32_t internal, int& comps, char& cls);
@@ -132,8 +133,8 @@ class WebGL1 {
   void uniformNui(const UniformLoc& l, int n, const std::uint32_t* v, std::size_t count);
   void vertexAttribIPointer(std::uint32_t index, int size, std::uint32_t type, int stride, std::int64_t offset);
   // ---- WebGL 2.0 textures, samplers, queries, sync, transform feedback, blits (webgl2_tex.cpp)
-  void texImage3D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int depth, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes);
-  void texSubImage3D(std::uint32_t target, int level, int xoff, int yoff, int zoff, int width, int height, int depth, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes);
+  void texImage3D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int depth, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, UnpackLayout layout = UnpackLayout::Client);
+  void texSubImage3D(std::uint32_t target, int level, int xoff, int yoff, int zoff, int width, int height, int depth, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, UnpackLayout layout = UnpackLayout::Client);
   void texStorage2D(std::uint32_t target, int levels, std::uint32_t internalformat, int width, int height);
   void texStorage3D(std::uint32_t target, int levels, std::uint32_t internalformat, int width, int height, int depth);
   void copyTexSubImage3D(std::uint32_t target, int level, int xoff, int yoff, int zoff, int x, int y, int width, int height);
@@ -184,7 +185,7 @@ class WebGL1 {
   void deleteTexture(Id t);
   void bindTexture(std::uint32_t target, Id t);
   void activeTexture(std::uint32_t unit);
-  void texImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes);
+  void texImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int width, int height, int border, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, UnpackLayout layout = UnpackLayout::Client);
   void texParameteri(std::uint32_t target, std::uint32_t pname, int value);
   void texParameterf(std::uint32_t target, std::uint32_t pname, float value);
   // compressed textures (S3TC, S3TC sRGB, RGTC: webgl_ext.h); the data is checked against the block size of the format
@@ -282,7 +283,7 @@ class WebGL1 {
   void uniformNiv(const UniformLoc& l, int n, const int* v, std::size_t count);     // uniform1iv..4iv
   void uniformMatrixNfv(const UniformLoc& l, int n, bool transpose, const float* v, std::size_t count);   // 2, 3, 4
   void vertexAttribNf(std::uint32_t index, int n, const float* v);
-  void texSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int width, int height, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes);
+  void texSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int width, int height, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, UnpackLayout layout = UnpackLayout::Client);
   void copyTexImage2D(std::uint32_t target, int level, std::uint32_t internalformat, int x, int y, int width, int height, int border);
   void copyTexSubImage2D(std::uint32_t target, int level, int xoff, int yoff, int x, int y, int width, int height);
   void generateMipmap(std::uint32_t target);
@@ -308,7 +309,8 @@ class WebGL1 {
   void error(std::uint32_t code) { flags_ |= bit(code); }
   static unsigned bit(std::uint32_t code);
   Id& boundTex(std::uint32_t target);   // the texture bound to `target` on the active unit
-  bool uploadTexture(bool isStorage, std::uint32_t target, int level, std::uint32_t internalformat, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, int xoff, int yoff, int zoff, bool sub);
+  bool uploadTexture(bool isStorage, std::uint32_t target, int level, std::uint32_t internalformat, int w, int h, int d, std::uint32_t format, std::uint32_t type, const void* data, std::size_t dataBytes, int xoff, int yoff, int zoff, bool sub, UnpackLayout layout = UnpackLayout::Client);
+  bool unpackFits(int w, int h, int d, int bpp, bool three, std::size_t bytes, UnpackLayout layout) const;
   bool checkDrawState(std::int64_t firstIndex, std::int64_t lastIndex, std::int64_t instances = 1, bool instancedDraw = false);
   std::int64_t maxIndexOf(Buf& b, std::int64_t offset, int count, int ts);
   bool bufferTargetOk(std::uint32_t t) const;

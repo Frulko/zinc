@@ -452,6 +452,13 @@ int domPixels(napi_env c, WebGL1& gl, napi_value src, std::uint32_t format, std:
   }
   return 1;
 }
+struct DomUnpack {
+  WebGL1& gl;
+  explicit DomUnpack(WebGL1& context) : gl(context) { gl.domUnpack(true); }
+  ~DomUnpack() { gl.domUnpack(false); }
+  DomUnpack(const DomUnpack&) = delete;
+  DomUnpack& operator=(const DomUnpack&) = delete;
+};
 M(texImage2D) {
   SELF NEED(6);
   std::uint8_t* p = nullptr;
@@ -464,9 +471,8 @@ M(texImage2D) {
     if (st == 0) { gl.raise(0x0501); return nullptr; }   // INVALID_VALUE: an image that is not decoded
     if (st == 2) { gl.raise(0x0502); return nullptr; }   // INVALID_OPERATION: the source rectangle is not inside the source
     if (gl.version() == 1 && (U(sized ? 6 : 3) == 0x1902 || U(sized ? 6 : 3) == 0x84F9)) { gl.raise(0x0502); return nullptr; }
-    gl.domUnpack(true);
-    gl.texImage2D(U(0), I(1), U(2), w, h, sized ? I(5) : 0, U(sized ? 6 : 3), U(sized ? 7 : 4), px.data(), px.size());
-    gl.domUnpack(false);
+    DomUnpack unpack(gl);
+    gl.texImage2D(U(0), I(1), U(2), w, h, sized ? I(5) : 0, U(sized ? 6 : 3), U(sized ? 7 : 4), px.data(), px.size(), UnpackLayout::PackedDom);
     return nullptr;
   }
   NEED(9);
@@ -750,9 +756,8 @@ M(texSubImage2D) {
     if (st < 0) return typeError(c, "texSubImage2D: not enough arguments, or the source is not a DOM pixel source");
     if (st == 0) { gl.raise(0x0501); return nullptr; }
     if (st == 2) { gl.raise(0x0502); return nullptr; }
-    gl.domUnpack(true);
-    gl.texSubImage2D(U(0), I(1), I(2), I(3), w, h, U(sized ? 6 : 4), U(sized ? 7 : 5), px.data(), px.size());
-    gl.domUnpack(false);
+    DomUnpack unpack(gl);
+    gl.texSubImage2D(U(0), I(1), I(2), I(3), w, h, U(sized ? 6 : 4), U(sized ? 7 : 5), px.data(), px.size(), UnpackLayout::PackedDom);
     return nullptr;
   }
   NEED(9);
@@ -928,9 +933,8 @@ M(texImage3D) {
     if (st < 0) return typeError(c, "texImage3D: pixels must be null, an ArrayBuffer view or a DOM pixel source");
     if (st == 0) { gl.raise(0x0501); return nullptr; }
     if (st == 2) { gl.raise(0x0502); return nullptr; }
-    gl.domUnpack(true);
-    gl.texImage3D(U(0), I(1), U(2), w, h, I(5), I(6), U(7), U(8), px.data(), px.size());
-    gl.domUnpack(false);
+    DomUnpack unpack(gl);
+    gl.texImage3D(U(0), I(1), U(2), w, h, I(5), I(6), U(7), U(8), px.data(), px.size(), UnpackLayout::PackedDom);
     return nullptr;
   }
   const void* p; std::size_t n; bool nul;
@@ -948,9 +952,8 @@ M(texSubImage3D) {
     if (st < 0) return typeError(c, "texSubImage3D: pixels must be an ArrayBuffer view or a DOM pixel source");
     if (st == 0) { gl.raise(0x0501); return nullptr; }
     if (st == 2) { gl.raise(0x0502); return nullptr; }
-    gl.domUnpack(true);
-    gl.texSubImage3D(U(0), I(1), I(2), I(3), I(4), w, h, I(7), U(8), U(9), px.data(), px.size());
-    gl.domUnpack(false);
+    DomUnpack unpack(gl);
+    gl.texSubImage3D(U(0), I(1), I(2), I(3), I(4), w, h, I(7), U(8), U(9), px.data(), px.size(), UnpackLayout::PackedDom);
     return nullptr;
   }
   const void* p; std::size_t n; bool nul;
