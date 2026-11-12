@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Created/claimed1123 under New-task: blocks rn-showcase. Unchanged nativecheck Request.clone fails in generatedDyncallback; minimal4line class-to-unknown repro proves any versus concreteDyn type loss in frontend/dyn.cpp, research .logs/research-request-check-g/report.md. Fresh frontend-only worker next; noownerRT/HAL/UI/main or caller workaround. Web863.03 source/browser remainsindependent, its ownbuild/proof alreadyPASS pendingfreeze.
+
 - Active863.03 webframe863 in .worktrees/86303-webframe / work/86303-webframe, confirmedresetbase95eefd2bc. Sourceunheldcli_web/targetsweb/Vite/docs; existingrn-showcaseconfigonly, noownerRT/HAL/UI/main. Researchprovided, goldenACopen, noheavyatstart. NextD326/archive86,93Done.
 
 - Released558originalclaim afterarchive85/verifiedBlueZperipheral and delegated remaining-scopeassessment. Safe nmcli CLI cannot provide client-boundvolatilewrites; staticNimBLE/HCI/CHIP carriedoption remainsopen, all4ACBacklog. Claimed863.03 webdeviceframes in unheldcli_web/targetsweb existingexport, afterprimaryresearch; noownerRT/HAL/UI/main/newdemo/service. Onefresh sourceworker next, noheavyprocess.
