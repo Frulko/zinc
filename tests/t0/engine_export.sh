@@ -26,6 +26,8 @@ with tempfile.TemporaryDirectory(prefix='zinc-engine-export-') as tmp:
     run(zinc, 'export', str(project), '--target', 'macos', '-o', str(out), '--key', key['seed'])
     app = out / 'engine-export.app'
     run('codesign', '--verify', '--deep', '--strict', str(app))
+    assert (app / 'Contents/Resources/libzn_text_module.LICENSE').is_file()
+    assert not (app / 'Contents/MacOS/libzn_text_module.LICENSE').exists()
     run(zinc, 'verify', str(root / 'engine-export-1.0.0.zip'), '--key', key['public'])
     sbom = json.loads((out / 'sbom.spdx.json').read_text())
     assert any(p['SPDXID'] == 'SPDXRef-Engine-jsc' for p in sbom['packages'])

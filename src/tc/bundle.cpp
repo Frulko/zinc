@@ -89,13 +89,28 @@ std::string entitlementsPlist(const BundleSpec& s) {
   return o + "</dict></plist>\n";
 }
 
+// Non-code files belong in Resources; codesign treats files in MacOS as nested code.
+static bool placeModuleLicenses(const fs::path& macos, const fs::path& resources, std::string& err) {
+  const fs::path license = macos / "libzn_text_module.LICENSE";
+  std::error_code ec;
+  if (!fs::exists(license, ec)) {
+    if (ec) { err = "cannot read text module licenses: " + ec.message(); return false; }
+    return true;
+  }
+  fs::create_directories(resources, ec);
+  if (!ec) fs::copy_file(license, resources / license.filename(), fs::copy_options::overwrite_existing, ec);
+  if (!ec) fs::remove(license, ec);
+  if (ec) { err = "cannot place text module licenses: " + ec.message(); return false; }
+  return true;
+}
+
 bool ensureDevBundle(const BundleSpec& spec, const std::string& engine, const std::string& cacheDir, std::string& appPath, bool& refreshed, std::string& err) {
   refreshed = false;
   appPath = cacheDir + "/" + spec.id + ".app";
   fs::path exe = fs::path(appPath) / "Contents/MacOS" / spec.exeName, plist = fs::path(appPath) / "Contents/Info.plist", stamp = fs::path(cacheDir) / (spec.id + ".stamp");   // beside the bundle, not in it: the signature seals what is inside
   long long size = 0, mtime = 0;
   if (!zn::plat::fileStamp(engine, size, mtime)) { err = "cannot read the engine " + engine; return false; }
-  std::string want = std::to_string(size) + " " + std::to_string(mtime / 1000000000LL) + " " + std::to_string(mtime % 1000000000LL);
+  std::string want = "resources-license " + std::to_string(size) + " " + std::to_string(mtime / 1000000000LL) + " " + std::to_string(mtime % 1000000000LL);
   // the modules zinc loads from beside it (libzn_window, libzn_webgl: ZN-592.01, ZN-330) go into the bundle with it
   std::vector<fs::path> modules;
   std::error_code ec;
@@ -119,6 +134,7 @@ bool ensureDevBundle(const BundleSpec& spec, const std::string& engine, const st
     if (ec) { err = "cannot copy " + m.string() + " into " + appPath + ": " + ec.message(); return false; }
     if (m.extension() == ".dylib" && !run("codesign --force --sign - " + q((exe.parent_path() / m.filename()).string()), err, "codesign")) return false;   // the bundle's signature covers signed code only
   }
+  if (!placeModuleLicenses(exe.parent_path(), fs::path(appPath) / "Contents/Resources", err)) return false;
   { std::ofstream(plist) << plistText; }
   if (!run("codesign --force --sign - --identifier " + q(spec.id) + " " + q(appPath), err, "codesign")) return false;
   run("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f " + q(appPath), err, "lsregister");   // URL schemes and the display name; failure is not fatal
@@ -133,6 +149,7 @@ bool writeBundle(const BundleSpec& spec, const std::string& exe, const std::stri
   fs::path macos = fs::path(appPath) / "Contents/MacOS", res = fs::path(appPath) / "Contents/Resources";
   fs::create_directories(macos, ec);
   fs::create_directories(res, ec);
+  if (!placeModuleLicenses(macos, res, err)) return false;
   fs::path target = macos / spec.exeName;
   if (spec.exeName != "zinc") fs::remove(macos / "zinc", ec);   // a bundle written before the executable took the app's name
   if (fs::absolute(exe) != fs::absolute(target)) { fs::remove(target, ec); fs::copy_file(exe, target, fs::copy_options::overwrite_existing, ec); if (ec) { err = "cannot write " + target.string() + ": " + ec.message(); return false; } }
