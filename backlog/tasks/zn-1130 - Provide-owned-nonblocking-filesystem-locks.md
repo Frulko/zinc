@@ -2,8 +2,7 @@
 id: ZN-1130
 title: Provide owned nonblocking filesystem locks
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-12 12:57'
 labels:
   - filesystem
@@ -53,3 +52,5 @@ No owner-held RT/HAL/UI/main/gfx_host/hal_dispatch or app source changed. No sui
 - On Pi/Linux/Mojave: the same bounded native desktop smoke and thread-exit check; about 10 s each, memory unmeasured. No hardware proof claimed.
 - Selected browser export smoke for unavailable locks and native development-bridge errors; about 10 s, memory unmeasured. Current proof executes exact production snippets, not a full browser export.
 <!-- SECTION:NOTES:END -->
+
+Coordinator root verification: integrated6991e4d1c/D346; exact fs_lock and public all3/actualnative PASS on clean commonCLI8848b04a,22545sources/100recursiveartifacts/6090inputs unchanged. Archive103 source19/worker6517/archive11970 entries verified independently; nativeapps, recursiveSDL archives, compilerinputs and knownsameprocessgap retained. Usage: 56464 in / 587372 cached / 2345 out tokens, 8 turns. No suite/performance run.
