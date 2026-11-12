@@ -502,6 +502,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - QuickJS validates JSON records whose fields use imported types, including plugin namespaces, aliases and reexports.
 
 
+- Long fluent method chains compile without repeatedly checking their prefixes, including XML serializers and ordinary methods named `map`, `sort` or `replace`.
+
 ### Developer tools
 
 #### New

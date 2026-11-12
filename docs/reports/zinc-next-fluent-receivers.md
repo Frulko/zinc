@@ -1,0 +1,13 @@
+# Fluent call receiver checking
+
+A method call checks its receiver once for that call's dispatch. Collection, dynamic and library probes can decline a receiver and pass it to ordinary member resolution. Rechecking the whole receiver at each fallback doubled the work for each ordinary fluent link: the dependency-free 40-link reproduction exceeded a five-second check, and the unchanged production XML sender exceeded 75 seconds.
+
+The checker keeps a lazy receiver entry only for a member/index call. The entry moves through Pending, Checking, Ready or Failed through one transition function; an RAII scope drops entries at return. Indices remain valid when nested receiver calls grow the vector. The first context-free check evaluates normally, including write invalidation. Subsequent probes in the same function/class and call reuse that result only while the node syntax and recorded type match. An explicit expected type or changed syntax/type invalidates it. Constructors and super are excluded, and namespace/class probes are not eagerly evaluated.
+
+Ordinary member resolution still checks accessibility, optional-chain behavior, method-value use and arguments. This is neither a global node-type cache nor a purity classification. Entries cannot survive to another statement, branch or function. Runtime evaluation and lowering are unchanged.
+
+`tests/run --only fluent_receivers` checks a 64-link ordinary chain and a 48-link chain whose class methods collide with collection/string/worker probe names. Interpreter, actual native AOT and QuickJS assert counts, receiver/getter/computed-key/argument order, optional short-circuiting, dynamic methods/collections and contextual generic callbacks. Negative controls check private access, arity, types, absent/non-callable members and flow invalidation. The existing exact `try_flow`, `checked_nullish` and `checked_imports` checks cover the earlier guard and conversion boundaries.
+
+The extracted-method fixture is checked statically only. Calling that extracted method crashes in IR lowering on the preserved pre-change compiler too; the authentic minimal reproduction and both failure logs live in `.logs/fluent-isolation-stage1/`. It is an inherited runtime gap outside this checker repair, not a passing runtime control.
+
+Research: TypeScript's [checker-owned caches](https://github.com/microsoft/TypeScript/wiki/Codebase-Compiler-Checker#caching-data-while-checking) and [context-owned mapper instantiation caches](https://devblogs.microsoft.com/typescript/announcing-typescript-5-9/#cache-instantiations-on-mappers) support keeping reuse within its valid context. Zinc's mutable syntax and flow facts require the narrower call lifetime used here. No dependency is needed.

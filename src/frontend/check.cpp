@@ -1058,6 +1058,23 @@ struct Checker {
     return false;
   }
 
+  enum class ReceiverState { Pending, Checking, Ready, Failed };
+  struct CheckedReceiver {
+    std::uint32_t node, function, owner;
+    ReceiverState state = ReceiverState::Pending;
+    TypeId type = kNoType;
+    Node syntax{N::Empty, 0, 0, {}, {}};
+  };
+  std::vector<CheckedReceiver> checkedReceivers;
+  void receiverState(std::size_t index, ReceiverState next) {
+    auto& value = checkedReceivers[index];
+    const auto before = value.state;
+    if (!((before == ReceiverState::Pending && next == ReceiverState::Checking) ||
+          (before == ReceiverState::Checking && (next == ReceiverState::Ready || next == ReceiverState::Failed)) ||
+          ((before == ReceiverState::Ready || before == ReceiverState::Failed) && next == ReceiverState::Pending))) std::abort();
+    value.state = next;
+  }
+
   // ---- expressions
   bool hasLambda(std::uint32_t i) const {
     if (i == kNone) return false;
@@ -1069,6 +1086,19 @@ struct Checker {
   TypeId expr(std::uint32_t i, TypeId expected = kNoType) {
     if (rewritten.count(i)) return out.nodeType[i];
     if ((n(i).kind == N::Call || n(i).kind == N::New) && out.nodeType[i] != kNoType && out.nodeType[i] != tError && hasLambda(i)) return out.nodeType[i];   // checked already (a generic call evaluates its arguments to infer type arguments): a second check would declare the lambda's variables again and leave the rewritten calls inside pointing at the old ones
+    std::size_t receiver = checkedReceivers.size();
+    for (std::size_t k = checkedReceivers.size(); k-- > 0;) {
+      auto& value = checkedReceivers[k];
+      if (value.node != i || value.function != (fnStack.empty() ? kNone : fnStack.back()) || value.owner != curClass) continue;
+      if (value.state == ReceiverState::Ready || value.state == ReceiverState::Failed) {
+        const Node& syntax = n(i);
+        if (expected == kNoType && value.type == out.nodeType[i] && syntax.kind == value.syntax.kind && syntax.flags == value.syntax.flags && syntax.text == value.syntax.text && syntax.kids == value.syntax.kids)
+          return value.type;
+        receiverState(k, ReceiverState::Pending);
+      }
+      if (expected == kNoType && value.state == ReceiverState::Pending) { receiver = k; receiverState(k, ReceiverState::Checking); }
+      break;
+    }
     TypeId t = expr0(i, expected);
     if (t == kNoType) {  // a symbol whose declaration failed has no type: the error was reported there; if none was, say so rather than crash
       if (out.diags.empty()) diag(kZCannotInfer, i, "the type of this expression");
@@ -1077,6 +1107,12 @@ struct Checker {
     if (gNumber != Num::f64 && t == num(gNumber) && n(i).kind == N::Number && builtinModuleNode(i)) t = num(Num::f64);   // the engine's own modules write plain f64 constants (4294967296, 86400000): they would overflow Q20.12   // idem for what the library's own expressions produce (literals, Math results, NaN)
     out.nodeType[i] = t;
     forgetUnmodeledWrites(i);
+    if (receiver < checkedReceivers.size()) {
+      // A recursive call can grow the stack; retain its index, never a reference across expr0.
+      checkedReceivers[receiver].type = t;
+      checkedReceivers[receiver].syntax = n(i);
+      receiverState(receiver, bad(t) ? ReceiverState::Failed : ReceiverState::Ready);
+    }
     return t;
   }
   // The class __Void: what a generic class made with T = void holds in T's place (Promise<void>, see instantiateClass). Its only value is null.
@@ -2920,6 +2956,13 @@ struct Checker {
   TypeId callExpr(std::uint32_t i, const Node& x, bool isNew) {
     TypeId myExpected = callExpected;
     callExpected = kNoType;
+    struct ReceiverScope {
+      Checker& checker; std::size_t depth;
+      ~ReceiverScope() { checker.checkedReceivers.resize(depth); }
+    } receiverScope{*this, checkedReceivers.size()};
+    const Node& initialCallee = n(x.kids[0]);
+    if (!isNew && (initialCallee.kind == N::Member || initialCallee.kind == N::Index) && n(initialCallee.kids[0]).kind != N::Super)
+      checkedReceivers.push_back({initialCallee.kids[0], fnStack.empty() ? kNone : fnStack.back(), curClass});
     // `(() => ...)()`, which the JSX lowering writes for every element: it runs right here, so what is narrowed here stays narrowed in it,
     // as in TypeScript. ponytail: an assignment inside it to a narrowed variable outside is not seen after it (TypeScript sees it).
     if (!isNew && x.kids.size() == 1 && n(x.kids[0]).kind == N::FuncExpr && n(x.kids[0]).kids.size() == 2 && !(n(x.kids[0]).flags & (kFlagAsync | kFlagGenerator)))
