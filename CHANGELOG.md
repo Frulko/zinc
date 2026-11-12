@@ -499,6 +499,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Resource constructors and replacements can assign inside `try` and retain those assignments after a catch that exits, while incomplete catch/finally paths still report initialization errors.
 - Guarded callbacks and optional values remain narrowed across unrelated getter calls in conditional expressions.
 - Checked JSON fields distinguish a missing optional value from an invalid `null`, while nullable fields still accept `null`.
+- QuickJS validates JSON records whose fields use imported types, including plugin namespaces, aliases and reexports.
 
 
 ### Developer tools

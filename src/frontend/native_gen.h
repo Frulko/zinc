@@ -22,6 +22,10 @@ std::string recordSchemasForJs(const std::string& text);
 // zinc:worker on QuickJS (ZN-587): the schema text of `type` (a TypeScript type: a scalar, string, u8[], arrays, T | null or an interface) against
 // `decls`, the source of the interfaces and type aliases it may name; "" when it has no record form (a generic interface, a class, a union).
 // optionalTilde: an optional field is `~T` (absent stays undefined), for the checked copy of JSON.parse on QuickJS (D179), not the wire.
+struct Program;
+// Checked copies use the existing type-only module bindings; native wire schemas stay separate.
+std::string checkedSchemaOfType(const Program& program, const std::string& alias, std::string* error = nullptr);
+
 std::string schemaOfType(const std::string& decls, const std::string& type, bool optionalTilde = false);
 
 struct NativeGen {

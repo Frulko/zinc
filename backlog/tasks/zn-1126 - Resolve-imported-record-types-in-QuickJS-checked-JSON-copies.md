@@ -23,7 +23,26 @@ Blocks ZN-1037 AC3 and ZN-1125 production proof: WirePlaylist.rules?:ipod.SmartR
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Supported imported record types, including plugin namespace and type-only imported/local-reexported bindings, participate in QuickJS checked JSON copies; missing required fields and malformed nested records throw TypeError as on interpreter and native AOT.
-- [ ] #2 Focused relative namespace, named alias, local re-export, export-from/star, same local names in separate modules and recursive/import-cycle controls preserve module identity and terminate; native wire schemas stay byte-identical.
+- [x] #1 Supported imported record types, including plugin namespace and type-only imported/local-reexported bindings, participate in QuickJS checked JSON copies; missing required fields and malformed nested records throw TypeError as on interpreter and native AOT.
+- [x] #2 Focused relative namespace, named alias, local re-export, export-from/star, same local names in separate modules and recursive/import-cycle controls preserve module identity and terminate; native wire schemas stay byte-identical.
 - [ ] #3 The original production ZN-1037 wire, sender and atomic library-consumer fixtures pass on all three engines without caller type duplication, assertions, any casts or a daemon/network/device action.
 <!-- AC:END -->
+
+
+## Implementation Notes
+
+2026-11-12: same isolated worker/tree chain after2b602f2e4 (1124), f8dd62be2 and877b265ef (1125); true base remains d81310863944332d2db392370c4c18aaf4150f08, no reset/rebase. The1126 task alone was copied from coordinator develop into this branch before implementation.
+
+Implemented a checked-only type source context from the sole `toJavaScript` product caller. Existing Engine normalizer policy is extracted/reused; standard physical source bases and import maps are retained, and type-only resolution keeps native Specs. The read adapter retains interfaces/aliases and relevant type imports/local export bindings, filters bodies/side-effects, leaves resolver JSON configuration raw, and invokes existing type-only `loadProgram` once per transform. `Ast::modules` import/export bindings drive per-module Records with unique schema identities, rather than flat name concatenation. Export-cycle RAII/ambiguity handling and explicit parse/file/byte/type/schema-depth diagnostics prevent an unchecked whole target. Native schema false and old worker schema helper remain separate/unchanged.
+
+Proof: all stage builds through relative tools/build zinc under work-run exit0; only existing NanoSVG/duplicate-library warnings, no changed-code warning. Exact checked_imports stage1/final/stage6 pass: real interpreter/nativeAOT/QuickJS relative namespace/named alias/local reexport/export-from/star, private same-named Item types, root local shadowing, recursive records and cyclic modules; injected physical mapped standard root/import-map callback, dormant function-only type import, malformed needed module,16MiB budget, depth bound, export cycle, ambiguous star, imported class unsupported and hidden-file prefix controls. Exact checked_nullish and try_flow affected regressions pass on all3 after the new path; native schema byte assertions remain unchanged. The actual namespace mini in .logs/namespace-schema-gap authentic before source had VM/AOT TypeError success but QuickJS101 missing-id acceptance; after stage3 all3 reject correctly.
+
+Production proof .logs/production1037-stage6:622 imported app/lib/plugin/fixture source snapshots copied and hashed before; full unchanged remote wire.ts passes interpreter, QuickJS and actual native AOT (native executable/inputs/key preserved, no fallback). This includes old/current/default/presence/null/type/rules/opaque/403 cases and the missing required playlist id. Next exact prepared sender-roundtrip interpreter compilation reaches75s bound124 after cached ipod/sqlite; no execution or diagnostic, and no app rewrite. El-only one-method mini checks, while a pure no-import40-call Chain.next mini reaches5s bound124. Coordinator owns the separate fluent-call engine blocker. All622 source hashes match after the failed stage; original logs/scripts/sources are retained. Consumer proof is a separate unique stage, not yet claimed at this note. AC3 remains open until actual sender/consumer all3.
+
+Archival limit: the original intermediate1125 caf3f97d CLI bytes were not copied before a later build replaced them. Authentic source/hash/compiler manifests/logs and the actual native decoder executable remain; no reconstruction is presented as original. The1124 fe291d candidate4artifacts and1126 stage3/final/stage6 candidates including all adjacent archives are retained. Original1037 baseline net fake loss/reconstruction is disclosed in its own handoff, not reclassified here. No suite/T1/T2/demo/pixel/conformance/fuzz/benchmark/CI or daemon/network/device/OS action; no performance claim.
+
+Decision proposal: reuse existing read-only type-only frontend module graph plus Engine mapping, with per-declaring-module record identities; no new loader policy or global schema/module cache. Revisit startup overhead only on a selected measurement, not assumed.
+
+### Proposed tests
+
+- Owner-selected wider JSON shape/native record/typed-worker and package/import-map matrices (seconds to a minute, memory unmeasured); exact source/graph/all3 regressions already pass. Original daemon global check has inherited old90s/current60s compile timeouts; do not label it PASS or rerun as a suite. Complete the actual unchanged sender/consumer fixtures after the fluent checker fix.

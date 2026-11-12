@@ -3,6 +3,7 @@
   "default": ["checker", "lang"],
   "map": [
     {"paths": ["src/tc/bundle.cpp", "tests/native/bundle_licenses.cpp", "tests/t0/bundle_licenses.sh"], "tests": ["bundle_licenses"]},
+    {"paths": ["src/frontend/native_gen.cpp", "src/frontend/native_gen.h", "src/qjs/qjs.cpp", "src/qjs/strip.cpp", "src/qjs/strip.h", "tests/data/checked_imports/", "tests/native/checked_imports/", "tests/t0/checked_imports.sh"], "tests": ["checked_imports"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/dyn.cpp", "src/frontend/native_gen.cpp", "src/qjs/prelude.cpp", "tests/data/checked_nullish/", "tests/native/checked_nullish/", "tests/t0/checked_nullish.sh"], "tests": ["checked_nullish"]},
     {"paths": ["src/frontend/check.cpp", "tests/data/try_flow/", "tests/t0/try_flow.sh"], "tests": ["try_flow"]},
     {"paths": ["plugins/3d/native/gpu_", "plugins/3d/native/render3d.gl.cpp", "plugins/3d/plugin.json", "tools/package", "tests/native/gpu56301/", "tests/t0/zinc3d_gpu_loader.sh"], "tests": ["zinc3d_gpu_loader"]},

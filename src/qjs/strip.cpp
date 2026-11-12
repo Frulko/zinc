@@ -352,7 +352,75 @@ std::string workerTypesForJs(const std::string& text, const std::string& file) {
 // syntactically as for zinc:worker above; a type with no schema (a union of literals, a class, a generic) is left unchecked, as before.
 // ponytail: only JSON.parse at a declaration or an `as` is a site; the checker's other conversion sites (arguments, returns, `any` variables) wait
 // for types in this transform.
-std::string dynCopiesForJs(const std::string& text, const std::string& file) {
+std::string typeDeclarations(const std::string& text, const std::string& file, const CheckedTypeSources& sources, std::string& error) {
+  ParseResult parsed = parse(text);
+  if (parsed.ast.root == kNone || !parsed.diags.empty()) { error = "cannot parse checked JSON types in " + file; return ""; }
+  const Ast& a = parsed.ast;
+  std::set<std::string> used;
+  std::function<void(std::uint32_t, unsigned)> references = [&](std::uint32_t node, unsigned depth) {
+    if (depth > 64) { error = "checked JSON type graph exceeds its type depth"; return; }
+    if (node == kNone) return;
+    const Node& n = a.nodes[node];
+    if (n.kind == N::TypeRef) used.insert(std::string(n.text.substr(0, n.text.find('.'))));
+    for (auto child : n.kids) references(child, depth + 1);
+  };
+  for (auto st : a.nodes[a.root].kids) {
+    const Node& statement = a.nodes[st];
+    const auto node = statement.kind == N::Export && !statement.kids.empty() ? statement.kids[0] : st;
+    if (a.nodes[node].kind == N::Interface || a.nodes[node].kind == N::TypeAlias) references(node, 0);
+    if (statement.kind == N::ExportList && statement.text.empty())
+      for (auto k : statement.kids) used.insert(std::string(a.nodes[k].text));
+  }
+  auto quoted = [](const std::string& name) {
+    std::string out = "'";
+    for (char c : name) { if (c == '\\' || c == '\'') out += '\\'; out += c; }
+    return out + "'";
+  };
+  auto specifier = [&](const Node& n) {
+    std::string spec(n.text.substr(1, n.text.size() - 2));
+    const std::string resolved = sources.resolve ? sources.resolve(spec, file) : "";
+    if (!resolved.empty() && std::filesystem::path(resolved).is_absolute()) {
+      spec = std::filesystem::path(resolved).lexically_relative(std::filesystem::path(file).parent_path()).generic_string();
+      if (spec.rfind("./", 0) != 0 && spec.rfind("../", 0) != 0) spec = "./" + spec;
+    }
+    return quoted(spec);
+  };
+  std::string out;
+  for (auto st : a.nodes[a.root].kids) {
+    const Node& n = a.nodes[st];
+    if (n.kind == N::Import) {
+      for (auto k : n.kids) {
+        const Node& im = a.nodes[k];
+        const std::string local(a.nodes[im.kids[0]].text);
+        if (!used.count(local)) continue;
+        std::string binding;
+        if (im.text == "*") binding = "* as " + local;
+        else if (im.text == "default") binding = local;
+        else binding = "{" + std::string(im.text) + (im.text == local ? "" : " as " + local) + "}";
+        out += "import type " + binding + " from " + specifier(n) + ";\n";
+      }
+    } else if (n.kind == N::ExportAll) out += "export type * from " + specifier(n) + ";\n";
+    else if (n.kind == N::ExportList) {
+      out += "export type {";
+      for (std::size_t i = 0; i < n.kids.size(); ++i) {
+        const Node& ex = a.nodes[n.kids[i]];
+        const auto local = std::string(ex.text), name = std::string(a.nodes[ex.kids[0]].text);
+        out += (i ? "," : "") + local + (name == local ? "" : " as " + name);
+      }
+      out += "}" + (n.text.empty() ? "" : " from " + specifier(n)) + ";\n";
+    } else {
+      const bool exported = n.kind == N::Export && !n.kids.empty();
+      const Node& d = exported ? a.nodes[n.kids[0]] : n;
+      if (d.kind == N::Interface || d.kind == N::TypeAlias)
+        out += std::string(exported ? "export " : "") + text.substr(d.start, d.end - d.start) + "\n";
+      else if (d.kind == N::Class || d.kind == N::Enum) out += std::string(exported ? "export " : "") + (d.kind == N::Class ? "class " : "enum ") + std::string(d.text) + " {}\n";
+    }
+  }
+  return out;
+}
+
+
+std::string dynCopiesForJs(const std::string& text, const std::string& file, const CheckedTypeSources* sources, std::string& error) {
   ParseResult pr = parse(text);
   if (pr.ast.root == kNone || !pr.diags.empty()) return text;
   const Ast& a = pr.ast;
@@ -362,20 +430,65 @@ std::string dynCopiesForJs(const std::string& text, const std::string& file) {
     return c.kind == N::Member && c.text == "parse" && !c.kids.empty() && a.nodes[c.kids[0]].kind == N::Ident && a.nodes[c.kids[0]].text == "JSON";
   };
   std::string decls;
+  std::vector<std::pair<std::uint32_t, std::uint32_t>> sites;
   bool any = false;
   std::set<std::string> seen{file};
   std::vector<std::pair<std::uint32_t, std::string>> ins;
   auto site = [&](std::uint32_t ty, std::uint32_t call) {
-    if (!any) { declarations(text, file, seen, decls); any = true; }
-    const std::string schema = schemaOfType(decls, text.substr(a.nodes[ty].start, a.nodes[ty].end - a.nodes[ty].start), true);
-    if (schema.empty()) return;
-    ins.push_back({a.nodes[call].start, "__dynAs('" + schema + "', "});
-    ins.push_back({a.nodes[call].end, ")"});
+    sites.push_back({ty, call});
   };
   for (const Node& x : a.nodes) {
     if (x.flags & kFlagSynthetic) continue;
     if (x.kind == N::Declarator && x.kids.size() >= 2 && x.kids[0] != kNone && isParse(x.kids[1])) site(x.kids[0], x.kids[1]);
     else if (x.kind == N::As && x.text != "satisfies" && x.kids.size() == 2 && isParse(x.kids[0])) site(x.kids[1], x.kids[0]);
+  }
+  Program graph;
+  std::vector<std::string> aliases;
+  if (sources && !sites.empty()) {
+    std::string root = text;
+    for (std::size_t i = 0; i < sites.size(); ++i) {
+      std::string alias = "__ZnChecked$" + std::to_string(i);
+      while (text.find(alias) != std::string::npos) alias += "$";
+      aliases.push_back(alias);
+      const Node& ty = a.nodes[sites[i].first];
+      root += "type " + alias + " = " + text.substr(ty.start, ty.end - ty.start) + ";\n";
+    }
+    root = typeDeclarations(root, sources->file, *sources, error);
+    if (!error.empty()) return text;
+    if (root.size() > 16 * 1024 * 1024) { error = "checked JSON type graph exceeds its source budget"; return text; }
+    std::map<std::string, std::string> cache;
+    std::size_t bytes = 0;
+    bool exhausted = false;
+    ReadFile read = [&](const std::string& path, std::string& out) {
+      if (path == sources->file) { out = root; return true; }
+      if (auto it = cache.find(path); it != cache.end()) { out = it->second; return true; }
+      std::string original;
+      if (!sources->read(path, original)) return false;
+      bytes += original.size();
+      if (cache.size() >= 256 || bytes > 16 * 1024 * 1024) { exhausted = true; return false; }
+      // Resolver configuration is data, not a TypeScript module.
+      out = std::filesystem::path(path).extension() == ".json" ? original : typeDeclarations(original, path, *sources, error);
+      if (!error.empty()) return false;
+      if (out.size() > original.size()) bytes += out.size() - original.size();
+      if (bytes > 16 * 1024 * 1024) { exhausted = true; return false; }
+      cache.emplace(path, out);
+      return true;
+    };
+    graph = loadProgram(sources->file, read, false, sources->stdRoot, false, nullptr, true, false);
+    if (!error.empty() || exhausted || !graph.diags.empty()) {
+      if (!error.empty()) return text;
+      error = exhausted ? "checked JSON type graph exceeds its source budget" : "cannot resolve checked JSON type graph: " + graph.diags.front().detail;
+      return text;
+    }
+  }
+  for (std::size_t i = 0; i < sites.size(); ++i) {
+    const auto [ty, call] = sites[i];
+    if (!sources && !any) { declarations(text, file, seen, decls); any = true; }
+    const std::string schema = sources ? checkedSchemaOfType(graph, aliases[i], &error) : schemaOfType(decls, text.substr(a.nodes[ty].start, a.nodes[ty].end - a.nodes[ty].start), true);
+    if (!error.empty()) return text;
+    if (schema.empty()) continue;
+    ins.push_back({a.nodes[call].start, "__dynAs('" + schema + "', "});
+    ins.push_back({a.nodes[call].end, ")"});
   }
   if (ins.empty()) return text;
   std::stable_sort(ins.begin(), ins.end(), [](const auto& p, const auto& q) { return p.first > q.first; });
@@ -1081,7 +1194,7 @@ bool stripTypes(std::string_view src, const std::string& file, std::string& out,
   return true;
 }
 
-bool toJavaScript(std::string_view src, const std::string& file, std::string& out, std::string& err, bool zincCollections) {
+bool toJavaScript(std::string_view src, const std::string& file, std::string& out, std::string& err, bool zincCollections, const CheckedTypeSources* types) {
   auto ends = [&](std::string_view x) { return file.size() >= x.size() && file.compare(file.size() - x.size(), x.size(), x) == 0; };
   const bool tsx = ends(".tsx"), ts = tsx || ends(".ts") || file.rfind("zinc:", 0) == 0;
   if (!ts) {   // plain JavaScript: as written, with URL and the browser's WebSocket when it reads them as globals (ZN-1008)
@@ -1099,7 +1212,8 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
   if (uiPreset() == "react-native") text = rewriteReactNativeImports(text, tsx);   // as the typed loader does (ZN-367.05)
   if (text.find("requireNative<") != std::string::npos) text = recordSchemasForJs(text);
   if (text.find("zinc:worker") != std::string::npos) text = workerTypesForJs(text, file);   // the message schemas of zinc:worker (ZN-587), before the types are erased   // the record schemas of a native spec (ZN-850), before the types are erased
-  if (text.find("JSON.parse") != std::string::npos) text = dynCopiesForJs(text, file);   // D179's checked copy, before the types are erased
+  if (text.find("JSON.parse") != std::string::npos) text = dynCopiesForJs(text, file, types, err);   // D179's checked copy, before the types are erased
+  if (!err.empty()) return false;
   if (text.find("StyleSheet") != std::string::npos) text = lowerStyleSheets(text, diags, 0, tsx);
   if (tsx && diags.empty()) {
     original = text;

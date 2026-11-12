@@ -4,10 +4,13 @@
 #include <cctype>
 #include <cstring>
 #include <map>
+#include <memory>
+#include <functional>
 #include <set>
 #include <vector>
 
 #include "frontend/parser.h"
+#include "frontend/modules.h"
 #include "zn/native_sig.h"
 
 namespace zn::frontend {
@@ -23,13 +26,17 @@ struct Records {
   bool tilde = false;               // the checked copy's schema (QuickJS, D179), never the wire: an optional field (`name?: T`) is `~T` (absent is undefined, not
                                     // null), a record is `@Name{...}` and a record that holds itself refers back to it with `^Name`
   std::vector<std::string> reading; // with tilde: the records being read, outermost first
-  Records(const Ast& ast, const std::string& t) : a(ast), text(t) {
+  std::set<std::string> unsupported;
+  std::string prefix;
+  std::function<std::string(const std::string&, int)> imported;
+  Records(const Ast& ast, const std::string& t, const std::vector<std::uint32_t>* statements = nullptr) : a(ast), text(t) {
     if (a.root == kNone) return;
-    for (std::uint32_t st : a.nodes[a.root].kids) {
+    for (std::uint32_t st : statements ? *statements : a.nodes[a.root].kids) {
       std::uint32_t d = st;
       if (a.nodes[d].kind == N::Export && !a.nodes[d].kids.empty()) d = a.nodes[d].kids[0];
       if (a.nodes[d].kind == N::Interface) ifaces[std::string(a.nodes[d].text)] = d;
       else if (a.nodes[d].kind == N::TypeAlias && !a.nodes[d].kids.empty()) aliases[std::string(a.nodes[d].text)] = a.nodes[d].kids[0];
+      else if (a.nodes[d].kind == N::Class || a.nodes[d].kind == N::Enum) unsupported.insert(std::string(a.nodes[d].text));
     }
   }
   bool isNull(std::uint32_t t) const { return a.nodes[t].kind == N::TypeRef && (a.nodes[t].text == "null" || a.nodes[t].text == "undefined"); }
@@ -83,13 +90,19 @@ struct Records {
       std::string e = type(x.kids[0], depth + 1);
       return e.empty() ? e : "*" + e;
     }
-    if (x.kids.empty() && aliases.count(nm)) return type(aliases.at(nm), depth + 1);
-    if (!x.kids.empty() || !ifaces.count(nm)) return fail(t, "has no record form (number, i32, u32, boolean, string, u8[], arrays, T | null and interfaces of the spec file)");
+    if (!x.kids.empty()) return fail(t, "has no record form (number, i32, u32, boolean, string, u8[], arrays, T | null and interfaces of the spec file)");
+    return named(nm, t, depth);
+  }
+  std::string named(const std::string& nm, std::uint32_t t, int depth) {
+    if (depth > 16) return fail(t, "nests records too deep");
+    if (tilde && unsupported.count(nm)) return "";
+    if (aliases.count(nm)) return type(aliases.at(nm), depth + 1);
+    if (!ifaces.count(nm)) return imported ? imported(nm, depth + 1) : fail(t, "has no record form (number, i32, u32, boolean, string, u8[], arrays, T | null and interfaces of the spec file)");
     const Node& in = a.nodes[ifaces.at(nm)];
     if (!in.kids.empty() && in.kids[0] != kNone) return fail(t, "extends another interface: a record lists all its fields");
-    if (tilde && std::find(reading.begin(), reading.end(), nm) != reading.end()) return "^" + nm;   // a record that holds itself: a reference to the one being read
+    if (tilde && std::find(reading.begin(), reading.end(), nm) != reading.end()) return "^" + prefix + nm;   // a record that holds itself: a reference to the one being read
     if (tilde) reading.push_back(nm);
-    std::string s = tilde ? "@" + nm + "{" : "{";
+    std::string s = tilde ? "@" + prefix + nm + "{" : "{";
     for (std::size_t k = 1; k < in.kids.size(); ++k) {
       const Node& f = a.nodes[in.kids[k]];
       if (f.kind != N::Field || f.kids.empty() || f.kids[0] == kNone) return fail(t, "has a member '" + std::string(f.text) + "' that is not a typed field (a record holds data only)");
@@ -412,6 +425,64 @@ std::string recordSchemasForJs(const std::string& text) {
     if (any) table += std::string(table.empty() ? "" : ", ") + std::string(m.text) + ": [" + row + "]";
   }
   return table.empty() ? text : text.substr(0, qb + 1) + ", { " + table + " }" + text.substr(qb + 1);
+}
+
+std::string checkedSchemaOfType(const Program& program, const std::string& alias, std::string* error) {
+  const Ast& a = program.ast;
+  if (!program.diags.empty() || a.root == kNone) return "";
+  using Target = std::pair<std::uint32_t, std::string>;
+  const Target missing{kNone, ""};
+  std::vector<std::unique_ptr<Records>> records;
+  std::uint32_t root = kNone;
+  for (std::uint32_t i = 0; i < a.modules.size(); ++i) {
+    const auto& module = a.modules[i];
+    records.push_back(std::make_unique<Records>(a, program.files[module.file].text, &module.stmts));
+    records.back()->tilde = true;
+    records.back()->prefix = "m" + std::to_string(i) + "$";
+    if (module.file == 0) root = i;
+  }
+  std::set<std::pair<Target, bool>> visiting;
+  std::function<Target(std::uint32_t, const std::string&, bool)> resolve;
+  resolve = [&](std::uint32_t module, const std::string& name, bool exported) -> Target {
+    if (module >= records.size() || visiting.size() >= 64) return missing;
+    const auto key = std::make_pair(Target{module, name}, exported);
+    if (!visiting.insert(key).second) return missing;
+    struct Guard { decltype(visiting)& set; decltype(key) token; ~Guard() { set.erase(token); } } guard{visiting, key};
+    const auto& mod = a.modules[module];
+    if (!exported) {
+      if (records[module]->aliases.count(name) || records[module]->ifaces.count(name) || records[module]->unsupported.count(name)) return {module, name};
+      for (const auto& im : mod.imports) if (im.local == name) return resolve(im.from, std::string(im.name), true);
+      return missing;
+    }
+    for (const auto& ex : mod.exports) if (!ex.all && ex.name == name)
+      return resolve(ex.from == kNone ? module : ex.from, std::string(ex.local), ex.from != kNone);
+    Target found = missing;
+    for (const auto& ex : mod.exports) if (ex.all && name != "default") {
+      const Target next = resolve(ex.from, name, true);
+      if (next == missing) continue;
+      if (found != missing && found != next) return missing;
+      found = next;
+    }
+    return found;
+  };
+  for (std::uint32_t i = 0; i < records.size(); ++i) records[i]->imported = [&, i](const std::string& name, int depth) {
+    const Target target = resolve(i, name, false);
+    if (target == missing) {
+      const auto& imports = a.modules[i].imports;
+      if (error && std::any_of(imports.begin(), imports.end(), [&](const ModuleImport& im) { return im.local == name; }))
+        *error = "cannot resolve imported checked JSON type '" + name + "'";
+      return std::string();
+    }
+    auto& record = *records[target.first];
+    if (record.unsupported.count(target.second)) return std::string();
+    const auto node = record.aliases.count(target.second) ? record.aliases.at(target.second) : record.ifaces.at(target.second);
+    return record.named(target.second, node, depth);
+  };
+  if (root == kNone || !records[root]->aliases.count(alias)) return "";
+  const std::string schema = records[root]->type(records[root]->aliases.at(alias));
+  if (error) for (const auto& record : records) if (record->err.find("deep") != std::string::npos)
+    *error = "checked JSON type graph exceeds its schema depth";
+  return schema;
 }
 
 std::string schemaOfType(const std::string& decls, const std::string& type, bool optionalTilde) {

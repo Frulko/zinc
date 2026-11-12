@@ -480,6 +480,8 @@ void collectionPrelude(std::string& js) {
   js.insert(at, "import 'zinc:internal/collection-results';");
 }
 
+std::string normalizedModuleName(Engine& e, const std::string& base, const std::string& name, bool typesOnly = false);
+
 bool moduleText(Engine& e, const std::string& name, std::string& js, std::string& err) {
   std::string src, path = name;
   if (name == "zinc:internal/collection-results") { js = kCollectionResultsModule; return true; }
@@ -534,7 +536,19 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
     cached = e.cacheDir + key;
     if (readFile(cached, js)) return true;
   }
-  if (!toJavaScript(src, file, js, err, zincCollections)) return false;
+  CheckedTypeSources types;
+  types.file = path;
+  types.stdRoot = e.stdRoot;
+  types.read = e.res.read;
+  types.resolve = [&](const std::string& spec, const std::string& from) {
+    std::string resolved = normalizedModuleName(e, from, spec, true);
+    if (resolved.rfind("zinc:", 0) == 0) {
+      const auto standard = zn::frontend::stdModuleFile(resolved);
+      if (!standard.empty() && !e.stdRoot.empty()) resolved = e.stdRoot + "/" + std::string(standard);
+    }
+    return resolved;
+  };
+  if (!toJavaScript(src, file, js, err, zincCollections, &types)) return false;
   // Capture native identities before any entry dependency can replace a prototype. No prototype is modified.
   if (name == e.entry && e.modules.empty()) collectionPrelude(js);
   if (!cached.empty()) {   // written aside then renamed: two programs starting at once never read half a file
@@ -581,9 +595,7 @@ std::string mapImport(const std::map<std::string, std::string>& imports, const s
 
 // QuickJS's module-name normalizer: importmap.json beside the entry (as a browser's import map), the board's modules (zinc:<name> under
 // --engine mquickjs), then the resolver every engine shares (frontend/resolve.h). A zinc: name it leaves as it is is a host or standard module (moduleText).
-char* normalizeName(JSContext* ctx, const char* base, const char* name, void* opaque) {
-  Engine& e = *static_cast<Engine*>(opaque);
-  const std::string n = name;
+std::string normalizedModuleName(Engine& e, const std::string& base, const std::string& n, bool typesOnly) {
   std::string r = zn::frontend::generatedModuleNamespace(n), from = base;
   if (from.rfind("zinc:", 0) == 0) {   // a standard module's own imports (zinc:ui -> ./palette): beside its file
     std::string_view f = zn::frontend::stdModuleFile(base);
@@ -595,7 +607,7 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
     if (std::string f = e.res.file(r, from); !f.empty()) r = f;
     // ZINC_NATIVE=sim (D21): a plugin's native spec is its Zinc stand-in, x.next.ts or else x.sim.ts, as on the typed engines (ZN-1038: QuickJS
     // loaded the native library, so the iPod demo looked for a real iPod); the stand-in's own `import type` of the spec is erased
-    if (const char* mode = std::getenv("ZINC_NATIVE"); mode && std::string(mode) == "sim" && endsWith(r, ".spec.ts")) {
+    if (const char* mode = std::getenv("ZINC_NATIVE"); !typesOnly && mode && std::string(mode) == "sim" && endsWith(r, ".spec.ts")) {
       const std::string stem = r.substr(0, r.size() - 8);
       std::error_code ec;
       for (const char* suffix : {".next.ts", ".sim.ts"})
@@ -624,8 +636,12 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
       break;
     }
   }
-  char* out = static_cast<char*>(js_malloc(ctx, r.size() + 1));
-  std::memcpy(out, r.c_str(), r.size() + 1);
+  return r;
+}
+char* normalizeName(JSContext* ctx, const char* base, const char* name, void* opaque) {
+  const std::string resolved = normalizedModuleName(*static_cast<Engine*>(opaque), base, name);
+  char* out = static_cast<char*>(js_malloc(ctx, resolved.size() + 1));
+  std::memcpy(out, resolved.c_str(), resolved.size() + 1);
   return out;
 }
 
