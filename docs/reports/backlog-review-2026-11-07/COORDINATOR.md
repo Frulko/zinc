@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Claimed563.01 after primary/source research .logs/research-next-j.txt: existing3dGPUmanifest lacksLinux, privateSDLcontext and existing windowmodule permit isolated dynamicGLloader/manifest/headerpayload. No heldHAL/runtime/host/main edits/newdependency/service/demo; require workerplan before edits for lifecycle/handles/pkg. LinuxSSIM/T1/performance remainunselected, actualshortfeature only if safe accessible.681integrated/archive93/cleaned, no rootheavy; nextD334/archive94.
+
 - Integrated681e79cc0cc9/D333 ReviewAC1checked/AC2pixelcompareopen,94Done. Rootexacttool/glTFnativeall3+TSsim/player21editor32checks/actual18raysall3/native6frames+inspectedshotPASS. Archive93 verifies34finalblobs+deletedOBJbase/231wholeworkerfiles/28rootproof/bundle, original source retained. Claimreleased,source/branchremovedafterarchive+metadata; noenginebuild/performance/pixel/session/browser/cross/D316ownershipclaim. Commoncheckoute79cc0cc9/engine6121edcc8, no rootpending. NextD334/archive94; readonlynextresearchactive.
 
 - COORDINATOR HANDOFF2026-11-12j: J becomes sole leader only after `.logs/coord-transfer-20261112-j.ready`; I ceases all coordination then. Full `.logs/COORDINATOR-J-HANDOFF.md`. Frozen681be8a6ab0f ReviewAC1/AC2open notintegrated,34blobs/full230logs/bundle; finalrawcumulative8MiBdecoderpreflight/all3/strict/picking/6framesPASS. Mount986a91af7/D332/archive92/rootfakeT0+objects+TSsimall3PASS/released/sourcecleaned.94Done,nextD333/archive93; commoncheckout986a91af7/engine6121edcc8/SHA7da7f402. Norootheavy/processpending; finalownerauditbeforemarker.
