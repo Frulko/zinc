@@ -1,5 +1,7 @@
 # zinc:tilemap — levels of Tiled and LDtk maps
 
+`zinc:game` exposes this same loader as `loadTileMap`, alongside `TileMap`, `Level`, `Layer`, `MapObject` and `Properties`; its asset rules and coordinate system are identical. Importing the game module discovers the tilemap and sprite plugins transitively.
+
 `plugins/tilemap` (module `zinc:tilemap`, pure Zinc) reads the maps the asset build imports from the rules `"as": "tilemap"` of
 `zinc.json` (`docs/reports/zinc-next-assets.md`, "Tile maps"): Tiled maps (`.tmj`) and LDtk projects (`.ldtk`). A level's tiles are frames
 of a `zinc:sprite` atlas, drawn with `drawImageRect`; only the cells whose tiles reach the view are drawn. A level drawn at whole positions

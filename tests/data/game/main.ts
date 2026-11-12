@@ -1,5 +1,5 @@
 import { Animation, Frame } from 'zinc:sprite';
-import { Playback, PlaybackState, Sprite, Scene, SceneController, SceneState } from 'zinc:game';
+import { Playback, PlaybackState, Sprite, Scene, SceneController, SceneState, loadTileMap, TileMap, Level, Layer, MapObject, Properties } from 'zinc:game';
 function check(value: boolean): void { if (!value) throw new Error('game assertion'); }
 const a = new Frame('a', -1, 0, 0, 2, 2, 0, 0, 2, 2, 1, 0.5, 0.5, 100);
 const b = new Frame('b', -1, 0, 0, 2, 2, 0, 0, 2, 2, 1, 0.5, 0.5, 200);
@@ -85,4 +85,16 @@ drawing.x = 3; drawing.y = 4; drawing.width = 5; drawing.height = 6;
 drawing.alpha = 7; drawing.flags = 3; drawing.rotation = 0.5; drawing.tint = 255; drawing.blend = 2;
 drawing.draw(); check(recording.result === '3/4/5/6/7/3/0.5/255/2');
 a.copy(b); check(playback.frame() === a && a.duration === 200);
+const properties = new Properties(); properties.add('solid', 'bool', 'true');
+check(properties.bool('solid'));
+const map = new TileMap('empty'), level = new Level(map, 'room', 0, 0, 16, 16, -1);
+map.levels.push(level);
+const layer = new Layer('walls', 1, 1, 16, 16, 0, 0, 1, true, 1, 1, 0xffffff);
+layer.values.push(1); level.layers.push(layer);
+const object = new MapObject('1', 'spawn', 'Player', 'point', 4, 5, 0, 0, 0, 0, []);
+level.objects.push(object);
+check(map.level() === level && level.layer('walls').value(0, 0) === 1 && level.objects[0].type === 'Player');
+invalid = false;
+try { loadTileMap('missing.tmj'); } catch (e) { invalid = true; }
+check(invalid);
 console.log('game: ok');

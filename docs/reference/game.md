@@ -1,4 +1,4 @@
-# Game scenes, sprites and animation
+# Game scenes, sprites, animation and tilemaps
 
 `zinc:game` is a caller-owned layer over `zinc:sprite`. It registers no frame
 callback and loads no atlas at import. The same typed source runs interpreted,
@@ -54,3 +54,19 @@ alpha is 0–255, and tint is `0xRRGGBB`.
 See `examples/platformer`: its frame loop drives a scene, the flag uses
 Playback, and the hero uses Sprite. No sprite-count or frame-rate guarantee
 has been measured for this layer.
+
+`loadTileMap(name)` loads an imported Tiled `.tmj` or LDtk `.ldtk` asset:
+
+```ts
+import { loadTileMap } from 'zinc:game';
+const map = loadTileMap('levels/world.ldtk');
+const room = map.level('Level_1');
+// In the frame callback: world point (camX, camY) is the screen's top left.
+room.draw(0, 0);
+```
+
+Give the project an asset rule `{ "match": "levels/**/*.{tmj,ldtk}", "as": "tilemap" }`.
+The module also exports `TileMap`, `Level`, `Layer`, `MapObject` and `Properties`
+from `zinc:tilemap`. It uses that module's loader and culled drawing directly;
+see [Tilemaps](../plugins/tilemap.md) for layers, objects, properties, parallax,
+asset ownership and format limits. Loading a missing or unimported map throws.

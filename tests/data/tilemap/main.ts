@@ -2,7 +2,7 @@
 // draws the Tiled map at (0, 0), the LDtk level Level_1 at (272, 0), and a 100 x 80 view of the Tiled map from its point (37, 51) at (540, 0),
 // clipped: check.py compares each with the editors' renders in ref/. `drawn` lines: the tiles each draw call drew (the view culls).
 import { onFrame, clear, clip, unclip, translate } from 'zinc:gfx';
-import { load, Level, Layer, MapObject } from 'zinc:tilemap';
+import { loadTileMap as load, Level, Layer, MapObject } from 'zinc:game';
 
 const t0 = Date.now();
 const tiled = load('tiled/temple.tmj'), ldtk = load('levelBgs.ldtk');

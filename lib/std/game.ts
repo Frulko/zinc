@@ -1,5 +1,6 @@
 // Caller-owned game objects: no event registration, atlas loading or global scene.
 import { Animation, Frame } from 'zinc:sprite';
+export { load as loadTileMap, TileMap, Level, Layer, MapObject, Properties } from 'zinc:tilemap';
 
 export enum PlaybackState { Playing, Paused, Finished }
 

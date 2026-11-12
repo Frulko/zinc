@@ -114,6 +114,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 #### New
 
+- `zinc:game` loads Tiled and LDtk maps with `loadTileMap`, using the existing tilemap asset rules, layers, objects and culled drawing.
+
 - `zinc:board` reports the running board, SoC, RAM, revision and observed hardware; `zinc doctor` shows the same Linux inventory.
 
 - JavaScript games hear more of Web Audio: `OscillatorNode` makes sound (its four waves and `setPeriodicWave`), `loopStart` and `loopEnd` set the part a looping sound repeats, and `suspend()` pauses everything until `resume()`, `currentTime` included; `zinc:audio` has the same as `voice.loopPart()` and `suspend()`.
