@@ -93,7 +93,8 @@ struct Checker {
   std::unordered_map<std::uint32_t, Forward> forwardVars;  // top-level declarators with a type annotation, declared before the statements run through
   std::string_view selfName;                    // the variable whose initializer is being checked, when a lambda in it mentions it
   std::size_t selfDepth = 0;                    // fnStack depth of that initializer
-  std::vector<std::pair<std::uint32_t, TypeId>> selfDeferred;  // lambdas whose body waits for the variable (node, expected type)
+  struct DeferredSelf { std::uint32_t node; TypeId expected; bool pad; };
+  std::vector<DeferredSelf> selfDeferred;  // lambdas whose body waits for the variable, with their callback arity policy
   // The names a statement mentions inside a function, method or lambda: a top-level variable such a body uses before its declaration runs (ZN-162).
   // Collected once per statement into the set of the statements above (ZN-415): asking each declaration again walked every statement above it.
   // A name the body declares itself (a parameter, a local of an enclosing block, a `var` of the function) is not the top-level variable (ZN-798:
@@ -158,7 +159,14 @@ struct Checker {
     } else if (inFn && x.kind == N::For && !x.kids.empty() && x.kids[0] != kNone && n(x.kids[0]).kind == N::VarDecl) {
       for (std::uint32_t d : n(x.kids[0]).kids) if (d != kNone && n(d).kind == N::Declarator) declaredNames(d, locals);
     } else if (inFn && x.kind == N::Try && x.kids.size() > 1 && x.kids[1] != kNone) {
-      patternNames(x.kids[1], locals);   // (the catch name reaches the finally block too: harmless, a top-level variable of that name there is rare)
+      fnMentionsIn(x.kids[0], out, inFn, locals);
+      {
+        const LocalNames::Scope caught{locals, locals.order.size()};
+        patternNames(x.kids[1], locals);
+        if (x.kids[2] != kNone) fnMentionsIn(x.kids[2], out, inFn, locals);
+      }
+      if (x.kids[3] != kNone) fnMentionsIn(x.kids[3], out, inFn, locals);
+      return;
     }
     for (std::uint32_t k : x.kids) if (k != kNone) fnMentionsIn(k, out, inFn || fn, locals);
   }
@@ -169,11 +177,9 @@ struct Checker {
     return false;
   }
   bool mentionsInLambda(std::uint32_t i, std::string_view nm, bool inLambda = false) const {
-    const Node& x = n(i);
-    if (x.kind == N::Ident && inLambda && x.text == nm) return true;
-    bool lam = inLambda || x.kind == N::FuncExpr;
-    for (std::uint32_t k : x.kids) if (k != kNone && mentionsInLambda(k, nm, lam)) return true;
-    return false;
+    std::unordered_set<std::string_view> names;
+    fnMentions(i, names, inLambda);
+    return names.contains(nm);
   }
   bool inspectMode = false;           // checking a generated console.log formatter
   std::uint32_t nullishLeft = kNone;  // the left operand of the `??` being checked
@@ -4371,14 +4377,18 @@ struct Checker {
       selfDeferred.clear();
       if (selfRef) { selfName = x.text; selfDepth = fnStack.size(); }
       t = expr(init);
-      std::vector<std::pair<std::uint32_t, TypeId>> waiting = std::move(selfDeferred);
+      std::vector<DeferredSelf> waiting = std::move(selfDeferred);
       selfName = savedName; selfDepth = savedDepth; selfDeferred = std::move(savedDeferred);
       if (t == tNull || (t == tVoid && !isConst)) { diag(kZCannotInfer, d, "'" + std::string(x.text) + "'"); t = tError; }   // a const of type void (a generic call with T = void) holds nothing, as in TypeScript
       out.nodeType[d] = t;
       bindVar(t);
       if (!waiting.empty()) {
         out.syms[out.nodeSym[d]].reassigned = true;
-        for (auto& [fe, ex] : waiting) funcExpr(fe, ex);
+        for (auto& [fe, ex, pad] : waiting) {
+          struct Restore { bool& flag; bool saved; ~Restore() { flag = saved; } } restore{padCallbacks, padCallbacks};
+          padCallbacks = pad;
+          funcExpr(fe, ex);
+        }
       }
       return;
     }
@@ -5463,7 +5473,7 @@ struct Checker {
     labels.clear();
     immediate = false;
     if (!selfName.empty() && fnStack.size() == selfDepth && ret != kNoType && mentionsInLambda(i, selfName, true)) {  // the body uses the variable being declared: check it once the variable exists
-      selfDeferred.push_back({i, expected});
+      selfDeferred.push_back({i, expected, padCallbacks});
       curRet = savedRet; inferredRet = savedInferred; loops = savedLoops; immediate = savedImmediate;
       labels = std::move(savedLabels);
       narrowing = std::move(savedNarrowing);

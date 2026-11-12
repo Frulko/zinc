@@ -468,6 +468,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Arrays inferred from dynamic values mixed with strings or numbers serialize without an internal compiler error, preserving evaluation order.
 - A getter on a typed object still runs when the object is read through `any`, instead of disappearing.
 
+- Array predicates compile when their parameter shares the result variable's name, and callbacks that capture their result keep their declared arity.
+
 ### Developer tools
 
 #### New
