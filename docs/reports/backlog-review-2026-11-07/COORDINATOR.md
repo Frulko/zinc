@@ -538,3 +538,5 @@ Each iteration (a wake-up or an agent's notification):
 - K cleanup verified: 1124 archive94 and563.01 archive95 full source/log/root hashes PASS, claims released, worktree removals exited0 before branch deletion. Owner10payloads/perf15/index audit PASS; common sourcea4e6ae690/compiler8975a1c6d.1039 active, research-next-k read-only.
 
 - K integrated ZN-1039 lifetime88ec54b58 / D336, Backlog all4ACopen,95Done. Root exact lifecycleall3/player19/editor36/actual switch+restart captures PASS. Archive96 complete11sources/48logs/30rootfiles, original failed full-player log loss disclosed; minimalfailure+parkedsource retained. Researchnext-k identifies safe1037 remote wire normalization while1030 structural views require held-runtime boundary audit. NextD337/archive97.
+
+- K verified archive96+owner10/perf15/index;1039 worktree removal exited0 before branch deletion. Claim ZN-1037 AC3 older-daemon wire normalization after engine/perf gate audit research-next-k; no CLI build/network/daemon/device. Remaining compound criteria stay open.
