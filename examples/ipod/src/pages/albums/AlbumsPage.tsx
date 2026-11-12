@@ -2,7 +2,7 @@
 // iPod and kept (components/AlbumCover). The search keeps the albums whose title, artist or year match. An album opens its tracks (an
 // entry of the history: back shows the grid where it was scrolled, with its search); a right click plays it or queues it (menus.ts).
 import * as ui from 'zinc:ui';
-import { VirtualList } from 'zinc:ui/solid';
+import { VirtualList, createNodeRef, createSignal, onCleanup } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import { Album, albums, shownAlbums, albumShown, openAlbum, goBack, search, setSearch, scrollKey } from '../../state';
 import { AlbumCover } from '../../components/AlbumCover';
@@ -13,7 +13,7 @@ import { TrackTable } from '../../components/TrackTable';
 import { openTrackMenu } from '../../menus';
 import { SearchField } from '../../components/SearchField';
 import { count, longDuration } from '../../format';
-import { fg, color, TEXT, MUTED, ACCENT, GRID_COLUMNS, COVER_SIZE, GRID_ROW_HEIGHT, HEADER_COVER_SIZE } from '../../constants';
+import { fg, color, TEXT, MUTED, ACCENT, COVER_SIZE, GRID_ROW_HEIGHT, HEADER_COVER_SIZE } from '../../constants';
 
 export function AlbumTile(props: { album: Album }): i32 {
   const a = props.album;
@@ -29,8 +29,18 @@ export function AlbumTile(props: { album: Album }): i32 {
 }
 
 function Grid(): i32 {
-  const rows = (): i32 => Math.ceil(shownAlbums().length / GRID_COLUMNS);
-  return <View className="grow flex-col min-h-0">
+  const container = createNodeRef();
+  const [columns, setColumns] = createSignal<i32>(1);
+  const measure = (): void => {
+    const box = ui.inspectNode(container.node);
+    if (box === null || !Number.isFinite(box.lw) || box.lw <= 0) return;
+    const next = Math.max(1, Math.floor((box.lw - 80 + 24) / (COVER_SIZE + 24))) as i32;
+    if (next !== columns()) setColumns(next);
+  };
+  ui.addWatcher(measure);
+  onCleanup(() => ui.removeWatcher(measure));
+  const rows = (): i32 => Math.ceil(shownAlbums().length / columns());
+  return <View ref={container} className="grow flex-col min-h-0">
     <View className="flex-row items-center gap-4 px-10 pt-8 pb-4">
       <View className="grow flex-col">
         <Text className={`text-[26px] font-bold ${fg(TEXT)}`}>Albums</Text>
@@ -41,7 +51,7 @@ function Grid(): i32 {
     {search().trim() !== '' && shownAlbums().length === 0 ? <Text className={`text-[13px] px-10 ${fg(MUTED)}`}>No album matches</Text> : <View />}
     <VirtualList count={rows()} itemHeight={GRID_ROW_HEIGHT} className="grow min-h-0" scrollKey={scrollKey('albums')}>
       {(r: i32) => <View className="flex-row gap-6 px-10" style={{ height: GRID_ROW_HEIGHT }}>
-        {shownAlbums().slice(r * GRID_COLUMNS, r * GRID_COLUMNS + GRID_COLUMNS).map((a: Album) => <AlbumTile album={a} />)}
+        {shownAlbums().slice(r * columns(), (r + 1) * columns()).map((a: Album) => <AlbumTile album={a} />)}
       </View>}
     </VirtualList>
   </View>;

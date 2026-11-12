@@ -49,7 +49,7 @@ export function podColors(model: string): PodColors {
 // ---- sizes (px)
 export const SIDEBAR_WIDTH: i32 = 232;
 export const ROW_HEIGHT: i32 = 34;          // a track row of the tables
-export const GRID_COLUMNS: i32 = 4;         // albums per row of the grid: four fit the window opened (1180 px)
+export const GRID_COLUMNS: i32 = 4;         // photos per row; the album grid measures its container
 export const COVER_SIZE: i32 = 168;         // an album's cover in the grid
 export const GRID_ROW_HEIGHT: i32 = 236;    // cover, two lines of text and the gap
 export const ARTIST_ROW_HEIGHT: i32 = 48;   // an artist in the Artists page's list
@@ -61,8 +61,7 @@ export const POD_WIDTH: i32 = 220;          // the drawing of the iPod
 export const PHOTO_SIZE: i32 = 150;         // a photo in the grid
 export const PHOTO_ROW_HEIGHT: i32 = 166;   // a photo and the gap
 export const PHOTO_VIEW_SIZE: i32 = 640;    // a photo opened
-export const LCD_WIDTH: i32 = 322;          // the now-playing panel at the top (the bar fits 1180 px with the history, sleep timer and queue buttons)
-export const PROGRESS_WIDTH: i32 = 170;     // its progress bar
+export const LCD_WIDTH: i32 = 322;          // maximum width of the now-playing panel
 export const VOLUME_WIDTH: i32 = 90;        // the Sonos group's volume bar, under the output
 export const TOAST_WIDTH: i32 = 340;        // a transfer's toast, at the bottom right
 export const TOAST_SHOWN: i32 = 3;          // toasts shown at once; the others are "+N more"

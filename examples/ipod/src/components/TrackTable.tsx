@@ -16,6 +16,12 @@ import { openTrackMenu } from '../menus';
 import { duration } from '../format';
 import { bd, bg, fg, color, BORDER, HOVER, SELECTED, STRIPE, MUTED, TEXT, FAINT, ACCENT, ROW_HEIGHT } from '../constants';
 
+// Shared by headers and virtual rows, including the narrower pane beside playlists.
+const TITLE_COLUMN = 'grow basis-0 min-w-[220]';
+const ARTIST_COLUMN = 'w-[190] shrink min-w-0';
+const ALBUM_COLUMN = 'w-[210] shrink min-w-0';
+const WHY_COLUMN = 'w-[230] shrink min-w-0';
+
 function HeaderCell(props: { label: string; sortKey: string; sortable: boolean; className: string }): i32 {
   const on = (): boolean => props.sortable && sortKey() === props.sortKey;
   return <View className={`flex-row items-center ${props.className} ${props.sortable ? 'cursor-pointer' : ''}`}
@@ -51,10 +57,10 @@ export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolea
   return <View className="grow flex-col min-h-0">
     <View className={`flex-row items-center h-[30] px-6 gap-4 border-b ${bd(BORDER)}`}>
       <Text className={`w-[32] text-[12px] font-semibold text-right ${fg(MUTED)}`}>#</Text>
-      <HeaderCell label="Title" sortKey="title" sortable={props.sortable} className="grow basis-0" />
-      <HeaderCell label="Artist" sortKey="artist" sortable={props.sortable} className="w-[190]" />
-      {why !== null ? <HeaderCell label="Why" sortKey="" sortable={false} className="w-[230]" />
-        : props.showAlbum ? <HeaderCell label="Album" sortKey="album" sortable={props.sortable} className="w-[210]" /> : <View />}
+      <HeaderCell label="Title" sortKey="title" sortable={props.sortable} className={TITLE_COLUMN} />
+      <HeaderCell label="Artist" sortKey="artist" sortable={props.sortable} className={ARTIST_COLUMN} />
+      {why !== null ? <HeaderCell label="Why" sortKey="" sortable={false} className={WHY_COLUMN} />
+        : props.showAlbum ? <HeaderCell label="Album" sortKey="album" sortable={props.sortable} className={ALBUM_COLUMN} /> : <View />}
       <HeaderCell label="Time" sortKey="time" sortable={props.sortable} className="w-[56] justify-end" />
       <View className="w-[16]" />
     </View>
@@ -73,10 +79,10 @@ export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolea
         {nowOn(at(i))
           ? <View className="w-[32] items-end"><Icon name={isPlaying() ? 'volume-2' : 'volume'} size={14} color={() => color(ACCENT)} strokeWidth={2} /></View>
           : <Text className={`w-[32] text-[13px] text-right ${fg(FAINT)}`}>{props.numbered ? (at(i).trackNr > 0 ? `${at(i).trackNr}` : '') : `${i + 1}`}</Text>}
-        <Text className={`grow basis-0 text-[13px] ${nowOn(at(i)) ? `${fg(ACCENT)} font-semibold` : fg(TEXT)}`} numberOfLines={1}>{at(i).title !== '' ? at(i).title : 'Untitled'}</Text>
-        <Text className={`w-[190] text-[13px] ${fg(MUTED)}`} numberOfLines={1}>{at(i).artist}</Text>
-        {why !== null ? <Text className={`w-[230] text-[12px] ${fg(MUTED)}`} numberOfLines={1}>{reason(at(i))}</Text>
-          : props.showAlbum ? <Text className={`w-[210] text-[13px] ${fg(MUTED)}`} numberOfLines={1}>{at(i).album}</Text> : <View />}
+        <Text className={`${TITLE_COLUMN} text-[13px] ${nowOn(at(i)) ? `${fg(ACCENT)} font-semibold` : fg(TEXT)}`} numberOfLines={1}>{at(i).title !== '' ? at(i).title : 'Untitled'}</Text>
+        <Text className={`${ARTIST_COLUMN} text-[13px] ${fg(MUTED)}`} numberOfLines={1}>{at(i).artist}</Text>
+        {why !== null ? <Text className={`${WHY_COLUMN} text-[12px] ${fg(MUTED)}`} numberOfLines={1}>{reason(at(i))}</Text>
+          : props.showAlbum ? <Text className={`${ALBUM_COLUMN} text-[13px] ${fg(MUTED)}`} numberOfLines={1}>{at(i).album}</Text> : <View />}
         <Text className={`w-[56] text-[13px] text-right ${fg(MUTED)}`}>{duration(at(i).durationMs)}</Text>
         <View className="w-[16] items-center cursor-pointer" onPointerDown={(e: ui.PointerEvent) => { const t = at(i); if (t.id !== '') download(`“${t.title}”`, [t], `track:${t.id}`); }}>
           <DownloadMark id={() => at(i).id} />
