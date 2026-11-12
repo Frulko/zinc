@@ -441,7 +441,7 @@ std::string prebuiltKey(const frontend::FoundPlugin& p, const std::string& engin
   const std::string runtime = engineRoot + "/runtime";
   Hash k;
   for (const std::string& d : buildDefines(p, p.manifest.targetSettings.at(target), engineRoot, projectDir, target)) k.add(d);
-  for (const std::string& hp : {engineRoot + "/include/zn/native.h", engineRoot + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/include/hal.h"}) k.add(sha256File(hp));
+  for (const std::string& hp : {engineRoot + "/include/zn/native.h", engineRoot + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/include/hal.h", runtime + "/include/radio_dbus.h"}) k.add(sha256File(hp));
   k.add(p.manifest.kind == "display" ? "display" : "module");
   return k.hex();
 }
@@ -604,7 +604,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   h.add(gen.cppHeader); h.add(abi ? gen.cHeader : gen.thunk); h.add(gen.viewsHeader);
   h.add(display ? "display" : "module");
   for (const std::string& s : own) { std::string t; readAll(s, t); h.add(relToPlugin(s)); h.add(t); }
-  for (const std::string& hp : {root + "/include/zn/native.h", root + "/include/zn/rec.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/gl_caps.h", runtime + "/gl_clip.h", runtime + "/gl_fringe.h", runtime + "/gl_paint_cache.h", runtime + "/include/hal.h", runtime + "/include/hw.h", runtime + "/include/render_bands.h"}) h.add(sha256File(hp));
+  for (const std::string& hp : {root + "/include/zn/native.h", root + "/include/zn/rec.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/gl_caps.h", runtime + "/gl_clip.h", runtime + "/gl_fringe.h", runtime + "/gl_paint_cache.h", runtime + "/include/hal.h", runtime + "/include/hw.h", runtime + "/include/render_bands.h", runtime + "/include/radio_dbus.h"}) h.add(sha256File(hp));
   if (buildOs() == "windows") h.add(sha256File(zincImplib(engineRoot)));   // DATA vs code exports in libzinc.dll.a change the DLL's import table
   for (const std::string& s : own) {   // the files beside the sources, in name order: headers, and sources one of them #includes (display-gl's gl_renderer.cpp)
     std::vector<std::string> hs;
@@ -793,7 +793,7 @@ std::vector<std::string> stampInputs(const frontend::FoundPlugin& p, const std::
   const frontend::PluginTarget& ts = m.targetSettings.at(target);
   std::vector<std::string> in{(fs::path(p.dir) / "plugin.json").string(), executablePath()};
   const std::string root = engineRoot, runtime = root + "/runtime";
-  for (const std::string& hp : {root + "/include/zn/native.h", root + "/include/zn/rec.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/gl_caps.h", runtime + "/gl_clip.h", runtime + "/gl_fringe.h", runtime + "/gl_paint_cache.h", runtime + "/include/hal.h", runtime + "/include/hw.h", runtime + "/include/render_bands.h"}) in.push_back(hp);
+  for (const std::string& hp : {root + "/include/zn/native.h", root + "/include/zn/rec.h", root + "/src/native/zrt_compat.h", runtime + "/zrt.h", runtime + "/zrt_raster.h", runtime + "/gl_replay.cpp", runtime + "/gl_replay_shaders.h", runtime + "/gl_caps.h", runtime + "/gl_clip.h", runtime + "/gl_fringe.h", runtime + "/gl_paint_cache.h", runtime + "/include/hal.h", runtime + "/include/hw.h", runtime + "/include/render_bands.h", runtime + "/include/radio_dbus.h"}) in.push_back(hp);
   if (target == "windows") { const std::string im = zincImplib(engineRoot); if (!im.empty()) in.push_back(im); }
   std::vector<std::string> dirs;
   std::error_code ec;

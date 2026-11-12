@@ -31,6 +31,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 #### Fixed
 
 - Existing hardware display drivers rebuild when the shared bus header changes, so cached plugins receive bus fixes.
+- Wi-Fi callbacks can stop or restart observation and replace scans without receiving a stale scan result; packaged Wi-Fi plugins retain their shared Linux bus header.
 
 ### Games
 

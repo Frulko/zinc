@@ -3,7 +3,7 @@
 set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-c++ -std=c++20 -Wall -Wextra -Werror tests/native/radios/network_manager.cpp -o "$tmp/network-manager"
+c++ -Iruntime/include -std=c++20 -Wall -Wextra -Werror tests/native/radios/network_manager.cpp -o "$tmp/network-manager"
 timeout 5 "$tmp/network-manager"
 cc -c third_party/yyjson/yyjson.c -o "$tmp/yyjson.o"
 c++ -std=c++20 -Wall -Wextra -Werror -Isrc -Ithird_party/yyjson tests/native/radios/project.cpp src/frontend/project.cpp "$tmp/yyjson.o" -o "$tmp/project"
@@ -14,3 +14,6 @@ c++ -std=c++20 -O0 -Wall -Wextra -Werror -Wno-unused-variable -pthread \
   tests/native/radios/permission.cpp runtime/zrt.cpp runtime/host.cpp \
   targets/null/hal_null.cpp targets/common/hal_posix.cpp -o "$tmp/permission"
 timeout 5 "$tmp/permission"
+
+python3 tests/native/radios/public-fixture.py "$tmp/public"
+ZINC_HEADLESS=1 timeout 5 "$ZINC" run --interp "$tmp/public/reentrant.ts"

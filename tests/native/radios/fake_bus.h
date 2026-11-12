@@ -1,5 +1,5 @@
 #pragma once
-#include "../../../plugins/radio/native/sd_bus.h"
+#include "radio_dbus.h"
 #include <cassert>
 #include <deque>
 #include <map>

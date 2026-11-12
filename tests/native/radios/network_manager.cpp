@@ -50,7 +50,11 @@ int main() {
   f.reply(statusSlot, "a{sv}", {dictionary({property("State", Value::integer(100)), property("ActiveConnection", Value::string("/nm/active/1", 'o'))})}); nm.poll();
   assert(nm.status() == "connected");
   nm.disconnect(); auto deactivate = f.take("DeactivateConnection"); assert(deactivate.values[0].text == "/nm/active/1");
-  f.reply(f.slots.size() - 1, "", {}, "org.freedesktop.NetworkManager.PermissionDenied"); nm.poll();
+  auto oldDisconnect = deactivate.slotIndex;
+  assert(nm.scan()); auto newerScan = f.take("RequestScan");
+  f.reply(oldDisconnect, "", {}, "org.freedesktop.NetworkManager.PermissionDenied"); nm.poll();
+  assert(nm.activity() == NetworkManager::Operation::scanning && nm.error().empty());
+  f.reply(newerScan.slotIndex, "", {}, "org.freedesktop.NetworkManager.PermissionDenied"); nm.poll();
   assert(nm.error() == "org.freedesktop.NetworkManager.PermissionDenied"); assert(nm.error().find("secret-password") == std::string::npos);
   assert(nm.connect({'a', 'p'}, "secret-password", true));
   auto hotspot = f.take("AddAndActivateConnection2");

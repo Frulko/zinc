@@ -1,5 +1,5 @@
 #pragma once
-#include "../../radio/native/sd_bus.h"
+#include "radio_dbus.h"
 #include <chrono>
 
 namespace zinc::radio {
@@ -130,7 +130,7 @@ public:
   std::string info() const { return status() + "\t" + hex(ssid) + "\t" + ip + "\t" + std::to_string(strength); }
   void start() {
     if (phase == State::ready || phase == State::discovering) return;
-    bus.stop(); ++generation; ++scanGeneration; device.clear(); active.clear(); owned.clear(); observedConnection.clear(); networks.clear(); ssid.clear(); ip.clear(); reason.clear(); deviceState = 0; apRequested = false; transition(Operation::idle);
+    bus.stop(); ++generation; ++scanGeneration; ++statusGeneration; restart = false; outstanding = 0; lastScan = -1; capabilities = 0; strength = 0; device.clear(); active.clear(); owned.clear(); observedConnection.clear(); networks.clear(); ssid.clear(); ip.clear(); reason.clear(); deviceState = 0; apRequested = false; transition(Operation::idle);
     transition(State::discovering);
     if (!bus.start()) { reason = bus.error(); transition(State::failed); return; }
     uint64_t g = generation;
@@ -218,8 +218,8 @@ public:
     if (operation == Operation::activating) { stop(); start(); return; }
     if (owned.empty() || phase != State::ready) return;
     ++scanGeneration; std::string path = owned; owned.clear(); apRequested = false;
-    call(root, manager, "DeactivateConnection", {Value::string(path, 'o')}, [this](const Reply& r) { if (!r.ok()) fail(r.error); else transition(Operation::idle); });
+    call(root, manager, "DeactivateConnection", {Value::string(path, 'o')}, [this, sg = scanGeneration](const Reply& r) { if (sg != scanGeneration) return; if (!r.ok()) fail(r.error); else transition(Operation::idle); });
   }
-  void stop() { ++generation; ++scanGeneration; bus.stop(); transition(State::closed); transition(Operation::idle); device.clear(); owned.clear(); ssid.clear(); ip.clear(); networks.clear(); deviceState = 0; }
+  void stop() { ++generation; ++scanGeneration; ++statusGeneration; restart = false; bus.stop(); transition(State::closed); transition(Operation::idle); device.clear(); owned.clear(); ssid.clear(); ip.clear(); networks.clear(); deviceState = 0; }
 };
 }
