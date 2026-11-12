@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Fresh coordinator /root/coordinator_next owns the loop after0507818d5 transfer;592.04 remains isolated Linux module worker. Reserve584.02/.03 game chain: reuse existing tilemap asset importer and sprite batching, then camera/input actions; no new demo/service or T1 campaign, literal gates retained. Two building trees maximum; main owner payloads untouched.
+
 - COORDINATOR HANDOFF2026-11-12: soleleader /root/coordinator_next once .logs/coord-transfer-20261112.ready exists. Root stops claims/integration atsignal. Active592.04worker /root/linux_window_592_04 routed tonewleader; crossbuild11474 running own .logs/linux-build.log. No rootheavycommands/processes pending.91Done,64sourcearchives, common7b47aef28/hash9b0069c6 perRESUME. Sameautonomousloop/noquestions/no push/gates/WIPprotection remains.
 
 - Integrated584.01 7b47aef28 ReviewAC1; rootcombinedbuild/game all3 PASS; sourcehashmatch, actualplatformerAOT40frames/Start/captureinspected. Archive64fullsource/proofs.Active592.04 Linuxwindowmodule only; no10kFPS/T1. Commonbinaryrefresh recorded game584summary,91Doneunchanged.
