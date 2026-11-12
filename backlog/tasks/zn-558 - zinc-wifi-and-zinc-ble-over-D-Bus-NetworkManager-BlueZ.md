@@ -2,8 +2,7 @@
 id: ZN-558
 title: 'zinc:wifi and zinc:ble over D-Bus (NetworkManager, BlueZ)'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:46'
 labels:
   - rpi
@@ -107,4 +106,6 @@ Coordinator integrated55d18c965/D324: cleancommon sourceproof exactbluez/publicf
 Remaining SAME558 software: nmcli client-bound write fallback and static NimBLE/HCI/CHIP backend alternative. All4 real VM/Pi/no-radio ACs remain unproved. Proposed decision: fixed direct sd-bus exports plus per-peer AcquireNotify transport preserve targeted Link semantics; separate connection-bound server lifetime avoids central cleanup interference. Proposed later: owner-selected Linux seqpacket/HUP/BlueZ acquisition interoperability and native teardown/concurrent-VM proof. Proposed tests (NOT RUN): prepared btvirt/hci_vhci binary central+targeted two-peer UART/LE and hwsim/NM (~10–20s each); realPi AP/join/peripheral and no-radio boards (~10–20s each); all memoryunmeasured. No performance claim. Durable source hashes/full logs/failures/artifacts in .logs/HANDOFF-558-PERIPHERAL.md and peripheral-summary.json for coordinator archive before removal.
 
 Coordinator integratede1c8f62d6/D325: root exactbluez_peripheral/bluez/radios and publicfakeall3/publicTSsimall3/nativeMacSIM_AOT/typechecks PASS on clean common checkout, enginebinaryb63c8367a unchanged. Archive85 verifies19 identical integratedblobs, WHOLE72workerlog/artifactfiles and28rootprooffiles plus namedbundle. FirstDarwinseqpacketfailure and supersededstreamsurrogate retained; finalDarwindatagramseam does not proveLinuxHUP/ATT. All4ACremainopen/Backlog, originalclaimretainedforSAME558 remainingsoftwareassessment. Protected10ownerpayloads/perf15linesunchanged. Noactualbus/radio/Linuxexecution orperformanceclaim.
+
+2026-11-12 coordinator remaining-scope assessment (read-only delegated research .logs/research-558-remaining-g.txt): upstream nmcli exposes save=no/autoconnect=no and passwd-file but not AddAndActivateConnection2 persist=volatile plus bind-activation=dbus-client. Separate CLI processes cannot retain the calling-client lifetime. Keep safe explicit unsupported fallback writes; never silently persist a connection or add a resident service. Primary references: https://networkmanager.dev/docs/api/latest/nmcli.html and https://www.networkmanager.dev/docs/libnm/latest/NMClient.html . Static NimBLE has an Apache-2.0 Linux NPL/socket HCI user-channel port, but requires a pinned host/NPL/transport build and an explicitly selected exclusive controller backend; current ESP-IDF FreeRTOS code cannot substitute. This carried option remains open in later.md and this task, with actual CHIP UART3/RTSCTS/HCI behavior unproved. No new task, backend completion, vendor, hardware or benchmark claim. Releasing the original parallel claim after the verified BlueZ peripheral checkpoint; all four AC remain open/Backlog. Next independent safe source task is ZN-863.03.
 <!-- SECTION:NOTES:END -->

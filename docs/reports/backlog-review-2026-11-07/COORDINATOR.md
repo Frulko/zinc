@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Released558originalclaim afterarchive85/verifiedBlueZperipheral and delegated remaining-scopeassessment. Safe nmcli CLI cannot provide client-boundvolatilewrites; staticNimBLE/HCI/CHIP carriedoption remainsopen, all4ACBacklog. Claimed863.03 webdeviceframes in unheldcli_web/targetsweb existingexport, afterprimaryresearch; noownerRT/HAL/UI/main/newdemo/service. Onefresh sourceworker next, noheavyprocess.
+
 - Integrated558 targetedUART peripheral e1c8f62d6/D325, Backlogall4ACopen,93Done unchanged; originalclaimretainedforSAME558 softwareassessment. Rootexactbluez_peripheral/bluez/radios/publicfakeall3/TSsimall3/nativeMacSIM_AOT/checkPASS; LinuxproductionC++17objectPASSonly, noLinuxseqpacket/HUP/ATT/radio. Archive85 verifies19sourceblobs/full72workerlogs+artifacts/root28files/namedbundle; Darwinunsupportedseqpacketfailure and supersededstreamtest retained, finaldatagramseamexplicit. Noactive sourceworker/rootheavy; nextD326/archive86.
 
 - COORDINATOR HANDOFF2026-11-12g: coordinator_g becomes sole leader only after .logs/coord-transfer-20261112-g.ready; coordinator_f ceases all coordination then. Full .logs/COORDINATOR-G-HANDOFF.md. Only source worker peripheral558, same tree/baseb7c3f4c8b, additive radio ABI/peripheral.h uncommitted, not wired/tested, no heavy/pending/process. Generic55d18c965/D324/archive84 and1122b63c8367a/D323/archive83 integrated/proven;93Done, nextD325/archive85. Protected10payloads/perf15verified.
