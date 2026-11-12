@@ -22,6 +22,12 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - `zinc:power` reads thermal zones, CPU clocks, Raspberry Pi throttle flags and fan observations, with change subscriptions; `zinc doctor` shows the same snapshot and marks unavailable readings as unknown.
 
+- `zinc:i2c` lists adapters, reads registers and scans with an explicit probe policy; `zinc:spi` supports modes, speed and full-duplex transfers. Both offer an explicit native simulator.
+
+#### Fixed
+
+- Existing hardware display drivers rebuild when the shared bus header changes, so cached plugins receive bus fixes.
+
 ### Games
 
 #### Changed

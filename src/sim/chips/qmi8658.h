@@ -37,6 +37,9 @@ struct Qmi8658 {
   }
   bool autoInc() const { return reg[0x02] & 0x40; }
   int read(uint8_t r, uint8_t* out, int n) {
+    if (!out || n <= 0 || r >= sizeof reg || (autoInc() && n > (int)sizeof reg - r)) {
+      errors.push_back("read past the register block"); return 0;
+    }
     if (n > 1 && !autoInc()) errors.push_back("burst read without CTRL1 address auto-increment");
     for (int i = 0; i < n; i++) out[i] = readOne(r + (autoInc() ? i : 0));
     if (r == 0x33) samples++;

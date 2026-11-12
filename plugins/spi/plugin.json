@@ -1,0 +1,12 @@
+{
+  "name": "spi",
+  "kind": "module",
+  "module": "zinc:spi",
+  "entry": "index.ts",
+  "description": "SPI writes and full duplex transfers",
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "rpi1": {}
+  }
+}

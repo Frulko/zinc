@@ -1,0 +1,12 @@
+{
+  "name": "i2c",
+  "kind": "module",
+  "module": "zinc:i2c",
+  "entry": "index.ts",
+  "description": "I2C register transactions and explicit opt-in scanning",
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "rpi1": {}
+  }
+}
