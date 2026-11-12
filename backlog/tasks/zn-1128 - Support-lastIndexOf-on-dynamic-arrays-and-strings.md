@@ -2,8 +2,7 @@
 id: ZN-1128
 title: Support lastIndexOf on dynamic arrays and strings
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-12 12:17'
 labels:
   - language
