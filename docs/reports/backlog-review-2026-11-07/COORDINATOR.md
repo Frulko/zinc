@@ -19,7 +19,7 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
-- Integrated66131ae13de7/D330 BacklogbothACopen,94Done. CleancommonWASMbuild/exactwasm_native/typedfixture/productionChromeexportPASS; realJSPI+blockingVM/BIUDgrowshrinkemptyalias/-0 andRender3DCPU only. Archive90 verifies16payloads/full52logs/root27files/threeWASMartifacts/bundle. Rootexport--out typo refusedbeforeexecution; failedscript/logkept, corrected-oexportChromePASS, no repeatedbuild/T0.661claimreleased,cleanupnext. Active1057isolatedtruthfulH264capabilityonly; noownerRT/CLIchange/suite/performanceclaim. NextD331/archive91.
+- Integrated66131ae13de7/D330 BacklogbothACopen,94Done. CleancommonWASMbuild/exactwasm_native/typedfixture/productionChromeexportPASS; realJSPI+blockingVM/BIUDgrowshrinkemptyalias/-0 andRender3DCPU only. Archive90 verifies16payloads/full52logs/root27files/threeWASMartifacts/bundle. Rootexport--out typo refusedbeforeexecution; failedscript/logkept, corrected-oexportChromePASS, no repeatedbuild/T0.661claimreleased,source/branchremovedafterverification. Active1057isolatedtruthfulH264capabilityonly; noownerRT/CLIchange/suite/performanceclaim. NextD331/archive91.
 
 - Claimed1057 truthful Discord H264 capability after primary/source research `.logs/research-next-i.txt`: existing Linux codec backend is absent but gateway announces video and public calls silently accept it. Isolated discord-voice plugin only, lazy actual provider query, no codec/service/dependency/network call or owner-held source. Preserve audio and camera cleanup; all compound1057 AC stay open. WASM661 final freeze pending, both work queues serialized.
 
