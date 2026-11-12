@@ -76,4 +76,20 @@ Proposed tests:
 
 Usage: tools/usage reported `usage: n/a` (.logs/gpio-usage.log).
 
+2026-11-12 prepared-kernel integration harness (work/549-kernel-harness):
+
+- Added tools/check-gpio-sim.py, actual public tests/data/gpio/kernel.ts and explicit opt-in tests/t1/gpio_kernel.sh. The runner owns a unique configfs device, validates its mount/returned identities/contained sysfs paths, uses the real Linux chardev backend and clears deterministic/script/frame overrides. It performs no module loading, mounting, installation, permission change or physical GPIO action. Native/core sources and plugins are unchanged; no engine build.
+- The fixture covers initial output, set/get with independent sysfs observation, exclusive requests/release, observable pull-up/down, both edge identities/kernel timestamp/sequence, filtered short pulse and stable debounce reads/edges, unwatch and release. No syscall interception, gpio.simulate, fake native backend or metadata-only debounce assertion.
+- Bounded child output/deadline/kill/reap precedes owned-only reverse cleanup. Failure to reap keeps the owned device explicitly RETAINED with PID/path instead of deleting it beneath a live child; cleanup failures report the path. The runner does not claim cleanup after SIGKILL of the runner itself.
+- Delegated primary research: https://docs.kernel.org/admin-guide/gpio/gpio-sim.html ; https://docs.kernel.org/userspace-api/gpio/gpio-v2-get-line-ioctl.html ; https://docs.kernel.org/userspace-api/gpio/gpio-v2-line-event-read.html . Kernel selftest/libgpiod tests were protocol references only; no GPL/LGPL implementation copied or linked. Full research retained in .logs/gpio-kernel/research-549-harness-next.txt.
+- Written-software gap is removed, but AC1/2 remain unchecked and status Backlog: the literal prepared Linux CI image and Pi safe-jumper test were NOT run. A gpio-sim sysfs pull is not a Pi output stimulus. No kernel/configfs/sysfs/device write or probe occurred during authoring.
+
+Proof: tests/run --only gpio_kernel_tool PASS (pure validation/owned cleanup/failure/retained child and bounded self-child output/deadline checks plus opt-in refusal); zinc check tests/data/gpio/kernel.ts PASS against the clean common aafdbfbbd binary, SHA256 8194f0139052b0de0faabe5587d7e5c051aec62bc93ee62ab23d3a89a23d91f4. No native build, T1, suite, CI, hardware or timing/performance run. Logs/provenance .logs/gpio-kernel/.
+
+Proposed tests: in an owner-prepared Linux gpio-sim image, ZINC_GPIO_KERNEL_TEST=1 ZINC=/absolute/linux/zinc timeout 30 tests/run --only gpio_kernel (actual chardev request/set/get/bias/edge/debounce/release and owned cleanup, ~10–15 s, memory unmeasured); separately selected Pi3B+ safe jumper stimulus with the same public assertions (not yet supplied/run). AC1/2 stay open until those literal proofs. No new task.
+
+Proposed later line: ZN-549: execute the written gpio_kernel harness in the prepared Linux image; Pi jumper stimulus remains separate, and forced/unreapable-child teardown requires the reported owner cleanup.
+
+Usage: tools/usage reported usage: n/a.
+
 <!-- SECTION:NOTES:END -->

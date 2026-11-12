@@ -86,3 +86,55 @@ References: [kernel v2 GPIO ABI](https://www.kernel.org/doc/html/latest/userspac
 [libgpiod licence](https://kernel.googlesource.com/pub/scm/libs/libgpiod/libgpiod/+/8da049f2d7eacac5a290af27a90a871685b35ee4/COPYING).
 libgpiod is an independent testing oracle only: its LGPL implementation is neither
 copied nor linked, and its v1/v2 distro ABI split adds no Zinc dependency.
+
+## Prepared Linux kernel integration
+
+`tests/t1/gpio_kernel.sh` is an explicit opt-in integration harness, separate
+from the intercepted-UAPI T0. It uses the real public `zinc:gpio` module against
+one kernel `gpio-sim` device created only for this run. It has not yet been run
+in the prepared Linux CI image; ZN-549 AC1 and the Pi jumper AC2 remain open.
+
+The image must already provide Python 3.9+, GPIO chardev v2, `CONFIG_GPIO_SIM`
+(built in or already loaded), mounted configfs, delegated write access to its
+`gpio-sim` subsystem, and read/write access to the resulting character device
+and simulator sysfs controls. Supply a Linux Zinc with its native compiler or
+prebuilt GPIO plugin. The harness never loads a module, mounts a filesystem,
+installs tools, changes permissions or contacts physical GPIOs. Without opt-in
+or prepared prerequisites it exits 77. Once it creates its device, an unsupported
+operation, missing access or failed assertion is a failure, not a skipped pass.
+
+At an owner-selected milestone in that prepared image:
+
+```sh
+ZINC_GPIO_KERNEL_TEST=1 ZINC=/absolute/linux/zinc timeout 30 tests/run --only gpio_kernel
+```
+
+For a configfs mount outside `/sys/kernel/config`, invoke the runner directly
+with `--config-root <mounted-configfs>/gpio-sim` and the same environment.
+The runner verifies `/proc/self/mountinfo`, creates a unique owned configfs
+leaf, and reads the kernel's `dev_name` and `chip_name`; it never guesses a
+chip index. Zinc currently accepts indexes 0–255. It removes deterministic
+clock, scripted GPIO and frame-limit overrides before the real-clock fixture.
+
+The fixture checks initial output, set/get against the independent simulator
+value, exclusive requests and release, observable input bias, both edge
+identities, monotonic kernel timestamps and consecutive sequences. A measured
+short pulse must be filtered by 200 ms kernel debounce; stable changes must
+produce the expected reads and edges. A pulse delayed beyond its short bound
+fails as inconclusive under load. Reported configuration alone is not proof of
+bias or debounce. This is kernel behavior, not physical electrical evidence.
+It does not substitute for the separately selected Pi jumper stimulus.
+
+The child has a 15 s deadline, a 64 KiB output cap and a bounded kill/reap phase.
+Only after the child is reaped does cleanup deactivate the owned device and
+remove its line, bank and device directories in reverse order. Cleanup errors
+report the owned path. A killed child that cannot be reaped within five seconds
+leaves the chip explicitly retained and reports its PID/path; the image owner
+must resolve it before removing that chip. A forced kill of the runner itself
+can also leave its named device behind; there is no global cleanup of other
+clients' configfs devices.
+
+`tests/run --only gpio_kernel_tool` checks the runner's path/mount validation,
+cleanup order/failure, opt-in refusal, retained-child path, output cap and
+deadline using pure fixtures and bounded self-child processes. It never touches
+kernel GPIO/configfs and cannot satisfy the kernel integration criterion.
