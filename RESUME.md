@@ -23,7 +23,7 @@ Owner steering: after the engaged1034 batch, prioritize a safe engine/runtime ch
 
 1030 structural storage/views and related RT/allocator/render work are held,1024 needs heldmain/timing, conformance/fuzz/performance campaigns unselected.597 and575/1068/1078.29 quiet gates remain unselected;897 joinedICE open;1066 privateHermes only;512 no actual ARM;164 genericlibuv split open. No new service/demo/SDK/OS/device action. Full pending task details in State/task notes.
 
-No active sourceworker:203.09 is integrated/archived/released/removed EXIT0 beforebranchdelete. Next safe engine claim only after removal EXIT0 and freshownership/prioritygate; QJS/RT/main/HAL/UI/kit-host remain held.
+Active sole SOURCEworker:203.06whole readPixels destinationpreservation, `.worktrees/20306-readpixels-preserve` branchwork/20306-readpixels-preserve. TRUE2967e0058 clean/hooksACKbefore reads. FreshALL30scopedtracked+untracked GL/generator/callers clear beforeclaim; full `.logs/research-next-engine-s.txt` and `.logs/worker-readpixels-s-brief.txt`. Actualbaseline required beforeedit; exactuntouchednumericGLArrayslots/errors/gaps/tails/zero/outofframe wholebatch, compoundAC1unchecked/Backlog. OwnGLtargets only, immutable commonSOURCEdc2/CLI8848/moduleccafd/rootstatic7164; existingZINC_ZIGexplicit. Workerowns/pollsownheavycommands; no S pending. QJS/RT/main/HAL/UI/kit-host remainheld; nofullAPI/campaign/appclaim.
 
 ## Tests to run (owner picks)
 
