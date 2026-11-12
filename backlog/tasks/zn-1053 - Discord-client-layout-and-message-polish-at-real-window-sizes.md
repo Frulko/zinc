@@ -42,5 +42,25 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 - [ ] #1 At 320 px the composer folds buttons into a menu and the Go Live dialog fits a 700 px window; minWidth verified
 - [ ] #2 Markdown lists draw bullets; the member list reads its list id; the picture map is capped (LRU); acks only when the channel is visible and focused
 - [ ] #3 Thread pane has a composer; newer pages load when a jump-back history is scrolled to its end; pin permission follows GUILD_MEMBER_UPDATE
-- [ ] #4 Share dialog uses real gear and monitor icons and updates thumbnails in place; the shield has a tooltip
+- [x] #4 Share dialog uses real gear and monitor icons and updates thumbnails in place; the shield has a tooltip
 <!-- AC:END -->
+
+
+## Implementation Notes
+
+### AC4 share-picker glyphs (2026-11-12)
+
+- Reused `zinc:icons` lazy `Icon` canvases for the literal Lucide `monitor` and `settings` names, with current kit `themeColor` roles. Kept Settings text, button role, accessible “Resolution and frame rate” name and keyboard action. No public picker/provider contract, thumbnail ownership, constructor/close path or native lifecycle changed.
+- The same-source refresh already updates `this.thumbs` image handles without rebuilding cards/list; retained it. The existing safe-mode shield in `examples/discord/src/components/ChannelList.tsx` already uses `Tooltip` and the same translated safe-on/off/until aria-label; source-audited it without a Discord/account/network run.
+- Delegated research: [Lucide monitor](https://lucide.dev/icons/monitor), [Lucide settings](https://lucide.dev/icons/settings); shipped glyphs use the existing vendored Lucide data. Need → provider → gap: two glyphs → existing icons + kit themeColor → two picker drawing sites, no wrapper/dependency/palette.
+- `zinc check plugins/screen-capture/picker.ts` and representative `examples/discord/src/call.ts` pass. Both used approved candidate CLI SHA256 `1c561fc5809fe7876897f73d6a424bb422c5d8960aff738cf57561d4b1725e4e`. The checks automatically built existing screen-capture, camera and microphone providers; all build output retained. Camera/microphone were imported by the authorized caller check but exceeded its initially narrower native-build allowance; coordinator informed. No capture/open/device/network API ran.
+- Final proof imports the actual production picker, with native fake sources only (`ZINC_FAKE_SCREEN=1`, eight fake windows), interpreter, deterministic/headless/background + realtime, 126 frames / about 2.1 seconds (indicative, not a performance measurement). Frozen candidate `.worktrees/1124-1125-boundaries/.logs/candidate-final/zinc` verified above hash. One normal 1500ms refresh changes thumbnail image `1048579 → 1048596` while preserving node `21`, serial `22`, list identity and scroll `150`. Literal icon reachability, both glyph canvases, meaningful labels, Enter opening quality settings on the next frame, cancel and resolved null all pass. Frame120 screenshot inspected with dialog/settings visible, before cancel124.
+- Evidence in worker `.logs/picker1053/`: `check-03/picker.log`, `caller-check-04/caller.log`, `smoke-07/run.log`, `smoke-07/picker-120.png`, complete source/fixture/import/config snapshots and provider/compiler manifests. Earlier smoke05 wrongly treated `ui.find` as a text handle; smoke06 wrongly asserted synchronous keyDown handling. Authentic failure logs and fixtures retained; only fixture corrected. Smoke06 launched before the binary-freeze message and the build-path CLI changed before its post-run hash: do not use that run for stable compiler provenance. Final smoke07 uses the frozen CLI.
+- AC4 checked; AC1/2/3 remain open and this task stays Backlog. Expanded dialog footer clipping at 700px remains AC1, visible in the screenshot. The screen-capture audit's native stale-slot/race/open-timeout issues are outside glyph scope and remain unfixed. No AOT/QuickJS/full Discord/real capture or cross-platform runtime claim; no suite, T1/T2, demo test, pixel comparison or benchmark run. No new lifecycle or committed app test introduced.
+
+Session usage: `usage: n/a`.
+
+### Proposed tests
+
+- Owner-selected existing `tests/run --only screen_picker`: full repeated-refresh/scroll/search/share session, roughly 6 seconds runtime plus compile, memory unmeasured. Not run here.
+- Owner-selected offline Discord safe-mode hover/focus and dark/light share-picker interaction: verify current translated tooltip and theme glyphs, bounded 10 seconds plus compile, memory unmeasured; no account/network or real capture needed.

@@ -7,7 +7,8 @@
 // Built with zinc:ui's nodes on its own modal layer, in the kit theme's colours, so it works the same under the Solid and the React models
 // and needs nothing mounted.
 import * as ui from 'zinc:ui';
-import { theme } from 'zinc:ui/kit';
+import { theme, themeColor } from 'zinc:ui/kit';
+import { Icon } from 'zinc:icons';
 import { CaptureSource, SourceKind, getSources, permissionStatus, requestPermission } from 'zinc:screen-capture';
 
 /** What the person chose: the source ('screen', 'window', or 'device' from the Devices tab) and the box and rate to capture at (Source: the source's own size). */
@@ -216,7 +217,7 @@ class Picker {
     const t = theme();
     const row = this.el(ui.VIEW, 'flex-row items-center gap-2 px-1 pb-1', card);
     if (s !== null && s.appIcon >= 0) { const i = this.el(ui.IMAGE, 'w-[20] h-[20]', row); ui.setImageHandle(i, s.appIcon); }
-    else if (s !== null && s.kind === 'screen') this.el(ui.VIEW, `w-[18] h-[12] rounded-sm border-2 border-${t.mutedForeground}`, row);
+    else if (s !== null && s.kind === 'screen') ui.insert(row, Icon({ name: 'monitor', size: 18, color: () => themeColor('mutedForeground') }), -1);
     this.text(name, `grow text-sm text-${t.foreground} truncate`, row);
   }
   private buildRest(): void {
@@ -231,7 +232,8 @@ class Picker {
     const sw = this.el(ui.VIEW, `flex-row gap-1 p-1 rounded-lg bg-${t.background}`, line);
     this.seg('SD', isSd, true, sw, () => { this.res = SD.res; this.fps = SD.fps; });
     this.seg('HD', isHd, hdOk, sw, () => { this.res = HD.res; this.fps = HD.fps; });
-    const gear = this.el(ui.VIEW, `h-[40] px-3 rounded-lg items-center justify-center ${this.more ? `bg-${t.muted}` : `bg-${t.background} hover:bg-${t.muted}`}`, line);
+    const gear = this.el(ui.VIEW, `h-[40] px-3 rounded-lg flex-row gap-2 items-center justify-center ${this.more ? `bg-${t.muted}` : `bg-${t.background} hover:bg-${t.muted}`}`, line);
+    ui.insert(gear, Icon({ name: 'settings', size: 18, color: () => themeColor('foreground') }), -1);
     this.text('Settings', `text-sm text-${t.foreground}`, gear);
     ui.setRole(gear, 'button');
     ui.setLabel(gear, 'Resolution and frame rate');

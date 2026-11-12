@@ -370,6 +370,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Hidden tab tracks stay idle and reveal the latest selected tab when their section opens again.
 - Solid apps run `onCleanup` when their mounted root is destroyed or replaced, releasing owned effects, timers and playback resources.
 - Mail keeps keyboard focus on the message row when closing its reader, including after marking the message read.
+- The screen-sharing picker shows gear and monitor icons alongside its existing labels.
 
 ### The web
 
