@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["tools/canvas-wpt", "third_party/wpt-canvas/", "tests/t0/canvas_wpt_tool.sh"], "tests": ["canvas_wpt_tool"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/dyn.cpp", "src/frontend/dyn.h", "tests/data/dyn_callback/", "tests/native/dyn_callback/", "tests/t0/dyn_callback.sh"], "tests": ["dyn_callback"]},
     {"paths": ["src/frontend/check.cpp", "tests/data/closure_arity/", "tests/t0/closure_arity.sh"], "tests": ["closure_arity"]},
     {"paths": ["tools/check-audio-loopback.py", "tests/t0/audio_loopback_tool.sh", "tests/data/audio/loopback.ts", "tests/t1/audio_loopback.sh"], "tests": ["audio_loopback_tool"]},

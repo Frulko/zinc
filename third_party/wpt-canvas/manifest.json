@@ -1,0 +1,19 @@
+{
+  "revision": "0e3495aa72373a19ef8ba9ba2b28fdb52ff6ffb5",
+  "tests": [
+    "html/canvas/element/transformations/2d.transformation.scale.basic.html",
+    "html/canvas/element/transformations/2d.transformation.translate.basic.html",
+    "html/canvas/element/the-canvas-state/2d.state.saverestore.fillStyle.html",
+    "html/canvas/element/fill-and-stroke-styles/2d.fillStyle.default.html",
+    "html/canvas/element/pixel-manipulation/2d.imageData.create1.basic.html"
+  ],
+  "sha256": {
+    "html/canvas/element/transformations/2d.transformation.scale.basic.html": "47b7fe993be3d343dc6465555ddde5215bc0935ffe4fdca7bbf16337221506ab",
+    "html/canvas/element/transformations/2d.transformation.translate.basic.html": "8c8a82d8289a531238f4566ba4318306a0ad6b51f73976dafff051c3e63129f5",
+    "html/canvas/element/the-canvas-state/2d.state.saverestore.fillStyle.html": "3394911f219adf1fa16af1ff9295e3c7cf75262ffa8d18fd5fe5164344ca60f8",
+    "html/canvas/element/fill-and-stroke-styles/2d.fillStyle.default.html": "8c36cb72e9907a315dd72975b30d137f3899dfaf47ca2637207bf9cb7301163a",
+    "html/canvas/element/pixel-manipulation/2d.imageData.create1.basic.html": "5dacf9a6951ad6e2dade101752a4e41baae43b175eb06d0d4c214bcb404bf200",
+    "html/canvas/resources/canvas-tests.js": "51d5be9a7132587197e2a1dd2ef20ae0e00cf9d7dfa0d44c5d0b89e062fb5322",
+    "LICENSE.md": "5fac07febb0e2a97fb0d7b0def149ec08b642e1ba4b9c345283ab1cbd2af6570"
+  }
+}

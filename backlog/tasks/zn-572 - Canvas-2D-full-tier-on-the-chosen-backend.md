@@ -5,7 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-09 08:11'
-updated_date: '2026-11-07 18:30'
+updated_date: '2026-11-12 04:56'
 labels:
   - games
   - js
@@ -65,4 +65,22 @@ OPEN: #1 WPT subset: not started, as the first handover says (pin a commit, tool
 NEXT COMMAND: tools/test-lib (add p5 2.3), then 'tools/canvas2d-ref libs p5v2' with a new page; for #1 the plan of the first handover.
 Review 2026-10-25: done-partly. Steps 1 to 3 plus Phaser CANVAS and p5 1.11 (0.988) match Chrome. Left: WPT canvas subset at 80 percent, p5 2.3 reference, and the 60 fps / 1,000 ellipses criterion the notes say cannot pass on QuickJS (move it to the JSC/V8 engines or drop). Evidence: tests/t1 webenv_canvas2d_full.sh, webenv_canvas2d_libs.sh, example_js_p5.sh; handover in the task notes
 Review 2026-11-07: done-partly. Full tier is largely built; WPT 80% sweep, p5 2.3 SSIM and fps gate remain. Evidence: tests/t1/webenv_canvas2d_full.sh; webenv_canvas2d_libs.sh; example_js_p5.sh
+
+
+2026-11-12 — software-only WPT seed/tooling increment, work/572-canvas-wpt, true reset base f4b9ace31d2f4ec173b4ea453521be97711a6867. All three AC remain OPEN; no conformance score, SSIM or FPS result is claimed.
+
+Read delegated primary research `.logs/research-canvas-h.txt`. Upstream [WPT](https://github.com/web-platform-tests/wpt/tree/0e3495aa72373a19ef8ba9ba2b28fdb52ff6ffb5), [testharness documentation](https://web-platform-tests.org/writing-tests/testharness.html), [API](https://web-platform-tests.org/writing-tests/testharness-api.html) and canvas helper informed the narrow adapter. Five cases were fixed before any execution: scale, translate, fillStyle save/restore, default fillStyle and createImageData. `third_party/wpt-canvas` retains their byte-identical HTML, full unchanged canvas-tests.js helper, BSD-3-Clause LICENSE, exact revision and per-file SHA256 manifest; README and third-party row document the limited coverage. No build dependency or downloader. Existing tools/test-lib already has p5 2.3.4; the older handover's missing-version statement is stale.
+
+`tools/canvas-wpt` validates the immutable revision/list/denominator and every upstream hash, extracts the exact inline callbacks through stdlib HTMLParser, and rejects unexpected dependencies/structure. It supplies strict test assertions and only the synchronous upstream _addTest load lifecycle; it does not implement or replace any Canvas API. Missing/duplicate/malformed result, zero tests, missing completion, exception, unsupported API or failed process cannot pass. The real command is serial QuickJS/headless, 10 seconds and 64 KiB output per case, with owned process-group termination/reaping. Generated scripts, per-case errors and summary remain in a new owned evidence directory; all five cases retain their denominator even on launch/extraction failure. Exit success requires >=4/5, the existing 80% AC threshold, not broad WPT coverage.
+
+Proof is PURE tool validation only: `.logs/t0-first.log`, `.logs/t0-final.log` and `.logs/t0-after-review.log` and `.logs/t0-hard-output-bound-2.log` record exact T0 canvas_wpt_tool PASS, using only synthetic Node callbacks and a fake pixel context. Actual upstream callbacks were extracted/compared but NEVER executed. Negative synthetic checks cover false equality and pixel assertions, missing done, unsupported promise_test, exception, double completion, zero tests, malformed/duplicate results, changed pin/hash/list and denominator; synthetic runaway/output cases prove deadline/output-group cleanup and an on-disk log no larger than 64 KiB. Coordinator review found the first polling-file approach could overshoot that byte cap; the final pipe reader writes at most the cap and retains an explicit limit error, without limiting unrelated engine cache files. The first pipe check exposed a Darwin EPERM when killing a completed, unreaped group at EOF; bounded parent wait/reap before group cleanup corrected it. That failed T0 log and its exact source snapshot are retained. Real Canvas, WPT, Zinc engines, p5/Phaser frames and performance were NOT run. No engine build, owner-held source change, SDK/OS/service action or owned process remains. No user-visible engine change, therefore no changelog entry.
+
+Next command when owner-selected: `/absolute/main/tools/work-run 60 tools/canvas-wpt --zinc /absolute/clean/build/zinc`. Its runtime compatibility and actual Canvas results are still unproven; an engine gap must be fixed in the engine, never hidden by adapting a test. This seed is a starting subset, not completion of the broader Canvas criterion.
+
+Proposed decision (no D number): retain a few immutable upstream cases and the helper locally, preserving callback bodies and numerical assertions; use the existing QuickJS web facade with a small explicit lifecycle adapter instead of downloading all WPT or replacing Canvas semantics. No new library. No measured performance or memory number. Usage: n/a.
+
+Proposed tests:
+- Owner-selected bounded `tools/canvas-wpt --zinc <clean-zinc>`: actual five-case Canvas result, <=50 seconds plus setup/cleanup, memory unmeasured; currently UNRUN.
+- Owner-selected p5 2.3.4/1.11 and Phaser CANVAS Chrome SSIM comparison, then separate quiet JSC/V8 ellipse FPS gate; existing tools/test-lib and canvas2d-ref, duration/memory unmeasured. Full WPT only at a separately selected milestone.
+
 <!-- SECTION:NOTES:END -->

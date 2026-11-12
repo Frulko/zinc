@@ -1,0 +1,325 @@
+#!/usr/bin/env python3
+"""Run the five pinned Canvas WPT cases, serially (owner-selected conformance only).
+
+    tools/canvas-wpt --self-test    # pure harness checks; never runs Canvas/WPT
+    tools/canvas-wpt [--zinc PATH] # actual conformance; evidence in .logs/canvas-wpt
+"""
+import argparse
+import hashlib
+from html.parser import HTMLParser
+import json
+import os
+from pathlib import Path
+import signal
+import select
+import subprocess
+import tempfile
+import time
+
+ROOT = Path(__file__).resolve().parent.parent
+CORPUS = ROOT / 'third_party/wpt-canvas'
+REVISION = '0e3495aa72373a19ef8ba9ba2b28fdb52ff6ffb5'
+TESTS = (
+    'transformations/2d.transformation.scale.basic.html',
+    'transformations/2d.transformation.translate.basic.html',
+    'the-canvas-state/2d.state.saverestore.fillStyle.html',
+    'fill-and-stroke-styles/2d.fillStyle.default.html',
+    'pixel-manipulation/2d.imageData.create1.basic.html',
+)
+PREFIX = 'html/canvas/element/'
+HELPER = 'html/canvas/resources/canvas-tests.js'
+SCRIPTS = ['/resources/testharness.js', '/resources/testharnessreport.js', '/' + HELPER]
+MARKER = 'WPT-CANVAS-RESULT:'
+LIMIT = 65536
+
+
+def corpus(directory=CORPUS):
+    manifest = json.loads((directory / 'manifest.json').read_text())
+    expected = [PREFIX + name for name in TESTS]
+    if manifest['revision'] != REVISION or manifest['tests'] != expected:
+        raise ValueError('wrong WPT revision or fixed test list')
+    if set(manifest['sha256']) != set(expected + [HELPER, 'LICENSE.md']):
+        raise ValueError('unexpected corpus files')
+    for name, digest in manifest['sha256'].items():
+        if hashlib.sha256((directory / name).read_bytes()).hexdigest() != digest:
+            raise ValueError('checksum mismatch: ' + name)
+    return expected
+
+
+class Page(HTMLParser):
+    def __init__(self, text):
+        super().__init__(convert_charrefs=False)
+        self.scripts, self.inline, self.canvases = [], [], []
+        self.script = None
+        self.feed(text)
+        self.close()
+        if self.script is not None or self.scripts != SCRIPTS or len(self.inline) != 1 or len(self.canvases) != 1:
+            raise ValueError('unsupported WPT page structure or dependencies')
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == 'script':
+            if self.script is not None or set(a) - {'src'}:
+                raise ValueError('unsupported script')
+            self.script = [a.get('src'), '']
+        elif tag == 'canvas':
+            if a.get('id') != 'c':
+                raise ValueError('unsupported canvas')
+            size = (int(a['width']), int(a['height']))
+            if not all(0 < n <= 1024 for n in size):
+                raise ValueError('unbounded canvas')
+            self.canvases.append(size)
+
+    def handle_data(self, data):
+        if self.script is not None:
+            self.script[1] += data
+
+    def handle_endtag(self, tag):
+        if tag == 'script':
+            if self.script is None:
+                raise ValueError('unmatched script')
+            src, text = self.script
+            if src:
+                if text.strip():
+                    raise ValueError('external script has inline code')
+                self.scripts.append(src)
+            else:
+                self.inline.append(text)
+            self.script = None
+
+
+# shortcut: only the fixed synchronous canvas-tests.js load lifecycle is supported;
+# add upstream testharness support before selecting asynchronous/resource cases.
+ADAPTER = r'''
+const __wptEvents = [], __wptTests = [];
+function on_event(target, kind, callback) {
+  if (target !== window || kind !== 'load') throw new Error('unsupported event');
+  __wptEvents.push(callback);
+}
+function assert_equals(a, b, message) { if (!Object.is(a, b)) throw new Error(message || 'assert_equals'); }
+function assert_not_equals(a, b, message) { if (Object.is(a, b)) throw new Error(message || 'assert_not_equals'); }
+function assert_true(value, message) { assert_equals(value, true, message); }
+function async_test(name) {
+  const result = {name, state: 'pending', error: ''};
+  __wptTests.push(result);
+  function transition(next) {
+    if (!(result.state === 'pending' && next === 'running' || result.state === 'running' && (next === 'passed' || next === 'failed')))
+      throw new Error('illegal test transition ' + result.state + ' -> ' + next);
+    result.state = next;
+  }
+  return {
+    step(fn, context, ...args) {
+      if (result.state === 'failed') return;
+      if (result.state === 'pending') transition('running');
+      if (result.state !== 'running') throw new Error('step after completion');
+      try { fn.apply(context, args); }
+      catch (e) { transition('failed'); result.error = String(e); }
+    },
+    done() { if (result.state !== 'failed') transition('passed'); }
+  };
+}
+'''
+FINISH = r'''
+for (const callback of __wptEvents) callback();
+if (__wptTests.length !== 1) throw new Error('expected exactly one upstream test');
+console.log('WPT-CANVAS-RESULT:' + JSON.stringify(__wptTests[0]));
+'''
+
+
+def source(text, helper, setup=None):
+    page = Page(text)
+    w, h = page.canvases[0]
+    if setup is None:
+        setup = "const __wptCanvas = document.createElement('canvas');\n"
+        setup += f"__wptCanvas.id = 'c'; __wptCanvas.width = {w}; __wptCanvas.height = {h};\n"
+        setup += 'document.body.appendChild(__wptCanvas);\n'
+    return setup + ADAPTER + '\n' + helper + '\n' + page.inline[0] + '\n' + FINISH
+
+
+def passed(returncode, output):
+    lines = [line[len(MARKER):] for line in output.splitlines() if line.startswith(MARKER)]
+    if returncode or len(lines) != 1:
+        return False
+    try:
+        result = json.loads(lines[0])
+        return result['state'] == 'passed' and result['error'] == ''
+    except (ValueError, KeyError, TypeError):
+        return False
+
+
+def execute(command, output, seconds=10):
+    """Bound process group, output bytes and deadline, including failure cleanup."""
+    with output.open('wb') as stream:
+        proc = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                start_new_session=True, env={**os.environ, 'ZINC_ROOT': str(ROOT),
+                                'ZINC_HEADLESS': '1', 'ZINC_BACKGROUND': '1', 'ZINC_WEB': '1',
+                                'ZINC_DETERMINISTIC': '1', 'ZINC_FRAMES': '2'})
+        end, captured, reason = time.monotonic() + seconds, 0, ''
+        try:
+            while True:
+                ready = select.select([proc.stdout], [], [], .02)[0]
+                if ready:
+                    chunk = os.read(proc.stdout.fileno(), min(4096, LIMIT - captured + 1))
+                    if not chunk:
+                        try:
+                            proc.wait(timeout=max(.001, end - time.monotonic()))
+                        except subprocess.TimeoutExpired:
+                            reason = 'deadline exceeded'
+                        break
+                    stream.write(chunk[:LIMIT - captured])
+                    captured += len(chunk)
+                    if captured > LIMIT:
+                        reason = 'output limit exceeded'
+                        break
+                elif proc.poll() is not None:
+                    break
+                if time.monotonic() >= end:
+                    reason = 'deadline exceeded'
+                    break
+        finally:
+            # Reap an exited parent before killing any surviving group members.
+            proc.poll()
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.wait(timeout=2)
+            proc.stdout.close()
+    data = output.read_bytes()
+    if reason:
+        suffix = ('\n' + reason + '\n').encode()
+        data = data[:LIMIT - len(suffix)] + suffix
+        output.write_bytes(data)
+    return (1 if reason else proc.returncode), data.decode('utf-8', errors='replace')
+
+
+def report_for(results):
+    if [item['path'] for item in results] != [PREFIX + name for name in TESTS]:
+        raise ValueError('incomplete or reordered fixed denominator')
+    count = sum(item['passed'] for item in results)
+    return {'revision': REVISION, 'passed': count, 'total': len(TESTS), 'results': results}
+
+
+def run(zinc):
+    names = corpus()
+    helper = (CORPUS / HELPER).read_text()
+    evidence = ROOT / '.logs/canvas-wpt' / time.strftime('%Y%m%d-%H%M%S')
+    evidence.mkdir(parents=True, exist_ok=False)
+    results = []
+    for name in names:
+        stem = Path(name).stem
+        script = evidence / (stem + '.js')
+        log = evidence / (stem + '.log')
+        try:
+            script.write_text(source((CORPUS / name).read_text(), helper))
+            code, output = execute([zinc, 'run', str(script), '--engine', 'quickjs'], log)
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+            code, output = 1, str(error)
+            log.write_text(output + '\n')
+        ok = passed(code, output)
+        results.append({'path': name, 'passed': ok, 'returncode': code, 'log': stem + '.log'})
+        print(('PASS ' if ok else 'FAIL ') + name)
+    report = report_for(results)
+    count = report['passed']
+    (evidence / 'summary.json').write_text(json.dumps(report, indent=2) + '\n')
+    print(f'{count}/{len(names)} fixed cases; evidence: {evidence}')
+    return int(count * 100 < len(names) * 80)
+
+
+def self_test():
+    import shutil
+    names = corpus()
+    helper = (CORPUS / HELPER).read_text()
+    for name in names:
+        text = (CORPUS / name).read_text()
+        assert Page(text).inline[0] in source(text, helper)
+    def page(body):
+        return ''.join('<script src="' + s + '"></script>' for s in SCRIPTS) + \
+            '<canvas id="c" width="100" height="50"></canvas><script>' + body + '</script>'
+    fake = """globalThis.window = globalThis;
+const ctx = {getImageData() { return {data: [1, 2, 3, 4]}; }};
+const canvas = {getContext() {return ctx;}};
+const document = {getElementById() {return canvas;}};
+"""
+    bodies = [
+        ("var t=async_test('pass'); _addTest(function(c,ctx) {_assertSame(1,1,'a','b'); _assertDifferent(1,2,'a','b'); _assertPixel(c,0,0,1,2,3,4);});", True),
+        ("var t=async_test('assert'); _addTest(function() {_assertSame(1,2,'a','b');});", False),
+        ("var t=async_test('pixel'); _addTest(function(c) {_assertPixel(c,0,0,1,2,99,4);});", False),
+        ("var t=async_test('missing done'); t.step(function() {assert_true(true);});", False),
+        ("var t=async_test('throw'); _addTest(function() {throw new Error('bad');});", False),
+        ("var t=async_test('unsupported'); _addTest(function() {promise_test(function() {});});", False),
+        ("var t=async_test('duplicate done'); _addTest(function() {t.done();});", False),
+        ("", False),
+    ]
+    with tempfile.TemporaryDirectory(prefix='canvas-wpt-self-') as temporary:
+        directory = Path(temporary)
+        for i, (body, expected) in enumerate(bodies):
+            script = directory / f'{i}.js'
+            script.write_text(source(page(body), helper, fake))
+            code, output = execute(['node', str(script)], directory / f'{i}.log', 2)
+            assert passed(code, output) == expected, (i, code, output)
+        for i, body in enumerate(["while (true) {}", "while (true) console.log('x'.repeat(4096));"]):
+            script = directory / 'bounded.js'; script.write_text(body)
+            code, output = execute(['node', str(script)], directory / f'bounded-{i}.log', .2)
+            assert code != 0 and ('exceeded' in output), output
+            assert (directory / f'bounded-{i}.log').stat().st_size <= LIMIT
+        # These are synthetic lifecycle/assertion checks, not the five WPT cases.
+        for body in [page('').replace(SCRIPTS[0], '/unexpected.js'), page('') + '<script></script>', '<canvas></canvas>']:
+            try:
+                Page(body)
+            except (ValueError, KeyError):
+                pass
+            else:
+                raise AssertionError('unsupported page accepted')
+        copy = directory / 'corpus'
+        shutil.copytree(CORPUS, copy)
+        manifest = copy / 'manifest.json'
+        original = manifest.read_text()
+        for key, value in [('revision', '0'*40), ('tests', []), ('sha256', {})]:
+            data = json.loads(original); data[key] = value
+            manifest.write_text(json.dumps(data))
+            try:
+                corpus(copy)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('invalid manifest accepted')
+        manifest.write_text(original)
+        (copy / names[0]).write_text('corrupt')
+        try:
+            corpus(copy)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('corrupt corpus accepted')
+    valid = MARKER + json.dumps({'state': 'passed', 'error': ''})
+    assert passed(0, valid)
+    assert not passed(1, valid) and not passed(0, valid + '\n' + valid)
+    assert not passed(0, MARKER + '{}') and not passed(0, MARKER + 'broken')
+    assert not passed(0, '')
+    mixed = [{'path': name, 'passed': i % 2 == 0} for i, name in enumerate(names)]
+    result = report_for(mixed)
+    assert result['passed'] == 3 and result['total'] == 5
+    for incomplete in [mixed[:4], list(reversed(mixed))]:
+        try:
+            report_for(incomplete)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('denominator changed')
+    print('canvas_wpt_tool: corpus/extraction/assertions/lifecycle/failures/accounting PASS; no Canvas conformance run')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--zinc', default=os.environ.get('ZINC', str(ROOT / 'build/zinc')))
+    parser.add_argument('--self-test', action='store_true')
+    args = parser.parse_args()
+    if args.self_test:
+        self_test()
+        return 0
+    return run(args.zinc)
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
