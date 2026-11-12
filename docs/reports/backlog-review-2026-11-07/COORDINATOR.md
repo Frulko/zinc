@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- M/root urgent recovery: integrated ONLY1124 prefix2b as da1bd8e31; root owner-context MAIN rebuild +sidecar-screen/sidecar signed exports/deep strict signatures PASS. Shared bundle licence fix4d0630934 +exactT0 committed by root; UI prependRows Map-only overlay remains WIP with owner migration, new protected UI hash6e6c6a9... canonical updated, other9/perf15 preserved. MAIN binary OWNER-WIP, never clean baseline.1124 Done/count96;1125/26 unintegrated,1127 saved/untested resumes fresh SAMEtree/noreset. Future integration excludes old2b prefix.1053 sourceec6 integrated/proved, archive pending. No suite; nextD337/archive97.
+
 - M integrated1053 sourceec6d05914 (AC4/Backlog, rootproof/archive pending); owner10/perf15/index preserved. Created/claimed1127 New-taskblocks originalsender: dependency-free fluent40 check timesout5s, repeatedreceiver checker doubling identified by primary/source research. Same engine worker extends after1126caa7e7155 BacklogAC1/2green; wire+consumer realall3PASS, sender remains compile-blocked. Actual3Dcaller19 nowPASS, initial25 was2D/mistarget, retained and corrected.95Done,nextD337/archive97.
 
 - M claimed1053 AC4 share-picker completion after read-only research-next-m: existing same-node thumbnail refresh and shield Tooltip retained; only missing settings/monitor glyphs change in screen-capture picker, no native capture/lifecycle rewrite or Discord network. Independent app/plugin TS worker, no CLI build, existing fake sources only and one short capture/refresh proof; no selected T1. Sole core1126 remains active;95Done,nextD337/archive97.
