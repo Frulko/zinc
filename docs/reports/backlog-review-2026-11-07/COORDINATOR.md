@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- COORDINATOR HANDOFF2026-11-12k: K leads only after .logs/coord-transfer-20261112-k.ready; J ceases all coordination then. FULL .logs/COORDINATOR-K-HANDOFF.md. Active563.01 source owns new optional SDL dispatch; objects/plugin/Mac GPU pass but final dispatch proof pending, no Linux runtime claim.1039 parked ten uncommitted payloads after real try-flow gap, claim kept.1124 newly created/claimed a8d3d9ba7 with empty clean source tree, NO WORKER YET; K starts fresh solefrontend worker after marker.681 e79cc0cc9/D333/archive93/rootPASS/sourcecleaned,94Done,nextD334/archive94. No root pending; owner audit before marker.
+
 - Created/claimed1124 New-taskblocks pinballlifetime: valid16line try/catchfield+localassign acceptedTS6strict, current6121edcc8Z0111/Z0103; primary/source research .logs/research-try-j.txt. Newsolefrontendworker next, noownerRT/HAL/UI/main/nativechanges.1039sourceparkeduncommittedtenpayloads+logs, claimretained, no workaround.563GPUcontinuesindependent; crossAOTundefinedSDLrevealsmissingoptionalruntime, privateSDLdispatchfallbackplanaccepted nohostedit, noGPUAOTclaim.
 
 - Claimed1039 existingpinball scene/audio lifetime after primary/source research .logs/research-apps-j.txt: tablechanges/editorrebuild dropmeshes/camera/sounds withoutdispose/unload. App-onlysharedclasses/callers/constructorrollback/exactlifecycleT0, no3d/audio nativeedit/newdemo/service/assetdownload. Sharedimagecache keptunlesscorrectboundaryproved; noglobalforgetperdrop/totalRSSclaim. AllcompoundACstayopen; independent563.01GPUactive, sharedheavyqueue.
