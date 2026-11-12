@@ -1,7 +1,7 @@
 ---
 id: ZN-1126
 title: Resolve imported record types in QuickJS checked JSON copies
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-12 10:10'
@@ -25,7 +25,7 @@ Blocks ZN-1037 AC3 and ZN-1125 production proof: WirePlaylist.rules?:ipod.SmartR
 <!-- AC:BEGIN -->
 - [x] #1 Supported imported record types, including plugin namespace and type-only imported/local-reexported bindings, participate in QuickJS checked JSON copies; missing required fields and malformed nested records throw TypeError as on interpreter and native AOT.
 - [x] #2 Focused relative namespace, named alias, local re-export, export-from/star, same local names in separate modules and recursive/import-cycle controls preserve module identity and terminate; native wire schemas stay byte-identical.
-- [ ] #3 The original production ZN-1037 wire, sender and atomic library-consumer fixtures pass on all three engines without caller type duplication, assertions, any casts or a daemon/network/device action.
+- [x] #3 The original production ZN-1037 wire, sender and atomic library-consumer fixtures pass on all three engines without caller type duplication, assertions, any casts or a daemon/network/device action.
 <!-- AC:END -->
 
 
@@ -46,3 +46,6 @@ Decision proposal: reuse existing read-only type-only frontend module graph plus
 ### Proposed tests
 
 - Owner-selected wider JSON shape/native record/typed-worker and package/import-map matrices (seconds to a minute, memory unmeasured); exact source/graph/all3 regressions already pass. Original daemon global check has inherited old90s/current60s compile timeouts; do not label it PASS or rerun as a suite. Complete the actual unchanged sender/consumer fixtures after the fluent checker fix.
+
+
+2026-11-12 final production closure after1127 commit5771907c6: original wire decoder all3 `.logs/production1037-stage6/` and real atomic readLibrary consumer all3 `.logs/production1037-consumer-stage6/` were already proven with actual native under frozen CLI dd5c1e73c89a1468bf860bfe74a943f853b2a2fe4435abf259e35ec03d33a4f1. The original unchanged sender-roundtrip now passes interpreter/QuickJS/actual native after call-local receiver checking, `.logs/production1037-sender-1127-stage1/`, CLI8fb03ae2ff442a5d0958cf86b9d11f08457acf240a8c894bfbeed0584fa097de from preserved1127WIP over caa7e7155. Native C++ compilation/link/run and actual app+inputs/key/provider metadata are retained in each stage; no fallback counted. Each stage snapshots all622source/import/config/fixture payloads and proves hashes unchanged. No caller type duplication/chain splitting/assertion/any-cast workaround, daemon/network/device or application-cache write. Earlier wire/consumer proofs were not repeated. One specifically authorized original ipod-web check after sender passes18files under30-second bound, `.logs/production1037-web-1127-stage1/`; original ipod103 prior pass retained. Exact affected1127 try_flow/checked_nullish/checked_imports rechecks PASS. This closesAC3; all prior authentic failures, intermediate provenance limitations and original commit history remain unchanged.

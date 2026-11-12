@@ -1,7 +1,7 @@
 ---
 id: ZN-1125
 title: Reject wrong nullish kinds in checked dynamic conversions
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-12 09:46'
@@ -24,7 +24,7 @@ Blocks ZN-1037 older-daemon wire validation: interface Reply { value?: number; }
 <!-- AC:BEGIN -->
 - [x] #1 Checked optional typed fields and values accept absence/undefined and reject explicit null, while nullable types accept null and reject undefined, on interpreter, AOT and QuickJS.
 - [x] #2 Focused nested record, array, primitive, callback/result and optional Dyn controls preserve legitimate values, explicit zero/false/empty, unknown additions and TypeError behavior without runtime storage changes.
-- [ ] #3 Original ZN-1037 production decoder fixture rejects explicit optional mediaBits:null and rules:null, while older omissions and same-version payloads still pass on all three engines without caller workaround.
+- [x] #3 Original ZN-1037 production decoder fixture rejects explicit optional mediaBits:null and rules:null, while older omissions and same-version payloads still pass on all three engines without caller workaround.
 <!-- AC:END -->
 
 
@@ -44,3 +44,6 @@ Proposed later line: D18 mixed null/undefined history in typed storage remains u
 - Owner-selected broader json_typed_shape, optional_unknown_undef, typed worker/native record and callback conversion regressions (seconds to a minute, memory unmeasured). Exact checked_nullish/try_flow already pass; actual iPod production all3 waits for the schema-resolution engine repair.
 
 2026-11-12 follow-up before1126: one bounded exact probe found an introduced strict-admission regression for `type Missing = undefined; value: number | Missing`: old1124 VM accepted missing; new VM/actualAOT refused missing because the standalone alias had already become fixed tNull. All before logs and source are retained under .logs/undefined-alias, with real native compile/run in the current probe. Shared checker now follows non-generic alias RHS in its stored declaration scope when determining a union's admitted undefined tag. Checked schema generation follows nullish aliases only with tilde=true; the native-wire unsupported alias form remains empty, asserted. Exact checked_nullish alias-stage1 passes schema assertions and actual interpreter/native/QuickJS with11 malformed cases plus aliased undefined absence; original f8dd62be2 history is retained. Build .logs/build-1125-alias-stage1.log exit0; test .logs/checked-nullish-alias-stage1.log PASS. No1126 source change is included. AC3 remains open for the separately claimed1126 namespace schema gap.
+
+
+2026-11-12 final production closure after1127 commit5771907c6: original wire decoder all3 `.logs/production1037-stage6/` and real atomic readLibrary consumer all3 `.logs/production1037-consumer-stage6/` were already proven with actual native under frozen CLI dd5c1e73c89a1468bf860bfe74a943f853b2a2fe4435abf259e35ec03d33a4f1. The original unchanged sender-roundtrip now passes interpreter/QuickJS/actual native after call-local receiver checking, `.logs/production1037-sender-1127-stage1/`, CLI8fb03ae2ff442a5d0958cf86b9d11f08457acf240a8c894bfbeed0584fa097de from preserved1127WIP over caa7e7155. Native C++ compilation/link/run and actual app+inputs/key/provider metadata are retained in each stage; no fallback counted. Each stage snapshots all622source/import/config/fixture payloads and proves hashes unchanged. No caller type duplication/chain splitting/assertion/any-cast workaround, daemon/network/device or application-cache write. Earlier wire/consumer proofs were not repeated. One specifically authorized original ipod-web check after sender passes18files under30-second bound, `.logs/production1037-web-1127-stage1/`; original ipod103 prior pass retained. Exact affected1127 try_flow/checked_nullish/checked_imports rechecks PASS. This closesAC3; all prior authentic failures, intermediate provenance limitations and original commit history remain unchanged.
