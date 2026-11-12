@@ -28,12 +28,13 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - An experimental Linux `zinc:wifi` backend adds NetworkManager scans, status and temporary Wi-Fi connections or hotspots, guarded by the `wifi` permission. A bounded nmcli fallback supplies scans and status when the direct bus transport is unavailable.
 
-- Experimental Linux `zinc:ble` adds BlueZ discovery with advertisement bytes, explicit adapter power requests and UART central links; generic GATT and peripheral support remain unfinished.
+- Experimental Linux `zinc:ble` adds BlueZ discovery with advertisement bytes, explicit adapter power requests and UART central links, plus binary GATT read/write/notify callbacks; peripheral support remains unfinished.
 
 #### Fixed
 
 - Existing hardware display drivers rebuild when the shared bus header changes, so cached plugins receive bus fixes.
 - Wi-Fi callbacks can stop or restart observation and replace scans without receiving a stale scan result; packaged Wi-Fi plugins retain their shared Linux bus header.
+- Linux Bluetooth builds with the default native compiler settings.
 
 ### Games
 

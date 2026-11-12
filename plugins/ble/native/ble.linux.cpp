@@ -3,12 +3,14 @@
 #endif
 #include "zinc_native_ble.h"
 #include "bluez.h"
+#include "gatt_sim.h"
 #include <mutex>
 #include <cstdlib>
 extern "C" int zn_host_permission(const char*, const char*, char*, int) __attribute__((weak));
 struct LinuxBle : NativeBle {
   std::mutex mutex;
   zinc::radio::BlueZ backend;
+  zinc::ble::GattSim gattSim;
   static bool simulation() {
     auto on=[](const char* k) { const char* v=getenv(k); return v && *v && strcmp(v,"0")!=0; };
     const char* n=getenv("ZINC_NATIVE"); return on("ZINC_BLE_SIM") || on("ZINC_DETERMINISTIC") || (n && strcmp(n,"sim")==0);
@@ -37,7 +39,7 @@ struct LinuxBle : NativeBle {
   static zrt::String str(const std::string& s) { return zrt::String::from(s.data(),static_cast<uint32_t>(s.size())); }
   bool allowed() {
     char why[256] = {};
-    if (zn_host_permission && zn_host_permission("bluetooth","bluetooth",why,sizeof why)) { backend.stop(); simLinks.clear(); simEvents.clear(); simScanTo(SimScan::idle); return false; }
+    if (zn_host_permission && zn_host_permission("bluetooth","bluetooth",why,sizeof why)) { backend.stop(); gattSim.stop(); simLinks.clear(); simEvents.clear(); simScanTo(SimScan::idle); return false; }
     return true;
   }
   zrt::String state() override { std::lock_guard<std::mutex> lock(mutex); if (!allowed()) return str("unauthorized"); if (simulated) { const char* s=getenv("ZINC_BLE_SIM_STATE"); return str(s?s:""); } watch(); backend.start(); backend.poll(); return str(backend.state()); }
@@ -62,6 +64,18 @@ struct LinuxBle : NativeBle {
       int h=nextSimHandle++; simEvents+="close\x1f"+std::to_string(h)+'\x1e'; return h;
     }
     watch(); return backend.connect(name); }
+  int32_t gattOpen(zrt::String id) override {
+    std::lock_guard<std::mutex> lock(mutex); if (!allowed()) return -1;
+    std::string name(id.ptr(),id.bytes()); if (simulated) return gattSim.open(name); watch(); return backend.connect(name,true);
+  }
+  zrt::String gattTree(int32_t h) override { std::lock_guard<std::mutex> lock(mutex); return str(!allowed()?"":simulated?gattSim.tree(h):backend.gattTree(h)); }
+  int32_t gattRequest(int32_t h,int32_t c,int32_t kind,zrt::Array<uint8_t> data) override {
+    std::lock_guard<std::mutex> lock(mutex); if (!allowed() || !data.a || data.length()>512) return -1;
+    std::vector<uint8_t> bytes; if(data.length()) { const auto* p=static_cast<const uint8_t*>(data.a->data); bytes.assign(p,p+data.length()); }
+    return simulated?gattSim.request(h,c,kind,bytes):backend.gattRequest(h,c,kind,bytes);
+  }
+  void gattCancel(int32_t h,int32_t request) override { std::lock_guard<std::mutex> lock(mutex); if(simulated)gattSim.cancel(h,request);else backend.gattCancel(h,request); }
+  zrt::String gattEvents() override { std::lock_guard<std::mutex> lock(mutex); return str(!allowed()?"":simulated?gattSim.events():backend.gattEvents()); }
   bool advertise(zrt::String) override {
     std::lock_guard<std::mutex> lock(mutex);
     if (allowed() && simulated) return simOpen("zinc-sim-central","Zinc sim central")>=0;
@@ -80,8 +94,8 @@ struct LinuxBle : NativeBle {
     if (allowed()) { if (simulated) { auto l=simLinks.find(h); if (l!=simLinks.end()) bytes.swap(l->second); } else bytes=backend.read(h); }
     auto out=zrt::Array<uint8_t>::with_cap(static_cast<int32_t>(bytes.size())); if (!bytes.empty()) memcpy(out.a->data,bytes.data(),bytes.size()); out.a->len=bytes.size(); return out;
   }
-  void close(int32_t h) override { std::lock_guard<std::mutex> lock(mutex); if (simulated) simLinks.erase(h); else backend.close(h); }
-  void stop() override { std::lock_guard<std::mutex> lock(mutex); backend.stop(); simLinks.clear(); simEvents.clear(); simScanTo(SimScan::idle); }
+  void close(int32_t h) override { std::lock_guard<std::mutex> lock(mutex); if (simulated) { simLinks.erase(h); gattSim.close(h); } else backend.close(h); }
+  void stop() override { std::lock_guard<std::mutex> lock(mutex); backend.stop(); gattSim.stop(); simLinks.clear(); simEvents.clear(); simScanTo(SimScan::idle); }
   zrt::String events() override { std::lock_guard<std::mutex> lock(mutex); if (!allowed()) return str("");
     if (simulated) { std::string out; out.swap(simEvents); if (simScan==SimScan::uart) out+="device\x1f-1\x1fzinc-sim\x1fZinc sim\x1f-42\x1e"; return str(out); }
     return str(backend.events()); }

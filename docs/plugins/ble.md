@@ -20,7 +20,7 @@ phone apps such as nRF Connect and Bluefruit Connect also speak.
 | macos | central: scan, connect, send, receive; built and run on x86_64 against the simulated radio; not yet run against a real ESP32 |
 | macos, `advertise()` | not on this target: it throws (a Mac would need `CBPeripheralManager`) |
 | esp32 | peripheral, in the firmware of the ESP32 engine (`firmware/esp32-mquickjs`) |
-| linux | experimental BlueZ discovery, power requests and NUS central; injected protocol/native ABI proof only, no real-radio run. Generic GATT and exported UART peripheral remain unfinished. |
+| linux | experimental BlueZ discovery, power requests and NUS central; injected protocol/native ABI proof only, no real-radio run. Generic GATT read/write/notify is available; the exported UART peripheral remains unfinished. |
 | windows, anywhere else | `state()` is `'unsupported'`; the simulated radio when asked for |
 
 ```ts
@@ -54,6 +54,53 @@ ble.scan((d: ble.Device) => {
 
 `Device.id` is what macOS calls the device: a UUID that stays the same on this Mac, not the Bluetooth address (macOS
 never shows it). `rssi` is in dBm: -30 is next to the Mac, -90 is at the edge of range; 127 when not measured.
+
+## Generic GATT central (Linux)
+
+`connectGatt(id, onOpen, onClose)` returns a `GattConnection` immediately, so `close()` can cancel a pending connection.
+Use an id from `scanAll()`; `onOpen(connection)` waits for the discovered device's `Connected` and `ServicesResolved`.
+It does not require the UART service. Real macOS generic GATT is explicitly unsupported; its UART API above is unchanged.
+The explicit simulator offers one battery-style service/characteristic with binary read/write/notify on all engines.
+
+- `connection.services()` returns the discovered `GattService { id, uuid, characteristics }` snapshot. Each
+  `GattCharacteristic` has `id`, `service`, `uuid` and `flags`; duplicate UUIDs are distinct identities. Pass the
+  characteristic object to operations, rather than a guessed path or UUID. Ids belong to this connection only.
+- `read(characteristic, (bytes, error) => ...)` returns a request id. A successful read returns up to 512 bytes and
+  an empty error; a failure returns an empty array and the sanitized error name/reason.
+- `write(characteristic, bytes, error => ..., withoutResponse = false)` sends one operation through BlueZ. A request
+  accepts at most 512 bytes; BlueZ may use its long procedure when supported, or report an error. A command is limited
+  to 20 bytes until negotiated MTU support is exposed. Zinc does not truncate, split or retry a generic write. A command's
+  successful callback means the daemon accepted it, not that the peer acknowledged it.
+- `notify(characteristic, bytes => ..., error => ...)` starts one subscription. Binary values received while its
+  acknowledgement is pending are buffered (at most 64 values/16 KiB), then delivered only after success. Failure or
+  cancellation drops them. `stopNotify(characteristic, error => ...)` stops that session; values can arrive until its
+  acknowledgement. Values reflect BlueZ's cached `Value` updates, including a successful read.
+- `cancel(requestId)` removes the callback and cancels local queued work. An operation already sent is not rolled back:
+  in particular a write may still change the peer and a sent `stopNotify` may still stop notifications. A cancelled
+  in-flight successful `StartNotify` is followed by cleanup `StopNotify` without delivering its buffered values.
+- `close()` ends this connection and calls `onClose(connection, error)` once. An explicit close has an empty error;
+  remote failures carry a reason. Pending operation callbacks are discarded on close. `ble.stop()` also closes GATT
+  connections. Callbacks may close or stop BLE without receiving further predecessor events.
+
+The backend serializes at most 32 queued operations per connection and keeps at most 16 connections, 256 discovered
+objects and a 64 KiB public tree/event budget; new connections also stop at 512 queued records. The simulator also caps its shared pending queue at 32. If a service or
+characteristic identity, parent, flags, topology or `ServicesResolved` changes, the connection closes and its attribute
+ids expire; reconnect to obtain a fresh snapshot. Notification/output overflow closes affected generic connections,
+never grows the queue indefinitely. Explicit `close()`/`stop()` is required. Closing waits for our in-flight
+subscription acknowledgement and releases acknowledged subscriptions before its best-effort disconnect. Cleanup has
+a 30-second overall budget instead of accumulating one timeout per characteristic; a pending `StartNotify` keeps its
+own finite reply lifetime. A failed/timed-out cleanup is reported by `ble.error()` and does not establish that the
+daemon released a shared physical connection or every session. Native polling finishes ordinary cleanup after the
+public timer stops; static teardown/reload after polling ceases remains unproven.
+
+BlueZ's `Device1` connection is shared with other clients. Zinc refuses a device already observed connected, but cannot
+make a raced physical connection private or guarantee cancellation after a daemon timeout. No automatic pairing/trust,
+blind retry or foreign-profile cleanup is performed. Native factory/VM reload and concurrent-VM limitations remain as
+described below. No real-radio or prepared `btvirt` run is claimed by the injected protocol and simulator proofs.
+
+See the [BlueZ characteristic API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.GattCharacteristic.rst)
+for daemon errors and long read/write procedures. Linux `advertise()` still refuses real operation until a live exported
+UART GATT application and correctly targeted notifications are implemented; advertising alone is insufficient.
 
 ## Messages on the wire
 

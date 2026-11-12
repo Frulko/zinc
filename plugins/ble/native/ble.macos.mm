@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 #include "zinc_native_ble.h"
+#include "gatt_sim.h"
 extern "C" int zn_host_permission(const char* feature, const char* detail, char* why, int n) __attribute__((weak));   // zinc.json "permissions" (src/host/permissions.cpp)
 
 namespace {
@@ -227,6 +228,7 @@ zrt::String str(const std::string& s) { return zrt::String::from(s.data(), (uint
 
 struct MacBle : NativeBle {
   const bool sim = simulated();
+  zinc::ble::GattSim gattSim;
   zrt::String state() override {
     if (sim) { const char* s = getenv("ZINC_BLE_SIM_STATE"); return str(s ? s : ""); }
     char why[512];
@@ -251,7 +253,7 @@ struct MacBle : NativeBle {
     simScanTo(matches?SimScan::raw:SimScan::empty); return true;
   }
   zrt::String advertisements() override { return str(sim && simScan == SimScan::raw ? "zinc-sim\t5a696e632073696d\t-42\t36653430303030312d623561332d663339332d653061392d653530653234646363613965,\t\t\t\n" : ""); }
-  zrt::String error() override { return str(sim ? "" : "generic discovery and power control require Linux BlueZ"); }
+  zrt::String error() override { return str(sim ? "" : "generic GATT, discovery and power control require Linux BlueZ"); }
   void scan() override {
     if (sim) { simScanTo(SimScan::uart); return; }
     if (!cm) return;
@@ -294,6 +296,15 @@ struct MacBle : NativeBle {
     });
     return h;
   }
+  int32_t gattOpen(zrt::String id) override { std::lock_guard<std::mutex> g(mu); return sim?gattSim.open(std::string(id.ptr(),id.bytes())):-1; }
+  zrt::String gattTree(int32_t h) override { std::lock_guard<std::mutex> g(mu); return str(sim?gattSim.tree(h):""); }
+  int32_t gattRequest(int32_t h,int32_t c,int32_t kind,zrt::Array<uint8_t> data) override {
+    std::lock_guard<std::mutex> g(mu); if(!sim || !data.a || data.length()>512) return -1;
+    std::vector<uint8_t> bytes; if(data.length()) { auto p=static_cast<const uint8_t*>(data.a->data); bytes.assign(p,p+data.length()); }
+    return gattSim.request(h,c,kind,bytes);
+  }
+  void gattCancel(int32_t h,int32_t request) override { std::lock_guard<std::mutex> g(mu); if(sim)gattSim.cancel(h,request); }
+  zrt::String gattEvents() override { std::lock_guard<std::mutex> g(mu); return str(sim?gattSim.events():""); }
   bool advertise(zrt::String) override {   // ponytail: the Mac is a central; CBPeripheralManager when a Mac has to be the peripheral
     if (!sim) return false;
     std::lock_guard<std::mutex> g(mu);
@@ -324,12 +335,12 @@ struct MacBle : NativeBle {
     return r;
   }
   void close(int32_t h) override {
-    if (sim) { std::lock_guard<std::mutex> g(mu); if (Link* l = linkOf(h)) { links.erase(h); delete l; } return; }
+    if (sim) { std::lock_guard<std::mutex> g(mu); gattSim.close(h); if (Link* l = linkOf(h)) { links.erase(h); delete l; } return; }
     if (!cm) return;
     dispatch_async(q, ^{ Link* l = nullptr; { std::lock_guard<std::mutex> g(mu); l = linkOf(h); } if (l) finish(l, false); });
   }
   void stop() override {
-    if (sim) { std::lock_guard<std::mutex> g(mu); for (auto& kv : links) delete kv.second; links.clear(); pendingEvents.clear(); simScanTo(SimScan::idle); return; }
+    if (sim) { std::lock_guard<std::mutex> g(mu); gattSim.stop(); for (auto& kv : links) delete kv.second; links.clear(); pendingEvents.clear(); simScanTo(SimScan::idle); return; }
     if (!cm) return;
     dispatch_async(q, ^{
       wantScan = false;

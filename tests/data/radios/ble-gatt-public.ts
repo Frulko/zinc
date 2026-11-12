@@ -1,0 +1,37 @@
+import * as ble from './ble';
+import { gattStep, wasCancelled } from './ble-fake';
+function check(ok: boolean, why: string): void { if (!ok) throw new Error(why); }
+let opens: i32 = 0, closes: i32 = 0, reads: i32 = 0, values: i32 = 0;
+const connection = ble.connectGatt('peer', (c: ble.GattConnection): void => { opens++; }, (c: ble.GattConnection, error: string): void => { closes++; });
+gattStep(`${connection.handle}\topen\n`);
+check(opens === 1 && connection.services().length === 1, 'GATT snapshot/open');
+const characteristic = connection.services()[0].characteristics[0];
+check(characteristic.uuid === '00002a19-0000-1000-8000-00805f9b34fb' && characteristic.flags.includes('read'), 'characteristic identity/flags');
+let request = connection.read(characteristic, (data: u8[], error: string): void => { check(error === '' && data[0] === 255 && data[1] === 0, 'binary read'); reads++; });
+gattStep(`${connection.handle}\tresult\t${request}\t\tff00\n`);
+check(reads === 1, 'read callback');
+request = connection.read(characteristic, (data: u8[], error: string): void => { throw new Error('cancelled callback'); });
+connection.cancel(request); check(wasCancelled(request), 'native cancellation');
+gattStep(`${connection.handle}\tresult\t${request}\t\t01\n`);
+request = connection.notify(characteristic, (data: u8[]): void => { values++; connection.close(); }, (error: string): void => { check(error === '', 'notify ack'); });
+gattStep(`${connection.handle}\tresult\t${request}\t\t\n${connection.handle}\tvalue\t${characteristic.id}\tff00\n${connection.handle}\tvalue\t${characteristic.id}\t02\n`);
+check(values === 1 && closes === 1, 'close inside notification stops predecessor events');
+let rejected = false; try { connection.read(characteristic, (data: u8[], error: string): void => {}); } catch (e) { rejected = true; }
+check(rejected, 'stale characteristic after close');
+const restarting = ble.connectGatt('peer', (c: ble.GattConnection): void => { ble.stop(); }, (c: ble.GattConnection, error: string): void => { closes++; });
+gattStep(`${restarting.handle}\topen\n${restarting.handle}\tclose\n`);
+check(closes === 2, 'stop reentrancy');
+const readClose = ble.connectGatt('peer', (c: ble.GattConnection): void => {}, (c: ble.GattConnection, error: string): void => { closes++; });
+gattStep(`${readClose.handle}\topen\n`);
+const rc = readClose.services()[0].characteristics[0];
+const rid = readClose.read(rc, (value: u8[], error: string): void => { readClose.close(); });
+gattStep(`${readClose.handle}\tresult\t${rid}\t\t01\n${readClose.handle}\tresult\t${rid}\t\t02\n`);
+check(closes === 3, 'read done close discards following results');
+const doneStop = ble.connectGatt('peer', (c: ble.GattConnection): void => {}, (c: ble.GattConnection, error: string): void => { closes++; });
+gattStep(`${doneStop.handle}\topen\n`);
+const dc = doneStop.services()[0].characteristics[0];
+const did = doneStop.notify(dc, (value: u8[]): void => { throw new Error('value after notify done stopped BLE'); }, (error: string): void => { ble.stop(); ble.connectGatt('peer', (c: ble.GattConnection): void => { opens++; }, (c: ble.GattConnection, error: string): void => { closes++; }); });
+gattStep(`${doneStop.handle}\tresult\t${did}\t\t\n${doneStop.handle}\tvalue\t${dc.id}\t03\n${doneStop.handle + 1}\topen\n`);
+check(closes === 4 && opens === 1, 'notify done stop/restart rejects predecessor value/open');
+gattStep(`${doneStop.handle + 1}\topen\n`); check(opens === 2, 'fresh poll opens replacement');
+ble.stop(); console.log('ble generic GATT public callbacks ok');

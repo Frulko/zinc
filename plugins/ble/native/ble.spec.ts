@@ -22,6 +22,16 @@ export interface Spec extends NativeModule {
   stopScan(): void;
   /** Connects to a scanned device: a new handle, then an 'open' event (the UART characteristics are ready) or a 'close' event. */
   connect(id: string): i32;
+  /** Generic Linux GATT central; finite handle, then gattEvents open/close. */
+  gattOpen(id: string): i32;
+  /** Frozen discovered services/characteristics, invalidated by close. */
+  gattTree(h: i32): string;
+  /** 0 read, 1 write request, 2 write command, 3 start notify, 4 stop notify; -1 refuses. */
+  gattRequest(h: i32, characteristic: i32, operation: i32, bytes: u8[]): i32;
+  /** Suppresses a request; an already issued peer write cannot be rolled back. */
+  gattCancel(h: i32, request: i32): void;
+  /** Tab/newline records with hex bytes/errors: h open/close; h result request error data; h value characteristic data. */
+  gattEvents(): string;
   /** Advertises `name` with the UART service: an 'open' event per central that connects. False when this target cannot. */
   advertise(name: string): boolean;
   /** The largest chunk write() takes on an open link (20 before the MTU exchange). */

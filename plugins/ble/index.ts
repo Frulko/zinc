@@ -122,6 +122,122 @@ export class Link {
   private label(): string { return this.name !== '' ? this.name : this.id; }
 }
 
+/** A characteristic identity belongs to one live GATT connection. */
+export class GattCharacteristic {
+  id: i32; service: i32; uuid: string; flags: string[]; owner: i32;
+  constructor(owner: i32, id: i32, service: i32, uuid: string, flags: string[]) {
+    this.owner = owner; this.id = id; this.service = service; this.uuid = uuid; this.flags = flags;
+  }
+}
+export class GattService {
+  id: i32; uuid: string; characteristics: GattCharacteristic[] = [];
+  constructor(id: i32, uuid: string) { this.id = id; this.uuid = uuid; }
+}
+class GattRequest {
+  id: i32; characteristic: i32; kind: i32; done: (value: u8[], error: string) => void;
+  constructor(id: i32, characteristic: i32, kind: i32, done: (value: u8[], error: string) => void) {
+    this.id = id; this.characteristic = characteristic; this.kind = kind; this.done = done;
+  }
+}
+class GattListener {
+  characteristic: i32; receive: (value: u8[]) => void;
+  constructor(characteristic: i32, receive: (value: u8[]) => void) { this.characteristic = characteristic; this.receive = receive; }
+}
+/** Linux generic GATT central. Close explicitly; service/characteristic ids expire on close. */
+export class GattConnection {
+  handle: i32;
+  private phase: LinkState = LinkState.connecting;
+  private tree: GattService[] = [];
+  private pending: GattRequest[] = [];
+  private listeners: GattListener[] = [];
+  private onOpen: (connection: GattConnection) => void;
+  private onClose: (connection: GattConnection, error: string) => void;
+  constructor(handle: i32, onOpen: (connection: GattConnection) => void, onClose: (connection: GattConnection, error: string) => void) {
+    this.handle = handle; this.onOpen = onOpen; this.onClose = onClose;
+  }
+  private transition(next: LinkState): boolean {
+    if (this.phase === LinkState.closed || (next === LinkState.open && this.phase !== LinkState.connecting)) return false;
+    this.phase = next; return true;
+  }
+  /** Discovered snapshot; UUIDs can repeat, so operations take the characteristic object. */
+  services(): GattService[] { return this.tree.slice(); }
+  private request(c: GattCharacteristic, kind: i32, data: u8[], done: (value: u8[], error: string) => void): i32 {
+    if (this.phase !== LinkState.open || c.owner !== this.handle) throw new Error('ble: GATT characteristic is not on this open connection');
+    const id = S.gattRequest(this.handle, c.id, kind, data);
+    if (id < 0) throw new Error('ble: GATT request refused (flags, length, subscription state or queue limit)');
+    this.pending.push(new GattRequest(id, c.id, kind, done));
+    return id;
+  }
+  /** Reads at most 512 bytes. An error returns an empty value plus its reason. */
+  read(c: GattCharacteristic, done: (value: u8[], error: string) => void): i32 { return this.request(c, 0, [], done); }
+  /** One daemon write: requests accept <=512 bytes, commands <=20 until negotiated MTU support. No retry or local chunking. */
+  write(c: GattCharacteristic, value: u8[], done: (error: string) => void, withoutResponse: boolean = false): i32 {
+    return this.request(c, withoutResponse ? 2 : 1, value, (bytes: u8[], error: string): void => done(error));
+  }
+  /** Receives binary values after a successful subscription, including values that arrived before its acknowledgement. */
+  notify(c: GattCharacteristic, receive: (value: u8[]) => void, done: (error: string) => void): i32 {
+    const id = this.request(c, 3, [], (value: u8[], error: string): void => done(error));
+    this.listeners = this.listeners.filter((l: GattListener) => l.characteristic !== c.id);
+    this.listeners.push(new GattListener(c.id, receive));
+    return id;
+  }
+  stopNotify(c: GattCharacteristic, done: (error: string) => void): i32 {
+    return this.request(c, 4, [], (value: u8[], error: string): void => done(error));
+  }
+  /** Drops the callback/local queued request. A write already sent to the peer cannot be undone. */
+  cancel(request: i32): void {
+    const i = this.pending.findIndex((r: GattRequest) => r.id === request);
+    if (i < 0) return;
+    const r = this.pending[i]; this.pending.splice(i, 1);
+    if (r.kind === 3) this.listeners = this.listeners.filter((l: GattListener) => l.characteristic !== r.characteristic);
+    S.gattCancel(this.handle, request);
+  }
+  close(): void { if (this.phase !== LinkState.closed) { S.close(this.handle); this.finish(''); } }
+  /** Internal: only the native-discovered identities may reach callers. */
+  opened(): void {
+    if (this.phase !== LinkState.connecting) return;
+    for (const row of S.gattTree(this.handle).split('\n')) {
+      const f = row.split('\t'); if (f.length !== 5) continue;
+      const id = parseInt(f[1]);
+      if (f[0] === 's') this.tree.push(new GattService(id, f[3]));
+      else if (f[0] === 'c') {
+        const parent = parseInt(f[2]); const service = this.tree.find((s: GattService) => s.id === parent);
+        if (service !== undefined) {
+          const flags: string[] = []; for (const flag of f[4].split(',')) if (flag !== '') flags.push(utf8Decode(unhex(flag)));
+          service.characteristics.push(new GattCharacteristic(this.handle, id, parent, f[3], flags));
+        }
+      }
+    }
+    if (this.transition(LinkState.open)) this.onOpen(this);
+  }
+  /** Internal: remove state before invoking user code, which may close or restart BLE. */
+  result(request: i32, error: string, value: u8[]): void {
+    if (this.phase !== LinkState.open) return;
+    const i = this.pending.findIndex((r: GattRequest) => r.id === request); if (i < 0) return;
+    const r = this.pending[i]; this.pending.splice(i, 1);
+    if ((r.kind === 3 && error !== '') || (r.kind === 4 && error === '')) this.listeners = this.listeners.filter((l: GattListener) => l.characteristic !== r.characteristic);
+    r.done(value, error);
+  }
+  value(characteristic: i32, bytes: u8[]): void {
+    if (this.phase !== LinkState.open) return;
+    const listener = this.listeners.find((l: GattListener) => l.characteristic === characteristic);
+    if (listener !== undefined) listener.receive(bytes);
+  }
+  finish(error: string): void {
+    if (!this.transition(LinkState.closed)) return;
+    this.tree = []; this.pending = []; this.listeners = [];
+    const i = gattConnections.indexOf(this); if (i >= 0) gattConnections.splice(i, 1);
+    idle(); this.onClose(this, error);
+  }
+}
+let gattConnections: GattConnection[] = [];
+/** Connects a scanned device without requiring UART. macOS real generic GATT is explicitly unsupported. */
+export function connectGatt(id: string, onOpen: (connection: GattConnection) => void, onClose: (connection: GattConnection, error: string) => void): GattConnection {
+  usable('connectGatt'); const h = S.gattOpen(id);
+  if (h < 0) throw new Error('ble: connectGatt: ' + S.error());
+  const connection = new GattConnection(h, onOpen, onClose); gattConnections.push(connection); wake(); return connection;
+}
+
 let links: Link[] = [];          // connecting and open
 let timer: i32 = -1;
 let scanMode: ScanMode = ScanMode.idle;
@@ -139,7 +255,7 @@ let advClose: CloseCb = (l: Link): void => {};
 function wake(): void { if (timer < 0) timer = setInterval(() => poll(), POLL_MS); }
 /** Nothing going on: the timer stops, so a program with nothing else to do ends. */
 function idle(): void {
-  if (scanMode !== ScanMode.idle || advertising || links.length > 0 || timer < 0) return;
+  if (scanMode !== ScanMode.idle || advertising || links.length > 0 || gattConnections.length > 0 || timer < 0) return;
   clearInterval(timer);
   timer = -1;
 }
@@ -204,6 +320,15 @@ function poll(): void {
   }
   if (generation !== activityGeneration) return;
   for (const l of links.slice()) { l.drain(); if (generation !== activityGeneration) return; }
+  if (gattConnections.length > 0) for (const row of S.gattEvents().split('\n')) {
+    if (generation !== activityGeneration) return;
+    const f = row.split('\t'); if (f.length < 2) continue;
+    const h = parseInt(f[0]); const connection = gattConnections.find((c: GattConnection) => c.handle === h); if (connection === undefined) continue;
+    if (f[1] === 'open') connection.opened();
+    else if (f[1] === 'close') connection.finish(f.length > 2 ? utf8Decode(unhex(f[2])) : '');
+    else if (f[1] === 'result' && f.length === 5) connection.result(parseInt(f[2]), utf8Decode(unhex(f[3])), unhex(f[4]));
+    else if (f[1] === 'value' && f.length === 4) connection.value(parseInt(f[2]), unhex(f[3]));
+  }
 }
 
 function unhex(s: string): u8[] {
@@ -289,9 +414,11 @@ export function advertise(name: string, onOpen: (l: Link) => void, onMessage: (l
 /** Ends scanning, advertising and every link (their onClose run). */
 export function stop(): void {
   activityGeneration++;
+  const closingLinks = links.slice(); const closingGatt = gattConnections.slice();
   S.stop();
   if (scanTimer >= 0) { clearTimeout(scanTimer); scanTimer = -1; }
   scanMode = ScanMode.idle; advertising = false;
-  for (const l of links.slice()) l.finish();
+  for (const l of closingLinks) l.finish();
+  for (const c of closingGatt) c.finish('');
   idle();
 }

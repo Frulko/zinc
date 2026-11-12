@@ -3,7 +3,7 @@
   "kind": "module",
   "module": "zinc:ble",
   "entry": "index.ts",
-  "description": "Bluetooth Low Energy UART text links: CoreBluetooth central on macOS, experimental BlueZ discovery and central on Linux, explicit echo simulator",
+  "description": "Bluetooth Low Energy UART text links: CoreBluetooth central on macOS, experimental BlueZ discovery, UART and generic GATT central on Linux, explicit echo simulator",
   "native": {
     "impl": {
       "macos": "native/ble.macos.mm",
