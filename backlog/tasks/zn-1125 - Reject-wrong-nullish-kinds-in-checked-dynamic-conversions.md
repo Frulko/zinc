@@ -2,8 +2,7 @@
 id: ZN-1125
 title: Reject wrong nullish kinds in checked dynamic conversions
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-12 09:46'
 labels:
   - language

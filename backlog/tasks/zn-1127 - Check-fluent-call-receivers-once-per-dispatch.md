@@ -2,8 +2,7 @@
 id: ZN-1127
 title: Check fluent call receivers once per dispatch
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-12 10:47'
 labels:
   - language

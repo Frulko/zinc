@@ -2,8 +2,7 @@
 id: ZN-1126
 title: Resolve imported record types in QuickJS checked JSON copies
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-12 10:10'
 labels:
   - language

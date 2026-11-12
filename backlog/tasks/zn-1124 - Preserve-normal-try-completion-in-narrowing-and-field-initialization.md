@@ -2,8 +2,7 @@
 id: ZN-1124
 title: Preserve normal try completion in narrowing and field initialization
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-12 07:43'
 labels:
   - language
