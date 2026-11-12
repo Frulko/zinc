@@ -562,3 +562,5 @@ Each iteration (a wake-up or an agent's notification):
 - M integrated1053 ec6d05914 / D337, BacklogAC4checked/AC1-3open,96Done unchanged. Archive97 verified15165 whole-worker entries, source bundle/blobs, rootproofs and both frozen compilers; real fake-picker refresh/keyboard/cancel PASS and glyph captures inspected. Late grey root captures retained non-probative. Fresh1127 worker proving preserved WIP;1125/26 remain unintegrated. Urgent exports already PASS; owner UI overlay protected, MAIN binary owner-WIP only. NextD338/archive98.
 
 - M verified archive97 and owner10/perf15/index audit after1053 metadata. Claim released; worktree removal exited0 before branch deletion. No1053 process remains. Active1127 only; nextD338/archive98.
+
+- M recorded D338 amendment to D334:1124 repair2b602→da1 verified by kit/ipod/actual3D callers and urgent signed exports, total96. Root bundle4d and uncommitted authorized UI overlay remain explicitly separate; full engine archive pending1127. NextD339/archive98.
