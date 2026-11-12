@@ -2,8 +2,7 @@
 id: ZN-1123
 title: Preserve exact Dyn types in generated callback converters
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-12 04:44'
 updated_date: '2026-11-12 04:53'
 labels:

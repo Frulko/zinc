@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated1123bc2cfe9c4/D326 DonebothAC,94Done andweb863.036121edcc8/D327 ReviewAC2/AC1goldenopen. Onecleancommonbuild/exactdyn_callback+web_frame/originalRequestfetchall3/rncheck32files/actualCanvasDOMbrowser+prerenderproofPASS. Archives86/87 verify17+9sourcepayloads/full83+96logs/root70fileseach/namedbundles. Sourceworkerclaimsreleased, owner10payloads/perf15preserved. CommonSHA7da7f4026a6436f68afa97f141fafee188fd901668d97c553420b40cf5f8fb69. Active572toolingonly; nextD328/archive88. Readonly863.04/221assessment .logs/research-next-h.txt retainsheldLVGL/mainconstraints, neitherclaimed.
+
 - Claimed572 software-only pinned canvas WPT corpus/runner increment after primary delegated research .logs/research-canvas-h.txt. No engine build, actual conformance run, SSIM/FPS campaign or owner-held source edit. Pure tool self-check only; all572AC remain open. Integrated1123bc2cfe9c4 and web863.036121edcc8; one common clean build/proof ongoing.
 
 - COORDINATOR HANDOFF2026-11-12h: coordinator_h soleleaderONLYafter.logs/coord-transfer-20261112-h.ready; outgoingcoordinator_g ceasesALLcoordination. FULL .logs/COORDINATOR-H-HANDOFF.md. Active1123 frontendaliasworker confirmedbase722836789 ownbuildongoing; frozenweb863.03 2974f22bc ReviewAC2/AC1goldenopen NOTINTEGRATED. Integrate1123firstthenweb/onecombinedcommonbuild. G BLEe1c8f62d6/D325/archive85rootproofcomplete,558releasedallACopen.93Done,nextD326/archive86; commonengineb63/e4ca checkoute1c8f62d6; norootheavy/processpending.
