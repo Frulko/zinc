@@ -1,6 +1,6 @@
 # Zinc coordinator — 2026-11-12
 
-Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after ready-m: coordinator_m under coordinator_l. Outgoing L ceases all coordination at .logs/coord-transfer-20261112-m.ready. Full durable handoff .logs/COORDINATOR-M-HANDOFF.md; full worker-rules. Source isolated; max2buildingtrees/oneheavy, absolute main tools/work-run and relative tools/build in correct tree.
+Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator M until ready-n, then successor coordinator_n alone. M ceases all coordination at .logs/coord-transfer-20261112-n.ready. Full current durable handoff .logs/COORDINATOR-N-HANDOFF.md; full worker-rules. Source isolated; max2buildingtrees/oneheavy, absolute main tools/work-run and relative tools/build in correct tree.
 
 99 Done since1078.03:161 parent reconciled,1124 repair verified on owner exports, and1125/1126/1127 integrated with clean compiler proofs. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
 
@@ -18,7 +18,7 @@ Urgent owner exports recovered:1124 da1 + bundle licence placement4d0630934, exa
 
 1053 source907cf9b95 integrated ec6d05914, Backlog AC4checked/AC1-3open, D337/archive97. Actual fake-picker refresh/node/scroll/keyboard/cancel PASS; gear/monitor captures inspected. Two late root grey captures retained non-probative; footer clipping remains AC1.15165whole-worker entries and frozen compilers verified; claim released, worktree removal exited0 before branch deletion. No full Discord/OS capture/network/suite claim.
 
-Sole coordinator M after ready-m, never ask owner/push. NextD343/archive100;99Done.1037 cleaned; newly claimed1034 AC1 responsive album/Title/NowPlaying source increment; fresh research `.logs/research-next-after-engine-m.txt` confirms no safe complete top25 engine/perf increment across held boundaries. Owner RT/HAL/main/UI modules remain held; no unselected suites/benchmark/conformance/fuzz/CI.
+Sole coordinator M until `.logs/coord-transfer-20261112-n.ready`; at that marker N alone continues and M ceases all coordination/mutation/claims/integration/heavy. Fresh full handoff `.logs/COORDINATOR-N-HANDOFF.md`; never ask owner/push. NextD343/archive100;99Done.1037 cleaned; newly claimed1034 AC1 responsive album/Title/NowPlaying source increment; fresh research `.logs/research-next-after-engine-m.txt` confirms no safe complete top25 engine/perf increment across held boundaries. Owner RT/HAL/main/UI modules remain held; no unselected suites/benchmark/conformance/fuzz/CI.
 
 Integrated ZN-1123 bc2cfe9c4 / D326, Done both criteria; 94 Done since1078.03. Exact Dyn aliases retain callback parameter/result identity. Clean common build, exact dyn_callback, original Request/fetch all3 and rn-showcase32-file check pass without app/library changes. Archive86 verifies17 source payloads,83 worker logs and70 rootproof files.
 
@@ -144,4 +144,4 @@ Detailed historical commands/reasons/commits: docs/reports/backlog-review-2026-1
 
 Devices: OptiPlex mowmow@192.168.2.228 / Tailscale100.66.7.14 withHostKeyAlias=192.168.2.228; Pi spark@192.168.2.31; Mojave mowmow@192.168.2.215. Recenttimeouts; retry only actualfeature, strictknownhosts, no QEMU/globalinstall/reboot/player takeover.
 
-Active next source: claim1034 AC1 only (responsive album columns, Title width, NowPlaying time/cover spacing). No engine/core/provider/service edits, other criteria stay open. Research `.logs/research-next-after-engine-m.txt`; use clean common CLI582d read-only, no CLI build.
+Active next source: ipod1034_layout in `.worktrees/1034-ipod-layout`, TRUEbase3888d74cc5f5b830b93776cc2e76d63922406e79, confirmed reset/hooks/clean before edits. Claim1034 AC1 only (responsive album columns, Title width, NowPlaying time/cover spacing). No engine/core/provider/service edits, other criteria stay open. Research `.logs/research-next-after-engine-m.txt`; use clean common CLI582d read-only, no CLI build.
