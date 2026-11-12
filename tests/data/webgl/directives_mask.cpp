@@ -3,6 +3,9 @@
 
 int main() {
   for (const std::string nl : {"\n", "\r", "\r\n", "\n\r"}) {
+    assert(zn::gl::shaderPhysicalNewlines("a" + nl + "b" + nl + nl) == "a\nb\n\n");
+    assert(zn::gl::shaderPhysicalNewlines("\\" + nl + "\\" + nl + "x") == "\\\n\\\nx");
+    assert(zn::gl::shaderPhysicalNewlines("#line 73" + nl) == "#line 73\n");
     const auto splice = "\\" + nl;
     for (const std::string& comment : {"/* comment *" + splice + "/", "/" + splice + "*" + nl + "#version 100" + nl + "*/", "/" + splice + "/ #version 100" + nl, "/" + splice + splice + "* #extension GL_FAKE : require *" + splice + "/"}) {
       const std::string head = "#version 300 es" + nl;

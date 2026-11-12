@@ -19,6 +19,7 @@ function pair(g, vertex, fragment, expected) {
   const ok = g.getProgramParameter(p,g.LINK_STATUS);
   console.log('JS link ' + expected + ' ' + ok + ' ' + g.getProgramInfoLog(p));
   if (ok !== expected) throw new Error('shader link mismatch');
+  if (g.getShaderSource(v) !== vertex || g.getShaderSource(f) !== fragment) throw new Error('linked source changed');
   g.deleteProgram(p);g.deleteShader(v);g.deleteShader(f);
 }
 const v = 'attribute vec4 a; void main(){gl_Position=a;}';
@@ -44,7 +45,7 @@ pair(g2,'# version\t300 es\n'+v3,f,false);
 pair(g2,v,'#version 300 es\n'+f3,false);
 for (const prefix of ['// comment\n#version 300 es\n', '\n#version 300 es\n', '#version 300 es // comment\n', '#version 300\n', '#version 300 es extra\n', '#version 300 es\n#version 300 es\n']) g2.deleteShader(compile(g2,prefix+v3,false,false));
 // Delimiters are recognized after splicing; #version itself keeps its raw first-line rule.
-for (const nl of ['\n', '\r']) {
+for (const nl of ['\n', '\r', '\r\n', '\n\r']) {
   const splice = '\\' + nl;
   const head = '#version 300 es' + nl;
   for (const comment of ['/* comment *' + splice + '/', '/' + splice + '* comment */', '/' + splice + '*' + nl + '#version 100' + nl + '*/', '/' + splice + '/ #version 100' + nl, '/' + splice + splice + '*' + nl + '#extension GL_FAKE : require' + nl + '*' + splice + '/']) {
@@ -54,9 +55,20 @@ for (const nl of ['\n', '\r']) {
     compile(g2, head + comment + nl + v3, false, false);
   }
   compile(g2, '#version 300' + splice + ' es' + nl + v3, false, false);
-  const splitLine = compile(g2, head + '/* comment *\\\n/\nvoid main(){gl_Position=missing;}', false, false);
+  const splitLine = compile(g2, head + '/* comment *' + splice + '/' + nl + 'void main(){gl_Position=missing;}', false, false);
   if (!g2.getShaderInfoLog(splitLine).includes('0:4:')) throw new Error('lost splice diagnostic line');
   g2.deleteShader(splitLine);
+}
+for (const nl of ['\n', '\r', '\r\n', '\n\r']) {
+  const head = '#version 300 es' + nl;
+  const physical = compile(g2, head + nl + nl + 'void main(){gl_Position=missing;}', false, false);
+  if (!g2.getShaderInfoLog(physical).includes('0:4:')) throw new Error('lost physical diagnostic line');
+  g2.deleteShader(physical);
+  const mapped = compile(g2, head + '#line 73' + nl + 'void main(){gl_Position=missing;}', false, false);
+  if (!g2.getShaderInfoLog(mapped).includes('0:73:')) throw new Error('lost user line directive');
+  g2.deleteShader(mapped);
+  compile(g, '// comment' + nl + f, true, true);
+  compile(g, '// comment' + nl + 'void main(){float missingPrecision;gl_FragColor=vec4(0.0);}', true, false);
 }
 const badLine = compile(g,'// #version 300 es\n# version 100\n\nvoid main(){gl_Position=missing;}\n',false,false);
 if (!g.getShaderInfoLog(badLine).includes('0:4:')) throw new Error('lost diagnostic line');

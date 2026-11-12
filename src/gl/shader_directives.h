@@ -12,6 +12,19 @@ inline std::size_t shaderNextLine(const std::string& source, std::size_t end) {
   return next < source.size() && (source[next] == '\r' || source[next] == '\n') && source[next] != source[end] ? next + 1 : next;
 }
 
+// ESSL 3.00 section 3.1 phase 4: one LF per physical newline, before preprocessing.
+inline std::string shaderPhysicalNewlines(const std::string& source) {
+  std::string out;
+  out.reserve(source.size());
+  for (std::size_t i = 0; i < source.size();) {
+    if (source[i] == '\r' || source[i] == '\n') {
+      out += '\n';
+      i = shaderNextLine(source, i);
+    } else out += source[i++];
+  }
+  return out;
+}
+
 // Keep offsets and physical lines: callers also use this view to edit the original source.
 inline std::string shaderCommentMask(const std::string& source, bool& closed) {
   std::string out = source;

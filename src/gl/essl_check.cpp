@@ -31,6 +31,7 @@ void parseOne(Parsed& p, bool fragment) {
   static std::once_flag once;
   std::call_once(once, [] { glslang::InitializeProcess(); });
   const EShLanguage stage = fragment ? EShLangFragment : EShLangVertex;
+  p.source = shaderPhysicalNewlines(p.source);
   const auto directives = shaderDirectives(p.source);
   if (!directives.error.empty()) { p.log = directives.error; return; }
   const bool es3 = directives.version == 300;

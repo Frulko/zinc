@@ -195,7 +195,8 @@ std::string textureHelpers(const std::string& body, bool fragment, bool lodExt) 
 }
 // The GLSL ES 1.00 source of WebGL on a desktop core context: the prelude renames the old keywords. ES contexts take the source as it is.
 // valSrc / valPre: what the GLSL ES validator (essl_check.cpp) is shown: the source with comments gone and the macros of this context in a preamble
-std::string translate(const std::string& src, std::uint32_t type, bool es, std::uint32_t extOn, int webgl, std::string& err, std::string& valSrc, std::string& valPre) {
+std::string translate(const std::string& source, std::uint32_t type, bool es, std::uint32_t extOn, int webgl, std::string& err, std::string& valSrc, std::string& valPre) {
+  const std::string src = shaderPhysicalNewlines(source);
   const auto directives = shaderDirectives(src);
   if (!directives.error.empty()) { err = directives.error; return ""; }
   if (webgl == 1 && directives.version != 100) { err = "ERROR: 0:1: '#version' : WebGL 1 shaders are written in GLSL ES 1.00"; return ""; }
@@ -357,12 +358,7 @@ void fragOutputs(const std::string& src, char out[4]) {
 
 // true when every float-typed declaration has a precision (default or qualifier)
 bool fragmentPrecisionOk(const std::string& src) {
-  std::string t;   // comments out
-  for (std::size_t i = 0; i < src.size(); ++i) {
-    if (src.compare(i, 2, "//") == 0) { while (i < src.size() && src[i] != '\n') ++i; t += '\n'; }
-    else if (src.compare(i, 2, "/*") == 0) { std::size_t e = src.find("*/", i + 2); i = e == std::string::npos ? src.size() : e + 1; t += ' '; }
-    else t += src[i];
-  }
+  const std::string t = withoutComments(shaderPhysicalNewlines(src));
   auto isId = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
   std::string prev;
   bool defaultFloat = false;
