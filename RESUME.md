@@ -1,8 +1,10 @@
 # Zinc coordinator — 2026-11-12
 
-X is read-only until `.logs/coord-transfer-20261112-x.ready`; W alone coordinates before that atomic marker, then ceases ALLtools/coordination and X alone continues. Full .logs/COORDINATOR-X-HANDOFF.md latest tail. Continue zn-coordinate until .paused or literally nothing startable; no owner wait/push/newtask/apppolish.100Done,nextD355/archive112.
+Y is read-only until `.logs/coord-transfer-20261112-y.ready`; X alone coordinates before that atomic marker, then ceases all tools and coordination. Full `.logs/COORDINATOR-Y-HANDOFF.md`, latest tail. Continue zn-coordinate until `.paused` or literally nothing startable; no owner wait, push, new task or app polish. 100 Done, next D355/archive112.
 
 ## Current
+
+Existing ZN-203.09 texture upload views are frozen on source995f3da0c (TRUEcf9bb8589), not integrated. Source final: 738 public checks and 392 native checks pass; final GL build/stage/native execution have strict exit0, while all earlier raw collection/setup/rejected-candidate/provenance limits remain preserved. Whole14028 SHAce5c6b25 is frozen with the exact external79500 receipt. Independent full evidence verification65519 exited1 on four checker assumptions; the original attempt is preserved and a complete corrected rerun is pending. Source inventory/bundle/raw results passed their phases, but no overall verification PASS is claimed. Actual new OLD/candidate raw review is a separate later gate. Root draft is disabled; no root build/proof/archive112/release. Full source FINAL and X/Y handoffs carry identities and limits.
 
 Integrated existing ZN-203.09 whole client-view UNPACK layout validation source9ec as567c49ed5/D354. Checked spans/row-image constraints cover sized+unsized2D/3D/array/image/sub; explicit packedDOM layout and RAII preserve driver/query state. No API/PBO/type-format/lifecycle/core/QJS/app expansion. Task Backlog/AC1unchecked,100Done unchanged,nextD355/archive112.
 
