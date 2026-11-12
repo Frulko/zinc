@@ -1,13 +1,13 @@
 # Zinc coordinator — 2026-11-12
 
-S alone coordinates until `.logs/coord-transfer-20261112-t.ready`; T alone afterwards, S ceases all coordination. Continue zn-coordinate until .paused or literally nothing startable; no owner question/push.100Done. NextD353/archive110. Full evidence: State, Q handoff, archives97–109. Owner steering: next safe engine/runtime chain after engaged iPod batch; no new app polish.
+T alone coordinates after `.logs/coord-transfer-20261112-t.ready`; S ceased all coordination. Continue zn-coordinate until .paused or literally nothing startable; no owner question/push.100Done. NextD353/archive110. Full evidence: State, Q handoff, archives97–109. Owner steering: next safe engine/runtime chain after engaged iPod batch; no new app polish.
 ## Current
 
 Integrated ZN-203.06 readPixels source9bac as2f14ec578/D352. Typed copyback touches only actual pixel rows; untouched numeric slots remain exact, raw array kinds are checked, packed bounds include WebGL1 alignment and checked arithmetic. Task Backlog/AC1 unchecked, 100 Done. Actual original typed26 + kind/raw-kind/alignment/backend failures become focused T0/native passes; original publicJS controls and getBufferSubData regressions pass. Independent old/new JS+typed-VM combined pack/clip/state/type/backend probes pass candidate with13158+25 inputs unchanged.
 
 Clean common `.claude/worktrees/agent-aae96db4e67d4b8e6` SOURCE/GLcompiled2f14ec5789730a7f014a76bd9e3f92df65c4134e. CLI8848 remains COMPILED6991 and all99 non-GL artifacts are unchanged. Module947d898174e7ebb5bdbf6735f83bfd5df4b00246735d0a77911218e046ff8f99 equals worker; rootstaticcbdfe8326e527ca33ea2d0777a0f0020ce0112c59e7bdd72c3020f45164fafff differs worker-native6d64b80a. GL-only root build/exactT0/originalcaller PASS13163 unchanged preimages; no rootnative claim. Current `.logs/audit-t-gl.py` uses the actual root manifest; older S/R audits expect old GL.
 
-Archive109 `.logs/archive-completed-workers-20261110/20306-readpixels-preserve-final` independently verifies25943 entries/full6394 worker/17 source+base/bundleTRUE2967/compiler-provider-native-root-review closures, with no live worker/common dependency. Full external setup source capture and native.d itself +928 dependencies precede execution. Source verifier process completion/JSON PASS is recorded without an unobserved tool-exit claim; archive verifier17779 observed EXIT0 on its first attempt. Review's unchanged inherited summary is qualified by a post-execution sidecar; actual frozen probes/logs prove backend failure and later controls. Successful T0 has authentic1/0 summary/preimages/native markers; deleted detail is not reconstructed. Release recorded; source cleanup awaits EXIT0 before branch deletion.
+Archive109 `.logs/archive-completed-workers-20261110/20306-readpixels-preserve-final` independently verifies25943 entries/full6394 worker/17 source+base/bundleTRUE2967/compiler-provider-native-root-review closures, with no live worker/common dependency. Full external setup source capture and native.d itself +928 dependencies precede execution. Source verifier process completion/JSON PASS is recorded without an unobserved tool-exit claim; archive verifier17779 observed EXIT0 on its first attempt. Review's unchanged inherited summary is qualified by a post-execution sidecar; actual frozen probes/logs prove backend failure and later controls. Successful T0 has authentic1/0 summary/preimages/native markers; deleted detail is not reconstructed. Release/metadata b2fbbd662 precede source removal55688 EXIT0 and branch deletion; cleanup is complete.
 
 D351/getBufferSubData archive108 and earlier archives105–107 are fully verified/released/removed. 1130 automatic teardown and1129 focus remain held/open. 100 Done since1128/D344. No app polish. Next D353/archive110; `.logs/research-next-engine-t.txt` proposes a bounded existing203.09 TF read-validation batch only after109 cleanup and fresh ownership/priority gates.
 
@@ -23,7 +23,7 @@ Owner steering: after the engaged1034 batch, prioritize a safe engine/runtime ch
 
 1030 structural storage/views and related RT/allocator/render work are held,1024 needs heldmain/timing, conformance/fuzz/performance campaigns unselected.597 and575/1068/1078.29 quiet gates remain unselected;897 joinedICE open;1066 privateHermes only;512 no actual ARM;164 genericlibuv split open. No new service/demo/SDK/OS/device action. Full pending task details in State/task notes.
 
-No active source work remains in203.06: the worker is frozen, integrated, archived and released; source cleanup is pending. No next claim before removal EXIT0 and fresh priority/source/ownership gates. QJS/RT/main/HAL/UI/kit-host remain held.
+No active source worker:203.06 is integrated, archived, released and removed EXIT0 before branch deletion. No next claim before removal EXIT0 and fresh priority/source/ownership gates. QJS/RT/main/HAL/UI/kit-host remain held.
 
 ## Tests to run (owner picks)
 
