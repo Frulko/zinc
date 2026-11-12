@@ -2,7 +2,8 @@
 id: ZN-681
 title: 'Museum table: ship the vase as a decimated GLB'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-10 19:36'
 labels:
   - demo
