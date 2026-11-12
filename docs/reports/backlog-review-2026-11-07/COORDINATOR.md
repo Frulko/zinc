@@ -534,3 +534,5 @@ Each iteration (a wake-up or an agent's notification):
 - K integrated ZN-1124 8975a1c6d / D334 Done3/3,95Done; root common build/exact try_flow all3/25 negatives and unchanged pinball19/editor36 checks PASS. Archive94 complete33sources/157logs/13rootfiles. Fresh1039 worker resumes preserved edited tree; GPU563 frozen46c1d18d pending integration. NextD335/archive95.
 
 - K integrated ZN-563.01 a4e6ae690 / D335 Backlog both AC open,95Done. Root focused T0/public GPU all3/native cubes capture PASS; retained actual Linux archivedCLI compatibility-triangle and standalone software fallback. Archive95 complete16sources/919logs/21rootfiles; no production package/SSIM/physical GPU claim. 1039 active; nextD336/archive96.
+
+- K cleanup verified: 1124 archive94 and563.01 archive95 full source/log/root hashes PASS, claims released, worktree removals exited0 before branch deletion. Owner10payloads/perf15/index audit PASS; common sourcea4e6ae690/compiler8975a1c6d.1039 active, research-next-k read-only.
