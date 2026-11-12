@@ -6,7 +6,7 @@ Continue zn-coordinate until .paused or nothing startable. Never ask owner; no p
 
 ## Current
 
-555 documentation integrated5b5b6865c/D320 BacklogAC3checkedAC1/2open. ExactDAC+overlay/namedrouting andloadlessstatic ZINC_AUDIO=null policy, existingminiaudio reused/noTinyALSA. Archive79 four sourceblobs/fullsevenlogs/rootdocproofverified. No build/playback/OSaction. snd-aloopharnessstillUNWRITTENsoftwaregap, actualLinux/Pi/CHIPunproven.
+555 prepared snd-aloop harness integratedc8cd0b268/D321 BacklogAC3checkedAC1/2open. Actual public signal capture tool/T1optin nowWRITTEN, pure rootaudio_loopback_tool andfixturetypecheck PASS; no audio/kernel/OSaction orenginebuild. Dedicatedisolatedimage/namedcard/subdevice/privateALSA/backendguard/capturefrequency+RMS/ownedPID readiness; actualLinux/Pi/CHIPunproven. Archive80 seven sourceblobs/fulltenlogs/rootproofverified. Earlierdocs5b5b6865c/D320/archive79 retained.
 
 1024 checker increment integratedaafdbfbbd BacklogAC1open, D318. Walk-local indexed membership/RAII, unchanged AST traversal. Root clean build/exacttdz_locals all3/actualfixture/herocheck and unchangedherobytecode PASS; archive76 verified. No speedmeasurement or200msclaim.
 
@@ -40,7 +40,7 @@ Never reset/build/stage main WIP. Exact payload hashes .logs/blockers/core-1030/
 
 ## Tests to run (owner picks)
 
-- Since5b5b6865c: preparedsnd-aloop publiccapture harness (stillunwritten, ~10–15s), actualalreadyconfiguredPiHDMI/jack(~2–5s) andDAC+/PocketCHIPnamedroutes(~10s); memoryunmeasured. No OS/module/routing setup automatically. Documentation/sourcefacts only checked.
+- Sincec8cd0b268: selected isolated preparedLinux `ZINC_AUDIO_LOOPBACK_TEST=1 ZINC_AUDIO_LOOPBACK_CARD=<reportedID> ZINC_AUDIO_LOOPBACK_SUBDEVICE=<delegated0..7> ZINC=/absolute/linux/zinc timeout 30 tests/run --only audio_loopback` (~6–15s plus boundedcleanup), then actual configuredPiHDMI/jack(~2–5s) andDAC+/PocketCHIPnamedroutes(~10s); memoryunmeasured. No module/routing/service setup. Pure T0/typecheck pass, actual PCM negotiation/kernelcapture unproven.
 
 - Since6a47537dc: preparedLinux `ZINC_GPIO_KERNEL_TEST=1 ZINC=/absolute/linux/zinc timeout 30 tests/run --only gpio_kernel` (~10–15s, memory unmeasured). No module/mount/permission setup performed by harness; owner-prepared delegated image required. Pureguard checks and fixturetypecheck already pass, actualkernel/Pi unrun.
 
