@@ -536,3 +536,5 @@ Each iteration (a wake-up or an agent's notification):
 - K integrated ZN-563.01 a4e6ae690 / D335 Backlog both AC open,95Done. Root focused T0/public GPU all3/native cubes capture PASS; retained actual Linux archivedCLI compatibility-triangle and standalone software fallback. Archive95 complete16sources/919logs/21rootfiles; no production package/SSIM/physical GPU claim. 1039 active; nextD336/archive96.
 
 - K cleanup verified: 1124 archive94 and563.01 archive95 full source/log/root hashes PASS, claims released, worktree removals exited0 before branch deletion. Owner10payloads/perf15/index audit PASS; common sourcea4e6ae690/compiler8975a1c6d.1039 active, research-next-k read-only.
+
+- K integrated ZN-1039 lifetime88ec54b58 / D336, Backlog all4ACopen,95Done. Root exact lifecycleall3/player19/editor36/actual switch+restart captures PASS. Archive96 complete11sources/48logs/30rootfiles, original failed full-player log loss disclosed; minimalfailure+parkedsource retained. Researchnext-k identifies safe1037 remote wire normalization while1030 structural views require held-runtime boundary audit. NextD337/archive97.

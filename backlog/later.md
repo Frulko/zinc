@@ -924,6 +924,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-563.01: standalone cross-AOT null/EGL apps lack the SDL/window runtime needed for the GPU path; optional dispatch proves linkage/software fallback only. Keep current Linux package/native-build, SSIM, shared world/software/console stale handles and D316 SDL quit/restart ownership explicit (archive95).
 
+- ZN-1039: bound or explicitly own the shared table-image cache across many distinct tables, preserving top-view/panel sharing before reclaiming images. Geometry/target and sound-slot reclamation now pass all3; total RSS/audio bytes and abandoned VM ownership remain unmeasured (archive96).
+
 ## Cross-platform pass
 
 - ZN-554: prove actual Pi thermal/clock/mailbox/fan/button readings and the owner-selected weak-supply rig; sampled buttons can miss short presses and another client may clear firmware latches.
