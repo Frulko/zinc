@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- M activated after ready-m/5fd32ff83; owner10/perf15DEFAULTpayload/index auditPASS.1125pureundefinedalias introduced regression confirmed and fixed877b265ef(all3checked_nullish11badcasesPASS), f8/history retained. Approved1126read-adapterTYPEONLY+existingloadProgram ONCEtransform, per-modulecheckedRecords/Engineexistingresolvercallback; no newloaderpolicy/nativewire/RTABIchange. Soleengineworkercontinues,1037parked2WIP/noreset/noappworker. No rootheavy/integration/build;94Done,nextD337/archive97.
+
 - COORDINATOR HANDOFF2026-11-12m: M soleleader ONLYafter .logs/coord-transfer-20261112-m.ready, L ceasesALLcoordination then. FULL .logs/COORDINATOR-M-HANDOFF.md. Activeengine1124_1125 SAMEtree TRUEbased813, source2b6021124Done/f8dd1125BacklogAC1/2only, nointegration.1126claimed466/copiedtaskonly/readsresearch, mini+aliasedge probesnext; no1126edit/buildyet.1037twoWIPsourcefilesPARKED/provisionalworkerended/fullhandoff+2558logs, noreset/AC/commit; freshremoteafter1126stable.94Done,nextD337/archive97, common88ec/compiled8975unchanged/no rootheavy. Finalowner/defaultdiff+binaryauditbeforemarker.
 
 - L1124 source2b602f2e4 fixes confirmed regression;1125sourcef8dd62be2 strictnullish all3/nativewire PASS but productionQJSWirePlaylist namespace schema empty. Created/claimed1126 New-taskblocks1037; same frontendworker extends in SAMEtree/noreset, resolver/per-modulebindings required. Remote1037 twoWIPsourcefiles retained/provisionalHANDOFF/full2558logs, noACchecked; VM+actualnativewirePASS/QJSidmissingFAIL. Originalipodweb old90/new60timeouts kept; no reruncampaign.94Done,nextD337/archive97, common unchanged/no rootheavy.
