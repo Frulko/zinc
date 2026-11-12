@@ -2,13 +2,15 @@
 
 Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after ready-l: coordinator_l under coordinator_k. Outgoing K ceases all coordination at .logs/coord-transfer-20261112-l.ready. Full durable handoff .logs/COORDINATOR-L-HANDOFF.md; full worker-rules. Source isolated; max2buildingtrees/oneheavy, absolute main tools/work-run and relative tools/build in correct tree.
 
-95 Done since1078.03. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
+94 Done since1078.03;1124 reopened for a confirmed new narrowing regression. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
 
 ## Current
 
 Sole coordinator after `.logs/coord-transfer-20261112-l.ready`: coordinator_l. K ceases all coordination at that marker. Full handoff: `.logs/COORDINATOR-L-HANDOFF.md`.
 
-Active ZN-1037: `.worktrees/1037-remote-wire`, true base0e135ab485ab0ee7b398655a9ea4ea32d0c04a04. Sole remote1037 worker designs optional wire records/current sender alignment for AC3, no source edits/proof yet. Missing smart rules preserve membership and nonrefreshable/read-only state; no guessed defaults or actual daemon/network/device action. Current compiler8975a1c6d is stable/read-only, ownZINC_ROOT; no engine build. Full research-next-k final appended selection.
+Active ZN-1037 source remains preserved in `.worktrees/1037-remote-wire`, true base0e135ab485ab0ee7b398655a9ea4ea32d0c04a04. Optional wire decoder/current sender edits are blocked by two actual engine failures; no reset or caller workaround. Original old-wire failure, optional-null failure and four-case kit narrowing old/new comparison are under its `.logs/remote1037`.
+
+Reopened/claimed1124: original unchanged iPod103-file check and exact4case mini pass old6121 but fail current8975 after new conditional/guard invalidation reused loop call effects. Restore precision while preserving stale conditional-write safety. New/claimed1125 blocks1037: optional typed Dyn/JSON conversion accepts explicit null as undefined; frontend/dyn.cpp and QuickJS schema converter must reject wrong nullish kinds before shared storage erases them. No RT/IR/ABI or caller change. Research `.logs/research-next-l.txt`; one isolated frontend worker chain1124 then1125, own target build and exact proofs only. Remote1037 waits for candidate engine. NextD337/archive97;94Done until1124 repaired.
 
 Integrated ZN-1123 bc2cfe9c4 / D326, Done both criteria; 94 Done since1078.03. Exact Dyn aliases retain callback parameter/result identity. Clean common build, exact dyn_callback, original Request/fetch all3 and rn-showcase32-file check pass without app/library changes. Archive86 verifies17 source payloads,83 worker logs and70 rootproof files.
 

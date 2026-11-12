@@ -1,8 +1,9 @@
 ---
 id: ZN-1124
 title: Preserve normal try completion in narrowing and field initialization
-status: Done
-assignee: []
+status: Backlog
+assignee:
+  - '@parallel'
 created_date: '2026-11-12 07:43'
 labels:
   - language
@@ -50,3 +51,5 @@ Later proposal: keep D224 optional machine-number store coercion on QuickJS visi
 - Resume ZN-1039's prepared lifecycle T0 and short actual player/editor release proof with this engine (bounded short run, resource counts rather than RSS); no app execution or native reclamation claim is made here.
 
 Usage: `tools/usage` reported `usage: n/a`; no usage estimate is invented.
+
+2026-11-12 coordinator L: reopened after original unchanged iPod103-file check exposed a regression introduced by8975a1c6d: four existing kit optional-property narrowings now fail. Same source/tree with archived old6121edcc8 CLI passes; compact four-case source and both logs are preserved under .worktrees/1037-remote-wire/.logs/remote1037/kit-narrowing.ts, kit-current8975.log and kit-old6121.log. Current examples: guarded callback after conditional getter, early-return guarded callback, compound guard optional number, nested guarded callback with argument call. Correct shared checker transfer precision without changing callers or dropping existing conditional-write negative safety; keep original try-flow proofs. All earlier proofs remain true, but task is reopened until this source regression is fixed. No app workaround.
