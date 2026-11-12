@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- COORDINATOR HANDOFF2026-11-12m: M soleleader ONLYafter .logs/coord-transfer-20261112-m.ready, L ceasesALLcoordination then. FULL .logs/COORDINATOR-M-HANDOFF.md. Activeengine1124_1125 SAMEtree TRUEbased813, source2b6021124Done/f8dd1125BacklogAC1/2only, nointegration.1126claimed466/copiedtaskonly/readsresearch, mini+aliasedge probesnext; no1126edit/buildyet.1037twoWIPsourcefilesPARKED/provisionalworkerended/fullhandoff+2558logs, noreset/AC/commit; freshremoteafter1126stable.94Done,nextD337/archive97, common88ec/compiled8975unchanged/no rootheavy. Finalowner/defaultdiff+binaryauditbeforemarker.
+
 - L1124 source2b602f2e4 fixes confirmed regression;1125sourcef8dd62be2 strictnullish all3/nativewire PASS but productionQJSWirePlaylist namespace schema empty. Created/claimed1126 New-taskblocks1037; same frontendworker extends in SAMEtree/noreset, resolver/per-modulebindings required. Remote1037 twoWIPsourcefiles retained/provisionalHANDOFF/full2558logs, noACchecked; VM+actualnativewirePASS/QJSidmissingFAIL. Originalipodweb old90/new60timeouts kept; no reruncampaign.94Done,nextD337/archive97, common unchanged/no rootheavy.
 
 - L activated after ready-l/192c2e087. Reopened/claimed1124 after original iPod103-file and exact4case mini PASS old6121/FAIL8975; new conditional/guard invalidation incorrectly reused loop call effects. Created/claimed1125 New-taskblocks1037 for optional typed JSON null accepted as undefined; frontend/Dyn and QJS boundary only. One isolated frontend chain1124→1125; remote1037 edited source retained, no caller workaround/no daemon/network/device.94Done until1124 repair,nextD337/archive97. Owner WIP untouched.

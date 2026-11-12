@@ -1,12 +1,12 @@
 # Zinc coordinator — 2026-11-12
 
-Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after ready-l: coordinator_l under coordinator_k. Outgoing K ceases all coordination at .logs/coord-transfer-20261112-l.ready. Full durable handoff .logs/COORDINATOR-L-HANDOFF.md; full worker-rules. Source isolated; max2buildingtrees/oneheavy, absolute main tools/work-run and relative tools/build in correct tree.
+Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after ready-m: coordinator_m under coordinator_l. Outgoing L ceases all coordination at .logs/coord-transfer-20261112-m.ready. Full durable handoff .logs/COORDINATOR-M-HANDOFF.md; full worker-rules. Source isolated; max2buildingtrees/oneheavy, absolute main tools/work-run and relative tools/build in correct tree.
 
 94 Done since1078.03;1124 reopened for a confirmed new narrowing regression. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
 
 ## Current
 
-Sole coordinator after `.logs/coord-transfer-20261112-l.ready`: coordinator_l. K ceases all coordination at that marker. Full handoff: `.logs/COORDINATOR-L-HANDOFF.md`.
+Sole coordinator after `.logs/coord-transfer-20261112-m.ready`: coordinator_m. L ceases all coordination at that marker. Full handoff: `.logs/COORDINATOR-M-HANDOFF.md`.
 
 Active engine chain in `.worktrees/1124-1125-boundaries`, branch `work/1124-1125-boundaries`, TRUEbase d81310863944332d2db392370c4c18aaf4150f08. Source1124 2b602f2e4 Done3AC (not yet integrated); source1125 f8dd62be2 Backlog AC1/2checked, AC3open. Exact try_flow3positives/all3+28negatives, checked_nullish realall3+10badcases and old/new nativewireassert PASS; pinball25/editor36 checks and original ipod103/kit4 PASS. Sourceworker extends claimed1126 next; research `.logs/research-namespace-l.txt`. No root heavy/pending; common source88ec54b58/compiled8975a1c6d remains unchanged until integration.
 
