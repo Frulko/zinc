@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve584.04/.05 samegamechain after584.03; delegatedprimaryresearchcomplete. ExistingCoinRush templateadopts SceneController/Sprite/InputActions, preservesworld/save/audio/controls; noforcedmap/animation/physics ornewdemo.500body60FPSgate staysopen/unselected. Existingreference extended+guidechapter/nav, documentationtask mayclose onexactchecks.440.03 nativeaudioactive.
+
 - Integrated584.03 de56ba0b5 ReviewAC1; reviewcaughtnewplatformerfocuslossstuckkey, callerreset+actualappT0 added, all3 exactgamePASS. RootAOT40frames/captureinspected hashda91e6dbc6ac14ed. Sharedaffected merge duplicateoldmapping removed, onlyownedHEADpatch staged. Archive67verifiedbeforecleanup.440.03 activeoptionalcodec;584.04/.05 researchcomplete candidate.91Doneunchanged.
 
 - Reserve440.03 optionalOpus afterdelegatedprimaryresearch. Reuseminiaudio upstreambackend/libopusfile+libogg andexistingopus1.6.1 source withbaselineconfig; existingpluginoptions+archiveextraction keepsdisabledbinaryfree, coldvendorcompilecost disclosed. No core/RT/HAL change, noallocaccounting claim orPiCPUbenchmark (unselected/authfailed).584.03 TS-onlyactive; commonmacbuildfinished.
