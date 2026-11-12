@@ -23,7 +23,7 @@ Owner steering: after the engaged1034 batch, prioritize a safe engine/runtime ch
 
 1030 structural storage/views and related RT/allocator/render work are held,1024 needs heldmain/timing, conformance/fuzz/performance campaigns unselected.597 and575/1068/1078.29 quiet gates remain unselected;897 joinedICE open;1066 privateHermes only;512 no actual ARM;164 genericlibuv split open. No new service/demo/SDK/OS/device action. Full pending task details in State/task notes.
 
-No active source worker:203.06 is integrated, archived, released and removed EXIT0 before branch deletion. No next claim before removal EXIT0 and fresh priority/source/ownership gates. QJS/RT/main/HAL/UI/kit-host remain held.
+Active sole SOURCE worker: existing203.09 getBufferSubData TF read validation, `.worktrees/20309-tf-readback` branchwork/20309-tf-readback. TRUEe8ef07235b77c718ca2117d89af5e2335d9e80f8 clean/hooks ACK before reads. Fresh ALL30 scoped tracked+untracked GL/generator/callers clear before claim; full `.logs/research-next-engine-t.txt` and `.logs/worker-tf-readback-t-brief.txt`. Actual immutable947d/cbdfe baseline required before edits. Whole selected inactive/current indexed alias plus generic TF target any-active/paused/current-vs-other/default distinctions; no lifecycle producer changes without actual blocker and scope review. Task Backlog/AC1 unchecked. Own GL targets only; no CLI/common build/reset, existing ZINC_ZIG explicit. Worker owns/polls own commands; no T pending. QJS/RT/main/HAL/UI/native_gen/kit-host remain held.
 
 ## Tests to run (owner picks)
 
