@@ -52,10 +52,16 @@ function uuid(): string {
   return out;
 }
 const VIDEO_PT = parseInt(env('DISCORD_VIDEO_PT') || '101');
-const CODECS: any[] = [{ name: 'opus', type: 'audio', priority: 1000, payload_type: 120 },
-  { name: 'H264', type: 'video', priority: 1000, payload_type: VIDEO_PT, rtx_payload_type: VIDEO_PT + 1, encode: true, decode: true }];
-if ((env('DISCORD_VIDEO_CODECS') || '').indexOf('vp8') >= 0) CODECS.push({ name: 'VP8', type: 'video', priority: 2000, payload_type: 103, rtx_payload_type: 104, encode: false, decode: false });
-const VARIANT = `pt ${VIDEO_PT} codecs ${CODECS.filter((c: any) => c.type === 'video').map((c: any) => c.name).join('+')} ext ${env('DISCORD_VIDEO_EXT') || 'native: twcc 5, playout-delay 6, content-type 7, rid 11 (rtx 12)'} active ${env('DISCORD_VIDEO_ACTIVE') || 'true'} type ${env('DISCORD_VIDEO_TYPE') || 'ready'}`;
+/** Whether this backend can encode and decode H.264. Query before opening a camera or screen capture. */
+export function isVideoSupported(): boolean { return S.videoAvailable(); }
+const VIDEO_UNAVAILABLE = 'discord-voice: H.264 video is not available on this platform';
+function codecs(): any[] {
+  const out: any[] = [{ name: 'opus', type: 'audio', priority: 1000, payload_type: 120 }];
+  if (isVideoSupported()) out.push({ name: 'H264', type: 'video', priority: 1000, payload_type: VIDEO_PT, rtx_payload_type: VIDEO_PT + 1, encode: true, decode: true });
+  if ((env('DISCORD_VIDEO_CODECS') || '').indexOf('vp8') >= 0) out.push({ name: 'VP8', type: 'video', priority: 2000, payload_type: 103, rtx_payload_type: 104, encode: false, decode: false });
+  return out;
+}
+function variant(): string { return `pt ${VIDEO_PT} codecs ${codecs().filter((c: any) => c.type === 'video').map((c: any) => c.name).join('+')} ext ${env('DISCORD_VIDEO_EXT') || 'native: twcc 5, playout-delay 6, content-type 7, rid 11 (rtx 12)'} active ${env('DISCORD_VIDEO_ACTIVE') || 'true'} type ${env('DISCORD_VIDEO_TYPE') || 'ready'}`; }
 // the quality op 15 asks for a stream shown at 640x360 or more (100), smaller (50)
 const CAMERA_W = 640, CAMERA_H = 360;
 
@@ -178,6 +184,7 @@ export class VoiceConnection {
   private fresh = false;
 
   constructor(server: VoiceServer) {
+    if (server.stream === true && !isVideoSupported()) throw new Error(VIDEO_UNAVAILABLE);
     this.server = server;
     this.open();
   }
@@ -252,8 +259,10 @@ export class VoiceConnection {
   setLowDataMode(on: boolean): void { const was = this.lowData; this.lowData = on; this.limits(); if (was !== on && this.camera) this.describeVideo(); }   // the announcement follows the cap
 
   /** Sends our camera, or our screen on a Go Live connection (op 12 describes the stream at `q`, then each sendImage() frame goes out,
-   *  encoded at videoBitrate(q)), or stops it (op 12 with no stream). The program also tells the main gateway (op 4 self_video). */
+   *  encoded at videoBitrate(q)), or stops it (op 12 with no stream). Throws before changing state if video is unavailable.
+   *  The program also tells the main gateway (op 4 self_video). */
   setCamera(on: boolean, q: VideoQuality | null = null): void {
+    if (on && !isVideoSupported()) throw new Error(VIDEO_UNAVAILABLE);
     this.camera = on;
     if (q !== null) {
       const c = clampQuality(q, this.ceiling);
@@ -262,15 +271,18 @@ export class VoiceConnection {
     }
     this.describeVideo();
   }
-  /** A frame of our camera (a runtime image: zinc:camera's `image`), encoded and sent on the media thread. */
-  sendImage(image: i32): void { if (this.h >= 0 && this.camera && image >= 0) S.sendImage(this.h, image); }
+  /** A frame of our camera (a runtime image: zinc:camera's `image`), queued on the media thread; false if unavailable or unreadable. */
+  sendImage(image: i32): boolean { return this.h >= 0 && this.camera && image >= 0 && isVideoSupported() && S.sendImage(this.h, image); }
   /** The cameras shown and their size in pixels (user id -> [width, height]); the others are not decoded, and the server is asked for
-   *  each shown stream at a quality that fits its size (100, or 50 for a small tile) and for none of the rest (op 15, sent on a change). */
-  watch(shown: Map<string, number[]>): void {
-    if (this.h < 0) return;
+   *  each shown stream at a quality that fits its size (100, or 50 for a small tile) and for none of the rest (op 15, sent on a change).
+   *  False when video is unavailable: no streams are requested, and existing watches are stopped. An empty map always permits cleanup. */
+  watch(shown: Map<string, number[]>): boolean {
+    const supported = isVideoSupported();
+    if (!supported && shown.size > 0) this.log(VIDEO_UNAVAILABLE);
+    if (this.h < 0) return supported || shown.size === 0;
     const want: any = {}, pixels: any = {};
     for (const [user, layers] of this.layers) {
-      const s = shown.get(user);
+      const s = supported ? shown.get(user) : undefined;
       const w: i32 = s !== undefined ? Math.round(s[0]) : 0, ht: i32 = s !== undefined ? Math.round(s[1]) : 0;
       const pick = w > 0 ? pickLayer(layers, w * ht >= CAMERA_W * CAMERA_H ? 100 : 50) : null;
       // every layer is named, so the server forwards the picked one under the SSRC we decode, and none of the others
@@ -286,6 +298,7 @@ export class VoiceConnection {
     want.pixelCounts = pixels;
     const text = JSON.stringify(want);
     if (text !== this.wants) { this.wants = text; this.send(OP_MEDIA_SINK_WANTS, want); }
+    return supported || shown.size === 0;
   }
   /** The newest frame of someone's camera as a runtime image (moved to it now), -1 when none is decoded. */
   videoImage(user: string): i32 { const s = this.watched.get(user); return this.h >= 0 && s !== undefined ? S.videoImage(this.h, s) : -1; }
@@ -313,8 +326,11 @@ export class VoiceConnection {
     this.ws = ws;
     ws.onopen = (): void => {
       if (this.resumed) this.send(OP_RESUME, { server_id: this.server.serverId, session_id: this.server.sessionId, token: this.server.token, seq_ack: this.seq });
-      else this.send(OP_IDENTIFY, { server_id: this.server.serverId, user_id: this.server.userId, session_id: this.server.sessionId,
-        token: this.server.token, max_dave_protocol_version: S.daveVersion(), video: true, streams: [{ type: this.kind(), rid: '100', quality: 100 }] });
+      else {
+        const video = isVideoSupported();
+        this.send(OP_IDENTIFY, { server_id: this.server.serverId, user_id: this.server.userId, session_id: this.server.sessionId,
+          token: this.server.token, max_dave_protocol_version: S.daveVersion(), video: video, streams: video ? [{ type: this.kind(), rid: '100', quality: 100 }] : [] });
+      }
     };
     ws.onmessage = (e: MessageEvent): void => {
       if (this.ws !== ws) return;
@@ -435,7 +451,7 @@ export class VoiceConnection {
       const mode = S.modes().split('\u001f').find((x: string) => this.serverModes.indexOf(x) >= 0);
       if (mode === undefined) { this.end(`no shared encryption mode (the server offers ${this.serverModes.join(', ')})`); return; }
       this.log(`voice discovered ${address}:${port}, mode ${mode}`);
-      this.send(OP_SELECT_PROTOCOL, { protocol: 'udp', data: { address: address, port: parseInt(port), mode: mode }, codecs: CODECS, rtc_connection_id: uuid() });
+      this.send(OP_SELECT_PROTOCOL, { protocol: 'udp', data: { address: address, port: parseInt(port), mode: mode }, codecs: codecs(), rtc_connection_id: uuid() });
     }, 10);
   }
   private described(d: any): void {
@@ -447,7 +463,7 @@ export class VoiceConnection {
     if (typeof d.keyframe_interval === 'number') this.keyframeMs = d.keyframe_interval;
     if (this.dave > 0) this.keyPackage();
     this.setState('connected');
-    if (this.server.stream === true) this.log(`voice video variant: ${VARIANT}`);
+    if (this.server.stream === true) this.log(`voice video variant: ${variant()}`);
     if (this.fresh) { this.fresh = false; this.wants = ''; this.watched.clear(); this.onVideo(); }   // a new native connection: nothing is watched on it yet
     if (this.camera) this.describeVideo();   // a camera turned on while connecting, or a resumed session
     if (this.poll < 0) this.poll = setInterval(() => { this.tick(); }, POLL_MS);
@@ -502,7 +518,7 @@ export class VoiceConnection {
   /** Op 12 from us: our stream, before its first packet (else the server drops the connection: invalid SSRC), or none. */
   private describeVideo(): void {
     if (this.h < 0 || this.state !== 'connected' || this.videoSsrc === 0) return;
-    const on = this.camera, e = sentQuality(this.quality, this.lowData ? (this.server.stream === true ? LOW_STREAM : LOW_CAMERA) : null), bps = e.bps;
+    const on = this.camera && isVideoSupported(), e = sentQuality(this.quality, this.lowData ? (this.server.stream === true ? LOW_STREAM : LOW_CAMERA) : null), bps = e.bps;
     const q = { width: e.width, height: e.height, fps: e.fps };
     if (this.lowData) this.log(`voice video ${this.kind()} announced ${q.width}x${q.height} ${q.fps} fps ${bps} bit/s (low data mode)`);
     S.videoSend(this.h, on ? this.videoSsrc : 0, on ? this.rtxSsrc : 0, bps, q.fps, this.keyframeMs);

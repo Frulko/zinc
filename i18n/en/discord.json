@@ -123,6 +123,7 @@
  "discord.error.stream_ended": "Your stream ended ({reason})",
  "discord.error.token_refused": "Discord refused this token: log in again.",
  "discord.error.unpin": "Could not unpin the message: {error}",
+ "discord.error.video_unavailable": "Video is unavailable on this platform: the H.264 codec is missing.",
  "discord.error.voice_disconnected": "Voice disconnected: {reason}",
  "discord.error.vote": "Could not vote: {error}",
  "discord.guard.advertising": "Not sent: the same invite in more than {count} conversations looks like advertising.",

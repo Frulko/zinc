@@ -1049,7 +1049,9 @@ struct HostDiscordVoice : NativeDiscordVoice {
     delete c;
     conns[h] = nullptr;
   }
+  bool videoAvailable() override { return media::h264Available(); }
   void videoSend(int32_t h, uint32_t ssrc, uint32_t rtxSsrc, int32_t bitrate, int32_t fps, int32_t keyframeMs) override {
+    if (ssrc && !media::h264Available()) { err = "discord-voice: H.264 video is not available on this platform"; return; }
     Conn* c = at(h);
     if (!c) return;
     std::lock_guard<std::mutex> g(c->mu);
@@ -1065,6 +1067,7 @@ struct HostDiscordVoice : NativeDiscordVoice {
     c->forceKey = true;
   }
   bool sendImage(int32_t h, int32_t image) override {
+    if (!media::h264Available()) { err = "discord-voice: H.264 video is not available on this platform"; return false; }
     Conn* c = at(h);
     const uint32_t* px = nullptr;
     int32_t w = 0, ih = 0, s = 0;
@@ -1084,6 +1087,7 @@ struct HostDiscordVoice : NativeDiscordVoice {
     return true;
   }
   void watch(int32_t h, uint32_t ssrc, zrt::String user, int32_t width, int32_t height) override {
+    if (width > 0 && height > 0 && !media::h264Available()) { err = "discord-voice: H.264 video is not available on this platform"; return; }
     Conn* c = at(h);
     if (!c) return;
     std::shared_ptr<Watch> x;

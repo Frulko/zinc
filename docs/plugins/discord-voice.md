@@ -4,7 +4,7 @@ A Discord voice connection: what a program needs once it has joined a voice chan
 `plugins/discord-voice/`; the protocol is in `docs/reports/discord-client-research.md` (section 4); `examples/discord` uses it.
 
 ```ts
-import { VoiceConnection, inputDevices, outputDevices } from 'zinc:discord-voice';
+import { VoiceConnection, inputDevices, outputDevices, isVideoSupported } from 'zinc:discord-voice';
 import { CallQuality } from 'zinc:webrtc/quality';
 
 // after op 4 on the main gateway: VOICE_STATE_UPDATE gave session_id, VOICE_SERVER_UPDATE gave token and endpoint
@@ -19,7 +19,7 @@ call.level();                                 // the microphone's RMS now, sent 
 call.onVideo = () => console.log([...call.cameras.keys()]);   // who sends a camera (op 12)
 call.watch(new Map([['101', [512, 288]]]));    // decode only 101's camera, at most 512x288 (op 15 asks the server for it, 0 for the rest)
 call.videoImage('101');                        // its newest frame as a runtime image (<Image image={...}>)
-call.setCamera(true); cam.onFrame(() => call.sendImage(cam.image));   // our zinc:camera, then op 4 self_video on the main gateway
+if (isVideoSupported()) { call.setCamera(true); cam.onFrame(() => { call.sendImage(cam.image); }); }   // our zinc:camera, then op 4 self_video on the main gateway
 const q = new CallQuality();                   // from 'zinc:webrtc/quality'
 setInterval(() => { q.update(call.getStats()); if (q.poorFor >= 5) call.setLowDataMode(true); }, 1000);
 call.close();   // then op 4 with a null channel
@@ -42,7 +42,12 @@ call.close();   // then op 4 with a null channel
   0.1 bit per pixel, single NAL units and FU-A, the playout-delay extension) and decodes only the watched streams, scaled by VideoToolbox
   to their size, into buffers handed to the image without copies; DAVE encrypts and decrypts each video frame as it does audio. A key
   frame is asked (RTCP PLI) after a loss or when a stream starts showing, at most once a second, and a PLI from the server makes our next
-  frame a key frame. macOS only for now (`plugins/webrtc/native/videotoolbox.cpp`); elsewhere no stream decodes and nothing is sent.
+  frame a key frame. `isVideoSupported()` queries the actual codec backend lazily; currently it is available through VideoToolbox on macOS.
+  Without it, Identify and Select Protocol offer audio only. `setCamera(true)` and video-only (`stream: true`) connections throw before
+  changing state or opening a socket; check the capability before opening capture resources. `watch()` returns false, logs a clear reason
+  and requests no video when unavailable; an empty map still stops existing watches. `sendImage()` returns whether the frame was accepted,
+  including the native rejection of an unreadable image. Audio and video-stop calls remain usable. The Discord app reports unavailable video
+  before requesting camera permission or opening a screen capture. This does not add a Linux H.264 codec.
 - **Quality.** Each second the native side sends an RTCP sender report for our streams with a receiver report block per stream it
   receives (RFC 3550: loss, interarrival jitter, the last sender report's time) and reads the server's blocks on ours. `getStats()` gives
   them as zinc:webrtc's `getStats()` does (`outbound-rtp`, `remote-inbound-rtp` with `fractionLost`, `jitter`, `roundTripTime`,
@@ -59,7 +64,8 @@ call.close();   // then op 4 with a null channel
   DAVE's state. `examples/discord` prints it on standard output. The protocol it is checked against: `docs/reports/discord-video-protocol.md`.
 - **Tests.** `ZINC_FAKE_MICROPHONE=1`: a 440 Hz tone and no audio device; `inputDevices()` and `outputDevices()` give "Zinc Fake Microphone" and "Zinc Fake Speakers". `rtpHeader`, `seal` and `unseal` give the framing and the transport
   encryption alone (`tests/golden/host/discord_voice_rtp.ts`, vectors recorded with Node by `plugins/discord-voice/tests/vectors.mjs`);
-  `tests/t1/discord_voice.sh` runs a call against the fake Discord of `examples/discord/tests`.
+  `tests/t0/discord_video_capability.sh` executes the production TypeScript with fake imported providers under Node, checking both capability
+  decisions and actual emitted messages without sockets or devices; it is not a native media or whole-VM proof. `tests/t1/discord_voice.sh` runs a call against the fake Discord of `examples/discord/tests`.
 - **Not yet.** Packet reordering and loss concealment (Opus PLC/FEC), RTX and NACK, REMB and transport-wide congestion control, simulcast layers of our camera, VP8/AV1,
   DAVE's verification codes (pairwise fingerprints).
 - **Go Live experiments (ZN-921).** All off by default; the connect line `voice video variant: ...` (DISCORD_LOG=1) names the active ones, and

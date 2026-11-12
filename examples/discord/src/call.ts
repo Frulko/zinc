@@ -7,7 +7,7 @@
 // watched one at a time, decoded only while shown, at their tile's size or the full view's. Quality: the connections' RTCP counters read
 // each second (CallQuality: good, fair, poor), and the ultra low data mode, chosen in the settings or switched on after 5 poor seconds.
 // No drawing.
-import { VoiceConnection, VoiceState, AudioDevice, VideoQuality, inputDevices, outputDevices, isHeadphones } from 'zinc:discord-voice';
+import { VoiceConnection, VoiceState, AudioDevice, VideoQuality, inputDevices, outputDevices, isHeadphones, isVideoSupported } from 'zinc:discord-voice';
 import { CallQuality, RTCStats } from 'zinc:webrtc/quality';
 import { ScreenCapture } from 'zinc:screen-capture';
 import { pickScreen, ShareChoice } from 'zinc:screen-capture/picker';
@@ -282,6 +282,7 @@ export class Call {
   /** Turns our camera on (the system's question first; op 4 self_video and the voice gateway's op 12 tell the others) or off. */
   async toggleVideo(): Promise<void> {
     if (this.video) { this.cameraOff(); this.apply(); return; }
+    if (!this.mayVideo()) return;
     if (env('ZINC_FAKE_CAMERA') === '' && await cameraPermission() !== 'granted') {
       this.error = tr('discord.error.camera_off'); this.changed(); return;
     }
@@ -313,7 +314,8 @@ export class Call {
   private videoWatch(): void {
     const c = this.conn;
     const shown: Map<string, number[]> = new Map<string, number[]>();
-    if (c !== null && this.viewOn && appState() === 'active') {
+    const video = isVideoSupported();
+    if (c !== null && video && this.viewOn && appState() === 'active') {
       const k = pixelScale();
       for (const id of this.members(this.channelId)) if (c.cameras.has(id)) shown.set(id, [TILE_W * k, TILE_H * k]);
     }
@@ -321,7 +323,7 @@ export class Call {
     for (const id of Array.from(this.images.keys())) if (!shown.has(id)) this.images.delete(id);
     // the stream we watch: at its tile's size, or the full view's
     const w = this.watching, sc = w !== null ? w.conn : null;
-    const stream = sc !== null && w !== null && this.viewOn && appState() === 'active' && sc.cameras.has(w.user);
+    const stream = video && sc !== null && w !== null && this.viewOn && appState() === 'active' && sc.cameras.has(w.user);
     if (sc !== null && w !== null) {
       const k = pixelScale(), want: Map<string, number[]> = new Map<string, number[]>();
       if (stream) want.set(w.user, this.focused ? [FULL_W * k, FULL_H * k] : [TILE_W * k, TILE_H * k]);
@@ -353,7 +355,7 @@ export class Call {
   /** Go Live: the share dialog (zinc:screen-capture/picker: the source, the resolution and rate, kept for next time), then the source captured
    *  at exactly that size and rate (never bigger than what is sent) and op 18 asks for the stream. */
   async shareScreen(): Promise<void> {
-    if (this.channelId === '') return;
+    if (this.channelId === '' || !this.mayVideo()) return;
     this.error = '';
     if (!this.mayGoLive()) return;
     const s = this.settings;
@@ -392,6 +394,10 @@ export class Call {
     this.gw(19, { stream_key: l.key });
     this.endLive(l);
   }
+  private mayVideo(): boolean {
+    if (isVideoSupported()) return true;
+    this.error = tr('discord.error.video_unavailable'); this.changed(); return false;
+  }
   /** Going live or watching a stream is a person's click: the guard's 'live' verdict (its ops then go as 'stream'); else the error shows. */
   private mayGoLive(): boolean {
     const v = guard.begin('live', null, 0);
@@ -400,7 +406,7 @@ export class Call {
   }
   /** Watches someone's stream (op 20); one at a time. */
   watchStream(user: string): void {
-    if (this.channelId === '' || user === this.me()) return;
+    if (this.channelId === '' || user === this.me() || !this.mayVideo()) return;
     const w = this.watching;
     if (w !== null && w.user === user) return;
     if (!this.mayGoLive()) return;

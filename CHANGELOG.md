@@ -199,6 +199,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - iPod smart previews honour checked tracks, tags and combined media flags; unchanged unknown rules keep their original data.
   Missing tags no longer raise GLib errors, and generated Nano 5G/6G metadata preserves SQLite support.
 
+- Discord voice calls advertise H.264 only when the codec is available; unsupported video is reported before opening capture, while audio remains usable.
+
 ### Network
 
 #### New
