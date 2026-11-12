@@ -45,6 +45,42 @@ For HDMI, preserve alsa-lib's named `hdmi:` or `sysdefault:` path in that policy
 [vc4-hdmi configuration](https://github.com/alsa-project/alsa-lib/blob/master/src/conf/cards/vc4-hdmi.conf)
 converts ordinary PCM to IEC958 subframes; raw `hw:` access bypasses this conversion.
 
+### Prepared Linux loopback check
+
+`tests/t1/audio_loopback.sh` is an opt-in roundtrip through the existing public audio API and the Linux
+[`snd-aloop` driver](https://alsa.alsa-project.org/wiki/Matrix%3AModule-aloop). It is written but has not yet
+been run against a prepared kernel or Linux CI. It does not establish Pi HDMI/jack playback.
+
+Use only a dedicated image whose owner has already provided `snd_aloop`, alsa-lib, `arecord`, a Linux Zinc
+with the native audio plugin ready, and a named loopback card/subdevice delegated exclusively to this run.
+No physical playback PCM may be accessible; competing audio servers must already be excluded by the image.
+The runner never loads a module, installs tools, changes permissions, starts/stops servers or edits routing.
+
+When this test is selected, substitute the reported card ID and delegated subdevice (0..7):
+
+```sh
+ZINC_AUDIO_LOOPBACK_TEST=1 ZINC_AUDIO_LOOPBACK_CARD=Loopback ZINC_AUDIO_LOOPBACK_SUBDEVICE=0 \
+  ZINC=/absolute/linux/zinc timeout 30 tests/run --only audio_loopback
+```
+
+The runner checks the card's `snd_aloop` module identity and both closed subdevices, then supplies only its
+children with a temporary ALSA configuration. Playback device 0 feeds capture device 1 on the same subdevice;
+capture opens first at PCM16/stereo/48 kHz. The private configuration deliberately omits global `alsa.conf`
+and `hw`/`dmix` fallback definitions. A backend check refuses to play unless miniaudio actually selected ALSA.
+These checks require the isolated image: `ALSA_CONFIG_PATH` cannot constrain another audio backend.
+
+The public fixture plays 997 Hz then 1499 Hz at a low level. Success requires both child exits, the fixture's
+completion marker, and a bounded WAV containing both tones in order, with matching stereo energy and frequency
+correlation. Silence, a null-mixer result, another tone, noise or clipping cannot pass. Inherited silent,
+deterministic and simulation flags are removed for these owned children; they run in the background with a real
+clock. The whole capture has a 15-second deadline (plus bounded child cleanup); a cold native-plugin compile may
+exceed it and is a failure, so prepare the plugin in the image first.
+
+Missing prerequisites return `SKIP` (77). A selected execution that fails retains its private configuration,
+capture and child logs at the printed temporary path; an unreaped child also reports its PID. Successful runs
+remove those files. `tests/run --only audio_loopback_tool` checks only the runner's guards, signal analysis and
+cleanup with synthetic data; it never opens an audio device and is not roundtrip evidence.
+
 ### Example: Raspberry Pi DAC+
 
 Follow the [official audio HAT instructions](https://www.raspberrypi.com/documentation/accessories/audio.html)
