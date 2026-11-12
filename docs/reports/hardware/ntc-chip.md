@@ -208,7 +208,7 @@ this machine through the QEMU Cortex-A8 below). LLVM marks the A8 with `nonpipel
 | SPI | SPI2 on the CSI pins, disabled in the DTS [2] | overlay enabling `spi2` + `spidev`; `hw.h` spidev backend |
 | UART | UART1 = serial console on U14; UART2 on LCD-D2..D5 | termios |
 | PWM | `sun4i-pwm` PWM0 on PB2 (U13-18; the PocketCHIP backlight) | `/sys/class/pwm` |
-| Audio | `sun4i-codec` ALSA (headphone/mic on the TRRS jack, PocketCHIP speaker) [2][8] | `zinc:audio` (ZN-390, miniaudio): default ALSA backend in the glibc flavour, a tinyalsa (BSD) custom backend in the static one |
+| Audio | `sun4i-codec` ALSA (headphone/mic on the TRRS jack, PocketCHIP speaker) [2][8] | `zinc:audio` (ZN-390, miniaudio): default OS audio backend in the glibc flavour; fully static runtime without shared-library loading is silent (ZN-555); tinyalsa is not implemented |
 | 1-Wire | `w1-gpio` on PD2 (DIP EEPROMs) [2] | DIP detection is U-Boot's job |
 | Video decode | `sunxi_cedrus` V4L2 stateless (MPEG-2, H.264) [39] | out of scope; loads but unvalidated [8] |
 
@@ -446,7 +446,7 @@ tasks. The same list as JSON (ready for `tools/tasks-import` after adding keys) 
    "ac": ["hero and kit-gallery fit 480x272 without clipping", "backlight brightness is settable from TypeScript", "the power key blanks the screen and wakes it", "the battery widget shows capacity and charging state"],
    "deps": ["CHIP-08", "CHIP-20"]},
   {"title": "CHIP-22 PocketCHIP audio through zinc:audio",
-   "description": "zinc:audio (ZN-390, miniaudio) on sun4i-codec: ALSA backend in the glibc flavour, a tinyalsa (BSD) custom miniaudio backend in the static armv7-linux flavour; speaker and headphone routing on the PocketCHIP.",
+   "description": "zinc:audio (ZN-390, miniaudio) on sun4i-codec: ALSA backend in the glibc flavour; fully static runtime without shared-library loading uses silent/null audio under ZN-555. No tinyalsa backend is implemented; PocketCHIP speaker and headphone routing still need real-image proof.",
    "ac": ["the game-2d template plays its sounds on the PocketCHIP speaker", "output latency measured and recorded", "the static flavour has no libasound dependency"],
    "deps": ["ZN-390", "CHIP-02"]}
 ]

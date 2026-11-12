@@ -14,7 +14,7 @@ This plugin plays sound effects and music: a game rings a coin over its music, a
 | target | status | output |
 |---|---|---|
 | macos | supported, verified on x86_64 | Core Audio, the default device (the frameworks are loaded at run time: nothing to link) |
-| linux | in the manifest, not built or run yet | miniaudio picks PulseAudio, ALSA or JACK at run time (`dlopen`), so no development package is needed |
+| linux | native implementation and manifest target present; actual Linux playback remains unverified | miniaudio opens the system default through its available backends; ALSA loads the OS `libasound.so.2` at run time |
 | anywhere else, and where the native code cannot be built | silent | the stand-in written in Zinc, `native/audio.sim.ts` |
 
 ```ts
@@ -33,6 +33,70 @@ hit.rate = 1.2; hit.pan = -0.6;       // a little higher, on the left (a pinball
 hit.play();
 setVolume(0.8);                       // the whole mix
 ```
+
+## Linux outputs and Raspberry Pi I2S
+
+Zinc opens the system default playback device. Select the intended output in the image's audio policy before
+starting the app; Zinc has no device or backend selection API. `ZINC_AUDIO=null` requests silence; values such as
+`alsa` or `hdmi` do not select an output. `backend()` reports the backend actually opened, or `null`.
+Headless, deterministic, record and replay runs are silent even when a sound device exists.
+
+For HDMI, preserve alsa-lib's named `hdmi:` or `sysdefault:` path in that policy. Its
+[vc4-hdmi configuration](https://github.com/alsa-project/alsa-lib/blob/master/src/conf/cards/vc4-hdmi.conf)
+converts ordinary PCM to IEC958 subframes; raw `hw:` access bypasses this conversion.
+
+### Example: Raspberry Pi DAC+
+
+Follow the [official audio HAT instructions](https://www.raspberrypi.com/documentation/accessories/audio.html)
+for the exact board. This example is the Raspberry Pi DAC+, not a generic I2S overlay:
+
+1. With power disconnected, fit the HAT to the 40-pin header. Boot the prepared image and check HAT detection
+   with `grep -a . /proc/device-tree/hat/*`.
+2. If detection fails after checking the connection, the image owner can edit `/boot/firmware/config.txt`
+   (older images may use `/boot/config.txt`) and apply the manual fallback below, then reboot. Use the overlay
+   matching the actual HAT; DAC Pro, Codec Zero and DigiAMP+ require their own overlays.
+
+   ```ini
+   # Suppress the default HAT overlay, then select the DAC+ only:
+   dtoverlay=
+   dtoverlay=rpi-dacplus
+   ```
+
+3. Inspect `cat /proc/asound/cards` and `aplay -L` on the prepared image. Select the HAT in the desktop audio
+   settings, or have the image owner configure the ALSA default using the card's reported name/ID. Do not
+   assume card 0. On a console-only image without PulseAudio/PipeWire, an owner-managed `~/.asoundrc` can route
+   the default PCM through ALSA's [conversion plugin](https://www.alsa-project.org/alsa-doc/alsa-lib/pcm_plugins.html)
+   to `sysdefault:CARD=<CARD_ID>`; replace the placeholder with that reported ID. Keep the existing routing
+   configuration rather than overwriting it blindly. For example, this playback-only stanza uses the named card:
+
+   ```conf
+   pcm.!default {
+       type plug
+       slave.pcm "sysdefault:CARD=<CARD_ID>"
+   }
+   ```
+
+   The Raspberry Pi guidance discourages `~/.asoundrc`
+   on the desktop because it can interfere with the audio server's view of devices.
+4. In a selected hardware check, run the app with its normal clock/output settings and verify a non-`null`
+   `backend()` plus audible output or an independent capture. A null-mixer test does not prove I2S playback.
+
+These are image-owner setup instructions, not actions performed by Zinc. DAC+ playback and PocketCHIP
+speaker/headphone routing have not been proven here. PocketCHIP uses the kernel's `sun4i-codec` route and mixer
+policy; use the installed image's named card and documented controls, never guessed card numbers or unmute commands.
+
+### Fully static builds
+
+Normal Linux audio uses [miniaudio](https://miniaud.io/docs/manual/index.html) with dynamically loaded OS backends, including alsa-lib. For a fully static
+flavour whose libc/runtime cannot load those libraries, the supported policy is silent/null audio: deploy with
+`ZINC_AUDIO=null` explicitly. This is a support decision, not evidence that a particular static binary was built or run. A static executable and a
+runtime unable to load shared libraries are different constraints; inspect the produced target before making
+claims about either.
+
+No tinyalsa backend is implemented or vendored. Although [TinyALSA](https://github.com/tinyalsa/tinyalsa)
+is BSD-3-Clause, its PCM/mixer interface does not replace alsa-lib's card policy or HDMI conversion. Revisit a
+custom miniaudio backend when audible output is required on a prepared static target, with format negotiation,
+buffer-underrun (XRUN) recovery and real route/playback tests. No new dependency is needed for the current Linux backend.
 
 ## API
 
