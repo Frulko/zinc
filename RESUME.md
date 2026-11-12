@@ -12,9 +12,9 @@ Fresh coordinator transfer after a0df76956/D317: previous coordinator ceases at 
 
 Active source worker ZN-558 `/root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next/bluez558`, `.worktrees/558-bluez`, `work/558-bluez`, originalclaimb3f62443d. Wi-Fi checkpoints replayed800022cc9+6f534074d+bc2a2bccc; NOTHING558 integrated. Archive77 sourcebundle/30sourceblobs/full32logs verified, then newtree27blobs+3sharedownedline payloads identical before oldtreecleanup. Continues BlueZ in SAMEtask Backlog/allACopen. nmcli observation/scan works in software; connect/APfallback explicitlyunsupported to preserveclient-bound volatile profiles/secrets. D316postpollingchildteardown/concurrentVMlimits explicit. Research and fullhandoffs archive77/logs. No root heavy process pending.
 
-549 harness sourceworker `/root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next/gpio549_harness`, `.worktrees/549-kernel-harness`, `work/549-kernel-harness`, claimedb9398b3d0. Test/tool/fixture/docs only, nobuild/native/core edit; delegatedprimaryreport .logs/research-549-harness-next.txt. Pure selfchecks+fixturecheck only here; actualoptin kernelrun unselected, AC1/2remainopen.
+549 kernel harness integrated6a47537dc, D319, BacklogAC1/2open. Literalprepared-kerneltool+publicfixture written; rootpuregpio_kernel_tool andfixturetypecheck PASS, NOkernel/Pi run or nativebuild. Archive78 sourcebundle7blobs/fullworkerlogs/rootproofverified; finishedsourceworker tree/branch removed after verification.
 
-549 integratedcf7f76d9e BacklogAC3/4, D317. Root clean build/exactgpio+buses and public plus unchanged original frozen GPIO output all3 PASS; examplecheckPASS. Archive75 full source/logs/compiler/proof verified. Missing real gpio-sim integration harness and Pi jumper remain this task's AC1/2; not relabeled as hardware-only. hw.h ESP object compiles actual IDF6.1/XtensaGCC15.2, no firmware/ISR execution or new mquickjs API claim. Explicit release required.92Done unchanged.
+549 integratedcf7f76d9e BacklogAC3/4, D317. Root clean build/exactgpio+buses and public plus unchanged original frozen GPIO output all3 PASS; examplecheckPASS. Archive75 full source/logs/compiler/proof verified. Prepared-kernel integration harness subsequently written6a47537dc; actual kernel run and Pi jumper remain AC1/2. hw.h ESP object compiles actual IDF6.1/XtensaGCC15.2, no firmware/ISR execution or new mquickjs API claim. Explicit release required.92Done unchanged.
 
 Latest550 b4929e91c Review AC3/D316 and554 ff496c7fc Review hardwareACopen/D315. Root combined build, exact buses/buses_cache/power, public bus all3 and power semantic snapshot/events all3/doctor pass. Raw power JSON order retains documented D209 checked-return limitation; no API workaround. Archive72/73 verified. Explicit bus close required; native ABI reload cleanup/concurrency unproven. 92 Done unchanged.
 
@@ -38,9 +38,11 @@ Never reset/build/stage main WIP. Exact payload hashes .logs/blockers/core-1030/
 
 ## Tests to run (owner picks)
 
+- Since6a47537dc: preparedLinux `ZINC_GPIO_KERNEL_TEST=1 ZINC=/absolute/linux/zinc timeout 30 tests/run --only gpio_kernel` (~10–15s, memory unmeasured). No module/mount/permission setup performed by harness; owner-prepared delegated image required. Pureguard checks and fixturetypecheck already pass, actualkernel/Pi unrun.
+
 - Sinceaafdbfbbd: existing quiet hero save-to-frame recipe and selected hot-recompile/swap/dev-mode milestone (~120s bound, memory unmeasured). New exacttdz_locals all3 passes; no timing claim or whole-program incremental compiler. Proof .logs/integration-2026-11-11/checker1024-root/summary.json.
 
-- Sincecf7f76d9e: write the literal prepared-kernel Linux gpio-sim integration harness, then request/set/get/bias/edge/debounce proof in that CI image and with an owner-chosen safe Pi jumper pair (~10–15s, memory unmeasured). CHIP controller/ESP ISR-failure/restart and native VM reload/concurrency remain unproven. Exact GPIO/buses/public/original-all3 proof already passes; AC1/2 remain open.
+- Sincecf7f76d9e: execute the literal prepared-kernel Linux gpio-sim harness (written6a47537dc), proving request/set/get/bias/edge/debounce in that CI image and with an owner-chosen safe Pi jumper pair (~10–15s, memory unmeasured). CHIP controller/ESP ISR-failure/restart and native VM reload/concurrency remain unproven. Exact GPIO/buses/public/original-all3 proof already passes; AC1/2 remain open.
 
 - Sinceb4929e91c: prepared Linux i2c-stub SMBus, Pi jumper SPI loopback, unchanged SSD1306/WS2812 frames and CHIP bus/overlay hardware checks (bounded10–15s feature runs; memory unmeasured). ESP backend compile, native ABI concurrent argument/allocator and unclosed-handle VM reload ownership checks remain unproven; explicit close currently required. Exact simulated/public/cache proof passes.
 

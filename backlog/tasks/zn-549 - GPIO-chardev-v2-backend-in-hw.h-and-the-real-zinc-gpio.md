@@ -2,8 +2,7 @@
 id: ZN-549
 title: 'GPIO chardev v2 backend in hw.h and the real zinc:gpio'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:45'
 labels:
   - rpi
