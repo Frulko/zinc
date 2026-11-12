@@ -2,8 +2,7 @@
 id: ZN-1122
 title: Preserve lexical bindings and arity in deferred array callbacks
 status: Done
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-12 03:38'
 updated_date: '2026-11-12 03:45'
 labels:
