@@ -1,0 +1,9 @@
+grouping true
+kind true
+compilation true false
+modified true
+bit 1 true
+bit 4 true
+bit 2147483648 true
+checked checked
+all checked,unchecked

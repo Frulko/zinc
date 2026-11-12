@@ -45,7 +45,7 @@ bool describe(const std::string& mountpoint, Device& out, std::string& err);
  *  minimal plist from SysInfo, the model table and the USB serial (the FireWire GUID). True when the file exists after. */
 bool ensureSysInfoExtended(const std::string& mountpoint, std::string& err);
 /** The plist of a minimal SysInfoExtended (what libgpod reads from it); `artwork` holds its AlbumArt,
- *  ImageSpecifications and ChapterImageSpecs keys (libgpod's table for the model, see ipod_sysinfo.c). */
+ *  ImageSpecifications and ChapterImageSpecs keys, plus SQLiteDB when libgpod identifies that capability before the plist exists. */
 std::string sysInfoExtendedPlist(const std::string& serial, const std::string& firewireGuid, const std::string& modelNumber, int familyId, const std::string& artwork);
 
 /** The one open database (the worker owns it). */

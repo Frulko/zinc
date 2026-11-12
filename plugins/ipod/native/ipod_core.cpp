@@ -452,7 +452,7 @@ Track toTrack(Itdb_Track* t) {
   r.rating = (int32_t)(t->rating / ITDB_RATING_STEP); r.playCount = (int32_t)t->playcount;
   r.bitrate = t->bitrate; r.sampleRate = (int32_t)t->samplerate;
   r.durationMs = t->tracklen; r.size = t->size;
-  r.mediaType = mediaName(t->mediatype);
+  r.mediaType = mediaName(t->mediatype); r.mediaBits = t->mediatype; r.checked = t->checked == 0;
   if (t->ipod_path) { r.path = t->ipod_path; std::replace(r.path.begin(), r.path.end(), ':', '/'); if (!r.path.empty() && r.path[0] == '/') r.path.erase(0, 1); }
   r.artwork = itdb_track_has_thumbnails(t);
   r.added = (double)t->time_added; r.lastPlayed = (double)t->time_played;
@@ -729,11 +729,18 @@ SmartRules toRules(Itdb_Playlist* p) {
  *  nothing. */
 bool setRules(Itdb_iTunesDB* db, Itdb_Playlist* p, const SmartRules& in, std::string& err) {
   if (in.match != "all" && in.match != "any") { err = "match is all or any, not '" + in.match + "'"; return false; }
+  const SmartRules original = toRules(p);
   guint32 ltype = 0, lsort = ITDB_LIMITSORT_RANDOM;
   bool limited = !in.limit.type.empty() && in.limit.type != "none";
   if (limited) {
-    if (!splCode(kSplLimits, in.limit.type, ltype)) { err = "unknown limit type '" + in.limit.type + "' (songs, minutes, hours, MB or GB)"; return false; }
-    if (!in.limit.sort.empty() && !splCode(kSplSorts, in.limit.sort, lsort)) { err = "unknown limit sort '" + in.limit.sort + "'"; return false; }
+    const bool knownType = splCode(kSplLimits, in.limit.type, ltype);
+    const bool knownSort = in.limit.sort.empty() || splCode(kSplSorts, in.limit.sort, lsort);
+    if (!knownType || !knownSort) {
+      if (!p->splpref.checklimits || in.limit.type != original.limit.type || in.limit.sort != original.limit.sort || in.limit.value != original.limit.value) {
+        err = "unknown limit can only be kept unchanged"; return false;
+      }
+      ltype = p->splpref.limittype; lsort = p->splpref.limitsort;
+    }
     if (!(in.limit.value > 0)) { err = "a limit needs a value above 0"; return false; }
   }
   std::vector<Itdb_SPLRule*> made;
@@ -743,10 +750,23 @@ bool setRules(Itdb_iTunesDB* db, Itdb_Playlist* p, const SmartRules& in, std::st
     std::string where = "rule " + std::to_string(i + 1) + " (" + o.field + " " + o.action + "): ";
     const SplField* f = nullptr;
     for (const SplField& x : kSplFields) if (o.field == x.name) f = &x;
-    if (!f) { err = where + "unknown field"; return drop(); }
     const SplAction* a = nullptr;
-    for (const SplAction& x : kSplActions) if (o.action == x.name && strchr(x.kinds, f->kind)) a = &x;
-    if (!a) { err = where + "not an action of this field"; return drop(); }
+    if (f) for (const SplAction& x : kSplActions) if (o.action == x.name && strchr(x.kinds, f->kind)) a = &x;
+    if (!f || !a) {
+      if (i < original.rules.size()) {
+        const SmartRule& before = original.rules[i];
+        const Itdb_SPLRule* raw = static_cast<Itdb_SPLRule*>(g_list_nth_data(p->splrules.rules, i));
+        const SplField* rf = splField(raw->field);
+        if ((!rf || !splAction(raw->action, rf->kind)) && o.field == before.field && o.action == before.action &&
+            o.text == before.text && o.value == before.value && o.value2 == before.value2 && o.units == before.units) {
+          Itdb_SPLRule* kept = itdb_splr_new();
+          *kept = *raw; kept->string = g_strdup(raw->string);
+          made.push_back(kept);
+          continue;   // preserve every opaque native field, not just its public view
+        }
+      }
+      err = where + (f ? "not an action of this field" : "unknown field"); return drop();
+    }
     Itdb_SPLRule* x = itdb_splr_new();
     made.push_back(x);
     x->field = f->code; x->action = a->code;
@@ -777,7 +797,7 @@ bool setRules(Itdb_iTunesDB* db, Itdb_Playlist* p, const SmartRules& in, std::st
   if (limited) { p->splpref.limittype = ltype; p->splpref.limitsort = lsort; p->splpref.limitvalue = (guint32)std::llround(in.limit.value); }
   p->splpref.liveupdate = in.liveUpdate;
   p->splpref.matchcheckedonly = in.checkedOnly;
-  itdb_spl_update(p);
+  if (toRules(p).refreshable) itdb_spl_update(p);
   return true;
 }
 

@@ -53,13 +53,15 @@ static void formats (GString *x, const char *key, GList *list) {
   g_string_append (x, "\t</array>\n");
 }
 
-/* The AlbumArt, ImageSpecifications and ChapterImageSpecs keys for the iPod at `mountpoint` (call it while it has no
+/* SQLite capability and the AlbumArt, ImageSpecifications and ChapterImageSpecs keys for the iPod at `mountpoint` (call it while it has no
    SysInfoExtended); g_free the result. */
 char *zn_ipod_artwork_plist (const char *mountpoint) {
   Itdb_Device *dev = itdb_device_new ();
   itdb_device_set_mountpoint (dev, mountpoint);
   GString *x = g_string_new ("");
   GList *l;
+  if (itdb_device_supports_sqlite_db (dev))
+    g_string_append (x, "\t<key>SQLiteDB</key>\n\t<true/>\n");
   formats (x, "AlbumArt", l = itdb_device_get_cover_art_formats (dev)); g_list_free (l);
   formats (x, "ImageSpecifications", l = itdb_device_get_photo_formats (dev)); g_list_free (l);
   formats (x, "ChapterImageSpecs", l = itdb_device_get_chapter_image_formats (dev)); g_list_free (l);

@@ -3,8 +3,7 @@
 // answers like the native side. describeSmart() says the rules in one line.
 import type { Track, Playlist, SmartRules, SmartRule } from './native/ipod.spec';
 
-/** The fields a rule can test (ipod.spec.ts SmartRule). The evaluator knows those Track has (videoKind from Track.mediaType); grouping,
- *  kind, tvShow, season, compilation and modified are evaluated only by the native side (a rule on them never matches here). */
+/** The fields a rule can test. tvShow and season remain native-only because Track does not expose them. */
 export type SmartField = 'title' | 'album' | 'artist' | 'albumArtist' | 'composer' | 'genre' | 'comment' | 'grouping' | 'kind' | 'tvShow' |
   'bitrate' | 'sampleRate' | 'year' | 'trackNr' | 'cdNr' | 'size' | 'durationMs' | 'playCount' | 'skipCount' | 'rating' | 'bpm' | 'season' |
   'added' | 'modified' | 'lastPlayed' | 'lastSkipped' | 'compilation' | 'playlist' | 'videoKind';
@@ -20,8 +19,8 @@ export const SMART_FIELDS: string[] = ['title', 'album', 'artist', 'albumArtist'
   'added', 'modified', 'lastPlayed', 'lastSkipped', 'compilation', 'playlist', 'videoKind'];
 const UNITS: string[] = ['minutes', 'hours', 'days', 'weeks', 'months', 'years', 'seconds'];
 const UNIT_SECONDS: number[] = [60, 3600, 86400, 604800, 2628000, 31536000, 1];
-const TEXT: string[] = ['title', 'album', 'artist', 'albumArtist', 'composer', 'genre', 'comment'];
-const DATES: string[] = ['added', 'lastPlayed', 'lastSkipped'];
+const TEXT: string[] = ['title', 'album', 'artist', 'albumArtist', 'composer', 'genre', 'comment', 'grouping', 'kind'];
+const DATES: string[] = ['added', 'modified', 'lastPlayed', 'lastSkipped'];
 /** Track.mediaType and the bit libgpod keeps for it (ITDB_MEDIATYPE_*): what a videoKind ("Media Kind") rule's value holds. */
 export const MEDIA_TYPES: string[] = ['audio', 'video', 'podcast', 'audiobook', 'musicvideo', 'tvshow'];
 export const MEDIA_BITS: number[] = [0x1, 0x2, 0x4, 0x8, 0x20, 0x40];
@@ -38,6 +37,8 @@ function text(t: Track, f: string): string {
   if (f === 'albumArtist') return t.albumArtist;
   if (f === 'composer') return t.composer;
   if (f === 'genre') return t.genre;
+  if (f === 'grouping') return t.grouping;
+  if (f === 'kind') return t.kind;
   return t.comment;
 }
 function num(t: Track, f: string): number {
@@ -53,6 +54,7 @@ function num(t: Track, f: string): number {
   if (f === 'rating') return t.rating;
   if (f === 'bpm') return t.bpm;
   if (f === 'added') return t.added;
+  if (f === 'modified') return t.modified;
   if (f === 'lastPlayed') return t.lastPlayed;
   if (f === 'lastSkipped') return t.lastSkipped;
   return -1;
@@ -80,9 +82,10 @@ export function ruleMatches(r: SmartRule, t: Track, playlists: Playlist[], now: 
     return false;   // libgpod: an unknown playlist matches nothing
   }
   if (r.field === 'videoKind') {   // libgpod: a binary AND of the media type's bits ("Media Kind is Music")
-    const k = MEDIA_TYPES.indexOf(t.mediaType), has = k >= 0 && (MEDIA_BITS[k] & r.value) !== 0;
+    const has = (t.mediaBits & r.value) !== 0;
     return a === 'is' ? has : a === 'isNot' ? !has : false;
   }
+  if (r.field === 'compilation') return a === 'is' ? t.compilation : a === 'isNot' ? !t.compilation : false;
   const v = num(t, r.field);
   if (v < 0) return false;   // a field the evaluator does not know
   const date = DATES.indexOf(r.field) >= 0;
@@ -122,11 +125,12 @@ function sorter(sort: string): ((a: Track, b: Track) => number) | null {
 /** The ids of the tracks a smart playlist holds, in order, as itdb_spl_update fills it: tracks in the database's order that match all
  *  (or any) rules; with a limit, sorted (stable) and taken while the running total stays within it (a track that would go over is
  *  skipped and the next ones are still tried, as libgpod does). `playlists` serves the playlist rules; `now` (Unix seconds, 0 = now)
- *  the "in the last" ones. checkedOnly is ignored: Track does not say whether a song is checked. A random limit shuffles. */
+ *  the "in the last" ones. checkedOnly filters before applying the rules and limit. A random limit shuffles. */
 export function evaluateSmart(rules: SmartRules, tracks: Track[], playlists: Playlist[] = [], now: number = 0): string[] {
   const at = now > 0 ? now : Math.floor(Date.now() / 1000);
   let sel: Track[] = [];
   for (const t of tracks) {
+    if (rules.checkedOnly && !t.checked) continue;
     let ok = rules.match !== 'any' || rules.rules.length === 0;
     for (const r of rules.rules) {
       const m = ruleMatches(r, t, playlists, at);

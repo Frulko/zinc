@@ -195,6 +195,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - On desktop macOS and Linux, nested `zinc:process` commands retain ownership through an intermediate command's death or exec, so shutdown also cleans their child groups after an intermediate has already been reaped. Each spawn uses a private guardian process; `pid` still identifies the command.
 - Quitting a program with active WebRTC audio or video stops its media workers before native cleanup, preventing a crash on exit.
 - Linux exports that start child processes link on glibc 2.28, including children started in a different working directory.
+- iPod smart previews honour checked tracks, tags and combined media flags; unchanged unknown rules keep their original data.
+  Missing tags no longer raise GLib errors, and generated Nano 5G/6G metadata preserves SQLite support.
 
 ### Network
 

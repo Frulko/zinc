@@ -47,6 +47,10 @@ export interface Track {
   size: number;
   /** audio | podcast | audiobook | video | musicvideo | tvshow */
   mediaType: string;
+  /** All ITDB_MEDIATYPE bits, including combinations omitted by mediaType. */
+  mediaBits: number;
+  /** Checked in iTunes (libgpod stores the inverse flag). */
+  checked: boolean;
   /** The file, relative to the mountpoint ("iPod_Control/Music/F12/ABCD.mp3"). */
   path: string;
   artwork: boolean;
@@ -129,8 +133,8 @@ export interface Playlist {
  *  - number: is, isNot, greaterThan, lessThan, inRange, notInRange
  *  - date: is, isNot, greaterThan (after), notGreaterThan, lessThan (before), notLessThan, inRange, notInRange, inTheLast, notInTheLast
  *  - compilation: is (is set), isNot; playlist: is (in the playlist), isNot; videoKind: is, isNot
- *  A field or action this plugin does not name reads as its number in hex ("0x5a"): the rule is kept on the iPod as it is, but cannot
- *  be written by setSmartRules. */
+ *  A field or action this plugin does not name reads as its number in hex ("0x5a"): setSmartRules keeps its original bytes only when that rule is returned unchanged at the same position.
+ *  New or edited unknown rules are refused. */
 export interface SmartRule {
   field: string;
   action: string;

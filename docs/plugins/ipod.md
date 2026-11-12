@@ -48,6 +48,9 @@ Ids are strings (the database's 64-bit ids in hex) and stay the same across save
 Each `Track` also carries `bpm` (0 when unknown; `update(id, { file: '', bpm: 124 })` sets it), `skipCount` and `lastSkipped` (the
 skips the iPod counted, Unix seconds).
 
+The generated SysInfoExtended fallback preserves SQLiteDB when the vendored model table identifies that capability (including Nano 5G/6G).
+Unknown models require the device's real SysInfoExtended; the fallback does not invent capabilities for an unrecognised Nano 7G model.
+
 ## Editing tags (Get Info)
 
 `update(id, fields)` writes the fields given and keeps the others; `''`, `0` and `false` are written too, so a field can be cleared:
@@ -73,7 +76,7 @@ no lyrics in is refused with its reason.
 
 ## Smart playlists
 
-The classic iPods (everything with an iTunesDB: Classic, Video, Mini, Nano 1G to 5G, Shuffle) keep smart playlists: rules, a limit and
+The classic iPods whose device capabilities select a non-SQLite iTunesDB keep smart playlists: rules, a limit and
 the songs they selected. The iPod plays the song list written at the last save; it is the computer that evaluates the rules, as iTunes
 did. The plugin does it with libgpod's evaluator:
 
@@ -97,7 +100,8 @@ for (const p of await ipod.playlists()) if (p.smart) console.log(p.name, ipod.de
   saves: call it when an iPod is connected after being played on its own.
 - **Rules the plugin cannot evaluate** (a field of a newer iTunes, such as album rating or "loved") read back with the field or action
   as its number in hex (`"0x5a"`) and `refreshable: false`: the playlist keeps the songs iTunes chose, its rules are kept byte for byte
-  at every save, and they cannot be written by `setSmartRules`.
+  at every save. `setSmartRules` accepts them only unchanged at the same positions, retaining all native payload fields; new,
+  edited or moved unknown rules are refused and the existing members are kept. An unknown limit can likewise be kept unchanged.
 - **Nano 6G and 7G** keep their library in SQLite, which holds no smart playlists: `createSmartPlaylist` and `setSmartRules` are refused
   with "this iPod keeps no smart playlists; save it as a normal playlist". Do what it says: `createPlaylist` + `setPlaylistTracks` with
   the ids `evaluateSmart` gives.
@@ -105,9 +109,9 @@ for (const p of await ipod.playlists()) if (p.smart) console.log(p.name, ipod.de
   ids the playlist would hold, with libgpod's semantics: text compared without case, and a song without the tag matches no text rule
   (not even "is not"); ranges in either order; "in the last" counted from `now` (Unix seconds, 0 = the current time); with a limit, a
   stable sort then songs taken while the total stays within it (a song that would pass it is skipped, the next ones are still tried).
-  It knows the fields `Track` has, `playlist`, and `videoKind` (from `Track.mediaType`: `MEDIA_TYPES[i]` is the bit `MEDIA_BITS[i]`); a
-  rule on grouping, kind, tvShow, season, compilation or modified never matches in the preview (the native side evaluates them). `checkedOnly` is ignored there (`Track` does not say whether a song is
-  checked); a random limit shuffles. `describeSmart(rules)` says the rules in one line.
+  It knows the fields `Track` has, including grouping, file kind, compilation and modified date, plus `playlist` and `videoKind`
+  (the complete `Track.mediaBits` mask). `Track.mediaType` keeps its usual single descriptive name; `mediaBits` preserves combinations.
+  `checkedOnly` filters by `Track.checked` before applying rules and limits. `tvShow` and `season` remain native-only; a random limit shuffles. `describeSmart(rules)` says the rules in one line.
 
 | field | kind | value | actions |
 |---|---|---|---|

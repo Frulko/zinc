@@ -382,35 +382,35 @@ gboolean itdb_splr_eval (Itdb_SPLRule *splr, Itdb_Track *track)
     switch (splr->field)
     {
     case ITDB_SPLFIELD_SONG_NAME:
-	strcomp = g_utf8_casefold(track->title, -1);
+	strcomp = track->title ? g_utf8_casefold(track->title, -1) : NULL;
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_ALBUM:
-	strcomp = g_utf8_casefold(track->album, -1);
+	strcomp = track->album ? g_utf8_casefold(track->album, -1) : NULL;
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_ARTIST:
-	strcomp = g_utf8_casefold(track->artist, -1);
+	strcomp = track->artist ? g_utf8_casefold(track->artist, -1) : NULL;
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_GENRE:
-	strcomp = g_utf8_casefold(track->genre, -1);
+	strcomp = track->genre ? g_utf8_casefold(track->genre, -1) : NULL;
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_KIND:
-	strcomp = g_utf8_casefold(track->filetype, -1);
+	strcomp = track->filetype ? g_utf8_casefold(track->filetype, -1) : NULL;
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_COMMENT:
-	strcomp = g_utf8_casefold(track->comment, -1);
+	strcomp = track->comment ? g_utf8_casefold(track->comment, -1) : NULL;
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_COMPOSER:
-	strcomp = g_utf8_casefold(track->composer, -1);
+	strcomp = track->composer ? g_utf8_casefold(track->composer, -1) : NULL;
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_GROUPING:
-	strcomp = g_utf8_casefold(track->grouping, -1);
+	strcomp = track->grouping ? g_utf8_casefold(track->grouping, -1) : NULL;
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_BITRATE:
@@ -474,11 +474,11 @@ gboolean itdb_splr_eval (Itdb_SPLRule *splr, Itdb_Track *track)
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_ALBUMARTIST:
-	strcomp = g_utf8_casefold(track->albumartist, -1);
+	strcomp = track->albumartist ? g_utf8_casefold(track->albumartist, -1) : NULL;
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_TVSHOW:
-	strcomp = g_utf8_casefold(track->tvshow, -1);
+	strcomp = track->tvshow ? g_utf8_casefold(track->tvshow, -1) : NULL;
 	handled = TRUE;
 	break;
     case ITDB_SPLFIELD_LAST_SKIPPED:

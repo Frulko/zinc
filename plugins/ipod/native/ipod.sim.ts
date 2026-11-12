@@ -1,7 +1,7 @@
 // zinc:ipod stand-in (sim target, ZINC_NATIVE=sim): one iPod Classic in memory, "Zinc Pod" at /Volumes/ZINCPOD, with
 // the same answers as the native side for the same calls, so a program and its tests run without an iPod or libgpod.
 import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult, Play, SmartRules } from './ipod.spec';
-import { evaluateSmart, emptyRules, SMART_FIELDS } from '../smart';
+import { evaluateSmart, emptyRules, SMART_FIELDS, MEDIA_TYPES, MEDIA_BITS } from '../smart';
 
 const MP = '/Volumes/ZINCPOD';
 const GB = 1024 * 1024 * 1024;
@@ -50,7 +50,7 @@ function apply(t: Track, f: TrackInput): void {
   if (f.cds !== undefined) t.cds = f.cds;
   if (f.year !== undefined) t.year = f.year;
   if (f.rating !== undefined) t.rating = Math.max(0, Math.min(5, f.rating)) as i32;
-  if (f.mediaType !== undefined) t.mediaType = f.mediaType;
+  if (f.mediaType !== undefined) { t.mediaType = f.mediaType; const k = MEDIA_TYPES.indexOf(f.mediaType); t.mediaBits = k >= 0 ? MEDIA_BITS[k] : 0; }
   if (f.bpm !== undefined) t.bpm = f.bpm;
   if (f.compilation !== undefined) t.compilation = f.compilation;
   if (f.sortTitle !== undefined) t.sortTitle = f.sortTitle;
@@ -207,7 +207,7 @@ export default {
       if (['.mp3', '.m4a', '.aac', '.m4b', '.wav', '.aif', '.aiff', '.mp4', '.m4v', '.mov'].indexOf(ext) < 0) { out.push({ file: it.file, id: '', error: 'an iPod cannot play ' + ext + ' files (convert to MP3, AAC or ALAC)' }); continue; }
       const t: Track = { id: hex(++seq), title: base(it.file), artist: '', album: '', albumArtist: '', genre: '', composer: '', comment: '',
         trackNr: 0, tracks: 0, cdNr: 0, cds: 0, year: 0, rating: 0, playCount: 0, bitrate: 128, sampleRate: 44100, durationMs: 180000, size: 3000000,
-        mediaType: ext === '.m4b' ? 'audiobook' : 'audio', path: 'iPod_Control/Music/F00/ZN' + seq + ext, artwork: it.artworkFile !== undefined, added: 0, lastPlayed: 0,
+        mediaType: ext === '.m4b' ? 'audiobook' : 'audio', mediaBits: ext === '.m4b' ? 8 : 1, checked: true, path: 'iPod_Control/Music/F00/ZN' + seq + ext, artwork: it.artworkFile !== undefined, added: 0, lastPlayed: 0,
         bpm: 0, skipCount: 0, lastSkipped: 0, grouping: '', description: '', kind: ext === '.mp3' ? 'MPEG audio file' : 'AAC audio file', compilation: false,
         sortTitle: '', sortArtist: '', sortAlbum: '', sortAlbumArtist: '', sortComposer: '', startMs: 0, stopMs: 0, volume: 0,
         skipWhenShuffling: false, rememberPosition: false, lyrics: false, modified: 0 };
