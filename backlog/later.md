@@ -767,6 +767,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-1051: the opt-in SQLite stand-in still imports node:module, refused by typed engines; provide an existing-library-compatible stand-in without changing callers. Native app typecheck passes, and no SQLite workaround was made here.
 
+- ZN-661: reconcile native `u32[]` result matching and unsigned toSlot conversion when an actual result API needs it; browser U arguments/output views now work, while result support requires held core work.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).

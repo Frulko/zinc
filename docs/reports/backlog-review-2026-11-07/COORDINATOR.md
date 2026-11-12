@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated66131ae13de7/D330 BacklogbothACopen,94Done. CleancommonWASMbuild/exactwasm_native/typedfixture/productionChromeexportPASS; realJSPI+blockingVM/BIUDgrowshrinkemptyalias/-0 andRender3DCPU only. Archive90 verifies16payloads/full52logs/root27files/threeWASMartifacts/bundle. Rootexport--out typo refusedbeforeexecution; failedscript/logkept, corrected-oexportChromePASS, no repeatedbuild/T0.661claimreleased,cleanupnext. Active1057isolatedtruthfulH264capabilityonly; noownerRT/CLIchange/suite/performanceclaim. NextD331/archive91.
+
 - Claimed1057 truthful Discord H264 capability after primary/source research `.logs/research-next-i.txt`: existing Linux codec backend is absent but gateway announces video and public calls silently accept it. Isolated discord-voice plugin only, lazy actual provider query, no codec/service/dependency/network call or owner-held source. Preserve audio and camera cleanup; all compound1057 AC stay open. WASM661 final freeze pending, both work queues serialized.
 
 - COORDINATOR HANDOFF2026-11-12i: I becomes sole leader only after `.logs/coord-transfer-20261112-i.ready`; H ceases all coordination then. Full `.logs/COORDINATOR-I-HANDOFF.md`. Only active source worker wasm661, true base fd4af2b8d, WASM builds/exact stage proof pass; final -0/export/provenance pending, not frozen/integrated. iPod b32cfc03b/D329/archive89 integrated, root native/TSsim all3/app103-file check pass, source removed after verification.94 Done, nextD330/archive90. Common checkout b32cfc03b, engine6121edcc8 SHA7da7f402 unchanged. No root heavy/process pending; protected payload audit follows before marker.
