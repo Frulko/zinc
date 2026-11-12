@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Coordinatorfreshhandoff2026-11-12b: leader /root/coordinator_next/coordinator_fresh activatesONLYafter .logs/coord-transfer-20261112-b.ready; prior /root/coordinator_next thenstopscoordination. Soleworker /root/coordinator_next/board535_lazy work/535-lazy claimed1c6a31975, noheavyrootpending/process;92Done/archive69/D312. Fullhandoffbrief+RESUME capturecontract/protectedpayloads. All10ownerpayloadverified; perf15ownerlines remainuncommitted.
+
 - Integrated440.03 af7a3897e Review/D312; rootexactaudio_opus+existingWebRTCarchives PASS, actualclip/pack/filePCM+stopzero PASS. MaterialbaselineOpusinterposition foundandfixed425privateglobals; DRED100ms/roundtrip/factorynowpass. Archive69fullsource/proofs/artifacts verifiedbeforecleanup. Memorylowerbound/chainedalloc andPiCPU remainopen.535-lazy active sole sourceworker;92Done.
 
 - Reserve535 remainingsoftware: delegatedresearchrejects queryelision/pureannotation (V4L2opens/ioctls, simulatorstate, JSONthrows). Select explicitgenerated-module runtimeexportgroup contract, notordinaryTSbarreloptimization: requestedvaluegroup activatesexistingboard snapshot; profile-only/bareplatform omitsboarddependency. Genericmetadata resolver acrossall3paths, conservativenamespace handling andregressionrequired; no RT/HAL/ownerchanges.440.03 integratedaf7a3897e rootexactproofunderway.
