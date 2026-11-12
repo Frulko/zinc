@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- COORDINATOR HANDOFF2026-11-12f: coordinator_f becomes soleleader onlyafter .logs/coord-transfer-20261112-f.ready; outgoingcoordinator_e ceasesALLcoordination. Fullhandoff .logs/COORDINATOR-F-HANDOFF.md. Activegatt558 sameisolatedtree/base05fa828bf, uncommittedgenericcentral/API/sim, nothingnewintegrated; allACopenBacklog. Prior558WiFi/BlueZcentral NOWintegrated+rootbuild/T0/publicall3PASS; archives81/82/D322.555harnessc8cd0b268/D321/archive80 integrated.92Doneunchanged,nextD323/archive83. Common365a99994/cd9dac4, no rootheavy/processpending.
+
 - ContinuedSAME558 freshworker gatt558 in .worktrees/558-gatt/work/558-gatt base05fa828bf, originalclaimretained. ScopegenericGATTcentralfirst, thenrealGATT+LEtargetedUART export; fullnewprimaryexportsresearch provided. Old558central/Pythontreesremovedonlyafter81/82sourcebundle/full.logs/rootproofverification. No rootheavy/processpending,nextD323/archive83.
 
 - Integrated558 WiFi0f8c4c1af/59011da2e/679f8e902+BlueZ365a99994 andPythonf9b87dddd/D322. Rootbuild/exactradios+cache+bluez/publicWiFiBLEall3/SIMUARTall3/typecheckPASS; archive81(45blobs/52logs)+82(2blobs/5logs)/rootproofverified. AllACopenBacklog,92Doneunchanged, claimretainedforsame558freshgenericGATT/exportcontinuation. Physicalsharedconnection/D316residualsexplicit. Protected10payloads/perf15linesunchanged.
