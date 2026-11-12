@@ -660,6 +660,7 @@
     {"paths": ["tests/fuzz/", "tools/fuzz"], "tests": ["fuzz_regress"]},
     {"paths": ["src/host/sys_host.cpp", "src/host/permissions.cpp"], "tests": ["aot_assets", "permissions", "camera", "assets_groups"]},
     {"paths": ["targets/wasm/", "tools/wasm-export-test"], "tests": ["export_wasm"]},
+    {"paths": ["src/cli_web.cpp", "targets/web/runtime.js", "tests/data/web_frame.mjs", "tests/t0/web_frame.sh"], "tests": ["web_frame"]},
     {"paths": ["targets/web/runtime.js", "targets/web/dom.js", "targets/web/browsers.json", "src/cli_web.cpp", "src/cli_web.h", "tools/web-browser-test", "lib/std/web.browser.ts", "lib/std/fetch.browser.ts", "lib/std/subtle.browser.ts", "docs/targets/web.md", "docs/reports/zinc-web-export.md"], "tests": ["web_export", "web_caps", "web_plugins", "web_dom", "web_sha256", "web_fs", "web_demo", "web_proxy"]},
     {"paths": ["tests/fixtures/web-fs/", "tests/t1/web_fs.sh", "targets/capabilities.json"], "tests": ["web_fs"]},
     {"paths": ["tests/fixtures/web-proxy/", "tests/t1/web_proxy.sh"], "tests": ["web_proxy"]},

@@ -86,7 +86,7 @@ bool flag(yyjson_val* o, const char* k, bool dflt) { yyjson_val* v = o ? yyjson_
 
 // ---- the project's settings: zinc.json "web"
 struct Cfg {
-  std::string render = "canvas", browsers, title, description, theme = "#111111", bg = "#ffffff", lang = "en", dir, scroll = "app", icon, id;   // dir: "ltr" or "rtl" for <html dir>; scroll: "app" (the page is fixed to the window, containers scroll) or "page" (the page scrolls, DOM render)
+  std::string render = "canvas", browsers, title, description, theme = "#111111", bg = "#ffffff", lang = "en", dir, scroll = "app", frame = "none", icon, id;   // dir: "ltr" or "rtl" for <html dir>; scroll: "app" (the page is fixed to the window, containers scroll) or "page" (the page scrolls, DOM render)
   bool pwa = true, strict = false, rnLayout = false;
   int w = 0, h = 0;   // a fixed surface (web.width, web.height); 0: the page's size
   std::vector<std::string> pluginDirs;
@@ -114,6 +114,13 @@ Cfg readCfg(const WebArgs& a) {
       c.lang = str(w, "lang", c.lang);
       c.dir = str(w, "dir");
       c.scroll = str(w, "scroll", c.scroll);
+      if (yyjson_val* v = yyjson_obj_get(w, "frame")) {
+        if (yyjson_is_str(v)) c.frame = yyjson_get_str(v);
+        if (!yyjson_is_str(v) || (c.frame != "phone" && c.frame != "tablet" && c.frame != "none")) {
+          std::fprintf(stderr, "warning: targets.web.frame must be phone, tablet or none; using none\n");
+          c.frame = "none";
+        }
+      }
       c.icon = str(w, "icon");
       c.pwa = flag(w, "pwa", true);
       c.strict = flag(w, "strict", false);
@@ -696,11 +703,12 @@ std::string pageFor(const Cfg& c, const std::string& config, const std::string& 
   if (hasIcon) h += "<link rel=\"icon\" href=\"" + iconUrl + "\">\n<link rel=\"apple-touch-icon\" href=\"" + iconUrl + "\">\n";
   else h += "<link rel=\"icon\" href=\"data:,\">\n";   // no icon configured: an empty one, so the browser does not ask for /favicon.ico (a 404 in every console)
   if (pwa) h += "<link rel=\"manifest\" href=\"manifest.webmanifest\">\n<meta name=\"mobile-web-app-capable\" content=\"yes\">\n<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">\n";
-  h += preloads;
   h += "<style>html,body{margin:0;height:100%;background:" + esc(c.bg) + ";overscroll-behavior:none}#zinc-root{position:fixed;inset:0;overflow:hidden;outline:none}"
        "#zinc-splash{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-serif;color:#888;pointer-events:none}"
        "#zinc-progress{width:min(240px,50vw);height:4px;accent-color:" + esc(c.theme) + "}</style>\n";
-  h += "<script type=\"importmap\">{\"imports\":{\"zinc:native\":\"" + nativeUrl + "\"}}</script>\n</head>\n<body>\n";
+  h += "<script type=\"importmap\">{\"imports\":{\"zinc:native\":\"" + nativeUrl + "\"}}</script>\n";
+  h += preloads;   // modulepreload resolves imports immediately: the map must already be installed
+  h += "</head>\n<body>\n";
   h += "<div id=\"zinc-root\" tabindex=\"-1\"></div>\n<div id=\"zinc-splash\"><progress id=\"zinc-progress\" max=\"100\" value=\"0\" aria-label=\"loading\"></progress></div>\n";
   h += "<script>if(location.protocol==='file:'){var z=document.getElementById('zinc-splash');z.style.cssText+=';pointer-events:auto;text-align:center;padding:24px;color:#444';z.textContent='This app cannot start from a file: browsers refuse ES modules there. Run python3 serve.py in this folder (or any static web server) and open the address it prints.'}</script>\n";
   h += "<noscript>This app needs JavaScript.</noscript>\n<script nomodule>document.body.textContent='This browser is too old for this app (it needs ES modules and import maps).'</script>\n";
@@ -711,7 +719,7 @@ std::string pageFor(const Cfg& c, const std::string& config, const std::string& 
 
 // the config the runtime reads
 std::string configJson(const WebArgs& a, const Cfg& c, const Common& cm, const std::vector<Asset>& assets, const std::string& entry, bool dev, const std::string& domModule, const std::string& hmrModule) {
-  std::string j = "{\"name\":" + jstr(a.name) + ",\"id\":" + jstr(c.id.empty() ? a.name : c.id) + ",\"title\":" + jstr(c.title) + ",\"version\":" + jstr(a.version) + ",\"render\":" + jstr(c.render) + ",\"scroll\":" + jstr(c.scroll) + ",\"entry\":" + jstr(entry);
+  std::string j = "{\"name\":" + jstr(a.name) + ",\"id\":" + jstr(c.id.empty() ? a.name : c.id) + ",\"title\":" + jstr(c.title) + ",\"version\":" + jstr(a.version) + ",\"render\":" + jstr(c.render) + ",\"scroll\":" + jstr(c.scroll) + ",\"frame\":" + jstr(c.frame) + ",\"entry\":" + jstr(entry);
   if (c.w > 0 && c.h > 0) j += ",\"fixed\":[" + std::to_string(c.w) + "," + std::to_string(c.h) + "]";
   if (dev) j += ",\"dev\":true,\"hmrModule\":" + jstr(hmrModule);
   if (!domModule.empty()) j += ",\"domModule\":" + jstr(domModule);
@@ -813,7 +821,7 @@ try:
     t = call('Target.createTarget', {'url': 'http://127.0.0.1:%d/?zn-capture' % port})['targetId']
     s = call('Target.attachToTarget', {'targetId': t, 'flatten': True})['sessionId']
     while time.time() < deadline:
-        v = call('Runtime.evaluate', {'expression': "document.querySelector('#zinc-root [data-z]') ? document.documentElement.outerHTML : ''", 'returnByValue': True}, s).get('result', {}).get('value')
+        v = call('Runtime.evaluate', {'expression': "(() => { const d = document.getElementById('zinc-device-app')?.contentDocument || document; return d.querySelector('#zinc-root [data-z]') ? d.documentElement.outerHTML : ''; })()", 'returnByValue': True}, s).get('result', {}).get('value')
         if v:
             with open(out, 'w') as f: f.write(v)
             break
@@ -821,7 +829,8 @@ try:
 finally:
     proc.kill(); proc.wait()
 )PY";
-bool prerenderSite(const fs::path& outDir, std::string& err) {
+bool prerenderSite(const fs::path& output, std::string& err) {
+  const fs::path outDir = fs::absolute(output);
   const std::string chrome = findChromeBinary();
   if (chrome.empty()) { err = "no Chrome or Chromium found (set CHROME to its path): the page is exported without a prerendered first screen"; return false; }
   const int port = 20000 + static_cast<int>(std::chrono::steady_clock::now().time_since_epoch().count() % 20000);
@@ -1140,7 +1149,7 @@ export default {
             "./serve.py serves it locally. " + (isolate ? "This app needs cross-origin isolation: _headers sets COOP and COEP, and sw.js adds them on hosts that cannot.\n" : "No COOP/COEP headers are needed.\n"));
   if (a.prerender) {
     if (cm.cfg.render != "dom") std::fprintf(stderr, "warning: --prerender is for --render dom: the canvas has no elements to prerender\n");
-    else { std::string perr; if (!prerenderSite(outDir, perr)) std::fprintf(stderr, "warning: --prerender: %s\n", perr.c_str()); else std::printf("web: the first screen is in index.html (prerendered at 1280x800)\n"); }
+    else { std::string perr; if (!prerenderSite(outDir, perr)) std::fprintf(stderr, "warning: --prerender: %s\n", perr.c_str()); else std::printf("web: the first screen is in index.html (prerendered at the app viewport)\n"); }
   }
   std::printf("web: %s render, %zu file(s), %s (javascript %s, gzip %s%s)%s\n", cm.cfg.render.c_str(), out.size(), humanKb(total).c_str(), humanKb(js).c_str(), gz ? humanKb(gz).c_str() : "-",
               br ? (", brotli " + humanKb(br)).c_str() : "", pwa ? ", offline cache" : "");

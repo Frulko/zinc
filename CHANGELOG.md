@@ -64,12 +64,17 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 ### Browser exports
 
+#### New
+
+- Web pages can preview a phone or tablet with `targets.web.frame`, a rotate button and a `?frame=none` escape hatch.
+
 #### Changed
 
 - Wasm exports compile while downloading, show an inline loading screen, and fetch asset groups from a content cache. KTX2 textures decode in a worker, with the texture decoder downloaded only when needed.
 
 #### Fixed
 
+- JavaScript exports install import maps before preloading modules, accept canvas input without an audio error, and prerender correctly with relative output paths.
 - Wasm exports decode image bytes, update runtime images, and draw render targets. `readBytes()` returns original imported image files alongside cooked textures.
 - Wasm exports render baked text with native metrics and support two-colour gradients, translations, transforms and clipping.
 - Wasm exports call supported browser plugin backends, including `zinc:audio` sounds and PCM streams; playback starts after user input. Failed or unloaded audio decodes no longer leave queued voices playing.

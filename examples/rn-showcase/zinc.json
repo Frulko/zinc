@@ -10,6 +10,9 @@
     "heap>=32M"
   ],
   "targets": {
+    "web": {
+      "frame": "phone"
+    },
     "macos": {
       "width": 420,
       "height": 860,

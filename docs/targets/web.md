@@ -47,6 +47,7 @@ dist/hero-web/
 
 ```json
 { "targets": { "web": {
+    "frame": "none",                                     "comment6": "none (default), phone or tablet; URL ?frame= overrides it",
     "render": "canvas",                                  "comment": "canvas (default) or dom",
     "browsers": "chrome >= 111, firefox >= 115, safari >= 16.4",
     "title": "My app", "description": "For the search results and the share card",
@@ -61,6 +62,28 @@ dist/hero-web/
 
 `--render canvas|dom`, `--prerender`, `--browsers '<set>'`, `--check`, `--werror`, `--no-pwa`, `--sourcemap` and `-o dir` override or add to it. (The key `web` of `zinc.json` itself is something else: it turns on the window / document
 environment of the QuickJS engine for JavaScript game libraries.)
+
+### Device previews
+
+`targets.web.frame: "phone"` gives the app a 390 × 844 CSS-pixel viewport; `"tablet"` uses 768 × 1024.
+Both canvas and DOM exports, `zinc dev --target web` (JavaScript), and Vite use the same shell. A native
+**Rotate to landscape/portrait** button swaps the viewport dimensions without restarting the app. The shell
+shrinks to fit the browser while the app keeps its logical dimensions; canvas backing pixels still follow
+the browser's pixel ratio. Explicit `width` and `height` keep their existing fixed app-surface semantics and
+set the initial preview viewport instead of the preset dimensions. Rotation changes the viewport, while
+that fixed app surface stays fixed.
+
+`?frame=phone`, `?frame=tablet` or `?frame=none` overrides the config on page load. Other values are ignored;
+an invalid config value warns and uses `none`. With `none` (the default), the app fills the browser as before.
+The unchanged rn-showcase app opts into the phone preview in its config.
+
+The preview is a same-origin iframe at the same URL, including query and hash. Only its app runs: the outer
+page draws the shell. Browser input coordinates, fixed layers, modal dialogs and app scrolling stay inside
+the device viewport; `scroll: "page"` scrolls that device's document. This previews a viewport, not device
+hardware: it does not emulate a notch, mobile user agent or touch support. Browser APIs retain the browser's
+normal iframe permissions and user-gesture restrictions. Stack routes and browser Back operate inside the preview;
+use `?frame=none` when routes should appear in the main address bar. Prerender captures and later adopts the inner app's
+first screen. No extra files, dependency or animation are needed.
 
 ## Two engines: JavaScript or the interpreter in WebAssembly
 

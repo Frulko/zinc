@@ -14,6 +14,50 @@ G.ZnUnsupported = ZnUnsupported;
 /** Thrown by exit(): the program ended, nothing to report. */
 class ZnExit extends Error { constructor(code) { super('exit ' + code); this.name = 'ZnExit'; this.code = code; } }
 
+// A browsing context keeps page scroll, fixed portals and input in device CSS pixels.
+function mountDeviceFrame(cfg) {
+  if (G.frameElement?.id === 'zinc-device-app') return false;
+  const modes = ['none', 'phone', 'tablet'];
+  const requested = new URLSearchParams(location.search).get('frame');
+  const mode = modes.includes(requested) ? requested : modes.includes(cfg.frame) ? cfg.frame : 'none';
+  if (mode === 'none') return false;
+  const size = cfg.fixed || (mode === 'phone' ? [390, 844] : [768, 1024]);
+  let width = size[0], height = size[1];
+  const style = document.createElement('style');
+  style.textContent = `
+    html,body{height:100%;overflow:auto;background:#f2f2f2;color:#0b0b0b}
+    #zinc-device-shell{min-height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;font:13px/1.4 system-ui,sans-serif}
+    #zinc-device-rotate{font:inherit;color:inherit;background:#fff;border:1px solid #e3e3e3;border-radius:10px;min-height:36px;padding:0 14px;cursor:pointer;flex-shrink:0}
+    #zinc-device-rotate:focus-visible{outline:2px solid #1d1d1d;outline-offset:2px}
+    #zinc-device-space{position:relative;flex-shrink:0}
+    #zinc-device-case{position:absolute;left:0;top:0;padding:10px;background:#181818;border:1px solid #2b2b2b;border-radius:30px;transform-origin:top left}
+    #zinc-device-app{display:block;border:0;border-radius:20px;background:#fff}
+    @media(prefers-color-scheme:dark){html,body{background:#121212;color:#f2f2f2}#zinc-device-rotate{background:#181818;border-color:#2b2b2b}#zinc-device-rotate:focus-visible{outline-color:#e8e8e8}}
+  `;
+  document.head.appendChild(style);
+  const shell = document.createElement('main'), rotate = document.createElement('button');
+  const space = document.createElement('div'), device = document.createElement('div'), app = document.createElement('iframe');
+  shell.id = 'zinc-device-shell'; rotate.id = 'zinc-device-rotate'; rotate.type = 'button';
+  space.id = 'zinc-device-space'; device.id = 'zinc-device-case'; app.id = 'zinc-device-app';
+  app.title = (cfg.title || 'Zinc app') + ' — ' + mode + ' preview';
+  app.allowFullscreen = true;
+  app.src = location.href;
+  device.append(app); space.append(device); shell.append(rotate, space);
+  document.getElementById('zinc-root')?.remove(); document.getElementById('zinc-splash')?.remove();
+  document.body.append(shell);
+  const fit = () => {
+    app.style.width = width + 'px'; app.style.height = height + 'px';
+    const scale = Math.max(0.01, Math.min(1, (document.documentElement.clientWidth - 32) / (width + 22), (innerHeight - 84) / (height + 22)));
+    device.style.transform = `scale(${scale})`;
+    space.style.width = (width + 22) * scale + 'px'; space.style.height = (height + 22) * scale + 'px';
+    rotate.textContent = width > height ? 'Rotate to portrait' : 'Rotate to landscape';
+  };
+  rotate.addEventListener('click', () => { [width, height] = [height, width]; fit(); });
+  addEventListener('resize', fit); fit();
+  return true;
+}
+
+if (!mountDeviceFrame(CFG)) {
 const FEATURES = detect();
 const Z = nativeServices(CFG, FEATURES);
 Z.bridge = CFG.bridge ? devBridge(CFG.bridge) : null;
@@ -511,7 +555,6 @@ function installCanvasInput(el) {
     input.btn.push({ x: input.px, y: input.py, button: b, down: 1 });
     try { el.setPointerCapture(e.pointerId); } catch {}
     e.preventDefault(); el.focus({ preventScroll: true });
-    unlockAudio();
   }, opt);
   el.addEventListener('pointermove', (e) => { pointerEvent(e, null); }, opt);
   const up = (e) => {
@@ -1147,7 +1190,7 @@ async function boot() {
     await (globalThis.__zincLoadEntry ? globalThis.__zincLoadEntry() : import(/* @vite-ignore */ CFG.entry));   // a bundler (the Vite plugin) sets __zincLoadEntry to its own import() of the app, so it can split and hash it
     document.getElementById('zinc-splash')?.remove();
     demoBar();
-    root.focus && root.focus();
+    if (G.frameElement?.id !== 'zinc-device-app') root.focus && root.focus();   // leave the shell's keyboard controls reachable at startup
     // a prerender capture (?zn-capture, headless Chrome without a display) gets no animation frame in time: the first frame runs from a timer
     if (/[?&]zn-capture/.test(location.search)) setTimeout(() => frame(performance.now()), 0); else requestAnimationFrame(frame);
   } catch (e) {
@@ -1158,3 +1201,5 @@ async function boot() {
 addEventListener('error', (e) => { if (e.error) { if (e.error.name === 'ZnExit') e.preventDefault(); showError(e.error); } });
 addEventListener('unhandledrejection', (e) => { if (e.reason && e.reason.name === 'ZnExit') e.preventDefault(); showError(e.reason); });
 boot();
+
+} // unframed app (or the device browsing context)
