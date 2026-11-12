@@ -1861,7 +1861,7 @@ struct Checker {
                                "push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill"}) if (m == a) return 1;
     for (std::string_view t : {"toUpperCase", "toLowerCase", "trim", "trimStart", "trimEnd", "split", "charAt", "charCodeAt", "codePointAt", "startsWith",
                                "endsWith", "padStart", "padEnd", "replace", "replaceAll", "substring", "substr", "repeat", "localeCompare"}) if (m == t) return 2;
-    return m == "includes" || m == "indexOf" || m == "slice" ? 3 : 0;
+    return m == "includes" || m == "indexOf" || m == "lastIndexOf" || m == "slice" ? 3 : 0;
   }
   // the receiver of a method call is a variable-like expression of type any (not `Math` or a class)
   bool dynReceiver(std::uint32_t r) {
@@ -3017,6 +3017,7 @@ struct Checker {
     }
     auto optionalArgMethod = [&](const Node& cal) {  // the library methods whose trailing arguments may be written `undefined`
       if (cal.kind != N::Member) return false;
+      if (cal.text == "lastIndexOf" && !rawDyn() && dynReceiver(cal.kids[0])) return false;  // array undefined starts at zero; omission starts at the end
       for (std::string_view m : {"padEnd", "padStart", "slice", "substring", "indexOf", "lastIndexOf", "includes", "startsWith", "endsWith", "split", "join", "fill", "toFixed"}) if (cal.text == m) return true;
       return false;
     };
@@ -3294,6 +3295,7 @@ struct Checker {
         const std::string m(cn.text);
         std::string call = dk == 1 ? "__dynItems(__H0, '" + m + "')." + m + "(" : dk == 2 ? "__dynStrOf(__H0, '" + m + "')." + m + "("
                          : "__dyn" + std::string(1, char(m[0] - 32)) + m.substr(1) + "(__H0" + (x.kids.size() > 1 ? ", " : "");
+        if (m == "lastIndexOf") call = "__dynLastIndexOf(__dynLastIndexReceiver(__H0), " + std::string(x.kids.size() < 3 ? "true" : "false") + (x.kids.size() > 1 ? ", " : "");
         std::vector<std::vector<std::uint32_t>> holes{{cn.kids[0]}};
         for (std::size_t k = 1; k < x.kids.size(); ++k) { call += (k > 1 ? ", " : "") + std::string("__H") + std::to_string(k); holes.push_back({x.kids[k]}); }
         if (m == "sort" && x.kids.size() == 1) call += "__dynSortCmp";

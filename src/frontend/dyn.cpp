@@ -992,6 +992,32 @@ function __dynIndexOf(d: Dyn, x: any, from: f64 = 0): f64 {
   if (d instanceof DynStr) return d.v.indexOf(__dynString(x), from);
   return __dynItems(d, 'indexOf').indexOf(x, from);
 }
+function __dynLastIndexReceiver(d: Dyn): Dyn {
+  if (d.kind() <= 1) throw new TypeError("Cannot read properties of " + d.toString() + " (reading 'lastIndexOf')");
+  return d;
+}
+function __dynLastIndexOf(d: Dyn, omitted: boolean, x: any = __undef, from: any = __undef, ...ignored: any[]): f64 {
+  if (d instanceof DynStr) {
+// SYMBOL_BEGIN
+    if (x.kind() === 9) throw new TypeError('Cannot convert a Symbol value to a string');
+// SYMBOL_END
+    const needle: string = __dynString(x);
+    let start: f64 = __dynNumber(from);
+    if (omitted || start !== start || start > d.v.length) start = d.v.length;
+    if (start < 0) start = 0;
+    return d.v.lastIndexOf(needle, Math.trunc(start));
+  }
+  const items: any[] = __dynItems(d, 'lastIndexOf');
+  if (items.length === 0) return -1;
+  let start: f64 = omitted ? items.length - 1 : __dynNumber(from);
+  if (start !== start) start = 0;
+  start = Math.trunc(start);
+  if (start < 0) start = items.length + start;
+  if (start < 0) return -1;
+  if (start >= items.length) start = items.length - 1;
+  for (let i: i32 = start; i >= 0; i--) if (__dynSeq(items[i], x)) return i;
+  return -1;
+}
 function __dynSlice(d: Dyn, s: f64 = 0, e: f64 = 2147483647): any {
   if (d instanceof DynStr) { const r: any = d.v.slice(s, e); return r; }
   return new DynArr(__dynItems(d, 'slice').slice(s, e));

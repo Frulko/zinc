@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["src/frontend/check.cpp", "src/frontend/dyn.cpp", "tests/data/dyn_lastindex/", "tests/t0/dyn_lastindex.sh"], "tests": ["dyn_lastindex"]},
     {"paths": ["src/tc/bundle.cpp", "tests/native/bundle_licenses.cpp", "tests/t0/bundle_licenses.sh"], "tests": ["bundle_licenses"]},
     {"paths": ["src/frontend/check.cpp", "tests/data/fluent_receivers/", "tests/t0/fluent_receivers.sh"], "tests": ["fluent_receivers"]},
     {"paths": ["src/frontend/native_gen.cpp", "src/frontend/native_gen.h", "src/qjs/qjs.cpp", "src/qjs/strip.cpp", "src/qjs/strip.h", "tests/data/checked_imports/", "tests/native/checked_imports/", "tests/t0/checked_imports.sh"], "tests": ["checked_imports"]},

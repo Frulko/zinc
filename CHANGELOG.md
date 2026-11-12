@@ -503,6 +503,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 
 - Long fluent method chains compile without repeatedly checking their prefixes, including XML serializers and ordinary methods named `map`, `sort` or `replace`.
+- `lastIndexOf` works on arrays and strings held in `any`, including omitted or explicit starting positions and strict object identity.
 
 ### Developer tools
 

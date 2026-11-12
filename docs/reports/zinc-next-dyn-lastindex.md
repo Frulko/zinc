@@ -1,0 +1,9 @@
+# Dynamic backward search
+
+`lastIndexOf` on an `any` receiver joins the existing frontend dispatch for shared array/string methods. The checker records whether the starting position was omitted; explicit `undefined` must start an array search at zero, while an omitted position starts at its last element. Null/undefined receiver access fails before argument evaluation. Remaining arguments evaluate once, in order, including ignored extra arguments.
+
+The Dyn helper uses the existing strict equality operation for arrays, so objects compare by identity, NaN never matches, and positive and negative zero match. Positions are truncated and bounded as floating-point values before converting the loop index to `i32`; infinities and large values cannot wrap. Strings retain their own needle coercion and NaN/default behavior, then use the existing UTF-16 string search. Existing typed-array lowering is unchanged: its explicit position remains the existing `i32` profile.
+
+`tests/run --only dyn_lastindex` checks omitted/undefined/NaN positions, signed offsets, fractions, infinities, large positions, empty arrays, strict equality, string coercion, evaluation order and existing typed/dynamic search callers on interpreter, actual native AOT and QuickJS. Native fallback is rejected.
+
+Research: the [ECMAScript array algorithm](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.lastindexof) distinguishes omission from `ToIntegerOrInfinity(undefined)` and uses strict equality; the [string algorithm](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.lastindexof) treats NaN as positive infinity. No dependency or runtime change is needed. Zinc's existing dense array representation has no separate missing-slot representation; this change does not introduce sparse-array support.
