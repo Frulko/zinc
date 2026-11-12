@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Claimed1039 existingpinball scene/audio lifetime after primary/source research .logs/research-apps-j.txt: tablechanges/editorrebuild dropmeshes/camera/sounds withoutdispose/unload. App-onlysharedclasses/callers/constructorrollback/exactlifecycleT0, no3d/audio nativeedit/newdemo/service/assetdownload. Sharedimagecache keptunlesscorrectboundaryproved; noglobalforgetperdrop/totalRSSclaim. AllcompoundACstayopen; independent563.01GPUactive, sharedheavyqueue.
+
 - Claimed563.01 after primary/source research .logs/research-next-j.txt: existing3dGPUmanifest lacksLinux, privateSDLcontext and existing windowmodule permit isolated dynamicGLloader/manifest/headerpayload. No heldHAL/runtime/host/main edits/newdependency/service/demo; require workerplan before edits for lifecycle/handles/pkg. LinuxSSIM/T1/performance remainunselected, actualshortfeature only if safe accessible.681integrated/archive93/cleaned, no rootheavy; nextD334/archive94.
 
 - Integrated681e79cc0cc9/D333 ReviewAC1checked/AC2pixelcompareopen,94Done. Rootexacttool/glTFnativeall3+TSsim/player21editor32checks/actual18raysall3/native6frames+inspectedshotPASS. Archive93 verifies34finalblobs+deletedOBJbase/231wholeworkerfiles/28rootproof/bundle, original source retained. Claimreleased,source/branchremovedafterarchive+metadata; noenginebuild/performance/pixel/session/browser/cross/D316ownershipclaim. Commoncheckoute79cc0cc9/engine6121edcc8, no rootpending. NextD334/archive94; readonlynextresearchactive.

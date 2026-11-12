@@ -2,7 +2,8 @@
 id: ZN-1039
 title: 'Pinball editor: rules and scene follow-ups'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:38'
 labels:
   - pinball
