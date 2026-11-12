@@ -1,10 +1,12 @@
 # Zinc coordinator — 2026-11-12
 
-Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator: /root/coordinator_next/coordinator_fresh after ready-b. Previous coordinators have stopped. Source worker /root/coordinator_next/coordinator_fresh/buses550 owns ZN-550. Native workers in isolated worktrees; max2 building trees, one heavy command through absolute tools/work-run. Read .logs/worker-rules.md for brief supplement.
+Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after .logs/coord-transfer-20261112-c.ready: /root/coordinator_next/coordinator_fresh/coordinator_fresh2. Previous coordinator stops at that signal. No source worker is active; start the next safe task from tools/next-task. Native workers in isolated worktrees; max2 building trees, one heavy command through absolute tools/work-run. Read .logs/worker-rules.md for brief supplement.
 
 92 Done since1078.03. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
 
 ## Current
+
+Transfer to a fresh coordinator after21f840c7b integration metadata. All four source workers this context are archived and removed (checkpoints70–73); no owned process or heavy command remains. Next safe candidate549 after550 header/cache fixes; preserve existing GPIO API and recorded native ABI limitations. Continue until .paused or no startable work.
 
 550 integrated b4929e91c (Review AC3, D316) and554 ff496c7fc (Review, all hardware AC open, D315). Root combined build, exact buses/buses_cache/power, public bus all3 and power semantic snapshot/events all3/doctor pass. Raw power JSON key order has recorded D209 limitation; no API workaround. Archive72/73 full source/logs/artifacts verified. Explicit bus close is required; native ABI reload cleanup/concurrency is unproven. No source workers or root heavy commands remain. 92 Done unchanged.
 
