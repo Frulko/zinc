@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- 558 Wi-Fi checkpoint394747b78 frozen/archived74 (full source bundle21files+24logs verified), NOT integrated. Fresh radios558_next inwork/558-radios-next cherry-picks checkpoint, first fixes public poll callback restart generations then nmcli/BlueZ. Existing taskBacklog/allACopen, no network/service action. GPIO549 final review/buildproof continues; no root heavy process.
+
 - Reserve558 independent Linux radio plugins beside549: delegated NetworkManager/BlueZ research underway, preserve existing BLE UART callers and permissions. No physical scan/connect, system service/OS mutation or privileged hwsim/vhci setup. Existing higher performance tasks require owner-held runtime/UI or unselected quiet/milestone measurements.
 
 - Fresh sole coordinator /root/coordinator_next/coordinator_fresh/coordinator_fresh2 after b884a2eab/ready-c. Reserve549 GPIO v2 after550 header/cache integration; delegated primary research underway. Preserve existing builtin GPIO API and simulator callers; no owner runtime/HAL/UI edits, privileged setup, physical pin probe or QEMU. Common binary b4929e91c, archives73,92Done.
