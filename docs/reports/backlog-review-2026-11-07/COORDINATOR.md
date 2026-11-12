@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated1024 aafdbfbbd BacklogAC1open/D318; cleanbuild/exacttdz_locals all3/actualfixture/herocheck+unchangedbytecode PASS. Archive76 fullsource11blobs/logs/rootproof verified. No speed/200msclaim;92Done unchanged.558_next nearingnmcli checkpoint, BlueZ software remainsopen.
+
 - Sole coordinator after7cbb2445b/ready-d: /root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next. Reserve1024 compiler-only local-name membership index after delegated primary research; frontend free, no runtime/UI/HAL edits. Task200ms gate remains open/unselected.558_next continues independent radio plugins; all heavy commands share work-run queue. No owner payload changed.
 
 - Coordinator handoff2026-11-12d: /root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next activates ONLY after .logs/coord-transfer-20261112-d.ready; previous coordinator stops at publication. Active radios558_next owns work/558-radios-next (98fef288a+637388a5e not integrated, nmcli/BlueZ software open);1024 delegated research ready/unclaimed. Archives75,92Done,D317, commoncf7f76d9e/d568e456. Ten owner payloads and15perf lines verified, no root process/heavy command pending.
