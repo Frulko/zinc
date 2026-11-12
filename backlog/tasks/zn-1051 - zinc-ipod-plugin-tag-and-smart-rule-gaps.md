@@ -2,8 +2,7 @@
 id: ZN-1051
 title: 'zinc:ipod plugin: tag and smart-rule gaps'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:40'
 labels:
   - ipod

@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated1051b32cfc03b/D329 BacklogAC2/3/4checked/AC1Nano7open,94Done. Rootexactstrictipod_rules/smart+TSsimall3/nativeapp103filesPASS, plugin/wrapperscompiled; noenginebuild/device/app execution. Archive89 verifies21payloads/full74logs/root18files/bundle. Claimreleased beforecleanup, firstfailedfixturesourceexplicitlyreconstructed. Activewasm661 only, basefd4af2b8d, WASMbuildPASS/exactproofongoing; >UreturnoutsidecurrentnormalABI, voiddiscard+changed-onlyoutputaliassemantics retained. NextD330/archive90, commoncheckoutb32cfc03b/engine6121edcc8/SHA7da7f402 unchanged.
+
 - Claimed661 generic WASM native ABI increment after delegated primary/source research .logs/research-wasm661-h.txt: U/u32 arrays and complete numeric output copies. Only WASM/glue/exactwasm_native; no owner RT/main/host edit, new SDK/backend/service/demo, fake physics or actual showcase parity claim. Fresh isolated worker next; only relative tools/build-wasm via absolute MAIN work-run, no CLI build. Independent ipod1051 active at basebdaeaaeb4; no root heavy pending.
 
 - Integrated572tooling1e4f2dad4/D328 Backlogall3ACopen,94Done. Rootpurecanvas_wpt_toolPASS; noZinc/Canvas/WPT/SSIM/FPSrun/build. Archive88 verifies14payloads/full16logs/root3files/bundle.572claimreleased;1051claimedafterreadonlyaudit .logs/startable-audit-h.txt (89IDs); isolatedipodplugin datafixesnext, noactualhardwarewrite/USB/restore/newservice/demo/ownerheldsource.853 oldunassignedInProgressrestoredoesnotholdsourcebyavailableevidence. NextD329/archive89. Commoncheckout1e4f2dad4, engine6121edcc8/SHA7da7f402 unchanged.

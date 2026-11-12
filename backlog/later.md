@@ -765,6 +765,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-558: prove Linux seqpacket/HUP and targeted UART/LE interoperability on selected hwsim/NM, btvirt and Pi/no-radio runs; nmcli writes/static alternatives and D316 shared-native teardown/concurrency remain open.
 
+- ZN-1051: the opt-in SQLite stand-in still imports node:module, refused by typed engines; provide an existing-library-compatible stand-in without changing callers. Native app typecheck passes, and no SQLite workaround was made here.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
