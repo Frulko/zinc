@@ -2,7 +2,8 @@
 id: ZN-572
 title: 'Canvas 2D full tier: WPT subset and p5 2.3'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 08:11'
 updated_date: '2026-11-07 18:30'
 labels:
