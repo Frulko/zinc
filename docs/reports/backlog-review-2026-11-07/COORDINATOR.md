@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated558 genericGATTcentral55d18c965/D324, Backlogall4ACopen,93Done. Rootexactbluez/publicfakeall3/TSsimall3/nativeMacSIM_AOT/checkPASS; productionLinuxC++17objectPASSinworker,noactualradio. Archive84 source19/full76availablelogs/root22verified; oneearlierMacfailurefull-logoverwritten/recoveredexcerptonly. Originalclaimretainedforsame558targetedUARTGATT+LEfreshcontinuation; no sourceworkerafterfreeze, nextD325/archive85.
+
 - Integrated1122 b63c8367a/D323 DonebothAC,93Done. Cleancommonbuild/exactclosure_arityall3 andworkerunchangedBLETSsimall3PASS. Archive83 eightblobs/full35logs/rootproofverified; release1122. Source558continuesGATTcleanup, nextD324/archive84. Mistakenmainbuildpathstoppedbeforelink/no sourcechange, retainedfailedlog; correctcleanbuildPASS. Ownerpayloadsverified.
 
 - Created/claimed1122 compilerblocker for558: unchangedgenericGATTsim hits unrelatednestedclosure refcast whenhelper/exportedpropertyshareaname. Minimal10linerepro retained; isolatedfrontend/IRworker next, noownerRT/HAL/UI/main edits.558staysactive, noSIMworkaround. Readonly392researchretained .logs/research-392-f.txt; requiredmainownerWIPprecludesclaim.
