@@ -3,10 +3,20 @@
   "kind": "module",
   "module": "zinc:ble",
   "entry": "index.ts",
-  "description": "Bluetooth Low Energy text links between Zinc programs over the Nordic UART Service: scan, connect, send and receive messages (CoreBluetooth central on macOS; a simulated echo peripheral with ZINC_NATIVE=sim)",
-  "native": { "impl": { "macos": "native/ble.macos.mm" } },
+  "description": "Bluetooth Low Energy UART text links: CoreBluetooth central on macOS, experimental BlueZ discovery and central on Linux, explicit echo simulator",
+  "native": {
+    "impl": {
+      "macos": "native/ble.macos.mm",
+      "linux": "native/ble.linux.cpp"
+    }
+  },
   "targets": {
-    "macos": { "frameworks": ["CoreBluetooth", "Foundation"] },
+    "macos": {
+      "frameworks": [
+        "CoreBluetooth",
+        "Foundation"
+      ]
+    },
     "linux": {},
     "windows": {}
   }

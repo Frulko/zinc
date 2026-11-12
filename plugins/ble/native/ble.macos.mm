@@ -57,7 +57,8 @@ dispatch_semaphore_t firstState = nullptr;
 CBCentralManager* cm = nil;
 NSMutableDictionary* seen = nil;   // NSUUID -> CBPeripheral of the scan (the queue only): connect() needs the object
 bool wantScan = false;             // the queue only
-bool simScanning = false;          // the simulated radio: the program's thread
+enum class SimScan { idle, uart, raw, empty } simScan = SimScan::idle;
+void simScanTo(SimScan next) { simScan = next; }          // the simulated radio: the program's thread
 CBUUID *uart = nil, *rxId = nil, *txId = nil;
 
 std::string clean(NSString* s) {   // a field of a record: no separators in it
@@ -241,13 +242,23 @@ struct MacBle : NativeBle {
       default: return str("resetting");   // unknown or resetting: not ready yet
     }
   }
+  bool has() override { auto s = state(); std::string value(s.ptr(), s.bytes()); return value.empty() || value == "off"; }
+  bool powered(bool) override { return false; }
+  bool discover(zrt::String input) override {
+    if (!sim || input.bytes()>1183) return false;
+    std::string filters(input.ptr(),input.bytes());
+    bool matches=filters.empty() || (","+filters+",").find(",6e400001-b5a3-f393-e0a9-e50e24dcca9e,")!=std::string::npos;
+    simScanTo(matches?SimScan::raw:SimScan::empty); return true;
+  }
+  zrt::String advertisements() override { return str(sim && simScan == SimScan::raw ? "zinc-sim\t5a696e632073696d\t-42\t36653430303030312d623561332d663339332d653061392d653530653234646363613965,\t\t\t\n" : ""); }
+  zrt::String error() override { return str(sim ? "" : "generic discovery and power control require Linux BlueZ"); }
   void scan() override {
-    if (sim) { simScanning = true; return; }
+    if (sim) { simScanTo(SimScan::uart); return; }
     if (!cm) return;
     dispatch_async(q, ^{ wantScan = true; [seen removeAllObjects]; if (cm.state == CBManagerStatePoweredOn) startScan(); });
   }
   void stopScan() override {
-    if (sim) { simScanning = false; return; }
+    if (sim) { simScanTo(SimScan::idle); return; }
     if (!cm) return;
     dispatch_async(q, ^{ wantScan = false; if (cm.state == CBManagerStatePoweredOn) [cm stopScan]; });
   }
@@ -318,7 +329,7 @@ struct MacBle : NativeBle {
     dispatch_async(q, ^{ Link* l = nullptr; { std::lock_guard<std::mutex> g(mu); l = linkOf(h); } if (l) finish(l, false); });
   }
   void stop() override {
-    if (sim) { std::lock_guard<std::mutex> g(mu); for (auto& kv : links) delete kv.second; links.clear(); pendingEvents.clear(); simScanning = false; return; }
+    if (sim) { std::lock_guard<std::mutex> g(mu); for (auto& kv : links) delete kv.second; links.clear(); pendingEvents.clear(); simScanTo(SimScan::idle); return; }
     if (!cm) return;
     dispatch_async(q, ^{
       wantScan = false;
@@ -333,7 +344,7 @@ struct MacBle : NativeBle {
     {
       std::lock_guard<std::mutex> g(mu);
       e.swap(pendingEvents);
-      if (sim && simScanning) e += std::string("device") + FS + "-1" + FS + "zinc-sim" + FS + "Zinc sim" + FS + "-42" + RS;   // it advertises at every look
+      if (sim && simScan == SimScan::uart) e += std::string("device") + FS + "-1" + FS + "zinc-sim" + FS + "Zinc sim" + FS + "-42" + RS;   // it advertises at every look
     }
     return str(e);
   }

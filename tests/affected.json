@@ -4,6 +4,7 @@
   "map": [
     {"paths": ["tools/check-audio-loopback.py", "tests/t0/audio_loopback_tool.sh", "tests/data/audio/loopback.ts", "tests/t1/audio_loopback.sh"], "tests": ["audio_loopback_tool"]},
     {"paths": ["tools/check-gpio-sim.py", "tests/t0/gpio_kernel_tool.sh", "tests/data/gpio/kernel.ts", "tests/t1/gpio_kernel.sh"], "tests": ["gpio_kernel_tool"]},
+    {"paths": ["plugins/ble/", "tests/native/radios/bluez.cpp", "tests/native/radios/ble_permission.cpp", "tests/native/radios/ble-public-fixture.py", "tests/data/radios/ble-", "tests/t0/bluez.sh"], "tests": ["bluez"]},
     {"paths": ["src/frontend/check.cpp", "tests/data/tdz_locals/", "tests/t0/tdz_locals.sh"], "tests": ["tdz_locals"]},
     {"paths": ["runtime/include/hw.h", "plugins/gpio/", "tests/native/gpio", "tests/data/gpio/", "tests/t0/gpio.sh"], "tests": ["gpio"]},
     {"paths": ["runtime/include/radio_dbus.h", "src/tc/plugin_build.cpp", "tests/native/radios/cache.cpp", "tests/native/radios/packaging.py", "tests/t0/radios_cache.sh"], "tests": ["radios_cache"]},

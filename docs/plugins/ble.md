@@ -20,7 +20,8 @@ phone apps such as nRF Connect and Bluefruit Connect also speak.
 | macos | central: scan, connect, send, receive; built and run on x86_64 against the simulated radio; not yet run against a real ESP32 |
 | macos, `advertise()` | not on this target: it throws (a Mac would need `CBPeripheralManager`) |
 | esp32 | peripheral, in the firmware of the ESP32 engine (`firmware/esp32-mquickjs`) |
-| linux, windows, anywhere else | `state()` is `'unsupported'`; the simulated radio when asked for |
+| linux | experimental BlueZ discovery, power requests and NUS central; injected protocol/native ABI proof only, no real-radio run. Generic GATT and exported UART peripheral remain unfinished. |
+| windows, anywhere else | `state()` is `'unsupported'`; the simulated radio when asked for |
 
 ```ts
 import * as ble from 'zinc:ble';
@@ -99,3 +100,18 @@ terminal app.
 - **One link per device.** Connecting to a device that is already linked fails (`onClose` without `onOpen`).
 - **Speed.** A Mac picks a connection interval of 15 to 30 ms: expect a few kilobytes per second and a few tens of
   milliseconds per message. Measured numbers will go in `docs/reports/zinc-next-perf.md` once a real pair has run.
+
+
+## Experimental Linux BlueZ backend
+
+Linux loads the OS `libsystemd.so.0` at run time and uses the existing system BlueZ daemon. Declare `"permissions": ["bluetooth"]`; permission denial occurs before any bus call. No daemon, policy rule or adapter power change is installed automatically. `has()` reports an observed adapter, and is also false while asynchronous enumeration is pending; `state()` distinguishes an off adapter from an unavailable backend. `powered(on)` makes an explicit adapter request. Its return means queued, so observe `state()` and `error()` for the result. Hardware power is shared system state. These new power methods return false on macOS and in the simulator.
+
+`scanAll(onAdvertisement, seconds, uuids = [])` discovers LE devices with an optional list of canonical lowercase service UUIDs. Unlike UART `scan()`, it reports updates. Each `Advertisement` contains `id`, lossless decoded `name`, `rssi` (127 when unavailable), `uuids`, `manufacturerData` (`company`, byte `data`), `serviceData` (`uuid`, byte `data`) and `advertisingData` (`type`, byte `data`). The last field contains BlueZ's optional `AdvertisingData` AD structures; it is empty when the daemon does not expose them. These are the bytes BlueZ supplies, not a reconstruction of an HCI packet. Discovery filters are also applied locally because BlueZ merges filters from other clients. `stopScan()` releases this client's discovery session.
+
+Device ids are opaque, scoped to the live backend observation, and expire when BlueZ removes the object or the backend restarts. Never construct an id from a MAC address. An old id cannot address a newly discovered device. Incoming names and data cannot inject native event separators. Enumerations, deferred signals, property caches, event queues, links and byte queues have limits.
+
+The legacy UART central waits for `ServicesResolved`, actual writable RX/notifying TX characteristics and the `StartNotify` reply before `onOpen`. Writes are serialized, use conservative 20-byte ATT chunks and are never retried blindly. Characteristic identity/flags or ServicesResolved invalidation closes the link. Failed Connect requests never issue Disconnect; a cancelled pending request waits for its own reply before disconnecting an acknowledged connection. The existing native Poller bounds ordinary post-stop cleanup while the VM still polls.
+
+BlueZ `Device1` connections are shared system objects: there is no client-bound connection lease. This backend refuses an already observed connected device, but another client can race or share a connection afterward. A daemon operation that completes after a timeout cannot be proven owned or cancelled. Explicit `stop()`/`link.close()` is required; native VM shutdown/reload and concurrent VM ownership remain unproven (D316). No automatic Pair/Trust or authorization bypass is performed.
+
+This is an incomplete ZN-558 software checkpoint: generic GATT read/write/notify APIs and Linux LE advertising with an actual exported UART GATT application are not implemented. `advertise()` currently returns unsupported on real Linux, as on macOS. No hwsim/btvirt/CI VM, real Pi peripheral or no-radio-board acceptance criterion has been proven.

@@ -16,7 +16,9 @@ class SimLink {
 }
 let links: SimLink[] = [];
 let next: i32 = 0;
-let scanning = false;
+enum Scan { idle, uart, raw, empty }
+let scan: Scan = Scan.idle;
+function scanTo(next: Scan): void { scan = next; }
 let pending = '';
 
 function asked(): boolean {   // the rule of ble.macos.mm's simulated radio
@@ -36,8 +38,13 @@ function opened(id: string, name: string): i32 {
 
 export default {
   state: (): string => !asked() ? 'unsupported' : sys.env('ZINC_BLE_SIM_STATE'),
-  scan: (): void => { scanning = true; },
-  stopScan: (): void => { scanning = false; },
+  has: (): boolean => asked(),
+  powered: (on: boolean): boolean => false,
+  discover: (uuids: string): boolean => { if (!asked()) return false; scanTo(uuids === '' || uuids.split(',').includes('6e400001-b5a3-f393-e0a9-e50e24dcca9e') ? Scan.raw : Scan.empty); return true; },
+  advertisements: (): string => scan === Scan.raw ? 'zinc-sim\t5a696e632073696d\t-42\t36653430303030312d623561332d663339332d653061392d653530653234646363613965,\t\t\t\n' : '',
+  error: (): string => 'simulator power control is unavailable',
+  scan: (): void => { scanTo(Scan.uart); },
+  stopScan: (): void => { scanTo(Scan.idle); },
   connect: (id: string): i32 => {
     if (id === SIM_ID) return opened(SIM_ID, SIM_NAME);
     const h = next++;
@@ -60,9 +67,9 @@ export default {
     return r;
   },
   close: (h: i32): void => { links = links.filter((l: SimLink) => l.h !== h); },
-  stop: (): void => { links = []; scanning = false; pending = ''; },
+  stop: (): void => { links = []; scanTo(Scan.idle); pending = ''; },
   events: (): string => {
-    const r = pending + (scanning ? `device${FS}-1${FS}${SIM_ID}${FS}${SIM_NAME}${FS}-42${RS}` : '');   // it advertises at every look
+    const r = pending + (scan === Scan.uart ? `device${FS}-1${FS}${SIM_ID}${FS}${SIM_NAME}${FS}-42${RS}` : '');   // it advertises at every look
     pending = '';
     return r;
   },

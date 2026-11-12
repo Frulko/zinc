@@ -28,6 +28,28 @@ export class Device {
   constructor(id: string, name: string, rssi: i32) { this.id = id; this.name = name; this.rssi = rssi; }
 }
 
+enum LinkState { connecting, open, closed }
+enum ScanMode { idle, uart, raw }
+
+export class ManufacturerData {
+  company: u16; data: u8[];
+  constructor(company: u16, data: u8[]) { this.company = company; this.data = data; }
+}
+export class ServiceData {
+  uuid: string; data: u8[];
+  constructor(uuid: string, data: u8[]) { this.uuid = uuid; this.data = data; }
+}
+export class AdvertisingData {
+  type: u8; data: u8[];
+  constructor(type: u8, data: u8[]) { this.type = type; this.data = data; }
+}
+export class Advertisement extends Device {
+  uuids: string[] = [];
+  manufacturerData: ManufacturerData[] = [];
+  serviceData: ServiceData[] = [];
+  advertisingData: AdvertisingData[] = [];
+}
+
 type OpenCb = (l: Link) => void;
 type MessageCb = (l: Link, text: string) => void;
 type CloseCb = (l: Link) => void;
@@ -39,8 +61,11 @@ export class Link {
   name: string;
   /** The native handle (internal). */
   handle: i32;
-  private live: boolean = false;
-  private ended: boolean = false;
+  private phase: LinkState = LinkState.connecting;
+  private transition(next: LinkState): boolean {
+    if (this.phase === LinkState.closed || (next === LinkState.open && this.phase !== LinkState.connecting)) return false;
+    this.phase = next; return true;
+  }
   private partial: u8[] = [];
   private onOpen: OpenCb;
   private onMessage: MessageCb;
@@ -51,42 +76,44 @@ export class Link {
   }
   /** Sends one message (see the framing above). Throws when the link is not open, or when 1 MiB already waits to go out. */
   send(text: string): void {
-    if (!this.live) throw new Error(`ble: ${this.label()}: the link is not open`);
+    if (this.phase !== LinkState.open) throw new Error(`ble: ${this.label()}: the link is not open`);
     const bytes = utf8Encode(text + '\n');
     const n = S.maxWrite(this.handle);
+    if (n < 1 || n > 512) throw new Error('ble: invalid maximum write length');
     for (let i = 0; i < bytes.length; i += n)
       if (!S.write(this.handle, bytes.slice(i, i + n))) throw new Error(`ble: ${this.label()}: the link takes no more now (it closed, or 1 MiB waits to go out)`);
   }
   /** Ends the link; onClose runs at once. */
   close(): void {
-    if (this.ended) return;
+    if (this.phase === LinkState.closed) return;
     S.close(this.handle);
     this.finish();
   }
 
   /** Internal: the UART characteristics are ready; the native side's id and name fill what the scan did not give. */
   opened(id: string, name: string): void {
-    if (this.ended) return;
+    if (this.phase === LinkState.closed) return;
     if (this.id === '') this.id = id;
     if (this.name === '') this.name = name;
-    this.live = true;
+    if (!this.transition(LinkState.open)) return;
     this.onOpen(this);
   }
   /** Internal: the bytes received since the last look, cut into messages. */
   drain(): void {
-    if (this.ended) return;
+    if (this.phase === LinkState.closed) return;
     for (const b of S.read(this.handle)) {
       if (b !== 10) { this.partial.push(b); if (this.partial.length < MAX_MESSAGE) continue; }
       const text = utf8Decode(this.partial);
       this.partial = [];
       this.onMessage(this, text);
-      if (this.ended) return;   // the handler closed it
+      if (this.phase === LinkState.closed) return;   // the handler closed it
     }
   }
   /** Internal: the link is over (closed here, by the peer, or never opened); onClose runs once. */
   finish(): void {
-    if (this.ended) return;
-    this.ended = true; this.live = false;
+    if (this.phase === LinkState.closed) return;
+    if (!this.transition(LinkState.closed)) return;
+    this.partial = [];
     const i = links.indexOf(this);
     if (i >= 0) links.splice(i, 1);
     idle();
@@ -97,7 +124,9 @@ export class Link {
 
 let links: Link[] = [];          // connecting and open
 let timer: i32 = -1;
-let scanning = false;
+let scanMode: ScanMode = ScanMode.idle;
+let activityGeneration: i32 = 0;
+let onAdvertisement: (d: Advertisement) => void = (d: Advertisement): void => {};
 let scanTimer: i32 = -1;
 let onFound: (d: Device) => void = (d: Device): void => {};
 let found: Device[] = [];        // reported in this scan
@@ -110,7 +139,7 @@ let advClose: CloseCb = (l: Link): void => {};
 function wake(): void { if (timer < 0) timer = setInterval(() => poll(), POLL_MS); }
 /** Nothing going on: the timer stops, so a program with nothing else to do ends. */
 function idle(): void {
-  if (scanning || advertising || links.length > 0 || timer < 0) return;
+  if (scanMode !== ScanMode.idle || advertising || links.length > 0 || timer < 0) return;
   clearInterval(timer);
   timer = -1;
 }
@@ -119,7 +148,7 @@ function linkOf(h: i32): Link | null {
   return null;
 }
 function sighted(id: string, name: string, rssi: i32): void {
-  if (!scanning || found.find((d: Device) => d.id === id) !== undefined) return;
+  if (scanMode !== ScanMode.uart || found.find((d: Device) => d.id === id) !== undefined) return;
   if (name === '') {
     nameless.push(id);
     if (nameless.filter((n: string) => n === id).length < NAMELESS_SIGHTINGS) return;
@@ -129,7 +158,9 @@ function sighted(id: string, name: string, rssi: i32): void {
   onFound(d);
 }
 function poll(): void {
+  const generation = activityGeneration;
   for (const r of S.events().split(RS)) {
+    if (generation !== activityGeneration) return;
     if (r === '') continue;
     const f = r.split(FS);
     const h = parseInt(f[1]);
@@ -147,7 +178,39 @@ function poll(): void {
       if (l !== null) { l.drain(); l.finish(); }
     }
   }
-  for (const l of links.slice()) l.drain();
+  if (generation !== activityGeneration) return;
+  if (scanMode === ScanMode.raw) {
+    for (const row of S.advertisements().split('\n')) {
+      if (generation !== activityGeneration) return;
+      if (row === '') continue;
+      const f = row.split('\t');
+      if (f.length !== 7) continue;
+      const d = new Advertisement(f[0], utf8Decode(unhex(f[1])), parseInt(f[2]));
+      for (const u of f[3].split(',')) if (u !== '') d.uuids.push(utf8Decode(unhex(u)));
+      for (const item of f[4].split(',')) {
+        const pair = item.split('=');
+        if (pair.length === 2) d.manufacturerData.push(new ManufacturerData(parseInt(pair[0]), unhex(pair[1])));
+      }
+      for (const item of f[5].split(',')) {
+        const pair = item.split('=');
+        if (pair.length === 2) d.serviceData.push(new ServiceData(utf8Decode(unhex(pair[0])), unhex(pair[1])));
+      }
+      for (const item of f[6].split(',')) {
+        const pair = item.split('=');
+        if (pair.length === 2) d.advertisingData.push(new AdvertisingData(parseInt(pair[0]), unhex(pair[1])));
+      }
+      onAdvertisement(d);
+    }
+  }
+  if (generation !== activityGeneration) return;
+  for (const l of links.slice()) { l.drain(); if (generation !== activityGeneration) return; }
+}
+
+function unhex(s: string): u8[] {
+  const bytes: u8[] = [];
+  if (s.length % 2 !== 0) return bytes;
+  for (let i = 0; i < s.length; i += 2) bytes.push(parseInt(s.slice(i, i + 2), 16));
+  return bytes;
 }
 
 function why(s: string): string {
@@ -165,6 +228,22 @@ function usable(what: string): void {
 
 /** '' when Bluetooth can be used, else why: 'off', 'unauthorized', 'unsupported', 'resetting'. */
 export function state(): string { return S.state(); }
+/** Observed adapter presence; false also while asynchronous enumeration is pending. */
+export function has(): boolean { return S.has(); }
+/** Explicit Linux BlueZ power request. Observe state() and error(); acceptance is not completion. */
+export function powered(on: boolean): boolean { return S.powered(on); }
+export function error(): string { return S.error(); }
+
+/** Linux LE discovery, including binary manufacturer/service data. Reports updates; locally filtered by canonical UUIDs. */
+export function scanAll(onDevice: (d: Advertisement) => void, seconds: i32, uuids: string[] = []): void {
+  usable('scanAll');
+  stopScan();
+  if (!S.discover(uuids.join(','))) throw new Error('ble: scanAll: ' + S.error());
+  activityGeneration++; scanMode = ScanMode.raw; onAdvertisement = onDevice;
+  const generation = activityGeneration;
+  if (seconds > 0) scanTimer = setTimeout(() => { if (generation === activityGeneration) stopScan(); }, seconds * 1000);
+  wake();
+}
 
 /** Central: the devices advertising the UART service, each reported once per scan; seconds 0 = until stopScan(). Throws when Bluetooth
  *  cannot be used (the message says what to do). A new scan replaces the one going on. */
@@ -172,15 +251,16 @@ export function scan(onDevice: (d: Device) => void, seconds: i32): void {
   usable('scan');
   if (scanTimer >= 0) { clearTimeout(scanTimer); scanTimer = -1; }
   onFound = onDevice; found = []; nameless = [];
-  scanning = true;
+  activityGeneration++; scanMode = ScanMode.uart;
   S.scan();
-  if (seconds > 0) scanTimer = setTimeout(() => stopScan(), seconds * 1000);
+  const generation = activityGeneration;
+  if (seconds > 0) scanTimer = setTimeout(() => { if (generation === activityGeneration) stopScan(); }, seconds * 1000);
   wake();
 }
 export function stopScan(): void {
   if (scanTimer >= 0) { clearTimeout(scanTimer); scanTimer = -1; }
-  if (!scanning) return;
-  scanning = false;
+  if (scanMode === ScanMode.idle) return;
+  activityGeneration++; scanMode = ScanMode.idle;
   S.stopScan();
   idle();
 }
@@ -190,7 +270,9 @@ export function stopScan(): void {
 export function connect(id: string, onOpen: (l: Link) => void, onMessage: (l: Link, text: string) => void, onClose: (l: Link) => void): void {
   usable('connect');
   const d = found.find((x: Device) => x.id === id);
-  links.push(new Link(S.connect(id), id, d === undefined ? '' : d.name, onOpen, onMessage, onClose));
+  const h = S.connect(id);
+  if (h < 0) throw new Error('ble: connect: backend could not allocate a link');
+  links.push(new Link(h, id, d === undefined ? '' : d.name, onOpen, onMessage, onClose));
   wake();
 }
 
@@ -206,9 +288,10 @@ export function advertise(name: string, onOpen: (l: Link) => void, onMessage: (l
 
 /** Ends scanning, advertising and every link (their onClose run). */
 export function stop(): void {
+  activityGeneration++;
   S.stop();
   if (scanTimer >= 0) { clearTimeout(scanTimer); scanTimer = -1; }
-  scanning = false; advertising = false;
+  scanMode = ScanMode.idle; advertising = false;
   for (const l of links.slice()) l.finish();
   idle();
 }

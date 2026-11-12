@@ -7,6 +7,16 @@ export interface Spec extends NativeModule {
   /** '' when Bluetooth can be used, else 'off', 'unauthorized', 'unsupported', 'resetting' (not ready yet). It never makes the system ask
    *  for permission where asking would end the process (ble.macos.mm). */
   state(): string;
+  /** Adapter observed; false also while enumeration is pending. No power change. */
+  has(): boolean;
+  /** Explicit Linux adapter power request; success means accepted, observe state() for the result. */
+  powered(on: boolean): boolean;
+  /** Linux LE scan; comma-separated canonical UUID filters, empty for all. */
+  discover(uuids: string): boolean;
+  /** Bounded raw advertisement records: id, hex(name), RSSI, hex(UUIDs), company=hex(bytes), hex(service)=hex(bytes), AD-type=hex(bytes). */
+  advertisements(): string;
+  /** Latest sanitized backend error. */
+  error(): string;
   /** Starts scanning for devices that advertise the UART service, until stopScan(): 'device' events. */
   scan(): void;
   stopScan(): void;
