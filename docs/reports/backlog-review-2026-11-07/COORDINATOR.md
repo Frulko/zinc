@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated555 docs5b5b6865c/D320 BacklogAC3checkedAC1/2open. DAC+overlay/namedrouting/staticnullpolicy, no newbackend; sourcefacts/localanchors reviewed, nobuild/audio/OSaction. Archive79 fourblobs/fullsevenlogs/rootdocproofverified; sndaloopharnessUNWRITTENsoftwaregap,92Doneunchanged. BlueZ558 active.
+
 - Reserve555 software documentation/decision increment afterdelegatedprimaryresearch: existingminiaudio alreadyloadsALSA, no newbackend/customIEC958packer. I2Ssetup AC3 andhoneststaticflavourpolicy, no device/routing/install action, native/core edit/build oractualPi proof. BlueZ558 continues isolatedsoftware.
 
 - Integrated549 harness6a47537dc/D319, BacklogAC1/2open, AC3/4unchanged. Genuineprepared-kerneltool+publicfixture nowWRITTEN, rootpuregpio_kernel_tool+typecheck PASS, no nativebuild/kernel/Pi run. Archive78 seven sourceblobs/fullworkerlogs/rootproof verified;92Doneunchanged. BlueZ558 continues software.

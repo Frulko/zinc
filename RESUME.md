@@ -6,6 +6,8 @@ Continue zn-coordinate until .paused or nothing startable. Never ask owner; no p
 
 ## Current
 
+555 documentation integrated5b5b6865c/D320 BacklogAC3checkedAC1/2open. ExactDAC+overlay/namedrouting andloadlessstatic ZINC_AUDIO=null policy, existingminiaudio reused/noTinyALSA. Archive79 four sourceblobs/fullsevenlogs/rootdocproofverified. No build/playback/OSaction. snd-aloopharnessstillUNWRITTENsoftwaregap, actualLinux/Pi/CHIPunproven.
+
 1024 checker increment integratedaafdbfbbd BacklogAC1open, D318. Walk-local indexed membership/RAII, unchanged AST traversal. Root clean build/exacttdz_locals all3/actualfixture/herocheck and unchangedherobytecode PASS; archive76 verified. No speedmeasurement or200msclaim.
 
 Fresh coordinator transfer after a0df76956/D317: previous coordinator ceases at ready-d. Active558 branch98fef288a+637388a5e is NOT integrated; worker continues nmcli cleanup and BlueZ. Delegated compiler next-step research `.logs/research-1024-next.txt` is ready;1024 is unclaimed, checker seam free and performance threshold unproven. Archives75/92Done, commoncf7f76d9e; no previous-coordinator heavy command/process remains.
@@ -37,6 +39,8 @@ Never reset/build/stage main WIP. Exact payload hashes .logs/blockers/core-1030/
 1030 Backlog: wider structural stores/views unfinished; related-reference array guards and earlier dynamic/default/namespace fixes integrated.1118 Backlog: vanished intermediate process ancestry remains;1121 only fixes cwd/glibc.1066 Review: privateHermes SDK patch only, installed/public SDK unchanged.512 Review: realNEON/hardfloat metadata, no staticmusl or ARM execution claim.164 Backlog: lite OSC/DNS removal, genericlibuv sockets remain.575/1068/1078.29 Review: quietperformance gates unrun.897 WebRTC client actualICE/twoZinc scope open. No newservices/demos.
 
 ## Tests to run (owner picks)
+
+- Since5b5b6865c: preparedsnd-aloop publiccapture harness (stillunwritten, ~10–15s), actualalreadyconfiguredPiHDMI/jack(~2–5s) andDAC+/PocketCHIPnamedroutes(~10s); memoryunmeasured. No OS/module/routing setup automatically. Documentation/sourcefacts only checked.
 
 - Since6a47537dc: preparedLinux `ZINC_GPIO_KERNEL_TEST=1 ZINC=/absolute/linux/zinc timeout 30 tests/run --only gpio_kernel` (~10–15s, memory unmeasured). No module/mount/permission setup performed by harness; owner-prepared delegated image required. Pureguard checks and fixturetypecheck already pass, actualkernel/Pi unrun.
 

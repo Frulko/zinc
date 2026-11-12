@@ -2,8 +2,7 @@
 id: ZN-555
 title: 'zinc:audio on the Pi: ALSA, HDMI and the static build'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:46'
 labels:
   - rpi
