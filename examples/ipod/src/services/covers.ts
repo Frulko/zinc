@@ -1,80 +1,127 @@
-// Images read from the iPod (album covers through coverImage, from a remote iPod too, photos through ipod.photoImage: runtime images), cached by key
-// and size while something shows them (the covers' files are kept on disk too: services/cache.ts). An image is read when its first viewer asks for it and freed (destroyImage) when its
-// last viewer is dropped, so a grid of 2,000 albums or photos holds only the images of the rows on screen.
+// Images belong to the viewers that acquired them, across reloads and iPod changes.
 import * as ipod from 'zinc:ipod';
 import { destroyImage } from 'zinc:gfx';
-import { coverImage, coverPng } from './ipod';
+import { coverImage, coverPng, coverSession, onArtworkChanged } from './ipod';
 
+enum LoadState { Cold, Loading, Ready, Failed, Closed }
 class Cover {
+  state = LoadState.Cold;
   image: i32 = -1;
-  users: i32 = 0;
-  waiting: ((img: i32) => void)[] = [];
-  loaded: boolean = false;
-  size: i32;
-  constructor(size: i32) { this.size = size; }
+  error: string = '';
+  generation: i32 = 0;
+  viewers = new Map<i32, (img: i32) => void>();
+  unsubscribe: () => void = () => {};
+  constructor(public size: i32, public load: (size: i32) => Promise<i32>) {}
 }
 const covers = new Map<string, Cover>();
+let nextViewer: i32 = 0;
 
-async function read(c: Cover, load: (size: i32) => Promise<i32>): Promise<void> {
-  let img: i32 = -1;
-  try { img = await load(c.size); } catch (e) { img = -1; }   // an unreadable image shows as none
-  c.loaded = true;
-  if (c.users === 0) { if (img >= 0) destroyImage(img); return; }   // dropped while it was read
-  c.image = img;
-  for (const f of c.waiting) f(img);
-  c.waiting = [];
+function transition(c: Cover, next: LoadState): void {
+  const from = c.state;
+  if (from === LoadState.Closed || (next === LoadState.Loading && from !== LoadState.Cold)
+      || ((next === LoadState.Ready || next === LoadState.Failed) && from !== LoadState.Loading)) {
+    throw new Error('Invalid cover load transition');
+  }
+  c.state = next;
 }
 
-/** Calls `show` with the cover of the album `key` (read from the track `trackId` at about `size` px), now when it is cached,
- *  else once read; -1 when it has none. Pair each call with `releaseCover(key, size)`. */
-export function useCover(key: string, trackId: string, size: i32, show: (img: i32) => void): void {
-  useImage(key, size, (s: i32) => coverImage(trackId, s), show);
+function showViewers(c: Cover, image: i32, generation: i32, closing: boolean = false): void {
+  const ids: i32[] = [];
+  for (const id of c.viewers.keys()) ids.push(id);
+  for (const id of ids) {
+    if (c.generation !== generation || (!closing && c.state === LoadState.Closed)) return;
+    const show = c.viewers.get(id);
+    if (show !== undefined) {
+      try { show(image); } catch (e) { console.error(`cover viewer: ${(e as Error).message}`); }
+    }
+  }
 }
 
-/** The photo `id` at about `size` px, as useCover does; pair with `releaseCover('photo:' + id, size)`. */
-export function usePhoto(id: string, size: i32, show: (img: i32) => void): void {
-  useImage(`photo:${id}`, size, (s: i32) => ipod.photoImage(id, s), show);
-}
-
-function useImage(key: string, size: i32, load: (size: i32) => Promise<i32>, show: (img: i32) => void): void {
-  const k = `${size}:${key}`;
-  let c = covers.get(k);
-  if (c === undefined) {
-    const made = new Cover(size);
-    covers.set(k, made);
-    made.waiting.push(show);
-    made.users = 1;
-    read(made, load);
+async function read(c: Cover): Promise<void> {
+  transition(c, LoadState.Loading);
+  const generation = ++c.generation;
+  let img: i32 = -1, failure = '';
+  try { img = await c.load(c.size); } catch (e) { failure = (e as Error).message || 'Cannot read cover'; console.error(`cover read: ${failure}`); }
+  if (c.state === LoadState.Closed || c.generation !== generation) {
+    if (img >= 0) destroyImage(img);
     return;
   }
-  const have = c as Cover;
-  have.users++;
-  if (have.loaded) show(have.image);
-  else have.waiting.push(show);
+  c.image = img;
+  c.error = failure;
+  transition(c, failure === '' ? LoadState.Ready : LoadState.Failed);
+  showViewers(c, img, generation);
 }
 
-export function releaseCover(key: string, size: i32): void {
-  const k = `${size}:${key}`;
-  const c = covers.get(k);
-  if (c === undefined) return;
-  const have = c as Cover;
-  have.users--;
-  if (have.users > 0) return;
-  if (have.image >= 0) destroyImage(have.image);
-  covers.delete(k);
+function reload(c: Cover): void {
+  if (c.state === LoadState.Closed) return;
+  const old = c.image;
+  c.image = -1;
+  c.error = '';
+  const generation = ++c.generation;
+  transition(c, LoadState.Cold);
+  showViewers(c, -1, generation);
+  if (old >= 0) destroyImage(old);
+  if (c.state === LoadState.Cold && c.generation === generation) read(c);
 }
 
-/** Frees every cover (the iPod was closed or another one opened). */
+function close(c: Cover): void {
+  if (c.state === LoadState.Closed) return;
+  const old = c.image;
+  c.image = -1;
+  const generation = ++c.generation;
+  transition(c, LoadState.Closed);
+  c.unsubscribe();
+  showViewers(c, -1, generation, true);
+  c.viewers.clear();
+  if (old >= 0) destroyImage(old);
+}
+
+/** Shows an album/track cover, including later artwork changes. Release this exact acquisition with the returned disposer. */
+export function useCover(key: string, trackId: string, size: i32, show: (img: i32) => void): () => void {
+  return useImage(key, size, (s: i32) => coverImage(trackId, s), show, trackId);
+}
+
+/** Shows a photo while its acquisition is alive. */
+export function usePhoto(id: string, size: i32, show: (img: i32) => void): () => void {
+  return useImage(`photo:${id}`, size, (s: i32) => ipod.photoImage(id, s), show, '');
+}
+
+function useImage(key: string, size: i32, load: (size: i32) => Promise<i32>, show: (img: i32) => void, trackId: string): () => void {
+  const session = coverSession();
+  const k = `${session}:${size}:${trackId}:${key}`;
+  let c = covers.get(k);
+  if (c === undefined) {
+    c = new Cover(size, load);
+    covers.set(k, c);
+    const made = c;
+    if (trackId !== '') made.unsubscribe = onArtworkChanged((ids: string[]) => { if (coverSession() === session && ids.indexOf(trackId) >= 0) reload(made); });
+  }
+  const have = c as Cover, viewer = ++nextViewer;
+  have.viewers.set(viewer, show);
+  if (have.state === LoadState.Cold) read(have);
+  else if (have.state === LoadState.Ready || have.state === LoadState.Failed) {
+    try { show(have.image); } catch (e) { console.error(`cover viewer: ${(e as Error).message}`); }
+  }
+  return (): void => {
+    if (!have.viewers.delete(viewer) || have.viewers.size > 0) return;
+    if (covers.get(k) === have) covers.delete(k);
+    close(have);
+  };
+}
+
+/** Closes every acquisition when the iPod closes; stale disposers cannot touch replacements. */
 export function dropCovers(): void {
-  covers.forEach((c: Cover, k: string) => { c.users = 0; if (c.image >= 0) destroyImage(c.image); });
+  const old: Cover[] = [];
+  covers.forEach((c: Cover, k: string) => { old.push(c); });
   covers.clear();
+  for (const c of old) close(c);
 }
 
-/** Reads the covers of the tracks `ids` into the disk cache, one at a time, while `still()` (the iPod they belong to is open): the
- *  albums scrolled to later show at once. A cover that cannot be read is skipped. */
+/** Prefetch belongs to the iPod captured before its first asynchronous read. */
 export async function prefetchCovers(ids: string[], still: () => boolean): Promise<void> {
+  const session = coverSession();
   for (const id of ids) {
-    if (!still()) return;
+    if (!still() || coverSession() !== session) return;
     try { await coverPng(id); } catch (e) { /* shown as none when its turn comes */ }
   }
 }

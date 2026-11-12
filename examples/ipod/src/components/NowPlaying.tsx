@@ -11,7 +11,7 @@ import { current, isPlaying, position, length, playError, toggle, next, previous
 import { shuffle, repeat } from '../services/queue';
 import { queueOpen, setQueueOpen } from './QueuePanel';
 import { lyricsOpen, setLyricsOpen } from './LyricsPanel';
-import { useCover, releaseCover } from '../services/covers';
+import { useCover } from '../services/covers';
 import { OutputButton } from './OutputPicker';
 import { SleepButton } from './SleepButton';
 import { geniusFrom } from '../drafts';
@@ -29,7 +29,7 @@ function Transport(props: { icon: string; size: i32; onPress: () => void; on?: b
 function Cover(props: { t: ipod.Track }): i32 {
   const t = props.t, size = 40, key = `track:${t.id}`;
   const [img, setImg] = createSignal<i32>(-1);
-  if (t.artwork) { useCover(key, t.id, size * 2, setImg); onCleanup(() => releaseCover(key, size * 2)); }
+  if (t.artwork) { onCleanup(useCover(key, t.id, size * 2, setImg)); }
   return <View className={`items-center justify-center rounded-[4] overflow-hidden ${bg(TRACK)}`} style={{ width: size, height: size }}>
     {img() >= 0 ? <Image image={img()} className="w-full h-full object-cover" /> : <Icon name="music" size={16} color={() => color(MUTED)} strokeWidth={1.5} />}
   </View>;

@@ -53,7 +53,15 @@ export function writeWhole(file: string, bytes: u8[]): void {
 
 // ---- covers
 
-export function coverFile(trackId: string): string { return `${cacheDir('covers')}/${trackId}.png`; }
+/** A device/daemon track id is one filename component, never a path. */
+export function coverName(trackId: string): string {
+  if (trackId === '' || trackId.indexOf('/') >= 0 || trackId.indexOf('\\') >= 0 || trackId.indexOf('\0') >= 0) throw new Error('Invalid cover track id');
+  return `${trackId}.png`;
+}
+export function coverFile(trackId: string): string {
+  const name = coverName(trackId);
+  return `${cacheDir('covers')}/${name}`;
+}
 
 // ---- the library
 

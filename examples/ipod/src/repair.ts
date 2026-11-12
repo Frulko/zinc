@@ -9,15 +9,12 @@
 // changes and is one Transfers job with one save of the iPod (services/ipod.ts updateMany).
 import { createSignal, createMemo, batch } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
-import * as fs from 'zinc:fs';
 import { library, albums, Album } from './state';
 import { PodLibrary, Change, updateMany } from './services/ipod';
 import { enqueue, runBeside, busy, Job } from './services/transfers';
 import { lookUp, frontCover, known, ReleaseInfo } from './services/musicbrainz';
 import { lastfm } from './services/historyImport';
 import { loadConfig } from './services/config';
-import * as cache from './services/cache';
-import { dropCovers } from './services/covers';
 import { allowed, refresh, remoteOpen } from './actions';
 import { analyse, duplicates, DuplicateRow, mergeRows, tracksById, songName } from './optimise';
 import { fold } from './search';
@@ -225,12 +222,12 @@ export function fix(list: Finding[], label: string): void {
   if (library() === null || !allowed('Repair the library')) return;
   const rows: DuplicateRow[] = [];
   const changes: Change[] = [];
-  let n = 0, coverIds: string[] = [];
+  let n = 0;
   for (const f of list) {
     if (f.dup !== null) { rows.push(f.dup as DuplicateRow); continue; }
     if (f.changes.length === 0) continue;
     n++;
-    for (const c of f.changes) { changes.push(c); if (c.patch.artworkFile !== undefined) coverIds = coverIds.concat(c.ids); }
+    for (const c of f.changes) changes.push(c);
   }
   if (rows.length > 0) mergeRows(rows);
   if (changes.length === 0) return;
@@ -238,7 +235,6 @@ export function fix(list: Finding[], label: string): void {
   for (const c of changes) for (const id of c.ids) songs.add(id);
   enqueue('repair', label, async (): Promise<string> => {
     await updateMany(changes);
-    if (coverIds.length > 0) { for (const id of coverIds) { const f = cache.coverFile(id); if (fs.exists(f)) fs.remove(f, false); } dropCovers(); }
     await refresh();
     return `${count(n, 'fix', 'fixes')} written to ${count(songs.size, 'song', 'songs')}`;
   });

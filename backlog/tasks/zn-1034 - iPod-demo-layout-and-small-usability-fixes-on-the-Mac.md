@@ -42,7 +42,7 @@ From backlog/later.md, promoted by the review of 2026-11-07 (docs/reports/backlo
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Album grid column count follows the window width; Title column keeps a minimum width at 1180 px; the now-playing time label no longer touches the cover
-- [ ] #2 Devices page shows the waiting-for-the-iPod line; history resets when another iPod opens; covers cache invalidated after setArtwork
+- [x] #2 Devices page shows the waiting-for-the-iPod line; history resets when another iPod opens; covers cache invalidated after setArtwork
 - [ ] #3 kit toast()/addToast return an updatable handle (title, progress, actions); the failed toast "Show details" opens the job row; album rows show per-track progress
 - [ ] #4 The mood mixer tempo and volume bars drag; "From A to B" drafts are kept in genius.json
 - [ ] #5 T1 of the demo still passes
@@ -68,3 +68,26 @@ All failed fixture/debug stages and preimages are retained. Early manifests incl
 **Proposed tests**
 
 - Owner-selected existing `tests/run --only ipod_demo`: full demo session with actual startup and page interactions, roughly 10–30 seconds plus compilation; memory unmeasured. AC5 remains unchecked until the selected session passes.
+
+
+2026-11-12 — original AC2 complete; task stays Backlog, AC1 stays checked and AC3–5 stay open.
+
+The Devices page renders the existing `session.waiting` signal, including a long saved title, and removes the line reactively when it clears. Production `state.showOpened()` already reset navigation after successful local and remote opens; it is unchanged. The proof starts the real history, visits pages with searches/selections/scroll keys, then opens another local iPod and a remote one and verifies defaults plus no back/forward entries. Same-device and failed opens are separate controls. Listening history is untouched.
+
+Artwork changes go through the existing `updateTracks`/`updateMany` provider and `patch.artworkFile`; no direct artwork API or remote mutation route was invented. Successful update/save invalidates the affected tracks at every cached size and album/track alias and refreshes surviving viewers. Unrelated tracks/photos remain cached. Four consumers own exact returned disposers, so old cleanup cannot release a replacement, disposed callbacks cannot fire, and late images are destroyed once. Load state/generation and retained errors distinguish cold/loading/ready/failed/closed; reentrant notifications, failed loads and callback exceptions are covered.
+
+The genuine missing lock provider was supplied independently by ZN-1130. One per-iPod `fs.tryLock`/`unlock` critical section orders read→temporary PNG→freshness→atomic publication/decode against artwork update→save→old-PNG deletion. The app releases every acquired lock in `finally`; bounded asynchronous contention and pod cancellation do not block the UI. Captured directory/pod epoch and track revision reject old replies; prefetch stops across pod changes, including close/forget/failed remote open/successful remote eject. Existing disk filenames stay the same. Shared filename-component validation rejects empty/NUL/slash/backslash IDs before native artwork mutation or cache writes, retaining valid IDs verbatim. Editor/repair no longer repeat global cache deletion.
+
+A cache deletion failure after a successful native save is explicitly different from a native update/save failure: the affected session entry is Blocked, old visible handles are cleared, rereads refuse the obsolete PNG, and the mutation caller receives “Artwork saved, but…”; unrelated entries remain usable and a later successful artwork mutation can recover. An unwritable disk cannot promise durable invalidation across restart. Native save failure can also retain unsaved in-memory database edits for a later save (inherited behavior): no rollback or whole-database transaction claim. Proposed later line: audit failed native artwork save followed by another save for transaction/cache coherence.
+
+Research supplied before work: [React async cleanup](https://react.dev/learn/synchronizing-with-effects), [effect ownership](https://react.dev/reference/react/useEffect), and [Expo image memory/disk cache keys](https://docs.expo.dev/versions/v55.0.0/sdk/image/). They informed exact leases and revision ownership; no dependency was added. The app-specific instance/socket lock was rejected rather than repurposed.
+
+Final proof uses read-only common CLI SHA256 `8848b04a673fad0fa4fae8bb6a73d10a60073af019619ffb70b3071619f00409`, compiled/source `6991e4d1c3a06b379929fc51a69bfc3d0d7e3776`, and this worktree's source/headers. TRUE first-reset base remains `fa05a53ce4447fc1b9bf91810e8c160a807a6612`; an approved fast-forward to the lock provider preserved all ten owned source hashes. Original app check passes (103 files; existing U0001 old-icon warning), `.logs/stage-19-final-checks`. Production provider/cache/leases/navigation/Devices fixtures pass on interpreter, QuickJS and actual native execution in `stage-20-final-vm`, `stage-21-final-qjs`, `stage-22-final-native`. Native apps, keys and inputs are retained, with no fallback counted. Deferred native/remote writers, filesystem, lock and graphics providers are injected before imports: these prove production app functions, not real device/network/audio/cache operations. Native filesystem locking is the independent ZN-1130 proof; its unclosed-VM-scope AC remains open.
+
+The final controls include all size/alias loads, simultaneous same-alias/different-track, completed/pending/released/duplicate viewers, stale cleanup/reacquisition, cross-pod IDs/events/prefetch/eject, exact frees, native failures, post-save cache deletion failure, timeout/cancel, temporary cleanup and invalid IDs with no file/native call. Long-title and cleared-line captures `stage-05-waiting-capture/shot.png` and `stage-04-navigation-vm/shot.png` were inspected. Early incomplete fake Device, late render registration, mislabeled interpreter stage7, snapshot-only stages13/18, and fixture empty-array failure remain preserved and are not final proof. Early manifests omitted Objective-C++ provider source and provider binary preimages; final corrected source closures include `.mm`/JS/shader/header inputs before execution, with immutable compiler/recursive archive/provider closures and all native products. No suite, T1, committed app test, golden, pixel comparison or performance claim. Usage: n/a.
+
+**Proposed tests**
+
+- Owner-selected existing `tests/run --only ipod_demo`: full app startup, page/session/device interaction and AC5, roughly 10–30 seconds plus compilation; RSS unmeasured.
+- Selected two-process artwork/cache ordering on a safe fake iPod with native filesystem locks, roughly 5–15 seconds plus compilation; RSS unmeasured.
+- Selected read-only cache, slow remote cover and failed-artwork-save→later-save coherence cases, roughly 10–20 seconds; RSS unmeasured. These are proposed, not new committed app tests.

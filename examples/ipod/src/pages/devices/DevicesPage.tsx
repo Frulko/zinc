@@ -8,6 +8,7 @@ import { Spinner } from 'zinc:ui/kit';
 import { Icon } from 'zinc:icons';
 import { createSignal } from 'zinc:ui/solid';
 import { pods, opening, error, rescan, scanning, openDevice, library, remoteAddress, remoteToken, openRemoteDevice, search, setSearch, scrollKey } from '../../state';
+import { waiting } from '../../services/session';
 import { SearchField } from '../../components/SearchField';
 import { hay, words, matches } from '../../search';
 import { PodDrawing } from '../../components/PodDrawing';
@@ -80,6 +81,7 @@ export function DevicesPage(): i32 {
           ? 'Plug in an iPod Classic, Nano, Mini, Video or Shuffle. Its music, covers and details show here; nothing on it is changed.'
           : 'Its music, covers and details show here; nothing on it is changed.'}</Text>
       </View>
+      {waiting() !== '' ? <Text className={`max-w-[640] text-[13px] text-center ${fg(MUTED)}`}>{`Waiting for the iPod to resume “${waiting()}”.`}</Text> : <View />}
       {error() !== '' ? <View className={`flex-row items-center gap-2.5 max-w-[640] px-4 py-3 rounded-[10] border ${bd(ERROR)}`}>
         <Icon name="triangle-alert" size={16} color={() => color(ERROR)} strokeWidth={2} />
         <Text className={`text-[13px] ${fg(ERROR)}`}>{error()}</Text>

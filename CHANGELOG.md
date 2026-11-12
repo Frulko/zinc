@@ -630,6 +630,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - Museum tables check for signed updates in the background, refuse unreadable projects before staging, and update from fused and host desktop exports.
 - The iPod app reads libraries from older daemons with missing newer fields, keeping smart-playlist members read-only when their rules are unavailable; current daemons preserve checked state and combined media flags.
 - The iPod example fits more album columns as its content widens, keeps song titles readable beside playlists, and gives the now-playing cover, time labels and seek bar their own space.
+- The iPod example refreshes every visible size of an edited cover and names the saved song waiting for its iPod on Devices.
 
 
 ### Docs and learning

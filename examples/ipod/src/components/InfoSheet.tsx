@@ -12,7 +12,7 @@ import { InfoField, TABS, TAB_NAMES, TAB_ARTWORK, TAB_FILE, MIXED, infoTracks, i
 import { notice, remoteOpen } from '../actions';
 import { allowChanges } from '../state';
 import { choose } from '../menus';
-import { useCover, releaseCover } from '../services/covers';
+import { useCover } from '../services/covers';
 import { Button } from './Button';
 import { count, bytes, duration, longDuration } from '../format';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TRACK, TEXT, MUTED, FAINT, ACCENT, ERROR, MEDIA_KINDS, MEDIA_NAMES, INFO_WIDTH, INFO_HEIGHT,
@@ -87,8 +87,7 @@ function Row(props: { fields: InfoField[]; multi: boolean }): i32 {
 function TrackCover(props: { id: string; size: i32 }): i32 {
   const [img, setImg] = createSignal<i32>(-1);
   const key = `track:${props.id}`;
-  useCover(key, props.id, props.size * 2, setImg);
-  onCleanup(() => releaseCover(key, props.size * 2));
+  onCleanup(useCover(key, props.id, props.size * 2, setImg));
   return <View className={`items-center justify-center rounded-[6] overflow-hidden ${bg(TRACK)}`} style={{ width: props.size, height: props.size }}>
     {img() >= 0 ? <Image image={img()} className="w-full h-full object-cover" /> : <Icon name="music" size={Math.round(props.size * 0.35)} color={() => color(MUTED)} strokeWidth={1.5} />}
   </View>;

@@ -4,11 +4,8 @@
 // One song: Previous and Next move through the table it was opened from, writing the edits first. components/InfoSheet.tsx draws it.
 import { createSignal, batch } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
-import * as fs from 'zinc:fs';
 import { updateTracks } from './services/ipod';
 import { enqueue } from './services/transfers';
-import * as cache from './services/cache';
-import { dropCovers } from './services/covers';
 import { allowed, refresh, setNotice } from './actions';
 import { library } from './state';
 import { count } from './format';
@@ -199,7 +196,6 @@ export function applyInfo(): boolean {
   enqueue('info', `Change the info of ${label}`, async (): Promise<string> => {
     try { await updateTracks(ids, patch); }
     catch (e) { setNotice((e as Error).message); throw e; }
-    if (cover !== '') { for (const id of ids) { const f = cache.coverFile(id); if (fs.exists(f)) fs.remove(f, false); } dropCovers(); }
     await refresh();
     return `${count(fields, 'field', 'fields')} written to ${count(ids.length, 'song', 'songs')}`;
   });

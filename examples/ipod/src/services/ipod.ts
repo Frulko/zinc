@@ -41,6 +41,53 @@ export async function findPods(): Promise<ipod.Device[]> {
 }
 
 let openMount = '';
+let artworkSession: i32 = 0;
+enum ArtworkCacheState { Ready, Blocked }
+class ArtworkRevision {
+  revision: i32 = 0;
+  state = ArtworkCacheState.Ready;
+  error: string = '';
+}
+const artworkRevisions = new Map<string, ArtworkRevision>();
+function cacheState(record: ArtworkRevision, next: ArtworkCacheState, error: string): void {
+  if ((next === ArtworkCacheState.Blocked && error === '') || (next === ArtworkCacheState.Ready && error !== '')) throw new Error('Invalid artwork cache state');
+  record.state = next;
+  record.error = error;
+}
+function artworkRevision(trackId: string): i32 { const r = artworkRevisions.get(trackId); return r === undefined ? 0 : r.revision; }
+const artworkViewers = new Map<i32, (ids: string[]) => void>();
+let nextArtworkViewer: i32 = 0;
+
+/** Changes on every close/reopen, even when the next iPod has the same numeric track ids. */
+export function coverSession(): i32 { return artworkSession; }
+/** Subscribe to successfully saved artwork changes; the disposer removes this exact subscription. */
+export function onArtworkChanged(show: (ids: string[]) => void): () => void {
+  const id = ++nextArtworkViewer;
+  artworkViewers.set(id, show);
+  return (): void => { artworkViewers.delete(id); };
+}
+function endArtworkSession(): void { artworkSession++; artworkRevisions.clear(); }
+
+class CoverOwner {
+  session: i32 = artworkSession;
+  pod: string = cache.podKey();
+  directory: string = cache.cacheDir('covers');
+}
+function requireCoverOwner(owner: CoverOwner): void {
+  if (owner.session !== artworkSession || owner.pod !== cache.podKey()) throw new Error('The iPod changed while reading or changing its cover');
+}
+
+/** One per-iPod lock orders reads/publications and artwork writes/deletions across app processes. */
+async function lockCovers(owner: CoverOwner): Promise<i32> {
+  const deadline = sys.clock() + 5000;
+  while (true) {
+    requireCoverOwner(owner);
+    const lock = fs.tryLock(`${owner.directory}/.lock`);
+    if (lock > 0) return lock;
+    if (sys.clock() >= deadline) throw new Error('The iPod cover cache is busy; try again');
+    await new Promise<void>((resolve: () => void) => { setTimeout(resolve, 25); });
+  }
+}
 
 function isRemote(): boolean { return remote.remoteAddress() !== ''; }
 /** The open iPod is a remote one (served by an iPod daemon). */
@@ -64,7 +111,7 @@ export async function openRemote(address: string, token: string): Promise<PodLib
     const device = await remote.readRemote();
     cache.useIpod(device);
     return await cachedLibrary(device);
-  } catch (e) { remote.disconnect(); throw e; }
+  } catch (e) { endArtworkSession(); remote.disconnect(); throw e; }
 }
 
 /** What tells the open iPod's database changed: its size and time (the daemon's /api/status says it for a remote iPod); '' when unknown. */
@@ -120,6 +167,7 @@ export async function readLibrary(): Promise<PodLibrary> {
 }
 
 export async function closePod(): Promise<void> {
+  endArtworkSession();
   remote.disconnect();
   if (openMount === '') return;
   openMount = '';
@@ -127,22 +175,48 @@ export async function closePod(): Promise<void> {
 }
 
 /** The iPod was ejected or pulled: zinc:ipod closed it or will fail; forget it here. */
-export function forgetPod(): void { openMount = ''; remote.disconnect(); }
+export function forgetPod(): void { endArtworkSession(); openMount = ''; remote.disconnect(); }
 
 /** The track's cover as a PNG file of the cache (the largest the iPod stores), read from the iPod or the daemon the first time; ''
  *  when it has none. */
 export async function coverPng(trackId: string): Promise<string> {
-  const file = cache.coverFile(trackId);
-  if (fs.exists(file)) return file;
-  if (isRemote()) return (await remote.coverTo(trackId, file)) ? file : '';
-  return (await ipod.saveArtwork(trackId, file)) ? file : '';
+  const name = cache.coverName(trackId);
+  const owner = new CoverOwner();
+  const lock = await lockCovers(owner);
+  try { return await readCover(owner, trackId, name); }
+  finally { fs.unlock(lock); }
 }
 
-/** A track's cover as a runtime image (-1 when it has none), from the cache. */
+/** Called only under the per-iPod lock. Native and remote writers get a private destination, never the published PNG. */
+async function readCover(owner: CoverOwner, trackId: string, name: string): Promise<string> {
+  requireCoverOwner(owner);
+  const record = artworkRevisions.get(trackId);
+  if (record !== undefined && record.state === ArtworkCacheState.Blocked) throw new Error(record.error);
+  const revision = artworkRevision(trackId);
+  const file = `${owner.directory}/${name}`;
+  if (fs.exists(file)) return file;
+  const temporary = fs.mkdtemp(`${owner.directory}/.cover-`);
+  try {
+    const staging = `${temporary}/cover.png`;
+    const had = isRemote() ? await remote.coverTo(trackId, staging) : await ipod.saveArtwork(trackId, staging);
+    requireCoverOwner(owner);
+    if (artworkRevision(trackId) !== revision) throw new Error('The artwork changed while its cover was read');
+    if (!had) return '';
+    fs.rename(staging, file);
+    return file;
+  } finally { if (!fs.remove(temporary, true)) console.error(`Cannot remove temporary cover directory ${temporary}`); }
+}
+
+/** Decode under the same lock: another process cannot delete/replace the published PNG between lookup and readBytes. */
 export async function coverImage(trackId: string, size: i32): Promise<i32> {
-  // ponytail: one file per cover, the largest the iPod stores; it is scaled when drawn, whatever `size`
-  const file = await coverPng(trackId);
-  return file !== '' ? imageFromBytes(fs.readBytes(file)) : -1;
+  const name = cache.coverName(trackId);
+  const owner = new CoverOwner();
+  const lock = await lockCovers(owner);
+  try {
+    const file = await readCover(owner, trackId, name);
+    requireCoverOwner(owner);
+    return file !== '' ? imageFromBytes(fs.readBytes(file)) : -1;
+  } finally { fs.unlock(lock); }
 }
 
 /** The file of `t` on this computer, to play: on the iPod plugged in, else fetched once from the daemon into a cache. */
@@ -174,23 +248,60 @@ export async function removeTracks(ids: string[]): Promise<void> { if (isRemote(
 /** Writes the fields of `patch` (those given; '' and 0 clear one) to the tracks `ids`, then saves the iPod once. A remote iPod's daemon
  *  takes no cover (`artworkFile`): it is refused. */
 export async function updateTracks(ids: string[], patch: ipod.TrackInput): Promise<void> {
-  if (isRemote()) {
-    if (patch.artworkFile !== undefined) throw new Error(`a cover cannot be sent to a remote iPod yet`);
-    await remote.update(ids, patch);
-    return;
-  }
-  for (const id of ids) await ipod.update(id, patch);
-  await ipod.save();
+  await updateMany([{ ids: ids, patch: patch }]);
 }
 
 /** One patch for some tracks (updateMany). */
 export interface Change { ids: string[]; patch: ipod.TrackInput; }
 
-/** Writes each change (as updateTracks does), then saves the iPod once. A remote iPod's daemon saves each change itself. */
-export async function updateMany(changes: Change[]): Promise<void> {
-  if (isRemote()) { for (const c of changes) await updateTracks(c.ids, c.patch); return; }
+async function writeChanges(changes: Change[]): Promise<void> {
   for (const c of changes) for (const id of c.ids) await ipod.update(id, c.patch);
   await ipod.save();
+}
+
+/** Writes each change, then saves once. Artwork owns the same cache lock as every cover read until obsolete PNGs are gone. */
+export async function updateMany(changes: Change[]): Promise<void> {
+  if (isRemote()) {
+    for (const c of changes) if (c.patch.artworkFile !== undefined) throw new Error('a cover cannot be sent to a remote iPod yet');
+    for (const c of changes) await remote.update(c.ids, c.patch);
+    return;
+  }
+  const ids: string[] = [];
+  for (const c of changes) if (c.patch.artworkFile !== undefined) for (const id of c.ids) if (ids.indexOf(id) < 0) ids.push(id);
+  if (ids.length === 0) { await writeChanges(changes); return; }
+  const names = ids.map((id: string) => cache.coverName(id));
+  const owner = new CoverOwner();
+  const lock = await lockCovers(owner);
+  try {
+    requireCoverOwner(owner);
+    await writeChanges(changes);
+    requireCoverOwner(owner);
+    let failure = '';
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      let record = artworkRevisions.get(id);
+      if (record === undefined) { record = new ArtworkRevision(); artworkRevisions.set(id, record); }
+      record.revision++;
+      const file = `${owner.directory}/${names[i]}`;
+      try {
+        if (fs.exists(file) && !fs.remove(file, false)) throw new Error(`Cannot remove obsolete cover ${file}`);
+        cacheState(record, ArtworkCacheState.Ready, '');
+      } catch (e) {
+        const why = `Artwork saved, but its cached cover cannot be invalidated: ${(e as Error).message}`;
+        cacheState(record, ArtworkCacheState.Blocked, why);
+        if (failure === '') failure = why;
+      }
+    }
+    const viewers: i32[] = [];
+    for (const id of artworkViewers.keys()) viewers.push(id);
+    for (const id of viewers) {
+      const show = artworkViewers.get(id);
+      if (show !== undefined) {
+        try { show(ids); } catch (e) { console.error(`artwork viewer: ${(e as Error).message}`); }
+      }
+    }
+    if (failure !== '') throw new Error(failure);
+  } finally { fs.unlock(lock); }
 }
 
 /** Writes `text` as the lyrics in the track's file and sets its lyrics flag, then saves the iPod. The daemon has no route for it yet: a remote
@@ -243,7 +354,7 @@ export async function downloadTracks(tracks: ipod.Track[], dir: string): Promise
 
 /** Closes the open iPod and ejects it (a remote one is ejected by its daemon, then forgotten here). */
 export async function ejectOpen(mountpoint: string): Promise<void> {
-  if (isRemote()) { await remote.eject(); remote.disconnect(); return; }
+  if (isRemote()) { await remote.eject(); endArtworkSession(); remote.disconnect(); return; }
   await closePod();
   await ipod.eject(mountpoint);
 }
