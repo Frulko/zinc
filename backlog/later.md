@@ -763,7 +763,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-550: native ABI shutdown/VM ownership and generated static argument scratch/allocator/factory concurrency need a focused engine check; current bus internal locks and explicit close do not establish whole-VM concurrency or unclosed-handle reload cleanup.
 
-- ZN-558: finish actual targeted UART GATT/LE export, then selected hwsim/NM, btvirt and Pi/no-radio checks; nmcli writes/static alternatives and D316 shared-native teardown/concurrency remain open.
+- ZN-558: prove Linux seqpacket/HUP and targeted UART/LE interoperability on selected hwsim/NM, btvirt and Pi/no-radio runs; nmcli writes/static alternatives and D316 shared-native teardown/concurrency remain open.
 
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
