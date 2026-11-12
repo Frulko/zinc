@@ -907,6 +907,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-535: prove actual Pi decoder ioctls and the separation of selected profile from observed hardware once strict SSH access is restored; fixture probes do not establish physical capabilities.
+
 - ZN-467: run the SDL reference scene-dump tolerance campaign and PSP/3DS verbose/stereo/fallback/restart smoke at a selected milestone; tiny desktop proof does not establish full scene or GPU parity.
 
 - ZN-1027: an export with a broken plugin to a Linux target fails as on the Mac.

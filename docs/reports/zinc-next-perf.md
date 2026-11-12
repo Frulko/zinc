@@ -1864,3 +1864,10 @@ Cross GNUx86_64 glibc2.28 build64541daa1: zinc19,490,224B, windowmodule3,135,464
 ### ZN-440.03 — Optional Opus artifacts (2026-11-12)
 
 Enabled prefixed audio plugin1,073,920B SHA7360e66d4aa4d2bc725fa1145ef68de87764cd9b09b452630960f5749d73ef8b; vendor archive1,692,048B SHA823837c07cdf7f9c496770b31e44213f5ea9b2e11135370366bf00c1ba8a2865. Existing combined WebRTC/audio proof executable14,528,024B SHA18f655f5f239f9f79f0f070fb415572ddae974ffda6437242c7d211e82bd9033. These are artifacts without paired footprint claims. Incidental cold plugin build5.70s is indicative under concurrent machine activity, not a benchmark. Disabled plugin/executable contain no Opus decoder symbols; cold vendor compile still occurs. Root exactaudio_opus with existing WebRTC archives and actualclip/pack/file nullmix pass; noPiCPU,64KB,allocation-free render orconnectednetwork claim. Full provenance .logs/archive-completed-workers-20261110/440.03-final.
+
+
+### 2026-11-12 — ZN-535 generated runtime export groups (476b26695)
+
+Source artifacts, not timings: the identical profile-only program emits byte-identical C++ before/after, 4445 B; bare import4410 B, runtime observation fixture76504 B. Bundled JavaScript profile726 B, bare608 B, quoted-name profile809 B, runtime1277 B. Different fixtures are not a before/after speed or binary-size comparison. Unused outputs contain neither board query nor JSON parser. Worker compiled AOT fixture4236168 B; root independently compiles/runs the same public observation on all3 engines and both doctor aliases.
+
+Root clean build/exact generated_runtime_exports PASS; existing agent/NanoSVG/linker warnings, none from changed code. Full source/proofs/artifacts archived535-lazy-final; summary `.logs/integration-2026-11-11/board535-lazy-summary.json`. No CPU, launch, memory, physical Pi or benchmark claim.

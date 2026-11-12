@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated535 476b26695 Review AC1/4, D314; root clean build, exact generated_runtime_exports and actual fixture all3/doctor aliases PASS. Archive71 full source/logs/artifacts verified before cleanup; ten owner payloads unchanged. Common binary now476b26695/5e8b14a1, companions unchanged. Active550 isolated public I2C/SPI + unheld hw.h seam; no other source worker or root heavy process pending.92Done.
+
 - Reserve550 newlyunblocked by535 Review: publicI2C/SPI overexistinghw/simulator, delegatedprimaryresearch underway. No privilegedbus/OSmutations orrealdeviceprobe, noHAL/ownerRT edits; hw.h-only unheld seam mustremain isolated.535 integrated476b26695/rootcleanbuild underway.
 
 - Integrated467 c0697830f ReviewAC2/3/D313; rootclean exactff_cpu PASS, tiny maxchannel difference1/tol8 +actualimage/cache/restart/filter cases. Archive70sourcebundle/full.logs verified beforecleanup, owner10payloads unchanged. Noengine rebuild orconsole/fullscene claim.535-lazy finalsoftwareproof done, finalcommit pending;92Done.
