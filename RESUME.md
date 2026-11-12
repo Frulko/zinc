@@ -6,6 +6,8 @@ Continue zn-coordinate until .paused or nothing startable. Never ask owner; no p
 
 ## Current
 
+467 integratedc0697830f ReviewAC2/3, D313. Rootclean exactff_cpu PASS (tiny reference maxchannel difference1/tol8, cache/restart/alpha/filter/dynamicimages); standaloneSDL backend and framecounters, noengine rebuild. Archive70fullsource/logs verified. Active535-lazy finalcommit pending;92Done unchanged.
+
 92Done. ActiveONLYsourceworker /root/coordinator_next/board535_lazy, .worktrees/535-lazy work/535-lazy claimed1c6a31975. Remaining535software: explicitgeneratedmodule runtimeexportgroup contract (selectprivateprofile+boardvariant onvaluename/namespace/star, baseprofileonly/bare/typeonlyhasnoquery); selectedsnapshotordinaryeager before requestingimporter. NOquerypure/elision orordinaryTSlazyrewrite: V4L2opens/ioctls, simulatorstate andJSONthrows haveeffects. Ambienttypes mustneverleakruntimeplaceholder; QJSdynamic/staticnamespaceidentityconsistent. NarrowdoctorCLIwiringmain outsideownerdisplayhunkgranted; profilecatalog vscrossCPUtargetaliases keptdistinct. Exactregressions/C++JSunusedsizeproof/all3fixtures planned. NoownerRT/HAL/UI change. No535buildyet at2026-11-12handoff; nootherheavy/rootprocess.
 
 Latestintegrated:440.03 af7a3897e Review/D312 optionalOpus with425privateglobals fixedactualWebRTCDREDcollision; rootaudio_opus(existingWebRTCarchives) andactualclip/pack/openMusicPCM+stop pass, memorylowerbound/chainedalloc caveats, noPiCPUclaim, archive69.584.04 df8cc1288 ReviewAC1 template,584.05 061a664d6 DoneAC1 guide; rootnew/check/AOT40frames+inspectedshot1f813cba3bf62866, workerinterp/AOT1840allframes/QJS40/9snippets54linksrender pass, archive68.584.03 de56ba0b5 ReviewAC1 camera/actions andrealplatformerfocuslossreset; rootT0all3/AOT40frames+shotda91e6dbc6ac14ed archive67.592.04 64541daa1 Review/D311 LinuxwindowmodulecrossELF19490224B/window3135464B noSDLmain/sharedruntimeimports, rootmacbuild/windowT0/backgroundplatformer pass; SSHauthfailed/noactualLinux archive66.584.02 8b227f58e ReviewT1 gate, originalTiled/LDtkall3hash442439ac4b8ed9c3/rootT0+shortproof archive65.
@@ -25,6 +27,8 @@ Never reset/build/stage main WIP. Exact payload hashes .logs/blockers/core-1030/
 1030 Backlog: wider structural stores/views unfinished; related-reference array guards and earlier dynamic/default/namespace fixes integrated.1118 Backlog: vanished intermediate process ancestry remains;1121 only fixes cwd/glibc.1066 Review: privateHermes SDK patch only, installed/public SDK unchanged.512 Review: realNEON/hardfloat metadata, no staticmusl or ARM execution claim.164 Backlog: lite OSC/DNS removal, genericlibuv sockets remain.575/1068/1078.29 Review: quietperformance gates unrun.897 WebRTC client actualICE/twoZinc scope open. No newservices/demos.
 
 ## Tests to run (owner picks)
+
+- Sincec0697830f: owner-selected layout/bouncing-ball/kit-gallery scene-dump tolerance8 campaign (harness pending; duration/memory unmeasured), Linux exactff_cpu with existingSDL, PSP/3DS verbose/stereo/softwarefallback/restart smoke (bounded10s each). Tiny nativeT0 already passes; no fullscene or GPU claim.
 
 - Sinceaf7a3897e: PiOpus functional smoke then separatelyselectedquietCPU; connectedWebRTC+music bothorders/AOT/QJS; chainedstreams/fullallocationaccounting andAppleAAC/Windows/iOS/Linux option builds (~2–20s each, memory unmeasured), exactrecipes task440.03. Existingarchivecoexistence andpublicAPI nullmix alreadypass.
 

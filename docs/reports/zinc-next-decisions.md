@@ -668,3 +668,12 @@ RULES weighted scores (fit/perf/size/maintainability/licence/portability/effort)
 Combined actual archives first failed WebRTC opusSetDred: baseline symbols interposed on its enhanced build. Prefix all425 baseline global Opus/CELT/SILK symbols audio-only; pinned generation recipe and exact symbol regression prevent silent collisions. Same factory/peer/DRED100ms/encode/decode/audio proof now passes. Header content is part of vendor cache hash; no WebRTC/core/HAL/allocator change.
 
 Integratedaf7a3897e Review (PiCPU unselected). Rootexactaudio_opus includingexistingWebRTCarchives PASS; actual interpreter clips/mountedpack/openMusic produce nonzero nullmix PCM then zero afterclose. Memory reported for Opus is a lower bound because opaque library allocations bypass miniaudio callbacks; chained input may allocate during mixing. No64KB/realtime/CPU/network/cross-target claim. Archive440.03-final fullsource/fullproof/artifacts. Revisit for full allocation accounting, chained streams and actual platform failures.
+
+
+## D313 — Console replay has an SDL software reference and frame counters (ZN-467)
+
+Implement the existing backend contract with vendored SDL3 software surfaces, geometry and texture blits; do not introduce another rasterizer. Uniform texture quads use the blitter because SDL software geometry samples nearest; gradient quads retain vertex interpolation. Keep the platform-free header and whole-frame software fallback for unsupported commands. One CPU backend owns textures/renderer/surface with RAII; restart resets shared atlas caches.
+
+Weighted fit/perf/size/maintainability/supply/portability/effort scores: existing SDL5/3/5/5/5/4/4=62; new quad rasterizer4/3/5/2/5/5/2=52. [SDL software renderer](https://wiki.libsdl.org/SDL3/SDL_CreateSoftwareRenderer), [geometry](https://wiki.libsdl.org/SDL3/SDL_RenderGeometry). Revisit if selected full-scene comparisons expose coverage or filtering differences.
+
+Counters reset once around the actual PSP/3DS presented frame, including all lists/eyes/surfaces, and log through existing ZINC_LOG verbosity. Count emitted clipped quads, shape draws and prior-frame cached coverage draws; validation prewarming is excluded. Integratedc0697830f ReviewAC2/3; root clean exactff_cpu PASS, tiny32x24 comparison maxchannel difference1 within8 plus cache/restart/image/alpha/filter checks. Archive467-reference-final source/fullproof verified (checkpoint70); no engine rebuild, console execution, fullscene T1 or performance claim.

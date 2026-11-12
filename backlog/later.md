@@ -907,6 +907,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-467: run the SDL reference scene-dump tolerance campaign and PSP/3DS verbose/stereo/fallback/restart smoke at a selected milestone; tiny desktop proof does not establish full scene or GPU parity.
+
 - ZN-1027: an export with a broken plugin to a Linux target fails as on the Mac.
 
 - ZN-1006: bundle an OFL Noto subset (Symbols 2, Arabic) for machines without system fonts (Pi OS Lite, ESP32), and prove the new Linux Noto paths on the Pi (spark@192.168.2.31).

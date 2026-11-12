@@ -4,8 +4,7 @@ title: >-
   ff_replay: desktop CPU reference backend, T1 against the raster, counters in
   zinc -v
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:37'
 updated_date: '2026-11-12 00:39'
 labels:

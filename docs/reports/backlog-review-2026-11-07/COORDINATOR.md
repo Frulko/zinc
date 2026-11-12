@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated467 c0697830f ReviewAC2/3/D313; rootclean exactff_cpu PASS, tiny maxchannel difference1/tol8 +actualimage/cache/restart/filter cases. Archive70sourcebundle/full.logs verified beforecleanup, owner10payloads unchanged. Noengine rebuild orconsole/fullscene claim.535-lazy finalsoftwareproof done, finalcommit pending;92Done.
+
 - Fresh sole coordinator /root/coordinator_next/coordinator_fresh after6f7b8eaee/ready-b. Reserve467 independent console fixed-function CPU reference/counters beside535 frontend/QJS worker; no runtime/HAL/owner edits. Delegated primary research underway; literal T1 acceptance remains unselected.92Done,69archives.
 
 - Coordinatorfreshhandoff2026-11-12b: leader /root/coordinator_next/coordinator_fresh activatesONLYafter .logs/coord-transfer-20261112-b.ready; prior /root/coordinator_next thenstopscoordination. Soleworker /root/coordinator_next/board535_lazy work/535-lazy claimed1c6a31975, noheavyrootpending/process;92Done/archive69/D312. Fullhandoffbrief+RESUME capturecontract/protectedpayloads. All10ownerpayloadverified; perf15ownerlines remainuncommitted.
