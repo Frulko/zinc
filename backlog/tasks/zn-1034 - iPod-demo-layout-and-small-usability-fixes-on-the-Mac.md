@@ -2,7 +2,8 @@
 id: ZN-1034
 title: 'iPod demo: layout and small usability fixes on the Mac'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-07 16:37'
 labels:
   - ipod
