@@ -2,7 +2,8 @@
 id: ZN-550
 title: 'zinc:i2c and zinc:spi modules over hw.h'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-09 07:46'
 labels:
   - rpi
