@@ -2,8 +2,7 @@
 id: ZN-1037
 title: 'iPod daemon: parity with the Mac app for a remote iPod'
 status: Backlog
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-11-07 16:38'
 labels:
   - ipod
