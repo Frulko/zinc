@@ -5,7 +5,7 @@
 // by a generator that gives the same numbers on every run: a scripted game has one sound log. Nothing here names a
 // sound: another table plays other ones. Without an audio output (a headless or deterministic run) zinc:audio plays
 // nothing and every call still works.
-import { Sound, Wave, decode, tone, stopAll, backend } from 'zinc:audio';
+import { Sound, Wave, decode, tone, backend } from 'zinc:audio';
 import { Table, TableDef, SoundDef } from '../../pinball-kit/format/table';
 import { Game, Phase } from './game';
 
@@ -19,7 +19,10 @@ const STEREO = 0.6;
 /** Seconds the music of a state takes to fade out under the next one. */
 const FADE = 0.4;
 
+enum AudioState { Building, Ready, Closed }
+
 export class TableAudio {
+  private lifecycle: AudioState = AudioState.Building;
   /** With `logging`: one line per sound played, "time from: sound vol v rate r pan p", and one per change of music. */
   log: string[] = [];
   logging: boolean = false;
@@ -41,13 +44,30 @@ export class TableAudio {
   constructor(table: Table) {
     const t = table.def, src = table.source;
     this.t = t;
-    for (const d of t.sounds) {
-      if (d.file === '') this.sounds.set(d.id, new Loaded(d, tone(d.hz, d.seconds, d.wave as Wave)));
-      else if (src !== null && src.has(d.file)) this.sounds.set(d.id, new Loaded(d, decode(src.bytes(d.file), d.file)));
-      else console.warn(`pinball3d: the sound "${d.id}" names the file ${d.file}, which is not in the table's folder: it stays silent`);
-    }
-    const roll = this.sounds.get(t.physics.ball.sounds.roll);
-    if (roll !== undefined) this.roll = roll;
+    try {
+      for (const d of t.sounds) {
+        if (this.sounds.has(d.id)) throw new Error(`pinball3d: duplicate sound ${d.id}`);
+        if (d.file === '') this.sounds.set(d.id, new Loaded(d, tone(d.hz, d.seconds, d.wave as Wave)));
+        else if (src !== null && src.has(d.file)) this.sounds.set(d.id, new Loaded(d, decode(src.bytes(d.file), d.file)));
+        else console.warn(`pinball3d: the sound "${d.id}" names the file ${d.file}, which is not in the table's folder: it stays silent`);
+      }
+      const roll = this.sounds.get(t.physics.ball.sounds.roll);
+      if (roll !== undefined) this.roll = roll;
+      this.transition(AudioState.Ready);
+    } catch (error) { this.dispose(); throw error; }
+  }
+
+  private transition(next: AudioState): boolean {
+    if ((this.lifecycle === AudioState.Building && next === AudioState.Ready) ||
+        (this.lifecycle !== AudioState.Closed && next === AudioState.Closed)) { this.lifecycle = next; return true; }
+    return false;
+  }
+  private requireOpen(): void { if (this.lifecycle === AudioState.Closed) throw new Error('pinball3d: audio is disposed'); }
+  /** Stops and releases only this table's sounds; another preview keeps playing. */
+  dispose(): void {
+    if (!this.transition(AudioState.Closed)) return;
+    for (const loaded of this.sounds.values()) loaded.sound.unload();
+    this.sounds.clear(); this.music = null; this.fading = null; this.roll = null;
   }
 
   /** A number from -by to by, the same sequence on every run. */
@@ -60,6 +80,7 @@ export class TableAudio {
 
   /** Once a frame: plays what the game asked for since the last call, then the rolling sound and the music. */
   update(game: Game): void {
+    this.requireOpen();
     const dt = Math.max(0, Math.min(0.1, game.clock - this.last)), now = game.rules.now;
     this.last = game.clock;
     const played: string[] = [];
@@ -85,11 +106,11 @@ export class TableAudio {
   }
   /** Plays a sound of the table once, as an event of the game would (its volume and its pitch varied): an editor's
    *  preview. False when the table has no such sound, or its file could not be read as sound. */
-  preview(name: string): boolean { return this.play(0, 'preview', name, 1, 0); }
+  preview(name: string): boolean { this.requireOpen(); return this.play(0, 'preview', name, 1, 0); }
   /** How long a sound of the table lasts, in seconds; 0 when there is none, or without an audio engine (a deterministic run). */
-  seconds(name: string): number { const l = this.sounds.get(name); return l === undefined ? 0 : l.sound.duration; }
+  seconds(name: string): number { this.requireOpen(); const l = this.sounds.get(name); return l === undefined ? 0 : l.sound.duration; }
   /** The audio output and what was loaded, for a line of a log: "Core Audio: 42 sounds", "null: 42 sounds, 1 unreadable". */
-  describe(): string {
+  describe(): string { this.requireOpen();
     let n = 0, bad = 0;
     for (const d of this.t.sounds) { const l = this.sounds.get(d.id); if (l !== undefined && l.sound.ok) n++; else bad++; }
     return `${backend()}: ${n} sounds${bad > 0 ? `, ${bad} unreadable` : ''}`;
@@ -148,7 +169,8 @@ export class TableAudio {
 
   /** Silence: an editor that leaves its test play, a table that is closed. */
   stop(): void {
-    stopAll();
+    this.requireOpen();
+    for (const loaded of this.sounds.values()) loaded.sound.stop();
     this.music = null; this.fading = null; this.state = ''; this.rollOn = false; this.rollLevel = 0;
   }
 }

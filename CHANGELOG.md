@@ -44,6 +44,10 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The museum table ships its 12,000-triangle vase as a 299 KB GLB, retaining its texture and surface picking in the editor.
 
 
+#### Fixed
+
+- Switching pinball tables and rebuilding the editor now release the previous scene and sounds; a faulty replacement keeps the current table playing.
+
 ### Video mapper
 
 #### New

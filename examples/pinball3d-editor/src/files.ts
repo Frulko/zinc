@@ -130,9 +130,9 @@ export function hearFile(name: string): void {
 
 /** Reads the folder again and forgets what was read of its files: the table is drawn and heard from the files as they are now. */
 export function refreshFiles(): void {
+  rebuild();
   forgetImages();
   forget();
-  rebuild();
   batch(() => { setRead(read() + 1); refresh(); });
   const all = folderFiles(), unused = unusedFiles(), missing = missingFiles();
   const told = `${f(L.FILES_READ, `${all.length}`)}${unused.length > 0 ? ` ${f(L.FILES_UNUSED, `${unused.length}`, unused.join(', '))}` : ''}${missing.length > 0 ? ` ${f(L.FILES_MISSING, `${missing.length}`, missing.join(', '))}` : ''}`;

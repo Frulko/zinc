@@ -94,21 +94,30 @@ const hint = 'Z and /: flippers   SPACE: plunger   X . UP: bump   ENTER: start';
 
 /** Puts another table of the list on: its scene, its game waiting for a player, its sounds, its high scores. A table with a fault
  *  is told, and the one that was on stays.
- *  ponytail: the scene and the sounds of the table that leaves are not freed; a list of many heavy tables gone through many times
- *  would need it. */
+ */
 function show(at: i32): void {
   let next: Table;
   try { next = loadTable(choices[at].source); } catch (e) {
     console.log(e instanceof TableError ? (e as TableError).message : `pinball3d: ${(e as Error).message}`);
     return;
   }
-  audio.stop();
-  game.physics.destroy();
+  let nextGame: Game | null = null, nextScene: TableScene | null = null, nextAudio: TableAudio | null = null;
+  let nextView: View;
+  try {
+    nextGame = new Game(next); nextScene = new TableScene(next); nextAudio = new TableAudio(next);
+    nextView = new View(next.def, seenW, seenH, option('layout'));
+    nextScene.setCamera(nextView.layout);
+  } catch (error) {
+    if (nextAudio !== null) nextAudio.dispose();
+    if (nextScene !== null) nextScene.dispose();
+    if (nextGame !== null) nextGame.physics.destroy();
+    console.log(`pinball3d: ${(error as Error).message}`);
+    return;
+  }
+  audio.dispose(); scene.dispose(); game.physics.destroy();
   table = next; chosen = at;
-  game = new Game(table); scene = new TableScene(table); audio = new TableAudio(table);
+  game = nextGame; scene = nextScene; audio = nextAudio; view = nextView;
   audio.logging = flag('sounds');
-  view = new View(table.def, seenW, seenH, option('layout'));
-  scene.setCamera(view.layout);
   fixed.reset(); logged = 0; saved = 0;
   readScores();
   if (logging) console.log(`table ${table.def.name}`);

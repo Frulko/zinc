@@ -31,7 +31,11 @@ class Glowing {
   set(on: boolean): void { this.node.material = on && this.glow !== null ? this.glow : this.normal; }
 }
 
+enum SceneState { Building, Ready, Closed }
+
 export class TableScene {
+  private state: SceneState = SceneState.Building;
+  private meshes: Mesh[] = [];
   scene: Scene = new Scene();
   camera: Camera = new Camera();
   private def: TableDef;
@@ -65,27 +69,44 @@ export class TableScene {
     const t = table.def;
     this.def = t;
     this.source = table.source;
-    this.plain = this.materialOf({ id: '', color: '#b0b8c0', shading: 'smooth', specular: '#000000', shininess: 30, glow: '#000000', texture: '', textureLit: '' });
-    for (const l of t.looks) {
-      this.looks.set(l.id, this.materialOf(l));
-      if (l.glow !== '#000000') { const g = new Material(rgb(l.glow)); g.shading = Shading.Unlit; this.glows.set(l.id, g); }
-      // a playfield with a painting of its own for what is lit: its pools show that image instead of adding light
-      if (l.id === t.playfield.look && l.textureLit !== '') {
-        const lit = this.materialOf(l);
-        lit.texture = this.image(l.textureLit);
-        if (lit.texture >= 0) this.litBoard = lit;
+    try {
+      this.plain = this.materialOf({ id: '', color: '#b0b8c0', shading: 'smooth', specular: '#000000', shininess: 30, glow: '#000000', texture: '', textureLit: '' });
+      for (const l of t.looks) {
+        this.looks.set(l.id, this.materialOf(l));
+        if (l.glow !== '#000000') { const g = new Material(rgb(l.glow)); g.shading = Shading.Unlit; this.glows.set(l.id, g); }
+        // a playfield with a painting of its own for what is lit: its pools show that image instead of adding light
+        if (l.id === t.playfield.look && l.textureLit !== '') {
+          const lit = this.materialOf(l);
+          lit.texture = this.image(l.textureLit);
+          if (lit.texture >= 0) this.litBoard = lit;
+        }
       }
-    }
-    this.scene.background = rgb(t.lighting.background);
-    for (const lamp of t.lighting.lamps) this.scene.lights.push(new Light(lamp.direction[0], lamp.direction[2], lamp.direction[1], rgb(lamp.color)));
-    this.setGeneral(1);
-    this.glowing.shading = Shading.Unlit; this.glowing.vertexColors = true; this.glowing.blend = Blend.Add; this.glowing.doubleSided = true;
-    this.ballMesh = sphere(t.physics.ball.radius, 20, 12);
-    this.ballLook = this.look(t.physics.ball.look);
-    this.board(t);
-    this.fixed(t, table);
-    this.moving(t);
-    this.lamps(t);
+      this.scene.background = rgb(t.lighting.background);
+      for (const lamp of t.lighting.lamps) this.scene.lights.push(new Light(lamp.direction[0], lamp.direction[2], lamp.direction[1], rgb(lamp.color)));
+      this.setGeneral(1);
+      this.glowing.shading = Shading.Unlit; this.glowing.vertexColors = true; this.glowing.blend = Blend.Add; this.glowing.doubleSided = true;
+      this.ballMesh = this.own(sphere(t.physics.ball.radius, 20, 12));
+      this.ballLook = this.look(t.physics.ball.look);
+      this.board(t);
+      this.fixed(t, table);
+      this.moving(t);
+      this.lamps(t);
+      this.transition(SceneState.Ready);
+    } catch (error) { this.dispose(); throw error; }
+  }
+
+  private transition(next: SceneState): boolean {
+    if ((this.state === SceneState.Building && next === SceneState.Ready) ||
+        (this.state !== SceneState.Closed && next === SceneState.Closed)) { this.state = next; return true; }
+    return false;
+  }
+  private requireOpen(): void { if (this.state === SceneState.Closed) throw new Error('pinball3d: scene is disposed'); }
+  private own(mesh: Mesh): Mesh { this.meshes.push(mesh); return mesh; }
+  /** Releases owned geometry once; table images belong to the shared image cache. */
+  dispose(): void {
+    if (!this.transition(SceneState.Closed)) return;
+    try { for (const mesh of this.meshes) mesh.dispose(); }
+    finally { this.meshes = []; this.camera.dispose(); this.scene.children.length = 0; }
   }
 
   private materialOf(l: LookDef): Material {
@@ -102,7 +123,7 @@ export class TableScene {
   /** Lays the image of a look, when it has one, over what was added to `s` from vertex `from` on. */
   private drape(s: Solid, look: string, from: i32): void { if (this.look(look).texture >= 0) s.drape(from); }
   private glow(id: string): Material | null { const m = this.glows.get(id); return m === undefined ? null : m; }
-  private add(s: Solid, m: Material): Node { return this.scene.add(new Node(meshOf(s), m)); }
+  private add(s: Solid, m: Material): Node { return this.scene.add(new Node(this.own(meshOf(s)), m)); }
 
   private board(t: TableDef): void {
     const s = new Solid(), w = t.playfield.width, l = t.playfield.length;
@@ -188,7 +209,7 @@ export class TableScene {
         // a solid stands along z in table coordinates: here it is its own little table
         mesh = meshOf(s);
       }
-      const n = this.scene.add(new Node(mesh, this.look(m.look)));
+      const n = this.scene.add(new Node(this.own(mesh), this.look(m.look)));
       n.setPosition(m.at[0], m.at[2], m.at[1]);
       n.setScale(m.scale[0], m.scale[2], m.scale[1]);
       const q = quatMultiply(quatFromAxisAngle(0, 1, 0, -rad(m.rotation[2])), quatMultiply(quatFromAxisAngle(0, 0, 1, rad(m.rotation[1])), quatFromAxisAngle(1, 0, 0, rad(m.rotation[0]))));
@@ -313,7 +334,7 @@ export class TableScene {
         idx.push(v);
         colors.push(scaled(c, POOL * k * Math.sqrt(k)));
       }
-      n = this.scene.add(new Node(new Mesh(pos, idx, [], [], colors), this.glowing));
+      n = this.scene.add(new Node(this.own(new Mesh(pos, idx, [], [], colors)), this.glowing));
     }
     n.visible = false;
     return n;
@@ -339,6 +360,7 @@ export class TableScene {
 
   /** The eye of a layout. */
   setCamera(l: LayoutDef): void {
+    this.requireOpen();
     const c = l.camera;
     this.camera.setPosition(c.position[0], c.position[2], c.position[1]).lookAt(c.target[0], c.target[2], c.target[1]);
     this.camera.fov = c.fov;
@@ -353,35 +375,41 @@ export class TableScene {
   }
   /** Ball `i` at table (x, y, z) with the rotation the physics gives it (a quaternion in engine axes). */
   setBall(i: i32, x: number, y: number, z: number, qx: number, qy: number, qz: number, qw: number): void {
+    this.requireOpen();
     while (this.balls.length <= i) { const n = this.scene.add(new Node(this.ballMesh, this.ballLook)); n.visible = false; this.balls.push(n); }
     const n = this.balls[i];
     n.visible = true;
     n.setPosition(x, z, y);
     n.rotation[0] = qx; n.rotation[1] = qy; n.rotation[2] = qz; n.rotation[3] = qw;
   }
-  hideBall(i: i32): void { if (i < this.balls.length) this.balls[i].visible = false; }
+  hideBall(i: i32): void { this.requireOpen(); if (i < this.balls.length) this.balls[i].visible = false; }
   /** Flipper `i` at an angle of the top view, in degrees. */
   setFlipper(i: i32, angle: number): void {
+    this.requireOpen();
     const q = quatFromAxisAngle(0, 1, 0, -rad(angle)), r = this.flippers[i].rotation;
     r[0] = q[0]; r[1] = q[1]; r[2] = q[2]; r[3] = q[3];
   }
-  setFlippersAtRest(): void { for (let i = 0; i < this.flippers.length; i++) this.setFlipper(i, this.def.flippers[i].rest); }
+  setFlippersAtRest(): void { this.requireOpen(); for (let i = 0; i < this.flippers.length; i++) this.setFlipper(i, this.def.flippers[i].rest); }
   /** The plunger pulled back by `pull` centimetres. */
   setPlunger(pull: number): void {
+    this.requireOpen();
     const p = this.def.plunger, n = this.plunger;
     if (n !== null) n.setPosition(p.at[0] - Math.cos(rad(p.angle)) * pull, p.z, p.at[1] - Math.sin(rad(p.angle)) * pull);
   }
   /** A drop target up or down; a target lit or not. */
   setTarget(i: i32, up: boolean, lit: boolean): void {
+    this.requireOpen();
     const g = this.def.targets[i];
     this.targets[i].node.setPosition(0, up ? g.z : g.z - g.height + 0.12, 0);
     this.targets[i].set(lit);
   }
   setBumper(i: i32, lit: boolean, pulse: number): void {
+    this.requireOpen();
     this.bumpers[i].set(lit);
     this.bumperCaps[i].setPosition(0, -0.6 * recoil(pulse), 0);
   }
   setSlingshot(i: i32, lit: boolean, pulse: number): void {
+    this.requireOpen();
     const band = this.slingshots[i], e = this.def.slingshots[i];
     band.set(lit);
     const dx = e.b[0] - e.a[0], dy = e.b[1] - e.a[1], length = Math.sqrt(dx * dx + dy * dy);
@@ -390,16 +418,19 @@ export class TableScene {
   }
   /** Spinner `i` turned by `turns` half turns. */
   setSpinner(i: i32, turns: number): void {
+    this.requireOpen();
     const q = quatMultiply(this.spinnerYaw[i], quatFromAxisAngle(1, 0, 0, turns * Math.PI)), r = this.spinners[i].rotation;
     r[0] = q[0]; r[1] = q[1]; r[2] = q[2]; r[3] = q[3];
   }
   setLight(i: i32, on: boolean): void {
+    this.requireOpen();
     this.lights[i].color = on ? this.lightOn[i] : this.lightOff[i];
     const pool = this.pools[i];
     if (pool !== null) pool.visible = on;
   }
   /** The general illumination: 1 the lamps and the ambient light of the table in full, 0 what its `dimmed` leaves. */
   setGeneral(level: number): void {
+    this.requireOpen();
     if (level === this.general) return;
     this.general = level;
     const g = this.def.lighting, k = g.dimmed + (1 - g.dimmed) * Math.max(0, Math.min(1, level));
@@ -408,5 +439,5 @@ export class TableScene {
   }
 
   /** Draws the table in a box of the window; returns the triangles drawn. */
-  render(x: number, y: number, w: number, h: number): i32 { return this.camera.render(this.scene, x, y, w, h); }
+  render(x: number, y: number, w: number, h: number): i32 { this.requireOpen(); return this.camera.render(this.scene, x, y, w, h); }
 }

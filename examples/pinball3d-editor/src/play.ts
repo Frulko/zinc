@@ -60,7 +60,8 @@ export function rebuild(): void { forget(); }
 /** Takes the game and its scene away. It writes no signal: it runs while views are being drawn (a table that changed is found
  *  out when its scene is asked for); advance(), once a frame, then says that no game is being played any more. */
 function drop(): void {
-  if (audio !== null) audio.stop();
+  if (audio !== null) audio.dispose();
+  if (scene !== null) scene.dispose();
   if (game !== null) game.physics.destroy();
   game = null; audio = null; scene = null;   // the scene too: it is in the state the game left it
   clear();
@@ -96,7 +97,11 @@ export function sceneNow(): TableScene {
 /** The game on the table as the document has it now; made when it is first asked for. */
 export function gameNow(): Game {
   const t = tableNow();
-  if (game === null) { game = new Game(t); audioNow(); logged = 0; }
+  if (game === null) {
+    const next = new Game(t);
+    try { audioNow(); } catch (error) { next.physics.destroy(); throw error; }
+    game = next; logged = 0;
+  }
   return game as Game;
 }
 /** The sounds of the table as the document has it now: its files are read, its tones made, when they are first asked for. */
