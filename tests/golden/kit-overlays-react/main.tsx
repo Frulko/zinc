@@ -1,15 +1,25 @@
+import { addToast, ToastHandle as NuxtToastHandle } from 'zinc:ui/nuxt';
+import { checkToastHandles, checkToastKeyboard } from '../../data/toast_handles/check';
 import * as ui from 'zinc:ui';
-import { render, useState, MutableRef } from 'zinc:ui/react';
-import { Popover, HoverCard, Tooltip, Button, useQuietTheme } from 'zinc:ui/kit';
+import { render, useState, useEffect, MutableRef } from 'zinc:ui/react';
+import { Popover, HoverCard, Tooltip, Button, useQuietTheme, toast, ToastHandle } from 'zinc:ui/kit';
 useQuietTheme();
 const root = new MutableRef<i32>(-1);
 let update: (v: number) => void = (v: number) => {};
-let frame: i32 = 0;
+let frame: i32 = 0, ownedHits: i32 = 0;
+let eventToast: ToastHandle | null = null, effectToast: NuxtToastHandle | null = null;
+function floating(text: string): i32 { const layers = ui.domLayers(); for (let i = 0; i < layers.length; i += 4) { const h = find(layers[i], text); if (h >= 0) { for (let p = h; p >= 0; p = ui.parentOf(p)) { const n = ui.inspectNode(p); if (n !== null && n.focusable) return p; } return h; } } return -1; }
 function App(): i32 {
   const [revision, setRevision] = useState(0);
   update = setRevision;
+  useEffect(() => {
+    const handle = addToast({ title: 'Effect toast', duration: -1, actions: ['Effect action'], onAction: () => ownedHits++ });
+    effectToast = handle;
+    return handle.close;
+  }, []);
   return <View ref={root} className="flex-col p-4 gap-3">
     <Text>{revision}</Text>
+    <Button label="Create live toast" onClick={() => { eventToast = toast('Event toast', '', -1, { action: 'Event action', onAction: () => ownedHits++ }); }} />
     <Popover label="Filters"><Button label="Panel action" /></Popover>
     <HoverCard label="Owner" trigger={() => <Text>Ada</Text>}><Button label="Profile" /></HoverCard>
     <Tooltip label="Hint"><Button label="Hint target" /></Tooltip>
@@ -37,8 +47,11 @@ function hint(h: i32): i32 {
 }
 render(App, 0xf2f2f2, (dt: number) => {
   frame++;
-  if (frame === 2) { ui.systemSignal('reducemotion 1'); ui.click(find(root.current, 'Filters')); update(1); }
+  if (frame === 2) { ui.systemSignal('reducemotion 1'); ui.click(find(root.current, 'Create live toast')); ui.click(find(root.current, 'Filters')); update(1); }
   if (frame === 3) {
+    if (floating('Event action') < 0 || floating('Effect action') < 0) throw new Error('React rerender lost imperative actions');
+    (eventToast as ToastHandle).update({ title: 'Event updated', progress: 50 }); (effectToast as NuxtToastHandle).update({ title: 'Effect updated', value: 50 });
+    ui.click(floating('Event action')); ui.click(floating('Effect action')); if (ownedHits !== 2) throw new Error(`React event/effect toast callbacks ${ownedHits}`);
     if (!visible(find(root.current, 'Panel action'))) throw new Error('React rerender closed popover');
     ui.focused(); ui.keyDown(-1, 'Escape'); ui.click(find(root.current, 'Ada')); update(2);
   }
@@ -75,6 +88,9 @@ render(App, 0xf2f2f2, (dt: number) => {
   if (frame === 9) {
     ui.tick(151);
     if (visible(find(root.current, 'Profile'))) throw new Error('React rerender restarted hover grace');
+    checkToastHandles(); checkToastKeyboard(0);
     console.log('overlays react: ok');
   }
+  if (frame === 10) checkToastKeyboard(1);
+  if (frame === 11) checkToastKeyboard(2);
 });

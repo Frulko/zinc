@@ -9,7 +9,7 @@ import * as sys from 'zinc:sys';
 import * as dialog from 'zinc:system/dialog';
 import { library, setLibrary, allowChanges, rescan, page, showPage, playlists, openPlaylist } from './state';
 import { PodLibrary, readLibrary, downloadTracks, addTracks, removeTracks, ejectOpen } from './services/ipod';
-import { enqueue, notify, runningJob, Job, JobLine } from './services/transfers';
+import { DownloadState, enqueue, notify, runningJob, Job, JobLine } from './services/transfers';
 import { log } from './services/log';
 import { stop as stopPlaying } from './services/player';
 import { dropCovers } from './services/covers';
@@ -98,7 +98,14 @@ export function download(label: string, tracks: ipod.Track[], key: string = ''):
   if (lib() === null || tracks.length === 0) return;
   const dir = downloadFolder();
   enqueue('download', `Download ${label}`, async (): Promise<string> => {
-    const res = await downloadTracks(tracks, dir);
+    const current = runningJob();
+    const res = await downloadTracks(tracks, dir, (index: i32, complete: boolean, result: ipod.DownloadResult | null): void => {
+      if (current === null) return;
+      const job = current as Job;
+      const status = complete ? result !== null && (result as ipod.DownloadResult).error !== '' ? DownloadState.Failed : DownloadState.Done : DownloadState.Running;
+      job.downloadState(index, status, complete ? 1 : 0);
+      job.setDone(Math.max(job.done(), complete ? index + 1 : index));
+    });
     let copied = 0, skipped = 0, total = 0;
     const errors: string[] = [];
     const out: JobLine[] = [];
@@ -112,7 +119,7 @@ export function download(label: string, tracks: ipod.Track[], key: string = ''):
     const line = `${count(copied, 'file', 'files')} copied (${bytes(total)}), ${skipped} already there${errors.length > 0 ? `, ${errors.length} failed (${errors[0]})` : ''} → ${dir}`;
     if (errors.length > 0 && copied + skipped === 0) throw new Error(line);
     return line;
-  }, key);
+  }, key, tracks.map((t: ipod.Track) => t.id));
 }
 
 // ---- add

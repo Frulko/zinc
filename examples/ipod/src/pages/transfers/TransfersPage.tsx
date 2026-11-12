@@ -3,8 +3,8 @@
 // the iPod holds them or why it was refused, and its size; and every step the job took, shown live while it runs); and where downloads go.
 import { Icon } from 'zinc:icons';
 import * as ui from 'zinc:ui';
-import { createSignal, onCleanup } from 'zinc:ui/solid';
-import { jobs, cancel, clearFinished, transfersSeen, iconOf, Job, JobLine, WAITING, RUNNING, DONE, FAILED } from '../../services/transfers';
+import { createSignal, createNodeRef, onCleanup } from 'zinc:ui/solid';
+import { jobs, revealJobId, setRevealJobId, cancel, clearFinished, transfersSeen, iconOf, Job, JobLine, WAITING, RUNNING, DONE, FAILED } from '../../services/transfers';
 import { downloadFolder, chooseDownloadDir } from '../../actions';
 import { Button } from '../../components/Button';
 import { bytes } from '../../format';
@@ -18,16 +18,28 @@ function Line(props: { l: JobLine }): i32 {
   </View>;
 }
 
-function JobRow(props: { job: Job }): i32 {
-  const j = props.job;
+function JobRow(props: { job: Job; scroll: () => i32 }): i32 {
+  const j = props.job, heading = createNodeRef();
   const state = (): string => j.status();
   // open while it runs (its steps scroll by), closed when it ends, until a click decides
   const [chosen, setChosen] = createSignal<i32>(-1);
   const open = (): boolean => chosen() >= 0 ? chosen() === 1 : state() === RUNNING;
   const has = (): boolean => j.lines().length > 0 || j.events() !== '';
-  return <View className={`flex-col border-t ${bd(BORDER)}`}>
-  <View className={`flex-row items-center gap-3 px-4 py-3 ${has() ? `cursor-pointer hover:${bg(HOVER)}` : ''}`}
-    onPointerDown={(e: ui.PointerEvent) => { if (has()) setChosen(open() ? 0 : 1); }}>
+  let headingSerial: i32 = 0, scrollSerial: i32 = 0;
+  const reveal = (): void => {
+    if (revealJobId() !== j.id) return;
+    setChosen(1);
+    const scroller = props.scroll();
+    if (ui.nodeSerial(heading.node) !== headingSerial || ui.nodeSerial(scroller) !== scrollSerial) return;
+    const row = ui.screenBox(heading.node), view = ui.screenBox(scroller);
+    if (row[3] <= 0 || view[3] <= 0) return;
+    if (row[1] < view[1] || row[1] + row[3] > view[1] + view[3]) ui.scrollTo(scroller, 0, ui.scrollTop(scroller) + row[1] - view[1]);
+    const actual = ui.screenBox(heading.node);
+    if (actual[1] >= view[1] - 1 && actual[1] < view[1] + view[3]) setRevealJobId(0);
+  };
+  const node = <View className={`flex-col border-t ${bd(BORDER)}`}>
+  <View ref={heading} role="button" focusable aria-label={j.label} className={`flex-row items-center gap-3 px-4 py-3 focus:ring-2 focus:ring-[var(--ipAccent)] ${has() ? `cursor-pointer hover:${bg(HOVER)}` : ''}`}
+    onClick={() => { if (has()) setChosen(open() ? 0 : 1); }}>
     <Icon name={has() ? (open() ? 'chevron-down' : 'chevron-right') : 'dot'} size={14} color={() => color(FAINT)} strokeWidth={2} />
     <Icon name={iconOf(j.kind)} size={16} color={() => color(state() === FAILED ? ERROR : ACCENT)} strokeWidth={2} />
     <View className="grow basis-0 flex-col gap-1 min-w-0">
@@ -48,14 +60,21 @@ function JobRow(props: { job: Job }): i32 {
     </ScrollView>
   </View> : <View />}
   </View>;
+  headingSerial = ui.nodeSerial(heading.node); scrollSerial = ui.nodeSerial(props.scroll());
+  ui.addWatcher(reveal);
+  onCleanup(() => ui.removeWatcher(reveal));
+  return node;
 }
 
 export function TransfersPage(): i32 {
   // what is shown here needs no toast, and a failure listed here is seen (the sidebar's red dot goes): on arriving and on leaving
   transfersSeen();
-  onCleanup(transfersSeen);
+  const scroll = createNodeRef();
+  const discardMissing = (): void => { if (revealJobId() !== 0 && !jobs().some((j: Job) => j.id === revealJobId())) setRevealJobId(0); };
+  ui.addWatcher(discardMissing);
+  onCleanup(() => { ui.removeWatcher(discardMissing); setRevealJobId(0); transfersSeen(); });
   const shown = (): Job[] => { const out: Job[] = []; const all = jobs(); for (let i = all.length - 1; i >= 0; i--) out.push(all[i]); return out; };
-  return <ScrollView className="grow">
+  return <ScrollView ref={scroll} className="grow">
     <View className="flex-col gap-6 px-10 py-8">
       <View className="flex-row items-end gap-3">
         <View className="grow flex-col">
@@ -74,7 +93,7 @@ export function TransfersPage(): i32 {
       </View>
       <View className={`flex-col rounded-[10] border overflow-hidden ${bg(CARD)} ${bd(BORDER)}`}>
         <Text className={`text-[12px] font-semibold px-4 py-2 ${fg(MUTED)}`}>{jobs().length === 0 ? 'Nothing yet: downloads, adds, backups and restores show here' : `${jobs().length} this session`}</Text>
-        {shown().map((j: Job) => <JobRow job={j} />)}
+        {shown().map((j: Job) => <JobRow job={j} scroll={() => scroll.node} />)}
       </View>
     </View>
   </ScrollView>;

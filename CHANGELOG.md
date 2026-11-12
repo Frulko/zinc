@@ -303,6 +303,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `examples/ui/notes` is a Quiet notes workspace with Markdown editing and preview, searchable tags, pinned notes and confirmed deletion; sample notes reset when the window closes.
 - Atelier shares editable `.zapp` sketches with a captured cover and opens them as new copies. Copy a `/play/` link to share a small program without uploading it; `zinc pack --sources` and `zinc unpack` offer the same file roundtrip from the terminal.
 
+- `toast()` and `addToast()` return `update()` and `close()` handles. Titles, actions and live percentages (`progress` in the kit, `value` in Nuxt) change without replacing the card or restarting its timeout.
+
 #### Changed
 
 - The kit gallery keeps light/dark and family navigation visible while scrolling, with keyboard focus transfer and layouts that fit narrow windows.
@@ -631,6 +633,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - The iPod app reads libraries from older daemons with missing newer fields, keeping smart-playlist members read-only when their rules are unavailable; current daemons preserve checked state and combined media flags.
 - The iPod example fits more album columns as its content widens, keeps song titles readable beside playlists, and gives the now-playing cover, time labels and seek bar their own space.
 - The iPod example refreshes every visible size of an edited cover and names the saved song waiting for its iPod on Devices.
+
+- The iPod example shows each album or playlist track's download progress, and a failed toast's Show details expands and reveals that job in Transfers.
 
 
 ### Docs and learning

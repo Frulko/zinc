@@ -19,8 +19,14 @@ export class JobLine {
   constructor(ok: boolean, text: string, size: number) { this.ok = ok; this.text = text; this.size = size; }
 }
 
+export enum DownloadState { Waiting, Running, Done, Failed, Cancelled }
+export class TrackDownload {
+  constructor(public id: string, public state: DownloadState = DownloadState.Waiting, public fraction: number = 0) {}
+}
+
 export class Job {
   id: i32; kind: string; label: string;
+  downloads: () => TrackDownload[]; setDownloads: (items: TrackDownload[]) => void;
   /** What the control that started it asks busy() (a track's arrow: 'track:<id>'); the label by default. */
   key: string;
   /** A file or folder the result can be revealed in Finder ('' = none): set by the work before it resolves. */
@@ -45,6 +51,7 @@ export class Job {
   private kept: string[] = [];
   private dropped: number = 0;
   constructor(id: i32, kind: string, label: string, work: () => Promise<string>) {
+    const [items, setItems] = createSignal<TrackDownload[]>([]); this.downloads = items; this.setDownloads = setItems;
     this.id = id; this.kind = kind; this.label = label; this.work = work; this.key = label;
     const [s, ss] = createSignal<string>(WAITING); this.status = s; this.setStatus = ss;
     const [d, sd] = createSignal<number>(0); this.done = d; this.setDone = sd;
@@ -55,6 +62,17 @@ export class Job {
     const [r, sr] = createSignal<string>(''); this.result = r; this.setResult = sr;
     const [l, sl] = createSignal<JobLine[]>([]); this.lines = l; this.setLines = sl;
     const [ev, sev] = createSignal<string>(''); this.events = ev; this.setEvents = sev;
+  }
+  /** One transition boundary for each ordered track; final results cannot be reopened by a late copy event. */
+  downloadState(index: i32, state: DownloadState, fraction: number): void {
+    const items = this.downloads();
+    if (index < 0 || index >= items.length) return;
+    const prior = items[index];
+    if (prior.state !== DownloadState.Waiting && prior.state !== DownloadState.Running) return;
+    if (state !== DownloadState.Running && state !== DownloadState.Done && state !== DownloadState.Failed) return;
+    const next = items.slice();
+    next[index] = new TrackDownload(prior.id, state, Math.max(0, Math.min(1, fraction)));
+    this.setDownloads(next);
   }
   /** Adds a step to the job's detail view and to <backups>/logs/details.log. */
   note(text: string): void {
@@ -93,6 +111,9 @@ export function detailsFile(): string { return `${backupPlace()}/logs/details.lo
 
 export const [jobs, setJobs] = createSignal<Job[]>([]);
 /** The job running, null when the queue rests. */
+/** A monotonic job identity survives page navigation; only a mounted, revealed row consumes it. */
+export const [revealJobId, setRevealJobId] = createSignal<i32>(0);
+export function requestJobReveal(id: i32): void { setRevealJobId(jobs().some((j: Job) => j.id === id) ? id : 0); }
 export const [runningJob, setRunningJob] = createSignal<Job | null>(null);
 
 let nextId: i32 = 1;
@@ -119,6 +140,32 @@ export function busy(match: string): boolean { for (const j of jobs()) if (j.act
 /** The last job queued with this key, null when none was. */
 export function latestJob(key: string): Job | null { const all = jobs(); for (let i = all.length - 1; i >= 0; i--) if (all[i].key === key) return all[i]; return null; }
 
+/** Latest request wins, including a cancelled retry; album and playlist members use the same track identity. */
+export function trackDownload(id: string): TrackDownload | null {
+  const all = jobs();
+  for (let i = all.length - 1; i >= 0; i--) {
+    const job = all[i];
+    for (const item of job.downloads()) if (item.id === id) {
+      let state = item.state;
+      if (state === DownloadState.Waiting || state === DownloadState.Running) {
+        if (job.status() === CANCELLED) state = DownloadState.Cancelled;
+        else if (job.status() === FAILED) state = DownloadState.Failed;
+      }
+      const view = new TrackDownload(id, state, item.fraction);
+      return view;
+    }
+  }
+  return null;
+}
+
+/** Native copy precedes its ordered download completion; filenames need not be unique. */
+function downloadProgress(job: Job, phase: string, done: number, total: number): void {
+  const items = job.downloads();
+  const index = phase === 'download' ? done - 1 : job.done();
+  if (index < 0 || index >= items.length) return;
+  job.downloadState(index, DownloadState.Running, phase === 'download' ? 1 : total > 0 ? done / total : 0);
+}
+
 export function dismissToast(job: Job): void { setToasts(toasts().filter((j: Job) => j !== job)); }
 /** The Transfers page shows it all: the toasts of the jobs that ended go, and the failures count as seen. */
 export function transfersSeen(): void {
@@ -134,7 +181,7 @@ export function notify(kind: string, label: string, result: string, ok: boolean)
 }
 
 /** Queues a job; it starts when the ones before it end. */
-export function enqueue(kind: string, label: string, work: () => Promise<string>, key: string = ''): Job {
+export function enqueue(kind: string, label: string, work: () => Promise<string>, key: string = '', downloadIds: string[] = []): Job {
   if (!listening) {
     listening = true;
     ipod.onProgress((phase: string, done: i32, total: i32, detail: string) => {
@@ -144,6 +191,7 @@ export function enqueue(kind: string, label: string, work: () => Promise<string>
       if (phase === 'copy') { if (detail !== job.detail()) job.note(`copy ${detail}`); }   // one line per file, not per block
       else if (detail !== '') job.note(total > 0 && done > 0 ? `${phase} ${done}/${total}  ${detail}` : `${phase}  ${detail}`);
       batch(() => {
+        if (job.kind === 'download' && (phase === 'copy' || phase === 'download')) downloadProgress(job, phase, done, total);
         if (phase === 'copy') { job.setFileDone(done); job.setFileTotal(total); job.setDetail(detail); }
         else if (phase !== 'save' && phase !== 'artwork') { job.setDone(done); job.setTotal(total); job.setFileDone(0); job.setFileTotal(0); }
       });
@@ -151,6 +199,8 @@ export function enqueue(kind: string, label: string, work: () => Promise<string>
   }
   const job = new Job(nextId++, kind, label, work);
   if (key !== '') job.key = key;
+  job.setDownloads(downloadIds.map((id: string) => new TrackDownload(id)));
+  if (downloadIds.length > 0) job.setTotal(downloadIds.length);
   batch(() => { setJobs([...jobs(), job]); setToasts([...toasts(), job]); });
   pump();
   return job;
@@ -170,7 +220,7 @@ export function cancelWaiting(): void { for (const j of jobs()) cancel(j); }
 export function clearFinished(): void {
   const keep: Job[] = [];
   for (const j of jobs()) if (j.status() === WAITING || j.status() === RUNNING) keep.push(j);
-  setJobs(keep);
+  batch(() => { setJobs(keep); if (!keep.some((j: Job) => j.id === revealJobId())) setRevealJobId(0); });
 }
 
 /** Starts a job at once beside the queue: one that does not use the iPod (a history import), so the iPod's jobs do not wait for it.

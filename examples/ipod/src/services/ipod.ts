@@ -333,21 +333,28 @@ function safeName(name: string, fallback: string): string {
 function pad2(n: i32): string { return n < 10 ? `0${n}` : `${n}`; }
 
 /** Copies the tracks to `dir` as Artist/Album/NN Title.ext, a file of the same size already there skipped. */
-export async function downloadTracks(tracks: ipod.Track[], dir: string): Promise<ipod.DownloadResult[]> {
+export async function downloadTracks(tracks: ipod.Track[], dir: string, onTrack: ((index: i32, complete: boolean, result: ipod.DownloadResult | null) => void) | null = null): Promise<ipod.DownloadResult[]> {
   const ids: string[] = [];
   for (const t of tracks) ids.push(t.id);
-  if (!isRemote()) return await ipod.download(ids, dir);
+  if (!isRemote()) {
+    const results = await ipod.download(ids, dir);
+    if (onTrack !== null) for (let i = 0; i < results.length; i++) onTrack(i, true, results[i]);
+    return results;
+  }
   const out: ipod.DownloadResult[] = [];
-  for (const t of tracks) {
+  for (let i = 0; i < tracks.length; i++) {
+    const t = tracks[i];
+    if (onTrack !== null) onTrack(i, false, null);
     const dot = t.path.lastIndexOf('.');
     const ext = dot > t.path.lastIndexOf(':') ? t.path.slice(dot).toLowerCase() : '';
     const nr = t.trackNr > 0 && t.cds > 1 && t.cdNr > 0 ? `${t.cdNr}-${pad2(t.trackNr)} ` : t.trackNr > 0 ? `${pad2(t.trackNr)} ` : '';
     const file = `${dir}/${safeName(t.albumArtist !== '' ? t.albumArtist : t.artist, 'Unknown Artist')}/${safeName(t.album, 'Unknown Album')}/${nr}${safeName(t.title, 'Untitled')}${ext}`;
     let size: number = -1;
     try { size = fs.stat(file).size; } catch (e) { /* not there yet */ }
-    if (size === t.size) { out.push({ id: t.id, file: file, error: '', skipped: true }); continue; }
+    if (size === t.size) { const result: ipod.DownloadResult = { id: t.id, file: file, error: '', skipped: true }; out.push(result); if (onTrack !== null) onTrack(i, true, result); continue; }
     try { await remote.fetchFile(t, file); out.push({ id: t.id, file: file, error: '', skipped: false }); }
     catch (e) { out.push({ id: t.id, file: file, error: (e as Error).message, skipped: false }); }
+    if (onTrack !== null) onTrack(i, true, out[out.length - 1]);
   }
   return out;
 }

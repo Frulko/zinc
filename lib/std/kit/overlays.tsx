@@ -11,7 +11,7 @@
 //   toast('Saved', 'All changes are on disk.')
 //
 // Component-owned state survives parent renders in both UI models. Dialog and Sheet are controlled.
-import { createNodeRef, NodeRef } from 'zinc:ui/solid';
+import { createNodeRef, createSubtree, NodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme } from './theme';
 import { Button as KitButton } from './button';
@@ -296,18 +296,25 @@ export function ConfirmPopover(props: ConfirmPopoverProps): i32 {
 enum ToastState { Running, Paused, Closed }
 enum StackState { Collapsed, Expanded }
 class ToastEntry {
-  node: i32; serial: i32; state: ToastState = ToastState.Running;
-  timer: i32 = -1; remaining: number; deadline: number = 0;
+  expanded: boolean = false; node: i32; serial: i32; state: ToastState = ToastState.Running;
+  timer: i32 = -1; remaining: number; deadline: number = 0; onExpire: (() => void) | null = null;
   constructor(node: i32, duration: number) { this.node = node; this.serial = ui.nodeSerial(node); this.remaining = duration; }
 }
-export interface ToastOptions { tone?: string; action?: string; onAction?: () => void }
+export interface ToastAction { label: string; onAction: () => void; dismiss?: boolean }
+/** expanded keeps this card full-sized; onDismiss runs on user dismissal or expiry, not handle.close()/clear. */
+export interface ToastOptions { tone?: string; action?: string; onAction?: () => void; actions?: ToastAction[]; progress?: number; onDismiss?: () => void; expanded?: boolean }
+/** Progress is 0..100 (clamped); negative hides it. Only duration changes the expiry deadline. */
+export interface ToastUpdate { title?: string; description?: string; tone?: string; progress?: number; actions?: ToastAction[]; duration?: number }
+export interface ToastHandle { update: (patch: ToastUpdate) => void; close: () => void }
 let toaster: i32 = -1, toasterSerial: i32 = 0;
 const toasts: ToastEntry[] = [];
 let stackState = StackState.Collapsed;
 function layoutToasts(): void {
+  const spaced = stackState === StackState.Expanded || toasts.some((entry: ToastEntry) => entry.expanded);
+  if (ui.nodeSerial(toaster) === toasterSerial) ui.setClass(toaster, `flex-col-reverse ${spaced ? 'gap-2' : 'gap-0'} right-4 bottom-4 w-[340px]`);
   for (let i = 0; i < toasts.length; i++) {
     const entry = toasts[i];
-    if (ui.nodeSerial(entry.node) === entry.serial) ui.setNumber(entry.node, 'maxHeight', stackState === StackState.Expanded || i === toasts.length - 1 ? 100000 : 16);
+    if (ui.nodeSerial(entry.node) === entry.serial) ui.setNumber(entry.node, 'maxHeight', entry.expanded || stackState === StackState.Expanded || i === toasts.length - 1 ? 100000 : 16);
   }
 }
 function toastTransition(entry: ToastEntry, next: ToastState): void {
@@ -319,19 +326,26 @@ function toastTransition(entry: ToastEntry, next: ToastState): void {
   if (next === ToastState.Closed) {
     const i = toasts.indexOf(entry);
     if (i >= 0) toasts.splice(i, 1);
-    if (ui.nodeSerial(entry.node) === entry.serial) ui.destroy(entry.node);
+    if (ui.nodeSerial(entry.node) === entry.serial) {
+      const parent = ui.parentOf(entry.node);
+      if (ui.nodeSerial(parent) !== 0) ui.remove(parent, entry.node); else ui.destroy(entry.node);
+    }
     layoutToasts();
     return;
   }
   if (next === ToastState.Running && entry.remaining >= 0) {
     entry.deadline = ui.now() + entry.remaining;
-    entry.timer = ui.alarm(entry.deadline, () => toastTransition(entry, ToastState.Closed));
+    entry.timer = ui.alarm(entry.deadline, () => {
+      if (entry.state === ToastState.Closed || ui.nodeSerial(entry.node) !== entry.serial) { toastTransition(entry, ToastState.Closed); return; }
+      toastTransition(entry, ToastState.Closed);
+      if (entry.onExpire !== null) (entry.onExpire as () => void)();
+    });
   }
 }
 /** Dismisses every kit toast, cancelling their owned timers. Useful when a window or session closes. */
 export function clearToasts(): void { for (const entry of toasts.slice()) toastTransition(entry, ToastState.Closed); }
 /** Newest in front. Hover/focus expands the stack and pauses expiry; drag sideways to dismiss. Negative duration persists. */
-export function toast(title: string, description: string = '', ms: number = 4000, options: ToastOptions = {}): void {
+export function toast(title: string, description: string = '', ms: number = 4000, options: ToastOptions = {}): ToastHandle {
   if (ui.nodeSerial(toaster) !== toasterSerial || toaster < 0) {
     clearToasts();
     toaster = ui.createNode(ui.VIEW);
@@ -339,6 +353,17 @@ export function toast(title: string, description: string = '', ms: number = 4000
     stackState = StackState.Collapsed;
     ui.setClass(toaster, 'flex-col-reverse gap-0 right-4 bottom-4 w-[340px]');
     ui.openLayer(toaster, { priority: 400 });
+    const owned = toaster, serial = toasterSerial;
+    // React's initial effects can create the stack before ui.mount supplies its root.
+    const bindRoot = (): void => {
+      const root = ui.rootNode();
+      if (ui.nodeSerial(root) === 0) return;
+      ui.removeWatcher(bindRoot);
+      ui.onDestroy(root, () => { if (ui.nodeSerial(owned) === serial) ui.destroy(owned); });
+    };
+    ui.onDestroy(owned, () => ui.removeWatcher(bindRoot));
+    ui.addWatcher(bindRoot);
+    bindRoot();
     const expand = (on: boolean): void => {
       const host = ui.inspectNode(toaster);
       on = on || (host !== null && host.hovered) || ui.hasFocusWithin(toaster);
@@ -351,30 +376,73 @@ export function toast(title: string, description: string = '', ms: number = 4000
     ui.onPointer(toaster, ui.PLEAVE, (e: ui.PointerEvent) => expand(false));
     ui.onFocusWithin(toaster, expand);
   }
-  const tone = options.tone ?? 'default';
-  const color = tone === 'destructive' || tone === 'error' ? theme().destructive : tone === 'success' ? theme().success : tone === 'warning' ? theme().warningSoftForeground : theme().foreground;
+  let tone = options.tone ?? 'default';
+  const color = (): string => tone === 'destructive' || tone === 'error' ? theme().destructive : tone === 'success' ? theme().success : tone === 'warning' ? theme().warningSoftForeground : theme().foreground;
   let entry: ToastEntry | null = null;
   const close = (): void => { if (entry !== null) toastTransition(entry as ToastEntry, ToastState.Closed); };
-  const toastNode = createNodeRef();
-  const n = <View ref={toastNode} role={tone === 'error' || tone === 'destructive' ? 'alert' : 'status'} className={`flex-col gap-2 p-4 overflow-hidden ${look().dialog} border border-${theme().border} bg-${theme().card}`} grab="keep-x"
-    onDrag={(e: ui.PointerEvent) => { if (e.phase === 1) ui.setNumber(toastNode.node, 'translateX', e.dx); else if (e.phase === 2 && Math.abs(e.dx) > 80) close(); else if (e.phase >= 2) ui.setNumber(toastNode.node, 'translateX', 0); }}>
+  const dismiss = (): void => { if (entry === null || (entry as ToastEntry).state === ToastState.Closed) return; close(); if (options.onDismiss !== undefined) options.onDismiss(); };
+  const toastNode = createNodeRef(), heading = createNodeRef(), body = createNodeRef(), actions = createNodeRef(), rail = createNodeRef(), bar = createNodeRef();
+  const content = createSubtree(() => <View ref={toastNode} role={tone === 'error' || tone === 'destructive' ? 'alert' : 'status'} className={`flex-col gap-2 p-4 overflow-hidden ${look().dialog} border border-${theme().border} bg-${theme().card}`} grab="keep-x"
+    onDrag={(e: ui.PointerEvent) => { if (e.phase === 1) ui.setNumber(toastNode.node, 'translateX', e.dx); else if (e.phase === 2 && Math.abs(e.dx) > 80) dismiss(); else if (e.phase >= 2) ui.setNumber(toastNode.node, 'translateX', 0); }}>
     <View className="flex-row gap-3 items-start">
       <View className="flex-col grow shrink min-w-0 gap-1">
-        <Text className={`text-[13px] font-medium text-${color}`}>{tone === 'error' || tone === 'destructive' ? '! ' : tone === 'success' ? '✓ ' : tone === 'warning' ? '! ' : ''}{title}</Text>
-        <Text className={`text-[13px] text-${theme().mutedForeground}`} hidden={description.length > 0 ? 0 : 1}>{description}</Text>
+        <Text ref={heading} className={`text-[13px] font-medium text-${color()}`}>{tone === 'error' || tone === 'destructive' ? '! ' : tone === 'success' ? '✓ ' : tone === 'warning' ? '! ' : ''}{title}</Text>
+        <Text ref={body} className={`text-[13px] text-${theme().mutedForeground}`} hidden={description.length > 0 ? 0 : 1}>{description}</Text>
       </View>
-      <KitButton label="Dismiss" variant="ghost" size="sm" onClick={close} />
+      <KitButton label="Dismiss" variant="ghost" size="sm" onClick={dismiss} />
     </View>
-    <Show when={options.action !== undefined}><KitButton label={options.action ?? ''} variant="outline" size="sm" onClick={() => { if (options.onAction !== undefined) options.onAction(); close(); }} /></Show>
-  </View>;
+    <View ref={rail} role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" className={`h-[4px] w-[306px] overflow-hidden bg-${theme().muted}`}><View ref={bar} className={`h-[4px] bg-${theme().primary}`} /></View>
+    <View ref={actions} className="flex-row gap-2" />
+  </View>);
+  const n = content.node;
+  ui.onDestroy(n, content.dispose);
   const item = new ToastEntry(n, ms);
   entry = item;
+  item.expanded = options.expanded ?? false;
+  item.onExpire = options.onDismiss ?? null;
+  ui.onDestroy(n, close);
+  const update = (patch: ToastUpdate): void => {
+    if (item.state === ToastState.Closed || ui.nodeSerial(n) !== item.serial) { close(); return; }
+    if (patch.title !== undefined) title = patch.title;
+    if (patch.tone !== undefined) tone = patch.tone;
+    if (patch.title !== undefined || patch.tone !== undefined) {
+      ui.setText(heading.node, `${tone === 'error' || tone === 'destructive' || tone === 'warning' ? '! ' : tone === 'success' ? '✓ ' : ''}${title}`);
+      ui.setClass(heading.node, `text-[13px] font-medium text-${color()}`);
+      ui.setRole(n, tone === 'error' || tone === 'destructive' ? 'alert' : 'status');
+    }
+    if (patch.description !== undefined) { ui.setText(body.node, patch.description); ui.setNumber(body.node, 'hidden', patch.description.length > 0 ? 0 : 1); }
+    if (patch.progress !== undefined) {
+      ui.setNumber(rail.node, 'hidden', patch.progress < 0 ? 1 : 0);
+      const value = Math.max(0, Math.min(100, Number.isFinite(patch.progress) ? patch.progress : 0));
+      ui.setNumber(bar.node, 'width', 306 * value / 100);
+      ui.setAttr(rail.node, 'aria-valuenow', String(value));
+    }
+    if (patch.actions !== undefined) {
+      ui.clearChildren(actions.node);
+      for (const action of patch.actions) {
+        const button = createSubtree(() => <KitButton label={action.label} variant="outline" size="sm" onClick={() => { action.onAction(); if (action.dismiss !== false) dismiss(); }} />);
+        ui.onDestroy(button.node, button.dispose);
+        ui.insert(actions.node, button.node, -1);
+      }
+      ui.setNumber(actions.node, 'hidden', patch.actions.length === 0 ? 1 : 0);
+    }
+    if (patch.duration !== undefined) {
+      const next = item.state;
+      toastTransition(item, ToastState.Paused);
+      item.remaining = patch.duration;
+      toastTransition(item, next);
+    }
+  };
   ui.insert(toaster, n, -1);
   toasts.push(item);
   // The first deadline is initialized before Running can pause and account for elapsed time.
   item.deadline = ui.now() + ms;
   toastTransition(item, stackState === StackState.Expanded ? ToastState.Paused : ToastState.Running);
   layoutToasts();
+  const initial: ToastAction[] = (options.actions ?? []).slice();
+  if (options.action !== undefined) initial.push({ label: options.action, onAction: () => { if (options.onAction !== undefined) options.onAction(); } });
+  update({ actions: initial, progress: options.progress ?? -1 });
+  return { update: update, close: close };
 }
 
 // ---------------------------------------------------------------- Guided tour

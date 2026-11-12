@@ -1,3 +1,4 @@
+import { checkToastHandles, checkToastKeyboard } from '../../data/toast_handles/check';
 import * as ui from 'zinc:ui';
 import { render, createSignal, createNodeRef } from 'zinc:ui/solid';
 import { Tooltip, HoverCard, Popover, Dialog, Sheet, ConfirmPopover, GuidedTour, Button as KitButton, toast, clearToasts, useQuietTheme } from 'zinc:ui/kit';
@@ -110,5 +111,8 @@ render(App, 0xf2f2f2, (dt: number) => {
     ui.pointerAt(drag[0] + 4, drag[1] + 4, true); ui.pointerAt(drag[0] + 120, drag[1] + 4, true); ui.pointerAt(drag[0] + 120, drag[1] + 4, false);
     if (floating('Draggable') >= 0) throw new Error('toast drag did not dismiss');
     clearToasts(); if (floating('! Important') >= 0) throw new Error('toast cleanup');
+    checkToastHandles(); checkToastKeyboard(0);
     console.log('overlays: ok'); }
+  if (frame === 10) checkToastKeyboard(1);
+  if (frame === 11) checkToastKeyboard(2);
 });

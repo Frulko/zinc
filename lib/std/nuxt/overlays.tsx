@@ -2,7 +2,7 @@
 // zinc:ui/nuxt, overlays (ZN-357.03): Modal, Slideover, DropdownMenu, Tooltip and toasts with Nuxt UI 4's look (docs/reports/nuxt-ui-research.md 3.13 to 3.17),
 // on zinc:ui's layers: each overlay stays mounted and toggles `hidden`, Escape and a press outside close it, a modal keeps the focus inside.
 import * as ui from 'zinc:ui';
-import { createNodeRef } from 'zinc:ui/solid';
+import { createNodeRef, createSubtree } from 'zinc:ui/solid';
 import { theme, hex, mix, rounded } from './theme';
 import { rgb, buttonIconSize } from './variants';
 import { renderSlot } from './host';
@@ -137,38 +137,97 @@ export function Tooltip(p: TooltipProps): i32 {
 export function showTooltip(tooltip: i32, on: boolean): void { const n = ui.inspectNode(unwrap(tooltip)); if (n !== null && n.children.length > 1) show(n.children[n.children.length - 1], on); }
 
 // ---------------------------------------------------------------- toasts
-export type ToastOptions = { title?: string; description?: string; icon?: string; color?: string; duration?: number; progress?: boolean; actions?: string[]; onAction?: (label: string) => void };
-let toaster: i32 = -1;
-const live: i32[] = [];
-/** Nuxt UI's useToast().add: a toast at the bottom right (384 px wide, at most 5, newest last) for `duration` ms (5000) with a progress bar, a close button
- *  and optional action buttons. */
-export function addToast(o: ToastOptions): void {
-  if (toaster < 0) {
-    toaster = ui.createNode(ui.VIEW);
+export type ToastOptions = { title?: string; description?: string; icon?: string; color?: string; duration?: number; progress?: boolean; value?: number; actions?: string[]; onAction?: (label: string) => void };
+/** value is live progress, 0..100 (clamped); negative restores the boolean expiry bar. Updates retain the deadline. */
+export type ToastUpdate = { title?: string; description?: string; value?: number; actions?: string[]; onAction?: (label: string) => void };
+export interface ToastHandle { update: (patch: ToastUpdate) => void; close: () => void }
+enum ToastState { Running, Closed }
+class ToastEntry {
+  node: i32; serial: i32; state: ToastState = ToastState.Running; timer: i32 = -1;
+  constructor(node: i32) { this.node = node; this.serial = ui.nodeSerial(node); }
+}
+let toaster: i32 = -1, toasterSerial: i32 = 0;
+const live: ToastEntry[] = [];
+function closeToast(entry: ToastEntry): void {
+  if (entry.state === ToastState.Closed) return;
+  entry.state = ToastState.Closed;
+  if (entry.timer >= 0) ui.cancelAlarm(entry.timer);
+  entry.timer = -1;
+  const i = live.indexOf(entry); if (i >= 0) live.splice(i, 1);
+  if (ui.nodeSerial(entry.node) === entry.serial) {
+      const parent = ui.parentOf(entry.node);
+      if (ui.nodeSerial(parent) !== 0) ui.remove(parent, entry.node); else ui.destroy(entry.node);
+    }
+}
+export function clearToasts(): void { for (const entry of live.slice()) closeToast(entry); }
+/** Bottom right, at most five. Negative duration persists; progress:boolean retains the expiry-bar meaning. */
+export function addToast(o: ToastOptions): ToastHandle {
+  if (toaster < 0 || ui.nodeSerial(toaster) !== toasterSerial) {
+    clearToasts();
+    toaster = ui.createNode(ui.VIEW); toasterSerial = ui.nodeSerial(toaster);
     ui.setClass(toaster, 'flex-col gap-2 right-4 bottom-4 w-[384px]');
     ui.openLayer(toaster, { priority: 400 });
+    const owned = toaster, serial = toasterSerial;
+    // React's initial effects can create the stack before ui.mount supplies its root.
+    const bindRoot = (): void => {
+      const root = ui.rootNode();
+      if (ui.nodeSerial(root) === 0) return;
+      ui.removeWatcher(bindRoot);
+      ui.onDestroy(root, () => { if (ui.nodeSerial(owned) === serial) ui.destroy(owned); });
+    };
+    ui.onDestroy(owned, () => ui.removeWatcher(bindRoot));
+    ui.addWatcher(bindRoot);
+    bindRoot();
   }
-  if (live.length >= 5) { ui.remove(toaster, live[0]); live.splice(0, 1); }
+  if (live.length >= 5) closeToast(live[0]);
   const t = theme(), ms = o.duration ?? 5000, color = o.color ?? 'primary';
-  const bar = createNodeRef();
-  let n: i32 = -1;
-  const close = (): void => { const i = live.indexOf(n); if (i < 0) return; live.splice(i, 1); ui.remove(toaster, n); };
-  n = <View className={`relative flex-row gap-2.5 p-4 overflow-hidden shadow-lg ${rounded('lg')} bg-${hex(t.bg)} border border-${hex(t.border)}`} role="status">
+  const bar = createNodeRef(), liveBar = createNodeRef(), heading = createNodeRef(), body = createNodeRef(), actions = createNodeRef();
+  let entry: ToastEntry | null = null;
+  let actionCallback = o.onAction;
+  const close = (): void => { if (entry !== null) closeToast(entry as ToastEntry); };
+  const content = createSubtree(() => <View className={`relative flex-row gap-2.5 p-4 overflow-hidden shadow-lg ${rounded('lg')} bg-${hex(t.bg)} border border-${hex(t.border)}`} role="status">
     <Show when={o.icon !== undefined}><Icon name={o.icon ?? ''} size={20} color={() => rgb(color === 'neutral' ? theme().textHighlighted : theme().color(color))} /></Show>
     <View className="flex-col grow">
-      <Show when={o.title !== undefined}><Text className={`text-sm font-medium text-${hex(t.textHighlighted)}`}>{o.title ?? ''}</Text></Show>
-      <Show when={o.description !== undefined}><Text className={`text-sm text-${hex(t.textMuted)} ${o.title !== undefined ? 'mt-1' : ''}`}>{o.description ?? ''}</Text></Show>
-      <Show when={o.actions !== undefined}><View className="flex-row gap-1.5 mt-2.5">
-        <For each={o.actions ?? []}>{(a: string, i: i32) => <Button label={a} size="xs" color={color} onClick={() => { const f = o.onAction; if (f !== undefined) f(a); close(); }} />}</For>
-      </View></Show>
+      <Text ref={heading} className={`text-sm font-medium text-${hex(t.textHighlighted)}`}>{o.title ?? ''}</Text>
+      <Text ref={body} className={`text-sm text-${hex(t.textMuted)} mt-1`}>{o.description ?? ''}</Text>
+      <View ref={actions} className="flex-row gap-1.5 mt-2.5" />
     </View>
     <Button icon="x" color="neutral" variant="link" size="sm" onClick={close} />
-    <Show when={o.progress ?? true}><View ref={bar} className={`absolute left-0 bottom-0 h-[4px] w-[384px] bg-${hex(color === 'neutral' ? t.bgInverted : t.color(color))}`} /></Show>
-  </View>;
-  ui.insert(toaster, n, -1);
-  live.push(n);
-  if (bar.node >= 0) ui.animate(bar.node, 'width', 0, ms, 'linear', 0);
-  setTimeout(close, ms);
+    <View ref={bar} className={`absolute left-0 bottom-0 h-[4px] w-[384px] bg-${hex(color === 'neutral' ? t.bgInverted : t.color(color))}`} />
+    <View ref={liveBar} role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" className={`absolute left-0 bottom-0 h-[4px] w-[384px] bg-${hex(color === 'neutral' ? t.bgInverted : t.color(color))}`} />
+  </View>);
+  const n = content.node;
+  ui.onDestroy(n, content.dispose);
+  const item = new ToastEntry(n); entry = item;
+  ui.onDestroy(n, close);
+  ui.insert(toaster, n, -1); live.push(item);
+  const update = (patch: ToastUpdate): void => {
+    if (item.state === ToastState.Closed || ui.nodeSerial(n) !== item.serial) { close(); return; }
+    if (patch.title !== undefined) { ui.setText(heading.node, patch.title); ui.setNumber(heading.node, 'hidden', patch.title === '' ? 1 : 0); }
+    if (patch.description !== undefined) { ui.setText(body.node, patch.description); ui.setNumber(body.node, 'hidden', patch.description === '' ? 1 : 0); }
+    if (patch.onAction !== undefined) actionCallback = patch.onAction;
+    if (patch.actions !== undefined) {
+      ui.clearChildren(actions.node);
+      for (const label of patch.actions) {
+        const button = createSubtree(() => <Button label={label} size="xs" color={color} onClick={() => { if (actionCallback !== undefined) actionCallback(label); close(); }} />);
+        ui.onDestroy(button.node, button.dispose);
+        ui.insert(actions.node, button.node, -1);
+      }
+      ui.setNumber(actions.node, 'hidden', patch.actions.length === 0 ? 1 : 0);
+    }
+    if (patch.value !== undefined) {
+      ui.setNumber(bar.node, 'hidden', patch.value >= 0 || !(o.progress ?? true) ? 1 : 0);
+      ui.setNumber(liveBar.node, 'hidden', patch.value < 0 ? 1 : 0);
+      const value = Math.max(0, Math.min(100, Number.isFinite(patch.value) ? patch.value : 0));
+      ui.setNumber(liveBar.node, 'width', 384 * value / 100);
+      ui.setAttr(liveBar.node, 'aria-valuenow', String(value));
+    }
+  };
+  const deadline = ui.now() + ms;
+  update({ title: o.title ?? '', description: o.description ?? '', actions: o.actions ?? [], value: o.value ?? -1 });
+  if ((o.progress ?? true) && ms >= 0) ui.animate(bar.node, 'width', 0, ms, 'linear', 0);
+  if (ms >= 0) item.timer = ui.alarm(deadline, close);
+  return { update: update, close: close };
 }
 /** The toasts on screen (tests). */
 export function toastCount(): i32 { return live.length; }
