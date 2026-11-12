@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated584.02 8b227f58e ReviewAC1 pendingT1; root exactgame PASS and actualmap2frames hash442439ac4b8ed9c3, same all3worker engines. Reusesexistingimporter/draw, source/logs archive65 verifiedbeforecleanup.584.03 claimed researchunderway;592.04 Linuxbuild successful awaitingfinalreport/SSHauthfailed.91Doneunchanged.
+
 - Fresh coordinator /root/coordinator_next owns the loop after0507818d5 transfer;592.04 remains isolated Linux module worker. Reserve584.02/.03 game chain: reuse existing tilemap asset importer and sprite batching, then camera/input actions; no new demo/service or T1 campaign, literal gates retained. Two building trees maximum; main owner payloads untouched.
 
 - COORDINATOR HANDOFF2026-11-12: soleleader /root/coordinator_next once .logs/coord-transfer-20261112.ready exists. Root stops claims/integration atsignal. Active592.04worker /root/linux_window_592_04 routed tonewleader; crossbuild11474 running own .logs/linux-build.log. No rootheavycommands/processes pending.91Done,64sourcearchives, common7b47aef28/hash9b0069c6 perRESUME. Sameautonomousloop/noquestions/no push/gates/WIPprotection remains.
