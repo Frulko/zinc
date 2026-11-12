@@ -759,6 +759,8 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-440.03: measure full Opus resident allocations and chained-stream render allocations before applying memory or realtime budgets to this codec.
 
+- ZN-550: native ABI shutdown/VM ownership and generated static argument scratch/allocator/factory concurrency need a focused engine check; current bus internal locks and explicit close do not establish whole-VM concurrency or unclosed-handle reload cleanup.
+
 ## Demos
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
@@ -906,6 +908,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-603: investigate Hero headless Video Canvas invalidation; the historical native also decodes moving frames while its Canvas stays black.
 
 ## Cross-platform pass
+
+- ZN-554: prove actual Pi thermal/clock/mailbox/fan/button readings and the owner-selected weak-supply rig; sampled buttons can miss short presses and another client may clear firmware latches.
+- ZN-550: prepared i2c-stub SMBus, Pi SPI jumper, unchanged display frames, CHIP buses/overlay and ESP compile remain unproven; no physical bus scan or privileged setup was attempted.
 
 - ZN-535: prove actual Pi decoder ioctls and the separation of selected profile from observed hardware once strict SSH access is restored; fixture probes do not establish physical capabilities.
 

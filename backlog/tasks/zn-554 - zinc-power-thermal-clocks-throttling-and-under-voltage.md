@@ -2,8 +2,7 @@
 id: ZN-554
 title: 'zinc:power: thermal, clocks, throttling and under-voltage'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:46'
 updated_date: '2026-11-12 01:07'
 labels:
@@ -42,4 +41,6 @@ Proof: exact T0 `tests/run --only power` PASS (native malformed/empty/nonzero th
 Review, no AC ticked: actual Pi3B+ comparison, actual QEMU run and weak-supply rig were not performed. No SSH/install/reboot/player takeover attempted (coordinator reports current authentication unavailable). Fixture unknown is software proof, not QEMU proof. Linux-only probe compiles warning-free to an aarch64-linux-gnu object with the existing pinned Zig (C++20, -Wall -Wextra -Werror); Linux ioctl execution/hardware behavior remains unproven on this Mac. No owned processes left.
 
 Proposed tests: actual Pi3B+ read-only snapshot vs vcgencmd (bounded10s, memory unmeasured); actual Pi5 fan/button sampled state and permission denial (bounded10s, memory unmeasured); owner-selected manual weak-supply voltage event rig; Actual Linux/Pi probe and ioctl smoke (bounded10s run, memory unmeasured). QEMU AC awaits owner's hardware-policy resolution; no emulator launched. Proposed later line: ZN-554: prove thermal/clock/mailbox/fan/button readings on the actual Pi and record weak-supply rig results; sampled buttons can miss short presses. Followup: doctor label now reads Power (observed hardware). Linux compile proof `.logs/power-linux-compile.log`, object SHA256 5b21acc1c46fdee1e057d9c8530c15be5418f36bf601def2ac2c0eb644e56bcc. Usage: n/a.
+
+Coordinator root integration: combined build and exact power pass; actual fixture values/scalar checks agree on all3, all3 event lifecycle outputs events1/0/1 and human doctor pass. Raw JSON key order differs under existing D209 checked-return limitation (docs/guide/12-js-engines.md:104–108; typed D179 schema copy vs unconverted QuickJS return). Preserve raw proof and compare parsed values; no payload/schema/caller workaround. Rootproof/summary .logs/integration-2026-11-11/power554-{root-proof.log,summary.json}; archive72 fullsource/logs/artifacts. Hardware/QEMU criteria stay unchecked.
 <!-- SECTION:NOTES:END -->

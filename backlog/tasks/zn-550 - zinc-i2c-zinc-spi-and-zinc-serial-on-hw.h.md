@@ -2,8 +2,7 @@
 id: ZN-550
 title: 'zinc:i2c and zinc:spi modules over hw.h'
 status: Review
-assignee:
-  - '@parallel'
+assignee: []
 created_date: '2026-10-09 07:46'
 updated_date: '2026-11-12 01:10'
 labels:

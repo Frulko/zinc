@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Integrated554 ff496c7fc Review/D315 and550 b4929e91c ReviewAC3/D316. Root combined build, exactpower/buses/buses_cache and actual public all3/event/doctor proofs PASS; power values compared semantically because recorded D209 return-conversion key-order difference, no caller rewrite. Archive72/73 fullsource/logs/artifacts verified. Cache barehw reach regression fixed; explicit busclose required, broader nativeABI reload/concurrency remainsunproven.92Done, no active source workers/heavy commands.
+
 - Reserve554 read-only power telemetry independently of550 bus shim. Delegated primary research underway; fixtures first, no weak-supply experiment/privileged setup/QEMU or hardware claim. No shared hw.h/HAL/owner RT edits.535/467 archives71/70 verified and trees removed;92Done.
 
 - Integrated535 476b26695 Review AC1/4, D314; root clean build, exact generated_runtime_exports and actual fixture all3/doctor aliases PASS. Archive71 full source/logs/artifacts verified before cleanup; ten owner payloads unchanged. Common binary now476b26695/5e8b14a1, companions unchanged. Active550 isolated public I2C/SPI + unheld hw.h seam; no other source worker or root heavy process pending.92Done.
