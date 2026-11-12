@@ -1507,7 +1507,9 @@ struct Parser {
       ++i;
       std::string_view src = sourceString();
       semi();
-      return mk(N::ExportAll, st, prevEnd(), src);
+      const auto ex = mk(N::ExportAll, st, prevEnd(), src);
+      if (typeOnly) r.ast.nodes[ex].flags |= kFlagTypeOnly;
+      return ex;
     }
     if (isP("{")) {
       ++i;

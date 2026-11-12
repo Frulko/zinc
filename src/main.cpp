@@ -2646,6 +2646,7 @@ int main(int argc, char** argv) {
       argc -= 2;
       break;
     }
+  if (argc > 1 && !std::strcmp(argv[1], "doctor") && !zn::cli::doctorTarget(argc, argv)) return 2;
   // `--profile esp32` (or --profile=esp32) anywhere: the target's `number`, typing and heap budget on the host (ZN-120)
   for (int k = 1; k < argc; ++k) {
     std::string name;

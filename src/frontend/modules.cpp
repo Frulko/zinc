@@ -2306,8 +2306,8 @@ struct Loader {
         if (from.size() < 6 || from.compare(from.size() - 6, 6, "/ui.ts") != 0) noteDirectLayoutUse();
       }
       if (done.count(spec)) return done[spec];
+      if (generatedModuleBase(spec) == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()) + generatedModuleSource(spec));
       if (spec == "zinc:telemetry") return load(spec, generatedModuleSource(spec));
-      if (spec == "zinc:platform") return load(spec, platformModuleSource((std::filesystem::path(stdRoot.empty() ? "." : stdRoot).parent_path().parent_path() / "targets" / "capabilities.json").string()));
       if (const char* src = hostModuleSource(spec)) return load(spec, src);
       if (spec == "zinc:system/permissions" || spec == "zinc:system/app" || spec == "zinc:3d/config") return done.count(spec) ? done[spec] : load(spec, generatedModuleSource(spec));
       if (spec == "zinc:icons/lucide") {   // the icons this project names (ZN-374)
@@ -2592,7 +2592,7 @@ struct Loader {
               deferred.push_back({fi, st, {}});
               break;
             }
-            std::uint32_t from = resolve(fi, st, x.text);
+            std::uint32_t from = resolve(fi, st, generatedModuleVariant(A, x, values));
             if (from == kNone) break;
             if (A.nodes[st].kids.empty()) mod.effectImports.push_back(from);
             for (std::uint32_t sp : std::vector<std::uint32_t>(x.kids)) {
@@ -2602,15 +2602,15 @@ struct Loader {
             break;
           }
           case N::ExportAll: {
-            if (typesMode) { deferred.push_back({fi, st, {}}); break; }
-            std::uint32_t from = resolve(fi, st, x.text);
+            if (typesMode || (x.flags & kFlagTypeOnly)) { deferred.push_back({fi, st, {}}); break; }
+            std::uint32_t from = resolve(fi, st, generatedModuleVariant(A, x, values));
             if (from != kNone) mod.exports.push_back({{}, {}, from, true, st});
             break;
           }
           case N::ExportList: {
             std::uint32_t from = kNone;
             if (!x.text.empty() && (typesMode || (x.flags & kFlagTypeOnly))) { deferred.push_back({fi, st, {}}); break; }   // `export type { A } from './a'`
-            if (!x.text.empty()) { from = resolve(fi, st, x.text); if (from == kNone) break; }
+            if (!x.text.empty()) { from = resolve(fi, st, generatedModuleVariant(A, x, values)); if (from == kNone) break; }
             for (std::uint32_t sp : std::vector<std::uint32_t>(x.kids)) mod.exports.push_back({A.nodes[A.nodes[sp].kids[0]].text, A.nodes[sp].text, from, false, sp});
             break;
           }
@@ -4387,8 +4387,97 @@ std::set<std::string> jsxClassTags(const std::string& path, const std::string& t
   return tags;
 }
 
+namespace {
+struct RuntimeExportGroup { std::string_view module, profile, variant, dependency; std::initializer_list<std::string_view> names; };
+const RuntimeExportGroup runtimeExportGroups[] = {{"zinc:platform", "zinc:platform/profile", "zinc:platform/runtime", "zinc:board", {"BOARD", "SOC", "RAM_MB", "REVISION", "has"}}};
+}
+std::string generatedModuleVariant(const Ast& ast, const Node& edge, const std::unordered_set<std::string_view>& values) {
+  if (edge.text.size() < 2 || (edge.flags & kFlagTypeOnly)) return std::string(edge.text);
+  const auto spec = edge.text.substr(1, edge.text.size() - 2);
+  for (const auto& group : runtimeExportGroups) {
+    if (spec != group.module) continue;
+    bool selected = edge.kind == N::ExportAll;
+    for (const auto k : edge.kids) {
+      const Node& name = ast.nodes[k];
+      if (name.flags & kFlagTypeOnly) continue;
+      if (edge.kind == N::Import && (name.kids.empty() || !values.count(ast.nodes[name.kids[0]].text))) continue;
+      selected = selected || name.text == "*" || std::find(group.names.begin(), group.names.end(), name.text) != group.names.end();
+    }
+    return "'" + std::string(selected ? group.variant : group.profile) + "'";
+  }
+  return std::string(edge.text);
+}
+
+std::string_view generatedModuleBase(std::string_view spec) {
+  for (const auto& group : runtimeExportGroups) if (spec == group.profile || spec == group.variant) return group.module;
+  return spec;
+}
+
+std::string generatedModuleNamespace(std::string_view spec) {
+  for (const auto& group : runtimeExportGroups) if (spec == group.module) return std::string(group.variant);
+  return std::string(spec);
+}
+
+// Plain JS keeps unused imports; lex static declarations without imposing the typed subset on surrounding JS.
+std::string generatedModuleImportsForJs(std::string_view source) {
+  bool relevant = false;
+  for (const auto& group : runtimeExportGroups) relevant = relevant || source.find(group.module) != std::string_view::npos;
+  if (!relevant) return std::string(source);
+  struct Edit { std::size_t at, size; std::string text; };
+  std::vector<Edit> edits;
+  const auto tokens = lex(source, false);
+  auto text = [&](std::size_t i) { return source.substr(tokens[i].start, tokens[i].end - tokens[i].start); };
+  for (std::size_t i = 0; i + 1 < tokens.size(); ++i) {
+    const bool importing = text(i) == "import";
+    if (!importing && text(i) != "export") continue;
+    if (text(i + 1) == "(" || text(i + 1) == "." || (i && (text(i - 1) == "." || text(i - 1) == "?."))) continue;
+    if (!importing && text(i + 1) != "{" && text(i + 1) != "*") continue;
+    std::size_t spec = i + 1;
+    if (tokens[spec].kind != Tok::String) {
+      int depth = 0;
+      for (; spec + 1 < tokens.size(); ++spec) {
+        const auto t = text(spec);
+        if (!depth && t == "from" && tokens[spec + 1].kind == Tok::String) { ++spec; break; }
+        if (!depth && t == ";") break;
+        if (t == "{") ++depth;
+        else if (t == "}") --depth;
+      }
+    }
+    if (spec >= tokens.size() || tokens[spec].kind != Tok::String) continue;
+    Ast ast;
+    Node edge{N::ExportList, 0, 0, text(spec), {}}; // JS retains every requested name, as a value re-export does
+    bool named = false, first = false;
+    for (std::size_t j = i + 1; j < spec; ++j) {
+      const auto t = text(j);
+      if (t == "*") { ast.nodes.push_back({N::ImportSpec, 0, 0, "*", {}}); edge.kids.push_back(static_cast<std::uint32_t>(ast.nodes.size() - 1)); }
+      if (t == "{") { named = first = true; continue; }
+      if (t == "}") { named = false; continue; }
+      if (named && t == ",") { first = true; continue; }
+      if (!named || !first) continue;
+      auto name = t;
+      if (tokens[j].kind == Tok::String) name = name.substr(1, name.size() - 2);
+      // Escaped export names conservatively select the namespace; never guess their decoded binding.
+      if (name.find('\\') != std::string_view::npos) name = "*";
+      ast.nodes.push_back({N::ImportSpec, 0, 0, name, {}});
+      edge.kids.push_back(static_cast<std::uint32_t>(ast.nodes.size() - 1));
+      first = false;
+    }
+    const auto selected = generatedModuleVariant(ast, edge, {});
+    if (selected != edge.text) edits.push_back({tokens[spec].start, tokens[spec].end - tokens[spec].start, selected});
+    i = spec;
+  }
+  std::string result(source);
+  for (auto it = edits.rbegin(); it != edits.rend(); ++it) result.replace(it->at, it->size, it->text);
+  return result;
+}
+
 std::string generatedModuleSource(std::string_view spec) {
   auto quote = [](const std::string& t) { std::string q; for (char c : t) { if (c == '\\' || c == '\'') q += '\\'; q += c; } return q; };
+  for (const auto& group : runtimeExportGroups) if (spec == group.variant) {
+    std::string names;
+    for (const auto name : group.names) names += (names.empty() ? "" : ", ") + std::string(name);
+    return "export { " + names + " } from '" + std::string(group.dependency) + "';\n";
+  }
   if (spec == "zinc:telemetry") return telemetryModuleSource();
   if (spec == "zinc:system/permissions") {   // the permissions of zinc.json as a constant, so the native gate of the system plugin knows what was compiled in
     std::string csv;

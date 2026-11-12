@@ -8,6 +8,7 @@
 #include <string_view>
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 #include "frontend/ast.h"
 #include "frontend/resolve.h"
@@ -66,6 +67,11 @@ bool libraryModule(const std::string& path);
 const char* builtinModuleSource(std::string_view spec);
 // The source of zinc:platform (the capabilities of this host's profile from `capsFile`, and UI_LAYOUT), generated for each run.
 std::string platformModule(const std::string& capsFile);
+// Generated modules can select an eager runtime export group per value import edge.
+std::string generatedModuleVariant(const Ast& ast, const Node& edge, const std::unordered_set<std::string_view>& values);
+std::string generatedModuleImportsForJs(std::string_view source);
+std::string generatedModuleNamespace(std::string_view spec);
+std::string_view generatedModuleBase(std::string_view spec);
 // The source of zinc:icons/lucide: the Lucide icons the project of `entry` names (ZN-374), from `nodesFile` (third_party/lucide/icon-nodes.json).
 std::string lucideModule(const std::string& entry, const std::string& nodesFile, const LucideOptions* icons = nullptr);
 // `zinc explain U0001`..U0005: the warnings of zinc:ui that say what to write (an icon name, a string style value, a shadowed host component, a style the profile draws simpler); "" for another code.

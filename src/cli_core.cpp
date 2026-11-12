@@ -159,7 +159,7 @@ const Command kCommands[] = {
   {"publish", "zinc publish [dir] --key <seed-hex> [--channel stable|beta] [--notes text] [-o dir] [--target rpi|rpi2|rpi1|<linux target> [--export]] [--hub <url> --token <t>] | [--itch user/game[:suffix]] [--site dir] [--dry-run]", "cli.cmd.publish", "Packs the app (zinc pack) and writes <channel>.manifest beside it, signed with the app's Ed25519 key (zinc update-keygen; its public key is zinc.json update.publicKey). Serve the directory at zinc.json update.url, or send it to a hub (app/hub-server) with --hub and its publisher token. ZINC_UPDATE_SEED and ZINC_HUB_TOKEN stand for --key and --token. --target packs for that machine (zinc pack --target: a Pi's plugins cross-built) and the manifest names it (target=linux-aarch64 for rpi, linux-armv7 for rpi2, linux-armv6 for rpi1); with --export it publishes the export of zinc export --target instead (a .tar of its directory, kind=export): the engine travels with the app. A hub keeps one package per channel and target, and a Pi's player installs the one made for it; without --target the .zapp is for any machine. --itch pushes every export directory of dist/ with itch.io's butler (pinned, fetched and checked once; channels mac, linux-arm64, linux-rpi..., html5, plus -suffix); --dry-run prints the butler commands and uploads nothing. --site writes a static download page: one button per artifact of dist/ (export directories as .tar.gz, .dmg, .deb, .zapp) with its size and SHA-256, and SHA256SUMS."},
   {"update-app", "zinc update-app [dir] [--check] [--channel C] [--url U]", "cli.cmd.update-app", "Fetches the channel manifest of zinc.json update (or of --url), verifies its signature with the app's key, refuses an older version, downloads the .zapp and checks its SHA-256 (into ~/.zinc/apps/<id>/updates). --check exits 10 when an update exists."},
   {"init", "zinc init <dir> [--template name]", "cli.cmd.init", "zinc new with the template given by --template (default game)."},
-  {"doctor", "zinc doctor [--details]", "cli.cmd.doctor", "A short, coloured check-up (colours for a terminal only; NO_COLOR turns them off): is the engine ready, the window, the native build tools (macOS: the Xcode command line tools, with the `xcode-select --install` offer), the plugins, and what to do. --details prints the full report. Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
+  {"doctor", "zinc doctor [--details] [--target pi]", "cli.cmd.doctor", "A short, coloured check-up (colours for a terminal only; NO_COLOR turns them off): is the engine ready, the window, the native build tools (macOS: the Xcode command line tools, with the `xcode-select --install` offer), the plugins, and what to do. --details prints the full report. Prints the engine, this machine's renderer tier, the pinned tools zinc downloads on first use (with their SHA-256 and whether they are installed), the host tools and the plugins."},
   {"config", "zinc config [get <key> | set <key> <value> | unset <key>]", "cli.cmd.config", "Your settings, in $ZINC_HOME/config.json (~/.zinc/config.json), which Zinc Atelier reads and writes too.\n  lang  the language of the messages: en, fr, es, it or de. Unset, ZINC_LANG and then the system's language decide; --lang on any command wins for that command.\nzinc config prints them all, zinc config get lang prints one (exit 1 when it is not set), zinc config set lang fr saves one, zinc config unset lang removes it."},
   {"toolchain", "zinc toolchain install [galene|psp|vita|ps2|n3ds|ios-legacy|ppsspp-headless|ppsspp|vita3k|play|pcsx2|azahar]|path|esptool|esbuild|swc|basisu|gltfpack|targets|sha256 <file>", "cli.cmd.toolchain", "install: download and verify zig into ~/.zinc (with a console target: its SDK; galene: the pinned media server); esbuild: the linker of zinc bundle; swc: the lowering to ES5 of --engine mquickjs; basisu and gltfpack: the texture encoder and the model processor of the asset build (their pinned sources built once with that zig); targets: the cross targets."},
   {"explain", "zinc explain <code>", "cli.cmd.explain", "Prints the text of a diagnostic code such as Z0101."},
@@ -921,6 +921,22 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   if (!t->entry.empty()) std::printf("  %s\n", tr("cli.next.edit", {{"file", t->entry}}).c_str());
   std::printf("\n%s\n%s\n%s\n", tr("cli.next.learn", {{"url", docs("learn/")}}).c_str(), tr("cli.next.guide", {{"url", docs("guide/01-getting-started/")}}).c_str(), tr("cli.next.tour").c_str());
   return 0;
+}
+
+bool doctorTarget(int argc, char** argv) {
+  bool profile = false;
+  for (int k = 2; k < argc; ++k) profile = profile || !std::strcmp(argv[k], "--profile") || !std::strncmp(argv[k], "--profile=", 10);
+  for (int k = 2; k < argc; ++k) {
+    const bool separate = !std::strcmp(argv[k], "--target");
+    if (!separate && std::strncmp(argv[k], "--target=", 9)) continue;
+    const char* target = separate ? (k + 1 < argc ? argv[k + 1] : "") : argv[k] + 9;
+    if (profile) { std::fprintf(stderr, "zinc doctor: choose --target pi or --profile, not both\n"); return false; }
+    if (std::strcmp(target, "pi")) { std::fprintf(stderr, "zinc doctor: --target expects pi; use --profile for another profile\n"); return false; }
+    if (separate) { argv[k] = const_cast<char*>("--profile"); argv[k + 1] = const_cast<char*>("rpi1"); ++k; }
+    else argv[k] = const_cast<char*>("--profile=rpi1");
+    profile = true;
+  }
+  return true;
 }
 
 namespace {

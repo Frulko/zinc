@@ -178,7 +178,11 @@ struct Stripper {
   // `import X, { a, b as c } from './m'` (also `import type`): rewritten with the specifiers read as values; none left, nothing, as TypeScript
   // elides it (a module imported for its types is not evaluated: Athena Crisis's `import type Unit` would close an import cycle)
   void importDecl(const Node& x, const std::unordered_set<std::string_view>& values) {
-    if (x.kids.empty()) return;
+    if (x.kids.empty()) {
+      const auto selected = generatedModuleVariant(a, x, values);
+      if (selected != x.text) edits.push_back({x.start, x.end, "import " + selected + ";"});
+      return;
+    }
     std::string def, ns, named;
     for (std::uint32_t k : x.kids) {
       const Node& sp = n(k);
@@ -192,7 +196,7 @@ struct Stripper {
     if (!ns.empty()) r += (r.empty() ? "" : ", ") + ("* as " + ns);
     else if (!named.empty()) r += (r.empty() ? "" : ", ") + ("{ " + named + " }");
     if (r.empty()) blank(x.start, x.end);
-    else edits.push_back({x.start, x.end, "import " + r + " from " + std::string(x.text) + ";"});
+    else edits.push_back({x.start, x.end, "import " + r + " from " + generatedModuleVariant(a, x, values) + ";"});
   }
 
   void run() {
@@ -238,7 +242,16 @@ struct Stripper {
         }
         case N::Interface: case N::TypeAlias: blank(x.start, x.end); break;
         case N::Import: importDecl(x, values); break;
-        case N::ExportList: if (x.flags & kFlagTypeOnly) blank(x.start, x.end); break;   // `export type { A } from './a'`
+        case N::ExportAll: case N::ExportList:
+          if (x.flags & kFlagTypeOnly) blank(x.start, x.end);
+          else if (!x.text.empty()) {
+            const auto selected = generatedModuleVariant(a, x, values);
+            if (selected != x.text) {
+              const auto at = static_cast<std::uint32_t>(x.text.data() - s.data());
+              edits.push_back({at, at + static_cast<std::uint32_t>(x.text.size()), selected});
+            }
+          }
+          break;   // `export type { A } from './a'`
         case N::ExportSpec: if (x.flags & kFlagTypeOnly) blank(x.start, x.start + 4); break;   // `export { a, type B }`: the type exports as the binding `export var B` of its module
         case N::Export:
           decorators(x.start);
@@ -1072,7 +1085,7 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
   auto ends = [&](std::string_view x) { return file.size() >= x.size() && file.compare(file.size() - x.size(), x.size(), x) == 0; };
   const bool tsx = ends(".tsx"), ts = tsx || ends(".ts") || file.rfind("zinc:", 0) == 0;
   if (!ts) {   // plain JavaScript: as written, with URL and the browser's WebSocket when it reads them as globals (ZN-1008)
-    out.assign(src);
+    out = generatedModuleImportsForJs(src);
     const zn::frontend::Profile* cur = zn::frontend::currentProfile();
     if ((cur && std::string_view(cur->name) == "web") || (src.find("URL") == std::string_view::npos && src.find("WebSocket") == std::string_view::npos)) return true;
     if (!webMode(file).empty()) return true;   // a page (ZINC_WEB, "web" in zinc.json): webenv.js's own URL and WebSocket are the globals, createObjectURL included

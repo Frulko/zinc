@@ -492,7 +492,7 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   if (name.rfind("zinc:", 0) == 0) {
     if (name == "zinc:web/globals") src = kWebGlobalsJs;
     else if (name == "zinc:gfx") src = gfxSource();
-    else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
+    else if (zn::frontend::generatedModuleBase(name) == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json") + zn::frontend::generatedModuleSource(name);
     else if (name == "zinc:icons/lucide") {
       e.icons = discoverIcons(e.entry, e.stdRoot, !e.worker());
       src = zn::frontend::lucideModule(e.entry, e.stdRoot + "/../../third_party/lucide/icon-nodes.json", &e.icons);
@@ -584,12 +584,12 @@ std::string mapImport(const std::map<std::string, std::string>& imports, const s
 char* normalizeName(JSContext* ctx, const char* base, const char* name, void* opaque) {
   Engine& e = *static_cast<Engine*>(opaque);
   const std::string n = name;
-  std::string r = n, from = base;
+  std::string r = zn::frontend::generatedModuleNamespace(n), from = base;
   if (from.rfind("zinc:", 0) == 0) {   // a standard module's own imports (zinc:ui -> ./palette): beside its file
     std::string_view f = zn::frontend::stdModuleFile(base);
     if (!f.empty() && !e.stdRoot.empty()) from = e.stdRoot + "/" + std::string(f);
   }
-  if (std::string m = mapImport(e.imports, n); !m.empty()) r = m;
+  if (std::string m = mapImport(e.imports, std::string(zn::frontend::generatedModuleBase(n))); !m.empty()) r = m;
   else if (n.rfind("./", 0) == 0 || n.rfind("../", 0) == 0) {
     r = normalize(dirOf(from) + "/" + n);
     if (std::string f = e.res.file(r, from); !f.empty()) r = f;

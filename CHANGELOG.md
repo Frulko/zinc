@@ -129,6 +129,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - `zinc:game` loads Tiled and LDtk maps with `loadTileMap`, using the existing tilemap asset rules, layers, objects and culled drawing.
 
 - `zinc:board` reports the running board, SoC, RAM, revision and observed hardware; `zinc doctor` shows the same Linux inventory.
+- `zinc:platform` also exports runtime board observations; importing only profile constants adds no board probe. `zinc doctor --target pi` selects the Pi profile and reports the observed hardware separately.
 
 - JavaScript games hear more of Web Audio: `OscillatorNode` makes sound (its four waves and `setPeriodicWave`), `loopStart` and `loopEnd` set the part a looping sound repeats, and `suspend()` pauses everything until `resume()`, `currentTime` included; `zinc:audio` has the same as `voice.loopPart()` and `suspend()`.
 - Gamepads that SDL does not know by itself work, from the community mappings of SDL_GameControllerDB, and a program on the `gl` display driver reads gamepads too.

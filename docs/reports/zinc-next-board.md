@@ -40,16 +40,41 @@ accepts `board.revision` (hex), optional `board.model`/`board.soc`, and
 `board.<capability>=0|1`; revision supplies RAM and default identity. It returns
 only the configured simulation, not the physical host's capabilities.
 
-The runtime exports are deliberately **not re-exported from `zinc:platform` yet**.
-A trial showed that importing only `SCREEN_W` retained the board initializer and
-JSON parser in generated C++. ESM re-exports also evaluate the module eagerly.
-A public, semantics-preserving way to opt into lazy runtime module bindings must
-be designed before adding those exports; silently making a host query pure would
-hide its observable work. Existing profile-only imports are unchanged.
-`zinc doctor --target pi` selection also remains to be wired; use the explicit
-existing `--profile rpi1` for this partial delivery.
+## Generated runtime export groups
+
+`zinc:platform` also exposes `BOARD`, `SOC`, `RAM_MB`, `REVISION` and `has()`.
+These names form a runtime export group in the generated-module catalog, backed
+by the existing `zinc:board` module. This is an explicit contract of generated
+modules, not an optimisation of ordinary TypeScript modules.
+
+A named value import or re-export requesting any group member selects the full
+generated module. Namespace imports, star re-exports and JavaScript dynamic
+imports conservatively select the full namespace. Escaped JavaScript module or
+export names also conservatively retain the full namespace. The group uses ordinary eager
+dependency evaluation: `zinc:board` samples once before the requesting importer
+runs. Importing `zinc:board` directly shares that same snapshot. Activation does
+not retroactively change the evaluation of an earlier profile-only importer.
+
+Profile-only imports and bare `import 'zinc:platform'` select a generated profile
+module without a board dependency. Supported type-only imports add no runtime
+work. D181 still rejects type-only imports of values such as `BOARD` and `has`;
+use a value import for those names. The private `/profile` and `/runtime` module
+keys are implementation details. Ordinary effectful TypeScript barrels retain
+their normal dependency evaluation; the host query and JSON parsing are never
+marked pure, and no build-machine identity is embedded in an AOT program.
+
+`zinc doctor --target pi` (also `--target=pi`) selects the existing `rpi1` frontend
+profile. This is a profile alias, not a CPU cross-build target or a claim about
+the observed board; the same report still probes the execution host. An explicit
+`--profile` conflicts with this alias. Missing and unknown targets are errors.
 
 ## Evidence and pending checks
+
+`tests/t0/generated_runtime_exports.sh` covers the group contract, aliases,
+transitive/star re-exports, type-only star exports, ordinary barrel effects,
+JavaScript quoted imports and dynamic namespace identity, import-map overrides,
+and zero-query C++/bundled-JS output. The profile-only generated C++ is
+byte-identical to the pre-change binary for the same source fixture.
 
 `tests/t0/board.sh` compiles the standalone probe, checks every revision in the
 published table (plus future bit-field combinations), and drives root fixtures
@@ -63,3 +88,9 @@ Sources, verified 2026-11-11:
 - [Linux VIDIOC_QUERYCAP](https://www.kernel.org/doc/html/latest/userspace-api/media/v4l/vidioc-querycap.html): use `device_caps` when `V4L2_CAP_DEVICE_CAPS` is set.
 - [Linux VIDIOC_ENUM_FMT](https://www.kernel.org/doc/html/latest/userspace-api/media/v4l/vidioc-enum-fmt.html): query the compressed input formats instead of identifying a decoder by device number.
 - [Linux GPIO character-device API](https://www.kernel.org/doc/html/latest/userspace-api/gpio/chardev.html): chip numbers are not stable board identities.
+
+Generated-module semantics references (2026-11-12):
+
+- [ECMAScript module evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-scripts-and-modules.html#sec-moduleevaluation): ordinary dependencies retain their effects.
+- [esbuild tree shaking](https://esbuild.github.io/api/#tree-shaking) and [Rollup module effects](https://rollupjs.org/configuration-options/#treeshake.modulesideeffects): dropping a binding does not generally permit dropping an effectful dependency.
+- [LLVM function attributes](https://llvm.org/docs/LangRef.html#function-attributes): a probe that opens device nodes and issues ioctls cannot be declared pure to obtain a smaller program.

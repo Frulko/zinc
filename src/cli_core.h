@@ -67,6 +67,8 @@ int config(const std::vector<std::string>& args);
 
 /** `zinc doctor`: the engine, this machine's renderer, the pinned tools it downloads on first use, the host tools and the plugins. `renderer` is the lines main() already prints. */
 // `details`: the full report (every pinned tool with its hash, every plugin without a prebuilt library: tests and scripts read it); else the short, coloured check-up.
+// Rewrite doctor --target pi to the existing profile option; reject conflicts.
+bool doctorTarget(int argc, char** argv);
 int doctor(const std::string& engineRoot, const std::string& rendererLines, bool details, const std::string& version);
 /** `zinc changelog [version]`: the CHANGELOG.md section of this version (a dev build: Unreleased) or of the one named. */
 int changelog(const std::vector<std::string>& args, const std::string& engineRoot, const std::string& version);
