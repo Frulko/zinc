@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Coordinator handoff2026-11-12d: /root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next activates ONLY after .logs/coord-transfer-20261112-d.ready; previous coordinator stops at publication. Active radios558_next owns work/558-radios-next (98fef288a+637388a5e not integrated, nmcli/BlueZ software open);1024 delegated research ready/unclaimed. Archives75,92Done,D317, commoncf7f76d9e/d568e456. Ten owner payloads and15perf lines verified, no root process/heavy command pending.
+
 - Integrated549 cf7f76d9e BacklogAC3/4, D317; root clean build/exactgpio+buses/public and unchanged frozenGPIO all3 PASS. Archive75 full source/logs/compiler+rootproof verified before cleanup. Missing literal gpio-sim integration harness and Pi jumper remain AC1/2. Source worker558_next active,98fef288a+637388a5e not integrated; no root heavy process.92Done unchanged.
 
 - 558 Wi-Fi checkpoint394747b78 frozen/archived74 (full source bundle21files+24logs verified), NOT integrated. Fresh radios558_next inwork/558-radios-next cherry-picks checkpoint, first fixes public poll callback restart generations then nmcli/BlueZ. Existing taskBacklog/allACopen, no network/service action. GPIO549 final review/buildproof continues; no root heavy process.

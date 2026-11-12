@@ -1,10 +1,12 @@
 # Zinc coordinator — 2026-11-12
 
-Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after .logs/coord-transfer-20261112-c.ready: /root/coordinator_next/coordinator_fresh/coordinator_fresh2. Previous coordinator stops at that signal. No source worker is active; start the next safe task from tools/next-task. Native workers in isolated worktrees; max2 building trees, one heavy command through absolute tools/work-run. Read .logs/worker-rules.md for brief supplement.
+Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after .logs/coord-transfer-20261112-d.ready: /root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next. Previous coordinator stops at that signal. Source worker radios558_next remains active; use tools/next-task for the next independent safe task. Native workers in isolated worktrees; max2 building trees, one heavy command through absolute tools/work-run. Read .logs/worker-rules.md for brief supplement.
 
 92 Done since1078.03. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
 
 ## Current
+
+Fresh coordinator transfer after a0df76956/D317: previous coordinator ceases at ready-d. Active558 branch98fef288a+637388a5e is NOT integrated; worker continues nmcli cleanup and BlueZ. Delegated compiler next-step research `.logs/research-1024-next.txt` is ready;1024 is unclaimed, checker seam free and performance threshold unproven. Archives75/92Done, commoncf7f76d9e; no previous-coordinator heavy command/process remains.
 
 Active source worker ZN-558 `/root/coordinator_next/coordinator_fresh/coordinator_fresh2/radios558_next`, `.worktrees/558-radios-next`, `work/558-radios-next`, claimedb3f62443d. Initial Wi-Fi checkpoint394747b78 archived74 and cherry-picked98fef288a; review fix637388a5e adds real public-loop generation regression and shared-header/cache/package repair. None of558 is integrated on develop yet. Continues nmcli/BlueZ in same task, Backlog/allACopen. Research `.logs/research-558-dbus.txt`. Uses absolute tools/work-run, one pending heavy command; no real radio/pin access or privileged setup. No root heavy command pending.
 
