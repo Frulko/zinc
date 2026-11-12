@@ -1,0 +1,2 @@
+const c=document.createElement('canvas');c.width=c.height=4;const g=c.getContext('webgl2',{antialias:false});
+try{g.pixelStorei(g.PACK_ROW_LENGTH,2147483647);g.pixelStorei(g.PACK_SKIP_ROWS,2147483647);const p=new Uint8Array([91,92,93,94]);g.readPixels(0,0,1,2147483647,g.RGBA,g.UNSIGNED_BYTE,p);const error=g.getError();if(error!==g.INVALID_OPERATION||Array.from(p).join(',')!=='91,92,93,94')throw Error('checked pack range');console.log('readPixels checked pack: ok');}finally{g.getExtension('WEBGL_lose_context').loseContext();}

@@ -200,7 +200,7 @@
     case Rt::HostGlClearBufferuiv: { const auto& v3 = uints(a[3]); gl.clearBufferuiv(U(a[1]), I(a[2]), v3.data(), v3.size()); break; }
     case Rt::HostGlClearBufferfi: { gl.clearBufferfi(U(a[1]), I(a[2]), F(a[3]), I(a[4])); break; }
     case Rt::HostGlGetInternalformatParameter: { { bool ok = false; std::vector<int> v = gl.getInternalformatParameter(U(a[1]), U(a[2]), U(a[3]), ok); c->param = WebGL1::Param{}; if (ok) { c->param.kind = 'a'; c->param.ok = true; for (int x : v) c->param.v.push_back(x); } } break; }
-    case Rt::HostGlReadPixels: { Bytes v7 = bytesOut(a[7], a[8]); gl.readPixels(I(a[1]), I(a[2]), I(a[3]), I(a[4]), U(a[5]), U(a[6]), v7.p, v7.n); bytesBack(v7, a[7]); break; }
+    case Rt::HostGlReadPixels: { Bytes v7 = bytesOut(a[7], a[8]); if (!readPixelsKind(I(a[8]), U(a[6]))) { gl.raise(0x0502); break; } v7.written = gl.readPixels(I(a[1]), I(a[2]), I(a[3]), I(a[4]), U(a[5]), U(a[6]), v7.p, v7.n); bytesBack(v7, a[7]); break; }
     case Rt::HostGlCreateQuery: { r->i = gl.createQuery(); break; }
     case Rt::HostGlDeleteQuery: { gl.deleteQuery(U(a[1])); break; }
     case Rt::HostGlIsQuery: { r->i = gl.isQuery(U(a[1])); break; }

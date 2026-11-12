@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <regex>
+#include <limits>
 #include <set>
 
 #include "gl/essl_check.h"
@@ -1311,8 +1312,22 @@ void WebGL1::implementationReadFormat(std::uint32_t& format, std::uint32_t& type
   else if (comp == GL_UNSIGNED_INT) { format = GL_RGBA_INTEGER; type = GL_UNSIGNED_INT; }
   else if (red == 10 && alpha == 2) type = GL_UNSIGNED_INT_2_10_10_10_REV;
 }
+bool WebGL1::readPack(int w, int h, std::size_t bpp, std::size_t& needed, PixelRead& write) {
+  const std::uint64_t pixels = packRowLength_ > 0 ? packRowLength_ : w;
+  if (std::uint64_t(packSkipPixels_) + w > pixels) { error(GL_INVALID_OPERATION); return false; }
+  const std::uint64_t stride = (pixels * bpp + packAlignment_ - 1) / packAlignment_ * packAlignment_;
+  const std::uint64_t row = std::uint64_t(w) * bpp, skip = std::uint64_t(packSkipPixels_) * bpp;
+  const std::size_t limit = std::numeric_limits<std::size_t>::max();
+  if (stride > limit || row > limit || skip > limit || (stride && std::uint64_t(packSkipRows_) > (limit - skip) / stride)) { error(GL_INVALID_OPERATION); return false; }
+  const std::size_t offset = std::size_t(packSkipRows_) * std::size_t(stride) + std::size_t(skip);
+  const std::size_t rows = w > 0 && h > 0 ? std::size_t(h - 1) : 0;
+  if ((stride && rows > (limit - offset) / stride) || (w > 0 && h > 0 && row > limit - offset - rows * stride)) { error(GL_INVALID_OPERATION); return false; }
+  needed = offset + rows * std::size_t(stride) + (w > 0 && h > 0 ? std::size_t(row) : 0);
+  write = {offset, std::size_t(stride), std::size_t(row), h};
+  return true;
+}
 // WebGL 2: format and type must exist (INVALID_ENUM), the pair must be one the read buffer offers (INVALID_OPERATION), the pack state must be consistent, and the destination big enough
-bool WebGL1::readCheck(int w, int h, std::uint32_t format, std::uint32_t type, std::size_t& needed) {
+bool WebGL1::readCheck(int w, int h, std::uint32_t format, std::uint32_t type, std::size_t& needed, PixelRead& write) {
   int comps = 0;
   switch (format) {
     case GL_ALPHA: case GL_RED: case GL_RED_INTEGER: comps = 1; break;
@@ -1335,54 +1350,70 @@ bool WebGL1::readCheck(int w, int h, std::uint32_t format, std::uint32_t type, s
   const bool fixedOk = format == GL_RGBA && (type == GL_UNSIGNED_BYTE || (type == GL_UNSIGNED_INT_2_10_10_10_REV && implT == GL_UNSIGNED_INT_2_10_10_10_REV)) && implT != GL_FLOAT && implT != GL_INT && implT != GL_UNSIGNED_INT;
   if (!(fixedOk || (format == implF && type == implT))) { error(GL_INVALID_OPERATION); return false; }
   if (w < 0 || h < 0) { error(GL_INVALID_VALUE); return false; }
-  if (packSkipPixels_ + w > (packRowLength_ > 0 ? packRowLength_ : w)) { error(GL_INVALID_OPERATION); return false; }
-  const std::int64_t bpp = packed ? tsize : static_cast<std::int64_t>(comps) * tsize;
-  const std::int64_t rowPixels = packRowLength_ > 0 ? packRowLength_ : w;
-  const std::int64_t rowBytes = (rowPixels * bpp + packAlignment_ - 1) / packAlignment_ * packAlignment_;
-  needed = static_cast<std::size_t>(packSkipRows_ * rowBytes + packSkipPixels_ * bpp + (w > 0 && h > 0 ? rowBytes * (h - 1) + w * bpp : 0));
-  return true;
+  return readPack(w, h, packed ? tsize : std::size_t(comps) * tsize, needed, write);
 }
-void WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes) {
-  Offscreen::ReadResolved resolved(gl_);   // the multisampled canvas reads its resolved copy (ZN-576)
+WebGL1::PixelRead WebGL1::readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes) {
+  driverOk();   // older driver errors remain observable, independently of this read
+  Offscreen::ReadResolved resolved(gl_);
+  PixelRead write;
+  std::size_t need = 0;
   if (version_ == 2) {
-    std::size_t need = 0;
-    if (packBufferBound()) return error(GL_INVALID_OPERATION);   // a pack buffer wants an offset, not a view
-    if (!readCheck(w, h, format, type, need)) return;
-    if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
-    if (outBytes < need) return error(GL_INVALID_OPERATION);
-    glReadPixels(x, y, w, h, format, type, out);
-    return;
-  }
-  if (format != GL_ALPHA && format != GL_RGB && format != GL_RGBA && format != GL_LUMINANCE && format != GL_LUMINANCE_ALPHA) return error(GL_INVALID_ENUM);
-  if (format == GL_RGBA && (type == GL_FLOAT || type == kHalfFloatOes) && fbo_ && (extOn(Ext::ColorBufHalf) || extOn(Ext::ColorBufFloatWebgl))) {   // a floating-point framebuffer reads back as floats
-    GLint ctype = GL_NONE, comp = 0;
-    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &ctype);
-    if (ctype != GL_NONE) glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &comp);
-    while (glGetError() != GL_NO_ERROR) {}
-    if (comp == GL_FLOAT) {
-      if (w < 0 || h < 0) return error(GL_INVALID_VALUE);
-      if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
-      if (outBytes < static_cast<std::size_t>(w) * h * (type == GL_FLOAT ? 16 : 8)) return error(GL_INVALID_OPERATION);
-      glReadPixels(x, y, w, h, GL_RGBA, type == GL_FLOAT ? GL_FLOAT : GL_HALF_FLOAT, out);
-      return;
+    if (packBufferBound()) { error(GL_INVALID_OPERATION); return {}; }
+    if (!readCheck(w, h, format, type, need, write)) return {};
+  } else {
+    if (format != GL_ALPHA && format != GL_RGB && format != GL_RGBA && format != GL_LUMINANCE && format != GL_LUMINANCE_ALPHA) { error(GL_INVALID_ENUM); return {}; }
+    bool floating = false;
+    if (format == GL_RGBA && (type == GL_FLOAT || type == kHalfFloatOes) && fbo_ && (extOn(Ext::ColorBufHalf) || extOn(Ext::ColorBufFloatWebgl))) {
+      GLint ctype = GL_NONE, comp = 0;
+      glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &ctype);
+      if (ctype != GL_NONE) glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, &comp);
+      while (glGetError() != GL_NO_ERROR) {}
+      floating = comp == GL_FLOAT;
     }
+    if (!floating) {
+      switch (type) { case GL_UNSIGNED_BYTE: case GL_BYTE: case GL_SHORT: case GL_UNSIGNED_SHORT: case GL_INT: case GL_UNSIGNED_INT: case GL_FLOAT: case GL_UNSIGNED_SHORT_5_6_5: case GL_UNSIGNED_SHORT_4_4_4_4: case GL_UNSIGNED_SHORT_5_5_5_1: case 0x8D61: break; default: error(GL_INVALID_ENUM); return {}; }
+      if (format != GL_RGBA || type != GL_UNSIGNED_BYTE) { error(GL_INVALID_OPERATION); return {}; }
+    }
+    if (w < 0 || h < 0) { error(GL_INVALID_VALUE); return {}; }
+    if (!readPack(w, h, floating ? (type == GL_FLOAT ? 16 : 8) : 4, need, write)) return {};
+    if (floating && type == kHalfFloatOes) type = GL_HALF_FLOAT;
   }
-  switch (type) { case GL_UNSIGNED_BYTE: case GL_BYTE: case GL_SHORT: case GL_UNSIGNED_SHORT: case GL_INT: case GL_UNSIGNED_INT: case GL_FLOAT: case GL_UNSIGNED_SHORT_5_6_5: case GL_UNSIGNED_SHORT_4_4_4_4: case GL_UNSIGNED_SHORT_5_5_5_1: case 0x8D61: break; default: return error(GL_INVALID_ENUM); }   // 0x8D61: HALF_FLOAT_OES
-  if (format != GL_RGBA || type != GL_UNSIGNED_BYTE) return error(GL_INVALID_OPERATION);   // the one combination every implementation reads
-  if (w < 0 || h < 0) return error(GL_INVALID_VALUE);
-  if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
-  if (outBytes < static_cast<std::size_t>(w) * h * 4) return error(GL_INVALID_OPERATION);
-  glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, out);
+  if (!framebufferReady(GL_READ_FRAMEBUFFER)) { error(GL_INVALID_FRAMEBUFFER_OPERATION); return {}; }
+  if (outBytes < need) { error(GL_INVALID_OPERATION); return {}; }
+  if (!w || !h) return {};
+  const int width = w, height = h, oldX = x, oldY = y;
+  const std::size_t bpp = write.rowBytes / w;
+  int xo = 0, yo = 0;
+  if (!clipCopy(x, y, w, h, xo, yo)) { driverOk(); return {}; }
+  write.offset += std::size_t(yo) * write.stride + std::size_t(xo) * bpp;
+  write.rowBytes = std::size_t(w) * bpp; write.rows = h;
+  if (x == oldX && y == oldY && w == width && h == height) {
+    glReadPixels(x, y, w, h, format, type, out);
+  } else if (gl_.api() != Api::Gles2) {
+    struct PackRestore {
+      GLint values[3];
+      PackRestore(int rowLength) {
+        glGetIntegerv(GL_PACK_ROW_LENGTH, &values[0]); glGetIntegerv(GL_PACK_SKIP_PIXELS, &values[1]); glGetIntegerv(GL_PACK_SKIP_ROWS, &values[2]);
+        glPixelStorei(GL_PACK_ROW_LENGTH, rowLength); glPixelStorei(GL_PACK_SKIP_PIXELS, 0); glPixelStorei(GL_PACK_SKIP_ROWS, 0);
+      }
+      ~PackRestore() { glPixelStorei(GL_PACK_ROW_LENGTH, values[0]); glPixelStorei(GL_PACK_SKIP_PIXELS, values[1]); glPixelStorei(GL_PACK_SKIP_ROWS, values[2]); }
+    } restore(packRowLength_ > 0 ? packRowLength_ : width);
+    glReadPixels(x, y, w, h, format, type, static_cast<std::uint8_t*>(out) + write.offset);
+  } else {
+    // GLES2 has no PACK_ROW_LENGTH; clipped rows retain the original destination pitch.
+    for (int row = 0; row < h; ++row) glReadPixels(x, y + row, w, 1, format, type, static_cast<std::uint8_t*>(out) + write.offset + std::size_t(row) * write.stride);
+  }
+  return driverOk() ? write : PixelRead{};
 }
 void WebGL1::readPixelsToBuffer(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, std::int64_t offset) {
   Offscreen::ReadResolved resolved(gl_);   // the multisampled canvas reads its resolved copy (ZN-576)
   if (version_ != 2 || !packBufferBound()) return error(GL_INVALID_OPERATION);
   if (offset < 0) return error(GL_INVALID_VALUE);
-  std::size_t need = 0;
-  if (!readCheck(w, h, format, type, need)) return;
+  std::size_t need = 0; PixelRead write;
+  if (!readCheck(w, h, format, type, need, write)) return;
   if (!framebufferReady(GL_READ_FRAMEBUFFER)) return error(GL_INVALID_FRAMEBUFFER_OPERATION);
   const Buf& b = buffers_[otherBuffers_[0x88EB]];
-  if (offset > b.size || static_cast<std::int64_t>(need) > b.size - offset) return error(GL_INVALID_OPERATION);
+  if (offset > b.size || need > static_cast<std::uint64_t>(b.size - offset)) return error(GL_INVALID_OPERATION);
   glReadPixels(x, y, w, h, format, type, reinterpret_cast<void*>(static_cast<std::intptr_t>(offset)));
 }
 

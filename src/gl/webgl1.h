@@ -200,7 +200,8 @@ class WebGL1 {
   void bindFramebuffer(std::uint32_t target, Id f);
   void framebufferTexture2D(std::uint32_t target, std::uint32_t attachment, std::uint32_t textarget, Id tex, int level);
   std::uint32_t checkFramebufferStatus(std::uint32_t target);
-  void readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes);
+  struct PixelRead { std::size_t offset = 0, stride = 0, rowBytes = 0; int rows = 0; };
+  PixelRead readPixels(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, void* out, std::size_t outBytes);
   void readPixelsToBuffer(int x, int y, int w, int h, std::uint32_t format, std::uint32_t type, std::int64_t offset);   // WebGL 2 with a PIXEL_PACK_BUFFER bound
   bool packBufferBound() const { auto it = otherBuffers_.find(0x88EB); return it != otherBuffers_.end() && it->second != 0; }
   void implementationReadFormat(std::uint32_t& format, std::uint32_t& type);   // IMPLEMENTATION_COLOR_READ_FORMAT / _TYPE of the read buffer
@@ -380,7 +381,8 @@ class WebGL1 {
   int packAlignment_ = 4, packRowLength_ = 0, packSkipPixels_ = 0, packSkipRows_ = 0, unpackRowLength_ = 0, unpackImageHeight_ = 0, unpackSkipPixels_ = 0, unpackSkipRows_ = 0, unpackSkipImages_ = 0;
   bool srgbBlit(int sx0, int sy0, int sx1, int sy1, int dx0, int dy0, int dx1, int dy1, std::uint32_t filter);   // colour blit by drawing, for the cases the driver's blit converts wrongly
   std::uint32_t blitProg_ = 0, blitVao_ = 0;
-  bool readCheck(int w, int h, std::uint32_t format, std::uint32_t type, std::size_t& needed);   // the WebGL 2 readPixels rules; needed: bytes of the destination
+  bool readPack(int w, int h, std::size_t bpp, std::size_t& needed, PixelRead& write);
+  bool readCheck(int w, int h, std::uint32_t format, std::uint32_t type, std::size_t& needed, PixelRead& write);   // the WebGL 2 readPixels rules; needed: bytes of the destination
   std::uint32_t mipmapHint_ = 0x1100, derivativeHint_ = 0x1100;   // DONT_CARE
   int unpackFlipY_ = 0, unpackPremultiply_ = 0, unpackColorspace_ = 0x9244;   // the WEBGL pixel-store state, applied by the binding on image sources
   std::uint32_t vao_ = 0;

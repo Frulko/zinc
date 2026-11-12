@@ -99,7 +99,7 @@ const std::vector<int>& ints(const HostArg& a) { static std::vector<int> v; v.re
 const std::vector<std::uint32_t>& uints(const HostArg& a) { static std::vector<std::uint32_t> v; v.resize(a.n); for (std::uint32_t i = 0; i < a.n; ++i) v[i] = static_cast<std::uint32_t>(static_cast<std::int64_t>(slot(a, i))); return v; }
 
 // A GLArray's elements as bytes: kind 1 Int8, 2 Uint8, 3 Int16, 4 Uint16, 5 Int32, 6 Uint32, 7 Float32 (zinc:gl's typed array classes); 0 is null
-struct Bytes { void* p = nullptr; std::size_t n = 0; bool null = true; int kind = 0; };
+struct Bytes { void* p = nullptr; std::size_t n = 0; bool null = true; int kind = 0; WebGL1::PixelRead written; };
 int elemSize(int kind) { return kind <= 2 ? 1 : kind <= 4 ? 2 : 4; }
 std::vector<std::uint8_t> gIn, gOut;
 template <class T> void put(std::uint8_t* dst, std::uint32_t i, T v) { std::memcpy(dst + i * sizeof(T), &v, sizeof(T)); }
@@ -125,6 +125,18 @@ Bytes bytesIn(const HostArg& data, const HostArg& kind) {
   b.p = gIn.data();
   return b;
 }
+bool readPixelsKind(int kind, std::uint32_t type) {
+  switch (type) {
+    case 0x1400: return kind == 1;
+    case 0x1401: return kind == 2;
+    case 0x1402: return kind == 3;
+    case 0x1403: case 0x8363: case 0x8033: case 0x8034: case 0x140B: case 0x8D61: return kind == 4;
+    case 0x1404: return kind == 5;
+    case 0x1405: case 0x8368: case 0x8C3B: case 0x8C3E: case 0x84FA: return kind == 6;
+    case 0x1406: return kind == 7;
+    default: return true;   // the provider reports an unknown pixel type as INVALID_ENUM
+  }
+}
 Bytes bytesOut(const HostArg& data, const HostArg& kind) {   // room for the array's length, read back by bytesBack
   Bytes b;
   b.kind = static_cast<int>(kind.i) >= 1 && static_cast<int>(kind.i) <= 7 ? static_cast<int>(kind.i) : 2;
@@ -132,24 +144,29 @@ Bytes bytesOut(const HostArg& data, const HostArg& kind) {   // room for the arr
   b.n = static_cast<std::size_t>(data.n) * elemSize(b.kind);
   gOut.assign(b.n ? b.n : 1, 0);
   b.p = gOut.data();
+  b.written = {0, b.n, b.n, 1};
   return b;
 }
 template <class T> double get(const std::uint8_t* src, std::uint32_t i) { T v; std::memcpy(&v, src + i * sizeof(T), sizeof(T)); return static_cast<double>(v); }
 void bytesBack(const Bytes& b, const HostArg& data) {
   std::uint64_t* slots = const_cast<std::uint64_t*>(static_cast<const std::uint64_t*>(data.p));
   const std::uint8_t* src = static_cast<const std::uint8_t*>(b.p);
-  for (std::uint32_t i = 0; i < data.n; ++i) {
-    double d = 0;
-    switch (b.kind) {
-      case 1: d = get<std::int8_t>(src, i); break;
-      case 2: d = get<std::uint8_t>(src, i); break;
-      case 3: d = get<std::int16_t>(src, i); break;
-      case 4: d = get<std::uint16_t>(src, i); break;
-      case 5: d = get<std::int32_t>(src, i); break;
-      case 6: d = get<std::uint32_t>(src, i); break;
-      default: d = get<float>(src, i); break;
+  for (int row = 0; row < b.written.rows; ++row) {
+    const std::size_t first = (b.written.offset + std::size_t(row) * b.written.stride) / elemSize(b.kind);
+    const std::size_t end = first + b.written.rowBytes / elemSize(b.kind);
+    for (std::uint32_t i = static_cast<std::uint32_t>(first); i < end; ++i) {
+      double d = 0;
+      switch (b.kind) {
+        case 1: d = get<std::int8_t>(src, i); break;
+        case 2: d = get<std::uint8_t>(src, i); break;
+        case 3: d = get<std::int16_t>(src, i); break;
+        case 4: d = get<std::uint16_t>(src, i); break;
+        case 5: d = get<std::int32_t>(src, i); break;
+        case 6: d = get<std::uint32_t>(src, i); break;
+        default: d = get<float>(src, i); break;
+      }
+      std::memcpy(slots + i, &d, 8);
     }
-    std::memcpy(slots + i, &d, 8);
   }
 }
 

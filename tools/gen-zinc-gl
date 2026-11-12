@@ -197,7 +197,7 @@ m("clearBufferuiv", "buffer:u32 drawbuffer:i32 values:uarr", "gl.clearBufferuiv(
 m("clearBufferfi", "buffer:u32 drawbuffer:i32 depth:f32 stencil:i32", "gl.clearBufferfi({1}, {2}, {3}, {4});")
 m("getInternalformatParameter", "target:u32 internalformat:u32 pname:u32",
   "{ bool ok = false; std::vector<int> v = gl.getInternalformatParameter({1}, {2}, {3}, ok); c->param = WebGL1::Param{}; if (ok) { c->param.kind = 'a'; c->param.ok = true; for (int x : v) c->param.v.push_back(x); } }", "param")
-m("readPixels", "x:i32 y:i32 width:i32 height:i32 format:u32 type:u32 pixels:out", "gl.readPixels({1}, {2}, {3}, {4}, {5}, {6}, {7}, {7}n);")
+m("readPixels", "x:i32 y:i32 width:i32 height:i32 format:u32 type:u32 pixels:out", "if (!readPixelsKind({7}kind, {6})) { gl.raise(0x0502); break; } {7}write = gl.readPixels({1}, {2}, {3}, {4}, {5}, {6}, {7}, {7}n);")
 # ---- queries, syncs, transform feedback (WebGL 2)
 m("createQuery", "", "r->i = gl.createQuery();", "Query"); m("deleteQuery", "query:Query?", "gl.deleteQuery({1});")
 m("isQuery", "query:Query?", "r->i = gl.isQuery({1});", "bool")
@@ -297,6 +297,7 @@ def cppArgs(ps):
             pre.append("const Bytes v%d = bytesIn(%s, a[%d]);" % (idx, a, k + 1)); vals[idx] = "v%d.p" % idx; extra["%dn" % idx] = "v%d.n" % idx; extra["%dnull" % idx] = "v%d.null" % idx; k += 1
         elif t == "out":
             pre.append("Bytes v%d = bytesOut(%s, a[%d]);" % (idx, a, k + 1)); vals[idx] = "v%d.p" % idx; extra["%dn" % idx] = "v%d.n" % idx
+            extra["%dkind" % idx] = "I(a[%d])" % (k + 1); extra["%dwrite" % idx] = "v%d.written" % idx
             post.append("bytesBack(v%d, %s);" % (idx, a)); k += 1
         else: vals[idx] = "U(%s)" % a   # an object id
         k += 1
