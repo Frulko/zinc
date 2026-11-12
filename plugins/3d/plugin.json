@@ -20,10 +20,17 @@
   },
   "native": {
     "impl": {
-      "macos": "native/render3d.gl.cpp"
+      "macos": "native/render3d.gl.cpp",
+      "linux": "native/render3d.gl.cpp"
     }
   },
-  "web": { "native": "Render3D", "impl": "web/render3d.js", "needs": ["webgl2"] },
+  "web": {
+    "native": "Render3D",
+    "impl": "web/render3d.js",
+    "needs": [
+      "webgl2"
+    ]
+  },
   "targets": {
     "macos": {
       "frameworks": [
@@ -33,7 +40,12 @@
         "GL_SILENCE_DEPRECATION"
       ]
     },
-    "linux": {},
+    "linux": {
+      "flags": [
+        "-I../../third_party/glad/include",
+        "-I../../third_party/SDL3/include"
+      ]
+    },
     "windows": {},
     "rpi1": {},
     "esp32": {},

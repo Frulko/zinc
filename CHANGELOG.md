@@ -104,6 +104,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - PSP and 3DS GPU replay reports quads, cached shape tiles and cache hits per frame when verbose logging is enabled.
 - `zinc:3d/gltf` exposes scene-space triangles for picking tools and reads uniform `KHR_materials_specular` factors through its existing highlight model.
 
+- Linux desktop CLI runs can use the `zinc:3d` GPU renderer through SDL and OpenGL ES 3, with software fallback and no OpenGL development-package requirement.
+
 #### Changed
 
 - Linux loads SDL and its window host only when a program needs a window; packages and fused apps carry `libzn_window.so`.

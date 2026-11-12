@@ -54,6 +54,8 @@ def payload(share):
     qj = os.path.join(NEXT, "third_party", "quickjs-ng")
     copy_tree(qj, os.path.join(nx, "third_party", "quickjs-ng"), lambda r: r in ("libunicode.c", "libunicode.h", "libunicode-table.h", "cutils.h"))   # Unicode strings of the runtime (cross builds)
     copy_tree(os.path.join(NEXT, "third_party", "macos-shim"), os.path.join(nx, "third_party", "macos-shim"))
+    copy_tree(os.path.join(NEXT, "third_party", "SDL3"), os.path.join(nx, "third_party", "SDL3"), lambda r: (r.startswith("include/SDL3/") and r.endswith(".h")) or r == "LICENSE.txt")   # public API only; GPU plugins resolve SDL from the host window module
+    copy_tree(os.path.join(NEXT, "third_party", "glad"), os.path.join(nx, "third_party", "glad"), lambda r: r in ("include/glad/gl.h", "include/KHR/khrplatform.h"))   # private GL declarations of zinc:3d; licences are embedded in the headers
     mo = os.path.join(NEXT, "third_party", "meshoptimizer")   # the meshopt decoder the three plugin compiles in (ZN-441)
     copy_tree(mo, os.path.join(nx, "third_party", "meshoptimizer"), lambda r: r in ("vertexcodec.cpp", "indexcodec.cpp", "vertexfilter.cpp", "meshoptimizer.h", "LICENSE.md"))
     copy_tree(os.path.join(NEXT, "third_party", "basis_universal"), os.path.join(nx, "third_party", "basis_universal"), lambda r: r.startswith("transcoder/") or r in ("LICENSE", "NOTICE", "PIN", "SHA256SUMS"))   # native KTX2 decoder of zinc:three-pi; reuse the browser decoder's pin

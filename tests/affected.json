@@ -3,6 +3,7 @@
   "default": ["checker", "lang"],
   "map": [
     {"paths": ["src/frontend/check.cpp", "tests/data/try_flow/", "tests/t0/try_flow.sh"], "tests": ["try_flow"]},
+    {"paths": ["plugins/3d/native/gpu_", "plugins/3d/native/render3d.gl.cpp", "plugins/3d/plugin.json", "tools/package", "tests/native/gpu56301/", "tests/t0/zinc3d_gpu_loader.sh"], "tests": ["zinc3d_gpu_loader"]},
     {"paths": ["plugins/ipod/native/ipod_linux_mount.h", "plugins/ipod/native/ipod_usb_identity.h", "plugins/ipod/native/ipod_core.cpp", "tests/native/ipod_mount.cpp", "tests/t0/ipod_mount.sh"], "tests": ["ipod_mount"]},
     {"paths": ["plugins/discord-voice/index.ts", "plugins/discord-voice/native/voice.spec.ts", "plugins/discord-voice/native/voice.host.cpp", "tests/native/discord_video_capability.mjs", "tests/t0/discord_video_capability.sh"], "tests": ["discord_video_capability"]},
     {"paths": ["examples/museum-table/tools/decimate.cpp", "tests/native/decimate_glb_check.cpp", "tests/native/museum_decimate.py", "tests/t0/museum_decimate_tool.sh"], "tests": ["museum_decimate_tool"]},

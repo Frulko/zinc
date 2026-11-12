@@ -5,15 +5,12 @@
 // (the host's), like zinc:gl and display-gl. Chosen by the option "renderer" (docs/plugins/3d.md). The read is asynchronous (a pixel buffer per
 // target, mapped one frame later: the image shows the previous frame, as gl.zincPresent does) except in deterministic runs (ZINC_GL_PRESENT
 // chooses, as for WebGL): a synchronous read waits for the GPU and costs 2 to 3 ms a frame at 800 x 500 on the Intel Mac (ZN-563).
+#define ZRT_HOSTED_CPP
 #define ZP_3D_GPU 1
 #include "render3d.host.cpp"
 
-#include <SDL3/SDL.h>
-#ifdef __APPLE__
-#include <OpenGL/gl3.h>
-#else
-#include <GLES3/gl3.h>
-#endif
+#include "gpu_context.h"
+#include "gpu_pool.h"
 #include <stdio.h>
 
 #ifndef ZP_3D_RENDERER
@@ -34,8 +31,8 @@ namespace {
 const char* kVsPre = "#version 150\n#define attribute in\n#define varying out\n#define SCREEN noperspective\n";
 const char* kFsPre = "#version 150\n#define varying in\n#define texture2D texture\nout vec4 fragColor;\n#define gl_FragColor fragColor\n#define SCREEN noperspective\n";
 #else
-const char* kVsPre = "#version 100\n#define SCREEN\n";
-const char* kFsPre = "#version 100\n#extension GL_OES_standard_derivatives : enable\nprecision highp float;\n#define SCREEN\n";
+const char* kVsPre = "#version 300 es\n#define attribute in\n#define varying out\n#define SCREEN\n";
+const char* kFsPre = "#version 300 es\nprecision highp float;\n#define varying in\n#define texture2D texture\nout vec4 fragColor;\n#define gl_FragColor fragColor\n#define SCREEN\n";
 #endif
 const char* kShade = R"(
 uniform vec3 u_amb, u_ld[4], u_lc[4], u_eye, u_spec;
@@ -157,10 +154,9 @@ GLuint shader(GLenum kind, const char* pre, const char* defs, const char* body) 
 }
 
 struct Gpu : Engine {
-  SDL_Window* win = nullptr;
-  SDL_GLContext ctx = nullptr;
-  Pool<GMesh> gmeshes;
-  Pool<GTarget> gtargets;
+  GpuContext context;
+  GpuPool<GMesh> gmeshes;
+  GpuPool<GTarget> gtargets;
   GTarget* gcur = nullptr;
   Prog progs[256];
   GTex* texs = nullptr;  // by image: the baked ones, then the runtime ones (no STL here: zrt.h defines placement new)
@@ -176,12 +172,12 @@ struct Gpu : Engine {
 #if __has_include("zn/resource_stats.h")
   static ZnResourceStats meshStats(void* owner) {
     auto& g = *(Gpu*)owner; ZnResourceStats s{};
-    for (int i = 0; i < g.gmeshes.n; ++i) if (const GMesh* m = g.gmeshes.p[i]) { ++s.objects; s.gpuBytes += m->bytes; }
+    for (int i = 0; i < g.gmeshes.n; ++i) if (const GMesh* m = g.gmeshes.slots[i].value) { ++s.objects; s.gpuBytes += m->bytes; }
     return s;
   }
   static ZnResourceStats targetStats(void* owner) {
     auto& g = *(Gpu*)owner; ZnResourceStats s{};
-    for (int i = 0; i < g.gtargets.n; ++i) if (const GTarget* t = g.gtargets.p[i]) {
+    for (int i = 0; i < g.gtargets.n; ++i) if (const GTarget* t = g.gtargets.slots[i].value) {
       ++s.objects; const uint64_t pixels = (uint64_t)t->w * t->h;
       s.cpuBytes += pixels * 4;
       // RGBA8 + depth24 (assumed padded to 32 bits), two readback PBOs, and the optional multisampled pair.
@@ -196,21 +192,9 @@ struct Gpu : Engine {
   }
 #endif
   bool open() {
-    if (!SDL_WasInit(SDL_INIT_VIDEO) && !SDL_InitSubSystem(SDL_INIT_VIDEO)) return false;
-    SDL_GL_ResetAttributes();
-#ifdef __APPLE__
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
-#else
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#endif
-    win = SDL_CreateWindow("zinc:3d", 16, 16, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
-    if (win) ctx = SDL_GL_CreateContext(win);
-    if (!ctx) { if (win) SDL_DestroyWindow(win); win = nullptr; return false; }
+    if (!context.open()) return false;
+    GpuCurrent restore;
+    current();
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
     glCullFace(GL_BACK);
@@ -229,7 +213,7 @@ struct Gpu : Engine {
     filter = !strcmp(f, "nearest") ? 1 : !strcmp(f, "linear") ? 2 : 3;
     return true;
   }
-  void current() { if (SDL_GL_GetCurrentContext() != ctx) SDL_GL_MakeCurrent(win, ctx); }  // zinc:gl's contexts live beside this one
+  void current() { context.current(); }  // zinc:gl's contexts live beside this one
 
   Prog& program(int k) {
     Prog& p = progs[k];
@@ -283,7 +267,9 @@ struct Gpu : Engine {
     glBindVertexArray(0);
     mfree(v);
     Engine::meshDestroy(sid);
-    return gmeshes.add(g);
+    const int32_t id = gmeshes.add(g);
+    if (id < 0) { glDeleteVertexArrays(1, &g->vao); glDeleteBuffers(1, &g->vbo); glDeleteBuffers(1, &g->ibo); mfree(g); }
+    return id;
   }
   // A .zmesh part (ZN-441): its vertex arrays go up as they are, one buffer with a range per attribute, then its indices.
   int32_t meshLoad(Array<uint8_t> data, int32_t at) override {
@@ -306,7 +292,9 @@ struct Gpu : Engine {
     if (uv) { glEnableVertexAttribArray(2); glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8, (void*)o); o += 8 * (size_t)nv; }
     if (col) { glEnableVertexAttribArray(3); glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, 4, (void*)o); }
     glBindVertexArray(0);
-    return gmeshes.add(g);
+    const int32_t id = gmeshes.add(g);
+    if (id < 0) { glDeleteVertexArrays(1, &g->vao); glDeleteBuffers(1, &g->vbo); glDeleteBuffers(1, &g->ibo); mfree(g); }
+    return id;
   }
   void meshDestroy(int32_t id) override {
     GMesh* g = gmeshes.at(id);
@@ -314,7 +302,7 @@ struct Gpu : Engine {
     current();
     glDeleteVertexArrays(1, &g->vao); glDeleteBuffers(1, &g->vbo); glDeleteBuffers(1, &g->ibo);
     mfree(g);
-    gmeshes.p[id] = nullptr;
+    gmeshes.remove(id);
   }
   bool meshDeform(int32_t id, Array<N> pos, Array<N> nrm) override {
     GMesh* g = gmeshes.at(id);
@@ -336,10 +324,11 @@ struct Gpu : Engine {
     if (w < 1) w = 1;
     if (h < 1) h = 1;
     GTarget* t = gtargets.at(id);
+    if (id >= 0 && !t) return -1;  // A stale handle cannot resize or replace a different target.
     if (t && t->w == w && t->h == h) return id;
     current();
     if (t) release(t);
-    else { t = (GTarget*)mem(sizeof(GTarget)); id = gtargets.add(t); }
+    else { t = (GTarget*)mem(sizeof(GTarget)); id = gtargets.add(t); if (id < 0) { mfree(t); return -1; } }
     t->w = w; t->h = h;
     memset(t->vp, 0, sizeof(t->vp));
     t->px = (uint32_t*)mem((size_t)w * h * 4);
@@ -383,7 +372,7 @@ struct Gpu : Engine {
     if (!t) return;
     current();
     release(t); mfree(t);
-    gtargets.p[id] = nullptr;
+    gtargets.remove(id);
   }
 
   void begin(int32_t id, uint32_t clear, Array<N> view, N proj, N nearN, N farN, bool ortho) override {
@@ -520,9 +509,9 @@ struct Gpu : Engine {
     int px, py; double depth;
     if (!zn3d::projectPoint(t->vp, t->w, t->h, F(x), F(y), F(z), px, py, depth)) return 0;
     struct RestoreContext {
-      SDL_Window* window = SDL_GL_GetCurrentWindow();
-      SDL_GLContext context = SDL_GL_GetCurrentContext();
-      ~RestoreContext() { if (SDL_GL_GetCurrentContext() != context) SDL_GL_MakeCurrent(window, context); }
+      SDL_Window* window = sdl.GL_GetCurrentWindow();
+      SDL_GLContext context = sdl.GL_GetCurrentContext();
+      ~RestoreContext() { if (sdl.GL_GetCurrentContext() != context) sdl.GL_MakeCurrent(window, context); }
     } restoreContext;
     current();
     struct RestoreBindings {
@@ -601,14 +590,11 @@ NativeRender3D* gpuRenderer() {
   const char* e = getenv("ZINC_3D");
   const char* want = e && *e ? e : ZP_3D_RENDERER;
   if (!strcmp(want, "software") || (!strcmp(want, "auto") && getenv("ZINC_DETERMINISTIC"))) return nullptr;
+  if (!gpuSdlLoad()) return nullptr;
   static Gpu g;
-  static bool tried = false, ok = false;
-  if (!tried) {
-    tried = true;
-    ok = g.open();
-    if (!ok) fprintf(stderr, "zinc:3d: no GPU context (%s); drawing with the software renderer\n", SDL_GetError());
-  }
-  if (!ok) return nullptr;
+  if (g.context.state == GpuContext::State::NotTried && !g.open())
+    fprintf(stderr, "zinc:3d: no GPU context (%s); drawing with the software renderer\n", sdl.GetError());
+  if (g.context.state != GpuContext::State::Ready) return nullptr;
 #if __has_include("zn/resource_stats.h")
   static ZnResourceStatsRegistration meshes("3d.meshes", Gpu::meshStats, &g), targets("3d.targets", Gpu::targetStats, &g), textures("3d.textures", Gpu::textureStats, &g);
 #endif
