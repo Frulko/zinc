@@ -2,14 +2,21 @@
 const LIMIT = 4 * 1024 * 1024;
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 export function nativeSignature(sig) {
-  if (typeof sig !== 'string' || !/^[siubdfBIDS]{0,12}>[nsiubdfBID]$/.test(sig)) throw new Error('unsupported browser native signature: ' + sig);
+  if (typeof sig !== 'string' || !/^[siubdfBIUDS]{0,12}>[nsiubdfBID]$/.test(sig)) throw new Error('unsupported browser native signature: ' + sig);
   return sig.split('>');
 }
 function validArgument(type, value) {
-  if (type === 's') return typeof value === 'string';
+  if (type === 'n') return true;
+  if (type === 's') return typeof value === 'string' && value.length <= LIMIT;
   if (type === 'b') return typeof value === 'boolean';
-  if ('iudf'.includes(type)) return typeof value === 'number' && Number.isFinite(value) && (type === 'd' || type === 'f' || Number.isInteger(value) && value >= (type === 'u' ? 0 : -2147483648) && value <= (type === 'u' ? 4294967295 : 2147483647));
-  return Array.isArray(value) && value.length <= LIMIT / (type === 'B' ? 1 : type === 'I' ? 4 : 8) && value.every(v => type === 'S' ? typeof v === 'string' : typeof v === 'number' && Number.isFinite(v) && (type === 'D' || Number.isInteger(v) && v >= (type === 'B' ? 0 : -2147483648) && v <= (type === 'B' ? 255 : 2147483647)));
+  if ('iudf'.includes(type)) return typeof value === 'number' && Number.isFinite(value) && (type === 'd' || type === 'f' && Number.isFinite(Math.fround(value)) || (type === 'i' || type === 'u') && Number.isInteger(value) && value >= (type === 'u' ? 0 : -2147483648) && value <= (type === 'u' ? 4294967295 : 2147483647));
+  const width = type === 'B' ? 1 : type === 'I' || type === 'U' ? 4 : 8;
+  return (Array.isArray(value) || ArrayBuffer.isView(value)) && Number.isInteger(value.length) && value.length <= LIMIT / width && Array.from(value).every(v => type === 'S' ? typeof v === 'string' : validArgument(type === 'D' ? 'd' : type === 'U' ? 'u' : 'i', v) && (type !== 'B' || v >= 0 && v <= 255));
+}
+function transported(type, value) {
+  if (type === 'n') return undefined;
+  if (!validArgument(type,value)) throw new Error('invalid browser native value');
+  return 'BIUD'.includes(type) ? Array.from(value) : value;
 }
 export class NativeABI {
   constructor(memory, exports) { this.memory = memory; this.exports = exports; this.result = 0; }
@@ -33,7 +40,7 @@ export class NativeABI {
     if ('iubdf'.includes(type)) { take(8); return; }
     const p = v.getUint32(ptr,true), n = v.getUint32(ptr+4,true);
     if (type === 's') { this.range(p,n); take(n); return; }
-    const width = type === 'B' ? 1 : type === 'I' ? 4 : 8;
+    const width = type === 'B' ? 1 : type === 'I' || type === 'U' ? 4 : 8;
     this.range(p,n,width); take(n*width);
     if (type === 'S') for (let i=0;i<n;i++) {
       const text = v.getUint32(p+i*8,true), bytes = v.getUint32(p+i*8+4,true);
@@ -53,7 +60,7 @@ export class NativeABI {
     const p = v.getUint32(ptr, true), n = v.getUint32(ptr + 4, true);
     if (type === 's') return this.string(p, n);
     if (type === 'S') return Array.from({length:n}, (_, i) => this.value('s', p + i * 8));
-    return Array.from({length:n}, (_, i) => type === 'B' ? v.getUint8(p+i) : type === 'I' ? v.getInt32(p+i*4,true) : v.getFloat64(p+i*8,true));
+    return Array.from({length:n}, (_, i) => type === 'B' ? v.getUint8(p+i) : type === 'I' ? v.getInt32(p+i*4,true) : type === 'U' ? v.getUint32(p+i*4,true) : v.getFloat64(p+i*8,true));
   }
   args(sig, ptr) {
     const [params] = nativeSignature(sig); this.range(ptr, params.length, 8);
@@ -64,39 +71,67 @@ export class NativeABI {
     if (encoder.encode(JSON.stringify(values)).length > LIMIT) throw new Error('browser native arguments exceed transport bounds');
     return values;
   }
-  write(type, ptr, value) {
-    this.range(ptr, 8);
-    if (this.result) { this.exports.zn_free(this.result); this.result = 0; }
-    if (type === 'n') return;
-    if ('iubdf'.includes(type)) {
-      if (type !== 'b' && (typeof value !== 'number' || !Number.isFinite(value))) throw new Error('invalid browser native scalar result');
-      if (type === 'b' && typeof value !== 'boolean') throw new Error('invalid browser native boolean result');
-      const v = this.view();
-      if (type === 'd' || type === 'f') v.setFloat64(ptr, type === 'f' ? Math.fround(value) : value, true);
-      else v.setBigInt64(ptr, BigInt(type === 'b' ? +value : type === 'u' ? value >>> 0 : value | 0), true);
-      return;
-    }
-    let bytes, n;
-    if (type === 's') { if (typeof value !== 'string') throw new Error('invalid browser native string result'); bytes = encoder.encode(value); n = bytes.length; }
-    else {
-      if (!Array.isArray(value) && !ArrayBuffer.isView(value)) throw new Error('invalid browser native array result');
-      n = value.length;
-      const width = type === 'B' ? 1 : type === 'I' ? 4 : 8;
-      if (n > LIMIT / width) throw new Error('browser native result exceeds transport bounds');
-      bytes = new Uint8Array(n * width); const v = new DataView(bytes.buffer);
-      for (let i=0;i<n;i++) {
-        if (typeof value[i] !== 'number' || !Number.isFinite(value[i])) throw new Error('invalid browser native array element');
-        if (type === 'B') v.setUint8(i,value[i]); else if (type === 'I') v.setInt32(i*4,value[i],true); else v.setFloat64(i*8,value[i],true);
+  write(type, ptr, value) { this.complete('>'+type,0,ptr,{value,outputs:[]}); }
+  complete(sig, args, ret, reply) {
+    const [params,result] = nativeSignature(sig);
+    this.range(args,params.length,8); this.range(ret,8);
+    if (params.length && ret < args + params.length*8 && args < ret+8) throw new Error('overlapping browser native descriptors');
+    if (!reply || typeof reply !== 'object' || !Array.isArray(reply.outputs) || reply.outputs.length !== params.length) throw new Error('invalid browser native reply');
+    const items = [], budget = {left:LIMIT};
+    let length = 0;
+    const prepare = (type,ptr,value) => {
+      if (!validArgument(type,value)) throw new Error('invalid browser native result or output');
+      if (type === 'n') return;
+      let bytes = null, n = 0;
+      if (type === 's') { if (value.length > budget.left) throw new Error('browser native reply exceeds transport bounds'); bytes = encoder.encode(value); n = bytes.length; }
+      else if ('BIUD'.includes(type)) {
+        n = value.length; const width = type === 'B' ? 1 : type === 'D' ? 8 : 4;
+        if (n*width > budget.left) throw new Error('browser native reply exceeds transport bounds');
+        bytes = new Uint8Array(n*width); const v = new DataView(bytes.buffer);
+        for (let i=0;i<n;i++) {
+          if (type === 'B') v.setUint8(i,value[i]);
+          else if (type === 'I') v.setInt32(i*4,value[i],true);
+          else if (type === 'U') v.setUint32(i*4,value[i],true);
+          else v.setFloat64(i*8,value[i],true);
+        }
       }
-    }
-    if (bytes.length > LIMIT) throw new Error('browser native result exceeds transport bounds');
-    const p = this.exports.zn_alloc(bytes.length + 1);
-    if (!p) throw new Error('browser native result allocation failed');
-    this.result = p; this.range(p, bytes.length + 1);
-    new Uint8Array(this.memory().buffer, p, bytes.length).set(bytes);
-    this.view().setUint8(p + bytes.length, 0);
-    this.view().setUint32(ptr,p,true); this.view().setUint32(ptr+4,n,true);
+      budget.left -= bytes ? bytes.length : 8;
+      if (budget.left < 0) throw new Error('browser native reply exceeds transport bounds');
+      const offset = Math.ceil(length/8)*8;
+      if (bytes) length = offset + Math.max(1,bytes.length + (type === 's' ? 1 : 0));
+      items.push({type,ptr,value,bytes,n,offset});
+    };
+    prepare(result,ret,reply.value);
+    [...params].forEach((type,i) => {
+      if ('BIUD'.includes(type) && reply.outputs[i] !== null) prepare(type,args+i*8,reply.outputs[i]);
+      else if (reply.outputs[i] !== null) throw new Error('invalid browser native output slot');
+    });
+    let allocation = 0, base = 0;
+    try {
+      if (length) {
+        allocation = this.exports.zn_alloc(length+7);
+        if (!allocation) throw new Error('browser native reply allocation failed');
+        this.range(allocation,1);
+        if (length+7 > this.memory().buffer.byteLength-allocation) throw new Error('browser native reply allocation exceeds memory bounds');
+        base = Math.ceil(allocation/8)*8;
+        if (base < ret+8 && ret < base+length || params.length && base < args+params.length*8 && args < base+length) throw new Error('browser native reply overlaps descriptors');
+        // Allocation may grow memory: acquire views only after it completes.
+        for (const item of items) if (item.bytes) {
+          new Uint8Array(this.memory().buffer,base+item.offset,item.bytes.length).set(item.bytes);
+          if (item.type === 's') this.view().setUint8(base+item.offset+item.bytes.length,0);
+        }
+      }
+      const v = this.view();
+      for (const item of items) {
+        if (item.bytes) { v.setUint32(item.ptr,base+item.offset,true); v.setUint32(item.ptr+4,item.n,true); }
+        else if (item.type === 'd' || item.type === 'f') v.setFloat64(item.ptr,item.type === 'f' ? Math.fround(item.value) : item.value,true);
+        else v.setBigInt64(item.ptr,BigInt(item.type === 'b' ? +item.value : item.value),true);
+      }
+    } catch (error) { if (allocation) this.exports.zn_free(allocation); throw error; }
+    if (this.result) this.exports.zn_free(this.result);
+    this.result = allocation;
   }
+  close() { if (this.result) this.exports.zn_free(this.result); this.result = 0; }
   error(ptr, size, error) {
     if (!size) return;
     this.range(ptr, size);
@@ -125,9 +160,9 @@ export class NativeRPC {
       if (Atomics.load(header,0) !== Reply.Ready) { Atomics.compareExchange(header,0,Reply.Pending,Reply.Cancelled); throw new Error('browser native response timed out'); }
       const length = Atomics.load(header,1);
       if (length < 0 || length > LIMIT) throw new Error('invalid browser native response size');
-      const result = JSON.parse(decoder.decode(new Uint8Array(buffer,16,length).slice()));
+      const result = JSON.parse(decoder.decode(new Uint8Array(buffer,16,length).slice()),(_,value)=>value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 1 && value.$znNativeFloat === '-0' ? -0 : value);
       if (result.error) throw new Error(result.error);
-      return result.value;
+      return result;
     };
     if (blocking) {
       this.pending.set(id,{header}); this.send({nativeCall:{id,module,name,sig,args,buffer}});
@@ -158,14 +193,29 @@ export async function serveNative(Z, declarations, call, send) {
   let result;
   try {
     if (!declarations.some(d=>d[0]===module && d[1]===name && d[2]===sig)) throw new Error('browser native export or signature is not available');
-    const [params] = nativeSignature(sig);
+    const [params,ret] = nativeSignature(sig);
     if (!Array.isArray(args) || args.length !== params.length || ![...params].every((type,i)=>validArgument(type,args[i])) || encoder.encode(JSON.stringify(args)).length > LIMIT) throw new Error('invalid browser native arguments');
     const entry = Z.nativeOf(module);
     for (const feature of entry.needs) Z.require(feature,module+'.'+name);
-    result = {value:await entry.impl[name](...args)};
+    const before = [...params].map((type,i)=>'BIUD'.includes(type) ? Array.from(args[i]) : null);
+    const value = await entry.impl[name](...args);
+    const outputs = [...params].map((type,i) => {
+      if (!'BIUD'.includes(type)) return null;
+      if (!validArgument(type,args[i])) throw new Error('invalid browser native output');
+      return args[i].length === before[i].length && before[i].every((v,k)=>type === 'D' ? Object.is(v,args[i][k]) : v === args[i][k]) ? null : args[i];
+    });
+    const values = [[ret,value],...[...params].flatMap((type,i)=>outputs[i] !== null ? [[type,outputs[i]]] : [])];
+    let bytes = 0;
+    for (const [type,item] of values) {
+      if (!validArgument(type,item)) throw new Error('invalid browser native result or output');
+      bytes += type === 's' ? encoder.encode(item).length : 'BIUD'.includes(type) ? item.length*(type === 'B' ? 1 : type === 'D' ? 8 : 4) : type === 'n' ? 0 : 8;
+      if (bytes > LIMIT) throw new Error('browser native reply exceeds transport bounds');
+    }
+    result = {value:transported(ret,value),outputs:[...params].map((type,i)=>outputs[i] !== null ? transported(type,outputs[i]) : null)};
   } catch (error) { result = {error:String(error?.message || error)}; }
   let bytes;
-  try { bytes = encoder.encode(JSON.stringify(result)); }
+  // JSON otherwise erases the sign of zero in scalar results and numeric outputs.
+  try { bytes = encoder.encode(JSON.stringify(result,(_,value)=>Object.is(value,-0) ? {$znNativeFloat:'-0'} : value)); }
   catch { bytes = encoder.encode(JSON.stringify({error:'browser native result cannot be transported'})); }
   if (bytes.length > LIMIT) bytes = encoder.encode(JSON.stringify({error:'browser native result exceeds transport bounds'}));
   if (Atomics.compareExchange(header,0,Reply.Pending,Reply.Writing) !== Reply.Pending) return;

@@ -1,0 +1,1 @@
+{ "name": "wasm-native-arrays", "entry": "arrays.ts" }

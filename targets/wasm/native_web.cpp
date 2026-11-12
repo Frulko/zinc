@@ -14,7 +14,7 @@ std::deque<Export> exports;
 bool supported(const char* sig) {
   if (!sig) return false;
   const char* p = sig;
-  while (*p && *p != '>') { if (!std::strchr("siubdfBIDS", *p) || p - sig >= 12) return false; ++p; }
+  while (*p && *p != '>') { if (!std::strchr("siubdfBIUDS", *p) || p - sig >= 12) return false; ++p; }
   return *p == '>' && p[1] && std::strchr("nsiubdfBID", p[1]) && !p[2];
 }
 }

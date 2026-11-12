@@ -365,7 +365,7 @@ async function start(e) {
     try {
       const signature = nativeABI.cstr(sig);
       const result = nativeRPC.call(nativeABI.cstr(module),nativeABI.cstr(name),signature,nativeABI.args(signature,args),!jspi);
-      const finish = value => { nativeABI.write(signature.split('>')[1],ret,value); return 0; };
+      const finish = value => { nativeABI.complete(signature,args,ret,value); return 0; };
       return jspi ? result.then(finish).catch(fail) : finish(result);
     } catch (error) { return fail(error); }
   }
@@ -415,6 +415,7 @@ async function start(e) {
   let rc;
   try { rc = jspi ? await WebAssembly.promising(ex.zn_run)(p, zbc.byteLength) : ex.zn_run(p, zbc.byteLength); } catch (err) { console.error(String(err)); rc = -1; }
   nativeRPC.close();
+  nativeABI.close();
   self.postMessage({ done: true, rc, frames });
   if (canvas.convertToBlob) {
     const blob = await canvas.convertToBlob({ type: 'image/png' });

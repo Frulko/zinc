@@ -1,0 +1,17 @@
+{
+  "name": "array-probe",
+  "kind": "module",
+  "module": "zinc:array-probe",
+  "entry": "index.ts",
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "windows": {}
+  },
+  "deterministic": true,
+  "web": {
+    "native": "ArrayProbe",
+    "impl": "web/probe.js",
+    "needs": []
+  }
+}
