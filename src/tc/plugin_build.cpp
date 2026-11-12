@@ -486,7 +486,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   std::vector<std::string> packages;
   for (const std::string& pkg : ts.pkg) {
 #ifdef ZN_SDL_INCLUDE
-    if (!gCross.on && pluginTarget() == "macos" && pkg == "sdl3") continue;   // use the host's SDL, never load a second copy
+    if (!gCross.on && (pluginTarget() == "macos" || pluginTarget() == "linux") && pkg == "sdl3") continue;   // use the host's SDL, never load a second copy
 #endif
     packages.push_back(pkg);
   }
@@ -701,7 +701,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
     std::string inc = " -I" + q(gdir) + " -I" + q(root + "/src") + " -I" + q(root + "/include") + " -I" + q(runtime) + " -I" + q(runtime + "/include") + " -I" + q(p.dir)
 #ifdef ZN_SDL_INCLUDE
       + (!display && fs::exists(root + "/plugins/display-gl/zgl.h") ? " -I" + q(root + "/plugins/display-gl") : std::string())   // zinc:mapping draws through the GL context of display-gl (zgl.h)
-      + (buildOs() == "macos" ? " -I" + q(std::string(ZN_SDL_INCLUDE).rfind("@root@", 0) == 0 ? root + std::string(ZN_SDL_INCLUDE).substr(6) : std::string(ZN_SDL_INCLUDE)) : std::string())   // SDL3 (the host's): the emulator windows of the display drivers, zinc:3d's GL context
+      + ((buildOs() == "macos" || (buildOs() == "linux" && !gCross.on && std::find(ts.pkg.begin(), ts.pkg.end(), "sdl3") != ts.pkg.end())) ? " -I" + q(std::string(ZN_SDL_INCLUDE).rfind("@root@", 0) == 0 ? root + std::string(ZN_SDL_INCLUDE).substr(6) : std::string(ZN_SDL_INCLUDE)) : std::string())   // SDL3 (the host's): the emulator windows of the display drivers, zinc:3d's GL context
 #endif
       + " -I" + q(root + "/third_party");
     int k = 0;
@@ -1034,7 +1034,7 @@ bool loadPlugin(const PluginLib& lib, std::string& err) {
   void* h = zn::plat::libOpen(lib.shared, global);
   if (!h) {
     std::string why = zn::plat::libError();
-    if (zn_window_load && why.find("'_SDL_") != std::string::npos && zn_window_load()) { h = zn::plat::libOpen(lib.shared, global); if (!h) why = zn::plat::libError(); }
+    if (zn_window_load && (why.find("'_SDL_") != std::string::npos || why.find("undefined symbol: SDL_") != std::string::npos) && zn_window_load()) { h = zn::plat::libOpen(lib.shared, global); if (!h) why = zn::plat::libError(); }
     if (!h) {
       err = missingLibrary(lib, why);
       if (err.empty()) err = std::string("cannot load ") + lib.shared + ": " + why;

@@ -1,0 +1,13 @@
+# Linux window host module
+
+GNU Linux desktop builds now default to `ZN_WINDOW_MODULE=ON`. The CLI contains the forwarding host and loads the sibling `libzn_window.so` with `RTLD_NOW | RTLD_GLOBAL` at first window use, or before WebGL/plugin code needs SDL. `ZINC_WINDOW_LIB` remains an explicit override. Missing modules report the load error and preserve the headless fallback. Musl retains its static configuration; AOT programs retain `zn_host_window` and static SDL.
+
+Vendored SDL is position independent and wholly linked into the module, including its transitive system libraries. Native ELF linkers use `-Bsymbolic-functions` to keep calls within the module from reaching the CLI's forwarding functions. Zig 0.15 does not support that option: its module instead protects the boundary functions declared from the existing `ZN_SDL_FUNCS` list and window setters. Runtime data such as `hal_display` and `zrt_frame_stats` remain imports from the executable. There is no blanket `-Bsymbolic` or separate runtime copy.
+
+The loader serializes state and configuration changes, with explicit NotTried → Loading → Ready/Failed transitions. A same-thread constructor reentry while loading returns unavailable; another thread waits for completion. The module remains resident after success. Fused apps use the host library suffix, SHA-256 names, an extraction lock and atomic rename. Cached bytes are checked against the embedded payload, and rechecked under the load lock before `dlopen`. Linux packages copy the module, inspect its dependencies as well as the CLI's, and use module-relative library search paths.
+
+`tests/run --only window_module` checks the real loader without opening a window, constructor reentry, shared data, concurrent access, an explicit missing-module override, and same-size corruption/concurrent repair of the real fused extraction function. Given an ELF `$ZINC`, it also inspects the built CLI/module boundary using `objdump`. A fixture of the real Linux package function checks module/dependency staging and relative search paths without building plugins or launching programs.
+
+The November 12 cross build and T0 passed. Real Linux window/WebGL/display proofs, relocated packages and complete fused app launches remain unproven: both strict LAN and Tailscale SSH attempts failed authentication before any remote command ran. The task's named longer tests and launch measurements remain owner-selected milestone work.
+
+References: [dlopen visibility](https://man7.org/linux/man-pages/man3/dlopen.3.html), [GNU linker binding options](https://sourceware.org/binutils/docs/ld/Options.html), [SDL CMake integration](https://wiki.libsdl.org/SDL3/README-cmake), [Zig function binding limitation](https://github.com/ziglang/zig/issues/18804).

@@ -1948,23 +1948,24 @@ static std::string bundledAppArchive() {
   return std::filesystem::is_regular_file(path, ec) ? path.string() : std::string();
 }
 /** The window module of this fused executable, written once into the cache (keyed by its content): its path, or "" when it has none. */
-std::string fusedWindowModule() {
+std::string fusedWindowModule(std::string& expectedHash) {
   namespace fs = std::filesystem;
   if (!gFusedModuleSize) return "";
   std::ifstream f(zn::tc::executablePath(), std::ios::binary);
   std::string bytes(gFusedModuleSize, '\0');
   f.seekg(static_cast<std::streamoff>(gFusedModuleAt)); f.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
   if (!f) return "";
-  std::uint64_t h = 1469598103934665603ull;
-  for (unsigned char c : bytes) { h ^= c; h *= 1099511628211ull; }
-  char name[64];
-  std::snprintf(name, sizeof name, "libzn_window-%016llx.dylib", static_cast<unsigned long long>(h));
-  const fs::path dir = fs::path(zn::tc::home()) / "cache" / "modules", path = dir / name;
+  const std::string hash = zn::tc::sha256Hex(bytes);
+  expectedHash = hash;
+  const fs::path dir = fs::path(zn::tc::home()) / "cache" / "modules";
+  const fs::path path = dir / ("libzn_window-" + hash + zn::plat::libSuffix());
+  zn::tc::FileLock lock(path.string() + ".lock");
+  if (lock.fd < 0) return "";
   std::error_code ec;
-  if (fs::exists(path, ec) && fs::file_size(path, ec) == bytes.size()) return path.string();
-  fs::create_directories(dir, ec);
+  if (zn::tc::sha256File(path.string()) == hash) return path.string();
   const fs::path tmp = path.string() + ".part";
   { std::ofstream o(tmp, std::ios::binary); o.write(bytes.data(), static_cast<std::streamsize>(bytes.size())); if (!o) return ""; }
+  if (zn::tc::sha256File(tmp.string()) != hash) { fs::remove(tmp, ec); return ""; }
   fs::rename(tmp, path, ec);
   return ec ? "" : path.string();
 }
@@ -3338,7 +3339,7 @@ int main(int argc, char** argv) {
     std::ifstream self(zn::tc::executablePath(), std::ios::binary);
     std::stringstream ss; ss << self.rdbuf();
     const std::string engine = ss.str();   // (a fused binary runs its app whatever its arguments, so the engine here is never a fused one)
-    std::ifstream wm(fs::path(zn::tc::executablePath()).parent_path() / "libzn_window.dylib", std::ios::binary);   // the window host, loaded from the cache by the fused app
+    std::ifstream wm(fs::path(zn::tc::executablePath()).parent_path() / (std::string("libzn_window") + zn::plat::libSuffix()), std::ios::binary);   // the window host, loaded from the cache by the fused app
     std::stringstream ws; if (wm) ws << wm.rdbuf();
     const std::string module = ws.str();
     std::string trailer(16, '\0');

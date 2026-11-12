@@ -358,18 +358,20 @@ def package_linux(build, out, arch=None):
     shutil.rmtree(os.path.join(out, "stage"), ignore_errors=True)
     os.makedirs(os.path.join(root, "bin")); os.makedirs(os.path.join(root, "lib"))
     shutil.copy2(os.path.join(build, "zinc"), os.path.join(root, "bin", "zinc"))
-    for mod in ("libzn_webgl.so", "libzn_text_module.so", "libzn_text_module.LICENSE"):
+    for mod in ("libzn_window.so", "libzn_webgl.so", "libzn_text_module.so", "libzn_text_module.LICENSE"):
         if os.path.exists(os.path.join(build, mod)):
             shutil.copy2(os.path.join(build, mod), os.path.join(root, "bin", mod))
     if os.path.exists(os.path.join(build, "zinc-mqjs")):  # --engine mquickjs: the host mquickjs beside zinc (src/cli_mqjs.cpp)
         shutil.copy2(os.path.join(build, "zinc-mqjs"), os.path.join(root, "bin", "zinc-mqjs"))
-    ldd = "" if cross else run("ldd", os.path.join(root, "bin", "zinc"), check=False).stdout   # cross: SDL3 is linked in, the rest is the system's
+    ldd = "" if cross else "\n".join(run("ldd", os.path.join(root, "bin", name), check=False).stdout for name in ("zinc", "libzn_window.so") if os.path.exists(os.path.join(root, "bin", name)))   # cross: SDL3 is linked in, the rest is the system's
     for m in re.finditer(r"(\S+) => (/\S+)", ldd):  # the libraries that are not part of every system (SDL3...), not libc and friends
         if re.match(r"lib(c|m|dl|pthread|rt|stdc\+\+|gcc_s|ld-linux.*|util|resolv)\.so", m.group(1)) or m.group(1).startswith("linux-vdso"):
             continue
         shutil.copy2(m.group(2), os.path.join(root, "lib", m.group(1)))
     if shutil.which("patchelf") and not cross:
-        run("patchelf", "--set-rpath", "$ORIGIN/lib", os.path.join(root, "bin", "zinc"))
+        for binary in ("zinc", "libzn_window.so"):
+            if os.path.exists(os.path.join(root, "bin", binary)):
+                run("patchelf", "--set-rpath", "$ORIGIN/../lib", os.path.join(root, "bin", binary))
     payload(os.path.join(root, "share", "zinc"))
     desktop_linux(os.path.join(root, "share"))
     with open(os.path.join(root, "bin", "zinc-atelier"), "w") as f: f.write(LAUNCHER_LINUX)

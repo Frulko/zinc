@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["src/host/window_module.cpp", "tests/t0/window_module.sh"], "tests": ["window_module"]},
     {"paths": ["lib/std/game.ts", "plugins/sprite/index.ts", "tests/data/game/", "tests/t0/game.sh"], "tests": ["game"]},
     {"paths": ["src/text/", "src/assets/font.cpp", "src/assets/zim.cpp", "src/res/res.cpp", "tests/text/module_test.cpp", "tests/t0/text_module.sh"], "tests": ["text_module"]},
     {"paths": ["src/gl/", "tests/native/webgl_zero_test.cpp", "tests/data/webgl/initialization.js", "tests/t0/webgl_initialization.sh"], "tests": ["webgl_initialization"]},
