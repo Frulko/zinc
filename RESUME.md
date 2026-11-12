@@ -6,6 +6,8 @@ Continue zn-coordinate until .paused or nothing startable. Never ask owner; no p
 
 ## Current
 
+1122 compilerblocker claimed3e3b13989, activeclosure1122 .worktrees/1122-closure/work/1122-closure. Natural558TSsim has invalidIR refcast for namedhelper containingArray.find plus exportedproperty ofsamename; minimalrepro .worktrees/558-gatt/.logs/gatt-ir-repro. Fixfrontend/IR only, noSIMworkaround/ownerRT/HAL/UI/main.558genericfirstT0PASS, fakeinterpPASS; originalsiminterpfailsuntil1122. Bothworkers sharework-run, no rootheavy pending. Readonly392feasibilityresearch .logs/research-392-f.txt, notclaimedbecauseowner mainrequired.
+
 555 prepared snd-aloop harness integratedc8cd0b268/D321 BacklogAC3checkedAC1/2open. Actual public signal capture tool/T1optin nowWRITTEN, pure rootaudio_loopback_tool andfixturetypecheck PASS; no audio/kernel/OSaction orenginebuild. Dedicatedisolatedimage/namedcard/subdevice/privateALSA/backendguard/capturefrequency+RMS/ownedPID readiness; actualLinux/Pi/CHIPunproven. Archive80 seven sourceblobs/fulltenlogs/rootproofverified. Earlierdocs5b5b6865c/D320/archive79 retained.
 
 1024 checker increment integratedaafdbfbbd BacklogAC1open, D318. Walk-local indexed membership/RAII, unchanged AST traversal. Root clean build/exacttdz_locals all3/actualfixture/herocheck and unchangedherobytecode PASS; archive76 verified. No speedmeasurement or200msclaim.
