@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve440.03 optionalOpus afterdelegatedprimaryresearch. Reuseminiaudio upstreambackend/libopusfile+libogg andexistingopus1.6.1 source withbaselineconfig; existingpluginoptions+archiveextraction keepsdisabledbinaryfree, coldvendorcompilecost disclosed. No core/RT/HAL change, noallocaccounting claim orPiCPUbenchmark (unselected/authfailed).584.03 TS-onlyactive; commonmacbuildfinished.
+
 - Integrated592.04 64541daa1 ReviewAC1/D311; rootmaccombinedbuild/exactwindow_module/backgroundplatformer2frames+capture PASS. CrossLinuxELF/module separation+cache/reentry/concurrentT0 passes; SSHauthfailed/noactualLinux. Source/logs/5artifacts archive66 verified.584.03 activeTS-only;440.03 read-onlyresearchcandidate.91Doneunchanged.
 
 - Integrated584.02 8b227f58e ReviewAC1 pendingT1; root exactgame PASS and actualmap2frames hash442439ac4b8ed9c3, same all3worker engines. Reusesexistingimporter/draw, source/logs archive65 verifiedbeforecleanup.584.03 claimed researchunderway;592.04 Linuxbuild successful awaitingfinalreport/SSHauthfailed.91Doneunchanged.
