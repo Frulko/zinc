@@ -156,6 +156,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - WebGL shaders accept CRLF and LFCR comment continuations and report physical lines consistently across newline formats, while preserving the original shader source.
 - WebGL 2 buffer readback accepts `DataView` slices, reports source overruns correctly, and preserves typed destinations when a read fails.
 - WebGL pixel reads preserve untouched destination values, reject mismatched array types, and check packed output bounds before reading.
+- WebGL 2 buffer reads reject current transform-feedback aliases and active feedback targets without changing the destination; default feedback activity queries report the active state.
 
 
 ### Hamlet

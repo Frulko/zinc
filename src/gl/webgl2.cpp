@@ -205,7 +205,12 @@ bool WebGL1::getBufferSubData(std::uint32_t target, std::int64_t src, void* dst,
   Id id = bufferSlot(target);
   if (!id) { error(GL_INVALID_OPERATION); return false; }
   Buf& b = buffers_[id];
-  if (tfActive()) for (auto& x : indexed_) if (static_cast<std::uint32_t>(x.first >> 32) == GL_TRANSFORM_FEEDBACK_BUFFER && idxCurrent(x.first) && x.second.buffer == id) { error(GL_INVALID_OPERATION); return false; }   // being written
+  if (target == GL_TRANSFORM_FEEDBACK_BUFFER) {
+    if (tfUnbound_) { error(GL_INVALID_OPERATION); return false; }
+    for (const auto& x : tfs_) if (x.second.active) { error(GL_INVALID_OPERATION); return false; }
+  } else {
+    for (const auto& x : indexed_) if (static_cast<std::uint32_t>(x.first >> 32) == GL_TRANSFORM_FEEDBACK_BUFFER && idxCurrent(x.first) && x.second.buffer == id) { error(GL_INVALID_OPERATION); return false; }
+  }
   if (src < 0) { error(GL_INVALID_VALUE); return false; }
   if (src > b.size || dstBytes > static_cast<std::uint64_t>(b.size - src)) { error(GL_INVALID_OPERATION); return false; }
   driverOk();   // keep older driver errors observable without attributing them to this read

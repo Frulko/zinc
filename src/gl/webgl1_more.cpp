@@ -422,7 +422,7 @@ WebGL1::Param WebGL1::getParameter(std::uint32_t pname) {
         case GL_PIXEL_PACK_BUFFER_BINDING: object(otherBuffers_[GL_PIXEL_PACK_BUFFER], 1); break;
         case GL_PIXEL_UNPACK_BUFFER_BINDING: object(otherBuffers_[GL_PIXEL_UNPACK_BUFFER], 1); break;
         case GL_TRANSFORM_FEEDBACK_BUFFER_BINDING: object(otherBuffers_[GL_TRANSFORM_FEEDBACK_BUFFER], 1); break;
-        case GL_TRANSFORM_FEEDBACK_ACTIVE: case GL_TRANSFORM_FEEDBACK_PAUSED: { auto it = tfs_.find(tf_); r.kind = 'b'; r.v.push_back(it != tfs_.end() && (pname == GL_TRANSFORM_FEEDBACK_ACTIVE ? it->second.active : it->second.paused)); break; }
+        case GL_TRANSFORM_FEEDBACK_ACTIVE: case GL_TRANSFORM_FEEDBACK_PAUSED: { auto it = tfs_.find(tf_); r.kind = 'b'; r.v.push_back(pname == GL_TRANSFORM_FEEDBACK_ACTIVE ? tfActive() : it != tfs_.end() && it->second.paused); break; }
         case GL_READ_FRAMEBUFFER_BINDING: object(fboRead_, 5); break;
         case GL_MAX_TEXTURE_LOD_BIAS: floats(1); break;
         default: ints(1);
