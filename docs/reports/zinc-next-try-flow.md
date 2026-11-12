@@ -1,0 +1,17 @@
+# Normal try completion in the checker
+
+The checker retains assignment facts after a normally completed `try`. A catch that returns or throws does not contribute a value to subsequent code; a catch that falls through must join its values with the successful try values. Catch entry invalidates possible writes because an exception can occur before an assignment finishes. Catch variables remain scoped to their handler.
+
+`finally` is checked against conservative normal and exceptional entry values. Its own writes and refinements transfer to normal continuation; an empty finally preserves successful try facts. This does not make a field assigned by a throwing right-hand side available inside a handler or finally.
+
+Constructor initialization uses a local completion summary, with uninitialized/initialized path bits for normal, return, throw, break and continue exits. Ordinary constructor return still requires every field; throwing construction does not. Each finally is applied separately to these outcomes, so a finally return that replaces a throw cannot accidentally validate an uninitialized object. The read-before-assignment check tracks the same direct assignment/block/if/try boundaries, after the right-hand side, without letting a deferred closure initialize its enclosing constructor.
+
+Branch joins include all changed outer facts, not only variables mentioned by the condition. Numeric facts use the unique numeric member of the variable's declared storage type when the values are assignable to it: an `i32` array length and a fractional `number` stored into `number | undefined` do not become an unusable `i32 | number` flow type. Assignment conversion and runtime representation are unchanged.
+
+The analysis stays conservative for loop exits, switch, conditional expressions and short-circuit writes whose normal transfer is incomplete. Their possible writes are invalidated at that expression or statement, rather than used to prove a narrower type; a later definite assignment can establish a fresh fact. Conditional writes in an if guard also invalidate facts derived from earlier guard operands before either branch is checked. Some valid programs using those forms can still be refused; this is not a complete TypeScript control-flow graph.
+
+The exact `try_flow` T0 covers successful and rejected cleanup paths, constructor reads, catch fallthrough, conditional writes, finally resets/returns, handler shadowing, loop/label completion, numeric storage and unsigned high bits on interpreter/AOT/QuickJS. The existing pinball cleanup source is checked unchanged. No checker suite, benchmark or broad semantic-parity claim is implied.
+
+A separate retained probe reproduces D224 on the old engine without try: fractional stores through optional machine-number syntax truncate on VM/AOT but remain fractional on QuickJS. That existing transform boundary is outside this checker change. The main flow fixture keeps a fractional `number` assertion; machine-kind controls use exactly representable integers.
+
+References: [TypeScript flow analysis](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#control-flow-analysis), [strict property initialization](https://www.typescriptlang.org/tsconfig/strictPropertyInitialization.html), [TypeScript binder v5.9.3](https://github.com/microsoft/TypeScript/blob/v5.9.3/src/compiler/binder.ts), [ECMAScript try completion](https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-try-statement-runtime-semantics-evaluation).

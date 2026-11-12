@@ -190,6 +190,7 @@ struct Checker {
   static constexpr TypeId kInferRet = 0xFFFFFFFEu;  // the return type of a lambda is being inferred
   TypeId inferredRet = kNoType;
   bool immediate = true;           // straight-line code that runs when reached (not inside a function, method or instance initializer)
+  using Fact = std::pair<std::uint32_t, TypeId>;
   const std::vector<std::uint32_t>* ctorStmts = nullptr;  // top-level statements of the constructor being checked
   std::vector<std::string> ctorPending;                   // own fields without initializer, not yet assigned in the constructor
   bool pendingExempt = false;                              // evaluating the target of `this.f = ...`
@@ -1051,6 +1052,7 @@ struct Checker {
     }
     if (gNumber != Num::f64 && t == num(gNumber) && n(i).kind == N::Number && builtinModuleNode(i)) t = num(Num::f64);   // the engine's own modules write plain f64 constants (4294967296, 86400000): they would overflow Q20.12   // idem for what the library's own expressions produce (literals, Math results, NaN)
     out.nodeType[i] = t;
+    forgetUnmodeledWrites(i);
     return t;
   }
   // The class __Void: what a generic class made with T = void holds in T's place (Promise<void>, see instantiateClass). Its only value is null.
@@ -4399,10 +4401,136 @@ struct Checker {
     }
   }
 
+  // For definite constructor initialization, a thrown exit is different from a normal return.
+  struct FieldFlow {
+    unsigned normal = 0, returned = 0, thrown = 0, broken = 0, continued = 0;
+    void add(const FieldFlow& b) { normal |= b.normal; returned |= b.returned; thrown |= b.thrown; broken |= b.broken; continued |= b.continued; }
+  };
+  FieldFlow fieldFlow(std::uint32_t st, std::string_view field, unsigned input) const {
+    if (st == kNone || !input) return {input};
+    const Node& x = n(st);
+    switch (x.kind) {
+      case N::Empty: case N::Function: case N::Class: case N::Interface: case N::TypeAlias: case N::Enum: return {input};
+      case N::ExprStmt: {
+        const Node& as = n(x.kids[0]);
+        const bool assigns = !field.empty() && as.kind == N::Assign && as.text == "=" && n(as.kids[0]).kind == N::Member && n(as.kids[0]).text == field && n(n(as.kids[0]).kids[0]).kind == N::This;
+        return {assigns ? 2u : input, 0, input}; // The right-hand side can throw before storing the field.
+      }
+      case N::Throw: return {0, 0, input};
+      case N::Return: return {0, input, input};
+      case N::Break: return {0, 0, 0, input};
+      case N::Continue: return {0, 0, 0, 0, input};
+      case N::Block: case N::Case: {
+        FieldFlow flow{input};
+        for (std::size_t k = x.kind == N::Case ? 1 : 0; k < x.kids.size() && flow.normal; ++k) {
+          const FieldFlow next = fieldFlow(x.kids[k], field, flow.normal);
+          flow.normal = 0; flow.add(next);
+        }
+        return flow;
+      }
+      case N::If: {
+        FieldFlow flow = fieldFlow(x.kids[1], field, input);
+        flow.add(fieldFlow(x.kids[2], field, input));
+        flow.thrown |= input;
+        return flow;
+      }
+      case N::Try: {
+        FieldFlow flow = fieldFlow(x.kids[0], field, input);
+        if (x.kids[2] != kNone) {
+          const FieldFlow caught = fieldFlow(x.kids[2], field, input | flow.thrown);
+          flow.thrown = 0; flow.add(caught);
+        }
+        if (x.kids[3] == kNone) return flow;
+        FieldFlow out;
+        auto finish = [&](unsigned values, unsigned FieldFlow::*kind) {
+          const FieldFlow fin = fieldFlow(x.kids[3], field, values);
+          out.*kind |= fin.normal;
+          out.returned |= fin.returned; out.thrown |= fin.thrown;
+          out.broken |= fin.broken; out.continued |= fin.continued;
+        };
+        finish(flow.normal, &FieldFlow::normal); finish(flow.returned, &FieldFlow::returned);
+        finish(flow.thrown, &FieldFlow::thrown); finish(flow.broken, &FieldFlow::broken); finish(flow.continued, &FieldFlow::continued);
+        return out;
+      }
+      case N::While: case N::DoWhile: case N::For: case N::ForOf: case N::ForIn: {
+        const std::size_t body = x.kind == N::While ? 1 : x.kind == N::DoWhile ? 0 : x.kind == N::For ? 3 : 2;
+        FieldFlow flow = fieldFlow(x.kids[body], field, input);
+        flow.normal |= input | flow.broken | flow.continued; // Conservatively allow zero iterations and loop exits.
+        flow.broken = flow.continued = 0;
+        return flow;
+      }
+      case N::Switch: {
+        FieldFlow flow{input, 0, input};
+        for (std::size_t k = 1; k < x.kids.size(); ++k) flow.add(fieldFlow(x.kids[k], field, input));
+        flow.normal |= flow.broken; flow.broken = 0;
+        return flow;
+      }
+      case N::Labeled: {
+        FieldFlow flow = fieldFlow(x.kids[0], field, input);
+        flow.normal |= input | flow.broken; flow.broken = 0;
+        return flow;
+      }
+      default: return {input, 0, input};
+    }
+  }
+  bool checkingCtor() const {
+    return ctorStmts && !fnStack.empty() && n(fnStack.back()).kids.size() > 1 && n(fnStack.back()).kids[1] != kNone && ctorStmts == &n(n(fnStack.back()).kids[1]).kids;
+  }
+  void pendingAfter(std::uint32_t st, const std::vector<std::string>& before) {
+    ctorPending.clear();
+    for (const std::string& field : before) if (fieldFlow(st, field, 1).normal & 1) ctorPending.push_back(field);
+  }
+  // These forms do not yet carry a complete normal-exit transfer; do not retain a conditional write as a fact.
+  void forgetUnmodeledWrites(std::uint32_t node) {
+    if (node == kNone) return;
+    const Node& x = n(node);
+    if (x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method || x.kind == N::Class) return;
+    if (x.kind == N::Cond || x.kind == N::Switch || isLoop(x.kind) || (x.kind == N::Binary && (x.text == "&&" || x.text == "||" || x.text == "?" "?"))) { resetAssigned(node); return; }
+  }
+  // A guard fact from an earlier operand cannot survive a later conditional write.
+  void forgetGuardWrites(std::uint32_t node) {
+    if (node == kNone) return;
+    const Node& x = n(node);
+    if (x.kind == N::Function || x.kind == N::FuncExpr || x.kind == N::Method || x.kind == N::Class) return;
+    forgetUnmodeledWrites(node);
+    for (std::uint32_t child : x.kids) forgetGuardWrites(child);
+  }
+  TypeId flowType(const std::vector<Fact>& facts, std::uint32_t sym) const {
+    for (auto it = facts.rbegin(); it != facts.rend(); ++it) if (it->first == sym) return it->second;
+    return out.syms[sym].type;
+  }
+  std::vector<Fact> joinFacts(const std::vector<Fact>& left, const std::vector<Fact>& right) {
+    std::vector<std::uint32_t> keys;
+    for (const Fact& f : left) keys.push_back(f.first);
+    for (const Fact& f : right) keys.push_back(f.first);
+    std::sort(keys.begin(), keys.end()); keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+    std::vector<Fact> joined;
+    for (std::uint32_t sym : keys) {
+      const TypeId declared = out.syms[sym].type;
+      TypeId numeric = kNoType;
+      for (TypeId member : unionMembers(declared)) if (isNum(member)) { if (numeric != kNoType) { numeric = kNoType; break; } numeric = member; }
+      auto storedType = [&](TypeId t) {
+        if (numeric == kNoType) return t;
+        auto members = unionMembers(t);
+        for (TypeId& member : members) if (isNum(member) && assignable(member, numeric, kNone)) member = numeric;
+        return unionOf(members, ty(t).k == TK::Union && ty(t).undef);
+      };
+      // Numeric assignments already convert to the variable's declared storage kind.
+      const TypeId a = storedType(flowType(left, sym)), b = storedType(flowType(right, sym));
+      const TypeId t = a == b ? a : optionalDyn(declared) && (a == declared || b == declared) ? declared : unionOf({a, b}, ty(declared).k == TK::Union && ty(declared).undef);
+      if (t != kNoType && !bad(t)) joined.push_back({sym, t});
+    }
+    return joined;
+  }
+
   void statement(std::uint32_t s) {
     const Node& x = n(s);
     bool top = atTop;  // a statement directly in the program's top-level list
     atTop = false;
+    struct ConstructorStep {
+      Checker& checker; std::uint32_t node; bool active; std::vector<std::string> before;
+      ~ConstructorStep() { checker.forgetUnmodeledWrites(node); if (active) checker.pendingAfter(node, before); }
+    } ctorStep{*this, s, checkingCtor(), ctorPending};
     switch (x.kind) {
       case N::Empty: break;
       case N::Block: push(); stmtList(x.kids); pop(); break;  // what the block learned about outer variables holds after it, as in TypeScript's flow analysis
@@ -4427,11 +4555,17 @@ struct Checker {
         break;
       }
       case N::Try: {
-        std::size_t mark = narrowing.size();
+        const auto entry = narrowing;
+        const auto pending = ctorPending;
         markCells(x.kids[0]);
         if (x.kids[2] != kNone && x.kids[3] != kNone) markCells(x.kids[2]);
         statement(x.kids[0]);
-        narrowing.resize(mark);
+        const auto tried = narrowing;
+        const bool tryNormal = fieldFlow(x.kids[0], "", 2).normal != 0;
+        narrowing = entry;
+        resetAssigned(x.kids[0]); // A handler can run before or after any of the try's writes.
+        ctorPending = pending;
+        bool catchNormal = false;
         if (x.kids[2] != kNone) {
           push();
           if (x.kids[1] != kNone) {
@@ -4443,9 +4577,30 @@ struct Checker {
           }
           statement(x.kids[2]);
           pop();
-          narrowing.resize(mark);
+          catchNormal = fieldFlow(x.kids[2], "", 2).normal != 0;
         }
-        if (x.kids[3] != kNone) { statement(x.kids[3]); narrowing.resize(mark); }
+        auto normal = tryNormal && catchNormal ? joinFacts(tried, narrowing) : tryNormal ? tried : catchNormal ? narrowing : entry;
+        if (x.kids[3] != kNone) {
+          narrowing = entry;
+          resetAssigned(x.kids[0]);
+          if (x.kids[2] != kNone) resetAssigned(x.kids[2]);
+          ctorPending = pending;
+          const auto beforeFinally = narrowing;
+          statement(x.kids[3]);
+          const auto afterFinally = narrowing;
+          narrowing = normal;
+          resetAssigned(x.kids[3]);
+          // Finally is checked with exceptional entries too; only its own effects replace normal-exit facts.
+          std::vector<Fact> effects;
+          for (const Fact& f : afterFinally) if (flowType(afterFinally, f.first) != flowType(beforeFinally, f.first)) effects.push_back({f.first, flowType(afterFinally, f.first)});
+          std::vector<std::string_view> names;
+          collectAssigned(x.kids[3], names);
+          for (std::string_view name : names) { const auto sym = lookup(name); if (sym != kNone && trackable(sym)) effects.push_back({sym, flowType(afterFinally, sym)}); }
+          std::vector<std::string> paths;
+          collectAssignedPaths(x.kids[3], paths);
+          for (const std::string& path : paths) { const auto it = pathSyms.find(path); if (it != pathSyms.end()) effects.push_back({it->second, flowType(afterFinally, it->second)}); }
+          pushFacts(effects);
+        } else narrowing = std::move(normal);
         break;
       }
       case N::ExprStmt: exprStmtOf = x.kids[0]; expr(x.kids[0]); break;
@@ -4454,30 +4609,20 @@ struct Checker {
         std::vector<Fact> ft, ff;
         factsOf(x.kids[0], true, ft);
         factsOf(x.kids[0], false, ff);
-        std::size_t mark = narrowing.size();
-        // what the branches make of the variables the condition is about, joined afterwards (`if (x === null) x = make();`)
-        auto typeNow = [&](std::uint32_t sy) { for (std::size_t k = narrowing.size(); k-- > 0;) if (narrowing[k].first == sy) return narrowing[k].second; return out.syms[sy].type; };
-        std::vector<std::uint32_t> watched;
-        for (const Fact& f : ft) watched.push_back(f.first);
-        for (const Fact& f : ff) watched.push_back(f.first);
-        std::vector<TypeId> thenEnd, elseEnd;
+        const auto entry = narrowing;
+        const auto pending = ctorPending;
         pushFacts(ft);
+        forgetGuardWrites(x.kids[0]);
         statement(x.kids[1]);
-        for (std::uint32_t sy : watched) thenEnd.push_back(typeNow(sy));
-        narrowing.resize(mark);
+        const auto thenEnd = narrowing;
+        narrowing = entry;
+        ctorPending = pending;
         pushFacts(ff);
+        forgetGuardWrites(x.kids[0]);
         if (x.kids[2] != kNone) statement(x.kids[2]);
-        for (std::uint32_t sy : watched) elseEnd.push_back(typeNow(sy));
-        narrowing.resize(mark);
-        bool thenExits = exitsAbruptly(x.kids[1]), elseExits = x.kids[2] != kNone && exitsAbruptly(x.kids[2]);
-        if (thenExits && !elseExits) pushFacts(ff);       // `if (x === null) return;` leaves x non-null afterwards
-        else if (elseExits && !thenExits) pushFacts(ft);
-        else if (!thenExits && !elseExits)
-          for (std::size_t k = 0; k < watched.size(); ++k) {
-            const TypeId declared = out.syms[watched[k]].type;
-            TypeId j = thenEnd[k] == elseEnd[k] ? thenEnd[k] : optionalDyn(declared) && (thenEnd[k] == declared || elseEnd[k] == declared) ? declared : unionOf({thenEnd[k], elseEnd[k]});
-            if (j != out.syms[watched[k]].type && j != kNoType && !bad(j)) narrowing.push_back({watched[k], j});
-          }
+        const auto elseEnd = narrowing;
+        const bool thenExits = exitsAbruptly(x.kids[1]), elseExits = x.kids[2] != kNone && exitsAbruptly(x.kids[2]);
+        narrowing = thenExits && !elseExits ? elseEnd : elseExits && !thenExits ? thenEnd : joinFacts(thenEnd, elseEnd);
         break;
       }
       case N::While: {
@@ -5051,7 +5196,6 @@ struct Checker {
   }
 
   // ---- narrowing: flow-sensitive types of local variables and parameters (innermost fact last)
-  using Fact = std::pair<std::uint32_t, TypeId>;
   std::vector<Fact> narrowing;
   // Narrowing of property paths (`this.head`, `n.next.next`, `a[i]`): a path of locals, `this`, fields and constant or local indexes gets a
   // symbol of its own, so the facts of a test of it are kept like those of a variable. A write to a local, a field or an element, and a
@@ -5276,6 +5420,7 @@ struct Checker {
       case N::Return: case N::Break: case N::Continue: case N::Throw: return true;
       case N::Block: for (std::uint32_t k : x.kids) if (exitsAbruptly(k)) return true; return false;
       case N::If: return x.kids[2] != kNone && exitsAbruptly(x.kids[1]) && exitsAbruptly(x.kids[2]);
+      case N::Try: return fieldFlow(st, "", 2).normal == 0;
       default: return false;
     }
   }
@@ -6581,27 +6726,12 @@ struct Checker {
         for (std::size_t i = 0; ok && i < k; ++i) if (usesThis(body[i])) ok = false;
         if (!ok) diag(kZBadSuperCall, ctorNode, "a derived class constructor must call super(...) at its top level, and the statements before it must not use 'this'");
       }
-      // strictPropertyInitialization: an instance field without initializer must be assigned by the constructor, at its top level, in a
-      // block, or in both branches of an if/else (a branch that throws needs none), as tsc's control flow sees it
+      // Only normally completed constructors must have every required field initialized.
       for (std::uint32_t m : mems) {
         const Node& mn = n(m);
         if (mn.kind != N::Field || mn.kids[1] != kNone || (mn.flags & (frontend::kFlagStatic | frontend::kFlagDefinite)) || out.objs[objIdx].isRecord) continue;
-        std::function<bool(std::uint32_t)> assigns = [&](std::uint32_t st) {
-          if (st == kNone) return false;
-          const Node& sn = n(st);
-          switch (sn.kind) {
-            case N::ExprStmt: {
-              const Node& as = n(sn.kids[0]);
-              return as.kind == N::Assign && as.text == "=" && n(as.kids[0]).kind == N::Member && n(as.kids[0]).text == mn.text && n(n(as.kids[0]).kids[0]).kind == N::This;
-            }
-            case N::Throw: return true;
-            case N::Block: for (std::uint32_t k : sn.kids) if (assigns(k)) return true; return false;
-            case N::If: return sn.kids[2] != kNone && assigns(sn.kids[1]) && assigns(sn.kids[2]);
-            default: return false;
-          }
-        };
-        bool assigned = ctorNode != kNone && n(ctorNode).kids[1] != kNone && assigns(n(ctorNode).kids[1]);
-        if (!assigned) diag(kZUninitializedField, m, "'" + std::string(mn.text) + "'");
+        const FieldFlow flow = ctorNode != kNone && n(ctorNode).kids[1] != kNone ? fieldFlow(n(ctorNode).kids[1], mn.text, 1) : FieldFlow{1};
+        if ((flow.normal | flow.returned) & 1) diag(kZUninitializedField, m, "'" + std::string(mn.text) + "'");
       }
     }
     auto snapScopes = scopes;
@@ -6821,13 +6951,7 @@ struct Checker {
       if (n(s).kind == N::VarDecl && n(s).text == "using") for (std::size_t r = si + 1; r < stmts.size(); ++r) markCells(stmts[r]);
       atTop = rootList;
       statement(s);
-      if (&stmts == ctorStmts && n(s).kind == N::ExprStmt) {  // `this.f = ...` at the top level of a constructor assigns f
-        const Node& as = n(n(s).kids[0]);
-        if (as.kind == N::Assign && as.text == "=" && n(as.kids[0]).kind == N::Member && n(n(as.kids[0]).kids[0]).kind == N::This) {
-          auto it = std::find(ctorPending.begin(), ctorPending.end(), std::string(n(as.kids[0]).text));
-          if (it != ctorPending.end()) ctorPending.erase(it);
-        }
-      }
+
     }
     // Unused aliases can query a local value declared in this list; actual type uses still resolve them lazily.
     for (std::uint32_t as : aliasSyms) if (out.syms[as].kind == SymKind::TypeAlias) resolveAlias(as);

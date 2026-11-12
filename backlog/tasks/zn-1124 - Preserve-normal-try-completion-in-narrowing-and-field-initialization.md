@@ -1,7 +1,7 @@
 ---
 id: ZN-1124
 title: Preserve normal try completion in narrowing and field initialization
-status: Backlog
+status: Done
 assignee:
   - '@parallel'
 created_date: '2026-11-12 07:43'
@@ -24,7 +24,30 @@ Primary research: https://www.typescriptlang.org/docs/handbook/2/narrowing.html#
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The original try/catch cleanup repro and initialized-field reads check and produce the same expected output on interpreter, AOT and QuickJS.
-- [ ] #2 Focused negative controls still reject uninitialized normal constructor exits, catch fallthrough, conditional writes, reads before initialization and finally null/reset or return overriding throw.
-- [ ] #3 The unchanged natural ZN-1039 player and editor cleanup sources check with the corrected engine, without assertions, dummy initializers or try/catch rewrites.
+- [x] #1 The original try/catch cleanup repro and initialized-field reads check and produce the same expected output on interpreter, AOT and QuickJS.
+- [x] #2 Focused negative controls still reject uninitialized normal constructor exits, catch fallthrough, conditional writes, reads before initialization and finally null/reset or return overriding throw.
+- [x] #3 The unchanged natural ZN-1039 player and editor cleanup sources check with the corrected engine, without assertions, dummy initializers or try/catch rewrites.
 <!-- AC:END -->
+
+## Implementation Notes
+
+2026-11-12: implemented in the shared checker only. True reset base d68999817d3b8a170e5b27fcf645434152ca54d3. A local completion summary keeps normal/return/throw/break/continue outcomes distinct for field initialization and applies finally to each outcome. Constructor read-before-assignment follows direct statements and restores branch/handler entry. Try/catch joins only normal exits; finally preserves or changes them according to its own effects. Ordinary if joins all relevant facts. Unmodeled conditional/loop/switch writes invalidate possible facts conservatively, rather than inventing a full CFG. Numeric joins normalize only assignable values to a unique declared numeric storage member; no assignability, IR, runtime or ABI changes.
+
+Primary research and retained evidence: .logs/research-try-j.txt in the main tree, original source/proof copied to this worker's .logs/original-try-init.ts/.log, and docs/reports/zinc-next-try-flow.md. TypeScript6 strict accepts the original/positive source. Existing types, handler cell marking, catch scopes and all runtime backends remain unchanged.
+
+Proof: final own relative tools/build zinc passes through the shared bounded work queue. Exact try_flow passes: two positive programs on interpreter/native AOT/QuickJS and 25 negative programs, including reads before initialization/right-hand-side read, catch fallthrough/return, conditional writes and resets, finally return overriding throw, finally reads, shadowed catch parameters, ternary/logical/loop-break writes and numeric union safety. Numeric controls preserve a fractional number and unsigned high bits. Original natural ZN-1039 player19-file and editor36-file checks pass using the candidate binary with ZINC_ROOT set to the parked app tree; all ten app/test/task payload hashes match before/after. No caller assertions, dummy initialization, try/catch rewrites or source changes were made. Actual pinball lifecycle execution is the still-open1039 task, not claimed by typecheck.
+
+Failures retained in full .logs: first own C++ build needed the existing Fact alias moved before helper signatures; stage3 editor check found this change's number/i32 join regression and led to the local declared-storage normalization. A newly added fractional optional-machine probe failed on QuickJS; a separate no-try probe on the old6121edcc8 engine proves the same D224 boundary (VM/AOT2 and3, QuickJS2.75 and3.75). Original fractional source, failure, baseline logs and hashes remain under .logs/d224-optional-store. Final review found a real ordinary-if regression from invalidating a whole block after a loop even when a later assignment was certain (old6121/TS accepted, stage5 refused); stage6 moves invalidation to the individual expression/statement. A second review probe found a stale non-null guard fact after a conditional RHS reset (TS rejected, stage6 accepted); stage7 invalidates conditional guard writes again after guard facts are pushed, before each branch. Both failed sources/proofs remain in .logs/if-after-loop and .logs/guard-write. Positive later-assignment controls and the stale-guard negative are committed. Final machine-flow controls use exactly representable values; the number-declared fractional control remains. No separate gap/task or QuickJS transform change is claimed.
+
+Existing V8 SDK and NanoSVG build warnings plus duplicate-library linker warnings are retained; none comes from changed checker code. No suite, T1/T2, tests/demo, pixel compare, benchmark, conformance, fuzz, CI, device or OS action. Conservative analysis can still reject valid complex loop/switch/conditional transfers; D224 optional numeric store coercion and broader checker coverage are not resolved.
+
+Decision proposal: retain separate normal and abrupt completion summaries plus the existing fact model, rather than a general CFG rewrite or application assertions. This fixes real cleanup callers while rejecting incomplete construction, and keeps storage conversions at their original assignment sites.
+
+Later proposal: keep D224 optional machine-number store coercion on QuickJS visible; the no-try baseline proves this independent syntax-only boundary, not a try-flow regression. Extend conservative loop/switch/conditional normal-transfer precision only with a real caller and focused controls.
+
+### Proposed tests
+
+- At the owner-selected checker milestone: existing nullable_cleanup, nullable_numeric, checker constructor/catch/finally expectations and closure_arity (seconds to a minute, memory unmeasured); the exact new T0 and original cleanup caller checks already pass.
+- Resume ZN-1039's prepared lifecycle T0 and short actual player/editor release proof with this engine (bounded short run, resource counts rather than RSS); no app execution or native reclamation claim is made here.
+
+Usage: `tools/usage` reported `usage: n/a`; no usage estimate is invented.
