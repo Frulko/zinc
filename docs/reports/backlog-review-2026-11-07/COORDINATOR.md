@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- Reserve555 software documentation/decision increment afterdelegatedprimaryresearch: existingminiaudio alreadyloadsALSA, no newbackend/customIEC958packer. I2Ssetup AC3 andhoneststaticflavourpolicy, no device/routing/install action, native/core edit/build oractualPi proof. BlueZ558 continues isolatedsoftware.
+
 - Integrated549 harness6a47537dc/D319, BacklogAC1/2open, AC3/4unchanged. Genuineprepared-kerneltool+publicfixture nowWRITTEN, rootpuregpio_kernel_tool+typecheck PASS, no nativebuild/kernel/Pi run. Archive78 seven sourceblobs/fullworkerlogs/rootproof verified;92Doneunchanged. BlueZ558 continues software.
 
 - Reserve549 remaining softwaregap: prepared-kernel gpio-sim integration harness, after delegatedprimaryresearch. Test/tool/fixture/docs only, no native/HAL/runtime edits/build, no moduleload/mount/sudo/physicalpin oractualkernelrun here. Missingprerequisites exit77; AC1/2stayopen untilliteralruns. IndependentBlueZ558 sourceworker continues.
