@@ -78,7 +78,7 @@ bool dynConvertible(const Checked& c, TypeId t) {
   return convertibleRec(c, t, seen);
 }
 
-std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, std::vector<std::pair<TypeId, bool>>& deps, std::vector<TypeId>& formatters,
+std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, std::vector<std::pair<TypeId, bool>>& deps, std::vector<TypeId>& formatters, std::vector<TypeId>& aliases,
                          const std::function<std::string(const Member&)>& methodHelper) {
   const Type x = c.types[t];
   std::string A = inspectAliasName(t);
@@ -86,7 +86,12 @@ std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, st
   auto fromCall = [&](TypeId ct, const std::string& v) { deps.push_back({ct, false}); return dynFromName(ct) + "(" + v + ")"; };
   auto isDynT = [&](TypeId ct) { return c.types[ct].k == TK::Any || isDynClassName(c, ct); };
   auto toExpr = [&](TypeId ct, const std::string& v) { return isDynT(ct) ? v : toCall(ct, v); };
-  auto fromExpr = [&](TypeId ct, const std::string& v) { return isDynT(ct) ? v : fromCall(ct, v); };
+  auto alias = [&](TypeId ct) { aliases.push_back(ct); return inspectAliasName(ct); };
+  auto fromExpr = [&](TypeId ct, const std::string& v) {
+    if (!isDynT(ct)) return fromCall(ct, v);
+    if (c.types[ct].k == TK::Object && c.objs[c.types[ct].obj].name != "Dyn") return "(" + v + " as " + alias(ct) + ")";
+    return v;
+  };
   std::string head = to ? "function " + dynToName(t) + "(v: " + A + "): any {\n" : "function " + dynFromName(t) + "(d: any): " + A + " {\n";
   std::string body, extra;   // extra: a function declared with it (__dynSub)
   switch (x.k) {
@@ -98,7 +103,7 @@ std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, st
       for (std::size_t k = 0; k < x.params.size(); ++k) {
         const auto parameter = x.params[k];
         args += (k ? ", " : "") + fromExpr(parameter, "__dynArg(a, " + std::to_string(k) + ")");
-        params += (k ? ", " : "") + std::string("p") + std::to_string(k) + ": " + (isDynT(parameter) ? "any" : inspectAliasName(parameter));
+        params += (k ? ", " : "") + std::string("p") + std::to_string(k) + ": " + alias(parameter);
         if (!isDynT(parameter)) deps.push_back({parameter, true});
         boxed += (k ? ", " : "") + toExpr(parameter, "p" + std::to_string(k));
       }
@@ -108,7 +113,7 @@ std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, st
           (c.types[x.elem].k == TK::Void ? call + "; return __undef;" : "return " + toExpr(x.elem, call) + ";") + " });\n";
       } else {
         const std::string call = "__dynCall(d, [" + boxed + "], 'value')";
-        body = "  if (!(d instanceof DynFn)) throw new TypeError('value is not callable');\n  return (" + params + "): " + (c.types[x.elem].k == TK::Void ? "void" : isDynT(x.elem) ? "any" : inspectAliasName(x.elem)) + " => { " +
+        body = "  if (!(d instanceof DynFn)) throw new TypeError('value is not callable');\n  return (" + params + "): " + (c.types[x.elem].k == TK::Void ? "void" : alias(x.elem)) + " => { " +
           (c.types[x.elem].k == TK::Void ? call + ";" : "return " + fromExpr(x.elem, call) + ";") + " };\n";
       }
       break;

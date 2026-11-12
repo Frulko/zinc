@@ -1616,17 +1616,16 @@ struct Checker {
     if (hit != dynSyms.end()) return hit->second;
     std::string text;
     std::vector<std::pair<TypeId, bool>> todo{{t, to}}, closure;
-    std::vector<TypeId> formatters;
+    std::vector<TypeId> formatters, alias;
     while (!todo.empty()) {
       auto u = todo.back();
       todo.pop_back();
       if (dynDeclared.count(u) || std::find(closure.begin(), closure.end(), u) != closure.end()) continue;
       closure.push_back(u);
       std::vector<std::pair<TypeId, bool>> deps;
-      text += dynConverter(a, out, u.first, u.second, deps, formatters, [this](const Member& m) { return borrowedMethod(m); });
+      text += dynConverter(a, out, u.first, u.second, deps, formatters, alias, [this](const Member& m) { return borrowedMethod(m); });
       for (auto& d : deps) todo.push_back(d);
     }
-    std::vector<TypeId> alias;
     for (auto& u : closure) alias.push_back(u.first);
     for (TypeId f : formatters) {   // the view of an object prints and serialises through its own generated functions
       if (inspectable(out, f)) inspectLog(f, at);

@@ -471,6 +471,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - Array predicates compile when their parameter shares the result variable's name, and callbacks that capture their result keep their declared arity.
 
+- Objects with callbacks taking or returning `unknown` can be passed as `unknown`, including `Request.clone()` and programs that import `fetch`.
+
 ### Developer tools
 
 #### New

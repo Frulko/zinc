@@ -23,8 +23,8 @@ std::string dynDownName(TypeId t);  // __dynDown<t>(d: any): T | null, of a clas
 std::string dynSubName(TypeId t);   // __dynSub<t>(v: T): any, of a class: the view of the subclass `v` is an instance of (the lowering writes it), undefined for T itself
 
 // Source of __dynTo<t> or __dynFrom<t> (a checked conversion); the types whose converters it calls are appended to `deps`.
-// `tags` of a class: the type ids a view of it answers to for instanceof (itself and its base classes).
-std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, std::vector<std::pair<TypeId, bool>>& deps, std::vector<TypeId>& formatters,
+// Exact type names used without a converter are appended to `aliases`.
+std::string dynConverter(const Ast& ast, const Checked& c, TypeId t, bool to, std::vector<std::pair<TypeId, bool>>& deps, std::vector<TypeId>& formatters, std::vector<TypeId>& aliases,
                          const std::function<std::string(const Member&)>& methodHelper);
 
 // Whether values of the type can be converted to and from Dyn.
