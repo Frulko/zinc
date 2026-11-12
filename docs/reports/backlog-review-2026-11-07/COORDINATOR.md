@@ -19,6 +19,8 @@ Each iteration (a wake-up or an agent's notification):
 
 ## State
 
+- COORDINATOR HANDOFF2026-11-12g: coordinator_g becomes sole leader only after .logs/coord-transfer-20261112-g.ready; coordinator_f ceases all coordination then. Full .logs/COORDINATOR-G-HANDOFF.md. Only source worker peripheral558, same tree/baseb7c3f4c8b, additive radio ABI/peripheral.h uncommitted, not wired/tested, no heavy/pending/process. Generic55d18c965/D324/archive84 and1122b63c8367a/D323/archive83 integrated/proven;93Done, nextD325/archive85. Protected10payloads/perf15verified.
+
 - Continue SAME558 with fresh peripheral558 in .worktrees/558-peripheral / work/558-peripheral, baseb7c3f4c8b; original claim retained. Scope actual exported UART GATT+LE and targeted AcquireNotify FD sessions, no real radio/daemon action. Generic source archived84 and removed after verification.93 Done, nextD325/archive85; no root heavy command/process pending.
 
 - Integrated558 genericGATTcentral55d18c965/D324, Backlogall4ACopen,93Done. Rootexactbluez/publicfakeall3/TSsimall3/nativeMacSIM_AOT/checkPASS; productionLinuxC++17objectPASSinworker,noactualradio. Archive84 source19/full76availablelogs/root22verified; oneearlierMacfailurefull-logoverwritten/recoveredexcerptonly. Originalclaimretainedforsame558targetedUARTGATT+LEfreshcontinuation; no sourceworkerafterfreeze, nextD325/archive85.

@@ -1,6 +1,6 @@
 # Zinc coordinator — 2026-11-12
 
-Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after ready-f: /root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next/coordinator_e/coordinator_f. Outgoing coordinator_e ceases ALL coordination at .logs/coord-transfer-20261112-f.ready. Full durablebrief .logs/COORDINATOR-F-HANDOFF.md; worker-rules full. Native workers isolated; max2 building trees, one heavy command through absolute tools/work-run.
+Continue zn-coordinate until .paused or nothing startable. Never ask owner; no push. Sole coordinator after ready-g: /root/coordinator_next/coordinator_fresh/coordinator_fresh2/coordinator_next/coordinator_e/coordinator_f/coordinator_g. Outgoing coordinator_f ceases ALL coordination at .logs/coord-transfer-20261112-g.ready. Full durable handoff .logs/COORDINATOR-G-HANDOFF.md; full worker-rules. Native workers isolated; max2 building trees, one heavy command through absolute main tools/work-run, relative tools/build in the correct worktree.
 
 93 Done since1078.03. Latest completed: Intl161.03 8e11bffb6; sysroots334 c0bb1ba9e and CHIP513 all5AC; glibc1121 d3fc22b57. Three math597 d46c36e49/94739aa98 is Review, excluded from count. All11 actual native kernels pass100k/version, numeric/adversarial/disable/cache cases and identical lighthouse frames; quiet CPU<=4.5ms gate and productionr162 selector remain open. No final speed claim. Legacy nested Script context remains JS.
 
