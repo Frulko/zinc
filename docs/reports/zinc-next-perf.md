@@ -1854,3 +1854,8 @@ Source418385788, compilerd3095ef7c54b0ef624618c2fdd6130de84c3213481f6677f1fa5ad4
 ### 2026-11-12 — Lazy shaping artifact accounting (not timing)
 
 Combinedenginee31522ace: zinc18168368B SHA08bedbdc000150ace1221593f93f41e66d8a3d0306beaf62f059560daf69dae8, adjacenttextmodule2976648B. HarfBuzz/SheenBidi symbol count0 inmain. No isolated before/after saving, RSS or latency claim; shippedmodule remains realpayload. Workerfontsubset931961B is byte-identical to baseline(SHA897ec64fb9a49aba6f124befc21a3bce3664b64bb60b210f86f47bfc7cb8b794), realMSDF107glyphs/351850Bpack. Rootexactmodule/native proof and artifactSHA in integration-2026-11-11/text-module-summary.json; source/proofs archive330.04-final.
+
+
+### ZN-592.04 — Linux window module separation (2026-11-12)
+
+Cross GNUx86_64 glibc2.28 build64541daa1: zinc19,490,224B, windowmodule3,135,464B, textmodule3,690,448B, WebGLmodule3,526,584B. These are artifact sizes without a paired static baseline, not a startup or total-size saving claim. Main has no SDL symbols; windowmodule keeps SDL exports and default-visibility shared runtime imports. Exactwindow_module passes; actualLinux execution/CPU/launch measurement unrun (SSHauthentication failed). Root macOS combinedbuild and boundedbackground platformer2frame run/capture pass. Provenance/archive: .logs/archive-completed-workers-20261110/592.04-final.

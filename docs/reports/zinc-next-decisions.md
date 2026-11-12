@@ -648,3 +648,12 @@ Integrated1ca3bba23 ReviewAC1/2open. Rootmodulebuild/exactwebgl_initialization P
 Add small SceneController/Sprite/Playback over existing Frame.draw/Animation, without import-time scenes/atlases, automatic loops or an ECS. Explicit lifecycle transitions and finally restore guards; failed hooks have documented state/resource responsibilities. Public updates use seconds, animation state milliseconds; restart/pause/completion preserve defined behavior. Validate empty/nonpositive animation definitions in the shared sprite API before mutation.
 
 Integrated7b47aef28 ReviewAC1. Rootcombinedgame T0 passes interp/QuickJS/AOT; originalplatformer adoption runs40nativeframes with Start and inspectedvisiblegame. Source/fullproof archive584.01-final. No10000sprite60FPS or broadmultiplatform claim, AC2 remainsowner-selectedperformance gate.
+
+
+## D311 — Linux loads the desktop window host through the existing module boundary (ZN-592.04)
+
+Reuse the macOS loader and static AOT window archive. Desktop GNU Linux defaults to a PIC shared module containing SDL; musl stays static. Export SDL globally for later graphics/plugins, bind only internal boundary functions locally, and keep runtime data shared. Zig0.15 rejects Bsymbolic-functions, so its module marks the existing boundary declarations protected; other linkers use Bsymbolic-functions. No HAL/driver or runtime ABI change.
+
+Weighted alternatives (fit/performance/size/maintainability/licence/portability/effort, weights3/3/2/2/2/1/1): keep static SDL 3/2/1/4/5/4/5=44; existing lazy boundary 5/4/5/4/5/4/3=62. This selects separation, not a measured startup-speed claim. [dlopen](https://man7.org/linux/man-pages/man3/dlopen.3.html), [GNU linker](https://sourceware.org/binutils/docs/ld/Options.html), [SDL CMake](https://wiki.libsdl.org/SDL3/README-cmake).
+
+Loader states distinguish Loading/Ready/Failed with locked reentry handling. Fused extraction verifies actual trusted embedded bytes under FileLock and rechecks before dlopen; packaging carries module dependencies. Integrated64541daa1 ReviewAC1 unchecked: actual Linux window/GL/plugin execution could not authenticate over SSH. Cross ELF19490224B +window3135464B; no SDL main symbols, shared runtime imports/default visibility verified. Root macOS combinedbuild/exactwindow_module and background platformer2frames/capture pass. Archive592.04-final fullsource/logs/fiveLinuxartifacts. Native AOT/musl/fullpackaging and launch measurements remain unproven; revisit on actual platform failures.
