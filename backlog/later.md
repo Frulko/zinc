@@ -5,6 +5,8 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- ZN-203.06: register typed GL rows in QuickJS and preserve output arrays through the authoritative generator metadata; unchanged three-line __host_glCreate failure remains, qjs-only ownership/caller audit required.
+- ZN-203.06: fix paired-newline continued-comment downstream compilation and CR-only diagnostic line counts; both original and corrected providers still fail those recorded cases, without campaign waivers.
 - ZN-1130: finish automatic lock cleanup at real VM/AOT/QuickJS/app/worker run-owner boundaries; actual same-thread teardown currently retains unclosed tokens, so explicit finally remains required.
 - ZN-1127: repair the extracted class-method contextual-callback IR crash (`fluent-isolation-stage1/method-value.ts` in archive98); authentic crash also occurs before1127 on frozen dd5c, while the static method-value control passes.
 - ZN-681: retain the D316 abandoned glTF-document VM-unload and embedded-image lifetime investigation; the named external-JPEG vase and explicit free/RAII proofs do not resolve those ownership paths.
