@@ -12,8 +12,26 @@ const FILE_TIMEOUT_MS: i32 = 600000;        // a track's file or an upload (a vi
 const FILE_MAX_BYTES: i32 = 1024 * 1024 * 1024;   // the largest file downloaded: 1 GiB
 
 interface DevicesReply { devices: ipod.Device[]; open: string; }
-interface TracksReply { tracks: ipod.Track[]; }
-interface PlaylistsReply { playlists: ipod.Playlist[]; }
+// The pre-smart-playlist daemon sends the core fields; later additions may be absent, never mistyped.
+interface WireTrack {
+  id: string;
+  title: string; artist: string; album: string; albumArtist: string; genre: string; composer: string; comment: string;
+  trackNr: i32; tracks: i32; cdNr: i32; cds: i32; year: i32; rating: i32;
+  playCount: i32; bitrate: i32; sampleRate: i32;
+  durationMs: number; size: number; mediaType: string; path: string; artwork: boolean; added: number; lastPlayed: number;
+  mediaBits?: number; checked?: boolean;
+  bpm?: i32; skipCount?: i32; lastSkipped?: number;
+  grouping?: string; description?: string; kind?: string; compilation?: boolean;
+  sortTitle?: string; sortArtist?: string; sortAlbum?: string; sortAlbumArtist?: string; sortComposer?: string;
+  startMs?: i32; stopMs?: i32; volume?: i32;
+  skipWhenShuffling?: boolean; rememberPosition?: boolean; lyrics?: boolean; modified?: number;
+}
+interface WirePlaylist {
+  id: string; name: string; master: boolean; podcasts: boolean; smart: boolean; trackIds: string[];
+  rules?: ipod.SmartRules;
+}
+interface TracksReply { tracks: WireTrack[]; }
+interface PlaylistsReply { playlists: WirePlaylist[]; }
 interface SpecsReply { specs: ipod.SpecItem[]; }
 interface AddReply { results: ipod.AddResult[]; }
 interface ErrorReply { error: string; }
@@ -66,8 +84,45 @@ export async function readRemote(): Promise<ipod.Device> {
   for (const x of d.devices) if (x.mountpoint === d.open) return x;
   throw new Error(`${address} has no iPod open: plug one into it`);
 }
-export async function tracks(): Promise<ipod.Track[]> { const r: TracksReply = JSON.parse(await getJson('/api/tracks')); return r.tracks; }
-export async function playlists(): Promise<ipod.Playlist[]> { const r: PlaylistsReply = JSON.parse(await getJson('/api/playlists')); return r.playlists; }
+export async function tracks(): Promise<ipod.Track[]> {
+  const r: TracksReply = JSON.parse(await getJson('/api/tracks'));
+  return r.tracks.map((t: WireTrack): ipod.Track => {
+    const kind = ipod.MEDIA_TYPES.indexOf(t.mediaType);
+    return {
+      id: t.id, title: t.title, artist: t.artist, album: t.album, albumArtist: t.albumArtist,
+      genre: t.genre, composer: t.composer, comment: t.comment, trackNr: t.trackNr, tracks: t.tracks,
+      cdNr: t.cdNr, cds: t.cds, year: t.year, rating: t.rating, playCount: t.playCount,
+      bitrate: t.bitrate, sampleRate: t.sampleRate, durationMs: t.durationMs, size: t.size,
+      mediaType: t.mediaType, path: t.path, artwork: t.artwork, added: t.added, lastPlayed: t.lastPlayed,
+      mediaBits: t.mediaBits !== undefined ? t.mediaBits : kind >= 0 ? ipod.MEDIA_BITS[kind] : 0,
+      // Older daemons included every track, before exposing iTunes' unchecked flag.
+      checked: t.checked !== undefined ? t.checked : true,
+      bpm: t.bpm !== undefined ? t.bpm : 0, skipCount: t.skipCount !== undefined ? t.skipCount : 0,
+      lastSkipped: t.lastSkipped !== undefined ? t.lastSkipped : 0,
+      grouping: t.grouping !== undefined ? t.grouping : '', description: t.description !== undefined ? t.description : '',
+      kind: t.kind !== undefined ? t.kind : '', compilation: t.compilation !== undefined ? t.compilation : false,
+      sortTitle: t.sortTitle !== undefined ? t.sortTitle : '', sortArtist: t.sortArtist !== undefined ? t.sortArtist : '',
+      sortAlbum: t.sortAlbum !== undefined ? t.sortAlbum : '', sortAlbumArtist: t.sortAlbumArtist !== undefined ? t.sortAlbumArtist : '',
+      sortComposer: t.sortComposer !== undefined ? t.sortComposer : '', startMs: t.startMs !== undefined ? t.startMs : 0,
+      stopMs: t.stopMs !== undefined ? t.stopMs : 0, volume: t.volume !== undefined ? t.volume : 0,
+      skipWhenShuffling: t.skipWhenShuffling !== undefined ? t.skipWhenShuffling : false,
+      rememberPosition: t.rememberPosition !== undefined ? t.rememberPosition : false,
+      lyrics: t.lyrics !== undefined ? t.lyrics : false, modified: t.modified !== undefined ? t.modified : 0
+    };
+  });
+}
+export async function playlists(): Promise<ipod.Playlist[]> {
+  const r: PlaylistsReply = JSON.parse(await getJson('/api/playlists'));
+  return r.playlists.map((p: WirePlaylist): ipod.Playlist => {
+    const rules = p.rules !== undefined ? p.rules : ipod.emptyRules();
+    if (p.rules === undefined && p.smart) {
+      // Unknown rules must never replace the daemon's existing smart-playlist membership.
+      rules.refreshable = false;
+      rules.liveUpdate = false;
+    }
+    return { id: p.id, name: p.name, master: p.master, podcasts: p.podcasts, smart: p.smart, trackIds: p.trackIds, rules: rules };
+  });
+}
 export async function specs(): Promise<ipod.SpecItem[]> { const r: SpecsReply = JSON.parse(await getJson('/api/specs')); return r.specs; }
 
 /** The marker of the daemon's iPod database (its size and time): a library read with another one is stale. */

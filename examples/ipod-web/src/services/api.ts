@@ -29,7 +29,7 @@ function trackEl(t: ipod.Track): El {
   return new El('tracks').s('id', t.id).s('title', t.title).s('artist', t.artist).s('album', t.album).s('albumArtist', t.albumArtist)
     .s('genre', t.genre).s('composer', t.composer).s('comment', t.comment).n('trackNr', t.trackNr).n('tracks', t.tracks).n('cdNr', t.cdNr)
     .n('cds', t.cds).n('year', t.year).n('rating', t.rating).n('playCount', t.playCount).n('bitrate', t.bitrate).n('sampleRate', t.sampleRate)
-    .n('durationMs', t.durationMs).n('size', t.size).s('mediaType', t.mediaType).s('path', t.path).b('artwork', t.artwork)
+    .n('durationMs', t.durationMs).n('size', t.size).s('mediaType', t.mediaType).n('mediaBits', t.mediaBits).b('checked', t.checked).s('path', t.path).b('artwork', t.artwork)
     .n('added', t.added).n('lastPlayed', t.lastPlayed).n('bpm', t.bpm).n('skipCount', t.skipCount).n('lastSkipped', t.lastSkipped)
     .s('grouping', t.grouping).s('description', t.description).s('kind', t.kind).b('compilation', t.compilation).s('sortTitle', t.sortTitle)
     .s('sortArtist', t.sortArtist).s('sortAlbum', t.sortAlbum).s('sortAlbumArtist', t.sortAlbumArtist).s('sortComposer', t.sortComposer)

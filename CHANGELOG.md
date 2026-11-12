@@ -625,6 +625,7 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 - In Hamlet, Ctrl+Z after razing trees with the demolish tool no longer lays a road where they stood.
 - Hero and Hero without video run again after the UI kit gallery update, with their sample upload advancing as before.
 - Museum tables check for signed updates in the background, refuse unreadable projects before staging, and update from fused and host desktop exports.
+- The iPod app reads libraries from older daemons with missing newer fields, keeping smart-playlist members read-only when their rules are unavailable; current daemons preserve checked state and combined media flags.
 
 
 ### Docs and learning
