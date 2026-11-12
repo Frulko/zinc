@@ -26,6 +26,8 @@ This version is about staying solid when things go wrong: gestures, navigation, 
 
 - `zinc:gpio` owns Linux GPIO v2 lines by chip label or name, with bias, drive, timestamped edges, debounce and explicit release; the existing simulator API keeps working.
 
+- An experimental Linux `zinc:wifi` backend adds NetworkManager scans, status and temporary Wi-Fi connections or hotspots, guarded by the `wifi` permission.
+
 #### Fixed
 
 - Existing hardware display drivers rebuild when the shared bus header changes, so cached plugins receive bus fixes.

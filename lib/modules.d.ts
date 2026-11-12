@@ -233,8 +233,8 @@ declare module 'zinc:gpio' {
 declare module 'zinc:wifi' {
   /** state: 'off' | 'connecting' | 'connected' | 'setup' (the setup portal is open); name: the board on the network (`name`.local);
    *  portal: the setup portal's network; message: why the last join failed ('' otherwise). */
-  export interface WifiInfo { state: string; ssid: string; ip: string; rssi: i32; name: string; portal: string; message: string }
-  export interface Network { ssid: string; rssi: i32; secure: boolean }
+  export interface WifiInfo { state: string; ssid: string; ip: string; rssi: i32; name: string; portal: string; message: string; strength?: i32 }
+  export interface Network { ssid: string; rssi: i32; secure: boolean; ssidBytes?: u8[]; strength?: i32 }
   /** portal: the setup portal's network name (default the board's, zinc-xxxx); timezone: a POSIX TZ for clock(), such as
    *  'CET-1CEST,M3.5.0,M10.5.0/3' (default UTC). */
   export interface WifiOptions { portal?: string; timezone?: string }
@@ -243,6 +243,12 @@ declare module 'zinc:wifi' {
    *  connected, `zinc run <app> --host <name>.local` sends programs over Wi-Fi. */
   export function start(onChange?: (info: WifiInfo) => void, options?: WifiOptions): void;
   /** Saves a network and joins it, with no portal. */
+  /** Linux: observed adapter presence after start(); false while discovery is pending. */
+  export function has(): boolean;
+  /** Linux: lossless scanned SSID, including non-UTF-8 names. */
+  export function connectBytes(ssid: u8[], password: string): void;
+  /** Linux: explicit temporary hotspot with shared IPv4; password '' means open. */
+  export function accessPoint(ssid: string, password: string): void;
   export function connect(ssid: string, password: string): void;
   /** Forgets the saved network: the next start() opens the portal. */
   export function forget(): void;

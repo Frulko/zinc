@@ -1,0 +1,8 @@
+{
+  "name": "wifi",
+  "kind": "module",
+  "module": "zinc:wifi",
+  "entry": "index.ts",
+  "description": "Wi-Fi discovery, scans and temporary connections through NetworkManager on Linux",
+  "targets": { "macos": {}, "linux": { "libs": ["dl"] }, "rpi1": { "libs": ["dl"] } }
+}

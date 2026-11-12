@@ -1,0 +1,30 @@
+# wifi plugin (`zinc:wifi`)
+
+The Linux backend observes NetworkManager Wi-Fi devices and offers scans, temporary WPA-PSK or open-network connections, and explicit access-point mode. It requires the `wifi` permission in `zinc.json`; NetworkManager's own policy remains authoritative. It never requests sudo, installs policy, powers a radio on, or changes an existing saved profile.
+
+This is an implementation checkpoint for ZN-558. The sd-bus request/codec paths have an injected ABI-table test and compile to a Linux object. Real Linux/Pi radio operation, the VM scenarios and nmcli fallback remain unverified or unfinished; this page does not claim the task's acceptance criteria pass. The separate ESP32 firmware module keeps its provisioning behavior.
+
+```ts
+import * as wifi from 'zinc:wifi';
+wifi.start((status: wifi.WifiInfo): void => {
+  console.log(status.state, status.ssid, status.ip, status.message);
+});
+// After info().state has left 'discovering' and has() is true:
+// wifi.scan((networks: wifi.Network[]): void => { ... });
+// wifi.connectBytes(network.ssidBytes, password);
+// wifi.stop();
+```
+
+`start(onChange)` starts observation, with no automatic join or setup hotspot. Call `stop()` when finished: observation keeps the program alive. `has()` is true only after NetworkManager enumerated a Wi-Fi device, including a powered-off one; false during discovery is not evidence that the board has no radio. `info().state` distinguishes `discovering`, `unsupported`, `failed`, `off`, `connecting`, `connected`, `setup` and `unauthorized`. `off` means no active connection, not a claim about the physical rfkill switch. The latest error is in `message`.
+
+`scan(callback)` requests a scan on the observed adapter and waits for `LastScan` to advance, then reads `GetAllAccessPoints`. The callback receives at most 128 networks. `ssidBytes` preserves all SSID octets, including embedded zero and non-UTF-8 bytes; `ssid` is decoded display text. Use `connectBytes` with the returned bytes when selecting a result. `strength` is NetworkManager's percentage (0–100). NetworkManager does not provide dBm here, so `rssi` is the unknown sentinel 127, never a conversion from percent. On error, the callback receives an empty list and `info().message` gives the reason.
+
+`connect(ssid, password)` encodes a UTF-8 SSID; `connectBytes(bytes, password)` is lossless. Scan first. Both accept open or WPA-PSK networks, reject enterprise/WEP and invalid credentials locally, and return before activation completes. Only an observed `Device.State=100` for this client's active connection reports completion. No automatic pairing, interactive auth, or credential retry is attempted. Error text retains D-Bus error names and errno in the transport, and excludes the daemon's free-form message, which can echo secrets.
+
+`accessPoint(ssid, password)` explicitly requests AP mode on capable hardware. An empty password creates an open network; a WPA-PSK uses 8–63 characters or 64 hex digits. NetworkManager shared IPv4 mode supplies DHCP/NAT and can change routing. This call has not been exercised on real hardware in this checkpoint.
+
+Connections use NetworkManager `persist=volatile`, `autoconnect=false`, and `bind-activation=dbus-client`. They disappear on disconnect and end when this client stops or exits. `forget()` disconnects only the connection created by this instance; it does not erase saved credentials or alter an unrelated active profile. Disconnect during activation closes the client and restarts observation to cancel its pending activation. `stop()` is idempotent. Linux does not implement the ESP32 captive portal or timezone options; `clock()` returns `''` and leaves the system clock alone.
+
+The private transport at `plugins/radio/native/sd_bus.h` loads the installed LGPL `libsystemd.so.0` dynamically, through a finite checked function table. No systemd code is vendored or statically linked into Zinc. Calls have finite deadlines; polling processes at most 32 messages per tick. Reply parsing limits nesting, bytes and node count; slots are cancelled before their callback data is released. Owner changes and transport loss invalidate cached paths and pending operations. The native object locks its entry points; this does not prove concurrent VM ownership or reload cleanup of the generated ABI (D316). Explicit `stop()` remains required.
+
+`tests/run --only radios` exercises production parsers and requests with an injected sd-bus ABI table, binary SSIDs, real activation completion versus method acceptance, AP settings, permission denial, old replies after restart, daemon transport loss and bounded work. It starts no daemon and accesses no radio. `tests/data/radios/public.ts` is an idle native ABI fixture for interpreter, AOT and QuickJS. The simulator reports unsupported rather than inventing an observed adapter.

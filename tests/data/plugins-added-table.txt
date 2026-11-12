@@ -22,3 +22,4 @@
   zinc:sf-symbols          macos                              Apple's SF Symbols as runtime images, white to be tinted (macOS)
   zinc:lastfm              macos,linux,windows,android,ios,rpi1 Last.fm scrobbling: counts what was really heard, a saved outbox with retries, signed API calls; written in Zinc on fetch and zinc:fs
   zinc:fleet               macos,linux,windows,android,ios,rpi1 A clock shared by several machines over UDP, so they can act at the same moment; written in Zinc on zinc:socket
+  zinc:wifi                macos,linux,rpi1                   Wi-Fi discovery, scans and temporary connections through NetworkManager on Linux
